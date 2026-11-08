@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, dataToResults, lowContrast, onStep, openAsset, openBuild, openUi, startMvp, until } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, lowContrast, onStep, openAsset, openBuild, openUi, startMvp, until, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -44,9 +44,8 @@ test('the Results step offers the use case\u2019s own KPIs with Let Inspire pick
     const ui = await openUi('wizard', { me: ME, useCase: withKpis(KPIS) });
     const { page, made } = ui;
     try {
-      await onStep(page, 'Choose');
-      await next(page);
-      await onStep(page, 'Data');
+      await onStep(page, 'Delivery consumption');
+      await goToStep(page, 'Data');
       await dataToResults(page);
       const box = page.getByRole('group', { name: 'Target KPI', exact: true });
       await box.waitFor();
@@ -71,9 +70,8 @@ test('the picker shows the KPI the built version tracks, its unit and how record
   const ui = await openUi('wizard', { me: ME, useCase: withKpis(KPIS), history: [builtWith(TRACKED)] });
   const { page } = ui;
   try {
-    await onStep(page, 'Choose');
-    await next(page);
-    await onStep(page, 'Data');
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
     await dataToResults(page);
     const box = page.getByRole('group', { name: 'Target KPI', exact: true });
     assert.equal(await box.locator('[data-kpi-tracked]').textContent(),
@@ -89,9 +87,8 @@ test('the picker shows the KPI the built version tracks, its unit and how record
   }
   const none = await openUi('wizard', { me: ME, useCase: withKpis([]) });
   try {
-    await onStep(none.page, 'Choose');
-    await next(none.page);
-    await onStep(none.page, 'Data');
+    await onStep(none.page, 'Delivery consumption');
+    await goToStep(none.page, 'Data');
     await dataToResults(none.page);
     assert.deepEqual(await picker(none.page).locator('option').allTextContents(), ['Let Inspire pick']);
     await none.page.getByText('This use case has no Inspire KPI yet, so Inspire evaluates the best KPIs for it from its tables when it builds. After the build you can pick one of them here.').waitFor();

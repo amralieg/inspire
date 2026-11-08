@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { REMOVE_TABLE, pickedTable } from '../../src/lib/implementWizard.js';
 import { OWNER, built, builtSpec } from './implementFixtures.js';
 import { createRequire } from 'node:module';
-import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, until, goToStep } from './uiSupport.mjs';
 
 const { NO_PERSON_TOKEN } = createRequire(import.meta.url)('../../../backend/lib/routePolicy.js');
 
@@ -213,9 +213,8 @@ test('similar tables come from the person\u2019s own sign-in: a table only the A
   ui = await openUi('wizard', appOnly);
   try {
     const { page } = ui;
-    await onStep(page, 'Choose');
-    await page.getByRole('button', { name: 'Next' }).click();
-    await onStep(page, 'Data');
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
     await page.getByRole('alert').getByText(NO_PERSON_TOKEN, { exact: true }).waitFor({ timeout: 15000 });
     assert.equal(ui.made.sqlCalls.filter((c) => /information_schema\.columns/.test(String(c.sql))).length, 0, 'the column picker reads nothing as the App');
     await page.locator('[data-table="main.s.orders"]').getByRole('button', { name: 'Change', exact: true }).click();

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { closeBrowser, expandBuild, onStep, openAsset, openUi, toAppAccess } from './uiSupport.mjs';
+import { closeBrowser, expandBuild, onStep, openAsset, openUi, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -40,17 +40,12 @@ test('a build whose App ended with an info note only reads Ready and green, with
 });
 
 test('App look turns the trend chart off with one line when the input tables carry no date, and keeps it when they do', async () => {
-  const next = (page) => page.getByRole('button', { name: 'Next' }).click();
   const open = async (columns) => {
     const ui = await openUi('wizard', { me: { userName: 'owner@example.com', displayName: 'Owner' }, columns });
     const { page } = ui;
-    for (const [step, go] of [['Choose', true], ['Data', true], ['First run', true], ['Results', true], ['Delivery', false]]) {
-      await onStep(page, step);
-      if (go) await next(page);
-    }
-    await toAppAccess(page);
-    await next(page);
-    await onStep(page, 'App look');
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'App access');
+    await goToStep(page, 'App look');
     const look = page.getByRole('region', { name: 'App look' });
     await look.getByRole('tablist', { name: 'App look sections' }).getByRole('tab', { name: 'Charts', exact: true }).click();
     return { ui, look };
@@ -92,14 +87,9 @@ test('a business with an App for all its use cases joins it, cannot create a sec
   const { page } = ui;
   const next = () => page.getByRole('button', { name: 'Next' }).click();
   try {
-    for (const step of ['Choose', 'Data', 'First run', 'Results']) {
-      await onStep(page, step);
-      await next();
-    }
-    await onStep(page, 'Delivery');
+    await onStep(page, 'Delivery consumption');
     await page.getByRole('checkbox', { name: /^App / }).check();
-    await next();
-    await onStep(page, 'App placement');
+    await goToStep(page, 'App placement');
     const place = page.getByRole('region', { name: 'App placement' });
     const hub = place.locator('[data-app-target="inspire-hub-acme"] input[type="radio"]');
     await hub.waitFor();

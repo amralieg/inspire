@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER } from './implementFixtures.js';
-import { closeBrowser, onStep, openAdvanced, openUi, startMvp, until } from './uiSupport.mjs';
+import { closeBrowser, goToStep, onStep, openAdvanced, openUi, startMvp, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -19,11 +19,8 @@ test('the wizard sends the Inspire address for every App placement, so each App 
     });
     const { page, made } = ui;
     try {
-      await onStep(page, 'Choose');
-      for (const step of ['Data', 'First run', 'Results', 'Delivery', 'App placement']) {
-        await page.getByRole('button', { name: 'Next' }).click();
-        await onStep(page, step);
-      }
+      await onStep(page, 'Delivery consumption');
+      await goToStep(page, 'App placement');
       await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
       await page.getByRole('radio', { name: label }).check();
       if (id === 'inspire') {
@@ -43,21 +40,18 @@ test('the wizard sends the Inspire address for every App placement, so each App 
 });
 
 test('the wizard sends the Inspire address for a dashboard with no App, and none when there is neither a dashboard nor an App', async () => {
-  for (const [untick, expected] of [[[/^App /], [false, true, 'https://inspire.example.com']], [[/^App /, /^Dashboard/], [false, false, '']]]) {
+  for (const [tick, expected] of [[[/^Dashboard/], [false, true, 'https://inspire.example.com']], [[], [false, false, '']]]) {
     const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } }, '', {
       init: (page) => page.setExtraHTTPHeaders({ 'x-forwarded-host': 'inspire.example.com' }),
     });
     const { page, made } = ui;
-    const what = untick.map(String).join(' ');
+    const what = tick.map(String).join(' ') || 'nothing';
     try {
-      await onStep(page, 'Choose');
-      for (const step of ['Data', 'First run', 'Results', 'Delivery']) {
-        await page.getByRole('button', { name: 'Next' }).click();
-        await onStep(page, step);
-      }
-      for (const name of untick) await page.getByRole('checkbox', { name }).uncheck();
+      await onStep(page, 'Delivery consumption');
+      await page.getByRole('checkbox', { name: /^App / }).uncheck();
+      for (const name of tick) await page.getByRole('checkbox', { name }).check();
       await startMvp(page);
-      await until(() => made.jobs.length === 1, `the build without ${what}`, 20000);
+      await until(() => made.jobs.length === 1, `the build with the App off and ${what} ticked`, 20000);
       const [sent] = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
         .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
       assert.deepEqual([sent.outputs.app, sent.outputs.dashboard, sent.outputs.inspire_url], expected, what);

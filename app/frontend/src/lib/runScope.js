@@ -9,8 +9,9 @@ export const SCOPE_SETTINGS = [GROUP_BY, RUN_SCOPE, SCOPE_GROUPS, SCOPE_DAYS, SC
 export const SCOPE_SAVE_ORDER = [GROUP_BY, SCOPE_GROUPS, SCOPE_DAYS, SCOPE_RECORDS, RUN_SCOPE];
 export const GROUPING_SETTINGS = [GROUP_BY];
 export const FIRST_RUN_SETTINGS = [RUN_SCOPE, SCOPE_GROUPS, SCOPE_DAYS, SCOPE_RECORDS];
+export const FIRST_RUN_LABEL = 'MVP Test Run';
 export const SCOPE_LABELS = {
-  [GROUP_BY]: 'Data groups', [RUN_SCOPE]: 'First run', [SCOPE_GROUPS]: 'Groups to run on', [SCOPE_DAYS]: 'Days to run on', [SCOPE_RECORDS]: 'Records to run on',
+  [GROUP_BY]: 'Data groups', [RUN_SCOPE]: FIRST_RUN_LABEL, [SCOPE_GROUPS]: 'Groups to run on', [SCOPE_DAYS]: 'Days to run on', [SCOPE_RECORDS]: 'Records to run on',
 };
 export const GROUP_ALL = 'all';
 export const FIRST_RUN_DEFAULT = 'records';
@@ -22,7 +23,7 @@ export const CUSTOM_SQL_REFUSED = 'Inspire does not run SQL typed into Data grou
 export const RUN_SCOPE_ALLOWED = RUN_SCOPES.join(', ');
 export const SCOPE_DEFAULTS = { [SCOPE_DAYS]: '30', [SCOPE_RECORDS]: '1000' };
 export const GROUPING_TITLE = 'How is the data split into groups?';
-export const FIRST_RUN_TITLE = 'What should the first run cover?';
+export const FIRST_RUN_TITLE = `What should the ${FIRST_RUN_LABEL} cover?`;
 export const FIRST_RUN_KEEPS = 'Schedules keep this scope until someone presses Run on everything.';
 export const GROUPING_PLAIN = 'Data groups split the data the way the business looks at it, such as per region or per store. Inspire models each group on its own: '
   + 'a sales forecast for one region is not mixed with another, and what is unusual is found within its own group. Choose the whole data as one group to model it all together.';
@@ -32,13 +33,13 @@ export const GROUP_KIND_WORDS = { biggest: 'the biggest', typical: 'a typical on
 export const GROUPING_GLOBAL_LABEL = 'Whole data as one group';
 export const RUN_EVERYTHING_LABEL = 'Run on everything';
 export const GROUPING_SAVE_LABEL = 'Save Data groups';
-export const FIRST_RUN_SAVE_LABEL = 'Save First run';
+export const FIRST_RUN_SAVE_LABEL = `Save ${FIRST_RUN_LABEL}`;
 export const FIRST_RUN_ONE_LABEL = 'One group';
 export const FIRST_RUN_SEVERAL_LABEL = 'Several groups';
 export const FIRST_RUN_GROUPS_MAX_SHOWN = 50;
 export const FIRST_RUN_GROUPS_FIND_FROM = 10;
 export const FIRST_RUN_GROUPS_READING = 'Inspire is reading the groups of the Data groups you chose.';
-export const FIRST_RUN_COVERS = 'The first run covers';
+export const FIRST_RUN_COVERS = `The ${FIRST_RUN_LABEL} covers`;
 export const GROUPING_JOINED_NOTE = 'Each run reads it from that table through this join.';
 
 const isMap = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -113,10 +114,10 @@ export function runScopeSetting(setting) {
   return { ...setting, kind: 'choice', choices: [...RUN_SCOPES], many: false, allowed: RUN_SCOPE_ALLOWED, low: null, high: null, whole: false };
 }
 
-export const RUN_SCOPE_UNRECORDED = 'The earlier build did not record which first run it meant, so Inspire shows the first run it suggests for this table.';
-export const RUN_SCOPE_UNRECORDED_HIDDEN = 'The earlier build did not record which first run it meant, and Inspire could not suggest one for this table, so this build '
+export const RUN_SCOPE_UNRECORDED = `The earlier build did not record which ${FIRST_RUN_LABEL} it meant, so Inspire shows the one it suggests for this table.`;
+export const RUN_SCOPE_UNRECORDED_HIDDEN = `The earlier build did not record which ${FIRST_RUN_LABEL} it meant, and Inspire could not suggest one for this table, so this build `
   + 'runs on everything.';
-export const RUN_SCOPE_OLD_APP = 'This App was built before First run had its choices, so it cannot save one. To change First run, open Vibe/Add/Remove Features, '
+export const RUN_SCOPE_OLD_APP = `This App was built before ${FIRST_RUN_LABEL} had its choices, so it cannot save one. To change ${FIRST_RUN_LABEL}, open Vibe/Add/Remove Features, `
   + 'then Open all settings; the next build gives the App the choices.';
 const RUN_SCOPE_WORDS = [[/\b(records?|rows?)\b/, 'records', SCOPE_RECORDS], [/\bdays?\b/, 'recent', SCOPE_DAYS]];
 
@@ -294,6 +295,46 @@ export function groupingChoices(profile, settingChoices = []) {
   return list;
 }
 
+export const GROUPING_SHOWN = 6;
+export const GROUPING_UNCOUNTED = 'groups counted once picked';
+export const GROUPING_FIND = 'Find a column';
+export const GROUPING_MORE = 'How groups work';
+
+export function groupingCount(choice, profile) {
+  const columns = Array.isArray(choice?.columns) ? choice.columns : [];
+  if (!columns.length) return 1;
+  if (columns.length === 1) {
+    const found = (Array.isArray(profile?.columns) ? profile.columns : []).filter(isMap).find((c) => text(c.name).toLowerCase() === columns[0].toLowerCase());
+    if (finite(found?.distinct) != null) return found.distinct;
+  }
+  const listed = groupingGroupsOf(profile, columns.join(', '));
+  return Array.isArray(listed) && listed.length ? listed.length : null;
+}
+
+export function groupingCountText(count) {
+  return count == null ? GROUPING_UNCOUNTED : counted(count, 'group');
+}
+
+export function groupingBest(profile, choices = groupingChoices(profile)) {
+  const best = groupingDefault(profile);
+  return choices.find((c) => sameGrouping(c.value, best)) || choices[0] || null;
+}
+
+export function groupingLead(profile, choices = groupingChoices(profile)) {
+  const best = groupingBest(profile, choices);
+  if (!best || !best.columns.length) return null;
+  return { label: best.label, groups: groupingCount(best, profile) };
+}
+
+export function topShown(items, { keep = () => false, limit = GROUPING_SHOWN, open = false, query = '', textOf = String } = {}) {
+  const list = Array.isArray(items) ? items : [];
+  const needle = text(query).toLowerCase();
+  if (open) return list.filter((item) => !needle || keep(item) || textOf(item).toLowerCase().includes(needle));
+  const kept = list.filter(keep);
+  const extra = list.filter((item) => !kept.includes(item)).slice(0, Math.max(0, limit - kept.length));
+  return list.filter((item) => kept.includes(item) || extra.includes(item));
+}
+
 export function groupingReasonText(profile) {
   return isMap(profile) && profile.applies === true ? text(profile.reason) : '';
 }
@@ -370,7 +411,7 @@ export function recordGroups(profile, values) {
   return wholeGroups(profile.group_sizes, values?.[SCOPE_RECORDS]);
 }
 
-export const GROUPS_FROM_EARLIER = 'Data groups is the whole data as one group, so these groups come from an earlier choice; change them below or pick another first run.';
+export const GROUPS_FROM_EARLIER = `Data groups is the whole data as one group, so these groups come from an earlier choice; change them below or pick another ${FIRST_RUN_LABEL}.`;
 
 export function groupsPickedByRunText(values) {
   const finest = groupByColumns(values?.[GROUP_BY]).pop();
@@ -388,14 +429,14 @@ export function recordGroupsText(profile, values) {
   }
   if (!picked) return `The first ${counted(goal, 'record')}`;
   if (!picked.length) {
-    return `The first ${counted(goal, 'record')}; this technique reads records together and no column groups them, so a group may be cut in this first run`;
+    return `The first ${counted(goal, 'record')}; this technique reads records together and no column groups them, so a group may be cut in this ${FIRST_RUN_LABEL}`;
   }
   const column = finestGroupColumn(profile);
   const total = picked.reduce((sum, g) => sum + g.records, 0);
   const lead = picked.length === 1 && total > goal
     ? `${counted(total, 'record')} in the smallest whole group, since every group of ${column || 'the grouping'} holds more than ${counted(goal, 'record')}, so no group is cut: `
     : total > goal
-      ? `${counted(total, 'record')}, in ${counted(picked.length, 'whole group')}, so the first run sees more than one group and no group is cut: `
+      ? `${counted(total, 'record')}, in ${counted(picked.length, 'whole group')}, so the ${FIRST_RUN_LABEL} sees more than one group and no group is cut: `
       : `About ${counted(goal, 'record')}, in ${counted(picked.length, 'whole group')} so no group is cut: `;
   return lead + picked.map((g) => `${column ? `${column} = ` : ''}${g.value}, ${counted(g.records, 'record')}`).join('; ');
 }
@@ -418,7 +459,7 @@ export function everythingEstimate(everything, total, first) {
   const size = whole(first) || Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
   if (total == null || total <= size) return '';
   const scale = Math.round(total / size);
-  const lead = `Everything is ${counted(total, 'record')}, about ${scale.toLocaleString('en-US')} times a ${size.toLocaleString('en-US')}-record first run`;
+  const lead = `Everything is ${counted(total, 'record')}, about ${scale.toLocaleString('en-US')} times a ${size.toLocaleString('en-US')}-record ${FIRST_RUN_LABEL}`;
   if (total / size > SCOPE_ESTIMATE_MAX_SCALE) return `${lead}; how long it takes is unknown until a larger run is measured`;
   return `${lead}, so it takes up to about ${scale.toLocaleString('en-US')} times as long`;
 }
@@ -547,13 +588,13 @@ export function scopeText(values, profile = null) {
   const scope = text(values?.[RUN_SCOPE]) || GROUP_ALL;
   if (scope === 'groups') {
     const picked = scopeGroupsOf(values?.[SCOPE_GROUPS], scopeGroupsColumn(profile, values));
-    return picked.length ? `First run: ${counted(picked.length, 'group')} (${picked.map(scopeGroupText).join(picked.some((g) => g.length > 1) ? '; ' : ', ')})` : 'First run: the largest groups';
+    return picked.length ? `${FIRST_RUN_LABEL}: ${counted(picked.length, 'group')} (${picked.map(scopeGroupText).join(picked.some((g) => g.length > 1) ? '; ' : ', ')})` : `${FIRST_RUN_LABEL}: the largest groups`;
   }
-  if (scope === 'recent') return `First run: the last ${counted(whole(values?.[SCOPE_DAYS]) ?? Number(SCOPE_DEFAULTS[SCOPE_DAYS]), 'day')}`;
+  if (scope === 'recent') return `${FIRST_RUN_LABEL}: the last ${counted(whole(values?.[SCOPE_DAYS]) ?? Number(SCOPE_DEFAULTS[SCOPE_DAYS]), 'day')}`;
   if (scope === 'records') {
     const goal = counted(whole(values?.[SCOPE_RECORDS]) ?? Number(SCOPE_DEFAULTS[SCOPE_RECORDS]), 'record');
-    return isMap(profile) ? `First run: ${recordGroupsText(profile, values)}`
-      : `First run: about ${goal}, in whole groups when the technique reads records together`;
+    return isMap(profile) ? `${FIRST_RUN_LABEL}: ${recordGroupsText(profile, values)}`
+      : `${FIRST_RUN_LABEL}: about ${goal}, in whole groups when the technique reads records together`;
   }
   return SCOPE_ALL_TEXT;
 }
@@ -563,7 +604,7 @@ export function profileHeldText(profile) {
   const table = text(profile?.table);
   if (records == null || !table) return '';
   const goal = Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
-  if (records === 0) return `${table} holds no records yet, so a first run has nothing to read until data arrives.`;
-  if (records <= goal) return `${table} holds ${counted(records, 'record')}, so the first run covers all of it.`;
-  return `${table} holds ${counted(records, 'record')}, so Inspire suggests a smaller first run to show results sooner.`;
+  if (records === 0) return `${table} holds no records yet, so an ${FIRST_RUN_LABEL} has nothing to read until data arrives.`;
+  if (records <= goal) return `${table} holds ${counted(records, 'record')}, so the ${FIRST_RUN_LABEL} covers all of it.`;
+  return `${table} holds ${counted(records, 'record')}, so Inspire suggests a smaller ${FIRST_RUN_LABEL} to show results sooner.`;
 }

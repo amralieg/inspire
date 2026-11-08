@@ -11,7 +11,7 @@ test('the Choose step says in plain words what each choice does to an MVP that a
   const ui = await openUi('wizard', { me: ME, history: [built()] });
   const { page, pageErrors } = ui;
   try {
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     const note = page.locator('[data-editing-note]');
     await note.waitFor({ timeout: 15000 });
     const said = (await note.innerText()).trim();
@@ -33,7 +33,7 @@ test('a use case with no MVP yet shows no note about an existing one (must-exclu
     const context = await loaded;
     assert.equal(context.status(), 200);
     assert.equal((await context.json()).latest ?? null, null, 'the use case has no MVP yet');
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     await page.locator('input[name="implement-mode"][value="mvp"]:checked').waitFor({ timeout: 15000 });
     assert.equal(await page.locator('[data-editing-note]').count(), 0);
     assert.deepEqual(pageErrors, []);

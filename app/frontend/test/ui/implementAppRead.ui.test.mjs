@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_READ_ACTION, NEW_APPS_ACCESS_ACTION } from '../../src/lib/implementWizard.js';
-import { closeBrowser, dataToResults, onStep, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, onStep, openUi, until, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -54,7 +54,7 @@ test('Let Inspire read these tables runs the exact grants with the person sign-i
   const ui = await openUi('wizard', state);
   const { page } = ui;
   try {
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     const panel = panelOf(page);
     await panel.waitFor({ timeout: 15000 });
     const reason = await panel.locator('p').first().textContent();
@@ -137,12 +137,12 @@ test('the App tile offers to let new Apps use the result table catalog, grants w
   const { page } = ui;
   const CATALOG_GRANT = 'GRANT USE CATALOG ON CATALOG `main` TO `account users`';
   try {
-    await onStep(page, 'Choose');
-    await page.getByRole('button', { name: 'Next' }).click();
-    await onStep(page, 'Data');
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
     await dataToResults(page);
     await page.getByRole('button', { name: 'Next' }).click();
-    await onStep(page, 'Delivery');
+    await page.locator('[aria-current="step"]', { hasText: 'Results' }).waitFor({ state: 'detached' });
+    await goToStep(page, 'Delivery');
     const tile = page.locator('[data-output="app"]');
     await tile.getByText(/^Inspire cannot create this App: /).waitFor({ timeout: 15000 });
     assert.deepEqual(await tile.getByRole('list', { name: 'Grant Inspire can run for new Apps' }).locator('li').allTextContents(), [CATALOG_GRANT]);

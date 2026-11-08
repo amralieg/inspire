@@ -9,8 +9,10 @@ import {
   SCOPE_GROUPS, SCOPE_LABELS, SCOPE_RECORDS, deepGrouping, firstRunChoiceOf, firstRunChoices, firstRunCoversText, groupByColumns, groupingChoices, groupingExampleText,
   groupingGroupsOf, groupingMovesUpText, groupingProfiled, groupingReasonText, groupsPickedByRunText, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   profileHeldText, sameGrouping, scopeChanges, scopeGroupKey, scopeGroupText, scopeGroupsColumn, scopeGroupsOf, scopeGroupsValue, scopeProblems, scopeValues,
-  suggestedGroups, withScopeDefaults,
+  suggestedGroups, withScopeDefaults, FIRST_RUN_LABEL, GROUPING_FIND, GROUPING_MORE, groupingCount, groupingCountText, groupingLead, topShown,
 } from '../lib/runScope';
+import { bestFirstRun, bestGrouping, isBest } from '../lib/highlyRecommended';
+import HighlyRecommended from './HighlyRecommended';
 
 const ROW = 'flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] text-text-primary';
 const NUMBER = 'w-24 px-2 py-1 text-[12px] border border-border rounded-md bg-surface text-text-primary';
@@ -51,45 +53,100 @@ function GroupingPart({ values, onChange, profile, settings, editable, chosenBy 
     const next = columns.map((c) => String(c.name)).filter((n) => (n === name ? on : ticked.includes(n.toLowerCase())));
     onChange(GROUP_BY, next.length ? next.join(', ') : GROUP_ALL);
   };
+  const best = bestGrouping(profile, choices);
+  const lead = groupingLead(profile, choices);
+  const [cards, setCards] = useState({ open: false, find: '' });
+  const [combine, setCombine] = useState({ open: false, find: '' });
+  const keepCard = (c) => !c.columns.length || pickedOf(c) || isBest(best, c.value) || Boolean(c.deep);
+  const shownCards = topShown(choices, { keep: keepCard, open: cards.open, query: cards.find, textOf: (c) => c.label });
+  const keepColumn = (c) => ticked.includes(String(c.name).toLowerCase());
+  const shownColumns = topShown(columns, { keep: keepColumn, open: combine.open, query: combine.find, textOf: (c) => String(c.name) });
   return (
     <fieldset aria-label={SCOPE_LABELS[GROUP_BY]} data-scope-part="grouping" className="min-w-0 space-y-2">
       <legend className="text-[12px] font-semibold text-text-primary">{SCOPE_LABELS[GROUP_BY]}</legend>
-      <p data-grouping-why="" className={NOTE}>{GROUPING_PLAIN}</p>
-      {reason && <p data-grouping-reason="" className="text-[12px] text-text-primary">{reason}</p>}
-      {example && <p data-grouping-example="" className={NOTE}>{example}</p>}
-      {moves && <p data-grouping-moves="" className={NOTE}>{moves}</p>}
-      {level && <p data-grouping-record-level="" className={NOTE}>Discovery found one record per {level} in {profile?.table || 'the main table'}.</p>}
-      {chosenBy === 'deep' && <p data-grouping-chosen-by="deep" className={NOTE}>{GROUPING_DEEP_PICKED}</p>}
-      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2">
-        {choices.map((c) => (
-          <label key={c.value} data-grouping-choice={c.value} data-grouping-joined={c.note ? '' : undefined} className={`${ROW} ${editable ? 'cursor-pointer' : ''}`}>
+      {lead ? (
+        <p data-grouping-lead="" className="text-[12px] text-text-primary">
+          <strong>{lead.label}</strong> splits the data into <strong>{groupingCountText(lead.groups)}</strong>. Inspire models each group on its own.
+        </p>
+      ) : reason && <p data-grouping-reason="" className="text-[12px] text-text-primary">{reason}</p>}
+      <details data-grouping-more="" className={NOTE}>
+        <summary className="cursor-pointer select-none font-medium text-text-secondary">{GROUPING_MORE}</summary>
+        <div className="mt-1 space-y-1">
+          <p data-grouping-why="">{GROUPING_PLAIN}</p>
+          {lead && reason && <p data-grouping-reason="">{reason}</p>}
+          {example && <p data-grouping-example="">{example}</p>}
+          {moves && <p data-grouping-moves="">{moves}</p>}
+          {level && <p data-grouping-record-level="">Discovery found one record per {level} in {profile?.table || 'the main table'}.</p>}
+          {chosenBy === 'deep' && <p data-grouping-chosen-by="deep">{GROUPING_DEEP_PICKED}</p>}
+        </div>
+      </details>
+      <div className="grid grid-cols-1 gap-1.5 sm:grid-cols-2" data-grouping-cards="">
+        {shownCards.map((c) => (
+          <label key={c.value} data-grouping-choice={c.value} data-grouping-joined={c.note ? '' : undefined}
+            className={`${ROW} ${editable ? 'cursor-pointer' : ''} ${pickedOf(c) ? 'border-db-red bg-db-red-50' : ''}`}>
             <input type="radio" name="inspire-grouping" className="mt-0.5" checked={pickedOf(c)} disabled={!editable}
               onChange={() => onChange(GROUP_BY, c.value)}
               onClick={() => { if (chosenBy === 'deep' && c.deep && pickedOf(c)) onChange(GROUP_BY, c.value); }} />
-            <span className="min-w-0">
-              <span className="font-medium">{c.label}</span>
-              {c.deep && <span data-grouping-deep="" className="text-text-secondary"> · {GROUPING_DEEP_MARK}</span>}
-              {c.recommended && <span data-grouping-recommended="" className="text-text-secondary"> · Recommended</span>}
+            <span className="min-w-0 flex-1 space-y-0.5">
+              <span className="flex flex-wrap items-baseline justify-between gap-x-2">
+                <span className="font-medium break-words">{c.label}</span>
+                <span data-grouping-count="" className="shrink-0 text-[11px] text-text-secondary">{groupingCountText(groupingCount(c, profile))}</span>
+              </span>
+              {c.deep && <span data-grouping-deep="" className="block text-[11px] text-text-secondary">{GROUPING_DEEP_MARK}</span>}
+              <HighlyRecommended best={best} id={c.value} />
               {c.note && <span data-grouping-join-note="" className="block text-[11px] text-text-secondary">{c.note}</span>}
             </span>
           </label>
         ))}
       </div>
+      <ShowAll state={cards} total={choices.filter((c) => c.columns.length === 1).length} hidden={choices.length - topShown(choices, { keep: keepCard }).length}
+        onChange={setCards} name="grouping" />
       {columns.length > 1 && (
         <div role="group" aria-label={GROUPING_COMBINE} data-grouping-combine="" className="space-y-1">
           <p className="text-[12px] font-medium text-text-primary">{GROUPING_COMBINE}</p>
           <p className={NOTE}>{GROUPING_COMBINE_NOTE}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
-            {columns.map((c) => (
+            {shownColumns.map((c) => (
               <label key={c.name} data-grouping-combine-column={c.name} className="flex items-center gap-1.5 text-[12px] text-text-primary">
-                <input type="checkbox" disabled={!editable} checked={ticked.includes(String(c.name).toLowerCase())} onChange={(e) => tick(String(c.name), e.target.checked)} />
+                <input type="checkbox" disabled={!editable} checked={keepColumn(c)} onChange={(e) => tick(String(c.name), e.target.checked)} />
                 <span>{c.name}{c.distinct != null ? ` · ${counted(c.distinct, 'group')}` : ''}</span>
               </label>
             ))}
           </div>
+          <ShowAll state={combine} total={columns.length} hidden={columns.length - topShown(columns, { keep: keepColumn }).length} onChange={setCombine} name="combine" />
         </div>
       )}
     </fieldset>
+  );
+}
+
+function ShowAll({ state, total, hidden, onChange, name }) {
+  if (!state.open) {
+    if (hidden <= 0) return null;
+    return (
+      <button type="button" data-show-all={name} className="text-[11px] font-medium text-db-red-fg glow-focus" onClick={() => onChange({ open: true, find: '' })}>
+        Show all {counted(total, 'column')}
+      </button>
+    );
+  }
+  return (
+    <div data-show-all-open={name} className="flex flex-wrap items-center gap-2">
+      <input dir="auto" type="search" aria-label={name === 'combine' ? `${GROUPING_FIND} to combine` : GROUPING_FIND}
+        placeholder={`${GROUPING_FIND} of ${counted(total, 'column')}`} className={`${NUMBER} w-64`} value={state.find}
+        onChange={(e) => onChange({ open: true, find: e.target.value })} />
+      <button type="button" className="text-[11px] font-medium text-db-red-fg glow-focus" onClick={() => onChange({ open: false, find: '' })}>Show fewer</button>
+    </div>
+  );
+}
+
+export function GroupingChosen({ values, profile }) {
+  const current = values?.[GROUP_BY] || GROUP_ALL;
+  const columns = groupByColumns(current).filter((c) => c.toLowerCase() !== GROUP_ALL);
+  const choice = groupingChoices(profile).find((c) => sameGrouping(c.value, current)) || { value: current, label: columns.join(', then '), columns };
+  return (
+    <p data-grouping-chosen="" className="rounded-lg border border-db-red/40 bg-db-red-50 px-3 py-2 text-[12px] text-text-primary">
+      Data groups: <strong>{choice.label}</strong> · {groupingCountText(groupingCount(choice, profile))}. The {FIRST_RUN_LABEL} runs inside these groups.
+    </p>
   );
 }
 
@@ -145,6 +202,7 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
     if (c.id === 'one' && picked.length !== 1) onChange(SCOPE_GROUPS, scopeGroupsValue([(picked.length ? { parts: picked[0] } : groups[0]).parts]));
     if (c.id === 'groups' && !picked.length) onChange(SCOPE_GROUPS, scopeGroupsValue((suggested.length ? suggested : groups.slice(0, 3)).map((g) => g.parts)));
   };
+  const best = bestFirstRun(profile, choices);
   const covers = firstRunCoversText(profile, values, everything);
   const held = profileHeldText(profile);
   return (
@@ -165,6 +223,7 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
                 <span className="font-medium">{c.label}</span>
                 {c.records != null && <span data-first-run-records="" className="text-text-secondary"> · {counted(c.records, 'record')}</span>}
                 {c.estimate && <span data-first-run-estimate="" className="block text-[11px] text-text-secondary">{c.estimate}</span>}
+                <span className="block"><HighlyRecommended best={best} id={c.id} /></span>
               </span>
             </label>
             {current === c.id && c.scope === 'groups' && (groups.length ? (

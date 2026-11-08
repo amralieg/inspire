@@ -201,7 +201,22 @@ import {
   withoutMissingRoles,
   uncountedReadiness,
   outputUncheckedText,
+  DELIVERY_LABEL,
+  DELIVERY_QUESTION,
+  BUILD_IT_LABEL,
+  BACK_TO_SUMMARY,
+  SUMMARY_STEP,
+  nextStepAfter,
+  APP_LOOK_DEFAULT,
 } from '../lib/implementWizard';
+import {
+  bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPlace, bestAppPolicy, bestFreshness, bestHoldout, bestKpi, bestLook, bestMode, bestOutput, bestReplaceEdits, isBest,
+  bestResultTable,
+} from '../lib/highlyRecommended';
+import HighlyRecommended, { BestOf } from '../components/HighlyRecommended';
+import { counted } from '../lib/plural';
+import { personalColumn } from '../lib/personalColumns';
+import { PLACE_RIGHTS, placeNameProblem } from '../lib/tableName';
 import { ClearsChoice, DigestChoice, RowSubjectCheck, TeamCapacity } from '../components/WizardStickParts';
 import { placeholderWords } from '../lib/placeholderWords';
 import {
@@ -213,13 +228,13 @@ import {
   isSettingWidget, settingGroupTitle, settingIssue, settingUnitLabel, settingValue, settingsModelOf, settingsNoteOf, settingsNoteProblem, widgetSetProblems,
   withSetting, withSettingsNote,
 } from '../lib/useCaseSettings';
-import ScopeSettings from '../components/ScopeSettings';
+import ScopeSettings, { GroupingChosen } from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, useScopeProfiles } from '../lib/groupingProfile';
 import {
   FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
-  withGroupingDefault, withScopeDefaults, GROUP_BY,
+  withGroupingDefault, withScopeDefaults, GROUP_BY, FIRST_RUN_LABEL, groupingChoices, groupingCount, groupingCountText, sameGrouping, scopeText,
 } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
@@ -353,13 +368,15 @@ export default function ImplementWizard({
   const inspireDatabase = settings.inspireDatabase;
   const [mode, setMode] = useState('mvp');
   const [step, setStep] = useState(() => initialStepId(focus));
+  const [backToSummary, setBackToSummary] = useState(false);
+  const [visited, setVisited] = useState([]);
   const [spec, setSpec] = useState(() => defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessionId }));
   const [context, setContext] = useState(null);
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState([]);
   const [attempted, setAttempted] = useState({ data: false, delivery: false });
   const [checking, setChecking] = useState('');
-  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false });
+  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
   const [columnsByTable, setColumnsByTable] = useState({});
   const [tagNotes, setTagNotes] = useState({});
@@ -427,7 +444,7 @@ export default function ImplementWizard({
     && !(isFirstRunSetting(s) && scope.firstRun)), [everySetting]);
   const profileRead = scopeProfile.state === 'ready';
   const settingsList = useMemo(() => settingsFor(scopeSteps, profileRead), [settingsFor, scopeSteps.grouping, scopeSteps.firstRun, profileRead]); // eslint-disable-line react-hooks/exhaustive-deps
-  const steps = wizardSteps(mode, spec, settingsList, scopeSteps);
+  const steps = wizardSteps(mode, spec, scopeSteps);
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
   const lastStep = stepIndex === steps.length - 1;
@@ -496,7 +513,7 @@ export default function ImplementWizard({
         if (!next.config.warehouse_id) next.config.warehouse_id = warehouseId;
         setSpec(next);
         setMissingTables(missing);
-        if (['review', 'vibes', 'settings'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next, contextSettings(data, next)));
+        if (['review', 'summary', 'vibes', 'settings'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
         const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
         const chosenOf = (t) => ((next.data.removed_tables || []).some((r) => same(r, t)) ? ''
           : next.data.tables[Object.keys(next.data.tables).find((k) => same(k, t))] || t);
@@ -549,6 +566,8 @@ export default function ImplementWizard({
 
   useEffect(() => {
     bodyRef.current?.scrollTo?.(0, 0);
+    setVisited((prev) => (prev.includes(step) ? prev : [...prev, step]));
+    if (step === SUMMARY_STEP.id) setBackToSummary(false);
   }, [step]);
 
   useEffect(() => {
@@ -630,7 +649,7 @@ export default function ImplementWizard({
 
   const goNext = async () => {
     setErrors([]);
-    if (stepId === 'choose' || mode === 'notebook') {
+    if (mode === 'notebook') {
       setStep(steps[stepIndex + 1].id);
       return;
     }
@@ -680,10 +699,10 @@ export default function ImplementWizard({
         setChecking(PROFILE_WAITING);
         const done = await scopeProfile.wait();
         const doneSteps = scopeStepsOf(done.state, done.profile, builtFirstRun);
-        list = wizardSteps(mode, spec, settingsFor(doneSteps, done.state === 'ready'), doneSteps);
+        list = wizardSteps(mode, spec, doneSteps);
         profile = done.profile;
       }
-      const next = list[stepIndexOf(list, stepId) + 1];
+      const next = list[stepIndexOf(list, nextStepAfter(list, stepId, { backToSummary, visited }))];
       if (next.id === 'grouping' && !context?.latest && !groupingDefaulted.current) {
         groupingDefaulted.current = true;
         setSpec((prev) => withProfileDefaults(prev, profile, withGroupingDefault));
@@ -875,6 +894,15 @@ export default function ImplementWizard({
     return () => { cancelled = true; };
   }, [stepId, resultParts.catalog, schemas, catalogsError, apiFetch, warehouseId]);
 
+  const createPlace = async (kind, name) => {
+    const catalog = kind === 'catalog' ? name : resultParts.catalog;
+    await apiPostJson(`/api/inspire/implement/create-schema?${q}`, kind === 'catalog' ? { catalog } : { catalog, schema: name });
+    if (kind === 'catalog') setCatalogs((prev) => [...new Set([...(prev || []), name])].sort((a, b) => a.localeCompare(b)));
+    else setSchemas((prev) => (prev[catalog] ? { ...prev, [catalog]: { ...prev[catalog], names: [...new Set([...(prev[catalog].names || []), name])] } } : prev));
+    setSpec((prev) => withResultTable(prev, { ...resultTableParts(prev.config.result_table), catalog, schema: kind === 'catalog' ? '' : name }));
+    setOutputCheck(null);
+  };
+
   const submit = async () => {
     setErrors([]);
     if (blockedBy(stepId)) return;
@@ -981,10 +1009,14 @@ export default function ImplementWizard({
   const checkEntries = Object.entries(preflight?.checks || {});
   const generalChecks = checkEntries.filter(([k]) => !TILE_CHECK_KEYS.includes(k));
   const freshness = freshnessOf(spec.schedule);
-  const checkStepOf = (k) => (CHOOSE_CHECKS.includes(k) ? 'choose' : PLACE_CHECKS.includes(k) ? 'app_place' : ACCESS_CHECKS.includes(k) ? 'app_access' : 'delivery');
-  const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || 'Delivery';
+  const checkStepOf = (k) => {
+    if (PLACE_CHECKS.includes(k)) return 'app_place';
+    if (ACCESS_CHECKS.includes(k)) return 'app_access';
+    return CHOOSE_CHECKS.includes(k) || TILE_CHECK_KEYS.includes(k) ? 'delivery' : SUMMARY_STEP.id;
+  };
+  const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || SUMMARY_STEP.label;
   const deliveryChecks = buildStep
-    ? checkEntries.filter(([k, v]) => !v.ok && checkStepOf(k) !== stepId)
+    ? checkEntries.filter(([k, v]) => !v.ok && checkStepOf(k) !== stepId && (lastStep || steps.findIndex((s) => s.id === checkStepOf(k)) < stepIndex))
       .map(([k, v]) => `${PREFLIGHT_LABELS[k] || k.replace(/_/g, ' ')}: ${v.detail} (fix it on ${checkStepLabel(k)})`)
     : [];
   const earlierGaps = buildStep && lastStep
@@ -1001,6 +1033,35 @@ export default function ImplementWizard({
   const implementBlocked = busy || checksBusy || !placeSettled || Boolean(plan?.unchanged)
     || (!ownErrors.length && (!preflight || !preflight.ok || !plan || Boolean(planError)));
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
+  const personal = sourceTables.flatMap((t) => columnsByTable[t] || []).find((c) => personalColumn(c?.name, c?.tags))?.name || '';
+  const best = {
+    mode: bestMode({ genieOff }),
+    output: bestOutput(unavailable),
+    result: bestResultTable(defaultResultTable(inspireDatabase, spec.use_case_id, sessionId)),
+    freshness: bestFreshness(spec),
+    holdout: bestHoldout(),
+    kpi: bestKpi(kpiOptions, trackedKpi),
+    appPlace: bestAppPlace(spec, targets, placeScope),
+    heldApp: bestHeldApp(held.app || ''),
+    appPolicy: bestAppPolicy(spec, targets, placeScope),
+    appAccess: bestAppAccess({ inside: insideInspire(spec), personal }),
+    appBackend: bestAppBackend(lakebase, lakebaseBlock(spec, lakebase)),
+    appOption: bestAppOption(),
+    replaceEdits: bestReplaceEdits(),
+    style: bestLook('style', spec),
+    layout: bestLook('layout', spec),
+    theme: bestLook('theme', spec),
+    palette: bestLook('palette', spec),
+  };
+  const groupingNow = spec.config.widgets?.[GROUP_BY] || scopeShown[GROUP_BY];
+  const groupingPicked = groupingChoices(scopeProfile.profile).find((c) => sameGrouping(c.value, groupingNow));
+  const summaryRows = pickedSummary(spec, sourceTables, {
+    grouping: scopeSteps.grouping && groupingPicked ? `${groupingPicked.label} · ${groupingCountText(groupingCount(groupingPicked, scopeProfile.firstRun?.profile || scopeProfile.profile))}` : '',
+    firstRun: scopeSteps.firstRun ? scopeText(scopeShown, scopeProfile.profile).replace(`${FIRST_RUN_LABEL}: `, '') : '',
+    settings: settingsList.length ? counted(settingsList.length, 'setting') : '',
+  }).filter((row) => steps.some((s) => s.id === row.step));
+  const changeStep = (id) => { setErrors([]); setBackToSummary(true); setStep(id); };
+  const nextIsSummary = backToSummary && nextStepAfter(steps, stepId, { backToSummary, visited }) === SUMMARY_STEP.id;
 
   const pickTable = (original, value) => {
     const picked = pickedTable(spec, original, value);
@@ -1014,20 +1075,22 @@ export default function ImplementWizard({
   return (
     <Overlay title={title} uc={uc} steps={steps} step={stepIndex} onClose={onClose}>
       <div ref={bodyRef} data-wizard-body="" className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
-        {stepId === 'choose' && (
+        {stepId === 'delivery' && (
           <>
-            <section className="bg-bg border border-border rounded-lg p-4 space-y-3" aria-label="Executive summary">
-              <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
-              {(ucRow.statement || ucRow.Statement) && <p className="text-[13px] text-text-secondary">{placeholderWords(ucRow.statement || ucRow.Statement)}</p>}
-              <dl className="grid grid-cols-1 sm:grid-cols-3 gap-3 text-[12px]">
+            <section className="bg-bg border border-border rounded-lg px-4 py-2.5 space-y-1" aria-label="Executive summary">
+              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
+                <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
+                {(ucRow.statement || ucRow.Statement) && <p className="text-[12px] text-text-secondary">{placeholderWords(ucRow.statement || ucRow.Statement)}</p>}
+              </div>
+              <dl className="flex flex-wrap gap-x-5 gap-y-0.5 text-[11px]">
                 {[
                   ['Who it helps', ucRow.beneficiary || ucRow.Beneficiary],
                   ['Sponsor', ucRow.sponsor || ucRow.Sponsor],
                   ['Business value', placeholderWords(ucRow.business_value || ucRow['Business Value'])],
                 ].filter(([, val]) => val).map(([label, val]) => (
-                  <div key={label}>
-                    <dt className="text-[9px] uppercase tracking-[0.18em] font-bold text-text-tertiary">{label}</dt>
-                    <dd className="mt-0.5 text-text-secondary line-clamp-3">{val}</dd>
+                  <div key={label} className="flex min-w-0 gap-1">
+                    <dt className="shrink-0 font-semibold text-text-tertiary">{label}:</dt>
+                    <dd className="text-text-secondary line-clamp-2">{val}</dd>
                   </div>
                 ))}
               </dl>
@@ -1044,8 +1107,11 @@ export default function ImplementWizard({
                   >
                     <input type="radio" name="implement-mode" value={m.id} checked={mode === m.id} disabled={off} onChange={() => setMode(m.id)} className="mt-0.5" />
                     <span className="space-y-0.5">
-                      <span className="block text-sm font-semibold text-text-primary">{m.label}{m.id === 'mvp' ? ' (default)' : ''}</span>
-                      <span className="block text-[12px] text-text-secondary">{m.blurb}</span>
+                      <span className="flex flex-wrap items-baseline gap-x-2">
+                        <span className="text-sm font-semibold text-text-primary">{m.label}</span>
+                        <HighlyRecommended best={best.mode} id={m.id} why={false} />
+                      </span>
+                      <span className="block text-[12px] text-text-secondary">{[m.blurb, isBest(best.mode, m.id) && !genieOff ? best.mode.reason : ''].filter(Boolean).join(' ')}</span>
                     </span>
                   </label>
                   );
@@ -1284,6 +1350,7 @@ export default function ImplementWizard({
         {(stepId === 'grouping' || stepId === 'first_run') && (
           <section aria-label={stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE} data-scope-step={stepId} className="space-y-3">
             <h3 className="text-sm font-semibold text-text-primary">{stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE}</h3>
+            {stepId === 'first_run' && <GroupingChosen values={scopeShown} profile={scopeProfile.firstRun?.profile || scopeProfile.profile} />}
             <ScopeSettings part={stepId} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
               groups={stepId === 'first_run' ? scopeProfile.firstRun : null} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
               unrecorded={firstRunUnrecorded}
@@ -1294,22 +1361,12 @@ export default function ImplementWizard({
         {stepId === 'results' && (
           <>
             <ResultTableStep
-              parts={resultParts}
               table={spec.config.result_table}
               defaultTable={defaultResultTable(inspireDatabase, spec.use_case_id, sessionId)}
               outputCheck={outputCheck}
               onChange={(parts) => { setSpec((prev) => withResultTable(prev, parts)); setOutputCheck(null); }}
-            />
-            <HoldoutSetting spec={spec} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
-              <KpiTargetSetting
-                spec={spec}
-                options={kpiOptions}
-                tracked={trackedKpi}
-                before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
-                onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
-              />
-            </HoldoutSetting>
-            <Advanced open={advanced.results} onToggle={() => toggleAdvanced('results')}>
+              best={best.result}
+            >
               <ResultPlaceFields
                 parts={resultParts}
                 catalogs={catalogs}
@@ -1317,27 +1374,77 @@ export default function ImplementWizard({
                 catalogsError={catalogsError}
                 schemas={schemas[resultParts.catalog]}
                 onChange={(parts) => { setSpec((prev) => withResultTable(prev, parts)); setOutputCheck(null); }}
+                onCreate={createPlace}
               />
-              <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
-              <TeamCapacity
+            </ResultTableStep>
+            <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
+              <KpiTargetSetting
                 spec={spec}
-                suggestion={capacitySuggestion(spec, capacityInputs)}
-                inputClass={inputBase}
-                onType={(typed) => setSpec((prev) => withCapacity(prev, typed))}
-                onSuggest={() => setSpec((prev) => withSuggestedCapacity(prev, capacityInputs))}
+                best={best.kpi}
+                options={kpiOptions}
+                tracked={trackedKpi}
+                before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
+                onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
               />
+            </HoldoutSetting>
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-text-primary">Keep it fresh</h3>
+              <div role="group" aria-label="Keep it fresh" className="inline-flex rounded-lg border border-border overflow-hidden">
+                {[...FRESHNESS_OPTIONS, ...(freshness === 'custom' ? [{ id: 'custom', label: 'Custom' }] : [])].map((option) => (
+                  <button
+                    key={option.id}
+                    type="button"
+                    aria-pressed={freshness === option.id}
+                    disabled={option.id === 'custom'}
+                    onClick={() => setSpec((prev) => withFreshness(prev, option.id))}
+                    className={`px-4 py-1.5 text-xs font-medium border-e border-border last:border-e-0 ${freshness === option.id ? 'bg-db-red-solid text-white' : 'bg-surface text-text-secondary hover:text-text-primary'}`}
+                  >
+                    {option.label}
+                  </button>
+                ))}
+              </div>
+              <BestOf best={best.freshness} label={FRESHNESS_OPTIONS.find((o) => o.id === best.freshness.id)?.label} />
+              <p className="text-[11px] text-text-tertiary">
+                {freshness === 'off'
+                  ? 'Genie runs it once now. Turn this on later to refresh it on a schedule.'
+                  : `Refreshes ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first successful run. Cost: ${costHint(spec)}`}
+              </p>
+            </section>
+
+            <Advanced open={advanced.results} onToggle={() => toggleAdvanced('results')}>
+              <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
+              <div className="space-y-2">
+                <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Schedule</h4>
+                <Field label="Cron (Quartz)">
+                  <input dir="auto" className={inputCls} value={spec.schedule.cron} onChange={(e) => patch('schedule.cron', e.target.value)} />
+                  {String(spec.schedule.cron || '').trim() && cronProblem(spec.schedule.cron) ? (
+                    <p className="text-[11px] text-error-fg">Not a valid Quartz cron: {cronProblem(spec.schedule.cron)}</p>
+                  ) : (
+                    <p className="text-[11px] text-text-tertiary">Runs {cronInWords(spec.schedule.cron, spec.schedule.timezone)}{spec.schedule.enabled ? '' : ' once Keep it fresh is on'}</p>
+                  )}
+                </Field>
+                <Field label="Timezone">
+                  <input dir="auto" className={inputCls} value={spec.schedule.timezone} onChange={(e) => patch('schedule.timezone', e.target.value)} />
+                </Field>
+                <Field label="Failure emails (comma separated; default: the decision owner)">
+                  <ListInput className={inputCls} separator="," value={spec.schedule.failure_emails} onChange={(list) => patch('schedule.failure_emails', list)} />
+                </Field>
+                {trainsModel && (
+                  <div className="grid grid-cols-2 gap-2">
+                    <ProfileInput spec={spec} path="retrain.every_runs" onChange={setProfile} />
+                    <ProfileInput spec={spec} path="retrain.drift_threshold" onChange={setProfile} />
+                  </div>
+                )}
+              </div>
             </Advanced>
           </>
         )}
 
-        {stepId === 'delivery' && (
+        {stepId === 'delivery' && mode === 'mvp' && (
           <>
-            {readinessText(readiness, readiness?.scope) && (
-              <p className="text-[11px] text-text-secondary">{readinessText(readiness, readiness.scope)}</p>
-            )}
-            <section className="space-y-2">
-              <div>
-                <h3 className="text-sm font-semibold text-text-primary">How do you want to use it?</h3>
+            <section className="space-y-2" aria-label={DELIVERY_LABEL}>
+              <div className="flex flex-wrap items-baseline gap-x-2">
+                <h3 className="text-sm font-semibold text-text-primary">{DELIVERY_QUESTION}</h3>
                 <p className="text-[11px] text-text-tertiary">Pick one or more. Genie builds each one for you.</p>
               </div>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
@@ -1368,6 +1475,7 @@ export default function ImplementWizard({
                               {cannot && noAppAccess && `Inspire cannot create this App: ${outputCheck.app.detail}.${on ? ' Turn it off, or fix the access and check again.' : ''}`}
                               {cannot && !noAppAccess && (on ? 'You cannot create this in this workspace any more. Turn it off, or ask a workspace admin.' : 'You cannot create this in this workspace.')}
                             </span>
+                            <span className="block mt-1"><HighlyRecommended best={best.output} id={item.id} /></span>
                           </span>
                         </label>
                       </div>
@@ -1421,220 +1529,136 @@ export default function ImplementWizard({
               </div>
             </section>
 
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-text-primary">Keep it fresh</h3>
-              <div role="group" aria-label="Keep it fresh" className="inline-flex rounded-lg border border-border overflow-hidden">
-                {[...FRESHNESS_OPTIONS, ...(freshness === 'custom' ? [{ id: 'custom', label: 'Custom' }] : [])].map((option) => (
-                  <button
-                    key={option.id}
-                    type="button"
-                    aria-pressed={freshness === option.id}
-                    disabled={option.id === 'custom'}
-                    onClick={() => setSpec((prev) => withFreshness(prev, option.id))}
-                    className={`px-4 py-1.5 text-xs font-medium border-e border-border last:border-e-0 ${freshness === option.id ? 'bg-db-red-solid text-white' : 'bg-surface text-text-secondary hover:text-text-primary'}`}
-                  >
-                    {option.label}
-                  </button>
-                ))}
-              </div>
-              <p className="text-[11px] text-text-tertiary">
-                {freshness === 'off'
-                  ? 'Genie runs it once now. Turn this on later to refresh it on a schedule.'
-                  : `Refreshes ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first successful run. Cost: ${costHint(spec)}`}
-              </p>
-            </section>
-
-            {notebookEdit && (
-              <label className="flex items-start gap-2 text-[12px] border border-warning/40 rounded-lg p-3">
-                <input type="checkbox" className="mt-0.5" checked={Boolean(spec.confirm_notebook_overwrite)} onChange={(e) => patch('confirm_notebook_overwrite', e.target.checked)} />
-                <span>
-                  Overwrite the edits made to the notebook
-                  {notebookEdit.edited_at ? ` on ${new Date(notebookEdit.edited_at).toLocaleString()}` : ''}
-                  <span className="block text-text-tertiary">Leave it off to keep them: then change only the outputs or the schedule.</span>
-                  {plan?.summary?.refill && !spec.confirm_notebook_overwrite && (
-                    <span className="block text-warning-fg">This version rebuilds the notebook, so it stops and asks again unless you tick this.</span>
-                  )}
-                </span>
-              </label>
-            )}
-
-            {folderWarning && <p role="note" aria-label="Where Inspire saves the MVP" className="text-[11px] text-warning-fg">{folderWarning}</p>}
-
-            {generalChecks.some(([, v]) => !v.ok || v.warn) && (
-              <section className="space-y-1" aria-label="Access checks">
-                {generalChecks.filter(([, v]) => !v.ok || v.warn).map(([k, v]) => <CheckLine key={k} check={v} label={PREFLIGHT_LABELS[k] || k.replace(/_/g, ' ')} />)}
-              </section>
-            )}
-
-            <Advanced open={advanced.delivery} onToggle={() => toggleAdvanced('delivery')}>
-              {spec.outputs.dashboard && (
-                <div className="space-y-2">
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Dashboard</h4>
-                  <input dir="auto" className={inputCls} placeholder="Dashboard name" value={spec.outputs.dashboard_name} onChange={(e) => patch('outputs.dashboard_name', e.target.value)} />
-                  <ListInput className={inputCls} placeholder="Filter widgets, comma separated" separator="," value={spec.outputs.dashboard_filters} onChange={(list) => patch('outputs.dashboard_filters', list)} />
-                </div>
-              )}
-              {spec.outputs.genie_space && (
-                <div className="space-y-2">
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Genie Agent</h4>
-                  <input dir="auto" className={inputCls} placeholder="Agent name" value={spec.outputs.genie_space_name} onChange={(e) => patch('outputs.genie_space_name', e.target.value)} />
-                  <ListInput multiline className={inputCls} rows={4} placeholder="Up to 5 questions, one per line" separator={'\n'} value={spec.outputs.genie_questions} onChange={(list) => patch('outputs.genie_questions', list.slice(0, 5))} />
-                </div>
-              )}
-              {spec.outputs.app && (
-                <div className="space-y-2">
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">App</h4>
-                  <textarea dir="auto" className={inputCls} rows={3} placeholder="What the App should let people do" value={spec.outputs.app_purpose} onChange={(e) => patch('outputs.app_purpose', e.target.value)} />
-                  {!joinsApp(spec) && (
-                    <>
-                      <Field label={APP_OWNERS_LABEL}>
-                        <ListInput className={inputCls} separator="," value={spec.outputs.app_owners} onChange={(list) => patch('outputs.app_owners', list)} />
-                      </Field>
-                      <p className="text-[11px] text-text-tertiary">{APP_OWNERS_HELP}</p>
-                    </>
-                  )}
-                </div>
-              )}
-              {spec.outputs.alert && (
-                <div className="space-y-2">
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Alert</h4>
-                  <input dir="auto" className={inputCls} placeholder="Alert name" value={spec.outputs.alert_name} onChange={(e) => patch('outputs.alert_name', e.target.value)} />
-                  <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-secondary">
-                    <span>Fire when</span>
-                    <select className={`${inputBase} w-auto`} value={spec.outputs.alert_tiers} onChange={(e) => patch('outputs.alert_tiers', e.target.value)}>
-                      {ALERT_TIER_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
-                    </select>
-                    <span>rows in the latest run are</span>
-                    <select className={`${inputBase} w-auto`} value={spec.outputs.alert_operator} onChange={(e) => patch('outputs.alert_operator', e.target.value)}>
-                      {(spec.outputs.alert_threshold_basis === 'baseline' ? Object.keys(ALERT_BASELINE_DIRECTIONS) : ALERT_OPERATORS).map((op) => <option key={op} value={op}>{ALERT_OPERATOR_WORDS[op]}</option>)}
-                    </select>
-                    <input type="number" min="0" step="1" className={`${inputBase} w-24`} value={spec.outputs.alert_threshold} onChange={(e) => patch('outputs.alert_threshold', e.target.value)} />
-                    <span>compared with</span>
-                    <select
-                      className={`${inputBase} w-auto`}
-                      value={spec.outputs.alert_threshold_basis || 'fixed'}
-                      onChange={(e) => {
-                        patch('outputs.alert_threshold_basis', e.target.value);
-                        if (e.target.value === 'baseline' && !baselineOperatorOk(spec.outputs.alert_operator)) {
-                          patch('outputs.alert_operator', '>=');
-                        }
-                      }}
-                    >
-                      {ALERT_THRESHOLD_BASES.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
-                    </select>
-                  </div>
-                  <p className="text-[11px] text-text-tertiary">Fires when {alertTriggerText(spec.outputs)}.</p>
-                  <textarea dir="auto"
-                    className={inputCls}
-                    rows={2}
-                    placeholder="Optional: also fire when ... (plain words, for example 'refunds above 10 today'). Genie turns it into SQL that reads only this use case's tables."
-                    value={spec.outputs.alert_condition_text}
-                    onChange={(e) => patch('outputs.alert_condition_text', e.target.value)}
-                  />
-                  <Field label="Email recipients (comma separated)">
-                    <ListInput className={inputCls} separator="," value={spec.outputs.alert_recipients} onChange={(list) => patch('outputs.alert_recipients', list)} />
-                  </Field>
-                  <ClearsChoice outputs={spec.outputs} onChange={(checked) => setSpec((prev) => withClears(prev, checked))} />
-                  <div className="space-y-1">
-                    <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Slack, Teams and other destinations</span>
-                    {destinations === null && <p className="text-[11px] text-text-tertiary"><Loader2 size={11} className="inline animate-spin" /> Loading destinations…</p>}
-                    {destinationsError && <p className="text-[11px] text-text-tertiary">Notification destinations are not available to you ({destinationsError}). Use email recipients.</p>}
-                    {destinations && !destinationsError && destinations.length === 0 && (
-                      <p className="text-[11px] text-text-tertiary">This workspace has no notification destinations. A workspace admin can add Slack or Teams ones.</p>
-                    )}
-                    {(destinations || []).map((d) => {
-                      const picked = chosenDestinations.some((x) => x.id === d.id);
-                      return (
-                        <label key={d.id} className="flex items-center gap-2 text-[12px]">
-                          <input
-                            type="checkbox"
-                            checked={picked}
-                            onChange={() => patch('outputs.alert_destinations', picked
-                              ? chosenDestinations.filter((x) => x.id !== d.id)
-                              : [...chosenDestinations, { id: d.id, name: d.name }])}
-                          />
-                          {d.name} <span className="text-text-tertiary">{d.type.replace(/_/g, ' ')}</span>
-                        </label>
-                      );
-                    })}
-                  </div>
-                  <p className="text-[11px] text-text-tertiary">
-                    It checks the result after each scheduled or full run and notifies only when the condition holds, once per run. Preview runs never send it. Groups cannot get alert emails: add their members or a destination.
-                  </p>
-                </div>
-              )}
-              <div className="space-y-2">
-                <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Schedule</h4>
-                <Field label="Cron (Quartz)">
-                  <input dir="auto" className={inputCls} value={spec.schedule.cron} onChange={(e) => patch('schedule.cron', e.target.value)} />
-                  {String(spec.schedule.cron || '').trim() && cronProblem(spec.schedule.cron) ? (
-                    <p className="text-[11px] text-error-fg">Not a valid Quartz cron: {cronProblem(spec.schedule.cron)}</p>
-                  ) : (
-                    <p className="text-[11px] text-text-tertiary">Runs {cronInWords(spec.schedule.cron, spec.schedule.timezone)}{spec.schedule.enabled ? '' : ' once Keep it fresh is on'}</p>
-                  )}
-                </Field>
-                <Field label="Timezone">
-                  <input dir="auto" className={inputCls} value={spec.schedule.timezone} onChange={(e) => patch('schedule.timezone', e.target.value)} />
-                </Field>
-                <Field label="Failure emails (comma separated; default: the decision owner)">
-                  <ListInput className={inputCls} separator="," value={spec.schedule.failure_emails} onChange={(list) => patch('schedule.failure_emails', list)} />
-                </Field>
-                {trainsModel && (
-                  <div className="grid grid-cols-2 gap-2">
-                    <ProfileInput spec={spec} path="retrain.every_runs" onChange={setProfile} />
-                    <ProfileInput spec={spec} path="retrain.drift_threshold" onChange={setProfile} />
+            {['dashboard', 'genie_space', 'app', 'alert'].some((o) => spec.outputs[o]) && (
+              <Advanced open={advanced.delivery} onToggle={() => toggleAdvanced('delivery')}>
+                {spec.outputs.dashboard && (
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Dashboard</h4>
+                    <input dir="auto" className={inputCls} placeholder="Dashboard name" value={spec.outputs.dashboard_name} onChange={(e) => patch('outputs.dashboard_name', e.target.value)} />
+                    <ListInput className={inputCls} placeholder="Filter widgets, comma separated" separator="," value={spec.outputs.dashboard_filters} onChange={(list) => patch('outputs.dashboard_filters', list)} />
                   </div>
                 )}
-              </div>
-              <div className="space-y-2">
-                <Field label="Share with">
-                  <input dir="auto" className={inputCls} placeholder="Search users and groups" value={principalQ} onChange={(e) => setPrincipalQ(e.target.value)} />
-                </Field>
-                <div className="flex flex-wrap gap-1">
-                  {(spec.sharing.principals || []).map((p) => (
+                {spec.outputs.genie_space && (
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Genie Agent</h4>
+                    <input dir="auto" className={inputCls} placeholder="Agent name" value={spec.outputs.genie_space_name} onChange={(e) => patch('outputs.genie_space_name', e.target.value)} />
+                    <ListInput multiline className={inputCls} rows={4} placeholder="Up to 5 questions, one per line" separator={'\n'} value={spec.outputs.genie_questions} onChange={(list) => patch('outputs.genie_questions', list.slice(0, 5))} />
+                  </div>
+                )}
+                {spec.outputs.app && (
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">App</h4>
+                    <textarea dir="auto" className={inputCls} rows={3} placeholder="What the App should let people do" value={spec.outputs.app_purpose} onChange={(e) => patch('outputs.app_purpose', e.target.value)} />
+                    {!joinsApp(spec) && (
+                      <>
+                        <Field label={APP_OWNERS_LABEL}>
+                          <ListInput className={inputCls} separator="," value={spec.outputs.app_owners} onChange={(list) => patch('outputs.app_owners', list)} />
+                        </Field>
+                        <p className="text-[11px] text-text-tertiary">{APP_OWNERS_HELP}</p>
+                      </>
+                    )}
+                  </div>
+                )}
+                {spec.outputs.alert && (
+                  <div className="space-y-2">
+                    <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Alert</h4>
+                    <input dir="auto" className={inputCls} placeholder="Alert name" value={spec.outputs.alert_name} onChange={(e) => patch('outputs.alert_name', e.target.value)} />
+                    <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-secondary">
+                      <span>Fire when</span>
+                      <select className={`${inputBase} w-auto`} value={spec.outputs.alert_tiers} onChange={(e) => patch('outputs.alert_tiers', e.target.value)}>
+                        {ALERT_TIER_OPTIONS.map((t) => <option key={t.id} value={t.id}>{t.label}</option>)}
+                      </select>
+                      <span>rows in the latest run are</span>
+                      <select className={`${inputBase} w-auto`} value={spec.outputs.alert_operator} onChange={(e) => patch('outputs.alert_operator', e.target.value)}>
+                        {(spec.outputs.alert_threshold_basis === 'baseline' ? Object.keys(ALERT_BASELINE_DIRECTIONS) : ALERT_OPERATORS).map((op) => <option key={op} value={op}>{ALERT_OPERATOR_WORDS[op]}</option>)}
+                      </select>
+                      <input type="number" min="0" step="1" className={`${inputBase} w-24`} value={spec.outputs.alert_threshold} onChange={(e) => patch('outputs.alert_threshold', e.target.value)} />
+                      <span>compared with</span>
+                      <select
+                        className={`${inputBase} w-auto`}
+                        value={spec.outputs.alert_threshold_basis || 'fixed'}
+                        onChange={(e) => {
+                          patch('outputs.alert_threshold_basis', e.target.value);
+                          if (e.target.value === 'baseline' && !baselineOperatorOk(spec.outputs.alert_operator)) {
+                            patch('outputs.alert_operator', '>=');
+                          }
+                        }}
+                      >
+                        {ALERT_THRESHOLD_BASES.map((b) => <option key={b.id} value={b.id}>{b.label}</option>)}
+                      </select>
+                    </div>
+                    <p className="text-[11px] text-text-tertiary">Fires when {alertTriggerText(spec.outputs)}.</p>
+                    <textarea dir="auto"
+                      className={inputCls}
+                      rows={2}
+                      placeholder="Optional: also fire when ... (plain words, for example 'refunds above 10 today'). Genie turns it into SQL that reads only this use case's tables."
+                      value={spec.outputs.alert_condition_text}
+                      onChange={(e) => patch('outputs.alert_condition_text', e.target.value)}
+                    />
+                    <Field label="Email recipients (comma separated)">
+                      <ListInput className={inputCls} separator="," value={spec.outputs.alert_recipients} onChange={(list) => patch('outputs.alert_recipients', list)} />
+                    </Field>
+                    <ClearsChoice outputs={spec.outputs} onChange={(checked) => setSpec((prev) => withClears(prev, checked))} />
+                    <div className="space-y-1">
+                      <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Slack, Teams and other destinations</span>
+                      {destinations === null && <p className="text-[11px] text-text-tertiary"><Loader2 size={11} className="inline animate-spin" /> Loading destinations…</p>}
+                      {destinationsError && <p className="text-[11px] text-text-tertiary">Notification destinations are not available to you ({destinationsError}). Use email recipients.</p>}
+                      {destinations && !destinationsError && destinations.length === 0 && (
+                        <p className="text-[11px] text-text-tertiary">This workspace has no notification destinations. A workspace admin can add Slack or Teams ones.</p>
+                      )}
+                      {(destinations || []).map((d) => {
+                        const picked = chosenDestinations.some((x) => x.id === d.id);
+                        return (
+                          <label key={d.id} className="flex items-center gap-2 text-[12px]">
+                            <input
+                              type="checkbox"
+                              checked={picked}
+                              onChange={() => patch('outputs.alert_destinations', picked
+                                ? chosenDestinations.filter((x) => x.id !== d.id)
+                                : [...chosenDestinations, { id: d.id, name: d.name }])}
+                            />
+                            {d.name} <span className="text-text-tertiary">{d.type.replace(/_/g, ' ')}</span>
+                          </label>
+                        );
+                      })}
+                    </div>
+                    <p className="text-[11px] text-text-tertiary">
+                      It checks the result after each scheduled or full run and notifies only when the condition holds, once per run. Preview runs never send it. Groups cannot get alert emails: add their members or a destination.
+                    </p>
+                  </div>
+                )}
+                <div className="space-y-2">
+                  <Field label="Share with">
+                    <input dir="auto" className={inputCls} placeholder="Search users and groups" value={principalQ} onChange={(e) => setPrincipalQ(e.target.value)} />
+                  </Field>
+                  <div className="flex flex-wrap gap-1">
+                    {(spec.sharing.principals || []).map((p) => (
+                      <button
+                        key={`${p.type}:${p.name}`}
+                        type="button"
+                        className="text-[11px] border border-border rounded-full px-2 py-0.5"
+                        onClick={() => patch('sharing.principals', spec.sharing.principals.filter((x) => x.name !== p.name))}
+                      >
+                        {p.name} ×
+                      </button>
+                    ))}
+                  </div>
+                  {principals.map((p) => (
                     <button
                       key={`${p.type}:${p.name}`}
                       type="button"
-                      className="text-[11px] border border-border rounded-full px-2 py-0.5"
-                      onClick={() => patch('sharing.principals', spec.sharing.principals.filter((x) => x.name !== p.name))}
+                      className="block text-[11px] text-text-secondary hover:text-db-red-fg"
+                      onClick={() => {
+                        if (spec.sharing.principals.some((x) => x.name === p.name && x.type === p.type)) return;
+                        patch('sharing.principals', [...spec.sharing.principals, { type: p.type, name: p.name }]);
+                      }}
                     >
-                      {p.name} ×
+                      {p.display} ({p.type})
                     </button>
                   ))}
                 </div>
-                {principals.map((p) => (
-                  <button
-                    key={`${p.type}:${p.name}`}
-                    type="button"
-                    className="block text-[11px] text-text-secondary hover:text-db-red-fg"
-                    onClick={() => {
-                      if (spec.sharing.principals.some((x) => x.name === p.name && x.type === p.type)) return;
-                      patch('sharing.principals', [...spec.sharing.principals, { type: p.type, name: p.name }]);
-                    }}
-                  >
-                    {p.display} ({p.type})
-                  </button>
-                ))}
-              </div>
-              {plan && (
-                <div className="space-y-1">
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
-                    {plan.based_on_version ? `Version ${plan.spec_version}, edited from version ${plan.based_on_version}` : `Version ${plan.spec_version}`}
-                  </h4>
-                  {planLines(plan.summary, { shared, live }).map((line) => <p key={line} className="text-[12px] text-text-secondary">{line}</p>)}
-                  {(plan.warnings || []).map((line) => <p key={line} data-plan-warning="" className="text-[12px] text-warning-fg">{line}</p>)}
-                </div>
-              )}
-              {checkEntries.length > 0 && (
-                <div className="space-y-1">
-                  <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
-                    Permission checks{preflight.identity ? `, run live as ${preflight.identity}` : ''}
-                  </h4>
-                  {checkEntries.map(([k, v]) => <CheckLine key={k} check={v} label={PREFLIGHT_LABELS[k] || k.replace(/_/g, ' ')} />)}
-                </div>
-              )}
-              <p className="text-[11px] text-text-tertiary">Cost hint: {costHint(spec)}</p>
-            </Advanced>
+              </Advanced>
+            )}
           </>
         )}
 
@@ -1662,6 +1686,7 @@ export default function ImplementWizard({
             onWarehouseToggle={() => toggleAdvanced('app_place')}
             moveNote={moveNote}
             onKeep={() => { setPlaceSet('person'); setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
+            best={{ place: best.appPlace, policy: best.appPolicy, held: best.heldApp }}
           />
         )}
 
@@ -1678,6 +1703,7 @@ export default function ImplementWizard({
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
             warehouseOpen={advanced.app_access}
             onWarehouseToggle={() => toggleAdvanced('app_access')}
+            best={{ access: best.appAccess, backend: best.appBackend, option: best.appOption, replace: best.replaceEdits }}
           />
         )}
 
@@ -1694,18 +1720,30 @@ export default function ImplementWizard({
             onChart={(id, on) => setSpec((prev) => withAppChart(prev, id, on, look, chartDates))}
             onInspireCharts={() => setSpec((prev) => withInspireCharts(prev))}
             onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))}
+            best={{ style: best.style, layout: best.layout, theme: best.theme, palette: best.palette }}
           />
         )}
 
         {stepId === 'settings' && (
-          <SettingsStep
-            spec={spec}
-            settings={settingsList}
-            recorded={Array.isArray(settingsModel)}
-            impact={context?.latest ? rowImpact(context.latest) : null}
-            onChange={(setting, text) => setSpec((prev) => withSetting(prev, setting, text))}
-            onNote={(text) => setSpec((prev) => withSettingsNote(prev, text))}
-          />
+          <>
+            {settingsList.length > 0 && (
+              <SettingsStep
+                spec={spec}
+                settings={settingsList}
+                recorded={Array.isArray(settingsModel)}
+                impact={context?.latest ? rowImpact(context.latest) : null}
+                onChange={(setting, text) => setSpec((prev) => withSetting(prev, setting, text))}
+                onNote={(text) => setSpec((prev) => withSettingsNote(prev, text))}
+              />
+            )}
+            <TeamCapacity
+              spec={spec}
+              suggestion={capacitySuggestion(spec, capacityInputs)}
+              inputClass={inputBase}
+              onType={(typed) => setSpec((prev) => withCapacity(prev, typed))}
+              onSuggest={() => setSpec((prev) => withSuggestedCapacity(prev, capacityInputs))}
+            />
+          </>
         )}
 
         {stepId === 'vibes' && collectedNote && (
@@ -1720,17 +1758,68 @@ export default function ImplementWizard({
           <VibesPanel spec={spec} built={built} next={(context?.latest?.spec_version ?? 0) + 1} onChange={(value) => patch('vibes', value)}
             onPrevious={(choice) => patch('vibe_previous', choice)} />
         )}
-        {mode === 'mvp' && lastStep && (
-          <section aria-label="What Inspire picked" data-picked-summary="" className="mt-4 bg-bg border border-border rounded-lg p-4 space-y-3">
-            <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr] gap-x-4 gap-y-2 text-[12px]">
-              {pickedSummary(spec, sourceTables).map((row) => (
-                <div key={row.id} data-picked-row={row.id} className="contents">
-                  <dt className="text-text-tertiary">{row.label}</dt>
-                  <dd className="text-text-primary break-words">{row.value} <span className="text-text-tertiary">(change it on {row.step})</span></dd>
+        {stepId === SUMMARY_STEP.id && (
+          <>
+            {readinessText(readiness, readiness?.scope) && (
+              <p className="text-[11px] text-text-secondary">{readinessText(readiness, readiness.scope)}</p>
+            )}
+            <section aria-label="What Inspire picked" data-picked-summary="" className="bg-bg border border-border rounded-lg p-4 space-y-3">
+              <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr_auto] gap-x-4 gap-y-2 text-[12px]">
+                {summaryRows.map((row) => (
+                  <div key={row.id} data-picked-row={row.id} className="contents">
+                    <dt className="text-text-tertiary">{row.label}</dt>
+                    <dd data-picked-value="" className="text-text-primary break-words">{row.value}</dd>
+                    <dd>
+                      <button type="button" data-picked-change={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus"
+                        aria-label={`Change ${row.label}`} onClick={() => changeStep(row.step)}>Change</button>
+                    </dd>
+                  </div>
+                ))}
+              </dl>
+            </section>
+            {notebookEdit && (
+              <label className="flex items-start gap-2 text-[12px] border border-warning/40 rounded-lg p-3">
+                <input type="checkbox" className="mt-0.5" checked={Boolean(spec.confirm_notebook_overwrite)} onChange={(e) => patch('confirm_notebook_overwrite', e.target.checked)} />
+                <span>
+                  Overwrite the edits made to the notebook
+                  {notebookEdit.edited_at ? ` on ${new Date(notebookEdit.edited_at).toLocaleString()}` : ''}
+                  <span className="block text-text-tertiary">Leave it off to keep them: then change only the outputs or the schedule.</span>
+                  {plan?.summary?.refill && !spec.confirm_notebook_overwrite && (
+                    <span className="block text-warning-fg">This version rebuilds the notebook, so it stops and asks again unless you tick this.</span>
+                  )}
+                </span>
+              </label>
+            )}
+
+            {folderWarning && <p role="note" aria-label="Where Inspire saves the MVP" className="text-[11px] text-warning-fg">{folderWarning}</p>}
+
+            {generalChecks.some(([, v]) => !v.ok || v.warn) && (
+              <section className="space-y-1" aria-label="Access checks">
+                {generalChecks.filter(([, v]) => !v.ok || v.warn).map(([k, v]) => <CheckLine key={k} check={v} label={PREFLIGHT_LABELS[k] || k.replace(/_/g, ' ')} />)}
+              </section>
+            )}
+
+            <Advanced open={advanced.summary} onToggle={() => toggleAdvanced('summary')}>
+              {plan && (
+                <div className="space-y-1">
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
+                    {plan.based_on_version ? `Version ${plan.spec_version}, edited from version ${plan.based_on_version}` : `Version ${plan.spec_version}`}
+                  </h4>
+                  {planLines(plan.summary, { shared, live }).map((line) => <p key={line} className="text-[12px] text-text-secondary">{line}</p>)}
+                  {(plan.warnings || []).map((line) => <p key={line} data-plan-warning="" className="text-[12px] text-warning-fg">{line}</p>)}
                 </div>
-              ))}
-            </dl>
-          </section>
+              )}
+              {checkEntries.length > 0 && (
+                <div className="space-y-1">
+                  <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
+                    Permission checks{preflight.identity ? `, run live as ${preflight.identity}` : ''}
+                  </h4>
+                  {checkEntries.map(([k, v]) => <CheckLine key={k} check={v} label={PREFLIGHT_LABELS[k] || k.replace(/_/g, ' ')} />)}
+                </div>
+              )}
+              <p className="text-[11px] text-text-tertiary">Cost hint: {costHint(spec)}</p>
+            </Advanced>
+          </>
         )}
       </div>
 
@@ -1788,7 +1877,7 @@ export default function ImplementWizard({
               className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70"
               onClick={goNext}
             >
-              {checking ? <><Loader2 size={14} className="animate-spin" /> {checking}…</> : <>Next <ChevronRight size={14} /></>}
+              {checking ? <><Loader2 size={14} className="animate-spin" /> {checking}…</> : <>{nextIsSummary ? BACK_TO_SUMMARY : 'Next'} <ChevronRight size={14} /></>}
             </button>
           ) : stepId === 'notebook' ? (
             <button
@@ -1808,7 +1897,7 @@ export default function ImplementWizard({
               onClick={submit}
             >
               {(busy || checksBusy || !placeSettled) && <Loader2 size={14} className="animate-spin" />}
-              {busy ? 'Starting…' : !placeSettled ? 'Listing the Apps…' : checksBusy ? 'Checking access…' : 'Start MVP'}
+              {busy ? 'Starting…' : !placeSettled ? 'Listing the Apps…' : checksBusy ? 'Checking access…' : BUILD_IT_LABEL}
             </button>
           )}
         </div>
@@ -1941,7 +2030,7 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, wa
 }
 
 function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehouses, warehousesError, warehouseCheck, lakebase, nameCheck,
-  moveNote = '', placeSet = '', onJoin, onNew, onName, onWarehouse, onKeep, warehouseOpen = false, onWarehouseToggle }) {
+  moveNote = '', placeSet = '', onJoin, onNew, onName, onWarehouse, onKeep, warehouseOpen = false, onWarehouseToggle, best = null }) {
   const joined = joinsApp(spec) ? spec.outputs.merge.app : '';
   const inside = !joined && insideInspire(spec);
   const listing = targets === null && !targetsError;
@@ -1968,7 +2057,10 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
           <div data-app-place="held" className={placeCard(!inside)}>
             <label className="flex items-start gap-2.5 cursor-pointer">
               <input type="radio" name="app-place" value="held" className="mt-0.5" checked={!inside} onChange={onKeep} />
-              <span className="text-sm font-semibold text-text-primary">Keep it in {heldApp}</span>
+              <span className="space-y-0.5">
+                <span className="block text-sm font-semibold text-text-primary">Keep it in {heldApp}</span>
+                <HighlyRecommended best={best?.held} id="held" />
+              </span>
             </label>
             {!inside && !joined && <div className="ps-7"><AppNameField name={name} nameCheck={nameCheck} onName={onName} /></div>}
             {!inside && joined && <JoinedWarehouse target={chosen?.target} warehouses={warehouses} />}
@@ -1997,6 +2089,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
                 {targets === null && !targetsError && <Loader2 size={11} className="inline animate-spin me-1" aria-hidden="true" />}
                 {joinListText(targets, targetsError, choices, open)}
               </span>
+              <HighlyRecommended best={best?.place} id="join" />
             </span>
           </label>
           {choices.length > 0 && !inside && (
@@ -2033,7 +2126,10 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
           <label className="flex items-start gap-2.5 cursor-pointer">
             <input type="radio" name="app-place" value="new" className="mt-0.5" checked={fresh}
               onChange={() => onNew(inside ? APP_PLACEMENT_DEFAULT : placement)} />
-            <span className="block text-sm font-semibold text-text-primary">Create a new App</span>
+            <span className="space-y-0.5">
+              <span className="block text-sm font-semibold text-text-primary">Create a new App</span>
+              <HighlyRecommended best={best?.place} id="new" />
+            </span>
           </label>
           {fresh && listing && (
             <p data-app-new-waiting="" className="ps-7 text-[11px] text-text-secondary">
@@ -2051,7 +2147,8 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
                       <input type="radio" name="app-policy" value={p.id} className="mt-0.5" checked={placement === p.id} disabled={Boolean(off)}
                         onChange={() => onNew(p.id)} />
                       <span className="text-[11px] text-text-secondary">
-                        <span className="text-[12px] font-medium text-text-primary">{p.label}{p.id === APP_PLACEMENT_DEFAULT ? ' (default)' : ''}</span>. {p.blurb}
+                        <span className="text-[12px] font-medium text-text-primary">{p.label}</span>. {p.blurb}
+                        <span className="block"><HighlyRecommended best={best?.policy} id={p.id} /></span>
                         {off && <span data-placement-off={p.id} className="block">{off}</span>}
                       </span>
                     </label>
@@ -2103,67 +2200,110 @@ function resultPartSetter(parts, onChange) {
   return (key, value) => onChange({ ...parts, [key]: value, ...(key === 'catalog' && value !== parts.catalog ? { schema: '' } : {}) });
 }
 
-function ResultPlaceFields({ parts, catalogs, catalogsCut = false, catalogsError, schemas, onChange }) {
+function ResultPlaceFields({ parts, catalogs, catalogsCut = false, catalogsError, schemas, onChange, onCreate = null }) {
   const set = resultPartSetter(parts, onChange);
   const schemaOptions = [...new Set([parts.schema, ...((schemas && schemas.names) || [])].filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const typeCatalog = Boolean(catalogsError);
   const typeSchema = typeCatalog || Boolean(schemas && schemas.error);
   return (
-    <div className="space-y-2" aria-label="Result table catalog and schema" role="group">
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        <Field label="Catalog">
-          {typeCatalog ? (
-            <input dir="auto" className={inputCls} value={parts.catalog} onChange={(e) => set('catalog', e.target.value.trim())} />
-          ) : (
-            <CatalogPicker id="implement-result-table" value={parts.catalog} onChange={(name) => set('catalog', name)} catalogs={catalogs || []}
-              truncated={catalogsCut} loading={catalogs === null} className={inputCls} />
-          )}
-        </Field>
-        <Field label="Schema">
-          {typeSchema ? (
-            <input dir="auto" className={inputCls} value={parts.schema} onChange={(e) => set('schema', e.target.value.trim())} />
-          ) : (
-            <select className={inputCls} value={parts.schema} disabled={!parts.catalog} onChange={(e) => set('schema', e.target.value)}>
-              {!parts.schema && <option value="">{parts.catalog ? 'Pick a schema' : 'Pick a catalog first'}</option>}
-              {schemaOptions.map((s) => <option key={s} value={s}>{s}</option>)}
-              {parts.catalog && !schemas && <option disabled value="__loading__">Loading schemas…</option>}
-            </select>
-          )}
-        </Field>
+    <>
+      <div className="space-y-2" aria-label="Result table catalog and schema" role="group">
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+          <Field label="Catalog">
+            {typeCatalog ? (
+              <input dir="auto" className={inputCls} value={parts.catalog} onChange={(e) => set('catalog', e.target.value.trim())} />
+            ) : (
+              <CatalogPicker id="implement-result-table" value={parts.catalog} onChange={(name) => set('catalog', name)} catalogs={catalogs || []}
+                truncated={catalogsCut} loading={catalogs === null} className={inputCls} />
+            )}
+          </Field>
+          <Field label="Schema">
+            {typeSchema ? (
+              <input dir="auto" className={inputCls} value={parts.schema} onChange={(e) => set('schema', e.target.value.trim())} />
+            ) : (
+              <select className={inputCls} value={parts.schema} disabled={!parts.catalog} onChange={(e) => set('schema', e.target.value)}>
+                {!parts.schema && <option value="">{parts.catalog ? 'Pick a schema' : 'Pick a catalog first'}</option>}
+                {schemaOptions.map((s) => <option key={s} value={s}>{s}</option>)}
+                {parts.catalog && !schemas && <option disabled value="__loading__">Loading schemas…</option>}
+              </select>
+            )}
+          </Field>
+          <Field label="Table name">
+            <input dir="auto" className={inputCls} value={parts.table} onChange={(e) => set('table', e.target.value.trim())} />
+          </Field>
+        </div>
+        {(catalogsError || (schemas && schemas.error)) && (
+          <p className="text-[11px] text-text-secondary">
+            Inspire could not list the {catalogsError ? 'catalogs' : 'schemas'} ({catalogsError || schemas.error}), so type the name instead.
+          </p>
+        )}
       </div>
-      {(catalogsError || (schemas && schemas.error)) && (
-        <p className="text-[11px] text-text-secondary">
-          Inspire could not list the {catalogsError ? 'catalogs' : 'schemas'} ({catalogsError || schemas.error}), so type the name instead.
-        </p>
-      )}
+      {onCreate && <NewPlace catalog={parts.catalog} onCreate={onCreate} />}
+    </>
+  );
+}
+
+function NewPlace({ catalog, onCreate }) {
+  const [kind, setKind] = useState(catalog ? 'schema' : 'catalog');
+  const [name, setName] = useState('');
+  const [state, setState] = useState({ busy: false, error: '', done: '' });
+  const want = kind === 'schema' && !catalog ? 'catalog' : kind;
+  const problem = name.trim() ? placeNameProblem(name, want) : '';
+  const create = async () => {
+    setState({ busy: true, error: '', done: '' });
+    try {
+      await onCreate(want, name.trim());
+      setState({ busy: false, error: '', done: `Created ${want === 'schema' ? `${catalog}.${name.trim()}` : name.trim()}.` });
+      setName('');
+    } catch (e) {
+      setState({ busy: false, error: `Inspire could not create it: ${e.message}`, done: '' });
+    }
+  };
+  return (
+    <div role="group" aria-label="New catalog or schema" data-new-place="" className="space-y-1">
+      <div className="flex flex-wrap items-center gap-2 text-[12px] text-text-secondary">
+        <span>New</span>
+        <select aria-label="What to create" className={`${inputBase} w-auto py-1`} value={want} onChange={(e) => setKind(e.target.value)}>
+          <option value="catalog">catalog</option>
+          <option value="schema" disabled={!catalog}>{catalog ? `schema in ${catalog}` : 'schema (pick a catalog first)'}</option>
+        </select>
+        <input dir="auto" aria-label={`New ${want} name`} placeholder={`${want} name`} className={`${inputBase} w-48 py-1`} value={name}
+          onChange={(e) => setName(e.target.value)} />
+        <button type="button" disabled={!name.trim() || Boolean(problem) || state.busy} onClick={create}
+          className="inline-flex items-center gap-1 rounded-lg border border-border px-3 py-1 text-xs font-semibold text-text-primary disabled:opacity-50">
+          {state.busy && <Loader2 size={12} className="animate-spin" />}Create
+        </button>
+        <span className="text-[11px] text-text-tertiary">Needs {PLACE_RIGHTS[want]}.</span>
+      </div>
+      {problem && <p className="text-[11px] text-error-fg">{problem}</p>}
+      {state.error && <p role="alert" data-new-place-error="" className="text-[11px] text-error-fg">{state.error}</p>}
+      {state.done && <p role="status" className="text-[11px] text-success-fg">{state.done}</p>}
     </div>
   );
 }
 
-function ResultTableStep({ parts, table, defaultTable, outputCheck, onChange }) {
-  const set = resultPartSetter(parts, onChange);
+function ResultTableStep({ table, defaultTable, outputCheck, onChange, best = null, children = null }) {
   return (
     <section className="space-y-4" aria-label="Where the result table lives">
       <div>
         <h3 className="text-sm font-semibold text-text-primary">Where should the result table live?</h3>
         <p className="text-[11px] text-text-tertiary">Genie writes this MVP&apos;s results to this table, and Inspire writes nowhere else. Next checks live that you can create or write it.</p>
       </div>
-      <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
-        <Field label="Table name">
-          <input dir="auto" className={inputCls} value={parts.table} onChange={(e) => set('table', e.target.value.trim())} />
-        </Field>
-      </div>
+      {children}
       <div className="rounded-lg border border-border bg-bg px-3 py-2.5 space-y-1" role="group" aria-label="Result table">
         <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
           <span className="font-mono text-[12px] text-text-primary break-all">{table || 'catalog.schema.table'}</span>
-          {defaultTable && table === defaultTable && <span className={LEGEND}>Inspire&apos;s default</span>}
+          {defaultTable && table === defaultTable && <HighlyRecommended best={best} id={defaultTable} />}
           {defaultTable && table !== defaultTable && (
-            <button type="button" className="text-[11px] text-db-red-fg shrink-0" onClick={() => onChange(resultTableParts(defaultTable))}>
-              Use the default, {defaultTable}
-            </button>
+            <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
+              <button type="button" className="text-[11px] text-db-red-fg shrink-0" onClick={() => onChange(resultTableParts(defaultTable))}>
+                Use the default, {defaultTable}
+              </button>
+              <HighlyRecommended best={best} id={defaultTable} why={false} />
+            </span>
           )}
         </div>
-        <p className="text-[11px] text-text-tertiary">The default sits in the Inspire Database and is named after the use case.</p>
+        {defaultTable && table !== defaultTable && <p className="text-[11px] text-text-tertiary">The default sits in the Inspire Database and is named after the use case.</p>}
       </div>
       {outputCheck && (
         <div className="text-[11px] space-y-0.5" aria-label="Result table check">
@@ -2179,7 +2319,7 @@ function ResultTableStep({ parts, table, defaultTable, outputCheck, onChange }) 
   );
 }
 
-function KpiTargetSetting({ spec, options, tracked, before, onPick }) {
+function KpiTargetSetting({ spec, options, tracked, before, onPick, best = null }) {
   const value = kpiTargetOf(spec);
   const listed = options.find((o) => kpiKey(o.name) === kpiKey(value));
   const problem = kpiTargetProblems(spec, options)[0] || '';
@@ -2196,6 +2336,7 @@ function KpiTargetSetting({ spec, options, tracked, before, onPick }) {
         </select>
         <p data-kpi-tracked="" className="text-[11px] text-text-secondary">{shown}</p>
       </div>
+      <BestOf best={best} label={best?.id || KPI_INSPIRE_PICKS} />
       {changed && <p data-kpi-change="" className="text-[11px] text-text-primary">{KPI_CHANGE_NOTE}</p>}
       {problem && <p className="text-[11px] text-error-fg">{problem}</p>}
     </div>
@@ -2245,7 +2386,7 @@ function SettingsStep({ spec, settings, recorded, impact, onChange, onNote }) {
         <p data-settings-technical="" className="text-[11px] text-text-tertiary">{SETTINGS_TECHNICAL_NOTE}</p>
       </div>
       {!recorded && <p className="text-[11px] text-text-secondary">{SETTINGS_ASSUMPTIONS_LATER}</p>}
-      <div data-settings-list="" className="max-h-[31rem] space-y-2.5 overflow-y-auto pe-1">
+      <div data-settings-list="" className="max-h-[24rem] space-y-2.5 overflow-y-auto pe-1">
         {groups.map(([group, list]) => {
           const shared = list.every((s) => s.change === list[0].change) ? list[0].change : null;
           return (
@@ -2300,7 +2441,7 @@ function HoldoutPercent({ spec, onPercent }) {
   );
 }
 
-function HoldoutSetting({ spec, onEnabled, children = null }) {
+function HoldoutSetting({ spec, onEnabled, children = null, best = null }) {
   const { enabled } = holdoutOf(spec);
   const problem = holdoutProblems(spec)[0] || '';
   return (
@@ -2311,6 +2452,7 @@ function HoldoutSetting({ spec, onEnabled, children = null }) {
         <input type="checkbox" className="mt-0.5" checked={enabled} onChange={(e) => onEnabled(e.target.checked)} />
         <span className="text-[11px] text-text-secondary">
           <span className="text-[12px] font-medium text-text-primary">{HOLDOUT_LABEL}</span>. {HOLDOUT_BLURB}
+          <span className="block mt-1"><HighlyRecommended best={best} id /></span>
         </span>
       </label>
       {problem && <p className="ms-6 text-[11px] text-error-fg">{problem}</p>}
@@ -2318,7 +2460,7 @@ function HoldoutSetting({ spec, onEnabled, children = null }) {
   );
 }
 
-function AppBackendChoice({ spec, lakebase, onBackend, children = null }) {
+function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = null }) {
   const absent = lakebase?.state === 'absent';
   const backend = appBackendOf(spec, lakebase);
   const block = lakebaseBlock(spec, lakebase);
@@ -2345,11 +2487,13 @@ function AppBackendChoice({ spec, lakebase, onBackend, children = null }) {
                 >
                   <input type="radio" name="app-backend" value={choice.id} checked={checked} disabled={off} onChange={() => onBackend(choice.id)} />
                   <span className={checked ? 'font-semibold' : 'font-medium'}>{choice.label}</span>
+                  <HighlyRecommended best={best} id={choice.id} why={false} />
                 </label>
               );
             })}
           </div>
           {chosen?.blurb && <p className="text-[12px] text-text-secondary">{chosen.blurb}</p>}
+          {!loading && best?.reason && <p data-highly-recommended-why="" className="text-[11px] text-text-secondary">{best.reason}</p>}
           {loading && <p className="text-[11px] text-text-tertiary" role="status">{LAKEBASE_CHECKING}…</p>}
           {block && <p className="text-[11px] text-text-secondary" role="note" aria-label="Why Lakebase is off">{block}</p>}
           {lakebase?.state === 'unknown' && !block && (
@@ -2418,7 +2562,7 @@ function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, check,
   );
 }
 
-function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseCheck, onAccess, onOption, onBackend, onWarehouse, warehouseOpen = false, onWarehouseToggle }) {
+function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseCheck, onAccess, onOption, onBackend, onWarehouse, warehouseOpen = false, onWarehouseToggle, best = {} }) {
   const access = spec.outputs.app_access;
   const options = spec.outputs.app_options;
   const inside = insideInspire(spec);
@@ -2444,13 +2588,14 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
                 <span className="space-y-1">
                   <span className="flex items-start gap-1.5 text-sm font-semibold text-text-primary"><Icon size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{choice.label}</span>
                   <span className="block text-[12px] text-text-secondary">{choice.blurb}</span>
+                  <HighlyRecommended best={best.access} id={choice.id} />
                 </span>
               </label>
             );
           })}
         </div>
       </fieldset>
-      <AppBackendChoice spec={spec} lakebase={lakebase} onBackend={onBackend}>
+      <AppBackendChoice spec={spec} lakebase={lakebase} onBackend={onBackend} best={best.backend}>
         {inside ? (
           <p data-inside-warehouse="" className="text-[11px] text-text-secondary">
             Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on App placement.
@@ -2472,7 +2617,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" className="mt-0.5" checked={Boolean(options[o.id])} onChange={(e) => onOption(o.id, e.target.checked)} />
                 <span className="text-[11px] text-text-secondary">
-                  <span className="text-[12px] font-medium text-text-primary">{o.label}</span>. {o.blurb}
+                  <span className="text-[12px] font-medium text-text-primary">{o.label}</span>. {o.blurb} <HighlyRecommended best={best.option} id={o.id} />
                 </span>
               </label>
               {o.id === 'modify' && appOptionShown(spec, 'replace_edits') && (
@@ -2482,8 +2627,8 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
                     <label key={String(c.id)} className="flex items-start gap-2 text-[11px] cursor-pointer">
                       <input type="radio" name="replace-edits" className="mt-0.5" checked={Boolean(options.replace_edits) === c.id} onChange={() => onOption('replace_edits', c.id)} />
                       <span>
-                        <span className="font-medium text-text-primary">{c.label}{c.id ? '' : ' (default)'}</span>
-                        <span className="text-text-secondary">: {c.blurb}</span>
+                        <span className="font-medium text-text-primary">{c.label}</span>
+                        <span className="text-text-secondary">: {c.blurb}</span> <HighlyRecommended best={best.replace} id={c.id} />
                       </span>
                     </label>
                   ))}
@@ -2595,21 +2740,23 @@ function LayoutPreview({ layout, palette, theme }) {
   );
 }
 
-function LookCard({ name, value, checked, onChange, label, badge = '', blurb = '', children }) {
+function LookCard({ name, value, checked, onChange, label, best = null, blurb = '', children }) {
   return (
     <label className={`block border rounded-lg p-2 space-y-1.5 glow-focus cursor-pointer ${checked ? 'border-db-red bg-db-red-50' : 'border-border hover:border-border-strong'}`}>
       {children}
-      <span className="flex items-center gap-2">
+      <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <input type="radio" name={name} value={value} checked={checked} onChange={onChange} />
         <span className="text-[12px] font-semibold text-text-primary">{label}</span>
-        {badge && <span className="ms-auto rounded-full border border-border bg-surface px-1.5 py-px text-[10px] text-text-secondary">{badge}</span>}
+        <HighlyRecommended best={best} id={value} why={false} />
       </span>
-      {blurb && <span className="block text-[11px] leading-snug text-text-secondary">{blurb}</span>}
+      {(blurb || (isBest(best, value) && best.reason)) && (
+        <span className="block text-[11px] leading-snug text-text-secondary">{[blurb, isBest(best, value) ? best.reason : ''].filter(Boolean).join(' ')}</span>
+      )}
     </label>
   );
 }
 
-function AppLookStep({ spec, look, lookError, palette, title, stake, dates = null, onLook, onChart, onInspireCharts, onPage }) {
+function AppLookStep({ spec, look, lookError, palette, title, stake, dates = null, onLook, onChart, onInspireCharts, onPage, best = {} }) {
   const chosen = spec.outputs.app_look;
   const palettes = look?.palette_colors || [];
   const [tab, setTab] = useState('style');
@@ -2639,7 +2786,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
           <div className="grid grid-cols-3 gap-3 pt-1">
             {APP_STYLES.map((s) => (
               <LookCard key={s.id} name="app-style" value={s.id} checked={chosen.style === s.id} onChange={() => onLook('style', s.id)}
-                label={s.label} badge={s.id === 'a' ? 'Lakeview look' : ''} blurb={s.blurb}>
+                label={s.label} best={best.style} blurb={s.blurb}>
                 <StylePreview style={s.id} palette={palette} theme={chosen.theme} />
               </LookCard>
             ))}
@@ -2669,6 +2816,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
               })}
               {!look && !lookError && Array.from({ length: 13 }, (_, i) => <span key={i} aria-hidden="true" className="block h-[46px] rounded-md bg-bg-subtle animate-pulse" />)}
             </div>
+            <BestOf best={best.palette} label={best.palette && lookLabel('palette', best.palette.id)} />
           </fieldset>
           <fieldset className="space-y-2">
             <legend className={LEGEND}>Mode</legend>
@@ -2685,6 +2833,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
                 </button>
               ))}
             </div>
+            <BestOf best={best.theme} label={APP_THEMES.find((t) => t.id === best.theme?.id)?.label} />
           </fieldset>
         </div>
       </div>
@@ -2693,7 +2842,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
           <legend className={LEGEND}>Layout</legend>
           <div className="grid grid-cols-3 gap-3 pt-1">
             {APP_LAYOUTS.map((l) => (
-              <LookCard key={l.id} name="app-layout" value={l.id} checked={chosen.layout === l.id} onChange={() => onLook('layout', l.id)} label={l.label} blurb={l.blurb}>
+              <LookCard key={l.id} name="app-layout" value={l.id} checked={chosen.layout === l.id} onChange={() => onLook('layout', l.id)} label={l.label} best={best.layout} blurb={l.blurb}>
                 <LayoutPreview layout={l.id} palette={palette} theme={chosen.theme} />
               </LookCard>
             ))}
@@ -2832,21 +2981,23 @@ function Overlay({ title, uc, steps, step, onClose, children }) {
   return (
     <BodyPortal>
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" data-implement-overlay="">
-        <div role="dialog" aria-modal="true" aria-label={title ? `${START_MVP_LABEL}: ${title}` : START_MVP_LABEL} className="bg-surface border border-border rounded-xl shadow-elevated w-full max-w-4xl max-h-full flex flex-col overflow-hidden">
+        <div role="dialog" aria-modal="true" aria-label={title ? `${START_MVP_LABEL}: ${title}` : START_MVP_LABEL} className="bg-surface border border-border rounded-xl shadow-elevated w-full max-w-5xl max-h-full flex flex-col overflow-hidden">
           <header className="px-6 pt-4 pb-3 border-b border-border space-y-3" data-wizard-header="">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-db-red-fg">{START_MVP_LABEL}</p>
-                <h2 className="mt-1 text-lg font-semibold leading-snug text-text-primary break-words">{title}</h2>
-                {facts.length > 0 && (
-                  <ul aria-label="About this use case" className="mt-2 flex flex-wrap gap-1.5">
-                    {facts.map(([label, value]) => (
-                      <li key={label} className="rounded-full border border-border bg-bg-subtle px-2 py-0.5 text-[11px] text-text-secondary">
-                        <span className="text-text-tertiary">{label}</span> <span className="font-medium text-text-primary">{value}</span>
-                      </li>
-                    ))}
-                  </ul>
-                )}
+                <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
+                  <h2 className="text-lg font-semibold leading-snug text-text-primary break-words">{title}</h2>
+                  {facts.length > 0 && (
+                    <ul aria-label="About this use case" className="flex flex-wrap gap-1.5">
+                      {facts.map(([label, value]) => (
+                        <li key={label} className="rounded-full border border-border bg-bg-subtle px-2 py-0.5 text-[11px] text-text-secondary">
+                          <span className="text-text-tertiary">{label}</span> <span className="font-medium text-text-primary">{value}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  )}
+                </div>
               </div>
               <button type="button" onClick={onClose} className="shrink-0 text-text-tertiary hover:text-text-primary" aria-label="Close">
                 <X size={16} />

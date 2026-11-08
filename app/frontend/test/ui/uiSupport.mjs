@@ -243,26 +243,47 @@ export async function openAdvanced(page) {
   await page.getByRole('button', { name: 'Advanced settings' }).click();
 }
 
+export const BUILD_IT = 'All Good, Build it Now';
+
 export async function dataToResults(page, { grouping = false } = {}) {
-  for (const label of [...(grouping ? ['Data groups'] : []), 'First run', 'Results']) {
+  for (const label of [...(grouping ? ['Data groups'] : []), 'MVP Test Run', 'Results']) {
     await page.getByRole('button', { name: 'Next' }).click();
     await onStep(page, label);
   }
 }
 
 export async function toAppAccess(page) {
-  await page.getByRole('button', { name: 'Next' }).click();
-  await onStep(page, 'App placement');
+  await goToStep(page, 'App placement');
   await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
-  await page.getByRole('button', { name: 'Next' }).click();
-  await onStep(page, 'App access');
+  await goToStep(page, 'App access');
 }
 
 export async function toVibes(page) {
+  await nextUntil(page, 'Vibes');
+}
+
+export async function toSummary(page) {
+  await nextUntil(page, 'Summary');
+}
+
+export async function goToStep(page, label) {
+  const current = page.locator('[aria-current="step"]');
+  await current.waitFor({ timeout: 15000 });
+  const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
+  const target = labels.findIndex((l) => l.includes(label));
+  const now = (await current.innerText()).trim();
+  const at = labels.findIndex((l) => l.trim() === now);
+  if (target < 0) throw new Error(`the wizard has no "${label}" step: ${labels.join(' | ')}`);
+  if (target >= at) return nextUntil(page, label);
+  for (let i = at; i > target; i -= 1) await page.getByRole('button', { name: 'Back', exact: true }).click();
+  await onStep(page, label);
+}
+
+async function nextUntil(page, label) {
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const steps = page.locator('[data-wizard-header] ol li');
-  for (let i = 0; i < (await steps.count()) && !(await current.innerText()).includes('Vibes'); i += 1) {
+  for (let i = 0; i < (await steps.count()) && !(await current.innerText()).includes(label); i += 1) {
     const from = await current.innerText();
     await page.getByRole('button', { name: 'Next' }).click({ timeout: 15000 });
     try {
@@ -272,14 +293,14 @@ export async function toVibes(page) {
       throw new Error(`Next did not leave "${from}": ${shown.join(' | ') || e.message}`);
     }
   }
-  await onStep(page, 'Vibes');
+  await onStep(page, label);
 }
 
 export async function startMvp(page) {
-  await toVibes(page);
-  await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start MVP' && !b.disabled),
-    null, { timeout: 15000 });
-  await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+  await toSummary(page);
+  await page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled),
+    BUILD_IT, { timeout: 15000 });
+  await page.getByRole('button', { name: BUILD_IT, exact: true }).click();
 }
 
 export function settled(page, selector, { loaded = false, timeout = 15000 } = {}) {

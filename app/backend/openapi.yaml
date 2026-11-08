@@ -1805,6 +1805,48 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/PersonSignInRequired'
+  /api/inspire/implement/create-schema:
+    post:
+      tags: [Implement]
+      summary: Create a catalog or schema with the signed-in person's token
+      description: |
+        Runs CREATE CATALOG IF NOT EXISTS, or CREATE SCHEMA IF NOT EXISTS when `schema` is set, with the signed-in
+        person's own token, never the App service principal's. A catalog needs CREATE CATALOG on the metastore; a
+        schema needs CREATE SCHEMA on the catalog. Names may use letters, digits, _ and - only.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+        - {name: warehouse_id, in: query, required: true, schema: {type: string}}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [catalog]
+              properties:
+                catalog: {type: string}
+                schema: {type: string}
+            example:
+              catalog: main
+              schema: inspire_results
+      responses:
+        '200':
+          description: The catalog or schema exists
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  catalog: {type: string}
+                  schema: {type: string}
+        '400':
+          description: A name with characters other than letters, digits, _ and -
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
         '403':
           description: The person cannot grant, or a grant failed
           content:

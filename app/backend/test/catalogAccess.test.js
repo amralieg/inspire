@@ -323,3 +323,41 @@ test('the output check offers the new-Apps action only when the person can grant
     });
   }
 });
+
+test('a new catalog or schema for the result table is made with the person sign-in, quoted, and IF NOT EXISTS', () => {
+  const G = require('../../frontend/src/lib/tableName.js');
+  assert.equal(G.createPlaceSql('main', 'churn_out'), 'CREATE SCHEMA IF NOT EXISTS `main`.`churn_out`');
+  assert.equal(G.createPlaceSql('team-lake'), 'CREATE CATALOG IF NOT EXISTS `team-lake`');
+  assert.equal(G.placeNameProblem('ok_name-1', 'schema'), '');
+  for (const bad of ['', 'has space', 'semi;colon', 'back`tick', 'dot.ted']) assert.match(G.placeNameProblem(bad, 'schema'), /schema/, `refused: ${bad}`);
+  assert.deepEqual(Object.keys(G.PLACE_RIGHTS), ['catalog', 'schema']);
+  assert.match(G.PLACE_RIGHTS.catalog, /CREATE CATALOG/);
+  assert.match(G.PLACE_RIGHTS.schema, /CREATE SCHEMA/);
+});
+
+test('create-schema runs one CREATE with the person token, refuses a bad name or no sign-in, and passes the workspace refusal back', async () => {
+  await withApp({ forwardedToken: PERSON_TOKEN }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data, { catalog: 'main', schema: 'churn_out' });
+    const made1 = made.sqlCalls.filter((c) => /^CREATE /.test(c.sql));
+    assert.deepEqual(made1.map((c) => [c.sql, c.token]), [['CREATE SCHEMA IF NOT EXISTS `main`.`churn_out`', PERSON_TOKEN]]);
+    const cat = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'team_lake' } });
+    assert.equal(cat.status, 200);
+    assert.equal(made.sqlCalls.at(-1).sql, 'CREATE CATALOG IF NOT EXISTS `team_lake`');
+    const bad = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'x`; DROP TABLE t; --' } });
+    assert.equal(bad.status, 400);
+    assert.match(bad.data.error, /schema name can only use letters, digits, _ and -/);
+    assert.equal(made.sqlCalls.some((c) => /DROP/.test(c.sql)), false, 'a bad name runs nothing (must-exclude)');
+  });
+  await withApp({ forwardedToken: '', tokenKind: 'app' }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });
+    assert.equal(got.status, 401, JSON.stringify(got.data));
+    assert.equal(made.sqlCalls.some((c) => /^CREATE /.test(c.sql)), false, 'never creates with the App token (must-exclude)');
+  });
+  await withApp({ forwardedToken: PERSON_TOKEN, sqlErrors: { 'CREATE SCHEMA': '[PERMISSION_DENIED] User does not have CREATE SCHEMA on Catalog main' } }, async (url) => {
+    const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });
+    assert.ok(got.status >= 400, JSON.stringify(got.data));
+    assert.match(got.data.error, /CREATE SCHEMA/);
+  });
+});

@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, M
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { closeAsset, closeBrowser, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until } from './uiSupport.mjs';
+import { BUILD_IT, closeAsset, closeBrowser, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
 
 const GONE = '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns` cannot be found. Verify the spelling. SQLSTATE: 42P01';
 
@@ -42,21 +42,20 @@ async function openHistory(page) {
 }
 
 async function toData(page) {
-  await onStep(page, 'Choose');
-  await next(page);
-  await onStep(page, 'Data');
+  await onStep(page, 'Delivery consumption');
+  await goToStep(page, 'Data');
 }
 async function toDelivery(page) {
   await dataToResults(page);
   await next(page);
-  await onStep(page, 'Delivery');
+  await page.locator('[aria-current="step"]', { hasText: 'Results' }).waitFor({ state: 'detached' });
+  await goToStep(page, 'Delivery');
 }
 
 async function throughApp(page, access = /^Internal data/) {
   await toAppAccess(page);
   await page.getByRole('radio', { name: access }).check();
-  await next(page);
-  await onStep(page, 'App look');
+  await goToStep(page, 'App look');
 }
 const advanced = (page) => page.getByRole('button', { name: 'Advanced settings' });
 const footerErrors = (page) => page.locator('[role="alert"] p').allTextContents();
@@ -69,59 +68,56 @@ function submittedSpec(made) {
   return JSON.parse(inserts[0].parameters.find((p) => p.name === 'spec').value);
 }
 
-test('the wizard starts with the dashboard, Genie Agent and App ticked, drops App access and App look while the App is unticked, and Start MVP launches one run', async () => {
+test('the wizard opens on Delivery consumption with the App and Genie Agent ticked, drops the App steps while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
-  const withApp = ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. App placement', '7. App access', '8. App look', '9. Settings', '10. Vibes'];
+  const withApp = ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. App placement', '6. App access', '7. App look', '8. Settings', '9. Vibes', '10. Summary'];
   try {
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     await stepsAre(page, withApp);
     const summary = page.getByRole('region', { name: 'Executive summary' });
     await summary.getByText('Cut churn in the top segment').waitFor();
     await summary.getByText('Head of Retention').waitFor();
-    assert.equal(await page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL} \\(default\\)`) }).isChecked(), true);
+    assert.equal(await page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL}`) }).isChecked(), true);
     assert.equal(await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).isChecked(), false);
-    assert.deepEqual(await page.locator('label:has(input[name="implement-mode"])').allInnerTexts().then((t) => t.map((x) => x.replace(/\s+/g, ' ').trim())), [
-      'Inspire builds the MVP (default) Genie builds the data, then the App, dashboard, alerts or Genie Agent you pick.',
-      'I will build it myself Inspire hands you the Genie Code notebook for this use case. Nothing else is built.',
-    ], 'the Choose step names the two ways in plain words');
-    assert.equal(await advanced(page).count(), 0, 'Choose has nothing under Advanced settings');
-    await next(page);
-    await onStep(page, 'Data');
-    assert.deepEqual(await page.locator('[data-table]').evaluateAll((rows) => rows.map((r) => r.dataset.table)), ['main.s.orders', 'main.s.returns']);
-    assert.equal(await advanced(page).getAttribute('aria-expanded'), 'false');
-    assert.equal(await page.getByLabel('Goal sentence').count(), 0, 'every other setting waits under Advanced settings');
-    await toDelivery(page);
-    for (const name of [/^Dashboard/, /^Genie Agent/, /^App /]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), true, String(name));
-    assert.equal(await page.getByRole('checkbox', { name: /^Alert/ }).isChecked(), false, 'the alert is the one output left off');
+    const modes = page.locator('label:has(input[name="implement-mode"])');
+    assert.equal(await modes.locator('[data-highly-recommended]').count(), 1, 'one of the two ways is Highly Recommended');
+    assert.match(await modes.first().innerText(), /Highly Recommended/);
+    assert.equal(await page.getByText('(default)', { exact: false }).count(), 0);
+    await page.getByRole('heading', { name: 'How do you like to consume or use this use case?' }).waitFor();
+    for (const name of [/^Genie Agent/, /^App /]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), true, String(name));
+    for (const name of [/^Dashboard/, /^Alert/]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), false, `${name} starts off but stays a choice`);
+    assert.equal(await page.locator('[data-output="app"] [data-highly-recommended]').count(), 1, 'the App tile is Highly Recommended');
+    assert.equal(await page.locator('[data-output] [data-highly-recommended]').count(), 1, 'exactly one tile is Highly Recommended');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    await stepsAre(page, ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. Settings', '7. Vibes']);
-    assert.equal(await page.getByRole('button', { name: 'Start MVP', exact: true }).count(), 0, 'without an App, Delivery leads on to Vibes');
+    await stepsAre(page, ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. Settings', '6. Vibes', '7. Summary']);
     await page.getByRole('checkbox', { name: /^App / }).check();
     await stepsAre(page, withApp);
     assert.equal(await page.getByLabel('App name').count(), 0, 'the App name waits for App placement');
+    await page.getByRole('checkbox', { name: /^Dashboard/ }).check();
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     await page.getByText(`Emails ${OWNER} when Act now rows in the latest run are at least 1.`).waitFor();
     await openAdvanced(page);
     const comparison = page.locator('select:has(option[value=">="])');
     assert.deepEqual(await comparison.locator('option').allInnerTexts(), ['at least', 'more than', 'equal to', 'not equal to', 'less than', 'at most'],
       'the alert comparison reads in words, never a symbol');
-    await openAdvanced(page);
+    await goToStep(page, 'Data');
+    assert.deepEqual(await page.locator('[data-table]').evaluateAll((rows) => rows.map((r) => r.dataset.table)), ['main.s.orders', 'main.s.returns']);
+    assert.equal(await advanced(page).getAttribute('aria-expanded'), 'false');
+    assert.equal(await page.getByLabel('Goal sentence').count(), 0, 'every other setting waits under Advanced settings');
+    await dataToResults(page);
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
     assert.equal(await fresh.getByRole('button', { name: 'Off' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh starts Off');
     await fresh.getByRole('button', { name: 'Weekly' }).click();
     assert.equal(await fresh.getByRole('button', { name: 'Weekly' }).getAttribute('aria-pressed'), 'true');
     assert.equal(made.jobs.length, 0);
-    assert.equal(await page.getByRole('button', { name: 'Start MVP', exact: true }).count(), 0, 'with an App, Delivery leads on to App placement');
-    await next(page);
-    await onStep(page, 'App placement');
+    await goToStep(page, 'App placement');
     assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-hub-acme', 'a new App of a use case with no domain is the business Hub');
     await page.getByText("'inspire-hub-acme' is free").waitFor();
-    await next(page);
-    await onStep(page, 'App access');
+    await goToStep(page, 'App access');
     await page.getByRole('radio', { name: /^Internal data/ }).check();
-    await next(page);
-    await onStep(page, 'App look');
+    await goToStep(page, 'App look');
+    assert.equal(await page.getByRole('button', { name: BUILD_IT, exact: true }).count(), 0, 'the build button waits for Summary');
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
 
@@ -158,13 +154,12 @@ test('the wizard names the use case as the card the person clicked, while the da
   const ui = await openUi('wizard', { useCase: { ...row, use_case: 'Keep customers who would leave', statement: 'Keep the top segment buying' } });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     const summary = page.getByRole('region', { name: 'Executive summary' });
     await summary.getByText('Keep the top segment buying').waitFor();
     assert.equal(await summary.locator('h3').innerText(), HARNESS_USE_CASE.Name);
     assert.equal(await page.getByRole('dialog').getByText('Keep customers who would leave').count(), 0, 'one name for the use case, the one on its card');
-    await next(page);
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await toDelivery(page);
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
@@ -203,8 +198,7 @@ test('Edit of a failed version the old wizard saved under the use case id names 
   try {
     await toData(ui.page);
     await toDelivery(ui.page);
-    await next(ui.page);
-    await onStep(ui.page, 'App placement');
+    await goToStep(ui.page, 'App placement');
     assert.equal(await ui.page.getByLabel('App name').inputValue(), 'inspire-hub-acme', 'the App is the business Hub, not named after the use case id');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -280,10 +274,11 @@ test('a new App that could not get access is disabled up front with the reason, 
     assert.ok(reason.includes(`Inspire cannot create this App: a new App could not read ${RESULT_TABLE}: its service principal needs USE CATALOG on catalog \`main\` (owner admins)`), reason);
     assert.ok(reason.includes('Inspire cannot manage'), reason);
     assert.equal(await page.getByRole('checkbox', { name: /^Genie Agent/ }).isDisabled(), false);
+    await toSummary(page);
     const warn = page.locator('span.text-warning-fg', { hasText: `${OWNER} may not be able to read the result table` });
     await warn.waitFor();
     assert.equal(await warn.count(), 1, 'the warning shows on the main view, once');
-    assert.match(await warn.textContent(), new RegExp(`${OWNER} needs CAN USE on .* to open the dashboard and the Genie Agent, because they query with their own access`));
+    assert.match(await warn.textContent(), new RegExp(`${OWNER} needs CAN USE on .* to open the Genie Agent, because they query with their own access`));
     assert.equal(await page.getByRole('note', { name: 'Where Inspire saves the MVP' }).count(), 0, 'a session outside /Shared shows no folder warning');
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
@@ -314,10 +309,9 @@ test('a use case that trains a model stops on Results until Inspire may register
         assert.equal(await page.locator('[aria-current="step"]', { hasText: 'Results' }).count(), 1);
         assert.equal(await check.locator('p.text-error-fg', { hasText: missing }).count(), 1);
       } else {
-        await onStep(page, 'Delivery');
+        await page.locator('[aria-current="step"]', { hasText: 'Results' }).waitFor({ state: 'detached' });
         assert.equal(await check.count(), 0);
-        await page.getByRole('button', { name: 'Back' }).click();
-        await onStep(page, 'Results');
+        await goToStep(page, 'Results');
         assert.equal(await page.getByLabel('Result table check').locator('p.text-success-fg', { hasText: `you can register the model ${RESULT_TABLE}_model` }).count(), 1);
       }
       assert.deepEqual(ui.pageErrors, []);
@@ -327,14 +321,13 @@ test('a use case that trains a model stops on Results until Inspire may register
   }
 });
 
-test('a session that saves under /Shared says on Delivery that everyone can edit the MVP, without blocking it', async () => {
+test('a session that saves under /Shared says on Summary that everyone can edit the MVP, without blocking it', async () => {
   const session = { business_name: 'Acme', discovery_type: 'Deep', catalogs: 'main', schemas_str: 's', tables_str: 'main.s.orders',
     generation_path: '/Shared/demos', inspire_database_name: 'main.inspire' };
   const ui = await openUi('wizard', { session });
   const { page } = ui;
   try {
-    await toData(page);
-    await toDelivery(page);
+    await toSummary(page);
     const note = page.getByRole('note', { name: 'Where Inspire saves the MVP' });
     await note.waitFor();
     assert.match(await note.textContent(), /^Inspire saves this MVP under \/Workspace\/Shared\/demos\/acme_implemented\. Everyone in the workspace can edit/);
@@ -430,8 +423,7 @@ test('Next warns, without stopping, when the data to work with has no rows and s
     await eventDate().selectOption('main.s.orders.order_date');
     await page.getByLabel('Window start').fill('2026-10-26');
     await page.getByLabel('Window end').fill('2026-10-28');
-    await next(page);
-    await onStep(page, 'First run');
+    await goToStep(page, 'MVP Test Run');
     assert.equal(await page.locator('[data-empty-table-warning]').innerText(),
       'Warning: main.s.orders has no rows inside the date window you picked. You can go on, or widen or clear it under Advanced settings on Data.');
     assert.deepEqual(await footerErrors(page), [], 'an empty table no longer stops the wizard (must-exclude)');
@@ -444,7 +436,7 @@ test('Next warns, without stopping, when the data to work with has no rows and s
     await onStep(page, 'Data');
     made.state.readinessRows = [{ row_count: '1200' }];
     await eventDate().selectOption('main.s.returns.order_date');
-    await toDelivery(page);
+    await toSummary(page);
     await page.getByText('Inspire found 1,200 rows to work with in main.s.orders. This count leaves out the date window on main.s.returns; the preview run applies it.').waitFor();
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(ui.pageErrors, []);
@@ -458,10 +450,9 @@ test('an empty main table warns and moves on, and when every picked table is emp
   const { page, made } = ui;
   try {
     await toData(page);
-    await next(page);
-    await onStep(page, 'First run');
+    await goToStep(page, 'MVP Test Run');
     assert.equal(await page.locator('[data-empty-table-warning]').innerText(),
-      'Warning: main.s.orders is empty, so the first run may write no rows. You can go on.');
+      'Warning: main.s.orders is empty, so the MVP Test Run may write no rows. You can go on.');
     assert.doesNotMatch(await page.locator('[data-empty-table-warning]').innerText(), /grounded/, 'one other table has rows (must-exclude)');
     assert.deepEqual(await footerErrors(page), []);
     const counted = made.sqlCalls.filter((c) => String(c.sql).startsWith('SELECT COUNT(*) AS row_count'));
@@ -470,8 +461,7 @@ test('an empty main table warns and moves on, and when every picked table is emp
     await page.getByRole('button', { name: 'Back' }).click();
     await onStep(page, 'Data');
     made.state.readinessByTable = { 'main.s.orders': '0', 'main.s.returns': '0' };
-    await next(page);
-    await onStep(page, 'First run');
+    await goToStep(page, 'MVP Test Run');
     assert.equal(await page.locator('[data-empty-table-warning]').innerText(),
       'Warning: every table you picked is empty (main.s.orders, main.s.returns), so no use case can be grounded in rows. You can go on.');
     assert.deepEqual(await footerErrors(page), [], 'all empty still does not stop the wizard (must-exclude)');
@@ -479,8 +469,7 @@ test('an empty main table warns and moves on, and when every picked table is emp
     await page.getByRole('button', { name: 'Back' }).click();
     await onStep(page, 'Data');
     made.state.readinessByTable = { 'main.s.orders': '5', 'main.s.returns': '0' };
-    await next(page);
-    await onStep(page, 'First run');
+    await goToStep(page, 'MVP Test Run');
     assert.equal(await page.locator('[data-empty-table-warning]').count(), 0, 'rows in the main table clear the warning (must-exclude)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -547,23 +536,21 @@ test('an App name another App already uses is changed to the next free name, and
     await toData(page);
     await toDelivery(page);
     await page.getByRole('checkbox', { name: /^App / }).check();
-    await next(page);
-    await onStep(page, 'App placement');
+    await goToStep(page, 'App placement');
     await page.getByText("'inspire-hub-acme' is used by another App in this workspace, so Inspire named this App 'inspire-hub-acme-2'.").waitFor();
     assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-hub-acme-2');
     await page.getByLabel('App name').fill('inspire-hub-acme');
     await page.getByText("'inspire-hub-acme' is used by another App in this workspace; pick another name.", { exact: false }).waitFor();
     assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-hub-acme', 'a name the person typed is never changed for them');
-    await page.getByRole('button', { name: 'Back' }).click();
-    await onStep(page, 'Delivery');
+    await goToStep(page, 'Delivery');
     await throughApp(page);
-    await toVibes(page);
+    await toSummary(page);
     await page.locator('[role="alert"] p', { hasText: "App name: 'inspire-hub-acme' is used by another App in this workspace; pick another name" }).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Start MVP', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).isDisabled(), true);
     const here = page.locator('[data-last-app-name]');
     await here.getByRole('button', { name: 'Use inspire-hub-acme-2' }).click();
     await here.getByText("'inspire-hub-acme-2' is free").waitFor();
-    await onStep(page, 'Vibes');
+    await onStep(page, 'Summary');
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     assert.equal(submittedSpec(made).outputs.app_name, 'inspire-hub-acme-2');
@@ -1499,8 +1486,7 @@ test('a version saved while the App offered downloads retries its App and opens 
     const access = edit.page.getByRole('region', { name: 'App access' });
     assert.equal(await access.getByRole('checkbox', { name: /^Let people edit data/ }).isChecked(), true, 'the saved choices come back');
     await access.getByRole('checkbox', { name: /^Record decisions/ }).check();
-    await next(edit.page);
-    await onStep(edit.page, 'App look');
+    await goToStep(edit.page, 'App look');
     await implementWhenReady(edit.page);
     await edit.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     assert.deepEqual(submittedSpec(edit.made).outputs.app_options, { modify: true, replace_edits: false, decisions: true, alerts: false });
@@ -1562,8 +1548,7 @@ test('Edit of a use case whose own App no longer exists says so and puts the use
     await toDelivery(page);
     await page.getByText('The App this use case had, churn-desk, no longer exists, so Genie can add the use case to one Inspire built or create a new one.').waitFor();
     assert.equal(await page.locator('[data-merge="dashboard"]').count(), 0, 'a dashboard that still exists is updated in place');
-    await next(page);
-    await onStep(page, 'App placement');
+    await goToStep(page, 'App placement');
     const place = page.getByRole('region', { name: 'App placement' });
     await place.getByRole('note', { name: 'The App this use case joins' }).waitFor();
     assert.equal(await place.locator('[data-app-target="inspire-hub-acme"] input[type="radio"]').isChecked(), true);
@@ -1603,8 +1588,7 @@ test('Edit of a version whose swapped table is gone goes back to the use case\'s
     assert.doesNotMatch(await row.getAttribute('class'), /border-error/);
     await toDelivery(page);
     await toAppAccess(page);
-    await next(page);
-    await onStep(page, 'App look');
+    await goToStep(page, 'App look');
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     assert.deepEqual(submittedSpec(made).data.tables, {});
@@ -1627,12 +1611,11 @@ test('Edit of a version whose swapped table and own table are both gone marks th
     await page.getByLabel('Table to use for main.s.returns').waitFor();
     await toDelivery(page);
     await toAppAccess(page);
-    await next(page);
-    await onStep(page, 'App look');
-    await toVibes(page);
+    await goToStep(page, 'App look');
+    await toSummary(page);
     const named = 'the preview cannot run because these source tables are missing or not readable: main.s.returns_old (not found).';
     await page.waitForFunction((text) => [...document.querySelectorAll('[role="alert"] p')].some((p) => p.textContent.includes(text)), named, { timeout: 15000 });
-    assert.equal(await page.getByRole('button', { name: 'Start MVP', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).isDisabled(), true);
     assert.equal(made.jobs.length, 0);
     assert.equal(made.sqlCalls.some((c) => /INSERT INTO/.test(String(c.sql))), false);
   } finally {
@@ -1678,11 +1661,11 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     assert.equal(await never.page.locator('[data-mvp-progress]').count(), 0, 'no build to follow before an MVP exists');
     assert.equal(never.made.sqlCalls.some((c) => /^SELECT \* FROM `main`\.`inspire`\.`n01_u01_s42_out`/.test(String(c.sql))), false, 'no result table read');
     await never.page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
-    await onStep(never.page, 'Choose');
+    await onStep(never.page, 'Delivery consumption');
     assert.equal(await never.page.getByRole('region', { name: 'Executive summary' }).locator('h3').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
-    for (const label of ['Choose', 'Data', 'First run', 'Results', 'Delivery']) {
-      if (label !== 'Choose') {
+    for (const label of ['Delivery consumption', 'Data', 'MVP Test Run', 'Results', 'App placement']) {
+      if (label !== 'Delivery consumption') {
         await next(never.page);
         await onStep(never.page, label);
       }
@@ -1745,12 +1728,11 @@ test('a version stopped by notebook edits offers a rebuild that overwrites them,
   }
 });
 
-test('Edit after notebook edits asks on Delivery whether to overwrite them, and only a ticked box confirms', async () => {
+test('Edit after notebook edits asks on Summary whether to overwrite them, and only a ticked box confirms', async () => {
   const ui = await openUi('wizard', { ...STUDIO_STATE, history: [editedVersion(), built()], me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
   try {
-    await toData(page);
-    await toDelivery(page);
+    await toSummary(page);
     const box = page.getByRole('checkbox', { name: /^Overwrite the edits made to the notebook on / });
     await box.waitFor();
     assert.equal(await box.isChecked(), false, 'an Edit never starts confirmed');
@@ -1758,7 +1740,6 @@ test('Edit after notebook edits asks on Delivery whether to overwrite them, and 
     await asks.waitFor();
     await box.check();
     await asks.waitFor({ state: 'detached' });
-    await throughApp(page);
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     const inserts = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO'));
@@ -1776,41 +1757,35 @@ test('Edit after notebook edits asks on Delivery whether to overwrite them, and 
     await toDelivery(fresh.page);
     assert.equal(await fresh.page.getByRole('checkbox', { name: /^Overwrite the edits/ }).count(), 0, 'no recorded edit, no question');
     assert.equal(await fresh.page.locator('[data-merge]').count(), 0, 'an output the use case already has is updated in place, never moved');
-    await next(fresh.page);
-    await onStep(fresh.page, 'App placement');
+    await goToStep(fresh.page, 'App placement');
     await fresh.page.getByText('This use case already has its App, churn-desk, so Genie rebuilds it there.').waitFor();
     assert.equal(await fresh.page.getByLabel('App name').inputValue(), 'churn-desk', 'an edit keeps the live App name');
     assert.equal(await fresh.page.locator('[data-app-target]').count(), 0, 'an App the use case already has is never moved');
-    await next(fresh.page);
-    await onStep(fresh.page, 'App access');
+    await goToStep(fresh.page, 'App access');
     assert.equal(await fresh.page.getByRole('radio', { name: /^Internal data/ }).isChecked(), true,
       'an App built before the access choice existed shows the service principal it signs in with');
-    await next(fresh.page);
-    await onStep(fresh.page, 'App look');
-    await toVibes(fresh.page);
+    await goToStep(fresh.page, 'App look');
+    await toSummary(fresh.page);
     const note = fresh.page.getByRole('note', { name: 'Nothing to build' });
     await note.waitFor();
     assert.match(await note.innerText(), /Nothing changed since version 1, so there is nothing new to build\. Change a choice in any step to build version 2/);
-    assert.equal(await fresh.page.getByRole('button', { name: 'Start MVP', exact: true }).isDisabled(), true, 'an edit with no change cannot submit');
+    assert.equal(await fresh.page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).isDisabled(), true, 'an edit with no change cannot submit');
     assert.equal(await fresh.page.getByRole('alert').count(), 0, 'an unchanged edit is a note, never an error');
     assert.equal(await fresh.page.getByText(/^\d{3}:/).count(), 0, 'no HTTP status code reaches the screen');
     const lookStep = async () => {
-      for (const label of ['Settings', 'App look']) {
-        await fresh.page.getByRole('button', { name: 'Back' }).click();
-        await onStep(fresh.page, label);
-      }
+      await goToStep(fresh.page, 'App look');
       await fresh.page.getByRole('region', { name: 'App look' }).getByRole('tab', { name: 'Palette', exact: true }).click();
       return fresh.page.getByRole('region', { name: 'App look' }).getByRole('group', { name: 'Light or dark' });
     };
     await (await lookStep()).getByRole('button', { name: 'Dark' }).click();
-    await toVibes(fresh.page);
+    await toSummary(fresh.page);
     await fresh.page.waitForFunction(() => {
-      const start = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Start MVP');
+      const start = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'All Good, Build it Now');
       return start && !start.disabled;
     });
     assert.equal(await note.count(), 0, 'a changed look is something to build');
     await (await lookStep()).getByRole('button', { name: 'Light' }).click();
-    await toVibes(fresh.page);
+    await toSummary(fresh.page);
     await note.waitFor();
     await note.getByRole('button', { name: 'Go to the Build page' }).click();
     await fresh.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
@@ -1826,7 +1801,7 @@ test('with no Genie Code route, Inspire builds the MVP is disabled with the reas
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, gateway: noRoute });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     const full = page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL}`) });
     assert.equal(await full.isDisabled(), true);
     assert.equal(await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).isChecked(), true);
@@ -1834,7 +1809,7 @@ test('with no Genie Code route, Inspire builds the MVP is disabled with the reas
     await note.getByText(/^Genie Code is not available in this workspace/).waitFor();
     await note.getByText(/^Admin fix: Ask a workspace admin to serve a model to Genie Code/).waitFor();
     assert.doesNotMatch(await note.textContent(), /contact|ticket|support/i);
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Choose', '2. Data', '3. Notebook']);
+    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Delivery consumption', '2. Data', '3. Notebook']);
     assert.equal(made.jobs.length, 0);
   } finally {
     await ui.close();
@@ -1844,7 +1819,7 @@ test('with no Genie Code route, Inspire builds the MVP is disabled with the reas
 test('with a Genie Code route, Inspire builds the MVP stays the default and no note shows', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
-    await onStep(ui.page, 'Choose');
+    await onStep(ui.page, 'Delivery consumption');
     assert.equal(await ui.page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL}`) }).isChecked(), true);
     assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
   } finally {
@@ -1864,18 +1839,16 @@ test('I will build it myself skips the MVP settings, flags only this use case, s
     made.state.runsByJob = { 7: { runs: [{ run_id: 99, state: { life_cycle_state: 'RUNNING' }, run_page_url: runUrl }] } };
   };
   try {
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).check();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Choose', '2. Data', '3. Notebook']);
-    await next(page);
-    await onStep(page, 'Data');
+    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Delivery consumption', '2. Data', '3. Notebook']);
+    await goToStep(page, 'Data');
     const tables = page.getByRole('region', { name: 'Tables the notebook uses' });
     assert.deepEqual(await tables.locator('li > span.font-mono').allTextContents(), ['main.s.orders', 'main.s.returns']);
     await tables.locator('li', { hasText: 'main.s.orders' }).getByText('primary', { exact: true }).waitFor();
     assert.equal(await advanced(page).count(), 0, 'I will build it myself has no MVP settings');
     assert.equal(await page.getByRole('button', { name: 'Change' }).count(), 0, 'I will build it myself never swaps a table');
-    await next(page);
-    await onStep(page, 'Notebook');
+    await goToStep(page, 'Notebook');
     const step = page.getByRole('region', { name: 'Notebook' });
     await step.getByRole('heading', { name: 'Write the Genie Code notebook' }).waitFor();
     await step.getByText('under /tmp/out/acme.', { exact: false }).waitFor();
@@ -1941,12 +1914,10 @@ test('I will build it myself started from the Build page of a use case that has 
     const nav = page.getByRole('navigation', { name: 'Use cases' });
     await nav.getByRole('region', { name: 'Ready' }).getByText('Notebook ready', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).check();
-    await next(page);
-    await onStep(page, 'Data');
-    await next(page);
-    await onStep(page, 'Notebook');
+    await goToStep(page, 'Data');
+    await goToStep(page, 'Notebook');
     await page.getByRole('button', { name: 'Generate notebook' }).click();
     await page.getByRole('dialog').waitFor({ state: 'detached' });
     assert.equal(made.jobs.length, 1);
@@ -2001,7 +1972,7 @@ test('the Implement page groups every use case by its state, searches by name, i
     await page.getByText('Not built yet.', { exact: false }).waitFor();
     assert.equal(await page.locator('[data-asset-tiles]').count(), 0);
     await page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     assert.equal(await page.getByRole('region', { name: 'Executive summary' }).locator('h3').innerText(), 'Forecast demand');
     await page.getByRole('button', { name: 'Close' }).click();
     await page.locator('[data-implement-overlay]').waitFor({ state: 'detached' });

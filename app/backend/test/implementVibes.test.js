@@ -281,11 +281,11 @@ test('the Vibes step says its one box is optional with gray example text, and na
   const all = { outputs: { dashboard: true, genie_space: true, app: true, alert: true } };
   assert.equal(w.vibesSkippedText(all), '', 'every output picked, nothing to name');
   assert.equal(w.vibesSkippedText({ outputs: { ...all.outputs, alert: false } }),
-    'Genie builds only what you picked in the Delivery step, so an ask for the Alert is not done. To vibe it, go Back to Delivery and pick it.');
+    'Genie builds only what you picked in Delivery consumption, so an ask for the Alert is not done. To vibe it, go back to Delivery consumption and pick it.');
   assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, alert: false } }),
-    'Genie builds only what you picked in the Delivery step, so an ask for the Genie Agent, the App and the Alert is not done. To vibe them, go Back to Delivery and pick them.');
-  assert.equal(w.vibesSkippedText(null), 'Genie builds only what you picked in the Delivery step, so an ask for the Dashboard, the Genie Agent, the App and the Alert is not done. '
-    + 'To vibe them, go Back to Delivery and pick them.');
+    'Genie builds only what you picked in Delivery consumption, so an ask for the Genie Agent, the App and the Alert is not done. To vibe them, go back to Delivery consumption and pick them.');
+  assert.equal(w.vibesSkippedText(null), 'Genie builds only what you picked in Delivery consumption, so an ask for the Dashboard, the Genie Agent, the App and the Alert is not done. '
+    + 'To vibe them, go back to Delivery consumption and pick them.');
   for (const text of [w.VIBES_STEP_TITLE, w.VIBES_STEP_NOTE, w.vibesSkippedText(null)]) assert.doesNotMatch(text, /[\u2013\u2014]|\bgrey\b/, text);
 });
 

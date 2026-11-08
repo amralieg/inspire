@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, expandBuild, lowContrast, onStep, openAsset, openSettings, openUi, setDark, until } from './uiSupport.mjs';
+import { closeBrowser, expandBuild, lowContrast, onStep, openAsset, openSettings, openUi, setDark, toSummary, until } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const OTHER = ['someone', 'example.com'].join('@');
@@ -208,7 +208,8 @@ test('Rephrase puts exactly the asks that were not met in the one vibe box, and 
     assert.equal(await wizard.getByRole('textbox', { name: 'Vibes for the MVP', exact: true }).inputValue(),
       'Put the riskiest customers first\nCount returns by week\nAnswer in euros, rounded to cents\nShow the regions as a bar chart on the dashboard', 'the old words of the asks not met are gone');
     await wizard.getByRole('group', { name: 'What happens to v4?' }).getByRole('radio', { name: /^Keep v4 live/ }).check();
-    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    await toSummary(page);
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the rephrased build');
     const [built] = insertsOf(made);
     assert.equal(built.spec.vibes, 'Put the riskiest customers first\nCount returns by week\nAnswer in euros, rounded to cents\nShow the regions as a bar chart on the dashboard');

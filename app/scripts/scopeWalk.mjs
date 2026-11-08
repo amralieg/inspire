@@ -1,3 +1,4 @@
+import { FIRST_RUN_LABEL as RUN_LABEL } from '../frontend/src/lib/runScope.js';
 const profileRoute = await import('../frontend/src/lib/groupingProfile.js').then((m) => m.GROUPING_PROFILE_ROUTE || '', () => '');
 export const SCOPE_WALK_READS = new Set(profileRoute ? [`POST ${profileRoute}`] : []);
 const RECORDS_RE = /· [\d,]+ records?\b/;
@@ -35,15 +36,15 @@ export function checkWizardSteps(steps, profile) {
   const asked = steps.includes('Data groups');
   return [
     { check: 'the wizard asks Data groups whenever the technique works in groups', ok: asked === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${asked}` },
-    { check: 'First run comes right after Data groups', ok: !asked || steps.indexOf('First run') === steps.indexOf('Data groups') + 1, detail: steps.join(' > ') },
-    { check: 'the wizard asks First run', ok: steps.includes('First run'), detail: steps.join(' > ') },
+    { check: 'First run comes right after Data groups', ok: !asked || steps.indexOf(RUN_LABEL) === steps.indexOf('Data groups') + 1, detail: steps.join(' > ') },
+    { check: 'the wizard asks First run', ok: steps.includes(RUN_LABEL), detail: steps.join(' > ') },
   ];
 }
 
 export async function checkScope(root, profile, { part = 'both' } = {}) {
   const list = [];
   const grouping = root.getByRole('group', { name: 'Data groups', exact: true });
-  const firstRun = root.getByRole('group', { name: 'First run', exact: true });
+  const firstRun = root.getByRole('group', { name: RUN_LABEL, exact: true });
   if (!profile) {
     pending(list, 'the table profile', 'the page never read a Data groups profile, so nothing can be compared');
     return list;
@@ -87,12 +88,12 @@ export async function checkScope(root, profile, { part = 'both' } = {}) {
 
 export async function checkRunScope(page) {
   const list = [];
-  const region = page.getByRole('region', { name: 'Data groups and First run of this use case' });
+  const region = page.getByRole('region', { name: `Data groups and ${RUN_LABEL} of this use case` });
   if (!(await region.count())) {
     pending(list, 'the Run tab Data groups and First run', 'this page has no scope settings');
     return list;
   }
-  const firstRun = region.getByRole('group', { name: 'First run', exact: true });
+  const firstRun = region.getByRole('group', { name: RUN_LABEL, exact: true });
   const picked = (await firstRun.count()) ? (await choicesOf(firstRun)).find((c) => c.checked) : null;
   const everythingChosen = Boolean(picked) && /^Everything\b/.test(picked.text);
   await check(list, 'Run on everything is offered while the first run scope holds', async () => {

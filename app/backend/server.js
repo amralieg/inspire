@@ -63,6 +63,7 @@ const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath } = require('./li
 const { CACHE_REVALIDATE, compressedStatic, staticHeaders } = require('./lib/assetTypes');
 const { grantJobViewer, rememberViewer, viewerNoteOf } = require('./lib/jobViewer');
 const { discoveryTypeOf } = require('../frontend/src/lib/discoveryType.js');
+const { createPlaceSql } = require('../frontend/src/lib/tableName.js');
 
 const app = express();
 const routePolicy = RP.createRoutePolicy({
@@ -1537,9 +1538,7 @@ app.post('/api/setup/create-database', requireToken, async (req, res) => {
     if (parts.length !== 2) return res.status(400).json({ error: 'Format: catalog.schema' });
     const [catalog, schema] = parts;
 
-    // Create schema if not exists
-    const sql = `CREATE SCHEMA IF NOT EXISTS \`${catalog}\`.\`${schema}\``;
-    const result = await executeSql(req.dbHost, req.dbToken, warehouse_id, sql);
+    await executeSql(req.dbHost, req.dbToken, warehouse_id, createPlaceSql(catalog, schema));
     res.json({ ok: true, message: `Schema ${inspire_database} ready` });
   } catch (err) {
     res.status(500).json({ ok: false, error: err.message });

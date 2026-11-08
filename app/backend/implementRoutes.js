@@ -921,6 +921,22 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  app.post('/api/inspire/implement/create-schema', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const token = P.personTokenOf(req);
+      if (!token) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);
+      const catalog = String((req.body && req.body.catalog) ?? '').trim();
+      const schema = String((req.body && req.body.schema) ?? '').trim();
+      const bad = G.placeNameProblem(catalog, 'catalog') || (schema ? G.placeNameProblem(schema, 'schema') : '');
+      if (bad) throw I.badRequest(bad);
+      await executeSql(req.dbHost, token, warehouseId, G.createPlaceSql(catalog, schema));
+      res.json({ catalog, schema });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
   async function latestRunOf(req, warehouseId, row, history) {
     if (!row) return;
     row.older_build = I.olderBuildNote(history, buildStamp());

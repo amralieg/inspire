@@ -162,6 +162,17 @@ function canonicalPart(part) {
 
 export const quotedIdent = (name) => `\`${String(name).replace(/`/g, '``')}\``;
 
+export const PLACE_NAME_RE = /^[A-Za-z0-9_-]+$/;
+export const PLACE_RIGHTS = { catalog: 'CREATE CATALOG on the metastore', schema: 'CREATE SCHEMA on the catalog' };
+
+export function placeNameProblem(name, kind) {
+  return PLACE_NAME_RE.test(String(name ?? '').trim()) ? '' : `the ${kind} name can only use letters, digits, _ and -`;
+}
+
+export function createPlaceSql(catalog, schema = '') {
+  return schema ? `CREATE SCHEMA IF NOT EXISTS ${quotedIdent(catalog)}.${quotedIdent(schema)}` : `CREATE CATALOG IF NOT EXISTS ${quotedIdent(catalog)}`;
+}
+
 export function groupingMainTable(name) {
   const cs = Array.from(String(name ?? '').trim());
   let tokens;

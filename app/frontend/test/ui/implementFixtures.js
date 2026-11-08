@@ -58,7 +58,7 @@ export const builtSpec = () => {
   const { app_access: _access, app_look: _look, app_options: _options, merge: _merge, ...beforeAppSettings } = spec.outputs;
   return {
     ...spec,
-    outputs: { ...beforeAppSettings, genie_space: true, app: true, app_name: 'churn-desk', alert: true, alert_recipients: [OWNER],
+    outputs: { ...beforeAppSettings, dashboard: true, genie_space: true, app: true, app_name: 'churn-desk', alert: true, alert_recipients: [OWNER],
       genie_questions: ['Which customers should we call first?'], inspire_url: HARNESS_INSPIRE_URL },
   };
 };

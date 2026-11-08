@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
-import { closeBrowser, onStep, openAdvanced, openUi, startMvp, toVibes, until } from './uiSupport.mjs';
+import { closeBrowser, goToStep, onStep, openAdvanced, openUi, startMvp, toVibes, until, toSummary } from './uiSupport.mjs';
 
 const HOSTED_NO_TOKEN = 'Inspire needs permission to act as you to show this page; a workspace admin turns on user authorization for Apps, then reopen Inspire';
 const RUN_BANNER = 'Inside Inspire, only for testing. Give it its own App for real use.';
@@ -186,11 +186,8 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
   const { page, made } = ui;
   const next = () => page.getByRole('button', { name: 'Next' }).click();
   try {
-    await onStep(page, 'Choose');
-    for (const step of ['Data', 'First run', 'Results', 'Delivery', 'App placement']) {
-      await next();
-      await onStep(page, step);
-    }
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'App placement');
     await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     const card = page.locator('[data-app-place="inspire"]');
     assert.equal((await card.locator('[data-placement-tag]').textContent()).trim(), 'Not recommended, only for testing');
@@ -278,11 +275,8 @@ test('a #/run/<id> link opens the Run tab on that page, and a link to a page tha
 const MOVE_NOTE = "churn-desk is left as it is and no longer refreshed; Inspire runs this use case's page in its Run tab instead and deletes nothing.";
 
 async function toPlacement(page) {
-  await onStep(page, 'Choose');
-  for (const step of ['Data', 'First run', 'Results', 'Delivery', 'App placement']) {
-    await page.getByRole('button', { name: 'Next' }).click();
-    await onStep(page, step);
-  }
+  await onStep(page, 'Delivery consumption');
+  await goToStep(page, 'App placement');
 }
 
 test('a use case with its own App can move its page Inside Inspire: the wizard says the App is left as it is before the build, and Keep it goes back', async () => {
@@ -303,11 +297,11 @@ test('a use case with its own App can move its page Inside Inspire: the wizard s
     assert.equal(await page.getByLabel('App name').inputValue(), 'churn-desk', 'Keep it puts the App back');
     await page.getByRole('radio', { name: /^Inside Inspire/ }).check();
     await note.waitFor();
-    await toVibes(page);
+    await toSummary(page);
     await page.locator('[data-plan-move-note]').waitFor({ timeout: 15000 });
     assert.equal(await page.locator('[data-plan-move-note]').textContent(), MOVE_NOTE, 'the wizard says it again right before Start MVP');
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start MVP' && !b.disabled), null, { timeout: 15000 });
-    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 15000 });
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build');
     const [sent] = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
       .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));

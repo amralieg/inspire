@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, setDark, startMvp, steadyBox, toAppAccess, toVibes, until, wizardFits } from './uiSupport.mjs';
+import { clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, toSummary, setDark, startMvp, steadyBox, toAppAccess, toVibes, until, wizardFits, goToStep } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const SHOTS = process.env.VIBES_SHOTS || '';
@@ -19,12 +19,10 @@ const ONE_BOX = 'Vibes for the MVP';
 const wizardBox = (page) => page.getByRole('region', { name: 'Vibes', exact: true }).getByRole('textbox', { name: ONE_BOX, exact: true });
 
 async function toDelivery(page) {
-  await onStep(page, 'Choose');
-  await next(page);
-  await onStep(page, 'Data');
+  await onStep(page, 'Delivery consumption');
+  await goToStep(page, 'Data');
   await dataToResults(page);
-  await next(page);
-  await onStep(page, 'Delivery');
+  await goToStep(page, 'Delivery');
 }
 
 function insertsOf(made) {
@@ -49,7 +47,7 @@ async function readable(page, selectors, name) {
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
 }
 
-const STEPS_WITH_APP = ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. App placement', '7. App access', '8. App look', '9. Settings', '10. Vibes'];
+const STEPS_WITH_APP = ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. App placement', '6. App access', '7. App look', '8. Settings', '9. Vibes', '10. Summary'];
 const boxLabels = (panel) => panel.locator('textarea').evaluateAll((boxes) => boxes.map((b) => b.getAttribute('aria-label')));
 
 async function grayExamples(page, panel) {
@@ -78,7 +76,7 @@ test('Vibes is the last step: Delivery asks for no vibes, the step has one box f
     assert.equal(await page.getByRole('textbox', { name: /vibes/i }).count(), 0, 'Delivery has no vibes box');
     assert.equal(await page.getByRole('region', { name: 'Vibes' }).count(), 0);
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Choose', '2. Data', '3. First run', '4. Results', '5. Delivery', '6. Settings', '7. Vibes'], 'Vibes stays last without an App');
+    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. Settings', '6. Vibes', '7. Summary'], 'Summary stays last without an App');
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
     await panel.getByRole('heading', { name: 'Anything else Genie should build in?' }).waitFor();
@@ -91,7 +89,7 @@ test('Vibes is the last step: Delivery asks for no vibes, the step has one box f
     assert.equal(await panel.getByRole('group', { name: /^What happens to v/ }).count(), 0, 'a first build has no version before to keep or remove');
     await wizardBox(page).fill('');
     assert.equal(await panel.locator('[data-vibes-skipped]').textContent(),
-      'Genie builds only what you picked in the Delivery step, so an ask for the App and the Alert is not done. To vibe them, go Back to Delivery and pick them.');
+      'Genie builds only what you picked in Delivery consumption, so an ask for the Dashboard, the App and the Alert is not done. To vibe them, go back to Delivery consumption and pick them.');
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), ONE_BOX, 'the box has the focus');
     for (const dark of [false, true]) {
       await page.evaluate((on) => document.documentElement.classList.toggle('dark', on), dark);
@@ -104,9 +102,8 @@ test('Vibes is the last step: Delivery asks for no vibes, the step has one box f
 
     await page.getByRole('button', { name: 'Back' }).click();
     await onStep(page, 'Settings');
-    await page.getByRole('button', { name: 'Back' }).click();
-    await onStep(page, 'Delivery');
-    for (const name of [/^App /, /^Alert/]) await page.getByRole('checkbox', { name }).check();
+    await goToStep(page, 'Delivery');
+    for (const name of [/^Dashboard/, /^App /, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.getByText(`Emails ${OWNER} when`, { exact: false }).waitFor();
     await toAppAccess(page);
     await page.getByRole('radio', { name: /^Internal data/ }).check();
@@ -196,7 +193,7 @@ test('the Vibes step keeps a live counter, an ask over 2000 characters stops Sta
     await one.getByText('the MVP vibes are 2,001 characters; at most 2,000 are allowed').waitFor();
     assert.equal(await wizardBox(page).getAttribute('aria-invalid'), 'true');
     await page.getByRole('button', { name: 'Back' }).focus();
-    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.locator('[role="alert"]').waitFor();
     assert.deepEqual(await footerErrors(page), ['the MVP vibes are 2,001 characters; at most 2,000 are allowed']);
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), ONE_BOX, 'Start moves the focus to the box to shorten');
@@ -227,7 +224,7 @@ test('the Vibes step with every output picked fits 1440x900 with its box filled 
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await toDelivery(page);
-    await page.getByRole('checkbox', { name: /^Alert/ }).check();
+    for (const name of [/^Dashboard/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.getByText(`Emails ${OWNER} when`, { exact: false }).waitFor();
     await fits('vibes-wizard-tiles');
     await toAppAccess(page);
@@ -248,7 +245,7 @@ const builtSpec = (vibes = {}) => {
   const spec = defaultSpecFromUseCase(HARNESS_USE_CASE, { warehouseId: HARNESS_SETTINGS.warehouseId, inspireDatabase: HARNESS_SETTINGS.inspireDatabase, sessionId: HARNESS_SESSION_ID, owner: OWNER });
   return {
     ...spec,
-    outputs: { ...spec.outputs, genie_space: true, app: true, app_name: 'churn-desk', app_access: 'sp', alert: true, alert_recipients: [OWNER], ...vibes },
+    outputs: { ...spec.outputs, dashboard: true, genie_space: true, app: true, app_name: 'churn-desk', app_access: 'sp', alert: true, alert_recipients: [OWNER], ...vibes },
   };
 };
 
@@ -518,7 +515,8 @@ test('a notebook ask the notes hold is removed in Vibe/Add/Remove Features and b
     await choice.getByText('v3 stays as it is. Inspire builds each changed part again next to it, named v4, so you can compare them. Remove v3 later on the Build page. '
       + 'The alert is changed in place.', { exact: true }).waitFor();
     assert.equal(await choice.getByRole('radio', { name: /^Keep v3 live/ }).isChecked(), true, 'keep live is the choice until another is made');
-    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    await toSummary(page);
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the notebook build');
     const [built] = insertsOf(made);
     assert.deepEqual([built.spec.data.notes, built.spec.vibes, built.spec.vibe_previous],

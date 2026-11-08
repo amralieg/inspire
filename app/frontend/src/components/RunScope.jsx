@@ -2,7 +2,7 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Loader2, Play } from 'lucide-react';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { useScopeProfiles } from '../lib/groupingProfile';
-import { GROUP_ALL, GROUP_BY, RUN_EVERYTHING_LABEL, RUN_SCOPE, isScopeSetting, runScopeFacts } from '../lib/runScope';
+import { FIRST_RUN_LABEL, GROUP_ALL, GROUP_BY, RUN_EVERYTHING_LABEL, RUN_SCOPE, isScopeSetting, runScopeFacts } from '../lib/runScope';
 import { SETTINGS_ROUTES, settingsViewSaved } from '../lib/useCaseSettings';
 import { ScopeSections } from './ScopeSettings';
 
@@ -50,8 +50,8 @@ export default function RunScope({ page, settings }) {
     setView((prev) => settingsViewSaved(prev, got));
     return got;
   }, [apiPostJson, query]);
-  if (error) return <p role="alert" className="text-[12px] text-error-fg">Inspire could not read the Data groups and First run of this use case: {error}</p>;
-  if (!view || !runs) return <p className={NOTE}><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> Reading the Data groups and First run</p>;
+  if (error) return <p role="alert" className="text-[12px] text-error-fg">Inspire could not read the Data groups and {FIRST_RUN_LABEL} of this use case: {error}</p>;
+  if (!view || !runs) return <p className={NOTE}><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> Reading the Data groups and {FIRST_RUN_LABEL}</p>;
   if (!scopeList.length) return null;
   const facts = runScopeFacts(runs.runs);
   const scope = String(scopeList.find((s) => s.name === RUN_SCOPE)?.value ?? '') || GROUP_ALL;
@@ -72,7 +72,7 @@ export default function RunScope({ page, settings }) {
     }
   };
   return (
-    <section aria-label="Data groups and First run of this use case" data-run-scope="" className="space-y-3 rounded-lg border border-border p-3">
+    <section aria-label={`Data groups and ${FIRST_RUN_LABEL} of this use case`} data-run-scope="" className="space-y-3 rounded-lg border border-border p-3">
       <RunScopeLine facts={facts} all />
       {view.why && <p data-settings-why="" className={NOTE}>{view.why}</p>}
       {runs.why && <p data-run-scope-why="" className={NOTE}>{runs.why}</p>}

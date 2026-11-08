@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
 import { SETTINGS_TECHNICAL_NOTE } from '../../src/lib/useCaseSettings.js';
-import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, setDark, settled, toVibes, until, wizardFits } from './uiSupport.mjs';
+import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, setDark, settled, toVibes, until, wizardFits, goToStep, toSummary } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -69,10 +69,10 @@ test('all settings has a Settings step with the settings the built notebook read
     const contrast = await lowContrast(page, ['[aria-label="Use case settings"]']);
     assert.ok(contrast.checked >= 12, `measured ${contrast.checked}`);
     assert.deepEqual(contrast.low, []);
-    await next(page);
-    await onStep(page, 'Vibes');
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start MVP' && !b.disabled), null, { timeout: 15000 });
-    await page.getByRole('button', { name: 'Start MVP', exact: true }).click();
+    await goToStep(page, 'Vibes');
+    await toSummary(page);
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 15000 });
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the settings version');
     const [sent] = insertsOf(made);
     assert.deepEqual([sent.config.widgets.act_now_share, sent.config.assumptions, sent.config.settings_note], ['0.1', { WEEKS_LEFT: 20 }, 'more to act on this quarter'],
@@ -92,9 +92,8 @@ test('a first build lists the instruction\u2019s widgets as settings with their 
   const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: instruction } });
   const { page } = ui;
   try {
-    await onStep(page, 'Choose');
-    await next(page);
-    await onStep(page, 'Data');
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
     await page.getByRole('button', { name: /Advanced/ }).first().click();
     await page.getByText('The rules that flag records and the use case\u2019s own settings are on the Settings step.', { exact: true }).waitFor();
     assert.equal(await page.getByRole('textbox', { name: /Top K/ }).count(), 0, 'top_k is a setting, so the Data step does not edit it');

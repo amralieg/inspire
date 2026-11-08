@@ -25,7 +25,7 @@ const PROFILE = {
 test('the scope settings carry the contract keys, labels and defaults, and an empty value reads as its default', async () => {
   const S = await lib('runScope.js');
   assert.deepEqual(S.SCOPE_SETTINGS, ['group_by', 'run_scope', 'scope_groups', 'scope_days', 'scope_records']);
-  assert.deepEqual(Object.values(S.SCOPE_LABELS), ['Data groups', 'First run', 'Groups to run on', 'Days to run on', 'Records to run on']);
+  assert.deepEqual(Object.values(S.SCOPE_LABELS), ['Data groups', 'MVP Test Run', 'Groups to run on', 'Days to run on', 'Records to run on']);
   assert.deepEqual([S.GROUPING_SETTINGS, S.FIRST_RUN_SETTINGS], [['group_by'], ['run_scope', 'scope_groups', 'scope_days', 'scope_records']],
     'Data groups owns group_by and First run owns the rest, with nothing in both and nothing left out');
   assert.deepEqual([...S.GROUPING_SETTINGS, ...S.FIRST_RUN_SETTINGS].sort(), [...S.SCOPE_SETTINGS].sort());
@@ -33,7 +33,7 @@ test('the scope settings carry the contract keys, labels and defaults, and an em
     assert.notEqual(S.isGroupingSetting({ name }), S.isFirstRunSetting({ name }), `${name} belongs to exactly one step`);
   }
   assert.equal(S.isGroupingSetting({ name: 'horizon' }) || S.isFirstRunSetting({ name: 'horizon' }), false, 'another setting is in neither step (must-exclude)');
-  assert.deepEqual([S.GROUPING_SAVE_LABEL, S.FIRST_RUN_SAVE_LABEL], ['Save Data groups', 'Save First run']);
+  assert.deepEqual([S.GROUPING_SAVE_LABEL, S.FIRST_RUN_SAVE_LABEL], ['Save Data groups', 'Save MVP Test Run']);
   assert.deepEqual(S.RUN_SCOPES, ['all', 'groups', 'recent', 'records']);
   assert.equal(S.FIRST_RUN_RECORDS_LINE, undefined, 'the 1,000 record line lives once, in the backend grouping rule that answers default_scope');
   assert.equal(S.GROUP_MIN_RECORDS, undefined, 'the smallest group size lives once, in the backend grouping rule');
@@ -185,14 +185,14 @@ test('First run says in plain words what it covers, for every choice, and a smal
   const S = await lib('runScope.js');
   const base = { ...S.scopeValues(() => undefined), group_by: 'country', scope_groups: '' };
   const covers = (values, profile = PROFILE) => S.firstRunCoversText(profile, { ...base, ...values });
-  assert.equal(covers({ run_scope: 'groups', scope_groups: 'USA' }), 'The first run covers 1 group of country: country = USA, 18,200 records. Every other group waits for a run on everything.');
+  assert.equal(covers({ run_scope: 'groups', scope_groups: 'USA' }), 'The MVP Test Run covers 1 group of country: country = USA, 18,200 records. Every other group waits for a run on everything.');
   assert.equal(covers({ run_scope: 'groups', scope_groups: 'USA, Spain' }),
-    'The first run covers 2 groups of country: country = USA; country = Spain, 19,600 records. Every other group waits for a run on everything.');
-  assert.equal(covers({ run_scope: 'groups' }), 'The first run covers no group yet; pick the groups it runs on.');
-  assert.equal(covers({ run_scope: 'records' }), 'The first run covers about 1,000 records, in 1 whole group so no group is cut: country = Malta, 300 records.');
-  assert.equal(covers({ run_scope: 'records' }, { ...PROFILE, records: 700 }), 'The first run covers all 700 records of main.sales.orders, since it holds no more than 1,000 records.');
-  assert.equal(covers({ run_scope: 'recent' }), 'The first run covers the last 30 days of order_date, 3,120 records.');
-  assert.match(covers({ run_scope: 'all' }), /^The first run covers everything, 48,210 records\. Everything is 48,210 records, about 48 times a 1,000-record first run/);
+    'The MVP Test Run covers 2 groups of country: country = USA; country = Spain, 19,600 records. Every other group waits for a run on everything.');
+  assert.equal(covers({ run_scope: 'groups' }), 'The MVP Test Run covers no group yet; pick the groups it runs on.');
+  assert.equal(covers({ run_scope: 'records' }), 'The MVP Test Run covers about 1,000 records, in 1 whole group so no group is cut: country = Malta, 300 records.');
+  assert.equal(covers({ run_scope: 'records' }, { ...PROFILE, records: 700 }), 'The MVP Test Run covers all 700 records of main.sales.orders, since it holds no more than 1,000 records.');
+  assert.equal(covers({ run_scope: 'recent' }), 'The MVP Test Run covers the last 30 days of order_date, 3,120 records.');
+  assert.match(covers({ run_scope: 'all' }), /^The MVP Test Run covers everything, 48,210 records\. Everything is 48,210 records, about 48 times a 1,000-record MVP Test Run/);
   assert.equal(covers({ run_scope: '' }), '', 'no choice yet says nothing, never everything (must-exclude)');
   assert.equal(S.firstRunChoiceOf({ run_scope: 'groups', scope_groups: 'USA' }), 'one');
   assert.equal(S.firstRunChoiceOf({ run_scope: 'groups', scope_groups: 'USA, Spain' }), 'groups');
@@ -206,11 +206,11 @@ test('the scope checks refuse what the agent would refuse, and accept what it ru
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'records' }), [], 'about 1,000 records in whole groups');
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'records' }), [], 'the first 1,000 records');
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'records', scope_records: '0' }), ["Records to run on is '0'; allowed: a whole number, at least 1"]);
-  assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'custom' }, 'first_run'), [`First run is 'custom': ${S.CUSTOM_SQL_REFUSED}`]);
+  assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'custom' }, 'first_run'), [`MVP Test Run is 'custom': ${S.CUSTOM_SQL_REFUSED}`]);
   assert.deepEqual(S.scopeProblems({ ...base, group_by: 'region, custom' }, 'grouping'), [`Data groups is 'region, custom': ${S.CUSTOM_SQL_REFUSED}`]);
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'recent', scope_days: '0' }), ["Days to run on is '0'; allowed: a whole number, at least 1"]);
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'recent', scope_days: '2.5' }), ["Days to run on is '2.5'; allowed: a whole number, at least 1"]);
-  assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'everything' }), ["First run is 'everything'; allowed: all, groups, recent, records"]);
+  assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'everything' }), ["MVP Test Run is 'everything'; allowed: all, groups, recent, records"]);
   assert.deepEqual(S.scopeProblems({ ...base, group_by: 'all, country' }), ["Data groups is 'all, country'; choose all or column names, not a mix"]);
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'groups', group_by: 'region, country', scope_groups: 'USA' }), []);
   assert.deepEqual(S.scopeProblems({ ...base, run_scope: 'groups', group_by: 'region, country' }, 'first_run'), ['Groups to run on is empty; pick at least one group'],
@@ -223,15 +223,15 @@ test('the scope reads as the agent writes it, and counts carry thousands separat
   const P = await lib('plural.js');
   assert.equal(S.scopeText({ run_scope: 'all' }), 'All records');
   assert.equal(S.scopeText({ run_scope: '' }), 'All records');
-  assert.equal(S.scopeText({ run_scope: 'groups', scope_groups: 'USA, Spain' }), 'First run: 2 groups (USA, Spain)');
-  assert.equal(S.scopeText({ run_scope: 'recent', scope_days: '1' }), 'First run: the last 1 day');
-  assert.equal(S.scopeText({ run_scope: 'records', scope_records: '1500' }), 'First run: about 1,500 records, in whole groups when the technique reads records together');
+  assert.equal(S.scopeText({ run_scope: 'groups', scope_groups: 'USA, Spain' }), 'MVP Test Run: 2 groups (USA, Spain)');
+  assert.equal(S.scopeText({ run_scope: 'recent', scope_days: '1' }), 'MVP Test Run: the last 1 day');
+  assert.equal(S.scopeText({ run_scope: 'records', scope_records: '1500' }), 'MVP Test Run: about 1,500 records, in whole groups when the technique reads records together');
   assert.equal(P.counted(48210, 'record'), '48,210 records');
   assert.equal(P.counted(1, 'record'), '1 record');
-  assert.equal(S.profileHeldText(PROFILE), 'main.sales.orders holds 48,210 records, so Inspire suggests a smaller first run to show results sooner.');
-  assert.equal(S.profileHeldText({ ...PROFILE, records: 800, default_scope: 'all' }), 'main.sales.orders holds 800 records, so the first run covers all of it.');
-  assert.equal(S.profileHeldText({ ...PROFILE, records: 1, default_scope: 'all' }), 'main.sales.orders holds 1 record, so the first run covers all of it.');
-  assert.equal(S.profileHeldText({ ...PROFILE, records: 0, default_scope: 'all' }), 'main.sales.orders holds no records yet, so a first run has nothing to read until data arrives.');
+  assert.equal(S.profileHeldText(PROFILE), 'main.sales.orders holds 48,210 records, so Inspire suggests a smaller MVP Test Run to show results sooner.');
+  assert.equal(S.profileHeldText({ ...PROFILE, records: 800, default_scope: 'all' }), 'main.sales.orders holds 800 records, so the MVP Test Run covers all of it.');
+  assert.equal(S.profileHeldText({ ...PROFILE, records: 1, default_scope: 'all' }), 'main.sales.orders holds 1 record, so the MVP Test Run covers all of it.');
+  assert.equal(S.profileHeldText({ ...PROFILE, records: 0, default_scope: 'all' }), 'main.sales.orders holds no records yet, so an MVP Test Run has nothing to read until data arrives.');
   assert.doesNotMatch(S.profileHeldText({ ...PROFILE, records: 0, default_scope: 'all' }), /0 records|about/, 'an empty table never promises a first run of records (must-exclude)');
 });
 
@@ -325,7 +325,7 @@ test('a First run a built version recorded as a number takes every First run cho
   const U = await lib('useCaseSettings.js');
   const I = require('../lib/inspireImplement');
   for (const [value, problem] of SCOPE_CASES) {
-    assert.equal(S.runScopeProblem(value), problem.replace('run_scope', 'First run'), `First run step ${value}`);
+    assert.equal(S.runScopeProblem(value), problem.replace('run_scope', 'MVP Test Run'), `First run step ${value}`);
     assert.equal(S.runScopeProblem(value, 'run_scope'), problem, `runScopeProblem ${value}`);
     assert.equal(U.settingProblem(RECORDED_RUN_SCOPE, value), problem, `App ${value}`);
     assert.equal(I.implementSettingProblem(RECORDED_RUN_SCOPE, value), problem, `server ${value}`);
@@ -478,7 +478,7 @@ test('a legacy comma list of groups reads as one-value groups of the finest colu
   assert.equal(S.scopeGroupsValue(groups), '[[{"column":"country","value":"USA"}],[{"column":"country","value":"Spain"}]]');
   assert.deepEqual(S.scopeGroupsOf(S.scopeGroupsValue(groups), 'region'), groups, 'a later change of the finest column does not move the saved groups');
   assert.equal(S.scopeGroupsValue(S.scopeGroupsOf('USA, Spain', '')), 'USA, Spain', 'with no known column the list stays as it was');
-  assert.equal(S.scopeText({ run_scope: 'groups', scope_groups: 'USA, Spain' }), 'First run: 2 groups (USA, Spain)');
+  assert.equal(S.scopeText({ run_scope: 'groups', scope_groups: 'USA, Spain' }), 'MVP Test Run: 2 groups (USA, Spain)');
 });
 
 const STAR_PROFILE = {
@@ -517,17 +517,17 @@ test('a star-schema forecast above 1,000 records defaults to whole groups, never
     [['one', true, null], ['groups', true, null], ['records', true, 470000], ['recent', true, 0], ['all', true, 2880404]]);
   assert.equal(choices[2].label, '470,000 records in the smallest whole group, since every group of ss_store_sk holds more than 1,000 records, so no group is cut: ss_store_sk = 7, 470,000 records',
     'whole groups of the finest column of the main table, as the run takes them, never of the joined column');
-  assert.equal(choices[4].estimate, 'Everything is 2,880,404 records, about 2,880 times a 1,000-record first run; how long it takes is unknown until a larger run is measured');
-  assert.equal(S.everythingEstimate('', 8000, 1000), 'Everything is 8,000 records, about 8 times a 1,000-record first run, so it takes up to about 8 times as long');
+  assert.equal(choices[4].estimate, 'Everything is 2,880,404 records, about 2,880 times a 1,000-record MVP Test Run; how long it takes is unknown until a larger run is measured');
+  assert.equal(S.everythingEstimate('', 8000, 1000), 'Everything is 8,000 records, about 8 times a 1,000-record MVP Test Run, so it takes up to about 8 times as long');
   assert.equal(S.everythingEstimate('', 1000, 1000), '');
   assert.equal(S.everythingEstimate('the server said so', 7500000, 1000), 'the server said so');
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
-  assert.equal(S.scopeText(values, STAR_PROFILE), 'First run: 470,000 records in the smallest whole group, since every group of ss_store_sk holds more than 1,000 records, so no group is cut: ss_store_sk = 7, 470,000 records');
+  assert.equal(S.scopeText(values, STAR_PROFILE), 'MVP Test Run: 470,000 records in the smallest whole group, since every group of ss_store_sk holds more than 1,000 records, so no group is cut: ss_store_sk = 7, 470,000 records');
   const picked = { ...values, run_scope: 'groups', scope_groups: JSON.stringify(STAR_PROFILE.suggested_groups.map((g) => g.parts)) };
   assert.equal(S.chosenGroupsText, undefined, 'the First run covers line is the one sentence that names the chosen groups');
-  assert.equal(S.firstRunCoversText(STAR_PROFILE, picked), 'The first run covers 2 groups of ss_store_sk, then item.i_category: ss_store_sk = 1 and '
+  assert.equal(S.firstRunCoversText(STAR_PROFILE, picked), 'The MVP Test Run covers 2 groups of ss_store_sk, then item.i_category: ss_store_sk = 1 and '
     + 'item.i_category = Electronics; ss_store_sk = 7 and item.i_category = Home, 77,390 records. Every other group waits for a run on everything.');
-  assert.equal(S.scopeText(picked), 'First run: 2 groups (ss_store_sk = 1 and item.i_category = Electronics; ss_store_sk = 7 and item.i_category = Home)');
+  assert.equal(S.scopeText(picked), 'MVP Test Run: 2 groups (ss_store_sk = 1 and item.i_category = Electronics; ss_store_sk = 7 and item.i_category = Home)');
 });
 
 test('above 1,000 records every default is a number of records, never everything or a recent period, and the backend answer is read as given (must-exclude)', async () => {
@@ -539,7 +539,7 @@ test('above 1,000 records every default is a number of records, never everything
   const values = S.withScopeDefaults(S.scopeValues(() => undefined), bare);
   assert.equal(values.run_scope, 'records');
   const records = S.firstRunChoices(bare, values).find((c) => c.id === 'records');
-  assert.equal(records.label, 'The first 1,000 records; this technique reads records together and no column groups them, so a group may be cut in this first run');
+  assert.equal(records.label, 'The first 1,000 records; this technique reads records together and no column groups them, so a group may be cut in this MVP Test Run');
   assert.equal(records.available, true);
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
   assert.deepEqual(S.scopeProblems({ ...values, run_scope: 'all' }, 'first_run'), [], 'everything is still a choice someone can make');
@@ -550,9 +550,9 @@ test('above 1,000 records every default is a number of records, never everything
 test('a custom first run is refused on the First run step only, and is never described as a run Inspire can do', async () => {
   const S = await lib('runScope.js');
   const values = { ...S.scopeValues(() => undefined), run_scope: 'custom' };
-  assert.deepEqual(S.scopeProblems(values, 'first_run'), [`First run is 'custom': ${S.CUSTOM_SQL_REFUSED}`]);
+  assert.deepEqual(S.scopeProblems(values, 'first_run'), [`MVP Test Run is 'custom': ${S.CUSTOM_SQL_REFUSED}`]);
   assert.deepEqual(S.scopeProblems(values, 'grouping'), []);
-  assert.equal(S.runScopeProblem('custom'), `First run is 'custom': ${S.CUSTOM_SQL_REFUSED}`);
+  assert.equal(S.runScopeProblem('custom'), `MVP Test Run is 'custom': ${S.CUSTOM_SQL_REFUSED}`);
   assert.equal(S.runScopeProblem('records'), '');
   assert.equal(S.firstRunChoices(STAR_PROFILE, values).some((c) => c.id === 'custom'), false);
   assert.equal(S.scopeText(values), S.SCOPE_ALL_TEXT);
@@ -639,7 +639,7 @@ test('a first run on about 1,000 records of a small table with groups of about 5
   assert.deepEqual(picked.map((g) => g.value), ['Ginger', 'Pecan', 'Cocoa'], 'the biggest, a typical and the smallest product');
   assert.notEqual(picked.length, 1, 'one product is never the whole first run when three fit (must-exclude)');
   const said = S.recordGroupsText({ table: 't', standalone: false, group_column: 'product', group_sizes: sizes }, { scope_records: '1000' });
-  assert.equal(said, '1,673 records, in 3 whole groups, so the first run sees more than one group and no group is cut: product = Ginger, 586 records; '
+  assert.equal(said, '1,673 records, in 3 whole groups, so the MVP Test Run sees more than one group and no group is cut: product = Ginger, 586 records; '
     + 'product = Pecan, 560 records; product = Cocoa, 527 records');
   assert.doesNotMatch(said, /smallest whole group|About 1,000/);
   assert.deepEqual(S.wholeGroups([{ value: 'A', records: 900 }, { value: 'B', records: 5000 }], '1000').map((g) => g.value), ['A'], 'only one group fits, so one group runs');
@@ -680,4 +680,45 @@ test('with one group picked, only One group carries its count, never Several gro
   assert.equal(counts(one).groups, null);
   assert.notEqual(counts(one).one, undefined);
   assert.equal(counts(many).one, null);
+});
+
+const WIDE = {
+  ...PROFILE, recommended: ['region'],
+  columns: Array.from({ length: 20 }, (_v, i) => ({ name: `col_${String(i + 1).padStart(2, '0')}`, type: 'string', distinct: (i + 1) * 3, smallest: 10, largest: 900, nulls: 0, parent: null }))
+    .concat([{ name: 'region', type: 'string', distinct: 4, smallest: 210, largest: 30110, nulls: 0, parent: null }]),
+  group_list: [], column_groups: {},
+};
+
+test('a 20-column table shows the pick and the top cards, hides the rest behind Show all, and search finds a hidden one (must-exclude)', async () => {
+  const S = await lib('runScope.js');
+  const choices = S.groupingChoices(WIDE);
+  assert.equal(choices.filter((c) => c.columns.length === 1).length, 21);
+  const best = S.groupingBest(WIDE, choices);
+  assert.equal(best.value, 'region');
+  const keep = (c) => !c.columns.length || c.value === best.value;
+  const shown = S.topShown(choices, { keep });
+  assert.equal(shown.length, S.GROUPING_SHOWN);
+  assert.ok(shown.some((c) => c.value === 'all') && shown.some((c) => c.value === 'region'), 'the whole-data card and the pick always show');
+  assert.equal(shown.some((c) => c.value === 'col_20'), false, 'a column past the top cards is hidden until Show all (must-exclude)');
+  assert.equal(S.topShown(choices, { keep, open: true }).length, choices.length, 'Show all lists every column');
+  const found = S.topShown(choices, { keep, open: true, query: 'COL_20', textOf: (c) => c.label });
+  assert.deepEqual(found.map((c) => c.value), ['all', 'region', 'col_20'], 'search keeps the pick and finds the hidden column');
+  const picked = S.topShown(choices, { keep: (c) => keep(c) || c.value === 'col_17' });
+  assert.ok(picked.some((c) => c.value === 'col_17'), 'a picked column far down the list stays on screen');
+  assert.equal(S.topShown(WIDE.columns, { limit: 6 }).length, 6, 'the Combine columns row is cut the same way');
+  assert.deepEqual(S.topShown([], {}), []);
+});
+
+test('every grouping card says how many groups it makes, the whole data is 1 group, and the lead names the pick and its count', async () => {
+  const S = await lib('runScope.js');
+  const choices = S.groupingChoices(WIDE);
+  assert.equal(S.groupingCount(choices.find((c) => c.value === 'all'), WIDE), 1);
+  assert.equal(S.groupingCountText(1), '1 group');
+  assert.equal(S.groupingCount(choices.find((c) => c.value === 'col_05'), WIDE), 15);
+  assert.equal(S.groupingCountText(15), '15 groups');
+  assert.equal(S.groupingCount({ columns: ['region', 'col_01'] }, WIDE), null, 'a combination the profile did not list has no count yet');
+  assert.equal(S.groupingCountText(null), S.GROUPING_UNCOUNTED);
+  assert.equal(S.groupingCount({ columns: ['region', 'country'] }, PROFILE), 4, 'a listed combination counts its listed groups');
+  assert.deepEqual(S.groupingLead(WIDE, choices), { label: 'region', groups: 4 });
+  assert.equal(S.groupingLead({ ...WIDE, recommended: [], applies: false, columns: [] }), null, 'whole data has no lead column');
 });

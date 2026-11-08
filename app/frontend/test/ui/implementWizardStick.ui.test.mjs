@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, openAdvanced, openAsset, openSettings, openUi, onStep, startMvp, until } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, openAdvanced, openAsset, openSettings, openUi, onStep, startMvp, until, goToStep, toSummary } from './uiSupport.mjs';
 import { STUDIO_STATE } from './implementFixtures.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
@@ -34,9 +34,8 @@ test('the wizard groups the rows by the use case\'s subject, suggests a team cap
     if (r.method() === 'POST' && r.url().includes('/api/inspire/implement/submit')) sent.push(JSON.parse(r.postData()));
   });
   try {
-    await onStep(page, 'Choose');
-    await next(page);
-    await onStep(page, 'Data');
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
     await openAdvanced(page);
     const grain = page.getByRole('region', { name: 'What one row means' });
     await grain.getByText('This use case is about customers, but one row of the result would be one order (main.s.orders.order_id). '
@@ -46,7 +45,7 @@ test('the wizard groups the rows by the use case\'s subject, suggests a team cap
     await grain.getByText('One row of the result is one customer (main.s.orders.customer_id).').waitFor();
     assert.equal(await grain.getByRole('combobox', { name: 'Entity key' }).inputValue(), 'main.s.orders.customer_id');
     await dataToResults(page);
-    await openAdvanced(page);
+    await goToStep(page, 'Settings');
     const capacity = page.getByRole('group', { name: 'Team capacity' });
     const box = capacity.getByRole('textbox', { name: 'Rows the team can act on each run' });
     assert.equal(await box.inputValue(), '50', 'a weekly run over 12,400 rows gets the suggested 50');
@@ -57,8 +56,7 @@ test('the wizard groups the rows by the use case\'s subject, suggests a team cap
       'Act now holds at most 25 rows a run; the next ones by rank wait in Review, and the App says how many.');
     assert.match(await capacity.locator('[data-capacity-basis]').innerText(), /^Your number wins over Inspire\u2019s suggestion\. /);
     await capacity.getByRole('button', { name: 'Use Inspire\u2019s suggestion: 50' }).waitFor();
-    await next(page);
-    await onStep(page, 'Delivery');
+    await goToStep(page, 'Delivery');
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     const digest = page.getByRole('checkbox', { name: /^Send a weekly value email to the alert recipients/ });
     assert.equal(await digest.isChecked(), true, 'the email is on once the alert has a recipient');
@@ -102,12 +100,10 @@ test('removing an App another use case shares offers to take this use case\'s pa
   });
   const { page, pageErrors } = ui;
   try {
-    await onStep(page, 'Choose');
-    await next(page);
-    await onStep(page, 'Data');
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
     await dataToResults(page);
-    await next(page);
-    await onStep(page, 'Delivery');
+    await goToStep(page, 'Delivery');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
     const tile = page.locator('[data-output="app"]');
     await tile.getByText('This use case already has an App. What should happen to it?').waitFor();
@@ -116,13 +112,19 @@ test('removing an App another use case shares offers to take this use case\'s pa
     await takeOut.waitFor();
     assert.equal(await takeOut.isChecked(), true, 'the choice the person made stays, only its words change');
     assert.equal(await tile.getByRole('radio', { name: 'Delete it' }).count(), 0);
-    const toggle = page.getByRole('button', { name: 'Advanced settings' });
-    if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+    const plan = async () => {
+      await toSummary(page);
+      const toggle = page.getByRole('button', { name: 'Advanced settings' });
+      if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
+    };
+    await plan();
     await page.getByText(TAKE_OUT, { exact: true }).and(page.locator('p')).waitFor();
     assert.equal(await page.getByText('Deletes: App', { exact: true }).count(), 0, 'the plan never says it deletes a shared App');
+    await goToStep(page, 'Delivery');
     await tile.getByRole('radio', { name: 'Keep it unmanaged' }).check();
-    await page.getByText('Leaves in place, no longer managed: App', { exact: true }).waitFor();
     assert.equal(await tile.getByRole('radio', { name: TAKE_OUT }).count(), 1, 'the radio keeps the last check while the plan no longer deletes it');
+    await plan();
+    await page.getByText('Leaves in place, no longer managed: App', { exact: true }).waitFor();
     assert.deepEqual(pageErrors, []);
   } finally {
     await ui.close();

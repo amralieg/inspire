@@ -1,20 +1,20 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toVibes, wizardFits } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardFits, goToStep } from './uiSupport.mjs';
 import { NOTEBOOK_MODE_LABEL } from '../../src/lib/implementWizard.js';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['Choose', 'Data', 'First run', 'Results', 'Delivery', 'App placement', 'App access', 'App look', 'Settings', 'Vibes'];
+const FULL_MVP_STEPS = ['Delivery consumption', 'Data', 'MVP Test Run', 'Results', 'App placement', 'App access', 'App look', 'Settings', 'Vibes', 'Summary'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
-const startButton = (page) => page.getByRole('button', { name: 'Start MVP', exact: true });
+const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));
 const summary = (page) => page.getByRole('region', { name: 'What Inspire picked' });
-const appRow = (page) => summary(page).locator('[data-picked-row="app"] dd').innerText();
-const startOn = (page) => page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Start MVP' && !b.disabled),
-  null, { timeout: 15000 });
+const appRow = (page) => summary(page).locator('[data-picked-row="app"] [data-picked-value]').innerText();
+const startOn = (page) => page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled),
+  BUILD_IT, { timeout: 15000 });
 
 function submittedSpec(made) {
   const inserts = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'));
@@ -26,18 +26,22 @@ test('a fresh Inspire builds the MVP shows every step in the step bar, with no s
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS);
     assert.equal(await page.getByRole('button', { name: 'Customize' }).count(), 0);
-    await next(page);
-    await onStep(page, 'Data');
+    await page.getByRole('heading', { name: 'How do you like to consume or use this use case?' }).waitFor();
+    await page.getByRole('checkbox', { name: /^App/ }).first().uncheck();
+    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS.filter((l) => !l.startsWith('App ')), 'with Apps unticked the App steps are hidden');
+    await page.getByRole('checkbox', { name: /^App/ }).first().check();
+    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS);
+    await goToStep(page, 'Data');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('Data, Results, Delivery, App placement and App access show the business settings and keep the technical ones under Advanced settings until it is opened', async () => {
+test('Data, Results, App placement and App access show the business settings and keep the technical ones under Advanced settings until it is opened', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   const field = (label) => page.getByLabel(new RegExp(`^${label.replace(/[()]/g, '\\$&')}`));
@@ -45,30 +49,24 @@ test('Data, Results, Delivery, App placement and App access show the business se
   const shown = (label) => field(label).first().waitFor();
   const open = () => openAdvanced(page);
   try {
-    await next(page);
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await hidden(label);
     await open();
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await shown(label);
-    for (const step of ['First run', 'Results']) {
+    for (const step of ['MVP Test Run', 'Results']) {
       await next(page);
       await onStep(page, step);
     }
-    await shown('Table name');
-    await page.getByRole('checkbox', { name: /^Hold back/ }).check();
-    for (const label of ['Catalog', 'Schema', 'Share of records held back', 'Rows the team can act on each run']) await hidden(label);
-    await open();
-    for (const label of ['Catalog', 'Schema', 'Share of records held back', 'Rows the team can act on each run']) await shown(label);
-    await next(page);
-    await onStep(page, 'Delivery');
+    for (const label of ['Table name', 'Catalog', 'Schema']) await shown(label);
     await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
-    for (const label of ['Cron (Quartz)', 'Timezone']) await hidden(label);
+    await page.getByRole('checkbox', { name: /^Hold back/ }).check();
+    for (const label of ['Share of records held back', 'Cron (Quartz)', 'Timezone', 'Rows the team can act on each run']) await hidden(label);
     await open();
-    for (const label of ['Cron (Quartz)', 'Timezone']) await shown(label);
+    for (const label of ['Share of records held back', 'Cron (Quartz)', 'Timezone']) await shown(label);
+    await hidden('Rows the team can act on each run');
     const picker = page.locator('[data-app-warehouse="pick"]');
-    await next(page);
-    await onStep(page, 'App placement');
+    await goToStep(page, 'App placement');
     const placed = await page.locator('input[name="app-place"]:checked').getAttribute('value');
     await page.locator('[data-app-place="inspire"] input[type="radio"]').check();
     await page.locator('[data-app-place="inspire"] [data-placement-blurb]').waitFor();
@@ -76,8 +74,7 @@ test('Data, Results, Delivery, App placement and App access show the business se
     await open();
     await picker.waitFor();
     await page.locator(`input[name="app-place"][value="${placed}"]`).check();
-    await next(page);
-    await onStep(page, 'App access');
+    await goToStep(page, 'App access');
     assert.equal(await picker.count(), 0, 'the App SQL warehouse shows on App access before Advanced settings is opened');
     await open();
     await picker.waitFor();
@@ -87,23 +84,30 @@ test('Data, Results, Delivery, App placement and App access show the business se
   }
 });
 
-test('the last step reviews what Inspire picked, with the step to change each on, and no earlier step shows it', async () => {
+test('Summary is the last step, lists every pick with a Change link that jumps to its step and comes back, and builds with All Good, Build it Now', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await next(page);
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     assert.equal(await summary(page).count(), 0);
-    await toVibes(page);
+    await toSummary(page);
     await summary(page).waitFor();
     const rows = await summary(page).locator('[data-picked-row]').evaluateAll((items) => items.map((r) => r.dataset.pickedRow));
-    assert.deepEqual(rows, ['data', 'result', 'outputs', 'app', 'schedule']);
-    const result = await summary(page).locator('[data-picked-row="result"] dd').innerText();
-    assert.match(result, /\(change it on Results\)$/);
+    for (const id of ['outputs', 'data', 'first_run', 'result', 'kpi', 'holdout', 'schedule', 'app', 'app_access', 'app_look', 'capacity', 'vibes']) assert.ok(rows.includes(id), id);
+    assert.equal(await summary(page).locator('[data-picked-change]').count(), rows.length, 'every row has a Change link');
+    const result = await summary(page).locator('[data-picked-row="result"] [data-picked-value]').innerText();
+    await summary(page).getByRole('button', { name: 'Change Result table' }).click();
+    await onStep(page, 'Results');
+    await page.getByRole('button', { name: 'Back to Summary' }).click();
+    await onStep(page, 'Summary');
+    await summary(page).getByRole('button', { name: 'Change What it builds' }).click();
+    await onStep(page, 'Delivery');
+    await page.getByRole('button', { name: 'Back to Summary' }).click();
+    await onStep(page, 'Summary');
     await startOn(page);
     await startButton(page).click();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    assert.ok(result.startsWith(submittedSpec(ui.made).config.result_table), 'the review shows the result table it sends');
+    assert.equal(result, submittedSpec(ui.made).config.result_table, 'Summary shows the result table it sends');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -114,9 +118,9 @@ test('I will build it myself keeps its own three steps and shows no review', asy
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await onStep(page, 'Choose');
+    await onStep(page, 'Delivery consumption');
     await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).check();
-    assert.deepEqual(await stepLabels(page), ['Choose', 'Data', 'Notebook']);
+    assert.deepEqual(await stepLabels(page), ['Delivery consumption', 'Data', 'Notebook']);
     assert.equal(await summary(page).count(), 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -129,9 +133,9 @@ test('the last step with its review fits a 1440x900 screen and reads at 4.5:1 in
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await toVibes(page);
+    await toSummary(page);
     await summary(page).waitFor();
-    await wizardFits(page, 'review-vibes');
+    await wizardFits(page, 'review-summary');
     for (const dark of [false, true]) {
       await setDark(page, dark);
       const result = await lowContrast(page, ['[role="dialog"]']);
@@ -149,8 +153,8 @@ const OTHER_APP = { description: 'Built by someone else', compute_status: { stat
 async function defaultAppName() {
   const ui = await openUi('wizard', ME);
   try {
-    await toVibes(ui.page);
-    const name = (await appRow(ui.page)).split(' ')[0];
+    await toSummary(ui.page);
+    const name = (await appRow(ui.page)).split(': ').at(-1);
     assert.match(name, /^[a-z0-9-]+$/);
     return name;
   } finally {
@@ -158,15 +162,15 @@ async function defaultAppName() {
   }
 }
 
-test('a default App name another App already uses is changed to a free one with a suffix, and Start MVP stays on', async () => {
+test('a default App name another App already uses is changed to a free one with a suffix, and the build button stays on', async () => {
   const taken = await defaultAppName();
   const ui = await openUi('wizard', { ...ME, appsByName: { [taken]: { name: taken, ...OTHER_APP } } });
   const { page } = ui;
   try {
-    await toVibes(page);
+    await toSummary(page);
     await page.locator('[data-app-renamed]').waitFor({ timeout: 15000 });
     assert.match(await page.locator('[data-app-renamed]').innerText(), new RegExp(`'${taken}' is used by another App.*'${taken}-2'`));
-    assert.ok((await appRow(page)).startsWith(`${taken}-2`));
+    assert.ok((await appRow(page)).endsWith(`${taken}-2`));
     await startOn(page);
     assert.equal(await page.locator('[data-last-app-name]').count(), 0);
     await startButton(page).click();
@@ -184,7 +188,7 @@ test('an App name that is still refused is named on the last step with the step 
   const ui = await openUi('wizard', { ...ME, appsByName: Object.fromEntries(names.map((n) => [n, { name: n, ...OTHER_APP }])) });
   const { page } = ui;
   try {
-    await toVibes(page);
+    await toSummary(page);
     const field = page.locator('[data-last-app-name]');
     await field.waitFor({ timeout: 15000 });
     assert.match(await field.innerText(), new RegExp(`'${taken}' is used by another App in this workspace; pick another name`));
@@ -192,7 +196,7 @@ test('an App name that is still refused is named on the last step with the step 
     assert.equal(await startButton(page).isDisabled(), true);
     await field.locator('input').fill('quality-desk');
     await startOn(page);
-    await onStep(page, 'Vibes');
+    await onStep(page, 'Summary');
     assert.match(await field.innerText(), /'quality-desk' is free/);
     await startButton(page).click();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
@@ -208,8 +212,7 @@ test('the build SQL warehouse is a drop list of names with their state, and a sa
   const ui = await openUi('wizard', { ...ME, warehouses: listed });
   const { page } = ui;
   try {
-    await next(page);
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await openAdvanced(page);
     const pick = page.locator('[data-build-warehouse="pick"] select');
     await pick.locator('option[value="wh2"]').waitFor({ state: 'attached' });
@@ -225,8 +228,7 @@ test('the build SQL warehouse is a drop list of names with their state, and a sa
   }
   const gone = await openUi('wizard', { ...ME, warehouses: { warehouses: [{ id: 'wh9', name: 'Other SQL', state: 'RUNNING' }] } });
   try {
-    await next(gone.page);
-    await onStep(gone.page, 'Data');
+    await goToStep(gone.page, 'Data');
     await openAdvanced(gone.page);
     const pick = gone.page.locator('[data-build-warehouse="pick"] select');
     await pick.locator('option[value="wh9"]').waitFor({ state: 'attached' });
@@ -240,8 +242,7 @@ test('the build SQL warehouse is a drop list of names with their state, and a sa
 test('the build SQL warehouse falls back to a typed id when the list is empty or cannot be read', async () => {
   const empty = await openUi('wizard', { ...ME, warehouses: { warehouses: [] } });
   try {
-    await next(empty.page);
-    await onStep(empty.page, 'Data');
+    await goToStep(empty.page, 'Data');
     await openAdvanced(empty.page);
     await empty.page.locator('[data-build-warehouse="typed"]').waitFor();
     assert.equal(await empty.page.locator('[data-build-warehouse-note]').innerText(), 'Inspire found no SQL warehouse you can use. Type the warehouse id, or ask an admin for CAN USE on one.');
@@ -254,8 +255,7 @@ test('the build SQL warehouse falls back to a typed id when the list is empty or
   };
   const failed = await openUi('wizard', ME, '', { mount });
   try {
-    await next(failed.page);
-    await onStep(failed.page, 'Data');
+    await goToStep(failed.page, 'Data');
     await openAdvanced(failed.page);
     await failed.page.locator('[data-build-warehouse="typed"]').waitFor();
     assert.match(await failed.page.locator('[data-build-warehouse-note]').innerText(), /^Inspire could not list the SQL warehouses \(.*warehouse list is down.*\)\. Type the warehouse id instead\.$/);

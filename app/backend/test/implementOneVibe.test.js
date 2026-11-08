@@ -235,6 +235,6 @@ test('the Vibes step note and the outputs Genie does not build say there is one 
   assert.match(W.VIBES_STEP_NOTE, /one box for the whole MVP/);
   assert.doesNotMatch(W.VIBES_STEP_NOTE, /Each box/);
   assert.equal(W.vibesSkippedText({ outputs: { dashboard: true, genie_space: true, app: true, alert: false } }),
-    'Genie builds only what you picked in the Delivery step, so an ask for the Alert is not done. To vibe it, go Back to Delivery and pick it.');
+    'Genie builds only what you picked in Delivery consumption, so an ask for the Alert is not done. To vibe it, go back to Delivery consumption and pick it.');
   assert.equal(W.vibesEntries, undefined, 'no box per asset');
 });

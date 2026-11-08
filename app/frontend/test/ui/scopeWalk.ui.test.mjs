@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, onStep, openUi } from './uiSupport.mjs';
+import { closeBrowser, onStep, openUi, goToStep } from './uiSupport.mjs';
 import { checkRunScope, checkScope, checkWizardSteps } from '../../../scripts/scopeWalk.mjs';
 
 test.after(closeBrowser);
@@ -82,8 +82,7 @@ test('the offline walk checks the wizard of a large table that qualifies', { ski
   try {
     await toStep(page, 'Data groups');
     const grouping = await checkScope(page, PROFILE, { part: 'grouping' });
-    await next(page);
-    await onStep(page, 'First run');
+    await goToStep(page, 'MVP Test Run');
     const firstRun = await checkScope(page, PROFILE, { part: 'first_run' });
     const steps = checkWizardSteps(await names(page), PROFILE);
     const all = [...grouping, ...firstRun, ...steps];
@@ -103,7 +102,7 @@ test('the offline walk checks the wizard of a small table, no Data groups and ne
   const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, small) });
   const { page } = ui;
   try {
-    await toStep(page, 'First run');
+    await toStep(page, 'MVP Test Run');
     const all = [...await checkScope(page, small, { part: 'first_run' }), ...checkWizardSteps(await names(page), small)];
     console.log(JSON.stringify(all));
     assert.deepEqual(failed(all), []);
@@ -129,7 +128,7 @@ test('the offline walk checks the Run tab section', { skip }, async () => {
   const ui = await openUi('run', state, '', { init: profileAt(calls, PROFILE) });
   const { page, made } = ui;
   try {
-    const section = page.getByRole('region', { name: 'Data groups and First run of this use case', exact: true });
+    const section = page.getByRole('region', { name: 'Data groups and MVP Test Run of this use case', exact: true });
     await section.locator('[data-scope-part="first_run"] input[type="radio"]').first().waitFor({ timeout: 30000 });
     const all = await checkRunScope(page);
     console.log(JSON.stringify(all));

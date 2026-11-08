@@ -657,7 +657,7 @@ test('Remove submits a version that deletes only that output, which the backend 
   const v = await view();
   const w = await import(wizardUrl);
   const spec = w.defaultSpecFromUseCase({ id: 'N01-U01', Name: 'Predict churn' }, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', owner: 'amr@example.com' });
-  const before = { ...spec, outputs: { ...spec.outputs, genie_space: true, app: true, app_name: 'churn-desk', alert: true, alert_recipients: ['amr@example.com'] },
+  const before = { ...spec, outputs: { ...spec.outputs, dashboard: true, genie_space: true, app: true, app_name: 'churn-desk', alert: true, alert_recipients: ['amr@example.com'] },
     removed_outputs: { app: 'keep' } };
   before.outputs.app_access = 'sp';
   const latest = { spec_version: 2, spec_json: before };

@@ -20,7 +20,7 @@ const builtSpec = (outputs = {}, top = {}) => {
   return {
     ...spec,
     ...top,
-    outputs: { ...spec.outputs, genie_space: true, app: true, app_name: 'churn-desk', app_access: 'sp', alert: true, alert_recipients: [OWNER],
+    outputs: { ...spec.outputs, dashboard: true, genie_space: true, app: true, app_name: 'churn-desk', app_access: 'sp', alert: true, alert_recipients: [OWNER],
       inspire_url: HARNESS_INSPIRE_URL, ...outputs },
   };
 };

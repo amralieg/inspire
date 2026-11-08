@@ -53,10 +53,11 @@ test('the wizard offers exactly the App choices the backend and the App shell ac
   assert.deepEqual(w.REPLACE_EDITS_CHOICES.map((c) => [c.id, c.label]), [[false, 'No'], [true, 'Yes']], 'No comes first, as the default');
 });
 
-test('a new spec has the dashboard, Genie Agent and App on and the alert off, reads as the App\'s service principal, and validates as made', async () => {
+test('a new spec has the Genie Agent and App on and the dashboard and alert off, reads as the App\'s service principal, and validates as made', async () => {
   const { w, spec } = await appSpec();
   const fresh = w.defaultSpecFromUseCase(UC, {});
-  assert.deepEqual(['dashboard', 'genie_space', 'app', 'alert'].map((k) => fresh.outputs[k]), [true, true, true, false]);
+  assert.deepEqual(['dashboard', 'genie_space', 'app', 'alert'].map((k) => fresh.outputs[k]), [false, true, true, false], 'the dashboard starts off but stays a choice');
+  assert.ok(w.IMPLEMENT_OUTPUTS.some((o) => o.id === 'dashboard') && w.IMPLEMENT_OUTPUTS.some((o) => o.id === 'alert'), 'Dashboard and Alert are still offered');
   assert.equal(fresh.outputs.app_access, 'sp');
   assert.equal(w.appBackendOf(fresh, { state: 'available' }), 'lakebase', 'a workspace with Lakebase gets a Lakebase App by default');
   assert.equal(w.appBackendOf(fresh, { state: 'absent' }), 'delta');
@@ -106,11 +107,8 @@ test('ticking the App ticks the Genie Agent and locks it, and the lock refuses a
   assert.deepEqual([off.outputs.app, off.outputs.genie_space], [false, true], 'unticking the App leaves the Genie Agent as it is');
   assert.equal(w.withOutput(off, 'genie_space', false).outputs.genie_space, false);
   assert.deepEqual(w.withOutput(spec, 'alert', true).outputs.alert_recipients, w.defaultAlertRecipients(spec));
-  const settings = [{ name: 'top_k' }];
-  assert.deepEqual(w.wizardSteps('mvp', ticked, settings).map((s) => s.id), ['choose', 'data', 'results', 'delivery', 'app_place', 'app_access', 'app_look', 'settings', 'vibes']);
-  assert.deepEqual(w.wizardSteps('mvp', off, settings).map((s) => s.id), ['choose', 'data', 'results', 'delivery', 'settings', 'vibes']);
-  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['choose', 'data', 'results', 'delivery', 'app_place', 'app_access', 'app_look', 'vibes']);
-  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['choose', 'data', 'results', 'delivery', 'vibes']);
+  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['delivery', 'data', 'results', 'app_place', 'app_access', 'app_look', 'settings', 'vibes', 'summary']);
+  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['delivery', 'data', 'results', 'settings', 'vibes', 'summary'], 'with Apps unticked no App step shows');
   assert.deepEqual(w.stepErrors('delivery', { ...ticked, outputs: { ...ticked.outputs, genie_space: false } }), [w.GENIE_FOR_APP_NOTE]);
 });
 
@@ -136,7 +134,7 @@ test('joining an existing App deploys to it with its look, Create new brings the
   assert.deepEqual(w.withMergeTarget(joined, 'dashboard', { id: 'd1' }).outputs.app_look, joined.outputs.app_look, 'a dashboard pick leaves the App look alone');
   assert.equal(w.mergeTargetText(sp), 'Forecast demand, Score suppliers, Plan stock and 1 more');
   assert.equal(w.mergeTargetText(user), 'Care calls');
-  const stale = w.withMergeTarget(w.withAppAccess(spec, 'sp'), 'dashboard', { id: 'gone' });
+  const stale = w.withMergeTarget(w.withOutput(w.withAppAccess(spec, 'sp'), 'dashboard', true), 'dashboard', { id: 'gone' });
   assert.deepEqual(w.stepErrors('delivery', stale, { mergeTargets: targets }), ['pick a Dashboard Inspire built to add to, or choose Create new']);
   assert.deepEqual(w.stepErrors('delivery', stale, { mergeTargets: targets, held: { dashboard: 'gone' } }), [], 'the one it already holds is fine');
   assert.deepEqual(w.stepErrors('delivery', stale, {}), [], 'nothing is judged before the list loads');
@@ -149,8 +147,8 @@ test('a use case that joins an existing App skips App access and App look, shows
   const joined = w.withMergeTarget(spec, 'app', hub, 'predict-churn');
   const fresh = w.withMergeTarget(joined, 'app', null, 'predict-churn');
   assert.deepEqual([w.joinsApp(joined), w.joinsApp(fresh), w.joinsApp({ ...joined, outputs: { ...joined.outputs, app: false } }), w.joinsApp(null)], [true, false, false, false]);
-  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), ['choose', 'data', 'results', 'delivery', 'app_place', 'vibes'], 'the existing App keeps its sign-in, data source and look');
-  assert.deepEqual(w.wizardSteps('mvp', fresh).map((s) => s.id), ['choose', 'data', 'results', 'delivery', 'app_place', 'app_access', 'app_look', 'vibes']);
+  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), ['delivery', 'data', 'results', 'app_place', 'settings', 'vibes', 'summary'], 'the existing App keeps its sign-in, data source and look');
+  assert.deepEqual(w.wizardSteps('mvp', fresh).map((s) => s.id), ['delivery', 'data', 'results', 'app_place', 'app_access', 'app_look', 'settings', 'vibes', 'summary']);
   assert.throws(() => w.stepErrors('app_access', joined, { mergeTargets: targets }), /unknown wizard step 'app_access'/);
   assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'no hidden App owner blocks Next');
   assert.deepEqual(w.advancedErrors('delivery', joined, { mergeTargets: targets }), []);
@@ -328,7 +326,7 @@ test('an output the workspace cannot create starts off, an output already built 
   assert.deepEqual(w.unavailableOutputs(all, { app: { ok: false } }, { app: 'hub' }), [], 'a built App is not blocked by the create check');
   assert.deepEqual(w.unavailableOutputs({ apps: false, genie_spaces: false, alerts: false }, null, {}), ['app', 'genie_space', 'alert']);
   const off = w.withoutUnavailableOutputs(fresh, ['app'], {});
-  assert.deepEqual(['dashboard', 'genie_space', 'app'].map((k) => off.outputs[k]), [true, true, false]);
+  assert.deepEqual(['dashboard', 'genie_space', 'app'].map((k) => off.outputs[k]), [false, true, false]);
   assert.equal(w.withoutUnavailableOutputs(fresh, ['app', 'genie_space'], {}).outputs.genie_space, false, 'the App goes off first, so its Genie Agent can too');
   assert.equal(w.withoutUnavailableOutputs(fresh, ['app'], { app: 'hub' }).outputs.app, true, 'an App already built stays, so Edit never drops it');
   assert.equal(w.withoutUnavailableOutputs(fresh, [], {}), fresh);
