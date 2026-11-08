@@ -110,12 +110,20 @@ test('the portfolio reads each table with one aggregate that rolls up per run an
   }
   assert.deepEqual(mvp.parameters.map((p) => [p.name, p.value]),
     [['done0', 'ready'], ['done1', 'ready_with_warnings'], ['gone', 'uninstalled'], ['active0', 'queued'], ['active1', 'filling'], ['active2', 'previewing'],
-      ['active3', 'building_outputs'], ['active4', 'checking'], ['failed', 'failed'], ['stop0', 'deleted'], ['stop1', 'released']]);
-  for (const key of ['mvps_started', 'mvps_live', 'mvps_building', 'mvps_failed', 'apps', 'dashboards', 'genie_spaces', 'alerts']) assert.ok(mvp.sql.includes(` AS ${key}`), key);
-  assert.ok(mvp.sql.includes('CAST(SUM(CASE WHEN latest_status IN (:active0, :active1, :active2, :active3, :active4) THEN 1 ELSE 0 END) AS INT) AS mvps_building'),
-    'an MVP counts as building only from its newest version');
-  assert.ok(mvp.sql.includes('CAST(SUM(CASE WHEN latest_status = :failed THEN 1 ELSE 0 END) AS INT) AS mvps_failed'),
-    'an MVP that failed once and was built again counts as built, not failed');
+      ['active3', 'building_outputs'], ['active4', 'checking'], ['failed', 'failed'], ['held', 'vibe_not_met'], ['stop0', 'deleted'], ['stop1', 'released']]);
+  for (const key of ['mvps_started', 'mvps_live', 'mvps_building', 'mvps_failed', 'mvps_held', 'apps', 'dashboards', 'genie_spaces', 'alerts']) assert.ok(mvp.sql.includes(` AS ${key}`), key);
+  const live = "COALESCE(built_status, '') IN (:done0, :done1)";
+  assert.ok(mvp.sql.includes(`CAST(SUM(CASE WHEN ${live} THEN 1 ELSE 0 END) AS INT) AS mvps_live`),
+    'an MVP counts as live from its live version, so a newer version held for its vibes keeps it live');
+  assert.equal(mvp.sql.includes('WHEN latest_status IN (:done0, :done1) THEN 1'), false, 'the newest version alone never decides live (must-exclude)');
+  assert.ok(mvp.sql.includes(`CAST(SUM(CASE WHEN NOT ${live} AND latest_status IN (:active0, :active1, :active2, :active3, :active4) THEN 1 ELSE 0 END) AS INT) AS mvps_building`),
+    'an MVP counts as building only when nothing is live');
+  assert.ok(mvp.sql.includes(`CAST(SUM(CASE WHEN NOT ${live} AND latest_status = :failed THEN 1 ELSE 0 END) AS INT) AS mvps_failed`),
+    'a failed newest version counts as failed only when nothing is live');
+  assert.ok(mvp.sql.includes(`CAST(SUM(CASE WHEN NOT ${live} AND latest_status = :held THEN 1 ELSE 0 END) AS INT) AS mvps_held`),
+    'a newest version held for its vibes counts on its own only when nothing is live');
+  assert.ok(mvp.sql.includes('max_by(`status`, CASE WHEN `status` IN (:done0, :done1, :gone) THEN `spec_version` END) AS built_status'),
+    'an uninstall after the last build leaves nothing live');
   assert.ok(mvp.sql.includes("CONCAT('inspire:', get_json_object(to_json(`asset_status`), '$.app.hosted.id'))"), 'an App Inside Inspire counts as an App');
   const old = R.portfolioImplementStatement('`c`.`s`.`__inspire_implement`', new Set(['session_id', 'use_case_id', 'spec_version', 'status', 'app_name']));
   for (const gone of ['`alert_id`', '`asset_status`', '`dashboard_id`', '`genie_space_id`']) assert.equal(old.sql.includes(gone), false, gone);
@@ -136,17 +144,17 @@ test('the portfolio view folds the totals and one row of figures per run, adds t
       { sid: null, is_total: '0', use_cases: '99' },
     ],
     mvps: [
-      { sid: null, is_total: '1', mvps_started: '4', mvps_live: '2', mvps_building: '1', mvps_failed: '1', apps: '1', dashboards: '2', genie_spaces: '2', alerts: '1' },
-      { sid: '42', is_total: '0', mvps_started: '3', mvps_live: '2', mvps_building: '0', mvps_failed: '1', apps: '1', dashboards: '2', genie_spaces: '2', alerts: '1' },
+      { sid: null, is_total: '1', mvps_started: '4', mvps_live: '2', mvps_building: '1', mvps_failed: '1', mvps_held: '1', apps: '1', dashboards: '2', genie_spaces: '2', alerts: '1' },
+      { sid: '42', is_total: '0', mvps_started: '3', mvps_live: '2', mvps_building: '0', mvps_failed: '1', mvps_held: '1', apps: '1', dashboards: '2', genie_spaces: '2', alerts: '1' },
       { sid: '44', is_total: '0', mvps_started: '1', mvps_live: '-3', apps: 'n/a', dashboards: '0', genie_spaces: '0', alerts: '0' },
     ],
     missing: [I.IMPLEMENT_TABLE, 'other', '__inspire_session'],
   });
   assert.deepEqual(view.totals, { businesses: 3, runs: 5, use_cases: 30, domains: 7, subdomains: 12, best_of_best: 6, mvps_started: 4, mvps_live: 2,
-    mvps_building: 1, mvps_failed: 1, apps: 1, dashboards: 2, genie_spaces: 2, alerts: 1, live_assets: 6 });
+    mvps_building: 1, mvps_failed: 1, mvps_held: 1, apps: 1, dashboards: 2, genie_spaces: 2, alerts: 1, live_assets: 6 });
   assert.deepEqual(Object.keys(view.sessions).sort(), ['42', '43', '44'], 'a row with no numeric session id is not a run');
   assert.deepEqual(view.sessions['42'], { use_cases: 20, domains: 5, subdomains: 9, best_of_best: 4, mvps_started: 3, mvps_live: 2, mvps_building: 0, mvps_failed: 1,
-    apps: 1, dashboards: 2,
+    mvps_held: 1, apps: 1, dashboards: 2,
     genie_spaces: 2, alerts: 1, live_assets: 6 });
   assert.equal(view.sessions['43'].mvps_started, 0, 'a run with no MVP has zero MVPs');
   assert.equal(view.sessions['44'].use_cases, 0, 'an MVP of a run with no use case row still shows');
@@ -174,7 +182,7 @@ test('GET /api/inspire/portfolio answers from three aggregate reads however many
     const got = await get(srv.url, `/api/inspire/portfolio?${Q}`);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data.totals, { businesses: 9, runs: 40, use_cases: 120, domains: 8, subdomains: 20, best_of_best: 40, mvps_started: 6, mvps_live: 4,
-      mvps_building: 0, mvps_failed: 0, apps: 2, dashboards: 3, genie_spaces: 3, alerts: 1, live_assets: 9 });
+      mvps_building: 0, mvps_failed: 0, mvps_held: 0, apps: 2, dashboards: 3, genie_spaces: 3, alerts: 1, live_assets: 9 });
     assert.equal(Object.keys(got.data.sessions).length, 40);
     assert.equal(got.data.sessions['500'].live_assets, 9);
     assert.deepEqual(got.data.missing, []);

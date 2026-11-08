@@ -388,3 +388,37 @@ test('Publish anyway of a held version makes no claim about what is live before 
   assert.ok(!Object.hasOwn(C, 'heldText'), 'no App text stands in for the reason the agent writes');
   assert.equal(C.publishHeldText(later), 'Inspire puts the Dashboard of v2 live in place of v1, with no Genie round, and marks each ask above as published anyway by you.');
 });
+
+test('an MVP whose newest version is held, failed or building while an older version stays live counts as live on Choose, Results and the Build filters, and only a never-live MVP counts as held, failed or building (must-exclude)', async () => {
+  const W = await lib('implementWizard.js');
+  await withApp({ history: stored([heldRow(3), row(2, 'failed'), row(1, 'ready')]) }, async (url) => {
+    const got = await call(url, '/api/inspire/implement/history?inspire_database=main.inspire&warehouse_id=wh1&session_id=42', { who: OWNER });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.latest.map((r) => [r.spec_version, r.status, r.live_version]), [[3, HELD, 1]], 'the newest row says which version is live');
+  });
+  await withApp({ history: stored([row(2, 'uninstalled'), row(1, 'ready')]) }, async (url) => {
+    const got = await call(url, '/api/inspire/implement/history?inspire_database=main.inspire&warehouse_id=wh1&session_id=42', { who: OWNER });
+    assert.deepEqual(got.data.latest.map((r) => r.live_version), [null], 'an uninstall leaves nothing live');
+  });
+  const states = {
+    held: W.implementState({ ...heldRow(2), live_version: 1 }),
+    failed: W.implementState({ ...row(3, 'failed'), live_version: 2 }),
+    building: W.implementState({ ...row(2, 'filling'), live_version: 1 }),
+    newestLive: W.implementState({ ...row(2, 'ready'), live_version: 2 }),
+    heldAlone: W.implementState({ ...heldRow(1), live_version: null }),
+    failedAlone: W.implementState({ ...row(1, 'failed'), live_version: null }),
+  };
+  assert.deepEqual(states.held, { group: 'held', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp', live: 1 }, 'the newest version still needs attention');
+  assert.deepEqual(states.failed, { ...W.implementState(row(3, 'failed')), live: 2 });
+  assert.deepEqual(states.building, { ...W.implementState(row(2, 'filling')), live: 1 });
+  assert.deepEqual(states.newestLive, { group: 'ready', label: 'MVP ready', tone: 'success', kind: 'mvp' });
+  assert.deepEqual(states.heldAlone, { group: 'held', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' }, 'nothing live: the held version counts on its own');
+  assert.equal(states.failedAlone.group, 'failed');
+  assert.deepEqual(W.mvpCounts(Object.values(states)), { useCases: 6, has: 6, none: 0, live: 4, building: 0, held: 1, failed: 1 });
+  assert.equal(W.mvpFilterMatches('live', states.held), true);
+  assert.equal(W.mvpFilterMatches('held', states.held), false, 'a live MVP never lands in the held filter');
+  assert.equal(W.mvpFilterMatches('live', states.heldAlone), false, 'must-exclude: a held first build is not live');
+  const groups = W.implementGroups([{ id: 'N01-U01', Name: 'Predict churn' }], [{ ...heldRow(2), live_version: 1 }], null);
+  assert.deepEqual(groups.map((g) => [g.id, g.items.length]), [['in_progress', 0], ['attention', 1], ['ready', 0], ['not_started', 0]],
+    'the Choose page still lists it under Needs attention, where its held version is acted on');
+});

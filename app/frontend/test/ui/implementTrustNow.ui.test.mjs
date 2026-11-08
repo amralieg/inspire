@@ -75,3 +75,54 @@ test('the App list marks an MVP built on an older release and opens its Build pa
     await ui.close();
   }
 });
+
+test('an App on older App code gets an Update the App action that sends a roll back of the App to its live version, and nothing starts on its own', async () => {
+  const row = built();
+  const assets = { ...JSON.parse(row.asset_status), app: { state: 'ready', health: 'running', spec_version: 1, snapshot: true } };
+  const ui = await openUi('implement', { history: [{ ...row, asset_status: JSON.stringify(assets) }], buildStamp: CURRENT_BUILD, me: { userName: OWNER, displayName: 'Owner' } });
+  const { page, made } = ui;
+  try {
+    const note = page.locator('[data-rebuild-note] [data-app-update]');
+    await note.waitFor({ timeout: 15000 });
+    assert.match((await note.textContent()).trim(), /^The App runs the App code of an earlier Inspire release\. Update it to Inspire v\d\.\d\.\d: .*without calling Genie\.$/);
+    const action = page.locator('[data-rebuild-note] [data-app-update-button]');
+    assert.equal((await action.textContent()).trim(), 'Update the App');
+    await page.waitForTimeout(1000);
+    assert.equal(wrote(made), false, 'opening the page never updates the App');
+    await action.click();
+    const sent = () => made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
+      .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
+    await until(async () => sent().length > 0, 'the update to be submitted', 15000);
+    assert.deepEqual(sent()[0].rollback_outputs, { app: 1 });
+  } finally {
+    await ui.close();
+  }
+});
+
+test('someone who does not own the App sees no Update the App action (must-exclude)', async () => {
+  const row = built();
+  const assets = { ...JSON.parse(row.asset_status), app: { state: 'ready', health: 'running', spec_version: 1, snapshot: true } };
+  const ui = await openUi('implement', { history: [{ ...row, asset_status: JSON.stringify(assets) }], buildStamp: CURRENT_BUILD });
+  const { page } = ui;
+  try {
+    await page.locator('[data-use-case-pane]').first().waitFor({ timeout: 15000 });
+    await page.waitForTimeout(1000);
+    assert.equal(await page.locator('[data-app-update], [data-app-update-button]').count(), 0);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('an App on this release\'s App code shows no Update the App action (must-exclude)', async () => {
+  const row = built();
+  const assets = { ...JSON.parse(row.asset_status), app: { state: 'ready', health: 'running', spec_version: 1, snapshot: true }, built_with: CURRENT_BUILD };
+  const ui = await openUi('implement', { history: [{ ...row, asset_status: JSON.stringify(assets) }], buildStamp: CURRENT_BUILD, me: { userName: OWNER, displayName: 'Owner' } });
+  const { page } = ui;
+  try {
+    await page.locator('[data-use-case-pane]').first().waitFor({ timeout: 15000 });
+    await page.waitForTimeout(1000);
+    assert.equal(await page.locator('[data-app-update], [data-app-update-button]').count(), 0);
+  } finally {
+    await ui.close();
+  }
+});

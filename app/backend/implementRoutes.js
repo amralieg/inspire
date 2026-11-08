@@ -17,7 +17,7 @@ const G = require('../frontend/src/lib/tableName.js');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
-const { clearedText, emptyScopeWarning, nextAppName, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks } = require('../frontend/src/lib/implementWizard.js');
+const { clearedText, emptyScopeWarningOf, nextAppName, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks } = require('../frontend/src/lib/implementWizard.js');
 const { canonicalDiscoveryType } = require('../frontend/src/lib/discoveryType.js');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
@@ -543,11 +543,12 @@ function registerImplementRoutes(app, deps) {
       const history = await loadHistory(
         req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId ? I.validateUseCaseId(useCaseId) : null,
       );
-      const latestByUc = {};
-      for (const row of history) {
-        if (!latestByUc[row.use_case_id]) latestByUc[row.use_case_id] = row;
-      }
-      const latest = Object.values(latestByUc);
+      const versionsByUc = {};
+      for (const row of history) (versionsByUc[row.use_case_id] || (versionsByUc[row.use_case_id] = [])).push(row);
+      const latest = Object.values(versionsByUc).map((rows) => {
+        const live = I.previousBuilt(rows);
+        return Object.assign(rows[0], { live_version: live ? live.spec_version : null });
+      });
       const [notebook] = await Promise.all([
         latestGenieNotebookRun(fetchJsonFor(req), sid).then((run) => ({ run, error: '' }), (err) => ({ run: null, error: err.message })),
         ...latest.map(async (row) => { row.stalled = await stalledOf(req, row); }),
@@ -1085,10 +1086,15 @@ function registerImplementRoutes(app, deps) {
   async function emptyDataWarning(req, warehouseId, spec, useCase) {
     const scope = readinessScope(spec, useCase);
     if (!scope.table || !P.personTokenOf(req)) return '';
-    try {
-      const statement = I.readinessStatement(scope.table, { columns: scope.columns, filters: scope.filters, window: scope.window });
+    const countOf = async (table, narrowing) => {
+      const statement = I.readinessStatement(table, narrowing);
       const rows = await sqlRows(req.dbHost, P.personTokenOf(req), warehouseId, statement);
-      return I.readinessFromRow(rows[0] || {}, statement.columns).row_count === 0 ? emptyScopeWarning(scope) : '';
+      return I.readinessFromRow(rows[0] || {}, statement.columns);
+    };
+    try {
+      const counted = await countOf(scope.table, { columns: scope.columns, filters: scope.filters, window: scope.window });
+      if (counted.row_count !== 0) return '';
+      return await emptyScopeWarningOf(scope, I.sourceTables(spec, I.useCaseTables(useCase)), (table) => countOf(table, { columns: [], filters: [], window: {} }));
     } catch (err) {
       console.warn(`implement row count failed for ${scope.table}: ${err.message || err}`);
       return `Inspire could not count the rows in ${scope.table}. The build checks the data itself.`;
@@ -1248,15 +1254,19 @@ function registerImplementRoutes(app, deps) {
       const appName = I.carriedAssets(history).app;
       const jobId = int64Id((history.find((r) => r.job_id) || {}).job_id);
       const held = history[0] && history[0].status === I.IMPLEMENT_VIBE_NOT_MET ? history[0].spec_version : null;
+      const appUpdate = history[0] ? I.appShellUpdate(history, buildStamp()) : null;
       const builtBy = I.implementBuildRunId(history[0]);
       const [appInfo, runInfo, stalled, person, buildRun] = await Promise.all([
         appName ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.0/apps/${encodeURIComponent(appName)}`) : null,
         jobId ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/list?job_id=${jobId}&limit=10`) : null,
         stalledOf(req, history[0]),
-        held == null ? null : personOf(req),
+        held == null && !appUpdate ? null : personOf(req),
         latestRunOf(req, warehouseId, history[0]),
         builtBy ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${builtBy}`).catch(() => null) : null,
       ]);
+      if (history[0]) {
+        history[0].app_update = appUpdate && !I.appShellUpdateRefusal(history, { rollback_outputs: { app: appUpdate.version } }, person.username) ? appUpdate : null;
+      }
       const listedNone = runInfo && runInfo.ok && !(Array.isArray(runInfo.data && runInfo.data.runs) && runInfo.data.runs.length);
       const jobInfo = listedNone ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/get?job_id=${jobId}`) : null;
       res.json({

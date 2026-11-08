@@ -342,10 +342,10 @@ async function workspaceVerdict(dbFetch, host, token, path) {
   const { at, got } = await nearestExisting((p) => call(`/api/2.0/workspace/get-status?path=${encodeURIComponent(p)}`), path, '/');
   if (!got.ok) {
     if (scopeMissing(got)) return SCOPE_VERDICT;
-    if ([403, 404].includes(got.status)) return { reason: `you cannot see ${at}`, fix };
+    if ([403, 404].includes(got.status)) return { reason: `you cannot see ${at}`, fix, at };
     throw failed(got);
   }
-  if (String(got.data.object_type || '').toUpperCase() !== 'DIRECTORY') return { reason: `${at} is not a folder`, fix };
+  if (String(got.data.object_type || '').toUpperCase() !== 'DIRECTORY') return { reason: `${at} is not a folder`, fix, at };
   return probeIn({
     at,
     make: (probe) => call('/api/2.0/workspace/mkdirs', json('POST', { path: probe })),
@@ -355,7 +355,7 @@ async function workspaceVerdict(dbFetch, host, token, path) {
       return listed.ok && Array.isArray(listed.data.objects)
         ? listed.data.objects.filter(Boolean).map((o) => ({ path: o.path, directory: String(o.object_type || '').toUpperCase() === 'DIRECTORY' })) : [];
     },
-    denied: { reason: `you cannot create anything in ${at}`, fix },
+    denied: { reason: `you cannot create anything in ${at}`, fix, at },
   });
 }
 
@@ -369,7 +369,7 @@ async function volumeVerdict(dbFetch, host, token, path) {
   const { at, got } = await nearestExisting((p) => call(fsDirectory(p), { method: 'HEAD' }), path, root);
   if (!got.ok) {
     if (scopeMissing(got)) return SCOPE_VERDICT;
-    if ([403, 404].includes(got.status)) return { reason: at === root ? `the volume ${full} does not exist or you cannot see it` : `you cannot see ${at}`, fix };
+    if ([403, 404].includes(got.status)) return { reason: at === root ? `the volume ${full} does not exist or you cannot see it` : `you cannot see ${at}`, fix, at };
     throw failed(got);
   }
   return probeIn({
@@ -381,16 +381,15 @@ async function volumeVerdict(dbFetch, host, token, path) {
       return listed.ok && Array.isArray(listed.data.contents)
         ? listed.data.contents.filter(Boolean).map((c) => ({ path: c.path, directory: c.is_directory === true })) : [];
     },
-    denied: { reason: `you hold no WRITE VOLUME on the volume ${full}`, fix },
+    denied: { reason: `you hold no WRITE VOLUME on the volume ${full}`, fix, at },
   });
 }
 
-function folderVerdict(dbFetch, host, token, folder) {
+async function folderVerdict(dbFetch, host, token, folder) {
   const path = RP.canonicalPath(folder);
-  if (!path) {
-    return Promise.resolve({ reason: 'it is not a workspace folder or a volume path Inspire can resolve', fix: 'give an absolute folder, such as one under your own user folder' });
-  }
-  return path.startsWith('/Volumes/') ? volumeVerdict(dbFetch, host, token, path) : workspaceVerdict(dbFetch, host, token, path);
+  if (!path) return { reason: 'it is not a workspace folder or a volume path Inspire can resolve', fix: 'give an absolute folder, such as one under your own user folder' };
+  const verdict = await (path.startsWith('/Volumes/') ? volumeVerdict(dbFetch, host, token, path) : workspaceVerdict(dbFetch, host, token, path));
+  return verdict && verdict.at && verdict.at !== path ? { ...verdict, missing: true } : verdict;
 }
 
 function runUnwritableText(unwritable) {
@@ -425,6 +424,14 @@ async function folderPlan(dbFetch, req, folder, { manager, appToken }) {
   return { folder, refused: null, personUnchecked: person.unchecked, app: await appWrites(dbFetch, req, folder, appToken) };
 }
 
+function appCantWriteText(folder, verdict) {
+  if (folder.startsWith('/Volumes/')) {
+    return `The Inspire App can't write to ${folder}, so the run saves no files there. Ask an owner of its volume to give the App WRITE VOLUME on it.`;
+  }
+  if (!verdict.missing) return `The Inspire App can't write to ${folder}, so the run saves no files there. Ask an App manager to give the App CAN MANAGE on it.`;
+  return `${folder} does not exist yet, and the Inspire App can't create it, so the run saves no files there. Create ${folder}, then give the App CAN MANAGE on it.`;
+}
+
 const folderScore = (plan) => (plan.refused ? 0 : plan.app.verdict ? 1 : 2);
 
 function folderWarnings(plan) {
@@ -433,7 +440,7 @@ function folderWarnings(plan) {
     console.warn(`output write check: not checked for the person on ${plan.folder}: ${plan.personUnchecked}`);
     out.push(`Inspire could not check that you can write to ${plan.folder}. The run tries anyway.`);
   }
-  if (plan.app.verdict) out.push(`The Inspire App can't write to ${plan.folder}, so the run saves no files there. Ask an App manager to give the App CAN MANAGE on it.`);
+  if (plan.app.verdict) out.push(appCantWriteText(plan.folder, plan.app.verdict));
   if (plan.app.unchecked) {
     console.warn(`output write check: not checked for the App on ${plan.folder}: ${plan.app.unchecked}`);
     out.push(`Inspire could not check that the App can write to ${plan.folder}. The run tries anyway.`);

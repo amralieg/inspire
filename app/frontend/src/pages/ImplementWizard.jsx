@@ -39,9 +39,7 @@ import {
   setFilterValues,
   readinessScope,
   readinessText,
-  emptyScopeWarning,
-  otherScopeTables,
-  allEmptyTables,
+  emptyScopeWarningOf,
   planLines,
   sharedHolding,
   sharedSource,
@@ -655,11 +653,9 @@ export default function ImplementWizard({
           setCheckNotes((prev) => ({ ...prev, data: counted.unchecked || '' }));
           let warning = '';
           if (!counted.skipped && Number(counted.row_count) === 0) {
-            const others = otherScopeTables(scope, sourceTables);
-            const counts = await Promise.all(others.map((table) => apiPostJson(`/api/inspire/implement/readiness?${q}`, {
+            warning = await emptyScopeWarningOf(scope, sourceTables, (table) => apiPostJson(`/api/inspire/implement/readiness?${q}`, {
               table, discovery_type: discoveryType, columns: [], filters: [], window: {},
-            }).catch(() => null)));
-            warning = emptyScopeWarning(scope, allEmptyTables(scope, others, counts));
+            }));
           }
           setReadiness({ ...counted, scope, warning });
         }

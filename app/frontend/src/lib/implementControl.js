@@ -779,6 +779,13 @@ export function rollbackChanges(latest, id, version, vibes) {
   return { rollback_outputs: { [id]: version }, outputs: { ...(latest?.spec_json?.outputs || {}), [vibesKey(id)]: String(vibes ?? '').trim() } };
 }
 
+export function appUpdateChanges(latest, history) {
+  const version = Number(latest?.app_update?.version);
+  if (!version) return null;
+  const row = (history || []).find((r) => r.spec_version === version);
+  return row ? rollbackChanges(latest, 'app', version, savedVibes(row, 'app')) : null;
+}
+
 export function removeConfirmed(typed, useCaseId) {
   return Boolean(useCaseId) && String(typed ?? '').trim() === String(useCaseId);
 }

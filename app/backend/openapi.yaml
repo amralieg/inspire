@@ -714,13 +714,16 @@ components:
           description: Use cases whose newest MVP version is not uninstalled
         mvps_live:
           type: integer
-          description: Use cases whose newest MVP version is ready or ready with warnings
+          description: Use cases with a live MVP version (ready or ready with warnings, not uninstalled since), whatever their newest version did
         mvps_building:
           type: integer
-          description: Use cases whose newest MVP version is still being built (queued, filling, previewing, building outputs or checking)
+          description: Use cases with no live MVP version whose newest version is still being built (queued, filling, previewing, building outputs or checking)
         mvps_failed:
           type: integer
-          description: Use cases whose newest MVP version failed
+          description: Use cases with no live MVP version whose newest version failed
+        mvps_held:
+          type: integer
+          description: Use cases with no live MVP version whose newest version was held because its vibes were not met
         apps:
           type: integer
           description: Apps of built MVPs, an App Inside Inspire included

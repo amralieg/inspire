@@ -17,6 +17,7 @@ const launch = (generationPath, options = {}) => S.request('POST', '/api/run', {
 const SHARED_ONLY = (person, why = 'the Inspire App cannot write there; give the App CAN MANAGE on it to keep your runs private') =>
   `Inspire cannot save to your folder /Users/${person}/inspire_output (${why}), so it saves to /Shared/demos, which everyone in the workspace can read.`;
 const APP_CANT = (folder) => `The Inspire App can't write to ${folder}, so the run saves no files there. Ask an App manager to give the App CAN MANAGE on it.`;
+const APP_CANT_CREATE = (folder) => `${folder} does not exist yet, and the Inspire App can't create it, so the run saves no files there. Create ${folder}, then give the App CAN MANAGE on it.`;
 const submitted = () => S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/'));
 const probes = () => S.state.calls.filter((c) => c.path === '/api/2.0/workspace/mkdirs' || (c.path.startsWith('/api/2.0/fs/directories/') && c.method === 'PUT'));
 
@@ -169,7 +170,7 @@ test('the output folder check answers the same verdict without launching anythin
   S.reset({ folders, managers: [BOSS] });
   const mine = await ask(OWNER);
   assert.equal(mine.status, 200, mine.text);
-  assert.deepEqual(mine.data, { allowed: true, folder: `${HOME}/inspire_out`, checked: 'passed', warnings: [APP_CANT(`${HOME}/inspire_out`)] });
+  assert.deepEqual(mine.data, { allowed: true, folder: `${HOME}/inspire_out`, checked: 'passed', warnings: [APP_CANT_CREATE(`${HOME}/inspire_out`)] });
   assert.deepEqual(S.state.created, [], 'the probe was deleted');
   S.reset({ folders: { ...folders, '/Shared/demos': { id: 7, writers: '*' } }, managers: [BOSS] });
   for (const path of ['./../demos/', '']) {
@@ -248,10 +249,31 @@ test('the App writes the run\u2019s files, so a folder only the person can write
   S.reset({ notebookPresent: true, managers: [BOSS], folders: { [HOME]: { id: 11, writers: [OWNER] } } });
   const boss = await launch(`${HOME}/inspire_out`, { person: BOSS });
   assert.equal(boss.status, 200, boss.text);
-  assert.deepEqual(boss.data.warnings, [APP_CANT(`${HOME}/inspire_out`)]);
+  assert.deepEqual(boss.data.warnings, [APP_CANT_CREATE(`${HOME}/inspire_out`)]);
   S.reset({ notebookPresent: true, managers: [BOSS], folders: { [HOME]: { id: 11, writers: [OWNER, S.APP_SP] } } });
   const granted = await launch(`${HOME}/inspire_out`, { person: BOSS });
   assert.equal(granted.status, 200, granted.text);
   assert.equal(granted.data.warnings, undefined);
   assert.ok(probes().some((c) => c.token === S.APP_TOKEN), 'the App checked its own write');
+});
+
+test('a folder that does not exist yet is checked on its nearest existing parent for the App too: a parent the App can write says nothing, a parent it cannot says the folder is new and how to fix it, and an existing locked folder keeps the grant text (must-exclude)', async () => {
+  const ask = (path) => S.request('POST', '/api/output-folder/check', { person: OWNER, body: { generation_path: path } });
+  const fresh = `${HOME}/brand_new/deeper`;
+  S.reset({ folders: { [HOME]: { id: 11, writers: [OWNER, S.APP_SP] } } });
+  const open = await ask(`/Workspace${fresh}`);
+  assert.deepEqual([open.status, open.data.warnings], [200, []], `the App can create under the parent, so a new folder is fine: ${open.text}`);
+  assert.ok(probes().some((c) => c.token === S.APP_TOKEN && String(JSON.parse(c.raw).path).startsWith(`${HOME}/${W().PROBE_PREFIX}`)), 'the App probe ran in the existing parent');
+  S.reset({ folders: { [HOME]: { id: 11, writers: [OWNER] } } });
+  const closed = await ask(`/Workspace${fresh}`);
+  assert.deepEqual([closed.status, closed.data.warnings], [200, [APP_CANT_CREATE(fresh)]], closed.text);
+  S.reset({ folders: { [HOME]: { id: 11, writers: [OWNER] }, [`${HOME}/made`]: { id: 14, writers: [OWNER] } } });
+  const existing = await ask(`${HOME}/made`);
+  assert.deepEqual([existing.status, existing.data.warnings], [200, [APP_CANT(`${HOME}/made`)]], 'an existing folder the App cannot write keeps the grant text');
+  S.reset({ folders: { [HOME]: { id: 11, writers: [OWNER] }, [`${HOME}/made`]: { id: 14, writers: [OWNER, S.APP_SP] } } });
+  assert.deepEqual((await ask(`${HOME}/made`)).data.warnings, [], 'an existing folder the App can write says nothing');
+  S.reset({ volumes: { 'main.sales.files': { writers: [OWNER] } } });
+  const volume = await ask('/Volumes/main/sales/files/new_out');
+  assert.deepEqual(volume.data.warnings, ["The Inspire App can't write to /Volumes/main/sales/files/new_out, so the run saves no files there. Ask an owner of its volume to give the App WRITE VOLUME on it."],
+    'a volume needs WRITE VOLUME, never CAN MANAGE');
 });

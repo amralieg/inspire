@@ -489,6 +489,15 @@ test('only when every picked table counts zero rows is the scope all empty; a ta
   assert.deepEqual(w.allEmptyTables(scope(), ['main.s.web'], [null]), [], 'a failed count is not an empty table');
   assert.deepEqual(w.allEmptyTables(scope(), ['main.s.web'], [{ skipped: true, row_count: null }]), []);
   assert.deepEqual(w.allEmptyTables(scope({ window: { column: 'd', start: '2026-01-01' } }), [], []), [], 'a narrowed scope is never all empty');
+  const asked = [];
+  const counter = (counts) => (table) => { asked.push(table); const c = counts[table]; if (c instanceof Error) throw c; return c; };
+  assert.equal(await w.emptyScopeWarningOf(scope(), ['main.s.orders', 'main.s.web'], counter({ 'main.s.web': zero })),
+    w.emptyScopeWarning(scope(), ['main.s.orders', 'main.s.web']));
+  assert.deepEqual(asked, ['main.s.web'], 'the main table is never counted twice');
+  assert.equal(await w.emptyScopeWarningOf(scope(), ['main.s.orders', 'main.s.web'], counter({ 'main.s.web': new Error('denied') })), w.emptyScopeWarning(scope()),
+    'a count that throws is not an empty table (must-exclude)');
+  assert.equal(await w.emptyScopeWarningOf(scope(), ['main.s.orders', 'main.s.web'], () => Promise.reject(new Error('down'))), w.emptyScopeWarning(scope()));
+  assert.equal(await w.emptyScopeWarningOf(scope(), ['main.s.orders'], () => { throw new Error('never asked'); }), w.emptyScopeWarning(scope(), ['main.s.orders']));
 });
 
 test('plan lines say what the edit builds, refreshes, deletes and keeps', async () => {

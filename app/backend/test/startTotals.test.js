@@ -143,6 +143,9 @@ test('each Start run row counts its use cases, quality, priority and MVPs, numbe
   assert.deepEqual(shown(runCounts(overview, portfolio, SESSIONS[0])),
     ['8 use cases', '6 high quality', '2 low quality', '3 high priority', '1 domain', '1 MVP built', '2 building', '1 failed']);
   assert.deepEqual(runCounts(overview, portfolio, SESSIONS[0]).why, []);
+  const held = { sessions: { 42: { mvps_started: 3, mvps_live: 2, mvps_building: 0, mvps_failed: 0, mvps_held: 1 } } };
+  assert.deepEqual(shown(runCounts(overview, held, SESSIONS[0])).slice(-4), ['2 MVPs built', '0 building', '0 failed', '1 vibes not met'],
+    'an MVP held for its vibes with nothing live is counted, not lost');
   assert.deepEqual(shown(runCounts(overview, portfolio, SESSIONS[2])).slice(-3), ['0 MVPs built', '0 building', '0 failed'], 'a run with no MVP counts zero');
   assert.deepEqual(shown(runCounts(overview, null, SESSIONS[0])).length, 5, 'no MVP counts before the portfolio loads');
   assert.equal(shown(runCounts(overview, portfolio, SESSIONS[0], { running: true }))[0], '8 use cases so far');

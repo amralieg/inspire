@@ -1849,6 +1849,38 @@ function olderBuildNote(row, current) {
   return `${shown} Rebuild to get the latest fixes.`;
 }
 
+function appShellUpdate(history, current) {
+  if (!current || !str(current.version) || !str(current.shell)) return null;
+  const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
+  const live = previousBuilt(rows);
+  const entry = live && isPlainObject(live.asset_status) && isPlainObject(live.asset_status.app) ? live.asset_status.app : null;
+  if (!entry || !IMPLEMENT_DONE_STATUSES.includes(entry.state) || entry.placement === IMPLEMENT_APP_INSIDE || !str(live.app_name)) return null;
+  const version = Number(entry.spec_version ?? live.spec_version);
+  const deployed = rows.find((r) => r.spec_version === version);
+  const saved = deployed && isPlainObject(deployed.asset_status) ? deployed.asset_status : {};
+  if (!isPlainObject(saved.app) || saved.app.snapshot !== true) return null;
+  const built = isPlainObject(saved[IMPLEMENT_BUILT_WITH]) ? saved[IMPLEMENT_BUILT_WITH] : null;
+  const release = built ? str(built.version).trim() : '';
+  if (built && release === str(current.version) && str(built.shell) === str(current.shell)) return null;
+  const shown = !release ? 'an earlier Inspire release' : release === str(current.version) ? `an earlier build of Inspire ${release}` : `Inspire ${release}`;
+  return {
+    version,
+    text: `The App runs the App code of ${shown}. Update it to Inspire ${str(current.version)}: Inspire deploys the same pages, settings and data `
+      + 'with the App code of this release, without calling Genie.',
+  };
+}
+
+function appShellUpdateRefusal(history, spec, requester) {
+  const asked = spec && isPlainObject(spec.rollback_outputs) ? spec.rollback_outputs.app : undefined;
+  if (asked == null) return null;
+  const live = previousBuilt(history);
+  const entry = live && isPlainObject(live.asset_status) && isPlainObject(live.asset_status.app) ? live.asset_status.app : null;
+  if (!entry || Number(entry.spec_version ?? live.spec_version) !== Number(asked)) return null;
+  const who = personKey(requester);
+  if (who && implementOwners(live).includes(who)) return null;
+  return { status: 403, message: `Only the owners of this App can update it: the person who asked for v${live.spec_version} and the App owners it names` };
+}
+
 function runPages(rows, scope = [], current = null) {
   const groups = new Map();
   for (const row of rows || []) {
@@ -2024,7 +2056,7 @@ function planSubmission(history, spec, stalled = null, { requester = null, table
   if (latest && IMPLEMENT_ACTIVE_STATUSES.includes(latest.status) && !stalled) {
     throw badRequest(`spec v${latest.spec_version} is still ${latest.status}; your edit applies after the current run`, 409);
   }
-  const refused = publishHeldRefusal(rows, spec, requester);
+  const refused = publishHeldRefusal(rows, spec, requester) || appShellUpdateRefusal(rows, spec, requester);
   if (refused) throw badRequest(refused.message, refused.status);
   const unsafe = vibeRefusals(specVibeAsks(spec));
   if (unsafe.length) throw badRequest(`Inspire did not build this version: ${vibeRefusalText(unsafe)}`);
@@ -3269,6 +3301,8 @@ module.exports = {
   latestRunStatement,
   latestRunFrom,
   olderBuildNote,
+  appShellUpdate,
+  appShellUpdateRefusal,
   personalKeyOf,
   resultKeyRef,
   personalKeyProblem,

@@ -111,13 +111,31 @@ test('the server counts the rows before a plan or a build, warns when there are 
   await withApp({ readinessRows: [{ row_count: '0' }] }, async (url, made) => {
     const planned = await plan(url);
     assert.equal(planned.status, 200, JSON.stringify(planned.data));
-    assert.deepEqual(planned.data.warnings, [emptyScopeWarning(scope)]);
+    assert.deepEqual(planned.data.warnings, [emptyScopeWarning(scope, ['main.s.orders'])]);
+    assert.match(planned.data.warnings[0], /the only table you picked, is empty, so no use case can be grounded in rows/);
     const got = await submit(url);
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(got.data.warnings, [emptyScopeWarning(scope)]);
+    assert.deepEqual(got.data.warnings, [emptyScopeWarning(scope, ['main.s.orders'])]);
     assert.equal(made.jobs.length, 1, 'an empty table warns, it does not stop the build');
     const counts = made.sqlCalls.filter((c) => /^SELECT COUNT\(\*\) AS row_count/.test(String(c.sql)));
     assert.ok(counts.length >= 2 && counts.every((c) => c.token === PERSON_TOKEN), 'counted with the person\u2019s own token');
+  });
+  const twoTables = { ...USE_CASE, tables_involved: 'main.s.orders, main.s.returns' };
+  await withApp({ useCase: twoTables, readinessRows: [{ row_count: '0' }] }, async (url) => {
+    const got = await plan(url);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.warnings, ['Warning: every table you picked is empty (main.s.orders, main.s.returns), so no use case can be grounded in rows. You can go on.'],
+      'the server says what the wizard says when every table is empty');
+  });
+  await withApp({ useCase: twoTables, readinessByTable: { 'main.s.orders': '0', 'main.s.returns': '40' } }, async (url) => {
+    const got = await plan(url);
+    assert.deepEqual(got.data.warnings, [emptyScopeWarning(scope)], 'one empty table among tables with rows keeps the first-run wording (must-exclude)');
+    assert.match(got.data.warnings[0], /the first run may write no rows/);
+  });
+  await withApp({ useCase: twoTables, readinessRows: [{ row_count: '0' }], sqlErrors: { 'row_count FROM `main`.`s`.`returns`': 'warehouse stopped' } }, async (url) => {
+    const got = await plan(url);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.warnings, [emptyScopeWarning(scope)], 'a table Inspire could not count is not called empty (must-exclude)');
   });
   await withApp({ readinessRows: [{ row_count: '1200' }] }, async (url) => {
     const got = await submit(url);

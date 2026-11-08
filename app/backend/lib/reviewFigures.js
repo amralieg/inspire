@@ -7,6 +7,7 @@ const {
   IMPLEMENT_STOPPED_STATES,
   IMPLEMENT_TABLE,
   IMPLEMENT_UNINSTALLED,
+  IMPLEMENT_VIBE_NOT_MET,
   describedColumnNames,
   isMissingColumnError,
 } = require('./inspireImplement');
@@ -16,7 +17,7 @@ const SESSION_PREVIEW_CAP = 4;
 const PORTFOLIO_RUN_CAP = 1000;
 const PORTFOLIO_TABLES = ['__inspire_session', '__inspire_usecases', IMPLEMENT_TABLE];
 const PORTFOLIO_ASSETS = [['apps', 'app'], ['dashboards', 'dashboard'], ['genie_spaces', 'genie_space'], ['alerts', 'alert']];
-const RUN_FIGURES = ['use_cases', 'domains', 'subdomains', 'best_of_best', 'mvps_started', 'mvps_live', 'mvps_building', 'mvps_failed',
+const RUN_FIGURES = ['use_cases', 'domains', 'subdomains', 'best_of_best', 'mvps_started', 'mvps_live', 'mvps_building', 'mvps_failed', 'mvps_held',
   ...PORTFOLIO_ASSETS.map(([key]) => key)];
 const IMPLEMENT_FAILED = 'failed';
 const SESSION_LIST_COLUMNS = ['session_id', 'processing_status', 'completed_percent', 'create_at', 'last_updated', 'completed_on', 'business_name',
@@ -220,22 +221,26 @@ function portfolioImplementStatement(table, existing = null) {
     : `NULLIF(TRIM(${column(IMPLEMENT_OUTPUT_ID_COLUMNS[output])}), '')`);
   const builtAsset = ([, output]) => `max_by(CASE WHEN COALESCE(${status(`${output}.state`)}, '') IN (${stopped}) THEN NULL ELSE ${assetId(output)} END, `
     + `${builtKey}) AS ${output}`;
-  const counted = ([key, output]) => `CAST(COUNT(DISTINCT CASE WHEN built_status IN (${done}) THEN ${output} END) AS INT) AS ${key}`;
+  const live = `COALESCE(built_status, '') IN (${done})`;
+  const notLive = `NOT ${live}`;
+  const counted = ([key, output]) => `CAST(COUNT(DISTINCT CASE WHEN ${live} THEN ${output} END) AS INT) AS ${key}`;
   return {
     sql: `WITH mvp AS (SELECT \`session_id\` AS session_id, max_by(\`status\`, \`spec_version\`) AS latest_status, `
       + `max_by(\`status\`, ${builtKey}) AS built_status, ${PORTFOLIO_ASSETS.map(builtAsset).join(', ')} `
       + `FROM ${table} GROUP BY \`session_id\`, \`use_case_id\`) `
       + `SELECT ${runKeys}, `
       + "CAST(SUM(CASE WHEN COALESCE(latest_status, '') NOT IN ('', :gone) THEN 1 ELSE 0 END) AS INT) AS mvps_started, "
-      + `CAST(SUM(CASE WHEN latest_status IN (${done}) THEN 1 ELSE 0 END) AS INT) AS mvps_live, `
-      + `CAST(SUM(CASE WHEN latest_status IN (${active}) THEN 1 ELSE 0 END) AS INT) AS mvps_building, `
-      + 'CAST(SUM(CASE WHEN latest_status = :failed THEN 1 ELSE 0 END) AS INT) AS mvps_failed, '
+      + `CAST(SUM(CASE WHEN ${live} THEN 1 ELSE 0 END) AS INT) AS mvps_live, `
+      + `CAST(SUM(CASE WHEN ${notLive} AND latest_status IN (${active}) THEN 1 ELSE 0 END) AS INT) AS mvps_building, `
+      + `CAST(SUM(CASE WHEN ${notLive} AND latest_status = :failed THEN 1 ELSE 0 END) AS INT) AS mvps_failed, `
+      + `CAST(SUM(CASE WHEN ${notLive} AND latest_status = :held THEN 1 ELSE 0 END) AS INT) AS mvps_held, `
       + `${PORTFOLIO_ASSETS.map(counted).join(', ')} FROM mvp ${rollup}`,
     parameters: [
       ...IMPLEMENT_DONE_STATUSES.map((value, i) => ({ name: `done${i}`, value, type: 'STRING' })),
       { name: 'gone', value: IMPLEMENT_UNINSTALLED, type: 'STRING' },
       ...IMPLEMENT_ACTIVE_STATUSES.map((value, i) => ({ name: `active${i}`, value, type: 'STRING' })),
       { name: 'failed', value: IMPLEMENT_FAILED, type: 'STRING' },
+      { name: 'held', value: IMPLEMENT_VIBE_NOT_MET, type: 'STRING' },
       ...IMPLEMENT_STOPPED_STATES.map((value, i) => ({ name: `stop${i}`, value, type: 'STRING' })),
     ],
   };

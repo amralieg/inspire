@@ -97,6 +97,8 @@ export function runCounts(overview, portfolio, session, { running = false, mvpEr
     items.push(item('mvps_built', figureOf(portfolio, session, 'mvps_live'), 'MVP built', 'MVPs built'),
       item('mvps_building', figureOf(portfolio, session, 'mvps_building'), 'building'),
       item('mvps_failed', figureOf(portfolio, session, 'mvps_failed'), 'failed'));
+    const held = figureOf(portfolio, session, 'mvps_held');
+    if (held) items.push(item('mvps_held', held, 'vibes not met'));
   }
   return { items, note, why };
 }

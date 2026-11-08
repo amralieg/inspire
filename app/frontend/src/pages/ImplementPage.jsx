@@ -34,7 +34,7 @@ import { Counter, CounterDivider, IconChip, PANEL_CLASS, SectionTitle } from '..
 import { catalogRow } from '../lib/useCaseFacets';
 import { fieldOf } from '../lib/useCaseFields';
 import {
-  ASSET_TILES, CONTROL_REFRESH_MS, RAIL_WIDTH, REBUILD_NOTHING, assetFilterCounts, assetGroups, assetUninstall, buildSummary, canPublishHeld, checksSummary, collectAsk,
+  ASSET_TILES, CONTROL_REFRESH_MS, RAIL_WIDTH, REBUILD_NOTHING, appUpdateChanges, assetFilterCounts, assetGroups, assetUninstall, buildSummary, canPublishHeld, checksSummary, collectAsk,
   collectRemoval, collectedScope, controlRows, controlTiles, deliveredOutputs, dropCollected, filterByAsset, filterByMvp, heldVersion, keptVersions,
   loadCollectedVibes, loadRailWidth, missingAsks, railWidth, rebuildSpec, rebuildingText, rephraseOf, rephrasedAsk, removeChanges, removeKeptChanges, rollbackChanges, rollingBackText,
   saveCollectedVibes, saveRailWidth, statusWarnings, tryAgainChanges, uninstallChanges, vibeCards, vibeFeaturesLabel,
@@ -1478,7 +1478,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       {notebook && !readOnly && (
         <p className="text-[11px] text-text-secondary">Every output reads the notebook&apos;s result tables, so uninstalling the notebook uninstalls the whole MVP.</p>
       )}
-      <TargetKpiCard view={kpiView} readOnly={readOnly} builtBefore={IMPLEMENT_DONE_STATUSES.includes(String(latest?.status || ''))} scope={scopeFacts} />
+      <TargetKpiCard view={kpiView} readOnly={readOnly} builtBefore={builtOn != null} scope={scopeFacts} />
       <UseCaseSettings view={settingsView} error={settingsError} readOnly={readOnly} impact={liveImpact(money?.run, tracked?.impact || rowImpact(latest))} scope={scopeProfile}
         onPreview={previewSetting} onSave={saveSetting} onRun={runSettings} onEdit={onEdit ? () => onEdit({ step: 'settings' }, live) : undefined}>
         <UseCaseTables key={String(latest?.spec_version ?? '')} uc={item.uc} latest={latest} view={tablesView} readOnly={readOnly} locked={locked}
@@ -1562,14 +1562,26 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
 
   const unreliableNow = hasMvp && !failureBanner && !held && IMPLEMENT_DONE_STATUSES.includes(latest?.status) && Boolean(unreliableHold(latest));
   const olderNote = hasMvp && !active ? olderBuildNote(latest) : '';
-  const rebuildBanner = (unreliableNow || olderNote) && (
+  const appUpdate = appUpdateChanges(latest, history);
+  const appNote = hasMvp && !active && appUpdate ? String(latest?.app_update?.text || '') : '';
+  const rebuildBanner = (unreliableNow || olderNote || appNote) && (
     <section aria-label="Rebuild" data-rebuild-note="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2">
       {unreliableNow && <p className="text-warning-fg">{UNRELIABLE_REBUILD_NOTE}</p>}
       {olderNote && <p className="text-warning-fg" data-older-build="">{olderNote}</p>}
+      {appNote && <p className="text-warning-fg" data-app-update="">{appNote}</p>}
       {!readOnly && (
-        <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => openFeatures()} className={PRIMARY_BUTTON}>
-          <Sparkles size={12} /> {VIBE_FEATURES_LABEL}
-        </button>
+        <div className="flex flex-wrap gap-2">
+          {appNote && (
+            <button type="button" data-app-update-button="" disabled={locked} title={lockedReason || undefined} onClick={() => submitNext(appUpdate)} className={PRIMARY_BUTTON}>
+              {submitBusy ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />} Update the App
+            </button>
+          )}
+          {(unreliableNow || olderNote) && (
+            <button type="button" disabled={locked} title={lockedReason || undefined} onClick={() => openFeatures()} className={PRIMARY_BUTTON}>
+              <Sparkles size={12} /> {VIBE_FEATURES_LABEL}
+            </button>
+          )}
+        </div>
       )}
     </section>
   );

@@ -835,6 +835,12 @@ export function allEmptyTables(scope, others, counts) {
   return (others || []).every((_t, i) => empty((counts || [])[i])) ? [scope.table, ...(others || [])] : [];
 }
 
+export async function emptyScopeWarningOf(scope, sourceTables, countTable) {
+  const others = otherScopeTables(scope, sourceTables);
+  const counts = await Promise.all(others.map((table) => Promise.resolve().then(() => countTable(table)).catch(() => null)));
+  return emptyScopeWarning(scope, allEmptyTables(scope, others, counts));
+}
+
 export function emptyScopeWarning(scope, allEmpty = []) {
   const parts = scopeNarrowing(scope);
   if (!parts.length) {
@@ -2490,6 +2496,8 @@ export function unreliableHold(latest) {
 export function implementState(latest, notebook = null) {
   const s = String(latest?.status || '');
   if (s === IMPLEMENT_UNINSTALLED) return { group: 'not_started', label: 'MVP uninstalled', tone: 'idle', kind: 'uninstalled' };
+  const live = Number(latest?.live_version);
+  if (s && live > 0 && live !== Number(latest.spec_version)) return { ...implementState({ ...latest, live_version: null }, notebook), live };
   if (s) {
     if (['ready', 'ready_with_warnings'].includes(s) && unreliableHold(latest)) return { group: 'held', label: UNRELIABLE_LABEL, tone: 'warning', kind: 'mvp' };
     if (['ready', 'ready_with_warnings'].includes(s) && openVibeAsks(latest).length) return { group: 'unmet', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' };
@@ -2538,7 +2546,8 @@ export const MVP_FILTERS = [
 const MVP_BUCKET = { ready: 'live', in_progress: 'building', held: 'held', unmet: 'held', failed: 'failed' };
 
 export function mvpBucketOf(state) {
-  return state?.kind === 'mvp' ? MVP_BUCKET[state.group] || 'building' : 'none';
+  if (state?.kind !== 'mvp') return 'none';
+  return state.live ? 'live' : MVP_BUCKET[state.group] || 'building';
 }
 
 export function mvpFilterMatches(filter, state) {
