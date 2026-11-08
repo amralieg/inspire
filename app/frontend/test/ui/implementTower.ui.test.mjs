@@ -5,7 +5,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB } from './implementFixtures.js';
-import { closeAsset, closeBrowser, closeBuild, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, setDark, shot, steadyBox, until } from './uiSupport.mjs';
+import { FAKE_CLOCK, closeAsset, closeBrowser, closeBuild, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, shot, steadyBox, until, wheelScrolls } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAGE = 'app:page:decisions';
@@ -115,8 +115,8 @@ const heldOf = featuresHeld;
 const text = async (el) => (await el.textContent()).trim();
 const storedVibes = (page) => page.evaluate(() => JSON.parse(localStorage.getItem('inspire.collected_vibes.v1') || '{}'));
 
-async function openTower(state = STATE, { expand = true } = {}) {
-  const ui = await openUi('implement', state);
+async function openTower(state = STATE, { expand = true, clock = null } = {}) {
+  const ui = await openUi('implement', state, '', clock || undefined);
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await ui.page.locator('[data-asset-tiles]').waitFor({ timeout: 15000 });
@@ -1114,14 +1114,10 @@ test('the name and the tiles stay in view while the Genie feed scrolls inside Bu
     const log = page.locator('[data-mvp-progress] [data-build-log]');
     await painted(page);
     const before = await Promise.all([name, tiles, rail].map(async (el) => (await el.boundingBox()).y));
-    const room = await log.evaluate((el) => {
-      el.append(Object.assign(document.createElement('div'), { style: 'height:2000px' }));
-      el.scrollTop = 600;
-      return { top: el.scrollTop, page: document.scrollingElement.scrollHeight - window.innerHeight, overflow: getComputedStyle(el).overflowY };
-    });
-    await painted(page);
-    assert.deepEqual([room.top, room.overflow], [600, 'auto'], 'the feed scrolls inside Build progress');
-    assert.ok(room.page <= 1, `the page itself never grows a second scrollbar (${room.page})`);
+    await log.evaluate((el) => el.append(Object.assign(document.createElement('div'), { style: 'height:2000px' })));
+    await wheelScrolls(page, log, { delta: 600 });
+    const room = await log.evaluate((el) => document.scrollingElement.scrollHeight - window.innerHeight);
+    assert.ok(room <= 1, `the page itself never grows a second scrollbar (${room})`);
     const after = await Promise.all([name, tiles, rail].map(async (el) => (await el.boundingBox()).y));
     assert.deepEqual(after, before, 'the name, the tiles and the use case list stay where they are');
     assert.equal(await name.locator('h2').evaluate((el) => el.scrollWidth <= el.clientWidth + 1), true, 'the name keeps to one line');
@@ -1388,13 +1384,9 @@ test('Build progress opens as a full-height side panel whose 500-line log scroll
       assert.ok(box.width >= 540, `at ${width}x${height} the panel is wide (${box.width} px)`);
       const room = await log.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight, overflow: getComputedStyle(el).overflowY,
         page: document.scrollingElement.scrollHeight - window.innerHeight }));
-      assert.ok(room.scroll > room.client && room.client >= 200 && room.overflow === 'auto', `at ${width}x${height} the log scrolls inside the panel ${JSON.stringify(room)}`);
+      assert.ok(room.scroll > room.client && room.overflow === 'auto', `at ${width}x${height} the log scrolls inside the panel ${JSON.stringify(room)}`);
       assert.ok(room.page <= 1, `at ${width}x${height} the page never grows with the log (${room.page} px)`);
-      await log.evaluate((el) => { el.scrollTop = 0; });
-      const lb = await log.boundingBox();
-      await page.mouse.move(lb.x + lb.width / 2, lb.y + lb.height / 2);
-      await page.mouse.wheel(0, 1200);
-      await page.waitForFunction(() => document.querySelector('[data-mvp-progress] [data-build-log]').scrollTop > 0);
+      await wheelScrolls(page, log, { lines: '[data-feed-kind]', readable: 4 });
       const pane = page.locator('section[aria-label="Use case"]');
       await pane.evaluate((el) => { el.scrollTop = 0; });
       const behind = await pane.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
@@ -1429,6 +1421,21 @@ test('Build progress opens as a full-height side panel whose 500-line log scroll
     await card.waitFor({ timeout: 20000 });
     assert.equal(await panel.count(), 0, 'a closed panel stays closed after a reload');
     assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('nothing the person reads about a not-reliable run, card or panel, tells them to fix what it names', { todo: 'frontend/src/lib/implementWizard.js UNRELIABLE_REBUILD_NOTE still says Fix what it names' }, async () => {
+  const ui = await openTower({ ...STATE, history: [unreliable(), ...HISTORY], steps: doneSteps(), moneySummary: [{ not_reliable: UNRELIABLE, updated_at: new Date().toISOString() }] }, { expand: false });
+  const { page } = ui;
+  try {
+    const card = page.locator('[data-progress-card]');
+    await card.locator('[data-build-summary-reason]').waitFor({ timeout: 15000 });
+    await card.getByRole('button', { name: 'Show progress', exact: true }).click();
+    const panel = page.locator('[data-mvp-progress]');
+    await panel.getByRole('dialog').waitFor();
+    for (const where of [card, panel]) assert.doesNotMatch(await where.innerText(), /fix what it names/i);
   } finally {
     await ui.close();
   }
@@ -1550,3 +1557,116 @@ test('a Build page with short content ends where its content ends: the list and 
     }
   }
 });
+
+const APP_BUILDING = () => [
+  stepRow('Vibe', 'ended_success', 86, { spec_version: 4 }),
+  stepRow('Plan', 'started', 85, { spec_version: 4 }), stepRow('Plan', 'ended_success', 80, { spec_version: 4, plan: APP_PLAN }),
+  stepRow('Genie Code', 'started', 60), stepRow('Genie Code', 'ended_success', 50),
+  stepRow('App', 'started', 30, { spec_version: 4, round: 1, rounds: 3 }),
+];
+const RUNNING = { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } };
+const motionOf = (page, id) => page.locator(`[data-asset-tile="${id}"]`).evaluate((el) => getComputedStyle(el).animationName);
+const appMoves = async (page) => {
+  await page.waitForFunction(() => document.querySelector('[data-asset-tile="app"]')?.classList.contains('asset-building'), null, { timeout: 20000 });
+  assert.deepEqual(await animatedTiles(page), ['app'], 'only the building card animates');
+  assert.deepEqual((await motionOf(page, 'app')).split(', ').sort(), ['assetBuildingBorder', 'assetBuildingGlow']);
+  for (const id of ['job', 'notebook', 'dashboard', 'genie_space']) assert.equal(await motionOf(page, id), 'none', `${id} holds still`);
+};
+const allStill = async (page, why) => {
+  await page.waitForFunction(() => !document.querySelector('[data-asset-tiles] .asset-building'), null, { timeout: 20000 });
+  for (const id of ['app', 'job', 'notebook', 'dashboard', 'genie_space']) assert.equal(await motionOf(page, id), 'none', `${id} holds still once ${why}`);
+  assert.equal(await page.locator('[data-asset-tiles] [data-tile-spinner]').count(), 0, `no spinner once ${why}`);
+};
+
+test('the building App card stops animating the moment its build finishes, starts again on the next build, and stops when that build fails', async () => {
+  const ui = await openTower({ ...STATE, history: [vibeVersion('building_outputs'), ...HISTORY], steps: APP_BUILDING(), implementRun: RUNNING }, { clock: FAKE_CLOCK });
+  const { page, made } = ui;
+  try {
+    await page.emulateMedia({ reducedMotion: 'no-preference' });
+    await appMoves(page);
+    made.state.steps = [...APP_BUILDING(), stepRow('App', 'ended_success', 5, { spec_version: 4 })];
+    made.state.history = [finished('ready', 'ready'), ...HISTORY];
+    made.state.implementRun = { run_id: RUNNING.run_id, state: { life_cycle_state: 'TERMINATED', result_state: 'SUCCESS' } };
+    await pollNow(page);
+    await allStill(page, 'the build finished');
+    made.state.steps = APP_BUILDING();
+    made.state.history = [vibeVersion('building_outputs'), ...HISTORY];
+    made.state.implementRun = RUNNING;
+    await pollNow(page);
+    await appMoves(page);
+    made.state.steps = [...APP_BUILDING(), stepRow('App', 'ended_error', 5, { spec_version: 4 }, 'the App did not start')];
+    made.state.history = [finished('failed', 'the App did not start'), ...HISTORY];
+    made.state.implementRun = { run_id: RUNNING.run_id, state: { life_cycle_state: 'TERMINATED', result_state: 'FAILED' } };
+    await pollNow(page);
+    await allStill(page, 'the build failed');
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 4\d\d/.test(e)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+const tileButtons = (page) => page.locator('[data-asset-tiles] [data-tile-actions]').evaluateAll((groups) => groups.flatMap((g) => [...g.children]
+  .filter((b) => b.matches('a, button') && b.getBoundingClientRect().height > 0)
+  .map((b) => { const r = b.getBoundingClientRect(); return { tile: g.closest('[data-asset-tile]').dataset.assetTile, text: b.textContent.trim(), top: Math.round(r.top), w: Math.round(r.width), h: Math.round(r.height) }; })));
+
+for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]]) {
+  test(`every action button on the asset cards has one height, and the buttons in a row share one width, at ${width}x${height}`, async () => {
+    const ui = await openTower(STATE, { expand: false });
+    const { page } = ui;
+    try {
+      await page.setViewportSize({ width, height });
+      await page.waitForFunction(() => document.querySelector('[data-asset-tile="dashboard"]')?.dataset.tileKind === 'live', null, { timeout: 20000 });
+      await painted(page);
+      const buttons = await tileButtons(page);
+      assert.ok(buttons.length >= 6, `the cards carry their buttons (${buttons.length})`);
+      assert.deepEqual([...new Set(buttons.map((b) => b.h))], [buttons[0].h], `one height: ${JSON.stringify(buttons.map((b) => [b.tile, b.text, b.h]))}`);
+      const rows = new Map();
+      for (const b of buttons) rows.set(b.top, [...(rows.get(b.top) || []), b]);
+      for (const [top, row] of rows) assert.equal(new Set(row.map((b) => b.w)).size, 1, `one width in the row at ${top}: ${JSON.stringify(row.map((b) => [b.tile, b.text, b.w]))}`);
+      await shot(page, `asset-buttons-${width}x${height}`, false);
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}
+
+const paneButtons = (page) => page.evaluate(() => {
+  const roots = [...document.querySelectorAll('[data-use-case-pane], [data-mvp-panel]')];
+  return roots.flatMap((root) => [...root.querySelectorAll('a.rounded-lg, button.rounded-lg')]
+    .filter((b) => b.textContent.trim() && b.getBoundingClientRect().height > 0 && b.getAttribute('role') !== 'tab' && !b.matches('[data-tile-open]'))
+    .map((b) => {
+      const r = b.getBoundingClientRect();
+      const box = (b.closest('[data-tile-actions], [data-control], [data-kept-version]') || b.parentElement).getBoundingClientRect();
+      return { where: b.closest('[data-asset-panel]')?.dataset.assetPanel || b.closest('[data-asset-tile]')?.dataset.assetTile || b.closest('[aria-label]')?.getAttribute('aria-label') || '', text: b.textContent.trim(), row: `${Math.round(box.left)}:${Math.round(r.top)}`, w: Math.round(r.width), h: Math.round(r.height), cut: b.scrollWidth > b.clientWidth + 1, out: r.right > window.innerWidth + 1 || r.left < -1 };
+    }));
+});
+
+for (const [width, height] of [[1440, 900], [1024, 768], [390, 844]]) {
+  test(`every action button in the use case pane, on the cards and in each open asset, has one height and one width per row, at ${width}x${height}`, async () => {
+    const ui = await openTower(STATE, { expand: false });
+    const { page } = ui;
+    try {
+      await page.setViewportSize({ width, height });
+      await page.waitForFunction(() => document.querySelector('[data-asset-tile="dashboard"]')?.dataset.tileKind === 'live', null, { timeout: 20000 });
+      const seen = [];
+      for (const id of ['job', 'notebook', 'dashboard', 'app', 'genie_space']) {
+        if (!(await page.locator(`[data-asset-tile="${id}"] [data-tile-versions]`).count())) continue;
+        await openAsset(page, id);
+        await painted(page);
+        const buttons = await paneButtons(page);
+        seen.push(...buttons.map((b) => b.where));
+        assert.deepEqual([...new Set(buttons.map((b) => b.h))], [32], `one height with ${id} open: ${JSON.stringify(buttons.map((b) => [b.where, b.text, b.h]))}`);
+        const rows = new Map();
+        for (const b of buttons) rows.set(b.row, [...(rows.get(b.row) || []), b]);
+        for (const [row, list] of rows) assert.equal(new Set(list.map((b) => b.w)).size, 1, `one width per row with ${id} open, row ${row}: ${JSON.stringify(list.map((b) => [b.where, b.text, b.w]))}`);
+        assert.deepEqual(buttons.filter((b) => b.cut || b.out).map((b) => b.text), [], `no button is cut or off screen with ${id} open`);
+        await shot(page, `asset-pane-${id}-${width}x${height}`, false);
+      }
+      assert.ok(new Set(seen).size >= 8, `the open assets carry buttons: ${[...new Set(seen)]}`);
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}

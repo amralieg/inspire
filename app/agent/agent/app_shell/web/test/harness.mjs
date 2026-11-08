@@ -284,6 +284,21 @@ export async function steadyBox(page, locator, timeout = 15000) {
   throw new Error(`${locator} did not stop moving in ${timeout} ms`);
 }
 
+export async function sent(page) {
+  await page.evaluate(() => fetch('/api/__fence').then(() => undefined));
+}
+
+export async function idle(page, timeout = 15000) {
+  await page.waitForFunction(() => !document.querySelector('[aria-busy="true"]'), null, { timeout });
+  await sent(page);
+  await until(() => (ANSWERING.get(page)?.open ?? 0) === 0, timeout);
+}
+
+export const framed = (page) => page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+
+export const moved = (page) => page.evaluate(() => Promise.all(document.getAnimations()
+  .filter((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))));
+
 export async function openApp(browser, base, info, { width = 1440, height = 900, scheme = 'light', errors = {}, routes = {}, clock, watch, ready = '.kpi-v, .hcard, [data-page-section]:not([data-page-section="dashboard"])',
   timezone, hash = '' } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, colorScheme: scheme, acceptDownloads: true, ...(timezone ? { timezoneId: timezone } : {}) });
@@ -299,6 +314,7 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
     const url = new URL(route.request().url());
     const path = url.pathname.replace(/^.*?\/api\//, '');
     const json = (status, data) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
+    if (path === '__fence') return route.fulfill({ status: 204 });
     if (routes[path]) return routes[path]({ route, json, url, seen });
     if (path === 'app') return json(200, info);
     if (path === 'filters') return json(200, FILTERS);
@@ -369,6 +385,7 @@ export async function openBundle(browser, bundle, props, routes = {}, { width = 
   await page.route('**/api/**', (route) => {
     const path = new URL(route.request().url()).pathname.replace(/^\/api\//, '');
     const json = (status, data) => route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(data) });
+    if (path === '__fence') return route.fulfill({ status: 204 });
     if (routes[path]) return routes[path]({ route, json });
     if (path === 'agent/status') return json(200, GENIE_ONLY);
     return json(404, { error: 'no route' });

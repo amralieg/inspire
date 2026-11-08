@@ -9,7 +9,7 @@ import {
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, NOTEBOOK_MODE_LABEL, isAppUpdate, APP_UPDATED_TEXT,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -19,8 +19,9 @@ import { formatWhen } from '../lib/formatWhen';
 import { plural, shown } from '../lib/plural';
 import ImplementStatusBadge from '../components/ImplementStatusBadge';
 import ImplementWizard from './ImplementWizard';
-import { AssetPanel, AssetTile, BuildControls, ConfirmDialog, NotebookPanel } from '../components/ImplementControlTower';
+import { ACTION_ROW, AssetPanel, AssetTile, BuildControls, ConfirmDialog, NotebookPanel } from '../components/ImplementControlTower';
 import UseCaseDrawer from '../components/UseCaseDrawer';
+import { PlainMessage } from '../components/TechnicalDetails';
 import QualityBarChip from '../components/QualityBarChip';
 import UseCaseDetailBody from '../components/UseCaseDetailBody';
 import InspireScoreBadge from '../components/InspireScoreBadge';
@@ -67,8 +68,8 @@ const NO_JOB = { label: 'No job yet', tone: 'idle' };
 const CHECKING = { label: 'Checking', tone: 'idle' };
 const ERROR_BOX = 'text-xs text-error-fg bg-error-bg border border-error/20 rounded-lg px-3 py-2';
 const NOTE_BOX = 'text-xs text-info-fg bg-info-bg border border-info/20 rounded-lg px-3 py-2';
-const OUTLINE_BUTTON = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
-const PRIMARY_BUTTON = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20 disabled:opacity-50';
+const OUTLINE_BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
+const PRIMARY_BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 px-3.5 rounded-lg whitespace-nowrap text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20 disabled:opacity-50';
 const LINK = 'text-sm font-semibold text-db-red-fg inline-flex items-center gap-1 hover:underline';
 const DANGER_BUTTON = `${OUTLINE_BUTTON} border-error/40 text-error-fg`;
 const COLLECT_LOST = `This browser does not keep the vibes you add, so they are lost if you leave this page. Rebuild them in ${VIBE_FEATURES_LABEL} first.`;
@@ -114,7 +115,7 @@ function SummaryBanner({ summary }) {
   const { building } = summary;
   let mark = { icon: Sparkles, tone: 'idle' };
   let title = 'No MVP started yet';
-  let line = 'Pick a use case on the left and start one with Genie.';
+  let line = 'Pick any use case in the list to start its MVP.';
   if (building.length) {
     mark = { icon: Rocket, tone: 'red', live: true };
     title = `${plural(building.length, 'MVP')} building now`;
@@ -1240,7 +1241,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         <div className="min-w-0 space-y-0.5 text-error-fg">
           <p className="text-[13px] font-semibold">{stopped ? 'The build stopped' : 'The build failed'}</p>
           {failedStage && <p>Step: <span className="font-semibold">{failedStage.label}</span></p>}
-          {reason && <p>{reason}</p>}
+          {reason && <PlainMessage text={reason} />}
         </div>
       </div>
       <StageNotes stages={[{ id: 'Notebook', notes: genieChanges }]} label={GENIE_CHANGES_HEADING} heading={GENIE_CHANGES_HEADING} />
@@ -1637,7 +1638,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
         {item.uc && <ValueEstimateLine uc={item.uc} />}
         {built && progress.active && <ProgressLine chip={chip} summary={progress} />}
-        <div className="flex flex-wrap gap-2">
+        <div className={ACTION_ROW}>
           {item.uc && (
             <button type="button" onClick={() => setDetailsOpen(true)} className={OUTLINE_BUTTON}>
               <FileText size={13} /> Use case details
@@ -1665,7 +1666,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
         {!hasMvp && (
           <p className="text-[12px] text-text-secondary">
-            {readOnly ? SHOWCASE_NO_MVP : `Not built yet. ${START_MVP_LABEL} builds one, or writes only the Genie Code notebook when you choose ${NOTEBOOK_MODE_LABEL}.`}
+            {readOnly ? SHOWCASE_NO_MVP : `Not built yet. Press ${START_MVP_LABEL} to build it.`}
           </p>
         )}
         {uninstalled && (

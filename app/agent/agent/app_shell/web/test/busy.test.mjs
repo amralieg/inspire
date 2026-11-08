@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { actBody, CURRENT, DECIDE, HISTORY, ROWS, SUMMARY, TABLE, appInfo, lister, openApp, serveDist, tracked, until } from './harness.mjs';
+import { CURRENT, DECIDE, HISTORY, ROWS, SUMMARY, TABLE, actBody, appInfo, idle, lister, openApp, sent, serveDist, tracked, until } from './harness.mjs';
 
 let served;
 let browser;
@@ -155,11 +155,11 @@ test('pressing d twice on a row while its first save is open sends one write, an
   await page.keyboard.press('s');
   await page.waitForFunction(() => document.querySelector('.card--table tbody tr.is-saving'));
   assert.equal(await page.locator('.card--table tbody tr.is-saving .cell-t b').innerText(), label(1));
-  await page.waitForTimeout(300);
+  await sent(page);
   assert.equal(writes.writes.length, 1, 'the second d and the s while saving were not sent');
   hold.open();
   await page.waitForFunction(() => !document.querySelector('.card--table tbody tr.is-saving'));
-  await page.waitForTimeout(200);
+  await idle(page);
   assert.equal(writes.writes.length, 1);
   await page.keyboard.press('s');
   await until(() => writes.writes.length === 2);

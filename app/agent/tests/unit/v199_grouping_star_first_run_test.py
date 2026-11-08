@@ -127,7 +127,7 @@ def test_a_legacy_comma_list_reads_the_same_values_and_the_same_scope_key_as_bef
 
 def test_and_groups_are_applied_at_run_time_with_a_joined_part_read_through_its_dimension(fresh_ns):
     value = GROUPS["parse"][7]["value"]
-    chosen = fresh_ns["inspire_scope_choice"](scope=_scope(run_scope="groups", scope_groups=value))
+    chosen = fresh_ns["inspire_scope_choice"](scope=_scope({"table": SALES}, run_scope="groups", scope_groups=value))
     assert chosen["values"] == ["state = CA and item.i_category = Electronics", "state = NY and item.i_category = Home"] and chosen["column"] == ""
 
     def respond(statement):
@@ -146,6 +146,8 @@ def test_and_groups_are_applied_at_run_time_with_a_joined_part_read_through_its_
                                      "(CAST(`State` AS STRING) = 'NY' AND CAST(`ss_item_sk` AS STRING) IN ('21')))")]
     assert fresh_ns["inspire_read_source"](SALES, spark=Session(["ss_item_sk"])).steps == [], \
         "a table that lacks a part's column is read whole and the join narrows it"
+    assert fresh_ns["inspire_read_source"]("main.retail.item", spark=Session(["State", "ss_item_sk", "i_category"])).steps == [], \
+        "the dimension is read whole even when it holds the parts' columns"
     text = fresh_ns["inspire_scope_text"](resolved)
     assert text == "the 2 groups state = CA and item.i_category = Electronics; state = NY and item.i_category = Home"
     record = fresh_ns["inspire_scope_record"](resolved)

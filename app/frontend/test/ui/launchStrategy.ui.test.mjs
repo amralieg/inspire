@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, idle, openUi, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -93,7 +93,7 @@ test('with the strategy left alone the launch sends no strategy, and a level nam
     assert.match(await section.innerText(), /The level name "pillar" is used twice/);
     await until(() => start.isDisabled(), 'nothing can be launched with a broken strategy');
     assert.match(await section.getByRole('button', { name: /Strategy \(optional\)/ }).innerText(), /1 problem/);
-    await page.waitForTimeout(1500);
+    await idle(page);
     assert.equal(await start.isDisabled(), true, 'it stays closed while the problem is there');
     await section.getByLabel('Level 2 name').fill('Goal');
     await until(async () => !(await start.isDisabled()), 'Get Started opens again once the level is renamed');

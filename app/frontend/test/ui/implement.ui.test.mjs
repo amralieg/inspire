@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, M
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
+import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary, wheelScrolls } from './uiSupport.mjs';
 
 const gone = (table) => `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${table} cannot be found. Verify the spelling. SQLSTATE: 42P01`;
 const GONE = gone('`main`.`s`.`returns`');
@@ -73,7 +73,7 @@ function submittedSpec(made) {
 test('the wizard opens on Delivery consumption with the App and Genie Agent ticked, drops the App steps while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
-  const withApp = ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. App placement', '6. App access', '7. App look', '8. Settings', '9. Vibes', '10. Summary'];
+  const withApp = ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. Measure impact', '6. Keep it fresh', '7. App placement', '8. App access', '9. App look', '10. Settings', '11. Vibes', '12. Summary'];
   try {
     await onStep(page, 'Delivery consumption');
     await stepsAre(page, withApp);
@@ -93,7 +93,7 @@ test('the wizard opens on Delivery consumption with the App and Genie Agent tick
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-highly-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       1, 'exactly one tile is Highly Recommended');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    await stepsAre(page, ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. Settings', '6. Vibes', '7. Summary']);
+    await stepsAre(page, ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. Measure impact', '6. Keep it fresh', '7. Settings', '8. Vibes', '9. Summary']);
     await page.getByRole('checkbox', { name: /^App / }).check();
     await stepsAre(page, withApp);
     assert.equal(await page.getByLabel('App name').count(), 0, 'the App name waits for App placement');
@@ -109,8 +109,9 @@ test('the wizard opens on Delivery consumption with the App and Genie Agent tick
     assert.equal(await advanced(page).getAttribute('aria-expanded'), 'false');
     assert.equal(await page.getByLabel('Goal sentence').count(), 0, 'every other setting waits under Advanced settings');
     await dataToResults(page);
+    await goToStep(page, 'Keep it fresh');
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
-    assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'an alert turns Keep it fresh to Daily');
+    assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh starts on Daily');
     await fresh.getByRole('button', { name: 'Weekly' }).click();
     assert.equal(await fresh.getByRole('button', { name: 'Weekly' }).getAttribute('aria-pressed'), 'true');
     assert.equal(made.jobs.length, 0);
@@ -273,9 +274,13 @@ test('a new App that could not get access is disabled up front with the reason, 
     const appBox = page.getByRole('checkbox', { name: /^App / });
     await appBox.waitFor();
     assert.equal(await appBox.isDisabled(), true);
-    const reason = await page.getByText('Inspire cannot create this App:', { exact: false }).textContent();
-    assert.ok(reason.includes(`Inspire cannot create this App: a new App could not read ${RESULT_TABLE}: its service principal needs USE CATALOG on catalog \`main\` (owner admins)`), reason);
+    const blocked = page.locator('[data-blocked-reason="app"]');
+    assert.equal(await blocked.locator('p').textContent(), 'Needs access Inspire does not have on the catalog, the schema and the SQL warehouse.', 'one short plain line says why, naming the place');
+    await blocked.getByText('Details', { exact: true }).click();
+    const reason = await blocked.locator('code').textContent();
+    assert.ok(reason.includes(`a new App could not read ${RESULT_TABLE}: its service principal needs USE CATALOG on catalog \`main\` (owner admins)`), reason);
     assert.ok(reason.includes('Inspire cannot manage'), reason);
+    assert.equal(await page.locator('[data-output="app"] [data-highly-recommended]').count(), 0, 'the blocked App carries no badge');
     assert.equal(await page.getByRole('checkbox', { name: /^Genie Agent/ }).isDisabled(), false);
     await toSummary(page);
     const warn = page.locator('span.text-warning-fg', { hasText: `${OWNER} may not be able to read the result table` });
@@ -451,6 +456,8 @@ test('Next warns, without stopping, when the data to work with has no rows and s
 test('an empty main table warns and moves on, and when every picked table is empty the warning says no use case can be grounded in rows', async () => {
   const ui = await openUi('wizard&discovery=Deep', { readinessByTable: { 'main.s.orders': '0', 'main.s.returns': '40' }, me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
+  const counted = [];
+  page.on('request', (r) => { if (r.url().includes('/api/inspire/implement/readiness')) counted.push(JSON.parse(r.postData() || '{}').table); });
   try {
     await toData(page);
     await goToStep(page, 'MVP Test Run');
@@ -458,8 +465,8 @@ test('an empty main table warns and moves on, and when every picked table is emp
       'Warning: main.s.orders is empty, so the MVP Test Run may write no rows. You can go on.');
     assert.doesNotMatch(await page.locator('[data-empty-table-warning]').innerText(), /grounded/, 'one other table has rows (must-exclude)');
     assert.deepEqual(await footerErrors(page), []);
-    const counted = made.sqlCalls.filter((c) => String(c.sql).startsWith('SELECT COUNT(*) AS row_count'));
-    assert.equal(counted.length, 2, 'the other picked table is counted too');
+    assert.deepEqual(counted, ['main.s.orders', 'main.s.returns'], 'Next on Data counts the main table, then the other picked table once');
+    assert.ok(made.sqlCalls.some((c) => String(c.sql) === 'SELECT COUNT(*) AS row_count FROM `main`.`s`.`returns`'), 'the other table is counted on the warehouse');
 
     await page.getByRole('button', { name: 'Back' }).click();
     await onStep(page, 'Data');
@@ -958,6 +965,8 @@ test('the Build progress box scrolls Genie\'s messages itself: the page never gr
       feed: getComputedStyle(el.querySelector('[role="log"]')).overflowY }));
     assert.deepEqual([own.overflow, own.feed], ['auto', 'visible'], 'one scroll box: the Build progress box, never the feed inside it');
     assert.ok(own.scroll > own.client, `the messages scroll inside the box (${own.scroll} in ${own.client})`);
+    await wheelScrolls(page, log, { lines: '[data-feed-kind]', readable: 3, delta: 200 });
+    await log.evaluate((el) => { el.scrollTop = el.scrollHeight; });
     await atEnd();
     assert.equal(await jump.count(), 0, 'nothing to jump to while the box follows');
 
@@ -1695,7 +1704,7 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     await onStep(never.page, 'Delivery consumption');
     assert.equal(await never.page.getByRole('region', { name: 'Executive summary' }).locator('h3').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
-    for (const label of ['Delivery consumption', 'Data', 'MVP Test Run', 'Results', 'App placement']) {
+    for (const label of ['Delivery consumption', 'Data', 'MVP Test Run', 'Results', 'Measure impact', 'Keep it fresh', 'App placement']) {
       if (label !== 'Delivery consumption') {
         await next(never.page);
         await onStep(never.page, label);

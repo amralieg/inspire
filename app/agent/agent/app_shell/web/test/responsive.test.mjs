@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, chartsDrawn, openApp, resizeTo, serveDist } from './harness.mjs';
+import { appInfo, chartsDrawn, framed, moved, openApp, resizeTo, serveDist } from './harness.mjs';
 
 const WIDTHS = [1600, 1280, 768, 375];
 const SCROLLERS = '.tbl-wrap, .msg-t, .tabs';
@@ -173,7 +173,7 @@ test('on a phone the calendar icon stays beside the first line of the data date 
   assert.ok(m.iconRight <= m.left, `the icon is left of the text: ${JSON.stringify(m)}`);
   assert.equal((await snapshot(page)).pageScroll, 0);
   await page.addStyleTag({ content: '.ph-meta{flex-wrap:wrap;align-items:center}.ph-meta>span{min-width:max-content}' });
-  await page.waitForTimeout(100);
+  await framed(page);
   const broken = await meta();
   assert.ok(Math.abs(broken.iconTop - broken.first) > 6 || broken.iconRight > broken.left, `the check catches the old wrap: ${JSON.stringify(broken)}`);
   assert.deepEqual(seen.errors, []);
@@ -184,7 +184,7 @@ test('the check catches a page that does not fit the phone', async () => {
   const { page, context } = await openPage(appInfo({}, 2), 375);
   await page.waitForFunction(chartsDrawn, 4);
   await page.addStyleTag({ content: '.ph h1{min-width:620px}' });
-  await page.waitForTimeout(200);
+  await framed(page);
   const m = await snapshot(page);
   assert.ok(m.bleeding.includes('h1.'), JSON.stringify(m.bleeding));
   await context.close();

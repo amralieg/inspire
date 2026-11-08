@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
+import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openUi, painted, setDark, settled, startMvp, toAppAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
 import { MVP_MODE_LABEL, NOTEBOOK_MODE_LABEL } from '../../src/lib/implementWizard.js';
 import { wheelScrolls } from './wheelScroll.mjs';
 
@@ -431,7 +431,7 @@ test('Where results live offers its own schema, falls back to the Inspire databa
     const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
     await places.locator('[data-option="inspire"] [data-highly-recommended]').waitFor();
     assert.equal(await places.locator('[data-option="own"] [data-highly-recommended]').count(), 0, 'the badge follows the default the person can write to');
-    assert.equal(await places.locator('[data-option="own"]').innerText().then((t) => t.includes('main._inspire_acme_n01_u01_42.n01_u01_results')), true);
+    assert.equal(await places.locator('[data-option="own"]').innerText().then((t) => t.includes('main._inspire_acme_n01_u01.n01_u01_results')), true);
     assert.equal(await places.getByRole('radio', { name: /The Inspire database schema/ }).isChecked(), true, 'no right to create a schema keeps the Inspire database schema');
     await step.getByRole('note', { name: 'Where the tables go note' }).getByText(/GRANT CREATE SCHEMA ON CATALOG `main`/).waitFor();
     await step.getByRole('note', { name: 'Moving the result table' }).getByText('Moving the table later copies its history to the new table and keeps the old one.').waitFor();
@@ -461,8 +461,20 @@ test('Where results live offers its own schema, falls back to the Inspire databa
     await schema.locator('option[value="mvp"]').waitFor({ state: 'attached' });
     await schema.selectOption('mvp');
     await goToStep(page, 'Delivery');
+    await page.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
+    const withoutApp = page.waitForResponse((r) => r.url().includes('/api/inspire/implement/preflight?') && new URL(r.url()).searchParams.get('app_name') === '');
+    await until(async () => !(await page.getByRole('checkbox', { name: /^App / }).isChecked()), 'the App Inspire cannot build is turned off on Delivery, in view');
+    assert.equal(await page.getByRole('checkbox', { name: /^App / }).isDisabled(), true);
+    await withoutApp;
+    await painted(page);
+    assert.equal(await page.getByRole('checkbox', { name: /^App / }).isDisabled(), true, 'the check run without the App still keeps the App it cannot build from being ticked again');
+    await page.locator('[data-blocked-reason="app"]').waitFor();
+    await toSummary(page);
+    await page.locator('[data-picked-row="dropped"]').getByText(/^App: /).waitFor();
+    assert.deepEqual((await footerErrors(page)).filter((e) => /^App /.test(e)), [], 'a check of the dropped App never shows on the Summary (must-exclude)');
     await startWhenReady(page);
     assert.equal(submittedSpec(made).config.result_table, 'sales.mvp.n01_u01_s42_out');
+    assert.equal(submittedSpec(made).outputs.app, false);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -470,7 +482,7 @@ test('Where results live offers its own schema, falls back to the Inspire databa
 });
 
 test('A person who may create schemas gets the use case its own schema: Next creates and tags it, and the Summary and the build name that exact table', async () => {
-  const own = 'main._inspire_acme_n01_u01_42.n01_u01_results';
+  const own = 'main._inspire_acme_n01_u01.n01_u01_results';
   const ui = await openUi('wizard', {
     me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'person-tok', dbToken: 'person-tok', catalogs: ['main'], schemas: { main: ['inspire'] },
     statements: { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }] }) },
@@ -488,11 +500,100 @@ test('A person who may create schemas gets the use case its own schema: Next cre
     await step.getByRole('group', { name: 'Result table' }).getByText(own, { exact: true }).waitFor();
     await toSummary(page);
     const made1 = made.sqlCalls.filter((c) => /^(CREATE|ALTER) SCHEMA/.test(c.sql)).map((c) => c.sql);
-    assert.deepEqual(made1, ['CREATE SCHEMA IF NOT EXISTS `main`.`_inspire_acme_n01_u01_42`',
-      "ALTER SCHEMA `main`.`_inspire_acme_n01_u01_42` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme')"]);
+    assert.deepEqual(made1, ['CREATE SCHEMA IF NOT EXISTS `main`.`_inspire_acme_n01_u01`',
+      "ALTER SCHEMA `main`.`_inspire_acme_n01_u01` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme', 'inspire_database' = 'main.inspire')"]);
     await page.getByText(own, { exact: true }).first().waitFor();
     await startWhenReady(page);
     assert.equal(submittedSpec(made).config.result_table, own);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('A schema of the same name that is not this use case\'s: the wizard says so, picks the next free name, and creates and tags that one', async () => {
+  const own = 'main._inspire_acme_n01_u01__2.n01_u01_results';
+  const foreign = [{ kind: 'exists', schema_name: '_inspire_acme_n01_u01', value: '' }, { kind: 'inspire_use_case_id', schema_name: '_inspire_acme_n01_u01', value: 'N07-U02' }];
+  const ui = await openUi('wizard', {
+    me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'person-tok', dbToken: 'person-tok', catalogs: ['main'], schemas: { main: ['inspire'] },
+    statements: { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }, ...foreign] }) },
+  });
+  const { page, made } = ui;
+  try {
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
+    await dataToResults(page);
+    const step = page.getByRole('region', { name: 'Where the result table lives' });
+    const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
+    assert.equal(await places.getByRole('radio', { name: /Its own schema/ }).isChecked(), true);
+    await step.getByRole('note', { name: 'Where the tables go note' })
+      .getByText("_inspire_acme_n01_u01 already exists and is not this use case's schema (it holds use case N07-U02), so this use case's own schema is _inspire_acme_n01_u01__2.", { exact: true }).waitFor();
+    await step.getByRole('group', { name: 'Result table' }).getByText(own, { exact: true }).waitFor();
+    await toSummary(page);
+    assert.deepEqual(made.sqlCalls.filter((c) => /^(CREATE|ALTER) SCHEMA/.test(c.sql)).map((c) => c.sql), ['CREATE SCHEMA IF NOT EXISTS `main`.`_inspire_acme_n01_u01__2`',
+      "ALTER SCHEMA `main`.`_inspire_acme_n01_u01__2` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme', 'inspire_database' = 'main.inspire')"]);
+    assert.equal(made.sqlCalls.some((c) => /SCHEMA `main`\.`_inspire_acme_n01_u01`/.test(c.sql)), false, 'the schema that is not this use case\'s is never created over or tagged');
+    await startWhenReady(page);
+    assert.equal(submittedSpec(made).config.result_table, own);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('A re-run of this Inspire database finds the use case\'s schema from session 7: the wizard says it uses it again and writes this session\'s rows to their own table', async () => {
+  const own = 'main._inspire_acme_n01_u01.n01_u01_results_s42';
+  const schema = '_inspire_acme_n01_u01';
+  const lineage = [['exists', ''], ['inspire_use_case_id', 'N01-U01'], ['inspire_database', 'main.inspire'], ['inspire_session_id', '7']]
+    .map(([kind, value]) => ({ kind, schema_name: schema, value }));
+  const ui = await openUi('wizard', {
+    me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'person-tok', dbToken: 'person-tok', catalogs: ['main'], schemas: { main: ['inspire'] },
+    statements: { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }, ...lineage] }) },
+  });
+  const { page, made } = ui;
+  try {
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
+    await dataToResults(page);
+    const step = page.getByRole('region', { name: 'Where the result table lives' });
+    const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
+    assert.equal(await places.getByRole('radio', { name: /Its own schema/ }).isChecked(), true);
+    await step.getByRole('note', { name: 'Where the tables go note' })
+      .getByText("_inspire_acme_n01_u01 is this use case's schema from session 7 of this Inspire database, so Inspire uses it again; this session's results go to main._inspire_acme_n01_u01.n01_u01_results_s42 so session 7 keeps its rows.", { exact: true }).waitFor();
+    await step.getByRole('group', { name: 'Result table' }).getByText(own, { exact: true }).waitFor();
+    await toSummary(page);
+    assert.equal(made.sqlCalls.some((c) => /^(CREATE|ALTER) SCHEMA/.test(c.sql)), false, 'the schema of session 7 is neither created again nor re-tagged');
+    await startWhenReady(page);
+    assert.equal(submittedSpec(made).config.result_table, own);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('When the use case\'s name and every suffixed name hold other use cases, the wizard says so and the tables go to the Inspire database schema', async () => {
+  const inspire = 'main.inspire.n01_u01_s42_out';
+  const names = ['_inspire_acme_n01_u01', ...[2, 3, 4, 5, 6, 7, 8, 9].map((n) => `_inspire_acme_n01_u01__${n}`)];
+  const taken = names.flatMap((schema) => [{ kind: 'exists', schema_name: schema, value: '' }, { kind: 'inspire_use_case_id', schema_name: schema, value: 'N07-U02' }]);
+  const ui = await openUi('wizard', {
+    me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'person-tok', dbToken: 'person-tok', catalogs: ['main'], schemas: { main: ['inspire'] },
+    statements: { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }, ...taken] }) },
+  });
+  const { page, made } = ui;
+  try {
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
+    await dataToResults(page);
+    const step = page.getByRole('region', { name: 'Where the result table lives' });
+    const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
+    await step.getByRole('note', { name: 'Where the tables go note' })
+      .getByText("_inspire_acme_n01_u01 through _inspire_acme_n01_u01__9 already exist and none is this use case's schema, so this use case's tables go to the Inspire database schema.", { exact: true }).waitFor();
+    assert.equal(await places.getByRole('radio', { name: /Its own schema/ }).isChecked(), false, 'no own schema is offered as chosen when every name is taken');
+    await step.getByRole('group', { name: 'Result table' }).getByText(inspire, { exact: true }).waitFor();
+    await toSummary(page);
+    assert.equal(made.sqlCalls.some((c) => /^(CREATE|ALTER) SCHEMA/.test(c.sql)), false, 'no schema of another use case is created over or tagged');
+    await startWhenReady(page);
+    assert.equal(submittedSpec(made).config.result_table, inspire);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -765,7 +866,7 @@ test('with the App list still loading the wizard opened on Summary keeps Start M
     const waiting = page.getByRole('button', { name: 'Listing the Apps…', exact: true });
     await waiting.waitFor();
     assert.equal(await waiting.isDisabled(), true, 'Start MVP stays off while where the App goes is not settled');
-    await page.waitForTimeout(1500);
+    await idle(page, { held: (r) => new URL(r.url()).pathname === '/api/inspire/implement/merge-targets' });
     assert.equal(await waiting.isDisabled(), true);
     assert.deepEqual(plans, [], 'no plan is asked for a placement that is not settled');
     assert.equal(await page.locator('[role="alert"]').getByText(PLACE_WAITING, { exact: false }).count(), 0, 'waiting is not shown as a mistake');
@@ -829,11 +930,18 @@ test('every wizard step fits a 1440x900 screen with nothing to scroll, the App s
     await page.getByRole('region', { name: 'Where the result table lives' }).getByLabel('Table name').waitFor();
     await fits('3-results');
     await readable('results');
+    await goToStep(page, 'Measure impact');
     const holdout = page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back a share of records/ });
-    await holdout.check();
-    await fits('3-results-holdout');
-    await readable('results with the holdout on');
+    await holdout.waitFor();
+    await fits('3-measure');
+    await readable('measure impact');
     await holdout.uncheck();
+    await fits('3-measure-holdout-off');
+    await holdout.check();
+    await goToStep(page, 'Keep it fresh');
+    await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
+    await fits('3-fresh');
+    await readable('keep it fresh');
     await goToStep(page, 'Delivery');
     for (const name of [/^Dashboard/, /^App /, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.locator('[data-merge="dashboard"]').getByRole('button', { name: 'Create new' }).waitFor();

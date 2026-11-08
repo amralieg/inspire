@@ -144,7 +144,7 @@ test('the App tile offers to let new Apps use the result table catalog, grants w
     await page.locator('[aria-current="step"]', { hasText: 'Results' }).waitFor({ state: 'detached' });
     await goToStep(page, 'Delivery');
     const tile = page.locator('[data-output="app"]');
-    await tile.getByText(/^Inspire cannot create this App: /).waitFor({ timeout: 15000 });
+    await tile.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await tile.getByRole('list', { name: 'Grant Inspire can run for new Apps' }).locator('li').allTextContents(), [CATALOG_GRANT]);
     await tile.getByRole('button', { name: NEW_APPS_ACCESS_ACTION, exact: true }).click();
     const result = tile.getByRole('status', { name: 'New Apps access result' });
@@ -153,7 +153,7 @@ test('the App tile offers to let new Apps use the result table catalog, grants w
     assert.deepEqual(await result.getByRole('list', { name: 'Grants Inspire ran for new Apps' }).locator('li').allTextContents(), [CATALOG_GRANT]);
     assert.deepEqual(grants, [[CATALOG_GRANT, PERSON]], 'one grant, with the person token');
     await until(async () => await tile.getByRole('button', { name: NEW_APPS_ACCESS_ACTION }).count() === 0, 'the action goes once new Apps can read');
-    assert.equal(await tile.getByText(/^Inspire cannot create this App: /).count(), 0, 'the output check runs again and clears the refusal');
+    assert.equal(await tile.locator('[data-blocked-reason="app"]').count(), 0, 'the output check runs again and clears the refusal');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

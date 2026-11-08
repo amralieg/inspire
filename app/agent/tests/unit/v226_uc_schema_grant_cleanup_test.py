@@ -11,8 +11,9 @@ OURS = {"description": "Inspire use case N01-U01 (session 5150): Predict churn"}
 
 
 def _own(ns, uc="N01-U01", sid=5150):
-    (catalog, schema), *_ = sorted(ns["implement_own_schemas"](uc, "Acme", sid, "main.inspire"))
+    catalog, schema = "main", f"_inspire_acme_{uc.lower().replace('-', '_')}"
     assert ns["compute_result_table_name"](uc, "", "", "main.inspire", session_id=sid, business_name="Acme").startswith(f"`{catalog}`.`{schema}`.")
+    assert ns["implement_is_own_schema"]((catalog, schema), uc, "Acme", sid, "main.inspire")
     return f"`{catalog}`.`{schema}`", f"{catalog}.{schema}"
 
 

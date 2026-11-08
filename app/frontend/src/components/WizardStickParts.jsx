@@ -1,54 +1,26 @@
 import {
-  CAPACITY_BLURB,
-  CAPACITY_LABEL,
   DIGEST_BLURB,
   DIGEST_LABEL,
   DIGEST_NOBODY,
   alertReaches,
-  capacityDiffers,
-  capacityInput,
-  capacityNote,
-  capacityProblems,
-  capacitySummaryText,
   clearsOn,
   digestOn,
   grainText,
 } from '../lib/implementWizard';
 import { CLEARS_HINT, CLEARS_LABEL } from '../lib/useCaseAlerts';
 
-export function TeamCapacity({ spec, suggestion, inputClass, onType, onSuggest }) {
-  const problem = capacityProblems(spec)[0] || '';
-  const value = capacityInput(spec);
+export function BlockedReason({ block, id = '' }) {
+  if (!block?.why) return null;
   return (
-    <fieldset className="space-y-1" aria-label="Team capacity">
-      <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
-        <span className="text-sm font-semibold text-text-primary">Team capacity</span>
-        <label className="flex items-center gap-2 text-[12px] text-text-secondary">
-          {CAPACITY_LABEL}
-          <input dir="auto"
-            type="text"
-            inputMode="numeric"
-            aria-label={CAPACITY_LABEL}
-            className={`${inputClass} w-28`}
-            value={value}
-            placeholder="No cap"
-            onChange={(e) => onType(e.target.value)}
-          />
-        </label>
-        {capacityDiffers(spec, suggestion) && (
-          <button type="button" className="text-[11px] text-db-red-fg" onClick={onSuggest}>
-            {suggestion.act_now == null ? 'Use Inspire\u2019s suggestion: no cap'
-              : `Use Inspire\u2019s suggestion: ${suggestion.act_now.toLocaleString('en-US')}`}
-          </button>
-        )}
-      </div>
-      <p className="text-[11px] text-text-secondary">
-        {CAPACITY_BLURB} <span className="text-text-tertiary" data-capacity-basis="">{capacityNote(spec, suggestion)}{suggestion.basis}</span>
-      </p>
-      {problem
-        ? <p className="text-[11px] text-error-fg">{problem}</p>
-        : <p className="text-[11px] text-text-secondary" data-capacity-summary="">{capacitySummaryText(spec)}</p>}
-    </fieldset>
+    <div data-blocked-reason={id} className="text-[11px] text-text-secondary">
+      <p>{block.why}</p>
+      {block.details && (
+        <details>
+          <summary className="cursor-pointer text-text-tertiary">Details</summary>
+          <code dir="ltr" className="block whitespace-pre-wrap break-all text-text-primary">{block.details}</code>
+        </details>
+      )}
+    </div>
   );
 }
 

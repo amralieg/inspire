@@ -1,6 +1,8 @@
 import { useId } from 'react';
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, Circle, Loader2, PanelRightOpen, X, XCircle } from 'lucide-react';
 import DrawerShell from './DrawerShell';
+import { PlainMessage } from './TechnicalDetails';
+import { splitTechnical } from '../lib/plainText';
 import GenieLogo from './GenieLogo';
 import { IconChip, PANEL_CLASS } from './BuildUi';
 import { progressPercent, stageSteps, stagesRecorded } from '../lib/mvpProgress';
@@ -142,7 +144,7 @@ export function ScopeNotes({ scope }) {
   );
 }
 
-const SHOW_CLASS = 'shrink-0 inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+const SHOW_CLASS = 'shrink-0 inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
 
 function Heading({ title, active, tone, line, lineClass }) {
   return (
@@ -165,6 +167,7 @@ export default function MvpProgress({
   const line = [headline, summary.span, warnings ? plural(warnings, 'warning') : ''].filter(Boolean).join(' · ');
   const lineClass = summary.headline ? 'text-text-secondary' : toneClass(chip?.tone);
   const chips = stagesRecorded(stages) ? <StageArrows stages={stages} /> : null;
+  const plainReason = reason ? splitTechnical(reason).plain : '';
   return (
     <>
       <section aria-label="Build progress" data-progress-card="" data-progress-open={view.open ? 'true' : 'false'}
@@ -177,7 +180,7 @@ export default function MvpProgress({
             <PanelRightOpen size={13} aria-hidden /> {view.open ? 'Hide progress' : 'Show progress'}
           </button>
         </div>
-        {!view.open && reason && <p data-build-summary-reason="" title={reason} className={`text-[12px] line-clamp-2 ${toneClass(chip?.tone)}`}>{reason}</p>}
+        {!view.open && plainReason && <p data-build-summary-reason="" title={plainReason} className={`text-[12px] line-clamp-2 ${toneClass(chip?.tone)}`}>{plainReason}</p>}
         {!view.open && chips}
         {!view.open && attention && <div data-build-attention="" className="space-y-3">{attention}</div>}
       </section>
@@ -189,7 +192,7 @@ export default function MvpProgress({
           below={(
             <div className="mt-3 space-y-3">
               {summary.detail && <p className="text-[12px] text-text-secondary">{summary.detail}</p>}
-              {reason && <p data-build-reason="" className={`text-[12px] ${toneClass(chip?.tone)}`}>{reason}</p>}
+              {reason && <PlainMessage text={reason} data-build-reason="" className={`text-[12px] ${toneClass(chip?.tone)}`} />}
               {chips}
               {sorted && <p data-sorted-to="" className="text-[12px] font-medium text-text-primary">{sorted.text}</p>}
             </div>

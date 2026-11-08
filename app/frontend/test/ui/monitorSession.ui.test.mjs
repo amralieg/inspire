@@ -278,3 +278,68 @@ test('a refused view grant shows on the Monitor in one plain sentence, and a gra
     }
   }
 });
+
+test('a run whose notebook refused its inputs shows the reason on the Monitor, not the platform line, and a failure with no reason keeps the platform line (must-exclude)', async () => {
+  const reason = 'Validation failed with 1 error:\n\u274c Generation Path is required';
+  const platform = 'Workload failed, see run output for details';
+  for (const [error, expected] of [[reason, /Generation Path is required/], ['', new RegExp(platform)]]) {
+    const backend = sessionBackend({
+      session: () => ({ processing_status: 'ready', completed_percent: 0, completed_on: null, last_updated: ago(MINUTE) }),
+      run: { life_cycle_state: 'TERMINATED', result_state: 'FAILED', run_name: 'Inspire AI - Acme Retail', tasks: [
+        { task_key: 'inspire_notebook', life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: platform, run_id: 9, ...(error ? { error } : {}) }] },
+    });
+    const ui = await openMonitor(backend, { sessionOnly: false });
+    try {
+      const card = await statusCard(ui.page);
+      await card.getByText(expected).first().waitFor({ timeout: 10000 });
+      assert.equal(await card.getByText('Run completed, waiting for results...').count(), 0);
+      if (error) assert.equal(await card.getByText(platform).count(), 0, 'the platform line gives way to the reason the notebook gave');
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  }
+});
+
+test('a running Discovery fills its steps and the use cases each step found while it runs, before the run ends', async () => {
+  const state = { polls: 0, percent: 20 };
+  const first = step(21, 'started', 'Use Case Generation', 'Inspire is working on use case generation', 'In progress: batch 1', ago(MINUTE));
+  const found = { ...step(21, 'ended_success', 'Use Case Generation', 'Inspire is working on use case generation', 'Completed: batch 1', new Date().toISOString()),
+    result_json: { prompt_name: 'BASE_USE_CASE_GEN_PROMPT', use_cases_count: 3,
+      use_cases: [{ id: 'N01-U01', name: 'Cut stock-outs in the top stores' }, { id: 'N01-U02', name: 'Spot late suppliers early' }, { id: 'N01-U03', name: 'Price slow sellers down' }] } };
+  const mount = (app) => {
+    app.get('/api/inspire/session', (_req, res) => res.json({ session: { session_id: '42', business_name: 'Acme Retail', create_at: ago(30 * MINUTE),
+      processing_status: 'ready', completed_percent: state.percent, completed_on: null, last_updated: new Date().toISOString() } }));
+    app.get('/api/inspire/steps', (req, res) => {
+      state.polls += 1;
+      if (!req.query.since) return res.json({ steps: [first] });
+      if (state.polls === 3) { state.percent = 45; return res.json({ steps: [found] }); }
+      return res.json({ steps: [] });
+    });
+    app.post('/api/inspire/ack', (_req, res) => res.json({ success: true }));
+  };
+  const ui = await openUi('monitor', {}, '&run=none', { mount });
+  const { page } = ui;
+  try {
+    const card = await statusCard(page);
+    await card.getByText('Running', { exact: true }).waitFor({ timeout: 10000 });
+    assert.match(await detailLine(page), /1 stage · 1 step/);
+    assert.match(await detailLine(page), /1 in progress/);
+    assert.equal(await page.getByTestId('live-use-case-count').count(), 0, 'no use case is found yet');
+    await card.getByText('45% complete', { exact: true }).waitFor({ timeout: 15000 });
+    await page.getByRole('heading', { name: 'Detailed Steps' }).locator('xpath=following-sibling::p').filter({ hasNotText: /in progress/ }).waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: /Detailed Steps/ }).click();
+    await page.getByRole('button', { name: /^Use Case Generation/ }).filter({ has: page.locator('h3') }).click();
+    await page.getByText('Inspire is working on use case generation', { exact: true }).last().click();
+    await page.getByText('3 use cases', { exact: true }).first().waitFor({ timeout: 10000 });
+    assert.equal(await page.getByTestId('live-use-case-count').innerText(), '3 use cases so far');
+    for (const name of ['Cut stock-outs in the top stores', 'Spot late suppliers early', 'Price slow sellers down']) {
+      assert.equal(await page.getByText(name, { exact: true }).count(), 2, `${name} shows in the live list and in its step while the run is still going`);
+    }
+    assert.equal(await card.getByText('Running', { exact: true }).count(), 1, 'the run has not ended');
+    assert.equal(await card.getByText('Completed', { exact: true }).count(), 0);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

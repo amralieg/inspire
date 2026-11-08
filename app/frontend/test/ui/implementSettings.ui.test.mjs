@@ -54,11 +54,12 @@ test('a build left alone holds back 10% to measure impact and sends no App owner
   }
 });
 
-test('Measure impact on Results starts ticked with its badge, takes a share from 1% to 50% at 10% by default, and sends what the person typed', async () => {
+test('Measure impact, its own step, starts ticked with its badge, takes a share from 1% to 50% at 10% by default, and sends what the person typed', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
   try {
     await toResults(page);
+    await goToStep(page, 'Measure impact');
     const impact = page.getByRole('group', { name: 'Measure impact' });
     const box = impact.getByRole('checkbox', { name: /^Hold back a share of records to measure impact\./ });
     assert.equal(await box.isChecked(), true, 'it starts on, where its Highly Recommended badge sits');
@@ -76,7 +77,7 @@ test('Measure impact on Results starts ticked with its badge, takes a share from
     await impact.getByText(SHARE_PROBLEM, { exact: true }).waitFor();
     await next(page);
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '4. Results', 'a share above half the records keeps the person on Results');
+    assert.equal(await page.locator('[aria-current="step"]').textContent(), '5. Measure impact', 'a share above half the records keeps the person on Measure impact');
     await share.fill('');
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
     await box.uncheck();
@@ -106,6 +107,7 @@ test('every list field keeps the comma or new line a person types, and sends eac
       }
     };
     await toResults(page);
+    await goToStep(page, 'Keep it fresh');
     await advanced(page).click();
     await keeps([[page.getByLabel('Failure emails (comma separated; default: the decision owner)'), `${OWNER}, ${OPS}`]]);
     await goToStep(page, 'Delivery');

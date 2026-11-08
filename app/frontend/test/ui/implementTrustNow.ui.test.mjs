@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER, built } from './implementFixtures.js';
-import { CURRENT_BUILD, closeBrowser, openUi, until } from './uiSupport.mjs';
+import { CURRENT_BUILD, closeBrowser, idle, openUi, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -24,7 +24,7 @@ test('an MVP built on an older release says so on its Build page with the rebuil
     assert.equal((await note.textContent()).trim(), NOTE);
     const action = page.locator('[data-rebuild-note] button');
     assert.equal((await action.textContent()).trim(), 'Vibe/Add/Remove Features');
-    await page.waitForTimeout(1500);
+    await idle(page);
     assert.equal(wrote(made), false, 'opening the page never rebuilds');
   } finally {
     await ui.close();
@@ -36,7 +36,7 @@ test('a build of this release shows no older-build note (must-exclude)', async (
   const { page } = ui;
   try {
     await page.locator('[data-use-case-pane]').first().waitFor({ timeout: 15000 });
-    await page.waitForTimeout(1000);
+    await idle(page);
     assert.equal(await page.locator('[data-older-build]').count(), 0);
   } finally {
     await ui.close();
@@ -87,7 +87,7 @@ test('an App on older App code gets an Update the App action that sends a roll b
     assert.match((await note.textContent()).trim(), /^The App runs the App code of an earlier Inspire release\. Update it to Inspire v\d\.\d\.\d: .*without calling Genie\.$/);
     const action = page.locator('[data-rebuild-note] [data-app-update-button]');
     assert.equal((await action.textContent()).trim(), 'Update the App');
-    await page.waitForTimeout(1000);
+    await idle(page);
     assert.equal(wrote(made), false, 'opening the page never updates the App');
     await action.click();
     const sent = () => made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
@@ -106,7 +106,7 @@ test('someone who does not own the App sees no Update the App action (must-exclu
   const { page } = ui;
   try {
     await page.locator('[data-use-case-pane]').first().waitFor({ timeout: 15000 });
-    await page.waitForTimeout(1000);
+    await idle(page);
     assert.equal(await page.locator('[data-app-update], [data-app-update-button]').count(), 0);
   } finally {
     await ui.close();
@@ -120,7 +120,7 @@ test('an App on this release\'s App code shows no Update the App action (must-ex
   const { page } = ui;
   try {
     await page.locator('[data-use-case-pane]').first().waitFor({ timeout: 15000 });
-    await page.waitForTimeout(1000);
+    await idle(page);
     assert.equal(await page.locator('[data-app-update], [data-app-update-button]').count(), 0);
   } finally {
     await ui.close();

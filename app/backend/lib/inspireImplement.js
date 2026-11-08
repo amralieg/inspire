@@ -14,7 +14,8 @@ const {
 const { specVibeAsks, vibeRefusalText, vibeRefusals } = require('../../frontend/src/lib/vibeLimits.js');
 const { PERSONAL_KEY_REASON, personalColumn } = require('../../frontend/src/lib/personalColumns.js');
 const {
-  defaultResultTable: defaultUseCaseResultTable, isAppUpdate, liveAppVersion, ownSchemaClashNote, ownSchemaFallbackNote, rowKeyOf,
+  defaultResultTable: defaultUseCaseResultTable, inspireDatabaseKey, isAppUpdate, liveAppVersion, ownSchemaAllTakenNote, ownSchemaClashNote,
+  ownSchemaFallbackNote, ownSchemaReuseNote, rowKeyOf, USE_CASE_SCHEMA_CLASH_LIMIT,
 } = require('../../frontend/src/lib/implementWizard.js');
 const { quotedIdent } = require('../../frontend/src/lib/tableName.js');
 
@@ -3183,7 +3184,10 @@ function defaultResultTable(inspireDatabase, useCaseId, sessionId) {
 }
 
 const USE_CASE_SCHEMA_SESSION_TAG = 'inspire_session_id';
-const USE_CASE_SCHEMA_TAGS = [USE_CASE_SCHEMA_SESSION_TAG, 'inspire_use_case_id', 'inspire_business'];
+const USE_CASE_SCHEMA_USE_CASE_TAG = 'inspire_use_case_id';
+const USE_CASE_SCHEMA_DATABASE_TAG = 'inspire_database';
+const USE_CASE_SCHEMA_TAGS = [USE_CASE_SCHEMA_SESSION_TAG, USE_CASE_SCHEMA_USE_CASE_TAG, 'inspire_business', USE_CASE_SCHEMA_DATABASE_TAG];
+const USE_CASE_SCHEMA_FACT_OF_TAG = { [USE_CASE_SCHEMA_SESSION_TAG]: 'session', [USE_CASE_SCHEMA_USE_CASE_TAG]: 'useCase', [USE_CASE_SCHEMA_DATABASE_TAG]: 'database' };
 const USE_CASE_SCHEMA_CREATE_RIGHTS = ['OWNER', 'ALL PRIVILEGES', 'CREATE SCHEMA'];
 const USE_CASE_SCHEMA_BUILDER_PRIVILEGES = 'USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE';
 
@@ -3195,8 +3199,8 @@ function useCaseSchemaStatement(catalog, schemas) {
   return {
     sql: 'SELECT kind, schema_name, value FROM ('
       + `SELECT 'exists' AS kind, schema_name, '' AS value FROM ${isc}.schemata WHERE catalog_name = lower(:c) AND schema_name IN (${marks}) `
-      + `UNION ALL SELECT 'session', schema_name, tag_value FROM ${isc}.schema_tags WHERE catalog_name = lower(:c) AND schema_name IN (${marks}) `
-      + `AND tag_name = '${USE_CASE_SCHEMA_SESSION_TAG}' `
+      + `UNION ALL SELECT tag_name, schema_name, tag_value FROM ${isc}.schema_tags WHERE catalog_name = lower(:c) AND schema_name IN (${marks}) `
+      + `AND tag_name IN (${Object.keys(USE_CASE_SCHEMA_FACT_OF_TAG).map((t) => `'${t}'`).join(', ')}) `
       + `UNION ALL SELECT 'right', '', privilege_type FROM ${isc}.catalog_privileges WHERE catalog_name = lower(:c) AND ${mine('grantee')} `
       + `UNION ALL SELECT 'right', '', 'OWNER' FROM ${isc}.catalogs WHERE catalog_name = lower(:c) AND ${mine('catalog_owner')} `
       + "UNION ALL SELECT 'me', '', current_user())",
@@ -3210,31 +3214,58 @@ function useCaseSchemaFacts(rows) {
     const kind = str(row && row.kind);
     const schema = str(row && row.schema_name).toLowerCase();
     if (kind === 'exists') facts.schemas[schema] = { ...facts.schemas[schema], exists: true };
-    else if (kind === 'session') facts.schemas[schema] = { ...facts.schemas[schema], session: str(row.value).trim() };
+    else if (USE_CASE_SCHEMA_FACT_OF_TAG[kind]) facts.schemas[schema] = { ...facts.schemas[schema], [USE_CASE_SCHEMA_FACT_OF_TAG[kind]]: str(row.value).trim() };
     else if (kind === 'right' && USE_CASE_SCHEMA_CREATE_RIGHTS.includes(privilegeOf(row.value))) facts.canCreate = true;
     else if (kind === 'me') facts.me = str(row.value).trim();
   }
   return facts;
 }
 
+function useCaseSchemaEnsure(found, tags) {
+  const held = isPlainObject(found) ? found : {};
+  return { create: !held.exists, tag: Boolean(tags) && !(held.exists && held.database) };
+}
+
+const USE_CASE_SCHEMA_CLASHES = [0, ...Array.from({ length: USE_CASE_SCHEMA_CLASH_LIMIT - 1 }, (_v, i) => i + 2)];
+
+function useCaseSchemaCandidates(inspireDatabase, useCaseId, sessionId, businessName) {
+  return USE_CASE_SCHEMA_CLASHES.map((clash) => defaultUseCaseResultTable(inspireDatabase, useCaseId, sessionId, businessName, { clash }));
+}
+
+function useCaseSchemaOwner(held, { inspireDatabase, useCaseId, sessionId }) {
+  const fact = held || {};
+  if (!fact.exists && !fact.session && !fact.database && !fact.useCase) return 'free';
+  const sameUseCase = str(fact.useCase).trim().toLowerCase() === str(useCaseId).trim().toLowerCase();
+  const sameLineage = fact.database ? fact.database.toLowerCase() === inspireDatabaseKey(inspireDatabase) : str(fact.session) === str(sessionId).trim();
+  return sameUseCase && sameLineage ? 'ours' : 'foreign';
+}
+
 function useCaseSchemaPlace({ inspireDatabase, useCaseId, sessionId, businessName, rows = null, unchecked = '' }) {
-  const own = defaultUseCaseResultTable(inspireDatabase, useCaseId, sessionId, businessName);
+  const candidates = useCaseSchemaCandidates(inspireDatabase, useCaseId, sessionId, businessName);
+  const own = candidates[0];
   if (!own) return null;
-  const whole = defaultUseCaseResultTable(inspireDatabase, useCaseId, sessionId, businessName, { wholeSid: true });
   const fallback = defaultResultTable(inspireDatabase, useCaseId, sessionId);
   const facts = useCaseSchemaFacts(rows);
   const sid = str(sessionId).trim();
   const of = (table) => facts.schemas[tableParts(table).schema.toLowerCase()] || {};
-  const clash = (table) => Boolean(of(table).session) && of(table).session !== sid;
+  const owner = (table) => useCaseSchemaOwner(of(table), { inspireDatabase, useCaseId, sessionId: sid });
+  const who = { useCaseId, inspireDatabase };
   const base = { inspire_table: fallback, own_table: own, me: facts.me, catalog: tableParts(own).catalog };
-  let table = own;
-  let note = '';
-  if (clash(own)) {
-    table = whole;
-    note = ownSchemaClashNote(tableParts(own).schema, of(own).session);
+  const ours = candidates.find((table) => owner(table) === 'ours');
+  if (ours) {
+    const held = str(of(ours).session).trim();
+    const table = held && held !== sid ? defaultUseCaseResultTable(inspireDatabase, useCaseId, sessionId, businessName,
+      { clash: USE_CASE_SCHEMA_CLASHES[candidates.indexOf(ours)], ofSession: true }) : ours;
+    const reused = table === ours ? '' : ownSchemaReuseNote(tableParts(ours).schema, held, plainTable(table));
+    const clashed = ours === own ? '' : ownSchemaClashNote(tableParts(own).schema, of(own), tableParts(ours).schema, who);
+    return { ...base, own_table: table, table, place: 'own', create: false, note: [clashed, reused].filter(Boolean).join(' ') };
   }
-  if (clash(table)) return { ...base, own_table: '', table: fallback, place: 'inspire', create: false, note: `${note} ${ownSchemaClashNote(tableParts(table).schema, of(table).session)}`.trim() };
-  if (of(table).exists) return { ...base, own_table: table, table, place: 'own', create: false, note };
+  const table = candidates.find((name) => owner(name) === 'free');
+  if (!table) {
+    const last = tableParts(candidates[candidates.length - 1]).schema;
+    return { ...base, own_table: '', table: fallback, place: 'inspire', create: false, note: ownSchemaAllTakenNote(tableParts(own).schema, last) };
+  }
+  const note = table === own ? '' : ownSchemaClashNote(tableParts(own).schema, of(own), tableParts(table).schema, who);
   if (rows != null && facts.canCreate) return { ...base, own_table: table, table, place: 'own', create: true, note };
   const why = unchecked
     ? `Inspire could not check whether you can create schemas in ${base.catalog} (${unchecked}), so this use case's tables go to the Inspire database schema; pick Its own schema to try.`
@@ -3661,7 +3692,10 @@ module.exports = {
   USE_CASE_SCHEMA_TAGS,
   USE_CASE_SCHEMA_BUILDER_PRIVILEGES,
   useCaseSchemaStatement,
+  useCaseSchemaEnsure,
+  useCaseSchemaCandidates,
   useCaseSchemaFacts,
+  useCaseSchemaOwner,
   useCaseSchemaPlace,
   useCaseSchemaTagsSql,
   useCaseSchemaBuilderGrant,

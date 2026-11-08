@@ -175,7 +175,7 @@ test('the output folder check answers the same verdict without launching anythin
   S.reset({ folders: { ...folders, '/Shared/demos': { id: 7, writers: '*' } }, managers: [BOSS] });
   for (const path of ['./../demos/', '']) {
     const fallback = await ask(OWNER, path);
-    assert.deepEqual([fallback.status, fallback.data], [200, { allowed: true, folder: '/Shared/demos', checked: 'passed', warnings: [SHARED_ONLY(OWNER)] }], `${JSON.stringify(path)}: ${fallback.text}`);
+    assert.deepEqual([fallback.status, fallback.data], [200, { allowed: true, folder: '/Shared/demos', checked: 'passed', warnings: [SHARED_ONLY(OWNER)], generation_path: '/Workspace/Shared/demos' }], `${JSON.stringify(path)}: ${fallback.text}`);
   }
   const old = await S.request('GET', `/api/output-folder/check?generation_path=${encodeURIComponent('./../demos/')}`, { person: OWNER });
   assert.equal(old.status, 404, 'the check is a POST, so no generation path ever travels in a request URL');
@@ -231,9 +231,15 @@ test('the default output folder is the person\u2019s own inspire_output, a locke
   assert.equal(appless.status, 200, appless.text);
   assert.deepEqual(appless.data.warnings, [SHARED_ONLY(ME)]);
   assert.equal(S.state.launches[0].output_folder, '/Shared/demos');
+  assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], '/Workspace/Shared/demos',
+    'the shared folder the warning names is the folder the notebook is told to save to, never an empty path it refuses');
+  S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' }, [mine]: { id: 12, writers: [ME] } } });
+  const applessCheck = await S.request('POST', '/api/output-folder/check', { person: ME, body: { generation_path: '' } });
+  assert.equal(applessCheck.data.generation_path, '/Workspace/Shared/demos');
   S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' } } });
   const nohome = await launch(undefined);
   assert.deepEqual(nohome.data.warnings, [SHARED_ONLY(ME, 'you cannot write there')]);
+  assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], '/Workspace/Shared/demos');
   S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: [] }, [mine]: { id: 12, writers: [ME, S.APP_SP] } } });
   const locked = await launch(undefined);
   assert.equal(locked.status, 200, locked.text);

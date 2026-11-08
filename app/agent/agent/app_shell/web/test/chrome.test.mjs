@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, bundleEntry, chartsDrawn, openApp, openBundle, pageData, resizeTo, serveDist, steadyBox, until } from './harness.mjs';
+import { appInfo, bundleEntry, chartsDrawn, idle, openApp, openBundle, pageData, resizeTo, sent, serveDist, steadyBox, TABLE, until } from './harness.mjs';
 import { ratio } from './contrast.test.mjs';
 import { SERIES_TOKENS, themeTokens } from '../src/tokens.js';
 import { EXPLAIN_CONTEXT_CHARS, EXPLAIN_ROWS, chartContext, chartRow, cutText, explainBody, filterWords } from '../src/explain.js';
@@ -63,8 +63,7 @@ after(async () => {
 
 const open = (info, options) => openApp(browser, served.base, info, options);
 
-function chartColor(page, card) {
-  return page.evaluate((id) => {
+const COLOR_OF = (id) => {
     const c = document.querySelector(`[data-card="${id}"] canvas`);
     const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data;
     const seen = new Map();
@@ -75,17 +74,13 @@ function chartColor(page, card) {
       }
     }
     return [...seen].sort((a, b) => b[1] - a[1])[0][0];
-  }, card);
-}
+};
+
+const chartColor = (page, card) => page.evaluate(COLOR_OF, card);
 
 async function drawnIn(page, card, color) {
-  const end = Date.now() + 4000;
-  let now = await chartColor(page, card);
-  while (now !== color && Date.now() < end) {
-    await page.waitForTimeout(100);
-    now = await chartColor(page, card);
-  }
-  return now;
+  await page.waitForFunction(`(${COLOR_OF})(${JSON.stringify(card)}) === ${JSON.stringify(color)}`, null, { timeout: 4000 }).catch(() => null);
+  return chartColor(page, card);
 }
 
 const cssVar = (page, name) => page.evaluate((n) => getComputedStyle(document.documentElement).getPropertyValue(n).trim(), name);
@@ -448,7 +443,7 @@ test('Explain on a chart sends what the chart drew with the filters in words, an
   await page.getByRole('listbox', { name: 'Category' }).getByText('Music').click();
   await page.getByRole('listbox', { name: 'Category' }).getByText('Books').click();
   await page.keyboard.press('Escape');
-  await page.waitForTimeout(400);
+  await idle(page);
   await page.waitForFunction(chartsDrawn, 4);
   assert.equal(await page.locator('aside.genie').count(), 0);
   await page.getByRole('button', { name: 'Explain Where the loss sits' }).click();
@@ -631,7 +626,7 @@ test('a record panel ask with a question asks at once, waits in the box while Ge
   await page.getByRole('button', { name: 'Panel ask 2' }).click();
   assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Item number 1');
   await page.waitForFunction(() => document.querySelector('.g-in input').value === 'Show the history of this item');
-  await page.waitForTimeout(300);
+  await sent(page);
   assert.equal(calls.asks.length, 1, 'a second question waits in the box while Genie is answering');
   hold(false);
   await page.locator('.msg-sql').waitFor();

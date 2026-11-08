@@ -150,7 +150,7 @@ test('the Monitor shows an amber Completed with a warning when no use case meets
     assert.equal(await card.locator('[data-testid="monitor-bar-counts"]').innerText(), '6 use cases found, 0 meet your High bar');
     assert.match(await card.locator('[data-testid="monitor-empty-tables"]').innerText(),
       /^These tables have no rows yet: airline\.passenger\.bookings, airline\.passenger\.flights\. Add sample rows on the Generate data page, then run again\.$/);
-    assert.equal(await card.getByText('Pipeline finished successfully.', { exact: true }).count(), 0);
+    assert.equal(await card.getByText('Inspire finished this run.', { exact: true }).count(), 0);
     assert.equal(await page.getByText('Pipeline completed successfully', { exact: true }).count(), 0);
     assert.doesNotMatch(await page.locator('body').innerText(), /\[object Object\]/);
   } finally {

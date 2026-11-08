@@ -16,7 +16,8 @@ import { RUN_LINK_LABEL } from '../lib/implementWizard';
 const ACTION_ICONS = { stop: Square, start: Play, unpublish: EyeOff, publish: Eye, cancel: Ban };
 const ASSET_ICONS = { build: Hammer, job: Briefcase, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: Bell, notebook: NotebookPen };
 const TONE_CHIP = { success: 'success', error: 'error', warning: 'warning', busy: 'red', idle: 'idle' };
-const BUTTON = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50';
+const BUTTON = 'inline-flex h-8 items-center justify-center gap-1 px-2.5 rounded-lg text-xs font-medium whitespace-nowrap disabled:opacity-50';
+export const ACTION_ROW = 'grid w-full grid-cols-1 gap-1.5 sm:w-fit sm:max-w-full sm:grid-cols-none sm:grid-flow-col sm:auto-cols-fr';
 const FIT_BUTTON = 'flex w-full h-8 min-w-0 overflow-hidden items-center justify-center gap-1 px-2 py-0.5 rounded-lg text-[11px] font-medium leading-[13px] text-center disabled:opacity-50';
 const fitted = (fit, text) => (fit ? <span className="min-w-0 break-words line-clamp-2">{text}</span> : text);
 
@@ -129,7 +130,7 @@ function StripRow({ row, controls }) {
           {row.detail && <p data-control-detail="" className={row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}>{row.detail}</p>}
         </div>
       </div>
-      <div className="flex flex-wrap items-center gap-1.5">{controls}</div>
+      <div className={ACTION_ROW}>{controls}</div>
     </li>
   );
 }
@@ -304,7 +305,7 @@ export function AssetPanel({
           </div>
         </div>
         {onAddOutput && (
-          <div>
+          <div className={ACTION_ROW}>
             <button type="button" disabled={active} onClick={onAddOutput} className={`${BUTTON} border border-border bg-surface text-text-primary`}>
               <Plus size={11} /> Add the {output.label}
             </button>
@@ -361,7 +362,7 @@ export function AssetPanel({
           ))}
         </ul>
       )}
-      <div className="flex flex-wrap items-center gap-1.5">
+      <div className={ACTION_ROW}>
         {row && <RowControls row={row} active={active} actionBusy={actionBusy} submitBusy={submitBusy} readOnly={readOnly} failed={failed} onAction={act} onToggleSchedule={onToggleSchedule} onRetry={retry} onOpenRun={onOpenRun} />}
         {!row && failed && <RetryButton failed={failed} disabled={locked} lockedReason={readOnlyReason(readOnly)} onRetry={retry} />}
         {canRemove && (
@@ -419,7 +420,7 @@ export function NotebookPanel({ notebook, kpi = null, children = null }) {
         </div>
       </div>
       {(notebook.href || notebook.runUrl || children) && (
-        <div className="flex flex-wrap items-center gap-1.5">
+        <div className={ACTION_ROW}>
           <NotebookLinks notebook={notebook} />
           {children}
         </div>

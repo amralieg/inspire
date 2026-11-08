@@ -9,12 +9,13 @@ const { makeApp, listen } = require('./support/implementApp');
 const SHARED = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'use_case_schema_names.json'), 'utf8'));
 const Q = 'inspire_database=main.inspire&warehouse_id=wh1&session_id=42&use_case_id=N01-U01';
 const PERSON_TOKEN = 'person-tok';
-const OWN = 'main._inspire_acme_n01_u01_42.n01_u01_results';
+const OWN = 'main._inspire_acme_n01_u01.n01_u01_results';
+const SCHEMA = '_inspire_acme_n01_u01';
 const INSPIRE = 'main.inspire.n01_u01_s42_out';
 
 for (const c of SHARED.cases) {
   test(`the App names the use case schema like the shared case: ${c.name}`, () => {
-    assert.equal(w.defaultResultTable(c.inspire_database, c.use_case_id, c.session_id, c.business_name, { wholeSid: c.whole_sid }), c.table);
+    assert.equal(w.defaultResultTable(c.inspire_database, c.use_case_id, c.session_id, c.business_name, { clash: c.clash }), c.table);
     assert.ok(c.table.split('.')[1].length <= 255);
   });
 }
@@ -65,30 +66,82 @@ test('without the right to create a schema the default switches to the Inspire d
   assert.match(unchecked.note, /could not check whether you can create schemas in main \(warehouse stopped\)/);
 });
 
-test('an own schema that already holds this session is used as it is, without the right to create one', () => {
-  const schema = '_inspire_acme_n01_u01_42';
-  const got = place([{ kind: 'exists', schema_name: schema, value: '' }, { kind: 'session', schema_name: schema, value: '42' }]);
-  assert.deepEqual([got.table, got.place, got.create, got.note], [OWN, 'own', false, '']);
+const tagged = (schema, tags) => [{ kind: 'exists', schema_name: schema, value: '' },
+  ...Object.entries(tags).map(([kind, value]) => ({ kind, schema_name: schema, value }))];
+const LINEAGE = { inspire_database: 'main.inspire', inspire_use_case_id: 'N01-U01' };
+
+test('the plain name has no session digits: _inspire_<business>_<use case id>', () => {
+  assert.equal(w.useCaseSchemaName('Airline', 'N01-U01', '1234567848213'), '_inspire_airline_n01_u01');
+  assert.equal(w.useCaseSchemaName('Airline', 'N01-U01', '9223372036854775807'), '_inspire_airline_n01_u01', 'the session id never changes the name');
+  assert.equal(I.useCaseSchemaPlace({ inspireDatabase: 'main.inspire', useCaseId: 'N01-U01', sessionId: '1234567848213', businessName: 'Airline', rows: [RIGHT] }).table,
+    'main._inspire_airline_n01_u01.n01_u01_results');
 });
 
-test('a schema whose session tag names another session offers the name with the full session id', () => {
-  const sid = '1234567848213';
-  const short = '_inspire_acme_n01_u01_48213';
-  const whole = 'main._inspire_acme_n01_u01_1234567848213.n01_u01_results';
-  const clash = [{ kind: 'exists', schema_name: short, value: '' }, { kind: 'session', schema_name: short, value: '9999948213' }, RIGHT];
-  const got = I.useCaseSchemaPlace({ inspireDatabase: 'main.inspire', useCaseId: 'N01-U01', sessionId: sid, businessName: 'Acme', rows: clash });
-  assert.deepEqual([got.table, got.place, got.create, got.own_table], [whole, 'own', true, whole]);
-  assert.match(got.note, /already holds the tables of session 9999948213/);
-  const both = [...clash, { kind: 'exists', schema_name: '_inspire_acme_n01_u01_1234567848213', value: '' },
-    { kind: 'session', schema_name: '_inspire_acme_n01_u01_1234567848213', value: '77' }];
-  const blocked = I.useCaseSchemaPlace({ inspireDatabase: 'main.inspire', useCaseId: 'N01-U01', sessionId: sid, businessName: 'Acme', rows: both });
-  assert.deepEqual([blocked.table, blocked.place, blocked.own_table], ['main.inspire.n01_u01_s1234567848213_out', 'inspire', '']);
+test('an own schema that already holds this session is used as it is, without the right to create one', () => {
+  const got = place(tagged(SCHEMA, { ...LINEAGE, inspire_session_id: '42' }));
+  assert.deepEqual([got.table, got.place, got.create, got.note], [OWN, 'own', false, '']);
+  const older = place(tagged(SCHEMA, { inspire_session_id: '42', inspire_use_case_id: 'N01-U01' }));
+  assert.deepEqual([older.table, older.place, older.create], [OWN, 'own', false], 'a schema tagged before the database tag existed is ours for its own session');
+});
+
+test('a re-run in a new session of the same Inspire database reuses the schema and keeps the older session rows apart', () => {
+  const got = place(tagged(SCHEMA, { ...LINEAGE, inspire_session_id: '7' }));
+  assert.deepEqual([got.table, got.place, got.create], ['main._inspire_acme_n01_u01.n01_u01_results_s42', 'own', false]);
+  assert.match(got.note, /_inspire_acme_n01_u01 is this use case's schema from session 7 of this Inspire database, so Inspire uses it again/);
+  assert.match(got.note, /main\._inspire_acme_n01_u01\.n01_u01_results_s42 so session 7 keeps its rows/);
+  const upper = place(tagged(SCHEMA, { inspire_database: 'MAIN.Inspire', inspire_use_case_id: 'n01-u01', inspire_session_id: '7' }));
+  assert.equal(upper.place, 'own', 'tags compare without case');
+});
+
+test('a schema of the same name that is not this use case\'s gets the shortest free clash suffix, and the wizard says so', () => {
+  const cases = [
+    [tagged(SCHEMA, {}), /Inspire did not create it for this use case/],
+    [tagged(SCHEMA, { inspire_database: 'other.db', inspire_use_case_id: 'N01-U01', inspire_session_id: '42' }), /it belongs to the Inspire database other\.db/],
+    [tagged(SCHEMA, { inspire_database: 'main.inspire', inspire_use_case_id: 'N09-U09', inspire_session_id: '42' }), /it holds use case N09-U09/],
+    [tagged(SCHEMA, { inspire_session_id: '777', inspire_use_case_id: 'N01-U01' }), /it holds session 777/],
+  ];
+  for (const [rows, why] of cases) {
+    const got = place([...rows, RIGHT]);
+    assert.deepEqual([got.table, got.place, got.create], ['main._inspire_acme_n01_u01__2.n01_u01_results', 'own', true]);
+    assert.match(got.note, /^_inspire_acme_n01_u01 already exists and is not this use case's schema \(/);
+    assert.match(got.note, why);
+    assert.match(got.note, /so this use case's own schema is _inspire_acme_n01_u01__2\.$/);
+  }
+  const two = place([...tagged(SCHEMA, {}), ...tagged(`${SCHEMA}__2`, { inspire_database: 'x.y', inspire_use_case_id: 'N01-U01' }), RIGHT]);
+  assert.equal(two.table, 'main._inspire_acme_n01_u01__3.n01_u01_results');
+  const mine = place([...tagged(SCHEMA, {}), ...tagged(`${SCHEMA}__4`, { ...LINEAGE, inspire_session_id: '42' }), RIGHT]);
+  assert.deepEqual([mine.table, mine.create], ['main._inspire_acme_n01_u01__4.n01_u01_results', false], 'the suffixed schema this lineage made earlier is reused, not a new one');
+});
+
+test('when every candidate name is taken the tables go to the Inspire database schema and the wizard names the range', () => {
+  const taken = w.USE_CASE_SCHEMA_CLASH_LIMIT;
+  assert.equal(taken, 9);
+  const rows = [RIGHT, ...tagged(SCHEMA, {})];
+  for (let n = 2; n <= taken; n += 1) rows.push(...tagged(`${SCHEMA}__${n}`, {}));
+  const got = place(rows);
+  assert.deepEqual([got.table, got.place, got.own_table, got.create], [INSPIRE, 'inspire', '', false]);
+  assert.match(got.note, /_inspire_acme_n01_u01 through _inspire_acme_n01_u01__9 already exist and none is this use case's schema/);
+});
+
+test('the candidates are the plain name then __2 to __9, and the statement reads them all at once', () => {
+  const names = I.useCaseSchemaCandidates('main.inspire', 'N01-U01', '42', 'Acme').map((t) => I.tableParts(t).schema);
+  assert.deepEqual(names, [SCHEMA, ...[2, 3, 4, 5, 6, 7, 8, 9].map((n) => `${SCHEMA}__${n}`)]);
+  assert.equal(I.useCaseSchemaStatement('main', names).parameters.length, 10);
+});
+
+test('a long or non-ASCII business still names a valid Unity Catalog schema', () => {
+  const long = w.useCaseSchemaName('Ünïcode Business '.repeat(40), 'N01-U01', '42', { clash: 9 });
+  assert.ok(long.length <= 255, String(long.length));
+  assert.match(long, /^[a-z0-9_]+$/);
+  assert.ok(long.endsWith('_n01_u01__9'));
+  assert.equal(w.useCaseSchemaName('شركة الطيران', 'N01-U01', '42'), '_inspire_n01_u01');
+  assert.equal(w.useCaseSchemaName('Émirates Air', 'N01-U01', '42'), '_inspire_mirates_air_n01_u01');
 });
 
 test('the schema statement reads existence, the session tag, the person\'s catalog rights and who they are, parameterised', () => {
   const got = I.useCaseSchemaStatement('main', ['_Inspire_A', '_inspire_a']);
   assert.match(got.sql, /information_schema\.schema_tags/);
-  assert.match(got.sql, /tag_name = 'inspire_session_id'/);
+  assert.match(got.sql, /tag_name IN \('inspire_session_id', 'inspire_use_case_id', 'inspire_database'\)/);
   assert.match(got.sql, /catalog_privileges/);
   assert.deepEqual(got.parameters.map((p) => [p.name, p.value]), [['c', 'main'], ['s0', '_inspire_a']]);
   assert.equal(I.useCaseSchemaTagsSql('main', 's', { inspire_session_id: '42', inspire_use_case_id: 'N01-U01', inspire_business: "Acme's" }),
@@ -125,6 +178,11 @@ test('context offers the own schema as the default only to a new use case, and f
     assert.deepEqual([got.data.own_schema.table, got.data.own_schema.place], [INSPIRE, 'inspire']);
     assert.match(got.data.own_schema.note, /GRANT CREATE SCHEMA ON CATALOG `main`/);
   });
+  await withApp({ forwardedToken: PERSON_TOKEN, statements: schemaRows([RIGHT, ME, ...tagged(SCHEMA, {})]) }, async (url) => {
+    const got = await call(url, `/api/inspire/implement/context?${Q}`);
+    assert.deepEqual([got.data.own_schema.table, got.data.own_schema.create], ['main._inspire_acme_n01_u01__2.n01_u01_results', true]);
+    assert.match(got.data.own_schema.note, /so this use case's own schema is _inspire_acme_n01_u01__2\./);
+  });
   const built = [{ session_id: '42', use_case_id: 'N01-U01', spec_version: 1, status: 'ready', spec_json: JSON.stringify({ config: { result_table: 'main.inspire.churn_out' } }) }];
   await withApp({ forwardedToken: PERSON_TOKEN, statements: schemaRows([RIGHT, ME]), history: built }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/context?${Q}`);
@@ -138,16 +196,16 @@ test('create-schema tags the use case schema and lets the identity Inspire build
   const grants = [];
   const statements = { ...schemaRows([RIGHT]), 'GRANT ': (sql, _p, token) => { grants.push([sql, token]); return { rows: [] }; } };
   await withApp({ forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp-1' }, statements }, async (url, made) => {
-    const body = { catalog: 'main', schema: '_inspire_acme_n01_u01_42', tags: w.useCaseSchemaTags({ sessionId: '42', useCaseId: 'N01-U01', businessName: 'Acme' }) };
+    const body = { catalog: 'main', schema: '_inspire_acme_n01_u01', tags: w.useCaseSchemaTags({ sessionId: '42', useCaseId: 'N01-U01', businessName: 'Acme', inspireDatabase: '`main`.`inspire`' }) };
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data.warnings, []);
     const ran = made.sqlCalls.filter((c) => /^(CREATE|ALTER) /.test(c.sql)).map((c) => [c.sql, c.token]);
     assert.deepEqual(ran, [
-      ['CREATE SCHEMA IF NOT EXISTS `main`.`_inspire_acme_n01_u01_42`', PERSON_TOKEN],
-      ["ALTER SCHEMA `main`.`_inspire_acme_n01_u01_42` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme')", PERSON_TOKEN],
+      ['CREATE SCHEMA IF NOT EXISTS `main`.`_inspire_acme_n01_u01`', PERSON_TOKEN],
+      ["ALTER SCHEMA `main`.`_inspire_acme_n01_u01` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme', 'inspire_database' = 'main.inspire')", PERSON_TOKEN],
     ]);
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01_42` TO `app-sp-1`', PERSON_TOKEN]]);
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]]);
   });
   const same = [];
   await withApp({ forwardedToken: PERSON_TOKEN, dbToken: PERSON_TOKEN, statements: { ...schemaRows([RIGHT]), 'GRANT ': (sql) => { same.push(sql); return { rows: [] }; } } }, async (url) => {
@@ -163,21 +221,53 @@ test('create-schema on the person route, where the request carries the person to
   const workspace = ({ token, path }) => (path.startsWith('/api/2.0/preview/scim/v2/Me')
     ? [token === 'sp-tok' ? { userName: 'inspire-app', applicationId: 'app-sp-1' } : { userName: 'amr@x' }] : undefined);
   await withApp({ forwardedToken: PERSON_TOKEN, dbToken: PERSON_TOKEN, appToken: 'sp-tok', workspace, statements }, async (url) => {
-    const body = { catalog: 'main', schema: '_inspire_acme_n01_u01_42', tags: w.useCaseSchemaTags({ sessionId: '42', useCaseId: 'N01-U01', businessName: 'Acme' }) };
+    const body = { catalog: 'main', schema: '_inspire_acme_n01_u01', tags: w.useCaseSchemaTags({ sessionId: '42', useCaseId: 'N01-U01', businessName: 'Acme', inspireDatabase: 'main.inspire' }) };
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data.warnings, []);
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01_42` TO `app-sp-1`', PERSON_TOKEN]]);
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]]);
   });
 });
 
-test('create-schema refuses a schema whose session tag names another session and creates nothing', async () => {
-  const held = [{ kind: 'exists', schema_name: '_inspire_acme_n01_u01_42', value: '' }, { kind: 'session', schema_name: '_inspire_acme_n01_u01_42', value: '1000042' }];
-  await withApp({ forwardedToken: PERSON_TOKEN, statements: schemaRows(held) }, async (url, made) => {
-    const body = { catalog: 'main', schema: '_inspire_acme_n01_u01_42', tags: { inspire_session_id: '42' } };
+test('create-schema refuses a schema that is not this use case\'s and creates nothing; it goes on for one that is', async () => {
+  const body = { catalog: 'main', schema: SCHEMA, tags: { inspire_session_id: '42', inspire_use_case_id: 'N01-U01' } };
+  for (const [held, why] of [[tagged(SCHEMA, { inspire_session_id: '1000042', inspire_use_case_id: 'N01-U01' }), /it holds session 1000042/],
+  [tagged(SCHEMA, {}), /Inspire did not create it for this use case/],
+  [tagged(SCHEMA, { inspire_database: 'other.db', inspire_use_case_id: 'N01-U01' }), /Inspire database other\.db/]]) {
+    await withApp({ forwardedToken: PERSON_TOKEN, statements: schemaRows(held) }, async (url, made) => {
+      const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
+      assert.equal(got.status, 409, JSON.stringify(got.data));
+      assert.match(got.data.error, why);
+      assert.equal(made.sqlCalls.some((c) => /^(CREATE|ALTER) /.test(c.sql)), false);
+    });
+  }
+  await withApp({ forwardedToken: PERSON_TOKEN, statements: schemaRows(tagged(SCHEMA, { ...LINEAGE, inspire_session_id: '7' })) }, async (url) => {
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
-    assert.equal(got.status, 409, JSON.stringify(got.data));
-    assert.match(got.data.error, /session 1000042/);
-    assert.equal(made.sqlCalls.some((c) => /^(CREATE|ALTER) /.test(c.sql)), false);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
   });
+});
+
+test('create-schema on a schema that already exists grants the identity Inspire builds as and never creates or re-tags it', async () => {
+  const held = tagged(SCHEMA, { ...LINEAGE, inspire_session_id: '42' });
+  const grants = [];
+  const statements = { ...schemaRows(held), 'GRANT ': (sql, _p, token) => { grants.push([sql, token]); return { rows: [] }; } };
+  await withApp({ forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp-1' }, statements }, async (url, made) => {
+    const body = { catalog: 'main', schema: SCHEMA, tags: w.useCaseSchemaTags({ sessionId: '42', useCaseId: 'N01-U01', businessName: 'Acme', inspireDatabase: 'main.inspire' }) };
+    const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.existed, true);
+    assert.deepEqual(made.sqlCalls.filter((c) => /^(CREATE|ALTER) /.test(c.sql)), [], 'an existing, tagged schema is neither created nor tagged again');
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]],
+      'the builder grant lands on an existing schema, the case that left the build identity without USE SCHEMA and CREATE TABLE');
+  });
+});
+
+test('the ensure plan creates only a missing schema and tags only one without the Inspire database tag, never an older session of its lineage', () => {
+  const tags = { inspire_session_id: '42' };
+  assert.deepEqual(I.useCaseSchemaEnsure({}, tags), { create: true, tag: true });
+  assert.deepEqual(I.useCaseSchemaEnsure({ exists: true, session: '42' }, tags), { create: false, tag: true }, 'an older schema gets the database tag');
+  assert.deepEqual(I.useCaseSchemaEnsure({ exists: true, session: '7', database: 'main.inspire' }, tags), { create: false, tag: false },
+    'a schema reused from session 7 keeps its tags (must-exclude), so the next open still keeps session 7 rows apart');
+  assert.deepEqual(I.useCaseSchemaEnsure({ exists: true, session: '42' }, null), { create: false, tag: false });
+  assert.deepEqual(I.useCaseSchemaEnsure(null, null), { create: true, tag: false });
 });

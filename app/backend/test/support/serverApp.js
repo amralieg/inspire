@@ -38,7 +38,7 @@ function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
     launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
-    createdJob: null, runJobs: {}, runStates: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
+    createdJob: null, runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -230,7 +230,13 @@ async function stubFetch(url, opts = {}) {
     const id = u.searchParams.get('run_id');
     if (!state.runStates[id]) return json({ error_code: 'RESOURCE_DOES_NOT_EXIST', message: `Run ${id} does not exist.` }, 404);
     const job = state.runJobs[id] || {};
-    return json({ run_id: Number(id), state: { life_cycle_state: state.runStates[id] }, tasks: (job.tasks || []).map((t) => ({ task_key: t.task_key, notebook_task: t.notebook_task })) });
+    const run = typeof state.runStates[id] === 'object' ? state.runStates[id] : { life_cycle_state: state.runStates[id] };
+    return json({ run_id: Number(id), state: { life_cycle_state: run.life_cycle_state, result_state: run.result_state },
+      tasks: (run.tasks || job.tasks || []).map((t) => ({ task_key: t.task_key, notebook_task: t.notebook_task, run_id: t.run_id, state: t.state })) });
+  }
+  if (u.pathname === '/api/2.1/jobs/runs/get-output' && state.runOutputs) {
+    const out = state.runOutputs[u.searchParams.get('run_id')];
+    return out ? json(out) : json({ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no output' }, 404);
   }
   return json({});
 }

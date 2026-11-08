@@ -298,6 +298,8 @@ function discoverWrites(params, notebookPath) {
   return { folders: [folder || asked], defaulted: asked === DEFAULT_GENERATION_PATH };
 }
 
+const workspaceFolderPath = (folder) => (/^\/Volumes\//.test(folder) || !folder.startsWith('/') ? folder : `/Workspace${folder}`);
+
 async function removeProbe(remove, path) {
   for (let attempt = 0; attempt < 2; attempt += 1) {
     const gone = await remove(path).catch(() => ({ ok: false, status: 502, data: {} }));
@@ -456,16 +458,17 @@ async function outputPlan(dbFetch, req, writes, { manager = false, appToken = ''
   const folders = ((writes && writes.folders) || []).filter(Boolean);
   if (!folders.length) return { refused: null, folder: '', generationPath: '', warnings: [] };
   const me = RP.forwardedPerson(req.headers);
-  if (!writes.defaulted || !me) return planVerdict(await folderPlan(dbFetch, req, folders[0], { manager, appToken }));
+  if (!writes.defaulted) return planVerdict(await folderPlan(dbFetch, req, folders[0], { manager, appToken }));
+  const savedIn = (plan, extra) => ({ ...planVerdict(plan, extra), generationPath: plan.refused ? '' : workspaceFolderPath(plan.folder) });
+  if (!me) return savedIn(await folderPlan(dbFetch, req, folders[0], { manager, appToken }));
   const home = `/Users/${me}/${FALLBACK_FOLDER}`;
-  const inHome = (plan, extra) => ({ ...planVerdict(plan, extra), generationPath: plan.refused ? '' : `/Workspace${home}` });
   const own = await folderPlan(dbFetch, req, home, { manager, appToken });
-  if (folderScore(own) === 2 || own.refused?.status === 401) return inHome(own);
+  if (folderScore(own) === 2 || own.refused?.status === 401) return savedIn(own);
   const shared = await folderPlan(dbFetch, req, folders[0], { manager, appToken });
-  if (shared.refused) return own.refused ? planVerdict(shared) : inHome(own);
-  if (folderScore(shared) <= folderScore(own)) return inHome(own);
+  if (shared.refused) return own.refused ? planVerdict(shared) : savedIn(own);
+  if (folderScore(shared) <= folderScore(own)) return savedIn(own);
   const why = own.refused ? 'you cannot write there' : 'the Inspire App cannot write there; give the App CAN MANAGE on it to keep your runs private';
-  return planVerdict(shared, [`Inspire cannot save to your folder ${home} (${why}), so it saves to ${shared.folder}, which everyone in the workspace can read.`]);
+  return savedIn(shared, [`Inspire cannot save to your folder ${home} (${why}), so it saves to ${shared.folder}, which everyone in the workspace can read.`]);
 }
 
 function writeRefusalBody(key, refused) {

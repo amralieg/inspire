@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, openUi, until } from './uiSupport.mjs';
+import { closeBrowser, idle, openUi, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -87,7 +87,7 @@ test('Advanced Settings stays closed by default, keeps what was set in it after 
   try {
     const toggle = page.getByRole('button', { name: /Advanced Settings/ });
     await page.locator('button[title="main"]').waitFor({ timeout: 15000 });
-    await page.waitForTimeout(800);
+    await idle(page);
     assert.equal(await toggle.getAttribute('aria-expanded'), 'false', 'no problem, so it stays closed (must-exclude)');
     assert.equal(await page.locator('[data-launch-advanced-problem]').count(), 0);
     await toggle.click();

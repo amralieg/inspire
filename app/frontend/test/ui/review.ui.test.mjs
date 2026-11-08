@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
-import { closeBrowser, lowContrast, openUi, setDark, settled, steadyBox, until } from './uiSupport.mjs';
+import { closeBrowser, idle, lowContrast, openUi, setDark, settled, steadyBox, until } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_SESSIONS, REVIEW_STATE, RUN_SUMMARY } from './reviewFixtures.js';
 import { LATEST_RUN_LABEL } from '../../src/lib/reviewFigures.js';
 import * as V from '../../src/lib/v130UseCase.js';
@@ -46,7 +46,7 @@ test('Review lists the documents of an absolute output folder, and never asks fo
     try {
       await ready(ui.page);
       await settled(ui.page, '[aria-label="Figures of this run"]');
-      await ui.page.waitForTimeout(1000);
+      await idle(ui.page);
       assert.deepEqual(ui.pageErrors, []);
       return asked;
     } finally {
@@ -68,7 +68,7 @@ test('on a small screen the figures of the run below the fold already read their
     const below = await tile('Live assets').evaluate((el) => el.getBoundingClientRect().top >= window.innerHeight);
     assert.equal(below, true, 'the last figure starts below the fold, so the check covers a tile nobody has scrolled to');
     await settled(page, '[aria-label="Figures of this run"]');
-    await page.waitForTimeout(1500);
+    await idle(page);
     const read = async (label) => (await tile(label).locator('[data-stat-value]').innerText()).trim();
     assert.equal(await read('Best of Best'), '2');
     assert.equal(await read('Subdomains'), '5');

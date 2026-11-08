@@ -18,7 +18,7 @@ const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
 const {
-  clearedText, defaultResultTable, emptyScopeWarningOf, nextAppName, ownSchemaClashNote, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks,
+  clearedText, emptyScopeWarningOf, nextAppName, ownSchemaClashNote, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks,
 } = require('../frontend/src/lib/implementWizard.js');
 const { canonicalDiscoveryType } = require('../frontend/src/lib/discoveryType.js');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
@@ -562,7 +562,7 @@ function registerImplementRoutes(app, deps) {
   async function useCaseSchemaOf(req, warehouseId, inspireDatabase, sid, useCaseId, businessName) {
     let names;
     try {
-      names = [false, true].map((wholeSid) => defaultResultTable(inspireDatabase, useCaseId, sid, businessName, { wholeSid }));
+      names = I.useCaseSchemaCandidates(inspireDatabase, useCaseId, sid, businessName);
     } catch {
       return null;
     }
@@ -881,6 +881,7 @@ function registerImplementRoutes(app, deps) {
         ok: Object.values(checks).every((c) => c.ok),
         identity: (output && output.identity) || P.principalOf(principal).username,
         checks,
+        ...(appName || mergeApp ? {} : { new_app: output ? output.app : unchecked }),
         features,
         ...(moved ? { result_table_moved: moved } : {}),
       });
@@ -970,16 +971,20 @@ function registerImplementRoutes(app, deps) {
       const bad = G.placeNameProblem(catalog, 'catalog') || (schema ? G.placeNameProblem(schema, 'schema') : '');
       if (bad) throw I.badRequest(bad);
       const tags = schema && req.body && req.body.tags && typeof req.body.tags === 'object' ? req.body.tags : null;
+      let found = {};
       if (tags) {
         const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [schema]);
-        const held = (I.useCaseSchemaFacts(rows).schemas[schema.toLowerCase()] || {}).session;
-        const sid = String(tags.inspire_session_id ?? '').trim();
-        if (held && held !== sid) throw I.badRequest(ownSchemaClashNote(schema, held), 409);
+        found = I.useCaseSchemaFacts(rows).schemas[schema.toLowerCase()] || {};
+        const who = { inspireDatabase: dbOf(req, splitInspireDatabase).inspire_database, useCaseId: String(tags.inspire_use_case_id ?? '').trim() };
+        if (I.useCaseSchemaOwner(found, { ...who, sessionId: String(tags.inspire_session_id ?? '').trim() }) === 'foreign') {
+          throw I.badRequest(ownSchemaClashNote(schema, found, '', who), 409);
+        }
       }
-      await executeSql(req.dbHost, token, warehouseId, G.createPlaceSql(catalog, schema));
+      const ensure = I.useCaseSchemaEnsure(found, tags);
+      if (ensure.create) await executeSql(req.dbHost, token, warehouseId, G.createPlaceSql(catalog, schema));
       if (!tags) return res.json({ catalog, schema });
       const warnings = [];
-      const tagged = I.useCaseSchemaTagsSql(catalog, schema, tags);
+      const tagged = ensure.tag ? I.useCaseSchemaTagsSql(catalog, schema, tags) : '';
       if (tagged) {
         await executeSql(req.dbHost, token, warehouseId, tagged)
           .catch((err) => warnings.push(`Inspire could not tag ${catalog}.${schema}: ${String((err && err.message) || err).slice(0, 200)}`));
@@ -993,7 +998,7 @@ function registerImplementRoutes(app, deps) {
             + `${I.USE_CASE_SCHEMA_BUILDER_PRIVILEGES} on it: ${failed.join('; ')}`);
         }
       }
-      res.json({ catalog, schema, warnings });
+      res.json({ catalog, schema, warnings, existed: Boolean(found.exists) });
     } catch (err) {
       sendError(res, err);
     }

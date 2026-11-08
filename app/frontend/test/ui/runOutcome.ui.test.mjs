@@ -124,7 +124,7 @@ test('Monitor: a finished session with zero use cases is failed with the reason,
     assert.match(await status.innerText(), /No use cases produced/);
     assert.match(await status.innerText(), /The run produced no use cases/);
     assert.equal(await page.getByText('Pipeline completed successfully').count(), 0);
-    assert.equal(await page.getByText('Pipeline finished successfully.').count(), 0);
+    assert.equal(await page.getByText('Inspire finished this run.').count(), 0);
     assert.equal(await page.locator('[data-testid="monitor-failure-reason"]').innerText(), NO_USE_CASES_MESSAGE);
   } finally {
     await ui.close();

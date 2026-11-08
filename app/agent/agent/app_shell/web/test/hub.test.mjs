@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { ASK_GROUPS, TABLE, appInfo, askAudit, chartsDrawn, openApp, serveDist, until, pickCase, goRail } from './harness.mjs';
+import { appInfo, ASK_GROUPS, askAudit, chartsDrawn, goRail, idle, openApp, pickCase, serveDist, TABLE, until } from './harness.mjs';
 import { wholeMoney } from '../src/format.js';
 import {
   DEFAULT_VIEW, WORK_SHOWN, dueText, isMine, moneyText, myWork, myWorkText, nothingText, ownerName, pickReason, reasonFilters,
@@ -131,7 +131,7 @@ test('a record link opens that record on its use case page, and closing it takes
   await panel.waitFor({ state: 'detached' });
   assert.match(await hashOf(page), /^#\/n01_u05/);
   assert.doesNotMatch(await hashOf(page), /rec=/);
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.equal(await page.locator('dialog.drawer[open]').count(), 0, 'the closed record stays closed');
   await page.goto(`${served.base}#/n02_u01?rec=c`);
   await page.waitForFunction(() => document.querySelector('dialog.drawer[open] h2')?.textContent === 'Supplier 3381, invoice 77188');

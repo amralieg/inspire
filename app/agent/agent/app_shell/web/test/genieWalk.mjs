@@ -66,11 +66,10 @@ export function targetProblem({ scope, profile, inspire, app }) {
 async function settled(page, ms) {
   const last = page.getByRole('log', { name: 'Genie conversation' }).locator('.msg--genie').last();
   const t0 = Date.now();
-  while (Date.now() - t0 < ms) {
-    await page.waitForTimeout(500);
-    if (await last.locator('.g-err').count()) break;
-    if (await last.locator('.msg-b').count() && !(await last.locator('.g-step, .cursor').count())) break;
-  }
+  await page.waitForFunction(() => {
+    const said = [...document.querySelectorAll('[role="log"][aria-label="Genie conversation"] .msg--genie')].at(-1);
+    return Boolean(said && (said.querySelector('.g-err') || (said.querySelector('.msg-b') && !said.querySelector('.g-step, .cursor'))));
+  }, null, { timeout: ms }).catch(() => null);
   const failed = (await last.locator('p.g-err').count()) > 0;
   const tableError = await last.locator('.g-foot.g-err').count();
   const text = await last.locator('.msg-b').first().evaluate((el) => {

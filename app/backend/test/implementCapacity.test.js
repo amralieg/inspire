@@ -1,5 +1,6 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
+const fs = require('node:fs');
 const path = require('node:path');
 const { pathToFileURL } = require('node:url');
 const I = require('../lib/inspireImplement');
@@ -228,7 +229,18 @@ test('the backend checks the capacity and the weekly email exactly as the agent 
     [agent.constants.max, agent.constants.sources, agent.constants.classes]);
 });
 
-test('the wizard caps the team capacity at the number the backend and the agent allow', async () => {
+test('the wizard has no Team capacity field: the Summary says it is set in the App\u2019s Settings', async () => {
   const w = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'implementWizard.js')).href);
-  assert.equal(w.CAPACITY_MAX, I.IMPLEMENT_CAPACITY_MAX);
+  for (const gone of ['CAPACITY_MAX', 'capacityOf', 'capacitySuggestion', 'withCapacity', 'withCapacityDefault', 'withSuggestedCapacity', 'capacityProblems', 'capacityInput']) {
+    assert.equal(w[gone], undefined, gone);
+  }
+  const spec = w.defaultSpecFromUseCase({ id: 'N01-U01', primary_table: 'main.s.orders' }, { warehouseId: 'wh', inspireDatabase: 'main.inspire' });
+  assert.equal(w.stepErrors('settings', spec, { scopeSteps: { settings: true } }).length, 0);
+  assert.throws(() => w.stepErrors('settings', spec), /unknown wizard step 'settings'/, 'no settings, no Settings step');
+  for (const step of w.wizardSteps('mvp', { outputs: { app: true } }, { grouping: true, firstRun: true, settings: true })) {
+    assert.ok(!(step.sections || []).includes('capacity'), step.id);
+  }
+  assert.deepEqual(w.pickedSummary(spec).find((r) => r.id === 'capacity'), { id: 'capacity', step: 'summary', label: 'Team capacity', value: w.CAPACITY_IN_APP });
+  const src = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ImplementWizard.jsx'), 'utf8');
+  assert.doesNotMatch(src, /TeamCapacity|withCapacity|capacitySuggestion/);
 });

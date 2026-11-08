@@ -3311,7 +3311,8 @@ class Shell:
         ws, _who = self.workspace(headers)
         out = ws.genie_message(space, conversation, message, row_limit=GENIE_PREVIEW_ROWS)
         if out.get("state") == "done" and out.get("text"):
-            out = dict(out, text=shell_agent.shape_answer(out["text"]))
+            shaped = shell_agent.shape_answer(out["text"])
+            out = dict(out, text=shell_agent.with_scopes(shaped, [], [shell_agent.genie_note(shaped, out)] if shaped else []))
         return out
 
     def genie_feedback(self, headers: dict, data: dict) -> dict:

@@ -482,6 +482,55 @@ test('the interpreter is the first python3 or python on PATH that imports fastap
   }
 });
 
+test('a python that starts the page server but cannot import requests, which every query of the page needs, is passed over', async (t) => {
+  const real = await H.pythonFor(process.env.PATH, process.cwd(), async () => true);
+  if (!real) {
+    t.skip('no python3 or python on PATH');
+    return;
+  }
+  const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-python-'));
+  try {
+    const make = (name, modules) => {
+      const stubs = path.join(tmp, name, 'stubs');
+      fs.mkdirSync(stubs, { recursive: true });
+      for (const module of modules) fs.writeFileSync(path.join(stubs, `${module}.py`), '');
+      const bin = path.join(tmp, name, 'bin');
+      fs.mkdirSync(bin);
+      fs.writeFileSync(path.join(bin, 'python3'), `#!/bin/sh\nPYTHONPATH='${stubs}' exec '${real}' -S "$@"\n`, { mode: 0o755 });
+      return bin;
+    };
+    const serverOnly = make('server-only', ['fastapi', 'uvicorn']);
+    const complete = make('complete', ['fastapi', 'uvicorn', 'requests']);
+    assert.equal(await H.pythonFor(serverOnly, tmp), '', 'a python without requests would start the page and fail its first query');
+    assert.equal(await H.pythonFor(`${serverOnly}:${complete}`, tmp), path.join(complete, 'python3'));
+  } finally {
+    fs.rmSync(tmp, { recursive: true, force: true });
+  }
+});
+
+test('every module the page server imports on a read as the viewer is one Inspire checks for before it runs the page', async (t) => {
+  const { appShellFiles, appShellPayload, bundledAppShellText } = require('../lib/appShell');
+  const files = appShellFiles(appShellPayload(bundledAppShellText()));
+  const own = new Set(Object.keys(files).filter((f) => f.endsWith('.py')).map((f) => path.basename(f, '.py')));
+  const imported = new Map();
+  for (const [file, body] of Object.entries(files)) {
+    if (!file.endsWith('.py')) continue;
+    for (const [, name] of String(body).matchAll(/^\s*(?:from|import)\s+([A-Za-z_]\w*)/gm)) {
+      if (!own.has(name)) imported.set(name, [...(imported.get(name) || []), path.basename(file)]);
+    }
+  }
+  const real = await H.pythonFor(process.env.PATH, process.cwd(), async () => true);
+  if (!real) {
+    t.skip('no python3 or python on PATH');
+    return;
+  }
+  const stdlib = new Set(require('node:child_process').execFileSync(real, ['-c', 'import sys; print(*sys.stdlib_module_names)']).toString().split(/\s+/));
+  const notOnViewerRead = { databricks: 'the service principal sign-in, which a hosted page never gets', psycopg: 'Lakebase', sqlglot: 'Lakebase' };
+  const unchecked = [...imported.keys()].filter((m) => !stdlib.has(m) && !H.HOSTED_PYTHON_MODULES.includes(m) && !notOnViewerRead[m]);
+  assert.deepEqual(unchecked, [], `imported by the page server but not checked: ${unchecked.map((m) => `${m} (${imported.get(m)})`).join(', ')}`);
+  assert.ok(imported.has('requests') && imported.has('fastapi'), 'the scan reads the page server source');
+});
+
 test('the alerts of a page are answered by Inspire from the raw request before any body parser, never by the page process', async () => {
   const rec = record('n01-u01-alerts');
   const s = await setup({ folders: folderOf(rec) });

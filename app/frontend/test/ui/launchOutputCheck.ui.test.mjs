@@ -111,7 +111,8 @@ test('changing a passed folder turns Get Started off at once, and a check that c
   try {
     const { page } = ui;
     await readyToLaunch(page);
-    await page.getByRole('button', { name: /Advanced Settings/ }).click();
+    await until(async () => (await nearLaunch(page).getAttribute('data-output-check')) === 'refused', 'the default folder refused');
+    assert.equal(await page.getByRole('button', { name: /Advanced Settings/ }).getAttribute('aria-expanded'), 'true', 'the refusal opens Advanced Settings on its own');
     await setPath(page, MINE);
     await until(async () => !(await launchButton(page).isDisabled()), 'Get Started on for a folder the person can write');
     await holdClock(page);

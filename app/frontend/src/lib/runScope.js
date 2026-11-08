@@ -24,7 +24,7 @@ export const RUN_SCOPE_ALLOWED = RUN_SCOPES.join(', ');
 export const SCOPE_DEFAULTS = { [SCOPE_DAYS]: '30', [SCOPE_RECORDS]: '1000' };
 export const GROUPING_TITLE = 'How is the data split into groups?';
 export const FIRST_RUN_TITLE = `What should the ${FIRST_RUN_LABEL} cover?`;
-export const FIRST_RUN_KEEPS = 'Schedules keep this scope until someone presses Run on everything.';
+export const FIRST_RUN_KEEPS = 'Only the first run uses this test scope. Every later run, scheduled or not, covers all the records in the Data groups.';
 export const GROUPING_PLAIN = 'Data groups split the data the way the business looks at it, such as per region or per store. Inspire models each group on its own: '
   + 'a sales forecast for one region is not mixed with another, and what is unusual is found within its own group. Choose the whole data as one group to model it all together.';
 export const GROUPING_COMBINE = 'Combine columns, coarse to fine';

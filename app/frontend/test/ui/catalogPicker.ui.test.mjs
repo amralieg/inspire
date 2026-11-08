@@ -47,7 +47,7 @@ test('Results makes a new schema or catalog for the result table with the right 
   const { ui, step } = await resultStep({ catalogs: ['main', 'sales'] });
   const { page, made } = ui;
   try {
-    assert.equal(await page.getByRole('button', { name: 'Advanced settings' }).getAttribute('aria-expanded'), 'false', 'the place is on Results, not under Advanced');
+    assert.equal(await page.getByRole('button', { name: 'Advanced settings' }).count(), 0, 'the place is on Results, not under Advanced');
     const box = page.getByRole('region', { name: 'Where the result table lives' }).getByRole('group', { name: 'New catalog or schema' });
     await box.getByText('Needs CREATE SCHEMA on the catalog.', { exact: true }).waitFor();
     await box.getByRole('textbox', { name: 'New schema name' }).fill('mvp out');

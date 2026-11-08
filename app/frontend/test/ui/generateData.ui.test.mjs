@@ -15,7 +15,7 @@ async function startedLine(demoAnswer) {
     await page.getByPlaceholder(/./).first().fill('Acme');
     await page.locator('textarea').fill('A retailer with stores and an online shop');
     await page.locator('button[type="submit"]').click();
-    await page.getByText('Pipeline started').waitFor({ timeout: 20000 });
+    await page.getByText('Inspire started').waitFor({ timeout: 20000 });
     const line = (await page.locator('ol li').first().innerText()).trim();
     assert.equal(await page.getByText('Generate 5 Delta tables').count(), 0);
     assert.equal(made.launches.length, 1);
@@ -56,7 +56,7 @@ test('the page counts every table the demo writes and sends the chosen discovery
     await page.locator('#demo-schema').fill('retail_demo');
     await page.locator('[data-demo-discovery="Standard Discovery"]').click();
     await page.locator('button[type="submit"]').click();
-    await page.getByText('Pipeline started').waitFor({ timeout: 20000 });
+    await page.getByText('Inspire started').waitFor({ timeout: 20000 });
     assert.equal(made.launches.length, 1);
     assert.equal(made.launches[0].discovery_type, 'Standard Discovery');
     assert.equal(made.launches[0].demo_schema, 'retail_demo');

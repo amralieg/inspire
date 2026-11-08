@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { FILTERS, LOST, NO_JOB, SILENT, TABLE, appInfo, openApp, serveDist, steadyBox, until, goRail } from './harness.mjs';
+import { appInfo, FILTERS, goRail, idle, LOST, NO_JOB, openApp, serveDist, SILENT, steadyBox, TABLE, until } from './harness.mjs';
 import {
   BUSY, RUN_STATES, activeState, agoText, bannerText, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastRunNote, lastRunText, lastedText,
   progressText, runBars, runFlag, runState, runsPageText, spanText, stampText, toastTone, triggerText,
@@ -280,7 +280,7 @@ test('Refresh now starts the job, says it is refreshing all the data, then reloa
   assert.equal(await page.getByRole('button', { name: 'Refresh now' }).isEnabled(), true);
   const stopped = state.polls;
   await page.clock.fastForward(30000);
-  await page.waitForTimeout(200);
+  await idle(page);
   assert.equal(state.polls, stopped, 'polling stops once no run is active');
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -301,7 +301,7 @@ test('a refresh that fails says why', async () => {
   assert.equal(await page.locator('.fresh-note').innerText(), 'The latest run failed: Table not found');
   assert.equal(await page.locator('.fresh-note').getAttribute('data-tone'), 'bad');
   assert.equal(await banner(page).locator('.fresh-t').innerText(), 'Updated Oct 27, 07:30 AM UTC', 'the failed run is not the update');
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.equal(seen.pages.length, loads, 'a failed refresh changed no data, so the page does not reload');
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -439,7 +439,7 @@ test('a click that loses the race to another refresh shows who started it', asyn
 test('a freshness call that fails leaves the header as it was', async () => {
   const routes = { freshness: ({ json }) => json(502, { error: 'warehouse stopped' }) };
   const { page, seen, context } = await open(routes);
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.equal(await page.locator('.fresh').count(), 0);
   assert.match(await page.locator('.ph-meta').innerText(), /Data through/);
   assert.deepEqual(real(seen.errors), []);
@@ -459,12 +459,10 @@ test('on a phone the banner, the reason and the button wrap without sideways scr
     assert.ok(fit.iconBeside, 'the icon stays on the first line of the banner text');
     if (fresh.overdue || fresh.last_run?.result === 'failed') {
       await page.addStyleTag({ content: '.fresh-pt,.fresh-note{display:block!important}.fresh-pt>svg,.fresh-note>svg{display:block}' });
-      await page.waitForTimeout(100);
       assert.equal((await page.evaluate(fits)).iconBeside, false, 'the check catches an icon alone on its line');
     }
     if (fresh.reason) {
       await page.addStyleTag({ content: '.fresh-why{white-space:nowrap}' });
-      await page.waitForTimeout(100);
       assert.ok((await page.evaluate(fits)).out.includes('fresh-why'), 'the check catches a reason that does not wrap');
     }
     assert.deepEqual(seen.errors, []);
@@ -784,7 +782,7 @@ test('Refresh now shows the new run in the Runs tab when it starts and again whe
   await page.waitForFunction(() => /Failed/.test(document.querySelector('.runs-tbl > tbody > tr')?.textContent || ''));
   await mainRows(page).first().locator('.runs-tog').click();
   assert.match(await page.locator('.run-err').innerText(), /^The computer that runs the job could not start\s+Details: Cluster did not start$/);
-  await page.waitForTimeout(300);
+  await idle(page);
   assert.equal(seen.pages.length, loads, 'a failed refresh changed no data, so only the runs reload');
   assert.deepEqual(asked.offsets, ['0', '0', '0']);
   assert.deepEqual(real(seen.errors), []);

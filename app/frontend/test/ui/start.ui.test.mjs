@@ -61,7 +61,7 @@ test('a run still starting shows on Start as Starting, and opening it follows th
     assert.doesNotMatch(await page.locator('[data-run="42"]').innerText(), /Starting/, 'a run that wrote its rows keeps its own status');
     const runRead = page.waitForResponse((r) => new URL(r.url()).pathname === '/api/run/701', { timeout: 15000 });
     await row.getByRole('button').first().click();
-    await page.getByRole('heading', { name: 'Pipeline Monitor', level: 1 }).waitFor({ timeout: 15000 });
+    await page.getByRole('heading', { name: 'Monitor', exact: true, level: 1 }).waitFor({ timeout: 15000 });
     await runRead;
     assert.ok(runReads.includes('701'), `Monitor reads the run: ${runReads.join(', ')}`);
     assert.deepEqual(missing, []);

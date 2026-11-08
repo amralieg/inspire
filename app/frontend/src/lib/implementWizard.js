@@ -35,7 +35,9 @@ const NOTEBOOK_DELIVERY_STEP = { ...DELIVERY_STEP, sections: [], advanced: [] };
 export const IMPLEMENT_STEPS = [
   DELIVERY_STEP,
   { id: 'data', label: 'Data', sections: ['use_case', 'data', 'configure'], advanced: ['use_case', 'data', 'configure'] },
-  { id: 'results', label: 'Results', sections: ['results', 'kpi', 'holdout', 'schedule'], advanced: ['holdout', 'schedule'] },
+  { id: 'results', label: 'Results', sections: ['results'], advanced: [] },
+  { id: 'measure', label: 'Measure impact', sections: ['kpi', 'holdout'], advanced: ['holdout'] },
+  { id: 'fresh', label: 'Keep it fresh', sections: ['schedule'], advanced: ['schedule'] },
 ];
 
 export const APP_STEPS = [
@@ -45,7 +47,7 @@ export const APP_STEPS = [
 
 export const APP_PLACE_STEP = { id: 'app_place', label: 'App placement', sections: ['app_place'], advanced: [] };
 
-export const SETTINGS_STEP = { id: 'settings', label: 'Settings', sections: ['settings', 'capacity'], advanced: [] };
+export const SETTINGS_STEP = { id: 'settings', label: 'Settings', sections: ['settings'], advanced: [] };
 
 export const VIBES_STEP = { id: 'vibes', label: 'Vibes', sections: ['vibes'], advanced: [] };
 
@@ -55,7 +57,7 @@ export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: [
 
 export const FIRST_RUN_STEP = { id: 'first_run', label: FIRST_RUN_LABEL, sections: ['first_run'], advanced: [] };
 
-export const NO_SCOPE_STEPS = { grouping: false, firstRun: false };
+export const NO_SCOPE_STEPS = { grouping: false, firstRun: false, settings: false };
 
 export const NOTEBOOK_STEPS = [
   NOTEBOOK_DELIVERY_STEP,
@@ -77,10 +79,10 @@ export function contextSettings(context, spec) {
 export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   if (mode === 'mvp') {
     const app = Boolean(spec?.outputs?.app);
-    const [delivery, data, results] = IMPLEMENT_STEPS;
-    return [delivery, data, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), results,
+    const [delivery, data, ...results] = IMPLEMENT_STEPS;
+    return [delivery, data, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), ...results,
       ...(app ? [APP_PLACE_STEP] : []), ...(app && !joinsApp(spec) ? APP_STEPS : []),
-      SETTINGS_STEP, VIBES_STEP, SUMMARY_STEP];
+      ...(scope?.settings ? [SETTINGS_STEP] : []), VIBES_STEP, SUMMARY_STEP];
   }
   if (mode === 'notebook') return NOTEBOOK_STEPS;
   throw new Error(`unknown implement mode '${mode}'`);
@@ -313,7 +315,7 @@ export const APP_CHART_PICK = ['trend', 'bars', 'pareto'];
 export const APP_CHART_KINDS = [
   { id: 'trend', label: 'Trend over time', blurb: 'Lines or areas by day or week' },
   { id: 'bars', label: 'Bars by segment', blurb: 'Plain, stacked or sideways bars' },
-  { id: 'split', label: 'Share of a whole', blurb: 'A donut, such as Act now, Review and Monitor' },
+  { id: 'split', label: 'Share of a whole', blurb: 'A donut, such as how many records need action now, a check, or only watching' },
   { id: 'pareto', label: 'Biggest first', blurb: 'A pareto of where most of what is at stake sits' },
   { id: 'scatter', label: 'Two measures', blurb: 'A scatter or a heatmap' },
 ];
@@ -402,6 +404,11 @@ export const GENIE_FOR_APP_NOTE = 'Ask Genie in the App needs a Genie Agent.';
 export const APP_NEXT_NOTE = 'You pick where it goes next.';
 export const RESULT_TABLE_MOVE_NOTE = 'Moving the table later copies its history to the new table and keeps the old one.';
 export const MERGE_OUTPUTS = ['dashboard', 'genie_space', 'app'];
+
+export const FRESH_DEFAULT = 'daily';
+export const FRESH_HELP = 'Runs the MVP again each day or week, so the results stay current. Only the first run is the MVP Test Run; '
+  + 'every later run covers all your Data groups.';
+export const CAPACITY_IN_APP = 'Set in the App\u2019s Settings';
 
 export const FRESHNESS_OPTIONS = [
   { id: 'off', label: 'Off' },
@@ -598,6 +605,7 @@ export const ALERT_TIER_OPTIONS = [
   { id: 'act_now', label: 'Act now' },
   { id: 'act_now_review', label: 'Act now or Review' },
 ];
+export const ALERT_TIER_HELP = 'Act now means records that need action today; Review means records worth a closer look.';
 
 export const ALERT_OPERATORS = ['>=', '>', '=', '!=', '<', '<='];
 export const ALERT_OPERATOR_WORDS = Object.freeze({ '>=': 'at least', '>': 'more than', '=': 'equal to', '!=': 'not equal to', '<': 'less than', '<=': 'at most' });
@@ -971,26 +979,28 @@ export function inspireSchemaResultTable(inspireDatabase, useCaseId, sessionId) 
 }
 
 export const USE_CASE_SCHEMA_PREFIX = '_inspire';
-export const USE_CASE_SCHEMA_SID_DIGITS = 5;
+export const USE_CASE_SCHEMA_CLASH_MARK = '__';
+export const USE_CASE_SCHEMA_CLASH_LIMIT = 9;
 const UC_NAME_LIMIT = 255;
 
-export function useCaseSchemaName(businessName, useCaseId, sessionId, { wholeSid = false } = {}) {
+export function useCaseSchemaName(businessName, useCaseId, sessionId, { clash = 0 } = {}) {
   const sid = String(sessionId ?? '').trim();
   if (!/^\d+$/.test(sid)) throw new Error('a numeric session id is needed to name the use case schema');
   const uc = slugOf(useCaseId);
   if (!uc) throw new Error('a use case id is needed to name the use case schema');
-  const tail = `${uc}_${wholeSid ? sid : sid.slice(-USE_CASE_SCHEMA_SID_DIGITS)}`;
+  const tail = `${uc}${clash > 1 ? `${USE_CASE_SCHEMA_CLASH_MARK}${Math.trunc(clash)}` : ''}`;
   const room = Math.max(0, UC_NAME_LIMIT - USE_CASE_SCHEMA_PREFIX.length - tail.length - 2);
   const business = String(businessName ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
     .slice(0, room).replace(/_+$/, '');
   return [USE_CASE_SCHEMA_PREFIX, business, tail].filter(Boolean).join('_');
 }
 
-export function defaultResultTable(inspireDatabase, useCaseId, sessionId, businessName = '', { wholeSid = false } = {}) {
+export function defaultResultTable(inspireDatabase, useCaseId, sessionId, businessName = '', { clash = 0, ofSession = false } = {}) {
   const catalog = String(inspireDatabase ?? '').split('.')[0].replace(/`/g, '').trim();
   const uc = slugOf(useCaseId);
   if (!catalog || !uc) return '';
-  return `${catalog}.${useCaseSchemaName(businessName, useCaseId, sessionId, { wholeSid })}.${uc}_results`;
+  const schema = useCaseSchemaName(businessName, useCaseId, sessionId, { clash });
+  return `${catalog}.${schema}.${uc}_results${ofSession ? `_s${String(sessionId).trim()}` : ''}`;
 }
 
 export function nameOrEmpty(make) {
@@ -1014,8 +1024,17 @@ export function resultPlaceOf(table, ownTable, inspireTable) {
   return 'pick';
 }
 
-export function useCaseSchemaTags({ sessionId, useCaseId, businessName }) {
-  return { inspire_session_id: String(sessionId ?? '').trim(), inspire_use_case_id: String(useCaseId ?? '').trim(), inspire_business: String(businessName ?? '').trim() };
+export function inspireDatabaseKey(inspireDatabase) {
+  return String(inspireDatabase ?? '').replace(/`/g, '').trim().toLowerCase();
+}
+
+export function useCaseSchemaTags({ sessionId, useCaseId, businessName, inspireDatabase }) {
+  return {
+    inspire_session_id: String(sessionId ?? '').trim(),
+    inspire_use_case_id: String(useCaseId ?? '').trim(),
+    inspire_business: String(businessName ?? '').trim(),
+    inspire_database: inspireDatabaseKey(inspireDatabase),
+  };
 }
 
 export function ownSchemaFallbackNote(catalog, me = '') {
@@ -1024,8 +1043,28 @@ export function ownSchemaFallbackNote(catalog, me = '') {
     + `ask the owner of ${catalog} to run GRANT CREATE SCHEMA ON CATALOG \`${catalog}\` TO ${who}, then pick Its own schema again.`;
 }
 
-export function ownSchemaClashNote(schema, otherSession) {
-  return `${schema} already holds the tables of session ${otherSession}, so this use case's own schema carries the full session id instead.`;
+export function ownSchemaHolderText(holder = {}, { useCaseId = '', inspireDatabase = '' } = {}) {
+  const uc = String(holder.useCase || '').trim();
+  const db = String(holder.database || '').trim();
+  const sid = String(holder.session || '').trim();
+  if (uc && uc.toLowerCase() !== String(useCaseId).trim().toLowerCase()) return `it holds use case ${uc}`;
+  if (db && db !== inspireDatabaseKey(inspireDatabase)) return `it belongs to the Inspire database ${db}`;
+  if (sid && !db) return `it holds session ${sid}`;
+  return 'Inspire did not create it for this use case';
+}
+
+export function ownSchemaClashNote(schema, holder, chosen = '', who = {}) {
+  const taken = `${schema} already exists and is not this use case's schema (${ownSchemaHolderText(holder, who)})`;
+  return chosen ? `${taken}, so this use case's own schema is ${chosen}.` : `${taken}.`;
+}
+
+export function ownSchemaReuseNote(schema, otherSession, table) {
+  return `${schema} is this use case's schema from session ${otherSession} of this Inspire database, so Inspire uses it again; `
+    + `this session's results go to ${table} so session ${otherSession} keeps its rows.`;
+}
+
+export function ownSchemaAllTakenNote(first, last) {
+  return `${first} through ${last} already exist and none is this use case's schema, so this use case's tables go to the Inspire database schema.`;
 }
 
 export function defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessionId, owner, businessName } = {}) {
@@ -1067,8 +1106,8 @@ export function defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessi
       },
     },
     schedule: {
-      enabled: false,
-      cron: '0 0 6 ? * MON',
+      enabled: true,
+      cron: FRESHNESS_OPTIONS.find((o) => o.id === FRESH_DEFAULT).cron,
       timezone: Intl.DateTimeFormat().resolvedOptions().timeZone || 'UTC',
       failure_emails: ownerEmails(decisionOwner),
     },
@@ -1670,6 +1709,7 @@ export function sectionErrors(section, spec, extras = {}) {
   if (section === 'use_it') {
     if (!IMPLEMENT_OUTPUTS.some((o) => spec.outputs[o.id])) errors.push('pick at least one way to use it');
     if (spec.outputs.app && !spec.outputs.genie_space) errors.push(GENIE_FOR_APP_NOTE);
+    errors.push(...blockedOutputProblems(spec, extras.outputBlocks || {}));
     errors.push(...mergePickProblems(spec, extras, MERGE_OUTPUTS.filter((name) => name !== 'app')));
   }
   if (section === 'app_place' && spec.outputs.app) {
@@ -1689,7 +1729,6 @@ export function sectionErrors(section, spec, extras = {}) {
     errors.push(...scopeProblems(scopeValues((name) => spec.config?.widgets?.[name]), section));
   }
   if (section === 'holdout') errors.push(...holdoutProblems(spec));
-  if (section === 'capacity') errors.push(...capacityProblems(spec));
   if (section === 'app_owners' && spec.outputs.app && !joinsApp(spec)) errors.push(...appOwnerProblems(spec.outputs.app_owners));
   if (section === 'alert' && spec.outputs.alert) {
     const recipients = spec.outputs.alert_recipients || [];
@@ -1756,12 +1795,73 @@ export function withResultTable(spec, { catalog, schema, table }) {
   return { ...spec, config: { ...spec.config, result_table: name.some(Boolean) ? name.join('.') : '' } };
 }
 
-export function unavailableOutputs(features, outputCheck, assets = {}) {
-  return [
-    (!features.apps || (!assets?.app && outputCheck?.app?.ok === false)) && 'app',
-    !features.genie_spaces && 'genie_space',
-    !features.alerts && 'alert',
-  ].filter(Boolean);
+export const OFF_IN_WORKSPACE = { app: 'Apps are turned off in this workspace.', genie_space: 'Genie Agents are turned off in this workspace.',
+  alert: 'Alerts are turned off in this workspace.' };
+export const OFF_DETAILS = 'A workspace admin turns this feature on in the workspace settings.';
+const ACCESS_PLACES = [['the catalog', /\bon catalog\b/i], ['the schema', /\bon schema\b/i], ['the table', /\bon table\b/i], ['the SQL warehouse', /\bwarehouse\b/i]];
+
+export function needsAccess(detail = '') {
+  const places = ACCESS_PLACES.filter(([, re]) => re.test(String(detail || ''))).map(([place]) => place);
+  return `Needs access Inspire does not have ${places.length ? `on ${joinWords(places)}` : 'yet'}.`;
+}
+
+export const CANNOT_HERE = 'Inspire cannot create this here.';
+
+export const NONE_WORKS = 'None of these can work here';
+
+export function affordable(order, blocks = {}, reasonOf = () => '', labelOf = (id) => id) {
+  const held = blocks || {};
+  const open = (order || []).filter((id) => !held[id]);
+  const none = open.length || !(order || []).length ? ''
+    : `${NONE_WORKS}: ${order.map((id) => `${labelOf(id)}, ${String(held[id].why).replace(/\.$/, '').toLowerCase()}`).join('; ')}.`;
+  return { open, blocks: held, best: open.length ? { id: open[0], reason: reasonOf(open[0]) } : null, none };
+}
+
+export function blockWhy(detail) {
+  return /\b(grant|privilege|permission|access|use schema|use catalog|create table|manage)\b/i.test(String(detail || '')) ? needsAccess(detail) : CANNOT_HERE;
+}
+
+export function blockOf(why, details = '') {
+  return why ? { why: String(why), details: String(details || '').trim() } : null;
+}
+
+function checkBlock(check) {
+  if (!check || check.ok !== false) return null;
+  const grants = (check.offer?.grants || check.grants || []).map((g) => (typeof g === 'string' ? g : g?.sql || '')).filter(Boolean);
+  return blockOf(blockWhy(`${check.detail || ''} ${grants.join(' ')}`), [check.detail, ...grants].filter(Boolean).join('\n'));
+}
+
+export function outputBlocks(features, outputCheck, assets = {}, preflight = null) {
+  const on = features || {};
+  const app = !on.apps ? blockOf(OFF_IN_WORKSPACE.app, OFF_DETAILS)
+    : !assets?.app && (checkBlock(outputCheck?.app) || checkBlock(preflight?.checks?.app_access) || checkBlock(preflight?.new_app));
+  return Object.fromEntries([
+    ['app', app],
+    ['genie_space', !on.genie_spaces && blockOf(OFF_IN_WORKSPACE.genie_space, OFF_DETAILS)],
+    ['alert', !on.alerts && blockOf(OFF_IN_WORKSPACE.alert, OFF_DETAILS)],
+  ].filter(([, block]) => block));
+}
+
+export const OUTPUT_CHECKS = { app: ['app_access', 'apps', 'app_name', 'app_warehouse'], genie_space: ['genie_spaces'], alert: ['alerts'] };
+
+export function checksFor(checks, outputs = {}) {
+  const off = Object.entries(OUTPUT_CHECKS).filter(([id]) => !outputs?.[id]).flatMap(([, keys]) => keys);
+  return Object.entries(checks || {}).filter(([key]) => !off.includes(key));
+}
+
+export function unavailableOutputs(features, outputCheck, assets = {}, preflight = null) {
+  return Object.keys(outputBlocks(features, outputCheck, assets, preflight));
+}
+
+export function droppedOutputs(before, after, blocks = {}) {
+  return IMPLEMENT_OUTPUTS.filter((o) => before?.outputs?.[o.id] && !after?.outputs?.[o.id] && blocks[o.id])
+    .map((o) => ({ id: o.id, label: o.label, why: blocks[o.id].why }));
+}
+
+export function blockedOutputProblems(spec, blocks = {}) {
+  const { none } = affordable(IMPLEMENT_OUTPUTS.map((o) => o.id), blocks, () => '', (id) => IMPLEMENT_OUTPUTS.find((o) => o.id === id).label);
+  return [...(none ? [none] : []), ...IMPLEMENT_OUTPUTS.filter((o) => spec?.outputs?.[o.id] && blocks[o.id])
+    .map((o) => `${o.label} cannot be built: ${blocks[o.id].why} Turn it off on ${DELIVERY_LABEL}, or ask an admin to run the grant under Details`)];
 }
 
 export function withoutUnavailableOutputs(spec, unavailable, assets = {}) {
@@ -2112,97 +2212,9 @@ export function holdoutText(spec) {
   return enabled && holdoutPercentOk(share) ? `Holds back ${holdoutPercent(share)}% of the records to measure impact` : '';
 }
 
-export const CAPACITY_PER_WORKING_DAY = 10;
-export const CAPACITY_WORKING_DAYS_A_MONTH = 22;
-export const CAPACITY_MAX = 1000000;
-export const CAPACITY_LABEL = 'Rows the team can act on each run';
-export const CAPACITY_BLURB = 'Act now keeps this many rows, the top ones by rank; the next ones that also pass wait in Review, and the App '
-  + 'and the dashboard say how many. Leave it empty for no cap.';
-export const CAPACITY_PROBLEM = `the team capacity must be a whole number of rows from 1 to ${CAPACITY_MAX.toLocaleString('en-US')}, `
-  + 'or empty for no cap';
-const CAPACITY_WHOLE_RE = /^\d+$/;
-
-export function capacityOf(spec) {
-  const capacity = spec?.capacity;
-  if (!capacity || typeof capacity !== 'object' || Array.isArray(capacity)) return { act_now: null, source: 'default' };
-  return { act_now: capacity.act_now ?? null, source: capacity.source === 'user' ? 'user' : 'default' };
-}
-
-function capacityOk(value) {
-  return value === null || (Number.isInteger(value) && value >= 1 && value <= CAPACITY_MAX);
-}
-
-function rowsToRank({ latest, evidence, table } = {}) {
-  const ran = Number(latest?.result_rows);
-  if (Number.isFinite(ran) && ran > 0) return { rows: ran, said: `The last run wrote ${ran.toLocaleString('en-US')} rows` };
-  const entry = Object.entries(evidence?.tables || {}).find(([name]) => sameTable(name, table));
-  const counted = Number(entry?.[1]?.rows);
-  return Number.isFinite(counted) && counted > 0 ? { rows: counted, said: `${table} has ${counted.toLocaleString('en-US')} rows to rank` } : null;
-}
-
-export function capacitySuggestion(spec, inputs = {}) {
-  const runs = cronRunsPerMonth(spec?.schedule?.cron);
-  const days = runs ? Math.min(CAPACITY_WORKING_DAYS_A_MONTH, Math.max(1, Math.round(CAPACITY_WORKING_DAYS_A_MONTH / runs))) : null;
-  const ranked = rowsToRank(inputs);
-  if (!days || !ranked) {
-    return { act_now: null, basis: 'No cap: Inspire has no row count for this use case yet, so it cannot tell whether Act now will hold more rows '
-      + 'than the team can work. Set a number if your team can act on only so many rows each run.' };
-  }
-  const fits = CAPACITY_PER_WORKING_DAY * days;
-  if (ranked.rows <= fits) {
-    return { act_now: null, basis: `No cap: ${ranked.said}, no more than the ${fits.toLocaleString('en-US')} the team can usually work between runs, `
-      + 'so every Act now row fits. Set a number if your team can act on fewer.' };
-  }
-  return { act_now: fits, basis: `Inspire suggests ${fits.toLocaleString('en-US')}: about ${CAPACITY_PER_WORKING_DAY} rows a working day for the `
-    + `decision owner, over the ${days} working ${days === 1 ? 'day' : 'days'} between runs. ${ranked.said}, so without a cap Act now could list `
-    + 'far more than the team can work.' };
-}
-
-export function withCapacityDefault(spec, inputs = {}) {
-  const now = capacityOf(spec);
-  if (spec?.capacity && now.source === 'user') return spec;
-  if (inputs.editing && !spec?.capacity) return { ...spec, capacity: { act_now: null, source: 'default' } };
-  if (inputs.editing) return spec;
-  return { ...spec, capacity: { act_now: capacitySuggestion(spec, inputs).act_now, source: 'default' } };
-}
-
-export function withSuggestedCapacity(spec, inputs = {}) {
-  return { ...spec, capacity: { act_now: capacitySuggestion(spec, inputs).act_now, source: 'default' } };
-}
-
-export function withCapacity(spec, text) {
-  const typed = String(text ?? '').trim();
-  const act = typed === '' ? null : (CAPACITY_WHOLE_RE.test(typed) ? Number(typed) : typed);
-  return { ...spec, capacity: { act_now: act, source: 'user' } };
-}
-
-export function capacityInput(spec) {
-  const { act_now: act } = capacityOf(spec);
-  return act === null ? '' : String(act);
-}
-
-export function capacityDiffers(spec, suggestion) {
-  return (suggestion?.act_now ?? null) !== capacityOf(spec).act_now;
-}
-
-export function capacityNote(spec, suggestion) {
-  if (capacityOf(spec).source === 'user') return 'Your number wins over Inspire\u2019s suggestion. ';
-  return capacityDiffers(spec, suggestion) ? 'This MVP keeps the cap it was built with until you change it. ' : '';
-}
-
-export function capacityProblems(spec) {
-  return spec?.capacity == null || capacityOk(capacityOf(spec).act_now) ? [] : [CAPACITY_PROBLEM];
-}
-
-export function capacitySummaryText(spec) {
-  const { act_now: act } = capacityOf(spec);
-  if (act === null) return 'Act now is not capped: every row that passes the decision test is Act now.';
-  return `Act now holds at most ${Number(act).toLocaleString('en-US')} rows a run; the next ones by rank wait in Review, and the App says how many.`;
-}
-
 export const DIGEST_LABEL = 'Send a weekly value email to the alert recipients';
-export const DIGEST_BLURB = 'Every Monday: what people acted on and what is at stake on it in the target KPI\u2019s unit, the outcomes the holdout and the recorded '
-  + 'decisions measured, and whether the latest run gives a list to act on, or why not (Not reliable yet, or Nothing to act on yet).';
+export const DIGEST_BLURB = 'Every Monday: what people acted on, how much of the target KPI is at stake, what changed against the records kept aside, '
+  + 'and whether the latest run gives a list to act on, or why not (Not reliable yet, or Nothing to act on yet).';
 export const DIGEST_NOBODY = 'Add an alert recipient or destination to send it.';
 
 export function alertReaches(outputs) {
@@ -2351,9 +2363,10 @@ export function freshnessOf(schedule) {
 
 const SUMMARY_TEXT_MAX = 160;
 
-function capacityText(act) {
-  if (act === null) return 'No cap';
-  return Number.isFinite(Number(act)) ? `${Number(act).toLocaleString('en-US')} rows a run` : String(act);
+export const FRESH_LABEL = 'Keep it fresh';
+
+export function buildsText(built) {
+  return `The MVP: ${joinWords([...(built || []).filter(Boolean), 'the result table', 'the notebook that fills it'])}`;
 }
 
 export function pickedSummary(spec, sourceTables = [], more = {}) {
@@ -2369,7 +2382,8 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
   const row = (id, step, label, value) => ({ id, step, label, value: String(value ?? '') });
   const vibes = String(spec?.vibes ?? '').trim();
   return [
-    row('outputs', 'delivery', 'What it builds', ['Notebook', ...built].join(', ')),
+    row('outputs', 'delivery', 'What it builds', buildsText(built)),
+    ...((more.dropped || []).length ? [row('dropped', 'delivery', 'Not built', more.dropped.map((d) => `${d.label}: ${d.why}`).join('; '))] : []),
     ...(outputs.alert ? [row('alert', 'delivery', 'Alert', (outputs.alert_recipients || []).length
       ? `Emails ${outputs.alert_recipients.join(', ')} when ${alertTriggerText(outputs)}` : 'Nobody gets it yet')] : []),
     row('data', 'data', 'Data it reads', sourceTables.join(', ') || 'none'),
@@ -2377,9 +2391,10 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
     ...(more.grouping ? [row('grouping', 'grouping', 'Data groups', more.grouping)] : []),
     ...(more.firstRun ? [row('first_run', 'first_run', FIRST_RUN_LABEL, more.firstRun)] : []),
     row('result', 'results', 'Result table', String(spec?.config?.result_table || '') || 'not named yet'),
-    row('kpi', 'results', 'Target KPI', kpiTargetOf(spec) || 'Inspire picks'),
-    row('holdout', 'results', HOLDOUT_LABEL, holdout.enabled ? `On, ${holdoutPercentText(spec) || '?'}% held out` : 'Off'),
-    row('schedule', 'results', 'Refresh', freshness === 'custom' ? String(spec?.schedule?.cron || '') : FRESHNESS_OPTIONS.find((o) => o.id === freshness).label),
+    row('kpi', 'measure', 'Target KPI', kpiTargetOf(spec) || 'Inspire picks'),
+    row('holdout', 'measure', HOLDOUT_LABEL, holdout.enabled ? `On, ${holdoutPercentText(spec) || '?'}% kept aside` : 'Off'),
+    row('schedule', 'fresh', FRESH_LABEL, freshness === 'off' ? 'Off, it runs once'
+      : `${freshness === 'custom' ? 'Custom' : FRESHNESS_OPTIONS.find((o) => o.id === freshness).label}, runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`),
     ...(principals.length ? [row('sharing', 'delivery', 'Shared with', principals.join(', '))] : []),
     ...(app ? [row('app', 'app_place', 'App', joined ? `Joins ${outputs.merge.app}`
       : [placement?.label, outputs.app_name].filter(Boolean).join(': ') || 'not placed yet')] : []),
@@ -2387,7 +2402,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
       row('app_access', 'app_access', 'App access', APP_ACCESS_CHOICES.find((c) => c.id === outputs.app_access)?.label || 'not picked yet'),
       row('app_look', 'app_look', 'App look', lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
     ] : []),
-    row('capacity', 'settings', 'Team capacity', capacityText(capacityOf(spec).act_now)),
+    row('capacity', SUMMARY_STEP.id, 'Team capacity', CAPACITY_IN_APP),
     ...(more.settings ? [row('settings', 'settings', 'Settings', more.settings)] : []),
     row('vibes', 'vibes', 'Vibes', vibes.length > SUMMARY_TEXT_MAX ? `${vibes.slice(0, SUMMARY_TEXT_MAX)}\u2026` : vibes || 'none'),
   ];
@@ -2582,6 +2597,7 @@ export function initialStepIndex(focus, mode = 'mvp', spec = null, scope = NO_SC
 }
 
 export function initialStepId(focus, mode = 'mvp', spec = null, scope = NO_SCOPE_STEPS) {
+  if (mode === 'mvp' && focus?.step === SETTINGS_STEP.id) return SETTINGS_STEP.id;
   return wizardSteps(mode, spec, scope)[initialStepIndex(focus, mode, spec, scope)].id;
 }
 

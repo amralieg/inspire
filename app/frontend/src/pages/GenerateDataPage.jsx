@@ -12,7 +12,8 @@ import {
 import { responseError } from '../lib/apiClient';
 import { plural } from '../lib/plural';
 import { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, demoSchemaError, demoTablesTotal } from '../lib/demoData';
-import { DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_TYPE_VALID } from '../lib/discoveryType';
+import { DISCOVERY_BADGE, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_TYPE_VALID } from '../lib/discoveryType';
+import TechnicalDetails from '../components/TechnicalDetails';
 
 function demoTablesLine(tables) {
   if (!tables) return 'Write the demo Delta tables with UC table and column comments';
@@ -144,11 +145,12 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
             required
           />
           <p className="text-[11px] text-text-tertiary mt-1.5">
-            Your prompt becomes the code for {plural(DEMO_GENERATED_TABLES, 'table')} and their column descriptions, which then run on Spark; Inspire
-            adds {plural(DEMO_KIND_SIGNAL_TABLES, 'table')} that carry the data of every use-case kind. Tables land in{' '}
-            <code className="font-mono">{inspireDatabase?.split('.')[0] || 'catalog'}.{demoSchema.trim() || 'inspire_demo_*'}</code>;
-            tracking in <code className="font-mono">{inspireDatabase || 'catalog._inspire'}</code>.
+            Inspire makes {plural(DEMO_GENERATED_TABLES, 'table')} from your description and adds {plural(DEMO_KIND_SIGNAL_TABLES, 'table')} that every kind of use case needs.
           </p>
+          <TechnicalDetails className="mt-1" items={[
+            `Tables: ${inspireDatabase?.split('.')[0] || 'catalog'}.${demoSchema.trim() || 'inspire_demo_*'}`,
+            `Run tracking: ${inspireDatabase || 'catalog._inspire'}`,
+          ]} />
         </div>
 
         <div>
@@ -178,7 +180,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
                 <span className="flex items-center gap-2 text-xs font-semibold text-text-primary">
                   <input type="radio" name="demo-discovery" value={mode} checked={discoveryType === mode} onChange={() => setDiscoveryType(mode)} />
                   {mode}
-                  {mode === DISCOVERY_RECOMMENDED && <span className="text-[10px] font-normal text-text-tertiary">(recommended)</span>}
+                  {mode === DISCOVERY_RECOMMENDED && <span data-discovery-badge={mode} className="ms-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">{DISCOVERY_BADGE}</span>}
                 </span>
                 <span className="block text-[10px] text-text-tertiary leading-snug mt-1">{DISCOVERY_MODE_TEXT[mode]}</span>
               </label>
@@ -186,12 +188,6 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
           </div>
         </fieldset>
 
-        <div className="flex flex-wrap gap-2 text-[11px] text-text-tertiary">
-          <span className="inline-flex items-center gap-1 px-2 py-1 rounded-md bg-bg-subtle border border-border">
-            <Database size={12} />
-            {inspireDatabase || 'Inspire DB not set'}
-          </span>
-        </div>
 
         {error && (
           <div className="p-3 rounded-lg border border-error/30 bg-error-bg text-sm text-error-fg flex gap-2">
@@ -204,15 +200,15 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
           <div className="p-3 rounded-lg border border-success/30 bg-success-bg text-sm text-success-fg">
             <div className="flex items-center gap-2 font-medium mb-1">
               <CheckCircle2 size={16} />
-              Pipeline started
+              Inspire started
             </div>
             <ol className="text-xs list-decimal list-inside space-y-0.5 mt-1">
               <li>{demoTablesLine(lastResult.pipeline?.demo_tables)}</li>
               <li>
-                Run Inspire discovery →{' '}
-                {lastResult.pipeline?.discovery_type || discoveryType} with {lastResult.pipeline?.inspire_agent_notebook || '/Shared/inspire-ai/dbx_inspire_ai_agent'}
+                Inspire finds use cases in them with {lastResult.pipeline?.discovery_type || discoveryType}
               </li>
             </ol>
+            <TechnicalDetails className="mt-2" items={`Notebook: ${lastResult.pipeline?.inspire_agent_notebook || '/Shared/inspire-ai/dbx_inspire_ai_agent'}`} />
             {(lastResult.warnings || []).map((w) => <p key={w} className="text-xs mt-1">{w}</p>)}
             {lastResult.job_run_url && (
               <a

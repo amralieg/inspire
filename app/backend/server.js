@@ -2130,6 +2130,17 @@ app.post('/api/output-folder/check', requireToken, async (req, res) => {
 
 app.param('runId', (req, res, next, runId) => (isInt64Id(runId) ? next() : next('route')));
 
+async function taskErrorOf(req, taskRunId) {
+  try {
+    const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get-output?run_id=${encodeURIComponent(taskRunId)}`);
+    if (!response.ok) return '';
+    const data = await response.json();
+    return String(data.error || '').replace(/^[A-Za-z_.]*(Error|Exception):\s*/, '').trim().slice(0, 1200);
+  } catch (_) {
+    return '';
+  }
+}
+
 app.get('/api/run/:runId', requireToken, async (req, res) => {
   try {
     const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${req.params.runId}`);
@@ -2139,14 +2150,15 @@ app.get('/api/run/:runId', requireToken, async (req, res) => {
     }
     const data = parseExactJson(await response.text());
     const state = data.state || {};
-    const tasks = (data.tasks || []).map((t) => ({
+    const tasks = await Promise.all((data.tasks || []).map(async (t) => ({
       task_key: t.task_key,
       life_cycle_state: t.state?.life_cycle_state || 'UNKNOWN',
       result_state: t.state?.result_state || null,
       state_message: t.state?.state_message || '',
       notebook_path: t.notebook_task?.notebook_path || null,
       run_id: t.run_id || null,
-    }));
+      ...(t.state?.result_state === 'FAILED' && t.run_id ? { error: await taskErrorOf(req, t.run_id) } : {}),
+    })));
     res.json({
       run_id: data.run_id,
       life_cycle_state: state.life_cycle_state || 'UNKNOWN',
@@ -2302,7 +2314,7 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
   } catch (err) {
     // Table might not exist yet — return null session
     if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
-      return res.json({ session: null, message: 'Session table not yet created. Notebook is initializing...' });
+      return res.json({ session: null, message: 'Inspire is getting ready...' });
     }
     res.status(500).json({ error: err.message });
   }

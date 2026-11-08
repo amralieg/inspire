@@ -171,7 +171,7 @@ test('the home page walks through the five tabs as they work now and keeps none 
   }
 });
 
-test('the home page shows no discovery type choice: Standard and AI Enhanced Discovery are picked in Get Started only (must-exclude)', async () => {
+test('the home page shows no discovery type choice: the modes are picked in Get Started only, and Home names only the recommended one (must-exclude)', async () => {
   const ui = await openUi('landing');
   const { page } = ui;
   try {
@@ -179,7 +179,13 @@ test('the home page shows no discovery type choice: Standard and AI Enhanced Dis
     assert.equal(await page.locator('[data-landing-discovery], [data-landing-discovery-mode]').count(), 0);
     assert.equal(await page.getByRole('list', { name: 'Discovery modes' }).count(), 0);
     const body = await page.locator('body').innerText();
-    for (const mode of ['Standard Discovery', 'AI Enhanced Discovery']) assert.doesNotMatch(body, new RegExp(mode), `${mode} is not on Home`);
+    assert.doesNotMatch(body, /Standard Discovery/, 'Standard Discovery is not on Home');
+    const outside = await page.evaluate(() => {
+      const copy = document.body.cloneNode(true);
+      copy.querySelectorAll('[data-discovery-promise]').forEach((n) => n.remove());
+      return copy.textContent;
+    });
+    assert.doesNotMatch(outside, /AI Enhanced Discovery/, 'Home names AI Enhanced Discovery only in the shared recommendation');
     for (const text of Object.values(DISCOVERY_MODE_TEXT)) assert.equal(body.includes(text), false, 'no mode description on Home');
     assert.deepEqual(ui.pageErrors, []);
   } finally {

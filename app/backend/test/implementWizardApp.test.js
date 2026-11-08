@@ -107,8 +107,8 @@ test('ticking the App ticks the Genie Agent and locks it, and the lock refuses a
   assert.deepEqual([off.outputs.app, off.outputs.genie_space], [false, true], 'unticking the App leaves the Genie Agent as it is');
   assert.equal(w.withOutput(off, 'genie_space', false).outputs.genie_space, false);
   assert.deepEqual(w.withOutput(spec, 'alert', true).outputs.alert_recipients, w.defaultAlertRecipients(spec));
-  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['delivery', 'data', 'results', 'app_place', 'app_access', 'app_look', 'settings', 'vibes', 'summary']);
-  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['delivery', 'data', 'results', 'settings', 'vibes', 'summary'], 'with Apps unticked no App step shows');
+  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['delivery', 'data', 'results', 'measure', 'fresh', 'app_place', 'app_access', 'app_look', 'vibes', 'summary']);
+  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['delivery', 'data', 'results', 'measure', 'fresh', 'vibes', 'summary'], 'with Apps unticked no App step shows');
   assert.deepEqual(w.stepErrors('delivery', { ...ticked, outputs: { ...ticked.outputs, genie_space: false } }), [w.GENIE_FOR_APP_NOTE]);
 });
 
@@ -147,8 +147,8 @@ test('a use case that joins an existing App skips App access and App look, shows
   const joined = w.withMergeTarget(spec, 'app', hub, 'predict-churn');
   const fresh = w.withMergeTarget(joined, 'app', null, 'predict-churn');
   assert.deepEqual([w.joinsApp(joined), w.joinsApp(fresh), w.joinsApp({ ...joined, outputs: { ...joined.outputs, app: false } }), w.joinsApp(null)], [true, false, false, false]);
-  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), ['delivery', 'data', 'results', 'app_place', 'settings', 'vibes', 'summary'], 'the existing App keeps its sign-in, data source and look');
-  assert.deepEqual(w.wizardSteps('mvp', fresh).map((s) => s.id), ['delivery', 'data', 'results', 'app_place', 'app_access', 'app_look', 'settings', 'vibes', 'summary']);
+  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), ['delivery', 'data', 'results', 'measure', 'fresh', 'app_place', 'vibes', 'summary'], 'the existing App keeps its sign-in, data source and look');
+  assert.deepEqual(w.wizardSteps('mvp', fresh).map((s) => s.id), ['delivery', 'data', 'results', 'measure', 'fresh', 'app_place', 'app_access', 'app_look', 'vibes', 'summary']);
   assert.throws(() => w.stepErrors('app_access', joined, { mergeTargets: targets }), /unknown wizard step 'app_access'/);
   assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'no hidden App owner blocks Next');
   assert.deepEqual(w.advancedErrors('delivery', joined, { mergeTargets: targets }), []);
@@ -221,21 +221,20 @@ test('an Edit of a version saved before result tables carried the session keeps 
   const fallback = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', sessionId: '42' });
   const older = { spec_version: 3, spec_json: { ...fallback, config: { ...fallback.config, result_table: 'main.inspire.n01_u01_out' } } };
   const edited = w.specFromLatest(older, fallback);
-  assert.equal(fallback.config.result_table, 'main._inspire_n01_u01_42.n01_u01_results');
+  assert.equal(fallback.config.result_table, 'main._inspire_n01_u01.n01_u01_results');
   assert.equal(edited.config.result_table, 'main.inspire.n01_u01_out');
   assert.deepEqual(w.stepErrors('results', edited), []);
   const fresh = w.specFromLatest(null, fallback);
-  assert.equal(fresh.config.result_table, 'main._inspire_n01_u01_42.n01_u01_results');
+  assert.equal(fresh.config.result_table, 'main._inspire_n01_u01.n01_u01_results');
 });
 
 test('the result table is picked as catalog, schema and name, defaults to its own schema and refuses a partial name', async () => {
   const w = await load();
   const spec = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', sessionId: '1111111111111111111' });
-  assert.equal(spec.config.result_table, 'main._inspire_n01_u01_11111.n01_u01_results');
-  assert.deepEqual(w.resultTableParts(spec.config.result_table), { catalog: 'main', schema: '_inspire_n01_u01_11111', table: 'n01_u01_results' });
+  assert.equal(spec.config.result_table, 'main._inspire_n01_u01.n01_u01_results');
+  assert.deepEqual(w.resultTableParts(spec.config.result_table), { catalog: 'main', schema: '_inspire_n01_u01', table: 'n01_u01_results' });
   const other = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', sessionId: 2222222222222222222n });
-  assert.equal(other.config.result_table, 'main._inspire_n01_u01_22222.n01_u01_results');
-  assert.notEqual(other.config.result_table, spec.config.result_table, 'the same use case id in two Discover sessions never shares a result table');
+  assert.equal(other.config.result_table, spec.config.result_table, 'the schema name carries no session digits; the context check keeps two sessions apart');
   for (const sessionId of [undefined, '', 'abc', '12 3', null]) {
     assert.equal(w.defaultSpecFromUseCase(UC, { inspireDatabase: 'main.inspire', sessionId }).config.result_table, '',
       `no default without a session id (${String(sessionId)})`);

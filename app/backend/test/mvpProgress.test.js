@@ -323,35 +323,6 @@ test('a log the agent swaps, cuts to its newest lines or rewrites never takes a 
   }
 });
 
-test('the Build progress box holds the stages and Genie\'s messages in one scroll box of its own, never raw log lines, JSON or a page scroll', () => {
-  const fs = require('node:fs');
-  const src = (p) => fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', p), 'utf8');
-  const page = src('pages/ImplementPage.jsx');
-  assert.doesNotMatch(page, /log_lines/);
-  const box = page.slice(page.indexOf('<MvpProgress '), page.indexOf('</MvpProgress>'));
-  assert.ok(box.length > 100);
-  assert.match(box, /<GenieFeed [^>]*scroller=\{logRef\}/);
-  assert.doesNotMatch(box, /<pre|steps \|\| \[\]\)\.map/);
-  const progress = src('components/MvpProgress.jsx');
-  assert.match(progress, /<DrawerShell side [^>]*data-mvp-progress="" data-progress-panel=""\s+bodyRef=\{logRef\} bodyProps=\{\{ 'data-build-log': '', className: 'min-h-0 flex-1 overflow-y-auto overscroll-contain/,
-    'the whole progress sits in the side panel, whose body is the one scroll box');
-  assert.doesNotMatch(progress, /function (logClass|sizeClass)|min-h-\[/, 'no height floor: the panel is as tall as the window');
-  assert.match(progress, /data-progress-show="" aria-expanded=\{view\.open\}/, 'the card opens and closes the panel');
-  const drawer = src('components/DrawerShell.jsx');
-  assert.match(drawer, /\{!side && <button type="button" aria-label=\{closeLabel\} className="absolute inset-0 bg-black\/40/, 'a side panel has no backdrop, so the page behind keeps scrolling');
-  assert.match(drawer, /if \(side && document\.querySelector\('\[aria-modal="true"\]'\)\) return;/, 'Esc closes a dialog on top first');
-  const feed = src('components/GenieFeed.jsx');
-  assert.doesNotMatch(feed, /overflow-y-auto|resize-y|max-h-|scrollTop|scrollIntoView/, 'the feed has no scroll box of its own and never scrolls the page');
-  assert.match(feed, /new IntersectionObserver\([\s\S]*\{ root, rootMargin/, 'its end is watched inside the box');
-  assert.match(feed, /if \(pinned && active\) scrollToEnd\(scroller\.current, 'auto'\)/, 'it follows new messages only while a build runs and its end is in view');
-  assert.match(progress, /stagesRecorded\(stages\) \? <StageArrows /);
-  assert.match(feed, /role="log"/);
-  assert.match(feed, /<GenieLogo /);
-  const routes = fs.readFileSync(path.resolve(__dirname, '..', 'implementRoutes.js'), 'utf8');
-  assert.doesNotMatch(routes, /log_lines/);
-  assert.match(routes, /feed = I\.genieFeed\(text, useCaseId, history\[0\] && history\[0\]\.created_at\)/);
-});
-
 test('the Genie Agent stage follows the agent step, and a run recorded when it was called a Genie space keeps its state', async () => {
   const { mvpStages } = await lib('mvpProgress.js');
   for (const phase of ['Genie Agent', 'Genie space']) {

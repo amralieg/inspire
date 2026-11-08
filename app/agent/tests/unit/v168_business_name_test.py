@@ -11,7 +11,7 @@ import pytest
 
 from v120_artifacts_support import FakeSpark
 from v120_artifacts_session_test import _atomic_writer, _session_writes
-from v120_modes_main_test import NotebookExit, run_main
+from v120_modes_main_test import run_main
 
 import _agentload
 
@@ -24,7 +24,7 @@ def test_a_padded_business_name_reaches_the_run_trimmed(agent_ns, monkeypatch, g
 
 @pytest.mark.parametrize("given", ["", "   ", "\t\n"])
 def test_a_blank_business_name_never_starts_a_run(agent_ns, monkeypatch, given):
-    with pytest.raises(NotebookExit) as exc:
+    with pytest.raises(ValueError) as exc:
         run_main(agent_ns, monkeypatch, True, **{"00_business_name": given})
     assert "Business Name is required" in str(exc.value) and "00_business_name" not in str(exc.value)
 

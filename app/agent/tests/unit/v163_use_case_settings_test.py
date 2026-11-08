@@ -36,7 +36,7 @@ def _model(agent_ns, family, **kwargs):
 def test_each_family_flags_records_with_its_own_settings(agent_ns, family):
     model = _model(agent_ns, family)
     flagging = [s["name"] for s in model if s["group"] == "flagging"]
-    assert sorted(flagging) == sorted(FLAGGING[family]), family
+    assert sorted(flagging) == sorted(FLAGGING[family] + ["act_now_capacity"]), family
     names = {s["name"] for s in model}
     assert not names & set(agent_ns["INSPIRE_NOT_SETTINGS"]), "the output table, model, endpoint, as-of date and currency are not settings"
     assert [s["group"] for s in model] == sorted((s["group"] for s in model), key=agent_ns["INSPIRE_SETTING_GROUPS"].index)
@@ -337,7 +337,8 @@ def test_a_notebook_built_before_settings_offers_only_its_assumptions(agent_ns):
     summary = {"value_assumptions": json.dumps(ASSUMPTIONS), "currency": "USD"}
     inst, spec_nb, _known = _builder(agent_ns, summary)
     old = inst._implement_settings(TABLE, "N01-U01", {"outputs": {}}, spec_nb, {"genie_instruction": "## 1. Goal\nOld.\n"})
-    assert {s["source"] for s in old} == {"assumption"}, "the App offers no widget an older notebook would ignore"
+    assert {s["source"] for s in old if s["name"] != "act_now_capacity"} == {"assumption"}, \
+        "the App offers no widget an older notebook would ignore; team capacity is applied by the Run controls the build writes"
     built = inst._apply_genie_instruction_contract("N01-U01", "## 1. Goal\nGoal.\n\n## 4. Readiness Check\nChecks.\n", spec_nb)
     new = inst._implement_settings(TABLE, "N01-U01", {"outputs": {}}, spec_nb, {"genie_instruction": built})
     assert {"act_now_share", "min_probability"} <= {s["name"] for s in new if s["source"] == "widget"}

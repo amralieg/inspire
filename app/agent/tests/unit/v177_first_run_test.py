@@ -1,5 +1,5 @@
 """First run (decisions 5B and 6A): a use case whose main table holds more than 1,000 records runs first on a scope, chosen with
-run settings that need no rebuild, one read helper in the Run controls cell narrows every source read to that scope, the build
+run settings that need no rebuild, one read helper in the Run controls cell narrows the main table's read to that scope, the build
 refuses code that reads a source table any other way, each run records its scope and the records it read per table, and
 schedules keep the scope until someone chooses all, offline."""
 import json
@@ -57,10 +57,12 @@ def test_the_four_first_run_settings_follow_the_contract_and_reach_the_run(agent
     assert run_scope["choices"] == ["all", "groups", "recent", "records"] and run_scope["default"] == "groups"
     assert groups["many"] and groups["optional"] and days["default"] == "30" and records["default"] == "1000"
     model = agent_ns["inspire_settings_model"]({"family": "B", "decision_basis": "measured", "first_run": dict(FIXTURE["spec"])}, [])
-    assert [s["name"] for s in model] == ["run_scope", "scope_groups", "scope_days", "scope_records"]
+    assert [s["name"] for s in model] == ["act_now_capacity", "run_scope", "scope_groups", "scope_days", "scope_records"]
     run = agent_ns["inspire_run_settings_model"](model)
-    assert [s["name"] for s in run] == ["run_scope", "scope_groups", "scope_days", "scope_records"] and run[1]["optional"] is True
-    assert agent_ns["inspire_settings_model"]({"family": "B", "decision_basis": "measured"}, []) == [], "no main table, no First run"
+    assert [s["name"] for s in run] == ["act_now_capacity", "run_scope", "scope_groups", "scope_days", "scope_records"]
+    assert run[0]["optional"] is True and run[2]["optional"] is True
+    assert [s["name"] for s in agent_ns["inspire_settings_model"]({"family": "B", "decision_basis": "measured"}, [])] == ["act_now_capacity"], \
+        "no main table, no MVP Test Run"
 
 
 def test_an_empty_scope_groups_is_allowed_and_any_other_empty_choice_is_not(agent_ns):
@@ -160,14 +162,14 @@ def test_the_scope_key_carries_the_grouping_hash_so_runs_grouped_another_way_are
     assert json.loads(values["run_segments"][1:-1].replace("''", "'"))[0]["key"] == "all|grouping:" + "d" * 16
 
 
-def test_the_read_helper_narrows_every_source_read_to_the_scope(fresh_ns):
+def test_the_read_helper_narrows_the_main_table_read_to_the_scope(fresh_ns):
     fresh_ns["INSPIRE_SCOPE"] = {"scope": "groups", "table": ORDERS, "column": "region", "values": ["EMEA", "APAC"]}
     fresh_ns["INSPIRE_RUN_LOG"] = {}
     session = Session({"`main`.`sales`.`orders`": ["order_id", "Region", "amount"], "`main`.`sales`.`stores`": ["store_id", "city"]})
     orders = fresh_ns["inspire_read_source"](ORDERS, spark=session)
     stores = fresh_ns["inspire_read_source"]("`main`.`sales`.`stores`", spark=session)
     assert orders.steps == [("where", "CAST(`Region` AS STRING) IN ('EMEA', 'APAC')")]
-    assert stores.steps == [], "a table without the grouping column is read whole, and the join narrows it"
+    assert stores.steps == [], "a table other than the main table is read whole, and the join narrows it"
     assert fresh_ns["INSPIRE_RUN_LOG"]["reads"] == {"main.sales.orders": {"where": "CAST(`Region` AS STRING) IN ('EMEA', 'APAC')", "limit": None},
                                                     "main.sales.stores": {"where": "", "limit": None}}
     fresh_ns["INSPIRE_SCOPE"] = {"scope": "recent", "table": ORDERS, "column": "order_date", "since": "2026-10-02"}
@@ -246,7 +248,7 @@ def test_each_run_records_its_scope_and_the_records_it_read_per_table(fresh_ns):
     assert all(s.startswith("SELECT COUNT(*) AS n FROM") for s in capped.statements if s.startswith("SELECT"))
 
 
-def test_schedules_keep_the_scope_until_someone_chooses_all(fresh_ns):
+def test_the_app_s_mvp_test_run_choice_reaches_the_run_s_scope_choice(fresh_ns):
     run = {"scope": dict(FIXTURE["spec"], default="groups"), "settings": fresh_ns["inspire_run_settings_model"](
         fresh_ns["inspire_scope_settings"](dict(FIXTURE["spec"], default="groups"))), "settings_read": False}
     for saved, expected in (([], "groups"), ([("run_scope", "groups")], "groups"), ([("run_scope", "all")], "all")):
