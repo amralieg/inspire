@@ -6,7 +6,7 @@ import { Icon } from './icons.jsx';
 import { Popover, SaidNote, useDialog, useToast } from './ui.jsx';
 import { localDay, nextDay } from './prefs.js';
 import {
-  NOTE_CHARS, NO_AS_OF, NO_SIMILAR, REASON_CHARS, actError, listAsOf, matchOf, SIMILAR_KEYS, SIMILAR_SHOWN, STATUSES, UNDO_MS, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
+  DRAFT_RECORDS, NOTE_CHARS, NO_AS_OF, NO_SIMILAR, REASON_CHARS, actError, listAsOf, matchOf, SIMILAR_KEYS, SIMILAR_SHOWN, STATUSES, UNDO_MS, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
   recordsText, statusLabel, undoText, UNDO_THEIRS,
 } from './records.js';
 
@@ -107,7 +107,7 @@ export function ConflictNote({ conflicts, labelOf, onClose }) {
 }
 
 export function BulkBar({ picked, matching, total, capped = false, allOnPage, owners, person, busy, tomorrow, canMatch = true, onAct, onAll, onClear, onAccept = null,
-  onSimilar = null }) {
+  onSimilar = null, onDraft = null }) {
   const anchors = { done: useRef(null), dismiss: useRef(null), assign: useRef(null), status: useRef(null), snooze: useRef(null) };
   const [open, setOpen] = useState('');
   const [owner, setOwner] = useState(person);
@@ -139,6 +139,12 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
       <button ref={anchors.status} className="btn" onClick={toggle('status')} aria-expanded={open === 'status'} disabled={busy}>Set status…</button>
       <button ref={anchors.snooze} className="btn" onClick={toggle('snooze')} aria-expanded={open === 'snooze'} disabled={busy} data-bulk="snooze">{matching ? 'Snooze all…' : 'Snooze…'}</button>
       {onSimilar && !matching && picked.size <= SIMILAR_KEYS && <button className="btn" onClick={onSimilar} disabled={busy} data-bulk="similar">Apply to similar…</button>}
+      {onDraft && !matching && (
+        <button className="btn" onClick={onDraft} disabled={picked.size > DRAFT_RECORDS} data-bulk="draft"
+          title={picked.size > DRAFT_RECORDS ? `One message covers at most ${DRAFT_RECORDS} records: select fewer to draft one` : undefined}>
+          <Icon name="send" size={14} />Draft one message…
+        </button>
+      )}
       {!matching && canMatch && allOnPage && total > picked.size && <button className="link" onClick={onAll}>Select all {capped ? 'more than ' : ''}{integer(total)} matching</button>}
       <span className="sp" />
       <button className="link" onClick={onClear}>Clear selection</button>

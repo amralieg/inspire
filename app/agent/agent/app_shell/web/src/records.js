@@ -21,6 +21,11 @@ export const noDecisionText = (app, page) => (!pageDecides(page) ? INFORMATIONAL
 export const PAGE_SIZES = [25, 50, 100];
 export const ACT_LIMIT = 200;
 export const SIMILAR_KEYS = 50;
+export const DRAFT_RECORDS = 10;
+export const DRAFT_ATTEMPTS = 20;
+export const DRAFT_COPIED = 'Message copied. Paste it into any app to send it.';
+export const DRAFT_MANUAL = 'This browser did not let the App copy it. The message is selected, so press Ctrl+C, or Cmd+C on a Mac, to copy it.';
+export const DRAFT_FAILED = 'The message could not be drafted';
 export const NO_SIMILAR = 'No other open record shares the values of these records.';
 export const REASON_CHARS = 300;
 export const NOTE_CHARS = 500;

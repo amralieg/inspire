@@ -7,6 +7,7 @@ import { AGENT_OPEN, showVisible } from './agentView.js';
 import { askGenieAbout, fixQuestion, genieOn } from './genieAsk.js';
 import { BUSY_TITLE, fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
+import { DraftDialog } from './Draft.jsx';
 import { withRecord, withoutRecord } from './links.js';
 import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, formatValue, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
 
@@ -288,7 +289,9 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const theirs = closed && !undoBatch && !!closedBatchOf({ ...given, _inspire_status: current.action_status });
   const readOnly = closed && !!closedReadOnly;
   const [undoAsk, setUndoAsk] = useState(false);
+  const [drafting, setDrafting] = useState(false);
   useEffect(() => { setUndoAsk(false); }, [linkKey, undoBatch]);
+  useEffect(() => { setDrafting(false); }, [linkKey]);
   const closing = (log.data?.fields || []).some((f) => f.name === 'realized_value');
   const unit = unitOf(model);
   const kind = kindOf(model);
@@ -346,6 +349,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {linkKey && <button className="ibtn ibtn--sm" onClick={copyLink} aria-label="Copy a link to this record" title="Copy a link to this record"><Icon name="link" size={15} /></button>}
             <button className="ibtn ibtn--sm" onClick={onClose} aria-label="Close"><Icon name="x" size={16} /></button>
             {link.dialog}
+            {drafting && linkKey && <DraftDialog pageId={pageId} keys={[linkKey]} label={title} onClose={() => setDrafting(false)} />}
           </header>
           <div className="panel-b">
             {held && <div className="held" role="status"><Icon name="info" size={14} />{heldText(app.held_meaning)}</div>}
@@ -420,6 +424,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
                   <option value={SOMEONE_ELSE}>Someone else…</option>
                 </select>
                 <SnoozeButton action={action} tomorrow={tomorrow} />
+                <button type="button" className="btn" onClick={() => setDrafting(true)} data-act="draft"><Icon name="send" size={14} />Draft message</button>
                 {genieOn(app, pageId) && <button type="button" className="btn" onClick={() => ask(fixQuestion(title))} data-act="genie"><GenieMark size={14} />Ask Genie to fix</button>}
               </>
             )}
@@ -535,6 +540,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const [cursorKey, setCursorKey] = useState('');
   const [ownerFocus, setOwnerFocus] = useState(false);
   const [dialog, setDialog] = useState('');
+  const [drafted, setDrafted] = useState(null);
   const [work, setWork] = useState(null);
   const toast = useToast();
   const focus = useFocusList();
@@ -911,7 +917,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       {(picked.size > 0 || matching) && (
         <BulkBar picked={picked} matching={matching} total={shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} busy={acting} tomorrow={tomorrow}
           canMatch={!everything} onAct={actOn} onAll={selectAll} onClear={clearPicks} onAccept={meta.action && !matching ? acceptPicked : null}
-          onSimilar={similarBy?.length ? () => acts.findSimilar([...picked.keys()], { label: `the ${recordsText(picked.size)} you selected` }) : null} />
+          onSimilar={similarBy?.length ? () => acts.findSimilar([...picked.keys()], { label: `the ${recordsText(picked.size)} you selected` }) : null}
+          onDraft={() => setDrafted([...picked.keys()])} />
       )}
       {!data && list.busy && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={22} />)}</div>}
       {list.error && <p className="tile-err"><Icon name="info" size={14} />The list could not load: {list.error}</p>}
@@ -959,6 +966,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       )}
       {dialog === 'batches' && <BatchesDialog pageId={pageId} onClose={() => setDialog('')} onUndo={acts.undo} labelOf={labelOf} />}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog('')} />}
+      {drafted && <DraftDialog pageId={pageId} keys={drafted} label={recordsText(drafted.length)} onClose={() => setDrafted(null)} />}
       {work?.ended && <CaughtUp work={work} onClose={() => setWork(null)} />}
     </section>
   );
