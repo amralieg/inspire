@@ -1,5 +1,6 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { CONTRACT, DECIDE, TABLE, appInfo, openApp, serveDist, tracked } from './harness.mjs';
 import { DRAFT_COPIED, DRAFT_MANUAL, DRAFT_RECORDS } from '../src/records.js';
@@ -132,7 +133,7 @@ test('a selection drafts one message for up to ten records, and an informational
   await boxes.nth(0).check();
   await boxes.nth(1).check();
   const bar = page.locator('.bulk');
-  await bar.getByRole('button', { name: 'Draft one message…' }).click();
+  await bar.getByRole('button', { name: 'Draft Message to Someone' }).click();
   const dialog = page.locator('dialog[data-draft]');
   await dialog.locator('textarea').waitFor();
   assert.equal(draft.asked.length, 1);
@@ -143,7 +144,7 @@ test('a selection drafts one message for up to ten records, and an informational
   await page.locator('.card--table thead .pick-c input').check();
   const picked = await page.locator('.card--table tbody .pick-l input:checked').count();
   assert.ok(picked > DRAFT_RECORDS, `the page selects ${picked} records`);
-  const over = bar.getByRole('button', { name: 'Draft one message…' });
+  const over = bar.getByRole('button', { name: 'Draft Message to Someone' });
   assert.equal(await over.isDisabled(), true);
   assert.equal(await over.getAttribute('title'), 'One message covers at most 10 records: select fewer to draft one');
   assert.deepEqual(calls.acts, []);
@@ -155,3 +156,51 @@ test('a selection drafts one message for up to ten records, and an informational
   assert.equal(await plain.page.getByRole('button', { name: 'Draft Message to Someone' }).count(), 0, 'a row with no action to take has no message to draft');
   await plain.context.close();
 });
+
+const fits = (locator) => locator.evaluate((b) => {
+  const r = b.getBoundingClientRect();
+  const texts = [...b.childNodes].filter((n) => n.nodeType === 3);
+  const label = texts.map((n) => n.textContent).join('');
+  const line = parseFloat(getComputedStyle(b).lineHeight) || 20;
+  const range = document.createRange();
+  range.setStart(texts[0], 0);
+  range.setEnd(texts.at(-1), texts.at(-1).length);
+  const lines = new Set([...range.getClientRects()].map((x) => Math.round(x.top))).size;
+  return { label, clipped: b.scrollWidth > b.clientWidth + 1, inside: r.left >= 0 && r.right <= window.innerWidth + 0.5, lines, tall: r.height > line * 2.6 };
+});
+
+for (const [width, height] of [[390, 844], [1280, 800]]) {
+  test(`the Draft Message to Someone button shows its whole label on one line in the drawer and the bulk bar at ${width}x${height}`, async () => {
+    const { routes } = tracked({ 'records/draft': drafting([FIRST]).route });
+    const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, width, height });
+    const shots = process.env.FX_BUSY_SHOTS;
+    if (shots) mkdirSync(shots, { recursive: true });
+    const boxes = page.locator('.card--table tbody .pick-l input:not([disabled])');
+    await boxes.first().waitFor();
+    await boxes.nth(0).check();
+    await boxes.nth(1).check();
+    const bulk = page.locator('.bulk').getByRole('button', { name: 'Draft Message to Someone' });
+    await bulk.scrollIntoViewIfNeeded();
+    assert.deepEqual(await fits(bulk), { label: 'Draft Message to Someone', clipped: false, inside: true, lines: 1, tall: false });
+    if (shots) await page.locator('.bulk').screenshot({ path: `${shots}/bulk_draft_${width}x${height}.png` });
+    await page.locator('.bulk').getByRole('button', { name: 'Clear selection' }).click();
+    await page.locator('.cell-t').first().click();
+    const drawer = page.locator('dialog.drawer');
+    await drawer.locator('.dr-act').waitFor();
+    const button = drawer.getByRole('button', { name: 'Draft Message to Someone' });
+    await button.scrollIntoViewIfNeeded();
+    assert.deepEqual(await fits(button), { label: 'Draft Message to Someone', clipped: false, inside: true, lines: 1, tall: false });
+    const owner = await drawer.getByRole('combobox', { name: 'Give to someone' }).evaluate((sel) => {
+      const css = getComputedStyle(sel);
+      const ctx = document.createElement('canvas').getContext('2d');
+      ctx.font = `${css.fontWeight} ${css.fontSize} ${css.fontFamily}`;
+      const text = sel.options[sel.selectedIndex].text;
+      const room = sel.clientWidth - parseFloat(css.paddingLeft) - Math.max(parseFloat(css.paddingRight), 24);
+      return { text, shows: ctx.measureText(text).width <= room, inside: sel.getBoundingClientRect().right <= window.innerWidth + 0.5 };
+    });
+    assert.deepEqual(owner, { text: 'With pat.lee@example.com', shows: true, inside: true }, 'the owner menu shows the whole owner');
+    if (shots) await page.screenshot({ path: `${shots}/drawer_draft_${width}x${height}.png` });
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  });
+}
