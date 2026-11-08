@@ -13,7 +13,10 @@ const {
 } = require('../../frontend/src/lib/useCaseSettings.js');
 const { specVibeAsks, vibeRefusalText, vibeRefusals } = require('../../frontend/src/lib/vibeLimits.js');
 const { PERSONAL_KEY_REASON, personalColumn } = require('../../frontend/src/lib/personalColumns.js');
-const { isAppUpdate, liveAppVersion, rowKeyOf } = require('../../frontend/src/lib/implementWizard.js');
+const {
+  defaultResultTable: defaultUseCaseResultTable, isAppUpdate, liveAppVersion, ownSchemaClashNote, ownSchemaFallbackNote, rowKeyOf,
+} = require('../../frontend/src/lib/implementWizard.js');
+const { quotedIdent } = require('../../frontend/src/lib/tableName.js');
 
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
@@ -3171,6 +3174,79 @@ function defaultResultTable(inspireDatabase, useCaseId, sessionId) {
   return inspireDatabase && slug && sid ? `${inspireDatabase}.${slug}_s${sid}_out` : '';
 }
 
+const USE_CASE_SCHEMA_SESSION_TAG = 'inspire_session_id';
+const USE_CASE_SCHEMA_TAGS = [USE_CASE_SCHEMA_SESSION_TAG, 'inspire_use_case_id', 'inspire_business'];
+const USE_CASE_SCHEMA_CREATE_RIGHTS = ['OWNER', 'ALL PRIVILEGES', 'CREATE SCHEMA'];
+const USE_CASE_SCHEMA_BUILDER_PRIVILEGES = 'USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE';
+
+function useCaseSchemaStatement(catalog, schemas) {
+  const names = [...new Set((schemas || []).map((s) => str(s).toLowerCase()).filter(Boolean))];
+  const isc = 'system.information_schema';
+  const marks = names.map((_n, i) => `:s${i}`).join(', ');
+  const mine = (column) => `(lower(${column}) = lower(current_user()) OR is_account_group_member(${column}))`;
+  return {
+    sql: 'SELECT kind, schema_name, value FROM ('
+      + `SELECT 'exists' AS kind, schema_name, '' AS value FROM ${isc}.schemata WHERE catalog_name = lower(:c) AND schema_name IN (${marks}) `
+      + `UNION ALL SELECT 'session', schema_name, tag_value FROM ${isc}.schema_tags WHERE catalog_name = lower(:c) AND schema_name IN (${marks}) `
+      + `AND tag_name = '${USE_CASE_SCHEMA_SESSION_TAG}' `
+      + `UNION ALL SELECT 'right', '', privilege_type FROM ${isc}.catalog_privileges WHERE catalog_name = lower(:c) AND ${mine('grantee')} `
+      + `UNION ALL SELECT 'right', '', 'OWNER' FROM ${isc}.catalogs WHERE catalog_name = lower(:c) AND ${mine('catalog_owner')} `
+      + "UNION ALL SELECT 'me', '', current_user())",
+    parameters: [{ name: 'c', value: str(catalog), type: 'STRING' }, ...names.map((value, i) => ({ name: `s${i}`, value, type: 'STRING' }))],
+  };
+}
+
+function useCaseSchemaFacts(rows) {
+  const facts = { schemas: {}, canCreate: false, me: '' };
+  for (const row of Array.isArray(rows) ? rows : []) {
+    const kind = str(row && row.kind);
+    const schema = str(row && row.schema_name).toLowerCase();
+    if (kind === 'exists') facts.schemas[schema] = { ...facts.schemas[schema], exists: true };
+    else if (kind === 'session') facts.schemas[schema] = { ...facts.schemas[schema], session: str(row.value).trim() };
+    else if (kind === 'right' && USE_CASE_SCHEMA_CREATE_RIGHTS.includes(privilegeOf(row.value))) facts.canCreate = true;
+    else if (kind === 'me') facts.me = str(row.value).trim();
+  }
+  return facts;
+}
+
+function useCaseSchemaPlace({ inspireDatabase, useCaseId, sessionId, businessName, rows = null, unchecked = '' }) {
+  const own = defaultUseCaseResultTable(inspireDatabase, useCaseId, sessionId, businessName);
+  if (!own) return null;
+  const whole = defaultUseCaseResultTable(inspireDatabase, useCaseId, sessionId, businessName, { wholeSid: true });
+  const fallback = defaultResultTable(inspireDatabase, useCaseId, sessionId);
+  const facts = useCaseSchemaFacts(rows);
+  const sid = str(sessionId).trim();
+  const of = (table) => facts.schemas[tableParts(table).schema.toLowerCase()] || {};
+  const clash = (table) => Boolean(of(table).session) && of(table).session !== sid;
+  const base = { inspire_table: fallback, own_table: own, me: facts.me, catalog: tableParts(own).catalog };
+  let table = own;
+  let note = '';
+  if (clash(own)) {
+    table = whole;
+    note = ownSchemaClashNote(tableParts(own).schema, of(own).session);
+  }
+  if (clash(table)) return { ...base, own_table: '', table: fallback, place: 'inspire', create: false, note: `${note} ${ownSchemaClashNote(tableParts(table).schema, of(table).session)}`.trim() };
+  if (of(table).exists) return { ...base, own_table: table, table, place: 'own', create: false, note };
+  if (rows != null && facts.canCreate) return { ...base, own_table: table, table, place: 'own', create: true, note };
+  const why = unchecked
+    ? `Inspire could not check whether you can create schemas in ${base.catalog} (${unchecked}), so this use case's tables go to the Inspire database schema; pick Its own schema to try.`
+    : ownSchemaFallbackNote(base.catalog, facts.me);
+  return { ...base, own_table: table, table: fallback, place: 'inspire', create: false, note: [note, why].filter(Boolean).join(' ') };
+}
+
+function useCaseSchemaTagsSql(catalog, schema, tags) {
+  const pairs = USE_CASE_SCHEMA_TAGS.map((name) => [name, str(tags && tags[name]).trim()]).filter(([, value]) => value);
+  if (!pairs.length) return '';
+  const lit = (value) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
+  return `ALTER SCHEMA ${quotedIdent(catalog)}.${quotedIdent(schema)} SET TAGS (${pairs.map(([n, v]) => `${lit(n)} = ${lit(v.slice(0, 255))}`).join(', ')})`;
+}
+
+function useCaseSchemaBuilderGrant(catalog, schema, who) {
+  const name = str(who).trim();
+  if (!name || name.includes('`')) return '';
+  return `GRANT ${USE_CASE_SCHEMA_BUILDER_PRIVILEGES} ON SCHEMA ${quotedIdent(catalog)}.${quotedIdent(schema)} TO \`${name}\``;
+}
+
 function sharedDefaultResultTable(inspireDatabase, useCaseId) {
   const slug = useCaseSlug(useCaseId);
   return inspireDatabase && slug ? `${inspireDatabase}.${slug}_out` : '';
@@ -3573,6 +3649,13 @@ module.exports = {
   resultTableHolderStatement,
   resultTableHolderProblem,
   defaultResultTable,
+  USE_CASE_SCHEMA_TAGS,
+  USE_CASE_SCHEMA_BUILDER_PRIVILEGES,
+  useCaseSchemaStatement,
+  useCaseSchemaFacts,
+  useCaseSchemaPlace,
+  useCaseSchemaTagsSql,
+  useCaseSchemaBuilderGrant,
   sharedDefaultResultTable,
   sameTable,
   carriesSharedDefault,

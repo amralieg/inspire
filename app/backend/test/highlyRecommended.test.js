@@ -47,7 +47,9 @@ test('each choice has exactly one Highly Recommended option, with a reason, pick
   one(H.bestReplaceEdits(), [false, true]);
   assert.equal(H.bestHeldApp(''), null);
   assert.equal(H.bestResultTable(''), null);
-  assert.equal(H.bestResultTable('main.inspire.churn_out').id, 'main.inspire.churn_out');
+  assert.equal(H.bestResultTable('own').id, 'own');
+  assert.equal(H.bestResultTable('inspire', 'main').id, 'inspire');
+  assert.match(H.bestResultTable('inspire', 'main').reason, /CREATE SCHEMA on main/);
   for (const kind of ['style', 'layout', 'theme', 'palette']) assert.ok(H.bestLook(kind, { outputs: {} })?.reason, kind);
   assert.equal(H.bestLook('nope', {}), null);
 });

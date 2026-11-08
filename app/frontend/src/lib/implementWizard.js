@@ -958,15 +958,73 @@ export function slugOf(id) {
   return String(id || '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_|_$/g, '').slice(0, 40);
 }
 
-export function defaultResultTable(inspireDatabase, useCaseId, sessionId) {
+export function inspireSchemaResultTable(inspireDatabase, useCaseId, sessionId) {
   const slug = slugOf(useCaseId);
   const sid = /^\d+$/.test(String(sessionId ?? '').trim()) ? String(sessionId).trim() : '';
   return inspireDatabase && slug && sid ? `${inspireDatabase}.${slug}_s${sid}_out` : '';
 }
 
+export const USE_CASE_SCHEMA_PREFIX = '_inspire';
+export const USE_CASE_SCHEMA_SID_DIGITS = 5;
+const UC_NAME_LIMIT = 255;
+
+export function useCaseSchemaName(businessName, useCaseId, sessionId, { wholeSid = false } = {}) {
+  const sid = String(sessionId ?? '').trim();
+  if (!/^\d+$/.test(sid)) throw new Error('a numeric session id is needed to name the use case schema');
+  const uc = slugOf(useCaseId);
+  if (!uc) throw new Error('a use case id is needed to name the use case schema');
+  const tail = `${uc}_${wholeSid ? sid : sid.slice(-USE_CASE_SCHEMA_SID_DIGITS)}`;
+  const room = Math.max(0, UC_NAME_LIMIT - USE_CASE_SCHEMA_PREFIX.length - tail.length - 2);
+  const business = String(businessName ?? '').toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '')
+    .slice(0, room).replace(/_+$/, '');
+  return [USE_CASE_SCHEMA_PREFIX, business, tail].filter(Boolean).join('_');
+}
+
+export function defaultResultTable(inspireDatabase, useCaseId, sessionId, businessName = '', { wholeSid = false } = {}) {
+  const catalog = String(inspireDatabase ?? '').split('.')[0].replace(/`/g, '').trim();
+  const uc = slugOf(useCaseId);
+  if (!catalog || !uc) return '';
+  return `${catalog}.${useCaseSchemaName(businessName, useCaseId, sessionId, { wholeSid })}.${uc}_results`;
+}
+
+export function nameOrEmpty(make) {
+  try {
+    return make();
+  } catch {
+    return '';
+  }
+}
+
+export const RESULT_PLACES = [
+  { id: 'own', label: 'Its own schema' },
+  { id: 'inspire', label: 'The Inspire database schema' },
+  { id: 'pick', label: 'Pick a catalog and schema' },
+];
+
+export function resultPlaceOf(table, ownTable, inspireTable) {
+  const same = (a, b) => Boolean(a) && String(a).toLowerCase() === String(b || '').toLowerCase();
+  if (same(table, ownTable)) return 'own';
+  if (same(table, inspireTable)) return 'inspire';
+  return 'pick';
+}
+
+export function useCaseSchemaTags({ sessionId, useCaseId, businessName }) {
+  return { inspire_session_id: String(sessionId ?? '').trim(), inspire_use_case_id: String(useCaseId ?? '').trim(), inspire_business: String(businessName ?? '').trim() };
+}
+
+export function ownSchemaFallbackNote(catalog, me = '') {
+  const who = String(me || '').trim() ? `\`${String(me).trim()}\`` : 'you';
+  return `You cannot create schemas in ${catalog}, so this use case's tables go to the Inspire database schema. For a schema of its own, `
+    + `ask the owner of ${catalog} to run GRANT CREATE SCHEMA ON CATALOG \`${catalog}\` TO ${who}, then pick Its own schema again.`;
+}
+
+export function ownSchemaClashNote(schema, otherSession) {
+  return `${schema} already holds the tables of session ${otherSession}, so this use case's own schema carries the full session id instead.`;
+}
+
 export function defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessionId, owner, businessName } = {}) {
   const id = caseIdOf(uc);
-  const resultTable = defaultResultTable(inspireDatabase, id, sessionId);
+  const resultTable = nameOrEmpty(() => defaultResultTable(inspireDatabase, id, sessionId, businessName));
   const measures = listOf(uc?.measures_of_success || uc?._v130?.measuresOfSuccess).slice(0, 3).map(placeholderWords);
   const goal = placeholderWords(uc?.statement || uc?.Statement || uc?.business_value || '').trim().slice(0, 500);
   const decisionOwner = String(owner || uc?.sponsor || uc?.Sponsor || '').trim();

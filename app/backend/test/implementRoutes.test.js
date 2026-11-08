@@ -726,11 +726,11 @@ const OTHER_HOLDS = { session_id: '2222222222222222222', use_case_id: 'N01-U01' 
 const MOVED = `results move to ${OWN}, because ${SHARED} holds the results of use case N01-U01 of session 2222222222222222222; `
   + 'earlier versions of this use case wrote there under the old shared name';
 
-test('the backend names a use case\'s own result table exactly as the wizard does', async () => {
+test('the backend names a use case\'s Inspire database result table exactly as the wizard does', async () => {
   const w = await import(require('node:url').pathToFileURL(require('node:path').resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'implementWizard.js')).href);
   const cases = [['main.inspire', 'N01-U01', '42'], ['main.inspire', 'N01-U01', ' 42 '], ['main.inspire', 'N01-U01', 'x'], ['', 'N01-U01', '42'],
     ['main.inspire', '--', '42'], ['c.s', `N01-${'U'.repeat(60)}`, '7'], ['c.s', 'n05 u02', '9']];
-  for (const [db, uc, sid] of cases) assert.equal(I.defaultResultTable(db, uc, sid), w.defaultResultTable(db, uc, sid), JSON.stringify([db, uc, sid]));
+  for (const [db, uc, sid] of cases) assert.equal(I.defaultResultTable(db, uc, sid), w.inspireSchemaResultTable(db, uc, sid), JSON.stringify([db, uc, sid]));
   assert.equal(I.defaultResultTable('main.inspire', 'N01-U01', '42'), OWN);
   assert.equal(I.sharedDefaultResultTable('main.inspire', 'N01-U01'), SHARED);
 });

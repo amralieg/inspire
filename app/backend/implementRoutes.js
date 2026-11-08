@@ -17,7 +17,9 @@ const G = require('../frontend/src/lib/tableName.js');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
-const { clearedText, emptyScopeWarningOf, nextAppName, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks } = require('../frontend/src/lib/implementWizard.js');
+const {
+  clearedText, defaultResultTable, emptyScopeWarningOf, nextAppName, ownSchemaClashNote, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks,
+} = require('../frontend/src/lib/implementWizard.js');
 const { canonicalDiscoveryType } = require('../frontend/src/lib/discoveryType.js');
 const { runWithRequestDeadline } = require('./lib/sqlStatements');
 const { fsApiPath } = require('./lib/workspacePaths');
@@ -507,6 +509,7 @@ function registerImplementRoutes(app, deps) {
       ]);
       if (!useCase) return res.status(404).json({ error: `No use case ${useCaseId} in this session.` });
       const latest = history[0] || null;
+      const ownSchema = latest ? null : await useCaseSchemaOf(req, warehouseId, `${catalog}.${schema}`, sid, useCaseId, session.business_name);
       const { missing, app_unreadable: appUnreadable } = await sourceAccess(req, warehouseId,
         I.checkedSourceTables(latest && latest.spec_json, I.useCaseTables(useCase)));
       const widgets = I.implementWidgets(history, useCase.genie_instruction || useCase.generate_genie_code_instruction || '');
@@ -534,11 +537,34 @@ function registerImplementRoutes(app, deps) {
         inspire_database: `${catalog}.${schema}`,
         missing_tables: missing,
         app_unreadable: appUnreadable,
+        own_schema: ownSchema,
       });
     } catch (err) {
       sendError(res, err);
     }
   });
+
+  async function useCaseSchemaRows(req, warehouseId, catalog, schemas) {
+    const person = P.personTokenOf(req);
+    if (!person) return { rows: null, unchecked: '' };
+    try {
+      return { rows: await sqlRows(req.dbHost, person, warehouseId, I.useCaseSchemaStatement(catalog, schemas)), unchecked: '' };
+    } catch (err) {
+      return { rows: null, unchecked: String((err && err.message) || err).slice(0, 200) };
+    }
+  }
+
+  async function useCaseSchemaOf(req, warehouseId, inspireDatabase, sid, useCaseId, businessName) {
+    let names;
+    try {
+      names = [false, true].map((wholeSid) => defaultResultTable(inspireDatabase, useCaseId, sid, businessName, { wholeSid }));
+    } catch {
+      return null;
+    }
+    if (!names[0]) return null;
+    const { rows, unchecked } = await useCaseSchemaRows(req, warehouseId, I.tableParts(names[0]).catalog, names.map((t) => I.tableParts(t).schema));
+    return I.useCaseSchemaPlace({ inspireDatabase, useCaseId, sessionId: sid, businessName, rows, unchecked });
+  }
 
   app.get('/api/inspire/implement/history', requireToken, async (req, res) => {
     try {
@@ -936,8 +962,31 @@ function registerImplementRoutes(app, deps) {
       const schema = String((req.body && req.body.schema) ?? '').trim();
       const bad = G.placeNameProblem(catalog, 'catalog') || (schema ? G.placeNameProblem(schema, 'schema') : '');
       if (bad) throw I.badRequest(bad);
+      const tags = schema && req.body && req.body.tags && typeof req.body.tags === 'object' ? req.body.tags : null;
+      if (tags) {
+        const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [schema]);
+        const held = (I.useCaseSchemaFacts(rows).schemas[schema.toLowerCase()] || {}).session;
+        const sid = String(tags.inspire_session_id ?? '').trim();
+        if (held && held !== sid) throw I.badRequest(ownSchemaClashNote(schema, held), 409);
+      }
       await executeSql(req.dbHost, token, warehouseId, G.createPlaceSql(catalog, schema));
-      res.json({ catalog, schema });
+      if (!tags) return res.json({ catalog, schema });
+      const warnings = [];
+      const tagged = I.useCaseSchemaTagsSql(catalog, schema, tags);
+      if (tagged) {
+        await executeSql(req.dbHost, token, warehouseId, tagged)
+          .catch((err) => warnings.push(`Inspire could not tag ${catalog}.${schema}: ${String((err && err.message) || err).slice(0, 200)}`));
+      }
+      if (buildsAsAnother(req)) {
+        const builder = await loadTokenPrincipal(req);
+        const grant = I.useCaseSchemaBuilderGrant(catalog, schema, builder.applicationId || builder.userName);
+        const { failed } = grant ? await runPersonGrants(req, token, warehouseId, [grant]) : { failed: ['the identity Inspire builds as could not be read'] };
+        if (failed.length) {
+          warnings.push(`The identity Inspire builds as may not write to ${catalog}.${schema} until its owner grants `
+            + `${I.USE_CASE_SCHEMA_BUILDER_PRIVILEGES} on it: ${failed.join('; ')}`);
+        }
+      }
+      res.json({ catalog, schema, warnings });
     } catch (err) {
       sendError(res, err);
     }

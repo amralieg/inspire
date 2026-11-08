@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
+import { defaultSpecFromUseCase, inspireSchemaResultTable } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
 import { closeBrowser, expandBuild, lowContrast, openAsset, openUi } from './uiSupport.mjs';
 
@@ -8,9 +8,10 @@ const OWNER = ['owner', 'example.com'].join('@');
 
 test.after(closeBrowser);
 
-const spec = () => ({
-  ...defaultSpecFromUseCase(HARNESS_USE_CASE, { warehouseId: HARNESS_SETTINGS.warehouseId, inspireDatabase: HARNESS_SETTINGS.inspireDatabase, sessionId: HARNESS_SESSION_ID, owner: OWNER }),
-});
+const spec = () => {
+  const made = defaultSpecFromUseCase(HARNESS_USE_CASE, { warehouseId: HARNESS_SETTINGS.warehouseId, inspireDatabase: HARNESS_SETTINGS.inspireDatabase, sessionId: HARNESS_SESSION_ID, owner: OWNER });
+  return { ...made, config: { ...made.config, result_table: inspireSchemaResultTable(HARNESS_SETTINGS.inspireDatabase, HARNESS_USE_CASE.id, HARNESS_SESSION_ID) } };
+};
 
 const BUILT = {
   session_id: '42', use_case_id: 'N01-U01', spec_version: 2, status: 'ready', change_classes: 'outputs', created_by: OWNER, updated_at: '2026-10-22T04:00:00Z',

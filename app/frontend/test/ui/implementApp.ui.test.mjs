@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
+import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
 import { MVP_MODE_LABEL, NOTEBOOK_MODE_LABEL } from '../../src/lib/implementWizard.js';
 
 const { appShellCatalog } = createRequire(import.meta.url)('../../../backend/lib/appShell.js');
@@ -412,7 +412,7 @@ test('the App reads Lakebase by default when the workspace has it, a per-user Ap
   }
 });
 
-test('Where results live picks a catalog and a schema from Unity Catalog, offers the default back, and Next checks the table live', async () => {
+test('Where results live offers its own schema, falls back to the Inspire database schema with the GRANT to ask for, picks a catalog and a schema, and Next checks the table live', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, catalogs: ['main', 'sales'], schemas: { main: ['inspire', 's'], sales: ['mvp', 'gold'] } });
   const { page, made } = ui;
   try {
@@ -427,7 +427,12 @@ test('Where results live picks a catalog and a schema from Unity Catalog, offers
     const schema = place.getByLabel('Schema');
     await catalog.locator('option[value="sales"]').waitFor({ state: 'attached' });
     assert.deepEqual([await catalog.inputValue(), await schema.inputValue(), await step.getByLabel('Table name').inputValue()], ['main', 'inspire', 'n01_u01_s42_out']);
-    await step.getByRole('group', { name: 'Result table' }).locator('[data-highly-recommended]').waitFor();
+    const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
+    await places.locator('[data-option="inspire"] [data-highly-recommended]').waitFor();
+    assert.equal(await places.locator('[data-option="own"] [data-highly-recommended]').count(), 0, 'the badge follows the default the person can write to');
+    assert.equal(await places.locator('[data-option="own"]').innerText().then((t) => t.includes('main._inspire_acme_n01_u01_42.n01_u01_results')), true);
+    assert.equal(await places.getByRole('radio', { name: /The Inspire database schema/ }).isChecked(), true, 'no right to create a schema keeps the Inspire database schema');
+    await step.getByRole('note', { name: 'Where the tables go note' }).getByText(/GRANT CREATE SCHEMA ON CATALOG `main`/).waitFor();
     await step.getByRole('note', { name: 'Moving the result table' }).getByText('Moving the table later copies its history to the new table and keeps the old one.').waitFor();
     await catalog.selectOption('sales');
     assert.equal(await schema.inputValue(), '', 'a new catalog asks for its schema again');
@@ -444,7 +449,7 @@ test('Where results live picks a catalog and a schema from Unity Catalog, offers
     await page.locator('[role="alert"]').waitFor();
     assert.deepEqual(await footerErrors(page), ['catalog sales does not exist or you have no access to it']);
     await onStep(page, 'Results');
-    await step.getByRole('button', { name: 'Use the default, main.inspire.n01_u01_s42_out' }).click();
+    await places.getByRole('radio', { name: /The Inspire database schema/ }).check();
     assert.deepEqual([await catalog.inputValue(), await schema.inputValue()], ['main', 'inspire']);
     made.state.access = [
       { level: 'catalog', privilege: 'OWNER', principal: 'admins', mine: 'false', me: OWNER },
@@ -457,6 +462,36 @@ test('Where results live picks a catalog and a schema from Unity Catalog, offers
     await goToStep(page, 'Delivery');
     await startWhenReady(page);
     assert.equal(submittedSpec(made).config.result_table, 'sales.mvp.n01_u01_s42_out');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('A person who may create schemas gets the use case its own schema: Next creates and tags it, and the Summary and the build name that exact table', async () => {
+  const own = 'main._inspire_acme_n01_u01_42.n01_u01_results';
+  const ui = await openUi('wizard', {
+    me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'person-tok', dbToken: 'person-tok', catalogs: ['main'], schemas: { main: ['inspire'] },
+    statements: { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }] }) },
+  });
+  const { page, made } = ui;
+  try {
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
+    await dataToResults(page);
+    const step = page.getByRole('region', { name: 'Where the result table lives' });
+    const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
+    await places.locator('[data-option="own"] [data-highly-recommended]').waitFor();
+    assert.equal(await places.getByRole('radio', { name: /Its own schema/ }).isChecked(), true, 'with the right, its own schema is the default');
+    assert.equal(await step.getByRole('note', { name: 'Where the tables go note' }).count(), 0, 'no fallback note when the person may create the schema');
+    await step.getByRole('group', { name: 'Result table' }).getByText(own, { exact: true }).waitFor();
+    await toSummary(page);
+    const made1 = made.sqlCalls.filter((c) => /^(CREATE|ALTER) SCHEMA/.test(c.sql)).map((c) => c.sql);
+    assert.deepEqual(made1, ['CREATE SCHEMA IF NOT EXISTS `main`.`_inspire_acme_n01_u01_42`',
+      "ALTER SCHEMA `main`.`_inspire_acme_n01_u01_42` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme')"]);
+    await page.getByText(own, { exact: true }).first().waitFor();
+    await startWhenReady(page);
+    assert.equal(submittedSpec(made).config.result_table, own);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

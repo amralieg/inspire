@@ -65,8 +65,9 @@ export function bestFirstRun(profile, choices = []) {
   return pick(found.id, reasons[found.id] || '');
 }
 
-export function bestResultTable(defaultTable) {
-  return defaultTable ? pick(defaultTable, 'It sits in the Inspire Database, where the App and the dashboard read it.') : null;
+export function bestResultTable(place, catalog = '') {
+  if (place === 'own') return pick('own', 'A schema of its own keeps this use case\'s tables apart from every other use case.');
+  return place ? pick(place, `It is where you can write today${catalog ? `; a schema of its own needs CREATE SCHEMA on ${catalog}` : ''}.`) : null;
 }
 
 export function bestFreshness(spec) {

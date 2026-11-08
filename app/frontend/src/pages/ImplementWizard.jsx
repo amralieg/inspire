@@ -25,6 +25,12 @@ import {
   baselineOperatorOk,
   FRESHNESS_OPTIONS,
   defaultResultTable,
+  inspireSchemaResultTable,
+  nameOrEmpty,
+  RESULT_PLACES,
+  resultPlaceOf,
+  useCaseSchemaTags,
+  ownSchemaFallbackNote,
   defaultSpecFromUseCase,
   caseNameOf,
   specFromLatest,
@@ -426,6 +432,8 @@ export default function ImplementWizard({
   const [catalogsCut, setCatalogsCut] = useState(false);
   const [catalogsError, setCatalogsError] = useState('');
   const [schemas, setSchemas] = useState({});
+  const [ownSchema, setOwnSchema] = useState(null);
+  const [placeNote, setPlaceNote] = useState('');
   const bodyRef = useRef(null);
   const groupingDefaulted = useRef(false);
   const accessDefaulted = useRef(false);
@@ -504,6 +512,9 @@ export default function ImplementWizard({
           owner: data.me?.username,
           businessName: data.business_name,
         });
+        if (data.own_schema?.table) fallback.config.result_table = data.own_schema.table;
+        setOwnSchema(data.own_schema || null);
+        setPlaceNote(data.latest ? '' : data.own_schema?.note || '');
         const missing = [...(focus?.missingTables || []), ...(data.missing_tables || [])]
           .filter((m, i, all) => all.findIndex((o) => String(o.table).toLowerCase() === String(m.table).toLowerCase()) === i);
         const { spec: kept, reverted } = revertLostSwaps(specFromLatest(data.latest, fallback, data.assets), row, missing);
@@ -679,6 +690,23 @@ export default function ImplementWizard({
             }));
           }
           setReadiness({ ...counted, scope, warning });
+        }
+      }
+      if (stepId === 'results' && resultPlace === 'own' && !(ownSchema?.place === 'own' && !ownSchema.create)) {
+        setChecking('Creating the use case schema');
+        const own = resultTableParts(ownTable);
+        try {
+          const made = await apiPostJson(`/api/inspire/implement/create-schema?${q}`, {
+            catalog: own.catalog, schema: own.schema, tags: useCaseSchemaTags({ sessionId, useCaseId: spec.use_case_id, businessName: context?.business_name }),
+          });
+          setOwnSchema((prev) => ({ ...(prev || {}), own_table: ownTable, table: ownTable, place: 'own', create: false }));
+          setPlaceNote((made.warnings || []).join(' '));
+        } catch (e) {
+          setSpec((prev) => withResultTable(prev, resultTableParts(inspireTable)));
+          setOwnSchema((prev) => ({ ...(prev || {}), place: 'inspire', create: false }));
+          setPlaceNote(`${ownSchemaFallbackNote(own.catalog, context?.me?.username)} (${e.message})`);
+          setOutputCheck(null);
+          return;
         }
       }
       if (stepId === 'results') {
@@ -866,6 +894,9 @@ export default function ImplementWizard({
   }, [spec.outputs.app, lakebase, apiFetch]);
 
   const resultParts = resultTableParts(spec.config.result_table);
+  const ownTable = ownSchema?.own_table ?? nameOrEmpty(() => defaultResultTable(inspireDatabase, spec.use_case_id, sessionId, context?.business_name));
+  const inspireTable = inspireSchemaResultTable(inspireDatabase, spec.use_case_id, sessionId);
+  const resultPlace = resultPlaceOf(spec.config.result_table, ownTable, inspireTable);
   useEffect(() => {
     if (stepId !== 'results' || catalogs !== null) return undefined;
     let cancelled = false;
@@ -1051,7 +1082,7 @@ export default function ImplementWizard({
   const best = {
     mode: bestMode({ genieOff }),
     output: bestOutput(unavailable),
-    result: bestResultTable(defaultResultTable(inspireDatabase, spec.use_case_id, sessionId)),
+    result: bestResultTable(ownTable && ownSchema?.place !== 'inspire' ? 'own' : inspireTable ? 'inspire' : '', ownSchema?.catalog || resultTableParts(ownTable).catalog),
     freshness: bestFreshness(spec),
     holdout: bestHoldout(),
     kpi: bestKpi(kpiOptions, trackedKpi),
@@ -1377,7 +1408,10 @@ export default function ImplementWizard({
           <>
             <ResultTableStep
               table={spec.config.result_table}
-              defaultTable={defaultResultTable(inspireDatabase, spec.use_case_id, sessionId)}
+              ownTable={ownTable}
+              inspireTable={inspireTable}
+              place={resultPlace}
+              note={placeNote}
               outputCheck={outputCheck}
               onChange={(parts) => { setSpec((prev) => withResultTable(prev, parts)); setOutputCheck(null); }}
               best={best.result}
@@ -2302,29 +2336,30 @@ function NewPlace({ catalog, onCreate }) {
   );
 }
 
-function ResultTableStep({ table, defaultTable, outputCheck, onChange, best = null, children = null }) {
+function ResultTableStep({ table, ownTable, inspireTable, place, note = '', outputCheck, onChange, best = null, children = null }) {
+  const named = { own: ownTable, inspire: inspireTable };
   return (
-    <section className="space-y-4" aria-label="Where the result table lives">
+    <section className="space-y-2" aria-label="Where the result table lives">
       <div>
         <h3 className="text-sm font-semibold text-text-primary">Where should the result table live?</h3>
         <p className="text-[11px] text-text-tertiary">Genie writes this MVP&apos;s results to this table, and Inspire writes nowhere else. Next checks live that you can create or write it.</p>
       </div>
-      {children}
-      <div className="rounded-lg border border-border bg-bg px-3 py-2.5 space-y-1" role="group" aria-label="Result table" data-choice="result-table" data-choice-value={table}>
-        <div className="flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
-          <span className="font-mono text-[12px] text-text-primary break-all">{table || 'catalog.schema.table'}</span>
-          {defaultTable && table === defaultTable && <HighlyRecommended best={best} id={defaultTable} />}
-          {defaultTable && table !== defaultTable && (
-            <span className="inline-flex flex-wrap items-baseline gap-x-1.5">
-              <button type="button" className="text-[11px] text-db-red-fg shrink-0" onClick={() => onChange(resultTableParts(defaultTable))}>
-                Use the default, {defaultTable}
-              </button>
-              <HighlyRecommended best={best} id={defaultTable} why={false} />
-            </span>
-          )}
-        </div>
-        {defaultTable && table !== defaultTable && <p className="text-[11px] text-text-tertiary">The default sits in the Inspire Database and is named after the use case.</p>}
+      <div role="radiogroup" aria-label="Where the tables go" data-choice="result-table" className="flex flex-wrap gap-x-5 gap-y-1">
+        {RESULT_PLACES.map((option) => (
+          <label key={option.id} data-option={option.id} className="flex items-baseline gap-x-1.5 text-[12px] text-text-primary">
+            <input type="radio" name="result-place" value={option.id} checked={place === option.id} disabled={option.id !== 'pick' && !named[option.id]}
+              onChange={() => onChange(named[option.id] ? resultTableParts(named[option.id]) : { ...resultTableParts(table), schema: '' })} />
+            <span className="font-medium">{option.label}</span>
+            {option.id === 'own' && ownTable && <span className="font-mono text-[11px] text-text-secondary break-all">{ownTable}</span>}
+            <HighlyRecommended best={best} id={option.id} />
+          </label>
+        ))}
       </div>
+      {note && <p role="note" aria-label="Where the tables go note" data-place-note="" className="text-[11px] text-text-secondary">{note}</p>}
+      {children}
+      <p className="text-[11px] text-text-secondary" role="group" aria-label="Result table" data-result-table={table}>
+        Main table: <span className="font-mono text-[12px] text-text-primary break-all">{table || 'catalog.schema.table'}</span>
+      </p>
       {outputCheck && (
         <div className="text-[11px] space-y-0.5" aria-label="Result table check">
           <p className={outputCheck.write?.ok ? 'text-success-fg' : 'text-error-fg'}>{outputCheck.write?.detail}</p>
