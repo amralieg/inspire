@@ -4366,7 +4366,7 @@ def assumption_write(page: dict, name: str, value, editor: str, note: str, text=
             f"{'' if text is None else ', `text_value`'}) VALUES ({', '.join(cells)})", params.items)
 
 
-FEEDBACK_SUFFIX = "_feedback"
+FEEDBACK_SUFFIX = shell_facts.FEEDBACK_SUFFIX
 FEEDBACK_NEW = "new"
 FEEDBACK_COLUMNS = ("feedback_id", "section", "record_key", "text", "filters", "reported_by", "reported_at", "status", "vibe_text", "handled_by",
                     "handled_at")

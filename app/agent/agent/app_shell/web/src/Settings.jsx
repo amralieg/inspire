@@ -97,7 +97,7 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
   );
 }
 
-export default function SettingsPanel({ pageId, data, onData, onChanged, onRunStarted, onClose, children }) {
+export default function SettingsPanel({ pageId, data, onData, onChanged, onRunStarted, onClose, children, footer = null }) {
   const [editing, setEditing] = useState('');
   const [running, setRunning] = useState(false);
   const toast = useToast();
@@ -156,6 +156,7 @@ export default function SettingsPanel({ pageId, data, onData, onChanged, onRunSt
         </div>
       ))}
       {lines.length > 0 && <div className="hist"><b>Changes</b><ul>{lines.map((l, i) => <li key={i}>{l}</li>)}</ul></div>}
+      {footer}
     </section>
   );
 }

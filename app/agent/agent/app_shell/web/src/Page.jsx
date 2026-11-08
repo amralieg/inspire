@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AGENT_CHANGED, EMPTY_LOOK, lookChart } from './agentView.js';
 import { getOverview, getPage } from './api.js';
 import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
@@ -30,7 +30,10 @@ import { GenieScope } from './AskGenie.jsx';
 import { reasonFilters, useCaseState } from './hub.js';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
 import WorkPage from './WorkPage.jsx';
-import { FeedbackButton, FeedbackForm, FeedbackList, useFeedback } from './Feedback.jsx';
+import { Skeleton } from './ui.jsx';
+
+const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
+const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
 
 export const SECTION_TITLES = { dashboard: 'Dashboard', work: 'Work', performance: 'Performance', runs: 'Runs', alerts: 'Alerts', settings: 'Settings' };
 
@@ -204,7 +207,6 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     ) : null;
   const colors = paletteItems(chrome?.palette, chrome?.built, chrome?.theme, chrome?.onPalette || (() => {}));
   const reporting = !!page.history;
-  const feedback = useFeedback(page.id, reporting && shown === 'settings');
   const report = { section: shown, filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
   const head = (
     <header className="ph">
@@ -213,7 +215,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <div className="ph-tools" data-section-tools>
           <FreshBar freshness={freshness}>
             <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />
-            {reporting && (shown === 'dashboard' || shown === 'work') && <FeedbackButton pageId={page.id} context={report} sections={sections} />}
+            {reporting && (shown === 'dashboard' || shown === 'work') && <Suspense fallback={null}><FeedbackButton pageId={page.id} context={report} sections={sections} /></Suspense>}
           </FreshBar>
         </div>
       </div>
@@ -262,7 +264,14 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {shown === 'runs' && <Runs page={page} runs={runs} offset={runOffset} onOffset={setRunOffset} onExplain={hubExplain(app, onExplain, page.id)} genieBusy={genieBusy} />}
       {shown === 'alerts' && <Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} />}
       {shown === 'settings' && (
-        <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRunStarted={() => freshness.load()}>
+        <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRunStarted={() => freshness.load()}
+          footer={reporting && (
+            <SettingGroup id="feedback" title="App Feedback" why="Tell the owners of this use case what is wrong or what you would change. They see it on its Build page in Inspire.">
+              <Suspense fallback={<Skeleton height={120} />}>
+                <FeedbackSettings pageId={page.id} context={{ ...report, section: 'settings' }} sections={sections} />
+              </Suspense>
+            </SettingGroup>
+          )}>
           <SettingGroup id="look" title="Look" why="Only you see these, in this browser.">
             <div className="set-row" role="radiogroup" aria-label="Colors" onKeyDown={radioKeys}>
               {colors.map((item, i) => (
@@ -289,12 +298,6 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
               : <p className="auth" data-auth="app"><Icon name="users" size={13} /><b>Shared view.</b> Everyone sees the same data. The App reads it with its own service principal.</p>}
             {app.is_owner === true && <AdminLink />}
           </SettingGroup>
-          {reporting && (
-            <SettingGroup id="feedback" title="App Feedback" why="Tell the owners of this use case what is wrong or what you would change. They see it on its Build page in Inspire.">
-              <FeedbackForm pageId={page.id} context={{ ...report, section: 'settings' }} sections={sections} onSent={(out) => feedback.setData(out)} />
-              <FeedbackList data={feedback.data} failure={feedback.failure} />
-            </SettingGroup>
-          )}
         </SettingsPanel>
       )}
     </div>

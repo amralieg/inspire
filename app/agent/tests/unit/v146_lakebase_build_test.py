@@ -226,7 +226,7 @@ def test_an_app_whose_service_principal_cannot_read_lakebase_deploys_on_delta_an
     reason = "the App's service principal could not be given access to its Lakebase tables: PERMISSION_DENIED: role is missing"
     assert fields["_asset"] == {"backend": "delta"} and fields["_warnings"] == [FALLBACK.format(reason)]
     assert _uploaded(inst) == DELTA_FILES, "the App never deploys files that read Lakebase it cannot open"
-    assert any("[IMPLEMENT-LAKEBASE] N01-U01: App: it reads Delta tables" in line for line in _lines(inst, "WARNING"))
+    assert _lines(inst, "WARNING") and "[IMPLEMENT-LAKEBASE] N01-U01: App: it reads Delta tables" in _lines(inst, "WARNING")[0]
 
 
 def test_an_app_the_workspace_will_not_give_a_database_deploys_on_delta_and_says_why(agent_ns, sdk_stub):

@@ -18,6 +18,9 @@ const NOT_WALKED = {
   'POST /api/inspire/implement/alerts/pause': 'pauses an alert; no non-owner harness row walks it yet, and the route samples prove the owners refusal',
   'POST /api/inspire/implement/grant-access': 'runs grants only with the person own sign-in; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'POST /api/inspire/implement/create-schema': 'creates a catalog or schema only with the person own sign-in; no non-owner harness row walks it yet, and the route tests prove the sign-in refusal',
+  'GET /api/inspire/implement/feedback': 'lists the issues reported from a built use case’s App, each person seeing only their own; no non-owner harness row walks it yet, and the feedback route tests prove the per-person view',
+  'POST /api/inspire/implement/feedback/status': 'changes the status of a reported issue for owners only; no non-owner harness row walks it yet, and the route samples prove the owners refusal',
+  'POST /api/inspire/implement/feedback/vibe': 'drafts a vibe from a reported issue for owners only; no non-owner harness row walks it yet, and the route samples prove the owners refusal',
   'POST /api/grouping/profile': 'reads the use case table with the person token only and changes nothing; the grouping route tests walk it',
   'GET /api/inspire/log': 'reads the run log only for its launcher or an App manager; no non-owner harness row walks it yet, and the route samples prove the launcher refusal',
 };

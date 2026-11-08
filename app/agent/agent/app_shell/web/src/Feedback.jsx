@@ -5,18 +5,16 @@ import { Icon } from './icons.jsx';
 import { Failure, Popover, useToast } from './ui.jsx';
 import { FEEDBACK_CHARS, FEEDBACK_SECTIONS, feedbackChars, feedbackProblem, feedbackStatusText } from './feedback.js';
 
-export function useFeedback(pageId, on = true) {
+function useFeedback(pageId) {
   const [data, setData] = useState(null);
   const [failure, setFailure] = useState(null);
-  const load = useCallback(() => {
-    if (!on) return;
+  useEffect(() => {
     getFeedback(pageId).then((d) => { setData(d); setFailure(null); }).catch((e) => setFailure(failureOf(e)));
-  }, [pageId, on]);
-  useEffect(() => { load(); }, [load]);
-  return { data, failure, setData, load };
+  }, [pageId]);
+  return { data, failure, setData };
 }
 
-export function FeedbackForm({ pageId, context, sections, onSent, autoFocus = false }) {
+function FeedbackForm({ pageId, context, sections, onSent, autoFocus = false }) {
   const [text, setText] = useState('');
   const [about, setAbout] = useState(context.section);
   const [failure, setFailure] = useState(null);
@@ -66,7 +64,7 @@ export function FeedbackForm({ pageId, context, sections, onSent, autoFocus = fa
   );
 }
 
-export function FeedbackList({ data, failure }) {
+function FeedbackList({ data, failure }) {
   if (failure?.text) return <Failure failure={failure} className="err">{failure.text}</Failure>;
   if (!data) return null;
   if (data.missing) return <p className="why" data-feedback-missing>This App was built before it kept reported issues. Ask an owner to rebuild it from the Build page in Inspire.</p>;
@@ -102,6 +100,16 @@ export function FeedbackButton({ pageId, context, sections }) {
           <FeedbackForm pageId={pageId} context={context} sections={sections} onSent={close} autoFocus />
         </Popover>
       )}
+    </>
+  );
+}
+
+export function FeedbackSettings({ pageId, context, sections }) {
+  const feedback = useFeedback(pageId);
+  return (
+    <>
+      <FeedbackForm pageId={pageId} context={context} sections={sections} onSent={(out) => feedback.setData(out)} />
+      <FeedbackList data={feedback.data} failure={feedback.failure} />
     </>
   );
 }

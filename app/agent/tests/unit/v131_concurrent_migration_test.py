@@ -239,8 +239,10 @@ def test_every_table_inspire_migrates_calls_the_one_helper():
     assert "return inspire_add_missing_columns(" in gate
     history = ast.parse(_history_source())
     bodies = {n.name: ast.unparse(n) for n in history.body if isinstance(n, ast.FunctionDef)}
-    for function in ("inspire_ensure_ai", "inspire_ensure_assumptions", "inspire_merge_run"):
+    for function in ("inspire_ensure_ai", "inspire_ensure_sibling", "inspire_merge_run"):
         assert "inspire_add_required_columns(" in bodies[function], function
+    for function in ("inspire_ensure_assumptions", "inspire_ensure_feedback"):
+        assert "inspire_ensure_sibling(" in bodies[function] and "spark.sql(" not in bodies[function], function
     assert "inspire_add_missing_columns(" in bodies["inspire_add_required_columns"]
 
 

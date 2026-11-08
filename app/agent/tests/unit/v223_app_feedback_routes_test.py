@@ -169,3 +169,11 @@ def test_the_feedback_queries_bind_every_value():
     with pytest.raises(ValueError):
         shell_sql.feedback_table({"result_table": "main.pricing.x` ; DROP TABLE y; --"})
     assert shell_sql.feedback_table({"result_table": "main.pricing.x; DROP TABLE y"}) == "`main`.`pricing`.`x; DROP TABLE y_feedback`"
+
+
+def test_the_feedback_table_belongs_to_its_page_like_every_other_inspire_table(tmp_path):
+    s, _ws = _shell(tmp_path)
+    for suffix in ("_plans", "_scenarios", "_feedback"):
+        assert suffix in shell_sql.INSPIRE_SUFFIXES, suffix
+        assert s.owned_by(f"main.pricing.loss_desk_out{suffix}") == {"n01_u05"}, suffix
+    assert s.owned_by("main.pricing.loss_desk_out_feedbacks") == set()

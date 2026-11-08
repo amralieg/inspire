@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { OWNER, RESULT_TABLE, built } from './implementFixtures.js';
+import { OWNER, built } from './implementFixtures.js';
 import { closeBrowser, openBuild, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const OTHER = ['someone.else', 'example.com'].join('@');
-const TABLE = RESULT_TABLE.split('.').map((p) => `\`${p}\``).join('.').replace(/`$/, '_feedback`');
+const TABLE = JSON.parse(built().spec_json).config.result_table.split('.').map((p) => `\`${p}\``).join('.').replace(/`$/, '_feedback`');
 const VIBE = 'On Work, show the due date of each record in the current year';
 const issue = (id, extra = {}) => ({ feedback_id: id, section: 'work', record_key: 'R001', text: `Issue ${id}`, filters: 'Region: North', reported_by: OTHER,
   reported_at: '2026-11-08 10:00:00', status: 'new', vibe_text: null, handled_by: null, handled_at: null, ...extra });

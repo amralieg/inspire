@@ -389,7 +389,7 @@ button.hb:hover,button.hb.is-on{background:var(--well)}
 .fb-form textarea[aria-invalid="true"]{border-color:var(--danger)}
 .fb-form .btn{align-self:flex-end}
 .fb-about{display:flex;align-items:center;gap:8px;font-size:13px}
-.fb-count{margin:0;font-size:12px;color:var(--muted);text-align:right}
+.fb-count{margin:0;font-size:12px;color:var(--muted);text-align:end}
 .fb-count.is-over{color:var(--danger)}
 .fb-list{margin-top:14px}
 .fb-list ul{list-style:none;margin:6px 0 0;padding:0;display:flex;flex-direction:column;gap:8px}

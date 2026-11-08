@@ -10,7 +10,9 @@ RUN_LOG_SUFFIX = "_run_log"
 CLOSED_SUFFIX = "_closed"
 CLOSES_SUFFIX = "_closes"
 CHANGES_SUFFIX = "_run_changes"
-COMPANION_SUFFIXES = ("_summary", "_assumptions", RUN_LOG_SUFFIX, ACTED_SUFFIX, CLOSED_SUFFIX, CHANGES_SUFFIX, CLOSES_SUFFIX)
+FEEDBACK_SUFFIX = "_feedback"
+COMPANION_SUFFIXES = ("_summary", "_assumptions", RUN_LOG_SUFFIX, ACTED_SUFFIX, CLOSED_SUFFIX, CHANGES_SUFFIX, CLOSES_SUFFIX, "_plans",
+                      "_scenarios", FEEDBACK_SUFFIX)
 FLAGGED_TIERS = ("Act now", "Review")
 OPEN_STATUSES = ("New", "In progress")
 DONE = "Done"

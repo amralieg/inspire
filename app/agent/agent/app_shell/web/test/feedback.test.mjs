@@ -1,8 +1,13 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync, readdirSync } from 'node:fs';
+import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { HISTORY, PERSON, TABLE, appInfo, openApp, serveDist, toastSays, until } from './harness.mjs';
 import { FEEDBACK_CHARS, feedbackProblem, feedbackStatusText } from '../src/feedback.js';
+
+const ASSETS = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'assets');
 
 let served;
 let browser;
@@ -96,4 +101,11 @@ test('the Dashboard offers Report an issue and Runs does not, and a page with no
   assert.equal(await page.locator('[data-feedback-open]').count(), 0);
   assert.deepEqual(seen.errors, []);
   await context.close();
+});
+
+test('the report form loads in its own chunk, so the main bundle carries none of it', () => {
+  const main = readFileSync(join(ASSETS, 'app.js'), 'utf8');
+  const chunks = readdirSync(ASSETS).filter((f) => f.endsWith('.js') && f !== 'app.js' && readFileSync(join(ASSETS, f), 'utf8').includes('data-feedback-form'));
+  assert.equal(chunks.length, 1, `one chunk holds the report form: ${chunks.join(', ')}`);
+  assert.ok(!main.includes('data-feedback-form') && !main.includes('see your report on its Build page'), 'the main bundle has no report form');
 });
