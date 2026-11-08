@@ -8,6 +8,7 @@ import { canonicalHash, fixThis, parseHash, restoreFilters, sectionHash, staleSe
 import { FIX_TIERS, isToFix, shownTiers, switcherMatches } from '../src/hub.js';
 import { MY_KEY } from '../src/prefs.js';
 import { evaluated } from './exampleRoutes.mjs';
+import { hasWork, pageMode } from '../src/modes.js';
 
 let served;
 let browser;
@@ -385,6 +386,7 @@ test('the Work dock switches between the record and Genie, and remembers the cho
 test('every example layout renders its dashboard, rail and settings with no error', async () => {
   const examples = readdirSync(join(HERE, '..', '..', 'examples')).filter((f) => f.endsWith('.json')).sort();
   assert.equal(examples.length, 13);
+  const worked = [];
   for (const file of examples) {
     const info = appInfo(DECIDE, 1, {}, `examples/${file}`);
     const { page, seen, context } = await openApp(browser, served.base, info, { ready: '.ph h1', watch: prefsFirst(MY_KEY, PERSON, {}),
@@ -392,12 +394,16 @@ test('every example layout renders its dashboard, rail and settings with no erro
     const rail = (await railOf(page)).map(([id]) => id);
     assert.equal(rail[0], 'dashboard', `${file}: the rail starts with Dashboard`);
     assert.equal(rail.at(-1), 'settings', `${file}: Settings sits at the bottom`);
-    assert.equal(rail.includes('work'), info.pages[0].layout.work === 'queue', `${file}: Work follows the work the registry gives the layout`);
+    const mode = pageMode(info.pages[0]);
+    if (mode.queue) assert.equal(rail.includes('work'), info.pages[0].layout.work === 'queue', `${file}: a queue's Work follows the work the registry gives the layout`);
+    assert.equal(rail.includes('work'), hasWork(info.pages[0]), `${file}: the ${mode.id} mode and the registry decide whether there is a work section`);
+    if (rail.includes('work')) worked.push(`${file}:${mode.id}`);
     await page.locator('[data-rail="settings"]').click();
     await page.locator('[data-group="look"]').waitFor();
     assert.deepEqual(seen.errors, [], `${file}: no error`);
     await context.close();
   }
+  assert.deepEqual(worked, ['agent_chat.json:ask', 'dashboard.json:explore', 'forecast_cockpit.json:forecast', 'planner.json:plan', 'scenario_lab.json:scenarios'], 'every non-queue mode gets a work section; every laid-out queue keeps its list on the dashboard');
 });
 
 const REGISTRY = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));

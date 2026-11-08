@@ -31,6 +31,8 @@ import InboxSection, { useInbox } from './Inbox.jsx';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
 import WorkPage from './WorkPage.jsx';
 import { Skeleton } from './ui.jsx';
+import ModeView from './ModeView.jsx';
+import { pageMode, sectionTitle } from './modes.js';
 
 const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
@@ -38,8 +40,6 @@ const Runs = lazy(() => import('./Runs.jsx'));
 const Alerts = lazy(() => import('./Alerts.jsx'));
 const TrendCards = lazy(() => import('./Trends.jsx'));
 const Waiting = ({ height = 180 }) => <section className="card" role="status" aria-label="Loading"><Skeleton height={height} /></section>;
-
-export const SECTION_TITLES = { dashboard: 'Dashboard', inbox: 'Inbox', work: 'Work', performance: 'Performance', runs: 'Runs', alerts: 'Alerts', settings: 'Settings' };
 
 export function usePageData(pageId, state, ready, nonce = 0, sorts = null) {
   const [data, setData] = useState(null);
@@ -113,6 +113,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const live = usePageHub(page.id, state, ready, nonce, listed);
   const laidOut = isLaidOut(page);
   const work = isQueue(page);
+  const mode = pageMode(page);
   const sections = pageSections(app, page);
   const inboxHere = inboxOn(app, page);
   const views = inboxHere ? [...sections, 'inbox'] : sections;
@@ -247,7 +248,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           </FreshBar>
         </div>
       </div>
-      {shown !== 'dashboard' && <p className="ph-sec" data-section-title>{SECTION_TITLES[shown]}</p>}
+      {shown !== 'dashboard' && <p className="ph-sec" data-section-title>{sectionTitle(page, shown)}</p>}
       {shown === 'dashboard' && !hubPage && <p className="ph-q">{page.question}</p>}
       {shown === 'dashboard' && !hubPage && page.promised?.estimate && <p className="ph-value" data-value-estimate="">{page.promised.estimate}</p>}
       {shown === 'dashboard' && !hubPage && data && <Story page={page} data={data.kpis} />}
@@ -291,7 +292,11 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           ) : null} />
       )}
       {shown === 'inbox' && <InboxSection page={page} inbox={inbox} onOpen={openInbox} />}
-      {shown === 'work' && (
+      {shown === 'work' && !mode.queue && (
+        <ModeView mode={mode.id} part="Work" app={app} page={page} meta={meta} state={state} onState={onState} ready={ready} tableCard={tableCard} genie={genie}
+          views={<PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />} notify={notifyButton} onGo={(to) => go(to)} />
+      )}
+      {shown === 'work' && mode.queue && (
         <WorkPage meta={meta} state={state} onState={onState} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
           {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, docked: true, section: 'records' })}

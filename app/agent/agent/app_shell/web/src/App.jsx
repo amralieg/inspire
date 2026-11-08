@@ -5,8 +5,10 @@ import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
 import { PlainNote, ToastProvider, useToast } from './ui.jsx';
-import Page, { SECTION_TITLES } from './Page.jsx';
+import Page from './Page.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
+import { pageMode, sectionTitle } from './modes.js';
+import ModeView from './ModeView.jsx';
 import Performance from './Performance.jsx';
 import { inboxOn } from './inbox.js';
 import Admin from './Admin.jsx';
@@ -76,7 +78,7 @@ function railOf(app, page) {
   const inbox = inboxOn(app, page);
   const sections = pageSections(app, page);
   const all = inbox ? [sections[0], 'inbox', ...sections.slice(1)] : sections;
-  const at = (isQueue(page) ? 2 : 1) + (inbox ? 1 : 0);
+  const at = (sections.includes('work') ? 2 : 1) + (inbox ? 1 : 0);
   return [...all.slice(0, at), 'performance', ...all.slice(at)];
 }
 
@@ -84,9 +86,9 @@ function SectionRail({ sections, on, onGo, open, page, counts = {} }) {
   const top = sections.filter((s) => s !== 'settings');
   const item = (s) => (
     <button key={s} type="button" className={`nav-i rail-i ${on === s ? 'is-on' : ''}`} onClick={() => onGo(s)} aria-current={on === s ? 'page' : undefined} data-rail={s}
-      aria-label={counts[s] != null ? `${SECTION_TITLES[s]} (${integer(counts[s])})` : undefined}>
+      aria-label={counts[s] != null ? `${sectionTitle(page, s)} (${integer(counts[s])})` : undefined}>
       <span className="nav-ic"><Icon name={RAIL_ICONS[s]} size={15} /></span>
-      <span className="nav-t"><b>{SECTION_TITLES[s]}</b></span>
+      <span className="nav-t"><b>{sectionTitle(page, s)}</b></span>
       {counts[s] != null && <small className="rail-n" data-count={counts[s]}>{integer(counts[s])}</small>}
     </button>
   );
@@ -112,7 +114,7 @@ function Shell({ app }) {
   const resolve = useCallback(() => {
     const before = window.location.hash;
     if (unknownRoute(parseHash(before).route, known.current.pages)) missed.current = UNKNOWN_PAGE;
-    const next = canonicalHash(before, { pages: known.current.pages, last: known.current.last, sectionsOf: (p) => railOf(app, p) });
+    const next = canonicalHash(before, { pages: known.current.pages, last: known.current.last, sectionsOf: (p) => railOf(app, p), queueOf: (p) => pageMode(p).queue });
     if (next) window.history.replaceState(window.history.state, '', next);
     if (next && staleSection(before, next)) missed.current = LINK_STALE;
     return parseHash(window.location.hash);
@@ -161,10 +163,12 @@ function Shell({ app }) {
   const sectionsHere = page ? railOf(app, page) : [];
   const inboxOff = railCounts.page === page?.id && railCounts.inboxOff;
   const rail = sectionsHere.filter((s) => !(s === 'alerts' && sectionsHere.includes('runs')) && !(s === 'inbox' && inboxOff));
-  const working = !admin && section === 'work';
+  const mode = pageMode(page);
+  const working = !admin && section === 'work' && !!page && mode.queue;
+  const fullChat = !admin && section === 'work' && !!page && mode.id === 'ask';
   const dock = working ? prefs.dock : '';
   const setDock = useCallback((next) => update((p) => ({ ...p, dock: next })), [update]);
-  const openGenie = () => (working ? setDock('genie') : setGenieOpen(true));
+  const openGenie = () => (fullChat ? null : working ? setDock('genie') : setGenieOpen(true));
   const genie = useGenie(app, page ? page.id : '', openGenie, agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
   const { hub, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
@@ -247,8 +251,8 @@ function Shell({ app }) {
   const themeKey = `${palette}:${theme}:${app.style}`;
   const crumb = page ? [page.domain, page.subdomain].filter(Boolean).join(' › ') : '';
   const chrome = { palette, built: app.palette, theme, onPalette: choosePalette, onTheme: toggleTheme };
-  const genieShown = working ? dock === 'genie' : genieOpen;
-  const toggleGenie = () => (working ? setDock(dock === 'genie' ? '' : 'genie') : setGenieOpen(!genieOpen));
+  const genieShown = fullChat || (working ? dock === 'genie' : genieOpen);
+  const toggleGenie = () => (fullChat ? document.querySelector('[data-genie-full] .g-in input')?.focus() : working ? setDock(dock === 'genie' ? '' : 'genie') : setGenieOpen(!genieOpen));
   const dockValue = useMemo(() => (working ? { slot: dockSlot, tab: dock, onTab: setDock, onShowing: setShowing } : null), [working, dockSlot, dock, setDock]);
   const tabs = working ? <DockTabs tab={dock} onTab={setDock} /> : null;
   const genieProps = { app, genie, page, pages: shown, onPick: go };
@@ -277,7 +281,8 @@ function Shell({ app }) {
             {admin && <Admin />}
             {!admin && page && section === 'performance' && (
               <GenieScope.Provider value={perfScope}>
-                <Performance key={page.id} app={app} page={page} summary={summaries[page.id]} onRecord={openRecord} onExplain={explain} genieBusy={genie.busy} />
+                <ModeView key={page.id} mode={mode.id} part="Performance" app={app} page={page} genie={genie}
+                  fallback={<Performance key={page.id} app={app} page={page} summary={summaries[page.id]} onRecord={openRecord} onExplain={explain} genieBusy={genie.busy} />} />
               </GenieScope.Provider>
             )}
             {!admin && page && section !== 'performance' && (
@@ -289,7 +294,7 @@ function Shell({ app }) {
           </main>
           {working && dock === 'genie' && <GeniePanel {...genieProps} tabs={tabs} onClose={() => setDock('')} />}
           {working && dock === 'record' && <RecordDock tabs={tabs} onSlot={setDockSlot} onClose={() => setDock('')} empty={!showing} />}
-          {!working && genieOpen && <GeniePanel {...genieProps} onClose={() => setGenieOpen(false)} />}
+          {!working && !fullChat && genieOpen && <GeniePanel {...genieProps} onClose={() => setGenieOpen(false)} />}
         </div>
       </div>
     </div>

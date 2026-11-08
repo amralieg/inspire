@@ -370,7 +370,7 @@ function YouSent({ message }) {
   );
 }
 
-export default function GeniePanel({ app, genie, page, pages, onPick, onClose, tabs = null }) {
+export default function GeniePanel({ app, genie, page, pages, onPick, onClose, tabs = null, full = false }) {
   const log = useRef(null);
   const input = useRef(null);
   const panel = useRef(null);
@@ -402,17 +402,19 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
     : on && agent ? `Answers about this use case ${who}; asks the Genie Agent${info.title ? ` "${info.title}"` : ''} when it needs the data`
       : on ? `Answers from the Genie Agent${info.title ? ` "${info.title}"` : ''} · ${who}` : 'Ask Genie is off for this use case';
   return (
-    <aside ref={panel} className="genie is-open" aria-label="Ask Genie" style={{ '--genie-w': `${width.shown}px` }}>
-      <Resizer width={width} />
+    <aside ref={panel} className={`genie is-open ${full ? 'genie--full' : ''}`} aria-label="Ask Genie" style={full ? undefined : { '--genie-w': `${width.shown}px` }} data-genie-full={full || undefined}>
+      {!full && <Resizer width={width} />}
       {tabs}
       <header className="g-h">
         <span className="g-logo"><GenieMark size={18} /></span>
         <div><b>Ask Genie</b><small>{status}</small></div>
         {thread.length > 0 && <button className="link" onClick={reset}>New chat</button>}
-        <button className="ibtn g-max" onClick={width.toggle} aria-pressed={width.maxed} aria-label="Maximize Ask Genie" title={width.maxed ? 'Restore the panel width' : 'Widen the panel'}>
-          <Icon name={width.maxed ? 'restore' : 'maximize'} size={16} />
-        </button>
-        <button className="ibtn" onClick={onClose} aria-label="Close Ask Genie"><Icon name="x" size={18} /></button>
+        {!full && (
+          <button className="ibtn g-max" onClick={width.toggle} aria-pressed={width.maxed} aria-label="Maximize Ask Genie" title={width.maxed ? 'Restore the panel width' : 'Widen the panel'}>
+            <Icon name={width.maxed ? 'restore' : 'maximize'} size={16} />
+          </button>
+        )}
+        {!full && <button className="ibtn" onClick={onClose} aria-label="Close Ask Genie"><Icon name="x" size={18} /></button>}
       </header>
       {on && mode?.note && <p className="g-note" role="note" data-agent-note>{mode.note}</p>}
       <div className="g-log" ref={log} role="log" aria-live="polite" aria-label="Genie conversation">

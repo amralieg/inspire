@@ -71,7 +71,7 @@ export function sectionHash(pageId, section, query = new URLSearchParams()) {
 
 export const workRecordHash = (pageId, key) => sectionHash(pageId, 'work', new URLSearchParams({ tab: 'all', rec: String(key) }));
 
-export function canonicalHash(hash, { pages = [], last = '', sectionsOf = () => SECTIONS } = {}) {
+export function canonicalHash(hash, { pages = [], last = '', sectionsOf = () => SECTIONS, queueOf = () => true } = {}) {
   const link = parseHash(hash);
   const body = String(hash || '').replace(/^#\/?/, '');
   const cut = body.indexOf('?');
@@ -90,7 +90,7 @@ export function canonicalHash(hash, { pages = [], last = '', sectionsOf = () => 
   const legacy = link.v != null ? sectionOfView(link.v) : '';
   query.delete('v');
   const has = sectionsOf(page);
-  const asked = link.section || legacy || ((link.rec || link.changed) && has.includes('work') ? 'work' : DEFAULT_SECTION);
+  const asked = link.section || legacy || ((link.rec || link.changed) && has.includes('work') && queueOf(page) ? 'work' : DEFAULT_SECTION);
   const section = has.includes(asked) ? asked : DEFAULT_SECTION;
   if (section !== 'work') {
     query.delete('tab');
