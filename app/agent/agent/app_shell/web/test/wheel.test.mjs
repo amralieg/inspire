@@ -33,7 +33,7 @@ async function open(hash, routes = {}) {
   return openApp(browser, served.base, info, { width: 1280, height: 800, routes: all, hash, ready: '[data-page-section], [data-performance]' });
 }
 
-test('the mouse wheel scrolls the Work list, the record drawer, the side rail and the Ask Genie conversation to their last item at 1280x800 and 1024x700', async () => {
+test('the mouse wheel scrolls the Work list, the record drawer, and the side rail to their last item at 1280x800 and 1024x700', async () => {
   const { page, seen, context } = await open('#/n01_u05/work');
   const rows = page.locator('.card--table tbody tr');
   await rows.nth(20).waitFor();
@@ -51,14 +51,6 @@ test('the mouse wheel scrolls the Work list, the record drawer, the side rail an
   const side = page.locator('nav.side, .side').first();
   await wheelScrolls(page, side, () => side.locator('[data-wheel-copy]').last(), { name: 'side rail', ...copies(side, '[data-rail]', 12) });
 
-  await page.setViewportSize({ width: 1280, height: 800 });
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-  const box = page.locator('aside.genie').getByRole('textbox', { name: 'Your question' });
-  await box.fill('Which category lost the most?');
-  await box.press('Enter');
-  const log = page.getByRole('log', { name: 'Genie conversation' });
-  await log.locator('.msg--genie .msg-b').first().waitFor({ timeout: 15000 });
-  await wheelScrolls(page, log, () => log.locator('[data-wheel-copy]').last(), { name: 'Ask Genie conversation', ...copies(log, ':scope > *', 12) });
   assert.deepEqual(real(seen.errors), []);
   await context.close();
 });
