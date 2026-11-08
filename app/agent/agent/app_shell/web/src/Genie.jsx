@@ -255,7 +255,7 @@ export function ExplainButton({ title, busy, onClick }) {
 
 function roomBeside(panel) {
   const main = panel?.parentElement?.querySelector(':scope > .main');
-  if (!main || getComputedStyle(panel).position === 'absolute') return Infinity;
+  if (!main || parseFloat(getComputedStyle(panel).marginInlineStart) < 0) return Infinity;
   return panel.getBoundingClientRect().right - main.getBoundingClientRect().left;
 }
 
