@@ -84,7 +84,7 @@
 .panel .late{color:var(--danger);font-weight:650}
 .panel-f{display:flex;flex-wrap:wrap;gap:8px;padding:14px 22px;border-top:1px solid var(--line);background:var(--card)}
 .panel-f .btn{height:40px;padding:0 16px}
-.panel-f select.btn{padding:0 10px;max-width:220px}
+.panel-f select.btn{padding:0 28px 0 10px;max-width:100%}
 .panel-f .hint--box{flex-basis:100%}
 @container app (max-width: 560px){
   .act-form{grid-template-columns:1fr}

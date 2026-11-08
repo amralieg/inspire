@@ -7,7 +7,7 @@ import { Popover, SaidNote, useDialog, useToast } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { localDay, nextDay } from './prefs.js';
 import {
-  DRAFT_RECORDS, NOTE_CHARS, NO_AS_OF, NO_SIMILAR, REASON_CHARS, actError, listAsOf, matchOf, SIMILAR_KEYS, SIMILAR_SHOWN, STATUSES, UNDO_MS, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
+  DRAFT_LABEL, DRAFT_RECORDS, NOTE_CHARS, NO_AS_OF, NO_SIMILAR, REASON_CHARS, actError, listAsOf, matchOf, SIMILAR_KEYS, SIMILAR_SHOWN, STATUSES, UNDO_MS, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
   recordsText, statusLabel, undoText, UNDO_THEIRS,
 } from './records.js';
 
@@ -150,7 +150,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
       {onDraft && !matching && (
         <button className="btn" onClick={onDraft} disabled={picked.size > DRAFT_RECORDS} data-bulk="draft"
           title={picked.size > DRAFT_RECORDS ? `One message covers at most ${DRAFT_RECORDS} records: select fewer to draft one` : undefined}>
-          <Icon name="send" size={14} />Draft one message…
+          <Icon name="send" size={14} />{DRAFT_LABEL}
         </button>
       )}
       {!matching && canMatch && allOnPage && total > picked.size && <button className="link" onClick={onAll}>Select all {capped ? 'more than ' : ''}{integer(total)} matching</button>}

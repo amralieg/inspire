@@ -29,7 +29,7 @@ import { WindowChips, useFocusList, useMyView } from './MyView.jsx';
 import { EVERYTHING, listLimit, listWindow, localDay, markVisit, narrowWindow, nextDay, visitedAt, windowLabel } from './prefs.js';
 import { BatchesDialog, BulkBar, CaughtUp, ConflictNote, HelpDialog, NoteField, SimilarDialog, isTyping, useActs } from './Work.jsx';
 import {
-  ACT_LIMIT, CLOSED_STATUSES, HELD, NOTE_CHARS, PAGE_SIZES, REASON_CHARS, STATUSES, UNEXPLAINED, actionForm, actionProblem, actionValues,
+  DRAFT_LABEL, ACT_LIMIT, CLOSED_STATUSES, HELD, NOTE_CHARS, PAGE_SIZES, REASON_CHARS, STATUSES, UNEXPLAINED, actionForm, actionProblem, actionValues,
   aiValue, askQuestions, changeBadge, doneText, dueText, explainContext, heldBack, heldText, impactText, initials, isOverdue, keptText, leftText, matchOf,
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
   statusLabel, actError, withoutWindow, NO_AS_OF, listAsOf,
@@ -433,7 +433,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
                   <option value={SOMEONE_ELSE}>Someone else…</option>
                 </select>
                 <SnoozeButton action={action} tomorrow={tomorrow} />
-                <button type="button" className="btn" onClick={() => setDrafting(true)} data-act="draft"><Icon name="send" size={14} />Draft Message to Someone</button>
+                <button type="button" className="btn" onClick={() => setDrafting(true)} data-act="draft"><Icon name="send" size={14} />{DRAFT_LABEL}</button>
                 {genieOn(app, pageId) && <button type="button" className="btn" onClick={() => ask(fixQuestion(title))} data-act="genie"><GenieMark size={14} />Ask Genie to fix</button>}
               </>
             )}
