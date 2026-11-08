@@ -202,3 +202,29 @@ test('a refused question shows the refusal and offers no rating', async () => {
     await context.close();
   }
 });
+
+test('an answer with a heading, bullets and a markdown table renders as those elements, never as raw pipes or run-on text', async () => {
+  const answer = ['Focus on the **7 Paid Late** bills: they hold all **$1,820.24** at stake.', '', '### What it shows',
+    'Open billing breaks by age and payment status.', '', '| Age & Status | Bills | Leakage at stake |', '|---|--:|--:|',
+    '| 30 days · Paid On Time | 21 | $0 |', '| 30 days · Paid Late | 7 | $1,820.24 |', '', '- Start with Bill 1133.', '- Paid On Time holds no leakage.'].join('\n');
+  const { routes } = agentRoutes({ ...DONE_TURN, answer, actions: [], confirm: null, steps: [], genie: null });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes });
+  try {
+    await askAgent(page, 'Explain the age and status of billing breaks');
+    const reply = page.locator('.genie .msg-b').last();
+    await reply.locator('table tbody tr').nth(1).waitFor();
+    await reply.getByText('Paid On Time holds no leakage.').waitFor();
+    await reply.locator('.cursor').waitFor({ state: 'detached' });
+    assert.deepEqual(await reply.locator('table thead th').allInnerTexts(), ['Age & Status', 'Bills', 'Leakage at stake']);
+    assert.deepEqual(await reply.locator('table tbody tr').first().locator('td').allInnerTexts(), ['30 days · Paid On Time', '21', '$0']);
+    assert.equal(await reply.locator('table tbody tr').count(), 2);
+    assert.deepEqual(await reply.locator('li').allInnerTexts(), ['Start with Bill 1133.', 'Paid On Time holds no leakage.']);
+    assert.equal(await reply.locator('.msg-h').innerText(), 'What it shows');
+    assert.equal(await reply.locator('p').first().innerText(), 'Focus on the 7 Paid Late bills: they hold all $1,820.24 at stake.');
+    const text = await reply.innerText();
+    assert.ok(!text.includes('|') && !text.includes('---') && !text.includes('###') && !text.includes('**'), text);
+    assert.deepEqual(seen.errors, []);
+  } finally {
+    await context.close();
+  }
+});

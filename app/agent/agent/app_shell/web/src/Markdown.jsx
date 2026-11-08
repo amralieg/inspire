@@ -10,6 +10,26 @@ function Inline({ text, links }) {
   });
 }
 
+const alignOf = (align) => (align ? { textAlign: align } : undefined);
+
+function Table({ block, links, end }) {
+  return (
+    <div className="msg-t">
+      <table>
+        <thead>
+          <tr>{block.head.map((cell, j) => <th key={j} scope="col" style={alignOf(block.align[j])}><Inline text={cell} links={links} /></th>)}</tr>
+        </thead>
+        <tbody>
+          {block.rows.map((row, r) => (
+            <tr key={r}>{row.map((cell, j) => <td key={j} style={alignOf(block.align[j])}><Inline text={cell} links={links} /></td>)}</tr>
+          ))}
+        </tbody>
+      </table>
+      {end}
+    </div>
+  );
+}
+
 export default function Markdown({ text, cursor, links = false, heading = '' }) {
   const blocks = markdownBlocks(closeOpenMarks(text));
   const caret = cursor ? <span className="cursor" /> : null;
@@ -17,6 +37,8 @@ export default function Markdown({ text, cursor, links = false, heading = '' }) 
   return blocks.map((block, i) => {
     const end = i === blocks.length - 1 ? caret : null;
     if (block.type === 'p') return <p key={i}><Inline text={block.text} links={links} />{end}</p>;
+    if (block.type === 'table') return <Table key={i} block={block} links={links} end={end} />;
+    if (block.type === 'hr') return <hr key={i} className="msg-hr" />;
     if (block.type === 'h' && heading) {
       const Heading = heading;
       return <Heading key={i}><Inline text={block.text} links={links} />{end}</Heading>;

@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeOpenMarks, inlineParts, markdownBlocks } from '../src/markdown.js';
+import { closeOpenMarks, inlineParts, markdownBlocks, tableCells } from '../src/markdown.js';
 
 test('inline marks become bold, italic and code, and the rest stays text', () => {
   assert.deepEqual(inlineParts('Top offer is **Books**, score `0.95`, *Monitor* tier'), [
@@ -54,4 +54,43 @@ test('a half-typed bold or code mark is closed so it never shows raw while Genie
   assert.equal(closeOpenMarks('**done** and `x`'), '**done** and `x`');
   assert.equal(closeOpenMarks(''), '');
   assert.deepEqual(inlineParts(closeOpenMarks('the top item is **Boo')), [{ kind: 'text', text: 'the top item is ' }, { kind: 'strong', text: 'Boo' }]);
+});
+
+const BREAKS = [
+  '**What it shows**',
+  'Open billing exceptions by age and payment status.',
+  '',
+  '| Age & Status | Bills | Leakage at stake |',
+  '|---|--:|:-:|',
+  '| 30 days · Paid On Time | 21 | $0 |',
+  '| 30 days · Paid Late | 7 | **$1,820.24** |',
+  '30 days · In Arrears | 1 | $0',
+  '',
+  '- All 7 Paid Late bills hold the leakage.',
+  '- Start with Bill 1133.',
+].join('\n');
+
+test('a markdown table becomes a table block with its header, alignment and rows, and the text around it keeps its own blocks', () => {
+  assert.deepEqual(markdownBlocks(BREAKS), [
+    { type: 'p', text: '**What it shows**\nOpen billing exceptions by age and payment status.' },
+    { type: 'table', head: ['Age & Status', 'Bills', 'Leakage at stake'], align: ['', 'right', 'center'],
+      rows: [['30 days · Paid On Time', '21', '$0'], ['30 days · Paid Late', '7', '**$1,820.24**'], ['30 days · In Arrears', '1', '$0']] },
+    { type: 'ul', items: ['All 7 Paid Late bills hold the leakage.', 'Start with Bill 1133.'] },
+  ]);
+});
+
+test('table rows are fitted to the header, escaped pipes stay in the cell, and a table ends at the first line without a pipe', () => {
+  assert.deepEqual(tableCells('| a \\| b | c |'), ['a | b', 'c']);
+  assert.deepEqual(tableCells('a | b'), ['a', 'b']);
+  assert.deepEqual(markdownBlocks('| A | B |\n| --- | --- |\n| 1 |\n| 1 | 2 | 3 |\nAfter it.'), [
+    { type: 'table', head: ['A', 'B'], align: ['', ''], rows: [['1', ''], ['1', '2']] },
+    { type: 'p', text: 'After it.' },
+  ]);
+});
+
+test('pipes without a separator row, a lone rule and a horizontal rule are not tables', () => {
+  assert.deepEqual(markdownBlocks('Revenue | cost is up'), [{ type: 'p', text: 'Revenue | cost is up' }]);
+  assert.deepEqual(markdownBlocks('|---|---|'), [{ type: 'p', text: '|---|---|' }]);
+  assert.deepEqual(markdownBlocks('Above\n\n---\n\nBelow'), [{ type: 'p', text: 'Above' }, { type: 'hr' }, { type: 'p', text: 'Below' }]);
+  assert.deepEqual(markdownBlocks('- - -'), [{ type: 'hr' }]);
 });
