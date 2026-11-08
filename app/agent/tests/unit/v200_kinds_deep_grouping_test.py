@@ -324,7 +324,7 @@ def test_the_run_plan_and_the_build_instruction_carry_the_join(agent_ns):
     run = ast.literal_eval(inst._genie_run_controls_source(uc, spec, INSTRUCTION).split("INSPIRE_RUN = ", 1)[1].split("\n\n\n", 1)[0])
     assert run["grouping"]["joins"] == {"item.category": item}
     rule = agent_ns["genie_grouping_rule"](grouping)
-    assert "keep the main table's key column item_sk in the records" in rule and "never join it yourself" in rule
+    assert "keep the main table's key column item_sk in the records" in rule and "joins main.s.item on item_sk = item_sk itself to build the groups" in rule
     assert "the key the use case's table joins name" not in rule
     plain = dict(grouping, joins={})
     uc = genie_uc(**{"Analytics Technique": "Anomaly Detection", "_implement_grouping": plain})
