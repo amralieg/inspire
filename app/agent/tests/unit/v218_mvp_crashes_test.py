@@ -50,6 +50,23 @@ def test_every_asset_status_reader_skips_list_valued_records(agent_ns):
             pytest.fail(f"{name} reads a list-valued record as a dict: {error}")
 
 
+@pytest.mark.parametrize("name,family,check", [("min_positives", "A", "positives"),
+                                               ("min_outcome_windows", "A", "outcome_windows"),
+                                               ("min_seasonal_cycles", "E", "seasonal_cycles")])
+def test_a_fallback_that_needs_none_of_a_count_can_declare_zero_and_is_never_sent_back(agent_ns, name, family, check):
+    allowed = agent_ns["genie_allowed_text"](agent_ns["GENIE_WIDGET_ALLOWED"][name])
+    assert allowed == "whole number, at least 0"
+    core = [{"name": name, "default": str(agent_ns["GENIE_READINESS_THRESHOLDS"][family][name]), "allowed": allowed}]
+    fill = {"widgets": [{"name": name, "type": "text", "default": "0", "allowed": allowed}],
+            "readiness": [{"check": check, "measured": "0"}]}
+    assert agent_ns["implement_widget_default_fixes"](fill, core) == []
+    assert agent_ns["implement_declared_setting_problems"](fill, family) == []
+    fill["widgets"][0]["default"] = core[0]["default"]
+    assert len(agent_ns["implement_declared_setting_problems"](fill, family)) == 1
+    fill["widgets"][0]["default"] = "-1"
+    assert agent_ns["implement_widget_default_fixes"](fill, core)[0][2] == core[0]["default"]
+
+
 def test_widget_default_outside_its_range_takes_inspire_default_or_nearest_bound(agent_ns):
     fix = agent_ns["implement_widget_default_fix"]
     assert fix("min_rows", "0", "whole number, at least 1", "1") == "1"
