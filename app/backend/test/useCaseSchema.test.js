@@ -146,8 +146,21 @@ test('the schema statement reads existence, the session tag, the person\'s catal
   assert.deepEqual(got.parameters.map((p) => [p.name, p.value]), [['c', 'main'], ['s0', '_inspire_a']]);
   assert.equal(I.useCaseSchemaTagsSql('main', 's', { inspire_session_id: '42', inspire_use_case_id: 'N01-U01', inspire_business: "Acme's" }),
     "ALTER SCHEMA `main`.`s` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme\\'s')");
-  assert.equal(I.useCaseSchemaBuilderGrant('main', 's', 'app-sp'), 'GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`s` TO `app-sp`');
+  assert.equal(I.useCaseSchemaBuilderGrant('main', 's', 'app-sp'), 'GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`s` TO `app-sp`');
   assert.equal(I.useCaseSchemaBuilderGrant('main', 's', 'x`y'), '');
+});
+
+test('the grant on a use case schema Inspire creates covers every right the build check asks of the identity Inspire builds as, a model-training use case included (must-exclude)', () => {
+  const rowsFrom = (privileges) => [
+    { level: 'catalog', privilege: 'OWNER', mine: false, me: 'app-sp' }, { level: 'catalog', privilege: 'USE CATALOG', mine: true, me: 'app-sp' },
+    { level: 'schema', privilege: 'OWNER', mine: false, me: 'app-sp' },
+    ...privileges.map((privilege) => ({ level: 'schema', privilege, mine: true, me: 'app-sp' })),
+  ];
+  const granted = I.useCaseSchemaBuilderGrant('main', 's', 'app-sp').replace(/^GRANT (.*) ON SCHEMA .*$/, '$1').split(', ');
+  assert.equal(I.outputAccess(rowsFrom(granted), 'main.s.n01_u01_results', { builder: true }).write.ok, true);
+  assert.equal(I.modelAccess(rowsFrom(granted), 'main.s.n01_u01_results_model', { builder: true }).ok, true);
+  const withoutModel = granted.filter((p) => p !== 'CREATE MODEL');
+  assert.match(I.modelAccess(rowsFrom(withoutModel), 'main.s.n01_u01_results_model', { builder: true }).detail, /needs CREATE MODEL on main\.s/);
 });
 
 async function call(base, route, opts = {}) {
@@ -205,7 +218,7 @@ test('create-schema tags the use case schema and lets the identity Inspire build
       ['CREATE SCHEMA IF NOT EXISTS `main`.`_inspire_acme_n01_u01`', PERSON_TOKEN],
       ["ALTER SCHEMA `main`.`_inspire_acme_n01_u01` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme', 'inspire_database' = 'main.inspire')", PERSON_TOKEN],
     ]);
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]]);
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]]);
   });
   const same = [];
   await withApp({ forwardedToken: PERSON_TOKEN, dbToken: PERSON_TOKEN, statements: { ...schemaRows([RIGHT]), 'GRANT ': (sql) => { same.push(sql); return { rows: [] }; } } }, async (url) => {
@@ -225,7 +238,7 @@ test('create-schema on the person route, where the request carries the person to
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data.warnings, []);
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]]);
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]]);
   });
 });
 
@@ -257,7 +270,7 @@ test('create-schema on a schema that already exists grants the identity Inspire 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.existed, true);
     assert.deepEqual(made.sqlCalls.filter((c) => /^(CREATE|ALTER) /.test(c.sql)), [], 'an existing, tagged schema is neither created nor tagged again');
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]],
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]],
       'the builder grant lands on an existing schema, the case that left the build identity without USE SCHEMA and CREATE TABLE');
   });
 });
