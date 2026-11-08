@@ -2265,7 +2265,11 @@ class Shell:
             plan["total"] = shell_sql.facts_total_query(facts, context["table"], {f["name"] for f in fields or []})
         if context["categories"] and request["ai_counts"]:
             plan["ai"] = shell_sql.ai_counts_query(page, values, context, request["columns"])
-        limits = {"rows": request["limit"], "ai": shell_sql.CAPS["options"], "treatments": shell_sql.CAPS["options"]}
+        counting = request["status_counts"] and context["actions"] and bool(context["join"])
+        if counting:
+            plan["statuses"] = shell_sql.status_counts_query(page, values, request, context, editor)
+        limits = {"rows": request["limit"], "ai": shell_sql.CAPS["options"], "treatments": shell_sql.CAPS["options"],
+                  "statuses": shell_sql.CAPS["options"]}
         jobs = {("list", name): (lambda q=query, n=limits.get(name, 1): self.read_at(ws, who, *q, n)) for name, query in plan.items()}
         if closing:
             def closed_rows(listed=jobs[("list", "rows")]):
@@ -2326,6 +2330,8 @@ class Shell:
                 "window": {"window": window["window"], "limit": window.get("limit"), "shown": shown, "more": total - shown,
                            "today": window["today"]} if window else None,
                 "as_of_us": self.as_of_us(served_by(done), read_at),
+                **({"status_counts": shell_sql.status_counts_of(done[("list", "statuses")].get("rows"))
+                    if ("list", "statuses") in done else None} if counting else {}),
                 **({"treatments": [{"segment": r.get("s"), "treatment": r.get("v"), "n": int(r.get("n") or 0)}
                                    for r in done[("list", "treatments")].get("rows") or []] if ("list", "treatments") in done else None}
                    if request["treatments"] else {})}
