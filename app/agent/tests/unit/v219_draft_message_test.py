@@ -15,6 +15,7 @@ from v141_app_shell_test import SETTINGS, call  # noqa: E402
 from v144_app_data_test import EDITOR, PERSON, current  # noqa: E402
 from v211_genie_agent_test import INJECTION, AgentWorkspace, agent_shell  # noqa: E402
 
+CONTRACT = json.load(open(os.path.join(ROOT, "tests", "fixtures", "app_usability_contract.json"), encoding="utf-8"))["draft"]
 LABEL = "Store 42 oat bar"
 VALUES = {"entity_label": LABEL, "value_at_stake": 12500, "currency": "USD", "recommended_action": "Cut the discount to 20%",
           "ai_explanation": "Sales fell 18% after the discount started.", "action_owner": PERSON, "action_status": "New", "category": "Snacks"}
@@ -194,3 +195,11 @@ def test_draft_parse_strips_fences_and_em_dashes():
     assert subject == "A, B" and body == "Hi [name],\n\nOne, two."
     with pytest.raises(ValueError):
         shell_agent.draft_parse("no json here")
+
+
+@pytest.mark.parametrize("reply, chat_status, shape", [(GOOD, None, "response"), ("Sure, here you go.", 404, "template")])
+def test_the_server_answers_the_contract_draft_request_with_exactly_the_draft_the_web_tests_use(tmp_path, reply, chat_status, shape):
+    s, _ws = shell_with(tmp_path, DraftLLM(reply), chat_status=chat_status)
+    request = CONTRACT["request"]
+    status, out = call(s, request["method"], request["path"], headers=EDITOR, body=request["body"])
+    assert status == 200 and out == CONTRACT[shape]

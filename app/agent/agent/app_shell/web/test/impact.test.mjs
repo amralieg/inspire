@@ -246,7 +246,7 @@ test('the record panel closes a record as fixed, not an issue or could not fix, 
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
-  assert.deepEqual(await drawer.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft message', 'Ask Genie to fix']);
+  assert.deepEqual(await drawer.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft Message to Someone', 'Ask Genie to fix']);
   assert.equal(await drawer.locator('input[name="realized_value"]').count(), 0, 'the amount shows only for a fix');
   await drawer.locator('select[name="action_status"]').selectOption('Done');
   await drawer.locator('input[name="realized_value"]').fill('-3');

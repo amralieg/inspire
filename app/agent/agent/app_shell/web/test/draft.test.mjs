@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { DECIDE, TABLE, appInfo, openApp, serveDist, tracked } from './harness.mjs';
+import { CONTRACT, DECIDE, TABLE, appInfo, openApp, serveDist, tracked } from './harness.mjs';
 import { DRAFT_COPIED, DRAFT_MANUAL, DRAFT_RECORDS } from '../src/records.js';
 
 let served;
@@ -17,8 +17,8 @@ after(async () => {
   served?.close();
 });
 
-const reply = (subject, body, extra = {}) => ({ subject, body, text: `Subject: ${subject}\n\n${body}`, source: 'ai', note: '', records: 1, model: 'm', ...extra });
-const FIRST = reply('Cut the discount on Item 1', 'Hi [name],\n\nItem 1 loses 1,200 USD a week. Could you cut the discount by [date]?');
+const FIRST = CONTRACT.draft.response;
+const reply = (subject, body, extra = {}) => ({ ...FIRST, subject, body, text: `Subject: ${subject}\n\n${body}`, ...extra });
 const SECOND = reply('Item 1 needs a price change', 'Hi [name],\n\nItem 1 is on the price-loss desk. Could you change its price by [date]?');
 
 function drafting(answers) {
@@ -48,12 +48,13 @@ test('a record drafts a message to copy, regenerates it, and never changes the r
     window.copied = [];
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.copied.push(text); } } });
   });
-  assert.deepEqual(await drawer.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft message', 'Ask Genie to fix']);
-  await drawer.getByRole('button', { name: 'Draft message' }).click();
+  assert.deepEqual(await drawer.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft Message to Someone', 'Ask Genie to fix']);
+  await drawer.getByRole('button', { name: 'Draft Message to Someone' }).click();
   const dialog = page.locator('dialog[data-draft]');
   const box = dialog.locator('textarea[name="draft_message"]');
   await box.waitFor();
   assert.deepEqual(draft.asked, [{ page: 'n01_u05', record_keys: ['R001'], attempt: 0 }]);
+  assert.deepEqual(Object.keys(draft.asked[0]).sort(), Object.keys(CONTRACT.draft.request.body).sort(), 'the App asks with the contract draft request');
   assert.equal(await box.inputValue(), FIRST.text);
   assert.match(await dialog.locator('header p').innerText(), /^About Item number 1 .*Nothing on the record changes/);
   assert.equal(await dialog.locator('[data-draft-note]').count(), 0);
@@ -84,7 +85,7 @@ test('without a clipboard the draft is selected for the keyboard, and the old co
     window.copyAnswer = false;
     document.execCommand = (name) => { window.commanded = name; return window.copyAnswer; };
   });
-  await drawer.getByRole('button', { name: 'Draft message' }).click();
+  await drawer.getByRole('button', { name: 'Draft Message to Someone' }).click();
   const dialog = page.locator('dialog[data-draft]');
   await dialog.locator('textarea').waitFor();
   await dialog.getByRole('button', { name: 'Copy' }).click();
@@ -103,9 +104,9 @@ test('without a clipboard the draft is selected for the keyboard, and the old co
 });
 
 test('a failed draft says why and tries again, and a template draft says it was built from the record', async () => {
-  const template = reply('Action needed: Item 1', 'Hi [name],\n\nItem 1 is flagged.', { source: 'template', note: 'No chat model is available to this App, so this draft is built from the record fields.' });
+  const template = CONTRACT.draft.template;
   const { page, seen, context, drawer } = await openDrawer([(json) => json(502, { error: 'the SQL warehouse is stopped' }), template]);
-  await drawer.getByRole('button', { name: 'Draft message' }).click();
+  await drawer.getByRole('button', { name: 'Draft Message to Someone' }).click();
   const dialog = page.locator('dialog[data-draft]');
   await dialog.locator('[data-draft-error]').waitFor();
   assert.equal(await dialog.locator('[data-draft-error]').innerText(), 'The message could not be drafted: the SQL warehouse is stopped');
@@ -151,6 +152,6 @@ test('a selection drafts one message for up to ten records, and an informational
   const plain = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: tracked().routes });
   await plain.page.locator('.cell-t').first().click();
   await plain.page.locator('dialog.drawer[open]').waitFor();
-  assert.equal(await plain.page.getByRole('button', { name: 'Draft message' }).count(), 0, 'a row with no action to take has no message to draft');
+  assert.equal(await plain.page.getByRole('button', { name: 'Draft Message to Someone' }).count(), 0, 'a row with no action to take has no message to draft');
   await plain.context.close();
 });

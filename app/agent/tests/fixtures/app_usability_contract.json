@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "about": "Request and response shapes of the App server for run progress, action windows, acting on a set, notes, snooze, batches, undo and similar records. A match acts on the records whose current version is the one the table held at as_of_us, the as_of_us the list or the similar read returned. The server tests assert the server answers with exactly these shapes; the web tests serve these bodies.",
+  "about": "Request and response shapes of the App server for run progress, action windows, acting on a set, notes, snooze, batches, undo, similar records and drafted messages. A match acts on the records whose current version is the one the table held at as_of_us, the as_of_us the list or the similar read returned. The server tests assert the server answers with exactly these shapes; the web tests serve these bodies.",
   "freshness": {
     "request": {"method": "GET", "path": "freshness", "query": {"page": "n01_u05"}},
     "response": {
@@ -99,5 +99,10 @@
     "stale_record": {"status": 409, "body": {"error": "dana changed this record on Oct 27, 2026 at 09:10 UTC, after you opened it. Reload it to see that change, then make yours again",
                                              "written": [], "conflicts": [{"record_key": "k1", "error": "dana changed this record on Oct 27, 2026 at 09:10 UTC, after you opened it. Reload it to see that change, then make yours again"}],
                                              "conflicts_count": 1, "left_out": 0, "batch_id": null, "code": "stale_record"}}
+  },
+  "draft": {
+    "request": {"method": "POST", "path": "records/draft", "body": {"page": "n01_u05", "record_keys": ["k1"], "attempt": 0}},
+    "response": {"subject": "Cut the discount on Store 42 oat bar", "body": "Hi [name],\n\nStore 42 oat bar is flagged on the price-loss desk. Sales fell 18% after the discount started, and 12.5K USD is at stake. The recommended action is to cut the discount to 20%. It is with pat.lee@example.com and still New. Could you make the change by [date]?", "text": "Subject: Cut the discount on Store 42 oat bar\n\nHi [name],\n\nStore 42 oat bar is flagged on the price-loss desk. Sales fell 18% after the discount started, and 12.5K USD is at stake. The recommended action is to cut the discount to 20%. It is with pat.lee@example.com and still New. Could you make the change by [date]?", "source": "ai", "note": "", "records": 1, "model": "system.ai.claude-sonnet-4-6"},
+    "template": {"subject": "Action needed: Store 42 oat bar", "body": "Hi [name],\n\nStore 42 oat bar is flagged on Price-loss decision desk. Sales fell 18% after the discount started. The amount at stake is 12,500 USD. The recommended action is: Cut the discount to 20%. It is with pat.lee@example.com, and its status is New. Could you take this on and tell me when it is done?", "text": "Subject: Action needed: Store 42 oat bar\n\nHi [name],\n\nStore 42 oat bar is flagged on Price-loss decision desk. Sales fell 18% after the discount started. The amount at stake is 12,500 USD. The recommended action is: Cut the discount to 20%. It is with pat.lee@example.com, and its status is New. Could you take this on and tell me when it is done?", "source": "template", "note": "No chat model is available to this App, so this draft is built from the record fields.", "records": 1, "model": ""}
   }
 }

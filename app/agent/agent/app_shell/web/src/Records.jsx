@@ -429,7 +429,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
                   <option value={SOMEONE_ELSE}>Someone else…</option>
                 </select>
                 <SnoozeButton action={action} tomorrow={tomorrow} />
-                <button type="button" className="btn" onClick={() => setDrafting(true)} data-act="draft"><Icon name="send" size={14} />Draft message</button>
+                <button type="button" className="btn" onClick={() => setDrafting(true)} data-act="draft"><Icon name="send" size={14} />Draft Message to Someone</button>
                 {genieOn(app, pageId) && <button type="button" className="btn" onClick={() => ask(fixQuestion(title))} data-act="genie"><GenieMark size={14} />Ask Genie to fix</button>}
               </>
             )}
