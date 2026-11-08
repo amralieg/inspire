@@ -4,7 +4,7 @@ import { plural } from './plural.js';
 import { PERSONAL_KEY_REASON, personalColumn } from './personalColumns.js';
 import { specVibeAsks, vibeConflicts, vibeRefusalText, vibeRefusals } from './vibeLimits.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
-import { FIRST_RUN_LABEL, firstRunSaved, latestRunScope, scopeProblems, scopeValues } from './runScope.js';
+import { FIRST_RUN_LABEL, firstRunSent, latestRunScope, scopeProblems, scopeValues } from './runScope.js';
 import { PLACE_NAME_RE } from './tableName.js';
 import {
   allowedRule, allowedText, isSettingWidget, numberText, settingsModelOf, settingsProblems, widgetProblems, widgetSetProblems, widgetValueProblem,
@@ -210,15 +210,21 @@ export function skippedAsksText(spec) {
   return parts.length ? `Inspire builds without ${count === 1 ? 'this ask' : `these ${count} asks`}: ${parts.join('; ')}.` : '';
 }
 
-export function withFirstRunSaved(spec) {
+export function withFirstRunSaved(spec, edited = null) {
   const widgets = spec?.config?.widgets;
   if (!widgets || typeof widgets !== 'object' || Array.isArray(widgets)) return spec;
-  const saved = firstRunSaved(widgets);
+  const saved = firstRunSent(widgets, edited);
   return Object.keys(saved).length === Object.keys(widgets).length ? spec : { ...spec, config: { ...spec.config, widgets: saved } };
 }
 
-export function sentSpec(spec, offer, built = null, targets = null, scope = {}) {
-  const chosen = withVibeChoice(specWithBackend(withFirstRunSaved(spec), offer), built);
+export function editedWidgets(latest) {
+  if (!latest) return null;
+  const widgets = latest.spec_json?.config?.widgets;
+  return widgets && typeof widgets === 'object' && !Array.isArray(widgets) ? widgets : {};
+}
+
+export function sentSpec(spec, offer, built = null, targets = null, scope = {}, edited = null) {
+  const chosen = withVibeChoice(specWithBackend(withFirstRunSaved(spec, edited), offer), built);
   const out = withKpiTarget(chosen, kpiTargetOf(chosen));
   if (!joinsApp(out)) return out;
   const joined = withJoinedApp(out, targets);

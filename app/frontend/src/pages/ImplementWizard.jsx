@@ -89,6 +89,8 @@ import {
   appBackendOf,
   lakebaseBlock,
   sentSpec,
+  editedWidgets,
+  withFirstRunSaved,
   withAppBackend,
   appWarehouseLabel,
   appWarehouseOf,
@@ -746,8 +748,10 @@ export default function ImplementWizard({
     }
   };
 
-  const sent = useMemo(() => sentSpec(spec, lakebase, built, targets, placeScope), [spec, lakebase, built, targets, placeScope]);
-  const sentScope = withGroupingDefault(scopeValues((name) => sent.config.widgets?.[name]), scopeProfile.profile, sent.config.widgets?.[GROUP_BY]);
+  const edited = useMemo(() => editedWidgets(context?.latest), [context?.latest]);
+  const sent = useMemo(() => sentSpec(spec, lakebase, built, targets, placeScope, edited), [spec, lakebase, built, targets, placeScope, edited]);
+  const runs = withFirstRunSaved(spec).config.widgets;
+  const sentScope = withGroupingDefault(scopeValues((name) => runs?.[name]), scopeProfile.profile, runs?.[GROUP_BY]);
   const specKey = JSON.stringify(sent);
   const ownErrorsKey = ownErrors.join('|');
   const buildStep = BUILD_STEP_IDS.includes(stepId);

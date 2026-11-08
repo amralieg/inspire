@@ -566,6 +566,13 @@ export function firstRunSaved(values) {
   return Object.fromEntries(Object.entries(isMap(values) ? values : {}).filter(([name]) => !stale.includes(name)));
 }
 
+export function firstRunSent(values, edited = null) {
+  const saved = firstRunSaved(values);
+  if (!isMap(edited) || text(edited[RUN_SCOPE]) || text(saved[RUN_SCOPE]).toLowerCase() !== FIRST_RUN_DEFAULT) return saved;
+  const { [RUN_SCOPE]: _default, ...rest } = saved;
+  return firstRunStale(rest).length ? saved : rest;
+}
+
 export function firstRunContradictions(values) {
   const scope = text(values?.[RUN_SCOPE]).toLowerCase();
   const said = scope ? `${FIRST_RUN_LABEL} is ${scope}` : `${FIRST_RUN_LABEL} is not chosen`;

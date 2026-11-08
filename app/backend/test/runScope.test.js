@@ -746,3 +746,22 @@ test('a saved MVP Test Run keeps only the setting of the choice that was picked,
   assert.equal(W.withFirstRunSaved(same), same, 'a consistent spec is sent unchanged');
   assert.deepEqual(W.withFirstRunSaved({ config: {} }), { config: {} });
 });
+
+test('an edit sends the MVP Test Run default only when the person changed it, a first build always sends it (must-exclude: an untouched default is no change)', async () => {
+  const S = await lib('runScope.js');
+  const W = await lib('implementWizard.js');
+  const sent = (widgets, edited) => W.sentSpec({ use_case_id: 'N01-U01', config: { widgets } }, null, edited ? 1 : null, null, {}, edited).config.widgets;
+  const before = { top_k: '5' };
+  const filled = S.withScopeDefaults(S.scopeValues((name) => before[name]), { default_scope: S.FIRST_RUN_DEFAULT }).run_scope;
+  assert.equal(filled, S.FIRST_RUN_DEFAULT);
+  assert.deepEqual(sent({ ...before, run_scope: filled }, before), before, 'the default the agent already runs for an empty choice is not sent on an edit');
+  assert.deepEqual(sent({ ...before, run_scope: filled }, { ...before, run_scope: '' }), before, 'a blank saved choice is the same as none');
+  assert.deepEqual(sent({ ...before, run_scope: 'recent', scope_days: '30' }, before), { ...before, run_scope: 'recent', scope_days: '30' }, 'another choice is sent');
+  assert.deepEqual(sent({ ...before, run_scope: 'all' }, before), { ...before, run_scope: 'all' }, 'Run on everything is sent');
+  assert.deepEqual(sent({ ...before, run_scope: filled, scope_records: '500' }, before), { ...before, run_scope: filled, scope_records: '500' },
+    'a changed number of records keeps its choice, never a setting without a choice');
+  assert.deepEqual(sent({ ...before, run_scope: filled }, { ...before, run_scope: 'recent' }), { ...before, run_scope: filled }, 'moving back to the default from another saved choice is sent');
+  assert.deepEqual(sent({ ...before, run_scope: filled }, null), { ...before, run_scope: filled }, 'a first build sends the default');
+  assert.deepEqual(sent({ ...before, run_scope: filled }, undefined), { ...before, run_scope: filled }, 'with no edited version the default is sent');
+  assert.deepEqual(S.firstRunSent({ run_scope: 'Records' }, {}), {}, 'the agent reads the choice in any case');
+});
