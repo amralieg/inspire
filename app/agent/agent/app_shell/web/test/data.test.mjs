@@ -727,7 +727,7 @@ test('the record panel shows the saving with its formula, why the AI flagged it,
   assert.deepEqual(await panel.locator('.panel-b > section h3').allInnerTexts(),
     ['Could save', 'Why it is flagged', 'How sure the AI is', 'Next best action', 'Action', 'Add a note', 'Ask Genie about this', 'Details', 'History']);
   assert.match(await panel.locator('.hist-i').first().innerText(), /No value changed\./, 'a new AI reason is never shown as a business change');
-  assert.deepEqual(await panel.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Ask Genie to fix']);
+  assert.deepEqual(await panel.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft message', 'Ask Genie to fix']);
   assert.deepEqual(await panel.getByLabel('Give to someone').locator('option').allInnerTexts(),
     [`With ${PERSON}`, `Give to ${OTHER}`, 'Someone else…']);
   const ask = panel.getByRole('region', { name: 'Ask Genie about this' });

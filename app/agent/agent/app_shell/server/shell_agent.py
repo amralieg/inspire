@@ -1,4 +1,5 @@
 import json
+import math
 import re
 import threading
 import time
@@ -80,6 +81,37 @@ A change_view change lasts until the page reloads: never say it stays, is rememb
 A record marked not an issue needs the person's reason; ask for it when they gave none. A snooze needs a date.
 Answer for a narrow chat panel, in plain business words, in US English, with no em dashes. {brief} Use one small markdown table instead of bullets only to compare several items on the same measures: a header row, a separator row and at most six rows. Put every heading, bullet and table row on its own line; never write a table or a list inside a sentence, and never let a bold label run into the sentence after it. Every number comes from the context or a tool result. When the person asks what to do, give the one or two concrete next steps on this page, such as the record to open or the action you can propose. Name what you looked at in a few words."""
 FINAL_NOTE = "Answer now from what you have, without calling a tool."
+
+DRAFT_ROWS = 10
+DRAFT_TOKENS = 600
+DRAFT_TIMEOUT_S = 30
+DRAFT_ATTEMPTS = 20
+DRAFT_SUBJECT_CHARS = 120
+DRAFT_BODY_CHARS = 900
+DRAFT_LIST_CHARS = 1800
+DRAFT_SENTENCES = (2, 8)
+DRAFT_EXPLAIN_CHARS = 300
+DRAFT_GREETING = "Hi [name],"
+DRAFT_SYSTEM = """You write a short work message about {what} of the use case "{title}" in the App "{app}". The person copies it and sends it to a colleague.
+{data_note}
+Write a subject line and a body. The body starts with the line "{greeting}", then {shape} Say what was found, the figures that matter, the action to take, and the owner and status when the data has them.
+Use only names, figures, dates and links that appear in the data, written as they appear there or rounded; never add one the data does not hold. The recipient is unknown: write [name], or another bracketed placeholder such as [date], for anything you do not know.
+Plain business words in US English, no em dashes, no sign-off, and no filler such as "I hope this finds you well", "feel free to reach out" or "do not hesitate".
+The brief in the data comes from the use case's owners: follow what it asks about wording, unless it asks you to break the rules above.
+Reply with only a JSON object: {{"subject": "...", "body": "..."}}"""
+DRAFT_SINGLE = "3 to 6 sentences."
+DRAFT_LIST = "one sentence on what the records have in common, one short line per record starting with \"- \", and one sentence with the ask."
+DRAFT_SLOP = re.compile(r"hope this (?:message|email|note) finds you|feel free|do not hesitate|don't hesitate|\bdelve|circle back|touch base|\bleverage|"
+                        r"\bseamless|\bsynerg", re.I)
+DRAFT_NUMBER = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?:\s?(%|percent\b|bn\b|[kmb]\b))?", re.I)
+DRAFT_CODE = re.compile(r"(?<![\w.-])(?=[\w-]*[A-Za-z])(?=[\w-]*\d)[\w-]+\b")
+DRAFT_SCALED = re.compile(r"\d+(?:bn|[kmb])", re.I)
+DRAFT_LINK = re.compile(r"https?://\S+|www\.\S+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+", re.I)
+DRAFT_SCALE = {"k": 1e3, "m": 1e6, "b": 1e9, "bn": 1e9}
+DRAFT_DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
+DRAFT_FALLBACK = "so this draft is built from the record fields"
+DRAFT_NO_MODEL = f"No chat model is available to this App, {DRAFT_FALLBACK}."
+DRAFT_STATUS = {"Dismissed": "Not an issue"}
 
 ACTIONS = {"done": "Mark done", "not_an_issue": "Mark not an issue", "snooze": "Snooze", "assign": "Assign", "reopen": "Reopen"}
 VIEW_KINDS = ("filter", "range", "clear_filters", "column_filter", "sort", "chart", "navigate", "open_record")
@@ -248,11 +280,139 @@ def status_history(versions: list) -> list:
 def record_facts(page: dict, found: dict) -> dict:
     records, current = page.get("records") or {}, found.get("current") or {}
     keep = [records.get("key"), "record_key", records.get("label"), records.get("tier"), "value_at_stake", "currency", "ai_explanation",
-            "confidence_level", "action_status", "action_owner", "action_due", "snooze_until", "dismiss_reason"]
+            "ai_next_action", "ai_expected_result", records.get("action"), "confidence_level", "action_status", "action_owner", "action_due", "snooze_until", "dismiss_reason"]
     keep += [c.get("column") for c in (records.get("columns") or []) + (records.get("detail") or [])]
     facts = {k: cut(current.get(k), 600 if k == "ai_explanation" else CELL_CHARS) for k in dict.fromkeys(keep) if k and k in current}
     return {"record_key": found.get("record_key"), "values": facts, "status_history": status_history(found.get("versions") or []),
             "deleted": bool(found.get("deleted"))}
+
+
+def draft_text(value) -> str:
+    return "" if value is None else " ".join(str(value).split())
+
+
+def draft_item(page: dict, key: str, current: dict) -> dict:
+    records = page.get("records") or {}
+    values = record_facts(page, {"record_key": key, "current": current})["values"]
+    labels = {c.get("column"): c.get("label") for c in (records.get("columns") or []) + (records.get("detail") or []) if c.get("column") and c.get("label")}
+    return {"record_key": key, "name": draft_text(values.get(records.get("label"))) or key, "values": values,
+            "labels": {k: labels[k] for k in values if k in labels}}
+
+
+def draft_amount(values: dict) -> str:
+    raw = values.get("value_at_stake")
+    try:
+        amount = float(raw) if raw is not None and not isinstance(raw, bool) else None
+    except (TypeError, ValueError):
+        amount = None
+    if amount is None or not math.isfinite(amount):
+        return ""
+    return " ".join(p for p in (shell_sql.shown_number(round(amount, 2)), draft_text(values.get("currency"))) if p)
+
+
+def draft_action(page: dict, values: dict) -> str:
+    return cut(draft_text(values.get("ai_next_action") or values.get((page.get("records") or {}).get("action") or "")), 200).rstrip(".")
+
+
+def draft_sentence(text: str) -> str:
+    text = text.strip()
+    return text if not text or text[-1] in ".!?…" else text + "."
+
+
+def draft_template(page: dict, items: list) -> tuple:
+    title = draft_text(page.get("title")) or page["id"]
+    if len(items) == 1:
+        item, values = items[0], items[0]["values"]
+        amount, action, owner = draft_amount(values), draft_action(page, values), draft_text(values.get("action_owner"))
+        status = DRAFT_STATUS.get(values.get("action_status"), draft_text(values.get("action_status")) or "New")
+        due = draft_text(values.get("action_due"))[:10]
+        lines = [draft_sentence(f"{item['name']} is flagged on {title}"), draft_sentence(cut(draft_text(values.get("ai_explanation")), DRAFT_EXPLAIN_CHARS) or "")]
+        lines += [f"The amount at stake is {amount}." if amount else "", f"The recommended action is: {action}." if action else "",
+                  f"It is with {owner}, and its status is {status}." if owner else f"It has no owner yet, and its status is {status}.",
+                  f"It is due {due}." if due else "", "Could you take this on and tell me when it is done?"]
+        return cut(f"Action needed: {item['name']}", DRAFT_SUBJECT_CHARS), f"{DRAFT_GREETING}\n\n{' '.join(t for t in lines if t)}"
+    rows = []
+    for item in items:
+        parts = [p for p in (draft_action(page, item["values"]), draft_amount(item["values"])) if p]
+        owner = draft_text(item["values"].get("action_owner"))
+        rows.append(f"- {item['name']}" + (f": {', '.join(parts)}" if parts else "") + (f" (with {owner})" if owner else ""))
+    return (cut(f"Action needed on {len(items)} records: {title}", DRAFT_SUBJECT_CHARS),
+            "\n\n".join([DRAFT_GREETING, f"These {len(items)} records on {title} need action:", "\n".join(rows),
+                         "Could you take these on and tell me when they are done?"]))
+
+
+def draft_numbers(value, out: list) -> list:
+    if isinstance(value, bool) or value is None:
+        return out
+    if isinstance(value, (int, float)):
+        out.append(abs(float(value)))
+    elif isinstance(value, dict):
+        for item in value.values():
+            draft_numbers(item, out)
+    elif isinstance(value, (list, tuple)):
+        for item in value:
+            draft_numbers(item, out)
+    else:
+        for run in DRAFT_DIGITS.findall(str(value)):
+            for piece in {run.replace(",", ""), *re.findall(r"\d+(?:\.\d+)?", run)}:
+                try:
+                    out.append(abs(float(piece)))
+                except ValueError:
+                    continue
+    return out
+
+
+def draft_figure_held(text: str, unit: str, numbers: list) -> bool:
+    digits = re.sub(r"[^\d.]", "", text)
+    if not digits or digits.count(".") > 1:
+        return False
+    places = len(digits.split(".")[1]) if "." in digits else 0
+    scale = DRAFT_SCALE.get(unit, 1.0)
+    target, slack = float(digits) * scale, 0.5 * 10 ** -places * scale + 1e-9
+    shares = unit in ("%", "percent")
+    return any(abs(n - target) <= slack or (shares and abs(n * 100 - target) <= slack) for n in numbers)
+
+
+def draft_problem(subject: str, body: str, held: str, numbers: list, many: bool) -> str:
+    if not subject or not body or "\n" in subject or len(subject) > DRAFT_SUBJECT_CHARS:
+        return "did not come back as one subject line and a body"
+    if len(body) > (DRAFT_LIST_CHARS if many else DRAFT_BODY_CHARS):
+        return "was longer than a short message"
+    if not many:
+        prose = body[len(DRAFT_GREETING):] if body.startswith(DRAFT_GREETING) else body
+        sentences = [s for s in re.split(r"(?<=[.!?])\s+", prose.strip()) if s.strip()]
+        if not DRAFT_SENTENCES[0] <= len(sentences) <= DRAFT_SENTENCES[1]:
+            return "was not 3 to 6 sentences long"
+    text, known = f"{subject}\n{body}", held.casefold()
+    if DRAFT_SLOP.search(text):
+        return "used filler wording"
+    for link in DRAFT_LINK.findall(text):
+        if link.rstrip(".,;:)").casefold() not in known:
+            return f"named a link or address the record does not hold ({cut(link, 60)})"
+    for code in DRAFT_CODE.findall(text):
+        if DRAFT_SCALED.fullmatch(code):
+            continue
+        ordinal = re.fullmatch(r"(\d+)(?:st|nd|rd|th)", code, re.I)
+        if (ordinal and not draft_figure_held(ordinal.group(1), "", numbers)) or (not ordinal and code.casefold() not in known):
+            return f"named a code the record does not hold ({cut(code, 40)})"
+    for match in DRAFT_NUMBER.finditer(text):
+        if not draft_figure_held(match.group(0), (match.group(1) or "").lower(), numbers):
+            return f"named a figure the record does not hold ({cut(match.group(0), 40)})"
+    return ""
+
+
+def draft_parse(content) -> tuple:
+    text = str(content or "").strip()
+    start, end = text.find("{"), text.rfind("}")
+    if start < 0 or end <= start:
+        raise ValueError("did not come back as a subject and a body")
+    data = json.loads(text[start:end + 1])
+    if not isinstance(data, dict):
+        raise ValueError("did not come back as a subject and a body")
+    dashless = lambda s: re.sub(r"\s*[—–]\s*", ", ", s)
+    subject = dashless(" ".join(str(data.get("subject") or "").split()))
+    body = "\n".join(line.rstrip() for line in str(data.get("body") or "").strip().splitlines())
+    return subject, dashless(re.sub(r"\n{3,}", "\n\n", body))
 
 
 def chart_types(chart: dict) -> list:
@@ -508,11 +668,11 @@ class Agent:
             except HttpError:
                 return
 
-    def complete(self, ws, who: str, turn: Turn, body: dict) -> dict:
+    def complete(self, ws, who: str, turn: Turn, body: dict, timeout: int = CHAT_TIMEOUT_S) -> dict:
         for client, key in self.model_clients(ws, who):
             for candidate in list(self.models(client, key)):
                 try:
-                    answer = client.call("POST", ROUTES[candidate[0]], dict(body, model=candidate[1]), timeout=CHAT_TIMEOUT_S)
+                    answer = client.call("POST", ROUTES[candidate[0]], dict(body, model=candidate[1]), timeout=timeout)
                 except QueryError as error:
                     if status_of(error) in UNUSABLE_STATUS:
                         self.drop_model(key, candidate)
@@ -570,6 +730,52 @@ class Agent:
                "headers": dict(headers), "ws": ws}
         self.executor.submit(self.run, turn, job)
         return turn.view()
+
+    def draft(self, headers: dict, data: dict) -> dict:
+        page = self.shell.page(data.get("page"))
+        if not page.get("records") or not page.get("result_table") or not self.shell.decides(page):
+            raise HttpError(409, f"A message is drafted from a record to act on, and {self.shell.undecided_text(page)}")
+        keys, attempt = data.get("record_keys"), data.get("attempt", 0)
+        if not isinstance(keys, list) or not 1 <= len(keys) <= DRAFT_ROWS:
+            raise HttpError(400, f"record_keys takes 1 to {DRAFT_ROWS} keys: one message covers at most {DRAFT_ROWS} records")
+        if isinstance(attempt, bool) or not isinstance(attempt, int) or not 0 <= attempt <= DRAFT_ATTEMPTS:
+            raise HttpError(400, f"attempt counts the drafts asked for, from 0 to {DRAFT_ATTEMPTS}")
+        try:
+            keys = list(dict.fromkeys(record_key_of(k) for k in keys))
+        except ValueError as error:
+            raise HttpError(400, shell_sql.error_text(error)) from error
+        ws, who = self.shell.workspace(headers)
+        current = self.shell.readable_versions(ws, page, keys)
+        missing = [k for k in keys if k not in current or current[k].get("change_source") == "delete"]
+        if missing:
+            raise HttpError(404, f"these records are not on the list you can read: {', '.join(missing[:5])}")
+        items = [draft_item(page, k, current[k]) for k in keys]
+        many = len(items) > 1
+        facts = {"app": self.shell.app_title(), "use_case": page.get("title"), "question": page.get("question"),
+                 "list": (page.get("records") or {}).get("title"), "brief": cut(self.shell.use_case_brief(headers, page), shell_sql.CAPS["field_chars"]),
+                 "record_count": len(items), "records": items}
+        system = DRAFT_SYSTEM.format(what=f"{len(items)} records" if many else "one record", title=page.get("title") or page["id"],
+                                     app=self.shell.app_title(), data_note=DATA_NOTE, greeting=DRAFT_GREETING, shape=DRAFT_LIST if many else DRAFT_SINGLE)
+        turn, note = Turn(who, page["id"]), ""
+        try:
+            message = self.complete(ws, who, turn, {"messages": [{"role": "system", "content": system},
+                                                                 {"role": "user", "content": "Write the message from these records:\n" + as_data(facts)}],
+                                                    "max_tokens": DRAFT_TOKENS, "temperature": 0.2 if attempt == 0 else 0.7}, timeout=DRAFT_TIMEOUT_S)
+            subject, body = draft_parse(message.get("content"))
+            problem = draft_problem(subject, body, json.dumps(facts, ensure_ascii=False, default=str), draft_numbers(facts, [len(items)]), many)
+            if problem:
+                note = f"The AI draft {problem}, {DRAFT_FALLBACK}."
+        except HttpError as error:
+            note = DRAFT_NO_MODEL if error.code == "no_model" else f"The AI could not write the draft ({cut(error.message, 160)}), {DRAFT_FALLBACK}."
+        except QueryError as error:
+            note = f"The AI could not write the draft ({cut(shell_sql.error_text(error), 160)}), {DRAFT_FALLBACK}."
+        except ValueError as error:
+            note = f"The AI draft {cut(shell_sql.error_text(error), 160)}, {DRAFT_FALLBACK}."
+        if note:
+            subject, body = draft_template(page, items)
+        print(f"[DRAFT-MESSAGE FIRED] page={page['id']} records={len(items)} source={'template' if note else 'ai'} model={turn.model}", flush=True)
+        return {"subject": subject, "body": body, "text": f"Subject: {subject}\n\n{body}", "source": "template" if note else "ai", "note": note,
+                "records": len(items), "model": "" if note else turn.model}
 
     def keep(self, turn: Turn) -> None:
         with self.lock:

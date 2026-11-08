@@ -88,6 +88,7 @@ export const decidePlan = async (body) => {
 };
 export const evaluateScenario = (body) => json('POST', 'scenario/evaluate', body);
 export const undoRecords = (body) => json('POST', 'records/undo', body);
+export const draftMessage = (body) => json('POST', 'records/draft', body);
 export const getBatches = (page) => json('GET', `records/batches?page=${encodeURIComponent(page)}`);
 export const getSimilar = (page, recordKey, by) => json('GET', `records/similar?${new URLSearchParams({ page, by: by.join(','),
   ...(Array.isArray(recordKey) ? { record_keys: JSON.stringify(recordKey.map(String)) } : { record_key: recordKey }) })}`);

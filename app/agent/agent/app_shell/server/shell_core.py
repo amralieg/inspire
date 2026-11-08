@@ -1849,6 +1849,8 @@ class Shell:
                 return 200, self.record_act(headers, data)
             if route == ("POST", "records/undo"):
                 return 200, self.undo(headers, data)
+            if route == ("POST", "records/draft"):
+                return 200, self.agent.draft(headers, data)
             if route == ("POST", "plan/decide"):
                 return 200, self.plan_decide(headers, data)
             if route == ("POST", "scenario/evaluate"):
