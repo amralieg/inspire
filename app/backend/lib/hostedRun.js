@@ -28,7 +28,7 @@ const HOSTED_DROPPED_RESPONSE_HEADERS = ['connection', 'keep-alive', 'transfer-e
   'x-content-type-options', 'x-frame-options'];
 const HOSTED_NO_TOKEN = 'Inspire needs permission to act as you to show this page; a workspace admin turns on user authorization for Apps, '
   + 'then reopen Inspire';
-const HOSTED_PYTHON_MODULES = 'import fastapi, uvicorn';
+const HOSTED_PYTHON_MODULES = ['fastapi', 'uvicorn', 'requests'];
 const HOSTED_APP_INFO = '/api/app';
 const HOSTED_ALERT_ROUTES = {
   'GET /api/alerts': 'listing', 'POST /api/alerts/preview': 'preview', 'POST /api/alerts/save': 'save', 'POST /api/alerts/pause': 'pause',
@@ -84,7 +84,7 @@ async function pythonFor(pathValue, cwd, canImport = defaultCanImport) {
 
 function defaultCanImport(file) {
   return new Promise((resolve) => {
-    childProcess.execFile(file, ['-c', HOSTED_PYTHON_MODULES], { timeout: 30000, env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' } },
+    childProcess.execFile(file, ['-c', `import ${HOSTED_PYTHON_MODULES.join(', ')}`], { timeout: 30000, env: { PATH: '/usr/bin:/bin', LANG: 'C.UTF-8' } },
       (err) => resolve(!err));
   });
 }
@@ -429,7 +429,7 @@ function createHostedRun(options = {}) {
   async function pageRuntime(record, ws) {
     const dir = await syncSource(record, ws);
     if (python == null) python = await pickPython();
-    if (!python) throw new Error('Inspire found no Python with fastapi and uvicorn to run the page');
+    if (!python) throw new Error(`Inspire found no Python with ${HOSTED_PYTHON_MODULES.join(', ')} to run the page`);
     const home = path.join(idDir(record.id), 'home');
     fs.mkdirSync(home, { recursive: true });
     return { dir, python, env: childEnv(env, { python, home, warehouseId: record.warehouse_id, cwd }) };
@@ -763,6 +763,7 @@ module.exports = {
   sameOriginCsp,
   documentLoad,
   HOSTED_NO_TOKEN,
+  HOSTED_PYTHON_MODULES,
   HOSTED_TMP_ROOT,
   HOSTED_ALERT_ROUTES,
   HOSTED_DECISION_ROUTES,

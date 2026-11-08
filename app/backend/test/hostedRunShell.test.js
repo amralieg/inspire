@@ -46,7 +46,7 @@ const gone = (pid) => {
 test('the real App shell from the bundled notebook runs as a page Inside Inspire through the proxy, with the forwarded identity, and its process ends', async (t) => {
   const python = await H.pythonFor(process.env.PATH, process.cwd());
   if (!python) {
-    t.skip('no python3 or python on PATH imports fastapi and uvicorn, so the real page cannot run on this machine');
+    t.skip(`no python3 or python on PATH imports ${H.HOSTED_PYTHON_MODULES.join(', ')}, so the real page cannot run on this machine`);
     return;
   }
   const tmp = fs.mkdtempSync(path.join(os.tmpdir(), 'hosted-shell-'));

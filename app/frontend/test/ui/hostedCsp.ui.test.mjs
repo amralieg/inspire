@@ -63,7 +63,7 @@ async function watched(context) {
 test('a page Inside Inspire renders under its strict CSP, reads as the viewer, and no injected script or call to Inspire runs', async (t) => {
   const python = await H.pythonFor(process.env.PATH, process.cwd());
   if (!python) {
-    t.skip('no python3 or python on PATH imports fastapi and uvicorn, so the real page cannot run on this machine');
+    t.skip(`no python3 or python on PATH imports ${H.HOSTED_PYTHON_MODULES.join(', ')}, so the real page cannot run on this machine`);
     return;
   }
   const warehouse = await fakeWarehouse();
