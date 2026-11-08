@@ -87,6 +87,10 @@ export const decidePlan = async (body) => {
   return got;
 };
 export const evaluateScenario = (body) => json('POST', 'scenario/evaluate', body);
+export const getSavedScenarios = (page) => json('GET', `scenario/saved?page=${encodeURIComponent(page)}`);
+export const saveScenario = (body) => json('POST', 'scenario/save', body);
+export const shareScenario = (body) => json('POST', 'scenario/share', body);
+export const chooseScenario = (body) => json('POST', 'scenario/choose', body);
 export const undoRecords = (body) => json('POST', 'records/undo', body);
 export const draftMessage = (body) => json('POST', 'records/draft', body);
 export const getBatches = (page) => json('GET', `records/batches?page=${encodeURIComponent(page)}`);
