@@ -376,6 +376,18 @@ def _space(tables=("main.inspire.churn_out",), questions=True, sql="SELECT COUNT
     return json.dumps(space)
 
 
+def test_benchmarks_written_beside_serialized_space_are_read_as_its_benchmarks(agent_ns):
+    allowed = ["main.inspire.churn_out"]
+    raw = json.loads(_space(grounded=True))
+    raw["benchmarks"] = raw["serialized_space"].pop("benchmarks")
+    _t, _d, space, errors = agent_ns["normalize_genie_space"](json.dumps(raw), allowed)
+    assert errors == [] and len(space["benchmarks"]["questions"]) == 3
+    assert agent_ns["_implement_genie_benchmark_problems"](space, set(), allowed) == []
+    raw["serialized_space"]["benchmarks"] = {"questions": []}
+    errors = agent_ns["normalize_genie_space"](json.dumps(raw), allowed)[3]
+    assert "genie_space.json has benchmarks both at its top level and in serialized_space; keep only the one in serialized_space" in errors
+
+
 SPACE_COLUMNS = {"main.inspire.churn_out": [(n, t, f"the {n.replace('_', ' ')}") for n, t in (
     ("as_of_date", "date"), ("entity_id", "string"), ("entity_label", "string"), ("priority_tier", "string"), ("rank", "int"),
     ("top_reasons", "array<string>"), ("explanation", "string"), ("value", "double"), ("run_id", "string"))]}
