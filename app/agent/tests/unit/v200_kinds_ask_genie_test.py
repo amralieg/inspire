@@ -5,6 +5,7 @@ import re
 import pytest
 
 from v141_app_shell_test import PAGE, SETTINGS, call, shell
+from v144_app_chrome_test import OLD_SCREENS, refused
 import shell_core
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
@@ -143,24 +144,13 @@ def test_a_malformed_element_context_is_refused(tmp_path, changes, needle):
 
 
 @pytest.mark.parametrize("kind", ["kpi", "text", "controls", "table", "chart"])
-def test_the_overview_and_impact_screens_answer_about_their_numbers_text_filters_and_tables(tmp_path, kind):
+def test_every_element_asks_from_its_use_case_page_and_the_old_hub_screens_are_refused(tmp_path, kind):
     s, sp_ws, _user, _made = shell(tmp_path)
-    for screen, title in shell_core.HUB_SCREENS.items():
-        status, out = call(s, "POST", "genie/explain", body=element_body(kind, page=screen, question="Why?"))
-        assert status == 200 and f'from the App "Pricing desk", on the page "{title}".\n' in out["question"]
-    assert len(sp_ws.genie) == len(shell_core.HUB_SCREENS) == 3
-
-
-def test_my_work_is_a_hub_screen_its_numbers_ask_in_a_one_page_app_and_never_pick_one_use_case_in_a_hub(tmp_path):
-    s, sp_ws, _user, _made = shell(tmp_path)
-    status, out = call(s, "POST", "genie/explain", body=element_body("kpi", page="mywork", question="Is this a lot?"))
-    assert status == 200 and out["question"].startswith('A question about a key number from the App "Pricing desk", on the page "My work".\n')
-    assert call(s, "POST", "genie/explain", body=element_body("record", page="mywork")) == (404, {"error": "the App has no page 'mywork'"})
-    two = dict(SETTINGS, pages=["n01_u05", "n02_u01"])
-    (tmp_path / "hub").mkdir()
-    hub_s, hub_ws, _user, _made = shell(tmp_path / "hub", two, [PAGE, dict(PAGE, id="n02_u01", use_case_id="N02-U01", title="Second desk")])
-    assert call(hub_s, "POST", "genie/explain", body=element_body("kpi", page="mywork")) == (409, {"error": shell_core.HUB_GENIE_NOTE})
-    assert len(sp_ws.genie) == 1 and hub_ws.genie == []
+    status, out = call(s, "POST", "genie/explain", body=element_body(kind, question="Why?"))
+    assert status == 200 and 'from the App "Pricing desk", on the page "' in out["question"]
+    for screen in OLD_SCREENS:
+        assert call(s, "POST", "genie/explain", body=element_body(kind, page=screen, question="Why?")) == refused(screen)
+    assert len(sp_ws.genie) == 1
 
 
 @pytest.mark.parametrize("kind", ["record", "process_step", "series", "node"])

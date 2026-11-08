@@ -162,7 +162,7 @@ function Shell({ app }) {
   const dock = working ? prefs.dock : '';
   const setDock = useCallback((next) => update((p) => ({ ...p, dock: next })), [update]);
   const openGenie = () => (working ? setDock('genie') : setGenieOpen(true));
-  const genie = useGenie(app, page ? page.id : 'overview', openGenie, agentView);
+  const genie = useGenie(app, page ? page.id : '', openGenie, agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
   const { hub, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
   const shown = visiblePages(pages, hub);

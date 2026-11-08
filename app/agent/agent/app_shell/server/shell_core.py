@@ -55,9 +55,7 @@ ELEMENT_NAMES = {"kpi": "key number", "text": "text block", "controls": "set of 
                  "scenario": "scenario", "segment": "segment", "recommendation": "recommendation",
                  "bridge_step": "bridge step", "effect": "measured effect", "process_step": "process step", "site": "site", "node": "network node"}
 EXPLAIN_KINDS = ("chart", "record", *ELEMENT_NAMES)
-HUB_KINDS = ("chart", "kpi", "text", "controls", "table")
 KIND_REFUSED = f"explain one of: {', '.join(EXPLAIN_KINDS)}"
-HUB_SCREENS = {"overview": "Overview", "mywork": "My work", "impact": "Impact"}
 HUB_GENIE_NOTE = "Each use case has its own Genie Agent. Open a use case to ask Genie about it or to explain its charts."
 HUB_GENIE_OFF = "Ask Genie is off for every use case in this App. Open a use case to see why."
 JOINED_GENIE_NOTE = ("Ask Genie is off on this page because it joined this App before each use case had its own Genie Agent here. "
@@ -3245,10 +3243,8 @@ class Shell:
         ident = str(ident or "")
         if ident in self.by_id:
             return self.by_id[ident]
-        if len(self.pages) == 1 and (not ident or ident in HUB_SCREENS):
+        if len(self.pages) == 1 and not ident:
             return self.pages[0]
-        if ident in HUB_SCREENS:
-            raise HttpError(409, HUB_GENIE_NOTE)
         if not ident:
             raise HttpError(400, "name the page whose use case Genie answers about")
         return self.page(ident)
@@ -3339,17 +3335,14 @@ class Shell:
         own = data.get("question")
         if own is not None and (not isinstance(own, str) or len(own) > ASK_CHARS):
             raise HttpError(400, f"ask a question of at most {shell_sql.shown_number(ASK_CHARS)} characters")
-        ident = str(data.get("page") or "")
-        hub = kind in HUB_KINDS and ident in HUB_SCREENS and ident not in self.by_id
-        asked = self.genie_page(ident) if hub else self.page(data.get("page"))
-        page = {"title": HUB_SCREENS[ident]} if hub else asked
+        page = self.page(data.get("page"))
         question = explain_question(hub_title(self.settings), page, kind, title, context, question=own or "")
-        self.genie_space(asked)
+        self.genie_space(page)
         genie_conversation(data.get("conversation_id"))
         brief = self.use_case_brief(headers, page)
         if brief:
             question = explain_question(hub_title(self.settings), page, kind, title, context, brief, own or "")
-        return dict(self.genie_send(headers, asked, question, data.get("conversation_id")), question=question)
+        return dict(self.genie_send(headers, page, question, data.get("conversation_id")), question=question)
 
     def genie_message(self, headers: dict, query: dict) -> dict:
         space = self.genie_space(self.genie_page(query.get("page")))

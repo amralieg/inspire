@@ -3,7 +3,7 @@ import copy
 import pytest
 
 from v141_app_shell_test import PAGE, SETTINGS, call, shell
-from v144_app_chrome_test import CHART, RECORD, explain_body
+from v144_app_chrome_test import CHART, OLD_SCREENS, RECORD, explain_body, refused
 import shell_core
 
 FIRST_SPACE, SECOND_SPACE = SETTINGS["genie"]["space_id"], "01f0dd44ee55ff66"
@@ -74,8 +74,8 @@ def test_asking_on_a_page_goes_to_that_page_s_genie_agent_and_a_joined_page_or_t
     assert call(s, "POST", "genie/ask", body={"page": "n01_u05", "question": "Which items lose most?"})[0] == 200
     assert sp_ws.genie == [(SECOND_SPACE, "Which trips stand out?", ""), (FIRST_SPACE, "Which items lose most?", "")]
     assert call(s, "POST", "genie/ask", body={"page": "n03_u01", "question": "q"}) == (409, {"error": shell_core.JOINED_GENIE_NOTE})
-    for screen in shell_core.HUB_SCREENS:
-        assert call(s, "POST", "genie/ask", body={"page": screen, "question": "q"}) == (409, {"error": shell_core.HUB_GENIE_NOTE})
+    for screen in OLD_SCREENS:
+        assert call(s, "POST", "genie/ask", body={"page": screen, "question": "q"}) == refused(screen)
     assert call(s, "POST", "genie/ask", body={"question": "q"}) == (400, {"error": "name the page whose use case Genie answers about"})
     assert call(s, "POST", "genie/ask", body={"page": "n09_u09", "question": "q"}) == (404, {"error": "the App has no page 'n09_u09'"})
     assert len(sp_ws.genie) == 2
@@ -86,7 +86,7 @@ def test_the_answer_is_read_from_the_genie_agent_of_the_page_that_asked(tmp_path
     status, _msg = call(s, "GET", "genie/message", query={"page": "n02_u01", "conversation_id": "c1", "message_id": "m1"})
     assert status == 200 and sp_ws.genie[-1][0] == SECOND_SPACE
     assert call(s, "GET", "genie/message", query={"page": "n03_u01", "conversation_id": "c1", "message_id": "m1"})[0] == 409
-    assert call(s, "GET", "genie/message", query={"page": "overview", "conversation_id": "c1", "message_id": "m1"})[0] == 409
+    assert call(s, "GET", "genie/message", query={"page": "overview", "conversation_id": "c1", "message_id": "m1"})[0] == 404
     assert call(s, "GET", "genie/message", query={"conversation_id": "c1", "message_id": "m1"})[0] == 400
     assert len(sp_ws.genie) == 1
 
@@ -104,18 +104,15 @@ def test_explaining_a_chart_asks_the_page_s_genie_agent_and_names_the_hub_not_th
     assert len(sp_ws.genie) == 2
 
 
-def test_a_hub_chart_is_never_explained_by_one_use_case_s_genie_agent(tmp_path):
-    s, sp_ws, _user, _made = hub(tmp_path)
-    for screen in shell_core.HUB_SCREENS:
+def test_a_hub_or_a_one_page_app_refuses_the_old_hub_screens_and_a_one_page_app_still_asks_without_naming_its_page(tmp_path):
+    (tmp_path / "hub").mkdir()
+    s, sp_ws, _user, _made = hub(tmp_path / "hub")
+    (tmp_path / "one").mkdir()
+    one, one_ws, _user, _made = shell(tmp_path / "one")
+    for screen in OLD_SCREENS:
         body = explain_body(page=screen, title="Could save, by use case", context=copy.deepcopy(CHART))
-        assert call(s, "POST", "genie/explain", body=body) == (409, {"error": shell_core.HUB_GENIE_NOTE})
-    assert sp_ws.genie == []
-
-
-def test_a_one_page_app_still_explains_its_overview_and_impact_charts_with_its_only_genie_agent(tmp_path):
-    s, sp_ws, _user, _made = shell(tmp_path)
-    for screen, title in shell_core.HUB_SCREENS.items():
-        status, out = call(s, "POST", "genie/explain", body=explain_body(page=screen, title="Could save, by use case"))
-        assert status == 200 and out["question"].startswith(f'Explain a chart from the App "Pricing desk", on the page "{title}"')
-    assert call(s, "POST", "genie/ask", body={"question": "Why?"})[0] == 200
-    assert [g[0] for g in sp_ws.genie] == [FIRST_SPACE] * (len(shell_core.HUB_SCREENS) + 1)
+        assert call(s, "POST", "genie/explain", body=body) == refused(screen)
+        assert call(one, "POST", "genie/explain", body=body) == refused(screen)
+        assert call(one, "POST", "genie/ask", body={"page": screen, "question": "Why?"}) == refused(screen)
+    assert call(one, "POST", "genie/ask", body={"question": "Why?"})[0] == 200
+    assert sp_ws.genie == [] and [g[0] for g in one_ws.genie] == [FIRST_SPACE]
