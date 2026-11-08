@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
 import { SETTINGS_TECHNICAL_NOTE } from '../../src/lib/useCaseSettings.js';
+import { wheelScrolls } from './wheelScroll.mjs';
 import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, setDark, settled, toVibes, until, wizardFits, goToStep, toSummary } from './uiSupport.mjs';
 
 test.after(closeBrowser);
@@ -184,7 +185,9 @@ test('the Settings step fits 1440x900 with nothing to scroll at the most setting
         await fits('every assumption refused');
       } else {
         const last = settingRow(page, 'EXTRA_RATE_30').getByRole('textbox');
-        await last.scrollIntoViewIfNeeded();
+        const list = step.locator('[data-settings-list]');
+        await wheelScrolls(page, list, () => settingRow(page, 'EXTRA_RATE_30'), { name: 'Use case settings list' });
+        await page.setViewportSize({ width: 1440, height: 900 });
         await last.fill('7');
         assert.equal(await last.inputValue(), '7');
         await fits('the last setting typed in');

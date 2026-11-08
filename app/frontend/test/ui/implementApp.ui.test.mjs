@@ -5,6 +5,7 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
 import { MVP_MODE_LABEL, NOTEBOOK_MODE_LABEL } from '../../src/lib/implementWizard.js';
+import { wheelScrolls } from './wheelScroll.mjs';
 
 const { appShellCatalog } = createRequire(import.meta.url)('../../../backend/lib/appShell.js');
 const SHELL = appShellCatalog();
@@ -956,7 +957,9 @@ test('fifteen Apps scroll inside a list of fixed height: the wizard keeps the he
       assert.ok(sizes[15].scroll > sizes[15].client + 100, 'the other Apps are a scroll away');
       assert.equal(await rowInView(page, 'fin-app-15'), false, 'the last App starts below the fold');
       const last = targetRadio(page, 'fin-app-15');
-      await last.scrollIntoViewIfNeeded();
+      const appList = placeStep(page).locator('[data-app-list]');
+      await wheelScrolls(page, appList, () => appList.locator('[data-app-target="fin-app-15"]'), { name: 'Apps Inspire built' });
+      await page.setViewportSize({ width: 1440, height: 1000 });
       assert.equal(await rowInView(page, 'fin-app-15'), true);
       await last.check();
       assert.equal(await placeStep(page).getByRole('note', { name: JOIN_NOTE }).textContent(), joinedText('fin-app-15'));

@@ -1684,7 +1684,7 @@ export default function ResultsPage({
                       id="genie-quick-access-list"
                       role="region"
                       aria-labelledby="genie-quick-access-toggle"
-                      className={`rounded-xl border border-border/80 bg-linear-to-b from-bg-subtle/40 to-surface max-h-[min(42vh,340px)] overflow-y-auto overscroll-y-contain shadow-inner [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-strong/80 [&::-webkit-scrollbar-track]:bg-transparent ${origin ? 'mt-2' : ''}`}
+                      className={`rounded-xl border border-border/80 bg-linear-to-b from-bg-subtle/40 to-surface max-h-[min(42vh,340px)] overflow-y-auto shadow-inner [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-strong/80 [&::-webkit-scrollbar-track]:bg-transparent ${origin ? 'mt-2' : ''}`}
                     >
                       <ul className="divide-y divide-border/70">
                         {notebookFiles.map((f) => {
@@ -2298,7 +2298,7 @@ export default function ResultsPage({
 
               {/* Use case cards — only this region scrolls; sidebar + filter bar stay visible */}
               <div
-                className={`overflow-y-auto overscroll-y-contain pe-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-strong/70 [&::-webkit-scrollbar-track]:bg-transparent ${
+                className={`overflow-y-auto pe-0.5 [-webkit-overflow-scrolling:touch] [scrollbar-width:thin] [&::-webkit-scrollbar]:w-1.5 [&::-webkit-scrollbar-thumb]:rounded-full [&::-webkit-scrollbar-thumb]:bg-border-strong/70 [&::-webkit-scrollbar-track]:bg-transparent ${
                   embedded
                     ? 'h-[min(28rem,60vh)]'
                     : 'h-[min(calc(100dvh-12rem),56rem)]'
