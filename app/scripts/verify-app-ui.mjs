@@ -22,25 +22,26 @@ function checkLocalBundle() {
   if (!fs.existsSync(distJs)) {
     return { ok: false, message: 'frontend/dist missing — run: cd frontend && npm run build' };
   }
-  const jsFiles = fs.readdirSync(distJs).filter((f) => f.startsWith('index-') && f.endsWith('.js'));
-  if (!jsFiles.length) {
-    return { ok: false, message: 'no index-*.js in frontend/dist/assets' };
+  const jsFiles = fs.readdirSync(distJs).filter((f) => f.endsWith('.js'));
+  const html = path.join(root, 'frontend/dist/index.html');
+  const entry = ((fs.existsSync(html) ? fs.readFileSync(html, 'utf8') : '').match(/assets\/(index-[A-Za-z0-9_-]+\.js)/) || [])[1];
+  if (!entry || !jsFiles.includes(entry)) {
+    return { ok: false, message: 'frontend/dist/index.html names no index-*.js in frontend/dist/assets' };
   }
-  const latest = jsFiles.sort().pop();
-  const text = fs.readFileSync(path.join(distJs, latest), 'utf8');
+  const text = jsFiles.map((f) => fs.readFileSync(path.join(distJs, f), 'utf8')).join('\n');
   const hasUi = text.includes('No data yet');
   const hasRetiredGenerationDefault = text.includes('PDF Catalog,Genie Code Instructions');
   const missingV130 = V130_UI_STRINGS.filter((s) => !text.includes(s));
   const ok = hasUi && !hasRetiredGenerationDefault && missingV130.length === 0;
   return {
     ok,
-    jsBundle: latest,
+    jsBundle: entry,
     hasDemoDataUi: hasUi,
     hasV113GenerationOptions: !hasRetiredGenerationDefault,
     hasV130Ui: missingV130.length === 0,
     message: ok
-      ? `Local bundle OK (${latest})`
-      : `Local bundle STALE (${latest}) — ${
+      ? `Local bundle OK (${entry})`
+      : `Local bundle STALE (${entry}) — ${
           !hasUi
             ? 'missing "No data yet"'
             : hasRetiredGenerationDefault
