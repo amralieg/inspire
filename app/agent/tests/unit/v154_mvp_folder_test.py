@@ -1,5 +1,6 @@
 import base64
 import json
+import os
 import types
 
 import pytest
@@ -485,6 +486,38 @@ def test_a_failed_grant_on_the_instruction_notebook_folder_is_its_own_warning(ag
     first, second = inst._implement_folder_access(dict(UC, notebook_path=notebook), (5150, "N01-U01", 3), "someone@example.com")
     assert first.startswith(f"Folder: someone@example.com may not open this MVP in {USE_CASE_DIR}, because")
     assert second.startswith(f"Folder: someone@example.com may not open the Genie Code instruction notebook {notebook}, because")
+
+
+class ResourceDoesNotExist(Exception):
+    pass
+
+
+def test_an_instruction_notebook_that_is_gone_is_reported_as_gone_not_as_a_permission_the_person_lacks(agent_ns):
+    notebook = f"{APP}/acme/session_5150/notebooks/customer_care_retention/general/{FILE}.ipynb"
+
+    class _Gone(_Workspace):
+        def get_status(self, path):
+            if path == os.path.dirname(notebook):
+                self.calls.append(("status", path))
+                raise ResourceDoesNotExist(f"Path ({path}) doesn't exist.")
+            return super().get_status(path)
+
+    inst, grants = _access_inspire(agent_ns, _Gone())
+    warnings = inst._implement_folder_access(dict(UC, notebook_path=notebook), (5150, "N01-U01", 3), "someone@example.com")
+    assert warnings == [f"Folder: the Genie Code instruction notebook {notebook} is no longer in the workspace, so Inspire did not "
+                        "share it with someone@example.com."]
+    assert len(grants) == 1
+
+
+def test_a_missing_mvp_folder_is_still_a_permission_warning(agent_ns):
+    class _Gone(_Workspace):
+        def get_status(self, path):
+            raise ResourceDoesNotExist(f"Path ({path}) doesn't exist.")
+
+    inst, grants = _access_inspire(agent_ns, _Gone())
+    warnings = inst._implement_folder_access(UC, (5150, "N01-U01", 3), "someone@example.com")
+    assert len(warnings) == 1 and warnings[0].startswith(f"Folder: someone@example.com may not open this MVP in {USE_CASE_DIR}, because")
+    assert grants == []
 
 
 def test_uninstall_all_leaves_the_session_notebooks_folder_alone(agent_ns):
