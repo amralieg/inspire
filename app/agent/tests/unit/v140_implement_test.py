@@ -643,6 +643,8 @@ def test_genie_config_is_valid_toml_and_its_auth_command_prints_the_token(agent_
     provider = config["model_providers"]["databricks"]
     assert provider["base_url"] == "https://workspace.example.com/ai-gateway/codex/v1"
     assert provider["wire_api"] == "responses" and config["model"] == agent_ns["GENIE_CODE_MODEL"]
+    assert provider["request_max_retries"] == provider["stream_max_retries"] == agent_ns["GENIE_CODE_REQUEST_RETRIES"] >= 10, \
+        "a 429 on a per-minute token limit is retried long enough to outlast the minute"
     out = subprocess.run([provider["auth"]["command"], *provider["auth"]["args"]], env={"DATABRICKS_TOKEN": "tok-123"},
                          capture_output=True, text=True, check=True).stdout
     assert json.loads(out) == {"access_token": "tok-123", "token_type": "Bearer"}
