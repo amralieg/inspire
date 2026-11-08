@@ -24,7 +24,7 @@ def test_a_page_leaving_an_app_a_released_build_granted_names_the_grants_nobody_
     tables = agent_ns["implement_and_list"](agent_ns["implement_companion_tables"](TABLE))
     assert out["warnings"] == [f"App: an older Inspire built this use case's page and kept no record of the grants it ran, so the App's service "
                                f"principal sp-9 may still read {tables}; check its grants on them"]
-    inst._implement_revoke_app_sp = lambda asset_id, sp, wanted: ([], [], sp)
+    inst._implement_revoke_app_sp = lambda asset_id, sp, wanted, own=(): ([], [], sp)
     recorded = inst._implement_take_back("app", "churn-desk", KEY, [], {"people": [], "service_principal": {"sql": []}}, needs)
     assert not any("older Inspire" in w for w in recorded["warnings"]), "an App whose grants this version recorded gets no such note"
 
