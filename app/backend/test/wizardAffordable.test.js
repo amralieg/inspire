@@ -45,6 +45,10 @@ test('one shared block shape: a short plain reason, and Details with the exact g
   assert.match(denied.app.details, /GRANT USE SCHEMA, CREATE TABLE ON SCHEMA `main`.`n01_u01` TO `sp`/);
   assert.deepEqual(w.outputBlocks(ON, { app: APP_DENIED }, { app: 'churn-desk' }), {}, 'an App that already exists is kept, never blocked (must-exclude)');
   assert.deepEqual(w.outputBlocks(ON, { app: { ok: true } }, {}, { checks: { app_access: { ok: true } } }), {});
+  const unticked = w.outputBlocks(ON, null, {}, { checks: {}, new_app: APP_DENIED });
+  assert.equal(unticked.app.why, denied.app.why, 'the check run with the App off still blocks the App Inspire cannot build');
+  assert.deepEqual(w.outputBlocks(ON, null, {}, { checks: {}, new_app: { ok: true } }), {}, 'a new App Inspire can build is not blocked (must-exclude)');
+  assert.deepEqual(w.outputBlocks(ON, null, { app: 'churn-desk' }, { checks: {}, new_app: APP_DENIED }), {}, 'an App that already exists is never blocked by the new App check (must-exclude)');
   assert.doesNotMatch(`${w.needsAccess()} ${w.CANNOT_HERE} ${Object.values(w.OFF_IN_WORKSPACE).join(' ')}`, /[\u2013\u2014]/);
 });
 

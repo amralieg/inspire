@@ -1834,7 +1834,7 @@ function checkBlock(check) {
 export function outputBlocks(features, outputCheck, assets = {}, preflight = null) {
   const on = features || {};
   const app = !on.apps ? blockOf(OFF_IN_WORKSPACE.app, OFF_DETAILS)
-    : !assets?.app && (checkBlock(outputCheck?.app) || checkBlock(preflight?.checks?.app_access));
+    : !assets?.app && (checkBlock(outputCheck?.app) || checkBlock(preflight?.checks?.app_access) || checkBlock(preflight?.new_app));
   return Object.fromEntries([
     ['app', app],
     ['genie_space', !on.genie_spaces && blockOf(OFF_IN_WORKSPACE.genie_space, OFF_DETAILS)],

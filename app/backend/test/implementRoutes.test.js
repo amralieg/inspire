@@ -975,6 +975,9 @@ test('preflight disables a new App up front when its service principal could not
     assert.match(genie.data.checks.result_grant.warn, /to open the dashboard and the Genie Agent, because/);
     const appOnly = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&share=1&dashboard=0&principals=${principals}`);
     assert.equal(appOnly.data.checks.result_grant.warn, I.accessGapMessage('planners', gaps), 'no dashboard or Genie Agent, so no warehouse access to ask for');
+    assert.deepEqual(appOnly.data.new_app, got.data.checks.app_access, 'with no App asked for, the new App check is still answered');
+    assert.equal(appOnly.data.checks.app_access, undefined, 'and it stays out of the checks, so a build without an App is not stopped (must-exclude)');
+    assert.equal(got.data.new_app, undefined, 'an App asked for is checked in the checks only (must-exclude)');
     const check = await call(url, CHECK);
     assert.equal(check.data.ok, true, 'App access never blocks the Data step');
     assert.equal(check.data.app.ok, false);

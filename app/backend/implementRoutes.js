@@ -881,6 +881,7 @@ function registerImplementRoutes(app, deps) {
         ok: Object.values(checks).every((c) => c.ok),
         identity: (output && output.identity) || P.principalOf(principal).username,
         checks,
+        ...(appName || mergeApp ? {} : { new_app: output ? output.app : unchecked }),
         features,
         ...(moved ? { result_table_moved: moved } : {}),
       });

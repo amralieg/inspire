@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openUi, setDark, settled, startMvp, toAppAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
+import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openUi, painted, setDark, settled, startMvp, toAppAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
 import { MVP_MODE_LABEL, NOTEBOOK_MODE_LABEL } from '../../src/lib/implementWizard.js';
 import { wheelScrolls } from './wheelScroll.mjs';
 
@@ -462,8 +462,13 @@ test('Where results live offers its own schema, falls back to the Inspire databa
     await schema.selectOption('mvp');
     await goToStep(page, 'Delivery');
     await page.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
+    const withoutApp = page.waitForResponse((r) => r.url().includes('/api/inspire/implement/preflight?') && new URL(r.url()).searchParams.get('app_name') === '');
     await until(async () => !(await page.getByRole('checkbox', { name: /^App / }).isChecked()), 'the App Inspire cannot build is turned off on Delivery, in view');
     assert.equal(await page.getByRole('checkbox', { name: /^App / }).isDisabled(), true);
+    await withoutApp;
+    await painted(page);
+    assert.equal(await page.getByRole('checkbox', { name: /^App / }).isDisabled(), true, 'the check run without the App still keeps the App it cannot build from being ticked again');
+    await page.locator('[data-blocked-reason="app"]').waitFor();
     await toSummary(page);
     await page.locator('[data-picked-row="dropped"]').getByText(/^App: /).waitFor();
     assert.deepEqual((await footerErrors(page)).filter((e) => /^App /.test(e)), [], 'a check of the dropped App never shows on the Summary (must-exclude)');
