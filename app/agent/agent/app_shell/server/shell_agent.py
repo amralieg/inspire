@@ -340,7 +340,7 @@ def answer_problems(text: str) -> tuple:
     problems = []
     inline = sum(len(INLINE_BULLET.findall(line)) for line in raw.split("\n") if "|" not in line)
     if inline:
-        problems.append(f"{shell_sql.plural(inline, 'bullet')} written inside a sentence instead of on its own line")
+        problems.append(f"{shell_sql.plural(inline, 'bullet')} written inside a sentence instead of one per line")
     if any(DASH.search(line) for line in raw.split("\n") if "|" not in line):
         problems.append("dashes such as -- between words")
     if any(closing(s) for s in lead[1:]) or any(SIGN_OFF.match(plain_start(s["text"])) for s in lead[:1]) or any(
@@ -349,9 +349,9 @@ def answer_problems(text: str) -> tuple:
     if lead and (OPENER_PREFIX.match(plain_start(lead[0]["text"])) or OPENER.match(plain_start(lead[0]["text"]))):
         problems.append("an opening filler phrase")
     if len(lead) > LEAD_SENTENCES:
-        problems.append(f"{len(lead)} sentences of prose (at most {LEAD_SENTENCES})")
+        problems.append(f"{shell_sql.plural(len(lead), 'sentence')} of prose (at most {LEAD_SENTENCES})")
     if len(items) > ANSWER_BULLETS:
-        problems.append(f"{len(items)} bullets (at most {ANSWER_BULLETS})")
+        problems.append(f"{shell_sql.plural(len(items), 'bullet')} (at most {ANSWER_BULLETS})")
     long_items = [n for n, u in enumerate(items, 1) if words_of(u["text"]) > BULLET_WORDS]
     if long_items:
         problems.append(f"bullet {', '.join(map(str, long_items))} longer than {BULLET_WORDS} words")
