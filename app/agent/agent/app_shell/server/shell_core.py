@@ -135,6 +135,9 @@ RUN_WORDS = ("Sign in so the App can record who asked for the run",
 UNDO_WORDS = ("Sign in so the App can record who undid the act",
               "Only the person who made this act can undo it, because the App names no owner of this use case",
               "Only the person who made this act or an owner of this use case can undo it")
+UNOWNED_WORDS = ("Sign in so the App can check that you own this use case before it shows the records nobody owns",
+                 f"No one can see the records nobody owns in this use case, because the App names no owner of it; {shell_sql.rebuild_action()}",
+                 "Only the owners of this use case can see the records nobody owns")
 ADMIN_WORDS = ("Sign in so the App can check that you own it before it opens Admin",
                f"No one can open Admin in this App, because it names no owner; {shell_sql.rebuild_action()}",
                "Only the owners of this App can open Admin")
@@ -150,6 +153,8 @@ IMPACT_LIMIT = shell_sql.CAPS["impact_rows"] + shell_sql.IMPACT_REASONS + 20
 FACT_ROWS = 50
 MY_WORK_SIGN_IN = "sign in so the App can show the work you did"
 MY_WORK_NO_EXPORT = "the App offers no download of your work, so send no export"
+MY_WORK_FIXED_ROWS = (2 * len(shell_sql.MY_WORK_CLOSES) + 4 + shell_sql.CAPS["my_work_weeks"] + len(shell_sql.GONE_STATES) + 2
+                      + shell_sql.CAPS["my_work_overdue"] + 4)
 NO_ACTIONS = "this use case keeps no actions, so it has no work of yours to show"
 MINUTES_SETTING = {"name": shell_sql.MY_WORK_MINUTES, "kind": "number", "group": "impact", "source": "app", "applies": "app",
                    "label": "Minutes a person spends per record without Inspire", "unit": "minutes", "low": 0.0, "high": 1440.0,
@@ -1343,6 +1348,25 @@ def impact_view(rows: list) -> dict:
                          "measured": r.get("money"), "reported": r.get("reported"), "closed": r.get("at")} for r in by.get("record", [])]}
 
 
+def weeks_of(days: list) -> list:
+    counts = {}
+    for row in days:
+        day = day_text(row.get("label"))
+        try:
+            start = week_start(inspire_parse_time(day).date())
+        except (TypeError, ValueError):
+            continue
+        counts[start] = counts.get(start, 0) + int(row.get("n") or 0)
+    if not counts:
+        return []
+    last, out = max(counts), []
+    start = max(min(counts), last - datetime.timedelta(weeks=shell_sql.CAPS["my_work_weeks"] - 1))
+    while start <= last:
+        out.append({"week": start.isoformat(), "n": counts.get(start, 0)})
+        start += datetime.timedelta(weeks=1)
+    return out
+
+
 def my_work_view(rows: list) -> dict:
     by = {}
     for row in rows:
@@ -1354,14 +1378,28 @@ def my_work_view(rows: list) -> dict:
     median = (by.get("median") or [{}])[0]
     secs = shell_sql.as_number(median.get("secs"))
     best = (by.get("best") or [None])[0]
-    return {"worked": dict({kind: whole((closed.get(status) or {}).get("n")) for status, kind in shell_sql.MY_WORK_CLOSES},
+    team = {r.get("what"): whole(r.get("n")) for r in by.get("team", [])}
+    team_median = (by.get("team_median") or [{}])[0]
+    team_secs = shell_sql.as_number(team_median.get("secs"))
+    hours = lambda value: None if value is None else round(max(value, 0) / 3600, 2)
+    outcomes = {r.get("what"): whole(r.get("n")) for r in by.get("outcome", [])}
+    overdue = by.get("overdue", [])
+    return {"team": {"closed": {kind: team.get(status, 0) for status, kind in shell_sql.MY_WORK_CLOSES},
+                     "total": sum(team.get(status, 0) for status, _kind in shell_sql.MY_WORK_CLOSES),
+                     "people": whole((by.get("people") or [{}])[0].get("n")),
+                     "close": {"n": whole(team_median.get("n")), "median_hours": hours(team_secs)}},
+            "weeks": weeks_of(by.get("day", [])),
+            "outcomes": {state: outcomes.get(state, 0) for state in (*shell_sql.GONE_STATES, "flagged", "unchecked")},
+            "overdue": {"n": whole(overdue[0].get("n")) if overdue else 0,
+                        "items": [{"key": r.get("k"), "label": r.get("label"), "due": day_text(r.get("at"))} for r in overdue]},
+            "worked": dict({kind: whole((closed.get(status) or {}).get("n")) for status, kind in shell_sql.MY_WORK_CLOSES},
                            assigned=whole(tally.get("r")), notes=whole(tally.get("noted")), changes=whole(tally.get("n")),
                            records=whole(tally.get("m"))),
             "active_hours": whole(tally.get("hours")),
             "money": {"measured": {"n": whole(done.get("m")), "money": done.get("money")},
                       "reported": {"n": whole(done.get("r")), "money": done.get("reported")},
                       "estimated": {"n": whole(done.get("n")), "money": done.get("before")}},
-            "close": {"n": whole(median.get("n")), "median_hours": None if secs is None else round(max(secs, 0) / 3600, 2)},
+            "close": {"n": whole(median.get("n")), "median_hours": hours(secs)},
             "best": {"key": best.get("k"), "label": best.get("label"), "basis": best.get("what"), "money": best.get("money"),
                      "closed": best.get("at")} if best else None,
             "activity": [{"key": r.get("k"), "label": r.get("label"), "kind": r.get("what"), "status": r.get("status"), "note": r.get("note"),
@@ -1960,7 +1998,8 @@ class Shell:
     def app_info(self, headers: dict) -> dict:
         s = self.settings
         host = self.host()
-        pages = [dict(public_page(p), genie=self.genie_info(p, host)) for p in self.pages]
+        pages = [dict(public_page(p), genie=self.genie_info(p, host), is_owner=bool(self.signed_in(headers) & self.page_editors(p)))
+                 for p in self.pages]
         answering = any(p["genie"]["enabled"] for p in pages)
         genie = (pages[0]["genie"] if len(pages) == 1 else
                  {"enabled": answering, "title": "", "url": "", "note": HUB_GENIE_NOTE if answering else HUB_GENIE_OFF})
@@ -2261,6 +2300,9 @@ class Shell:
         editor = str(headers.get("x-forwarded-email") or "").strip()
         if request["mine"] and not editor:
             raise HttpError(401, "sign in so the App can show the records you own")
+        refusal = self.owner_refusal(headers, page, UNOWNED_WORDS) if request["unowned"] else ""
+        if refusal:
+            raise HttpError(401 if not self.signed_in(headers) else 403, refusal)
         closing, closed = context["actions"] and not request["window"], {}
         if closing and self.lakebase is None and shell_sql.pinned_closes(facts) and context.get("changed_keys") is not None:
             context = dict(context, closes_inline={f["name"] for f in fields or []})
@@ -2486,8 +2528,12 @@ class Shell:
         cap, shown = shell_sql.CAPS["my_work_deepest"], shell_sql.CAPS["my_work_rows"]
         if isinstance(offset, bool) or not isinstance(offset, int) or offset < 0 or offset % shown or offset + shown > cap:
             raise HttpError(400, f"offset is a whole multiple of {shown} from 0 to {cap - shown:,}")
+        wanted = data.get("page")
+        if wanted is not None and not any(p["id"] == wanted for p in self.pages):
+            raise HttpError(400, "page is the id of a use case of this App, or leave it out for every use case")
         ws, who = self.workspace(headers)
-        jobs = {p["id"]: (lambda p=p: self.my_work_page(ws, who, p, person, bounds, offset + shown)) for p in self.pages}
+        jobs = {p["id"]: (lambda p=p: self.my_work_page(ws, who, p, person, bounds, offset + shown)) for p in self.pages
+                if wanted is None or p["id"] == wanted}
         done, errors = self._parallel(jobs, pool=self.hub_pool)
         merged = sorted(((ident, entry) for ident, view in done.items() for entry in view.pop("activity", [])),
                         key=lambda pair: (-(stamp_of(pair[1]["at"]) or shell_sql.EPOCH).timestamp(), pair[0], str(pair[1]["key"])))
@@ -2504,7 +2550,7 @@ class Shell:
             return {"visible": True, "tracked": False, "note": NO_ACTIONS}
         names = {f["name"] for f in fields}
         sql, params = shell_sql.my_work_query(page, names, person, bounds, rows, self.history_for(ws, who, page, fields))
-        result = self.run(ws, who, sql, params, rows + len(shell_sql.MY_WORK_CLOSES) + 4)
+        result = self.run(ws, who, sql, params, rows + MY_WORK_FIXED_ROWS)
         return dict(my_work_view(result["rows"]), visible=True, tracked=True, priced=shell_sql.MONEY_COLUMN in names,
                     minutes=self.minutes_per_record(ws, who, page), served=result.get("served"))
 

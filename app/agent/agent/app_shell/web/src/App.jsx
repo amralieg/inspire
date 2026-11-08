@@ -7,16 +7,16 @@ import { GenieMark, Icon } from './icons.jsx';
 import { PlainNote, ToastProvider, useToast } from './ui.jsx';
 import Page, { SECTION_TITLES } from './Page.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
-import Impact from './Impact.jsx';
-import MyWorkPage from './MyWorkPage.jsx';
-import { MY_WORK_ROUTE } from './mywork.js';
+import Performance from './Performance.jsx';
+import InboxBell from './Inbox.jsx';
+import { inboxOn } from './inbox.js';
 import Admin from './Admin.jsx';
 import { ADMIN_ROUTE } from './admin.js';
 import GeniePanel, { useGenie } from './Genie.jsx';
 import { GenieScope, GenieState } from './AskGenie.jsx';
 import { DockContext, DockTabs, RecordDock } from './Dock.jsx';
 import Switcher from './Switcher.jsx';
-import { LINK_STALE, UNKNOWN_PAGE, canonicalHash, parseHash, sectionHash, staleSection, unknownRoute, withRecord } from './links.js';
+import { LINK_STALE, UNKNOWN_PAGE, canonicalHash, parseHash, sectionHash, staleSection, unknownRoute, withRecord, workRecordHash } from './links.js';
 import { MyViewProvider, useMyView } from './MyView.jsx';
 import { windowParams } from './prefs.js';
 import { DEFAULT_VIEW, visiblePages } from './hub.js';
@@ -25,7 +25,6 @@ import { integer } from './format.js';
 
 const THEME_KEY = 'inspire-app-theme';
 const RAIL_ICONS = { dashboard: 'grid', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', settings: 'sliders' };
-const HUB_SCOPES = { mywork: { page: MY_WORK_ROUTE, filters: '' }, impact: { page: 'impact', filters: '' } };
 
 function initials(user) {
   const source = user?.name || user?.email || '';
@@ -99,19 +98,6 @@ function SectionRail({ sections, on, onGo, open, page, counts = {} }) {
   );
 }
 
-function Performance({ app, hub, hubError, summaries, onRecord, onOpen, onExplain, genieBusy }) {
-  return (
-    <div className="perf" data-performance>
-      <GenieScope.Provider value={HUB_SCOPES.mywork}><MyWorkPage app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={onRecord} /></GenieScope.Provider>
-      {app.screens?.impact !== false && (
-        <GenieScope.Provider value={HUB_SCOPES.impact}>
-          <Impact app={app} hub={hub} hubError={hubError} summaries={summaries} onOpen={onOpen} onExplain={onExplain} genieBusy={genieBusy} />
-        </GenieScope.Provider>
-      )}
-    </div>
-  );
-}
-
 function Shell({ app }) {
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem(THEME_KEY) || app.theme; } catch { return app.theme; }
@@ -178,7 +164,7 @@ function Shell({ app }) {
   const openGenie = () => (working ? setDock('genie') : setGenieOpen(true));
   const genie = useGenie(app, page ? page.id : 'overview', openGenie, agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
-  const { hub, error: hubError, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
+  const { hub, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
   const shown = visiblePages(pages, hub);
   const toast = useToast();
 
@@ -201,7 +187,6 @@ function Shell({ app }) {
   useEffect(() => {
     document.title = admin ? `Admin · ${app.title}` : page ? `${page.title} · ${app.title}` : app.title;
   }, [page, admin, app.title]);
-  useEffect(() => { if (section === 'performance') loadHub(); }, [section, loadHub]);
   useEffect(() => {
     if (!navOpen) return undefined;
     const key = (e) => { if (e.key === 'Escape') setNavOpen(false); };
@@ -232,7 +217,15 @@ function Shell({ app }) {
     if (page) window.location.hash = sectionHash(page.id, s, new URLSearchParams(f && link.route === page.id ? { f } : {}));
     if (navOpen) leave();
   };
-  const openRecord = (pageId, key) => { window.location.hash = withRecord(`#/${encodeURIComponent(pageId)}`, key); leave(); };
+  const openRecord = (pageId, key) => {
+    const target = pages.find((p) => p.id === pageId);
+    if (target && isQueue(target)) {
+      setDock('record');
+      window.location.hash = workRecordHash(pageId, key);
+    } else window.location.hash = withRecord(`#/${encodeURIComponent(pageId)}`, key);
+    leave();
+  };
+  const perfScope = useMemo(() => ({ page: page?.id || '', filters: '' }), [page?.id]);
   const restyle = (nextPalette, nextTheme) => {
     applyTheme(nextPalette, nextTheme, app.style);
     setPalette(nextPalette);
@@ -270,6 +263,7 @@ function Shell({ app }) {
           </button>
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
+          <InboxBell page={admin ? null : page} on={inboxOn(app, page) && isQueue(page)} onOpen={openRecord} />
           <button className="genie-btn" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>
@@ -278,8 +272,10 @@ function Shell({ app }) {
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
           <main className="main" tabIndex={-1}>
             {admin && <Admin />}
-            {!admin && section === 'performance' && (
-              <Performance app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} onOpen={go} onExplain={explain} genieBusy={genie.busy} />
+            {!admin && page && section === 'performance' && (
+              <GenieScope.Provider value={perfScope}>
+                <Performance key={page.id} app={app} page={page} summary={summaries[page.id]} onRecord={openRecord} onExplain={explain} genieBusy={genie.busy} />
+              </GenieScope.Provider>
             )}
             {!admin && page && section !== 'performance' && (
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK}

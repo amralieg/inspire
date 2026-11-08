@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
-  DEFAULT_PREFS, MY_KEY, browserZone, cleanPrefs, isFolded, listLimit, listWindow, localDay, markVisit, narrowWindow, nextDay, pickedWindow, readPrefs, setFolds, utcOffset, visitedAt,
+  DEFAULT_PREFS, MY_KEY, browserZone, cleanPrefs, isFolded, listLimit, listWindow, localDay, markVisit, narrowWindow, nextDay, readPrefs, setFolds, utcOffset, visitedAt,
   windowLabel, windowParams, writePrefs,
 } from '../src/prefs.js';
 import { isQuiet, progressShare, progressText, stepText, untilText } from '../src/freshness.js';
@@ -12,7 +12,6 @@ import {
   CODES, NO_AS_OF, STALE_LIST, UNDO_CLOSE, actError, actOutcome, actedText, asOfText, batchText, byWords, changeWords, closedText, conflictText, isOverdue, isStaleRecord,
   listAsOf, matchOf, overdueFirst, recordsText, undoBatchOf, undoText, closedBatchOf, UNDO_THEIRS,
 } from '../src/records.js';
-import { doneDay, doneTodayOf, limitText, myWorkText } from '../src/hub.js';
 import { blockTitle } from '../src/blocks.js';
 import { parseHash, withRecord } from '../src/links.js';
 import { CONTRACT, fileNames } from './harness.mjs';
@@ -83,8 +82,6 @@ test('Everything is kept like any window, sends the list no window and no limit,
   assert.equal(listLimit({ ...DEFAULT_PREFS, limit: 25 }), 25);
   assert.deepEqual(windowParams(every), windowParams(DEFAULT_PREFS));
   assert.deepEqual(windowParams({ ...every, limit: 10 }), windowParams({ ...DEFAULT_PREFS, limit: 10 }));
-  assert.equal(pickedWindow(every), false, 'Everything picks no window for the Overview');
-  assert.equal(pickedWindow({ ...every, limit: 10 }), true);
   assert.deepEqual(['hour', 'today', 'week', 'month', 'all', 'everything'].map((window) => narrowWindow({ ...DEFAULT_PREFS, window })), [true, true, true, true, false, false]);
 });
 
@@ -210,24 +207,6 @@ test('only an open record past its due date is overdue, and overdue records go f
   assert.deepEqual(overdueFirst([{ k: 1 }], today), { rows: [{ k: 1 }], late: 0 });
 });
 
-test('done today adds up the count of records each use case says I marked done today, and says nothing when no use case knows', () => {
-  const page = (mine) => ({ done: { fixed: 9, mine_today: mine } });
-  const dubai = { name: 'Asia/Dubai', sent: true };
-  assert.deepEqual(doneTodayOf([page(CONTRACT.overview_window.page_fields.done.mine_today), page(2), page(null), {}], dubai), { n: 5, utc: false });
-  assert.deepEqual(doneTodayOf([page(0), page(0)], dubai), { n: 0, utc: false });
-  assert.equal(doneTodayOf([page(null), page(undefined), {}, null], dubai), null, 'no use case counted, for a person not signed in or a count that could not be read');
-  assert.equal(doneTodayOf([], dubai), null);
-  const work = { rows: [1, 2], late: 1, today: 1 };
-  assert.equal(myWorkText(work, { n: 5, utc: false }), '2 assigned to you · 1 overdue · 1 due today · 5 done today');
-  assert.equal(myWorkText(work, { n: 0, utc: false }), '2 assigned to you · 1 overdue · 1 due today');
-  assert.equal(myWorkText(work), '2 assigned to you · 1 overdue · 1 due today');
-  const utc = doneTodayOf([page(3)], { name: 'UTC', sent: false });
-  assert.deepEqual(utc, { n: 3, utc: true }, 'a day the server counted in UTC because the browser named no time zone');
-  assert.equal(myWorkText(work, utc), '2 assigned to you · 1 overdue · 1 due today · 3 done today (UTC)');
-  assert.deepEqual([doneDay(utc), doneDay({ n: 3, utc: false }), doneDay(null)], ['today (UTC)', 'today', 'today']);
-  assert.deepEqual(doneTodayOf([page(3)], { name: 'UTC', sent: true }), { n: 3, utc: false }, 'a person whose own time zone is UTC reads plain today');
-});
-
 test('a folded block is named by its first words, never by its markup', () => {
   assert.equal(blockTitle({ kind: 'text', content: '\n## How to read **this** page\nMore text' }), 'How to read this page');
   assert.equal(blockTitle({ kind: 'html', content: '<style>p{color:red}</style><p>Read <b>this</b> first</p>' }), 'Read this first');
@@ -350,15 +329,6 @@ test('a run that has gone quiet reads the server note and nothing that says it i
     assert.equal(isQuiet(moving), false);
     assert.doesNotMatch(stepText(moving, NOW), /No news/);
   }
-});
-
-test('the limit line names what the server kept in each use case, and nothing when the server sent it all', () => {
-  assert.equal(limitText([['Price desk', 10, 12]]), 'Your limit keeps the top 10 of 12 records in Price desk. Change the limit in Settings.');
-  assert.equal(limitText([['A', 10, 12], ['B', 10, 1250], ['C', 10, 40]]),
-    'Your limit keeps the top 10 of 12 records in A, the top 10 of 1,250 in B and the top 10 of 40 in C. Change the limit in Settings.');
-  assert.equal(limitText([['A', 10, 10], ['B', 3, 3]]), '', 'nothing is held back');
-  assert.equal(limitText([['A', 10, 10], ['B', 10, 11]]), 'Your limit keeps the top 10 of 11 records in B. Change the limit in Settings.');
-  assert.equal(limitText([]), '');
 });
 
 test('undo names the records it left, and a match act says how many of the matching records it changed', () => {
