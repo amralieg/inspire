@@ -89,8 +89,17 @@ test('a share the person cannot make never blocks the build: the version builds 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(made.jobs.length, 1);
     assert.equal(got.data.warnings.length, 1);
-    assert.match(got.data.warnings[0], /^Built without sharing: .*you cannot share main\.inspire\.churn_out.*\. Share main\.inspire\.churn_out once you can\.$/);
+    assert.equal(got.data.warnings[0], 'Built without sharing: amr@x, the identity Inspire builds as, cannot share main.inspire.churn_out: '
+      + 'it needs to own it, its schema or its catalog, or hold MANAGE on one of them. Share main.inspire.churn_out once it can.');
     assert.deepEqual(insertedSpec(made).sharing.principals, [], 'the build job skips the sharing');
+  });
+  await withApp({ access: CANNOT_SHARE, columns: KEY_COLUMNS, forwardedToken: 'tok' }, async (url, made) => {
+    const got = await submit(url, shared);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.warnings[0], 'Built without sharing: you cannot share main.inspire.churn_out: '
+      + 'you need to own it, its schema or its catalog, or hold MANAGE on one of them. Share main.inspire.churn_out once you can.');
+    assert.doesNotMatch(got.data.warnings[0], /identity Inspire builds as|once it can/, 'a build that runs as the person says you (must-exclude)');
+    assert.equal(made.jobs.length, 1);
   });
   await withApp({ access: CANNOT_SHARE, columns: KEY_COLUMNS }, async (url, made) => {
     const got = await submit(url, SPEC);

@@ -154,6 +154,11 @@ function registerImplementRoutes(app, deps) {
     throw Object.assign(I.badRequest(error, 401), { details });
   }
 
+  function buildsAsAnother(req) {
+    const person = P.personTokenOf(req);
+    return Boolean(person && person !== req.dbToken);
+  }
+
   async function readColumnTags(req, token, warehouseId, tables) {
     const asked = GP.tagsStatement(tables);
     if (!asked) return { tags: {}, error: '' };
@@ -314,7 +319,7 @@ function registerImplementRoutes(app, deps) {
       loadResultTableHolder(req, warehouseId, catalog, schema, table),
     ]);
     const person = P.personTokenOf(req);
-    const builder = Boolean(person && person !== req.dbToken);
+    const builder = buildsAsAnother(req);
     const access = I.outputAccess(rows, table, { builder });
     const model = I.trainsModel(useCase) ? I.modelAccess(elsewhere ? modelRows : rows, modelName, { builder }) : null;
     const warehouse = await appWarehouseCheck(req, warehouseId, access.identity, options.warehouseName);
@@ -1144,7 +1149,7 @@ function registerImplementRoutes(app, deps) {
     if (output.grant.ok || !planned.sharing.principals.length) return { spec: planned, warnings: [] };
     return {
       spec: { ...planned, sharing: { ...planned.sharing, principals: [] } },
-      warnings: [`Built without sharing: ${output.grant.detail}. Share ${output.table} once you can.`],
+      warnings: [`Built without sharing: ${output.grant.detail}. Share ${output.table} once ${buildsAsAnother(req) ? 'it' : 'you'} can.`],
     };
   }
 
