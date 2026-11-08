@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import { ASK_GROUPS, TABLE, appInfo, askAudit, chartsDrawn, openApp, serveDist, until } from './harness.mjs';
 import { wholeMoney } from '../src/format.js';
 import {
-  DEFAULT_VIEW, WORK_SHOWN, dueText, hubTimes, isMine, moneyText, myWork, myWorkText, nothingText, ownerName, pickReason, reasonFilters,
+  DEFAULT_VIEW, WORK_SHOWN, dueText, isMine, moneyText, myWork, myWorkText, nothingText, ownerName, pickReason, reasonFilters,
   sortThings, totals, useCaseState, viewRows, viewWords,
 } from '../src/hub.js';
 
@@ -642,13 +642,6 @@ test('the status line reads not updated, not ready yet or the count to fix, in t
   assert.deepEqual(useCaseState({ visible: true, tracked: false, empty: true }).text, 'Not ready yet');
   assert.equal(useCaseState({ visible: false }).kind, 'hidden');
   assert.equal(useCaseState(undefined).kind, 'loading');
-});
-
-test('the header times take the latest update and the next one still to come', () => {
-  assert.equal(hubTimes([{ tracked: true, runs: RUNS }, { tracked: true, runs: { updated: '2026-10-21T06:00:00Z', next: '2026-10-23' } }], TODAY),
-    'Updated Oct 21 · next update Oct 27');
-  assert.equal(hubTimes([{ tracked: true, runs: { updated: '2026-10-01T06:00:00Z', next: '2026-10-08' } }], TODAY), 'Updated Oct 1');
-  assert.equal(hubTimes([{ tracked: false }, undefined], TODAY), '');
 });
 
 test('the reason filter labels the first AI category Reason (from AI) and offers its values, and a bar click toggles one reason', () => {

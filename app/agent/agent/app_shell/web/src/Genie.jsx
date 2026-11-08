@@ -259,7 +259,7 @@ function roomBeside(panel) {
   return panel.getBoundingClientRect().right - main.getBoundingClientRect().left;
 }
 
-function useGenieWidth(panel) {
+export function useGenieWidth(panel) {
   const [width, setWidth] = useState(storedGenieWidth);
   const [space, setSpace] = useState(() => ({ viewport: window.innerWidth, room: Infinity }));
   const before = useRef(GENIE_DEFAULT);
@@ -288,7 +288,7 @@ function useGenieWidth(panel) {
   return { shown, max, set, toggle, maxed: shown >= max, step: (key) => keyWidth(key, shown, viewport, room) };
 }
 
-function Resizer({ width }) {
+export function Resizer({ width, label = 'Resize Ask Genie' }) {
   const drag = useRef(null);
   const [dragging, setDragging] = useState(false);
   const down = (e) => {
@@ -311,7 +311,7 @@ function Resizer({ width }) {
     width.set(next);
   };
   return (
-    <div className={dragging ? 'g-resize is-dragging' : 'g-resize'} role="separator" aria-orientation="vertical" aria-label="Resize Ask Genie"
+    <div className={dragging ? 'g-resize is-dragging' : 'g-resize'} role="separator" aria-orientation="vertical" aria-label={label}
       aria-valuenow={width.shown} aria-valuemin={GENIE_MIN} aria-valuemax={width.max} tabIndex={0} title="Drag to resize. Double-click for the default width."
       onPointerDown={down} onPointerMove={move} onPointerUp={up} onPointerCancel={up} onDoubleClick={() => width.set(GENIE_DEFAULT)} onKeyDown={key}>
       <span className="g-grip" aria-hidden="true" />
@@ -369,7 +369,7 @@ function YouSent({ message }) {
   );
 }
 
-export default function GeniePanel({ app, genie, page, pages, onPick, onClose }) {
+export default function GeniePanel({ app, genie, page, pages, onPick, onClose, tabs = null }) {
   const log = useRef(null);
   const input = useRef(null);
   const panel = useRef(null);
@@ -403,6 +403,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
   return (
     <aside ref={panel} className="genie is-open" aria-label="Ask Genie" style={{ '--genie-w': `${width.shown}px` }}>
       <Resizer width={width} />
+      {tabs}
       <header className="g-h">
         <span className="g-logo"><GenieMark size={18} /></span>
         <div><b>Ask Genie</b><small>{status}</small></div>

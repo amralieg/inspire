@@ -1,5 +1,5 @@
 import { choosePreset, clearSelections, setColumnValue, setSelection } from './filters.js';
-import { buildHash } from './links.js';
+import { withRecord } from './links.js';
 
 export const AGENT_OPEN = 'inspire-agent-open';
 export const AGENT_CHANGED = 'inspire-agent-changed';
@@ -20,7 +20,7 @@ function lookWith(look, action) {
 }
 
 export function routeOf(action) {
-  if (action.type === 'open_record') return buildHash(action.page, 'overview', null, [], action.record_key);
+  if (action.type === 'open_record') return withRecord(`#/${encodeURIComponent(action.page)}`, action.record_key);
   if (action.type === 'navigate') return `#/${encodeURIComponent(action.page)}`;
   return '';
 }

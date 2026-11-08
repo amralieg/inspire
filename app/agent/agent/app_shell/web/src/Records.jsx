@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { flushSync } from 'react-dom';
+import { createPortal, flushSync } from 'react-dom';
 import DataTable, { columnOf } from './DataTable.jsx';
 import { GenieMark, Icon } from './icons.jsx';
 import { ExplainButton } from './Genie.jsx';
@@ -8,7 +8,9 @@ import { askGenieAbout, fixQuestion, genieOn } from './genieAsk.js';
 import { BUSY_TITLE, fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
 import { DraftDialog } from './Draft.jsx';
-import { withRecord, withoutRecord } from './links.js';
+import { TAB_STATUS, withRecord, withoutRecord } from './links.js';
+import { useDock } from './Dock.jsx';
+import { MONEY_COLUMN as MONEY } from './hub.js';
 import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, formatValue, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
 
 export const recordName = (row, meta) => entityName(row, meta?.label);
@@ -48,7 +50,6 @@ const NOTE_WRITE = 'drawer:note';
 const SNOOZE_WRITE = 'drawer:snooze';
 const GIVE_WRITE = 'drawer:give';
 const NO_FORMULA = 'How this amount is counted is not recorded for this record.';
-const MONEY = 'value_at_stake';
 const LATER = 'An assumption changed since the last update, so this record shows the amount the update wrote until it runs again.';
 
 function moneyColumn(c, model) {
@@ -271,8 +272,10 @@ function AskAbout({ meta, onAsk, busy }) {
 }
 
 function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners, app, pageId, nonce, aliases, onEdit, onDelete, acts, onExplain, genieBusy, model,
-  work, tomorrow, today, focusOwner, closedReadOnly }) {
-  const ref = useDialog(!!given, onClose);
+  work, tomorrow, today, focusOwner, closedReadOnly, dock = null }) {
+  const modal = useDialog(!dock && !!given, onClose);
+  const docked = useRef(null);
+  const ref = dock ? docked : modal;
   const log = useHistory(pageId, history && given ? recordRef(meta, given) : null, nonce);
   const person = app.user?.email || '';
   const current = log.data?.current || null;
@@ -332,9 +335,10 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
       ? formatValue(row?.[d.column], d.format || 'currency', shownUnit(unit, d.currency, kind), undefined, kind)
       : formatValue(row?.[d.column], d.format || 'text', d.currency)]),
     ...(meta.rank && row?.[meta.rank] != null ? [[meta.rank, 'Rank', `${integer(row[meta.rank])} on the latest run`]] : [])];
-  return (
-    <dialog ref={ref} className="drawer panel" aria-label={row ? title : 'Record'} data-closed={closed ? '' : undefined}
-      onClick={(e) => { if (e.target === ref.current) onClose(); }}>
+  const shown = (
+    <dialog ref={ref} className={`drawer panel ${dock ? 'drawer--docked' : ''}`} aria-label={row ? title : 'Record'} data-closed={closed ? '' : undefined}
+      open={dock ? !!row : undefined} onClick={(e) => { if (!dock && e.target === ref.current) onClose(); }}
+      onKeyDown={dock ? (e) => { if (e.key === 'Escape' && !e.defaultPrevented) { e.preventDefault(); onClose(); } } : undefined}>
       {row && (
         <div className="dr">
           <header className="panel-h">
@@ -456,6 +460,8 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
       )}
     </dialog>
   );
+  if (!dock) return shown;
+  return dock.tab === 'record' && dock.slot && row ? createPortal(shown, dock.slot) : null;
 }
 
 export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, similarBy, onExplain, genieBusy }) {
@@ -483,8 +489,9 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
   );
 }
 
-function emptyState({ search, mine, changed, fresh, windowed, narrowedAny, ranged, onClear, onWide }) {
+function emptyState({ search, mine, changed, fresh, windowed, narrowedAny, ranged, onClear, onWide, status = '' }) {
   const text = search ? 'No record matches this search.' : mine ? 'You own no record on this list.' : changed ? 'No record changed since the last run.'
+    : status && !narrowedAny && !ranged ? `No record is ${status.toLowerCase()} right now.`
     : fresh ? 'Nothing on this page changed since your last visit.' : windowed && !narrowedAny ? `All caught up: nothing is due or new for ${windowed.toLowerCase()}.`
       : narrowedAny || ranged ? 'No record matches these filters.' : 'No records yet. The next run of this use case fills this list.';
   const action = windowed && !narrowedAny && !search && !mine && !changed && !fresh ? <button type="button" className="lnk" onClick={onWide}>Show all open</button>
@@ -493,7 +500,8 @@ function emptyState({ search, mine, changed, fresh, windowed, narrowedAny, range
 }
 
 export default function Records({ meta, app, pageId, filters, ai, onFilter, history = false, onChanged, nonce = 0, ready = true, onExplain, genieBusy, openKey,
-  columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions, onList, section, sort: lookSort, onSort: onLookSort }) {
+  columnMeta, columnValues, onColumn, onClearColumns, onClearFilters, seeChanged = 0, onShowRuns, similarBy, keepsActions, onList, section, sort: lookSort, onSort: onLookSort,
+  tab, docked = false }) {
   const { prefs, update } = useMyView();
   const [query, setQuery] = useState('');
   const search = useDebounced(query.trim(), 300);
@@ -502,7 +510,11 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const setSort = onLookSort || setOwnSort;
   const size = prefs.rows;
   const setSize = (rows) => update((p) => ({ ...p, rows }));
-  const [mine, setMine] = useState(false);
+  const [ownMine, setMine] = useState(false);
+  const tabStatus = tab ? TAB_STATUS[tab] || null : null;
+  const mine = tab ? tab === 'mine' : ownMine;
+  const dockNow = useDock();
+  const dock = docked ? dockNow : null;
   const [changed, setChanged] = useState(false);
   const [fresh, setFresh] = useState(false);
   const [refresh, setRefresh] = useState(0);
@@ -513,10 +525,10 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const [kept, setKept] = useState(() => KEPT.get(pageId));
   const decides = !!app?.options?.decisions && pageDecides((app.pages || []).find((p) => p.id === pageId) || { records: meta });
   const noActions = !history || !decides || keepsActions === false || kept === false;
-  const cap = noActions ? 0 : listLimit(prefs);
-  const windowed = noActions ? {} : listWindow(prefs);
+  const cap = noActions || tab ? 0 : listLimit(prefs);
+  const windowed = noActions || tab ? {} : listWindow(prefs);
   const aiPicks = ai || NO_PICKS;
-  const narrowed = apiColumns(columnValues);
+  const narrowed = tabStatus ? { ...apiColumns(columnValues), action_status: [tabStatus] } : apiColumns(columnValues);
   const scope = JSON.stringify({ filters, ai: aiPicks, search, mine, changed, columns: narrowed, ...windowed });
   const pageScope = JSON.stringify([scope, sort, size, cap]);
   const [paging, setPaging] = useState({ scope: pageScope, offset: 0, cursor: null });
@@ -526,7 +538,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const picked = picks.scope === scope ? picks.keys : NONE;
   const matching = picks.scope === scope ? picks.all : null;
   const inWindow = windowed.window ? { window: windowed.window, ...(windowed.time_zone ? { time_zone: windowed.time_zone } : {}) } : {};
-  const listed = { page: pageId, filters, ai: aiPicks, search, mine, changed, ...(Object.keys(narrowed).length ? { column_filters: narrowed } : {}), ...inWindow };
+  const listed = { page: pageId, filters, ai: aiPicks, search, mine, changed, ...(Object.keys(narrowed).length ? { column_filters: narrowed } : {}), ...inWindow,
+    ...(tab ? { status_counts: true } : {}) };
   const room = cap ? Math.max(1, Math.min(size, cap - offset)) : size;
   const asked = { ...listed, ...(cap ? { window_limit: cap } : {}), ...(sort ? { sort } : {}), offset, limit: room, ...(cursor ? { cursor } : {}) };
   const list = useList(asked, ready, `${nonce}:${refresh}`, windowed.window ? { ...withoutWindow(asked), limit: size } : null);
@@ -538,6 +551,12 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     } else if (typeof list.data?.actions === 'boolean') KEPT.set(pageId, list.data.actions);
   }, [list.unwindowed, list.data, pageId]);
   const [open, setOpen] = useState(() => (openKey ? { record_key: String(openKey) } : null));
+  useEffect(() => {
+    if (!dock) return;
+    dock.onShowing(!!open);
+    if (open) dock.onTab('record');
+  }, [open, !!dock]);
+  useEffect(() => () => dock?.onShowing(false), [!!dock]);
   const [form, setForm] = useState(null);
   const [doomed, setDoomed] = useState(null);
   const [drawerNonce, setDrawerNonce] = useState(0);
@@ -561,7 +580,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   }, [pageId]);
   const aliases = data?.ai?.columns || NO_ALIASES;
   const tracker = !!(history && decides && data?.actions);
-  const everything = prefs.window === EVERYTHING;
+  const everything = tab ? !['New', 'In progress'].includes(tabStatus) : prefs.window === EVERYTHING;
   const owners = data?.summary?.owners || [];
   const person = app.user?.email || '';
   const canModify = !!(history && app.options.modify);
@@ -793,7 +812,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   }, [cursorKey]);
   const stop = (fn) => (e) => { e.stopPropagation(); fn(); };
   const hosted = meta.sublabel && meta.sublabel !== meta.label ? { [meta.label]: [meta.sublabel] } : {};
-  const metas = (columnMeta || []).flatMap((f) => (!f.action ? [f] : !tracker ? []
+  const metas = (columnMeta || []).flatMap((f) => (!f.action ? [f] : !tracker || (tab && f.column === 'action_status') ? []
     : f.column === 'action_owner' ? [{ ...f, options: [...new Set([...(f.options || []), ...owners])].sort(compareValues) }] : [f]));
   const columns = withColumnFilters([
     ...(tracker ? [{
@@ -865,9 +884,9 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const shownFields = (r) => fieldsOf(r, [...columns, ...[...(meta.columns || []), ...(meta.detail || [])].map((c) => ({ key: c.column, label: c.label }))]);
   const left = [leftText(data?.summary?.left), keptText(data?.summary?.kept)].filter(Boolean).join(' · ');
   const impact = tracker ? impactText(data?.summary) : '';
-  const narrowedAny = Object.keys(narrowed).length > 0 || Object.values(filters || {}).some((v) => Array.isArray(v) && v.length)
+  const narrowedAny = Object.keys(apiColumns(columnValues)).length > 0 || Object.values(filters || {}).some((v) => Array.isArray(v) && v.length)
     || Object.values(aiPicks).some((v) => v?.length);
-  const workText = work && !work.ended ? `${integer(work.seen.size + 1)} of ${integer(compareValues(work.n, work.seen.size + 1) > 0 ? work.n : work.seen.size + 1)} ${narrowWindow(prefs) ? 'in your window' : 'on this list'}` : '';
+  const workText = work && !work.ended ? `${integer(work.seen.size + 1)} of ${integer(compareValues(work.n, work.seen.size + 1) > 0 ? work.n : work.seen.size + 1)} ${!tab && narrowWindow(prefs) ? 'in your window' : 'on this list'}` : '';
   const beyond = data?.window?.more ?? (compareValues(total, cap) > 0 ? addCounts([total, -cap]) : 0);
   const shownSort = sort || data?.sort || null;
   return (
@@ -881,7 +900,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         <div className="tbar">
           <ColumnFilterStatus filters={metas} values={columnValues} onClear={onClearColumns} />
           <label className="search"><Icon name="search" size={14} /><input dir="auto" ref={searchBox} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the list" aria-label="Search the list" maxLength={200} /></label>
-          {(tracker || mine) && <button className={`pick-i ${mine ? 'is-on' : ''}`} aria-pressed={mine} onClick={() => setMine(!mine)}><Icon name="users" size={13} />My actions</button>}
+          {!tab && (tracker || mine) && <button className={`pick-i ${mine ? 'is-on' : ''}`} aria-pressed={mine} onClick={() => setMine(!mine)}><Icon name="users" size={13} />My actions</button>}
           {(data?.changes || changed) && <button className={`pick-i ${changed ? 'is-on' : ''}`} aria-pressed={changed} onClick={() => setChanged(!changed)}><Icon name="trend" size={13} />Changed since the last run</button>}
           {canModify && <button className="btn btn--pri" onClick={() => setForm({ mode: 'add' })}><Icon name="plus" size={14} />Add record</button>}
           <AskGenie kind="table" title={meta.title} context={tableContext(meta.hint || '', tableRows, shownFields, total || 0)} />
@@ -890,7 +909,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       {data && (
         <div className="list-tools">
           {tracker && tableRows.length > 0 && !everything && <button className="btn btn--pri" onClick={startWork} data-start-work><Icon name="right" size={14} />Start working</button>}
-          {tracker && <WindowChips />}
+          {tracker && !tab && <WindowChips />}
           {tracker && shownTotal > 0 && !everything && !matching && (
             <button className="pick-i" onClick={selectAll} data-act-all>Act on all {capped ? 'more than ' : ''}{integer(shownTotal)} matching</button>
           )}
@@ -933,7 +952,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           {quiet && <div className="quiet-n" role="status" data-quiet-list><Icon name="info" size={13} /><div><b>{quiet.title}</b>{quiet.why && <p>{quiet.why}</p>}<p>{quiet.raise}</p></div></div>}
           {late.late > 0 && <p className="late-n" data-overdue><Icon name="calendar" size={13} />Overdue: {recordsText(late.late)} on this page, shown first.</p>}
           <DataTable label={meta.title} columns={columns} rows={tableRows} rowKey={keyOf} onRow={setOpen} paged={false} filtering="server" grid={`page:${pageId}:records`}
-            empty={emptyState({ search, mine, changed, fresh, windowed: narrowWindow(prefs) ? windowLabel(prefs.window) : '', narrowedAny,
+            empty={emptyState({ search, mine, changed, fresh, windowed: !tab && narrowWindow(prefs) ? windowLabel(prefs.window) : '', narrowedAny, status: tabStatus ? statusLabel(tabStatus) : '',
               ranged: Object.values(filters || {}).some((v) => v && typeof v === 'object' && !Array.isArray(v)), onClear: clearAll,
               onWide: () => update((p) => ({ ...p, window: 'all' })) })}
             sort={shownSort ? { key: shownSort.key, dir: shownSort.dir === 'desc' ? -1 : 1 } : null} onSort={(s) => setSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' })}
@@ -961,7 +980,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       <Drawer meta={meta} row={shown} onClose={work ? stopWork : close} history={history} canModify={canModify} tracker={tracker} owners={owners} app={app} pageId={pageId}
         nonce={drawerNonce} aliases={aliases} onEdit={edit} onDelete={setDoomed} acts={acts} onExplain={onExplain} genieBusy={genieBusy} model={data?.money}
         work={work && !work.ended && shown ? { text: workText, next: workNext } : null} tomorrow={tomorrow} today={today} focusOwner={ownerFocus}
-        closedReadOnly={everything} />
+        closedReadOnly={everything} dock={dock} />
       {form && <RecordForm mode={form.mode} target={form.target} meta={meta} pageId={pageId} rows={rows} onClose={() => setForm(null)} onSaved={saved} />}
       {doomed && <DeleteDialog target={recordRef(meta, doomed)} label={recordName(doomed, meta) || 'this record'} pageId={pageId} onClose={() => setDoomed(null)} onSaved={saved} />}
       {acts.similar && (

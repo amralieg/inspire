@@ -1,29 +1,23 @@
 import { useEffect, useRef, useState } from 'react';
-import { LINK_STALE, UNKNOWN_PAGE, VIEW_STALE, buildHash, compactState, parseHash, readLink, readSaved } from './links.js';
+import { LINK_STALE, VIEW_STALE, buildHash, compactState, parseHash, readLink, readSaved } from './links.js';
 import { useDialog, useToast } from './ui.jsx';
 import ViewsMenu from './Views.jsx';
-
-export function useUnknownPageNotice(route, pages, known = ['home']) {
-  const toast = useToast();
-  useEffect(() => {
-    if (route && !known.includes(route) && !pages.some((p) => p.id === route)) toast(UNKNOWN_PAGE);
-  }, [route, pages, toast]);
-}
 
 export function usePageAddress({ page, meta, state, onState, view, onView, views }) {
   const toast = useToast();
   const ready = !!meta && !!state && !meta.error;
   const taken = useRef(false);
   const openedAt = useRef(parseHash(window.location.hash).route);
-  const apply = (next, stale) => {
+  const apply = (next, stale, kept) => {
     if (next.dropped) toast(stale);
-    onState(next.state);
+    onState(kept?.ai ? { ...next.state, ai: kept.ai } : next.state);
     if (next.view !== view) onView(next.view);
   };
   const write = () => {
     const route = parseHash(window.location.hash).route;
     if (route !== page.id && route !== openedAt.current) return;
-    const next = buildHash(page.id, view, state, meta.filters, parseHash(window.location.hash).rec, meta.columns);
+    const link = parseHash(window.location.hash);
+    const next = buildHash(page.id, link.section || view, state, meta.filters, link.rec, meta.columns, link.tab);
     if (next !== window.location.hash) window.history.replaceState(window.history.state, '', next);
   };
   useEffect(() => {
@@ -39,14 +33,14 @@ export function usePageAddress({ page, meta, state, onState, view, onView, views
     write();
   }, [ready, state, view, meta, page.id]);
   const latest = useRef(null);
-  latest.current = { apply, write, filters: meta?.filters, columns: meta?.columns, views };
+  latest.current = { apply, write, state, filters: meta?.filters, columns: meta?.columns, views };
   useEffect(() => {
     if (!ready) return undefined;
     const onHash = () => {
       const link = parseHash(window.location.hash);
       if (link.route !== page.id) return;
       const now = latest.current;
-      if (link.present) now.apply(readLink(link, now.filters, now.views, now.columns), LINK_STALE);
+      if (link.present) now.apply(readLink(link, now.filters, now.views, now.columns), LINK_STALE, now.state);
       else now.write();
     };
     window.addEventListener('hashchange', onHash);

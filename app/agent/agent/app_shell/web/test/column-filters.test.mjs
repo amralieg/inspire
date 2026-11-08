@@ -18,7 +18,7 @@ const COLUMNS = {
   ],
   tables: { worst: [{ column: 'category', type: 'multi_select', label: 'Category', options: ['Books', 'Toys'] }, { column: 'event_date', type: 'date_range', label: 'Last return' }] },
 };
-const VIEWS = ['overview', 'runs', 'alerts'];
+const VIEWS = ['dashboard', 'runs', 'alerts'];
 const fresh = () => initialFilterState(META);
 
 test('a column value sets, narrows and clears one table without touching the page filters or another table', () => {

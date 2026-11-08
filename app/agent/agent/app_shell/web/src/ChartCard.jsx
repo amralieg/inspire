@@ -35,7 +35,7 @@ export function useChart(option, deps, onWidth) {
 const VBAR_PX = 118;
 const WIDTH_STEP = 8;
 
-function HBar({ b, max, onPick, picked }) {
+function HBar({ b, max, onPick, picked, onFix }) {
   const { props, tip } = useFx(b.formula);
   const body = (
     <>
@@ -45,15 +45,22 @@ function HBar({ b, max, onPick, picked }) {
       {tip}
     </>
   );
-  return onPick
+  const bar = onPick
     ? <button type="button" className={`hb ${picked === b.key ? 'is-on' : ''}`} style={hueVars(b.hue)} onClick={() => onPick(b.key)}
         aria-pressed={picked === undefined ? undefined : picked === b.key} title={b.formula ? undefined : `Show ${b.label}`} {...props}>{body}</button>
     : <div className="hb" style={hueVars(b.hue)} tabIndex={b.formula ? 0 : undefined} {...props}>{body}</div>;
+  if (!onFix) return bar;
+  return (
+    <div className="hb-row">
+      {bar}
+      <button type="button" className="lnk hb-fix" onClick={() => onFix(b.key)} aria-label={`Fix ${b.label}`} data-fix-reason={b.key}>Fix this</button>
+    </div>
+  );
 }
 
-function HBars({ bars, onPick, picked }) {
+function HBars({ bars, onPick, picked, onFix }) {
   const max = Math.max(1, ...bars.map((b) => numberOf(b.value)));
-  return bars.map((b) => <HBar key={b.key} b={b} max={max} onPick={onPick} picked={picked} />);
+  return bars.map((b) => <HBar key={b.key} b={b} max={max} onPick={onPick} picked={picked} onFix={onFix} />);
 }
 
 function VBar({ b, max }) {
@@ -73,7 +80,7 @@ function VBars({ bars, hue }) {
   return <div className="vb" style={hueVars(hue)}>{bars.map((b) => <VBar key={b.key} b={b} max={max} />)}</div>;
 }
 
-export function BarsCard({ id, title, hint, action, bars, vertical = false, hue = 'green', onPick, picked, loading, empty, x, measure, filters, onExplain, genieBusy }) {
+export function BarsCard({ id, title, hint, action, bars, vertical = false, hue = 'green', onPick, picked, loading, empty, x, measure, filters, onExplain, genieBusy, onFix }) {
   const fold = useFold(`bars:${id}`);
   const said = [hint, action].filter(Boolean).join(' ');
   const drawn = !loading && bars?.length > 0 ? barsContext({ hint, vertical, x, measure, filters }, bars) : null;
@@ -91,7 +98,7 @@ export function BarsCard({ id, title, hint, action, bars, vertical = false, hue 
         <div className="cb" role={vertical ? 'img' : undefined} aria-label={vertical ? `${title}: ${(bars || []).map((b) => `${b.label} ${b.text}`).join(', ')}` : undefined}>
           {loading && <div className="chart-skel"><Skeleton height={150} /></div>}
           {!loading && !bars?.length && <p className="empty">{empty}</p>}
-          {!loading && bars?.length > 0 && (vertical ? <VBars bars={bars} hue={hue} /> : <HBars bars={bars} onPick={onPick} picked={picked} />)}
+          {!loading && bars?.length > 0 && (vertical ? <VBars bars={bars} hue={hue} /> : <HBars bars={bars} onPick={onPick} picked={picked} onFix={onFix} />)}
         </div>
       )}
     </article>
