@@ -51,7 +51,7 @@ function versionRoutes(contract, { approve = true, versions = [] } = {}) {
       const body = route.request().postDataJSON();
       state.moves.push(body);
       if (body.action === 'new') state.versions.unshift({ plan_id: PID, number: state.versions.length + 1, label: `Version ${state.versions.length + 1}`, status: 'Draft', overrides: [], changed_by: PERSON });
-      else state.versions[0].status = MOVES[body.action];
+      else (state.versions.find((v) => v.plan_id === body.plan_id) || state.versions[0]).status = MOVES[body.action];
       return json(200, view());
     },
   };
@@ -154,6 +154,39 @@ test('a plan move the server refuses shows its error and keeps the version as it
   await page.locator('[data-versions] .tile-err').waitFor();
   assert.match(await page.locator('[data-versions] .tile-err').innerText(), /Published now, not Approved/);
   assert.equal(await page.locator('[data-version="1"]').getAttribute('data-status'), 'Approved');
+  await context.close();
+});
+
+test('an older Approved version can be published while the next draft stays open, and a Draft offers no publish', async () => {
+  const OLD = 'b'.repeat(32);
+  const versions = versionRoutes('plan', { versions: [{ plan_id: PID, number: 2, label: 'Version 2', status: 'Draft', overrides: [] },
+    { plan_id: OLD, number: 1, label: 'Version 1', status: 'Approved', overrides: [] }] });
+  const { page, context, errors } = await open('plan', 'work', { ...plannerRoutes([], []), ...versions.routes });
+  await page.locator('[data-version="1"] [data-move-version="1"]').waitFor();
+  assert.equal(await page.locator('[data-move-version="2"]').count(), 0);
+  assert.equal(await page.locator('[data-move="new"]').count(), 0);
+  assert.deepEqual(await page.locator('.plan-moves [data-move]').evaluateAll((els) => els.map((e) => e.dataset.move)), ['submit', 'approve']);
+  await page.locator('[data-move-version="1"]').click();
+  await page.locator('[data-reason-form="publish"] [data-reason-save]').waitFor();
+  assert.equal(await page.locator('[data-reason-form="publish"] [data-reason-save]').isDisabled(), true);
+  await page.locator('[data-reason-form="publish"] [data-reason]').fill('Publish this cycle, keep drafting the next');
+  await page.locator('[data-reason-form="publish"] [data-reason-save]').click();
+  await page.locator('[data-version="1"][data-status="Published"]').waitFor();
+  await toastIs(page, 'Version 1 is published');
+  assert.deepEqual(versions.state.moves, [{ page: PAGE.plan, action: 'publish', reason: 'Publish this cycle, keep drafting the next', plan_id: OLD, seen: 'Approved' }]);
+  assert.equal(await page.locator('[data-version="2"]').getAttribute('data-status'), 'Draft');
+  assert.equal(await page.locator('[data-move-version]').count(), 0);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
+test('an older Approved version under a newer published one offers no publish', async () => {
+  const versions = versionRoutes('plan', { versions: [{ plan_id: PID, number: 3, label: 'Version 3', status: 'Draft', overrides: [] },
+    { plan_id: 'c'.repeat(32), number: 2, label: 'Version 2', status: 'Published', overrides: [] }, { plan_id: 'b'.repeat(32), number: 1, label: 'Version 1', status: 'Approved', overrides: [] }] });
+  const { page, context, errors } = await open('plan', 'work', { ...plannerRoutes([], []), ...versions.routes });
+  await page.locator('[data-version="1"]').waitFor();
+  assert.equal(await page.locator('[data-move-version]').count(), 0);
+  assert.deepEqual(errors, []);
   await context.close();
 });
 

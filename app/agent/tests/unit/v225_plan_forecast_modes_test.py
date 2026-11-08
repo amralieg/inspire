@@ -191,6 +191,28 @@ def test_an_older_version_cannot_be_reopened_while_a_newer_one_is_open(tmp_path)
     assert status == 200 and [v["status"] for v in out["versions"]] == ["Draft", "Published"]
 
 
+def test_an_older_approved_version_is_published_while_the_newer_draft_stays_the_one_open(tmp_path):
+    ws = PlanWorkspace(plans=[plan_row(PID1, "status", "Approved", "2026-11-01 09:00:00"), plan_row(PID2, "status", "Draft", "2026-11-02 09:00:00")])
+    s, ws, _made = planner_shell(tmp_path, ws=ws)
+    status, out = move(s, "publish", PID2, "Draft", "Not approved yet")
+    assert status == 409 and "cannot publish" in out["error"] and ws.inserted_plans() == []
+    status, out = move(s, "publish", PID1, "Approved", "Publish this cycle")
+    assert status == 200, out
+    assert [(v["plan_id"], v["status"], v["editable"]) for v in out["versions"]] == [(PID2, "Draft", True), (PID1, "Published", False)]
+    (_sql, params), = ws.inserted_plans()
+    assert {p["value"] for p in params} >= {PID1, "Published", "Publish this cycle"}
+    status, out = move(s, "new", None, None)
+    assert status == 409 and "Version 2 is still Draft" in out["error"]
+
+
+def test_an_older_approved_version_cannot_be_published_over_a_newer_published_one(tmp_path):
+    ws = PlanWorkspace(plans=[plan_row(PID1, "status", "Approved", "2026-11-01 09:00:00"), plan_row(PID2, "status", "Published", "2026-11-02 09:00:00")])
+    s, ws, _made = planner_shell(tmp_path, ws=ws)
+    status, out = move(s, "publish", PID1, "Approved", "Late publish")
+    assert status == 409 and "Version 2 is already published and is newer than Version 1" in out["error"]
+    assert ws.inserted_plans() == []
+
+
 def test_an_injection_reason_is_saved_as_text_through_a_parameter(tmp_path):
     ws = PlanWorkspace(plans=[plan_row(PID1, "status", "Draft", "2026-11-01 09:00:00")])
     s, ws, _made = planner_shell(tmp_path, ws=ws)

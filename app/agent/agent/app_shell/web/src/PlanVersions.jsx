@@ -40,7 +40,7 @@ export function ReasonForm({ ask, required = true, busy, onSubmit, onCancel, sub
 }
 
 export function VersionBar({ page, versions, access, words, onMoved, beforeMove }) {
-  const [asking, setAsking] = useState('');
+  const [asking, setAsking] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [said, setSaid] = useState('');
@@ -48,18 +48,18 @@ export function VersionBar({ page, versions, access, words, onMoved, beforeMove 
   const latest = versions[0] || null;
   const open = versions.some((v) => v.editable);
   const can = access?.can_decide;
-  const move = async (action, reason = '') => {
+  const move = async (action, reason = '', target = latest) => {
     setBusy(true);
     setError('');
     setSaid('');
     try {
-      const before = beforeMove ? await beforeMove(action, latest) : '';
-      const got = await movePlan({ page: page.id, action, reason, ...(latest && action !== 'new' ? { plan_id: latest.plan_id, seen: latest.status } : {}) });
-      const now = got?.versions?.[0];
-      const text = `${action === 'new' ? `Started ${versionName(now, words)}` : `${versionName(latest, words)} is ${statusWord(now?.status, words).toLowerCase()}`}${before ? `. ${before}` : ''}`;
+      const before = beforeMove ? await beforeMove(action, target) : '';
+      const got = await movePlan({ page: page.id, action, reason, ...(target && action !== 'new' ? { plan_id: target.plan_id, seen: target.status } : {}) });
+      const now = action === 'new' ? got?.versions?.[0] : got?.versions?.find((v) => v.plan_id === target.plan_id);
+      const text = `${action === 'new' ? `Started ${versionName(now, words)}` : `${versionName(target, words)} is ${statusWord(now?.status, words).toLowerCase()}`}${before ? `. ${before}` : ''}`;
       setSaid(text);
       toast(text);
-      setAsking('');
+      setAsking(null);
       onMoved(got);
     } catch (e) {
       setError(e.message);
@@ -67,8 +67,12 @@ export function VersionBar({ page, versions, access, words, onMoved, beforeMove 
       setBusy(false);
     }
   };
-  const pick = (action) => (REASONED.includes(action) || action === 'submit' ? setAsking(asking === action ? '' : action) : move(action));
+  const pick = (action, target = latest) => (REASONED.includes(action) || action === 'submit'
+    ? setAsking(asking?.action === action && asking.target === target ? null : { action, target }) : move(action, '', target));
   const owned = (action) => action === 'approve' || action === 'publish';
+  const blocked = (action) => busy || (owned(action) && !access.can_approve);
+  const newerPublished = (v) => versions.some((o) => o.status === 'Published' && o.number > v.number);
+  const older = (v) => (can && v !== latest && v.status === 'Approved' && words.actions.publish && !newerPublished(v) ? ['publish'] : []);
   return (
     <section className="card plan-ver" aria-label={`${words.noun}s`} data-versions>
       <header className="card-h"><div><h2>{latest ? `${versionName(latest, words)} · ${statusWord(latest.status, words)}` : `No ${words.noun.toLowerCase()} yet`}</h2>
@@ -80,6 +84,11 @@ export function VersionBar({ page, versions, access, words, onMoved, beforeMove 
           {versions.slice(0, 6).map((v) => (
             <li key={v.plan_id} className={`plan-chip is-${v.status.toLowerCase().replace(/\s+/g, '-')}`} data-version={v.number} data-status={v.status}>
               {versionName(v, words)}<b>{statusWord(v.status, words)}</b>
+              {older(v).map((action) => (
+                <button key={action} type="button" className="btn btn--sm" disabled={blocked(action)} title={owned(action) && !access.can_approve ? access.approve_why : undefined}
+                  aria-expanded={asking?.action === action && asking.target === v} aria-label={`${words.actions[action]} ${versionName(v, words)}`}
+                  onClick={() => pick(action, v)} data-move={action} data-move-version={v.number}>{words.actions[action]}</button>
+              ))}
             </li>
           ))}
         </ol>
@@ -89,15 +98,15 @@ export function VersionBar({ page, versions, access, words, onMoved, beforeMove 
           {!open && <button type="button" className="btn btn--sm btn--pri" disabled={busy} onClick={() => move('new')} data-move="new">
             <Icon name="plus" size={14} />{latest ? words.again : words.start}</button>}
           {movesOf(latest, words).map((action) => (
-            <button key={action} type="button" className={`btn btn--sm ${action === 'approve' ? 'btn--pri' : ''}`} disabled={busy || (owned(action) && !access.can_approve)}
-              title={owned(action) && !access.can_approve ? access.approve_why : undefined} aria-expanded={asking === action} onClick={() => pick(action)} data-move={action}>
+            <button key={action} type="button" className={`btn btn--sm ${action === 'approve' ? 'btn--pri' : ''}`} disabled={blocked(action)}
+              title={owned(action) && !access.can_approve ? access.approve_why : undefined} aria-expanded={asking?.action === action && asking.target === latest} onClick={() => pick(action)} data-move={action}>
               {words.actions[action]}
             </button>
           ))}
         </div>
       )}
-      {can && asking && <ReasonForm key={asking} name={asking} ask={words.asks[asking]} required={REASONED.includes(asking)} busy={busy}
-        submit={words.actions[asking]} onSubmit={(reason) => move(asking, reason)} onCancel={() => setAsking('')} />}
+      {can && asking && <ReasonForm key={`${asking.action}-${asking.target?.plan_id}`} name={asking.action} ask={`${words.asks[asking.action]}${asking.target !== latest ? ` (${versionName(asking.target, words)})` : ''}`}
+        required={REASONED.includes(asking.action)} busy={busy} submit={words.actions[asking.action]} onSubmit={(reason) => move(asking.action, reason, asking.target)} onCancel={() => setAsking(null)} />}
       {error && <p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p>}
       {!error && <SaidNote text={said} at="version" />}
     </section>

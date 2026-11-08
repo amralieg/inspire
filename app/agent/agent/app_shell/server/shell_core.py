@@ -3706,6 +3706,9 @@ class Shell:
             busy = next((v for v in versions if v["editable"] and v["plan_id"] != version["plan_id"]), None)
             if action == "reopen" and busy is not None:
                 raise HttpError(409, f"{busy['label']} is still {busy['status']}; finish it before you reopen {version['label']}")
+            newer = next((v for v in versions if v["status"] == "Published" and v["number"] > version["number"]), None)
+            if action == "publish" and newer is not None:
+                raise HttpError(409, f"{newer['label']} is already published and is newer than {version['label']}")
             try:
                 status = shell_sql.plan_next_status(version["status"], action)
             except ValueError as error:
