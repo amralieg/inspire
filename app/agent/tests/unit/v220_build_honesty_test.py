@@ -287,3 +287,45 @@ def test_a_first_app_published_with_the_banner_is_delivered_and_never_called_hel
     assert all(item["output"] != "app" for item in delivery["not_delivered"])
     assert not final["status_message"].startswith("App not published")
     assert agent_ns["implement_untrusted_app_text"](REASON, True) in final["status_message"]
+
+
+PANDAS_TRACE = ("\x1b[0;31mKeyError\x1b[0m                                  Traceback (most recent call last)\n"
+                "File \x1b[0;32m<command-4155>, line 12\x1b[0m\n"
+                "\x1b[1;32m     10\x1b[0m frame = spark.table(\"main.billing.bills\").toPandas()\n"
+                "\x1b[0;32m---> 12\x1b[0m features = frame[['bill_amount', 'autopay_enrolled']]\n"
+                "File \x1b[0;32m/databricks/python/lib/python3.12/site-packages/pandas/core/frame.py:4108\x1b[0m, in "
+                "\x1b[0;36mDataFrame.__getitem__\x1b[0;34m(self, key)\x1b[0m\n"
+                "\x1b[0;32m-> 4108\x1b[0m     indexer = self.columns._get_indexer_strict(key, \"columns\")[1]\n"
+                "\x1b[0;31mKeyError\x1b[0m: \"['autopay_enrolled'] not in index\"")
+
+
+def test_a_column_name_in_a_pandas_key_error_is_kept_as_metadata(agent_ns):
+    import shell_redact
+    message = "KeyError: \"['autopay_enrolled'] not in index\""
+    for redact in (agent_ns["inspire_redact_text"], shell_redact.inspire_redact_text):
+        assert redact(message, set(), "") == message
+        said = redact(PANDAS_TRACE, set(), "")
+        assert "\x1b" not in said and "a data value" not in said
+        assert said.endswith(message)
+        assert "_get_indexer_strict(key, \"columns\")" in said and "frame[['bill_amount', 'autopay_enrolled']]" in said
+        assert 'spark.table("main.billing.bills")' in said
+    assert agent_ns["redact_error"](KeyError("['autopay_enrolled'] not in index")) == message
+    for kept in ("KeyError: \"None of [Index(['autopay_enrolled', 'plan'], dtype='object')] are in the [columns]\"",
+                 "KeyError: \"Column(s) ['autopay_enrolled'] do not exist\"", "KeyError: \"['autopay_enrolled'] not found in axis\"",
+                 "ValueError: column 'autopay_enrolled' is empty"):
+        assert agent_ns["inspire_redact_text"](kept, set(), "") == kept
+    assert agent_ns["inspire_redact_text"]("KeyError: 'Plan Tier'", set(), "main.billing.bills: customer_id, Plan Tier") == "KeyError: 'Plan Tier'"
+
+
+def test_a_data_value_in_an_error_is_still_redacted_must_exclude(agent_ns):
+    redact = agent_ns["inspire_redact_text"]
+    assert redact("KeyError: \"['Franchise 3000000'] not in index\"", set(), "") == "KeyError: \"['a data value'] not in index\""
+    assert redact("KeyError: 'Alice Smith'", set(), "") == "KeyError: 'a data value'"
+    assert redact("ValueError: column 'autopay_enrolled' has bad value 'Franchise 3000000'", set(), "") == \
+        "ValueError: column 'autopay_enrolled' has bad value 'a data value'"
+    assert redact("ValueError: bad row 'alice@example.com' and '3000000' and 'Alice Smith'", set(), "") == \
+        "ValueError: bad row '<email>' and 'a data value' and 'a data value'"
+    assert redact("KeyError: \"None of [Index(['Alice Smith'], dtype='object')] are in the [index]\"", set(), "") == \
+        "KeyError: \"None of [Index(['a data value'], dtype='object')] are in the [index]\""
+    assert redact('note "a row said \'Alice Smith\'" here', set(), "") == 'note "a data value" here'
+    assert redact("\x1b[0;31mKeyError\x1b[0m: 'Alice Smith'", set(), "") == "KeyError: 'a data value'"

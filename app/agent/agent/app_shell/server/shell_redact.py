@@ -38,6 +38,13 @@ _REDACT_SQL_TYPE_RE = _redact_re.compile(r"(?i)(tinyint|smallint|int|integer|big
                                  r"array|map|struct|variant)(\s*[(<][^\n]{0,80}[)>])?")
 _REDACT_SPARK_SETTING_RE = _redact_re.compile(r"(?i)true|false|spark\.[\w.]+")
 _REDACT_FRAME_RE = _redact_re.compile(r'^[ \t]*File "([^"\n]+)", line \d+[^\n]*(?:\n[ \t]+(?![ \t]*File ")([^\n]+))?', _redact_re.M)
+_REDACT_NUMBERED_FRAME_RE = _redact_re.compile(r"^[ \t]*File [^\n]*?(?::\d+, in [^\n]*|, line \d+[^\n]*)\n((?:[ \t]*(?:-*>[ \t]*)?\d+ [^\n]*(?:\n|$))+)", _redact_re.M)
+_REDACT_NAME_LIST = r"((?:'[^'\n]{1,200}'(?:, )?)+)"
+_REDACT_NAME_POSITION_RE = _redact_re.compile(rf"\[{_REDACT_NAME_LIST}\] (?:not in index|not found in axis)|Column\(s\) \[{_REDACT_NAME_LIST}\] do not exist|"
+                                      rf"None of \[Index\(\[{_REDACT_NAME_LIST}\], dtype='(\w+)'\)\] are in the \[columns\]|"
+                                      r"\bcolumns? '([^'\n]{1,200})'|\bcolumns? \"([^\"\n]{1,200})\"|\bdtype='(\w+)'", _redact_re.IGNORECASE)
+_REDACT_NAME_SHAPE_RE = _redact_re.compile(r"[A-Za-z_][\w.$#-]{0,199}")
+_REDACT_EXCEPTION_LEAD_RE = _redact_re.compile(r"\b\w*(?:Error|Exception|Warning): $")
 _REDACT_AT_FRAME_RE = _redact_re.compile(r"(?:\(at |; )[A-Za-z_]\w* line \d+: ((?:(?!; [A-Za-z_]\w* line \d+\b)[^\n|]){1,200}?)(?=; [A-Za-z_]\w* line \d+\b|\)(?:\s|$)|$)", _redact_re.M)
 _REDACT_CODE_QUOTED_RE = _redact_re.compile(r"(?<!\w)'([^'\n]{1,80})'(?!\w)|(?<!\w)\"([^\"\n]{1,80})\"(?!\w)")
 _REDACT_VALUE_CHAR_RE = _redact_re.compile(r"[^\W_]")
@@ -204,8 +211,12 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
     text = str(text or "")
     named = [found.group(name) for found in _REDACT_DENIAL_RE.finditer(text) for name in ("who", "quoted") if found.group(name)]
     text = inspire_redact_secrets(text, secrets, named)
-    known = "\n".join([str(known or ""), *named, *(part for pattern in (_REDACT_FRAME_RE, _REDACT_AT_FRAME_RE, _REDACT_PY_NAME_RE, _REDACT_SPARK_NAME_RE)
-                                                   for found in pattern.finditer(text) for part in found.groups() if part),
+    positioned = [name for found in _REDACT_NAME_POSITION_RE.finditer(text) for part in found.groups() if part
+                  for name in (_redact_re.findall(r"'([^'\n]*)'", part) if part.startswith("'") else [part])
+                  if _REDACT_NAME_SHAPE_RE.fullmatch(name)]
+    known = "\n".join([str(known or ""), *named, *positioned,
+                       *(part for pattern in (_REDACT_FRAME_RE, _REDACT_NUMBERED_FRAME_RE, _REDACT_AT_FRAME_RE, _REDACT_PY_NAME_RE, _REDACT_SPARK_NAME_RE)
+                         for found in pattern.finditer(text) for part in found.groups() if part),
                        *(found.group(1) for found in _REDACT_KEY_ERROR_RE.finditer(text) if found.group(1) in _redact_code_words())])
 
     def spark(match):
@@ -225,6 +236,8 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
 
     def quoted(match):
         mark, inner = match.group(0)[0], match.group(1)
+        if mark == '"' and _REDACT_SINGLE_QUOTED_RE.search(inner) and _REDACT_EXCEPTION_LEAD_RE.search(match.string[max(0, match.start() - 80):match.start()]):
+            return match.group(0)
         if not inner.strip() or _redact_in_text(inner, known) or (mark == '"' and (
                 _REDACT_SQL_TYPE_RE.fullmatch(inner.strip()) or _REDACT_SPARK_SETTING_RE.fullmatch(inner.strip())
                 or any(start <= match.start() < end for start, end in messages))) or _redact_code_value(inner):
