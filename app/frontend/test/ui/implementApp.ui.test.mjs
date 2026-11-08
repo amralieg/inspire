@@ -536,6 +536,65 @@ test('A schema of the same name that is not this use case\'s: the wizard says so
   }
 });
 
+test('A re-run of this Inspire database finds the use case\'s schema from session 7: the wizard says it uses it again and writes this session\'s rows to their own table', async () => {
+  const own = 'main._inspire_acme_n01_u01.n01_u01_results_s42';
+  const schema = '_inspire_acme_n01_u01';
+  const lineage = [['exists', ''], ['inspire_use_case_id', 'N01-U01'], ['inspire_database', 'main.inspire'], ['inspire_session_id', '7']]
+    .map(([kind, value]) => ({ kind, schema_name: schema, value }));
+  const ui = await openUi('wizard', {
+    me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'person-tok', dbToken: 'person-tok', catalogs: ['main'], schemas: { main: ['inspire'] },
+    statements: { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }, ...lineage] }) },
+  });
+  const { page, made } = ui;
+  try {
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
+    await dataToResults(page);
+    const step = page.getByRole('region', { name: 'Where the result table lives' });
+    const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
+    assert.equal(await places.getByRole('radio', { name: /Its own schema/ }).isChecked(), true);
+    await step.getByRole('note', { name: 'Where the tables go note' })
+      .getByText("_inspire_acme_n01_u01 is this use case's schema from session 7 of this Inspire database, so Inspire uses it again; this session's results go to main._inspire_acme_n01_u01.n01_u01_results_s42 so session 7 keeps its rows.", { exact: true }).waitFor();
+    await step.getByRole('group', { name: 'Result table' }).getByText(own, { exact: true }).waitFor();
+    await toSummary(page);
+    assert.equal(made.sqlCalls.some((c) => /^(CREATE|ALTER) SCHEMA/.test(c.sql)), false, 'the schema of session 7 is neither created again nor re-tagged');
+    await startWhenReady(page);
+    assert.equal(submittedSpec(made).config.result_table, own);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('When the use case\'s name and every suffixed name hold other use cases, the wizard says so and the tables go to the Inspire database schema', async () => {
+  const inspire = 'main.inspire.n01_u01_s42_out';
+  const names = ['_inspire_acme_n01_u01', ...[2, 3, 4, 5, 6, 7, 8, 9].map((n) => `_inspire_acme_n01_u01__${n}`)];
+  const taken = names.flatMap((schema) => [{ kind: 'exists', schema_name: schema, value: '' }, { kind: 'inspire_use_case_id', schema_name: schema, value: 'N07-U02' }]);
+  const ui = await openUi('wizard', {
+    me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'person-tok', dbToken: 'person-tok', catalogs: ['main'], schemas: { main: ['inspire'] },
+    statements: { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }, ...taken] }) },
+  });
+  const { page, made } = ui;
+  try {
+    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'Data');
+    await dataToResults(page);
+    const step = page.getByRole('region', { name: 'Where the result table lives' });
+    const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
+    await step.getByRole('note', { name: 'Where the tables go note' })
+      .getByText("_inspire_acme_n01_u01 through _inspire_acme_n01_u01__9 already exist and none is this use case's schema, so this use case's tables go to the Inspire database schema.", { exact: true }).waitFor();
+    assert.equal(await places.getByRole('radio', { name: /Its own schema/ }).isChecked(), false, 'no own schema is offered as chosen when every name is taken');
+    await step.getByRole('group', { name: 'Result table' }).getByText(inspire, { exact: true }).waitFor();
+    await toSummary(page);
+    assert.equal(made.sqlCalls.some((c) => /^(CREATE|ALTER) SCHEMA/.test(c.sql)), false, 'no schema of another use case is created over or tagged');
+    await startWhenReady(page);
+    assert.equal(submittedSpec(made).config.result_table, inspire);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 const target = (sid, uc, name, outputs, version = 1) => ({
   session_id: sid, use_case_id: uc, spec_version: version, status: 'ready', updated_at: '2026-10-26T00:00:00Z', asset_status: null,
   spec_json: JSON.stringify({ use_case_id: uc, use_case_name: name, outputs }), dashboard_id: null, genie_space_id: null, app_name: null,
