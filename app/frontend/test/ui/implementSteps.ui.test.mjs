@@ -48,9 +48,9 @@ test('Data, Results, Delivery, App placement and App access show the business se
     await next(page);
     await onStep(page, 'Data');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
-    for (const label of ['SQL warehouse id', 'Window start', 'Window end', 'Entity key']) await hidden(label);
+    for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await hidden(label);
     await open();
-    for (const label of ['SQL warehouse id', 'Window start', 'Window end', 'Entity key']) await shown(label);
+    for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await shown(label);
     for (const step of ['First run', 'Results']) {
       await next(page);
       await onStep(page, step);
@@ -200,5 +200,69 @@ test('an App name that is still refused is named on the last step with the step 
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
+  }
+});
+
+test('the build SQL warehouse is a drop list of names with their state, and a saved id that is not in the list stays and is named', async () => {
+  const listed = { warehouses: [{ id: 'wh1', name: 'Shared SQL', state: 'RUNNING' }, { id: 'wh2', name: 'Night SQL', state: 'STOPPED' }] };
+  const ui = await openUi('wizard', { ...ME, warehouses: listed });
+  const { page } = ui;
+  try {
+    await next(page);
+    await onStep(page, 'Data');
+    await openAdvanced(page);
+    const pick = page.locator('[data-build-warehouse="pick"] select');
+    await pick.locator('option[value="wh2"]').waitFor({ state: 'attached' });
+    assert.deepEqual(await pick.locator('option').allTextContents(), ['Shared SQL (RUNNING)', 'Night SQL (STOPPED)']);
+    assert.equal(await pick.inputValue(), 'wh1', 'the saved warehouse is chosen by its id');
+    assert.equal(await page.locator('[data-build-warehouse-state]').count(), 0, 'a running warehouse needs no note (must-exclude)');
+    await pick.selectOption('wh2');
+    assert.equal(await page.locator('[data-build-warehouse-state]').innerText(), 'Night SQL is stopped; it starts when the run uses it, which can take a few minutes.');
+    assert.equal(await page.getByLabel('SQL warehouse id').count(), 0, 'no free-text id while the list loads (must-exclude)');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+  const gone = await openUi('wizard', { ...ME, warehouses: { warehouses: [{ id: 'wh9', name: 'Other SQL', state: 'RUNNING' }] } });
+  try {
+    await next(gone.page);
+    await onStep(gone.page, 'Data');
+    await openAdvanced(gone.page);
+    const pick = gone.page.locator('[data-build-warehouse="pick"] select');
+    await pick.locator('option[value="wh9"]').waitFor({ state: 'attached' });
+    assert.equal(await pick.inputValue(), 'wh1', 'a saved id outside the list is kept, not swapped');
+    assert.deepEqual(await pick.locator('option').allTextContents(), ['wh1 (not in your list of SQL warehouses)', 'Other SQL (RUNNING)']);
+  } finally {
+    await gone.close();
+  }
+});
+
+test('the build SQL warehouse falls back to a typed id when the list is empty or cannot be read', async () => {
+  const empty = await openUi('wizard', { ...ME, warehouses: { warehouses: [] } });
+  try {
+    await next(empty.page);
+    await onStep(empty.page, 'Data');
+    await openAdvanced(empty.page);
+    await empty.page.locator('[data-build-warehouse="typed"]').waitFor();
+    assert.equal(await empty.page.locator('[data-build-warehouse-note]').innerText(), 'Inspire found no SQL warehouse you can use. Type the warehouse id, or ask an admin for CAN USE on one.');
+    assert.equal(await empty.page.getByLabel('SQL warehouse id').inputValue(), 'wh1');
+  } finally {
+    await empty.close();
+  }
+  const mount = (app) => {
+    app.get('/api/warehouses', (_req, res) => res.status(500).json({ error: 'warehouse list is down' }));
+  };
+  const failed = await openUi('wizard', ME, '', { mount });
+  try {
+    await next(failed.page);
+    await onStep(failed.page, 'Data');
+    await openAdvanced(failed.page);
+    await failed.page.locator('[data-build-warehouse="typed"]').waitFor();
+    assert.match(await failed.page.locator('[data-build-warehouse-note]').innerText(), /^Inspire could not list the SQL warehouses \(.*warehouse list is down.*\)\. Type the warehouse id instead\.$/);
+    assert.equal(await failed.page.locator('[data-build-warehouse="pick"]').count(), 0, 'no drop list without a list (must-exclude)');
+    await failed.page.getByLabel('SQL warehouse id').fill(' wh7 ');
+    assert.equal(await failed.page.getByLabel('SQL warehouse id').inputValue(), 'wh7');
+  } finally {
+    await failed.close();
   }
 });

@@ -22,11 +22,12 @@ def _bob(obj):
     return obj
 
 
-def _inspire(agent_ns, mode="High", acceptable=HIGH, count=None, empty=(), **attrs):
+def _inspire(agent_ns, mode="High", acceptable=HIGH, count=None, empty=(), full=(), **attrs):
     parsed = {"use_case_count": count, "use_case_requests": [], "per_prompt_instructions": {}, "interpretation_status": "ok"}
     obj = make_inspire(agent_ns, use_cases_quality=mode, quality_filter_acceptable=set(acceptable),
                        parsed_generation_instructions=parsed, user_business_domains=[],
-                       discovery_evidence={"profiles": {fqn: {"rows": 0} for fqn in empty}}, **attrs)
+                       discovery_evidence={"profiles": {**{fqn: {"rows": 0} for fqn in empty},
+                                                        **{fqn: {"rows": 40} for fqn in full}}}, **attrs)
     return _bob(obj)
 
 
@@ -82,7 +83,7 @@ def test_the_gates_whose_failures_stay_below_the_bar_never_log_them_as_dropped(m
 
 
 def test_incident_replay_keeps_all_48_below_the_high_bar_and_warns(agent_ns):
-    obj = _inspire(agent_ns, empty=EMPTY)
+    obj = _inspire(agent_ns, empty=EMPTY, full=["airline_std.passenger.bookings"])
     ucs = [_uc(f"U{i:02d}", inspire=8.0 - i / 100) for i in range(48)]
     kept, _removed, _below = _q3_drop_all(obj, ucs)
     final, rejected = obj._select_scored_use_cases(kept, [], {})
@@ -92,7 +93,8 @@ def test_incident_replay_keeps_all_48_below_the_high_bar_and_warns(agent_ns):
     outcome = obj.quality_bar_outcome
     assert (outcome["found"], outcome["meets"], outcome["below"]) == (48, 0, 48)
     assert outcome["message"].startswith("None of the 48 use cases found meets your High bar. Here is what we found")
-    assert outcome["empty_tables"] == sorted(EMPTY)
+    assert outcome["empty_tables"] == sorted(EMPTY) and outcome["all_tables_empty"] is False
+    assert "grounded in rows" not in outcome["message"]
     assert "Generate data page" in outcome["message"] and EMPTY[0] in outcome["message"]
     warning = obj._quality_bar_warning()
     assert warning.startswith("0 of 48 use cases meet your High bar; 12 tables have no rows yet: ")
@@ -103,7 +105,7 @@ def test_incident_replay_keeps_all_48_below_the_high_bar_and_warns(agent_ns):
 
 
 def test_incident_replay_exit_value_and_results_carry_the_warning(agent_ns):
-    obj = _inspire(agent_ns, empty=EMPTY[:2])
+    obj = _inspire(agent_ns, empty=EMPTY[:2], full=["airline_std.passenger.bookings"])
     kept, _r, _b = _q3_drop_all(obj, [_uc(f"U{i:02d}") for i in range(48)])
     obj._select_scored_use_cases(kept, [], {})
     obj.failed_steps, obj.translation_gaps = [], {}
@@ -113,6 +115,32 @@ def test_incident_replay_exit_value_and_results_carry_the_warning(agent_ns):
     results = obj._merge_run_outcome_into_results()
     assert results["run_status"] == "warning" and results["run_message"] == exit_value
     assert obj._v130_results_keys()["quality_bar"]["meets"] == 0
+
+
+@pytest.mark.parametrize("empty, note", [
+    (EMPTY[:1], f"the only selected table, {EMPTY[0]}, is empty, so no use case can be grounded in rows"),
+    (EMPTY[:3], f"every selected table is empty ({', '.join(EMPTY[:3])}), so no use case can be grounded in rows"),
+])
+def test_every_selected_table_empty_still_warns_and_says_no_use_case_can_be_grounded(agent_ns, empty, note):
+    obj = _inspire(agent_ns, empty=empty)
+    kept, _r, _b = _q3_drop_all(obj, [_uc(f"U{i:02d}") for i in range(6)])
+    final, _rejected = obj._select_scored_use_cases(kept, [], {})
+    assert len(final) == 6, "an all-empty run still keeps its use cases below the bar instead of stopping"
+    outcome = obj.quality_bar_outcome
+    assert outcome["all_tables_empty"] is True
+    assert f". {note[:1].upper()}{note[1:]}. Add sample rows on the Generate data page" in outcome["message"]
+    warning = obj._quality_bar_warning()
+    assert warning == f"0 of 6 use cases meet your High bar; {note}; add sample rows on the Generate data page of the Inspire App, then run again"
+    assert "no rows yet" not in warning
+    steps = [e for e in obj.emitted if e.get("step_name") == "Quality Bar"]
+    assert steps and steps[-1]["status"] == "ended_warning"
+
+
+def test_no_empty_table_is_never_called_all_empty(agent_ns):
+    obj = _inspire(agent_ns, full=["airline_std.passenger.bookings"])
+    assert obj._all_scanned_tables_empty([]) is False
+    obj = _inspire(agent_ns)
+    assert obj._all_scanned_tables_empty([]) is False
 
 
 def test_mixed_run_puts_meets_first_and_marks_the_rest(agent_ns):
@@ -230,7 +258,7 @@ class _FinalWriter:
         self.finals.append(kw)
 
 
-def _offline_run(agent_ns, tmp_path, label, empty):
+def _offline_run(agent_ns, tmp_path, label, empty, full=()):
     from v120_run_offline_smoke_test import _build
 
     def scorer(uc_id):
@@ -239,7 +267,7 @@ def _offline_run(agent_ns, tmp_path, label, empty):
 
     obj = _build(agent_ns, tmp_path, "High", HIGH, scorer)
     obj._collect_discovery_evidence = lambda _details: setattr(
-        obj, "discovery_evidence", {"profiles": {fqn: {"rows": 0} for fqn in empty}})
+        obj, "discovery_evidence", {"profiles": {**{fqn: {"rows": 0} for fqn in empty}, **{fqn: {"rows": 9} for fqn in full}}})
     obj.run()
     obj.atomic_writer = _FinalWriter()
     obj.finalize_atomic_writer(success=True)
@@ -253,7 +281,7 @@ def _offline_run(agent_ns, tmp_path, label, empty):
 ])
 def test_run_ends_as_a_warning_naming_the_empty_tables_only_when_none_meets_the_bar(
         agent_ns, tmp_path, quiet_root_logger, label, empty, status, meets):
-    obj = _offline_run(agent_ns, tmp_path, label, empty)
+    obj = _offline_run(agent_ns, tmp_path, label, empty, full=["cat.sch.stores"])
     final = obj.recorded["tracking"][-1]
     assert len(final) == 4 and sum(u["meets_quality_bar"] == "Y" for u in final) == meets
     assert [f["status"] for f in obj.atomic_writer.finals] == [status]

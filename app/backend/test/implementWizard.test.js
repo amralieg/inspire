@@ -439,11 +439,12 @@ test('a use case is named by its card first, then its tracking row, then any pla
   assert.equal(w.defaultSpecFromUseCase({ id: 'N01-U01', Name: 'Predict churn', use_case: 'Keep customers' }).use_case_name, 'Predict churn');
 });
 
-test('the row count says what it left out, and an empty scope names what to widen', async () => {
+test('the row count says what it left out, and an empty scope is a warning that names what to widen, never a block', async () => {
   const w = await load();
   const scope = (over) => ({ table: 'main.s.orders', columns: [], filters: [], window: {}, uncounted: [], ...over });
   assert.equal(w.readinessText({ skipped: true, row_count: null }, scope()), '');
   assert.equal(w.readinessText(null, scope()), '');
+  assert.equal(w.readinessText({ skipped: false, row_count: 0 }, scope()), '', 'an empty count leaves the line to the warning');
   assert.equal(w.readinessText({ skipped: false, row_count: 2879789 }, scope()),
     'Inspire found 2,879,789 rows to work with in main.s.orders.');
   assert.equal(w.readinessText({ skipped: false, row_count: 2879789 }, scope({ uncounted: ['the date window on main.s.dates'] })),
@@ -456,13 +457,38 @@ test('the row count says what it left out, and an empty scope names what to wide
   assert.deepEqual(w.scopeNarrowing(scope()), []);
   assert.deepEqual(w.scopeNarrowing(scope({ window: { column: 'order_date', start: '', end: '' } })), [], 'a mapped column with no dates narrows nothing');
   assert.deepEqual(w.scopeNarrowing(scope({ window, filters })), ['window', 'filters']);
-  assert.equal(w.emptyScopeError(scope()), 'No rows to work with: main.s.orders is empty. Change it to a table with rows.');
-  assert.equal(w.emptyScopeError(scope({ window })),
-    'No rows to work with: main.s.orders has no rows inside the date window you picked. Widen or clear it under Advanced settings.');
-  assert.equal(w.emptyScopeError(scope({ filters })),
-    'No rows to work with: main.s.orders has no rows that pass the filters you picked. Widen or clear them under Advanced settings.');
-  assert.equal(w.emptyScopeError(scope({ window, filters })),
-    'No rows to work with: main.s.orders has no rows inside the date window that pass the filters you picked. Widen or clear them under Advanced settings.');
+  const go = 'You can go on.';
+  assert.equal(w.emptyScopeWarning(scope()), `Warning: main.s.orders is empty, so the first run may write no rows. ${go}`);
+  assert.equal(w.emptyScopeWarning(scope(), ['main.s.orders']),
+    `Warning: main.s.orders, the only table you picked, is empty, so no use case can be grounded in rows. ${go}`);
+  assert.equal(w.emptyScopeWarning(scope(), ['main.s.orders', 'main.s.web']),
+    `Warning: every table you picked is empty (main.s.orders, main.s.web), so no use case can be grounded in rows. ${go}`);
+  assert.equal(w.emptyScopeWarning(scope({ window })),
+    'Warning: main.s.orders has no rows inside the date window you picked. You can go on, or widen or clear it under Advanced settings on Data.');
+  assert.equal(w.emptyScopeWarning(scope({ filters })),
+    'Warning: main.s.orders has no rows that pass the filters you picked. You can go on, or widen or clear them under Advanced settings on Data.');
+  assert.equal(w.emptyScopeWarning(scope({ window, filters }), ['main.s.orders']),
+    'Warning: main.s.orders has no rows inside the date window that pass the filters you picked. You can go on, or widen or clear them under Advanced settings on Data.',
+    'a narrowed scope never claims the tables are empty (must-exclude)');
+  for (const text of [w.emptyScopeWarning(scope()), w.emptyScopeWarning(scope(), ['main.s.orders']), w.emptyScopeWarning(scope({ filters }))]) {
+    assert.match(text, /^Warning: /);
+    assert.doesNotMatch(text, /No rows to work with|Change it to a table with rows/, 'the old block wording is gone (must-exclude)');
+  }
+  assert.equal(w.emptyScopeError, undefined, 'no blocking empty-scope error is left to call');
+});
+
+test('only when every picked table counts zero rows is the scope all empty; a table with rows, a failed or skipped count, or a narrowed scope is not (must-exclude)', async () => {
+  const w = await load();
+  const scope = (over) => ({ table: 'main.s.orders', columns: [], filters: [], window: {}, uncounted: [], ...over });
+  const zero = { skipped: false, row_count: 0 };
+  assert.deepEqual(w.otherScopeTables(scope(), ['main.s.orders', 'MAIN.S.WEB', 'main.s.web', '', 'main.s.items']), ['MAIN.S.WEB', 'main.s.items']);
+  assert.deepEqual(w.otherScopeTables(scope({ filters: [{ table: 'main.s.orders', column: 'c', op: 'in', values: ['x'] }] }), ['main.s.web']), []);
+  assert.deepEqual(w.allEmptyTables(scope(), [], []), ['main.s.orders'], 'the only table counts as every table');
+  assert.deepEqual(w.allEmptyTables(scope(), ['main.s.web'], [zero]), ['main.s.orders', 'main.s.web']);
+  assert.deepEqual(w.allEmptyTables(scope(), ['main.s.web'], [{ skipped: false, row_count: 3 }]), []);
+  assert.deepEqual(w.allEmptyTables(scope(), ['main.s.web'], [null]), [], 'a failed count is not an empty table');
+  assert.deepEqual(w.allEmptyTables(scope(), ['main.s.web'], [{ skipped: true, row_count: null }]), []);
+  assert.deepEqual(w.allEmptyTables(scope({ window: { column: 'd', start: '2026-01-01' } }), [], []), [], 'a narrowed scope is never all empty');
 });
 
 test('plan lines say what the edit builds, refreshes, deletes and keeps', async () => {

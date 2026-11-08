@@ -14,6 +14,7 @@ async function pickData(page) {
 }
 
 async function openStrategy(page) {
+  await page.getByRole('button', { name: /Advanced Settings/ }).click();
   const section = page.getByTestId('launch-strategy');
   await section.waitFor({ timeout: 20000 });
   const toggle = section.getByRole('button', { name: /Strategy \(optional\)/ });
@@ -69,7 +70,8 @@ test('the Strategy (optional) section renames a level, imports a pasted list thr
 test('with the strategy left alone the launch sends no strategy, and a level name used twice blocks the launch', async () => {
   const quiet = await openUi('launch', STATE);
   try {
-    await quiet.page.getByTestId('launch-strategy').waitFor({ timeout: 20000 });
+    await quiet.page.locator('button[title="main"]').waitFor({ timeout: 20000 });
+    assert.equal(await quiet.page.getByTestId('launch-strategy').count(), 0, 'the strategy sits closed inside Advanced Settings');
     await pickData(quiet.page);
     await quiet.page.getByRole('button', { name: 'Get Started' }).click();
     await until(() => quiet.made.launches.length === 1, 'the launch was sent once');

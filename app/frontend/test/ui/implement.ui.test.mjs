@@ -418,7 +418,7 @@ test('roles an older wizard guessed come back with the version, and one click se
   }
 });
 
-test('Next stops when the data to work with has no rows and says what to widen, and the count says what it leaves out', async () => {
+test('Next warns, without stopping, when the data to work with has no rows and says what to widen, and the count says what it leaves out', async () => {
   const columns = [{ column_name: 'order_id', data_type: 'STRING', ordinal_position: 1 }, { column_name: 'order_date', data_type: 'DATE', ordinal_position: 2 }];
   const ui = await openUi('wizard&discovery=Deep', { columns, readinessRows: [{ row_count: '0' }], me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
@@ -431,20 +431,57 @@ test('Next stops when the data to work with has no rows and says what to widen, 
     await page.getByLabel('Window start').fill('2026-10-26');
     await page.getByLabel('Window end').fill('2026-10-28');
     await next(page);
-    await page.locator('[role="alert"]').waitFor();
-    assert.deepEqual(await footerErrors(page),
-      ['No rows to work with: main.s.orders has no rows inside the date window you picked. Widen or clear it under Advanced settings.']);
-    assert.equal(await page.locator('[aria-current="step"]').innerText(), '2. Data', 'the wizard stays on Data');
-    assert.equal(await advanced(page).getAttribute('aria-expanded'), 'true');
+    await onStep(page, 'First run');
+    assert.equal(await page.locator('[data-empty-table-warning]').innerText(),
+      'Warning: main.s.orders has no rows inside the date window you picked. You can go on, or widen or clear it under Advanced settings on Data.');
+    assert.deepEqual(await footerErrors(page), [], 'an empty table no longer stops the wizard (must-exclude)');
+    assert.doesNotMatch(await page.locator('body').innerText(), /No rows to work with|Change it to a table with rows/);
     const counted = made.sqlCalls.filter((c) => String(c.sql).startsWith('SELECT COUNT(*) AS row_count'));
-    assert.equal(counted.length, 1);
+    assert.equal(counted.length, 1, 'a narrowed scope counts only the table it narrows');
     assert.ok(counted[0].sql.includes('`order_date` >= CAST(:wstart AS DATE)'), counted[0].sql);
 
+    await page.getByRole('button', { name: 'Back' }).click();
+    await onStep(page, 'Data');
     made.state.readinessRows = [{ row_count: '1200' }];
     await eventDate().selectOption('main.s.returns.order_date');
     await toDelivery(page);
     await page.getByText('Inspire found 1,200 rows to work with in main.s.orders. This count leaves out the date window on main.s.returns; the preview run applies it.').waitFor();
     assert.equal(made.jobs.length, 0);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('an empty main table warns and moves on, and when every picked table is empty the warning says no use case can be grounded in rows', async () => {
+  const ui = await openUi('wizard&discovery=Deep', { readinessByTable: { 'main.s.orders': '0', 'main.s.returns': '40' }, me: { userName: OWNER, displayName: 'Owner' } });
+  const { page, made } = ui;
+  try {
+    await toData(page);
+    await next(page);
+    await onStep(page, 'First run');
+    assert.equal(await page.locator('[data-empty-table-warning]').innerText(),
+      'Warning: main.s.orders is empty, so the first run may write no rows. You can go on.');
+    assert.doesNotMatch(await page.locator('[data-empty-table-warning]').innerText(), /grounded/, 'one other table has rows (must-exclude)');
+    assert.deepEqual(await footerErrors(page), []);
+    const counted = made.sqlCalls.filter((c) => String(c.sql).startsWith('SELECT COUNT(*) AS row_count'));
+    assert.equal(counted.length, 2, 'the other picked table is counted too');
+
+    await page.getByRole('button', { name: 'Back' }).click();
+    await onStep(page, 'Data');
+    made.state.readinessByTable = { 'main.s.orders': '0', 'main.s.returns': '0' };
+    await next(page);
+    await onStep(page, 'First run');
+    assert.equal(await page.locator('[data-empty-table-warning]').innerText(),
+      'Warning: every table you picked is empty (main.s.orders, main.s.returns), so no use case can be grounded in rows. You can go on.');
+    assert.deepEqual(await footerErrors(page), [], 'all empty still does not stop the wizard (must-exclude)');
+
+    await page.getByRole('button', { name: 'Back' }).click();
+    await onStep(page, 'Data');
+    made.state.readinessByTable = { 'main.s.orders': '5', 'main.s.returns': '0' };
+    await next(page);
+    await onStep(page, 'First run');
+    assert.equal(await page.locator('[data-empty-table-warning]').count(), 0, 'rows in the main table clear the warning (must-exclude)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

@@ -51,7 +51,7 @@ import { placeholderWords } from '../lib/placeholderWords';
 import { inspireScoreFromUc, nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
 import { catalogListNote, typedCatalog } from '../lib/catalogList';
-import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, DISCOVERY_TYPE_DEFAULT, discoveryTypeOf } from '../lib/discoveryType';
+import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -60,7 +60,6 @@ const DISCOVERY_OPTIONS = [
   {
     key: DISCOVERY_STANDARD,
     icon: Lock,
-    badge: 'Recommended',
     desc: DISCOVERY_MODE_TEXT[DISCOVERY_STANDARD],
   },
   {
@@ -68,7 +67,7 @@ const DISCOVERY_OPTIONS = [
     icon: Sparkles,
     desc: DISCOVERY_MODE_TEXT[DISCOVERY_AI_ENHANCED],
   },
-];
+].map((opt) => (opt.key === DISCOVERY_RECOMMENDED ? { ...opt, badge: 'Recommended' } : opt));
 const DISCOVERY_PANEL = [
   {
     key: 'why',
@@ -153,7 +152,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     '00_business_name': '',
     '01_uc_metadata': '',
     '02_inspire_database': inspireDatabase || '',
-    '03_discovery_type': DISCOVERY_TYPE_DEFAULT,
+    '03_discovery_type': DISCOVERY_RECOMMENDED,
     '04_table_election': 'Let Inspire Decides',
     '05_use_cases_quality': 'Good',
     '06_business_domains': '',
@@ -707,9 +706,17 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const launchBlock = !params['00_business_name'] ? 'Enter a Business Name to get started.'
     : !effectiveDb ? 'Set the Inspire Database in Advanced Settings to get started.'
       : !params['01_uc_metadata'] ? 'Pick at least one catalog, schema or table under Unity Catalog Metadata to get started.'
-        : strategyProblems.length ? `Fix the strategy first, under Strategy (optional): ${strategyProblems[0]}`
+        : strategyProblems.length ? `Fix the strategy first, in Advanced Settings under Strategy (optional): ${strategyProblems[0]}`
           : bestOfBestInvalid ? 'Fix Best of Best stars in Advanced Settings: use a whole number from 0 to 100, or leave it empty.' : '';
   const canLaunch = !launchBlock;
+  const advancedProblem = !effectiveDb ? 'Set the Inspire Database.'
+    : strategyProblems.length ? `Fix the strategy: ${strategyProblems[0]}`
+      : bestOfBestInvalid ? 'Fix Best of Best stars: use a whole number from 0 to 100, or leave it empty.'
+        : needsLanguage && selectedDocLanguages.length === 0 ? 'Select at least one document language for PDF or Presentation.'
+          : ['refused', 'error'].includes(outputCheck.state) ? 'Change the Generation Path: Inspire cannot write to it.' : '';
+  useEffect(() => {
+    if (advancedProblem) setShowAdvanced(true);
+  }, [advancedProblem]);
 
   const launchErrorGuidance = useMemo(
     () => (launchError
@@ -1017,7 +1024,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             </div>
             <div className="flex-1">
               <h2 className="text-sm font-bold text-text-primary">Essentials</h2>
-              <p className="text-xs text-text-secondary">Your business, its goals, and the data Inspire should look at</p>
+              <p className="text-xs text-text-secondary">Your business, the data Inspire should look at, and how it discovers</p>
             </div>
             <span className="text-[10px] font-semibold text-db-red-fg bg-db-red-50 border border-db-red/20 px-2 py-0.5 rounded-full uppercase tracking-wider">
               Required
@@ -1240,140 +1247,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 )}
               </Field>
 
-            {/* Generation Instructions — optional */}
-            <FieldSection label="Generation Instructions" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
-              <div className="relative">
-                <Target size={14} className="absolute left-3 top-3 text-text-tertiary" />
-                <textarea dir="auto"
-                  rows={3}
-                  placeholder="Focus on fraud detection, join orders with customers on customer_id, exclude staging tables..."
-                  value={params['08_generation_instructions']}
-                  onChange={(e) => updateParam('08_generation_instructions', e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth resize-none"
-                />
-              </div>
-            </FieldSection>
-
-            {/* Business Priorities */}
-            <FieldSection label="Business Priorities" hint="Pick what matters most, or add your own">
-              <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
-                {BUSINESS_PRIORITIES.map((bp) => {
-                  const active = !!priorityChecks[bp.key];
-                  return (
-                    <button
-                      key={bp.key}
-                      type="button"
-                      onClick={() => toggleBuiltInPriority(bp.key)}
-                      className={`relative px-3 py-2 rounded-lg text-xs font-medium text-start transition-smooth border ${
-                        active
-                          ? 'border-db-red/30 bg-db-red-50 text-db-red-fg'
-                          : 'border-border text-text-secondary hover:border-border-strong'
-                      }`}
-                    >
-                      <span className="flex items-center gap-1.5">
-                        <bp.icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
-                        <span className="truncate">{bp.key}</span>
-                      </span>
-                      {active && <CheckCircle2 size={12} className="absolute top-1.5 right-1.5 text-db-red-fg" />}
-                    </button>
-                  );
-                })}
-                {customPriorities.map((name) => (
-                  <span
-                    key={name}
-                    className="relative px-3 py-2 rounded-lg text-xs font-medium border border-db-red/30 bg-db-red-50 text-db-red-fg flex items-center gap-1.5"
-                  >
-                    <Target size={13} className="text-db-red-fg shrink-0" />
-                    <span className="truncate" title={name}>{name}</span>
-                    <button
-                      type="button"
-                      aria-label={`Remove ${name}`}
-                      onClick={() => removeCustomPriority(name)}
-                      className="ms-auto shrink-0 text-db-red-fg hover:text-text-primary transition-smooth"
-                    >
-                      <X size={12} />
-                    </button>
-                  </span>
-                ))}
-              </div>
-              <div className="flex gap-2 mt-2">
-                <input dir="auto"
-                  type="text"
-                  value={customPriorityDraft}
-                  onChange={(e) => setCustomPriorityDraft(e.target.value)}
-                  onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
-                      e.preventDefault();
-                      addCustomPriority();
-                    }
-                  }}
-                  placeholder="Add your own priority, for example Improve on-time delivery"
-                  aria-label="Add your own business priority"
-                  className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
-                />
-                <button
-                  type="button"
-                  onClick={addCustomPriority}
-                  disabled={!customPriorityDraft.trim()}
-                  className="px-3 py-2 text-xs font-semibold rounded-lg border border-border text-text-secondary hover:border-border-strong disabled:opacity-40 transition-smooth"
-                >
-                  Add
-                </button>
-              </div>
-            </FieldSection>
-
-            {/* Business Domains */}
-            <FieldSection label="Business Domains" hint="Leave empty to auto-infer from data">
-              <div className="relative">
-                <Layers size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
-                <input dir="auto"
-                  type="text"
-                  placeholder="Sales, Marketing, Finance, Operations, Supply Chain..."
-                  value={params['06_business_domains']}
-                  onChange={(e) => updateParam('06_business_domains', e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
-                />
-              </div>
-            </FieldSection>
-
-            <div className="border border-border rounded-xl overflow-hidden" data-testid="launch-strategy">
-              <button
-                type="button"
-                onClick={() => setShowStrategy(!showStrategy)}
-                aria-expanded={showStrategy}
-                className="w-full flex items-start gap-2 px-4 py-3 text-start hover:bg-bg-subtle/50 transition-smooth"
-              >
-                <Target size={14} className="text-text-tertiary mt-0.5 shrink-0" />
-                <span className="min-w-0">
-                  <span className="block text-xs font-bold text-text-primary">Strategy (optional)</span>
-                  <span className="block text-[10px] text-text-tertiary">
-                    Your levels, KPIs and sponsors. When you set them, every use case is aligned to them, measured by your KPIs
-                    and sponsored by one of your roles. For example: Customer › Win loyalty, measured by Repeat purchase rate,
-                    sponsored by the Chief Customer Officer.
-                  </span>
-                </span>
-                {(strategyBase || strategyProblems.length > 0) && (
-                  <span className={`ms-auto text-[10px] font-semibold ${strategyProblems.length ? 'text-db-red-fg' : 'text-success-fg'}`}>
-                    {strategyProblems.length ? `${strategyProblems.length} problem${strategyProblems.length > 1 ? 's' : ''}` : 'Set'}
-                  </span>
-                )}
-                <ChevronDown
-                  size={14}
-                  className={`text-text-tertiary transition-transform duration-200 ${strategyBase || strategyProblems.length > 0 ? '' : 'ms-auto'} ${showStrategy ? 'rotate-180' : ''}`}
-                />
-              </button>
-              {showStrategy && (
-                <div className="px-4 pb-4 pt-1 border-t border-border">
-                  <StrategyEditor
-                    key={strategyEditorKey}
-                    value={strategyBase}
-                    onChange={handleStrategyChange}
-                    domains={String(params['06_business_domains'] || '').split(',').map((d) => d.trim()).filter(Boolean)}
-                  />
-                </div>
-              )}
-            </div>
-
             {/* Discovery Type — v1.3.0 widget 03_discovery_type */}
             <FieldSection label="Discovery Type" hint="Both modes count your data; only AI Enhanced Discovery shows the counts to the AI">
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
@@ -1395,7 +1268,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       <span className={`flex items-center gap-1.5 text-xs font-semibold ${active ? 'text-db-red-fg' : 'text-text-primary'}`}>
                         <Icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
                         {opt.key}
-                        {opt.key === DISCOVERY_TYPE_DEFAULT && <span className="text-[10px] font-normal text-text-tertiary">(default)</span>}
+                        {opt.key === DISCOVERY_RECOMMENDED && <span className="text-[10px] font-normal text-text-tertiary">(default)</span>}
                         {opt.badge && (
                           <span data-discovery-badge={opt.key} className="ms-1 rounded-full bg-success-bg px-2 py-0.5 text-[10px] font-semibold text-success-fg">
                             {opt.badge}
@@ -1431,6 +1304,20 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               {prefillNote && <p className="text-[10px] text-text-tertiary mt-1.5">{prefillNote}</p>}
             </FieldSection>
 
+            {/* Generation Instructions — optional */}
+            <FieldSection label="Generation Instructions" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
+              <div className="relative">
+                <Target size={14} className="absolute left-3 top-3 text-text-tertiary" />
+                <textarea dir="auto"
+                  rows={3}
+                  placeholder="Focus on fraud detection, join orders with customers on customer_id, exclude staging tables..."
+                  value={params['08_generation_instructions']}
+                  onChange={(e) => updateParam('08_generation_instructions', e.target.value)}
+                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth resize-none"
+                />
+              </div>
+            </FieldSection>
+
           </div>
         </section>
 
@@ -1441,6 +1328,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           <button
             type="button"
             onClick={() => setShowAdvanced(!showAdvanced)}
+            aria-expanded={showAdvanced}
+            data-launch-advanced-toggle=""
             className="w-full flex items-center gap-3 px-6 py-4 text-start hover:bg-bg-subtle/50 transition-smooth"
           >
             <div className="w-8 h-8 rounded-lg bg-bg-subtle flex items-center justify-center">
@@ -1449,8 +1338,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             <div className="flex-1">
               <h2 className="text-sm font-bold text-text-primary">Advanced Settings</h2>
               <p className="text-xs text-text-secondary">
-                Where Inspire keeps its tables and files, run mode, documents and quality
+                Business priorities, domains and strategy, where Inspire keeps its tables and files, run mode, documents and quality
               </p>
+              {!showAdvanced && advancedProblem && (
+                <p data-launch-advanced-problem="" className="mt-1 text-xs text-error-fg">{advancedProblem}</p>
+              )}
             </div>
             <div className={`transition-transform duration-200 ${showAdvanced ? 'rotate-180' : ''}`}>
               <ChevronDown size={18} className="text-text-tertiary" />
@@ -1459,6 +1351,126 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
           {showAdvanced && (
             <div className="px-6 pb-6 pt-2 border-t border-border space-y-6">
+
+              {/* Business Priorities */}
+              <FieldSection label="Business Priorities" hint="Pick what matters most, or add your own">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-5 gap-2">
+                  {BUSINESS_PRIORITIES.map((bp) => {
+                    const active = !!priorityChecks[bp.key];
+                    return (
+                      <button
+                        key={bp.key}
+                        type="button"
+                        onClick={() => toggleBuiltInPriority(bp.key)}
+                        className={`relative px-3 py-2 rounded-lg text-xs font-medium text-start transition-smooth border ${
+                          active
+                            ? 'border-db-red/30 bg-db-red-50 text-db-red-fg'
+                            : 'border-border text-text-secondary hover:border-border-strong'
+                        }`}
+                      >
+                        <span className="flex items-center gap-1.5">
+                          <bp.icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
+                          <span className="truncate">{bp.key}</span>
+                        </span>
+                        {active && <CheckCircle2 size={12} className="absolute top-1.5 right-1.5 text-db-red-fg" />}
+                      </button>
+                    );
+                  })}
+                  {customPriorities.map((name) => (
+                    <span
+                      key={name}
+                      className="relative px-3 py-2 rounded-lg text-xs font-medium border border-db-red/30 bg-db-red-50 text-db-red-fg flex items-center gap-1.5"
+                    >
+                      <Target size={13} className="text-db-red-fg shrink-0" />
+                      <span className="truncate" title={name}>{name}</span>
+                      <button
+                        type="button"
+                        aria-label={`Remove ${name}`}
+                        onClick={() => removeCustomPriority(name)}
+                        className="ms-auto shrink-0 text-db-red-fg hover:text-text-primary transition-smooth"
+                      >
+                        <X size={12} />
+                      </button>
+                    </span>
+                  ))}
+                </div>
+                <div className="flex gap-2 mt-2">
+                  <input dir="auto"
+                    type="text"
+                    value={customPriorityDraft}
+                    onChange={(e) => setCustomPriorityDraft(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        e.preventDefault();
+                        addCustomPriority();
+                      }
+                    }}
+                    placeholder="Add your own priority, for example Improve on-time delivery"
+                    aria-label="Add your own business priority"
+                    className="flex-1 px-3 py-2 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
+                  />
+                  <button
+                    type="button"
+                    onClick={addCustomPriority}
+                    disabled={!customPriorityDraft.trim()}
+                    className="px-3 py-2 text-xs font-semibold rounded-lg border border-border text-text-secondary hover:border-border-strong disabled:opacity-40 transition-smooth"
+                  >
+                    Add
+                  </button>
+                </div>
+              </FieldSection>
+
+              {/* Business Domains */}
+              <FieldSection label="Business Domains" hint="Leave empty to auto-infer from data">
+                <div className="relative">
+                  <Layers size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                  <input dir="auto"
+                    type="text"
+                    placeholder="Sales, Marketing, Finance, Operations, Supply Chain..."
+                    value={params['06_business_domains']}
+                    onChange={(e) => updateParam('06_business_domains', e.target.value)}
+                    className="w-full pl-9 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
+                  />
+                </div>
+              </FieldSection>
+
+              <div className="border border-border rounded-xl overflow-hidden" data-testid="launch-strategy">
+                <button
+                  type="button"
+                  onClick={() => setShowStrategy(!showStrategy)}
+                  aria-expanded={showStrategy}
+                  className="w-full flex items-start gap-2 px-4 py-3 text-start hover:bg-bg-subtle/50 transition-smooth"
+                >
+                  <Target size={14} className="text-text-tertiary mt-0.5 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-bold text-text-primary">Strategy (optional)</span>
+                    <span className="block text-[10px] text-text-tertiary">
+                      Your levels, KPIs and sponsors. When you set them, every use case is aligned to them, measured by your KPIs
+                      and sponsored by one of your roles. For example: Customer › Win loyalty, measured by Repeat purchase rate,
+                      sponsored by the Chief Customer Officer.
+                    </span>
+                  </span>
+                  {(strategyBase || strategyProblems.length > 0) && (
+                    <span className={`ms-auto text-[10px] font-semibold ${strategyProblems.length ? 'text-db-red-fg' : 'text-success-fg'}`}>
+                      {strategyProblems.length ? `${strategyProblems.length} problem${strategyProblems.length > 1 ? 's' : ''}` : 'Set'}
+                    </span>
+                  )}
+                  <ChevronDown
+                    size={14}
+                    className={`text-text-tertiary transition-transform duration-200 ${strategyBase || strategyProblems.length > 0 ? '' : 'ms-auto'} ${showStrategy ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {showStrategy && (
+                  <div className="px-4 pb-4 pt-1 border-t border-border">
+                    <StrategyEditor
+                      key={strategyEditorKey}
+                      value={strategyBase}
+                      onChange={handleStrategyChange}
+                      domains={String(params['06_business_domains'] || '').split(',').map((d) => d.trim()).filter(Boolean)}
+                    />
+                  </div>
+                )}
+              </div>
 
               {/* Inspire Database */}
               <Field label="Inspire Database" icon={Database} hint="catalog.schema format: where Inspire keeps its record of each run">
@@ -1664,7 +1676,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             )}
             <Chip icon={<Sliders size={10} />}>{params['05_use_cases_quality']}</Chip>
             <Chip icon={params['03_discovery_type'] === DISCOVERY_AI_ENHANCED ? <Sparkles size={10} /> : <Lock size={10} />}>
-              {params['03_discovery_type'] || DISCOVERY_TYPE_DEFAULT}
+              {params['03_discovery_type'] || DISCOVERY_RECOMMENDED}
             </Chip>
             {strategyBase && <Chip icon={<Target size={10} />}>Strategy set</Chip>}
             <Chip icon={<Star size={10} />}>

@@ -115,7 +115,8 @@ test('launch UI exposes v1.2.0 quality modes and Auto-Genie widget 13', () => {
   assert.match(launchPage, /'13_generate_genie_code_for':\s*'0'/);
   const afterDemo = fs.readFileSync(path.join(appRoot, 'dbx_inspire_after_demo.py'), 'utf8');
   assert.match(afterDemo, /"13_generate_genie_code_for":\s*"0"/);
-  assert.match(launchPage, /'03_discovery_type':\s*DISCOVERY_TYPE_DEFAULT/);
+  assert.match(launchPage, /'03_discovery_type':\s*DISCOVERY_RECOMMENDED/);
+  assert.doesNotMatch(launchPage, /'03_discovery_type':\s*DISCOVERY_TYPE_DEFAULT/);
   assert.match(launchPage, /'10_strategic_context':\s*''/);
   assert.match(launchPage, /Discovery Type/);
   assert.match(launchPage, /StrategyEditor/);

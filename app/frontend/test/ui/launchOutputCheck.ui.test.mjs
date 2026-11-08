@@ -68,7 +68,8 @@ test('a folder the person cannot write keeps Get Started off and shows the refus
     await nearLaunch(page).waitFor({ timeout: 15000 });
     await until(async () => (await nearLaunch(page).getAttribute('data-output-check')) === 'refused', 'the refusal next to Get Started');
     assert.equal(await nearLaunch(page).getByText(REFUSAL, { exact: true }).count(), 1);
-    assert.match(await nearLaunch(page).innerText(), /Get Started stays off until the output folder check passes\. Change it in Advanced Settings, Generation Path\./);
+    assert.match(await nearLaunch(page).innerText(), /Get Started stays off until the output folder check passes\. Change Generation Path in Advanced Settings above\./);
+    assert.equal(await page.getByRole('button', { name: /Advanced Settings/ }).getAttribute('aria-expanded'), 'true', 'the refusal opens Advanced Settings');
     assert.equal(await launchButton(page).isDisabled(), true, 'Get Started is off while the folder is refused');
     assert.deepEqual(calls.checks, ['./../demos/'], 'the default folder is checked once');
     assert.deepEqual(calls.urls, ['/api/output-folder/check'], 'the default path travels in the body, never in the URL');
@@ -81,7 +82,6 @@ test('a folder the person cannot write keeps Get Started off and shows the refus
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
 
-    await page.getByRole('button', { name: /Advanced Settings/ }).click();
     const typedBefore = calls.checks.length;
     await setPath(page, MINE);
     await until(async () => (await page.locator('#output-folder-check-field').getAttribute('data-output-check')) === 'passed', 'the passed check under the field');

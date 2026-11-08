@@ -49,7 +49,7 @@ test('a discovery type the person picks while the last session is still being re
       app.get('/api/inspire/session', async (req, res) => {
         asked.push(String(req.query.session_id));
         if (asked.length === 1) await first.shut;
-        res.json({ session: { session_id: req.query.session_id, widget_values: { discovery_type: 'Standard', strategic_context: '/Workspace/Users/someone/strategy.json' } } });
+        res.json({ session: { session_id: req.query.session_id, widget_values: { discovery_type: 'Deep', strategic_context: '/Workspace/Users/someone/strategy.json' } } });
       });
     },
   });
@@ -59,7 +59,7 @@ test('a discovery type the person picks while the last session is still being re
     await page.waitForTimeout(300);
     await page.getByPlaceholder(BUSINESS).fill('Acme');
     await until(() => asked.length === 1, 'the last session is asked');
-    await page.getByRole('button', { name: /^AI Enhanced Discovery/ }).click();
+    await page.getByRole('button', { name: /^Standard Discovery/ }).click();
     first.open();
     await page.getByText("Prefilled from this business's last session (6001).").waitFor({ timeout: 20000 });
     await page.waitForTimeout(500);
@@ -68,7 +68,7 @@ test('a discovery type the person picks while the last session is still being re
     await page.locator('button[title="orders"]').click();
     await page.getByRole('button', { name: 'Get Started' }).click();
     await until(() => made.launches.length === 1, 'the launch was sent once');
-    assert.equal(made.launches[0].params['03_discovery_type'], 'AI Enhanced Discovery', 'the last session never overrides what the person picked');
+    assert.equal(made.launches[0].params['03_discovery_type'], 'Standard Discovery', 'the last session never overrides what the person picked');
   } finally {
     first.open();
     await ui.close();
