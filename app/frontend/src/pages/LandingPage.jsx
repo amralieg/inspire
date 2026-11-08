@@ -10,6 +10,7 @@ import {
   Wrench,
 } from 'lucide-react';
 import DatabricksLogo from '../components/DatabricksLogo';
+import DiscoveryPromise from '../components/DiscoveryPromise';
 import { useTheme } from '../ThemeContext';
 import { Sun, Moon } from 'lucide-react';
 import { APP_TABS } from '../lib/tabs';
@@ -661,9 +662,11 @@ export default function LandingPage({ onStart, onOpenSetup }) {
                   <span style={{ color: C.textMuted }}>from your data.</span>
                 </h1>
 
-                <p className="text-base sm:text-lg mb-10 max-w-lg leading-relaxed" style={{ color: C.textMuted }}>
+                <p className="text-base sm:text-lg mb-6 max-w-lg leading-relaxed" style={{ color: C.textMuted }}>
                   Inspire reads your Unity Catalog metadata, counts your data to check that each use case can be built, and writes use cases ranked for your business and your goals. Genie then builds an MVP for each one you pick.
                 </p>
+
+                <DiscoveryPromise className="mb-8 max-w-lg rounded-xl border border-success/30 bg-success-bg p-3.5" />
 
                 <LandingActions onStart={onStart} />
 

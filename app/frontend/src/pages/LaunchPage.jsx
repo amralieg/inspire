@@ -41,6 +41,7 @@ import UcPermissionErrorHelp from '../components/UcPermissionErrorHelp';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { runBusiness } from '../lib/reviewFigures';
 import OutputFolderCheck from '../components/OutputFolderCheck';
+import DiscoveryPromise from '../components/DiscoveryPromise';
 import { useOutputFolderCheck } from '../lib/outputFolderCheck';
 import { DEFAULT_DOCUMENT_LANGUAGE, parseDocumentLanguages, formatDocumentLanguages, launchDocLanguages, needsDocumentLanguage } from '../constants/documentLanguages';
 import { interpretUcPermissionError, parseApiErrorMessage } from '../lib/ucPermissionErrors';
@@ -51,7 +52,7 @@ import { placeholderWords } from '../lib/placeholderWords';
 import { inspireScoreFromUc, nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
 import { catalogListNote, typedCatalog } from '../lib/catalogList';
-import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
+import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_PRIVACY, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -85,7 +86,7 @@ const DISCOVERY_PANEL = [
     key: 'privacy',
     icon: Shield,
     title: 'Your data stays private',
-    text: 'Only counts are read, never a data row, and the values of personal columns are never read. Standard Discovery keeps every count away from the AI. AI Enhanced Discovery shows the counts to the AI. The AI runs on Databricks model serving, so your data never leaves Databricks.',
+    text: DISCOVERY_PRIVACY,
   },
 ];
 const TABLE_ELECTION = ['Let Inspire Decides', 'All Tables', 'Transactional Only'];
@@ -1270,10 +1271,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 })}
               </div>
               <div data-discovery-panel className="mt-2.5 rounded-xl border border-success/30 bg-success-bg p-3.5">
-                <p className="flex items-center gap-1.5 text-xs font-bold text-success-fg">
-                  <Eye size={13} />
-                  {DISCOVERY_RECOMMENDED} is recommended
-                </p>
+                <DiscoveryPromise />
                 <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-3">
                   {DISCOVERY_PANEL.map((part) => {
                     const PartIcon = part.icon;

@@ -15,6 +15,14 @@ export const DISCOVERY_MODE_TEXT = {
   [DISCOVERY_STANDARD]: 'Counts your data to decide each use case, for example rows, dates, group sizes and past outcomes. None of these numbers is sent to the AI, which sees metadata only.',
   [DISCOVERY_AI_ENHANCED]: 'Runs the same counts and also shows them to the AI, so it can sharpen each use case. No data row is ever sent to the AI.',
 };
+export const DISCOVERY_PRIVACY = 'Only counts are read, never a data row, and the values of personal columns are never read. Standard Discovery keeps every count away from the AI. AI Enhanced Discovery shows the counts to the AI. The AI runs on Databricks model serving, so your data never leaves Databricks.';
+export const DISCOVERY_PROMISE = {
+  title: `${DISCOVERY_RECOMMENDED} is recommended: it gives the best results`,
+  lines: [
+    'It groups your data and counts each group, so every use case fits the data you really have.',
+    'No row of your data is ever shared with the AI. The AI sees only metadata, such as table and column names, and those counts.',
+  ],
+};
 
 export function discoveryTypeOf(value) {
   const text = String(value ?? '').trim();
