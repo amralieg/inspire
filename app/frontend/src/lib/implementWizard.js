@@ -405,6 +405,24 @@ export function builtVersion(history) {
   return row && row.status !== IMPLEMENT_UNINSTALLED ? row.spec_version : null;
 }
 
+export const APP_UPDATED_TEXT = 'App updated to the current Inspire App code';
+
+export function liveAppVersion(history) {
+  const rows = [...(history || [])].sort((a, b) => (b?.spec_version || 0) - (a?.spec_version || 0));
+  const live = rows.find((r) => r?.spec_version === builtVersion(rows));
+  const entry = live?.asset_status?.app;
+  if (!entry || typeof entry !== 'object' || !IMPLEMENT_DONE_STATUSES.includes(String(entry.state))) return null;
+  const version = Number(entry.spec_version ?? live.spec_version);
+  return Number.isInteger(version) && version > 0 ? version : null;
+}
+
+export function isAppUpdate(history, row) {
+  const asked = row?.spec_json?.rollback_outputs?.app;
+  if (asked == null) return false;
+  const before = (history || []).filter((r) => (r?.spec_version || 0) < (row.spec_version || 0));
+  return Number(asked) === liveAppVersion(before);
+}
+
 export function vibePreviousChoices(live, next, inPlace = false) {
   return [
     { id: 'keep', label: `Keep v${live} live`,
@@ -897,7 +915,9 @@ export function planLines(summary, { shared = null, live = null } = {}) {
       : 'The built notebook is kept as it is');
   if (summary.build?.length) lines.push(`Builds: ${label(summary.build)}`);
   if (summary.refresh?.length) lines.push(`Refreshes: ${label(summary.refresh)}`);
-  if (summary.rollback?.length) lines.push(`Rolls back: ${label(summary.rollback)}`);
+  const rolled = (summary.rollback || []).filter((n) => !(summary.update || []).includes(n));
+  if (rolled.length) lines.push(`Rolls back: ${label(rolled)}`);
+  if (summary.update?.length) lines.push('Updates the App to the current Inspire App code');
   const removed = (summary.delete || []).map((n) => [n, sharedHolding(n, shared, live)]);
   const deleted = removed.filter(([, holding]) => !holding).map(([n]) => n);
   if (deleted.length) lines.push(`Deletes: ${label(deleted)}`);
@@ -2493,11 +2513,27 @@ export function unreliableHold(latest) {
   return reason && String(held.spec_version ?? '') === String(latest?.spec_version ?? '') ? reason : '';
 }
 
+const NEWER_VERSION_WORD = { held: 'held', unmet: 'held', failed: 'failed' };
+const SHORT_REASON = 80;
+
+export function shortReason(text) {
+  const first = String(text ?? '').trim().split(/(?<=[.!?])\s/)[0].replace(/[.\s]+$/, '');
+  if (first.length <= SHORT_REASON) return first;
+  const cut = first.slice(0, SHORT_REASON);
+  return `${cut.slice(0, cut.lastIndexOf(' ') > 0 ? cut.lastIndexOf(' ') : SHORT_REASON)}…`;
+}
+
 export function implementState(latest, notebook = null) {
   const s = String(latest?.status || '');
   if (s === IMPLEMENT_UNINSTALLED) return { group: 'not_started', label: 'MVP uninstalled', tone: 'idle', kind: 'uninstalled' };
   const live = Number(latest?.live_version);
-  if (s && live > 0 && live !== Number(latest.spec_version)) return { ...implementState({ ...latest, live_version: null }, notebook), live };
+  if (s && live > 0 && live !== Number(latest.spec_version)) {
+    const newest = implementState({ ...latest, live_version: null }, notebook);
+    if (!NEWER_VERSION_WORD[newest.group]) return { ...newest, live };
+    const word = newest.label === 'MVP stopped' ? 'stopped' : NEWER_VERSION_WORD[newest.group];
+    const reason = shortReason(statusReason(latest, latest.stalled));
+    return { group: newest.group, label: `MVP v${live} live`, tone: 'success', kind: 'mvp', live, note: `Newer version ${word}${reason ? `: ${reason}` : ''}` };
+  }
   if (s) {
     if (['ready', 'ready_with_warnings'].includes(s) && unreliableHold(latest)) return { group: 'held', label: UNRELIABLE_LABEL, tone: 'warning', kind: 'mvp' };
     if (['ready', 'ready_with_warnings'].includes(s) && openVibeAsks(latest).length) return { group: 'unmet', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' };

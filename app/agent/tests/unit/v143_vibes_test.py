@@ -888,3 +888,40 @@ def test_round_50_rebuilding_the_notebook_refills_it_reruns_it_and_has_genie_rec
     assert recheck not in agent_ns["implement_choices_markdown"](spec), "a first build has nothing to build again"
     assert recheck not in agent_ns["implement_choices_markdown"](retried, before)
     assert _spec(agent_ns, retry_outputs=["pdf"])[1] == ["retry output 'pdf' is not one of notebook, genie_space, dashboard, app, alert"]
+
+
+def test_putting_the_live_app_version_back_is_logged_as_an_app_update_not_a_roll_back(agent_ns, capsys):
+    saved = {"app": {"artifact": {"id": "n01_u01"}, "vibes": "", "spec_version": 2, "merged_into": ""}}
+    inst, previous = _locked(agent_ns, None, lambda s: [{"asset_snapshots": json.dumps(saved)}] if s.startswith("SELECT asset_snapshots") else [])
+    inst._implement_runner = lambda uc: pytest.fail("an App update never installs or asks Genie")
+    replayed = []
+
+    def app(context, runner):
+        replayed.append((context["replay"]["app"], runner))
+        context.setdefault("artifacts", {})["app"] = context["replay"]["app"][1]["artifact"]
+        return {"app_name": "churn-desk", "app_url": "https://churn-desk.example", "app_health": "running"}
+
+    inst._implement_app = app
+    assert _run(inst, dict(previous, rollback_outputs={"app": 2})) == "ready"
+    assert replayed == [((2, saved["app"]), None)]
+    out = capsys.readouterr().out
+    assert "🔄 [IMPLEMENT-APP-UPDATE] N01-U01 App v2 -> v3: App updated to the current Inspire App code" in out
+    assert "IMPLEMENT-ROLLBACK" not in out
+    assert inst.updates[-1]["asset_status"]["app"]["notes"] == ["App updated to the current Inspire App code"]
+    plan = [e for e in inst.emitted if e["step_name"] == "Plan"][0]
+    assert "; update the App to the current Inspire App code" in plan["message"] and "roll back" not in plan["message"]
+    assert inst.updates[0]["status_message"] == "Genie updates the App to the current Inspire App code"
+
+
+def test_only_the_live_app_version_makes_an_app_update(agent_ns):
+    update = agent_ns["implement_app_update_outputs"]
+    live = {"app": {"state": "ready", "spec_version": 2}}
+    assert update({"rollback": {"app": 2}}, live) == ["app"]
+    assert update({"rollback": {"app": 1}}, live) == [], "must-exclude: an older App version is a roll back"
+    assert update({"rollback": {"dashboard": 2}}, live) == []
+    assert update({"rollback": {"app": 2}}, {"app": {"state": "failed", "spec_version": 2}}) == [], "a failed App is not live"
+    assert update({"rollback": {}}, {}) == []
+    message = agent_ns["implement_plan_message"]
+    assert message({"rollback": {"app": 2, "dashboard": 1}, "update": ["app"]}) == \
+        "Genie rolls back the Dashboard and updates the App to the current Inspire App code"
+    assert message({"rollback": {"app": 1}, "update": []}) == "Genie rolls back the App"

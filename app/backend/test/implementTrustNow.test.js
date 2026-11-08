@@ -94,16 +94,16 @@ test('only a plain catalog.schema.table names the summary, so a spec cannot inje
 test('an MVP built on an older release says so on its Build page and in the App list, with the rebuild action, and is never rebuilt on its own (rc.3-shaped record)', async () => {
   const W = await lib('implementWizard.js');
   const note = 'Built with an earlier Inspire release. Rebuild to get the latest fixes.';
-  assert.equal(I.olderBuildNote(row(RC3), CURRENT), note, 'an rc.3 record carries no stamp');
-  assert.equal(I.olderBuildNote(row({ ...RC3, built_with: { version: 'v1.3.0', shell: 'a'.repeat(64) } }), CURRENT),
+  assert.equal(I.olderBuildNote([row(RC3)], CURRENT), note, 'an rc.3 record carries no stamp');
+  assert.equal(I.olderBuildNote([row({ ...RC3, built_with: { version: 'v1.3.0', shell: 'a'.repeat(64) } })], CURRENT),
     'Built with Inspire v1.3.0. Rebuild to get the latest fixes.');
-  assert.equal(I.olderBuildNote(row({ ...RC3, built_with: { version: CURRENT.version, shell: 'b'.repeat(64) } }), CURRENT),
+  assert.equal(I.olderBuildNote([row({ ...RC3, built_with: { version: CURRENT.version, shell: 'b'.repeat(64) } })], CURRENT),
     `Built with an earlier build of Inspire ${CURRENT.version}. Rebuild to get the latest fixes.`, 'a candidate of the same release with older App code');
-  assert.equal(I.olderBuildNote(row(STAMPED), CURRENT), '', 'must-exclude: a build of this release says nothing');
-  assert.equal(I.olderBuildNote(row(RC3, { status: 'building_outputs' }), CURRENT), '', 'a build in flight is not old yet');
-  assert.equal(I.olderBuildNote(row(RC3, { status: 'failed' }), CURRENT), '', 'a failed build already says what to do');
-  assert.equal(I.olderBuildNote(row(RC3, { app_name: null, dashboard_id: null, job_id: null }), CURRENT), '', 'nothing built, nothing old');
-  assert.equal(I.olderBuildNote(row(RC3), { version: '', shell: '' }), '', 'with no bundled stamp nothing is called old');
+  assert.equal(I.olderBuildNote([row(STAMPED)], CURRENT), '', 'must-exclude: a build of this release says nothing');
+  assert.equal(I.olderBuildNote([row(RC3, { status: 'building_outputs' })], CURRENT), '', 'a build in flight is not old yet');
+  assert.equal(I.olderBuildNote([row(RC3, { status: 'failed' })], CURRENT), '', 'a failed build already says what to do');
+  assert.equal(I.olderBuildNote([row(RC3, { app_name: null, dashboard_id: null, job_id: null })], CURRENT), '', 'nothing built, nothing old');
+  assert.equal(I.olderBuildNote([row(RC3)], { version: '', shell: '' }), '', 'with no bundled stamp nothing is called old');
   const status = await call({ history: [row(RC3)], moneySummary: [] }, `/api/inspire/implement/status?${Q}`);
   assert.equal(status.data.latest.older_build, note);
   assert.equal(W.olderBuildNote(status.data.latest), note);

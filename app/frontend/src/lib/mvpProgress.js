@@ -176,6 +176,7 @@ function normalPlan(plan) {
     delete: outputList(plan.delete),
     keep_unmanaged: outputList(plan.keep_unmanaged),
     rollback: versionMap(plan.rollback, (entry) => entry),
+    update: outputList(plan.update),
     rollback_built: versionMap(plan.rollback_built, (entry) => entry?.version),
     schedule: plan.schedule === true,
     sharing: plan.sharing === true,
@@ -203,7 +204,7 @@ export function planActions(plan) {
   if (!plan || plan.pending) return [];
   const removed = MVP_BUILD_ORDER.filter((id) => plan.delete.includes(id)).map((id) => ({ id, action: 'delete' }));
   const changed = MVP_BUILD_ORDER.flatMap((id) => {
-    if (plan.rollback[id]) return [{ id, action: 'rollback', version: plan.rollback[id] }];
+    if (plan.rollback[id]) return [{ id, action: plan.update.includes(id) ? 'update' : 'rollback', version: plan.rollback[id] }];
     if (plan.rollback_built[id]) return [{ id, action: 'rollback_built', version: plan.rollback_built[id] }];
     if (plan.build.includes(id)) return [{ id, action: 'build' }];
     if (plan.restyle.includes(id)) return [{ id, action: 'restyle' }];
@@ -225,6 +226,7 @@ export function planActionText(act) {
     },
     rebuild: { label: `Rebuild the ${label}`, working: `Genie is rebuilding the ${label}`, now: 'Genie is rebuilding it now' },
     restyle: { label: `Restyle the ${label}`, working: `Inspire is restyling the ${label}`, now: 'Inspire is restyling it now' },
+    update: { label: 'Update the App to the current Inspire App code', working: 'Inspire is updating the App to the current Inspire App code', now: 'Inspire is updating it now' },
     rollback: { label: `Roll the ${label} back to v${act.version}`, working: `Inspire is putting v${act.version} of the ${label} back`, now: `Inspire is putting v${act.version} back now` },
     repoint: { label: 'Point the App at the Genie Agent', working: 'Inspire is pointing the App at the Genie Agent', now: 'Inspire is pointing it at the Genie Agent now' },
     relink: {

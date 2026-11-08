@@ -402,15 +402,19 @@ test('an MVP whose newest version is held, failed or building while an older ver
   });
   const states = {
     held: W.implementState({ ...heldRow(2), live_version: 1 }),
-    failed: W.implementState({ ...row(3, 'failed'), live_version: 2 }),
+    failed: W.implementState({ ...row(3, 'failed', { status_message: 'boom. It broke.' }), live_version: 2 }),
     building: W.implementState({ ...row(2, 'filling'), live_version: 1 }),
     newestLive: W.implementState({ ...row(2, 'ready'), live_version: 2 }),
     heldAlone: W.implementState({ ...heldRow(1), live_version: null }),
     failedAlone: W.implementState({ ...row(1, 'failed'), live_version: null }),
   };
-  assert.deepEqual(states.held, { group: 'held', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp', live: 1 }, 'the newest version still needs attention');
-  assert.deepEqual(states.failed, { ...W.implementState(row(3, 'failed')), live: 2 });
-  assert.deepEqual(states.building, { ...W.implementState(row(2, 'filling')), live: 1 });
+  assert.deepEqual(states.held, { group: 'held', label: 'MVP v1 live', tone: 'success', kind: 'mvp', live: 1, note: `Newer version held: ${W.shortReason(HELD_REASON)}` },
+    'the badge says what is live; the group keeps it under Needs attention');
+  assert.deepEqual(states.failed, { group: 'failed', label: 'MVP v2 live', tone: 'success', kind: 'mvp', live: 2, note: 'Newer version failed: boom' });
+  assert.deepEqual(states.building, { ...W.implementState(row(2, 'filling')), live: 1 }, 'a build in flight keeps its running badge');
+  assert.equal(W.implementState({ ...row(3, 'failed', { status_message: '' }), live_version: 2 }).note, 'Newer version failed');
+  assert.equal(W.shortReason('Two asks were not met after 3 rounds. Rephrase them.'), 'Two asks were not met after 3 rounds');
+  assert.equal(W.shortReason(`${'word '.repeat(30)}end.`), `${'word '.repeat(16).trim()}…`);
   assert.deepEqual(states.newestLive, { group: 'ready', label: 'MVP ready', tone: 'success', kind: 'mvp' });
   assert.deepEqual(states.heldAlone, { group: 'held', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' }, 'nothing live: the held version counts on its own');
   assert.equal(states.failedAlone.group, 'failed');

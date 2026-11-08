@@ -12,7 +12,7 @@ const {
 } = require('../../frontend/src/lib/useCaseSettings.js');
 const { specVibeAsks, vibeRefusalText, vibeRefusals } = require('../../frontend/src/lib/vibeLimits.js');
 const { PERSONAL_KEY_REASON, personalColumn } = require('../../frontend/src/lib/personalColumns.js');
-const { rowKeyOf } = require('../../frontend/src/lib/implementWizard.js');
+const { isAppUpdate, liveAppVersion, rowKeyOf } = require('../../frontend/src/lib/implementWizard.js');
 
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
@@ -1838,44 +1838,63 @@ function latestRunFrom(rows) {
   return { not_reliable: row ? str(row.not_reliable).split(/\s+/).filter(Boolean).join(' ') : '', updated_at: row ? str(row.updated_at) : '' };
 }
 
-function olderBuildNote(row, current) {
-  if (!row || !current || !str(current.version) || !str(current.shell)) return '';
-  if (!OLDER_BUILD_STATUSES.has(str(row.status)) || !(str(row.app_name) || str(row.dashboard_id) || str(row.genie_space_id) || str(row.job_id))) return '';
-  const built = row.asset_status && isPlainObject(row.asset_status[IMPLEMENT_BUILT_WITH]) ? row.asset_status[IMPLEMENT_BUILT_WITH] : null;
-  const version = built ? str(built.version).trim() : '';
-  if (built && version === str(current.version) && str(built.shell) === str(current.shell)) return '';
-  const shown = !version ? 'Built with an earlier Inspire release.'
-    : version === str(current.version) ? `Built with an earlier build of Inspire ${version}.` : `Built with Inspire ${version}.`;
-  return `${shown} Rebuild to get the latest fixes.`;
+const byNewest = (history) => [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
+const hasCurrentStamp = (current) => Boolean(current && str(current.version) && str(current.shell));
+
+function codeStampOf(row) {
+  const assets = row && isPlainObject(row.asset_status) ? row.asset_status : {};
+  return isPlainObject(assets[IMPLEMENT_BUILT_WITH]) ? assets[IMPLEMENT_BUILT_WITH] : null;
+}
+
+function liveCodeRow(history) {
+  const rows = byNewest(history);
+  const appVersion = liveAppVersion(rows);
+  return (appVersion != null && rows.find((r) => r.spec_version === appVersion)) || previousBuilt(rows) || rows[0] || null;
+}
+
+function stampIsCurrent(built, current) {
+  return Boolean(built) && str(built.version).trim() === str(current.version) && str(built.shell) === str(current.shell);
+}
+
+function builtWithText(built, current) {
+  const release = built ? str(built.version).trim() : '';
+  if (!release) return 'an earlier Inspire release';
+  return release === str(current.version) ? `an earlier build of Inspire ${release}` : `Inspire ${release}`;
+}
+
+function olderBuildNote(history, current) {
+  const rows = byNewest(history);
+  const newest = rows[0];
+  if (!newest || !hasCurrentStamp(current)) return '';
+  if (!OLDER_BUILD_STATUSES.has(str(newest.status)) || !(str(newest.app_name) || str(newest.dashboard_id) || str(newest.genie_space_id) || str(newest.job_id))) return '';
+  const built = codeStampOf(liveCodeRow(rows));
+  if (stampIsCurrent(built, current)) return '';
+  const shown = builtWithText(built, current);
+  return `Built with ${shown}. Rebuild to get the latest fixes.`;
 }
 
 function appShellUpdate(history, current) {
-  if (!current || !str(current.version) || !str(current.shell)) return null;
-  const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
+  if (!hasCurrentStamp(current)) return null;
+  const rows = byNewest(history);
   const live = previousBuilt(rows);
-  const entry = live && isPlainObject(live.asset_status) && isPlainObject(live.asset_status.app) ? live.asset_status.app : null;
-  if (!entry || !IMPLEMENT_DONE_STATUSES.includes(entry.state) || entry.placement === IMPLEMENT_APP_INSIDE || !str(live.app_name)) return null;
-  const version = Number(entry.spec_version ?? live.spec_version);
+  const version = liveAppVersion(rows);
+  if (version == null || live.asset_status.app.placement === IMPLEMENT_APP_INSIDE || !str(live.app_name)) return null;
   const deployed = rows.find((r) => r.spec_version === version);
-  const saved = deployed && isPlainObject(deployed.asset_status) ? deployed.asset_status : {};
-  if (!isPlainObject(saved.app) || saved.app.snapshot !== true) return null;
-  const built = isPlainObject(saved[IMPLEMENT_BUILT_WITH]) ? saved[IMPLEMENT_BUILT_WITH] : null;
-  const release = built ? str(built.version).trim() : '';
-  if (built && release === str(current.version) && str(built.shell) === str(current.shell)) return null;
-  const shown = !release ? 'an earlier Inspire release' : release === str(current.version) ? `an earlier build of Inspire ${release}` : `Inspire ${release}`;
+  if (!deployed || !isPlainObject(deployed.asset_status) || !isPlainObject(deployed.asset_status.app) || deployed.asset_status.app.snapshot !== true) return null;
+  const built = codeStampOf(deployed);
+  if (stampIsCurrent(built, current)) return null;
   return {
     version,
-    text: `The App runs the App code of ${shown}. Update it to Inspire ${str(current.version)}: Inspire deploys the same pages, settings and data `
+    text: `The App runs the App code of ${builtWithText(built, current)}. Update it to Inspire ${str(current.version)}: Inspire deploys the same pages, settings and data `
       + 'with the App code of this release, without calling Genie.',
   };
 }
 
+const nextIsAppUpdate = (history, spec) => isAppUpdate(history, { spec_json: spec, spec_version: Number.MAX_SAFE_INTEGER });
+
 function appShellUpdateRefusal(history, spec, requester) {
-  const asked = spec && isPlainObject(spec.rollback_outputs) ? spec.rollback_outputs.app : undefined;
-  if (asked == null) return null;
+  if (!nextIsAppUpdate(history, spec)) return null;
   const live = previousBuilt(history);
-  const entry = live && isPlainObject(live.asset_status) && isPlainObject(live.asset_status.app) ? live.asset_status.app : null;
-  if (!entry || Number(entry.spec_version ?? live.spec_version) !== Number(asked)) return null;
   const who = personKey(requester);
   if (who && implementOwners(live).includes(who)) return null;
   return { status: 403, message: `Only the owners of this App can update it: the person who asked for v${live.spec_version} and the App owners it names` };
@@ -1900,7 +1919,7 @@ function runPages(rows, scope = [], current = null) {
     const base = {
       session_id: str(live.session_id), use_case_id: str(live.use_case_id), name: str(spec.use_case_name).trim() || str(live.use_case_id),
       domain: scoped ? str(scoped.domain).trim() : '', business: scoped ? str(scoped.business).trim() : '', version: live.spec_version,
-      published_at: str(live.updated_at), owners: implementOwners(live), older_build: olderBuildNote(live, current),
+      published_at: str(live.updated_at), owners: implementOwners(live), older_build: olderBuildNote(list.filter((r) => (r.spec_version || 0) <= (live.spec_version || 0)), current),
     };
     const hosted = hostedRecord(live);
     if (hosted) {
@@ -2080,6 +2099,7 @@ function planSubmission(history, spec, stalled = null, { requester = null, table
     throw badRequest(`choose whether to delete or keep ${joinAnd(summary.undecided.map((n) => IMPLEMENT_OUTPUT_LABELS[n]))}, `
       + 'which you unticked; Inspire never deletes an output without asking');
   }
+  if (nextIsAppUpdate(rows, spec)) summary.update = ['app'];
   const unchanged = Boolean(summary.nothing_to_do && latest && IMPLEMENT_DONE_STATUSES.includes(latest.status));
   return { nextVersion: latest ? latest.spec_version + 1 : 1, latest, built, summary, unchanged, spec };
 }

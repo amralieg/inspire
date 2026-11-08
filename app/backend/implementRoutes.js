@@ -552,7 +552,7 @@ function registerImplementRoutes(app, deps) {
       const [notebook] = await Promise.all([
         latestGenieNotebookRun(fetchJsonFor(req), sid).then((run) => ({ run, error: '' }), (err) => ({ run: null, error: err.message })),
         ...latest.map(async (row) => { row.stalled = await stalledOf(req, row); }),
-        ...latest.map((row) => latestRunOf(req, warehouseId, row)),
+        ...latest.map((row) => latestRunOf(req, warehouseId, row, versionsByUc[row.use_case_id])),
       ]);
       res.json({ history, latest, notebook_run: notebook.run, notebook_run_error: notebook.error });
     } catch (err) {
@@ -921,9 +921,9 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
-  async function latestRunOf(req, warehouseId, row) {
+  async function latestRunOf(req, warehouseId, row, history) {
     if (!row) return;
-    row.older_build = I.olderBuildNote(row, buildStamp());
+    row.older_build = I.olderBuildNote(history, buildStamp());
     const summary = I.runSummaryTable(row);
     if (!summary) return;
     try {
@@ -1261,7 +1261,7 @@ function registerImplementRoutes(app, deps) {
         jobId ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/list?job_id=${jobId}&limit=10`) : null,
         stalledOf(req, history[0]),
         held == null && !appUpdate ? null : personOf(req),
-        latestRunOf(req, warehouseId, history[0]),
+        latestRunOf(req, warehouseId, history[0], history),
         builtBy ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${builtBy}`).catch(() => null) : null,
       ]);
       if (history[0]) {

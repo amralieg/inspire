@@ -821,7 +821,10 @@ test('a version whose run stopped reads as Stopped with the reason and the run, 
     const chip = page.locator('[data-mvp-progress] p', { hasText: /^Stopped$/ }).first();
     await chip.waitFor();
     assert.equal(await page.locator('[data-mvp-progress] [data-build-reason]').innerText(), why);
-    await page.getByRole('navigation', { name: 'Use cases' }).getByRole('region', { name: 'Needs attention' }).getByText('MVP stopped', { exact: true }).waitFor();
+    const attention = page.getByRole('navigation', { name: 'Use cases' }).getByRole('region', { name: 'Needs attention' });
+    await attention.getByText('MVP v1 live', { exact: true }).waitFor();
+    assert.match(await attention.locator('[data-implement-note]').first().innerText(), /^Newer version stopped: the run building v2 ended/);
+    assert.equal(await attention.getByText('MVP stopped', { exact: true }).count(), 0, 'the live v1 is what the list shows');
     const features = await openFeatures(page);
     assert.equal(await features.locator('[data-rebuild]').isEnabled(), true, 'a stopped build can be sent again');
     assert.equal(await features.locator('[data-rebuild-waits]').count(), 0);

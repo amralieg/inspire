@@ -1,7 +1,7 @@
 import {
   BUILT_ASSET_STATES, GENIE_FOR_APP_NOTE, IMPLEMENT_DONE_STATUSES, IMPLEMENT_OUTPUTS, IMPLEMENT_UNINSTALLED, IMPLEMENT_VIBE_NOT_MET, assetLabel, builtVersion, heldAsks,
   holderNames, holdersText, holdoutText, joinWords, partAsks, partLabel, partOf, rebuildableOutputs, statusChip, versionActive, vibesKey, VIBE_NOT_MET_FIRST,
-  APP_INSIDE_PLACEMENT, VIBE_FEATURES_LABEL, VIBE_PREVIOUS_DEFAULT, insideInspire, mvpFilterMatches, nextSpecFrom, openVibeAsks, withCollectedVibes,
+  APP_INSIDE_PLACEMENT, VIBE_FEATURES_LABEL, VIBE_PREVIOUS_DEFAULT, insideInspire, isAppUpdate, mvpFilterMatches, nextSpecFrom, openVibeAsks, withCollectedVibes,
 } from './implementWizard.js';
 import { formatWhen } from './formatWhen.js';
 import { plural } from './plural.js';
@@ -452,7 +452,7 @@ function legacyRebuild(latest, base) {
 }
 
 const NOTEBOOK_REBUILDS = { notebook: (plan) => plan.refill, value_formula: (plan) => plan.refill, ai_reasoning: (plan) => plan.refill || plan.preview };
-const CARD_ACTIONS = ['build', 'rollback_built', 'rebuild', 'restyle', 'rollback'];
+const CARD_ACTIONS = ['build', 'rollback_built', 'rebuild', 'restyle', 'rollback', 'update'];
 const cardActions = (plan) => planActions(plan).filter((a) => CARD_ACTIONS.includes(a.action));
 
 function plannedRebuild(plan, latest) {
@@ -464,7 +464,7 @@ function plannedRebuild(plan, latest) {
     if (!act) return null;
     const parts = retry.filter((r) => partOf(r)?.output === output);
     if (act.action === 'rebuild' && parts.length && !retry.includes(output) && !parts.includes(id)) return null;
-    return { rollback: act.action === 'rollback' ? act.version : null };
+    return { rollback: ['rollback', 'update'].includes(act.action) ? act.version : null };
   };
 }
 
@@ -490,6 +490,7 @@ export function rebuildingText(card) {
 }
 
 export function rollingBackText(card) {
+  if (card.building.update) return `Updating the App to the current Inspire App code. Genie is not called${card.building.alone ? ' and nothing else changes' : ' for it'}.`;
   return `Putting version ${card.building.rollback} live again. Genie is not called${card.building.alone ? ' and nothing else changes' : ' for it'}.`;
 }
 
@@ -518,6 +519,7 @@ export function vibeCards(history, latest, stalled = null, notebookUrl = '', pla
   const planned = active && plan && !plan.pending ? plan : null;
   const rebuildOf = !active || plan?.pending ? () => null : planned ? plannedRebuild(planned, latest) : legacyRebuild(latest, base);
   const asking = shown.spec_json?.retry_asks || {};
+  const updating = Boolean(active) && isAppUpdate(rows, latest);
   const at = (row) => String(row?.updated_at || row?.created_at || '');
   const liveAt = (version) => (version == null ? null : { version, at: at(rows.find((r) => r.spec_version === version)) });
   const urlOf = (output) => (output === 'notebook' ? String(notebookUrl || '') : String(base[OUTPUT_URLS[output]] || latest[OUTPUT_URLS[output]] || ''));
@@ -534,7 +536,8 @@ export function vibeCards(history, latest, stalled = null, notebookUrl = '', pla
     return {
       id, output, name: '', versions: [], warnings: [], ...fields, gone, live: liveAt(version), url: urlOf(output), impact,
       what, noun: ASSET_NOUNS[kind],
-      checks, checkedOn, state: assetPill(entry, checks, Boolean(doing)), building: doing ? { step: BUILD_STEP[latest.status] ?? 1, asks, rollback, alone: false } : null,
+      checks, checkedOn, state: assetPill(entry, checks, Boolean(doing)),
+      building: doing ? { step: BUILD_STEP[latest.status] ?? 1, asks, rollback, update: Boolean(rollback) && output === 'app' && updating, alone: false } : null,
       waiting: waitingAsks(open, id, output, fields.vibes),
     };
   };
