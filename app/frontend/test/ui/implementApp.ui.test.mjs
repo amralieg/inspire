@@ -460,9 +460,9 @@ test('Where results live offers its own schema, falls back to the Inspire databa
     await catalog.selectOption('sales');
     await schema.locator('option[value="mvp"]').waitFor({ state: 'attached' });
     await schema.selectOption('mvp');
+    const withoutApp = page.waitForResponse((r) => r.url().includes('/api/inspire/implement/preflight?') && ['app_name', 'merge_app'].every((k) => new URL(r.url()).searchParams.get(k) === ''));
     await goToStep(page, 'Delivery');
     await page.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
-    const withoutApp = page.waitForResponse((r) => r.url().includes('/api/inspire/implement/preflight?') && new URL(r.url()).searchParams.get('app_name') === '');
     await until(async () => !(await page.getByRole('checkbox', { name: /^App / }).isChecked()), 'the App Inspire cannot build is turned off on Delivery, in view');
     assert.equal(await page.getByRole('checkbox', { name: /^App / }).isDisabled(), true);
     await withoutApp;
