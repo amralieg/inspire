@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AGENT_CHANGED, EMPTY_LOOK, lookChart } from './agentView.js';
 import { getOverview, getPage } from './api.js';
 import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
@@ -12,12 +12,10 @@ import { GenieMark, Icon } from './icons.jsx';
 import Kpis, { Story } from './Kpis.jsx';
 import ChartCard from './ChartCard.jsx';
 import Records from './Records.jsx';
-import Runs, { runCounts, useRuns } from './Runs.jsx';
-import Alerts from './Alerts.jsx';
 import { ReviewLink, hubExplain, reviewItem } from './Home.jsx';
 import { genieOn } from './genieAsk.js';
 import PageLink, { usePageAddress } from './PageLink.jsx';
-import { FreshBar, FreshDetail, useFreshness } from './Freshness.jsx';
+import { FreshBar, FreshDetail, runCounts, useFreshness, useRuns, useTrends } from './Freshness.jsx';
 import { backendText, lastRunText, latestRunText } from './freshness.js';
 import SettingsPanel, { SettingGroup, useSettings } from './Settings.jsx';
 import { paletteItems } from './Palette.jsx';
@@ -30,8 +28,13 @@ import { GenieScope } from './AskGenie.jsx';
 import { reasonFilters, useCaseState } from './hub.js';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
 import WorkPage from './WorkPage.jsx';
-import TrendCards, { useTrends } from './Trends.jsx';
 import { pageCurrency, pageKind } from './hub.js';
+import { Skeleton } from './ui.jsx';
+
+const Runs = lazy(() => import('./Runs.jsx'));
+const Alerts = lazy(() => import('./Alerts.jsx'));
+const TrendCards = lazy(() => import('./Trends.jsx'));
+const Waiting = ({ height = 180 }) => <section className="card" role="status" aria-label="Loading"><Skeleton height={height} /></section>;
 
 export const SECTION_TITLES = { dashboard: 'Dashboard', work: 'Work', performance: 'Performance', runs: 'Runs', alerts: 'Alerts', settings: 'Settings' };
 
@@ -251,9 +254,11 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           recordsCard={laidOut ? records() : null} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}
           genie={genie} ready={ready} filters={filters} onPick={pick} onFix={fix} onWork={() => go('work')}
           trends={hubPage && trendsOn ? (
-            <TrendCards trends={trends.data} impact={trends.impact} error={trends.error} latest={counted.current.latest} page={page} app={app} themeKey={themeKey}
-              currency={pageCurrency(page, summary)} kind={pageKind(page, summary)} onFix={tabbed ? fix : null} onRuns={showRuns} onFeedback={() => go('settings')}
-              onExplain={explain} genieBusy={genieBusy} />
+            <Suspense fallback={<Waiting />}>
+              <TrendCards trends={trends.data} impact={trends.impact} error={trends.error} latest={counted.current.latest} page={page} app={app} themeKey={themeKey}
+                currency={pageCurrency(page, summary)} kind={pageKind(page, summary)} onFix={tabbed ? fix : null} onRuns={showRuns} onFeedback={() => go('settings')}
+                onExplain={explain} genieBusy={genieBusy} />
+            </Suspense>
           ) : null} />
       )}
       {shown === 'work' && (
@@ -263,11 +268,13 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         </WorkPage>
       )}
       {shown === 'runs' && (
-        <Runs page={page} runs={runs} offset={runOffset} onOffset={setRunOffset} onExplain={hubExplain(app, onExplain, page.id)} genieBusy={genieBusy}
-          trends={trends.data} themeKey={themeKey} app={app} onRun={freshness.ask} running={freshness.busy} />
+        <Suspense fallback={<Waiting />}>
+          <Runs page={page} runs={runs} offset={runOffset} onOffset={setRunOffset} onExplain={hubExplain(app, onExplain, page.id)} genieBusy={genieBusy}
+            trends={trends.data} themeKey={themeKey} app={app} onRun={freshness.ask} running={freshness.busy} />
+          {app.alerting?.on && <Alerts app={app} page={page} meta={meta} compose={false} onComposed={composed} />}
+        </Suspense>
       )}
-      {shown === 'runs' && app.alerting?.on && <Alerts app={app} page={page} meta={meta} compose={false} onComposed={composed} />}
-      {shown === 'alerts' && <Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} />}
+      {shown === 'alerts' && <Suspense fallback={<Waiting />}><Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} /></Suspense>}
       {shown === 'settings' && (
         <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRunStarted={() => freshness.load()}>
           <SettingGroup id="look" title="Look" why="Only you see these, in this browser.">

@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { getRuns, runSettingsNow, saveSetting } from './api.js';
+import { runSettingsNow, saveSetting } from './api.js';
 import { formatValue, integer, kindOf, unitOf } from './format.js';
 import Fx from './Fx.jsx';
 import { Icon } from './icons.jsx';
@@ -9,13 +9,14 @@ import DataTable from './DataTable.jsx';
 import { fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
 import {
-  RUNS_PAGE, STOPPED, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText, timelineChart,
+  RUNS_PAGE, STOPPED, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText,
   triggerText,
 } from './freshness.js';
+import { timelineChart } from './trends.js';
 
 function RunNow({ onRun, running }) {
   return (
-    <div className="runs-now" data-run-now>
+    <div className="runs-now" data-runs-now>
       <button type="button" className="btn btn--pri" onClick={onRun} disabled={running} aria-busy={running}>
         <Icon name="undo" size={14} />{running ? 'Running' : 'Run now'}
       </button>
@@ -27,28 +28,6 @@ function RunNow({ onRun, running }) {
 const slug = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-');
 const None = () => <span className="none">none</span>;
 const count = (n) => (n == null ? <None /> : integer(n));
-
-export function useRuns(pageId, offset, nonce, on = true) {
-  const [out, setOut] = useState({ data: null, error: '', busy: on });
-  const seq = useRef(0);
-  useEffect(() => {
-    const mine = ++seq.current;
-    if (!on) {
-      setOut({ data: null, error: '', busy: false });
-      return;
-    }
-    setOut((o) => ({ ...o, busy: true }));
-    getRuns(pageId, offset)
-      .then((data) => { if (mine === seq.current) setOut({ data, error: '', busy: false }); })
-      .catch((e) => { if (mine === seq.current) setOut({ data: null, error: e.message, busy: false }); });
-  }, [pageId, offset, nonce, on]);
-  return out;
-}
-
-export function runCounts(data) {
-  if (!data) return {};
-  return { runs: data.total, latest: data.offset === 0 ? (data.runs || [])[0] || null : null };
-}
 
 const TABLE_COLUMNS = [
   { key: 'table', label: 'Table', className: 'nowrap', render: (t) => <code>{t.table}</code> },

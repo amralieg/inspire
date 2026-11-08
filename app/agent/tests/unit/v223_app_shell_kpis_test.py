@@ -274,5 +274,21 @@ def test_runs_tell_the_page_whether_the_person_may_run_it_now(tmp_path):
     assert nojob["can_run"] is False, "a page with no job of its own cannot run"
 
 
+@pytest.mark.parametrize("route", ["runs", "settings"])
+def test_runs_and_settings_offer_run_now_only_when_the_refresh_would_accept_it(tmp_path, route):
+    ws = TrendWorkspace(ROWS)
+    page = hub_page()
+    owned = dict(DECIDE, jobs={page["id"]: "123"}, use_case_owners={page["id"]: [PERSON]})
+    headers = {"x-forwarded-email": PERSON}
+    status, out = call(shell(tmp_path / "out", ws, owned, page), "GET", route, query={"page": page["id"]}, headers=headers)
+    assert status == 200 and out["can_run"] is (route == "runs" or bool(out["settings"]))
+    inside = shell(tmp_path / "in", ws, dict(owned, host=shell_core.INSIDE, auth="user"), page)
+    signed = dict(headers, **{"x-forwarded-access-token": "tok-a"})
+    status, out = call(inside, "GET", route, query={"page": page["id"]}, headers=signed)
+    assert status == 200 and out["can_run"] is False, "inside Inspire a refresh answers 403, so no Run now is offered"
+    status, refused = call(inside, "POST", "refresh", body={"page": page["id"]}, headers=signed)
+    assert status == 403
+
+
 def test_the_trends_route_refuses_a_write():
     assert not re.search(r'route == \("POST", "trends"\)', open(os.path.join(SERVER, "shell_core.py")).read())

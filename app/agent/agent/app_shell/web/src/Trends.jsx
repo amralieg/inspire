@@ -1,33 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
-import { getImpact, getTrends } from './api.js';
 import { NOT_MEASURED } from './hub.js';
 import { stakeName } from './format.js';
 import { EMPTY, ageBars, alarmBars, backlogChart, flowChart, stakeBars, trendTiles } from './trends.js';
 import { Icon } from './icons.jsx';
 import { Tiles } from './Kpis.jsx';
 import ChartCard, { BarsCard } from './ChartCard.jsx';
-
-export function useTrends(pageId, nonce, on) {
-  const [out, setOut] = useState({ data: null, impact: null, error: '' });
-  const seq = useRef(0);
-  useEffect(() => {
-    const mine = ++seq.current;
-    if (!on) {
-      setOut({ data: null, impact: null, error: '' });
-      return;
-    }
-    getTrends(pageId)
-      .then((data) => {
-        if (mine !== seq.current) return;
-        setOut({ data, impact: null, error: '' });
-        if (data?.actions && data.holds) {
-          getImpact(pageId).then((impact) => { if (mine === seq.current) setOut((o) => ({ ...o, impact })); }).catch(() => {});
-        }
-      })
-      .catch((e) => { if (mine === seq.current) setOut({ data: null, impact: null, error: e.message }); });
-  }, [pageId, nonce, on]);
-  return out;
-}
 
 export default function TrendCards({ trends, impact, error, latest, page, app, themeKey, currency, kind, onFix, onRuns, onFeedback, onExplain, genieBusy }) {
   if (error) return <p className="tile-err" role="alert" data-trends-error><Icon name="info" size={14} />The trend cards could not load: {error}</p>;

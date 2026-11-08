@@ -4,7 +4,7 @@ import { chromium } from 'playwright';
 import { DECIDE, FILTERS, NO_RUNS, TABLE, appInfo, openApp, serveDist, until } from './harness.mjs';
 import { FOCUSES, buildHash, canonicalHash, fixThis, parseHash } from '../src/links.js';
 import { ageBars, alarmBars, backlogChart, flowChart, hoursText, rateText, stakeBars, trendTiles } from '../src/trends.js';
-import { timelineChart } from '../src/freshness.js';
+import { timelineChart } from '../src/trends.js';
 import { NOT_MEASURED } from '../src/hub.js';
 
 let served;
@@ -193,7 +193,7 @@ test('the trend cards say so when they cannot load', async () => {
 
 test('Runs shows the timeline and Run now for an owner, and Run now starts one refresh', async () => {
   const { routes: r, calls } = routes({ runs: ({ json }) => json(200, { ...NO_RUNS, runs: RUN_ROWS, total: 3, can_run: true }) });
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/runs', routes: r, ready: '[data-run-now]' });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/runs', routes: r, ready: '[data-runs-now]' });
   await page.locator('[data-card="run_timeline"] canvas').waitFor();
   assert.match(await page.locator('[data-card="run_timeline"]').innerText(), /1 of 3 runs failed/);
   await page.getByRole('button', { name: 'Run now' }).click();
@@ -206,7 +206,7 @@ test('Runs shows the timeline and Run now for an owner, and Run now starts one r
 test('Runs hides Run now from someone who may not run the use case', async () => {
   const { routes: r } = routes({ runs: ({ json }) => json(200, { ...NO_RUNS, runs: RUN_ROWS, total: 3, can_run: false }) });
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/runs', routes: r, ready: '[data-card="run_timeline"]' });
-  assert.equal(await page.locator('[data-run-now]').count(), 0);
+  assert.equal(await page.locator('[data-runs-now]').count(), 0);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

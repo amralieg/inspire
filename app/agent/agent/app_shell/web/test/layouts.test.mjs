@@ -555,3 +555,13 @@ test('the scenario chart modules load in their own chunk and the main bundle sta
   assert.ok(!main.includes('series.gauge') && !main.includes('type="markLine"'), 'the gauge and mark lines stay out of the main bundle');
   assert.ok(lazy.includes('series.gauge') && lazy.includes('type="markLine"'), 'the layout chart chunk registers them');
 });
+
+test('the Runs, Trends and Alerts sections load in their own chunks, not the main bundle', () => {
+  const main = readFileSync(join(ASSETS, 'app.js'), 'utf8');
+  const chunks = { 'Runs.js': 'runs-now', 'Trends.js': 'data-trends', 'Alerts.js': 'alert-filters' };
+  for (const [chunk, marker] of Object.entries(chunks)) {
+    assert.ok(!main.includes(marker), `${marker} stays out of app.js`);
+    assert.ok(readFileSync(join(ASSETS, chunk), 'utf8').includes(marker), `${chunk} carries ${marker}`);
+  }
+  assert.ok(!main.includes('run_timeline'), 'the run timeline chart stays out of app.js');
+});

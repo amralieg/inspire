@@ -2746,7 +2746,7 @@ class Shell:
         settings, history, _model, _names = self.settings_model(ws, who, page)
         why = "" if settings else NO_SETTINGS
         return {"settings": settings, "history": history, "editable": not why, "why": why,
-                "can_run": not why and bool(self.job_of(page)), "job": bool(self.job_of(page))}
+                "can_run": not why and self.may_run(headers, page), "job": bool(self.job_of(page))}
 
     def setting_change(self, headers: dict, data: dict) -> tuple:
         page = self.page(data.get("page"))
@@ -3928,6 +3928,9 @@ class Shell:
             self.cache.put(key, listed, JOB_TTL_S)
         return [job_run_view(r, self.job_url(job_id)) for r in listed["runs"]], listed["more"]
 
+    def may_run(self, headers: dict, page: dict) -> bool:
+        return bool(self.job_of(page)) and not self.inside and not self.requester(headers, page)[2]
+
     def requester(self, headers: dict, page: dict) -> tuple:
         names = [str(headers.get(h) or "").strip() for h in IDENTITY_HEADERS]
         person = next((n for n in names if n), "")
@@ -3965,7 +3968,7 @@ class Shell:
         return {"runs": [run_view(r, details.get(r.get("run_id")), page) for r in shown], "total": len(merged), "offset": at,
                 "limit": RUNS_PAGE, "job": {"id": job_id, "url": self.job_url(job_id), "error": errors.get("job", "")} if job_id else None,
                 "errors": {k: errors[k] for k in ("table", "summary", "details") if k in errors},
-                "can_run": bool(job_id) and not self.inside and not self.requester(headers, page)[2]}
+                "can_run": self.may_run(headers, page)}
 
     def stage_marker_of(self, ws, who, page: dict):
         if not page.get("result_table"):
