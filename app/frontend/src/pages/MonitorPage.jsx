@@ -18,6 +18,7 @@ import {
   Building2,
   BarChart3,
   AlertTriangle,
+  ArrowDown,
 } from 'lucide-react';
 import ResultsPage from './ResultsPage';
 import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyContext';
@@ -31,7 +32,7 @@ import RunLogPanel from '../components/RunLogPanel';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
-import { reducedMotion } from '../lib/motion';
+import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 
 // Run lifecycle phases
@@ -74,7 +75,6 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   const [collapsedStages, setCollapsedStages] = useState({});
   const [showFilters, setShowFilters] = useState(false);
   const [autoScroll, setAutoScroll] = useState(true);
-  const stepsEndRef = useRef(null);
 
   // Results inline display state
   const [showInlineResults, setShowInlineResults] = useState(false);
@@ -175,12 +175,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
     return () => clearInterval(interval);
   }, [polling, warehouseId, inspireDatabase, sessionId, runId, apiFetch, showcase]); // eslint-disable-line
 
-  // Auto-scroll to bottom when new steps arrive
-  useEffect(() => {
-    if (autoScroll && stepsEndRef.current) {
-      stepsEndRef.current.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'nearest' });
-    }
-  }, [steps, autoScroll]);
+  const follow = useFollowEnd(steps.length, autoScroll);
 
   // ── Derived display state ──
   // When no runId, derive state purely from session data
@@ -768,7 +763,14 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                     </div>
                   );
                 })}
-                <div ref={stepsEndRef} />
+                <div ref={follow.ref} data-steps-end="" />
+                {follow.unseen && (
+                  <div className="sticky bottom-4 flex justify-center pointer-events-none">
+                    <button type="button" onClick={follow.jump} className="pointer-events-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-white bg-db-red-solid shadow-lg">
+                      <ArrowDown size={12} /> New steps
+                    </button>
+                  </div>
+                )}
               </div>
             ) : (
               <div className="bg-surface border border-border rounded-xl p-8 text-center shadow-sm">
