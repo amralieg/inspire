@@ -22,7 +22,7 @@ const { quotedIdent } = require('../../frontend/src/lib/tableName.js');
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
 const IMPLEMENT_UNINSTALLED = 'uninstalled';
-const FIRST_RUN_CARRIED = 'The version before this one already saved this, so Inspire builds on its MVP Test Run choice: ';
+const FIRST_RUN_CARRIED = 'The version before this one already saved this, so Inspire builds on its First run choice: ';
 const IMPLEMENT_VIBE_NOT_MET = 'vibe_not_met';
 const IMPLEMENT_STATUSES = ['queued', 'filling', 'previewing', 'building_outputs', 'checking', 'ready', 'ready_with_warnings', 'failed',
   IMPLEMENT_VIBE_NOT_MET, IMPLEMENT_UNINSTALLED];
@@ -1152,7 +1152,7 @@ function appWarehouseLock(target, asked) {
   const held = str(target && target.warehouse_id);
   const wanted = str(asked).trim();
   if (!held || !wanted || held === wanted) return '';
-  const builder = `${str(target.built_by && target.built_by.use_case_id)} ${str(target.built_by && target.built_by.name)}`.trim();
+  const builder = str(target.built_by && target.built_by.name).trim() || 'that built it';
   return `this use case asks the App to read with SQL warehouse ${wanted}, but it is added to the App ${target.name}, which reads with `
     + `SQL warehouse ${held}, the one use case ${builder} chose when it built the App; changing it would change the pages of that use case `
     + "too. Keep the App's SQL warehouse, or create a new App for this use case";

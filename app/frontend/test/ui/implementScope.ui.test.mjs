@@ -72,7 +72,7 @@ test('a first build asks Data groups on Data with the reason and the columns to 
       ['all', 'region, country', 'region', 'country'], 'the whole data first, the recommended grouping, each column, and no custom SQL');
     assert.equal(await grouping.locator('[data-grouping-choice="all"]').innerText(), 'Whole data as one group\n1 group');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['region, country'], 'the recommended grouping is pre-picked, never a silent whole data');
-    assert.match(await grouping.locator('[data-grouping-choice="region, country"]').innerText(), /^region, then country\n5 groups\nHighly Recommended/);
+    assert.match(await grouping.locator('[data-grouping-choice="region, country"]').innerText(), /^region, then country\n31 groups\nHighly Recommended/);
     assert.equal(await grouping.locator('[data-grouping-cards] [data-highly-recommended]').count(), 1, 'one Highly Recommended card');
     assert.equal(await grouping.getByText(/custom|SQL/i).count(), 0, 'no custom SQL is offered');
     const combine = grouping.getByRole('group', { name: 'Combine columns, coarse to fine' });
@@ -84,14 +84,14 @@ test('a first build asks Data groups on Data with the reason and the columns to 
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'the whole data stays selectable');
     await atWidths(page, 'grouping', grouping, { whole: true });
     await grouping.locator('[data-grouping-choice="region, country"] input').check();
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     const firstRun = page.getByRole('region', { name: FIRST_RUN_TITLE, exact: true });
     assert.equal(await firstRun.locator('[data-first-run-held]').textContent(),
-      'main.sales.orders holds 48,210 records, so Inspire suggests a smaller MVP Test Run to show results sooner.');
+      'main.sales.orders holds 48,210 records, so Inspire suggests a smaller First run to show results sooner.');
     assert.deepEqual(await firstRun.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)),
       ['one', 'groups', 'records', 'recent', 'all']);
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'the first run defaults to about 1,000 records, never everything (must-exclude)');
-    assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(), 'The MVP Test Run covers about 1,000 records, in 3 whole groups so no group is cut: '
+    assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(), 'The First run covers about 1,000 records, in 3 whole groups so no group is cut: '
       + 'country = Germany, 600 records; country = Ireland, 300 records; country = Malta, 40 records.');
     await firstRun.locator('[data-first-run-choice="groups"] input[type="radio"]').check();
     assert.deepEqual(await firstRun.locator('[data-scope-group]').allInnerTexts(), PROFILE.group_list.map((g) => `${g.parts.map((p) => `${p.column} = ${p.value}`).join(' and ')} · ${g.records.toLocaleString('en-US')} records`),
@@ -100,12 +100,12 @@ test('a first build asks Data groups on Data with the reason and the columns to 
     await page.getByText('Groups to run on is empty; pick at least one group', { exact: true }).waitFor();
     await firstRun.locator('[data-scope-group="AMER / USA"] input').check();
     await firstRun.locator('[data-scope-group="EMEA / Spain"] input').check();
-    assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(), 'The MVP Test Run covers 2 groups of region, then country: region = AMER and country = USA; '
+    assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(), 'The First run covers 2 groups of region, then country: region = AMER and country = USA; '
       + 'region = EMEA and country = Spain, 19,600 records. Every other group waits for a run on everything.');
     await firstRun.locator('[data-first-run-choice="one"] input[type="radio"]').check();
     assert.equal(await firstRun.locator('[data-scope-group] input[type="radio"]').count(), PROFILE.group_list.length, 'one group is picked with radios');
     await firstRun.locator('[data-scope-group="EMEA / Malta"] input').check();
-    assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(), 'The MVP Test Run covers 1 group of region, then country: region = EMEA and country = Malta, '
+    assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(), 'The First run covers 1 group of region, then country: region = EMEA and country = Malta, '
       + '40 records. Every other group waits for a run on everything.');
     await firstRun.getByText('Only the first run uses this test scope. Every later run, scheduled or not, covers all the records in the Data groups.', { exact: true }).waitFor();
     const contrast = await lowContrast(page, ['[data-scope-step="first_run"]']);
@@ -128,12 +128,12 @@ test('a first build asks Data groups on Data with the reason and the columns to 
   }
 });
 
-test('the MVP Test Run saved is exactly the one the person picked: a group picked last is sent as groups with that group, never with the days of another choice, and the Summary says what is sent', async () => {
+test('the First run saved is exactly the one the person picked: a group picked last is sent as groups with that group, never with the days of another choice, and the Summary says what is sent', async () => {
   const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt([], PROFILE) });
   const { page, made } = ui;
   const firstRunRow = () => page.locator('[data-picked-row="first_run"] [data-picked-value]').textContent();
   try {
-    await toStep(page, 'MVP Test Run');
+    await toStep(page, 'First run');
     const firstRun = page.getByRole('region', { name: FIRST_RUN_TITLE, exact: true });
     await firstRun.locator('[data-first-run-choice="one"] input[type="radio"]').check();
     await firstRun.locator('[data-scope-group="EMEA / Malta"] input').check();
@@ -142,7 +142,7 @@ test('the MVP Test Run saved is exactly the one the person picked: a group picke
     await toStep(page, 'Summary');
     assert.equal(await firstRunRow(), 'the last 14 days', 'the Summary names the recent period the person picked last');
     await page.locator('[data-picked-change="first_run"]').click();
-    await onStep(page, 'MVP Test Run');
+    await onStep(page, 'First run');
     await firstRun.locator('[data-first-run-choice="one"] input[type="radio"]').check();
     assert.deepEqual(await firstRun.locator('[data-scope-group] input').evaluateAll((boxes) => boxes.filter((b) => b.checked).map((b) => b.closest('[data-scope-group]').dataset.scopeGroup)),
       ['EMEA / Malta'], 'switching back keeps the group the person picked');
@@ -178,7 +178,7 @@ test('while the groups of a new Data groups pick are read, One group and Several
   try {
     await toStep(page, 'Data groups');
     await page.locator('[data-grouping-choice="region"] input').check();
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     const firstRun = page.getByRole('region', { name: FIRST_RUN_TITLE, exact: true });
     await firstRun.locator('[data-first-run-groups-reading]').waitFor();
     const rows = () => firstRun.locator('[data-first-run-choice]').evaluateAll((all) => all.map((r) => [r.dataset.firstRunChoice, r.querySelector('input').disabled]));
@@ -206,11 +206,11 @@ test('Next on Data waits for a slow read and stays on Data to show its Data grou
     assert.equal(await page.locator('[aria-current="step"]').innerText(), '1. Data', 'the person sees the Data groups before moving on');
     assert.deepEqual(await stepBar(page), ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. App', '6. Run it', '7. Summary']);
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['region, country']);
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     await page.locator('[data-first-run-choice="all"] input').check();
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data');
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['all'], 'the default never replaces a choice the person made');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -239,7 +239,7 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
       'Discovery picked this grouping. It becomes your choice when you pick it or another one.');
     await grouping.locator('[data-grouping-choice="all"] input').check();
     assert.equal(await grouping.locator('[data-grouping-chosen-by]').count(), 0, 'once the person picks, the grouping is theirs');
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data groups');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'the person picked the whole data, so going back never puts the Deep grouping back');
@@ -287,7 +287,7 @@ test('a Deep discovery grouping the profile could not size shows no example, cou
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['store_id']);
     assert.equal(await grouping.locator('[data-grouping-why]').textContent(), GROUPING_PLAIN);
     assert.equal(await grouping.locator('[data-grouping-example]').count(), 0, 'no example of country for a store_id grouping (must-exclude)');
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     const groupsRow = page.locator('[data-first-run-choice="groups"]');
     const offered = () => page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice));
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records']);
@@ -297,7 +297,7 @@ test('a Deep discovery grouping the profile could not size shows no example, cou
     await onStep(page, 'Data groups');
     await grouping.locator('[data-grouping-choice="region, country"] input').check();
     assert.match(await grouping.locator('[data-grouping-example]').textContent(), /Grouped by country/);
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     assert.deepEqual(await offered(), ['one', 'groups', 'records', 'recent', 'all']);
     await groupsRow.locator('input[type="radio"]').check();
     assert.ok(await groupsRow.locator('[data-scope-group]').count() > 0, 'the profiled grouping lists its own groups');
@@ -338,11 +338,11 @@ test('a technique Data groups do not apply to asks only for the first run, and a
   const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, small) });
   const { page } = ui;
   try {
-    await toStep(page, 'MVP Test Run');
+    await toStep(page, 'First run');
     assert.deepEqual(await stepBar(page), ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. App', '6. Run it', '7. Summary']);
-    assert.equal(await page.locator('[data-first-run-held]').textContent(), 'main.sales.orders holds 800 records, so the MVP Test Run covers all of it.');
+    assert.equal(await page.locator('[data-first-run-held]').textContent(), 'main.sales.orders holds 800 records, so the First run covers all of it.');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'a profile that still says all is never the default');
-    assert.equal(await page.locator('[data-first-run-covers]').textContent(), 'The MVP Test Run covers all 800 records of main.sales.orders, since it holds no more than 1,000 records.');
+    assert.equal(await page.locator('[data-first-run-covers]').textContent(), 'The First run covers all 800 records of main.sales.orders, since it holds no more than 1,000 records.');
     assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['records', 'recent', 'all'],
       'each record stands alone, so a number of records is offered and no group is (must-exclude)');
     await page.locator('[data-first-run-choice="records"] input[type="radio"]').check();
@@ -362,7 +362,7 @@ test('when Inspire cannot read the table, First run says why and still lets the 
   const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, { error: 'You cannot read main.sales.orders' }, { status: 403 }) });
   const { page } = ui;
   try {
-    await toStep(page, 'MVP Test Run');
+    await toStep(page, 'First run');
     assert.deepEqual((await stepBar(page)).slice(0, 3), ['1. Data', '2. First run', '3. Results']);
     const refusal = await page.locator('[data-scope-profile="error"]').textContent();
     assert.match(refusal, /^Inspire could not read the table for its suggestions: .*You cannot read main\.sales\.orders/);
@@ -379,7 +379,7 @@ const SCOPE_MODEL = [
     reason: "Inspire's default", help: 'The share that is Act now.', applies: 'run' },
   { name: 'group_by', label: 'Data groups (columns coarse to fine, or all)', group: 'scope', kind: 'text', allowed: 'all or columns', source: 'widget',
     default: 'all', choices: ['region', 'country'], unit: '', reason: '', help: '', applies: 'run' },
-  { name: 'run_scope', label: 'MVP Test Run', group: 'scope', kind: 'choice', choices: ['all', 'groups', 'recent', 'records'], source: 'widget', default: 'all', unit: '',
+  { name: 'run_scope', label: 'First run', group: 'scope', kind: 'choice', choices: ['all', 'groups', 'recent', 'records'], source: 'widget', default: 'all', unit: '',
     reason: '', help: '', applies: 'run' },
   { name: 'scope_groups', label: 'Groups to run on', group: 'scope', kind: 'choice', many: true, choices: [], source: 'widget', default: '', unit: '', reason: '', help: '', applies: 'run' },
   { name: 'scope_days', label: 'Days to run on', group: 'scope', kind: 'days', low: 1, high: null, allowed: 'at least 1', source: 'widget', default: '30', unit: '',
@@ -428,17 +428,17 @@ test('the Build page has a Data groups section and a First run section, each rea
     const groups = panel.locator('[data-setting-group="data_groups"]');
     const firstRun = panel.locator('[data-setting-group="run_scope"]');
     await groups.waitFor({ timeout: 30000 });
-    assert.deepEqual([await groups.locator('h4').textContent(), await firstRun.locator('h4').textContent()], ['Data groups', 'MVP Test Run']);
+    assert.deepEqual([await groups.locator('h4').textContent(), await firstRun.locator('h4').textContent()], ['Data groups', 'First run']);
     assert.deepEqual(await panel.locator('[data-setting]').evaluateAll((rows) => rows.map((r) => r.dataset.setting)), ['act_now_share'],
       'the five scope settings show once, in their own two sections');
-    assert.equal(await groups.locator('[data-scope-part="first_run"]').count(), 0, 'Data groups holds no MVP Test Run choice');
-    assert.equal(await firstRun.locator('[data-scope-part="grouping"]').count(), 0, 'MVP Test Run holds no Data groups choice');
+    assert.equal(await groups.locator('[data-scope-part="first_run"]').count(), 0, 'Data groups holds no First run choice');
+    assert.equal(await firstRun.locator('[data-scope-part="grouping"]').count(), 0, 'First run holds no Data groups choice');
     await groups.locator('[data-grouping-choice]').first().waitFor();
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all']);
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['groups']);
-    assert.equal(await panel.getByRole('button', { name: /^Save (Data groups|MVP Test Run)$/ }).count(), 0, 'nothing changed, nothing to save');
+    assert.equal(await panel.getByRole('button', { name: /^Save (Data groups|First run)$/ }).count(), 0, 'nothing changed, nothing to save');
     await groups.locator('[data-grouping-choice="country"] input').check();
-    assert.equal(await firstRun.getByRole('button', { name: 'Save MVP Test Run' }).count(), 0, 'a Data groups change never offers to save MVP Test Run (must-exclude)');
+    assert.equal(await firstRun.getByRole('button', { name: 'Save First run' }).count(), 0, 'a Data groups change never offers to save First run (must-exclude)');
     await groups.getByRole('textbox', { name: 'Note for the Data groups change' }).fill('  compare countries  ');
     await groups.getByRole('button', { name: 'Save Data groups', exact: true }).click();
     await until(() => saves().length === 1, 'the Data groups save', 30000);
@@ -446,12 +446,12 @@ test('the Build page has a Data groups section and a First run section, each rea
     assert.deepEqual(saves(), [{ page: 'n01_u01', name: 'group_by', value: 'country', was: 'all', note: 'compare countries' }], 'only Data groups is saved');
     await firstRun.locator('[data-scope-group="Spain"] input').uncheck();
     await firstRun.locator('[data-scope-group="Malta"] input').check();
-    await firstRun.getByRole('textbox', { name: 'Note for the MVP Test Run change' }).fill('  skip Spain  ');
-    await firstRun.getByRole('button', { name: 'Save MVP Test Run', exact: true }).click();
-    await until(() => saves().length === 2, 'the MVP Test Run save', 30000);
-    await firstRun.getByText('Saved MVP Test Run. Stored results follow at the next run.', { exact: true }).waitFor();
+    await firstRun.getByRole('textbox', { name: 'Note for the First run change' }).fill('  skip Spain  ');
+    await firstRun.getByRole('button', { name: 'Save First run', exact: true }).click();
+    await until(() => saves().length === 2, 'the First run save', 30000);
+    await firstRun.getByText('Saved First run. Stored results follow at the next run.', { exact: true }).waitFor();
     assert.deepEqual(saves()[1], { page: 'n01_u01', name: 'scope_groups', value: '[[{"column":"country","value":"USA"}],[{"column":"country","value":"Malta"}],[{"column":"country","value":"Cyprus"}]]',
-      was: 'USA, Spain, Cyprus', note: 'skip Spain' }, 'only MVP Test Run is saved, and a saved group the table read did not list is kept');
+      was: 'USA, Spain, Cyprus', note: 'skip Spain' }, 'only First run is saved, and a saved group the table read did not list is kept');
     await atWidths(page, 'build_settings', panel);
     assert.ok(made.appCalls.every((c) => c.headers.Authorization === `Bearer ${PERSON}`));
     assert.ok(calls.length >= 1 && calls.every((c) => c.use_case_id === HARNESS_USE_CASE.id && c.inspire_database === HARNESS_SETTINGS.inspireDatabase));
@@ -476,7 +476,7 @@ test('the Run tab states the scope of the last run, changes Data groups and Firs
   const ui = await openUi('run', state, '', { init: profileAt(calls, PROFILE) });
   const { page, made } = ui;
   try {
-    const section = page.getByRole('region', { name: 'Data groups and MVP Test Run of this use case', exact: true });
+    const section = page.getByRole('region', { name: 'Data groups and First run of this use case', exact: true });
     await section.waitFor({ timeout: 30000 });
     assert.equal(await section.locator('[data-run-scope-text]').textContent(), 'Last run: First run: 2 groups of country (USA, Spain)');
     assert.equal(await section.locator('[data-run-scope-covered]').textContent(), 'The first run covered 19,600 of 48,210 records (2 groups) in 4 minutes.');
@@ -576,7 +576,7 @@ for (const [name, profile] of [['the data qualifies for Data groups', PROFILE], 
         assert.deepEqual(steps, ['Data', 'Results', 'Deliver', 'App', 'Run it', 'Summary'], 'no First run and no Data groups step on a rebuild');
         assert.equal(await page.locator('[data-first-run-choice]').count(), 0, 'no First run choice anywhere');
         await toSummary(page);
-        assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|MVP Test Run/.test(t)), [], 'no MVP Test Run problem');
+        assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|First run/.test(t)), [], 'no First run problem');
         const keep = page.getByRole('radio', { name: /^Keep v\d+ live/ });
         await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
         if (await keep.count()) {
@@ -608,7 +608,7 @@ test('all settings on an old spec whose First run is a number, when the table re
     await until(() => calls.length >= 1, 'the table read', 30000);
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
     const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
-    assert.ok(!steps.includes('MVP Test Run') && !steps.includes('Data groups'), `MVP Test Run is hidden: ${steps.join(' | ')}`);
+    assert.ok(!steps.includes('First run') && !steps.includes('Data groups'), `First run is hidden: ${steps.join(' | ')}`);
     const back = page.getByRole('button', { name: 'Back', exact: true });
     for (let i = 0; i < steps.length && !(await page.locator('[aria-current="step"]').innerText()).includes(steps[0]); i += 1) {
       assert.equal(await page.locator('[data-first-run-unrecorded]').count(),
@@ -619,7 +619,7 @@ test('all settings on an old spec whose First run is a number, when the table re
     await toVibes(page);
     await onStep(page, 'Vibes');
     assert.deepEqual(await page.locator('[data-first-run-unrecorded]').allTextContents(), [RUN_SCOPE_UNRECORDED_HIDDEN]);
-    assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|MVP Test Run/.test(t)), [], 'no MVP Test Run problem');
+    assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|First run/.test(t)), [], 'no First run problem');
     const keep = page.getByRole('radio', { name: /^Keep v\d+ live/ });
     await toSummary(page);
     await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
@@ -692,17 +692,17 @@ test('the Build page of an App built before First run had choices shows the reco
     const panel = (await openAsset(page, 'notebook')).getByRole('region', { name: 'Settings', exact: true });
     const scope = panel.locator('[data-setting-group="run_scope"]');
     await scope.locator('[data-first-run-choice]').first().waitFor({ timeout: 30000 });
-    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['recent'], 'the MVP Test Run Inspire recorded, not the old App default');
-    assert.match(await scope.locator('[data-first-run-locked]').textContent(), /^This App was built before MVP Test Run had its choices, so it cannot save one\./);
+    assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['recent'], 'the First run Inspire recorded, not the old App default');
+    assert.match(await scope.locator('[data-first-run-locked]').textContent(), /^This App was built before First run had its choices, so it cannot save one\./);
     assert.ok(await scope.locator('[data-first-run-choice] input[type="radio"]').evaluateAll((inputs) => inputs.length > 0 && inputs.every((i) => i.disabled)));
     assert.equal(await panel.locator('[data-setting-group="data_groups"] [data-grouping-choice="country"] input').isDisabled(), false);
     const groups = panel.locator('[data-setting-group="data_groups"]');
     await groups.locator('[data-grouping-choice="country"] input').check();
-    assert.equal(await scope.getByRole('button', { name: 'Save MVP Test Run' }).count(), 0, 'a locked MVP Test Run offers no save (must-exclude)');
+    assert.equal(await scope.getByRole('button', { name: 'Save First run' }).count(), 0, 'a locked First run offers no save (must-exclude)');
     await groups.getByRole('button', { name: 'Save Data groups', exact: true }).click();
     await until(() => made.appCalls.filter((c) => c.url.endsWith('/api/settings/save')).length === 1, 'the Data groups save', 30000);
     await groups.getByText('Saved Data groups. Stored results follow at the next run.', { exact: true }).waitFor();
-    assert.deepEqual(made.appCalls.filter((c) => c.url.endsWith('/api/settings/save')).map((c) => c.body.name), ['group_by'], 'MVP Test Run is never sent to the old App');
+    assert.deepEqual(made.appCalls.filter((c) => c.url.endsWith('/api/settings/save')).map((c) => c.body.name), ['group_by'], 'First run is never sent to the old App');
     assert.ok(await scope.locator('[data-first-run-choice] input[type="radio"]').evaluateAll((inputs) => inputs.every((i) => i.disabled)), 'still locked after the save');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -745,7 +745,7 @@ test('a forecast on a star fact table with no column to group by still asks Data
       'only the whole data when no column qualifies, never a custom SQL choice');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'the whole data as one group is pre-picked');
     assert.equal(await grouping.locator('[data-grouping-reason]').textContent(), STAR_BARE.reason);
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'above 1,000 records with nothing to group by, the first 1,000 records');
     assert.ok(!(await checkedChoice(page, 'data-first-run-choice')).includes('all'), 'everything is never the default (must-exclude)');
     assert.match(await page.locator('[data-first-run-choice="records"]').innerText(), /^1,000 records spread across the whole table, the same records every run, the whole data being one group/);
@@ -774,15 +774,15 @@ test('a forecast on a star fact table recommends the store and the item category
     assert.equal(await grouping.locator('[data-grouping-choice="ss_store_sk, item.i_category"] [data-grouping-join-note]').textContent(),
       `item.i_category joins on ${ITEM_JOIN.key} = ${ITEM_JOIN.ref_column}. ${GROUPING_JOINED_NOTE}`);
     assert.equal(await grouping.locator('[data-grouping-choice="ss_store_sk"] [data-grouping-join-note]').count(), 0, 'a main-table column names no join');
-    await goToStep(page, 'MVP Test Run');
-    const firstRun = page.getByRole('region', { name: 'What should the MVP Test Run cover?', exact: true });
+    await goToStep(page, 'First run');
+    const firstRun = page.getByRole('region', { name: 'What should the First run cover?', exact: true });
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'a star-schema forecast runs first on whole groups, never on everything');
     assert.match(await firstRun.locator('[data-first-run-choice="records"]').innerText(),
       /^470,000 records, all of ss_store_sk = 7, the smallest group, since every group holds more than 1,000 records/);
     await firstRun.locator('[data-first-run-choice="groups"] input[type="radio"]').check();
     assert.deepEqual(await firstRun.locator('[data-scope-group] input:checked').evaluateAll((inputs) => inputs.length), 2, 'the suggested groups are picked');
     assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(),
-      'The MVP Test Run covers 2 groups of ss_store_sk, then item.i_category: ss_store_sk = 1 and item.i_category = Electronics; ss_store_sk = 7 and item.i_category = Home, 77,390 records. '
+      'The First run covers 2 groups of ss_store_sk, then item.i_category: ss_store_sk = 1 and item.i_category = Electronics; ss_store_sk = 7 and item.i_category = Home, 77,390 records. '
       + 'Every other group waits for a run on everything.');
     if (process.env.FIRST_RUN_TEXT) fs.writeFileSync(process.env.FIRST_RUN_TEXT, await firstRun.innerText());
     assert.deepEqual(ui.pageErrors, []);
@@ -799,7 +799,7 @@ const WIDE = {
 };
 const cardsOf = (grouping) => grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice));
 
-test('Data groups on a 20-column table shows the pick and the top cards with their group counts, the rest behind Show all with a search, and MVP Test Run highlights the pick', async () => {
+test('Data groups on a 20-column table shows the pick and the top cards with their group counts, the rest behind Show all with a search, and First run highlights the pick', async () => {
   const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt([], WIDE) });
   const { page } = ui;
   try {
@@ -828,8 +828,8 @@ test('Data groups on a 20-column table shows the pick and the top cards with the
     await combine.getByRole('searchbox', { name: 'Find a column to combine' }).fill('col_2');
     assert.deepEqual(await combine.locator('[data-grouping-combine-column]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingCombineColumn)), ['col_17', 'col_20'],
       'the search keeps the ticked column');
-    await goToStep(page, 'MVP Test Run');
-    assert.equal(await page.locator('[data-grouping-chosen]').innerText(), 'Data groups: col_17 · 51 groups. The MVP Test Run runs inside these groups.');
+    await goToStep(page, 'First run');
+    assert.equal(await page.locator('[data-grouping-chosen]').innerText(), 'Data groups: col_17 · 51 groups. The First run runs inside these groups.');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

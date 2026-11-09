@@ -397,7 +397,7 @@ export const RESULT_TABLE_MOVE_NOTE = 'Moving the table later copies its history
 export const MERGE_OUTPUTS = ['dashboard', 'genie_space', 'app'];
 
 export const FRESH_DEFAULT = 'daily';
-export const FRESH_HELP = 'Runs the MVP again each day or week, so the results stay current. Only the first run is the MVP Test Run; '
+export const FRESH_HELP = `Runs the MVP again each day or week, so the results stay current. Only the ${FIRST_RUN_LABEL} covers part of the data; `
   + 'every later run covers all your Data groups.';
 
 export const FRESHNESS_OPTIONS = [
@@ -1981,7 +1981,8 @@ export function buildWarehouseNote(warehouses, id) {
 }
 
 export function joinedWarehouseText(target) {
-  const builder = target?.built_by?.use_case_id ? `, the one use case ${target.built_by.use_case_id} chose when it built it` : '';
+  const name = String(target?.built_by?.name || '').trim();
+  const builder = name ? `, the one ${name} chose when it built it` : target?.built_by?.use_case_id ? ', the one the use case that built it chose' : '';
   return `Locked: the pages of this use case read with the SQL warehouse of ${target.name}${builder}; changing it would change the pages `
     + 'of the other use cases in it too.';
 }
@@ -2465,7 +2466,7 @@ export function failureChoices(latest, { technique = '', notebookUrl = '' } = {}
   if (Number.isInteger(cap) && cap > 1) {
     const smaller = Math.max(1, Math.floor(cap / SMALLER_RUN_SHARE));
     const profiles = { ...(spec.config?.profiles || {}), preview: { ...(spec.config?.profiles?.preview || {}), entity_cap: smaller } };
-    choices.push({ id: 'smaller', label: 'Build a smaller MVP Test Run', detail: `The preview run reads ${smaller} entities instead of ${cap}.`,
+    choices.push({ id: 'smaller', label: `Build a smaller ${FIRST_RUN_LABEL}`, detail: `The preview run reads ${smaller} entities instead of ${cap}.`,
       changes: { config: { ...(spec.config || {}), profiles } } });
   }
   const using = String(technique || '').trim();

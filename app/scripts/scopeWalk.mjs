@@ -74,12 +74,12 @@ export async function checkScope(root, profile, { part = 'both' } = {}) {
   }
   if (part !== 'grouping' && (await firstRun.count())) {
     const choices = await choicesOf(firstRun);
-    await check(list, 'Everything is never the default MVP Test Run', async () => {
+    await check(list, 'Everything is never the default First run', async () => {
       const picked = choices.find((c) => c.checked);
       const everything = Boolean(picked) && /^(Everything|The last \d+ days|A recent period)\b/.test(picked.text);
       return { ok: Boolean(picked) && !everything, detail: `${profile.records} records, picked ${picked ? picked.text.slice(0, 60) : 'none'}` };
     });
-    await check(list, 'each MVP Test Run choice states its record count', async () => {
+    await check(list, 'each First run choice states its record count', async () => {
       const missing = choices.filter((c) => !RECORDS_RE.test(c.text));
       return { ok: choices.length > 0 && missing.length === 0, detail: missing.length ? `no count on ${missing.map((m) => m.text.slice(0, 40)).join(', ')}` : `${choices.length} choices` };
     });
@@ -91,13 +91,13 @@ export async function checkRunScope(page) {
   const list = [];
   const region = page.getByRole('region', { name: `Data groups and ${RUN_LABEL} of this use case` });
   if (!(await region.count())) {
-    pending(list, 'the Run tab Data groups and MVP Test Run', 'this page has no scope settings');
+    pending(list, 'the Run tab Data groups and First run', 'this page has no scope settings');
     return list;
   }
   const firstRun = region.getByRole('group', { name: RUN_LABEL, exact: true });
   const picked = (await firstRun.count()) ? (await choicesOf(firstRun)).find((c) => c.checked) : null;
   const everythingChosen = Boolean(picked) && /^Everything\b/.test(picked.text);
-  await check(list, 'Run on everything is offered while the MVP Test Run scope holds', async () => {
+  await check(list, 'Run on everything is offered while the First run scope holds', async () => {
     const offered = (await region.getByRole('button', { name: 'Run on everything' }).count()) > 0;
     return { ok: offered === !everythingChosen, detail: `offered ${offered}, scope is everything ${everythingChosen}` };
   });

@@ -122,6 +122,8 @@ test('each wizard step or App sub-section shows one Highly Recommended, the firs
   assert.deepEqual([kept.result.id, kept.freshness.id], ['own', 'daily'], 'a step with one question keeps its badge');
   const later = H.oneBestPerStep({ ...all, appTarget: null, output: null });
   assert.deepEqual([later.appPlace?.id, later.removed?.id], ['appPlace', 'removed'], 'with no first badge the next question keeps it');
-  assert.deepEqual(Object.keys(H.STEP_BEST), ['delivery', 'app_placement', 'app_features', 'run'], 'Deliver, each App sub-section that asks two questions, and Run it each show one');
+  assert.deepEqual(Object.keys(H.STEP_BEST), ['delivery', 'app_placement', 'app_features'], 'Deliver and each App sub-section that asks two questions show one');
+  const run = H.oneBestPerStep({ freshness: pick('daily'), kpi: pick('kpi'), holdout: pick(true) });
+  assert.deepEqual([run.freshness?.id, run.kpi?.id, run.holdout?.id], ['daily', 'kpi', true], 'Run it keeps one badge per question: Measure impact keeps its holdout badge (must-exclude: dropping it)');
   assert.deepEqual(Object.keys(H.STEP_BEST).filter((s) => (H.STEP_BEST[s].filter((k) => H.oneBestPerStep(all)[k]).length !== 1)), [], 'never two (must-exclude)');
 });

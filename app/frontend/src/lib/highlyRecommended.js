@@ -10,7 +10,6 @@ export const STEP_BEST = {
   delivery: ['output', 'removed'],
   app_placement: ['appTarget', 'appPlace'],
   app_features: ['appOption', 'replaceEdits'],
-  run: ['freshness', 'kpi', 'holdout'],
 };
 
 export function oneBestPerStep(best) {

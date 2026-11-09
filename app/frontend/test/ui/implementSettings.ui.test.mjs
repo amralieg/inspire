@@ -62,7 +62,7 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     const impact = page.getByRole('group', { name: 'Measure impact' });
     const box = impact.getByRole('checkbox', { name: /^Hold back a share of records to measure impact\./ });
     assert.equal(await box.isChecked(), true, 'it starts on, where its Highly Recommended badge sits');
-    assert.equal(await impact.locator('label:has(input[type="checkbox"]) [data-highly-recommended]').count(), 0, 'Run it has one Recommended, on Keep it fresh');
+    assert.equal(await impact.locator('[data-choice="holdout"] [data-highly-recommended]').count(), 1, 'Measure impact keeps its own Recommended, one per question');
     await page.locator('[data-choice="freshness"] [data-highly-recommended="daily"]').waitFor();
     await impact.getByText('Inspire leaves the held-back records alone, so it can compare their results with the records people acted on.', { exact: false }).waitFor();
     await box.uncheck();

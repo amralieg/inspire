@@ -54,7 +54,7 @@ test('Data, Results, Run it and App show the business settings and keep the tech
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await hidden(label);
     await open();
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await shown(label);
-    for (const step of ['MVP Test Run', 'Results']) {
+    for (const step of ['First run', 'Results']) {
       await next(page);
       await onStep(page, step);
     }

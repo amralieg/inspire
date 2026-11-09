@@ -86,7 +86,7 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
     assert.deepEqual(Object.keys(d), ['table', 'records', 'applies', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
-      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'column_groups', 'first_run', 'default_scope', 'read_at', 'deep_suggestion']);
+      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'group_count', 'column_groups', 'first_run', 'default_scope', 'read_at', 'deep_suggestion']);
     assert.equal('prefill' in d, false, 'the profile carries no starting SQL, since Inspire runs no typed SQL');
     assert.deepEqual([d.table, d.records, d.applies, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, true, false, null]);
     assert.equal(d.reason, 'Inspire recommends region, then country because Anomaly Detection works out what is normal inside each group, and country splits '
@@ -109,6 +109,7 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal(d.default_scope, 'records', 'more than 1,000 records, so the First run takes about 1,000 records in whole groups (decision 5B, 4A)');
     assert.equal(d.groups_for, 'region, country', 'with no Data groups asked, the groups listed are those of the recommended grouping');
     assert.equal(d.group_list.length, COUNTRIES.length, 'every group of the grouping is listed with its size, not only the suggested three');
+    assert.equal(d.group_count, COUNTRIES.length, 'the count is every group the grouping makes');
     assert.deepEqual(d.group_list[0], { value: 'AMER / USA', records: 3000, parts: part('AMER', 'USA') });
     assert.ok(d.group_list.every((g, i) => i === 0 || d.group_list[i - 1].records >= g.records), 'largest group first');
     assert.deepEqual(Object.keys(d.column_groups), ['region', 'country', 'ragged']);
@@ -522,7 +523,7 @@ test('the profile reads the main table picked in the wizard, not the one of the 
   await withApp(made, async (srv) => {
     const picked = await post(srv, { ...ASK, table: 'main.sales.orders_v2' });
     assert.equal(picked.status, 200, JSON.stringify(picked.data));
-    assert.equal(picked.data.table, 'main.sales.orders_v2', 'the MVP Test Run counts the table the Data step counts');
+    assert.equal(picked.data.table, 'main.sales.orders_v2', 'the First run counts the table the Data step counts');
     assert.equal((await post(srv, ASK)).data.table, 'main.sales.orders', 'with no table picked, the use case main table is read');
     const bad = await post(srv, { ...ASK, table: 'main.sales.`x`; DROP TABLE y' });
     assert.equal(bad.status, 400, 'a table that is not catalog.schema.table is refused (must-exclude)');
@@ -544,5 +545,15 @@ test('a technique Data groups do not apply to recommends no grouping and no exam
   await withApp(grouped, async (srv) => {
     const got = await post(srv, ASK);
     assert.deepEqual([got.data.applies, got.data.recommended], [true, ['region', 'country']], 'a technique Data groups apply to keeps its recommendation');
+  });
+});
+
+test('a nested grouping with more groups than the list holds still counts every group it makes', async () => {
+  const many = Array.from({ length: R.GROUP_MAX_GROUPS + 40 }, (_v, i) => ({ p0: `R${i % 5}`, p1: `C${i}`, records: String(50 + i) }));
+  await withApp(profiled({}, { 'AS p0': many }), async (srv) => {
+    const got = await post(srv, ASK);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.group_list.length, R.GROUP_MAX_GROUPS, 'the list stays bounded');
+    assert.equal(got.data.group_count, R.GROUP_MAX_GROUPS + 40, 'the count is not cut to the list (must-exclude: the listed length)');
   });
 });

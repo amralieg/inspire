@@ -20,11 +20,12 @@ async function auditEveryStep(page, { look = true } = {}) {
       if (tab) await page.getByRole('tab', { name: tab, exact: true }).click();
       const shown = await choicesShown(page);
       const where = tab ? `${label} / ${tab}` : label;
+      assertOneBadgeOnDefault(shown, where, { perChoice: true });
+      assertOneBadgeOnDefault(shown.filter((c) => c.choice === 'outputs' || c.choice.startsWith('removed-')), `${where} outputs`);
       if (label === 'App') {
-        assertOneBadgeOnDefault(shown, where, { perChoice: true });
         assertOneBadgeOnDefault(shown.filter((c) => ['app-place', 'app-target'].includes(c.choice)), `${where} placement`);
         assertOneBadgeOnDefault(shown.filter((c) => ['app-options', 'replace-edits'].includes(c.choice)), `${where} features`);
-      } else assertOneBadgeOnDefault(shown, where);
+      }
       for (const { choice } of shown) seen.add(choice);
     }
   }

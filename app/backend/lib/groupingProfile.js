@@ -332,6 +332,7 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
       .map((g) => ({ value: g.value, records: g.records })),
     groups_for: grouped.join(', '),
     group_list: groupList.slice(0, R.GROUP_MAX_GROUPS),
+    group_count: groupList.length,
     column_groups: columnGroups,
     first_run: firstRun,
     default_scope: R.FIRST_RUN_DEFAULT,

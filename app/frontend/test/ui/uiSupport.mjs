@@ -244,7 +244,7 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 
 const STEP_HOLDING = {
   'What to build': 'Deliver', Delivery: 'Deliver', 'App placement': 'App', 'App access': 'App', 'App features': 'App', 'App look': 'App',
-  'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Summary', 'Data groups': 'Data', 'MVP Test Run': 'First run',
+  'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Summary', 'Data groups': 'Data',
 };
 
 export function stepHolding(part) {

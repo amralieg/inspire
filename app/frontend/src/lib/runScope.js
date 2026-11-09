@@ -9,7 +9,7 @@ export const SCOPE_SETTINGS = [GROUP_BY, RUN_SCOPE, SCOPE_GROUPS, SCOPE_DAYS, SC
 export const SCOPE_SAVE_ORDER = [GROUP_BY, SCOPE_GROUPS, SCOPE_DAYS, SCOPE_RECORDS, RUN_SCOPE];
 export const GROUPING_SETTINGS = [GROUP_BY];
 export const FIRST_RUN_SETTINGS = [RUN_SCOPE, SCOPE_GROUPS, SCOPE_DAYS, SCOPE_RECORDS];
-export const FIRST_RUN_LABEL = 'MVP Test Run';
+export const FIRST_RUN_LABEL = 'First run';
 export const SCOPE_LABELS = {
   [GROUP_BY]: 'Data groups', [RUN_SCOPE]: FIRST_RUN_LABEL, [SCOPE_GROUPS]: 'Groups to run on', [SCOPE_DAYS]: 'Days to run on', [SCOPE_RECORDS]: 'Records to run on',
 };
@@ -309,7 +309,12 @@ export function groupingCount(choice, profile) {
     if (finite(found?.distinct) != null) return found.distinct;
   }
   const listed = groupingGroupsOf(profile, columns.join(', '));
-  return Array.isArray(listed) && listed.length ? listed.length : null;
+  if (!Array.isArray(listed) || !listed.length) return null;
+  const total = columns.length > 1 ? finite(profile?.group_count) : null;
+  if (total != null) return total;
+  const finest = (Array.isArray(profile?.columns) ? profile.columns : []).filter(isMap)
+    .find((c) => text(c.name).toLowerCase() === columns[columns.length - 1].toLowerCase());
+  return listed.length < (finite(finest?.distinct) ?? 0) ? null : listed.length;
 }
 
 export function groupingCountText(count) {
@@ -637,7 +642,7 @@ export function profileHeldText(profile) {
   const table = text(profile?.table);
   if (records == null || !table) return '';
   const goal = Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
-  if (records === 0) return `${table} holds no records yet, so an ${FIRST_RUN_LABEL} has nothing to read until data arrives.`;
+  if (records === 0) return `${table} holds no records yet, so a ${FIRST_RUN_LABEL} has nothing to read until data arrives.`;
   if (records <= goal) return `${table} holds ${counted(records, 'record')}, so the ${FIRST_RUN_LABEL} covers all of it.`;
   return `${table} holds ${counted(records, 'record')}, so Inspire suggests a smaller ${FIRST_RUN_LABEL} to show results sooner.`;
 }

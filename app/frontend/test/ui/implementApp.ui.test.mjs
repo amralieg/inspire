@@ -1206,8 +1206,9 @@ test('a use case added to another use case\'s App shows that App\'s SQL warehous
     const locked = placeStep(page).locator('[data-app-warehouse="locked"]');
     await locked.locator('option', { hasText: 'Sales SQL (RUNNING)' }).waitFor({ state: 'attached' });
     assert.deepEqual([await locked.locator('select').inputValue(), await locked.locator('select').isDisabled()], ['wh9', true]);
-    assert.equal(await locked.locator('p').textContent(), 'Locked: the pages of this use case read with the SQL warehouse of ops-desk, the one use '
-      + 'case N01-U02 chose when it built it; changing it would change the pages of the other use cases in it too.');
+    assert.equal(await locked.locator('p').textContent(), 'Locked: the pages of this use case read with the SQL warehouse of ops-desk, the one Forecast '
+      + 'demand chose when it built it; changing it would change the pages of the other use cases in it too.');
+    assert.equal(await locked.locator('[data-technical-details] pre').textContent(), 'Built by use case N01-U02', 'the use case id sits only under Details');
     await targetRadio(page, 'care-desk').check();
     assert.equal(await locked.count(), 0, 'an App whose warehouse Inspire cannot read shows no warehouse');
     await targetRadio(page, 'ops-desk').check();
