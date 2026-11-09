@@ -98,6 +98,7 @@ test('the Dashboard offers Report an issue and Runs does not, and a page with no
   await page.locator('[data-feedback-open]').waitFor();
   await page.locator('[data-rail="runs"]').click();
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
+  await page.locator('[data-section-title]', { hasText: 'Runs' }).waitFor();
   assert.equal(await page.locator('[data-feedback-open]').count(), 0);
   assert.deepEqual(seen.errors, []);
   await context.close();

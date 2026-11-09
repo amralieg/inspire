@@ -302,7 +302,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {shown === 'inbox' && <Suspense fallback={<Waiting />}><InboxSection page={page} inbox={inbox} onOpen={openInbox} /></Suspense>}
       {shown === 'work' && !mode.queue && (
         <ModeView mode={mode.id} part="Work" app={app} page={page} meta={meta} state={state} onState={onState} ready={ready} tableCard={tableCard} genie={genie}
-          views={<PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />} notify={notifyButton} onGo={(to) => go(to)} />
+          views={<PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />} notify={notifyButton} onGo={(to) => go(to)}
+          onRun={freshness.ask} running={freshness.busy} />
       )}
       {shown === 'work' && mode.queue && (
         <WorkPage meta={meta} state={state} onState={onState} onRetryMeta={onRetryMeta} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}

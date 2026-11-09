@@ -130,6 +130,20 @@ def test_a_page_that_already_holds_a_valid_tour_keeps_it_with_no_model_call(agen
     assert asked == [] and _deployed(seen)["tour"]["steps"]["English"] == STEPS
 
 
+def test_a_held_tour_ships_the_same_page_file_byte_for_byte_wherever_the_held_page_keeps_it(agent_ns, tmp_path):
+    tour = {"languages": ["English"], "steps": {"English": STEPS}}
+    inst, context, seen, _asked = _tour_flow(agent_ns, tmp_path / "first", [{"tours": [{"language": "English", "steps": STEPS}]}])
+    inst._implement_app(context, None)
+    first = seen["deployed"][0][1]["pages/n01_u01.json"]
+    held = dict({"tour": tour}, **_churn_page(agent_ns))
+    assert list(held)[0] == "tour"
+    again, again_context, again_seen, asked = _tour_flow(agent_ns, tmp_path / "again", [AssertionError("no call expected")], page=held)
+    again._implement_app(again_context, None)
+    shipped = again_seen["deployed"][0][1]["pages/n01_u01.json"]
+    assert asked == [] and shipped == first
+    assert list(again_context["artifacts"]["app"])[-1] == "tour" and list(context["artifacts"]["app"])[-1] == "tour"
+
+
 def test_a_held_tour_missing_an_output_language_is_written_again(agent_ns, tmp_path):
     page = _churn_page(agent_ns, tour={"languages": ["English"], "steps": {"English": STEPS}})
     arabic = [dict(s, title="خطوة", text="نص الخطوة.") for s in STEPS]
