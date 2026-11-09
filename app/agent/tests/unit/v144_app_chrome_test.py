@@ -184,11 +184,11 @@ def test_the_hub_screens_the_browser_explains_from_are_the_ones_the_server_knows
         sent[name] = set(re.findall(r"hubExplain\(app, onExplain, '([a-z]+)'\)", text))
         notes[name] = "<HubExplainNote app={app} />" in text
     with open(APP_JSX, encoding="utf-8") as handle:
-        routes_text = re.search(r"const HUB_ROUTES = \[([^\]]+)\]", handle.read()).group(1)
-    routes = set(re.findall(r"'([a-z]+)'", routes_text))
-    assert set(shell_core.HUB_SCREENS) == {"overview", "mywork", "impact"} and {"overview", "impact"} <= routes and "MY_WORK_ROUTE" in routes_text
+        routes_text = re.search(r"const HUB_SCOPES = \{(.+)\};", handle.read()).group(1)
+    routes = set(re.findall(r"([a-z]+): \{ page: ", routes_text))
+    assert set(shell_core.HUB_SCREENS) == {"overview", "mywork", "impact"} and routes == {"mywork", "impact"} and "MY_WORK_ROUTE" in routes_text and "page: 'impact'" in routes_text
     assert sent == {"overview": set(), "impact": {"impact"}}, "only Impact explains, since a one-page App shows Impact but never the Overview"
-    assert notes == {"overview": True, "impact": True}
+    assert notes == {"overview": False, "impact": True}, "the Overview is gone, so only Impact shows the explain note"
 
 
 def test_the_typed_question_cap_stays_1000_while_an_explain_may_be_longer(tmp_path):
