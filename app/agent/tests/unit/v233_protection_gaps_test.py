@@ -8,7 +8,7 @@ import pytest
 from v120_artifacts_support import CapturingLogger
 from v140_implement_test import READS, SHELL_FILES, _deploy_inspire, _not_access_reads, sdk_stub  # noqa: F401
 from v142_look_test import DEPLOYED, NEW_APP, _user_context
-from v232_protected_sources_test import MASK, OWN, RESULT, SOURCE, SUMMARY, _gate, _protection, _source, _table
+from v232_protected_sources_test import MASK, OWN, RESULT, SOURCE, SUMMARY, _gate, _plan, _protection, _source, _table
 
 ROOT = os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 SERVER = os.path.join(ROOT, "agent", "app_shell", "server")
@@ -72,7 +72,7 @@ def test_a_view_source_carries_the_filter_and_mask_of_the_table_it_reads(agent_n
     inst._genie_involved_tables = lambda use_case: [VIEW]
     with pytest.raises(agent_ns["ImplementStopped"]):
         inst._implement_source_protection(context["key"], context["spec"], context["use_case"], context["asset_status"], [])
-    plan = agent_ns["implement_protection_plan"]({VIEW: read}, {RESULT: _protection(agent_ns, ["owner", "value"])})
+    plan = _plan(agent_ns)({VIEW: read}, {RESULT: _protection(agent_ns, ["owner", "value"])})
     assert plan["apply"] == [BOUND_FILTER]
 
 
@@ -98,10 +98,10 @@ def test_a_view_whose_tables_cannot_be_read_or_that_reads_itself_counts_as_prote
 
 def test_the_plan_refuses_a_source_or_result_whose_protection_could_not_be_read(agent_ns):
     unread = agent_ns["implement_protection_unread"]("PERMISSION_DENIED")
-    plan = agent_ns["implement_protection_plan"]({SOURCE: unread}, {RESULT: _protection(agent_ns, ["owner"])})
+    plan = _plan(agent_ns)({SOURCE: unread}, {RESULT: _protection(agent_ns, ["owner"])})
     assert plan["refuse"] == [f"Inspire could not read the row filters, column masks and ABAC policies of {SOURCE} (PERMISSION_DENIED), "
                               "so it cannot tell that the results keep them"]
-    plan = agent_ns["implement_protection_plan"](_source(agent_ns), {RESULT: unread})
+    plan = _plan(agent_ns)(_source(agent_ns), {RESULT: unread})
     assert plan["refuse"] == [f"Inspire could not read the row filters and column masks of {RESULT} (PERMISSION_DENIED), so it cannot "
                               "tell that it keeps those of its sources"] and plan["apply"] == []
 
