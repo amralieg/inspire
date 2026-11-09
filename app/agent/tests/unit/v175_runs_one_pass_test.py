@@ -32,6 +32,7 @@ SHAPES = {
 
 def _db(rows):
     db = sqlite3.connect(":memory:")
+    db.create_function("IF", 3, lambda c, a, b: a if c else b)
     db.execute(f"CREATE TABLE churn_out ({', '.join(COLS)})")
     db.executemany(f"INSERT INTO churn_out VALUES ({', '.join('?' for _ in COLS)})", rows)
     db.execute("CREATE TABLE orders (record_key TEXT, region TEXT)")

@@ -3,6 +3,7 @@ import math
 import re
 import threading
 import time
+import unicodedata
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
@@ -561,12 +562,13 @@ def with_scopes(answer: str, clashes: list, notes: list) -> str:
 
 INJECTION = re.compile(r"\b(?:ignore|disregard|forget|override|bypass)\b[^.?!]{0,40}\b(?:your|previous|prior|above|earlier|all|these|those|system)\b"
                        r"[^.?!]{0,20}\b(?:instructions?|prompts?|rules|guardrails?|directions)\b|"
-                       r"\b(?:print|show|reveal|repeat|display|output|leak|tell me|give me|what (?:is|are))\b[^.?!]{0,30}\b(?:your|the system|the hidden|"
-                       r"the initial)\s+(?:system\s+)?(?:prompt|instructions|rules)\b|\bjailbreak\b|\bdeveloper mode\b|\byou are now\b|"
-                       r"\bpretend (?:to be|you are)\b", re.I)
+                       r"\b(?:print|show|reveal|repeat|display|output|leak|tell me|give me|what(?:'s|s| is| are|'re))\b[^.?!]{0,30}\b(?:your|the system|"
+                       r"the hidden|the initial)\s+(?:system\s+)?(?:prompt|instructions|rules)\b|\bjailbreak\b|\bdeveloper mode\b|"
+                       r"\byou(?:'re| are) now\b|\bpretend (?:to be|you(?:'re| are))\b", re.I)
 NOT_THE_USE_CASE = re.compile(r"\b(?:write|compose|create|make|tell|give|sing)\b[^.?!]{0,30}\b(?:poems?|songs?|lyrics|haikus?|limericks?|jokes?|"
-                              r"riddles?|stor(?:y|ies)|novels?|raps?|sonnets?)\b|\bwhat(?:'s| is) the capital (?:city )?of\b|"
+                              r"riddles?|stor(?:y|ies)|novels?|raps?|sonnets?)\b|\bwhat(?:'s|s| is) the capital (?:city )?of\b|"
                               r"\bwho (?:won|invented|painted)\b", re.I)
+APOSTROPHES = str.maketrans({"\u2018": "'", "\u2019": "'", "\u02bc": "'", "\u2032": "'", "`": "'"})
 WORD = re.compile(r"[a-z][a-z']+")
 GENERIC = frozenset("""
 a an the this that these those it its it's here there us we our ours me my i you your they them their he she his her
@@ -593,7 +595,13 @@ def topic_words(text) -> set:
     return {w for w in found if len(w) > 2}
 
 
+def plain_question(text) -> str:
+    folded = unicodedata.normalize("NFKC", str(text or "")).translate(APOSTROPHES)
+    return " ".join("".join(c for c in folded if unicodedata.category(c) != "Cf").split())
+
+
 def topic_by_rule(question: str, known: set, anchored: bool) -> str:
+    question = plain_question(question)
     if INJECTION.search(question) or NOT_THE_USE_CASE.search(question):
         return "UNRELATED"
     seen = known | {stem(w) for w in known} | GENERIC | ACTING | ACTED_ON
