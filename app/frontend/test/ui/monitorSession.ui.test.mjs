@@ -238,6 +238,12 @@ test('the steps list follows new steps only while the person is at its end; scro
     await page.waitForTimeout(300);
     assert.ok(Math.abs((await view()).top - reading.top) <= 2, `new steps keep the reader's place, ${(await view()).top} vs ${reading.top}`);
     await jump.waitFor({ timeout: 5000 });
+    for (const block of ['start', 'center', 'end', 'nearest']) {
+      await jump.evaluate((button, how) => button.scrollIntoView({ block: how }), block);
+      await page.waitForTimeout(300);
+      assert.equal(await jump.count(), 1, `scrolling New steps into view (${block}) keeps it, it never hides itself (must-exclude)`);
+      assert.ok((await view()).below > 40, `scrolling New steps into view (${block}) does not carry the reader to the end`);
+    }
     await jump.click();
     await until(async () => (await view()).below <= 40, 'New steps jumps to the latest step', 5000);
     assert.equal(await jump.count(), 0, 'the button goes once the person is back at the end');
