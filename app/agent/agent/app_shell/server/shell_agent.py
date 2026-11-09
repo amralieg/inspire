@@ -127,8 +127,22 @@ SLOP = re.compile(r"hope this (?:message|email|note) finds you|feel free|do not 
 DRAFT_NUMBER = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?:\s?(%|percent\b|bn\b|[kmb]\b))?", re.I)
 DRAFT_CODE = re.compile(r"(?<![\w.-])(?=[\w-]*[A-Za-z])(?=[\w-]*\d)[\w-]+\b")
 DRAFT_SCALED = re.compile(r"\d+(?:bn|[kmb])", re.I)
+DRAFT_TLDS = frozenset((
+    "ac ad ae af ag ai al am ao aq ar as at au aw ax az ba bb bd be bf bg bh bi bj bm bn bo br bs bt bw by bz ca cc cd cf cg ch ci ck cl "
+    "cm cn co cr cu cv cw cx cy cz de dj dk dm do dz ec ee eg er es et eu fi fj fk fm fo fr ga gd ge gf gg gh gi gl gm gn gp gq gr gs gt "
+    "gu gw gy hk hm hn hr ht hu id ie il im in io iq ir is it je jm jo jp ke kg kh ki km kn kp kr kw ky kz la lb lc li lk lr ls lt lu lv "
+    "ly ma mc md me mg mh mk ml mm mn mo mp mq mr ms mt mu mv mw mx my mz na nc ne nf ng ni nl no np nr nu nz om pa pe pf pg ph pk pl pm "
+    "pn pr ps pt pw py qa re ro rs ru rw sa sb sc sd se sg sh si sk sl sm sn so sr ss st su sv sx sy sz tc td tf tg th tj tk tl tm tn to "
+    "tr tt tv tw tz ua ug uk us uy uz va vc ve vg vi vn vu wf ws ye yt za zm zw "
+    "com net org edu gov mil int info biz name pro aero coop museum mobi asia tel travel jobs cat post arpa example test invalid local "
+    "app dev cloud online site website space store shop xyz top club icu buzz live life link click page help support email digital "
+    "network services solutions systems tech today world zone vip work fun cyou monster rest bar sbs cfd lol quest pics mom beauty "
+    "hair skin makeup autos boats homes yachts bond finance financial money pay bank insure loans credit cash capital fund invest "
+    "trade market markets exchange crypto wallet secure login account accounts verify security group global agency company "
+    "business center media news blog wiki host hosting server one plus win bid best ltd llc inc corp gmbh io ai").split())
 DRAFT_LINK = re.compile(r"https?://\S+|www\.\S+|(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+|"
-                        r"(?<![\w.@/+-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.)+[a-z]{2,24}\b(?:/\S*)?", re.I)
+                        r"(?<![\w.@/+-])(?:[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.(?!(?-i:[A-Z][a-z])))+"
+                        r"(?:" + "|".join(sorted(DRAFT_TLDS, key=lambda t: (-len(t), t))) + r")\b(?:/\S*)?", re.I)
 DRAFT_SCALE = {"k": 1e3, "m": 1e6, "b": 1e9, "bn": 1e9}
 DRAFT_DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
 DRAFT_FALLBACK = "so this draft is built from the record fields"

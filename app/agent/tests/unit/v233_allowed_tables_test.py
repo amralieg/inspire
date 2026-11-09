@@ -94,3 +94,31 @@ def test_system_tables_outside_the_metadata_namespace_are_refused(agent_ns, sql)
 def test_table_functions_and_path_reads_outside_the_use_case_are_refused(agent_ns, sql, outside):
     unknown = agent_ns["_implement_unknown_tables"]([sql], ALLOWED)
     assert outside.lower() in [u.lower() for u in unknown], unknown
+
+
+@pytest.mark.parametrize("sql", [
+    "SELECT * FROM read_lakehouse_magic(42)",
+    "SELECT * FROM main.sales.orders o JOIN read_lakehouse_magic(o.id) r ON true",
+    "SELECT * FROM main.sales.orders, LATERAL read_lakehouse_magic(id)",
+    "SELECT * FROM main.sales.orders LATERAL VIEW read_lakehouse_magic(id) r AS x",
+    "SELECT * FROM read_csv('x')",
+    "SELECT * FROM read_parquet('x')",
+    "SELECT * FROM main.sales.orders, LATERAL read_csv('x')",
+    "SELECT * FROM (SELECT * FROM read_parquet('x'))",
+])
+def test_every_table_function_outside_the_generator_list_is_refused(agent_ns, sql):
+    assert any(u.endswith("(...)") for u in agent_ns["_implement_unknown_tables"]([sql], ALLOWED)), sql
+
+
+@pytest.mark.parametrize("sql", [
+    "SELECT * FROM main.sales.orders LATERAL VIEW explode(items) e AS x",
+    "SELECT * FROM main.sales.orders LATERAL VIEW OUTER posexplode(items) e AS p, x",
+    "SELECT * FROM posexplode(array(1, 2))",
+    "SELECT * FROM inline(array(struct(1, 2)))",
+    "SELECT * FROM stack(2, 1, 2)",
+    "SELECT * FROM json_tuple('{\"a\": 1}', 'a')",
+    "SELECT * FROM sequence(1, 3)",
+    "SELECT * FROM unnest(array(1, 2))",
+])
+def test_generator_table_functions_still_pass(agent_ns, sql):
+    assert agent_ns["_implement_unknown_tables"]([sql], ALLOWED) == []
