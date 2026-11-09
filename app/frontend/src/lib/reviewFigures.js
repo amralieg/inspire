@@ -48,6 +48,10 @@ export function runBusiness(session) {
   return typeof session?.business_name === 'string' ? session.business_name.trim() : '';
 }
 
+export function runLabel(session) {
+  return runBusiness(session) || `Run ${session?.session_id ?? ''}`.trim();
+}
+
 const counted = (n, card) => `${n.toLocaleString('en-US')} ${n === 1 ? card.one : card.many}`;
 const figureOf = (portfolio, session, key) => Number(portfolio?.sessions?.[String(session?.session_id ?? '')]?.[key]) || 0;
 
@@ -106,7 +110,7 @@ export function runCounts(overview, portfolio, session, { running = false, mvpEr
 export function buildRunsOfCard(key, sessions, portfolio) {
   if (portfolioCard(key)?.opens !== 'build') return [];
   return (Array.isArray(sessions) ? sessions : [])
-    .map((session) => ({ session_id: String(session.session_id), name: runBusiness(session) || `Run ${session.session_id}`, count: figureOf(portfolio, session, key) }))
+    .map((session) => ({ session_id: String(session.session_id), name: runLabel(session), count: figureOf(portfolio, session, key) }))
     .filter((run) => run.count > 0);
 }
 

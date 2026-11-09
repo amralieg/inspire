@@ -149,10 +149,11 @@ export function reviewLinkText(link, inspireDatabase, outcome) {
 
 export const RESULTS_PENDING_TEXT = 'Inspire is still writing the use cases of this run. They show here as soon as the first one is saved.';
 
-export function noResultsText(session) {
+export function noResultsText(session, { inMonitor = false } = {}) {
+  const why = inMonitor ? '' : ' Open it in Monitor to see why.';
   if (!session) return 'No use case is saved for this run yet.';
-  if (sessionFailed(session)) return 'This run stopped before it saved a use case. Open it in Monitor to see why.';
-  if (sessionFinished(session)) return 'This run finished without saving a use case. Open it in Monitor to see why.';
+  if (sessionFailed(session)) return `This run stopped before it saved a use case.${why}`;
+  if (sessionFinished(session)) return `This run finished without saving a use case.${why}`;
   return RESULTS_PENDING_TEXT;
 }
 

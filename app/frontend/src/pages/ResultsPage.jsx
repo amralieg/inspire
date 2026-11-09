@@ -487,7 +487,7 @@ export default function ResultsPage({
         return 'found';
       }
 
-      setError(noResultsText(run));
+      setError(noResultsText(run, { inMonitor: embedded }));
       return 'pending';
     } catch (err) {
       if (sid && err.status === 403) {

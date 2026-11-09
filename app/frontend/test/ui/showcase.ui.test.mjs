@@ -402,7 +402,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     const heading = page.getByText(/^Use cases of /);
     await heading.waitFor();
     assert.doesNotMatch(await heading.innerText(), /\b42\b|\brun \d/, 'the use cases are named by the business and start, never by the internal run number');
-    await page.getByText('Pipeline completed successfully').waitFor();
+    await page.getByText('Run completed', { exact: true }).waitFor();
     await settle();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
 

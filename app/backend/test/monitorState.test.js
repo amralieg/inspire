@@ -143,3 +143,14 @@ test('mergeSteps keeps one row per step id, numeric or text, sorted by flush tim
   assert.deepEqual(M.mergeSteps(null, null), []);
   assert.deepEqual(M.mergeSteps(undefined, [row('7', 'started', '')]).map((s) => s.status), ['started']);
 });
+
+test('the run time comes from run_duration, then start to end, and counts up while the run goes on', async () => {
+  const M = await lib('monitorState.js');
+  assert.equal(M.runElapsedMs({ run_duration: 3723000, execution_duration: 0, start_time: 1, end_time: 2 }, NOW), 3723000);
+  assert.equal(M.runElapsedMs({ run_duration: 0, execution_duration: 0, start_time: NOW - 20 * MINUTE, end_time: NOW - 5 * MINUTE }, NOW), 15 * MINUTE);
+  assert.equal(M.runElapsedMs({ execution_duration: 4000 }, NOW), 4000);
+  assert.equal(M.runElapsedMs({ start_time: NOW - 9 * 60 * MINUTE, end_time: 0, execution_duration: 0 }, NOW), 9 * 60 * MINUTE);
+  assert.equal(M.runElapsedMs({ start_time: NOW + MINUTE }, NOW), null, 'a clock behind the run start shows no time, never a negative one');
+  assert.equal(M.runElapsedMs({}, NOW), null);
+  assert.equal(M.runElapsedMs(null, NOW), null);
+});

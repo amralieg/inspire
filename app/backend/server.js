@@ -2176,6 +2176,7 @@ app.get('/api/run/:runId', requireToken, async (req, res) => {
       setup_duration: data.setup_duration,
       execution_duration: data.execution_duration,
       cleanup_duration: data.cleanup_duration,
+      run_duration: data.run_duration,
       run_page_url: data.run_page_url,
       run_name: data.run_name,
       tasks,

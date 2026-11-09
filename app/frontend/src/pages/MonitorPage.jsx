@@ -25,12 +25,12 @@ import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyC
 import { formatDuration } from '../lib/formatWhen';
 import { counted } from '../lib/plural';
 import { aiSeesAggregates, discoveryTypeOf } from '../lib/discoveryType';
-import { mergeSteps, quietLine, runTitle, viewerLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
+import { mergeSteps, quietLine, runElapsedMs, runTitle, viewerLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
 import RunLogPanel from '../components/RunLogPanel';
 import { nameOfUseCase } from '../lib/useCaseFields';
-import { runOutcomeOf } from '../lib/runOutcome';
+import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
@@ -98,6 +98,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
 
     const poll = async () => {
       let currentRunInfo = runInfo;
+      let lastRead = false;
       if (runId) {
         try {
           const ri = await apiFetch(`/api/run/${runId}`);
@@ -111,12 +112,13 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
           } else {
             setRunPhase(PHASE_TERMINATED);
           }
-          if (lcs === 'INTERNAL_ERROR' || lcs === 'SKIPPED') { setPolling(false); return; }
-          if (lcs === 'TERMINATED' && (ri.result_state === 'FAILED' || ri.result_state === 'CANCELED')) { setPolling(false); return; }
+          lastRead = lcs === 'INTERNAL_ERROR' || lcs === 'SKIPPED' || (lcs === 'TERMINATED' && (ri.result_state === 'FAILED' || ri.result_state === 'CANCELED'));
         } catch (e) {
-          if (e.status === 403) { setRunReadError(e.message); setPolling(false); return; }
+          if (e.status === 403) { setRunReadError(e.message); lastRead = true; }
         }
       }
+      if (lastRead) setPolling(false);
+      setNow(Date.now());
 
       if (warehouseId && inspireDatabase) {
         try {
@@ -132,7 +134,6 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
             }
             trackedSessionRef.current = String(sid);
             setSession(sess);
-            setNow(Date.now());
 
             try {
               const stepQ = new URLSearchParams({
@@ -225,7 +226,10 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   else if (isStopped) { statusLabel = 'Stopped'; statusDetail = 'The run was stopped. What it already wrote stays.'; }
   else if (runPhase === PHASE_TERMINATED && runInfo?.result_state === 'SUCCESS' && !session?.completed_on) { statusLabel = 'Finishing'; statusDetail = 'The run ended. Inspire is saving the use cases...'; }
 
-  const elapsed = runInfo?.execution_duration ? formatDuration(runInfo.execution_duration) : null;
+  const platformMessage = String(runInfo?.state_message || '').trim();
+  const platformDetail = isFailed && platformMessage && platformMessage !== String(statusDetail || '').trim() ? platformMessage : '';
+  const elapsedMs = runElapsedMs(runInfo, now);
+  const elapsed = elapsedMs ? formatDuration(elapsedMs) : null;
 
   // Auto-show inline results when pipeline completes
   useEffect(() => {
@@ -374,7 +378,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
               {statusDetail && (
                 <PlainMessage className={`text-xs mt-0.5 ${
                   isWarning ? 'text-warning-fg' : isComplete ? 'text-success-fg' : isFailed ? 'text-error-fg' : 'text-text-secondary'
-                }`} text={statusDetail} />
+                }`} text={statusDetail} {...(isFailed ? { 'data-testid': 'monitor-failure-reason' } : {})} />
               )}
               {isComplete && outcome.found > 0 && (
                 <p className="text-xs mt-0.5 text-text-secondary" data-testid="monitor-bar-counts">
@@ -867,15 +871,15 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
           <div className="flex items-start gap-3">
             <XCircle size={18} className="text-error-fg mt-0.5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-bold text-text-primary">{outcome.failed ? outcome.failureTitle : 'Pipeline failed'}</p>
-              {outcome.failed && (
-                <p className="text-xs text-text-secondary mt-1" data-testid="monitor-failure-reason">{outcome.message}</p>
-              )}
-              {runInfo?.state_message && (
-                <p className="text-xs text-text-secondary mt-1 font-mono whitespace-pre-wrap bg-error-bg/50 rounded-lg p-3 mt-2 border border-error/10">
-                  {runInfo.state_message}
-                </p>
-              )}
+              <p className="text-sm font-bold text-text-primary">What you can do</p>
+              <p className="text-xs text-text-secondary mt-1" data-testid="monitor-failure-next">
+                {cannotRead
+                  ? 'Ask the person who started this run, or a workspace admin, to give you access to it.'
+                  : outcome.failed
+                    ? `Next step: ${nextStepOf(outcome)}`
+                    : 'Open the run in Databricks to see the full error, fix what it names, then run again.'}
+              </p>
+              {platformDetail && <TechnicalDetails items={[platformDetail]} className="mt-2" />}
               {runInfo?.run_page_url && (
                 <a
                   href={runInfo.run_page_url}
@@ -900,10 +904,10 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                 {isWarning ? <AlertTriangle size={22} className="text-warning-fg" /> : <CheckCircle2 size={22} className="text-success-fg" />}
               </div>
               <div>
-                <p className="text-sm font-bold text-text-primary">{isWarning ? 'Pipeline completed with a warning' : 'Pipeline completed successfully'}</p>
-                <p className="text-xs text-text-secondary mt-0.5">
-                  Results are ready for review.
-                  {elapsed && ` Total execution time: ${elapsed}.`}
+                <p className="text-sm font-bold text-text-primary">{isWarning ? 'Run completed with a warning' : 'Run completed'}</p>
+                <p className="text-xs text-text-secondary mt-0.5" data-testid="monitor-complete-detail">
+                  The use cases are ready to review.
+                  {elapsed && ` The run took ${elapsed}.`}
                   {totalCount > 0 && ` ${counted(totalCount, 'step')} processed.`}
                 </p>
               </div>

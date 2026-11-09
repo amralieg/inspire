@@ -6,7 +6,7 @@ import { SkeletonCard } from '../components/SkeletonLoader';
 import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
-import { buildFilterOf, portfolioCard, runBusiness, runCounts, runFilterText, runsOfCard } from '../lib/reviewFigures';
+import { buildFilterOf, portfolioCard, runCounts, runLabel, runFilterText, runsOfCard } from '../lib/reviewFigures';
 import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
 import { SHOWCASE_BUTTON } from '../lib/showcase';
 import { compareUseCaseRank, computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf } from '../lib/useCaseFields';
@@ -364,7 +364,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
             {listed.map((session) => {
               const status = sessionStatus(session, loadedAt);
               const cfg = session.starting && status === 'running' ? STATUS_CONFIG.starting : STATUS_CONFIG[status];
-              const name = runBusiness(session) || `Session ${session.session_id}`;
+              const name = runLabel(session);
               const date = session.completed_on || session.create_at;
               const mode = session.widget_values?.operation_mode
                 || session.widget_values?.['15_operation']

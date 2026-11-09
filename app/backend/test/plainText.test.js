@@ -62,6 +62,8 @@ test('noResultsText says a finished or failed run saved no use case, and only a 
   assert.match(noResultsText({ completed_percent: 100, processing_status: 'failed' }), /^This run stopped before it saved a use case/);
   assert.equal(noResultsText({ completed_percent: 40 }), RESULTS_PENDING_TEXT);
   assert.equal(noResultsText(undefined), 'No use case is saved for this run yet.', 'an unknown run claims neither finished nor still writing');
+  assert.equal(noResultsText({ completed_percent: 100, completed_on: '2026-11-08 10:00:00' }, { inMonitor: true }), 'This run finished without saving a use case.', 'inside Monitor the text never sends the person to Monitor');
+  assert.equal(noResultsText({ completed_percent: 100, processing_status: 'failed' }, { inMonitor: true }), 'This run stopped before it saved a use case.');
   for (const text of [finished, RESULTS_PENDING_TEXT]) assert.doesNotMatch(text, /pipeline|starting/i, 'no pipeline wording (must-exclude)');
 });
 

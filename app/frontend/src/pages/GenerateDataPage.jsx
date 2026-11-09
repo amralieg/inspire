@@ -232,7 +232,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
           {submitting ? (
             <>
               <Loader2 size={18} className="animate-spin" />
-              Starting pipeline…
+              Starting the run…
             </>
           ) : (
             <>

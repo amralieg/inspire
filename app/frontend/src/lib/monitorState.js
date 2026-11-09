@@ -42,6 +42,18 @@ export function viewerLine(runInfo) {
   return note && !/[.!?]$/.test(note) ? `${note}.` : note;
 }
 
+export function runElapsedMs(runInfo, now) {
+  const total = Number(runInfo?.run_duration);
+  if (total > 0) return total;
+  const start = Number(runInfo?.start_time);
+  const end = Number(runInfo?.end_time);
+  if (start > 0 && end >= start) return end - start;
+  const execution = Number(runInfo?.execution_duration);
+  if (execution > 0) return execution;
+  if (start > 0 && !(end > 0) && Number.isFinite(now) && now >= start) return now - start;
+  return null;
+}
+
 export function runTitle(runInfo, businessName) {
   const business = String(businessName || '').trim() || 'Inspire run';
   const started = Number(runInfo?.start_time) > 0 ? formatWhen(Number(runInfo.start_time)) : '';

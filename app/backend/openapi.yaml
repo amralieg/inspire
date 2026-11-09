@@ -391,6 +391,9 @@ components:
         cleanup_duration:
           type: integer
           description: Milliseconds
+        run_duration:
+          type: integer
+          description: Milliseconds the whole run took; Databricks leaves the per-phase durations at 0 for job runs with tasks
         run_page_url:
           type: string
           description: Direct link to the run in the Databricks workspace UI
@@ -1120,6 +1123,7 @@ paths:
                 setup_duration: 12000
                 execution_duration: 45000
                 cleanup_duration: 0
+                run_duration: 57000
                 run_page_url: https://example.workspace.azuredatabricks.net/#job/123/run/456
                 run_name: Inspire AI - Acme Corp - 2026-04-03T10:00:00
         '401':

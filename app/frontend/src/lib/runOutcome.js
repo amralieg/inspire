@@ -68,5 +68,5 @@ export function nextStepOf(outcome) {
   if (empty > 0) {
     return `add rows to the ${empty === 1 ? 'table that has' : `${empty} tables that have`} no rows yet (the Generate data page can add sample rows), then run again.`;
   }
-  return 'point the run at tables that hold your business data, or pick a lower Use Cases Quality in Setup, then run again.';
+  return 'point the run at tables that hold your business data, or pick a lower Use Cases Quality under Advanced Settings when you start it, then run again.';
 }

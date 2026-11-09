@@ -64,8 +64,9 @@ test('Launch prefills a business from its last run that wrote rows, never from a
   const { page, pageErrors } = ui;
   try {
     await page.getByPlaceholder('e.g. Contoso, Acme Corp, Retail Division').fill('Acme');
-    await page.getByText("Prefilled from this business's last session (6001).").waitFor({ timeout: 20000 });
+    await page.getByText(/^Prefilled from this business's last run/).waitFor({ timeout: 20000 });
     assert.deepEqual([...new Set(asked)], ['6001']);
+    assert.doesNotMatch(await page.getByText(/^Prefilled from this business's last run/).innerText(), /6001/, 'the note names the run by when it started, never by its internal number');
     assert.deepEqual(pageErrors.filter((line) => !forbidden(line)), []);
   } finally {
     await ui.close();
