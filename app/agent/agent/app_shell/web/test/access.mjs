@@ -55,17 +55,23 @@ async function ringOf(page, view, box) {
 }
 
 export async function weakFocus(page, { max = 60, skip = () => false } = {}) {
-  await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
+  await page.evaluate(() => {
+    for (const el of document.querySelectorAll('[data-focus-walked]')) delete el.dataset.focusWalked;
+    document.activeElement?.blur();
+    window.scrollTo(0, 0);
+  });
   const weak = [];
   let checked = 0;
   for (let i = 0; i < max; i += 1) {
     await page.keyboard.press('Tab');
     const seen = await page.evaluate(() => {
       const el = document.activeElement;
-      if (!el || el === document.body || el.dataset.focusWalked) return true;
+      if (!el || el === document.body) return 'body';
+      if (el.dataset.focusWalked) return 'again';
       el.dataset.focusWalked = '1';
-      return false;
+      return '';
     });
+    if (seen === 'body' && i === 0) continue;
     if (seen) break;
     const ring = await activeRing(page);
     if (!ring || skip(ring.what)) continue;

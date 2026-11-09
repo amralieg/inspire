@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, idle, openUi } from './uiSupport.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
-import { sideScroll, unnamedControls, weakFocus } from '../../../agent/agent/app_shell/web/test/access.mjs';
+import { HARNESS_SESSION_ID, HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
+import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
+import { activeRing, sideScroll, unnamedControls, weakFocus } from '../../../agent/agent/app_shell/web/test/access.mjs';
 
 test.after(closeBrowser);
 
@@ -24,26 +26,44 @@ const PAGES = {
 };
 const heading = (page, name) => page.locator('h1').filter({ hasText: new RegExp(`^${name}$`) }).waitFor({ timeout: 20000 });
 
-async function openAt(hash, size) {
-  const ui = await openUi('app', KNOWN, hash, { mount, init: (page) => page.setViewportSize(size) });
+const SCREEN = { width: 1280, height: 800 };
+const sized = (size, theme) => async (page) => {
+  await page.setViewportSize(size);
+  if (theme === 'dark') {
+    await page.addInitScript(() => {
+      localStorage.setItem('inspire_theme', 'dark');
+      document.addEventListener('DOMContentLoaded', () => document.documentElement.classList.add('dark'));
+    });
+  }
+};
+
+async function openAt(hash, size, theme = 'light') {
+  const ui = await openUi('app', KNOWN, hash, { mount, init: sized(size, theme) });
   await PAGES[hash](ui.page);
   await idle(ui.page);
   return ui;
 }
 
+async function assertReachable(ui, where, theme, min = 5) {
+  assert.equal(await ui.page.evaluate(() => document.documentElement.classList.contains('dark')), theme === 'dark', `${where} draws the ${theme} theme`);
+  assert.deepEqual(await unnamedControls(ui.page), [], `${where}: controls a screen reader reads with no name`);
+  const walk = await weakFocus(ui.page, { max: 45 });
+  assert.ok(walk.checked >= min, `${where}: the keyboard reached ${walk.checked} controls`);
+  assert.deepEqual(walk.weak, [], `${where}: controls with no visible focus`);
+  assert.deepEqual(ui.pageErrors, []);
+}
+
 for (const hash of Object.keys(PAGES)) {
-  test(`${hash} at 1280x800 names every control for a screen reader and shows a ring of at least 3:1 contrast on every control the keyboard reaches`, async () => {
-    const ui = await openAt(hash, { width: 1280, height: 800 });
-    try {
-      assert.deepEqual(await unnamedControls(ui.page), [], `${hash}: controls a screen reader reads with no name`);
-      const walk = await weakFocus(ui.page, { max: 45 });
-      assert.ok(walk.checked >= 5, `${hash}: the keyboard reached ${walk.checked} controls`);
-      assert.deepEqual(walk.weak, [], `${hash}: controls with no visible focus`);
-      assert.deepEqual(ui.pageErrors, []);
-    } finally {
-      await ui.close();
-    }
-  });
+  for (const theme of ['light', 'dark']) {
+    test(`${hash} at 1280x800 in the ${theme} theme names every control for a screen reader and shows a ring of at least 3:1 contrast on every control the keyboard reaches`, async () => {
+      const ui = await openAt(hash, SCREEN, theme);
+      try {
+        await assertReachable(ui, hash, theme);
+      } finally {
+        await ui.close();
+      }
+    });
+  }
 
   test(`${hash} at 200% zoom of a 1280x800 screen never scrolls sideways`, async () => {
     const ui = await openAt(hash, { width: 640, height: 400 });
@@ -54,6 +74,79 @@ for (const hash of Object.keys(PAGES)) {
     }
   });
 }
+
+const DIAGNOSED = {
+  me: { userName: OWNER, displayName: 'Owner' },
+  history: [{
+    session_id: '42', use_case_id: 'N01-U01', spec_version: 1, status: 'failed', change_classes: 'initial', created_by: OWNER,
+    spec_json: JSON.stringify(defaultSpecFromUseCase(HARNESS_USE_CASE, { warehouseId: HARNESS_SETTINGS.warehouseId, inspireDatabase: HARNESS_SETTINGS.inspireDatabase, sessionId: HARNESS_SESSION_ID, owner: OWNER })),
+    status_message: 'Preview run failed: a column cannot be resolved', job_id: '77', implement_run_id: '5555', last_preview_run_id: '9001',
+    created_at: '2026-11-08T10:00:00.000Z', updated_at: '2026-11-08T10:12:00.000Z',
+  }],
+  steps: [{ step_id: 'p', stage_name: 'Implement Use Cases', step_name: 'Inspire is working on preview run', sub_step_name: 'Completed: n01-u01', status: 'ended_error',
+    message: 'a column cannot be resolved', last_updated: '2026-11-08T10:12:00.000Z', result_json: JSON.stringify({ use_case_id: 'N01-U01', phase: 'Preview run', spec_version: 1 }) }],
+};
+const setupMount = (app) => {
+  app.get('/api/defaults', (_req, res) => res.json({ envSkipsSetupWizard: false }));
+  app.get('/api/health', (_req, res) => res.json({ isDatabricksApp: false }));
+  app.get('/api/showcase', (_req, res) => res.json({}));
+};
+const HARNESS = {
+  Setup: { open: 'setup', state: {}, opts: { mount: setupMount }, ready: (page) => page.locator('input, button').first().waitFor({ timeout: 20000 }) },
+  'Generate data': { open: 'generate', state: {}, ready: (page) => page.locator('button[type="submit"]').waitFor({ timeout: 20000 }) },
+  'Start a run': { open: 'launch', state: { catalogs: ['main'], schemas: { main: ['s'] }, tables: { 'main.s': ['orders'] } }, ready: (page) => page.locator('[data-discovery-panel]').waitFor({ timeout: 20000 }) },
+  'Build progress with diagnostics': { open: 'implement', state: DIAGNOSED, ready: (page) => page.locator('[data-progress-card] [data-diagnostics-download]').waitFor({ timeout: 20000 }) },
+};
+
+async function openHarness(name, theme, size = SCREEN) {
+  const { open, state, opts = {}, ready } = HARNESS[name];
+  const ui = await openUi(open, state, '', { ...opts, init: sized(size, theme) });
+  await ready(ui.page);
+  await idle(ui.page);
+  return ui;
+}
+
+for (const name of Object.keys(HARNESS)) {
+  for (const theme of ['light', 'dark']) {
+    test(`${name} at 1280x800 in the ${theme} theme names every control and rings every control the keyboard reaches at 3:1 or more`, async () => {
+      const ui = await openHarness(name, theme);
+      try {
+        await assertReachable(ui, name, theme, 3);
+      } finally {
+        await ui.close();
+      }
+    });
+  }
+
+  test(`${name} at 200% zoom of a 1280x800 screen never scrolls sideways, left to right and right to left`, async () => {
+    const ui = await openHarness(name, 'light', { width: 640, height: 400 });
+    try {
+      assert.ok(await sideScroll(ui.page) <= 0, `${name} scrolls sideways by ${await sideScroll(ui.page)} px`);
+      await ui.page.evaluate(() => { document.documentElement.dir = 'rtl'; });
+      await idle(ui.page);
+      assert.ok(await sideScroll(ui.page) <= 0, `${name} right to left scrolls sideways by ${await sideScroll(ui.page)} px`);
+    } finally {
+      await ui.close();
+    }
+  });
+}
+
+test('the diagnostics Download, Copy and Report issue controls each show the App ring at 3:1 or more in both themes', async () => {
+  for (const theme of ['light', 'dark']) {
+    const ui = await openHarness('Build progress with diagnostics', theme);
+    try {
+      for (const sel of ['[data-diagnostics-download]', '[data-diagnostics-copy]', '[data-diagnostics-report]']) {
+        await ui.page.locator(`[data-progress-card] ${sel}`).focus();
+        await ui.page.keyboard.press('Shift+Tab');
+        await ui.page.keyboard.press('Tab');
+        const ring = await activeRing(ui.page);
+        assert.ok(ring.ok, `${theme} ${sel}: ${JSON.stringify(ring)}`);
+      }
+    } finally {
+      await ui.close();
+    }
+  }
+});
 
 test('under right to left the arrows and chevrons point the reading way, an open chevron still points down, and a pane resizer moves with the arrow key pressed (must-exclude: left to right stays as is)', async () => {
   const review = await openAt('#/review/42', { width: 1280, height: 800 });
