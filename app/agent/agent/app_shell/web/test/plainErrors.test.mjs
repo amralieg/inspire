@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { appInfo, NO_JOB, openApp, serveDist } from './harness.mjs';
-import { splitTechnical } from '../src/plainText.js';
+import { CODE_ONLY_TEXT, splitTechnical } from '../src/plainText.js';
 
 const DENIED = '[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table `main`.`sales`.`loss`. Ask the owner to run: GRANT SELECT ON TABLE main.sales.loss TO `sam@example.com` SQLSTATE: 42501';
 
@@ -26,6 +26,10 @@ test('the shell and the Inspire App split errors with one helper', () => {
   assert.equal(plain, 'Insufficient privileges: User does not have SELECT on Table `main`.`sales`.`loss`. Ask the owner to give you the access listed under Details');
   assert.deepEqual(details, ['GRANT SELECT ON TABLE main.sales.loss TO `sam@example.com`', 'INSUFFICIENT_PERMISSIONS', 'SQLSTATE: 42501']);
   assert.deepEqual(splitTechnical('Keep WEEKS_LEFT under 52'), { plain: 'Keep WEEKS_LEFT under 52', details: [] });
+  assert.deepEqual(splitTechnical('Set WEEKS_LEFT'), { plain: 'Set WEEKS_LEFT', details: [] });
+  assert.deepEqual(splitTechnical('TABLE_OR_VIEW_NOT_FOUND'), { plain: CODE_ONLY_TEXT, details: ['TABLE_OR_VIEW_NOT_FOUND'] });
+  assert.deepEqual(splitTechnical('This chart could not load: TABLE_OR_VIEW_NOT_FOUND'),
+    { plain: 'This chart could not load: only an error code came back, listed under Details', details: ['TABLE_OR_VIEW_NOT_FOUND'] });
   assert.deepEqual(splitTechnical('The runs could not load: GET /api/2.2/jobs/runs/list answered HTTP 403: no access'),
     { plain: 'The runs could not load: no access', details: ['GET /api/2.2/jobs/runs/list', 'answered HTTP 403'] });
 });

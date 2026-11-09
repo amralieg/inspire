@@ -199,7 +199,8 @@ test('an empty list and a search with no match say so, with no pager', async () 
 test('a list that fails to load says why', async () => {
   const routes = { records: ({ json }) => json(502, { error: 'TABLE_OR_VIEW_NOT_FOUND' }) };
   const { page, seen, context } = await open(appInfo(), routes);
-  await page.waitForFunction(() => /The list could not load: TABLE_OR_VIEW_NOT_FOUND/.test(document.querySelector('.card--table .tile-err')?.textContent || ''));
+  await page.waitForFunction(() => document.querySelector('.card--table .tile-err')?.textContent === 'The list could not load: only an error code came back, listed under Details');
+  assert.equal(await page.locator('.card--table [data-technical-details] pre').textContent(), 'TABLE_OR_VIEW_NOT_FOUND');
   assert.deepEqual(seen.errors.filter((e) => !/502/.test(e)), []);
   await context.close();
 });

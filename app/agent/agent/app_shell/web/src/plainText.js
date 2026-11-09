@@ -2,6 +2,7 @@ const STATEMENT = /\b(?:GRANT|REVOKE)\s+[A-Z_, ]+\s+ON\s+[A-Z_ ]*?[`\w.-]+(?:\.[
 const API_PATH = /\s*\(?(?:not mocked\s+)?(?:(?:GET|POST|PUT|PATCH|DELETE)\s+)?\/api\/[\w./?=&%-]*[\w/=]\)?/g;
 const ERROR_CODE = /\[[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?:\.[A-Z0-9_]+)?\]|\b[A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?:\.[A-Z0-9_]+)?:(?=\s)/g;
 const HTTP_STATUS = /\s*\banswered HTTP \d{3}:?(?=\s)/g;
+const BARE_CODE = /(^|:\s+)([A-Z][A-Z0-9]*(?:_[A-Z0-9]+)+(?:\.[A-Z0-9_]+)?)\s*$/;
 const SQLSTATE = /\s*\(?\bSQLSTATE:\s*\w+\)?/g;
 const JSON_ERROR = /\{\s*"(?:error|message)"\s*:\s*("(?:[^"\\]|\\.)*")[^{}]*\}/g;
 const MACHINE_PATH = /\s*\([^()]*(?:https?:\/\/|(?<![\w.])\/(?:home|tmp|local_disk0|databricks|root)\/)[^()]*\)|(?:\s+(?:at|from)(?=\s))?\s*\b(?:https?:\/\/[^\s)]+|(?<![\w.])\/(?:home|tmp|local_disk0|databricks|root)\/[^\s)]*)/g;
@@ -9,6 +10,7 @@ const GRANTEE = /\b(?:TO|FROM)\s+`?([^`\s]+)`?$/;
 const ASK_TO_RUN = /\b(?:please\s+)?ask\s+(?:the\s+)?owner(?:\s+of\s+[`\w.-]+)?\s+to\s+run:?\s*/i;
 
 export const DETAILS_LABEL = 'Details';
+export const CODE_ONLY_TEXT = 'Only an error code came back, listed under Details';
 export const ASK_OWNER_TEXT = 'Ask the owner to give you the access listed under Details';
 export const ASK_OWNER_APP_TEXT = 'Ask the owner to give the App the access listed under Details';
 
@@ -28,6 +30,8 @@ export function splitTechnical(text) {
   const raw = unwrapJson(String(text ?? ''));
   const details = [];
   const keep = (m) => { details.push(m.trim().replace(/^\(|\)$/g, '').replace(/^(?:not mocked|at|from)\s+(?=\/|https?:)/, '').replace(/^\[|\]?:?$/g, '')); return ''; };
+  const bare = raw.match(BARE_CODE);
+  if (bare) return { plain: `${raw.slice(0, bare.index)}${bare[1]}${bare[1] ? CODE_ONLY_TEXT.charAt(0).toLowerCase() + CODE_ONLY_TEXT.slice(1) : CODE_ONLY_TEXT}`, details: [bare[2]] };
   let plain = raw.replace(STATEMENT, keep);
   const asked = forPerson(details) ? ASK_OWNER_TEXT : ASK_OWNER_APP_TEXT;
   plain = plain.replace(API_PATH, keep).replace(MACHINE_PATH, keep).replace(ERROR_CODE, keep).replace(SQLSTATE, keep).replace(HTTP_STATUS, keep);
