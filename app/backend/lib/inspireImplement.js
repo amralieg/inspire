@@ -3196,6 +3196,7 @@ function defaultResultTable(inspireDatabase, useCaseId, sessionId) {
 const USE_CASE_SCHEMA_SESSION_TAG = 'inspire_session_id';
 const USE_CASE_SCHEMA_USE_CASE_TAG = 'inspire_use_case_id';
 const USE_CASE_SCHEMA_DATABASE_TAG = 'inspire_database';
+const UC_TAG_VALUE_MAX = 255;
 const USE_CASE_SCHEMA_TAGS = [USE_CASE_SCHEMA_SESSION_TAG, USE_CASE_SCHEMA_USE_CASE_TAG, 'inspire_business', USE_CASE_SCHEMA_DATABASE_TAG];
 const USE_CASE_SCHEMA_FACT_OF_TAG = { [USE_CASE_SCHEMA_SESSION_TAG]: 'session', [USE_CASE_SCHEMA_USE_CASE_TAG]: 'useCase', [USE_CASE_SCHEMA_DATABASE_TAG]: 'database' };
 const USE_CASE_SCHEMA_CREATE_RIGHTS = ['OWNER', 'ALL PRIVILEGES', 'CREATE SCHEMA'];
@@ -3284,10 +3285,10 @@ function useCaseSchemaPlace({ inspireDatabase, useCaseId, sessionId, businessNam
 }
 
 function useCaseSchemaTagsSql(catalog, schema, tags) {
-  const pairs = USE_CASE_SCHEMA_TAGS.map((name) => [name, str(tags && tags[name]).trim()]).filter(([, value]) => value);
+  const pairs = USE_CASE_SCHEMA_TAGS.map((name) => [name, str(tags && tags[name]).trim().slice(0, UC_TAG_VALUE_MAX).trim()]).filter(([, value]) => value);
   if (!pairs.length) return '';
   const lit = (value) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
-  return `ALTER SCHEMA ${quotedIdent(catalog)}.${quotedIdent(schema)} SET TAGS (${pairs.map(([n, v]) => `${lit(n)} = ${lit(v.slice(0, 255))}`).join(', ')})`;
+  return `ALTER SCHEMA ${quotedIdent(catalog)}.${quotedIdent(schema)} SET TAGS (${pairs.map(([n, v]) => `${lit(n)} = ${lit(v)}`).join(', ')})`;
 }
 
 function useCaseSchemaBuilderGrant(catalog, schema, who) {

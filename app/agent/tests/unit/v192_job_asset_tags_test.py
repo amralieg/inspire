@@ -1,4 +1,5 @@
 import os
+import re
 import sys
 import types
 
@@ -14,6 +15,7 @@ from v120_modes_main_test import FakeDbutils, widget_values  # noqa: E402
 from v140_implement_test import VALID, _probe_inspire  # noqa: E402
 
 VERSION_KEY = "dbx_inspire_ai_version"
+JOB_TAG_VALUE = re.compile(r"^[\d \w\+\-=\.:/@]*$", re.ASCII)
 ALL_KINDS = {"dashboard": "01ef0a1b2c3d4e5f", "genie_space": "01ef9f8e7d6c5b4a", "app": "churn-desk", "alert": "a1b2c3d4-0000-1111-2222-333344445555"}
 
 
@@ -95,13 +97,13 @@ def test_asset_tags_name_one_tag_per_built_kind(ns):
         "dbx_inspire_ai_app_id": "a7f3c2e1-1111",
         "dbx_inspire_ai_genie_space_id": "01ef9f8e7d6c5b4a",
         "dbx_inspire_ai_dashboard_id": "01ef0a1b2c3d4e5f",
-        "dbx_inspire_ai_alert_ids": "a1b2c3d4-0000-1111-2222-333344445555,d9e8f7a6-0000-1111-2222-333344445555",
+        "dbx_inspire_ai_alert_ids": "a1b2c3d4-0000-1111-2222-333344445555 d9e8f7a6-0000-1111-2222-333344445555",
         "dbx_inspire_ai_alert_count": "2",
         "dbx_inspire_ai_agent_endpoint": "databricks-claude-sonnet",
         "dbx_inspire_ai_agent_endpoint_id": "ep-9f8e",
         "dbx_inspire_ai_lakebase_project": ns["IMPLEMENT_LAKEBASE_PROJECT"],
         "dbx_inspire_ai_lakebase_project_id": "pj-1a2b",
-        "dbx_inspire_ai_assets": "app,genie,dashboard,alert,agent_endpoint,lakebase",
+        "dbx_inspire_ai_assets": "app genie dashboard alert agent_endpoint lakebase",
     }
     assert set(tags) <= set(ns["JobLauncher"].ASSET_TAG_KEYS)
 
@@ -128,12 +130,11 @@ def test_asset_tags_skip_kinds_that_were_not_built_or_are_gone(ns, assets, statu
 def test_asset_tag_values_keep_only_the_characters_billing_allows(ns):
     tags = ns["implement_asset_tags"]({"app": "my app/v2", "alert": "id,with,commas", "genie_space": "g 1@x:y+z=w"},
                                       {"alert": {"state": "ready", "digest_id": "a b"}}, "end point/x")
-    assert tags["dbx_inspire_ai_app_name"] == "my_app_v2"
+    assert tags["dbx_inspire_ai_app_name"] == "my_app/v2"
     assert tags["dbx_inspire_ai_genie_space_id"] == "g_1@x:y+z=w"
-    assert tags["dbx_inspire_ai_alert_ids"] == "id_with_commas,a_b" and tags["dbx_inspire_ai_alert_count"] == "2"
+    assert tags["dbx_inspire_ai_alert_ids"] == "id_with_commas a_b" and tags["dbx_inspire_ai_alert_count"] == "2"
     assert "dbx_inspire_ai_agent_endpoint" not in tags
-    allowed = set("ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+-=.,_:@")
-    assert all(set(value) <= allowed for value in tags.values())
+    assert all(JOB_TAG_VALUE.fullmatch(value) and len(value) <= 255 for value in tags.values())
     assert ns["JobLauncher"]._sanitize_tag("Acme, Inc.") == "Acme_Inc", "job names and the older tags keep the narrow set"
 
 
@@ -360,7 +361,8 @@ def test_a_finished_build_tags_the_use_case_job_with_its_assets(ns):
     assert tags["team"] == "growth" and tags["dbx_inspire_ai_run_type"] == "implement"
     assert tags["dbx_inspire_ai_dashboard_id"] == "d1" and tags["dbx_inspire_ai_genie_space_id"] == "g1"
     assert tags["dbx_inspire_ai_app_name"] == "churn-desk" and tags["dbx_inspire_ai_app_id"] == "a7f3c2e1-1111"
-    assert set(tags["dbx_inspire_ai_assets"].split(",")) >= {"app", "genie", "dashboard"}
+    assert set(tags["dbx_inspire_ai_assets"].split(" ")) >= {"app", "genie", "dashboard"}
+    assert all(JOB_TAG_VALUE.fullmatch(value) for value in tags.values())
 
 
 class _TagJobs(_CapJobs):
@@ -431,3 +433,67 @@ def test_closing_grep_every_job_write_in_the_launcher_goes_through_the_tag_merge
     assert launcher.count("JobLauncher.merged_tags(") == 3
     assert src.count("**INSPIRE_VERSION_TAGS") == 1 and src.count("**inspire_run_tags()") == 2
     assert src.count("self._implement_tag_job_assets(") == 1
+
+
+@pytest.mark.parametrize("old", ["genie,agent_endpoint", "app,genie,dashboard,alert,agent_endpoint,lakebase",
+                                 "a1b2c3d4-0000-1111-2222-333344445555,d9e8f7a6-0000-1111-2222-333344445555"])
+def test_the_comma_lists_the_job_refused_fail_the_databricks_tag_value_rule(old):
+    assert JOB_TAG_VALUE.fullmatch(old) is None
+
+
+def test_the_live_genie_and_agent_endpoint_build_tags_the_job_with_values_the_rule_accepts(ns):
+    tags = ns["implement_asset_tags"]({"genie_space": "01ef9f8e7d6c5b4a"},
+                                      {"genie_space": {"state": "ready"}, "ai_reasoning": {"state": "ready"}}, "databricks-claude-sonnet")
+    assert tags["dbx_inspire_ai_assets"] == "genie agent_endpoint"
+    assert all(JOB_TAG_VALUE.fullmatch(value) and len(value) <= 255 for value in tags.values())
+
+
+@pytest.mark.parametrize("raw", ["genie,agent_endpoint", "Acme, Inc. (R&D) #1", " lead space", "trail space ", "x" * 300,
+                                 "caf\u00e9 \u0645\u0631\u062d\u0628\u0627", "a\nb\tc", "", "ok value/1:2@3+4=5"])
+def test_every_job_tag_value_the_merge_writes_meets_the_databricks_rule(ns, raw):
+    launcher = ns["JobLauncher"]
+    merged = launcher.merged_tags({}, {"dbx_inspire_ai_business": raw})
+    value = merged["dbx_inspire_ai_business"]
+    assert JOB_TAG_VALUE.fullmatch(value) and len(value) <= 255 and value == value.strip()
+    if JOB_TAG_VALUE.fullmatch(raw) and len(raw) <= 255 and raw == raw.strip():
+        assert value == raw
+
+
+def test_user_tags_already_on_the_job_pass_through_the_merge_untouched(ns):
+    merged = ns["JobLauncher"].merged_tags({"team": "growth,ops"}, {"dbx_inspire_ai_assets": "app,genie"})
+    assert merged == {"team": "growth,ops", "dbx_inspire_ai_assets": "app_genie"}
+
+
+def test_a_tag_list_keeps_whole_items_inside_the_length_limit(ns):
+    launcher = ns["JobLauncher"]
+    assert launcher.tag_list(["a,b", "c d", "", "a,b", "e"]) == "a_b c_d e"
+    joined = launcher.tag_list(["x" * 200, "y" * 60, "z" * 10])
+    assert joined == "x" * 200 and len(launcher.tag_list(["x" * 200, "y" * 54])) == launcher.TAG_VALUE_MAX
+    assert launcher.TAG_LIST_SEP not in launcher.TAG_ITEM_CHARS and JOB_TAG_VALUE.fullmatch(launcher.TAG_LIST_SEP)
+
+
+def test_every_job_tag_site_the_launcher_writes_meets_the_rule(ns, cap_sdk):
+    cap_sdk["jobs"] = jobs = _TagJobs({"team": "growth"})
+    hostile = {"dbx_inspire_ai_business": "Acme, Inc./R&D", "dbx_inspire_ai_notebook": "N01-U01 - churn, v2.ipynb",
+               "dbx_inspire_ai_assets": "genie,agent_endpoint"}
+    assert _launch(ns, hostile)["success"] is True
+    for value in jobs.settings[0].tags.values():
+        assert JOB_TAG_VALUE.fullmatch(value) and len(value) <= 255
+
+
+def test_the_generated_notebook_launcher_carries_the_same_tag_value_rule(ns):
+    scope = {"inspire_redact_text": lambda text, known, extra: text}
+    exec(compile(ns["DatabricksInspire"]._JOB_LAUNCHER_CLASS_SOURCE, "<JobLauncher>", "exec"), scope)
+    embedded = scope["JobLauncher"]
+    merged = embedded.merged_tags({}, {"dbx_inspire_ai_assets": "genie,agent_endpoint"})
+    assert JOB_TAG_VALUE.fullmatch(merged["dbx_inspire_ai_assets"])
+    assert embedded.tag_list(["genie", "agent_endpoint"]) == "genie agent_endpoint"
+
+
+def test_closing_grep_no_tag_value_is_joined_with_a_comma():
+    src = agent_source()
+    assert '",".join(kinds)' not in src and 'f"{joined},{alert_id}"' not in src
+    assert src.count("JobLauncher.tag_list(") == 2
+    start = src.index("class JobLauncher:")
+    launcher = src[start:src.index("\n'''", start)]
+    assert 'TAG_VALUE_CHARS = "A-Za-z0-9 +=.:/@_-"' in launcher and "," not in launcher.split("TAG_VALUE_CHARS = ")[1].split("\n")[0]

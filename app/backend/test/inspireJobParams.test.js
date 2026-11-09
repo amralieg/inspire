@@ -321,3 +321,27 @@ test('every job the App creates takes its tags from inspireJobTags', () => {
   const start = server.indexOf('async function triggerInspireNotebookJob');
   assert.doesNotMatch(server.slice(start, server.indexOf("'/api/2.1/jobs/create'", start)), /randomUUID/);
 });
+
+test('every job tag value the App writes meets the Databricks job tag value rule, and the comma list the job refused fails it', () => {
+  const { inspireJobTags, inspireJobTestTagChange } = require('../lib/inspireJobParams');
+  const rule = /^[\d \w+\-=.:/@]*$/;
+  for (const old of ['genie,agent_endpoint', 'app,genie,dashboard,alert,agent_endpoint,lakebase']) assert.equal(rule.test(old), false, old);
+  const saved = process.env.INSPIRE_TEST_TAG;
+  process.env.INSPIRE_TEST_TAG = 'rc, #1 (try)';
+  try {
+    const tags = inspireJobTags({
+      runType: 'implement',
+      params: { '14_session_id': '42, 43', inspire_implement_spec_version: '3/4' },
+      businessName: 'Acme, Inc. (R&D) caf\u00e9 \u0645\u0631\u062d\u0628\u0627',
+      notebookFilename: 'N01-U01 - churn, v2.ipynb',
+      useCaseIds: ['N01-U01', 'N01,U02', 'x'.repeat(300)],
+    });
+    const change = inspireJobTestTagChange({ tags: { team: 'growth' } });
+    for (const [key, value] of Object.entries({ ...tags, ...change.tags })) {
+      assert.ok(rule.test(value) && value.length <= 255 && value === value.trim(), `${key}=${value}`);
+    }
+  } finally {
+    if (saved === undefined) delete process.env.INSPIRE_TEST_TAG;
+    else process.env.INSPIRE_TEST_TAG = saved;
+  }
+});

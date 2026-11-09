@@ -360,3 +360,12 @@ test('preflight on a first run passes the App when the person can create the use
     assert.equal(other.data.new_app.ok, false, 'a missing schema that is not this use case\'s own schema is not one Inspire creates');
   });
 });
+
+test('a schema tag value cut to the Unity Catalog length limit never ends with a space', () => {
+  const value = `${'a'.repeat(254)} b`;
+  const sql = I.useCaseSchemaTagsSql('main', 's', { inspire_business: value, inspire_session_id: '  42  ' });
+  const got = [...sql.matchAll(/'(inspire_[a-z_]+)' = '((?:[^'\\]|\\.)*)'/g)].map((m) => [m[1], m[2]]);
+  assert.deepEqual(got, [['inspire_session_id', '42'], ['inspire_business', 'a'.repeat(254)]]);
+  for (const [, v] of got) assert.ok(v.length <= 256 && v === v.trim());
+  assert.equal(I.useCaseSchemaTagsSql('main', 's', { inspire_business: '   ' }), '');
+});
