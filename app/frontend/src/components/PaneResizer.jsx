@@ -1,14 +1,16 @@
 import { useRef } from 'react';
 import { resizeKeyWidth } from '../lib/paneWidth';
 
+const sideOf = (el) => (getComputedStyle(el).direction === 'rtl' ? -1 : 1);
+
 export default function PaneResizer({ width, onWidth, limits, label, grows = 1, className = '', ...rest }) {
   const drag = useRef(null);
   const onPointerDown = (e) => {
-    drag.current = { x: e.clientX, width };
+    drag.current = { x: e.clientX, width, side: sideOf(e.currentTarget) };
     e.currentTarget.setPointerCapture?.(e.pointerId);
   };
   const onPointerMove = (e) => {
-    if (drag.current) onWidth(drag.current.width + (e.clientX - drag.current.x) * grows);
+    if (drag.current) onWidth(drag.current.width + (e.clientX - drag.current.x) * grows * drag.current.side);
   };
   const onPointerUp = (e) => {
     if (!drag.current) return;
@@ -16,7 +18,7 @@ export default function PaneResizer({ width, onWidth, limits, label, grows = 1, 
     e.currentTarget.releasePointerCapture?.(e.pointerId);
   };
   const onKeyDown = (e) => {
-    const to = resizeKeyWidth(limits, width, e.key, grows);
+    const to = resizeKeyWidth(limits, width, e.key, grows * sideOf(e.currentTarget));
     if (to === undefined) return;
     e.preventDefault();
     onWidth(to);

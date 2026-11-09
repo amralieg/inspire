@@ -55,31 +55,41 @@ async function ringOf(page, view, box) {
 }
 
 export async function weakFocus(page, { max = 60, skip = () => false } = {}) {
-  await page.addStyleTag({ content: STILL });
   await page.evaluate(() => { document.activeElement?.blur(); window.scrollTo(0, 0); });
-  const view = page.viewportSize();
   const weak = [];
   let checked = 0;
   for (let i = 0; i < max; i += 1) {
     await page.keyboard.press('Tab');
-    const at = await page.evaluate(() => {
+    const seen = await page.evaluate(() => {
       const el = document.activeElement;
-      if (!el || el === document.body || el.tagName === 'IFRAME') return { done: !el || el === document.body };
-      if (el.dataset.focusWalked) return { done: true };
+      if (!el || el === document.body || el.dataset.focusWalked) return true;
       el.dataset.focusWalked = '1';
-      el.scrollIntoView({ block: 'center', inline: 'nearest' });
-      const field = el.matches('input:not([type=checkbox]):not([type=radio])') && el.closest('label');
-      const boxes = [el, field].filter(Boolean).map((n) => { const r = n.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
-      const name = (el.getAttribute('aria-label') || el.innerText || el.getAttribute('title') || el.getAttribute('placeholder') || el.name || '').replace(/\s+/g, ' ').trim().slice(0, 60);
-      return { boxes, what: `${el.tagName.toLowerCase()} "${name}"` };
+      return false;
     });
-    if (at.done) break;
-    if (skip(at.what)) continue;
-    const rings = [];
-    for (const box of at.boxes.filter((b) => b.width >= 2 && b.height >= 2)) rings.push(await ringOf(page, view, box));
-    if (!rings.length) continue;
+    if (seen) break;
+    const ring = await activeRing(page);
+    if (!ring || skip(ring.what)) continue;
     checked += 1;
-    if (!rings.some((r) => r.strong >= r.need)) weak.push(`${at.what} shows ${rings[0].strong} of ${rings[0].need} ring pixels`);
+    if (!ring.ok) weak.push(`${ring.what} shows ${ring.strong} of ${ring.need} ring pixels`);
   }
   return { checked, weak };
+}
+
+export async function activeRing(page) {
+  const view = page.viewportSize();
+  const at = await page.evaluate((still) => {
+    if (!document.getElementById('focus-still')) document.head.insertAdjacentHTML('beforeend', `<style id="focus-still">${still}</style>`);
+    const el = document.activeElement;
+    if (!el || el === document.body || el.tagName === 'IFRAME') return null;
+    el.scrollIntoView({ block: 'center', inline: 'nearest' });
+    const field = el.matches('input:not([type=checkbox]):not([type=radio])') && el.closest('label');
+    const boxes = [el, field].filter(Boolean).map((n) => { const r = n.getBoundingClientRect(); return { x: r.x, y: r.y, width: r.width, height: r.height }; });
+    const name = (el.getAttribute('aria-label') || el.innerText || el.getAttribute('title') || el.getAttribute('placeholder') || el.name || '').replace(/\s+/g, ' ').trim().slice(0, 60);
+    return { boxes, what: `${el.tagName.toLowerCase()} "${name}"` };
+  }, STILL);
+  if (!at) return null;
+  const rings = [];
+  for (const box of at.boxes.filter((b) => b.width >= 2 && b.height >= 2)) rings.push(await ringOf(page, view, box));
+  if (!rings.length) return null;
+  return { what: at.what, ok: rings.some((r) => r.strong >= r.need), ...rings[0] };
 }

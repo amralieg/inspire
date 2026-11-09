@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { appInfo, openApp, serveDist } from './harness.mjs';
 import { EXAMPLES } from './exampleRoutes.mjs';
-import { unnamedControls, weakFocus } from './access.mjs';
+import { activeRing, unnamedControls, weakFocus } from './access.mjs';
 
 const SCROLLERS = '.tbl-wrap, .msg-t, .tabs';
 let served;
@@ -55,6 +55,47 @@ for (const file of Object.keys(EXAMPLES)) {
     }
   });
 }
+
+test('a menu opened from the keyboard and the Views popover show a 3:1 ring on the item the keyboard is on, not only a tinted background', async () => {
+  const { page, context } = await openExample('forecast_cockpit.json', { width: 1280, height: 800 });
+  try {
+    const exportButton = page.getByRole('button', { name: /^Export / }).first();
+    await exportButton.focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('menu').waitFor();
+    await page.keyboard.press('ArrowDown');
+    const item = await activeRing(page);
+    assert.match(item.what, /^button /);
+    assert.ok(item.ok, `the menu item ${item.what} shows ${item.strong} of ${item.need} ring pixels`);
+    await page.keyboard.press('Escape');
+    await page.getByRole('button', { name: 'Views', exact: true }).focus();
+    await page.keyboard.press('Enter');
+    await page.getByRole('button', { name: 'Save this view' }).waitFor();
+    await page.keyboard.press('Tab');
+    await page.keyboard.press('Shift+Tab');
+    const save = await activeRing(page);
+    assert.match(save.what, /Save this view/);
+    assert.ok(save.ok, `Save this view shows ${save.strong} of ${save.need} ring pixels`);
+  } finally {
+    await context.close();
+  }
+});
+
+test('under right to left the back, next, send and undo icons point the reading way (must-exclude: left to right and other icons stay as drawn)', async () => {
+  const { page, context } = await openExample('forecast_cockpit.json', { width: 1280, height: 800 });
+  try {
+    const read = () => page.evaluate(() => [...document.querySelectorAll('svg.i')].filter((el) => el.getClientRects().length)
+      .map((el) => [/\bi-(left|right|send|undo)\b/.test(el.getAttribute('class')), getComputedStyle(el).scale]));
+    const ltr = await read();
+    assert.ok(ltr.some(([turns]) => turns) && ltr.some(([turns]) => !turns), 'the page draws direction icons and other icons');
+    assert.ok(ltr.every(([, scale]) => scale === 'none'));
+    await page.evaluate(() => { document.documentElement.dir = 'rtl'; });
+    const rtl = await read();
+    assert.ok(rtl.every(([turns, scale]) => scale === (turns ? '-1 1' : 'none')), JSON.stringify(rtl));
+  } finally {
+    await context.close();
+  }
+});
 
 test('the checks catch an unnamed progress bar and a filter button named only by its value (must-exclude)', async () => {
   const { page, context } = await openExample('forecast_cockpit.json', { width: 1280, height: 800 });

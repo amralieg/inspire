@@ -627,3 +627,10 @@ textarea::placeholder {
   pointer-events: none;
   z-index: 0;
 }
+
+:is(.lucide-arrow-left, .lucide-arrow-right, .lucide-chevron-left, .lucide-chevron-right, .lucide-chevrons-left, .lucide-chevrons-right, .lucide-send, .lucide-undo-2):dir(rtl) {
+  scale: -1 1;
+}
+:is(.lucide-chevron-left, .lucide-chevron-right).rotate-90:dir(rtl) {
+  rotate: -90deg;
+}

@@ -46,7 +46,7 @@ const GENIE_PATH = 'M10.5 14H5.5V12.5H10.5V14ZM2.85645 6C3.22823 6 3.56811 6.210
 
 export function Icon({ name, size = 16, className = '' }) {
   return (
-    <svg className={`i ${className}`} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
+    <svg className={`i i-${name} ${className}`} width={size} height={size} viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.8"
       strokeLinecap="round" strokeLinejoin="round" aria-hidden="true" dangerouslySetInnerHTML={{ __html: ICONS[name] || '' }} />
   );
 }
