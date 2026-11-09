@@ -131,7 +131,7 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
   }
 });
 
-test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample page that follows every pick, lists only the pages this App gets, and reads at 4.5 to 1 in every style, palette, mode and page', async () => {
+test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample page that follows every pick, lists only the pages this App gets, and needs no scroll with every App option on', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
   const { page } = ui;
   try {
@@ -266,75 +266,119 @@ test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample p
       const box = await measure(page, `app-look-all-options-${name.toLowerCase()}`);
       assert.ok(box.scroll <= box.client + 1, `${name} with every App option on: the step needs no scroll (${box.scroll} > ${box.client})`);
     }
-
-    const clipped = () => sample.evaluate((root) => {
-      const out = new Set();
-      for (const el of root.querySelectorAll('*')) {
-        if (![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
-        const bottom = el.getBoundingClientRect().bottom;
-        for (let a = el.parentElement; a; a = a.parentElement) {
-          const edge = a.getBoundingClientRect().bottom;
-          if ((a === root || getComputedStyle(a).overflowY !== 'visible') && bottom > edge + 1) out.add(`${el.textContent.trim().slice(0, 40)} +${Math.round(bottom - edge)}px`);
-          if (a === root) break;
-        }
-      }
-      return [...out];
-    });
-    const cut = [];
-    for (const layout of ['Sidebar', 'Top tabs', 'Home cards']) {
-      for (const style of ['A', 'B', 'C']) {
-        await tab('Style').click();
-        await look.getByText(`Style ${style}`, { exact: true }).click();
-        await tab('Layout').click();
-        await look.getByText(layout, { exact: true }).click();
-        await shown({ 'app-sample': 'fix', 'sample-style': style.toLowerCase() });
-        for (const line of await clipped()) cut.push(`${layout}/${style}/fix ${line}`);
-        await tab('Charts').click();
-        await shown({ 'app-sample': 'charts' });
-        for (const line of await clipped()) cut.push(`${layout}/${style}/charts ${line}`);
-        await tab('Pages').click();
-        for (const control of ['Runs', 'Alerts', 'Impact', 'Ask Genie', 'Things to fix']) {
-          await pages.getByRole('button', { name: new RegExp(`^${control}`) }).click();
-          await shown({ 'app-sample': { Runs: 'runs', Alerts: 'alerts', Impact: 'impact', 'Ask Genie': 'genie', 'Things to fix': 'fix' }[control] });
-          for (const line of await clipped()) cut.push(`${layout}/${style}/${control} ${line}`);
-        }
-      }
-    }
-    assert.deepEqual(cut, [], 'no sample text is cut off at the bottom, in any layout, style or page');
-
-    const views = [['fix', 'Palette'], ['charts', 'Charts'], ['runs', 'Runs'], ['alerts', 'Alerts'], ['impact', 'Impact'], ['genie', 'Ask Genie']];
-    const low = [];
-    let measured = 0;
-    for (const style of ['a', 'b', 'c']) {
-      for (const theme of ['light', 'dark']) {
-        for (const palette of SHELL.palettes) {
-          await tab('Style').click();
-          await look.getByText(`Style ${style.toUpperCase()}`, { exact: true }).click();
-          await tab('Palette').click();
-          await look.getByRole('group', { name: 'Light or dark' }).getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light' }).click();
-          await look.locator(`[data-swatch="${palette}"]`).click();
-          for (const [view, control] of views) {
-            if (view === 'charts') await tab('Charts').click();
-            else if (view !== 'fix') {
-              if (await tab('Pages').getAttribute('aria-selected') !== 'true') await tab('Pages').click();
-              await pages.getByRole('button', { name: new RegExp(`^${control}`) }).click();
-            }
-            await shown({ 'app-sample': view, 'sample-style': style, 'sample-theme': theme, 'sample-palette': palette });
-            const result = await lowContrast(page, ['[data-app-sample]']);
-            measured += result.checked;
-            assert.ok(result.checked >= 15, `${style}/${theme}/${palette}/${view}: measured ${result.checked} elements`);
-            for (const line of result.low) low.push(`${style}/${theme}/${palette}/${view} ${line}`);
-          }
-        }
-      }
-    }
-    console.log(`App look sample: ${3 * 2 * SHELL.palettes.length * views.length} pages, ${measured} text elements measured, ${low.length} below 4.5:1`);
-    assert.deepEqual(low, [], 'every sample text reads at 4.5:1 or better');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
+
+const LOOK_LAYOUTS = ['Sidebar', 'Top tabs', 'Home cards'];
+const LOOK_VIEWS = [['fix', 'Palette'], ['charts', 'Charts'], ['runs', 'Runs'], ['alerts', 'Alerts'], ['impact', 'Impact'], ['genie', 'Ask Genie']];
+
+async function withEveryAppLookOption(check) {
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await toDelivery(page);
+    await toAppAccess(page);
+    const access = page.getByRole('region', { name: 'App access' });
+    await access.getByRole('checkbox', { name: /^Record decisions/ }).check();
+    await access.getByRole('checkbox', { name: /^Send alerts/ }).check();
+    await goToStep(page, 'App look');
+    const look = page.getByRole('region', { name: 'App look' });
+    const tabs = look.getByRole('tablist', { name: 'App look sections' });
+    const tab = (name) => tabs.getByRole('tab', { name, exact: true });
+    const sample = look.locator('[data-app-sample]');
+    const shown = (attrs) => look.locator(`[data-app-sample]${Object.entries(attrs).map(([k, v]) => `[data-${k}="${v}"]`).join('')}`).waitFor();
+    const pages = look.getByRole('group', { name: 'Pages of the App' });
+    await look.locator('[data-swatch="mono"]').waitFor({ state: 'attached' });
+    await tab('Palette').click();
+    await look.getByRole('group', { name: 'Light or dark' }).getByRole('button', { name: 'Dark' }).click();
+    await shown({ 'sample-theme': 'dark' });
+    await tab('Charts').click();
+    for (const kind of ['split', 'scatter']) await look.locator(`[data-chart-kind="${kind}"] input`).check();
+    await shown({ 'sample-charts': 'trend,bars,split,pareto,scatter' });
+    await tab('Pages').click();
+    assert.deepEqual(await pages.getByRole('button').allTextContents(), ['Things to fix', 'Runs', 'Alerts', 'Impact', 'Ask Genie']);
+    assert.equal(await pages.getByRole('button', { name: /^Alerts/ }).isDisabled(), false, 'with Send alerts on, the Alerts page can be shown');
+    await check({ page, look, tab, sample, shown, pages });
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+}
+
+const clippedSample = (sample) => sample.evaluate((root) => {
+  const out = new Set();
+  for (const el of root.querySelectorAll('*')) {
+    if (![...el.childNodes].some((n) => n.nodeType === 3 && n.textContent.trim())) continue;
+    const bottom = el.getBoundingClientRect().bottom;
+    for (let a = el.parentElement; a; a = a.parentElement) {
+      const edge = a.getBoundingClientRect().bottom;
+      if ((a === root || getComputedStyle(a).overflowY !== 'visible') && bottom > edge + 1) out.add(`${el.textContent.trim().slice(0, 40)} +${Math.round(bottom - edge)}px`);
+      if (a === root) break;
+    }
+  }
+  return [...out];
+});
+
+for (const layout of LOOK_LAYOUTS) {
+  test(`App look in the ${layout} layout cuts off no sample text at the bottom, in any style or page`, () => withEveryAppLookOption(async ({ look, tab, sample, shown, pages }) => {
+    const cut = [];
+    for (const style of ['A', 'B', 'C']) {
+      await tab('Style').click();
+      await look.getByText(`Style ${style}`, { exact: true }).click();
+      await tab('Layout').click();
+      await look.getByText(layout, { exact: true }).click();
+      await shown({ 'app-sample': 'fix', 'sample-style': style.toLowerCase() });
+      for (const line of await clippedSample(sample)) cut.push(`${layout}/${style}/fix ${line}`);
+      await tab('Charts').click();
+      await shown({ 'app-sample': 'charts' });
+      for (const line of await clippedSample(sample)) cut.push(`${layout}/${style}/charts ${line}`);
+      await tab('Pages').click();
+      for (const control of ['Runs', 'Alerts', 'Impact', 'Ask Genie', 'Things to fix']) {
+        await pages.getByRole('button', { name: new RegExp(`^${control}`) }).click();
+        await shown({ 'app-sample': { Runs: 'runs', Alerts: 'alerts', Impact: 'impact', 'Ask Genie': 'genie', 'Things to fix': 'fix' }[control] });
+        for (const line of await clippedSample(sample)) cut.push(`${layout}/${style}/${control} ${line}`);
+      }
+    }
+    assert.deepEqual(cut, [], `no sample text is cut off at the bottom in the ${layout} layout, in any style or page`);
+  }));
+}
+
+for (const style of ['a', 'b', 'c']) {
+  for (const theme of ['light', 'dark']) {
+    test(`App look in Style ${style.toUpperCase()} and ${theme} mode reads at 4.5 to 1 in the Home cards layout, in every palette and page`, () => withEveryAppLookOption(async ({ page, look, tab, shown, pages }) => {
+      await tab('Layout').click();
+      await look.getByText('Home cards', { exact: true }).click();
+      await shown({ 'sample-layout': 'home' });
+      const low = [];
+      let measured = 0;
+      for (const palette of SHELL.palettes) {
+        await tab('Style').click();
+        await look.getByText(`Style ${style.toUpperCase()}`, { exact: true }).click();
+        await tab('Palette').click();
+        await look.getByRole('group', { name: 'Light or dark' }).getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light' }).click();
+        await look.locator(`[data-swatch="${palette}"]`).click();
+        for (const [view, control] of LOOK_VIEWS) {
+          if (view === 'charts') await tab('Charts').click();
+          else if (view !== 'fix') {
+            if (await tab('Pages').getAttribute('aria-selected') !== 'true') await tab('Pages').click();
+            await pages.getByRole('button', { name: new RegExp(`^${control}`) }).click();
+          }
+          await shown({ 'app-sample': view, 'sample-style': style, 'sample-theme': theme, 'sample-palette': palette });
+          const result = await lowContrast(page, ['[data-app-sample]']);
+          measured += result.checked;
+          assert.ok(result.checked >= 15, `${style}/${theme}/${palette}/${view}: measured ${result.checked} elements`);
+          for (const line of result.low) low.push(`${style}/${theme}/${palette}/${view} ${line}`);
+        }
+      }
+      console.log(`App look sample ${style}/${theme}: ${SHELL.palettes.length * LOOK_VIEWS.length} pages, ${measured} text elements measured, ${low.length} below 4.5:1`);
+      assert.deepEqual(low, [], `every sample text in Style ${style.toUpperCase()} and ${theme} mode reads at 4.5:1 or better`);
+    }));
+  }
+}
 
 test('the App reads Lakebase by default when the workspace has it, a per-user App reads Delta tables, a 403 says why, and a 404 says why with no choice', async () => {
   const probe = (data, status) => ({ me: { userName: OWNER, displayName: 'Owner' }, responses: { 'GET /api/2.0/postgres/projects': [data, status] } });
