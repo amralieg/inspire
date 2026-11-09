@@ -1,4 +1,5 @@
 const { splitInspireDatabase } = require('./sqlInputs');
+const { quotedIdent } = require('../../frontend/src/lib/tableName.js');
 const { int64Id, isInt64Id } = require('./int64Id');
 
 const LAUNCH_TABLE = '__inspire_launch';
@@ -7,8 +8,7 @@ const RUN_ID_RE = /^\d{1,19}$/;
 function quoted(database, table) {
   const parsed = splitInspireDatabase(database);
   if (!parsed) return null;
-  const q = (part) => '`' + String(part).replace(/`/g, '') + '`';
-  return `${q(parsed.catalog)}.${q(parsed.schema)}.${q(table)}`;
+  return [parsed.catalog, parsed.schema, table].map(quotedIdent).join('.');
 }
 
 function launchTableName(appDatabase) {

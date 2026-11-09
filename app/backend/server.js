@@ -68,7 +68,7 @@ const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath, attachmentHeader
 const { CACHE_REVALIDATE, compressedStatic, staticHeaders } = require('./lib/assetTypes');
 const { grantJobViewer, rememberViewer, viewerNoteOf } = require('./lib/jobViewer');
 const { discoveryTypeOf } = require('../frontend/src/lib/discoveryType.js');
-const { createPlaceSql } = require('../frontend/src/lib/tableName.js');
+const { createPlaceSql, quotedIdent } = require('../frontend/src/lib/tableName.js');
 
 const app = express();
 app.use(crossSiteGuard);
@@ -338,14 +338,10 @@ async function listCatalogNamesSql(host, token, warehouseId) {
   }
 }
 
-function quoteSqlIdent(part) {
-  return '`' + String(part).replace(/`/g, '') + '`';
-}
-
 async function listSchemasSql(host, token, warehouseId, catalog) {
   if (!warehouseId || !catalog) return [];
   try {
-    const stmt = `SHOW SCHEMAS IN ${quoteSqlIdent(catalog)}`;
+    const stmt = `SHOW SCHEMAS IN ${quotedIdent(catalog)}`;
     const result = await executeSql(host, token, warehouseId, stmt);
     const rows = sqlResultToObjects(result);
     const out = [];
@@ -370,7 +366,7 @@ async function listSchemasSql(host, token, warehouseId, catalog) {
 async function listTablesSql(host, token, warehouseId, catalog, schema) {
   if (!warehouseId || !catalog || !schema) return [];
   try {
-    const stmt = `SHOW TABLES IN ${quoteSqlIdent(catalog)}.${quoteSqlIdent(schema)}`;
+    const stmt = `SHOW TABLES IN ${quotedIdent(catalog)}.${quotedIdent(schema)}`;
     const result = await executeSql(host, token, warehouseId, stmt);
     const rows = sqlResultToObjects(result);
     const out = [];

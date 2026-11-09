@@ -3,6 +3,8 @@
  * Creates Delta tables via SQL (warehouse) — no Spark cluster required.
  */
 
+const { quotedIdent } = require('../../frontend/src/lib/tableName.js');
+
 const TEMPLATE_META = {
   saas: {
     label: 'SaaS / Subscriptions',
@@ -22,7 +24,7 @@ const TEMPLATE_META = {
 };
 
 function qIdent(...parts) {
-  return parts.map((p) => `\`${String(p).replace(/`/g, '``')}\``).join('.');
+  return parts.map(quotedIdent).join('.');
 }
 
 /**
