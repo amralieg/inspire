@@ -198,6 +198,44 @@ def test_the_leak_scan_passes_a_clean_release_and_honours_the_reviewed_lists(rel
     assert release.leak_scan(_release(release_tool.root / "work" / "b" / "release", "secret-host.example 5550123456789012"), "notes") == []
 
 
+def _blob(data):
+    import base64
+    return "module.exports = \"" + base64.b64encode(data).decode("ascii") + "\";\n"
+
+
+def test_the_leak_scan_reads_the_text_inside_a_compressed_embedded_blob(release_tool):
+    import random
+    import zlib
+    release = release_tool.load("rc_release")
+    text = (random.Random(0).randbytes(8000).hex() + " leaky-word ").encode("utf-8")
+    hits = release.leak_scan(_release(release_tool.root / "work" / "z" / "release", _blob(zlib.compress(text, 9))), "notes")
+    assert len(hits) == 1 and "leaky-word" in hits[0] and "(decoded)" in hits[0]
+
+
+def test_the_leak_scan_skips_letters_that_happen_to_appear_inside_binary_blob_bytes(release_tool):
+    release = release_tool.load("rc_release")
+    data = b"\x00\x01leaky-word\x00" + bytes(range(256)) * 40
+    assert release.leak_scan(_release(release_tool.root / "work" / "y" / "release", _blob(data)), "notes") == []
+
+
+def test_the_leak_scan_reads_a_compressed_json_payload_as_its_strings_not_its_escapes(release_tool):
+    import base64
+    import random
+    import zlib
+    release_tool.settings["extra_leak_pattern"] = r"[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}"
+    release = release_tool.load("rc_release")
+    noise = random.Random(1).randbytes(8000).hex()
+    image = base64.b64encode(b"\x89PNG\x00\x00leaky-word" + bytes(range(256)) * 40).decode("ascii")
+    payload = {"files": {"server.py": "app = App()\n\n@app.get(\"/\")\ndef index():\n    return 1\n", "noise.txt": noise},
+               "binary": {"static/logo.png": image}}
+    clean = zlib.compress(json.dumps(payload).encode("utf-8"), 9)
+    assert release.leak_scan(_release(release_tool.root / "work" / "j" / "release", _blob(clean)), "notes") == []
+    payload["files"]["notes.txt"] = "write to someone@leaky.example"
+    leaky = zlib.compress(json.dumps(payload).encode("utf-8"), 9)
+    hits = release.leak_scan(_release(release_tool.root / "work" / "k" / "release", _blob(leaky)), "notes")
+    assert len(hits) == 1 and "someone@leaky.example" in hits[0]
+
+
 @pytest.mark.parametrize("argv, message", [
     (["v1.4.0-rc.10", "app", "agent"], "is not vN.N.N-rc.N with single digits"),
     (["v1.4.0-rc.7", "app", "agent", "--compare-to", "v0.10.0"], "is not vN.N.N-rc.N with single digits"),
