@@ -289,6 +289,11 @@ export async function toAppAccess(page) {
   await goToStep(page, 'App access');
 }
 
+export async function toSharedAccess(page) {
+  await toAppAccess(page);
+  await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Internal data/ }).check();
+}
+
 export async function toVibes(page) {
   await nextUntil(page, 'Vibes');
 }

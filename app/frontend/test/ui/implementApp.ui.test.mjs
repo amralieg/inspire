@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openUi, painted, setDark, settled, startMvp, toAppAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
+import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openUi, painted, setDark, settled, startMvp, toAppAccess, toSharedAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
 import { LAKEBASE_ABSENT, LAKEBASE_PER_USER_REASON } from '../../src/lib/implementWizard.js';
 import { wheelScrolls } from './wheelScroll.mjs';
 
@@ -41,7 +41,7 @@ const rgb = (hex) => {
   return `rgb(${parseInt(full.slice(0, 2), 16)}, ${parseInt(full.slice(2, 4), 16)}, ${parseInt(full.slice(4, 6), 16)})`;
 };
 
-test('the App starts on with its Genie Agent locked on and the alert off, App access starts on the App\'s service principal, per-user keeps record decisions and hides alerts, and App look previews every style, layout and palette', async () => {
+test('the App starts on with its Genie Agent locked on and the alert off, App access starts with each person signing in, per-user keeps record decisions and hides alerts, and App look previews every style, layout and palette', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
   const { page, made } = ui;
   try {
@@ -56,10 +56,16 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     const access = page.getByRole('region', { name: 'App access' });
     const perUser = access.getByRole('radio', { name: /^Sensitive data: each person signs in as themselves \(per-user\)/ });
     const internal = access.getByRole('radio', { name: /^Internal data: everyone sees the same rows/ });
-    assert.deepEqual([await perUser.isChecked(), await internal.isChecked()], [false, true], 'the App starts reading as its service principal');
+    assert.deepEqual([await perUser.isChecked(), await internal.isChecked()], [true, false], 'the App starts with each person signing in as themselves');
+    await access.getByText('Each person sees only the rows their own access allows.', { exact: true }).waitFor();
     await access.getByText('The App reads with its own access, and Inspire lets it read the result table.', { exact: true }).waitFor();
     assert.doesNotMatch(await access.innerText(), /service principal|Lakebase/, 'App access names no service principal and no Lakebase (must-exclude)');
     assert.equal(await access.getByRole('checkbox').count(), 0, 'what people can do is on its own step');
+    await goToStep(page, 'App features');
+    assert.equal(await page.getByRole('region', { name: 'App features' }).getByRole('checkbox', { name: /^Send alerts/ }).count(), 0,
+      'the default per-user App sends no alerts (must-exclude)');
+    await goToStep(page, 'App access');
+    await internal.check();
     await goToStep(page, 'App features');
     const features = page.getByRole('region', { name: 'App features' });
     assert.deepEqual(await features.getByRole('checkbox').evaluateAll((boxes) => boxes.map((b) => [b.closest('label').querySelector('span span').textContent, b.checked])),
@@ -143,7 +149,7 @@ test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample p
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await toDelivery(page);
-    await toAppAccess(page);
+    await toSharedAccess(page);
     await goToStep(page, 'App look');
     const look = page.getByRole('region', { name: 'App look' });
     const tabs = look.getByRole('tablist', { name: 'App look sections' });
@@ -287,7 +293,7 @@ async function withEveryAppLookOption(check) {
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await toDelivery(page);
-    await toAppAccess(page);
+    await toSharedAccess(page);
     await goToStep(page, 'App features');
     const features = page.getByRole('region', { name: 'App features' });
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
@@ -386,7 +392,7 @@ for (const style of ['a', 'b', 'c']) {
   }
 }
 
-test('the App reads Lakebase by default when the workspace has it, a per-user App reads Delta tables, a 403 says why, and a 404 says why with no choice', async () => {
+test('a shared App reads Lakebase by default when the workspace has it, the default per-user App reads Delta tables, a 403 says why, and a 404 says why with no choice', async () => {
   const probe = (data, status) => ({ me: { userName: OWNER, displayName: 'Owner' }, responses: { 'GET /api/2.0/postgres/projects': [data, status] } });
   const toAccess = async (page) => {
     await toDelivery(page);
@@ -408,8 +414,10 @@ test('the App reads Lakebase by default when the workspace has it, a per-user Ap
     await group.getByRole('status').waitFor({ state: 'detached' });
     await group.getByText('Fast pages (open at once)', { exact: true }).waitFor();
     await group.getByText('Standard pages (take a few seconds to open)', { exact: true }).waitFor();
-    assert.equal(await access.getByRole('radio', { name: /^Internal data/ }).isChecked(), true, 'the App reads as its service principal with no click');
-    assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'Lakebase is the default, with no click');
+    assert.equal(await access.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true, 'the App signs each viewer in with no click');
+    assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'the default per-user App reads Delta tables');
+    await access.getByRole('radio', { name: /^Internal data/ }).check();
+    assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a shared App reads Lakebase by default, with no other click');
     await access.getByRole('radio', { name: /^Sensitive data/ }).check();
     assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'a per-user App reads Delta tables');
     assert.equal(await group.locator('[data-blocked-reason="app-backend"] p').textContent(), LAKEBASE_PER_USER_REASON);
@@ -710,6 +718,12 @@ test('the App is picked on Deliver under the App tile: it lists the Apps Inspire
     await genie.getByText('Inspire has built none yet').waitFor();
     await placeStep(page).locator('[data-app-target]').first().waitFor();
     await onStep(page, 'Deliver');
+    assert.deepEqual([await targetRadio(page, 'ops-desk').isChecked(), await targetRadio(page, 'ops-desk').isDisabled()], [false, true],
+      'a new use case signs each viewer in, so it does not join an App that shows everyone the same rows (must-exclude)');
+    await goToStep(page, 'App access');
+    await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Internal data/ }).check();
+    await goToStep(page, 'Deliver');
+    await targetRadio(page, 'ops-desk').check();
     assert.equal(await page.getByLabel('App name').count(), 0, 'joining an App asks no App name');
     assert.deepEqual(await placeTargets(page), [['ops-desk', 'recommended', 'Recommended'], ['care-desk', 'not_recommended', '']],
       'only Apps Inspire built, the best fit first and the only one badged, never one whose description is not an Inspire owner tag');
@@ -719,7 +733,7 @@ test('the App is picked on Deliver under the App tile: it lists the Apps Inspire
       /It holds only Finance use cases, not Customer, so the people who use it could see another domain's data or use cases unrelated to their work\./);
     await placeStep(page).getByRole('note', { name: JOIN_NOTE }).waitFor();
     assert.equal(await targetRadio(page, 'ops-desk').isChecked(), true,
-      'an App built before App placement that holds only this business and domain is that domain App, so it is joined by default');
+      'with everyone seeing the same rows picked, the App built before App placement that holds only this business and domain can be joined');
     assert.equal((await stepLabels(page)).some((s) => /^\d+\. Who uses the App$/.test(s.trim())), false, 'joining an App keeps its sign-in, so there is no Who uses the App step (must-exclude)');
     await placeStep(page).getByRole('radio', { name: /^Create a new App/ }).check();
     await page.getByLabel('App name').waitFor();
@@ -777,7 +791,7 @@ test('a new use case joins the App made for its domain by default, the badge sit
     registry: [
       { ...target('77', 'N04-U01', 'Route trucks', { app: true, app_access: 'sp', app_placement: 'domain' }), app_name: 'globex-desk' },
       ...MERGE_STATE.registry,
-      { ...target('42', 'N01-U05', 'Price promos', { app: true, app_access: 'sp', app_look: domainLook, app_placement: 'domain' }), app_name: 'inspire-acme-customer' },
+      { ...target('42', 'N01-U05', 'Price promos', { app: true, app_access: 'user', app_look: domainLook, app_placement: 'domain' }), app_name: 'inspire-acme-customer' },
     ],
     appsByName: { ...MERGE_STATE.appsByName,
       'inspire-acme-customer': { name: 'inspire-acme-customer', description: 'Inspire use case N01-U05 (session 42): Price promos' },
@@ -991,7 +1005,7 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await fits('4-deliver-app');
     assert.equal(await page.locator('[data-deliver-layout="beside"]').count(), 1, 'the App placement sits beside the tiles');
     await readable('deliver');
-    await placeStep(page).locator('[data-app-target] input[type="radio"]').first().check();
+    await placeStep(page).locator('[data-app-target] input[type="radio"]:not([disabled])').first().check();
     await fits('4-deliver-app-joining');
     await readable('deliver app joining');
     await placeStep(page).getByRole('radio', { name: /^Create a new App/ }).check();
@@ -1033,8 +1047,7 @@ test('Send alerts is a build setting of a shared App: off until ticked, then sen
   try {
     await toDelivery(page);
     await page.getByRole('checkbox', { name: /^App / }).check();
-    await toAppAccess(page);
-    await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Internal data/ }).check();
+    await toSharedAccess(page);
     await goToStep(page, 'App features');
     const features = page.getByRole('region', { name: 'App features' });
     const alerts = features.getByRole('checkbox', { name: /^Send alerts/ });
@@ -1090,6 +1103,7 @@ test('fifteen Apps scroll inside a list of fixed height: the wizard keeps the he
     try {
       await toDelivery(page);
       await page.getByRole('checkbox', { name: /^App / }).check();
+      await toSharedAccess(page);
       await goToStep(page, 'App placement');
       await placeStep(page).locator('[data-app-target]').nth(count - 1).waitFor({ state: 'attached' });
       sizes[count] = await placementBox(page);
@@ -1169,7 +1183,7 @@ test('the App reads and saves with the SQL warehouse picked on App access, label
   try {
     await toDelivery(page);
     await page.getByRole('checkbox', { name: /^App / }).check();
-    await toAppAccess(page);
+    await toSharedAccess(page);
     const access = page.getByRole('region', { name: 'App access' });
     await access.getByRole('group', { name: 'How fast do the App\'s pages open?' }).getByRole('status').waitFor({ state: 'detached' });
     await openAdvanced(page);
@@ -1220,8 +1234,13 @@ test('a use case added to another use case\'s App shows that App\'s SQL warehous
     await toDelivery(page);
     await page.getByRole('checkbox', { name: /^App / }).check();
     await goToStep(page, 'App placement');
+    await placeStep(page).locator('[data-app-target="ops-desk"]').waitFor();
+    assert.deepEqual([await targetRadio(page, 'ops-desk').isChecked(), await targetRadio(page, 'ops-desk').isDisabled()], [false, true],
+      'a new use case signs each viewer in, so it does not join an App that shows everyone the same rows (must-exclude)');
+    await toSharedAccess(page);
+    await goToStep(page, 'App placement');
+    await targetRadio(page, 'ops-desk').check();
     await placeStep(page).getByRole('note', { name: JOIN_NOTE }).waitFor();
-    assert.equal(await targetRadio(page, 'ops-desk').isChecked(), true);
     const locked = placeStep(page).locator('[data-app-warehouse="locked"]');
     await locked.locator('option', { hasText: 'Sales SQL (RUNNING)' }).waitFor({ state: 'attached' });
     assert.deepEqual([await locked.locator('select').inputValue(), await locked.locator('select').isDisabled()], ['wh9', true]);

@@ -74,7 +74,7 @@ test('App look turns the trend chart off with one line when the input tables car
 });
 
 test('a business with an App for all its use cases joins it, cannot create a second one, and cannot name an App like it', async () => {
-  const hubSpec = JSON.stringify({ use_case_id: 'N01-U02', use_case_name: 'Forecast demand', outputs: { app: true, app_access: 'sp', app_placement: 'business' } });
+  const hubSpec = JSON.stringify({ use_case_id: 'N01-U02', use_case_name: 'Forecast demand', outputs: { app: true, app_access: 'user', app_placement: 'business' } });
   const state = {
     me: { userName: 'owner@example.com', displayName: 'Owner' },
     useCase: { id: 'N01-U01', use_case: 'Predict churn', business_domain: 'Customer', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', genie_instruction: '## Parameters\n| top_k | text | 25 | Top K |\n' },
