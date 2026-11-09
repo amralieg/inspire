@@ -128,7 +128,7 @@ function StripRow({ row, controls }) {
             <span className="font-mono text-[11px] text-text-secondary truncate">{row.name}</span>
             <ImplementStatusBadge state={row.state} />
           </div>
-          {row.detail && <p data-control-detail="" className={row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}>{row.detail}</p>}
+          {row.detail && <PlainMessage text={row.detail} data-control-detail="" className={row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'} />}
         </div>
       </div>
       <div className={ACTION_ROW}>{controls}</div>
@@ -336,12 +336,13 @@ export function AssetPanel({
           </div>
           {row && <p className="font-mono text-[11px] text-text-secondary truncate" title={row.name}>{row.name}</p>}
           {note && <p data-shared-note="" className="mt-1 text-text-primary">{note}</p>}
-          {row?.detail && <p data-control-detail="" className={`mt-1 ${row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`}>{row.detail}</p>}
+          {row?.detail && <PlainMessage text={row.detail} data-control-detail="" className={`mt-1 ${row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`} />}
           {row?.backend && <p data-app-backend="" className="mt-1 text-text-secondary">{row.backend}</p>}
           {row?.notes?.map((n) => <p key={n} data-built-note="" className="mt-1 text-text-secondary">{n}</p>)}
-          {row && failure && <p data-asset-failure="" className="mt-1 text-error-fg">{failure}</p>}
-          {look && (
-            <p className={kind === 'failed' ? 'text-error-fg' : 'text-text-secondary'}>
+          {row && failure && <PlainMessage text={failure} data-asset-failure="" className="mt-1 text-error-fg" />}
+          {look && kind === 'failed' && <PlainMessage text={look.text} className="text-error-fg" />}
+          {look && kind !== 'failed' && (
+            <p className="text-text-secondary">
               {busy?.now && <Loader2 size={11} className="inline me-1 align-[-1px] motion-safe:animate-spin text-db-red-fg" aria-hidden />}
               {look.text}
             </p>

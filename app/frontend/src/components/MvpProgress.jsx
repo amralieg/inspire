@@ -101,7 +101,7 @@ function StageArrows({ stages }) {
               {step.label}
               {step.elapsed && <span className="font-normal tabular-nums">{step.elapsed}</span>}
             </span>
-            <span className="sr-only">: {look.words}{step.message ? `: ${step.message}` : ''}</span>
+            <span className="sr-only">: {look.words}{step.message ? `: ${splitTechnical(step.message).plain}` : ''}</span>
           </li>
         );
       })}

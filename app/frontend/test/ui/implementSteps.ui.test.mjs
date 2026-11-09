@@ -247,7 +247,8 @@ test('the build SQL warehouse falls back to a typed id when the list is empty or
     await goToStep(failed.page, 'Data');
     await openAdvanced(failed.page);
     await failed.page.locator('[data-build-warehouse="typed"]').waitFor();
-    assert.match(await failed.page.locator('[data-build-warehouse-note]').innerText(), /^Inspire could not list the SQL warehouses \(.*warehouse list is down.*\)\. Type the warehouse id instead\.$/);
+    assert.equal((await failed.page.locator('[data-build-warehouse-error]').innerText()).split('\n')[0], 'Inspire could not list the SQL warehouses: warehouse list is down. Type the warehouse id instead.');
+    assert.equal(await failed.page.locator('[data-build-warehouse-note]').count(), 0, 'the empty-list note stays away while the list failed (must-exclude)');
     assert.equal(await failed.page.locator('[data-build-warehouse="pick"]').count(), 0, 'no drop list without a list (must-exclude)');
     await failed.page.getByLabel('SQL warehouse id').fill(' wh7 ');
     assert.equal(await failed.page.getByLabel('SQL warehouse id').inputValue(), 'wh7');

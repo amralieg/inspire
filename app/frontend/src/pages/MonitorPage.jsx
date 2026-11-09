@@ -41,6 +41,7 @@ import { runStateText } from '../lib/runState';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
+import { splitTechnical } from '../lib/plainText';
 
 // Run lifecycle phases
 const PHASE_PENDING = 'PENDING';
@@ -1035,6 +1036,7 @@ function highlightMatch(text, query) {
 function StepRow({ step, live, searchQuery }) {
   const style = getStepStyle(stepCategory(step.status, live));
   const [expanded, setExpanded] = useState(false);
+  const said = splitTechnical(step.message || '');
   const hasDetails = step.message || step.sub_step_name || (step.result_json && Object.keys(step.result_json).length > 0);
 
   return (
@@ -1050,7 +1052,7 @@ function StepRow({ step, live, searchQuery }) {
           </div>
           {step.message && !expanded && (
             <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
-              {highlightMatch(step.message, searchQuery)}
+              {highlightMatch(said.plain, searchQuery)}
             </p>
           )}
         </div>
@@ -1077,11 +1079,8 @@ function StepRow({ step, live, searchQuery }) {
               <span className="text-text-tertiary">Sub-step:</span> {step.sub_step_name}
             </p>
           )}
-          {step.message && (
-            <p className="text-xs text-text-secondary bg-bg-subtle rounded-lg p-2.5 font-mono leading-relaxed">
-              {step.message}
-            </p>
-          )}
+          {said.plain && <p className="text-xs text-text-secondary bg-bg-subtle rounded-lg p-2.5 leading-relaxed">{said.plain}</p>}
+          <TechnicalDetails items={said.details} />
           {step.result_json && Object.keys(step.result_json).length > 0 && (
             <ResultJsonDisplay resultJson={step.result_json} />
           )}

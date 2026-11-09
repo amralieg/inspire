@@ -54,8 +54,10 @@ export function CopySendChoice({ text }) {
   );
 }
 
-export function PlainMessage({ text, as: Tag = 'p', className = '', onRetry = null, copy = false, actions = null, ...rest }) {
-  const { plain, details } = splitTechnical(text);
+export function PlainMessage({ text, after = '', as: Tag = 'p', className = '', onRetry = null, copy = false, actions = null, ...rest }) {
+  const split = splitTechnical(text);
+  const { details } = split;
+  const plain = split.plain && after ? `${split.plain}${/[.!?…]$/.test(split.plain) ? '' : '.'} ${after}` : split.plain;
   if (!plain && !details.length) return null;
   const sendable = copy || Boolean(onRetry && details.length > 0);
   const choices = onRetry || sendable || actions;

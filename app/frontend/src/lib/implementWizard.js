@@ -1986,8 +1986,7 @@ export function warehouseStateNote(warehouses, id) {
   return `${found.name || id} is ${state.toLowerCase()}; it starts when the run uses it, which can take a few minutes.`;
 }
 
-export function warehouseListNote(warehouses, error) {
-  if (error) return `Inspire could not list the SQL warehouses (${error}). Type the warehouse id instead.`;
+export function warehouseListNote(warehouses) {
   if (Array.isArray(warehouses) && !warehouses.length) return 'Inspire found no SQL warehouse you can use. Type the warehouse id, or ask an admin for CAN USE on one.';
   return '';
 }

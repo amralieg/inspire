@@ -439,6 +439,15 @@ export default function ImplementWizard({
   const [catalogsCut, setCatalogsCut] = useState(false);
   const [catalogsError, setCatalogsError] = useState('');
   const [schemas, setSchemas] = useState({});
+  const onTargetsRetry = () => { setTargetsError(''); setTargets(null); };
+  const onWarehousesRetry = () => { setWarehousesError(''); setWarehouses(null); };
+  const onLookRetry = () => { setLookError(''); setLook(null); };
+  const onDestinationsRetry = () => { setDestinationsError(''); setDestinations(null); };
+  const onCatalogsRetry = () => { setCatalogsError(''); setCatalogs(null); };
+  const onSchemasRetry = (catalog) => setSchemas((prev) => {
+    const { [catalog]: _dropped, ...rest } = prev;
+    return rest;
+  });
   const [ownSchema, setOwnSchema] = useState(null);
   const [placeNote, setPlaceNote] = useState('');
   const bodyRef = useRef(null);
@@ -1142,6 +1151,12 @@ export default function ImplementWizard({
     ...(stepId === 'data' ? Object.values(columnsErrors) : []),
     ...(buildStep ? [lastStep ? planError : '', preflightError, ...deliveryChecks, ...earlierGaps] : []),
   ].filter(Boolean))];
+  const checkAgain = () => setGrantRound((n) => n + 1);
+  const footerRetry = new Map([
+    ...Object.entries(columnsErrors).map(([table, e]) => [e, () => loadColumns(table)]),
+    [planError, checkAgain],
+    [preflightError, checkAgain],
+  ].filter(([e]) => e));
   const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
   const implementBlocked = busy || checksBusy || !placeSettled || Boolean(plan?.unchanged)
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || !plan || Boolean(planError)));
@@ -1417,7 +1432,7 @@ export default function ImplementWizard({
                   )}
                 </div>
               ))}
-              <BuildWarehouseField value={spec.config.warehouse_id} warehouses={warehouses} warehousesError={warehousesError}
+              <BuildWarehouseField value={spec.config.warehouse_id} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
                 onChange={(value) => patch('config.warehouse_id', value)} />
               <div className="space-y-3">
                 <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Run profiles</h4>
@@ -1474,7 +1489,9 @@ export default function ImplementWizard({
                 catalogs={catalogs}
                 catalogsCut={catalogsCut}
                 catalogsError={catalogsError}
+                onCatalogsRetry={onCatalogsRetry}
                 schemas={schemas[resultParts.catalog]}
+                onSchemasRetry={() => onSchemasRetry(resultParts.catalog)}
                 onChange={(parts) => { setSpec((prev) => withResultTable(prev, parts)); setOutputCheck(null); }}
                 onCreate={createPlace}
               />
@@ -1633,7 +1650,7 @@ export default function ImplementWizard({
                           label={item.label}
                           chosen={spec.outputs.merge[item.id]}
                           targets={targets}
-                          targetsError={targetsError}
+                          targetsError={targetsError} onTargetsRetry={onTargetsRetry}
                           onPick={(target) => setSpec((prev) => withMergeTarget(prev, item.id, target))}
                         />
                       )}
@@ -1675,11 +1692,11 @@ export default function ImplementWizard({
               <AppPlacementStep
                 spec={spec}
                 targets={targets}
-                targetsError={targetsError}
+                targetsError={targetsError} onTargetsRetry={onTargetsRetry}
                 heldApp={held.app || ''}
                 scope={placeScope}
                 warehouses={warehouses}
-                warehousesError={warehousesError}
+                warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
                 warehouseCheck={preflight?.checks?.app_warehouse || null}
                 lakebase={lakebase}
                 nameCheck={preflight?.checks?.app_name || null}
@@ -1773,7 +1790,7 @@ export default function ImplementWizard({
                     <div className="space-y-1">
                       <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Slack, Teams and other destinations</span>
                       {destinations === null && <p className="text-[11px] text-text-tertiary"><Loader2 size={11} className="inline animate-spin" /> Loading destinations…</p>}
-                      {destinationsError && <p className="text-[11px] text-text-tertiary">Notification destinations are not available to you ({destinationsError}). Use email recipients.</p>}
+                      {destinationsError && <PlainMessage text={`Inspire could not list the notification destinations: ${destinationsError}`} after="Use email recipients." onRetry={onDestinationsRetry} copy data-destinations-error="" className="text-[11px] text-text-tertiary" />}
                       {destinations && !destinationsError && destinations.length === 0 && (
                         <p className="text-[11px] text-text-tertiary">This workspace has no notification destinations. A workspace admin can add Slack or Teams ones.</p>
                       )}
@@ -1838,7 +1855,7 @@ export default function ImplementWizard({
             spec={spec}
             lakebase={lakebase}
             warehouses={warehouses}
-            warehousesError={warehousesError}
+            warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
             warehouseCheck={preflight?.checks?.app_warehouse || null}
             onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
             onBackend={(backend) => setSpec((prev) => withAppBackend(prev, backend))}
@@ -1862,6 +1879,7 @@ export default function ImplementWizard({
             spec={spec}
             look={look}
             lookError={lookError}
+            onLookRetry={onLookRetry}
             palette={palette}
             title={title}
             stake={sampleStake}
@@ -1988,7 +2006,7 @@ export default function ImplementWizard({
         ))}
         {footerErrors.length > 0 && (
           <div role="alert" className="bg-error-bg border border-error/20 rounded-md px-3 py-2 space-y-0.5">
-            {footerErrors.map((e) => <p key={e} className="text-xs text-error-fg">{e}</p>)}
+            {footerErrors.map((e) => <PlainMessage key={e} text={e} onRetry={footerRetry.get(e) || null} copy={footerRetry.has(e)} className="text-xs text-error-fg" />)}
           </div>
         )}
         <div className="flex items-center justify-between gap-3">
@@ -2098,8 +2116,7 @@ function AppNameField({ name, nameCheck, onName }) {
   );
 }
 
-function joinListText(targets, targetsError, choices, open) {
-  if (targetsError) return `Inspire could not list the Apps it built (${targetsError}), so Genie creates a new one.`;
+function joinListText(targets, choices, open) {
   if (targets === null) return 'Finding the Apps Inspire built';
   if (!choices.length) return 'Inspire has built none yet.';
   if (!open.length) return 'None can take a per-user use case.';
@@ -2130,7 +2147,7 @@ function scrollChosenIntoList(list) {
   else if (bottom > list.scrollTop + list.clientHeight) list.scrollTop = bottom - list.clientHeight;
 }
 
-function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, warehouseCheck, onPick, onWarehouse, note = '', warehouseOpen = false, onWarehouseToggle }) {
+function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onPick, onWarehouse, note = '', warehouseOpen = false, onWarehouseToggle }) {
   const missing = !String(spec.outputs.app_warehouse_id || '').trim();
   return (
     <div data-app-place="inspire" className={on ? placeCard(true) : 'border border-border rounded-lg px-3 py-2'}>
@@ -2148,7 +2165,7 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, wa
         <div className="ps-7 space-y-1">
           {missing && <p data-inside-warehouse-missing="" className="text-[11px] text-error-fg">{INSIDE_WAREHOUSE_PROBLEM}</p>}
           <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle} label={INSIDE_WAREHOUSE_TOGGLE}>
-            <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} check={warehouseCheck}
+            <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry} check={warehouseCheck}
               label={INSIDE_WAREHOUSE_LABEL} onWarehouse={onWarehouse} />
           </Advanced>
           {note && <p role="note" aria-label="What happens to the App it has now" data-inside-move-note="" className="text-[11px] text-warning-fg">{note}</p>}
@@ -2158,7 +2175,7 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, wa
   );
 }
 
-function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehouses, warehousesError, warehouseCheck, lakebase, nameCheck,
+function AppPlacementStep({ spec, targets, targetsError, onTargetsRetry, heldApp, scope, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, lakebase, nameCheck,
   moveNote = '', placeSet = '', onJoin, onNew, onName, onWarehouse, onKeep, warehouseOpen = false, onWarehouseToggle, best = null }) {
   const joined = joinsApp(spec) ? spec.outputs.merge.app : '';
   const inside = !joined && insideInspire(spec);
@@ -2194,7 +2211,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
             {!inside && !joined && <div className="ps-7"><AppNameField name={name} nameCheck={nameCheck} onName={onName} /></div>}
             {!inside && joined && <JoinedWarehouse target={chosen?.target} warehouses={warehouses} />}
           </div>
-          <InsideInspireCard spec={spec} on={inside} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError}
+          <InsideInspireCard spec={spec} on={inside} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
             warehouseCheck={warehouseCheck} onPick={() => onNew(APP_INSIDE)} onWarehouse={onWarehouse} note={moveNote}
             warehouseOpen={warehouseOpen} onWarehouseToggle={onWarehouseToggle} />
         </div>
@@ -2208,7 +2225,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
         <p className="text-[11px] text-text-tertiary">Add it to an App Inspire built, or create a new one.{memory && ` ${memory}`}</p>
       </div>
       <div role="radiogroup" aria-label="Where the App goes" aria-busy={listing} data-choice="app-place" className="space-y-3">
-        {(joined || choices.length > 0 || targets === null) && <div data-app-place="join" className={placeCard(Boolean(joined))}>
+        {(joined || choices.length > 0 || targets === null || targetsError) && <div data-app-place="join" className={placeCard(Boolean(joined))}>
           <label className="flex items-start gap-2.5 cursor-pointer">
             <input type="radio" name="app-place" value="join" className="mt-0.5" checked={Boolean(joined)} disabled={!joined && !open.length}
               onChange={() => onJoin(open[0].target)} />
@@ -2216,8 +2233,10 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
               <span className="block text-sm font-semibold text-text-primary">Add to an existing App</span>
               <span className="block text-[11px] text-text-secondary">
                 {targets === null && !targetsError && <Loader2 size={11} className="inline animate-spin me-1" aria-hidden="true" />}
-                {joinListText(targets, targetsError, choices, open)}
+                {!targetsError && joinListText(targets, choices, open)}
               </span>
+              {targetsError && <PlainMessage as="span" text={`Inspire could not list the Apps it built: ${targetsError}`} after="Genie creates a new one."
+                onRetry={onTargetsRetry} copy data-app-targets-error="" className="block text-[11px] text-text-secondary" />}
             </span>
           </label>
           {choices.length > 0 && !inside && (
@@ -2286,7 +2305,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
             </div>
           )}
         </div>
-        <InsideInspireCard spec={spec} on={inside} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError}
+        <InsideInspireCard spec={spec} on={inside} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
           warehouseCheck={warehouseCheck} onPick={() => onNew(APP_INSIDE)} onWarehouse={onWarehouse}
           warehouseOpen={warehouseOpen} onWarehouseToggle={onWarehouseToggle} />
       </div>
@@ -2294,7 +2313,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
   );
 }
 
-function MergeChoice({ name, label, chosen, targets, targetsError, onPick }) {
+function MergeChoice({ name, label, chosen, targets, targetsError, onTargetsRetry, onPick }) {
   const list = (targets && targets[name]) || [];
   const target = mergeTargetOf(targets, name, chosen);
   const open = list[0] || null;
@@ -2313,7 +2332,7 @@ function MergeChoice({ name, label, chosen, targets, targetsError, onPick }) {
         {!chosen && targets === null && <span className="text-[11px] text-text-tertiary"><Loader2 size={11} className="inline animate-spin" /> Finding the ones Inspire built</span>}
         {!chosen && targets !== null && !targetsError && !list.length && <span className="text-[11px] text-text-tertiary">Genie creates a new one, since Inspire has built none yet</span>}
       </div>
-      {targetsError && <p className="text-[11px] text-text-tertiary">Inspire could not list the {label}s it built ({targetsError}), so Genie creates a new one.</p>}
+      {targetsError && <PlainMessage text={`Inspire could not list the ${label}s it built: ${targetsError}`} after="Genie creates a new one." onRetry={onTargetsRetry} copy className="text-[11px] text-text-tertiary" />}
       {chosen && (
         <>
           <select aria-label={`${label} to add this use case to`} className={inputCls} value={chosen} onChange={(e) => onPick(mergeTargetOf(targets, name, e.target.value))}>
@@ -2331,7 +2350,7 @@ function resultPartSetter(parts, onChange) {
   return (key, value) => onChange({ ...parts, [key]: value, ...(key === 'catalog' && value !== parts.catalog ? { schema: '' } : {}) });
 }
 
-function ResultPlaceFields({ parts, catalogs, catalogsCut = false, catalogsError, schemas, onChange, onCreate = null }) {
+function ResultPlaceFields({ parts, catalogs, catalogsCut = false, catalogsError, onCatalogsRetry, schemas, onSchemasRetry, onChange, onCreate = null }) {
   const set = resultPartSetter(parts, onChange);
   const schemaOptions = [...new Set([parts.schema, ...((schemas && schemas.names) || [])].filter(Boolean))].sort((a, b) => a.localeCompare(b));
   const typeCatalog = Boolean(catalogsError);
@@ -2364,9 +2383,8 @@ function ResultPlaceFields({ parts, catalogs, catalogsCut = false, catalogsError
           </Field>
         </div>
         {(catalogsError || (schemas && schemas.error)) && (
-          <p className="text-[11px] text-text-secondary">
-            Inspire could not list the {catalogsError ? 'catalogs' : 'schemas'} ({catalogsError || schemas.error}), so type the name instead.
-          </p>
+          <PlainMessage text={`Inspire could not list the ${catalogsError ? 'catalogs' : 'schemas'}: ${catalogsError || schemas.error}`} after="Type the name instead."
+            onRetry={catalogsError ? onCatalogsRetry : onSchemasRetry} copy data-place-list-error="" className="text-[11px] text-text-secondary" />
         )}
       </div>
       {onCreate && <NewPlace catalog={parts.catalog} onCreate={onCreate} />}
@@ -2407,7 +2425,7 @@ function NewPlace({ catalog, onCreate }) {
         <span className="text-[11px] text-text-tertiary">Needs {PLACE_RIGHTS[want]}.</span>
       </div>
       {problem && <p className="text-[11px] text-error-fg">{problem}</p>}
-      {state.error && <p role="alert" data-new-place-error="" className="text-[11px] text-error-fg">{state.error}</p>}
+      {state.error && <PlainMessage text={state.error} role="alert" copy data-new-place-error="" className="text-[11px] text-error-fg" />}
       {state.done && <p role="status" className="text-[11px] text-success-fg">{state.done}</p>}
     </div>
   );
@@ -2565,9 +2583,9 @@ function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = n
   );
 }
 
-function BuildWarehouseField({ value, warehouses, warehousesError, onChange }) {
+function BuildWarehouseField({ value, warehouses, warehousesError, onWarehousesRetry, onChange }) {
   const id = String(value || '');
-  const note = warehouseListNote(warehouses, warehousesError);
+  const note = warehousesError ? '' : warehouseListNote(warehouses);
   const typed = Boolean(warehousesError) || (Array.isArray(warehouses) && !warehouses.length);
   const state = warehouseStateNote(warehouses, id);
   return (
@@ -2587,12 +2605,14 @@ function BuildWarehouseField({ value, warehouses, warehousesError, onChange }) {
         </Field>
       )}
       {note && <p data-build-warehouse-note="" className="text-[11px] text-warning-fg">{note}</p>}
-      {!note && state && <p data-build-warehouse-state="" className="text-[11px] text-text-tertiary">{state}</p>}
+      {warehousesError && <PlainMessage text={`Inspire could not list the SQL warehouses: ${warehousesError}`} after="Type the warehouse id instead."
+        onRetry={onWarehousesRetry} copy data-build-warehouse-error="" className="text-[11px] text-warning-fg" />}
+      {!note && !warehousesError && state && <p data-build-warehouse-state="" className="text-[11px] text-text-tertiary">{state}</p>}
     </div>
   );
 }
 
-function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, check, onWarehouse, label = '' }) {
+function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, check, onWarehouse, label = '' }) {
   const build = String(spec.config.warehouse_id || '');
   const chosen = appWarehouseOf(spec);
   const listed = warehouses || [];
@@ -2609,17 +2629,15 @@ function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, check,
           ))}
         </select>
       </label>
-      {(chosen !== build || warehousesError) && (
-        <p className="text-[11px] text-text-tertiary">
-          {warehousesError ? `Inspire could not list the SQL warehouses (${warehousesError}). ` : ''}{buildWarehouseNote(listed, build)}
-        </p>
-      )}
+      {warehousesError && <PlainMessage text={`Inspire could not list the SQL warehouses: ${warehousesError}`} after={buildWarehouseNote(listed, build)}
+        onRetry={onWarehousesRetry} copy data-app-warehouse-error="" className="text-[11px] text-text-tertiary" />}
+      {chosen !== build && !warehousesError && <p className="text-[11px] text-text-tertiary">{buildWarehouseNote(listed, build)}</p>}
       {check && !check.ok && <p data-app-warehouse-check="" className="text-[11px] text-error-fg">{check.detail}</p>}
     </div>
   );
 }
 
-function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseCheck, onAccess, onBackend, onWarehouse, warehouseOpen = false, onWarehouseToggle, best = {} }) {
+function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onAccess, onBackend, onWarehouse, warehouseOpen = false, onWarehouseToggle, best = {} }) {
   const access = spec.outputs.app_access;
   const inside = insideInspire(spec);
   return (
@@ -2658,7 +2676,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
           </p>
         ) : (
           <Advanced open={warehouseOpen || warehouseCheck?.ok === false} onToggle={onWarehouseToggle}>
-            <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} check={warehouseCheck}
+            <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry} check={warehouseCheck}
               onWarehouse={onWarehouse} />
           </Advanced>
         )}
@@ -2821,7 +2839,7 @@ function LookCard({ name, value, checked, onChange, label, best = null, blurb = 
   );
 }
 
-function AppLookStep({ spec, look, lookError, palette, title, stake, dates = null, onLook, onChart, onInspireCharts, onPage, best = {} }) {
+function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake, dates = null, onLook, onChart, onInspireCharts, onPage, best = {} }) {
   const chosen = spec.outputs.app_look;
   const palettes = look?.palette_colors || [];
   const [tab, setTab] = useState('style');
@@ -2842,7 +2860,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
       <div>
         <h3 className="text-sm font-semibold text-text-primary">How should the App look?</h3>
         <p className="text-[11px] text-text-tertiary">Each preview draws with the palette and the mode you pick.</p>
-        {lookError && <p className="text-[11px] text-error-fg">Inspire could not read the App looks from its agent notebook: {lookError}</p>}
+        {lookError && <PlainMessage text={`Inspire could not read the App looks from its agent notebook: ${lookError}`} onRetry={onLookRetry} copy data-look-error="" className="text-[11px] text-error-fg" />}
       </div>
       <TabStrip label="App look sections" idBase="app-look" tabs={APP_LOOK_TABS} current={tab} onPick={setTab} />
       <div {...panel('style')}>
@@ -2999,7 +3017,7 @@ function AppReadAccess({ offer, result, busy, onGrant }) {
       )}
       {result && (
         <div role="status" aria-label="Grant result" className="space-y-1">
-          {result.error ? <p className="text-text-secondary">{result.error}</p> : <p className="text-text-secondary">{result.text}</p>}
+          {result.error ? <PlainMessage text={`Your grant was refused: ${result.error}`} onRetry={offer?.can_grant ? onGrant : null} copy className="text-text-secondary" /> : <p className="text-text-secondary">{result.text}</p>}
           <GrantList label="Grants Inspire ran" items={result.ran} />
           <GrantList label="Grants that failed" items={result.failed} />
         </div>

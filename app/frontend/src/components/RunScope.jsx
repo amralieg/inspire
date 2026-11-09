@@ -10,7 +10,7 @@ import { PlainMessage } from './TechnicalDetails';
 const NOTE = 'text-[12px] text-text-secondary';
 
 export function RunScopeLine({ facts, all = false }) {
-  if (facts?.error) return <p data-run-scope-error="" className={NOTE}>Inspire could not read the scope of the last run: {facts.error}</p>;
+  if (facts?.error) return <PlainMessage text={`Inspire could not read the scope of the last run: ${facts.error}`} data-run-scope-error="" className={NOTE} />;
   if (!facts || !(all || facts.scoped || facts.note) || !(facts.text || facts.covered)) return null;
   return (
     <div data-run-scope-last="" className="space-y-0.5">

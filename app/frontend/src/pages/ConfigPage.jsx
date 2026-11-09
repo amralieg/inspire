@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { normalizeDatabricksHost } from '../lib/normalizeDatabricksHost';
 import { responseError } from '../lib/apiClient';
+import { PlainMessage } from '../components/TechnicalDetails';
 import {
   Key,
   Server,
@@ -224,9 +225,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
             {tokenStatus === 'invalid' && (
               <div className="flex items-center gap-2 mt-3 p-2.5 bg-error-bg rounded-md">
                 <XCircle size={14} className="text-error-fg" />
-                <span className="text-sm text-error-fg">
-                  {authError || 'Authentication failed.'}
-                </span>
+                <PlainMessage as="span" text={authError || 'Authentication failed.'} role="alert" className="min-w-0 flex-1 text-sm text-error-fg" />
         </div>
       )}
     </div>
@@ -343,9 +342,10 @@ export default function ConfigPage({ settings, update, onConfigured }) {
               </div>
             )}
             {publishStatus === 'error' && (
-              <div className="flex items-center gap-2 mt-3 p-2.5 bg-error-bg rounded-md">
-                <AlertCircle size={14} className="text-error-fg" />
-                <span className="text-sm text-error-fg">{publishMessage}</span>
+              <div className="flex items-start gap-2 mt-3 p-2.5 bg-error-bg rounded-md">
+                <AlertCircle size={14} className="text-error-fg mt-0.5 shrink-0" />
+                <PlainMessage as="span" text={`Inspire could not publish the notebook: ${publishMessage}`} copy role="alert" data-publish-error=""
+                  className="min-w-0 flex-1 text-sm text-error-fg" />
               </div>
             )}
           </div>

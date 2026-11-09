@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
 import { X, Key, FolderOpen, Server, Database, Globe, RefreshCw, ChevronDown, Shield, User } from 'lucide-react';
 import DatabricksLogo from './DatabricksLogo';
+import { PlainMessage } from './TechnicalDetails';
 import { normalizeDatabricksHost } from '../lib/normalizeDatabricksHost';
 
 const HOST_FIELD = { key: 'databricksHost', label: 'Databricks Host URL', icon: Globe, type: 'text', placeholder: 'https://adb-xxx.xx.azuredatabricks.net' };
@@ -112,7 +113,7 @@ function WarehouseSelector({ settings, update }) {
       </div>
 
       {error && (
-        <p className="text-xs text-red-500 mt-1">{error}</p>
+        <PlainMessage text={error} className="text-xs text-error-fg mt-1" />
       )}
     </div>
   );

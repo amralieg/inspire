@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useId, useState } from 'react';
 import { Bug, Check, Copy, Download } from 'lucide-react';
 import { copyText } from '../lib/clipboard';
+import { PlainMessage } from './TechnicalDetails';
 import { saveBlob } from '../lib/download';
 import { DIAGNOSTICS_PRIVACY_NOTE, REPORT_ISSUE_NOTE, newIssueUrl } from '../lib/issues';
 
@@ -80,7 +81,7 @@ export default function useBuildDiagnostics({ apiFetch, query, refreshKey = '', 
           {DIAGNOSTICS_PRIVACY_NOTE} {REPORT_ISSUE_NOTE}
         </p>
         <p role="status" aria-live="polite" data-diagnostics-said="" className={error || copied ? 'basis-full text-[11px]' : 'sr-only'}>
-          {error ? <span className="text-error-fg">{error}</span> : copied ? 'The diagnostics are on your clipboard.' : ''}
+          {error ? <PlainMessage as="span" text={error} className="text-error-fg" /> : copied ? 'The diagnostics are on your clipboard.' : ''}
         </p>
       </>
     ),

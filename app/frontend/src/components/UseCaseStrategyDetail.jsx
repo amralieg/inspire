@@ -317,7 +317,7 @@ export function FeedbackControls({ useCaseKey, available, current, busy, error, 
         A rejected use case is left out of this business&apos;s next runs. For an implemented one, the next run tracks its KPIs against the baseline.
       </p>
       {readOnly && <DemoNote className="mt-2" />}
-      {error && note && <DemoNote className="mt-2">{error}</DemoNote>}
+      {error && note && <DemoNote className="mt-2" text={error} />}
       {error && !note && <PlainMessage text={error} className="mt-1 text-[11px] text-error-fg" />}
     </div>
   );

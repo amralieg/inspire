@@ -7,7 +7,7 @@ import DatabricksLogo from '../components/DatabricksLogo';
 import { normalizeDatabricksHost } from '../lib/normalizeDatabricksHost';
 import { responseError } from '../lib/apiClient';
 import CatalogPicker from '../components/CatalogPicker';
-import { PlainMessage } from '../components/TechnicalDetails';
+import { CopySendChoice, PlainMessage, RetryChoice } from '../components/TechnicalDetails';
 
 const STEPS = [
   { id: 'connect', label: 'Connect', icon: Globe2, desc: 'Connect to your Databricks workspace' },
@@ -24,12 +24,17 @@ function StatusIcon({ status, size = 16 }) {
   return <div className="w-4 h-4 rounded-full border-2 border-border" />;
 }
 
+function verifyFailureText(checks) {
+  return Object.entries(checks || {}).filter(([, c]) => !c.ok).map(([key, c]) => `${key}: ${c.message || ''}`.trim()).join('\n');
+}
+
 export default function SetupWizard({ settings, update, onComplete }) {
   const [step, setStep] = useState(0);
   const [warehouses, setWarehouses] = useState([]);
   const [catalogs, setCatalogs] = useState([]);
   const [catalogsCut, setCatalogsCut] = useState(false);
   const [catalogsWhy, setCatalogsWhy] = useState('');
+  const [catalogsRound, setCatalogsRound] = useState(0);
   const [schemas, setSchemas] = useState([]);
   const [verification, setVerification] = useState(null);
   const [verifying, setVerifying] = useState(false);
@@ -144,7 +149,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
         setCatalogs([]);
         setCatalogsWhy(e.message);
       });
-  }, [token, databricksHost, step, warehouseId, isDatabricksApp, headers]);
+  }, [token, databricksHost, step, warehouseId, isDatabricksApp, headers, catalogsRound]);
 
   // Load schemas when catalog selected
   const selectedCatalog = inspireDatabase?.split('.')[0] || '';
@@ -434,7 +439,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                   </datalist>
                 </div>
               </div>
-              {catalogsWhy && <PlainMessage as="p" text={catalogsWhy} role="note" data-uc-why="" className="text-xs text-text-secondary" />}
+              {catalogsWhy && <PlainMessage as="p" text={catalogsWhy} onRetry={() => setCatalogsRound((n) => n + 1)} copy role="note" data-uc-why="" className="text-xs text-text-secondary" />}
               {inspireDatabase && inspireDatabase.includes('.') && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-info-bg text-info-fg text-xs">
                   <Database size={14} /> Will use <span className="font-mono font-bold">{inspireDatabase}</span>
@@ -478,6 +483,13 @@ export default function SetupWizard({ settings, update, onComplete }) {
                     </div>
                   ))}
 
+                  {!verification.ok && (
+                    <div data-verify-again="" className="flex flex-wrap items-center gap-1.5">
+                      <RetryChoice onRetry={runVerification} label="Check again" />
+                      <CopySendChoice text={verifyFailureText(verification.checks)} />
+                    </div>
+                  )}
+
                   {verification.ok && !publishResult?.ok && (
                     <button
                       onClick={publishNotebook}
@@ -489,7 +501,8 @@ export default function SetupWizard({ settings, update, onComplete }) {
                   )}
 
                   {publishResult && !publishResult.ok && (
-                    <p role="alert" className="px-4 py-3 rounded-xl border border-error/20 bg-error-bg text-xs text-error-fg">{publishResult.message}</p>
+                    <PlainMessage text={`Inspire could not publish the notebook: ${publishResult.message}`} copy role="alert" data-publish-error=""
+                      className="px-4 py-3 rounded-xl border border-error/20 bg-error-bg text-xs text-error-fg" />
                   )}
 
                   {publishResult?.ok && (

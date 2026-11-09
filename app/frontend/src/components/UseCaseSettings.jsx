@@ -110,9 +110,8 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
         ))}
         {editable && draft && draft.value !== draft.was && (
           <div className="space-y-2 rounded-lg border border-border bg-bg-subtle/50 px-3 py-2.5">
-            <p data-setting-preview="" className="text-text-primary">
-              {preview?.error ? `Inspire could not preview it: ${preview.error}` : preview ? preview.text : 'Working out which records it moves'}
-            </p>
+            <PlainMessage text={preview?.error ? `Inspire could not preview it: ${preview.error}` : preview ? preview.text : 'Working out which records it moves'}
+              data-setting-preview="" className="text-text-primary" />
             <div className="flex flex-wrap items-center gap-2">
               <input dir="auto" aria-label="Note for the change" placeholder="Why, for the history (optional)" maxLength={300} className={`${INPUT} w-64`} value={note}
                 onChange={(e) => setNote(e.target.value)} />

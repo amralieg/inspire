@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { closeBrowser, openAsset, openUi } from './uiSupport.mjs';
+import { closeBrowser, goToStep, openAdvanced, openAsset, openUi, until } from './uiSupport.mjs';
 import { COPIED_SEND_TEXT } from '../../src/lib/plainText.js';
 
 test.after(closeBrowser);
@@ -171,6 +171,113 @@ test('a run Monitor could not read offers Check again, which reads the run again
     await choices.getByRole('button', { name: 'Check again' }).click();
     await card.getByText('Running', { exact: true }).waitFor({ timeout: 15000 });
     assert.ok(backend.reads.run >= 2);
+  } finally {
+    await ui.close();
+  }
+});
+
+const ME = { me: { userName: ['owner', 'example.com'].join('@'), displayName: 'Owner' } };
+const sentence = (box) => box.evaluate((el) => {
+  const copy = el.cloneNode(true);
+  copy.querySelectorAll('details, button, [role="status"]').forEach((d) => d.remove());
+  return copy.innerText.trim();
+});
+
+test('a wizard warehouse list Databricks refused says so in plain words with the code under Details, and Try again lists the warehouses', async () => {
+  const flaky = failing('/api/warehouses', { status: 403, error: 'PERMISSION_DENIED: User is not allowed to list SQL warehouses.' });
+  const ui = await openUi('wizard', ME, '', { init: flaky.init });
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Data');
+    await openAdvanced(page);
+    const box = page.locator('[data-build-warehouse-error]');
+    await box.waitFor({ timeout: 15000 });
+    assert.equal(await sentence(box), 'Access to what it needs was refused, so ask its owner or a workspace admin to give you access. Type the warehouse id instead.');
+    await box.locator('summary').click();
+    assert.match(await box.locator('[data-technical-details] pre').innerText(), /PERMISSION_DENIED/);
+    assert.equal(await page.locator('[data-build-warehouse="typed"]').count(), 1);
+    const asked = flaky.heal();
+    await box.getByRole('button', { name: 'Try again' }).click();
+    await page.locator('[data-build-warehouse="pick"]').waitFor({ timeout: 15000 });
+    assert.equal(await box.count(), 0, 'the message goes once the list is read');
+    assert.ok(flaky.calls.n > asked, 'Try again read the warehouses again');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a wizard step check that could not run offers Try again and Copy what to send, and Try again runs the checks again', async () => {
+  const flaky = failing('/api/inspire/implement/preflight', { error: 'The SQL warehouse did not answer in time' });
+  const ui = await openUi('wizard', ME, '', { init: flaky.init });
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Deliver');
+    const box = page.getByRole('alert').filter({ hasText: 'The SQL warehouse did not answer in time' });
+    await box.waitFor({ timeout: 15000 });
+    await box.getByRole('button', { name: 'Copy what to send' }).click();
+    await box.getByText(COPIED_SEND_TEXT).waitFor();
+    const [copied] = await page.evaluate(() => window.__copied);
+    assert.match(copied, /The SQL warehouse did not answer in time/);
+    const asked = flaky.heal();
+    await box.getByRole('button', { name: 'Try again' }).click();
+    await until(() => flaky.calls.n > asked, 'Try again runs the checks again');
+    await page.getByText('The SQL warehouse did not answer in time').waitFor({ state: 'detached', timeout: 15000 });
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the App placement step that could not list the Apps Inspire built says so with Try again, and Try again lists them', async () => {
+  const flaky = failing('/api/inspire/implement/merge-targets', { error: 'The SQL warehouse did not answer in time' });
+  const ui = await openUi('wizard', ME, '', { init: flaky.init });
+  const { page } = ui;
+  try {
+    await goToStep(page, 'App placement');
+    const box = page.locator('[data-app-targets-error]');
+    await box.waitFor({ timeout: 15000 });
+    assert.match(await sentence(box), /^Inspire could not list the Apps it built: .*\. Genie creates a new one\.$/);
+    assert.equal(await page.locator('[data-app-place="join"] input[type="radio"]').isDisabled(), true, 'nothing to add to while the list failed (must-exclude)');
+    const asked = flaky.heal();
+    await box.getByRole('button', { name: 'Try again' }).click();
+    await box.waitFor({ state: 'detached', timeout: 15000 });
+    assert.ok(flaky.calls.n > asked, 'Try again listed the Apps again');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Setup checks that failed offer Check again, which runs them again, and Copy what to send with every failed check', async () => {
+  let verifies = 0;
+  const ui = await openUi('setup', {}, '', {
+    init: (page) => page.addInitScript(CLIPBOARD),
+    mount: (app) => {
+      app.get('/api/defaults', (_req, res) => res.json({ envSkipsSetupWizard: false }));
+      app.get('/api/health', (_req, res) => res.json({ isDatabricksApp: false }));
+      app.post('/api/setup/create-database', (_req, res) => res.json({ ok: true }));
+      app.post('/api/setup/verify', (_req, res) => {
+        verifies += 1;
+        if (verifies === 1) return res.json({ ok: false, checks: { warehouse: { ok: false, message: 'The SQL warehouse is stopped' }, database: { ok: true, message: 'The Inspire database is ready' } } });
+        return res.json({ ok: true, checks: { warehouse: { ok: true, message: 'The warehouse answers' } } });
+      });
+    },
+  });
+  const { page } = ui;
+  try {
+    for (let i = 0; i < 4; i += 1) {
+      const next = page.getByRole('button', { name: 'Continue' });
+      await next.waitFor();
+      await next.click();
+    }
+    await page.getByRole('button', { name: 'Run Verification' }).click();
+    const again = page.locator('[data-verify-again]');
+    await again.waitFor({ timeout: 15000 });
+    await again.getByRole('button', { name: 'Copy what to send' }).click();
+    await again.getByText(COPIED_SEND_TEXT).waitFor();
+    assert.deepEqual(await page.evaluate(() => window.__copied), ['warehouse: The SQL warehouse is stopped']);
+    await again.getByRole('button', { name: 'Check again' }).click();
+    await page.getByRole('button', { name: 'Publish Notebook to Workspace' }).waitFor({ timeout: 15000 });
+    assert.equal(verifies, 2);
+    assert.equal(await again.count(), 0, 'checks that pass offer no Check again (must-exclude)');
   } finally {
     await ui.close();
   }

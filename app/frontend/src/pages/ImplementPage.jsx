@@ -1236,7 +1236,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <ol className="list-decimal ps-5 space-y-1">
             {failure.rounds.map((round) => (
               <li key={round.attempt}>
-                <span>Attempt {round.attempt}{round.error ? ` failed: ${round.error}` : ' failed'}. </span>
+                <PlainMessage as="span" text={`Attempt ${round.attempt}${round.error ? ` failed: ${round.error}` : ' failed'}.`} />{' '}
                 <span>Inspire {round.tried}{round.why ? `: ${round.why}` : ''}.</span>
               </li>
             ))}
@@ -1248,7 +1248,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {protection.sql.map((line) => <li key={line} className="font-mono text-[11px] text-text-primary break-all">{line}</li>)}
         </ul>
       )}
-      {protectionCopy && <p role="status" data-protection-copy="" className="text-text-primary">{protectionCopy}</p>}
+      {protectionCopy && <PlainMessage text={protectionCopy} role="status" data-protection-copy="" className="text-text-primary" />}
       {buildAgain && !protection && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : terminal ? TERMINAL_STOP_HINT : buildAgainHint(latest)}</p>}
       <ChoiceList heading={FAILURE_CHOICES_HEADING} choices={choicesNow} mark="data-failure-choice" tone="text-error-fg" disabled={locked || writingNotebook}
         title={lockedReason} busy={writingNotebook ? 'notebook' : ''} onPick={pickChoice} />
@@ -1321,7 +1321,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {readsResult.error && <PlainMessage text={readsResult.action === 'grant' ? `Your grant was refused: ${readsResult.error}` : readsResult.error} />}
           {!readsResult.error && readsResult.action !== 'copy' && <p>{readsResult.text}</p>}
           {readsResult.copied && <p>The grant SQL is copied. Send it to {readsLeft.tables.map((t) => t.owner).filter(Boolean)[0] || 'the table owner'}.</p>}
-          {readsResult.copyError && <p>The grant SQL could not be copied: {readsResult.copyError}. Select it above and copy it.</p>}
+          {readsResult.copyError && <PlainMessage text={`The grant SQL could not be copied: ${readsResult.copyError}`} after="Select it above and copy it." />}
         </div>
       )}
       {readsLeft.tables.length > 0 && (

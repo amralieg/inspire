@@ -27,7 +27,7 @@ function SegmentPicks({ filter, picked, onPick }) {
   return (
     <fieldset className="min-w-0">
       <legend className="text-[11px] font-semibold text-text-primary">{filter.label}</legend>
-      {filter.error && <p className="text-[11px] text-error-fg">Inspire could not read its values: {filter.error}</p>}
+      {filter.error && <PlainMessage text={`Inspire could not read its values: ${filter.error}`} className="text-[11px] text-error-fg" />}
       {!filter.error && !filter.options.length && <p className="text-[11px] text-text-secondary">No values to pick</p>}
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {filter.options.map((value) => (
@@ -164,7 +164,7 @@ function BuiltRow({ alert }) {
         {alert.trigger && <p className="text-text-secondary">Fires when {alert.trigger}</p>}
         {typeof alert.notify_on_ok === 'boolean' && <p className="text-text-secondary">{clearsText(alert.notify_on_ok)}</p>}
         <p className="text-text-secondary">{BUILT_DETAIL}</p>
-        {alert.error && <p className="text-error-fg">Inspire cannot read it: {alert.error}</p>}
+        {alert.error && <PlainMessage text={`Inspire cannot read it: ${alert.error}`} className="text-error-fg" />}
       </div>
       {alert.url && (
         <a href={alert.url} target="_blank" rel="noreferrer" className={OUTLINE}>Open in Databricks <ExternalLink size={11} /></a>

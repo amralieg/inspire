@@ -87,9 +87,8 @@ export default function UseCaseTables({ uc, latest, view, readOnly = false, lock
         onRestore={(original) => { setDraft((prev) => restoreTable(prev, original)); setNotice(''); }}
       />
       {editable && change && (change.text || change.error) && (
-        <p data-table-change="" className={change.error ? 'text-error-fg' : 'text-text-primary'}>
-          {change.error ? `Inspire could not compare the tables: ${change.error}` : change.text}
-        </p>
+        <PlainMessage text={change.error ? `Inspire could not compare the tables: ${change.error}` : change.text} data-table-change=""
+          className={change.error ? 'text-error-fg' : 'text-text-primary'} />
       )}
       {editable && change && change.save && (
         <button type="button" disabled={locked || busy} onClick={save} className={`${BUTTON} text-white bg-db-red-solid`}>

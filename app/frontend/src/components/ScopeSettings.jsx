@@ -284,7 +284,7 @@ export default function ScopeSettings({
       <ProfileNote state={profileState} error={profileError} />
       {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} read={groups?.state === 'ready' ? groups.profile : null} settings={settings} editable={editableOf(GROUP_BY)} chosenBy={groupingChosenBy} />}
       {part !== 'grouping' && groups && groups.state === 'error' && !(profileState === 'error' && groups.error === profileError) && (
-        <p role="alert" data-first-run-groups-error="" className="text-[11px] text-error-fg">Inspire could not read the groups of the Data groups you chose: {groups.error}</p>
+        <PlainMessage text={`Inspire could not read the groups of the Data groups you chose: ${groups.error}`} role="alert" data-first-run-groups-error="" className="text-[11px] text-error-fg" />
       )}
       {part !== 'grouping' && (
         <FirstRunPart values={values} onChange={onChange} profile={listing.state === 'ready' ? listing.profile : profile} groupsState={listing.state}
