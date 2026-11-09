@@ -126,7 +126,7 @@ SLOP = re.compile(r"hope this (?:message|email|note) finds you|feel free|do not 
 DRAFT_NUMBER = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?:\s?(%|percent\b|bn\b|[kmb]\b))?", re.I)
 DRAFT_CODE = re.compile(r"(?<![\w.-])(?=[\w-]*[A-Za-z])(?=[\w-]*\d)[\w-]+\b")
 DRAFT_SCALED = re.compile(r"\d+(?:bn|[kmb])", re.I)
-DRAFT_LINK = re.compile(r"https?://\S+|www\.\S+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+", re.I)
+DRAFT_LINK = re.compile(r"https?://\S+|www\.\S+|(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+", re.I)
 DRAFT_SCALE = {"k": 1e3, "m": 1e6, "b": 1e9, "bn": 1e9}
 DRAFT_DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
 DRAFT_FALLBACK = "so this draft is built from the record fields"

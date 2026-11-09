@@ -13,7 +13,7 @@ const TABLE_WRITE = new RegExp(String.raw`\b(?:delete|drop|truncate|purge|wipe|e
 const CALL_VERB = String.raw`(?:call|calls|calling|fetch|fetches|pull|pulls|query|queries|hit|post|request|scrape|download|look\s+up|load|read|get|grab|import|stream|use|connect\s+to)`;
 const OUTSIDE = String.raw`(?:https?:\/\/\S+|www\.\S+|\bapi\.[\w-]+(?:\.[\w-]+)+|\b[\w-]+\.(?:com|io|net|org|host|ai|dev|co)\b|\b(?:outside|external|third[- ]party|public)\s+(?:web\s?sites?|api|apis|services?|endpoints?)|\bthe\s+internet\b)`;
 const OUTSIDE_CALL = new RegExp(String.raw`\b${CALL_VERB}\b[^.;!?]{0,50}${OUTSIDE}`, 'i');
-const EMAIL = /[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
+const EMAIL = /(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+/g;
 const VAGUE = [
   /^(?:please\s+)?(?:make|do)\s+(?:it|this|that|everything|all\s+of\s+it|the\s+(?:mvp|app|dashboard|page|use\s+case))\s+(?:a\s+lot\s+|much\s+|way\s+)?(?:better|nicer|good|great|prettier|cooler|more\s+useful|look\s+better|pop|shine|awesome)$/i,
   /^(?:please\s+)?(?:improve|enhance|polish|fix|optimi[sz]e|upgrade)\s+(?:it|this|that|everything|all\s+of\s+it|the\s+(?:mvp|app|dashboard|page|use\s+case))(?:\s+(?:please|more|a\s+bit))?$/i,
