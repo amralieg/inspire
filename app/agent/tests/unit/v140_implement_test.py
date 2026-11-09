@@ -705,7 +705,7 @@ def test_genie_run_streams_events_and_parses_the_final_json(agent_ns, tmp_path):
     assert result["errors"] == ["Genie error: transient"] and result["timed_out"] is False
     command, kw = commands[0]
     assert command[:2] == ["/bin/genie", "exec"] and "--output-schema" in command
-    assert command[-1] == "build it" + agent_ns["GENIE_CLI_AUTH_NOTE"] and kw["start_new_session"] is True
+    assert command[-1] == "build it" + agent_ns["GENIE_CLI_AUTH_NOTE"] + agent_ns["GENIE_CLI_WRITE_NOTE"] and kw["start_new_session"] is True
     assert command[-1].endswith("jq is not installed here: read the CLI's JSON output with python instead.")
     assert "--profile" not in command and kw["env"]["DATABRICKS_TOKEN"] == "tok-123"
     assert json.load(open(work / "genie_output_schema.json")) == {"type": "object"}

@@ -55,7 +55,7 @@ class SlowRoute:
                     event = f"event: response.output_text.delta\ndata: {json.dumps({'n': index, 'pad': 'x' * 200})}\n\n".encode()
                     self.wfile.write(f"{len(event):x}\r\n".encode() + event + b"\r\n")
                     self.wfile.flush()
-                done = b"event: response.completed\ndata: {}\n\n"
+                done = b'event: response.completed\ndata: {"type": "response.completed"}\n\n'
                 self.wfile.write(f"{len(done):x}\r\n".encode() + done + b"\r\n0\r\n\r\n")
                 self.wfile.flush()
 

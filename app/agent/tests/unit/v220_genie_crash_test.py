@@ -166,14 +166,14 @@ def test_the_resend_sanitizer_drops_only_the_unanswered_tail_of_the_model_s_turn
     assert clean([USER, REASONING, USER]) == ([USER, USER], ["reasoning"]), "a thinking block no answer follows never stays mid-way"
     assert clean([REASONING, SAID]) == ([REASONING, SAID], []), "a conversation of nothing but the model's turn is left as it is"
     assert clean("text input") == ("text input", [])
-    body, dropped = agent_ns["genie_relay_body"]("POST", "/ai-gateway/mlflow/v1/responses?x=1", "",
-                                                 json.dumps({"input": [USER, REASONING], "model": "m"}).encode())
-    assert json.loads(body) == {"input": [USER], "model": "m"} and dropped == ["reasoning"]
+    body, dropped, cap = agent_ns["genie_relay_body"]("POST", "/ai-gateway/mlflow/v1/responses?x=1", "",
+                                                      json.dumps({"input": [USER, REASONING], "model": "m"}).encode())
+    assert json.loads(body) == {"input": [USER], "model": "m"} and dropped == ["reasoning"] and cap == 0
     raw = json.dumps({"input": [USER, REASONING]}).encode()
-    assert agent_ns["genie_relay_body"]("GET", "/ai-gateway/mlflow/v1/responses", "", raw) == (raw, [])
-    assert agent_ns["genie_relay_body"]("POST", "/ai-gateway/mlflow/v1/models", "", raw) == (raw, [])
-    assert agent_ns["genie_relay_body"]("POST", "/ai-gateway/mlflow/v1/responses", "zstd", raw) == (raw, [])
-    assert agent_ns["genie_relay_body"]("POST", "/ai-gateway/mlflow/v1/responses", "", b"{not json") == (b"{not json", [])
+    assert agent_ns["genie_relay_body"]("GET", "/ai-gateway/mlflow/v1/responses", "", raw) == (raw, [], 0)
+    assert agent_ns["genie_relay_body"]("POST", "/ai-gateway/mlflow/v1/models", "", raw) == (raw, [], 0)
+    assert agent_ns["genie_relay_body"]("POST", "/ai-gateway/mlflow/v1/responses", "zstd", raw) == (raw, [], 0)
+    assert agent_ns["genie_relay_body"]("POST", "/ai-gateway/mlflow/v1/responses", "", b"{not json") == (b"{not json", [], 0)
 
 
 def _scripted_genie(answers, prompts):
