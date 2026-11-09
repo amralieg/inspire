@@ -118,6 +118,24 @@ export async function wheelToEnd(page, region, last, name, over = null) {
   return after;
 }
 
+export async function wheelReads(page, box, { lines = '', readable = 3, delta = 1200 } = {}) {
+  await box.evaluate((el) => { el.scrollTop = 0; });
+  await frames(page);
+  const at = await where(box);
+  assert.ok(at.seen > 0, `the scroll box is on screen ${JSON.stringify(at)}`);
+  assert.ok(at.hit, `the scroll box is what the pointer lands on, nothing covers it ${JSON.stringify(at)}`);
+  await page.mouse.move(at.x, at.y);
+  await page.mouse.wheel(0, delta);
+  await page.waitForFunction((el) => el.scrollTop > 0, await box.elementHandle(), { timeout: 5000 });
+  if (!lines) return;
+  await frames(page);
+  const seen = await box.evaluate((el, sel) => {
+    const r = el.getBoundingClientRect();
+    return [...el.querySelectorAll(sel)].filter((n) => { const b = n.getBoundingClientRect(); return b.height > 0 && b.top >= r.top - 1 && b.bottom <= r.bottom + 1; }).length;
+  }, lines);
+  assert.ok(seen >= readable, `the person reads at least ${readable} whole lines in the box after scrolling, not ${seen}`);
+}
+
 export async function markScrollRegions(root) {
   return root.evaluate((top) => {
     const all = [top, ...top.querySelectorAll('*')].filter((el) => {
@@ -136,7 +154,7 @@ export async function markScrollRegions(root) {
 
 async function fillRegion(region, copies) {
   return region.evaluate((el, n) => {
-    const sample = [...el.children].reverse().find((c) => c.getBoundingClientRect().height > 0) || null;
+    const sample = [...el.children].reverse().find((c) => c.getBoundingClientRect().height > 0 && !/absolute|fixed/.test(getComputedStyle(c).position)) || null;
     for (let i = 0; i < n; i += 1) {
       const copy = sample ? sample.cloneNode(true) : document.createElement('div');
       if (!sample) copy.textContent = el.textContent.split('\n').filter(Boolean).pop() || 'line';
@@ -156,11 +174,42 @@ export async function wheelEveryRegion(page, root, name, { min = 1, copies = 40,
   for (const r of found) {
     const region = page.locator(`[data-wheel-region="${r.i}"]`);
     const label = `${name} ${r.label || `${r.tag}.${r.cls}`}`;
+    if (!copies) {
+      const results = [];
+      for (const [width, height] of screens) {
+        await page.setViewportSize({ width, height });
+        await frames(page);
+        if (!(await region.count()) || !(await region.evaluate((el) => el.scrollHeight > el.clientHeight + 1))) {
+          results.push('fits');
+          continue;
+        }
+        const marked = await region.evaluate((el) => {
+          const leaves = [...el.querySelectorAll('*')].filter((c) => {
+            const r = c.getBoundingClientRect();
+            if (c.children.length || !(r.width > 0 && r.height > 0) || !c.checkVisibility({ visibilityProperty: true, opacityProperty: true })) return false;
+            for (let a = c.parentElement; a && a !== el; a = a.parentElement) {
+              if (/auto|scroll|hidden/.test(getComputedStyle(a).overflowY) && a.scrollHeight > a.clientHeight + 1) return false;
+            }
+            return true;
+          });
+          const last = leaves.reduce((low, c) => (!low || c.getBoundingClientRect().bottom >= low.getBoundingClientRect().bottom ? c : low), null);
+          if (last) last.setAttribute('data-wheel-last', '');
+          return last ? 'item' : ((el.value ?? el.textContent).trim() ? 'text' : '');
+        });
+        assert.ok(marked, `${label} at ${width}x${height}: the region shows no visible item to wheel to`);
+        await wheelToEnd(page, region, marked === 'text' ? region : region.locator('[data-wheel-last]').last(), `${label} at ${width}x${height}`);
+        await region.evaluate((el) => el.querySelectorAll('[data-wheel-last]').forEach((c) => c.removeAttribute('data-wheel-last')));
+        results.push('wheeled');
+      }
+      names.push(`${label}: ${results.join('/')}`);
+      continue;
+    }
     await wheelScrolls(page, region, () => region.locator(':scope > [data-wheel-copy]').last(), {
       name: label, screens, fill: () => fillRegion(region, copies), unfill: () => dropCopies(region),
     });
-    names.push(label);
+    names.push(`${label}: wheeled`);
   }
+  await root.evaluate((el) => el.querySelectorAll('[data-wheel-region]').forEach((c) => c.removeAttribute('data-wheel-region'))).catch(() => null);
   return names;
 }
 

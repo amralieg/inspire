@@ -2,6 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
 import { TABLE, appInfo, openApp, serveDist, steadyBox, until } from './harness.mjs';
+import { wheelScrolls } from '../../../../../frontend/test/ui/wheelScroll.mjs';
 
 let served;
 let base;
@@ -250,6 +251,19 @@ test('on a phone the views and the edit form fit without sideways scroll', async
   assert.equal(columns, 1);
   const box = await steadyBox(page, dialog.locator('.dlg'));
   assert.ok(box.x >= 0 && box.x + box.width <= 391, JSON.stringify(box));
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the mouse wheel scrolls the Add record form with 40 fields to its last field at 1280x800 and 1024x700', async () => {
+  const many = [...FIELDS, ...Array.from({ length: 32 }, (_, i) => F(`note_${String(i).padStart(2, '0')}`, 'text'))];
+  const { routes } = recorder({ 'records/fields': ({ json }) => json(200, { fields: many, key_field: 'entity_id' }) });
+  const { page, seen, context } = await open(appInfo(MODIFY, 1, TABLE), routes);
+  await page.getByRole('button', { name: 'Add record' }).click();
+  const body = page.locator('dialog.dialog .dlg-b');
+  await body.locator('.fgrid').waitFor();
+  assert.deepEqual((await body.locator('.in > span').allInnerTexts()).slice(-1), ['Note 31'], 'the form lists every editable field');
+  await wheelScrolls(page, body, () => body.locator('.in').last(), { name: 'Add record form' });
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
