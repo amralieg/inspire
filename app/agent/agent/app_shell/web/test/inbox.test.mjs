@@ -29,6 +29,13 @@ const UNOWNED = [
   row('R003', { _inspire_due: '2026-10-20' }),
   row('R010', { _inspire_due: '2026-10-26', _inspire_status: 'Done' }),
 ];
+const CHANGED = [
+  row('R006', { _inspire_due: '2026-10-21', _inspire_status: 'Done', _inspire_version: at(VISIT + 120000) }),
+  row('R004', { _inspire_due: '2026-10-26', _inspire_version: at(VISIT + 120000) }),
+  row('R011', { _inspire_status: 'In progress', _inspire_owner: 'sam.roe', _inspire_version: at(VISIT + 60000) }),
+  row('R012', { _inspire_version: at(VISIT - 60000) }),
+  { entity_label: 'No key either', _inspire_version: at(VISIT + 120000) },
+];
 const run = (id, status, started, over = {}) => ({ run_id: id, job_run_id: Number(id.slice(1)), status, started, ended: started, duration_s: 300, trigger: 'schedule',
   records: 10, to_fix: 2, segments: [], tables: [], stages: [], error: status === 'failed' ? 'Table main.sales.orders was not found' : '', error_code: status === 'failed' ? 'missing_table' : '', ...over });
 const RUN_LIST = [
@@ -44,11 +51,11 @@ const report = (id, status, text, over = {}) => ({ feedback_id: id, section: 'wo
 const REPORTS = { items: [report('f1', 'new', 'The due day on Item R003 is wrong'), report('f2', 'vibe', 'Add a column for the store'), report('f3', 'closed', 'Old complaint'),
   report('f4', 'new', 'طلب تغيير عمود المتجر')], everyone: true, missing: false, limit: 2000 };
 
-test('the inbox first reads one row with no window to learn whether the list keeps actions, then asks for your open records, and for the ones nobody owns when you own the use case', () => {
+test('the inbox first asks with no window for what changed, which also says whether the list keeps actions, then for your open records, and for the ones nobody owns when you own the use case', () => {
   const mine = { page: 'p1', filters: {}, mine: true, window: 'all', limit: 50 };
-  const probe = { page: 'p1', filters: {}, changed: true, limit: 1 };
-  assert.deepEqual(inboxAsks({ id: 'p1' }), { probe, mine }, 'someone who does not own the use case never asks for the records nobody owns (must-exclude)');
-  assert.deepEqual(inboxAsks({ id: 'p1', is_owner: true }), { probe, mine, unowned: { page: 'p1', filters: {}, unowned: true, window: 'all', due_within: DUE_DAYS, limit: 50 } });
+  const changed = { page: 'p1', filters: {}, changed: true, limit: 50 };
+  assert.deepEqual(inboxAsks({ id: 'p1' }), { changed, mine }, 'someone who does not own the use case never asks for the records nobody owns (must-exclude)');
+  assert.deepEqual(inboxAsks({ id: 'p1', is_owner: true }), { changed, mine, unowned: { page: 'p1', filters: {}, unowned: true, window: 'all', due_within: DUE_DAYS, limit: 50 } });
   const app = { options: { decisions: true }, user: { email: PERSON } };
   assert.equal(inboxOn(app, { history: true, records: {} }), true);
   assert.equal(inboxOn({ ...app, options: { decisions: false } }, { history: true, records: {}, is_owner: true }), true, 'an owner has failed runs and reports to see');
@@ -58,7 +65,7 @@ test('the inbox first reads one row with no window to learn whether the list kee
 });
 
 test('records: your open items and the ones due in 3 days or overdue, with closed and keyless rows left out', () => {
-  const { groups, count, fresh } = inboxGroups({ mine: MINE, unowned: UNOWNED, meta: META, lastVisit: VISIT, today: TODAY });
+  const { groups, count, fresh } = inboxGroups({ changed: CHANGED, mine: MINE, unowned: UNOWNED, meta: META, lastVisit: VISIT, today: TODAY });
   assert.deepEqual(groups.assigned.map((i) => [i.key, i.fresh]), [['R003', false], ['R004', true], ['R005', false]], 'a closed record and a row with no key are left out (must-exclude)');
   assert.deepEqual(groups.due.map((i) => [i.key, i.unowned]), [['R003', false], ['R008', true], ['R007', true], ['R004', false]],
     'a record somebody owns, a closed one and one already listed as yours are left out (must-exclude)');
@@ -66,7 +73,9 @@ test('records: your open items and the ones due in 3 days or overdue, with close
   assert.equal(groups.assigned[1].status, 'New', 'the status reads through the shared helper');
   assert.equal(count, 5, 'a record both assigned and due counts once: R003, R004, R005, R007, R008');
   assert.equal(fresh, 2);
-  assert.ok(!Object.hasOwn(groups, 'changed'), 'a record someone else changed needs no action from you, so it is not in the inbox (must-exclude)');
+  assert.deepEqual(groups.changed.map((i) => [i.key, i.info]), [['R006', true], ['R011', true]],
+    'what changed since your visit is listed for your information; one changed before it, one already in your groups and one with no key are left out (must-exclude)');
+  assert.equal(count, 5, 'a changed record needs nothing from you, so the count leaves it out (must-exclude)');
 });
 
 test('Fix this, failed runs and reported issues join the inbox only when they wait for you', () => {
@@ -79,11 +88,11 @@ test('Fix this, failed runs and reported issues join the inbox only when they wa
   assert.equal(all.groups.runs[0].sub, 'A table this use case reads is missing');
   assert.deepEqual(all.groups.reports.map((i) => i.key), ['report:f1', 'report:f4'], 'a report already turned into a vibe or closed waits for nobody (must-exclude)');
   assert.equal(all.count, 5);
-  assert.deepEqual(all.on, { fix: true, runs: true, reports: true, assigned: false, due: false });
+  assert.deepEqual(all.on, { fix: true, runs: true, reports: true, assigned: false, due: false, changed: false });
   const none = inboxGroups({ ...base, fix: 0, runs: { ...RUNS, can_run: false }, reports: { ...REPORTS, everyone: false } });
   assert.deepEqual([none.groups.fix, none.groups.runs, none.groups.reports, none.count], [[], [], [], 0],
     'nothing to fix, runs you cannot start again and your own reports need no action from you (must-exclude)');
-  assert.deepEqual(none.on, { fix: true, runs: false, reports: false, assigned: false, due: false });
+  assert.deepEqual(none.on, { fix: true, runs: false, reports: false, assigned: false, due: false, changed: false });
   const long = inboxGroups({ ...base, reports: { ...REPORTS, items: [report('f9', 'new', 'x'.repeat(300))] } });
   assert.equal([...long.groups.reports[0].label].length, 120);
 });
@@ -101,6 +110,7 @@ function inboxRoutes(seen, { runs = RUNS, reports = REPORTS } = {}) {
       seen.push(body);
       if (body.mine) return MINE;
       if (body.unowned) return UNOWNED;
+      if (body.changed) return CHANGED;
       return [];
     }, { actions: true, changes: true, window: { window: 'all', limit: null, today: TODAY } }),
   });
@@ -129,13 +139,21 @@ test('an owner sees one inbox in the rail with its count: Fix this, failed runs,
   assert.equal(await page.locator('[data-inbox]').count(), 0, 'the top bar keeps no second inbox');
   await page.locator('[data-inbox-panel][aria-busy="false"]').waitFor();
   assert.deepEqual(await groupsOf(page), [['fix', ['fix']], ['runs', ['run:j8', 'run:j6']], ['reports', ['report:f1', 'report:f4']],
-    ['assigned', ['R003', 'R004', 'R005']], ['due', ['R003', 'R008', 'R007', 'R004']]]);
-  const text = await page.locator('[data-inbox-panel]').innerText();
-  for (const gone of ['R006', 'Add a column for the store', 'Old complaint', 'Oct 19', 'Oct 22', 'R010', 'R009']) {
+    ['assigned', ['R003', 'R004', 'R005']], ['due', ['R003', 'R008', 'R007', 'R004']], ['changed', ['R006', 'R011']]]);
+  const fyi = page.locator('[data-inbox-fyi]');
+  assert.match(await fyi.locator('h3').evaluate((h) => h.textContent), /Changed since you were last here\s*2\s*Nothing to do/);
+  assert.match(await fyi.innerText(), /They need nothing from you and are not counted in the Inbox\./);
+  assert.ok(await page.evaluate(() => {
+    const fyiTop = document.querySelector('[data-inbox-fyi]').getBoundingClientRect().top;
+    return [...document.querySelectorAll('[data-inbox-panel] > .inbox-gs:not([data-inbox-fyi]) [data-inbox-group]')].every((g) => g.getBoundingClientRect().bottom <= fyiTop);
+  }), 'what changed sits under every group that waits for you');
+  const text = await page.locator('[data-inbox-panel] > .inbox-gs:not([data-inbox-fyi])').innerText();
+  assert.ok(!(await fyi.innerText()).includes('R012'), 'a record changed before your last visit is not new to you (must-exclude)');
+  for (const gone of ['R006', 'R011', 'Add a column for the store', 'Old complaint', 'Oct 19', 'Oct 22', 'R010', 'R009']) {
     assert.ok(!text.includes(gone), `${gone} needs no action, so it is not in the inbox (must-exclude)`);
   }
   assert.ok(asks.some((b) => b.unowned === true && b.due_within === DUE_DAYS) && asks.some((b) => b.feedback));
-  assert.ok(!asks.some((b) => b.changed && b.limit !== 1), 'the inbox reads one changed row only to learn whether the list keeps actions, never the records other people changed');
+  assert.ok(asks.some((b) => b.changed === true && !('window' in b)), 'what changed is asked with no window');
   assert.equal(await page.locator('[data-inbox-item="report:f4"] bdi[dir="auto"]').first().innerText(), 'طلب تغيير عمود المتجر');
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -171,7 +189,7 @@ test('someone who does not own the use case sees no failed run and no report of 
   const { page, seen, context, asks } = await openAt({ owner: false, runs: { ...RUNS, can_run: false }, reports: { ...REPORTS, everyone: false } });
   await page.locator('[data-rail="inbox"] [data-count="4"]').waitFor();
   await page.locator('[data-inbox-panel][aria-busy="false"]').waitFor();
-  assert.deepEqual(await groupsOf(page), [['fix', ['fix']], ['assigned', ['R003', 'R004', 'R005']], ['due', ['R003', 'R004']]]);
+  assert.deepEqual(await groupsOf(page), [['fix', ['fix']], ['assigned', ['R003', 'R004', 'R005']], ['due', ['R003', 'R004']], ['changed', ['R006', 'R011']]]);
   assert.ok(!asks.some((b) => b.feedback || b.unowned), 'nor does it ask for them');
   assert.deepEqual(seen.errors, []);
   await context.close();

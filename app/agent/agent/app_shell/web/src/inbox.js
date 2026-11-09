@@ -9,6 +9,7 @@ export const INBOX_ROWS = 50;
 export const INBOX_GROUPS = [
   ['fix', 'To fix'], ['runs', 'Failed runs'], ['reports', 'Reported issues'], ['assigned', 'Assigned to you'], ['due', `Due in ${DUE_DAYS} days or overdue`],
 ];
+export const CHANGED_GROUP = ['changed', 'Changed since you were last here'];
 const DAY_MS = 86400000;
 const REPORT_CHARS = 120;
 
@@ -17,7 +18,7 @@ const dayPlus = (day, n) => dayAt(Date.parse(`${day}T00:00:00Z`) + n * DAY_MS);
 const versionMs = (row) => Number(row?._inspire_version) / 1000;
 
 export const inboxAsks = (page) => ({
-  probe: { page: page.id, filters: {}, changed: true, limit: 1 },
+  changed: { page: page.id, filters: {}, changed: true, limit: INBOX_ROWS },
   mine: { page: page.id, filters: {}, mine: true, window: 'all', limit: INBOX_ROWS },
   ...(page.is_owner === true ? { unowned: { page: page.id, filters: {}, unowned: true, window: 'all', due_within: DUE_DAYS, limit: INBOX_ROWS } } : {}),
 });
@@ -50,7 +51,7 @@ const clip = (text) => {
   return chars.length > REPORT_CHARS ? `${chars.slice(0, REPORT_CHARS - 1).join('')}…` : chars.join('');
 };
 
-export function inboxGroups({ mine = [], unowned = [], meta, lastVisit = 0, today, fix = null, runs = null, reports = null, records = true }) {
+export function inboxGroups({ changed = [], mine = [], unowned = [], meta, lastVisit = 0, today, fix = null, runs = null, reports = null, records = true }) {
   const after = (row) => lastVisit > 0 && versionMs(row) > lastVisit;
   const keyed = (rows) => rows.filter((r) => recordKeyOf(r) != null);
   const soon = dayPlus(today, DUE_DAYS);
@@ -71,7 +72,9 @@ export function inboxGroups({ mine = [], unowned = [], meta, lastVisit = 0, toda
       .sort((a, b) => a.due.localeCompare(b.due) || a.key.localeCompare(b.key)),
   };
   const all = Object.values(groups).flat();
-  const on = { fix: fix != null, runs: !!runs?.can_run, reports: !!reports?.everyone, assigned: records, due: records };
+  const listed = new Set(all.filter((i) => i.kind === 'record').map((i) => i.key));
+  groups.changed = keyed(changed).filter(after).map((r) => ({ ...itemOf(r, meta, today), info: true })).filter((i) => !listed.has(i.key));
+  const on = { fix: fix != null, runs: !!runs?.can_run, reports: !!reports?.everyone, assigned: records, due: records, changed: records };
   return { groups, on, count: new Set(all.map((i) => `${i.kind}:${i.key}`)).size, fresh: new Set(all.filter((i) => i.fresh).map((i) => i.key)).size };
 }
 

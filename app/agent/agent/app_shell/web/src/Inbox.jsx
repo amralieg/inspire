@@ -5,11 +5,11 @@ import { shortDay } from './hub.js';
 import { visitedAt } from './prefs.js';
 import { useMyView } from './MyView.jsx';
 import { NOT_IN_RUN } from './records.js';
-import { INBOX_GROUPS, inboxAsks, inboxGroups, recordsInbox } from './inbox.js';
+import { CHANGED_GROUP, INBOX_GROUPS, inboxAsks, inboxGroups, recordsInbox } from './inbox.js';
 
 const EMPTY = {
   fix: 'Nothing to fix right now.', runs: 'No run failed since the last one that finished.', reports: 'No new report waits for you.',
-  assigned: 'You own no open item.', due: 'Nothing of yours is due soon.', due_owner: 'Nothing of yours, and nothing nobody owns, is due soon.',
+  changed: 'Nothing else changed since you were last here.', assigned: 'You own no open item.', due: 'Nothing of yours is due soon.', due_owner: 'Nothing of yours, and nothing nobody owns, is due soon.',
 };
 
 function useLastVisit(pageId) {
@@ -28,9 +28,10 @@ function useInboxReads(app, page, nonce, on) {
     const asks = inboxAsks(page);
     const settle = (patch) => { if (mine === seq.current) setState((s) => ({ ...s, ...patch(s) })); };
     if (listed) {
-      getRecords(asks.probe).then((probe) => (probe?.actions === false ? [probe]
-        : Promise.all([getRecords(asks.mine), asks.unowned ? getRecords(asks.unowned) : null])))
-        .then(([owned, nobody]) => settle(() => ({ records: owned?.actions === false ? { none: true } : { mine: owned?.rows, unowned: nobody?.rows, today: owned?.window?.today } })))
+      getRecords(asks.changed).then((changed) => (changed?.actions === false ? [changed]
+        : Promise.all([changed, getRecords(asks.mine), asks.unowned ? getRecords(asks.unowned) : null])))
+        .then(([changed, owned, nobody]) => settle(() => ({ records: changed?.actions === false || owned?.actions === false ? { none: true }
+          : { changed: changed?.rows, mine: owned?.rows, unowned: nobody?.rows, today: owned?.window?.today } })))
         .catch((e) => settle((s) => ({ records: { none: true }, errors: { ...s.errors, records: e.message } })));
     }
     if (owner) {
@@ -48,7 +49,7 @@ export function useInbox({ app, page, fix, runs, nonce, on }) {
   if (!on) return null;
   const records = reads.records && !reads.records.none ? reads.records : {};
   const today = records.today || new Date().toISOString().slice(0, 10);
-  const built = inboxGroups({ mine: records.mine, unowned: records.unowned, meta: page.records, lastVisit, today, fix, runs, reports: reads.reports, records: !!reads.records?.mine });
+  const built = inboxGroups({ changed: records.changed, mine: records.mine, unowned: records.unowned, meta: page.records, lastVisit, today, fix, runs, reports: reads.reports, records: !!reads.records?.mine });
   const off = !!reads.records?.none && !reads.errors.records && page.is_owner !== true;
   return { ...built, ready: reads.ready && !!runs, errors: reads.errors, lastVisit, off };
 }
@@ -72,6 +73,13 @@ export default function InboxSection({ page, inbox, onOpen }) {
   const since = inbox.lastVisit > 0 ? `Your last visit was ${shortDay(new Date(inbox.lastVisit).toISOString().slice(0, 10))}; items changed since then say New.`
     : 'This is your first visit on this device, so no item says New yet.';
   const shown = INBOX_GROUPS.filter(([id]) => inbox.on[id] || inbox.groups[id].length > 0);
+  const group = ([id, title], note) => (
+    <section key={id} className="inbox-g" data-inbox-group={id} aria-labelledby={`inbox-h-${id}`}>
+      <h3 id={`inbox-h-${id}`}>{title}<span className="faint">{` ${inbox.groups[id].length}`}</span>{note && <span className="chg-b inbox-info">{note}</span>}</h3>
+      {inbox.groups[id].length ? <ul>{inbox.groups[id].map((item) => <Item key={`${item.kind}:${item.key}`} item={item} onOpen={onOpen} />)}</ul>
+        : <p className="faint">{EMPTY[id === 'due' && page.is_owner === true ? 'due_owner' : id]}</p>}
+    </section>
+  );
   return (
     <section className="card inbox-page" aria-label="Inbox" aria-busy={!inbox.ready} data-inbox-panel>
       <header className="card-h">
@@ -84,14 +92,14 @@ export default function InboxSection({ page, inbox, onOpen }) {
       {inbox.errors.reports && <PlainNote text={inbox.errors.reports} prefix="The reported issues could not load: " className="tile-err" role="alert" />}
       {!inbox.ready && <p className="more" role="status">Loading…</p>}
       <div className="inbox-gs">
-        {shown.map(([id, title]) => (
-          <section key={id} className="inbox-g" data-inbox-group={id} aria-labelledby={`inbox-h-${id}`}>
-            <h3 id={`inbox-h-${id}`}>{title}<span className="faint">{` ${inbox.groups[id].length}`}</span></h3>
-            {inbox.groups[id].length ? <ul>{inbox.groups[id].map((item) => <Item key={`${item.kind}:${item.key}`} item={item} onOpen={onOpen} />)}</ul>
-              : <p className="faint">{EMPTY[id === 'due' && page.is_owner === true ? 'due_owner' : id]}</p>}
-          </section>
-        ))}
+        {shown.map((g) => group(g))}
       </div>
+      {inbox.on.changed && (
+        <div className="inbox-gs inbox-fyi" data-inbox-fyi>
+          {group(CHANGED_GROUP, 'Nothing to do')}
+          <p className="faint inbox-fyi-n">Other people changed these since your last visit. They need nothing from you and are not counted in the Inbox.</p>
+        </div>
+      )}
     </section>
   );
 }

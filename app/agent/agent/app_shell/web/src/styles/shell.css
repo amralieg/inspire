@@ -105,6 +105,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .inbox-gs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,320px),1fr));gap:14px 18px;padding:0 16px}
 .inbox-page>.more,.inbox-page>.tile-err{margin:0 16px 10px}
 .inbox-g{min-width:0}
+.inbox-fyi{margin-top:14px;padding-top:12px;border-top:1px solid var(--line)}
+.inbox-fyi-n{margin:0;font-size:12.5px;align-self:start}
+.inbox-info{margin:0;margin-inline-start:8px;color:var(--muted);text-transform:none;letter-spacing:0}
 .inbox-g h3{margin:0 0 4px;font-size:12px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;color:var(--muted)}
 .inbox-g ul{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .inbox-g p{margin:0;font-size:13px}
