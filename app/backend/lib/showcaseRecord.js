@@ -1,6 +1,7 @@
 const { SHOWCASE_VERSION, showcaseKey, showcaseMvpPath, showcaseProblem } = require('./showcase');
 const zlib = require('zlib');
 const { plural } = require('./plural');
+const { DATABRICKS_HOST_SUFFIX, EMAIL_RE } = require('./redact');
 
 const DEMO_HOST = 'https://workspace.example.com';
 const DEMO_WORKSPACE = 'demo-workspace';
@@ -10,8 +11,8 @@ const WAREHOUSE_ID = /(?<![0-9a-f])(?=[0-9a-f]{0,15}[a-f])(?=[0-9a-f]{0,15}\d)[0
 const WORKSPACE_NAME = /\bdbc-[0-9a-f]{8}-[0-9a-f]{4}\b/;
 const LONG_NUMBER = /(?<!\d)(?<!\d\.)\d{12,}(?!\d)/;
 const PRIVATE_RE = new RegExp([
-  /(https?:\/\/[A-Za-z0-9.-]+\.(?:cloud\.databricks\.com|azuredatabricks\.net|gcp\.databricks\.com|databricks\.com|databricksapps\.com))/,
-  /((?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24})/,
+  new RegExp(`(https?:\\/\\/[A-Za-z0-9.-]+${DATABRICKS_HOST_SUFFIX.source})`),
+  new RegExp(`(${EMAIL_RE.source})`),
   /((?<![0-9a-f])[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}(?![0-9a-f]))/,
   new RegExp(`(${OBJECT_ID.source})`),
   new RegExp(`(${LONG_NUMBER.source})`),
