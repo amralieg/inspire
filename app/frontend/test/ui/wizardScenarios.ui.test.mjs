@@ -234,8 +234,9 @@ test('a table read that fails says so once, and the Summary First run matches th
   const { seen, ui } = await scenario('profile-error', { profile: { error: 'the warehouse is stopped' }, status: 500 });
   try {
     const text = seen.map((s) => s.text).join('\n');
-    assert.ok(seen.some((s) => s.text.includes('the warehouse is stopped')), 'the read error is shown');
-    for (const step of seen) assert.ok(step.text.split('the warehouse is stopped').length <= 2, `${step.step} says the error more than once`);
+    const said = 'the SQL warehouse is stopped, so start it';
+    assert.ok(seen.some((s) => s.text.includes(said)), 'the read error is shown as a plain sentence');
+    for (const step of seen) assert.ok(step.text.split(said).length <= 2, `${step.step} says the error more than once`);
     assert.doesNotMatch(text, /could not read the groups of the Data groups you chose/, 'no groups were chosen, so no groups error (must-exclude)');
     const first = seen.find((s) => s.step === 'First run');
     const row = summaryOf(seen);
