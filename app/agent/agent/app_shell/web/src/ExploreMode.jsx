@@ -5,6 +5,7 @@ import { integer } from './format.js';
 import { Icon } from './icons.jsx';
 import FilterBar from './FilterBar.jsx';
 import { ModeEmpty } from './ModeParts.jsx';
+import { PlainNote } from './ui.jsx';
 import { USAGE_UNRECORDED } from './admin.js';
 
 function browserStorage() {
@@ -28,6 +29,7 @@ function Work({ page, meta, state, onState, tableCard, views, notify }) {
 function Performance({ app, page }) {
   const [saved] = useState(() => readViews(browserStorage())[page.id] || []);
   const [alerts, setAlerts] = useState({ mine: null, error: '' });
+  const [again, setAgain] = useState(0);
   const alerting = !!app.alerting?.on;
   useEffect(() => {
     if (!alerting) return undefined;
@@ -35,7 +37,7 @@ function Performance({ app, page }) {
     getAlerts(page.id).then((d) => { if (live) setAlerts({ mine: d?.caps?.mine ?? 0, error: '' }); })
       .catch((e) => { if (live) setAlerts({ mine: null, error: e.message }); });
     return () => { live = false; };
-  }, [page.id, alerting]);
+  }, [page.id, alerting, again]);
   return (
     <section className="card mode-usage" data-mode-performance="explore" aria-label="Usage">
       <header className="card-h"><div><h2>Usage</h2><p>How you use {page.title}, in this browser.</p></div></header>
@@ -43,7 +45,7 @@ function Performance({ app, page }) {
         <div className="mode-stat" data-stat="views"><small>Saved views</small><b>{integer(saved.length)}</b></div>
         {alerting && <div className="mode-stat" data-stat="alerts"><small>Your alerts</small><b>{alerts.mine == null ? '…' : integer(alerts.mine)}</b></div>}
       </div>
-      {alerts.error && <p className="tile-err" role="alert"><Icon name="info" size={12} />{alerts.error}</p>}
+      {alerts.error && <PlainNote text={alerts.error} prefix="Your alerts could not load: " icon={<Icon name="info" size={12} />} className="tile-err" role="alert" onRetry={() => setAgain((n) => n + 1)} />}
       {saved.length > 0 && (
         <ul className="mode-list" aria-label="Your saved views">
           {saved.map((v) => <li key={v.name}><Icon name="bookmark" size={13} /><span>{v.name}</span></li>)}

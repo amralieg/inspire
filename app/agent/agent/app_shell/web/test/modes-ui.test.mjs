@@ -157,6 +157,30 @@ test('Scenarios saves, compares, shares and records the choice in the decision l
   await context.close();
 });
 
+test('saved scenarios that could not load read one plain sentence with the code under Details, and Try again lists them', async () => {
+  const info = appInfo(DECIDE, 1, {}, 'examples/scenario_lab.json');
+  const id = info.pages[0].id;
+  let failing = true;
+  const library = { scenarios: [{ id: 'a'.repeat(32), name: 'Base plan', note: '', levers: {}, by: PERSON, at: '2026-11-08T10:00:00', shared: false, mine: true, outcome: { p50: 1 } }], decisions: [], mine: 1, note: '' };
+  const routes = {
+    ...scenarioRoutes([], []),
+    'scenario/saved': ({ json }) => (failing ? json(403, { error: 'PERMISSION_DENIED: User does not have SELECT on table main.app.sales_scenarios' }) : json(200, library)),
+  };
+  const { page, context } = await openApp(browser, served.base, info, { routes });
+  await page.locator('[data-rail]').first().waitFor();
+  await go(page, id, 'performance');
+  const box = page.locator('[data-mode-performance="scenarios"] .tile-err');
+  await box.waitFor();
+  const shown = await box.innerText();
+  assert.match(shown, /^The saved scenarios could not load: /);
+  assert.doesNotMatch(shown, /PERMISSION_DENIED/, 'the code stays under Details (must-exclude)');
+  failing = false;
+  await box.getByRole('button', { name: 'Try again' }).click();
+  await page.waitForFunction(() => document.querySelector('[data-stat="yours"] b')?.textContent === '1');
+  assert.equal(await page.locator('[data-mode-performance="scenarios"] .tile-err').count(), 0);
+  await context.close();
+});
+
 test('switching use case in a hub re-labels the rail by the mode of the open use case', async () => {
   const explore = appInfo(DECIDE, 1, {}, 'examples/dashboard.json');
   const ask = appInfo(DECIDE, 1, {}, 'examples/agent_chat.json');

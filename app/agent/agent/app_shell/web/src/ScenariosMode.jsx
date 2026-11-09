@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { chooseScenario, evaluateScenario, getSavedScenarios, saveScenario, shareScenario, toneOf } from './api.js';
 import { dayLabel, formatValue, integer } from './format.js';
 import { Icon } from './icons.jsx';
-import { Skeleton, useToast } from './ui.jsx';
+import { PlainNote, Skeleton, useToast } from './ui.jsx';
 import { ModeEmpty } from './ModeParts.jsx';
 import { COMPARE_MAX, compareRows, decisionCounts, toggleCompared } from './scenarios.js';
 
@@ -49,7 +49,7 @@ function SaveForm({ page, result, onSaved }) {
       <label>Name this scenario<input dir="auto" required maxLength={NAME_CHARS} value={name} onChange={(e) => setName(e.target.value)} /></label>
       <label>Why, for whoever reads it<input dir="auto" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} /></label>
       <button className="btn btn--sm btn--pri" type="submit" disabled={busy || !name.trim()}>Save the scenario</button>
-      {error && <p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p>}
+      {error && <PlainNote text={error} prefix="The scenario was not saved: " icon={<Icon name="info" size={12} />} className="tile-err" role="alert" />}
     </form>
   );
 }
@@ -141,7 +141,7 @@ function Work({ app, page, ready }) {
         <ScenarioPanel page={page} app={app} ready={ready} order={WORK_ORDER} saver={(result) => <SaveForm page={page} result={result} onSaved={library.set} />} />
       </Suspense>
       {library.data?.note && <p className="note" role="status" data-scenario-note><Icon name="info" size={14} />{library.data.note}</p>}
-      {error && <p className={toneOf(error) === 'info' ? 'note' : 'tile-err'} role="alert"><Icon name="info" size={14} />{error.message}</p>}
+      {error && <PlainNote text={error.message} icon={<Icon name="info" size={14} />} className={toneOf(error) === 'info' ? 'note' : 'tile-err'} role="alert" onRetry={error === library.error ? library.load : null} />}
       <section className="card card--table" aria-label="Saved scenarios" data-saved-scenarios>
         <header className="card-h"><div><h2>Saved scenarios</h2><p>Yours, and the ones others shared. Pick up to {COMPARE_MAX} to compare.</p></div></header>
         {!library.data && !library.error && <div className="mode-wait"><Skeleton height={60} /></div>}
@@ -188,7 +188,7 @@ function Performance({ page }) {
   return (
     <section className="card" data-mode-performance="scenarios" aria-label="Decisions taken">
       <header className="card-h"><div><h2>Decisions taken</h2><p>The scenarios saved on {page.title} and the ones chosen.</p></div></header>
-      {library.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{library.error.message}</p>}
+      {library.error && <PlainNote text={library.error.message} prefix="The saved scenarios could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={library.load} />}
       <div className="mode-stats">
         <div className="mode-stat" data-stat="yours"><small>Saved by you</small><b>{integer(counts.mine)}</b></div>
         <div className="mode-stat" data-stat="shared"><small>Shared</small><b>{integer(counts.shared)}</b></div>
