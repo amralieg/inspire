@@ -140,7 +140,7 @@ def test_a_sandbox_without_an_ipv6_loopback_falls_back_to_127_0_0_1_and_logs_why
     try:
         assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
         assert made == ["::1", "127.0.0.1"] and runner.relay.base.startswith("http://127.0.0.1:")
-        said = [line for _level, line in runner.logger.records if line.startswith("[GENIE-RELAY]")]
+        said = [line for _level, line in runner.logger.records if line.startswith("[GENIE-RELAY] Genie Code calls")]
         assert len(said) == 1 and "Address family not supported" in said[0]
         assert not _fired(runner.logger), "a relay that works on 127.0.0.1 is not a failure"
     finally:
