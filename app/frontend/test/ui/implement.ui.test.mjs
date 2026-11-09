@@ -335,7 +335,7 @@ test('a session that saves under /Shared says on Summary that everyone can edit 
     await toSummary(page);
     const note = page.getByRole('note', { name: 'Where Inspire saves the MVP' });
     await note.waitFor();
-    assert.match(await note.textContent(), /^Inspire saves this MVP under \/Workspace\/Shared\/demos\/acme_implemented\. Everyone in the workspace can edit/);
+    assert.match(await note.textContent(), /^Inspire saves this MVP in \/Workspace\/Shared\/demos\/acme_implemented, a shared folder: anyone in the workspace can change or delete it/);
     assert.equal(await note.evaluate((el) => el.className.includes('text-warning-fg')), true);
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
@@ -428,7 +428,7 @@ test('Next warns, without stopping, when the data to work with has no rows and s
     await eventDate().selectOption('main.s.orders.order_date');
     await page.getByLabel('Window start').fill('2026-10-26');
     await page.getByLabel('Window end').fill('2026-10-28');
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     assert.equal(await page.locator('[data-empty-table-warning]').innerText(),
       'Warning: main.s.orders has no rows inside the date window you picked. You can go on, or widen or clear it under Advanced settings on Data.');
     assert.deepEqual(await footerErrors(page), [], 'an empty table no longer stops the wizard (must-exclude)');
@@ -457,9 +457,9 @@ test('an empty main table warns and moves on, and when every picked table is emp
   page.on('request', (r) => { if (r.url().includes('/api/inspire/implement/readiness')) counted.push(JSON.parse(r.postData() || '{}').table); });
   try {
     await toData(page);
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     assert.equal(await page.locator('[data-empty-table-warning]').innerText(),
-      'Warning: main.s.orders is empty, so the MVP Test Run may write no rows. You can go on.');
+      'Warning: main.s.orders is empty, so the First run may write no rows. You can go on.');
     assert.doesNotMatch(await page.locator('[data-empty-table-warning]').innerText(), /grounded/, 'one other table has rows (must-exclude)');
     assert.deepEqual(await footerErrors(page), []);
     assert.deepEqual(counted, ['main.s.orders', 'main.s.returns'], 'Next on Data counts the main table, then the other picked table once');
@@ -468,7 +468,7 @@ test('an empty main table warns and moves on, and when every picked table is emp
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data');
     made.state.readinessByTable = { 'main.s.orders': '0', 'main.s.returns': '0' };
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     assert.equal(await page.locator('[data-empty-table-warning]').innerText(),
       'Warning: every table you picked is empty (main.s.orders, main.s.returns), so no use case can be grounded in rows. You can go on.');
     assert.deepEqual(await footerErrors(page), [], 'all empty still does not stop the wizard (must-exclude)');
@@ -476,7 +476,7 @@ test('an empty main table warns and moves on, and when every picked table is emp
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data');
     made.state.readinessByTable = { 'main.s.orders': '5', 'main.s.returns': '0' };
-    await goToStep(page, 'MVP Test Run');
+    await goToStep(page, 'First run');
     assert.equal(await page.locator('[data-empty-table-warning]').count(), 0, 'rows in the main table clear the warning (must-exclude)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -778,7 +778,9 @@ test('a version that ended with a warning says why under its status, and a ready
     assert.equal(await warned.page.getByRole('region', { name: 'Build failed' }).count(), 0, 'warnings are not a failed build');
     const chip = warned.page.locator('[data-mvp-progress] p', { hasText: /^Warnings$/ }).first();
     await chip.waitFor();
-    assert.equal(await warned.page.locator('[data-mvp-progress] [data-build-reason]').innerText(), why);
+    const reason = warned.page.locator('[data-mvp-progress] [data-build-reason]');
+    assert.equal(await reason.innerText(), why.slice(0, why.lastIndexOf(': https://')));
+    assert.match(await warned.page.locator('[data-mvp-progress] [data-technical-details]').first().textContent(), /https:\/\/workspace\.example\.com\/jobs\/77\/runs\/9001/);
     assert.deepEqual(warned.pageErrors, []);
   } finally {
     await warned.close();
@@ -1120,7 +1122,7 @@ test('a build that failed the same way twice lists what Inspire tried, drops Try
       await setDark(page, dark);
       assert.deepEqual((await lowContrast(page, ['section[aria-label="Build failed"]'])).low, [], dark ? 'dark banner' : 'light banner');
     }
-    await banner.getByRole('button', { name: 'Build a smaller MVP Test Run' }).click();
+    await banner.getByRole('button', { name: 'Build a smaller First run' }).click();
     await until(() => made.jobs.length === 1, 'the smaller run');
     const insert = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO'))[0];
     const sent = JSON.parse(insert.parameters.find((p) => p.name === 'spec').value);
@@ -1520,10 +1522,9 @@ test('a version saved while the App offered downloads retries its App and opens 
     await toData(edit.page);
     await toDelivery(edit.page);
     await toAppAccess(edit.page);
-    const access = edit.page.getByRole('region', { name: 'App access' });
-    assert.equal(await access.getByRole('checkbox', { name: /^Let people edit data/ }).isChecked(), true, 'the saved choices come back');
-    await access.getByRole('checkbox', { name: /^Record decisions/ }).check();
-    await goToStep(edit.page, 'App look');
+    const features = edit.page.getByRole('region', { name: 'App features' });
+    assert.equal(await features.getByRole('checkbox', { name: /^Let people edit data/ }).isChecked(), true, 'the saved choices come back');
+    await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
     await implementWhenReady(edit.page);
     await edit.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     assert.deepEqual(submittedSpec(edit.made).outputs.app_options, { modify: true, replace_edits: false, decisions: true, alerts: false });

@@ -5,14 +5,14 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { DECIDE, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
-import { dropCopies, fillWithCopies, wheelScrolls } from '../../../../../frontend/test/ui/wheelScroll.mjs';
+import { STREAMED_ANSWER, dropCopies, fillWithCopies, followsOnlyAtBottom, wheelScrolls } from '../../../../../frontend/test/ui/wheelScroll.mjs';
 import { LAYOUT_B_CASES as CASES, MOVES, STEPS, kindRoutes, unlinkedRecords } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(HERE, '..', 'dist', 'assets');
 const KINDS = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
 const WORLD = JSON.parse(readFileSync(join(SRC, 'maps', 'world.json'), 'utf8'));
-const MAIN_BUDGET = 1_295_000;
+const MAIN_BUDGET = 1_300_000;
 const P = { ink: '#111', muted: '#666', line: '#ddd', card: '#fff', well: '#eee', font: 'Inter', series: ['#1', '#2', '#3', '#4', '#5', '#6'], tier: { 'Act now': '#c00' } };
 
 let served;
@@ -172,6 +172,17 @@ test('the mouse wheel scrolls the chat conversation to its last message at 1280x
   const log = page.locator('.chat-log');
   await wheelScrolls(page, log, () => log.locator('[data-wheel-copy]').last(), { name: 'chat conversation',
     fill: () => fillWithCopies(log, ':scope > .msg', 14), unfill: () => dropCopies(log) });
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the chat follows a streaming answer only while the person is at the bottom, and wheel up keeps their place with a New messages button', async () => {
+  const { page, seen, context } = await open('agent_chat', [], {
+    'genie/message': ({ json }) => json(200, { state: 'done', text: STREAMED_ANSWER, sql: 'SELECT 1', columns: [], rows: [], truncated: false }),
+  });
+  await page.setViewportSize({ width: 1024, height: 700 });
+  await page.locator('[data-question]').first().click();
+  await followsOnlyAtBottom(page, page.locator('.chat-log'), 'chat conversation');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

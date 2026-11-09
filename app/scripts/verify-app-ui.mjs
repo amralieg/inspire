@@ -12,6 +12,9 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
+import redact from '../backend/lib/redact.js';
+
+redact.redactOutput();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const distJs = path.join(root, 'frontend/dist/assets');

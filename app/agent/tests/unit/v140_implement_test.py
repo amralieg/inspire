@@ -5668,3 +5668,23 @@ def test_a_round_that_fails_exactly_as_the_round_before_is_told_its_change_did_n
         inst._implement_genie_loop(dict(LOOP_CONTEXT), changing, "App", "write it",
                                    lambda w: (_ for _ in ()).throw(RuntimeError(next(reasons))))
     assert not any(marker in p for p in changing.prompts)
+
+
+def test_a_read_outside_inspire_read_source_left_after_the_last_round_blocks_publishing_with_one_plain_reason(agent_ns):
+    spec = agent_ns["validate_implement_spec"](VALID)[0]
+    read = ("cell 4 line 271 names main.sales.orders outside inspire_read_source, so the First run scope does not narrow that read: "
+            + agent_ns["GENIE_SOURCE_READ_RULE"])
+    last = _flow_inspire(agent_ns, [({"status": "written", "rows_written": 7}, 11, 101)])
+    last.number_reports = [[read]] * 3
+    runner = _FakeRunner([{"exit": 0, "final": _fill()}] * 3)
+    with pytest.raises(agent_ns["ImplementNotebookFailed"]) as stopped:
+        last._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 1), {}, spec, None, "/W/nb", ["result_table", "run_profile"], runner, True)
+    said = str(stopped.value)
+    assert said.startswith("cell 4 line 271 reads main.sales.orders without inspire_read_source") and "not published" in said, said
+    assert agent_ns["GENIE_SOURCE_READ_RULE"] not in said, "the person reads one plain reason, not Genie's rule"
+    assert "cell 4 line 271 names main.sales.orders outside inspire_read_source" in runner.prompts[1], "Genie is told the exact line"
+    other = _flow_inspire(agent_ns, [({"status": "written", "rows_written": 7}, 11, 101)])
+    other.number_reports = [["cell 5 line 2 strips zeros"]] * 3
+    outcome, _job, _f = other._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 1), {}, spec, None, "/W/nb",
+                                                          ["result_table", "run_profile"], _FakeRunner([{"exit": 0, "final": _fill()}] * 3), True)
+    assert outcome["status"] == "written" and outcome["build_problems"] == ["cell 5 line 2 strips zeros"], "other leftovers stay warnings"

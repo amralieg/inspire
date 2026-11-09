@@ -62,7 +62,7 @@ def test_the_four_first_run_settings_follow_the_contract_and_reach_the_run(agent
     assert [s["name"] for s in run] == ["act_now_capacity", "run_scope", "scope_groups", "scope_days", "scope_records"]
     assert run[0]["optional"] is True and run[2]["optional"] is True
     assert [s["name"] for s in agent_ns["inspire_settings_model"]({"family": "B", "decision_basis": "measured"}, [])] == ["act_now_capacity"], \
-        "no main table, no MVP Test Run"
+        "no main table, no First run"
 
 
 def test_an_empty_scope_groups_is_allowed_and_any_other_empty_choice_is_not(agent_ns):
@@ -240,7 +240,7 @@ def test_each_run_records_its_scope_and_the_records_it_read_per_table(fresh_ns):
     recent = {"scope": "recent", "table": ORDERS, "column": "order_date", "days": 30}
     assert fresh_ns["inspire_scope_key"](dict(recent, since="2026-10-01")) == fresh_ns["inspire_scope_key"](dict(recent, since="2026-10-08")), \
         "a recent period keeps its scope as its dates move on"
-    assert printed[-1].endswith("its MVP Test Run covering the 1 group EMEA of region")
+    assert printed[-1].endswith("its First run covering the 1 group EMEA of region")
     log["reads"] = {"main.sales.orders": {"where": "", "limit": 1000}}
     capped = FakeSpark(responder=respond)
     first = fresh_ns["inspire_run_tables"](capped, fresh_ns["INSPIRE_RUN"])[0]

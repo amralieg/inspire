@@ -86,9 +86,9 @@ CHOSEN = {
 
 
 @pytest.mark.parametrize("mode,text", [
-    ("groups", "MVP Test Run: the 3 groups EMEA, AMER, APAC of region"),
-    ("recent", "MVP Test Run: the records of order_date since 2026-10-02"),
-    ("records", "MVP Test Run: 1,000 records of main.sales.orders spread across the whole table, picked by a stable hash of each record"),
+    ("groups", "First run: the 3 groups EMEA, AMER, APAC of region"),
+    ("recent", "First run: the records of order_date since 2026-10-02"),
+    ("records", "First run: 1,000 records of main.sales.orders spread across the whole table, picked by a stable hash of each record"),
 ])
 def test_every_number_states_the_scope_the_run_recorded_in_the_run_s_own_words(agent_ns, mode, text):
     record = agent_ns["inspire_scope_record"](CHOSEN[mode])
@@ -100,9 +100,9 @@ def test_every_number_states_the_scope_the_run_recorded_in_the_run_s_own_words(a
 def test_all_records_and_a_scope_that_recorded_no_words_never_pass_for_one_another(agent_ns):
     assert shell_sql.scope_text(None) == shell_sql.scope_text({"scope": "all", "key": "all"}) == "All records"
     assert shell_sql.scope_text(agent_ns["inspire_scope_record"]({"scope": "all"})) == "All records"
-    assert shell_sql.scope_text({"scope": "groups", "key": "groups:x"}) == "MVP Test Run: part of the records"
+    assert shell_sql.scope_text({"scope": "groups", "key": "groups:x"}) == "First run: part of the records"
     assert shell_sql.scope_text({"scope": "groups", "key": "groups:x", "text": "  the 1 group\nEMEA of  region "}) == (
-        "MVP Test Run: the 1 group EMEA of region")
+        "First run: the 1 group EMEA of region")
 
 
 def test_the_tile_says_calmly_that_the_previous_run_covered_a_different_scope():
@@ -110,7 +110,7 @@ def test_the_tile_says_calmly_that_the_previous_run_covered_a_different_scope():
                                                          "text": "the 1 group EMEA of region"}])} for k in keys]
     assert shell_sql.scope_view(rows("all", "groups:aaaa")) == {"text": "All records", "note": "The previous run covered a different scope."}
     assert shell_sql.scope_view(rows("groups:aaaa", "groups:aaaa"))["note"] == ""
-    assert shell_sql.scope_view(rows("groups:aaaa")) == {"text": "MVP Test Run: the 1 group EMEA of region", "note": ""}
+    assert shell_sql.scope_view(rows("groups:aaaa")) == {"text": "First run: the 1 group EMEA of region", "note": ""}
     assert shell_sql.scope_view([]) == {"text": "", "note": ""}
     note = shell_sql.scope_note({"key": "all"}, {"key": "groups:x"})
     assert not re.search(r"warn|careful|caution|!|not comparable", note, re.I), "a fact, never a warning"
@@ -121,8 +121,8 @@ def test_the_run_page_states_what_the_first_run_covered_and_what_everything_woul
              "text": "the 3 groups EMEA, AMER, APAC of region"}
     tables = [{"table": "main.sales.orders", "rows": 900, "rows_total": 48000}, {"table": "main.sales.stores", "rows": 12, "rows_total": 12}]
     facts = shell_sql.scope_facts(scope, tables, 240)
-    assert facts == {"covered": "The MVP Test Run covered 900 of 48,000 records (3 groups) in 4 minutes.",
-                     "everything": "Run on everything covers all 48,000 records, 53 times what the MVP Test Run read; how long that takes is "
+    assert facts == {"covered": "The First run covered 900 of 48,000 records (3 groups) in 4 minutes.",
+                     "everything": "Run on everything covers all 48,000 records, 53 times what the First run read; how long that takes is "
                                    "unknown until a larger run is measured."}
     assert shell_sql.scope_facts({"scope": "all", "key": "all"}, tables, 240) == {"covered": "", "everything": ""}
     near = [{"table": "main.sales.orders", "rows": 9000, "rows_total": 48000}]
@@ -130,17 +130,17 @@ def test_the_run_page_states_what_the_first_run_covered_and_what_everything_woul
     huge = [{"table": "main.sales.orders", "rows": 1000, "rows_total": 7500000}]
     everything = shell_sql.scope_facts(dict(scope, scope="records"), huge, 177)["everything"]
     assert "22,125" not in everything and "minute" not in everything, "one small run never scales its start-up time to millions of records"
-    assert everything == ("Run on everything covers all 7,500,000 records, 7,500 times what the MVP Test Run read; how long that takes is unknown "
+    assert everything == ("Run on everything covers all 7,500,000 records, 7,500 times what the First run read; how long that takes is unknown "
                           "until a larger run is measured.")
     same = [{"table": "main.sales.orders", "rows": 48000, "rows_total": 48000}]
     assert shell_sql.scope_facts(scope, same, 240)["everything"] == "Run on everything covers all 48,000 records, about 4 minutes."
     assert shell_sql.scope_facts(scope, [], 240) == {"covered": "", "everything": ""}, "no count, no invented numbers"
-    assert shell_sql.scope_facts(scope, tables, None)["covered"] == "The MVP Test Run covered 900 of 48,000 records (3 groups)."
+    assert shell_sql.scope_facts(scope, tables, None)["covered"] == "The First run covered 900 of 48,000 records (3 groups)."
     one = shell_sql.scope_facts(dict(scope, scope="records"), [{"table": "main.sales.orders", "rows": 1, "rows_total": 1}], None)
-    assert one == {"covered": "The MVP Test Run covered 1 of 1 record.", "everything": "Run on everything covers all 1 record."}
+    assert one == {"covered": "The First run covered 1 of 1 record.", "everything": "Run on everything covers all 1 record."}
     view = shell_core.run_view({"run_id": "r3"}, {"run_segments": json.dumps([{"column": "channel", "values": ["web"]}, scope]),
                                                   "run_tables": json.dumps(tables), "run_started_at": None}, {"filters": []})
-    assert view["scope"] == scope and view["scope_text"] == "MVP Test Run: the 3 groups EMEA, AMER, APAC of region"
+    assert view["scope"] == scope and view["scope_text"] == "First run: the 3 groups EMEA, AMER, APAC of region"
     assert view["segments"] == [{"column": "channel", "label": "Channel", "values": ["web"], "more": 0}], "the scope is not a segment"
     assert view["tables"][0] == {"table": "main.sales.orders", "rows": 900, "rows_total": 48000, "scoped": False, "updated_at": None}
 
@@ -175,7 +175,7 @@ def test_the_dashboard_and_the_weekly_email_pass_the_first_run_to_the_latest_run
 
 @pytest.mark.parametrize("segments,page_scopes,expected", [
     ([{"column": "channel", "values": ["web"]}, {"scope": "groups", "key": "groups:x", "text": "the 2 groups EMEA, AMER of region"}], True,
-     "MVP Test Run: the 2 groups EMEA, AMER of region"),
+     "First run: the 2 groups EMEA, AMER of region"),
     ([{"scope": "all", "key": "all", "text": "all the records"}], True, ""),
     ([], True, ""),
     ("{not json", True, ""),

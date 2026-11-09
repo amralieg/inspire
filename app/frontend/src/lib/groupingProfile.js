@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { FIRST_RUN_LABEL, GROUP_BY, GROUP_ALL, groupByColumns, groupsReadNeeded } from './runScope.js';
 
 export const GROUPING_PROFILE_ROUTE = '/api/grouping/profile';
-export const PROFILE_READING = `Inspire is reading the table to suggest Data groups and an ${FIRST_RUN_LABEL}.`;
+export const PROFILE_READING = `Inspire is reading the table to suggest Data groups and a ${FIRST_RUN_LABEL}.`;
 export const PROFILE_WAITING = 'Reading the table';
 
 export function profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true, groupBy = '', table = '' }) {

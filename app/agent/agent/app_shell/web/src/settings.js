@@ -8,7 +8,7 @@ export const GROUPS = [
 ];
 const ALL = 'all';
 const NUMBER = /^-?[0-9]+(?:\.[0-9]+)?$/;
-export const CUSTOM_SQL_REFUSED = 'Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead';
+export const CUSTOM_SQL_REFUSED = 'Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the First run choices instead';
 const CUSTOM_SQL_SETTINGS = ['group_sql', 'group_sql_tables', 'group_sql_hash', 'group_sql_checked_by', 'group_sql_checked_at',
   'scope_sql', 'scope_sql_tables', 'scope_sql_hash', 'scope_sql_checked_by', 'scope_sql_checked_at'];
 

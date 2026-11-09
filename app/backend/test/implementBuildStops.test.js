@@ -139,7 +139,7 @@ test('the server counts the rows before a plan or a build, warns when there are 
   await withApp({ useCase: twoTables, readinessByTable: { 'main.s.orders': '0', 'main.s.returns': '40' } }, async (url) => {
     const got = await plan(url);
     assert.deepEqual(got.data.warnings, [emptyScopeWarning(scope)], 'one empty table among tables with rows keeps the first-run wording (must-exclude)');
-    assert.match(got.data.warnings[0], /the MVP Test Run may write no rows/);
+    assert.match(got.data.warnings[0], /the First run may write no rows/);
   });
   await withApp({ useCase: twoTables, readinessRows: [{ row_count: '0' }], sqlErrors: { 'row_count FROM `main`.`s`.`returns`': 'warehouse stopped' } }, async (url) => {
     const got = await plan(url);

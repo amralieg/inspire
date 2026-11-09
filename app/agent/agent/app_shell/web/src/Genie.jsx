@@ -11,7 +11,7 @@ import { GENIE_ASK, genieAnswer, genieKey, genieOf, genieOn, paceText } from './
 import { AGENT_CHANGED, suggestions } from './agentView.js';
 import { AgentExtras, AgentSteps, confirmWrite } from './AgentParts.jsx';
 import { runWrite } from './saving.jsx';
-import { PlainNote } from './ui.jsx';
+import { NewMessages, PlainNote, useFollowBottom } from './ui.jsx';
 
 const WORDS_PER_SECOND = 14;
 const AGENT_POLL_MS = 1000;
@@ -380,7 +380,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
   const width = useGenieWidth(panel);
   const tick = useCallback((n, shown) => setThread((t) => t.map((m) => (m.n === n ? { ...m, shown } : m))), [setThread]);
   useEffect(() => { input.current?.focus(); }, []);
-  useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [thread]);
+  const follow = useFollowBottom(log, thread, `${key}:${thread.filter((m) => m.who === 'you').at(-1)?.n ?? ''}`);
   useEffect(() => {
     if (!draft) return;
     setText(draft);
@@ -445,6 +445,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
             {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} />}
           </div>
         )))}
+        <NewMessages follow={follow} />
       </div>
       {on && about && (
         <div className="g-about">

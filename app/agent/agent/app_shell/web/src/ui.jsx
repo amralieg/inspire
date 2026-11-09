@@ -81,17 +81,22 @@ export function Popover({ anchor, onClose, children, label, role = 'dialog', wid
     const place = () => {
       const a = anchor.getBoundingClientRect();
       const w = ref.current.offsetWidth;
-      const h = ref.current.offsetHeight;
-      const below = a.bottom + 6 + h <= window.innerHeight - 8 || a.top - 6 - h < 8;
+      const h = ref.current.scrollHeight;
+      const roomBelow = window.innerHeight - 8 - (a.bottom + 6);
+      const roomAbove = a.top - 6 - 8;
+      const below = h <= roomBelow || roomBelow >= roomAbove;
+      const room = Math.max(below ? roomBelow : roomAbove, 120);
       setAt({
-        top: below ? a.bottom + 6 : a.top - 6 - h,
+        top: below ? a.bottom + 6 : a.top - 6 - Math.min(h, room),
         left: Math.max(8, Math.min(window.innerWidth - w - 8, a.left)),
+        room,
       });
     };
+    const moved = (e) => { if (!ref.current?.contains(e.target)) place(); };
     place();
     window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
-    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true); };
+    window.addEventListener('scroll', moved, true);
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', moved, true); };
   }, [anchor]);
   useEffect(() => {
     const down = (e) => { if (ref.current && !ref.current.contains(e.target) && !anchor?.contains(e.target)) onClose(); };
@@ -106,7 +111,7 @@ export function Popover({ anchor, onClose, children, label, role = 'dialog', wid
     return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
   }, [anchor, onClose]);
   return createPortal(
-    <div ref={ref} className="pop" role={role} aria-label={label} style={{ top: at.top, left: at.left, width }}>{children}</div>,
+    <div ref={ref} className="pop" role={role} aria-label={label} style={{ top: at.top, left: at.left, width, maxHeight: at.room }}>{children}</div>,
     anchor?.closest('dialog[open]') || document.body,
   );
 }
@@ -143,6 +148,59 @@ export function Menu({ anchor, onClose, items, label }) {
 }
 
 export const SoWhat = ({ text }) => (text ? <p className="so-what" data-so-what><b>So what:</b> {text}</p> : null);
+
+const FOLLOW_SLACK_PX = 40;
+const UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home']);
+
+export function useFollowBottom(ref, content, pin) {
+  const follow = useRef(true);
+  const seen = useRef(0);
+  const pinned = useRef(pin);
+  const [unread, setUnread] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    let top = el.scrollTop;
+    const gap = () => el.scrollHeight - el.scrollTop - el.clientHeight;
+    const onScroll = () => {
+      if (gap() <= 1 || (el.scrollTop > top && gap() <= FOLLOW_SLACK_PX)) { follow.current = true; setUnread(false); }
+      else if (el.scrollTop < top) follow.current = false;
+      top = el.scrollTop;
+    };
+    const leave = () => { if (el.scrollHeight > el.clientHeight) follow.current = false; };
+    const onWheel = (e) => { if (e.deltaY < 0) leave(); };
+    const onKey = (e) => { if (UP_KEYS.has(e.key)) leave(); };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    el.addEventListener('wheel', onWheel, { passive: true });
+    el.addEventListener('keydown', onKey);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('keydown', onKey);
+    };
+  }, [ref]);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (pinned.current !== pin) { pinned.current = pin; follow.current = true; }
+    if (follow.current) { el.scrollTop = el.scrollHeight; setUnread(false); }
+    else if (el.scrollHeight > seen.current) setUnread(true);
+    seen.current = el.scrollHeight;
+  }, [ref, content, pin]);
+  const jump = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    follow.current = true;
+    el.scrollTop = el.scrollHeight;
+    setUnread(false);
+  }, [ref]);
+  return { unread, jump };
+}
+
+export function NewMessages({ follow }) {
+  if (!follow.unread) return null;
+  return <button type="button" className="new-msgs" onClick={follow.jump}><Icon name="down" size={13} />New messages</button>;
+}
 
 export function Skeleton({ height = 16, width = '100%', radius = 8 }) {
   return <span className="skel" style={{ height, width, borderRadius: radius }} aria-hidden="true" />;

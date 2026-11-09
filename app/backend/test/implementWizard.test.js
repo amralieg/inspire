@@ -469,7 +469,7 @@ test('the row count says what it left out, and an empty scope is a warning that 
   assert.deepEqual(w.scopeNarrowing(scope({ window: { column: 'order_date', start: '', end: '' } })), [], 'a mapped column with no dates narrows nothing');
   assert.deepEqual(w.scopeNarrowing(scope({ window, filters })), ['window', 'filters']);
   const go = 'You can go on.';
-  assert.equal(w.emptyScopeWarning(scope()), `Warning: main.s.orders is empty, so the MVP Test Run may write no rows. ${go}`);
+  assert.equal(w.emptyScopeWarning(scope()), `Warning: main.s.orders is empty, so the First run may write no rows. ${go}`);
   assert.equal(w.emptyScopeWarning(scope(), ['main.s.orders']),
     `Warning: main.s.orders, the only table you picked, is empty, so no use case can be grounded in rows. ${go}`);
   assert.equal(w.emptyScopeWarning(scope(), ['main.s.orders', 'main.s.web']),

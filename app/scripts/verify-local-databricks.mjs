@@ -7,6 +7,9 @@ import fs from 'fs';
 import path from 'path';
 import { createRequire } from 'module';
 import { fileURLToPath } from 'url';
+import redact from '../backend/lib/redact.js';
+
+redact.redactOutput();
 
 const require = createRequire(import.meta.url);
 const { plural } = require('../backend/lib/plural.js');
@@ -54,7 +57,7 @@ async function main() {
     process.exit(1);
   }
   console.log(`Host:      ${host}`);
-  console.log(`Token:     ${token ? `${token.slice(0, 8)}… (${token.length} chars)` : 'NOT SET'}`);
+  console.log(`Token:     ${token ? `set (${token.length} chars)` : 'NOT SET'}`);
   console.log(`Warehouse: ${warehouseId || 'NOT SET'}`);
   console.log(`Inspire DB: ${inspireDb || 'NOT SET'}`);
   console.log('');

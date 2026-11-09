@@ -48,7 +48,7 @@ const SCOPE_MODEL = [
     reason: "Inspire's default", help: 'The share that is Act now.', applies: 'run' },
   { name: 'group_by', label: 'Data groups (columns coarse to fine, or all)', group: 'scope', kind: 'text', allowed: 'all or columns', source: 'widget',
     default: 'all', choices: ['region', 'country'], unit: '', reason: '', help: '', applies: 'run' },
-  { name: 'run_scope', label: 'MVP Test Run', group: 'scope', kind: 'choice', choices: ['all', 'groups', 'recent', 'records'], source: 'widget', default: 'all', unit: '',
+  { name: 'run_scope', label: 'First run', group: 'scope', kind: 'choice', choices: ['all', 'groups', 'recent', 'records'], source: 'widget', default: 'all', unit: '',
     reason: '', help: '', applies: 'run' },
   { name: 'scope_groups', label: 'Groups to run on', group: 'scope', kind: 'choice', many: true, choices: [], source: 'widget', default: '', unit: '', reason: '', help: '', applies: 'run' },
   { name: 'scope_days', label: 'Days to run on', group: 'scope', kind: 'days', low: 1, high: null, allowed: 'at least 1', source: 'widget', default: '30', unit: '',
@@ -73,18 +73,21 @@ test('the offline walk checks the wizard of a large table that qualifies', { ski
   const calls = [];
   const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt(calls, PROFILE) });
   const { page } = ui;
+  let shownOnData = false;
   try {
     await toStep(page, 'Data groups');
     const grouping = await checkScope(page, PROFILE, { part: 'grouping' });
-    await goToStep(page, 'MVP Test Run');
+    shownOnData = (await page.getByRole('group', { name: 'Data groups', exact: true }).count()) > 0;
+    await goToStep(page, 'First run');
     const firstRun = await checkScope(page, PROFILE, { part: 'first_run' });
-    const steps = checkWizardSteps(await names(page), PROFILE);
+    const shown = { groupingShown: shownOnData };
+    const steps = checkWizardSteps(await names(page), PROFILE, shown);
     const all = [...grouping, ...firstRun, ...steps];
     console.log(JSON.stringify(all));
     assert.deepEqual(failed(all), []);
     assert.equal(all.filter((c) => c.ok === true).length, 10);
     assert.deepEqual(all.filter((c) => c.ok === null).map((c) => c.check), []);
-    assert.equal(checkWizardSteps(await names(page), { ...PROFILE, applies: false })[0].ok, false, 'a profile where Data groups do not apply fails a wizard that asks Data groups');
+    assert.equal(checkWizardSteps(await names(page), { ...PROFILE, applies: false }, shown)[0].ok, false, 'a profile where Data groups do not apply fails a wizard that asks Data groups');
   } finally {
     await ui.close();
   }
@@ -96,13 +99,13 @@ test('the offline walk checks the wizard of a small table, no Data groups and ne
   const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, small) });
   const { page } = ui;
   try {
-    await toStep(page, 'MVP Test Run');
-    const all = [...await checkScope(page, small, { part: 'first_run' }), ...checkWizardSteps(await names(page), small)];
+    await toStep(page, 'First run');
+    const all = [...await checkScope(page, small, { part: 'first_run' }), ...checkWizardSteps(await names(page), small, { groupingShown: (await page.getByRole('group', { name: 'Data groups', exact: true }).count()) > 0 })];
     console.log(JSON.stringify(all));
     assert.deepEqual(failed(all), []);
     await page.locator('[data-first-run-choice="all"] input[type="radio"]').check();
     const lying = await checkScope(page, small, { part: 'first_run' });
-    assert.deepEqual(failed(lying).map((c) => c.check), ['Everything is never the default MVP Test Run'], 'Everything picked fails, even on a small table (must-exclude)');
+    assert.deepEqual(failed(lying).map((c) => c.check), ['Everything is never the default First run'], 'Everything picked fails, even on a small table (must-exclude)');
   } finally {
     await ui.close();
   }
@@ -122,7 +125,7 @@ test('the offline walk checks the Run tab section', { skip }, async () => {
   const ui = await openUi('run', state, '', { init: profileAt(calls, PROFILE) });
   const { page, made } = ui;
   try {
-    const section = page.getByRole('region', { name: 'Data groups and MVP Test Run of this use case', exact: true });
+    const section = page.getByRole('region', { name: 'Data groups and First run of this use case', exact: true });
     await section.locator('[data-scope-part="first_run"] input[type="radio"]').first().waitFor({ timeout: 30000 });
     const all = await checkRunScope(page);
     console.log(JSON.stringify(all));

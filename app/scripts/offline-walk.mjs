@@ -5,8 +5,11 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { apiWatch, openShowcase, readOnlyInspire, recordMvpApp, tabButton, walkMvpViews, walkRun, watchOffline } from './showcaseRecorder.mjs';
-import { START_MVP_LABEL } from '../frontend/src/lib/implementWizard.js';
+import { FIRST_RUN_STEP, START_MVP_LABEL } from '../frontend/src/lib/implementWizard.js';
 import { SCOPE_WALK_READS, checkRunScope, checkScope, checkWizardSteps, profileWatch } from './scopeWalk.mjs';
+import redact from '../backend/lib/redact.js';
+
+redact.redactOutput();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -148,11 +151,13 @@ try {
     await dialog.first().waitFor();
     await settle();
     const seen = [];
+    let groupingShown = false;
     for (let i = 0; i < 10; i += 1) {
       const step = (await page.locator('[aria-current="step"]').first().innerText().catch(() => '?')).trim().replace(/^\d+\.\s*/, '');
       seen.push(step);
-      if (/^(Data groups|MVP Test Run)$/.test(step)) {
-        for (const c of await checkScope(dialog.first(), scopeProfile.profile, { part: step === 'Data groups' ? 'grouping' : 'first_run' })) scope.push({ where: `wizard ${step}`, ...c });
+      if (step === 'Data') groupingShown = (await dialog.first().getByRole('group', { name: 'Data groups', exact: true }).count()) > 0;
+      if (step === 'Data' || step === FIRST_RUN_STEP.label) {
+        for (const c of await checkScope(dialog.first(), scopeProfile.profile, { part: step === 'Data' ? 'grouping' : 'first_run' })) scope.push({ where: `wizard ${step}`, ...c });
       }
       const next = page.getByRole('button', { name: 'Next', exact: true });
       if (!(await next.count()) || await next.isDisabled()) break;
@@ -161,7 +166,7 @@ try {
     }
     await page.keyboard.press('Escape');
     await settle();
-    for (const c of checkWizardSteps(seen, scopeProfile.profile)) scope.push({ where: 'wizard', ...c });
+    for (const c of checkWizardSteps(seen, scopeProfile.profile, { groupingShown })) scope.push({ where: 'wizard', ...c });
     return `steps ${seen.join(' > ')}, not started`;
   });
   await section('Run', async () => `${await walkRun(page, settle, async (i) => {
@@ -202,9 +207,9 @@ try {
 
 const report = { inspire: origin, mvpApps: [...mvpUrls].sort().map((u) => new URL(u).origin), sections, scope, blocked: [...new Set(blocked)], ...watch.report() };
 fs.mkdirSync(out, { recursive: true });
-fs.writeFileSync(path.join(out, 'offline_walk.json'), `${JSON.stringify(report, null, 1)}\n`);
+fs.writeFileSync(path.join(out, 'offline_walk.json'), `${redact.redactSecrets(JSON.stringify(report, null, 1))}\n`);
 const rows = [['page', 'outside host', 'path', 'initiator']].concat(report.outside.map((o) => [o.page, o.host, o.path, o.initiator]));
 const errors = [['page', 'kind', 'error']].concat(report.pageErrors.map((e) => [e.page, 'page error', e.error]), report.consoleErrors.map((e) => [e.page, 'console error', e.error]));
-fs.writeFileSync(path.join(out, 'offline_walk.tsv'), `${rows.map((r) => r.join('\t')).join('\n')}\n\n${errors.map((r) => r.join('\t')).join('\n')}\n`);
+fs.writeFileSync(path.join(out, 'offline_walk.tsv'), redact.redactSecrets(`${rows.map((r) => r.join('\t')).join('\n')}\n\n${errors.map((r) => r.join('\t')).join('\n')}\n`));
 log(`scope checks: ${scope.filter((c) => c.ok === true).length} passed, ${scope.filter((c) => c.ok === false).length} failed, ${scope.filter((c) => c.ok === null).length} not checkable`);
 log(`${report.outside.length} outside requests, ${report.pageErrors.length} page errors, ${report.consoleErrors.length} console errors, ${sections.filter((s) => !s.ok).length} of ${sections.length} sections failed; wrote ${out}`);

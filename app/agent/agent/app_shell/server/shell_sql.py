@@ -367,7 +367,7 @@ RUN_LATEST = "latest"
 RUN_SCOPES = "run_scopes"
 SCOPE_KEY_PATTERN = '"key": "([^"]*)"'
 SCOPE_ALL_TEXT = "All records"
-SCOPE_FIRST_RUN = "MVP Test Run: "
+SCOPE_FIRST_RUN = "First run: "
 SCOPE_PART = "part of the records"
 SCOPE_SENTENCE = " The latest run covered only "
 SCOPE_SCHEMA = "ARRAY<STRUCT<scope: STRING, text: STRING>>"
@@ -4372,7 +4372,7 @@ SETTING_ALL = "all"
 SETTING_NUMBER = re.compile(r"^-?[0-9]+(?:\.[0-9]+)?$")
 CUSTOM_SQL_SETTINGS = ("group_sql", "group_sql_tables", "group_sql_hash", "group_sql_checked_by", "group_sql_checked_at",
                        "scope_sql", "scope_sql_tables", "scope_sql_hash", "scope_sql_checked_by", "scope_sql_checked_at")
-CUSTOM_SQL_REFUSED = "Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead"
+CUSTOM_SQL_REFUSED = "Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the First run choices instead"
 SETTINGS_CAP = 80
 SETTING_TEXTS = ("label", "help", "reason", "unit", "allowed", "default", "applies")
 TIER_CUTOFFS = ("act_now_amount", "review_amount")
@@ -5489,7 +5489,7 @@ def training_fact(tables, sampled) -> str:
     if not any(isinstance(t, dict) and t.get("training_read") for t in tables or []):
         return ""
     trained = f"a sample of {plural(sampled, 'record')} from the full history" if sampled else "the full history"
-    return f"The model trained on {trained}; the MVP Test Run limited only the records it scored."
+    return f"The model trained on {trained}; the First run limited only the records it scored."
 
 
 def scope_facts(scope, tables, duration_s, sampled=None) -> dict:
@@ -5512,13 +5512,13 @@ def _scope_facts(scope, tables, duration_s) -> dict:
               "recent": f" ({scope.get('column')} since {(scope.get('values') or [''])[0]})",
               "records": ""}.get(scope["scope"], "")
     took = "" if minutes is None else f" in {plural(max(1, round(minutes)), 'minute')}"
-    covered = f"The MVP Test Run covered {read:,} of {plural(total, 'record')}{extent}{took}."
+    covered = f"The First run covered {read:,} of {plural(total, 'record')}{extent}{took}."
     if minutes is None or not read:
         return {"covered": covered, "everything": f"Run on everything covers all {plural(total, 'record')}."}
     scale = total / read
     if scale > SCOPE_ESTIMATE_MAX_SCALE:
         return {"covered": covered, "everything": (f"Run on everything covers all {plural(total, 'record')}, {round(scale):,} times what the "
-                                                   "MVP Test Run read; how long that takes is unknown until a larger run is measured.")}
+                                                   "First run read; how long that takes is unknown until a larger run is measured.")}
     low, high = max(1, round(minutes)), max(1, round(minutes * scale))
     span = plural(high, "minute") if low == high else f"{low:,} to {plural(high, 'minute')}"
     return {"covered": covered, "everything": f"Run on everything covers all {plural(total, 'record')}, about {span}."}

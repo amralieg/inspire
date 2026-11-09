@@ -1,4 +1,4 @@
-"""Only the first run is the MVP Test Run: the build's runs and the first run after someone picks an MVP Test Run cover its scope,
+"""Only the first run is the First run: the build's runs and the first run after someone picks a First run cover its scope,
 every later run, scheduled or asked for in the App, covers all the records in the Data groups, and a rebuild that leaves the MVP
 Test Run as it was never sends the person back to it, offline."""
 import json

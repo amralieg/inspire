@@ -22,8 +22,15 @@ export const DEMO_READS_WHEN = {
   ...DEMO_MVP_READS,
 };
 
-export function demoReads(withMvps) {
-  return withMvps ? { ...DEMO_READS, ...DEMO_MVP_READS } : DEMO_READS;
+export const DEMO_TAB_READS = {
+  'GET /api/inspire/implement/alerts': 'alert',
+};
+
+export function demoReads(withMvps, walk = null) {
+  if (!withMvps) return DEMO_READS;
+  const shown = walk ? new Set(walk.build.flatMap((b) => b.tabs)) : null;
+  const mvpReads = Object.entries(DEMO_MVP_READS).filter(([route]) => !shown || !DEMO_TAB_READS[route] || shown.has(DEMO_TAB_READS[route]));
+  return { ...DEMO_READS, ...Object.fromEntries(mvpReads) };
 }
 
 export const NOT_IN_DEMO = {

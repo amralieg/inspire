@@ -15,6 +15,9 @@ import { closeBrowser, openUi } from '../frontend/test/ui/uiSupport.mjs';
 import { STUDIO_STATE, built } from '../frontend/test/ui/implementFixtures.js';
 import { defaultSpecFromUseCase } from '../frontend/src/lib/implementWizard.js';
 import { computeHighPriorityCount, qualityBarCountsOf } from '../frontend/src/lib/useCaseFields.js';
+import redact from '../backend/lib/redact.js';
+
+redact.redactOutput();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -217,8 +220,8 @@ const servers = [];
 const browser = await chromium.launch();
 try {
   const settle = apiWatch(ui.page);
-  await walkInspireDemo(ui.page, { settle, log, mvps: true });
-  const missed = unrecorded(inspire, demoReads(true));
+  const walk = await walkInspireDemo(ui.page, { settle, log, mvps: true });
+  const missed = unrecorded(inspire, demoReads(true, walk));
   if (missed.length) throw new Error(`the walk did not record ${missed.join(', ')}`);
   const writes = ui.made.fetches.filter((f) => String(f.opts.method || 'GET').toUpperCase() !== 'GET').map((f) => f.path);
   if (writes.length || ui.made.jobs.length) throw new Error(`the walk changed the made-up workspace: ${writes.join(', ')}`);

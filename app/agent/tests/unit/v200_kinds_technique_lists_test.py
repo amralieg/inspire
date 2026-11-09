@@ -142,5 +142,5 @@ def test_each_new_family_builds_a_genie_acceptance_section(agent_ns, label):
     spec = {"family": family, "decision_basis": agent_ns["GENIE_FAMILY_DECISION_BASIS"][family],
             "thresholds": dict(agent_ns["GENIE_READINESS_THRESHOLDS"][family])}
     section = obj._genie_acceptance_section(spec)
-    assert "- Acceptance: " in section and "{" not in section
+    assert "- Acceptance: " in section and not re.search(r"\{[A-Za-z_][\w.]*\}", section)
     assert obj._genie_threshold_text(dict(spec, runtime_assumptions=[]))

@@ -26,7 +26,7 @@ const WAREHOUSE_ERROR = (shown) => `outputs.app_warehouse_id ${shown} must be th
 const CANNOT_USE_WH2 = 'Inspire cannot manage Finance SQL, so the App cannot read and save with it: ask the warehouse owner to grant Inspire '
   + 'CAN MANAGE on it, or pick another SQL warehouse for the App';
 const LOCK = 'this use case asks the App to read with SQL warehouse whX, but it is added to the App sales-hub, which reads with SQL warehouse '
-  + 'wh9, the one use case N01-U02 Forecast demand chose when it built the App; changing it would change the pages of that use case too. '
+  + 'wh9, the one use case Forecast demand chose when it built the App; changing it would change the pages of that use case too. '
   + "Keep the App's SQL warehouse, or create a new App for this use case";
 const WH2_NAME = { 'GET /api/2.0/sql/warehouses/wh2': [{ id: 'wh2', name: 'Finance SQL' }] };
 const WH2_USE_ONLY = { 'GET /api/2.0/permissions/sql/warehouses/wh2': [{ access_control_list: [{ user_name: 'amr@x', all_permissions: [{ permission_level: 'CAN_USE' }] }] }] };
@@ -191,8 +191,10 @@ test('the wizard keeps an empty App warehouse for the build one, labels the fiel
   const target = { id: HUB, name: HUB, warehouse_id: 'wh9', built_by: { use_case_id: 'N01-U02', name: 'Forecast demand' } };
   const joined = w.withMergeTarget(picked, 'app', target);
   assert.equal(joined.outputs.app_warehouse_id, '', 'a joined App reads with its own warehouse, so the spec names none');
-  assert.equal(w.joinedWarehouseText(target), 'Locked: the pages of this use case read with the SQL warehouse of sales-hub, the one use case '
-    + 'N01-U02 chose when it built it; changing it would change the pages of the other use cases in it too.');
+  assert.equal(w.joinedWarehouseText(target), 'Locked: the pages of this use case read with the SQL warehouse of sales-hub, the one Forecast demand '
+    + 'chose when it built it; changing it would change the pages of the other use cases in it too.');
+  assert.doesNotMatch(w.joinedWarehouseText(target), /N01-U02/, 'no use case id in the sentence (must-exclude)');
+  assert.doesNotMatch(w.joinedWarehouseText({ ...target, built_by: { use_case_id: 'N01-U02' } }), /N01-U02/, 'an unnamed builder is never named by its id (must-exclude)');
   const listed = [{ id: 'wh1', name: 'Shared SQL', state: 'RUNNING' }, { id: 'wh2', name: 'Finance SQL', state: 'STOPPED' }];
   assert.equal(w.warehouseText(listed, 'wh2'), 'Finance SQL (STOPPED)');
   assert.equal(w.warehouseText(listed, 'wh7'), 'wh7');

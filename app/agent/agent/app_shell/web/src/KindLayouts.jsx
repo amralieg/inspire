@@ -7,7 +7,7 @@ import { genieOf, genieOn } from './genieAsk.js';
 import { ChoiceList } from './KindParts.jsx';
 import { KIND_LAZY } from './kindCharts.js';
 import { GenieMark, Icon } from './icons.jsx';
-import { Skeleton, PlainNote } from './ui.jsx';
+import { Skeleton, PlainNote, NewMessages, useFollowBottom } from './ui.jsx';
 import { SaveButton, runWrite } from './saving.jsx';
 import './styles/kindlayouts.css';
 
@@ -52,7 +52,7 @@ function Conversation({ page, app, genie }) {
   const log = useRef(null);
   const setThread = genie?.setThread;
   const tick = useCallback((n, shown) => setThread?.((t) => t.map((m) => (m.n === n ? { ...m, shown } : m))), [setThread]);
-  useEffect(() => { if (log.current) log.current.scrollTop = log.current.scrollHeight; }, [chat.thread]);
+  const follow = useFollowBottom(log, chat.thread, `${page.id}:${chat.thread.filter((m) => m.who === 'you').at(-1)?.n ?? ''}`);
   const submit = (e) => {
     e.preventDefault();
     if (chat.on && text.trim() && !chat.busy) { genie.ask(text); setText(''); }
@@ -79,6 +79,7 @@ function Conversation({ page, app, genie }) {
             {m.state === 'done' && <Answer message={m} url={chat.info.url} onTick={tick} genie={genie} rating={false} />}
           </div>
         )))}
+        <NewMessages follow={follow} />
       </div>
       <form className="g-in" onSubmit={submit}>
         <input dir="auto" value={text} onChange={(e) => setText(e.target.value)} aria-label="Your question" autoComplete="off" maxLength={1000} disabled={!chat.on}

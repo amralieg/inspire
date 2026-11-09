@@ -268,7 +268,7 @@ export function claimTarget(rows, person, limit = 200) {
 export const claimText = (n) => `Nobody owns these records yet, so My work stays empty for everyone. Take the ${n === 1 ? 'one' : n} on this page, or assign each one to the person who will work it.`;
 
 export const QUIET_MIN = 3;
-export const RAISE_CONFIDENCE = 'What would raise it: more history for each item, so the forecast can beat a simple guess; fixing the data quality issues flagged on the rows; and a run on every group instead of the MVP Test Run only.';
+export const RAISE_CONFIDENCE = 'What would raise it: more history for each item, so the forecast can beat a simple guess; fixing the data quality issues flagged on the rows; and a run on every group instead of the First run only.';
 
 export function quietList(rows, meta, aliases = {}) {
   const list = rows || [];

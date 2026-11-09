@@ -133,11 +133,6 @@ test('Open all settings on the Build page hands the wizard its live check, so a 
     await page.locator('[data-asset-tile="app"] [data-tile-versions]').waitFor({ timeout: 15000 });
     await (await openAsset(page, 'app')).getByRole('button', { name: 'Remove from churn-desk' }).waitFor({ timeout: 15000 });
     await openSettings(page);
-    for (let i = 0; i < 13 && await page.locator('[aria-current="step"]', { hasText: 'What to build' }).count() === 0; i += 1) {
-      const from = await page.locator('[aria-current="step"]').innerText();
-      await page.getByRole('button', { name: 'Back', exact: true }).click();
-      await page.waitForFunction((was) => document.querySelector('[aria-current="step"]')?.innerText !== was, from, { timeout: 15000 });
-    }
     await goToStep(page, 'What to build');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
     const tile = page.locator('[data-output="app"]');

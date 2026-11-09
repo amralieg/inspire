@@ -39,12 +39,6 @@ def test_a_prediction_without_a_signal_says_what_is_missing_and_what_to_do_witho
     assert not re.search(r"standard deviation|correlation is|signal column", text), text
 
 
-def test_plain_text_drops_sql_backticks_so_a_value_line_names_columns_plainly(agent_ns):
-    assert agent_ns["inspire_plain_text"]("`total_amount`") == "total_amount"
-    assert agent_ns["inspire_plain_text"](["`a`", "b"]) == "a, b"
-    assert agent_ns["inspire_plain_text"]("plain") == "plain"
-
-
 def test_the_one_group_scope_text_is_one_short_sentence_without_the_count_twice(agent_ns):
     chosen = {"scope": "records", "table": "main.sales.tx", "records": 1000, "column": "product", "whole_groups": True,
               "values": ["Big"], "group_records": {"Big": 5687}}

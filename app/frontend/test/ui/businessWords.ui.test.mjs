@@ -68,7 +68,7 @@ test('a build that needs access shows a plain sentence and keeps the GRANT state
     await expandBuild(page);
     const reason = page.locator('[data-mvp-progress] [data-build-reason]');
     await reason.waitFor({ timeout: 15000 });
-    assert.equal(await reason.innerText(), 'The App cannot read 1 table. Ask the owner to give you the access listed under Details');
+    assert.equal(await reason.innerText(), 'The App cannot read 1 table. Ask the owner to give the App the access listed under Details');
     const details = page.locator('[data-mvp-progress] [data-technical-details]').first();
     assert.equal(await details.locator('summary').innerText(), 'Details');
     assert.equal(await details.getAttribute('open'), null, 'Details starts closed');

@@ -13,7 +13,7 @@ def test_the_scope_text_names_the_real_count_of_several_groups_and_never_calls_t
     chosen = {"scope": "records", "table": "main.sales.tx", "records": 1000, "column": "product", "whole_groups": True,
               "values": ["Ginger", "Pecan", "Cocoa"], "group_records": {"Ginger": 586, "Pecan": 560, "Cocoa": 527}}
     said = agent_ns["inspire_scope_text"](chosen)
-    assert said == ("1,673 records of main.sales.tx, in 3 whole groups, so the MVP Test Run sees more than one group and no group is cut: "
+    assert said == ("1,673 records of main.sales.tx, in 3 whole groups, so the First run sees more than one group and no group is cut: "
                     "product = Ginger, 586 records; product = Pecan, 560 records; product = Cocoa, 527 records")
     assert "smallest whole group" not in said
     one = dict(chosen, values=["Big"], group_records={"Big": 4000})

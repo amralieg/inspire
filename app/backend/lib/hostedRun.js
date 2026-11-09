@@ -3,6 +3,7 @@ const os = require('os');
 const path = require('path');
 const http = require('http');
 const childProcess = require('child_process');
+const { redactSecrets: redactAny } = require('./redact');
 const { IMPLEMENT_APP_HOSTED_ID_RE: HOSTED_ID_RE } = require('./inspireImplement');
 const { forwardedTokenOf } = require('./requestPerson');
 const { parseExactJson } = require('./exactJson');
@@ -45,22 +46,9 @@ const HOSTED_DECISION_TEXT = { stopped: 'Inspire stopped recording the decision'
 const HOSTED_DECISION_REBUILD = 'build the use case again with Vibe/Add/Remove Features on Inspire\'s Build page so its page carries the current App shell';
 const HOSTED_TMP_ROOT = path.join(os.tmpdir(), 'inspire_hosted');
 const HOSTED_LISTENING_RE = /Uvicorn running on https?:\/\/127\.0\.0\.1:(\d+)/;
-const SECRET_PATTERNS = [
-  /\bBearer\s+\S+/gi,
-  /\bdapi[0-9a-f]{16,}\b/gi,
-  /\bdose[0-9a-f]{16,}\b/gi,
-  /\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}/g,
-  /\b(token|secret|password|client_secret|access_token)(["']?\s*[:=]\s*["']?)[^\s"',}]+/gi,
-  /\b[A-Za-z0-9+/_-]{40,}={0,2}/g,
-];
+const HOSTED_SECRET_PATTERNS = [/\b[A-Za-z0-9+/_-]{40,}={0,2}/g];
 
-function redactSecrets(text) {
-  let out = String(text ?? '');
-  for (const pattern of SECRET_PATTERNS) {
-    out = out.replace(pattern, (match, key, joint) => (typeof key === 'string' && typeof joint === 'string' ? `${key}${joint}[redacted]` : '[redacted]'));
-  }
-  return out;
-}
+const redactSecrets = (text) => redactAny(text, HOSTED_SECRET_PATTERNS);
 
 function absoluteDirs(pathValue, cwd) {
   const dirs = [];

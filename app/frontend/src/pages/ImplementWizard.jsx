@@ -2038,6 +2038,7 @@ function JoinedWarehouse({ target, warehouses }) {
         </select>
       </Field>
       <p className="text-[11px] text-text-tertiary">{joinedWarehouseText(target)}</p>
+      <TechnicalDetails items={target.built_by?.use_case_id ? `Built by use case ${target.built_by.use_case_id}` : ''} />
     </div>
   );
 }

@@ -124,7 +124,7 @@ function ScopeFacts({ page, run }) {
     });
   };
   return (
-    <section className="card runs-scope" aria-label="MVP Test Run">
+    <section className="card runs-scope" aria-label="First run">
       <p>{run.facts.covered}</p>
       {run.facts.everything && <p>{run.facts.everything}</p>}
       {run.facts.trained && <p>{run.facts.trained}</p>}

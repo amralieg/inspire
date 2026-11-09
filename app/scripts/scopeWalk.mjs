@@ -1,4 +1,5 @@
 import { FIRST_RUN_LABEL as RUN_LABEL } from '../frontend/src/lib/runScope.js';
+import { FIRST_RUN_STEP } from '../frontend/src/lib/implementWizard.js';
 const profileRoute = await import('../frontend/src/lib/groupingProfile.js').then((m) => m.GROUPING_PROFILE_ROUTE || '', () => '');
 export const SCOPE_WALK_READS = new Set(profileRoute ? [`POST ${profileRoute}`] : []);
 const RECORDS_RE = /· [\d,]+ records?\b/;
@@ -31,13 +32,13 @@ async function choicesOf(group) {
   return texts.map((text, i) => ({ text, checked: checked[i] }));
 }
 
-export function checkWizardSteps(steps, profile) {
+export function checkWizardSteps(steps, profile, { groupingShown = false } = {}) {
   if (!profile) return [{ check: 'the table profile', ok: null, detail: 'the wizard never read a Data groups profile, so nothing can be compared' }];
-  const asked = steps.includes('Data groups');
+  const firstRun = FIRST_RUN_STEP.label;
   return [
-    { check: 'the wizard asks Data groups whenever the technique works in groups', ok: asked === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${asked}` },
-    { check: 'MVP Test Run comes right after Data groups', ok: !asked || steps.indexOf(RUN_LABEL) === steps.indexOf('Data groups') + 1, detail: steps.join(' > ') },
-    { check: 'the wizard asks MVP Test Run', ok: steps.includes(RUN_LABEL), detail: steps.join(' > ') },
+    { check: 'the wizard asks Data groups on Data whenever the technique works in groups', ok: groupingShown === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${groupingShown}` },
+    { check: 'no Data groups step of its own (must-exclude)', ok: !steps.includes('Data groups'), detail: steps.join(' > ') },
+    { check: `${firstRun} comes right after Data`, ok: steps.indexOf(firstRun) === steps.indexOf('Data') + 1, detail: steps.join(' > ') },
   ];
 }
 
@@ -73,12 +74,12 @@ export async function checkScope(root, profile, { part = 'both' } = {}) {
   }
   if (part !== 'grouping' && (await firstRun.count())) {
     const choices = await choicesOf(firstRun);
-    await check(list, 'Everything is never the default MVP Test Run', async () => {
+    await check(list, 'Everything is never the default First run', async () => {
       const picked = choices.find((c) => c.checked);
       const everything = Boolean(picked) && /^(Everything|The last \d+ days|A recent period)\b/.test(picked.text);
       return { ok: Boolean(picked) && !everything, detail: `${profile.records} records, picked ${picked ? picked.text.slice(0, 60) : 'none'}` };
     });
-    await check(list, 'each MVP Test Run choice states its record count', async () => {
+    await check(list, 'each First run choice states its record count', async () => {
       const missing = choices.filter((c) => !RECORDS_RE.test(c.text));
       return { ok: choices.length > 0 && missing.length === 0, detail: missing.length ? `no count on ${missing.map((m) => m.text.slice(0, 40)).join(', ')}` : `${choices.length} choices` };
     });
@@ -90,13 +91,13 @@ export async function checkRunScope(page) {
   const list = [];
   const region = page.getByRole('region', { name: `Data groups and ${RUN_LABEL} of this use case` });
   if (!(await region.count())) {
-    pending(list, 'the Run tab Data groups and MVP Test Run', 'this page has no scope settings');
+    pending(list, 'the Run tab Data groups and First run', 'this page has no scope settings');
     return list;
   }
   const firstRun = region.getByRole('group', { name: RUN_LABEL, exact: true });
   const picked = (await firstRun.count()) ? (await choicesOf(firstRun)).find((c) => c.checked) : null;
   const everythingChosen = Boolean(picked) && /^Everything\b/.test(picked.text);
-  await check(list, 'Run on everything is offered while the MVP Test Run scope holds', async () => {
+  await check(list, 'Run on everything is offered while the First run scope holds', async () => {
     const offered = (await region.getByRole('button', { name: 'Run on everything' }).count()) > 0;
     return { ok: offered === !everythingChosen, detail: `offered ${offered}, scope is everything ${everythingChosen}` };
   });

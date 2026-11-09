@@ -56,7 +56,7 @@ tags:
       The notebook is auto-published to your workspace on first use, so just provide your business parameters and go.
   - name: Grouping
     description: |
-      Read the main table of a use case for its Data groups and MVP Test Run, always with your own sign-in.
+      Read the main table of a use case for its Data groups and First run, always with your own sign-in.
   - name: Monitor
     description: |
       Track execution progress and processing steps in real time.
@@ -849,7 +849,7 @@ paths:
   /api/grouping/profile:
     post:
       tags: [Grouping]
-      summary: Read the main table of a use case for its Data groups and MVP Test Run
+      summary: Read the main table of a use case for its Data groups and First run
       description: |
         Reads the use case record from the App database, then reads the use case table (its primary table, or the table a build swapped
         in) with your own forwarded token only, never the App token, on the warehouse you name, within 60 seconds, with row and byte caps.
@@ -857,16 +857,16 @@ paths:
         check uses a sample of 100,000 rows, and only columns with at most 550 approximate distinct values are counted exactly.
         It answers the candidate category columns with 2 to 500 groups, the recommended Data groups coarse to fine, with one plain sentence
         on why, an example of the small groups that move up a level, the time column and its recent records, three suggested groups
-        (biggest, typical, smallest), every group of the Data groups with its size, the records each MVP Test Run choice covers, and the default
-        MVP Test Run, which is about 1,000 records and never everything. Whether Data groups apply comes from the technique table of the
+        (biggest, typical, smallest), every group of the Data groups with its size, the records each First run choice covers, and the default
+        First run, which is about 1,000 records and never everything. Whether Data groups apply comes from the technique table of the
         kinds registry (technique_records: groups, alone or together); a technique that is not in it does not use Data groups.
         Candidates also take low-cardinality key columns of the main table and text columns of a table it joins one step away, counted over
         the main table's records; personal columns are never read or shown.
-        The Data groups and MVP Test Run settings every run reads keep one format. `group_by` is `all` or column names, coarse to
+        The Data groups and First run settings every run reads keep one format. `group_by` is `all` or column names, coarse to
         fine and comma separated: a column of the main table by its name, a column of a table it joins as `<table>.<column>` (the run
         reads it from that table through the use case's join on the main table's key). A run whose `group_by` names a column its
         records lack or a joined column with no join stops with the reason and never groups globally. `run_scope` is `all`, `groups`,
-        `recent` or `records`. Inspire runs no SQL typed into Data groups or MVP Test Run: a `group_by` or `run_scope` of `custom`, or any
+        `recent` or `records`. Inspire runs no SQL typed into Data groups or First run: a `group_by` or `run_scope` of `custom`, or any
         `group_sql` or `scope_sql` setting, is refused before anything runs. `scope_groups` is a JSON list of groups, each a list of {column, value, join?} pairs a record must all
         hold (AND within a group, OR between groups), values written as text; an older comma list of values of the finest column is
         still read. `scope_records` is the record goal of `records`, which takes whole groups of the finest column of the main table in
@@ -911,7 +911,7 @@ paths:
             recent (days, records) or null, suggested_groups
             (value, records, kind, and parts: the column and value pairs a record must all hold, with join for a joined column),
             group_column (the finest column of groups_for) or null, group_sizes (value, records of each group of group_column with 30 records or
-            more, which an MVP Test Run on records takes whole), groups_for (the Data groups the lists are for: the asked group_by when the
+            more, which a First run on records takes whole), groups_for (the Data groups the lists are for: the asked group_by when the
             profile kept every column of it, else the recommended one), group_list (every group of groups_for, largest first, at most 500,
             each value, records and parts), column_groups (for each kept column, its groups largest first, at most 500, each value and
             records), first_run (all, groups, recent, records), default_scope (always records: about 1,000 records, never recent or all) and

@@ -58,6 +58,9 @@ def test_no_measured_baseline_says_not_measured_yet_and_never_shows_a_number(ns)
         assert estimate["text"].startswith("Value not measured yet: measure ")
         assert not re.search(r"\d", estimate["text"]), estimate["text"]
     assert "measure Weekly sales value by running its KPI query" in estimate_of(ns, money_uc(ns, kpi(ns, value=None)))["text"]
+    ticked = estimate_of(ns, money_uc(ns, kpi(ns, name="`units_sold` value", value=None)))
+    assert "measure units_sold value by running" in ticked["text"] and "`" not in ticked["text"], ticked["text"]
+    assert "`units_sold`" in ticked["measure"], "only the line a person reads drops the backticks; the stored measure keeps its text"
     assert "sum of a revenue or cost column in c.s.orders" in estimate_of(ns, money_uc(ns, kpi(ns, name="Late orders", unit="orders")))["text"]
     assert "money value per unit of order count" in estimate_of(ns, money_uc(ns, kpi(ns, name="Order count", unit="orders", aggregation="COUNT")))["text"]
 

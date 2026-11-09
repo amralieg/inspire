@@ -36,7 +36,7 @@ def test_a_genie_run_scope_widget_is_recorded_as_the_first_run_choice_and_never_
 
 
 @pytest.mark.parametrize("value,problem", [("all", ""), ("groups", ""), ("recent", ""), ("records", ""),
-                                           ("custom", "run_scope is 'custom': Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead"),
+                                           ("custom", "run_scope is 'custom': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the First run choices instead"),
                                            ("5", f"run_scope is '5'; allowed: {ALLOWED}"), ("everything", f"run_scope is 'everything'; allowed: {ALLOWED}")])
 def test_the_first_run_a_built_version_records_takes_each_choice_and_refuses_a_number_or_another_word(agent_ns, value, problem):
     run_scope = _run_scope(agent_ns["inspire_settings_model"](SPEC, [dict(GENIE_RUN_SCOPE)]))
