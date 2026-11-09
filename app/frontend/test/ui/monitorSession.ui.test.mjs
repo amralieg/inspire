@@ -191,6 +191,61 @@ for (const [motion, behavior] of [['reduce', 'auto'], ['no-preference', 'smooth'
   });
 }
 
+test('the steps list follows new steps only while the person is at its end; scrolled up, it keeps their place and offers New steps', async () => {
+  const many = Array.from({ length: 60 }, (_, i) => step(100 + i, 'ended_success', 'Data Preparation', `Inspire checked table ${i + 1}`, `Completed: table ${i + 1}`, ago(30 * MINUTE - i * 1000)));
+  const backend = sessionBackend({ session: () => ({ processing_status: 'ready', completed_percent: 40, completed_on: null, last_updated: ago(MINUTE) }), steps: many });
+  let polls = 0;
+  const mount = (app) => {
+    app.get('/api/inspire/steps', (req, res) => {
+      polls += 1;
+      res.json({ steps: req.query.since ? [step(500 + polls, 'ended_success', 'Data Preparation', `Inspire checked new table ${polls}`, `Completed: new table ${polls}`, new Date().toISOString())] : many });
+    });
+    backend.mount(app);
+  };
+  const ui = await openUi('monitor', {}, '&run=none', { mount, init: (page) => page.emulateMedia({ reducedMotion: 'reduce' }) });
+  const { page } = ui;
+  const rows = () => page.getByText(/^Inspire checked/).count();
+  const view = () => page.evaluate(() => {
+    const end = document.querySelector('[data-steps-end]');
+    let el = end.parentElement;
+    while (el && !(el.scrollHeight > el.clientHeight && /(auto|scroll)/.test(getComputedStyle(el).overflowY))) el = el.parentElement;
+    const box = el || document.scrollingElement;
+    const bottom = el ? el.getBoundingClientRect().bottom : window.innerHeight;
+    return { top: box.scrollTop, below: end.getBoundingClientRect().top - bottom };
+  });
+  const jump = page.getByRole('button', { name: 'New steps' });
+  try {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await detailLine(page);
+    await page.getByRole('button', { name: /Detailed Steps/ }).click();
+    await page.getByRole('button', { name: /Data Preparation/ }).last().click();
+    await page.getByText('Inspire checked table 60').first().waitFor({ timeout: 10000 });
+    await page.mouse.move(640, 400);
+    await page.mouse.wheel(0, 20000);
+    await until(async () => (await view()).below <= 40, 'the wheel reaches the end of the steps', 10000);
+    const first = await rows();
+    await until(async () => (await rows()) > first, 'a new step arrives', 10000);
+    await page.waitForTimeout(300);
+    assert.ok((await view()).below <= 40, 'at the end it follows each new step (must-exclude: never left behind while at the end)');
+    assert.equal(await jump.count(), 0, 'no New steps button while following');
+    await page.mouse.move(640, 400);
+    await page.mouse.wheel(0, -600);
+    await page.waitForTimeout(400);
+    const reading = await view();
+    assert.ok(reading.below > 40, 'wheel up leaves the end');
+    const now = await rows();
+    await until(async () => (await rows()) >= now + 2, 'two more steps arrive while the person reads', 12000);
+    await page.waitForTimeout(300);
+    assert.ok(Math.abs((await view()).top - reading.top) <= 2, `new steps keep the reader's place, ${(await view()).top} vs ${reading.top}`);
+    await jump.waitFor({ timeout: 5000 });
+    await jump.click();
+    await until(async () => (await view()).below <= 40, 'New steps jumps to the latest step', 5000);
+    assert.equal(await jump.count(), 0, 'the button goes once the person is back at the end');
+  } finally {
+    await ui.close();
+  }
+});
+
 for (const [label, withEventAt] of [['by the time of each event', true], ['when two rows share one flush time', false]]) {
   test(`a step whose end arrives before its start in one answer still shows its end, ${label}`, async () => {
     const flushed = ago(2 * MINUTE);
