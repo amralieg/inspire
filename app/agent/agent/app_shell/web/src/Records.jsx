@@ -883,7 +883,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         const sub = [key, segment].filter(Boolean);
         return (
           <>
-            <button className="cell-t" onClick={(e) => { e.stopPropagation(); setOpen(r); }}>
+            <button className="cell-t" onClick={(e) => { e.stopPropagation(); setOpen(r); }} data-tour={r === tableRows[0] ? 'top_record' : undefined}>
               <b><bdi>{recordName(r, meta)}</bdi></b>
               {sub.length > 0 && <small>{sub.map((part, i) => <span key={i}>{i > 0 && ' · '}<bdi>{part}</bdi></span>)}</small>}
             </button>
@@ -939,7 +939,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const beyond = data?.window?.more ?? (compareValues(total, cap) > 0 ? addCounts([total, -cap]) : 0);
   const shownSort = sort || data?.sort || null;
   return (
-    <section ref={card} className={`card card--table card--list ${list.busy && data ? 'is-busy' : ''}`} aria-label={meta.title} aria-busy={list.busy} data-section={section}>
+    <section ref={card} className={`card card--table card--list ${list.busy && data ? 'is-busy' : ''}`} aria-label={meta.title} aria-busy={list.busy} data-section={section} data-tour="records">
       <header className="card-h">
         <div>
           <h2>{meta.title}</h2>
@@ -957,10 +957,10 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       </header>
       {data && (
         <div className="list-tools">
-          {tracker && tableRows.length > 0 && !everything && <button className="btn btn--pri" onClick={startWork} data-start-work><Icon name="right" size={14} />Start working</button>}
+          {tracker && tableRows.length > 0 && !everything && <button className="btn btn--pri" onClick={startWork} data-start-work data-tour="actions"><Icon name="right" size={14} />Start working</button>}
           {tracker && !tab && <WindowChips />}
           {tracker && shownTotal > 0 && !everything && !matching && (
-            <button className="pick-i" onClick={selectAll} data-act-all>Act on all {capped ? 'more than ' : ''}{integer(shownTotal)} matching</button>
+            <button className="pick-i" onClick={selectAll} data-act-all data-tour="bulk">Act on all {capped ? 'more than ' : ''}{integer(shownTotal)} matching</button>
           )}
           {(freshCount > 0 || fresh) && (
             <button className={`pick-i pick-i--you ${fresh ? 'is-on' : ''}`} aria-pressed={fresh} onClick={() => setFresh(!fresh)} data-fresh>

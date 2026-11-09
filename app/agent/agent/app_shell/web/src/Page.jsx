@@ -35,6 +35,7 @@ import WorkPage from './WorkPage.jsx';
 import { Skeleton } from './ui.jsx';
 import ModeView from './ModeView.jsx';
 import { pageMode, sectionTitle } from './modes.js';
+import { tourFacts } from './tourStart.js';
 
 const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
@@ -94,7 +95,7 @@ function radioKeys(e) {
 }
 
 export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie,
-  section = 'dashboard', tab = '', focus = '', chrome, onCounts, onRecord }) {
+  section = 'dashboard', tab = '', focus = '', chrome, onCounts, onRecord, onTour, onTourFacts }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
   const [queue, setQueue] = useState(null);
@@ -112,6 +113,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     return () => window.removeEventListener(AGENT_CHANGED, changed);
   }, [page.id]);
   const { data, busy, error } = usePageData(page.id, state, ready, nonce, sorts);
+  useEffect(() => { onTourFacts?.(page.id, tourFacts(page, data?.kpis, queue?.data)); }, [page, data?.kpis, queue?.data]);
   const live = usePageHub(page.id, state, ready, nonce, listed);
   const laidOut = isLaidOut(page);
   const work = isQueue(page);
@@ -241,7 +243,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const reporting = !!page.history;
   const report = { section: shown, filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
   const head = (
-    <header className="ph">
+    <header className="ph" data-tour="decision">
       <div className="pg-h">
         <h1>{page.title}</h1>
         <div className="ph-tools" data-section-tools>
@@ -337,6 +339,11 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
               </button>
             )}
           </SettingGroup>
+          {onTour && (
+            <SettingGroup id="help" title="Help" why="A short walk through this page: what it helps you decide, its numbers, where to start and how to act.">
+              <button type="button" className="btn" onClick={onTour} data-take-tour><Icon name="info" size={15} />Take the tour</button>
+            </SettingGroup>
+          )}
           <SettingGroup id="share" title="Share and follow" why="Copy a link to what you see, save a view, open the use case in Inspire Review, or get an alert.">
             <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />
             {review && <ReviewLink page={page} app={app} />}

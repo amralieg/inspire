@@ -33,6 +33,13 @@ SCREENS = ("runs", "impact")
 USER_OFF = ("alerts",)
 OFF_WHEN_UNSET = ("alerts",)
 USER_OFF_PROBLEMS = {"alerts": "an App where each viewer sees only their own data cannot send alerts"}
+TOUR = "tour"
+TOUR_KPI = "kpi"
+TOUR_FALLBACK = "English"
+TOUR_PLACEHOLDER = re.compile(r"\{([^{}]*)\}")
+TOUR_RAW = re.compile(r"`|\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b|\b[a-z][a-z0-9_]+\.[a-z][a-z0-9_]+\b|\b[a-z]+[A-Z][A-Za-z0-9]*\b")
+TOUR_SQL = re.compile(r"\b(?:SELECT|FROM|WHERE|JOIN|GROUP BY|ORDER BY|HAVING|INSERT|UPDATE|DELETE|LIMIT)\b"
+                      r"|\b(?i:select|count|sum|avg|min|max|coalesce|cast|round)\s*\(|\s(?:=|==|<>|!=|>=|<=)\s|\*\s*(?i:from)\b")
 CACHE_TTL_S = 60
 OPTIONS_TTL_S = 600
 CACHE_ENTRIES = 1000
@@ -427,6 +434,12 @@ def load_app(root: str) -> tuple:
     problems = settings_problems(settings, pages)
     if problems:
         raise ValueError("the App files do not hold together: " + "; ".join(problems))
+    for page in pages:
+        tour, notes = fit_tour(page)
+        if tour:
+            page[TOUR] = tour
+        for note in notes:
+            print(f"[APP-TOUR FIXED] page={page.get('id')} {note}", file=sys.stderr, flush=True)
     return settings, pages
 
 
@@ -492,7 +505,151 @@ def public_page(page: dict) -> dict:
     out["history"] = bool(page.get("result_table"))
     out["similar_by"] = [{"filter": f["id"], "label": f.get("label")} for f in shell_sql.similar_filters(page)]
     out[shell_sql.BLOCKS] = shell_sql.public_blocks(page)
+    out[TOUR] = public_tour(page)
     return out
+
+
+def tour_registry() -> dict:
+    found = shell_sql.kinds_registry().get(TOUR)
+    return found if isinstance(found, dict) and found.get("languages") and found.get("layouts") else {}
+
+
+def tour_anchors(page: dict) -> list:
+    layouts = tour_registry().get("layouts") or {}
+    return list(layouts.get(shell_sql.page_layout(page)) or layouts.get(shell_sql.DEFAULT_LAYOUT) or [])
+
+
+def _tour_kpis(page: dict) -> list:
+    return [k for k in page.get("kpis") or [] if isinstance(k, dict) and k.get("id")]
+
+
+def tour_placeholder_known(name: str, kpi_ids) -> bool:
+    live = tour_registry().get("live") or []
+    if name in live and name != TOUR_KPI:
+        return True
+    kind, _, ident = name.partition(":")
+    return kind == TOUR_KPI and kind in live and ident in kpi_ids
+
+
+def tour_step_problems(step, anchors, kpi_ids, used=()) -> list:
+    if not isinstance(step, dict):
+        return ["the step is not an object of anchor, title and text"]
+    reg = tour_registry()
+    out = []
+    anchor = step.get("anchor")
+    if anchor not in anchors:
+        out.append(f"the anchor {anchor!r} is not a part this page shows; it shows {', '.join(anchors)}")
+    elif anchor in used:
+        out.append(f"the anchor {anchor} already has a step")
+    for field, most in (("title", reg.get("title_chars", 60)), ("text", reg.get("text_chars", 220))):
+        value = step.get(field)
+        if not isinstance(value, str) or not value.strip():
+            out.append(f"the {field} is empty")
+            continue
+        if len(value) > most:
+            out.append(f"the {field} has {len(value)} characters, more than {most}")
+        if TOUR_SQL.search(value) or TOUR_RAW.search(TOUR_PLACEHOLDER.sub(" ", value)):
+            out.append(f"the {field} shows a raw column id or SQL")
+        named = TOUR_PLACEHOLDER.findall(value)
+        if field == "title" and named:
+            out.append("the title holds a placeholder; only the text may")
+        out += [f"the {field} names the unknown placeholder {{{n}}}" for n in named if field == "text" and not tour_placeholder_known(n, kpi_ids)]
+    return out
+
+
+def tour_language(language: str) -> dict:
+    languages = tour_registry().get("languages") or {}
+    return languages.get(language) or languages.get(TOUR_FALLBACK) or {}
+
+
+def _record_noun(page: dict) -> str:
+    title = str((page.get("records") or {}).get("label_title") or "").strip()
+    if not title:
+        return ""
+    return title if title.isupper() else title[0].lower() + title[1:]
+
+
+def tour_template(anchor: str, language: str, page: dict) -> dict:
+    reg, words = tour_registry(), tour_language(language)
+    base = (words.get("steps") or {}).get(anchor) or {}
+    plain = words.get("plain") or {}
+    labels = [str(k.get("label") or "").strip() for k in _tour_kpis(page)][:3]
+    fills = {"use_case": str(page.get("title") or "").strip(), "kpis": (words.get("sep") or ", ").join(l for l in labels if l),
+             "record": _record_noun(page)}
+    text = str(base.get("text") or "")
+    for name in reg.get("fill") or []:
+        token = "{" + name + "}"
+        if token not in text:
+            continue
+        value = fills.get(name) or plain.get(name) or ""
+        trial = text.replace(token, value)
+        text = trial if len(trial) <= reg.get("text_chars", 220) and not TOUR_RAW.search(TOUR_PLACEHOLDER.sub(" ", value)) else text.replace(token, plain.get(name) or "")
+    return {"anchor": anchor, "title": str(base.get("title") or ""), "text": text}
+
+
+def fit_tour(page: dict, languages=None) -> tuple:
+    reg = tour_registry()
+    if not reg:
+        return None, []
+    anchors = tour_anchors(page)
+    kpi_ids = {str(k["id"]) for k in _tour_kpis(page)}
+    given = page.get(TOUR) if isinstance(page.get(TOUR), dict) else {}
+    steps_by = given.get("steps") if isinstance(given.get("steps"), dict) else {}
+    asked = languages or given.get("languages") or list(steps_by) or [TOUR_FALLBACK]
+    wanted = list(dict.fromkeys(str(l) for l in asked if isinstance(l, str) and l.strip()))
+    least, most = reg.get("least", 5), reg.get("most", 8)
+    notes, out = [], {}
+    for language in sorted(set(steps_by) - set(wanted)):
+        notes.append(f"tour {language}: not an output language of this App, dropped")
+    for language in wanted:
+        if language not in (reg.get("languages") or {}):
+            notes.append(f"tour {language}: no template words in this language, the English templates stand in for failing steps")
+        raw = steps_by.get(language)
+        if not isinstance(raw, list):
+            notes.append(f"tour {language}: no steps were written, the template steps stand in")
+            raw = []
+        if len(raw) > most:
+            notes.append(f"tour {language}: {len(raw)} steps, more than {most}; the steps after {most} are dropped")
+        kept, used = [], set()
+        for at, step in enumerate(raw[:most], 1):
+            problems = tour_step_problems(step, anchors, kpi_ids, used)
+            if not problems:
+                kept.append({k: step[k].strip() for k in ("anchor", "title", "text")})
+                used.add(step["anchor"])
+                continue
+            own = step.get("anchor") if isinstance(step, dict) else None
+            anchor = own if own in anchors and own not in used else next((a for a in anchors if a not in used), None)
+            if anchor is None:
+                notes.append(f"tour {language} step {at}: {'; '.join(problems)}; dropped, every part already has a step")
+                continue
+            kept.append(tour_template(anchor, language, page))
+            used.add(anchor)
+            notes.append(f"tour {language} step {at}: {'; '.join(problems)}; replaced by the template step for {anchor}")
+        floor = least if raw else most
+        for anchor in [a for a in reg.get("pad") or [] if a in anchors] + anchors:
+            if len(kept) >= floor:
+                break
+            if anchor not in used:
+                kept.append(tour_template(anchor, language, page))
+                used.add(anchor)
+                if raw:
+                    notes.append(f"tour {language}: fewer than {least} steps, added the template step for {anchor}")
+        out[language] = sorted(kept, key=lambda s: anchors.index(s["anchor"]))
+    return {"languages": wanted, "steps": out}, notes
+
+
+def public_tour(page: dict):
+    tour, _ = fit_tour(page)
+    if not tour:
+        return None
+    reg = tour_registry()
+    shown = []
+    for language in tour["languages"]:
+        words = tour_language(language)
+        shown.append({"language": language, "code": words.get("code") or "en", "dir": "rtl" if language in (reg.get("rtl") or []) else "ltr",
+                      "ui": words.get("ui") or {}, "steps": tour["steps"].get(language) or []})
+    version = hashlib.sha256(json.dumps(shown, sort_keys=True, ensure_ascii=False).encode("utf-8")).hexdigest()[:12]
+    return {"version": version, "rail": reg.get("rail") or [], "records": reg.get("records") or [], "languages": shown}
 
 
 class Cache:
