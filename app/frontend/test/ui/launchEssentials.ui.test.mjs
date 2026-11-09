@@ -6,7 +6,7 @@ test.after(closeBrowser);
 
 const section = (page, title) => page.locator('section').filter({ has: page.getByRole('heading', { name: title, exact: true }) });
 
-test('Setup keeps the rc.3 names Unity Catalog Metadata, Generation Instructions, Advanced Settings, Table Election and Generate Use Cases, shows the notebook and warehouse without opening Advanced Settings, and never shows a notebook widget id', async () => {
+test('Setup keeps the rc.3 names Unity Catalog Metadata, Generation Instructions, Advanced Settings and Generate Use Cases, names the table choice in plain words, shows the notebook and warehouse without opening Advanced Settings, and never shows a notebook widget id', async () => {
   const ui = await openUi('launch', { catalogs: ['main', 'system', 'hive_metastore', 'samples'] });
   const { page, pageErrors } = ui;
   try {
@@ -26,12 +26,14 @@ test('Setup keeps the rc.3 names Unity Catalog Metadata, Generation Instructions
     assert.equal(await page.getByText('Business Priorities', { exact: true }).count(), 0, 'nothing inside it shows while closed (must-exclude)');
     await toggle.click();
     const admin = section(page, 'Advanced Settings');
-    for (const label of ['Business Priorities', 'Business Domains', 'Strategy (optional)', 'Inspire Database', 'Operation', 'Generation Path', 'Auto-Genie scope', 'Table Election']) {
+    for (const label of ['Business Priorities', 'Business Domains', 'Strategy (optional)', 'Inspire Database', 'Operation', 'Generation Path', 'Full Genie Code instructions', 'Tables to read', 'Starred use cases']) {
       assert.ok(await admin.getByText(label, { exact: true }).count() > 0, `${label} is in Advanced Settings`);
     }
     const options = await admin.locator('select option').allInnerTexts();
-    for (const name of ['Generate Use Cases', 'Let Inspire Decides']) assert.ok(options.includes(name), `${name} keeps its rc.3 name`);
-    assert.equal(options.some((t) => /Rewrite Genie|Let Inspire decide$/.test(t)), false, 'no renamed option (must-exclude)');
+    for (const name of ['Generate Use Cases', 'Let Inspire choose', 'All tables', 'Transaction tables only']) assert.ok(options.includes(name), `${name} is offered`);
+    assert.equal(options.some((t) => /Rewrite Genie|Let Inspire Decides/.test(t)), false, 'no broken grammar and no renamed operation (must-exclude)');
+    assert.equal(await admin.locator('select option[value="Let Inspire Decides"]').count(), 1, 'the run still receives the value the notebook reads');
+    assert.equal(await page.getByText(/Table Election|Auto-Genie scope|Best of Best stars/).count(), 0, 'no jargon label (must-exclude)');
     assert.equal(await page.getByText(/Which data should Inspire look at|this year's goals|Admin settings|Which tables to use/).count(), 0, 'no renamed label (must-exclude)');
     const body = await page.locator('body').innerText();
     assert.doesNotMatch(body, /\bwidget\b/i);
