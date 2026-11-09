@@ -452,7 +452,7 @@ export default function ImplementWizard({
   const primaryOriginal = primaryTableOf(ucRow);
   const primaryChosen = spec.data.tables[primaryOriginal] || primaryOriginal;
   const scopeProfile = useScopeProfiles({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp',
-    groupBy: spec.config.widgets?.[GROUP_BY], table: primaryChosen });
+    groupBy: spec.config.widgets?.[GROUP_BY], defaultGrouping: true, table: primaryChosen });
   const builtFirstRun = builtFirstRunOf(settingsModel);
   const firstRunUnrecorded = useMemo(() => latestRunScope(context?.latest).unrecorded, [context?.latest]);
   const ranBefore = builtFirstRun || Boolean(context?.latest && context.latest.status !== 'failed');

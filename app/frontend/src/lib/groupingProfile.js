@@ -50,9 +50,9 @@ export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, us
   return { ...profileState(key, got), key, wait };
 }
 
-export function useScopeProfiles({ groupBy = '', ...ask }) {
+export function useScopeProfiles({ groupBy = '', defaultGrouping = false, ...ask }) {
   const base = useGroupingProfile(ask);
-  const shown = base.state === 'ready' ? withGroupingDefault({ [GROUP_BY]: groupBy }, base.profile, groupBy)[GROUP_BY] : groupBy;
+  const shown = defaultGrouping && base.state === 'ready' ? withGroupingDefault({ [GROUP_BY]: groupBy }, base.profile, groupBy)[GROUP_BY] : groupBy;
   const reread = base.state === 'ready' && groupsReadNeeded(base.profile, shown);
   const chosen = useGroupingProfile({ ...ask, enabled: ask.enabled !== false && reread, groupBy: shown });
   return { ...base, firstRun: reread ? chosen : base };
