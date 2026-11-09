@@ -859,7 +859,7 @@ test('a forecast on a star fact table recommends the store and the item category
     const firstRun = page.getByRole('region', { name: 'What should the MVP Test Run cover?', exact: true });
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'a star-schema forecast runs first on whole groups, never on everything');
     assert.match(await firstRun.locator('[data-first-run-choice="records"]').innerText(),
-      /^470,000 records in the smallest whole group, since every group of ss_store_sk holds more than 1,000 records, so no group is cut: ss_store_sk = 7, 470,000 records/);
+      /^470,000 records, all of ss_store_sk = 7, the smallest group, since every group holds more than 1,000 records/);
     await firstRun.locator('[data-first-run-choice="groups"] input[type="radio"]').check();
     assert.deepEqual(await firstRun.locator('[data-scope-group] input:checked').evaluateAll((inputs) => inputs.length), 2, 'the suggested groups are picked');
     assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(),

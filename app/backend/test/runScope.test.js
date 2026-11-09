@@ -515,14 +515,14 @@ test('a star-schema forecast above 1,000 records defaults to whole groups, never
   const choices = S.firstRunChoices(STAR_PROFILE, values);
   assert.deepEqual(choices.map((c) => [c.id, c.available, c.records]),
     [['one', true, null], ['groups', true, null], ['records', true, 470000], ['recent', true, 0], ['all', true, 2880404]]);
-  assert.equal(choices[2].label, '470,000 records in the smallest whole group, since every group of ss_store_sk holds more than 1,000 records, so no group is cut: ss_store_sk = 7, 470,000 records',
+  assert.equal(choices[2].label, '470,000 records, all of ss_store_sk = 7, the smallest group, since every group holds more than 1,000 records',
     'whole groups of the finest column of the main table, as the run takes them, never of the joined column');
   assert.equal(choices[4].estimate, 'Everything is 2,880,404 records, about 2,880 times a 1,000-record MVP Test Run; how long it takes is unknown until a larger run is measured');
   assert.equal(S.everythingEstimate('', 8000, 1000), 'Everything is 8,000 records, about 8 times a 1,000-record MVP Test Run, so it takes up to about 8 times as long');
   assert.equal(S.everythingEstimate('', 1000, 1000), '');
   assert.equal(S.everythingEstimate('the server said so', 7500000, 1000), 'the server said so');
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
-  assert.equal(S.scopeText(values, STAR_PROFILE), 'MVP Test Run: 470,000 records in the smallest whole group, since every group of ss_store_sk holds more than 1,000 records, so no group is cut: ss_store_sk = 7, 470,000 records');
+  assert.equal(S.scopeText(values, STAR_PROFILE), 'MVP Test Run: 470,000 records, all of ss_store_sk = 7, the smallest group, since every group holds more than 1,000 records');
   const picked = { ...values, run_scope: 'groups', scope_groups: JSON.stringify(STAR_PROFILE.suggested_groups.map((g) => g.parts)) };
   assert.equal(S.chosenGroupsText, undefined, 'the First run covers line is the one sentence that names the chosen groups');
   assert.equal(S.firstRunCoversText(STAR_PROFILE, picked), 'The MVP Test Run covers 2 groups of ss_store_sk, then item.i_category: ss_store_sk = 1 and '
@@ -578,7 +578,7 @@ test('a first run on about 1,000 records names the real count when every whole g
   const S = await lib('runScope.js');
   const profile = { table: 't', standalone: false, group_column: 'store', group_sizes: [{ value: 'A', records: 480000 }, { value: 'B', records: 470000 }] };
   const said = S.recordGroupsText(profile, { scope_records: '1000' });
-  assert.equal(said, '470,000 records in the smallest whole group, since every group of store holds more than 1,000 records, so no group is cut: store = B, 470,000 records');
+  assert.equal(said, '470,000 records, all of store = B, the smallest group, since every group holds more than 1,000 records');
   assert.doesNotMatch(said, /About 1,000/);
   assert.equal(S.recordGroupsText({ ...profile, group_sizes: [{ value: 'A', records: 600 }, { value: 'B', records: 300 }] }, { scope_records: '1000' }),
     'About 1,000 records, in 2 whole groups so no group is cut: store = A, 600 records; store = B, 300 records');

@@ -434,9 +434,10 @@ export function recordGroupsText(profile, values) {
   }
   const column = finestGroupColumn(profile);
   const total = picked.reduce((sum, g) => sum + g.records, 0);
-  const lead = picked.length === 1 && total > goal
-    ? `${counted(total, 'record')} in the smallest whole group, since every group of ${column || 'the grouping'} holds more than ${counted(goal, 'record')}, so no group is cut: `
-    : total > goal
+  if (picked.length === 1 && total > goal) {
+    return `${counted(total, 'record')}, all of ${column ? `${column} = ` : ''}${picked[0].value}, the smallest group, since every group holds more than ${counted(goal, 'record')}`;
+  }
+  const lead = total > goal
       ? `${counted(total, 'record')}, in ${counted(picked.length, 'whole group')}, so the ${FIRST_RUN_LABEL} sees more than one group and no group is cut: `
       : `About ${counted(goal, 'record')}, in ${counted(picked.length, 'whole group')} so no group is cut: `;
   return lead + picked.map((g) => `${column ? `${column} = ` : ''}${g.value}, ${counted(g.records, 'record')}`).join('; ');
