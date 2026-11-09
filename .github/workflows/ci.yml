@@ -9,7 +9,7 @@ on:
 
 concurrency:
   group: ci-${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.ref != 'refs/heads/dev' }}
 
 permissions:
   contents: read
@@ -190,7 +190,8 @@ jobs:
           scan="$RUNNER_TEMP/leak_scan.py"
           printf '%s' "$LEAK_SCAN_PY" | base64 -d > "$scan"
           python "$scan" "$GITHUB_WORKSPACE" origin/main
-      - name: notebook parses and both copies are identical
+      - if: ${{ !cancelled() }}
+        name: notebook parses and both copies are identical
         working-directory: app/agent/tests
         run: |
           cmp ../agent/dbx_inspire_ai_agent.ipynb ../../dbx_inspire_ai_agent.ipynb
@@ -202,24 +203,29 @@ jobs:
               ast.parse(src, filename=f"{AGENT_NB} code cell {i}")
           print(f"{AGENT_NB}: {len(cells)} code cells parse")
           EOF
-      - name: notebook under 6,000,000 bytes
+      - if: ${{ !cancelled() }}
+        name: notebook under 6,000,000 bytes
         run: |
           for nb in app/agent/agent/dbx_inspire_ai_agent.ipynb app/dbx_inspire_ai_agent.ipynb; do
             size=$(stat -c %s "$nb")
             echo "$nb: $size bytes"
             [ "$size" -lt 6000000 ] || { echo "::error::$nb is $size bytes, limit 6000000"; exit 1; }
           done
-      - name: notebook bundle is current
+      - if: ${{ !cancelled() }}
+        name: notebook bundle is current
         working-directory: app
         run: |
           node scripts/bundle-agent-notebook.mjs
           git diff --exit-code --stat -- dbx_inspire_ai_agent.ipynb backend/notebook_bundle.js
-      - run: npm ci --no-audit --no-fund
+      - if: ${{ !cancelled() }}
+        run: npm ci --no-audit --no-fund
         working-directory: app/agent/agent/app_shell/web
-      - name: embed check
+      - if: ${{ !cancelled() }}
+        name: embed check
         working-directory: app/agent
         run: python agent/app_shell/embed.py check --build
-      - name: app.js bundle under 1,300,000 bytes
+      - if: ${{ !cancelled() }}
+        name: app.js bundle under 1,300,000 bytes
         run: |
           js=app/agent/agent/app_shell/web/dist/assets/app.js
           size=$(stat -c %s "$js")
