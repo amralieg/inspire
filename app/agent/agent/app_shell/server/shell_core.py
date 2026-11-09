@@ -1792,7 +1792,7 @@ class Shell:
         return self._sp
 
     def decision_writer(self, ws):
-        if self.settings["auth"] != "user":
+        if self.settings["auth"] != "user" or self.settings.get("protected"):
             return ws
         if self.writer_factory is not None:
             if self._writer is None:
@@ -2867,7 +2867,7 @@ class Shell:
         return model
 
     def write_refused(self, table: str, error, as_app: bool = False) -> HttpError:
-        if self.settings["auth"] == "user" and not as_app:
+        if self.settings["auth"] == "user" and (not as_app or self.settings.get("protected")):
             return HttpError(403, f"Nothing was saved: you may not change {table} in Unity Catalog ({error}). Ask the owner of that "
                                   "table for SELECT and MODIFY on it")
         if as_app and self.inside:

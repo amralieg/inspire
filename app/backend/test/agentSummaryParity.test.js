@@ -11,7 +11,7 @@ const FIXTURE = require(FIXTURE_PATH);
 const PROBE = String.raw`
 import threading
 agent = next(n for n in tree if isinstance(n, ast.ClassDef) and n.name == "DatabricksInspire")
-wanted = {"_record_executive_summary", "_merge_run_outcome_into_results"}
+wanted = {"_record_executive_summary", "_merge_run_outcome_into_results", "_quality_gate_drop_list"}
 methods = [n for n in agent.body if isinstance(n, ast.FunctionDef) and n.name in wanted]
 if {m.name for m in methods} != wanted:
     sys.exit("the bundled agent lacks " + ", ".join(sorted(wanted - {m.name for m in methods})))
@@ -51,6 +51,7 @@ class Run:
         return ""
 Run._record_executive_summary = ns["_record_executive_summary"]
 Run._merge_run_outcome_into_results = ns["_merge_run_outcome_into_results"]
+Run._quality_gate_drop_list = ns["_quality_gate_drop_list"]
 fixture = json.load(open(cases["fixture"], encoding="utf-8"))
 run = Run()
 returned = run._record_executive_summary(fixture["summary_dict"])

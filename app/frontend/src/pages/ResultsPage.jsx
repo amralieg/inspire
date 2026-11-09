@@ -95,6 +95,7 @@ import ImplementWizard from './ImplementWizard';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
+import QualityGateDrops from '../components/QualityGateDrops';
 import { makeApiFetch, makeApiPostJson, requestHeaders } from '../lib/apiClient';
 import { RESULTS_PENDING_TEXT, noResultsText, reviewLinkText } from '../lib/runPages';
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
@@ -2358,6 +2359,7 @@ export default function ResultsPage({
                   </div>
                 ) : null}
               </div>
+              <QualityGateDrops results={results} />
             </div>
           </div>
         </>

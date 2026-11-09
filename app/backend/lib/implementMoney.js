@@ -25,6 +25,15 @@ function moneyStatements(resultTable, useCaseId) {
   };
 }
 
+function moneyWithheld(latest, resultTable) {
+  const record = latest?.asset_status?.protection;
+  const blocked = Array.isArray(record?.blocked) ? record.blocked.map((t) => String(t).replace(/`/g, '').trim().toLowerCase()) : [];
+  const summary = `${String(resultTable || '').replace(/`/g, '').trim().toLowerCase()}_summary`;
+  if (!blocked.includes(summary)) return '';
+  return `Inspire does not show the totals of ${resultTable}, because they are worked out over rows some people may not see; `
+    + 'open the App, where each person sees the rows they may read.';
+}
+
 function assumptionList(raw) {
   let listed = raw;
   if (typeof raw === 'string') {
@@ -113,4 +122,4 @@ function moneyView(summary, edits = []) {
   return { run, model, history };
 }
 
-module.exports = { moneyStatements, moneyView };
+module.exports = { moneyStatements, moneyView, moneyWithheld };

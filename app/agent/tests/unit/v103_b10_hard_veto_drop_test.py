@@ -36,6 +36,10 @@ class _InstHarness:
         self._logger.setLevel(logging.INFO)
         # Bind the unbound method to this harness so `self.logger` resolves.
         self._impl = ns["DatabricksInspire"].__dict__["_drop_hard_veto_ucs"].__get__(self, self.__class__)
+        cls = ns["DatabricksInspire"]
+        self._record_gate_drops = cls.__dict__["_record_gate_drops"].__get__(self, self.__class__)
+        self._RUN_OUTCOME_LOCK = cls._RUN_OUTCOME_LOCK
+        self._finite_or = cls._finite_or
 
     @property
     def logger(self):
