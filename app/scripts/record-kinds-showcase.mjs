@@ -217,8 +217,8 @@ const servers = [];
 const browser = await chromium.launch();
 try {
   const settle = apiWatch(ui.page);
-  await walkInspireDemo(ui.page, { settle, log, mvps: true });
-  const missed = unrecorded(inspire, demoReads(true));
+  const walk = await walkInspireDemo(ui.page, { settle, log, mvps: true });
+  const missed = unrecorded(inspire, demoReads(true, walk));
   if (missed.length) throw new Error(`the walk did not record ${missed.join(', ')}`);
   const writes = ui.made.fetches.filter((f) => String(f.opts.method || 'GET').toUpperCase() !== 'GET').map((f) => f.path);
   if (writes.length || ui.made.jobs.length) throw new Error(`the walk changed the made-up workspace: ${writes.join(', ')}`);

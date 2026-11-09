@@ -65,10 +65,10 @@ try {
     blocked,
   });
   await page.goto(`${inspireUrl}/`, { waitUntil: 'domcontentloaded', timeout: 120000 });
-  await walkInspireDemo(page, { settle, log, mvps: mvpIds.length > 0 });
+  const walk = await walkInspireDemo(page, { settle, log, mvps: mvpIds.length > 0 });
   await page.unrouteAll({ behavior: 'ignoreErrors' });
   await page.close();
-  const missed = unrecorded(inspire, demoReads(mvpIds.length > 0));
+  const missed = unrecorded(inspire, demoReads(mvpIds.length > 0, walk));
   if (missed.length) throw new Error(`the walk did not record ${missed.join(', ')}, so the demo would show views with no saved answer; pick a session that has them`);
   for (const route of unrecorded(inspire, DEMO_READS_WHEN)) log(`the session has no ${route}: ${DEMO_READS_WHEN[route]}`);
 

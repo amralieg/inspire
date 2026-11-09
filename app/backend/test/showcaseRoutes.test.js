@@ -124,6 +124,22 @@ test('a results-only demo needs every walk read but the MVP reads, a demo with M
   assert.deepEqual(unrecorded(resultsOnly, demoReads(true)), mvpReads, 'a demo that names MVPs and recorded none of their reads is refused');
 });
 
+test('a demo with MVPs needs the alerts of an MVP only when the walk showed its Alert tab, and every other MVP read either way', async () => {
+  const { DEMO_MVP_READS, DEMO_READS, DEMO_TAB_READS, demoReads, unrecorded } = await lists();
+  const alerts = 'GET /api/inspire/implement/alerts';
+  assert.deepEqual(DEMO_TAB_READS, { [alerts]: 'alert' });
+  const walkOf = (...tabs) => ({ build: [{ name: 'a', tabs: ['build', 'app'] }, { name: 'b', tabs }] });
+  const answered = [...Object.keys(DEMO_READS), ...Object.keys(DEMO_MVP_READS)].filter((r) => r !== alerts).map((route) => {
+    const [method, p] = split(route);
+    return { method, url: `https://inspire.example${p}?session_id=1`, status: 200 };
+  });
+  assert.deepEqual(unrecorded(answered, demoReads(true, walkOf('build', 'notebook', 'job'))), [], 'no MVP showed an Alert tab, so the demo never asks for alerts');
+  assert.deepEqual(unrecorded(answered, demoReads(true, walkOf('build', 'alert'))), [alerts], 'an MVP showed its Alert tab, so a bundle without alerts is refused (must-exclude)');
+  assert.deepEqual(unrecorded(answered, demoReads(true)), [alerts], 'with no walk to read, every MVP read stays required');
+  const noStatus = answered.filter((x) => !x.url.includes('/implement/status'));
+  assert.deepEqual(unrecorded(noStatus, demoReads(true, walkOf('build'))), ['GET /api/inspire/implement/status'], 'only a tab read is optional');
+});
+
 test('the inventory parses template paths, stops at the query, and skips workspace REST paths and bare prefixes', () => {
   const text = [
     "fetch(`/api/tables/${encodeURIComponent(a)}/${encodeURIComponent(b || '')}${q(w)}`)",
