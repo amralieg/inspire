@@ -202,6 +202,7 @@ test('a list that fails to load says why', async () => {
   await page.locator('.card--table .tile-err').waitFor();
   assert.equal(await said(page.locator('.card--table .tile-err')), 'The list could not load: a table it needs does not exist, so check that it was not renamed or dropped, or pick another one.');
   assert.equal(await page.locator('.card--table [data-technical-details] pre').textContent(), 'TABLE_OR_VIEW_NOT_FOUND');
+  assert.equal(await page.locator('.card--table .card-h').getByText('Loading the list…').count(), 0, 'no loading text beside the error (must-exclude)');
   assert.deepEqual(seen.errors.filter((e) => !/502/.test(e)), []);
   await context.close();
 });

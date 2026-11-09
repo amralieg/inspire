@@ -874,12 +874,14 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const workText = work && !work.ended ? `${integer(work.seen.size + 1)} of ${integer(compareValues(work.n, work.seen.size + 1) > 0 ? work.n : work.seen.size + 1)} ${narrowWindow(prefs) ? 'in your window' : 'on this list'}` : '';
   const beyond = data?.window?.more ?? (compareValues(total, cap) > 0 ? addCounts([total, -cap]) : 0);
   const shownSort = sort || data?.sort || null;
+  const countText = !data ? (list.error ? meta.hint || '' : 'Loading the list…')
+    : `${capped ? `More than ${integer(total)}` : integer(total)} ${total === 1 && !capped ? 'record' : 'records'}${meta.hint ? `. ${meta.hint}` : ''}`;
   return (
     <section ref={card} className={`card card--table card--list ${list.busy && data ? 'is-busy' : ''}`} aria-label={meta.title} aria-busy={list.busy} data-section={section}>
       <header className="card-h">
         <div>
           <h2>{meta.title}</h2>
-          <p>{!data ? 'Loading the list…' : `${capped ? `More than ${integer(total)}` : integer(total)} ${total === 1 && !capped ? 'record' : 'records'}${meta.hint ? `. ${meta.hint}` : ''}`}</p>
+          {countText && <p>{countText}</p>}
           {left && <p className="left-n"><Icon name="trend" size={13} />{left}</p>}
         </div>
         <div className="tbar">
