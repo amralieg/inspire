@@ -67,8 +67,9 @@ test('the rail labels and the work section follow the page mode, so switching us
   const ask = page('agent_chat', '');
   const scen = page('scenario_lab', 'scenario', { scenario: { levers: [] } });
   const bare = page('scenario_lab', 'scenario');
-  const queue = page('decision_queue', 'decision_queue', { records: { table: 't' } });
-  const laid = page('monitor_triage', 'monitor', { records: { table: 't' } });
+  const queue = { ...page('decision_queue', 'decision_queue', { records: { table: 't' } }), layout: { id: 'decision_queue', contract: 'decision_queue', work: 'queue' } };
+  const laid = { ...page('monitor_triage', 'monitor', { records: { table: 't' } }), layout: { id: 'monitor_triage', contract: 'monitor', work: 'queue' } };
+  const unworked = page('monitor_triage', 'monitor', { records: { table: 't' } });
   assert.equal(sectionTitle(explore, 'work'), 'Explore');
   assert.equal(sectionTitle(explore, 'performance'), 'Usage');
   assert.equal(sectionTitle(ask, 'work'), 'Ask');
@@ -78,8 +79,8 @@ test('the rail labels and the work section follow the page mode, so switching us
   assert.equal(sectionTitle(queue, 'runs'), SECTION_TITLES.runs);
   assert.equal(sectionTitle(queue, 'odd'), 'odd');
   assert.equal(pageMode(undefined).id, 'queue');
-  assert.deepEqual([explore, ask, scen, bare, queue, laid].map(hasWork), [true, true, true, false, true, false]);
-  assert.equal(hasWork(page('decision_queue', 'decision_queue')), false, 'a queue page with no records has no work');
+  assert.deepEqual([explore, ask, scen, bare, queue, laid, unworked].map(hasWork), [true, true, true, false, true, true, false]);
+  assert.equal(hasWork({ ...queue, records: undefined }), false, 'a queue page with no records has no work');
 });
 
 const store = () => {
@@ -161,7 +162,7 @@ test('the decisions count reads the library and survives an empty one', () => {
 });
 
 test('a record link opens Work only on a queue, and stays on the Dashboard of a Scenarios page that also has records', () => {
-  const queue = { id: 'q', layout: { id: 'decision_queue', contract: 'decision_queue' }, records: { table: 't' } };
+  const queue = { id: 'q', layout: { id: 'decision_queue', contract: 'decision_queue', work: 'queue' }, records: { table: 't' } };
   const lab = { id: 's', layout: { id: 'scenario_lab', contract: 'scenario' }, records: { table: 't' }, scenario: { levers: [] } };
   const sections = (p) => ['dashboard', ...(hasWork(p) ? ['work'] : []), 'performance', 'runs'];
   const opts = { pages: [queue, lab], sectionsOf: sections, queueOf: (p) => pageMode(p).queue };
