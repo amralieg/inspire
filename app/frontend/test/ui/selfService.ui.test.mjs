@@ -225,7 +225,7 @@ test('a wizard warehouse list Databricks refused says so in plain words with the
     await openAdvanced(page);
     const box = page.locator('[data-build-warehouse-error]');
     await box.waitFor({ timeout: 15000 });
-    assert.equal(await sentence(box), 'Inspire could not list the SQL warehouses: access to what it needs was refused, so ask its owner or a workspace admin to give you access. Type the warehouse id instead.');
+    assert.equal(await sentence(box), 'Inspire could not list the SQL warehouses: User is not allowed to list SQL warehouses, so ask its owner or a workspace admin to give you access. Type the warehouse id instead.');
     await box.locator('summary').click();
     assert.match(await box.locator('[data-technical-details] pre').innerText(), /PERMISSION_DENIED/);
     assert.equal(await page.locator('[data-build-warehouse="typed"]').count(), 1);
