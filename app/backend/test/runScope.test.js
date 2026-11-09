@@ -858,6 +858,8 @@ test('a combined split the person ticks leads the Data groups step, warns past t
   assert.equal(R.groupingOverLimitText({ ...lead, groups: 500 }, combined), '', 'at the limit is fine (must-exclude)');
   assert.equal(R.groupingOverLimitText({ ...lead, groups: null }, combined), '');
   assert.deepEqual(R.groupingLead(PROFILE, R.groupingChoices(PROFILE), R.GROUP_ALL), R.groupingLead(PROFILE), 'the whole data as one group leads with the best split, as before');
+  assert.deepEqual(R.groupingLead({ ...PROFILE, group_max: 500 }, R.groupingChoices(PROFILE), 'region, store', combined), lead, 'the count of a combined split comes from the read of that split');
+  assert.deepEqual(R.groupingLead({ ...PROFILE, group_max: 500 }, R.groupingChoices(PROFILE), 'region, store'), { label: 'region, then store', groups: null }, 'no read yet, no count (must-exclude)');
   assert.deepEqual(R.groupingOf(combined, 'region, store'), { value: 'region, store', label: 'region, then store', columns: ['region', 'store'] });
   assert.equal(R.groupingOf(combined, 'region, country').recommended, true, 'a card the step shows is found as that card');
   assert.equal(R.groupingOf(combined, R.GROUP_ALL).columns.length, 0);

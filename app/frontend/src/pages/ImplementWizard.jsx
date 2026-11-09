@@ -1450,7 +1450,7 @@ export default function ImplementWizard({
             {shows('grouping') && <p data-grouping-example-plain="" className="text-[12px] text-text-secondary">{GROUPING_EXAMPLE}{groupingChoices(scopeProfile.profile).length > 1 ? ` ${GROUPING_PICK}` : ''}</p>}
             {shows('first_run') && <GroupingChosen values={scopeShown} profile={scopeProfile.firstRun?.profile || scopeProfile.profile} />}
             <ScopeSettings part={shows('first_run') ? 'first_run' : 'grouping'} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
-              groups={shows('first_run') ? scopeProfile.firstRun : null} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
+              groups={scopeProfile.firstRun} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
               unrecorded={firstRunUnrecorded}
               groupingChosenBy={groupingChosenBy(spec.config.widgets?.[GROUP_BY], scopeProfile.profile)} />
           </section>
@@ -2075,7 +2075,7 @@ function VibesPanel({ spec, built, next, blocks, onChange, onPrevious }) {
   );
 }
 
-const APP_LIST_HEIGHT = 'h-48';
+const APP_LIST_HEIGHT = 'h-32';
 const placeCard = (on) => `border rounded-lg p-3 space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'}`;
 
 function AppNameField({ name, nameCheck, onName }) {
@@ -2234,7 +2234,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
                         <Recommended best={best?.target} id={c.target.id} />
                       </span>
                       <span className="block text-[11px] text-text-secondary">Holds {mergeTargetText(c.target)} · {ACCESS_SHORT[c.target.access]}</span>
-                      {c.reason && !fresh && <span className="block text-[11px] text-text-secondary">{c.reason}</span>}
+                      {c.reason && <span className="block text-[11px] text-text-secondary">{c.reason}</span>}
                       {c.block && <span className="block text-[11px] text-error-fg">{c.block}</span>}
                     </span>
                   </label>

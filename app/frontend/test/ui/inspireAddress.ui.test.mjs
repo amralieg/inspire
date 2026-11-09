@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { OWNER } from './implementFixtures.js';
+import { HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { INSIDE_WAREHOUSE_TOGGLE } from '../../src/lib/implementWizard.js';
 import { closeBrowser, goToStep, onStep, openAdvanced, openUi, startMvp, until } from './uiSupport.mjs';
 
@@ -15,7 +15,7 @@ const PLACEMENTS = [
 
 test('the wizard sends the Inspire address for every App placement, so each App page can link its use case on Review', async () => {
   for (const [label, id] of PLACEMENTS) {
-    const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } }, '', {
+    const ui = await openUi('wizard', { useCase: { ...HARNESS_USE_CASE, business_domain: 'Customer' }, me: { userName: OWNER, displayName: 'Owner' } }, '', {
       init: (page) => page.setExtraHTTPHeaders({ 'x-forwarded-host': 'inspire.example.com' }),
     });
     const { page, made } = ui;

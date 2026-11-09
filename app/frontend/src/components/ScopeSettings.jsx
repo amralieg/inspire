@@ -36,7 +36,7 @@ function combinable(profile) {
     .sort((a, b) => (a.distinct ?? 0) - (b.distinct ?? 0) || String(a.name).localeCompare(String(b.name)));
 }
 
-function GroupingPart({ values, onChange, profile, settings, editable, chosenBy }) {
+function GroupingPart({ values, onChange, profile, read = null, settings, editable, chosenBy }) {
   const setting = settings.find((s) => s.name === GROUP_BY);
   const current = values[GROUP_BY] || GROUP_ALL;
   const listed = groupingChoices(profile, setting?.choices);
@@ -55,7 +55,7 @@ function GroupingPart({ values, onChange, profile, settings, editable, chosenBy 
     onChange(GROUP_BY, next.length ? next.join(', ') : GROUP_ALL);
   };
   const best = choices.length > 1 ? bestGrouping(profile, choices) : null;
-  const lead = groupingLead(profile, choices, current);
+  const lead = groupingLead(profile, choices, current, read);
   const overLimit = groupingOverLimitText(lead, profile);
   const nothing = groupingNothingText(profile, choices);
   const [cards, setCards] = useState({ open: false, find: '' });
@@ -282,7 +282,7 @@ export default function ScopeSettings({
     <section aria-label={part === 'grouping' ? SCOPE_LABELS[GROUP_BY] : part === 'first_run' ? SCOPE_LABELS[RUN_SCOPE] : `${SCOPE_LABELS[GROUP_BY]} and ${SCOPE_LABELS[RUN_SCOPE]}`}
       data-scope-settings={part} className="space-y-3">
       <ProfileNote state={profileState} error={profileError} />
-      {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editableOf(GROUP_BY)} chosenBy={groupingChosenBy} />}
+      {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} read={groups?.state === 'ready' ? groups.profile : null} settings={settings} editable={editableOf(GROUP_BY)} chosenBy={groupingChosenBy} />}
       {part !== 'grouping' && groups && groups.state === 'error' && !(profileState === 'error' && groups.error === profileError) && (
         <p role="alert" data-first-run-groups-error="" className="text-[11px] text-error-fg">Inspire could not read the groups of the Data groups you chose: {groups.error}</p>
       )}
@@ -335,7 +335,7 @@ export function ScopeSection({ settings, editable, scope = null, onSave, childre
     <div data-setting-group={part === 'grouping' ? 'data_groups' : 'run_scope'} className="space-y-2">
       <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{meta.title}</h4>
       <ScopeSettings part={part} values={shown} onChange={(name, value) => setDraft((was) => ({ ...(was || saved), [name]: value }))}
-        profile={scope?.profile || null} profileState={scope?.state || 'off'} profileError={scope?.error || ''} groups={part === 'first_run' ? scope?.firstRun || null : null}
+        profile={scope?.profile || null} profileState={scope?.state || 'off'} profileError={scope?.error || ''} groups={scope?.firstRun || null}
         settings={list} editable={canEdit} unrecorded={unrecorded} everything={everything}>
         {canEdit && changed.length > 0 && (
           <div className="flex flex-wrap items-center gap-2">

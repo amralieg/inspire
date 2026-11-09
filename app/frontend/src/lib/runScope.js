@@ -354,11 +354,11 @@ export function groupingOf(profile, groupBy, choices = groupingChoices(profile))
   return columns.length ? { value: columns.join(', '), label: columns.join(', then '), columns } : null;
 }
 
-export function groupingLead(profile, choices = groupingChoices(profile), groupBy = '') {
+export function groupingLead(profile, choices = groupingChoices(profile), groupBy = '', read = null) {
   const picked = groupBy ? groupingOf(profile, groupBy, choices) : null;
   const lead = picked?.columns.length ? picked : groupingBest(profile, choices);
   if (!lead || !lead.columns.length) return null;
-  return { label: lead.label, groups: groupingCount(lead, profile) };
+  return { label: lead.label, groups: groupingCount(lead, profile) ?? (isMap(read) ? groupingCount(lead, read) : null) };
 }
 
 export function groupingOverLimitText(lead, profile) {
