@@ -63,6 +63,7 @@ import {
 import {
   FAVORITES_STORAGE_KEY,
   PRIORITY_ORDER,
+  priorityRank,
   beneficiaryFromUc,
   cardTitlesOfUseCase,
   computeHighPriorityCount,
@@ -84,7 +85,7 @@ import {
 } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText } from '../lib/liveUseCases';
-import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileExtension, quickAccessFiles, sheetPreview, visibleArtifactFiles } from '../lib/artifactFiles';
+import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
@@ -221,6 +222,7 @@ export default function ResultsPage({
   const [previewFrom, setPreviewFrom] = useState(null);
   const [previewData, setPreviewData] = useState(null); // { type: 'pdf'|'csv', url?, rows?, headers? }
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [fileProblem, setFileProblem] = useState('');
   // Subdomain expansion state
   const [expandedDomains, setExpandedDomains] = useState({});
   const [domainPanelOpen, setDomainPanelOpen] = useState(false);
@@ -539,61 +541,27 @@ export default function ResultsPage({
         if (!qualityBarFilterMatches(filterQualityBar, uc)) return false;
         if (!mvpFilterMatches(filterMvp, mvpStateOf(uc))) return false;
         if (searchQuery) {
-          const q = searchQuery.toLowerCase();
+          const q = searchQuery.trim().toLowerCase();
           const shown = cardTitlesOfUseCase(uc);
-          return (
-            String(uc.Name || '').toLowerCase().includes(q) ||
-            shown.title.toLowerCase().includes(q) ||
-            shown.subtitle.toLowerCase().includes(q) ||
-            String(uc.Statement || '').toLowerCase().includes(q) ||
-            String(uc.Solution || '').toLowerCase().includes(q) ||
-            beneficiaryFromUc(uc).toLowerCase().includes(q) ||
-            sponsorFromUc(uc).toLowerCase().includes(q)
-          );
+          return [uc.Name, shown.title, shown.subtitle, uc.Statement, uc.Solution, fieldOf(uc, 'Business Value', 'business_value'),
+            beneficiaryFromUc(uc), sponsorFromUc(uc), uc._domain, uc.Subdomain, fieldOf(uc, 'Analytics Technique', 'analytics_technique')]
+            .some((text) => String(text || '').toLowerCase().includes(q));
         }
         return true;
       })
       .sort((a, b) => {
+        const chosen = sortBy === 'domain' ? String(a._domain || '').localeCompare(String(b._domain || ''))
+          : sortBy === 'name' ? String(a.Name || '').localeCompare(String(b.Name || ''))
+            : sortBy === 'priority' ? priorityRank(a.Priority) - priorityRank(b.Priority) : 0;
+        if (chosen !== 0) return chosen;
         const meetsFirst = compareMeetsQualityBarFirst(a, b);
         if (meetsFirst !== 0) return meetsFirst;
         const starred = compareBestOfBestFirst(a._v130, b._v130);
         if (starred !== 0) return starred;
-        const sa = inspireScoreFromUc(a);
-        const sb = inspireScoreFromUc(b);
-        const scoreFirst = () => {
-          const va = sa ?? -Infinity;
-          const vb = sb ?? -Infinity;
-          if (vb !== va) return vb - va;
-          return 0;
-        };
-        if (sortBy === 'inspire') {
-          const c = scoreFirst();
-          if (c !== 0) return c;
-          return String(a.Name || '').localeCompare(String(b.Name || ''));
-        }
-        if (sortBy === 'domain') {
-          const d = String(a._domain || '').localeCompare(String(b._domain || ''));
-          if (d !== 0) return d;
-          const cDom = scoreFirst();
-          if (cDom !== 0) return cDom;
-          return String(a.Name || '').localeCompare(String(b.Name || ''));
-        }
-        if (sortBy === 'name') {
-          const n = String(a.Name || '').localeCompare(String(b.Name || ''));
-          if (n !== 0) return n;
-          const cNm = scoreFirst();
-          if (cNm !== 0) return cNm;
-          return 0;
-        }
-        // priority — tier after score so list stays score-ranked when scores exist
-        if (sortBy === 'priority') {
-          const c = scoreFirst();
-          if (c !== 0) return c;
-          const ia = PRIORITY_ORDER.indexOf(a.Priority);
-          const ib = PRIORITY_ORDER.indexOf(b.Priority);
-          return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-        }
-        return scoreFirst();
+        const sa = inspireScoreFromUc(a) ?? -Infinity;
+        const sb = inspireScoreFromUc(b) ?? -Infinity;
+        if (sb !== sa) return sb - sa;
+        return String(a.Name || '').localeCompare(String(b.Name || ''));
       });
   } catch (err) {
     console.error('Error filtering/sorting use cases:', err);
@@ -611,6 +579,14 @@ export default function ResultsPage({
       const k = favoriteKeyOf(uc);
       return k && favorites[k];
     });
+  }
+  const cardKeys = new Map();
+  const usedCardKeys = new Set();
+  for (const [idx, uc] of filteredUseCases.entries()) {
+    const base = cardKeyOf(uc, idx);
+    const key = usedCardKeys.has(base) ? `${base}#${idx}` : base;
+    usedCardKeys.add(key);
+    cardKeys.set(uc, key);
   }
 
   const domains = [
@@ -683,7 +659,7 @@ export default function ResultsPage({
     const uc = useCaseById.get(String(id ?? '').trim());
     return uc
       ? { name: String(uc.Name || id), domain: String(uc._domain || ''), score: inspireScoreFromUc(uc), useCase: uc.No ? uc : null }
-      : { name: String(id), domain: '', score: null, useCase: null };
+      : null;
   };
   const feedbackLatest = useMemo(() => latestFeedbackMap(feedbackState.latest), [feedbackState.latest]);
 
@@ -736,7 +712,8 @@ export default function ResultsPage({
     filterHasGenie !== 'all' ||
     filterQualityBar !== 'all' ||
     filterMvp !== 'all' ||
-    showBestOfBestOnly;
+    showBestOfBestOnly ||
+    showFavoritesOnly;
 
   const clearAllFilters = () => {
     setSearchQuery(''); setFilterDomain('all'); setFilterSubdomain('all');
@@ -749,6 +726,7 @@ export default function ResultsPage({
     setFilterQualityBar('all');
     setFilterMvp('all');
     setShowBestOfBestOnly(false);
+    setShowFavoritesOnly(false);
   };
 
   const openUseCase = (uc) => {
@@ -756,7 +734,7 @@ export default function ResultsPage({
     if (!no) return;
     clearAllFilters();
     setShowFavoritesOnly(false);
-    setExpandedUseCase(uc.No);
+    setExpandedUseCase(cardKeyOf(uc));
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const card = [...document.querySelectorAll('[data-use-case-no]')].find((el) => el.getAttribute('data-use-case-no') === no);
       if (card) card.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
@@ -857,36 +835,35 @@ export default function ResultsPage({
     });
   }, [artifactTree, loadFolder]);
 
-  const downloadFile = useCallback((filePath, fileName) => {
-    const headers = artifactHeaders();
-    fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers })
-      .then(resp => {
-        if (!resp.ok) throw new Error('Download failed');
-        return resp.blob();
-      })
-      .then(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = fileName; a.click();
-        URL.revokeObjectURL(url);
-      })
-      .catch(() => { /* silent */ });
+  const exportedFile = useCallback(async (filePath, fileName, action) => {
+    setFileProblem('');
+    const resp = await fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers: artifactHeaders() }).catch(() => null);
+    const blob = resp?.ok ? await resp.blob().catch(() => null) : null;
+    if (blob) return blob;
+    setFileProblem(await fileProblemText(action, fileName, resp?.ok ? null : resp));
+    return null;
   }, [artifactHeaders]);
 
-  // Open a file (PDF/Excel) in a new browser tab
+  const downloadFile = useCallback(async (filePath, fileName) => {
+    const blob = await exportedFile(filePath, fileName, 'download');
+    if (!blob) return;
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url; a.download = fileName; a.click();
+    setTimeout(() => URL.revokeObjectURL(url), 60000);
+  }, [exportedFile]);
+
   const openFileInTab = useCallback(async (filePath, fileName) => {
-    const headers = artifactHeaders();
-    try {
-      const resp = await fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers });
-      if (!resp.ok) return;
-      const blob = await resp.blob();
-      const ext = (fileName || '').toLowerCase().split('.').pop();
-      const mimeType = ext === 'pdf' ? 'application/pdf' : ext === 'csv' ? 'text/csv' : 'application/octet-stream';
-      const typedBlob = new Blob([blob], { type: mimeType });
-      const url = URL.createObjectURL(typedBlob);
-      window.open(url, '_blank');
-    } catch { /* silent */ }
-  }, [artifactHeaders]);
+    const tab = window.open('', '_blank');
+    const blob = await exportedFile(filePath, fileName, 'open');
+    if (!blob) {
+      tab?.close();
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+    if (tab) tab.location.href = url;
+    else window.open(url, '_blank');
+  }, [exportedFile]);
 
   // Toggle inline preview for a file
   const togglePreview = useCallback(async (filePath, fileName, from) => {
@@ -907,10 +884,11 @@ export default function ResultsPage({
     setPreviewData(null);
     setPreviewLoading(true);
     const headers = artifactHeaders();
+    let resp = null;
     try {
-      const resp = await fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers });
+      resp = await fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers });
       if (!resp.ok) throw new Error('fetch failed');
-      const ext = (fileName || '').toLowerCase().split('.').pop();
+      const ext = fileExtension({ name: fileName });
       if (ext === 'pdf') {
         const blob = new Blob([await resp.blob()], { type: 'application/pdf' });
         setPreviewData({ type: 'pdf', url: URL.createObjectURL(blob) });
@@ -928,7 +906,7 @@ export default function ResultsPage({
         setPreviewData({ type: 'error', message: EXCEL_OLD_FORMAT });
       }
     } catch {
-      setPreviewData({ type: 'error', message: 'Could not load file' });
+      setPreviewData({ type: 'error', message: resp?.ok ? `Inspire could not preview ${fileName}: the file could not be read.` : await fileProblemText('preview', fileName, resp) });
     }
     setPreviewLoading(false);
   }, [previewFile, previewFrom, previewData, artifactHeaders]);
@@ -1408,21 +1386,14 @@ export default function ResultsPage({
                           </>
                         )}
                         <span className="text-xs text-text-primary font-mono truncate flex-1">{f.name}</span>
-                        {f.file_size > 0 && (
-                          <span className="text-[9px] text-text-tertiary">
-                            {f.file_size >= 1024 * 1024
-                              ? `${(f.file_size / (1024 * 1024)).toFixed(1)}MB`
-                              : `${(f.file_size / 1024).toFixed(0)}KB`}
-                          </span>
+                        {fileSizeText(f.file_size) && (
+                          <span className="text-[9px] text-text-tertiary">{fileSizeText(f.file_size)}</span>
                         )}
                         {!isDir && (() => {
-                          const ext = (f.name || '').toLowerCase().split('.').pop();
-                          const isPdf = ext === 'pdf';
-                          const isSpreadsheet = ext === 'csv' || ext === 'xlsx' || ext === 'xls';
-                          const isPreviewable = isPdf || isSpreadsheet;
+                          const actions = fileActions(f);
                           return (
                             <div className="flex items-center gap-2 shrink-0">
-                              {isPreviewable && (
+                              {actions.preview && (
                                 <button
                                   type="button"
                                   className="text-[10px] text-info-fg hover:underline font-medium flex items-center gap-0.5"
@@ -1431,10 +1402,11 @@ export default function ResultsPage({
                                   {previewFile === f.path && previewFrom === 'files' ? <><Eye size={10} /> Hide</> : <><Eye size={10} /> Preview</>}
                                 </button>
                               )}
-                              {(isPdf || isSpreadsheet) && (
+                              {actions.open && (
                                 <button
                                   type="button"
                                   className="text-[10px] text-success-fg hover:underline font-medium flex items-center gap-0.5"
+                                  aria-label={`Open ${f.name}`}
                                   onClick={(e) => { e.stopPropagation(); openFileInTab(f.path, f.name); }}
                                 >
                                   <ExternalLink size={10} /> Open
@@ -1443,6 +1415,7 @@ export default function ResultsPage({
                               <button
                                 type="button"
                                 className="text-[10px] text-db-red-fg hover:underline font-medium flex items-center gap-0.5"
+                                aria-label={`Download ${f.name}`}
                                 onClick={(e) => { e.stopPropagation(); downloadFile(f.path, f.name); }}
                               >
                                 <Download size={10} /> Download
@@ -1455,6 +1428,7 @@ export default function ResultsPage({
                             type="button"
                             className="text-[10px] text-info-fg hover:underline font-medium flex items-center gap-0.5 shrink-0"
                             onClick={(e) => { e.stopPropagation(); downloadFile(f.path, `${f.name}.zip`); }}
+                            aria-label={`Download the ${f.name} folder`}
                             title="Download folder"
                           >
                             <Download size={10} />
@@ -1614,10 +1588,12 @@ export default function ResultsPage({
                           <button type="button" className="text-[10px] text-info-fg hover:text-info-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => togglePreview(f.path, f.name, 'quick')}>
                             {isActive ? <><EyeOff size={9} /> Hide</> : <><Eye size={9} /> Preview</>}
                           </button>
-                          <button type="button" className="text-[10px] text-success-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => openFileInTab(f.path, f.name)}>
-                            <ExternalLink size={9} /> Open
-                          </button>
-                          <button type="button" className="text-[10px] text-db-red-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => downloadFile(f.path, f.name)}>
+                          {fileActions(f).open && (
+                            <button type="button" aria-label={`Open ${f.name}`} className="text-[10px] text-success-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => openFileInTab(f.path, f.name)}>
+                              <ExternalLink size={9} /> Open
+                            </button>
+                          )}
+                          <button type="button" aria-label={`Download ${f.name}`} title={`Download ${f.name}`} className="text-[10px] text-db-red-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => downloadFile(f.path, f.name)}>
                             <Download size={9} />
                           </button>
                         </div>
@@ -1740,7 +1716,7 @@ export default function ResultsPage({
           {/* Stats */}
           <section aria-label="Figures of this run" className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <StatCard label="Use Cases" value={allUseCases.length} icon={FileText} />
-            <StatCard label="Domains" value={results.domains?.length || domains.length} icon={Building2} />
+            <StatCard label="Domains" value={domains.length} icon={Building2} />
             <StatCard label="Subdomains" value={uniqueSubdomainCount} icon={LayoutGrid} />
             <StatCard label="Best of Best" value={starredCount} icon={Star} />
             <StatCard
@@ -2036,13 +2012,14 @@ export default function ResultsPage({
               <div className="mb-4 shrink-0 bg-surface border border-border/70 rounded-xl shadow-elevated overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
                   {/* Search */}
-                  <div className="relative flex-1">
+                  <div className="relative min-w-[14rem] flex-1">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
                     <input dir="auto"
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search use cases..."
+                      aria-label="Search use cases"
                       className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-db-red/30 focus:ring-1 focus:ring-db-red/20 transition-smooth"
                     />
                   </div>
@@ -2051,6 +2028,8 @@ export default function ResultsPage({
                   <button
                     type="button"
                     onClick={() => setShowFavoritesOnly(p => !p)}
+                    aria-pressed={showFavoritesOnly}
+                    aria-label={showFavoritesOnly ? 'Show all use cases' : 'Show favorites only'}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-smooth ${
                       showFavoritesOnly
                         ? 'bg-db-red-50 text-db-red-fg border-db-red/20'
@@ -2295,6 +2274,18 @@ export default function ResultsPage({
                         <button type="button" aria-label="Clear the MVP filter" onClick={() => setFilterMvp('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
+                    {showFavoritesOnly && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                        Favorites only
+                        <button type="button" aria-label="Show all use cases, not only favorites" onClick={() => setShowFavoritesOnly(false)} className="hover:text-db-red-fg">&times;</button>
+                      </span>
+                    )}
+                    {showBestOfBestOnly && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                        Best of Best only
+                        <button type="button" aria-label="Show all use cases, not only Best of Best" onClick={() => setShowBestOfBestOnly(false)} className="hover:text-db-red-fg">&times;</button>
+                      </span>
+                    )}
                     {searchQuery && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
                         "{searchQuery}"
@@ -2321,14 +2312,12 @@ export default function ResultsPage({
                       const favKey = favoriteKeyOf(uc);
                       const tid = trackingIdOf(uc);
                       return (
-                      <div key={tid ? `genie-uc-${tid}` : favKey || String(uc.No ?? idx)} data-use-case-no={uc.No != null ? String(uc.No) : undefined} className="scroll-mt-2">
+                      <div key={cardKeys.get(uc)} data-use-case-no={uc.No != null ? String(uc.No) : undefined} className="scroll-mt-2">
                       <UseCaseCard
                         uc={uc}
                         index={idx}
-                        expanded={expandedUseCase === (uc.No || idx)}
-                        onToggle={() =>
-                          setExpandedUseCase(expandedUseCase === (uc.No || idx) ? null : uc.No || idx)
-                        }
+                        expanded={expandedUseCase === cardKeys.get(uc)}
+                        onToggle={() => setExpandedUseCase(expandedUseCase === cardKeys.get(uc) ? null : cardKeys.get(uc))}
                         isFavorite={!!(favKey && favorites[favKey])}
                         onToggleFavorite={() => toggleFavorite(uc)}
                         v130={uc._v130}
@@ -2359,6 +2348,14 @@ export default function ResultsPage({
             </div>
           </div>
         </>
+      )}
+
+      {fileProblem && (
+        <div role="alert" data-file-problem="" className="fixed bottom-4 inset-x-4 z-50 mx-auto flex max-w-xl items-start gap-2 rounded-lg border border-error/30 bg-error-bg px-3 py-2 text-xs text-error-fg shadow-elevated">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <div dir="auto" className="min-w-0 flex-1 break-words"><PlainMessage text={fileProblem} as="span" /></div>
+          <button type="button" aria-label="Dismiss" onClick={() => setFileProblem('')} className="shrink-0 font-bold hover:opacity-80">&times;</button>
+        </div>
       )}
 
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
@@ -2425,6 +2422,11 @@ function MvpTiles({ counts, active, onPick }) {
 }
 
 /* ── Stat Card ── */
+function cardKeyOf(uc, idx = '') {
+  const tid = trackingIdOf(uc);
+  return tid ? `genie-uc-${tid}` : favoriteKeyOf(uc) || String(uc?.No ?? idx);
+}
+
 function StatCard({ label, value, icon: Icon, renderValue }) {
   return (
     <GlassCard tilt className="p-4" data-stat={label}>

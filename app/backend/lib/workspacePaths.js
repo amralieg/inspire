@@ -18,4 +18,11 @@ function fsApiPath(kind, path) {
   return `/api/2.0/fs/${kind}${String(path).split('/').map(encodeURIComponent).join('/')}`;
 }
 
-module.exports = { PATH_RULE, workspacePathProblem, rejectUnsafeQueryPath, fsApiPath };
+function attachmentHeader(fileName) {
+  const name = String(fileName || '').trim() || 'file';
+  const plain = name.replace(/[^\x20-\x7e]/g, '_').replace(/["\\]/g, '_');
+  const encoded = encodeURIComponent(name).replace(/['()*]/g, (c) => `%${c.charCodeAt(0).toString(16).toUpperCase()}`);
+  return `attachment; filename="${plain}"; filename*=UTF-8''${encoded}`;
+}
+
+module.exports = { PATH_RULE, workspacePathProblem, rejectUnsafeQueryPath, fsApiPath, attachmentHeader };

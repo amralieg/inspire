@@ -62,6 +62,26 @@ test('an encoded .. under an App output volume cannot climb out of the files API
   }
 });
 
+test('an exported file whose name holds Arabic letters, a quote or a backslash downloads under its own name instead of failing (must-exclude: no 500)', async () => {
+  const names = ['شركة الأمل-dbx_inspire_ar.pdf', 'O"Brien\\Sons-dbx_inspire.csv', '中文-dbx_inspire.xlsx', 'Retail Bank-dbx_inspire_en.csv'];
+  for (const name of names) {
+    const file = `${VOLUME_OUT}/acme/docs/${name}`;
+    S.reset({ ...VOLUME_SEED(), files: { [file]: 'No,Name\nN01-U01,Churn\n' } });
+    const got = await S.request('GET', `/api/workspace/export?path=${encodeURIComponent(file)}`, { person: NONOWNER });
+    assert.equal(got.status, 200, `${name}: ${got.text}`);
+    assert.equal(got.text, 'No,Name\nN01-U01,Churn\n', name);
+    const header = got.headers['content-disposition'];
+    const encoded = /filename\*=UTF-8''([^;]+)$/.exec(header);
+    assert.ok(encoded, `${name}: ${header}`);
+    assert.equal(decodeURIComponent(encoded[1]), name, 'the UTF-8 name is the file name');
+    const plain = /filename="([^"]*)"/.exec(header)[1];
+    assert.match(plain, /^[\x20-\x7e]+$/, 'the fallback name is plain ASCII');
+    assert.doesNotMatch(plain, /["\\]/);
+  }
+  assert.equal(W.attachmentHeader(''), `attachment; filename="file"; filename*=UTF-8''file`);
+  assert.equal(W.attachmentHeader("a'b(1).pdf"), `attachment; filename="a'b(1).pdf"; filename*=UTF-8''a%27b%281%29.pdf`);
+});
+
 test('publish refuses a relative or .. destination with the same rule', async () => {
   for (const route of ['/api/publish', '/api/publish/upload']) {
     for (const destination_path of ['relative/path', '/Shared/../Users/someone-else']) {

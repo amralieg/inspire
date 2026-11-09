@@ -65,7 +65,7 @@ export default function FilePreview({ name, loading, data, pdfClassName = 'h-[50
       )}
       {data?.type === 'pdf' && <iframe src={data.url} className={`w-full border border-border ${pdfClassName}`} title="PDF Preview" />}
       {data?.type === 'csv' && <SheetPreview key={name} name={name} data={data} />}
-      {data?.type === 'error' && <p className="text-[10px] text-error-fg py-2">{data.message}</p>}
+      {data?.type === 'error' && <p role="alert" dir="auto" className="text-[10px] text-error-fg py-2">{data.message}</p>}
     </>
   );
 }

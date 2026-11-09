@@ -62,7 +62,7 @@ const {
 const { createHostedRun, workspaceFiles } = require('./lib/hostedRun');
 const RP = require('./lib/routePolicy');
 const L = require('./lib/launchLedger');
-const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath } = require('./lib/workspacePaths');
+const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath, attachmentHeader } = require('./lib/workspacePaths');
 const { CACHE_REVALIDATE, compressedStatic, staticHeaders } = require('./lib/assetTypes');
 const { grantJobViewer, rememberViewer, viewerNoteOf } = require('./lib/jobViewer');
 const { discoveryTypeOf } = require('../frontend/src/lib/discoveryType.js');
@@ -1281,7 +1281,7 @@ app.get('/api/workspace/export', rejectUnsafeQueryPath, requireToken, async (req
           lastErr = await response.text();
           continue;
         }
-        res.setHeader('Content-Disposition', `attachment; filename="${baseName}"`);
+        res.setHeader('Content-Disposition', attachmentHeader(baseName));
         return res.send(Buffer.from(await response.arrayBuffer()));
       }
 
@@ -1294,18 +1294,18 @@ app.get('/api/workspace/export', rejectUnsafeQueryPath, requireToken, async (req
           const data = await resp1.json();
           if (data.content) {
             const buffer = Buffer.from(data.content, 'base64');
-            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+            res.setHeader('Content-Disposition', attachmentHeader(fileName));
             return res.send(buffer);
           }
         }
         const buffer = Buffer.from(await resp1.arrayBuffer());
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Disposition', attachmentHeader(fileName));
         return res.send(buffer);
       }
 
       const resp2 = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/workspace/export?path=${encodeURIComponent(wsPath)}&direct_download=true`);
       if (resp2.ok) {
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Disposition', attachmentHeader(fileName));
         return res.send(Buffer.from(await resp2.arrayBuffer()));
       }
       lastStatus = resp2.status;

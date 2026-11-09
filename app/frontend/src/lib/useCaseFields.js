@@ -10,6 +10,11 @@ export const PRIORITY_ORDER = [
   'Ultra Low',
 ];
 
+export function priorityRank(priority) {
+  const at = PRIORITY_ORDER.indexOf(String(priority || '').trim());
+  return at === -1 ? PRIORITY_ORDER.length : at;
+}
+
 export function isNumericPriorityString(str) {
   if (str == null) return false;
   const x = String(str).trim();

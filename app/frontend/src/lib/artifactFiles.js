@@ -17,6 +17,39 @@ export function fileExtension(file) {
   return name.includes('.') ? name.split('.').pop() : '';
 }
 
+export function fileActions(file) {
+  const ext = fileExtension(file);
+  return { preview: QUICK_ACCESS_EXTENSIONS.includes(ext), open: ext === 'pdf' };
+}
+
+export function fileSizeText(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n < 1024) return `${Math.round(n)} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function jsonOrNull(text) {
+  try {
+    return JSON.parse(text);
+  } catch {
+    return null;
+  }
+}
+
+export async function fileProblemText(action, name, resp) {
+  let why = resp ? `the workspace answered ${resp.status}` : 'the App did not answer';
+  if (resp) {
+    const body = await resp.json().catch(() => null);
+    let said = String(body?.error || body?.message || '').trim();
+    const inner = said.startsWith('{') ? jsonOrNull(said) : null;
+    if (inner?.message) said = String(inner.message).trim();
+    if (said) why = said.length > 200 ? `${said.slice(0, 200)}…` : said;
+  }
+  return `Inspire could not ${action} ${name}: ${why}${/[.!?…]$/.test(why) ? '' : '.'}`;
+}
+
 export const PREVIEW_ROWS = 5000;
 export const PREVIEW_PAGE_ROWS = 50;
 export const EXCEL_UNREADABLE = 'Inspire could not read this Excel file. Download it instead.';
