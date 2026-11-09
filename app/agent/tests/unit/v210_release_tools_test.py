@@ -102,7 +102,7 @@ def test_prep_never_touches_a_protected_or_foreign_app(release_tool):
     for app in ("kept-app", "kept-app-2", "someone-elses-app"):
         w = types.SimpleNamespace(workspace=_Calls())
         with pytest.raises(SystemExit, match="is not a scratch App name of this lane"):
-            install.prep(w, "v0.0.1-rc.1", "/Users/me/rc_tests/x", app, release_tool.root / "work")
+            install.prep(w, "v0.0.1-rc.1", "/Users/<user>/rc_tests/x", app, release_tool.root / "work")
         assert w.workspace.made == [], app
 
 
@@ -110,7 +110,7 @@ def test_prep_goes_on_to_the_workspace_for_the_scratch_app(release_tool):
     install = release_tool.load("rc_install")
     w = types.SimpleNamespace(workspace=_Calls())
     with pytest.raises(RuntimeError, match="stop here"):
-        install.prep(w, "v0.0.1-rc.1", "/Users/me/rc_tests/x", "scratch-app", release_tool.root / "work")
+        install.prep(w, "v0.0.1-rc.1", "/Users/<user>/rc_tests/x", "scratch-app", release_tool.root / "work")
     assert w.workspace.made == ["delete", "mkdirs"]
 
 
@@ -371,7 +371,7 @@ def _verify_stage(release_tool, monkeypatch, run_result, defaults):
     work = install.W40 / "v0.0.1-rc.1"
     (work / "release").mkdir(parents=True)
     (work / "release" / "manifest.json").write_text("{}", encoding="utf-8")
-    (install.W40 / "v0.0.1-rc.1_install.json").write_text(json.dumps({"run_id": 7, "folder": "/Users/me/rc_tests/x"}),
+    (install.W40 / "v0.0.1-rc.1_install.json").write_text(json.dumps({"run_id": 7, "folder": "/Users/<user>/rc_tests/x"}),
                                                            encoding="utf-8")
     me = types.SimpleNamespace(user_name="me")
     monkeypatch.setattr(install, "WorkspaceClient", lambda profile: types.SimpleNamespace(
