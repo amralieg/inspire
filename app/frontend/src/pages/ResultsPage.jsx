@@ -67,6 +67,7 @@ import {
   beneficiaryFromUc,
   cardTitlesOfUseCase,
   computeHighPriorityCount,
+  isHighPriority,
   displayCleanText,
   expandWorkspaceListCandidates,
   findUcForNotebookFilename,
@@ -1319,7 +1320,14 @@ export default function ResultsPage({
                       </h3>
                       {runOutcome.failed
                         ? <p className="text-[11px] text-error-fg" data-testid="execution-failure">{displayCleanText(runOutcome.message)}</p>
-                        : <p className="text-[11px] text-text-secondary">Every step of the run finished.</p>}
+                        : runOutcome.missingDocuments.length > 0
+                          ? (
+                            <ul className="text-[11px] text-warning-fg" data-testid="missing-documents" aria-label="Documents the run did not write">
+                              {runOutcome.missingDocuments.map((line) => <li key={line} dir="auto">{line}</li>)}
+                              <li className="text-text-secondary">Open the run log to see why.</li>
+                            </ul>
+                          )
+                          : <p className="text-[11px] text-text-secondary">Every step of the run finished.</p>}
                       {qualityBarCounts.found > 0 && (
                         <p className="text-[11px] text-text-secondary mt-0.5" data-testid="quality-bar-counts">
                           {qualityBarCounts.found} found, {qualityBarCounts.meets} {qualityBarCounts.meets === 1 ? 'meets' : 'meet'} your quality bar
@@ -1828,7 +1836,7 @@ export default function ResultsPage({
                     const count = domainCounts[d] || 0;
                     const active = filterDomain === d;
                     const highPriCount = allUseCases.filter(
-                      (uc) => uc._domain === d && ['Ultra High', 'Very High', 'High'].includes(String(uc?.Priority || ''))
+                      (uc) => uc._domain === d && isHighPriority(uc)
                     ).length;
                     const subs = subdomainsByDomain[d] || {};
                     const hasSubs = Object.keys(subs).length > 0;

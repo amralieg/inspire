@@ -120,3 +120,49 @@ test('Review files offer Open only where a browser can show the file, give small
     await ui.close();
   }
 });
+
+test('Review names every document a language did not get, counts High priority by the tier on the pills, and keeps "Every step of the run finished" for a clean run (must-exclude)', async () => {
+  const pills = {
+    ...LIST_RESULTS,
+    domains: [{ domain_name: 'Customer', use_cases: [
+      uc('N01-U01', 'Zeta churn', { Priority: 'Ultra High', inspire_score: '2.0' }),
+      uc('N01-U02', 'Alpha basket', { Priority: 'Ultra High', inspire_score: '3.0' }),
+      uc('N01-U03', 'Middle stock', { Priority: 'Low', inspire_score: '9.0' }),
+    ] }],
+    delivery_order: [],
+    run_status: 'warning',
+    run_message: 'Completed with warnings: 2 artifact steps failed: CSV Catalog (Arabic), Use Case Excel (Arabic)',
+    failed_steps: [
+      { step: 'CSV Catalog', language: 'Arabic', error: 'the CSV Catalog for Arabic has no use cases to write' },
+      { step: 'Use Case Excel', language: 'Arabic', error: 'the Use Case Excel for Arabic has no use cases to write' },
+      { step: 'CSV Catalog', language: 'Arabic', error: 'again' },
+    ],
+    translation_gaps: { Arabic: { artifacts_in_english: ['Genie Code notebooks'] } },
+  };
+  const warned = await openUi('results', { ...REVIEW_STATE, results: pills });
+  try {
+    const { page } = warned;
+    await cards(page).first().waitFor();
+    assert.equal((await page.locator('[data-stat="High Priority"] [data-stat-value]').innerText()).trim(), '2', 'two Ultra High pills, never 0');
+    const done = page.locator('[data-testid="execution-complete"]');
+    assert.equal(await done.getAttribute('data-status'), 'warning');
+    const missing = page.getByRole('list', { name: 'Documents the run did not write' });
+    assert.deepEqual((await missing.locator('li').allInnerTexts()).map((t) => t.trim()), [
+      'Not written in Arabic: CSV and Excel.',
+      'Written in English only, not in Arabic: Genie Code notebooks.',
+      'Open the run log to see why.',
+    ]);
+    assert.equal(await page.getByText('Every step of the run finished.').count(), 0, 'a run that missed documents never says every step finished');
+    assert.deepEqual(warned.pageErrors, []);
+  } finally {
+    await warned.close();
+  }
+  const clean = await openUi('results', { ...REVIEW_STATE, results: { ...LIST_RESULTS, run_status: 'success' } });
+  try {
+    await cards(clean.page).first().waitFor();
+    assert.equal(await clean.page.getByText('Every step of the run finished.').count(), 1);
+    assert.equal(await clean.page.getByRole('list', { name: 'Documents the run did not write' }).count(), 0, 'a clean run lists nothing (must-exclude)');
+  } finally {
+    await clean.close();
+  }
+});

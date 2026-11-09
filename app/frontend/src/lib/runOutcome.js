@@ -31,6 +31,48 @@ const domainUseCases = (r) => (Array.isArray(r.domains)
   ? r.domains.reduce((sum, d) => sum + (Array.isArray(d?.use_cases) ? d.use_cases.length : 0), 0)
   : null);
 
+const DOCUMENT_WORDS = {
+  'Markdown Catalog': 'Markdown readme',
+  'CSV Catalog': 'CSV',
+  'Use Case Excel': 'Excel',
+  'PDF Catalog': 'PDF',
+  Presentation: 'slides',
+  'JSON Catalog': 'JSON',
+  'Language Pack': 'translation',
+};
+
+const listed = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
+
+export function missingDocumentsOf(results) {
+  const r = results && typeof results === 'object' ? results : {};
+  const byLanguage = new Map();
+  const add = (language, what) => {
+    const key = String(language || '').trim();
+    if (!byLanguage.has(key)) byLanguage.set(key, { notWritten: [], englishOnly: [] });
+    return byLanguage.get(key)[what];
+  };
+  for (const f of Array.isArray(r.failed_steps) ? r.failed_steps : []) {
+    const step = String(f?.step || '').trim();
+    if (!step) continue;
+    const words = DOCUMENT_WORDS[step] || step;
+    const into = add(f.language, 'notWritten');
+    if (!into.includes(words)) into.push(words);
+  }
+  const gaps = r.translation_gaps && typeof r.translation_gaps === 'object' ? r.translation_gaps : {};
+  for (const [language, gap] of Object.entries(gaps)) {
+    for (const artifact of Array.isArray(gap?.artifacts_in_english) ? gap.artifacts_in_english : []) {
+      const into = add(language, 'englishOnly');
+      if (String(artifact).trim() && !into.includes(String(artifact).trim())) into.push(String(artifact).trim());
+    }
+  }
+  const lines = [];
+  for (const [language, { notWritten, englishOnly }] of byLanguage) {
+    if (notWritten.length) lines.push(language ? `Not written in ${language}: ${listed(notWritten)}.` : `Not written: ${listed(notWritten)}.`);
+    if (englishOnly.length && language) lines.push(`Written in English only, not in ${language}: ${listed(englishOnly)}.`);
+  }
+  return lines;
+}
+
 export function runOutcomeOf(results, counts = null) {
   const r = results && typeof results === 'object' ? results : {};
   const bar = r.quality_bar && typeof r.quality_bar === 'object' ? r.quality_bar : null;
@@ -43,7 +85,8 @@ export function runOutcomeOf(results, counts = null) {
   const failed = r.run_status === 'failed' || empty;
   const failureKind = failed ? String(r.run_failure_kind || (empty ? 'no_use_cases' : 'error')) : '';
   const belowAll = found > 0 && meets === 0;
-  const warning = !failed && (r.run_status === 'warning' || belowAll);
+  const missingDocuments = missingDocumentsOf(r);
+  const warning = !failed && (r.run_status === 'warning' || belowAll || missingDocuments.length > 0);
   const notes = [...new Set([outcomeMessage(r.selection_outcome), outcomeMessage(r.elite_outcome)].filter(Boolean))];
   return {
     failed,
@@ -59,6 +102,7 @@ export function runOutcomeOf(results, counts = null) {
     message: runMessage || outcomeMessage(bar) || (empty ? NO_USE_CASES_MESSAGE : failed ? RUN_FAILED_MESSAGE : ''),
     barMessage: outcomeMessage(bar),
     notes,
+    missingDocuments,
   };
 }
 
