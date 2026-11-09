@@ -348,7 +348,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
             </li>
           ))}
           {launchDetails.length > 0 && (
-            <li className="pl-6">
+            <li className="ps-6">
               <TechnicalDetails items={launchDetails} />
             </li>
           )}

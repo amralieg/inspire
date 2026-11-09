@@ -335,7 +335,7 @@ test('a session that saves under /Shared says on Summary that everyone can edit 
     await toSummary(page);
     const note = page.getByRole('note', { name: 'Where Inspire saves the MVP' });
     await note.waitFor();
-    assert.match(await note.textContent(), /^Inspire saves this MVP under \/Workspace\/Shared\/demos\/acme_implemented\. Everyone in the workspace can edit/);
+    assert.match(await note.textContent(), /^Inspire saves this MVP in \/Workspace\/Shared\/demos\/acme_implemented, a shared folder: anyone in the workspace can change or delete it/);
     assert.equal(await note.evaluate((el) => el.className.includes('text-warning-fg')), true);
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
@@ -778,7 +778,9 @@ test('a version that ended with a warning says why under its status, and a ready
     assert.equal(await warned.page.getByRole('region', { name: 'Build failed' }).count(), 0, 'warnings are not a failed build');
     const chip = warned.page.locator('[data-mvp-progress] p', { hasText: /^Warnings$/ }).first();
     await chip.waitFor();
-    assert.equal(await warned.page.locator('[data-mvp-progress] [data-build-reason]').innerText(), why);
+    const reason = warned.page.locator('[data-mvp-progress] [data-build-reason]');
+    assert.equal(await reason.innerText(), why.slice(0, why.lastIndexOf(': https://')));
+    assert.match(await warned.page.locator('[data-mvp-progress] [data-technical-details]').first().textContent(), /https:\/\/workspace\.example\.com\/jobs\/77\/runs\/9001/);
     assert.deepEqual(warned.pageErrors, []);
   } finally {
     await warned.close();
