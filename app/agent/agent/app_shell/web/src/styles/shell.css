@@ -357,3 +357,4 @@ button.hb:hover,button.hb.is-on{background:var(--well)}
   .ask input{font-size:14px}
 }
 @media (prefers-reduced-motion: reduce){*{transition:none!important;animation:none!important}}
+.new-msgs{position:sticky;bottom:4px;align-self:center;flex:none;display:inline-flex;align-items:center;gap:6px;padding:6px 12px;border-radius:999px;border:1px solid var(--btn-bg);background:var(--btn-bg);color:var(--btn-fg);font:inherit;font-size:12px;font-weight:600;cursor:pointer;box-shadow:0 4px 12px rgba(0,0,0,.18)}

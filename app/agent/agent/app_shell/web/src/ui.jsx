@@ -149,6 +149,59 @@ export function Menu({ anchor, onClose, items, label }) {
 
 export const SoWhat = ({ text }) => (text ? <p className="so-what" data-so-what><b>So what:</b> {text}</p> : null);
 
+const FOLLOW_SLACK_PX = 40;
+const UP_KEYS = new Set(['ArrowUp', 'PageUp', 'Home']);
+
+export function useFollowBottom(ref, content, pin) {
+  const follow = useRef(true);
+  const seen = useRef(0);
+  const pinned = useRef(pin);
+  const [unread, setUnread] = useState(false);
+  useEffect(() => {
+    const el = ref.current;
+    if (!el) return undefined;
+    let top = el.scrollTop;
+    const gap = () => el.scrollHeight - el.scrollTop - el.clientHeight;
+    const onScroll = () => {
+      if (gap() <= 1 || (el.scrollTop > top && gap() <= FOLLOW_SLACK_PX)) { follow.current = true; setUnread(false); }
+      else if (el.scrollTop < top) follow.current = false;
+      top = el.scrollTop;
+    };
+    const leave = () => { if (el.scrollHeight > el.clientHeight) follow.current = false; };
+    const onWheel = (e) => { if (e.deltaY < 0) leave(); };
+    const onKey = (e) => { if (UP_KEYS.has(e.key)) leave(); };
+    el.addEventListener('scroll', onScroll, { passive: true });
+    el.addEventListener('wheel', onWheel, { passive: true });
+    el.addEventListener('keydown', onKey);
+    return () => {
+      el.removeEventListener('scroll', onScroll);
+      el.removeEventListener('wheel', onWheel);
+      el.removeEventListener('keydown', onKey);
+    };
+  }, [ref]);
+  useLayoutEffect(() => {
+    const el = ref.current;
+    if (!el) return;
+    if (pinned.current !== pin) { pinned.current = pin; follow.current = true; }
+    if (follow.current) { el.scrollTop = el.scrollHeight; setUnread(false); }
+    else if (el.scrollHeight > seen.current) setUnread(true);
+    seen.current = el.scrollHeight;
+  }, [ref, content, pin]);
+  const jump = useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    follow.current = true;
+    el.scrollTop = el.scrollHeight;
+    setUnread(false);
+  }, [ref]);
+  return { unread, jump };
+}
+
+export function NewMessages({ follow }) {
+  if (!follow.unread) return null;
+  return <button type="button" className="new-msgs" onClick={follow.jump}><Icon name="down" size={13} />New messages</button>;
+}
+
 export function Skeleton({ height = 16, width = '100%', radius = 8 }) {
   return <span className="skel" style={{ height, width, borderRadius: radius }} aria-hidden="true" />;
 }

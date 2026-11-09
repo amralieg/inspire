@@ -225,3 +225,35 @@ export async function wheelScrolls(page, region, last, { name, screens = WHEEL_S
   }
   return results;
 }
+
+export const STREAMED_ANSWER = Array.from({ length: 300 }, (_, i) => `- line ${i + 1}`).join('\n');
+
+export async function followsOnlyAtBottom(page, log, name) {
+  const gap = () => log.evaluate((el) => el.scrollHeight - el.scrollTop - el.clientHeight);
+  const top = () => log.evaluate((el) => el.scrollTop);
+  const said = () => log.evaluate((el) => el.innerText.length);
+  const jump = log.getByRole('button', { name: 'New messages' });
+  await page.waitForFunction((el) => el.scrollHeight > el.clientHeight + 240, await log.elementHandle(), { timeout: 30000 });
+  const before = await said();
+  await page.waitForTimeout(1200);
+  assert.ok((await said()) > before, `${name}: the answer is still streaming in`);
+  assert.ok((await gap()) <= 40, `${name}: at the bottom it follows each new line (must-exclude: never left behind while at the bottom)`);
+  assert.equal(await jump.count(), 0, `${name}: no New messages button while following`);
+  const box = await log.boundingBox();
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.wheel(0, -200);
+  await page.waitForTimeout(250);
+  const at = await top();
+  assert.ok((await gap()) > 40, `${name}: wheel up leaves the bottom`);
+  const reading = await said();
+  await page.waitForTimeout(1500);
+  assert.ok((await said()) > reading, `${name}: new lines kept arriving while the person read`);
+  assert.ok(Math.abs((await top()) - at) <= 2, `${name}: wheel up during streaming keeps the place, ${await top()} vs ${at}`);
+  await jump.waitFor({ timeout: 5000 });
+  await jump.click();
+  await page.waitForTimeout(250);
+  assert.ok((await gap()) <= 40, `${name}: New messages jumps to the latest line`);
+  await page.waitForTimeout(800);
+  assert.ok((await gap()) <= 40, `${name}: after the jump it follows again`);
+  assert.equal(await jump.count(), 0, `${name}: the button goes once the person is back at the bottom`);
+}
