@@ -1,7 +1,7 @@
-"""The MVP Test Run limits only the records a run scores: training rows are read with purpose='training' and are never narrowed by it,
+"""The First run limits only the records a run scores: training rows are read with purpose='training' and are never narrowed by it,
 each run records both scopes and says what it trained on and what it scored, a first build whose run is not reliable publishes the
 App with a Results not trusted yet banner while an App already live and trusted is still held back, and a not reliable reason
-names the MVP Test Run or Grouping setting only when the facts show that setting caused it."""
+names the First run or Grouping setting only when the facts show that setting caused it."""
 import json
 
 import pytest
@@ -54,7 +54,7 @@ def test_each_run_records_the_scope_it_scored_and_the_full_history_it_trained_on
     assert tables[ORDERS]["training_read"] is True and tables[ORDERS]["training_scoped"] is False
     assert tables[ORDERS]["training_rows"] == 48000 == tables[ORDERS]["rows_total"]
     assert tables[STORES]["read_by_helper"] is True and tables[STORES]["training_read"] is True
-    assert "the model trained on the full history; it scored the MVP Test Run scope" in printed[-1]
+    assert "the model trained on the full history; it scored the First run scope" in printed[-1]
 
 
 def test_the_training_text_says_it_trained_on_a_sample_and_scored_the_scope(fresh_ns):
@@ -62,15 +62,15 @@ def test_the_training_text_says_it_trained_on_a_sample_and_scored_the_scope(fres
     fresh_ns["INSPIRE_PREVIEW_SAMPLE"] = 20000
     log = dict(NARROWED, training_reads={ORDERS: {"where": "", "limit": None}})
     said = text(log)
-    assert said.startswith("the model trained on a sample of 20,000 records from the full history; it scored the MVP Test Run scope"), said
+    assert said.startswith("the model trained on a sample of 20,000 records from the full history; it scored the First run scope"), said
     fresh_ns.pop("INSPIRE_PREVIEW_SAMPLE")
     assert text(dict(log, scope={"scope": "all"}, reads={})) == "the model trained on the full history"
 
 
 def test_a_small_mvp_test_run_that_shrank_training_is_named_with_where_to_change_it(fresh_ns):
     cause = fresh_ns["inspire_unreliable_cause"](False, NARROWED, COARSE, {"trains_model": True})
-    assert cause.startswith(fresh_ns["INSPIRE_CAUSE_LEAD"]) and "MVP Test Run" in cause
-    assert "choose all for MVP Test Run on the Run page" in cause and "Vibe/Add/Remove Features on the Build page" in cause
+    assert cause.startswith(fresh_ns["INSPIRE_CAUSE_LEAD"]) and "First run" in cause
+    assert "choose all for First run on the Run page" in cause and "Vibe/Add/Remove Features on the Build page" in cause
     fresh_ns["INSPIRE_RUN_LOG"], fresh_ns["INSPIRE_RUN_GROUPING"] = NARROWED, COARSE
     said = fresh_ns["inspire_with_cause"]("no model passed its acceptance check", False)
     assert said.startswith("no model passed its acceptance check. This may come from a setting you can change:"), said
@@ -94,12 +94,12 @@ def test_grouping_into_tiny_groups_is_named_with_where_to_change_it(fresh_ns):
     fine = {"mode": "columns", "group_by": ["store_id"], "minimum": 30, "levels": [{"level": "store_id", "records": 4000, "groups": 100}]}
     cause = fresh_ns["inspire_unreliable_cause"](False, dict(NARROWED, scope={"scope": "all"}, reads={}), fine, {"trains_model": True})
     assert "Grouping by store_id" in cause and "100 groups of about 40 records" in cause
-    assert "change the Grouping on the Run page to fewer columns or all" in cause and "MVP Test Run scope" not in cause
+    assert "change the Grouping on the Run page to fewer columns or all" in cause and "First run scope" not in cause
     spilled = {"mode": "columns", "group_by": ["store_id"], "minimum": 30, "levels": [
         {"level": "store_id", "records": 2000, "groups": 10}, {"level": "all", "records": 2000, "groups": 1}]}
     said = fresh_ns["inspire_unreliable_cause"](False, NARROWED, spilled, {"trains_model": True})
     assert "leaves 2,000 of 4,000 records in groups of fewer than 30 records" in said
-    assert "in the MVP Test Run scope" in said and "or choose a wider MVP Test Run there" in said
+    assert "in the First run scope" in said and "or choose a wider First run there" in said
 
 
 def test_coarse_grouping_over_the_full_history_names_nothing(fresh_ns):
@@ -123,7 +123,7 @@ def test_the_build_requires_and_accepts_a_training_read_for_a_model_on_a_first_r
 
 def test_the_genie_rules_tell_a_model_to_read_training_rows_unnarrowed(agent_ns):
     rule = agent_ns["GENIE_TRAINING_READ_RULE"]
-    assert "purpose='training'" in rule and "MVP Test Run" in rule
+    assert "purpose='training'" in rule and "First run" in rule
 
 
 def _first_build(agent_ns, reason, counts=None):
@@ -200,7 +200,7 @@ def test_the_run_page_says_the_model_trained_on_the_full_history_and_the_scope_l
                                                                                                     "picked by a stable hash of each record")}
     trained = [{"table": ORDERS, "rows": 1000, "rows_total": 48000, "scoped": True, "training_read": True, "training_rows": 48000}]
     facts = shell_sql.scope_facts(scope, trained, 240, 20000)
-    assert facts["trained"] == ("The model trained on a sample of 20,000 records from the full history; the MVP Test Run limited only "
+    assert facts["trained"] == ("The model trained on a sample of 20,000 records from the full history; the First run limited only "
                                 "the records it scored.")
     assert shell_sql.scope_facts(scope, trained, 240)["trained"].startswith("The model trained on the full history;")
     assert "trained" not in shell_sql.scope_facts(scope, [dict(trained[0], training_read=False)], 240), "no training read, no claim"
@@ -227,7 +227,7 @@ def test_the_run_summary_is_told_what_the_model_trained_on_and_what_it_scored(fr
     fresh_ns["INSPIRE_PREVIEW_SAMPLE"] = 20000
     fresh_ns["INSPIRE_RUN_LOG"] = dict(NARROWED, training_reads={ORDERS: {"where": "", "limit": None}})
     write()
-    assert ("Training and scoring: the model trained on a sample of 20,000 records from the full history; it scored the MVP Test Run "
+    assert ("Training and scoring: the model trained on a sample of 20,000 records from the full history; it scored the First run "
             "scope, 1,000 records of main.sales.orders spread across the whole table, picked by a stable hash of each record.") in asked[0].replace("''", "'")
     fresh_ns["INSPIRE_RUN_LOG"] = dict(NARROWED)
     write()

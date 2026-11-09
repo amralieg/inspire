@@ -5672,7 +5672,7 @@ def test_a_round_that_fails_exactly_as_the_round_before_is_told_its_change_did_n
 
 def test_a_read_outside_inspire_read_source_left_after_the_last_round_blocks_publishing_with_one_plain_reason(agent_ns):
     spec = agent_ns["validate_implement_spec"](VALID)[0]
-    read = ("cell 4 line 271 names main.sales.orders outside inspire_read_source, so the MVP Test Run scope does not narrow that read: "
+    read = ("cell 4 line 271 names main.sales.orders outside inspire_read_source, so the First run scope does not narrow that read: "
             + agent_ns["GENIE_SOURCE_READ_RULE"])
     last = _flow_inspire(agent_ns, [({"status": "written", "rows_written": 7}, 11, 101)])
     last.number_reports = [[read]] * 3

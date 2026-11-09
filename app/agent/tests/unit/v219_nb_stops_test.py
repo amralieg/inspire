@@ -171,14 +171,14 @@ def test_a_missing_secondary_table_is_dropped_with_a_warning_and_only_the_primar
 
 def test_a_first_run_scope_with_no_values_falls_back_to_all_with_a_note(agent_ns, monkeypatch):
     def empty(spark, chosen, run=None):
-        raise agent_ns["InspireScopeEmpty"]("MVP Test Run on groups found no value of region in main.s.t; choose all on the Run page")
+        raise agent_ns["InspireScopeEmpty"]("First run on groups found no value of region in main.s.t; choose all on the Run page")
     monkeypatch.setitem(agent_ns, "inspire_scope_resolve", empty)
     monkeypatch.setitem(agent_ns, "inspire_scope_choice", lambda run, scope, out: {"scope": "groups", "table": "main.s.t"})
     said, scope = [], {}
     chosen = agent_ns["inspire_scope_start"](FakeSpark(), {"scope": {"table": "main.s.t"}}, scope, said.append)
-    assert chosen["scope"] == "all" and chosen["fallback"] == "MVP Test Run on groups found no value of region in main.s.t"
-    assert said[0] == ("MVP Test Run on groups found no value of region in main.s.t, so this run covers all records instead. Choose "
-                       "the MVP Test Run again on the Run page to narrow it")
+    assert chosen["scope"] == "all" and chosen["fallback"] == "First run on groups found no value of region in main.s.t"
+    assert said[0] == ("First run on groups found no value of region in main.s.t, so this run covers all records instead. Choose "
+                       "the First run again on the Run page to narrow it")
     assert scope["INSPIRE_SCOPE"] is chosen
 
 

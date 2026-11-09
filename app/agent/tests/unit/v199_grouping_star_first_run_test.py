@@ -228,14 +228,14 @@ def test_a_joined_column_that_cannot_be_reached_stops_grouping_and_the_first_run
     spark = FakeSpark()
     if not join:
         group = [{"column": "state", "value": "CA"}, {"column": "item.i_category", "value": "Electronics"}]
-        with pytest.raises(ValueError, match=r"MVP Test Run group state = CA and item\.i_category = Electronics names item\.i_category, a column of "
+        with pytest.raises(ValueError, match=r"First run group state = CA and item\.i_category = Electronics names item\.i_category, a column of "
                                              r"another table, but carries no join to that table, so the records have no item\.i_category to choose; "
                                              r"choose the groups again on the Run page"):
             fresh_ns["inspire_scope_resolve"](spark, {"scope": "groups", "table": SALES, "column": "", "groups": [group]})
         assert spark.statements == [], "a joined column with no join never falls back to reading the main table"
         return
     group = [{"column": "state", "value": "CA"}, {"column": "item.i_category", "value": "Electronics", "join": join}]
-    with pytest.raises(ValueError, match=r"MVP Test Run group state = CA and item\.i_category = Electronics names item\.i_category through a join "
+    with pytest.raises(ValueError, match=r"First run group state = CA and item\.i_category = Electronics names item\.i_category through a join "
                                          r"that is named only in part; choose the groups again on the Run page"):
         fresh_ns["inspire_scope_resolve"](spark, {"scope": "groups", "table": SALES, "column": "", "groups": [group]})
     assert spark.statements == []
@@ -254,7 +254,7 @@ def test_a_first_run_on_records_of_a_grouping_technique_takes_whole_groups_and_n
     fresh_ns["INSPIRE_SCOPE"], fresh_ns["INSPIRE_RUN_LOG"] = resolved, {}
     frame = fresh_ns["inspire_read_source"]("main.sales.orders", spark=Session(["order_id", "region"]))
     assert frame.steps == [("where", "CAST(`region` AS STRING) IN ('EMEA', 'APAC', 'LATAM')")], "whole groups are filtered, never cut to N rows"
-    assert fresh_ns["inspire_scope_text"](resolved) == ("1,400 records of main.sales.orders, in 3 whole groups, so the MVP Test Run sees more than "
+    assert fresh_ns["inspire_scope_text"](resolved) == ("1,400 records of main.sales.orders, in 3 whole groups, so the First run sees more than "
                                                         "one group and no group is cut: region = EMEA, 600 records; region = APAC, 500 records; "
                                                         "region = LATAM, 300 records")
     assert fresh_ns["inspire_scope_record"](resolved)["whole_groups"] is True
@@ -291,16 +291,16 @@ def test_above_1000_records_the_default_is_about_1000_records_and_never_a_recent
     assert agent_ns["inspire_scope_default"]({"table": SALES, "records": None, "default": "groups"}) == "groups", "a default the build recorded is kept"
     unknown = agent_ns["inspire_scope_settings"](dict({k: v for k, v in SPEC.items() if k != "default"}, records=None))[0]
     assert unknown["default"] == "records" and unknown["reason"] == ("Inspire could not read from its metadata how many records the main "
-                                                                      "table holds, so the MVP Test Run covers about 1,000 records in whole "
+                                                                      "table holds, so the First run covers about 1,000 records in whole "
                                                                       "groups of region, so no group is cut"), unknown["reason"]
     small = agent_ns["inspire_scope_settings"](dict({k: v for k, v in SPEC.items() if k != "default"}, records=400))[0]
-    assert (small["default"], small["reason"]) == ("records", "Inspire's default: the main table holds 400 records, so an MVP Test Run of about "
+    assert (small["default"], small["reason"]) == ("records", "Inspire's default: the main table holds 400 records, so a First run of about "
                                                              "1,000 records covers all of it")
     held = _scope({"default": "records", "records": 718931})
     assert agent_ns["inspire_scope_choice"](scope=dict(held, INSPIRE_SCOPE_VALUES={"run_scope": "all"}))["scope"] == "all", \
         "everything still runs when someone chooses it"
     reason = agent_ns["inspire_scope_settings"](dict(SPEC, default="records", records=718931))[0]["reason"]
-    assert reason.endswith("so the MVP Test Run covers about 1,000 records in whole groups of region, so no group is cut"), reason
+    assert reason.endswith("so the First run covers about 1,000 records in whole groups of region, so no group is cut"), reason
 
 
 def test_with_no_column_to_group_by_the_first_run_takes_the_first_records_with_a_plain_note(fresh_ns):
@@ -312,7 +312,7 @@ def test_with_no_column_to_group_by_the_first_run_takes_the_first_records_with_a
     assert frame.steps == [("orderBy", "xxhash64(CAST(`order_id` AS STRING), CAST(`region` AS STRING))"), ("limit", 1000)]
     assert fresh_ns["inspire_scope_text"](chosen) == ("1,000 records of main.sales.orders spread across the whole table, picked by a stable hash of "
                                                       "each record; Anomaly Detection reads records together and main.sales.orders has no column "
-                                                      "to take whole groups of, so a group may be cut in this MVP Test Run")
+                                                      "to take whole groups of, so a group may be cut in this First run")
     reason = fresh_ns["inspire_scope_settings"](dict(SPEC, group_column="", default="records", records=718931))[0]["reason"]
     assert reason.endswith("1,000 records spread across the whole table, picked by a stable hash of each record; Anomaly Detection reads "
                            "records together and no column groups them, so a group may be cut")
@@ -347,7 +347,7 @@ def test_a_saved_custom_first_run_runs_the_plain_default_with_a_note_and_no_sql(
     plain = fresh_ns["inspire_scope_choice"](scope=_scope(run_scope=asked), out=said.append)
     default = fresh_ns["inspire_scope_choice"](scope=_scope(), out=lambda *_a: None)
     assert plain == default, "a saved custom first run runs what the default first run runs"
-    assert [line for line in said if "MVP Test Run" in line and "build the MVP again" in line], said
+    assert [line for line in said if "First run" in line and "build the MVP again" in line], said
     assert fresh_ns["inspire_scope_choice"](scope=_scope(run_scope="all")) == {"scope": "all", "table": "main.sales.orders"}, "a first run choice still runs"
     for name in ("inspire_scope_custom", "inspire_grouping_sql_check", "inspire_group_custom", "inspire_group_sql_saved", "implement_grouping_sql_check"):
         assert name not in fresh_ns, f"{name} is gone, so no typed SQL can run"

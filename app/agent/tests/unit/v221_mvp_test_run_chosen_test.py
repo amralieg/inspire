@@ -1,4 +1,4 @@
-"""v2.2.1 the MVP Test Run a person picks in the Start MVP wizard is what every build run covers.
+"""v2.2.1 the First run a person picks in the Start MVP wizard is what every build run covers.
 
 1. The wizard's run_scope, scope_groups, scope_days and scope_records reach the notebook's Run controls as its own start
    values, so the preview run and the grouping proof run cover the chosen scope, not the first records of the main table.
@@ -75,7 +75,7 @@ def test_the_run_page_settings_say_the_wizard_chose_them(agent_ns):
     assert run_scope["default"] == "groups" and run_scope["reason"] == "chosen in the Start MVP wizard"
     assert groups["default"] == json.dumps(JOINED) and groups["reason"] == "chosen in the Start MVP wizard"
     assert records["default"] == "500" and records["reason"] == "chosen in the Start MVP wizard"
-    assert days["default"] == "30" and days["reason"] == "Inspire's default for an MVP Test Run on a recent period"
+    assert days["default"] == "30" and days["reason"] == "Inspire's default for a First run on a recent period"
     plain = agent_ns["inspire_scope_settings"](dict(SPEC))
     assert plain[0]["reason"].startswith("Inspire's default") and plain[1]["default"] == ""
 

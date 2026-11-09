@@ -1,4 +1,4 @@
-"""An MVP Test Run narrows only the use case's main table: a lookup table read for labels comes back whole, so a lookup row outside
+"""A First run narrows only the use case's main table: a lookup table read for labels comes back whole, so a lookup row outside
 the scope still labels a scoped record, in the notebook's own join and in the Grouping's join, offline over SQLite."""
 import re
 import sqlite3

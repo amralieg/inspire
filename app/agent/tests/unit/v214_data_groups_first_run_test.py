@@ -53,8 +53,8 @@ def test_the_old_word_lists_are_gone_and_the_labels_say_data_groups(agent_ns):
     assert agent_ns["INSPIRE_GROUP_LABEL"] == "Data groups"
     assert agent_ns["GENIE_WIDGET_LABELS"]["group_by"] == "Data groups (columns coarse to fine, or all)"
     assert "custom" not in agent_ns["GENIE_WIDGET_LABELS"]["group_by"]
-    assert agent_ns["INSPIRE_CUSTOM_SQL_REFUSED"] == ("Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for "
-                                                      "Data groups and one of the MVP Test Run choices instead")
+    assert agent_ns["INSPIRE_CUSTOM_SQL_REFUSED"] == ("Inspire does not run SQL typed into Data groups or First run; choose columns for "
+                                                      "Data groups and one of the First run choices instead")
 
 
 def test_the_built_notebook_carries_the_registry_table_so_it_never_needs_the_agent(agent_ns):
@@ -91,7 +91,7 @@ def test_the_first_run_is_never_everything_by_default(agent_ns, records):
 
 def test_a_small_table_says_a_first_run_of_about_1000_records_covers_all_of_it(agent_ns):
     reason = agent_ns["inspire_scope_settings"](dict(SPEC, records=400))[0]["reason"]
-    assert reason == "Inspire's default: the main table holds 400 records, so an MVP Test Run of about 1,000 records covers all of it"
+    assert reason == "Inspire's default: the main table holds 400 records, so a First run of about 1,000 records covers all of it"
     assert "covers all of them" not in reason
 
 
@@ -141,3 +141,16 @@ def test_the_v140_cases_cover_every_way_a_saved_spec_changed(agent_ns):
     for word in ("suggested all", "saved in v1.4.0 is kept", "grouping SQL", "First run SQL", "comma list", "no group picked", "one group"):
         assert word in names, word
     assert any(c["app"]["problems"] for c in LEGACY["v1_4_0"]) and any(not c["app"]["problems"] for c in LEGACY["v1_4_0"])
+
+
+def test_a_v140_setting_still_parses_and_every_line_about_it_names_the_first_run(agent_ns):
+    said = []
+    for case in LEGACY["v1_4_0"]:
+        widgets = dict(case["widgets"])
+        values = {k: widgets.pop(k) for k in ("run_scope", "scope_groups", "scope_records") if k in widgets}
+        chosen = agent_ns["inspire_scope_choice"](scope=_scope({"group_by": widgets["group_by"]}, spec=case["spec"], **values), out=said.append)
+        assert chosen["scope"] == case["agent"]["scope"], case["name"]
+        said.extend(case["app"]["problems"])
+    assert any(case["widgets"].get("run_scope") == "custom" for case in LEGACY["v1_4_0"]), "a v1.4.0 value the old label named is still read"
+    assert said and any("First run" in line for line in said), said
+    assert not [line for line in said + [agent_ns["INSPIRE_CUSTOM_SQL_REFUSED"]] if "MVP Test Run" in line], "the old label is never said (must-exclude)"

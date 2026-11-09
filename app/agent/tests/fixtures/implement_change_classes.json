@@ -3939,7 +3939,7 @@
       ]
     },
     {
-      "name": "switching the MVP Test Run choice drops the other choice's setting without a rebuild",
+      "name": "switching the First run choice drops the other choice's setting without a rebuild",
       "previous": {
         "use_case_id": "N01-U01",
         "data": {
@@ -4020,7 +4020,7 @@
       ]
     },
     {
-      "name": "removing a setting that is not an MVP Test Run setting still rebuilds",
+      "name": "removing a setting that is not a First run setting still rebuilds",
       "previous": {
         "use_case_id": "N01-U01",
         "data": {
@@ -10534,7 +10534,7 @@
         ]
       },
       "value": "custom",
-      "problem": "group_by is 'custom': Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead"
+      "problem": "group_by is 'custom': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the First run choices instead"
     },
     {
       "setting": {
@@ -10566,7 +10566,7 @@
         ]
       },
       "value": "custom, region",
-      "problem": "group_by is 'custom, region': Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead"
+      "problem": "group_by is 'custom, region': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the First run choices instead"
     },
     {
       "setting": {
@@ -10582,7 +10582,7 @@
         ]
       },
       "value": "all, custom",
-      "problem": "group_by is 'all, custom': Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead"
+      "problem": "group_by is 'all, custom': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the First run choices instead"
     },
     {
       "setting": {
@@ -10609,7 +10609,7 @@
         "optional": true
       },
       "value": "SELECT order_id, region AS group_name FROM main.sales.orders",
-      "problem": "group_sql: Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead"
+      "problem": "group_sql: Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the First run choices instead"
     },
     {
       "setting": {
@@ -10631,7 +10631,7 @@
         "optional": true
       },
       "value": "abc",
-      "problem": "scope_sql_hash: Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead"
+      "problem": "scope_sql_hash: Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the First run choices instead"
     },
     {
       "setting": {
@@ -10663,7 +10663,7 @@
         ]
       },
       "value": "region, CUSTOM",
-      "problem": "group_by is 'region, CUSTOM': Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead"
+      "problem": "group_by is 'region, CUSTOM': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the First run choices instead"
     },
     {
       "setting": {
@@ -10678,7 +10678,7 @@
         ]
       },
       "value": "custom",
-      "problem": "run_scope is 'custom': Inspire does not run SQL typed into Data groups or MVP Test Run; choose columns for Data groups and one of the MVP Test Run choices instead"
+      "problem": "run_scope is 'custom': Inspire does not run SQL typed into Data groups or First run; choose columns for Data groups and one of the First run choices instead"
     },
     {
       "setting": {

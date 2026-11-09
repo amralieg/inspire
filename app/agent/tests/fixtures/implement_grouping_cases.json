@@ -738,7 +738,7 @@
     "settings": [
       [
         "run_scope",
-        "MVP Test Run",
+        "First run",
         "choice"
       ],
       [
@@ -885,7 +885,7 @@
         "spec": {
           "time_column": ""
         },
-        "reason": "MVP Test Run on a recent period needs the date column of main.sales.orders"
+        "reason": "First run on a recent period needs the date column of main.sales.orders"
       },
       {
         "name": "groups without a group column",
@@ -895,7 +895,7 @@
         "spec": {
           "group_column": ""
         },
-        "reason": "MVP Test Run on groups needs a column of main.sales.orders that groups its records"
+        "reason": "First run on groups needs a column of main.sales.orders that groups its records"
       },
       {
         "name": "a scope that does not exist",
@@ -903,7 +903,7 @@
         "spec": {
           "default": "everything"
         },
-        "reason": "MVP Test Run is 'everything', which is not one of all, groups, recent, records"
+        "reason": "First run is 'everything', which is not one of all, groups, recent, records"
       }
     ],
     "build_check": [
