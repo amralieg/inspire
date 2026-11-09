@@ -162,7 +162,7 @@ function SummaryBanner({ summary }) {
             </>
           )}
           <CounterDivider />
-          <Counter value={summary.notebooks} label="Notebooks" />
+          <Counter value={summary.notebooks} label="Genie Code notebooks" />
           <CounterDivider />
           <Counter value={summary.notStarted} label="Not started" />
         </div>

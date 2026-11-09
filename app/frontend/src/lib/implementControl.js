@@ -833,7 +833,7 @@ export const ASSET_FILTERS = [['notebook', 'Notebook'], ['app', 'App'], ['dashbo
 export function itemAssets(item) {
   const gone = item?.latest?.status === IMPLEMENT_UNINSTALLED;
   const have = new Set(gone ? [] : deliveredOutputs(item?.latest));
-  if (item?.notebook?.state === 'ready' || (!gone && item?.latest?.notebook_path)) have.add('notebook');
+  if (item?.notebook?.state === 'ready' || (!gone && item?.latest?.notebook_path && !versionActive(item.latest))) have.add('notebook');
   return have;
 }
 
