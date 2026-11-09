@@ -34,9 +34,8 @@ export function generationFolder({ generationPath, notebookPath, businessName })
 export function sharedFolderWarning(folder) {
   const path = workspaceWebUiHashPath(folder);
   if (!/^\/Workspace\/Shared(\/|$)/.test(path)) return '';
-  return `Inspire saves this MVP under ${path.replace(/\/+$/, '')}_implemented. Everyone in the workspace can edit, republish and delete `
-    + 'what is saved under /Shared, though each person sees its data only with their own access. To keep it to yourself, run Discover '
-    + 'again with a generation path under your own user folder.';
+  return `Inspire saves this MVP in ${path.replace(/\/+$/, '')}_implemented, a shared folder: anyone in the workspace can change or delete it, `
+    + 'and each person sees its data only with their own access. To keep it to yourself, run Discover again and save it under your own user folder.';
 }
 
 /** `#workspace` deep-link segment — UI expects `/Workspace/...` on current control planes. */

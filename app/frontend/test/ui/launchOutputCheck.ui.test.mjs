@@ -127,7 +127,7 @@ test('changing a passed folder turns Get Started off at once, and a check that c
     assert.equal(await launchButton(page).isDisabled(), false, 'a check that could not answer never holds Get Started');
     await setPath(page, BOSS_FOLDER);
     await until(async () => (await page.locator('#output-folder-check-field').getAttribute('data-output-check')) === 'passed', 'the manager skip');
-    assert.equal(await page.locator('#output-folder-check-field').innerText(), 'You manage this App, so Inspire skips the write check for /Shared/team_out.');
+    assert.equal(await page.locator('#output-folder-check-field').innerText(), 'You manage this App, so Inspire can save to /Shared/team_out.');
     assert.equal(await launchButton(page).isDisabled(), false);
     assert.equal(calls.runs, 0, 'nothing launched');
     assert.deepEqual(notFound(ui.pageErrors), []);

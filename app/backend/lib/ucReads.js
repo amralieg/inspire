@@ -468,7 +468,7 @@ async function outputPlan(dbFetch, req, writes, { manager = false, appToken = ''
   if (shared.refused) return own.refused ? planVerdict(shared) : savedIn(own);
   if (folderScore(shared) <= folderScore(own)) return savedIn(own);
   const why = own.refused ? 'you cannot write there' : 'the Inspire App cannot write there; give the App CAN MANAGE on it to keep your runs private';
-  return savedIn(shared, [`Inspire cannot save to your folder ${home} (${why}), so it saves to ${shared.folder}, which everyone in the workspace can read.`]);
+  return savedIn(shared, [`Inspire cannot save to your folder ${home} (${why}), so it saves to ${shared.folder}, a shared folder that everyone in the workspace can open.`]);
 }
 
 function writeRefusalBody(key, refused) {

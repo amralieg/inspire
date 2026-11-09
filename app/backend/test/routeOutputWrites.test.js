@@ -15,7 +15,7 @@ const launch = (generationPath, options = {}) => S.request('POST', '/api/run', {
   body: { params: { '00_business_name': 'Acme', '02_inspire_database': S.APP_DB, '14_session_id': '1001', ...(generationPath === undefined ? {} : { '11_generation_path': generationPath }) } },
 });
 const SHARED_ONLY = (person, why = 'the Inspire App cannot write there; give the App CAN MANAGE on it to keep your runs private') =>
-  `Inspire cannot save to your folder /Users/${person}/inspire_output (${why}), so it saves to /Shared/demos, which everyone in the workspace can read.`;
+  `Inspire cannot save to your folder /Users/${person}/inspire_output (${why}), so it saves to /Shared/demos, a shared folder that everyone in the workspace can open.`;
 const APP_CANT = (folder) => `The Inspire App can't write to ${folder}, so the run saves no files there. Ask an App manager to give the App CAN MANAGE on it.`;
 const APP_CANT_CREATE = (folder) => `${folder} does not exist yet, and the Inspire App can't create it, so the run saves no files there. Create ${folder}, then give the App CAN MANAGE on it.`;
 const submitted = () => S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/'));

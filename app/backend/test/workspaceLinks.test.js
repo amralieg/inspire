@@ -28,11 +28,12 @@ test('a job link opens the job on the host with https, and only a numeric job id
 test('an MVP saved under /Shared warns that everyone can edit it, and no other folder does', async () => {
   const { sharedFolderWarning, generationFolder } = await load();
   const said = sharedFolderWarning('/Workspace/Shared/demos/acme');
-  assert.match(said, /^Inspire saves this MVP under \/Workspace\/Shared\/demos\/acme_implemented\. Everyone in the workspace can edit, republish and delete/);
-  assert.match(said, /their own access\. To keep it to yourself, run Discover again with a generation path under your own user folder\.$/);
-  assert.match(sharedFolderWarning('/Shared/demos/acme/'), /under \/Workspace\/Shared\/demos\/acme_implemented\./);
+  assert.equal(said, 'Inspire saves this MVP in /Workspace/Shared/demos/acme_implemented, a shared folder: anyone in the workspace can change or delete it, '
+    + 'and each person sees its data only with their own access. To keep it to yourself, run Discover again and save it under your own user folder.');
+  assert.doesNotMatch(said, /republish|generation path/i);
+  assert.match(sharedFolderWarning('/Shared/demos/acme/'), /in \/Workspace\/Shared\/demos\/acme_implemented,/);
   assert.match(sharedFolderWarning(generationFolder({ generationPath: 'out', notebookPath: '/Shared/inspire-ai/dbx_inspire_ai_agent', businessName: 'Acme' })),
-    /under \/Workspace\/Shared\/inspire-ai\/out\/acme_implemented/, 'a relative path resolved beside the agent notebook under /Shared also warns');
+    /in \/Workspace\/Shared\/inspire-ai\/out\/acme_implemented/, 'a relative path resolved beside the agent notebook under /Shared also warns');
   for (const quiet of ['/Workspace/Users/a@x/out/acme', '/Users/a@x/out', '/Volumes/c/s/v/out', '/Workspace/SharedTeam/out', '/Shared/../Users/a@x/out',
     './../demos/acme', '', null, undefined]) {
     assert.equal(sharedFolderWarning(quiet), '', String(quiet));

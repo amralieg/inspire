@@ -30,7 +30,7 @@ export default function OutputFolderCheck({ check, where = '', id }) {
           <CheckCircle2 size={12} className="shrink-0 mt-0.5" />
           <span className="break-words min-w-0">
             {check.checked === 'manager'
-              ? `You manage this App, so Inspire skips the write check for ${check.folder}.`
+              ? `You manage this App, so Inspire can save to ${check.folder}.`
               : `You can write to ${check.folder}.`}
           </span>
         </p>
