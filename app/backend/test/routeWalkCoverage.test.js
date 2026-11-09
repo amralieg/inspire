@@ -19,6 +19,7 @@ const NOT_WALKED = {
   'POST /api/inspire/implement/grant-access': 'runs grants only with the person own sign-in; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'POST /api/inspire/implement/create-schema': 'creates a catalog or schema only with the person own sign-in; no non-owner harness row walks it yet, and the route tests prove the sign-in refusal',
   'POST /api/grouping/profile': 'reads the use case table with the person token only and changes nothing; the grouping route tests walk it',
+  'GET /api/inspire/implement/diagnostics': 'reads the build through the same loadStatus read and person token as GET /api/inspire/implement/status, which the harness walks; no non-owner harness row walks it yet',
   'GET /api/inspire/log': 'reads the run log only for its launcher or an App manager; no non-owner harness row walks it yet, and the route samples prove the launcher refusal',
 };
 const LITERAL = /\bapp\.(get|post|put|patch|delete|all)\(\s*(['"`])(.*?)\2([^\n]*)/g;

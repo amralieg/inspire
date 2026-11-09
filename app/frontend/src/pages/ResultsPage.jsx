@@ -85,6 +85,7 @@ import {
 } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText } from '../lib/liveUseCases';
+import { saveBlob } from '../lib/download';
 import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
@@ -846,11 +847,7 @@ export default function ResultsPage({
 
   const downloadFile = useCallback(async (filePath, fileName) => {
     const blob = await exportedFile(filePath, fileName, 'download');
-    if (!blob) return;
-    const url = URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url; a.download = fileName; a.click();
-    setTimeout(() => URL.revokeObjectURL(url), 60000);
+    if (blob) saveBlob(blob, fileName);
   }, [exportedFile]);
 
   const openFileInTab = useCallback(async (filePath, fileName) => {

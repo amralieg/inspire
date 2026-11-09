@@ -47,6 +47,7 @@ import {
 import PaneResizer from '../components/PaneResizer';
 import { RAIL_WIDTH, loadPaneWidth, paneWidth, savePaneWidth } from '../lib/paneWidth';
 import MvpProgress, { ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
+import useBuildDiagnostics from '../components/useBuildDiagnostics';
 import { useProgressView } from '../lib/progressView';
 import GenieFeed from '../components/GenieFeed';
 import MoneyReview, { NothingToActCard } from '../components/MoneyReview';
@@ -909,6 +910,10 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     return () => clearInterval(id);
   }, [active]);
   const stages = useMemo(() => mvpStages(status?.steps, latest, { now, stalled }), [status?.steps, latest, now, stalled]);
+  const diagnostics = useBuildDiagnostics({
+    apiFetch, query: `${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, enabled: built && !readOnly,
+    refreshKey: `${latest?.spec_version ?? ''}|${latest?.status ?? ''}|${stages.map((s) => s.state).join(',')}`,
+  });
   const repair = useMemo(() => mvpRepairOf(status?.steps, latest), [status?.steps, latest]);
   const plan = useMemo(() => versionPlan(status?.steps, latest), [status?.steps, latest]);
   const scope = useMemo(() => mvpScope(status?.steps, latest), [status?.steps, latest]);
@@ -1658,7 +1663,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {collectError && <PlainMessage text={collectError} className={`${ERROR_BOX} shrink-0`} />}
           {tileRow}
           <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
-            stop={stop} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}>
+            stop={stop} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}
+            diagnostics={diagnostics}>
             <VibeChecklist checklist={checklist} assets={latest?.asset_status} readOnly={readOnly} locked={locked} lockedReason={lockedReason} busy={submitBusy}
               onSendAgain={buildAgain && !terminal ? () => sendAgain() : undefined} onEdit={onEdit ? () => openFeatures() : undefined} />
             <StageNotes stages={stages} />

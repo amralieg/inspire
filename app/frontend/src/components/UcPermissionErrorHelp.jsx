@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { AlertCircle, Check, Copy } from 'lucide-react';
 import TechnicalDetails from './TechnicalDetails';
+import { copyText } from '../lib/clipboard';
 
 /**
  * Rich error panel when a failure is likely missing UC / workspace permissions.
@@ -13,7 +14,7 @@ export default function UcPermissionErrorHelp({ guidance }) {
   const copyAdminText = async () => {
     if (!guidance.adminEmailText) return;
     try {
-      await navigator.clipboard.writeText(guidance.adminEmailText);
+      await copyText(guidance.adminEmailText);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {

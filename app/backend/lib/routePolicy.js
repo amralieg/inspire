@@ -146,6 +146,7 @@ const ROUTE_POLICY = {
   'GET /api/inspire/implement/history': tracked('read the build history of a use case'),
   'GET /api/inspire/implement/merge-targets': tracked('list what a build can join'),
   'GET /api/inspire/implement/status': tracked('read the build status of a use case'),
+  'GET /api/inspire/implement/diagnostics': tracked('read the build diagnostics of a use case'),
   'GET /api/inspire/implement/money': tracked('read the cost of a build'),
   'GET /api/inspire/implement/live': tracked('read what a build runs now'),
   'GET /api/inspire/portfolio': tracked('read the portfolio of a database'),

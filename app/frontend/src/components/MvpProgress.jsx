@@ -5,6 +5,7 @@ import { PlainMessage } from './TechnicalDetails';
 import { splitTechnical } from '../lib/plainText';
 import GenieLogo from './GenieLogo';
 import { IconChip, PANEL_CLASS } from './BuildUi';
+import { ACTION_ROW } from './ImplementControlTower';
 import { progressPercent, stageSteps, stagesRecorded } from '../lib/mvpProgress';
 import { plural } from '../lib/plural';
 
@@ -159,7 +160,7 @@ function Heading({ title, active, tone, line, lineClass }) {
 }
 
 export default function MvpProgress({
-  stages, summary, chip, reason, toneClass, version, sorted = null, stop = null, logRef = null, view, warnings = 0, attention = null, children,
+  stages, summary, chip, reason, toneClass, version, sorted = null, stop = null, logRef = null, view, warnings = 0, attention = null, diagnostics = null, children,
 }) {
   const panelId = useId();
   const headline = summary.headline || chip?.label || '';
@@ -174,11 +175,15 @@ export default function MvpProgress({
         className={`${PANEL_CLASS} shrink-0 px-4 py-3 space-y-3`}>
         <div className="flex flex-wrap items-center gap-2">
           <Heading title={title} active={summary.active} tone={chip?.tone} line={line} lineClass={lineClass} />
-          {!view.open && stop}
-          <button type="button" data-progress-show="" aria-expanded={view.open} aria-controls={view.open ? panelId : undefined}
-            onClick={view.open ? view.close : view.show} className={SHOW_CLASS}>
-            <PanelRightOpen size={13} aria-hidden /> {view.open ? 'Hide progress' : 'Show progress'}
-          </button>
+          <div data-progress-actions="" className={ACTION_ROW}>
+            {!view.open && stop}
+            <button type="button" data-progress-show="" aria-expanded={view.open} aria-controls={view.open ? panelId : undefined}
+              onClick={view.open ? view.close : view.show} className={SHOW_CLASS}>
+              <PanelRightOpen size={13} aria-hidden /> {view.open ? 'Hide progress' : 'Show progress'}
+            </button>
+            {diagnostics?.actions}
+          </div>
+          {diagnostics?.note}
         </div>
         {!view.open && plainReason && <p data-build-summary-reason="" title={plainReason} className={`text-[12px] line-clamp-2 ${toneClass(chip?.tone)}`}>{plainReason}</p>}
         {!view.open && chips}
