@@ -386,3 +386,22 @@ def test_the_alert_step_makes_the_settings_table_before_any_query_it_runs_and_ne
         blocked._implement_alert(dict(_output_context(agent_ns, **ALERT), job_id=None), None)
     assert not [s for s in blocked.spark.statements if "_assumptions" in s]
 
+
+
+def test_a_notebook_widget_or_assumption_named_like_an_inspire_setting_never_makes_the_app_settings_repeat_a_name(agent_ns):
+    widgets = [{"name": "act_now_share", "type": "text", "default": "0.05", "allowed": "0 to 1", "label": "Share of rows to act on now"},
+               {"name": "act_now_capacity", "type": "text", "default": "", "allowed": "any number", "label": "Maximum Act now records"},
+               {"name": "alert_threshold", "type": "text", "default": "3", "allowed": "any number", "label": "Alert threshold"}]
+    assumptions = [{"name": "act_now_capacity", "kind": "number", "value": 9}, {"name": "minutes_per_record", "kind": "number", "value": 6}]
+    model = agent_ns["inspire_settings_model"]({"family": "A", "decision_basis": "predicted", "act_now_capacity": 40}, widgets, assumptions,
+                                               None, {"alert": True, "alert_threshold": 5})
+    names = [s["name"] for s in model]
+    assert len(names) == len(set(names)), names
+    capacity = [s for s in model if s["name"] == "act_now_capacity"]
+    assert len(capacity) == 1 and capacity[0]["label"] == "Team capacity" and capacity[0]["default"] == "40", capacity
+    alert = [s for s in model if s["name"] == "alert_threshold"]
+    assert len(alert) == 1 and alert[0]["source"] == "alert" and alert[0]["default"] == "5", alert
+    assert {"act_now_share", "minutes_per_record"} <= set(names)
+    page = agent_ns["implement_app_page"]({"title": "t"}, "N03-U02", {}, "c.s.t", agent_ns["implement_page_settings"]({"settings": model}))
+    import shell_sql
+    assert shell_sql.page_settings_problems(page["settings"]) == [], "the App accepts the settings the build made"

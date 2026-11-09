@@ -4370,7 +4370,10 @@ def page_settings_problems(settings) -> list:
             problems.append(f"{where} is not an object")
             continue
         name = item.get("name")
-        if not isinstance(name, str) or not IDENT.match(name) or name in seen:
+        if isinstance(name, str) and name in seen:
+            problems.append(f"{where} repeats the name {name} of an earlier setting; each setting needs a name of its own")
+            continue
+        if not isinstance(name, str) or not IDENT.match(name):
             problems.append(f"{where} needs a name of its own, of letters, digits and _")
             continue
         seen.add(name)

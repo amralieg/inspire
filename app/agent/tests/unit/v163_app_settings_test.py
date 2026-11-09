@@ -195,3 +195,9 @@ def test_the_app_checks_settings_exactly_as_the_run_does(agent_ns):
     for values in ({"act_now_share": "0.6", "review_share": "0.5"}, {"act_now_amount": "10", "review_amount": "20"},
                    {"min_rows": "9", "max_rows": "3"}, {"act_now_share": "0.2", "review_share": "0.3"}):
         assert shell_sql.setting_set_problems(values) == agent_ns["genie_widget_set_problems"](values), values
+
+
+def test_a_page_setting_that_repeats_an_earlier_name_is_named_as_a_repeat():
+    first = dict(DECLARED[0])
+    assert shell_sql.page_settings_problems([first, dict(first, label="Maximum Act now records")]) == [
+        f"page setting 2 repeats the name {first['name']} of an earlier setting; each setting needs a name of its own"]
