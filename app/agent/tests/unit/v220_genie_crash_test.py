@@ -140,7 +140,7 @@ def test_a_resumed_genie_code_session_reaches_the_model_through_the_runner(agent
     assert body["input"][:3] == resent[:3] if resent[1] is CALL else body["input"] == [USER]
     assert any("[GENIE-RESUME FIRED]" in line for _level, line in runner.logger.records)
     config = tomllib.loads(runner.config_toml())["model_providers"]["databricks"]
-    assert config["base_url"].startswith("http://127.0.0.1:") and config["base_url"].endswith(agent_ns["UNITY_GATEWAY_MLFLOW_PATH"])
+    assert config["base_url"].startswith("http://[::1]:") and config["base_url"].endswith(agent_ns["UNITY_GATEWAY_MLFLOW_PATH"])
     assert config["stream_max_retries"] == agent_ns["GENIE_CODE_REQUEST_RETRIES"]
     assert config["request_max_retries"] == agent_ns["GENIE_CODE_REQUEST_RETRIES"]
 
@@ -187,7 +187,7 @@ def _scripted_genie(answers, prompts):
 def test_a_lost_connection_runs_genie_again_from_what_it_wrote_with_backoff(agent_ns, tmp_path):
     prompts, slept = [], []
     runner = _runner(agent_ns, tmp_path, "https://workspace.example.com", _scripted_genie([(1, DROPPED), (1, LIVE_REFUSAL), (0, "")], prompts))
-    runner.relay_factory = lambda host, logger: None
+    runner.relay_factory = lambda host, logger, loopback: None
     runner.sleep = slept.append
     result = runner.run("build it", str(tmp_path / "w"), label="build")
     assert result["exit"] == 0 and len(prompts) == 3
@@ -200,7 +200,7 @@ def test_a_connection_that_keeps_failing_raises_a_platform_error_after_the_retri
     tries = agent_ns["GENIE_CODE_TRANSPORT_RETRIES"] + 1
     prompts = []
     runner = _runner(agent_ns, tmp_path, "https://workspace.example.com", _scripted_genie([(1, DROPPED)] * tries, prompts))
-    runner.relay_factory = lambda host, logger: None
+    runner.relay_factory = lambda host, logger, loopback: None
     with pytest.raises(agent_ns["ImplementTransportFailed"]) as raised:
         runner.run("build it", str(tmp_path / "w"), label="build")
     assert len(prompts) == tries and raised.value.cause == DROPPED
@@ -229,7 +229,7 @@ def test_a_rate_limit_or_server_error_is_busy_and_a_request_error_naming_500_is_
 def test_a_run_that_failed_for_another_reason_is_not_rerun(agent_ns, tmp_path, said):
     prompts = []
     runner = _runner(agent_ns, tmp_path, "https://workspace.example.com", _scripted_genie([(1, said), (0, "")], prompts))
-    runner.relay_factory = lambda host, logger: None
+    runner.relay_factory = lambda host, logger, loopback: None
     assert runner.run("build it", str(tmp_path / "w"), label="build")["exit"] == 1 and len(prompts) == 1
     assert agent_ns["genie_transport_failure"]({"exit": 1, "timed_out": True, "errors": [f"Genie error: {DROPPED}"]}) == "", (
         "a run stopped at the time limit is not a lost connection (must-exclude)")
@@ -237,7 +237,7 @@ def test_a_run_that_failed_for_another_reason_is_not_rerun(agent_ns, tmp_path, s
 
 def test_a_relay_that_cannot_start_leaves_genie_calling_the_gateway_directly(agent_ns, tmp_path):
     runner = _runner(agent_ns, tmp_path, "https://workspace.example.com", _scripted_genie([(0, "")], []))
-    runner.relay_factory = lambda host, logger: (_ for _ in ()).throw(OSError("no free port"))
+    runner.relay_factory = lambda host, logger, loopback: (_ for _ in ()).throw(OSError("no free port"))
     assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
     assert tomllib.loads(runner.config_toml())["model_providers"]["databricks"]["base_url"].startswith("https://workspace.example.com/")
     assert any("could not start" in line for _level, line in runner.logger.records)
@@ -249,13 +249,13 @@ def test_the_codex_route_calls_the_gateway_directly_and_never_starts_the_relay(a
     codex = agent_ns["GenieCodeRoute"]("gpt-5.6-sol", agent_ns["GENIE_CODE_GATEWAYS"][0])
     runner = _runner(agent_ns, tmp_path, "https://workspace.example.com", _scripted_genie([(0, "")], []), route_obj=codex)
     started = []
-    runner.relay_factory = lambda host, logger: started.append(host)
+    runner.relay_factory = lambda host, logger, loopback: started.append(host)
     assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
     assert started == [] and runner.relay is None
     base = tomllib.loads(runner.config_toml())["model_providers"]["databricks"]["base_url"]
     assert base == "https://workspace.example.com" + agent_ns["GENIE_CODE_GATEWAYS"][0]["base"]
     claude = _runner(agent_ns, tmp_path, "https://workspace.example.com", _scripted_genie([(0, "")], []))
-    claude.relay_factory = lambda host, logger: types.SimpleNamespace(base="http://127.0.0.1:9", stop=lambda: None)
+    claude.relay_factory = lambda host, logger, loopback: types.SimpleNamespace(base="http://127.0.0.1:9", stop=lambda: None)
     claude.relay_probe = lambda url, token, env: ""
     claude.run("build it", str(tmp_path / "w"))
     assert tomllib.loads(claude.config_toml())["model_providers"]["databricks"]["base_url"].startswith("http://127.0.0.1:9/"), (
@@ -281,7 +281,7 @@ def test_a_relay_genie_code_cannot_get_an_answer_through_is_dropped_before_genie
         relay.start()
     made, popen = [], _scripted_genie([(0, ""), (0, "")], [])
     runner = _runner(agent_ns, tmp_path, "https://workspace.example.com", popen)
-    runner.relay_factory = lambda host, logger: made.append(host) or relay
+    runner.relay_factory = lambda host, logger, loopback: made.append(host) or relay
     try:
         assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
         assert runner.relay is None and runner.relay_off
@@ -290,7 +290,8 @@ def test_a_relay_genie_code_cannot_get_an_answer_through_is_dropped_before_genie
         fired = [line for _level, line in runner.logger.records if "[GENIE-RELAY FIRED]" in line]
         assert len(fired) == 1 and runner.relay_off in fired[0]
         runner.run("build it again", str(tmp_path / "w"))
-        assert made == ["https://workspace.example.com"], "a relay found unreachable is not started and checked again every round"
+        assert made == ["https://workspace.example.com"] * len(agent_ns["GENIE_RELAY_LOOPBACKS"]), (
+            "a relay found unreachable on every loopback is not started and checked again every round")
     finally:
         if hasattr(relay, "start"):
             relay.stop()
