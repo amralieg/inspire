@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { GROUPING_INSTRUCTION, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { closeBrowser, onStep, openUi, profileAt } from './uiSupport.mjs';
+import { closeBrowser, idle, onStep, openUi, profileAt } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -27,6 +27,8 @@ function profileOf(groups, perGroup, { values = (i) => `store-${i}`, type = 'STR
   return { ...view, deep_suggestion: null };
 }
 
+const settle = (page) => idle(page, { timeout: 90000 });
+
 const stepLabels = (page) => page.locator('[data-wizard-header] ol li').allTextContents();
 const current = async (page) => (await page.locator('[aria-current="step"]').innerText()).replace(/^\s*\d+\.\s*/, '').trim();
 
@@ -45,11 +47,12 @@ async function overflowing(page) {
 async function walk(page, name, actions = {}) {
   const seen = [];
   for (let i = 0; i < 12; i += 1) {
+    await settle(page);
     const step = await current(page);
-    await page.waitForTimeout(400);
-    await page.getByText(/^Inspire is reading/).first().waitFor({ state: 'detached', timeout: 20000 }).catch(() => null);
-    if (actions[step]) await actions[step](page);
-    await page.waitForTimeout(200);
+    if (actions[step]) {
+      await actions[step](page);
+      await settle(page);
+    }
     const text = await page.locator('[role="dialog"]').innerText();
     seen.push({ step, text, overflow: await overflowing(page) });
     if (DUMP) await page.screenshot({ path: `${DUMP}/${name}-${i + 1}.png` });
@@ -60,8 +63,7 @@ async function walk(page, name, actions = {}) {
       break;
     }
     await next.click();
-    await page.waitForFunction((was) => (document.querySelector('[aria-current="step"]')?.innerText || '').replace(/^\s*\d+\.\s*/, '').trim() !== was, step,
-      { timeout: 15000 }).catch(() => null);
+    await settle(page);
     if ((await current(page)) === step) {
       seen.push({ step, text: `NEXT DID NOT MOVE: ${(await page.locator('[role="alert"]').allInnerTexts()).join(' | ')}`, overflow: [] });
       break;
@@ -86,6 +88,7 @@ async function scenario(name, { profile, useCase = {}, viewport = { width: 1440,
     { init: profile ? profileAt([], profile, { after: delay, status }) : undefined });
   try {
     await ui.page.setViewportSize(viewport);
+    await settle(ui.page);
     await onStep(ui.page, 'Use case');
     const got = await walk(ui.page, name, actions);
     return { ...got, ui };
@@ -241,20 +244,73 @@ test('a First run of several groups on a new schema of its own: Next creates the
   }
 });
 
+async function recipients(page, text) {
+  await page.getByRole('button', { name: 'Advanced settings' }).click();
+  const box = page.getByLabel('Email recipients (comma separated)');
+  await box.fill(text);
+  await settle(page);
+}
+
+const alertLine = async (page) => (await page.locator('[role="dialog"]').innerText()).split('\n').filter((l) => /^(Emails |Nobody gets it yet)/.test(l)).at(-1) || '';
+
+test('ticking the Alert emails the owner by default, and the Summary and the build carry the recipients the person typed', async () => {
+  const { seen, ui } = await scenario('alert-recipients', { profile: PROFILE, extra: counted(PROFILE),
+    actions: { Deliver: async (page) => {
+      await check(/^Alert/)(page);
+      await settle(page);
+      assert.match(await alertLine(page), new RegExp(`^Emails ${OWNER.replace(/\./g, '\\.')} when `));
+      await recipients(page, 'ops@example.com, شريك@example.com');
+      assert.match(await alertLine(page), /^Emails ops@example\.com, شريك@example\.com when /);
+    } } });
+  try {
+    noLeaks(seen, 'alert-recipients');
+    assert.equal(seen.at(-1).step, 'Summary', seen.at(-1).text.slice(0, 300));
+    assert.match(summaryOf(seen), /Alert\nEmails ops@example\.com, شريك@example\.com when /);
+    const { page, made } = ui;
+    await page.getByRole('button', { name: 'All Good, Build it Now' }).click();
+    await settle(page);
+    const insert = made.sqlCalls.find((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'));
+    assert.ok(insert, 'the build was not submitted');
+    assert.deepEqual(JSON.parse(insert.parameters.find((p) => p.name === 'spec').value).outputs.alert_recipients, ['ops@example.com', 'شريك@example.com']);
+  } finally {
+    await ui.close();
+  }
+});
+
+for (const [name, typed, refusal] of [
+  ['alert-bad-email', 'ops@example.com, not-an-email', /not an email address: not-an-email/],
+  ['alert-nobody', '', /an alert needs at least one recipient email or notification destination/],
+]) {
+  test(`an Alert with ${name === 'alert-nobody' ? 'no recipient' : 'a recipient that is not an email'} is stopped on Deliver with the reason, never at the build`, async () => {
+    const { seen, ui } = await scenario(name, { profile: PROFILE, extra: counted(PROFILE),
+      actions: { Deliver: async (page) => { await check(/^Alert/)(page); await settle(page); await recipients(page, typed); } } });
+    try {
+      const stop = seen.at(-1);
+      assert.equal(stop.step, 'Deliver');
+      assert.match(stop.text, refusal);
+      if (!typed) assert.equal(await alertLine(ui.page), 'Nobody gets it yet: add an email under Advanced settings.');
+      assert.equal(ui.made.jobs.length, 0);
+    } finally {
+      await ui.close();
+    }
+  });
+}
+
 const RUN_IT = 'Run it';
 
 async function summaryText(page) {
-  await page.getByRole('button', { name: 'All Good, Build it Now' }).waitFor({ timeout: 20000 });
+  await settle(page);
+  await page.getByRole('button', { name: 'All Good, Build it Now' }).waitFor({ timeout: 5000 });
   return page.locator('[role="dialog"]').innerText();
 }
 
 async function toSummary(page) {
   for (let i = 0; i < 12 && (await current(page)) !== 'Summary'; i += 1) {
-    await page.getByText(/^Inspire is reading/).first().waitFor({ state: 'detached', timeout: 20000 }).catch(() => null);
+    await settle(page);
     const was = await current(page);
     await page.getByRole('button', { name: /^(Next|Back to Summary)$/ }).click();
-    await page.waitForFunction((w) => (document.querySelector('[aria-current="step"]')?.innerText || '').replace(/^\s*\d+\.\s*/, '').trim() !== w, was,
-      { timeout: 15000 });
+    await settle(page);
+    assert.notEqual(await current(page), was, `Next did not leave ${was}`);
   }
 }
 
@@ -265,10 +321,12 @@ test('Change on a Summary row opens that step, keeps every earlier answer and Ba
     assert.equal(await current(page), 'Summary');
     assert.match(await page.locator('[role="dialog"]').innerText(), /Keep it fresh\nWeekly/);
     await page.getByRole('button', { name: 'Change Keep it fresh' }).click();
+    await settle(page);
     assert.equal(await current(page), RUN_IT);
     assert.equal(await page.getByRole('button', { name: 'Weekly', exact: true }).getAttribute('aria-pressed'), 'true');
     await press('Off')(page);
     await page.getByRole('button', { name: 'Back to Summary' }).click();
+    await settle(page);
     assert.equal(await current(page), 'Summary');
     const text = await page.locator('[role="dialog"]').innerText();
     assert.match(text, /Keep it fresh\nOff/);
@@ -289,7 +347,8 @@ test('Back from the Summary walks every step in order to the Use case and Next w
     while ((await current(page)) !== 'Use case' && back.length < 12) {
       const was = await current(page);
       await page.getByRole('button', { name: 'Back', exact: true }).click();
-      await page.waitForFunction((w) => (document.querySelector('[aria-current="step"]')?.innerText || '').replace(/^\s*\d+\.\s*/, '').trim() !== w, was);
+      await settle(page);
+      assert.notEqual(await current(page), was, `Back did not leave ${was}`);
       back.push(await current(page));
     }
     assert.deepEqual(back, [...forward].reverse());
@@ -306,6 +365,7 @@ test('reloading the page in the middle of the wizard opens it again cleanly with
   try {
     const { page } = ui;
     await page.reload();
+    await settle(page);
     await onStep(page, 'Use case');
     await toSummary(page);
     noLeaks([{ step: 'Summary', text: await page.locator('[role="dialog"]').innerText() }], 'reload');
