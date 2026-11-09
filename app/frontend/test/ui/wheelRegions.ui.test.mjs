@@ -123,15 +123,15 @@ const BIG_PROFILE = {
 };
 const INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
   + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Data groups |\n| `run_scope` | text | all | | First run |\n';
-const STEPS = ['Delivery consumption', 'Data', 'Data groups', 'MVP Test Run', 'Results', 'Measure impact', 'Keep it fresh', 'App placement', 'App access', 'App look', 'Settings', 'Vibes', 'Summary'];
+const STEPS = ['Data', 'First run', 'Results', 'Deliver', 'App', 'Run it', 'Summary'];
 
 const OPEN_ALL = {
-  'Data groups': async (page) => {
+  Data: async (page) => {
     await page.locator('[data-show-all="grouping"]').click();
     await page.locator('[data-show-all="combine"]').click();
     await page.locator('[data-grouping-combine-column="country"]').waitFor();
   },
-  'MVP Test Run': async (page) => {
+  'First run': async (page) => {
     await page.locator('[data-first-run-choice="groups"] input[type="radio"]').check();
     await page.locator('[data-scope-group]').first().waitFor();
     const more = page.locator('[data-scope-group]').first().locator('xpath=ancestor::*[@role="group"][1]').locator('[data-show-all]');
@@ -154,8 +154,8 @@ test('every scroll region of every Build wizard step, with 120 data groups and 3
       await (OPEN_ALL[step] || (() => null))(page);
       seen.push(...await wheelEveryRegion(page, page.locator('[data-wizard-body]'), `wizard ${step}`, { min: 1, copies: 0 }));
     }
-    assert.ok(seen.some((n) => n.startsWith('wizard Data groups') && /: wheeled\/wheeled$/.test(n)), JSON.stringify(seen));
-    assert.ok(seen.some((n) => n.startsWith('wizard MVP Test Run') && /: wheeled\/wheeled$/.test(n)), JSON.stringify(seen));
+    assert.ok(seen.some((n) => n.startsWith('wizard Data ') && /: wheeled\/wheeled$/.test(n)), JSON.stringify(seen));
+    assert.ok(seen.some((n) => n.startsWith('wizard First run ') && /: wheeled\/wheeled$/.test(n)), JSON.stringify(seen));
     console.log('WIZARD REGIONS', JSON.stringify(seen));
     assert.deepEqual(ui.pageErrors, []);
   } finally {
