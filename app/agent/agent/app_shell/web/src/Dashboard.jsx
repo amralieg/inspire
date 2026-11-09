@@ -15,8 +15,8 @@ import { LayoutSections, TodoNow } from './Layouts.jsx';
 import { backendNotes } from './freshness.js';
 import { AskGenie } from './AskGenie.jsx';
 import {
-  NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, hubView, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason, plural,
-  reasonFilters, reliableText, savedTile, shortDay, totals, useCaseState, viewWords,
+  FIX_TIERS, NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, hubView, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason, plural,
+  reasonFilters, reliableText, savedTile, shortDay, shownTiers, totals, useCaseState, viewWords,
 } from './hub.js';
 
 export function TableCard({ table, result, error, loading, onFilter, pageId, filters, values, onColumn, onClear, sort, onSort }) {
@@ -48,10 +48,10 @@ function hubTiles(page, entry, summary, fix, user, stale, onFix) {
   const fixing = onFix && fix.length > 0;
   const tiles = [
     { id: 'fix', label: 'To fix', value: integer(fix.length), sub: fix.length ? `${mine} of them ${mine === 1 ? 'is' : 'are'} yours` : 'Nothing to fix right now',
-      action: fixing ? { label: 'Fix this', run: () => onFix({}) } : null },
+      action: fixing ? { label: 'Fix this', run: () => onFix({ tiers: FIX_TIERS }) } : null },
     { id: 'save', label: 'Could save', value: entry?.money ? moneyText(totals(fix)) : NOT_MEASURED,
       sub: entry?.money ? couldSaveText(fix) : 'This use case puts no amount at stake on its records yet', tone: entry?.money ? 'green' : '',
-      formula: entry?.money ? couldSaveFormula(fix) : '', action: fixing && entry?.money ? { label: 'Fix this', run: () => onFix({ money: true }) } : null },
+      formula: entry?.money ? couldSaveFormula(fix) : '', action: fixing && entry?.money ? { label: 'Fix this', run: () => onFix({ tiers: FIX_TIERS, money: true }) } : null },
     { id: 'fixed', label: 'Fixed so far', value: entry?.tracked ? integer(done.fixed) : NOT_MEASURED,
       sub: !entry?.tracked ? 'This use case keeps no fixes yet' : done.first_fixed ? `since ${shortDay(done.first_fixed)}` : 'Nobody marked one done yet' },
     { id: 'saved', label: `${cap(savedVerb(pageCurrency(page, summary), pageKind(page, summary)))} so far`,
@@ -163,7 +163,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
                 bars={first && current?.money ? reasonBars(rows, page) : []} picked={first ? picked : undefined} onPick={first ? (value) => onState(pickReason(state, first.name, value)) : undefined}
                 empty={!first ? 'The AI gives no reasons for this use case yet.' : !current?.money ? NOT_MEASURED : 'Nothing to fix for these filters.'}
                 x={first?.label} measure="Could save" filters={viewWords(view, reasons, state)} onExplain={explain} genieBusy={genieBusy}
-                onFix={first && onFix ? (value) => onFix({ reason: { name: first.name, value }, money: true }) : undefined} />,
+                onFix={first && onFix ? (value) => onFix({ tiers: shownTiers(view.show), reason: { name: first.name, value }, money: true }) : undefined} />,
             )}
           </section>
         </Placed>

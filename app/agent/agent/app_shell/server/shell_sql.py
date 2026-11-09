@@ -1660,9 +1660,16 @@ def layout_sections(ident: str, page: dict = None, asked: bool = False) -> list:
     return sections + [s for s in ASKED_SECTIONS if s not in sections and (asked or s in used)]
 
 
+def contract_of(ident: str) -> dict:
+    return (kinds_registry().get("contracts") or {}).get((layouts().get(ident) or {}).get("contract")) or {}
+
+
 def layout_contract(page: dict) -> dict:
-    layout = layouts().get(page_layout(page)) or {}
-    return ((kinds_registry().get("contracts") or {}).get(layout.get("contract")) or {}).get("suffixes") or {}
+    return contract_of(page_layout(page)).get("suffixes") or {}
+
+
+def layout_work(ident: str) -> str:
+    return str(contract_of(ident).get("work") or "") if layout_decides(ident) else ""
 
 
 def section_items(page: dict, section: str) -> list:
@@ -1994,7 +2001,7 @@ def public_layout(page: dict) -> dict:
     return {"id": ident, "label": layout.get("label") or ident, "tab_label": layout.get("tab_label") or "",
             "sections": layout_sections(ident, page),
             "holds": {str(s): SECTIONS[s]["holds"] for s in layout_sections(ident, page) if (SECTIONS.get(s) or {}).get("holds")},
-            "decides": page_decides(page), "informational": not layout_decides(ident)}
+            "decides": page_decides(page), "informational": not layout_decides(ident), "work": layout_work(ident)}
 
 
 def public_scenario(scenario) -> dict:

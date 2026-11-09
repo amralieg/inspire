@@ -16,10 +16,12 @@ import { reducedMotion } from './theme.js';
 const ScenarioPanel = lazy(() => import('./Scenario.jsx'));
 
 export const DEFAULT_LAYOUT = 'decision_queue';
+export const WORK_QUEUE = 'queue';
 export const layoutOf = (page) => page?.layout?.id || DEFAULT_LAYOUT;
 export const isLaidOut = (page) => layoutOf(page) !== DEFAULT_LAYOUT;
 export const tabLabel = (page, fallback) => (isLaidOut(page) && page.layout?.tab_label) || fallback;
-export const isQueue = (page) => !!page?.records && !isLaidOut(page);
+export const workOf = (page) => (page?.layout ? page.layout.work || '' : WORK_QUEUE);
+export const isQueue = (page) => !!page?.records && workOf(page) === WORK_QUEUE;
 export const pageSections = (app, page) => ['dashboard', ...(isQueue(page) ? ['work'] : []), ...(app?.screens?.runs !== false ? ['runs'] : []),
   ...(app?.alerting?.on ? ['alerts'] : []), 'settings'];
 export const decides = pageDecides;

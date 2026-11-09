@@ -25,7 +25,7 @@ import { isLaidOut, isQueue, pageSections } from './Layouts.jsx';
 import { windowParams } from './prefs.js';
 import { pageDecides, statusChoices } from './records.js';
 import { GenieScope } from './AskGenie.jsx';
-import { hubView, reasonFilters, useCaseState } from './hub.js';
+import { FIX_TIERS, hubView, reasonFilters, useCaseState } from './hub.js';
 import { inboxOn } from './inbox.js';
 import InboxSection, { useInbox } from './Inbox.jsx';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
@@ -175,7 +175,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     go('work', { tab: tabbed ? next.tab : '', state: next.state, sort: next.sort, focus: tabbed ? next.focus : '' });
   } : null;
   const openInbox = (item) => {
-    if (item.kind === 'fix') fix?.({});
+    if (item.kind === 'fix') fix?.({ tiers: FIX_TIERS });
     else if (item.kind === 'run') {
       setRunOpen(item.run);
       go('runs');

@@ -8,7 +8,8 @@ export const REVIEW = 'Review';
 export const DEFAULT_VIEW = { owner: 'all', show: 'fix' };
 export const OWNER_CHOICES = [['all', 'Everyone'], ['me', 'Me'], ['none', 'Nobody yet']];
 export const SHOW_CHOICES = [['fix', 'To fix'], ['all', 'To fix and worth a look']];
-const SHOWN_TIERS = { fix: [ACT_NOW], all: [ACT_NOW, REVIEW] };
+export const FIX_TIERS = [ACT_NOW];
+const SHOWN_TIERS = { fix: FIX_TIERS, all: [ACT_NOW, REVIEW] };
 export const MONEY_COLUMN = 'value_at_stake';
 export const shownTiers = (show) => SHOWN_TIERS[show] || SHOWN_TIERS.fix;
 const DAY_MS = 86400000;
@@ -68,7 +69,7 @@ export function moneyText(sums) {
 
 export const ownerMatches = (item, owner, user) => owner === 'all' || (owner === 'me' ? isMine(item.owner, user) : !String(item.owner || '').trim());
 export const isShown = (item, show) => (SHOWN_TIERS[show] || SHOWN_TIERS.fix).includes(item.tier);
-export const isToFix = (item) => item.tier === ACT_NOW;
+export const isToFix = (item) => FIX_TIERS.includes(item.tier);
 
 export function sortThings(rows, user) {
   return [...rows].sort((a, b) => (Number(isMine(b.owner, user)) - Number(isMine(a.owner, user)))

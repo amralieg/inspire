@@ -51,6 +51,8 @@ export function toggleValue(state, filterId, value) {
   return setSelection(state, filterId, current.includes(text) ? current.filter((v) => v !== text) : [...current, text]);
 }
 
+export const knownChoices = (filter) => (Array.isArray(filter?.options) && !filter.lazy ? new Set(filter.options.map(String)) : null);
+
 export const OPTION_MATCHES = 50;
 
 export function matching(options, query) {

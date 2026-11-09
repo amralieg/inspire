@@ -1,5 +1,5 @@
-import { RANGE_EDGES, columnFilterOn, columnFilterText, columnValues, initialFilterState, rangeLabel, setColumnValue } from './filters.js';
-import { MONEY_COLUMN, setReason, shownTiers } from './hub.js';
+import { RANGE_EDGES, columnFilterOn, columnFilterText, columnValues, initialFilterState, knownChoices, rangeLabel, setColumnValue } from './filters.js';
+import { MONEY_COLUMN, setReason } from './hub.js';
 import { ADMIN_ROUTE } from './admin.js';
 import { MY_WORK_ROUTE } from './mywork.js';
 
@@ -46,16 +46,18 @@ export function parseHash(hash) {
 
 export const sectionOfView = (view) => LEGACY_VIEWS[view] || view || DEFAULT_SECTION;
 
-export function fixThis(page, listColumns, state, view, { reason = null, money = false, focus = '' } = {}) {
+export function fixThis(page, listColumns, state, view, { tiers = null, reason = null, money = false, focus = '' } = {}) {
   const tier = page?.records?.tier;
-  const filter = tier ? (listColumns || []).find((f) => f.column === tier && f.type === 'multi_select') : null;
-  const tiers = (shownTiers(view?.show)).filter((t) => !Array.isArray(filter?.options) || filter.options.includes(t));
+  const filter = tier && tiers?.length ? (listColumns || []).find((f) => f.column === tier && f.type === 'multi_select') : null;
+  const known = knownChoices(filter);
+  const picked = (tiers || []).filter((t) => !known || known.has(t));
   let next = state || { range: {}, sel: {} };
-  if (filter && tiers.length) next = setColumnValue(next, null, tier, tiers);
+  if (filter && picked.length) next = setColumnValue(next, null, tier, picked);
   if (reason?.name && reason.value != null) next = setReason(next, reason.name, [reason.value]);
   const ranked = money && [...(page?.records?.columns || [])].some((c) => c.column === MONEY_COLUMN);
-  const tab = FOCUSES[focus] ? 'all' : view?.owner === 'me' ? 'mine' : DEFAULT_TAB;
-  return { tab, state: next, sort: ranked ? { key: MONEY_COLUMN, dir: 'desc' } : null, focus: FOCUSES[focus] ? focus : '' };
+  const only = FOCUSES[focus] ? focus : view?.owner === 'none' ? 'unassigned' : '';
+  const tab = only ? 'all' : view?.owner === 'me' ? 'mine' : DEFAULT_TAB;
+  return { tab, state: next, sort: ranked ? { key: MONEY_COLUMN, dir: 'desc' } : null, focus: only };
 }
 
 function withQuery(path, query) {
@@ -284,8 +286,8 @@ function rangeFrom(filter, value) {
 
 function valuesFrom(filter, value) {
   if (!Array.isArray(value)) return null;
-  const known = Array.isArray(filter.options) ? new Set(filter.options.map(String)) : null;
-  const keep = (v) => typeof v === 'string' && (known ? known.has(v) : !!filter.error);
+  const known = knownChoices(filter);
+  const keep = (v) => typeof v === 'string' && (known ? known.has(v) : !!(filter.error || filter.lazy));
   return [...new Set(value.filter(keep))];
 }
 

@@ -1,11 +1,11 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
-import { readdirSync } from 'node:fs';
+import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { DECIDE, FILTERS, OWN_STATUSES, PERSON, TABLE, appInfo, openApp, prefsFirst, serveDist, toastSays, until } from './harness.mjs';
-import { canonicalHash, fixThis, parseHash, sectionHash, staleSection, tabCount } from '../src/links.js';
-import { switcherMatches } from '../src/hub.js';
+import { DECIDE, FILTERS, HISTORY, LABEL, OWN_STATUSES, PERSON, TABLE, appInfo, openApp, prefsFirst, serveDist, toastSays, until } from './harness.mjs';
+import { canonicalHash, fixThis, parseHash, restoreFilters, sectionHash, staleSection, tabCount } from '../src/links.js';
+import { FIX_TIERS, isToFix, shownTiers, switcherMatches } from '../src/hub.js';
 import { MY_KEY } from '../src/prefs.js';
 import { evaluated } from './exampleRoutes.mjs';
 
@@ -98,21 +98,43 @@ test('Fix this narrows Work to the shown tiers and the reason, sorts by money wh
   const page = { records: { tier: 'priority_tier', columns: [{ column: 'value_at_stake' }] } };
   const list = [{ column: 'priority_tier', type: 'multi_select', options: ['Act now', 'Review', 'Monitor'] }];
   const state = { range: { run_date: '12m' }, sel: {} };
-  const plain = fixThis(page, list, state, { owner: 'all', show: 'act' }, {});
+  const plain = fixThis(page, list, state, { owner: 'all', show: 'act' }, { tiers: FIX_TIERS });
   assert.equal(plain.tab, 'open');
   assert.deepEqual(plain.state.range, state.range, 'the page filters stay');
   assert.ok(JSON.stringify(plain.state.columns).includes('Act now'), 'the tier filter is set to the tiers the tiles count');
   assert.ok(!JSON.stringify(plain.state.columns).includes('Monitor'), 'a tier the tiles do not count stays out');
   assert.equal(plain.sort, null);
-  const money = fixThis(page, list, state, { owner: 'me', show: 'act' }, { money: true, reason: { name: 'ai_cat_driver', value: 'Price below cost' } });
+  const money = fixThis(page, list, state, { owner: 'me', show: 'act' }, { tiers: FIX_TIERS, money: true, reason: { name: 'ai_cat_driver', value: 'Price below cost' } });
   assert.equal(money.tab, 'mine');
   assert.deepEqual(money.sort, { key: 'value_at_stake', dir: 'desc' });
   assert.deepEqual(money.state.ai, { ai_cat_driver: ['Price below cost'] });
   const untiered = fixThis({ records: {} }, list, state, {}, { money: true });
   assert.deepEqual(untiered.state, state, 'a list with no tier column keeps the filters as they were');
   assert.equal(untiered.sort, null, 'no money column means no money sort');
-  const unlisted = fixThis(page, [{ column: 'priority_tier', type: 'text' }], state, {}, {});
+  const unlisted = fixThis(page, [{ column: 'priority_tier', type: 'text' }], state, {}, { tiers: FIX_TIERS });
   assert.deepEqual(unlisted.state, state, 'a tier column without a pick list is not filtered');
+});
+
+test('Fix this narrows Work to exactly the tiers its card counted, also when the tier choices load only on search', () => {
+  const page = { records: { tier: 'priority_tier', columns: [] } };
+  const state = { range: {}, sel: {} };
+  const lazyList = [{ column: 'priority_tier', type: 'multi_select', options: [], searchable: true, lazy: true }];
+  const tierOf = (next) => next.state.columns?.list?.priority_tier;
+  assert.deepEqual(tierOf(fixThis(page, lazyList, state, { owner: 'all', show: 'fix' }, { tiers: FIX_TIERS })), ['Act now'],
+    'a lazy tier filter has no choices yet, so the counted tiers are set as they are');
+  assert.deepEqual(tierOf(fixThis(page, lazyList, state, { owner: 'all', show: 'all' }, { tiers: FIX_TIERS })), ['Act now'],
+    'the To fix tile counts Act now only, so Show: worth a look does not widen its Fix this');
+  assert.deepEqual(tierOf(fixThis(page, lazyList, state, { owner: 'all', show: 'all' }, { tiers: shownTiers('all') })), ['Act now', 'Review'],
+    'a reason bar counts the shown tiers, so its Fix this keeps them');
+  const known = [{ column: 'priority_tier', type: 'multi_select', options: ['Review', 'Monitor'] }];
+  assert.equal(tierOf(fixThis(page, known, state, {}, { tiers: FIX_TIERS })), undefined, 'a loaded pick list without the tier sets no filter');
+  assert.equal(tierOf(fixThis(page, lazyList, state, {}, { focus: 'overdue' })), undefined, 'a card that counted every open record sets no tier');
+  const none = fixThis(page, lazyList, state, { owner: 'none', show: 'fix' }, { tiers: FIX_TIERS });
+  assert.deepEqual([none.tab, none.focus], ['all', 'unassigned'], 'the tile counted records with no owner, so Work shows the open ones with no owner');
+  assert.ok(FIX_TIERS.every((t) => isToFix({ tier: t })) && !isToFix({ tier: 'Review' }), 'the tile and Fix this read one tier list');
+  const restored = restoreFilters({ c: { l: { priority_tier: ['Act now'] } } }, [], { list: lazyList });
+  assert.equal(restored.dropped, false, 'a Fix this address with a lazy tier filter opens with the filter kept');
+  assert.deepEqual(restored.state.columns.list.priority_tier, ['Act now']);
 });
 
 test('the switcher finds a use case by any of its words, and tab counts read the server totals', () => {
@@ -245,6 +267,93 @@ test('Fix this on the To fix tile and on a reason bar opens Work on the Open tab
   await context.close();
 });
 
+test('the To fix tile and the Work list its Fix this opens show the same number of records when the tier filter loads its choices lazily', async () => {
+  const tiers = ['Act now', 'Review', 'Monitor'];
+  const all = Array.from({ length: 24 }, (_, i) => ({ key: `R${String(i + 1).padStart(3, '0')}`, tier: tiers[i % 3] }));
+  const hub = { ...HUB, pages: { n01_u05: { ...TRACKED, total: all.length,
+    items: all.map((r) => ({ key: r.key, label: `Item ${r.key}`, tier: r.tier, money: 100, why: null, owner: null, status: null, reason: 'Discount too deep', due: null })) } } };
+  const lazy = { ...FILTERS, columns: { list: [{ column: 'priority_tier', label: 'Priority', type: 'multi_select', options: [], searchable: true, lazy: true }] } };
+  const routes = trackedRoutes({
+    overview: ({ json }) => json(200, hub),
+    filters: ({ json }) => json(200, lazy),
+    records: ({ route, json, seen }) => {
+      const body = route.request().postDataJSON();
+      seen.records.push(body);
+      const picked = body.column_filters?.priority_tier;
+      const rows = all.filter((r) => !picked || picked.includes(r.tier)).map((r, i) => ({ entity_id: r.key, record_key: r.key, _inspire_key: r.key,
+        _inspire_version: String(100 + i), entity_label: `Item ${r.key}`, priority_tier: r.tier, rank: i + 1, category: 'Books', recommended_action: 'Cut the discount' }));
+      return json(200, { rows, total: rows.length, offset: 0, limit: body.limit || 25, actions: true, changes: false, summary: null, errors: {},
+        ...(body.status_counts ? { status_counts: { ...COUNTS, open: rows.length } } : {}) });
+    },
+  });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, ready: '[data-fix="fix"]' });
+  const tile = Number(await page.locator('[data-tile="fix"] .kpi-v').innerText());
+  assert.equal(tile, 8);
+  await page.locator('[data-fix="fix"]').click();
+  await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work'));
+  await page.locator('.cell-t').first().waitFor();
+  await page.waitForFunction((n) => document.querySelectorAll('.cell-t').length === n, tile);
+  assert.deepEqual(await page.locator('.cell-t').evaluateAll((cells) => [...new Set(cells.map((c) => c.closest('tr')?.innerText.includes('Act now')))]), [true],
+    'every row Work lists is one the tile counted');
+  await page.reload();
+  await page.locator('.cell-t').first().waitFor();
+  await page.waitForFunction((n) => document.querySelectorAll('.cell-t').length === n, tile);
+  assert.equal(await page.locator('.toast').filter({ hasText: 'no longer apply' }).count(), 0, 'the reloaded address keeps its tier filter');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+  const inbox = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, hash: '#/n01_u05/inbox', ready: '[data-inbox-item="fix"]' });
+  assert.equal(await inbox.page.locator('[data-inbox-item="fix"]').innerText().then((t) => t.startsWith(`${tile} records to fix`)), true, 'the Inbox counts what the tile counts');
+  await inbox.page.locator('[data-inbox-item="fix"]').click();
+  await inbox.page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work'));
+  await inbox.page.locator('.cell-t').first().waitFor();
+  await inbox.page.waitForFunction((n) => document.querySelectorAll('.cell-t').length === n, tile);
+  assert.deepEqual(inbox.seen.errors, []);
+  await inbox.context.close();
+});
+
+const BIG_COUNTS = { statuses: { New: 1234, 'In progress': 345, Done: 4567, Dismissed: 120, 'Could not fix': 33 },
+  choices: { new: 1234, 'in-progress': 345, done: 4567, 'not-an-issue': 120, 'could-not-fix': 33, reprice: 12, keep: 340, drop: 22, wrong: 9 }, open: 1579, mine: 20, all: 6299 };
+
+test('at 1280 and 1440 the open record dock and every Work tab fit the screen with no sideways scroll', async () => {
+  for (const [changes, label] of [[TABLE, 'default statuses'], [OWN_STATUSES, 'own statuses']]) {
+    for (const [width, height] of [[1280, 800], [1440, 900]]) {
+      const routes = trackedRoutes({}, BIG_COUNTS);
+      const rows = routes.records;
+      routes.records = (args) => {
+        const fulfill = args.json;
+        return rows({ ...args, json: (status, data) => fulfill(status, { ...data, rows: data.rows.map((r, i) => (i ? r : { ...r, entity_label: LABEL })) }) });
+      };
+      routes['records/history'] = ({ json }) => json(200, { ...HISTORY, current: { ...HISTORY.current, entity_label: LABEL } });
+      const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, changes), { width, height, hash: '#/n01_u05/work', routes, ready: '[data-tab] [data-count]' });
+      await page.locator('.cell-t').first().click();
+      await page.locator('[data-dock="record"] dialog.drawer h2').waitFor();
+      const at = `${label} at ${width}`;
+      const fit = await page.evaluate(() => {
+        const box = (el) => el.getBoundingClientRect();
+        const strip = box(document.querySelector('.work-tabs'));
+        const drawer = document.querySelector('[data-dock="record"] dialog.drawer');
+        const title = drawer.querySelector('h2');
+        return {
+          inner: window.innerWidth, scroll: document.scrollingElement.scrollWidth,
+          dock: box(document.querySelector('[data-dock="record"]')).right, drawer: box(drawer).right,
+          fills: Math.abs(box(drawer).width - box(drawer.parentElement).width) <= 1,
+          buttons: [...drawer.querySelectorAll('button')].filter((b) => b.offsetParent).map((b) => box(b).right),
+          title: title.scrollWidth <= title.clientWidth + 1,
+          cut: [...document.querySelectorAll('[data-tab]')].filter((t) => { const b = box(t); return b.right > strip.right + 0.5 || b.left < strip.left - 0.5; }).map((t) => t.dataset.tab),
+        };
+      });
+      assert.equal(fit.scroll, fit.inner, `${at}: no sideways scroll`);
+      assert.ok(fit.dock <= fit.inner && fit.drawer <= fit.inner, `${at}: the dock ends at ${fit.dock} and the drawer at ${fit.drawer}, inside ${fit.inner}`);
+      assert.ok(fit.fills, `${at}: the docked record fills its dock instead of keeping its floating width`);
+      assert.ok(fit.buttons.length && fit.buttons.every((r) => r <= fit.inner), `${at}: every drawer button is on screen`);
+      assert.ok(fit.title, `${at}: the record title is not cut`);
+      assert.deepEqual(fit.cut, [], `${at}: every Work tab is in view`);
+      assert.deepEqual(seen.errors, []);
+      await context.close();
+    }
+  }
+});
+
 test('the Work dock switches between the record and Genie, and remembers the choice', async () => {
   const { page, seen, context } = await openApp(browser, served.base, appInfo(), { hash: '#/n01_u05/work', ready: '.cell-t' });
   assert.equal(await page.locator('[data-dock]').count(), 0, 'the dock starts closed');
@@ -283,10 +392,53 @@ test('every example layout renders its dashboard, rail and settings with no erro
     const rail = (await railOf(page)).map(([id]) => id);
     assert.equal(rail[0], 'dashboard', `${file}: the rail starts with Dashboard`);
     assert.equal(rail.at(-1), 'settings', `${file}: Settings sits at the bottom`);
-    assert.ok(!rail.includes('work'), `${file}: a laid-out page keeps its list on the dashboard, so it has no Work`);
+    assert.equal(rail.includes('work'), info.pages[0].layout.work === 'queue', `${file}: Work follows the work the registry gives the layout`);
     await page.locator('[data-rail="settings"]').click();
     await page.locator('[data-group="look"]').waitFor();
     assert.deepEqual(seen.errors, [], `${file}: no error`);
+    await context.close();
+  }
+});
+
+const REGISTRY = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
+const QUEUE_CONTRACTS = ['decision_queue', 'monitor', 'recommendations', 'process', 'network', 'location', 'explainer', 'impact', 'segments'];
+const INFORMATIONAL = new Set(REGISTRY.layouts.filter((l) => l.informational).map((l) => l.id));
+const queueKind = (kind) => QUEUE_CONTRACTS.includes(kind.contract) && !INFORMATIONAL.has(kind.layout);
+const exampleOf = (layout) => (layout === 'decision_queue' ? 'example_page.json' : `examples/${layout}.json`);
+
+async function openKind(kind, hash) {
+  const example = JSON.parse(readFileSync(join(HERE, '..', '..', exampleOf(kind.layout)), 'utf8'));
+  const info = appInfo(DECIDE, 1, { layout: kind.layout, result_table: example.result_table || TABLE.result_table }, exampleOf(kind.layout));
+  const id = info.pages[0].id;
+  const routes = trackedRoutes({ overview: ({ json }) => json(200, { ...HUB, pages: { [id]: TRACKED } }),
+    'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})) });
+  return { id, ...(await openApp(browser, served.base, info, { hash: hash(id), routes, ready: '[data-rail]', watch: prefsFirst(MY_KEY, PERSON, {}) })) };
+}
+
+test('every one of the 25 queue kinds has Work in its rail and Work shows the status tabs', { timeout: 300000 }, async () => {
+  const queues = REGISTRY.kinds.filter(queueKind);
+  assert.equal(queues.length, 25);
+  for (const kind of queues) {
+    const { id, page, seen, context } = await openKind(kind, (pid) => `#/${pid}/work`);
+    await page.locator('[data-tab="open"]').waitFor();
+    assert.ok((await railOf(page)).some(([s, on]) => s === 'work' && on === 'page'), `${kind.id}: Work is in the rail and open`);
+    assert.equal(await hashOf(page).then((h) => h.startsWith(`#/${id}/work`)), true, `${kind.id}: the Work address is kept`);
+    assert.deepEqual((await page.locator('[data-tab]').evaluateAll((tabs) => tabs.map((t) => t.dataset.tab))).filter((t) => ['open', 'mine', 'all'].includes(t)),
+      ['open', 'mine', 'all'], `${kind.id}: Work shows its status tabs`);
+    await page.locator('[data-work] tbody tr').first().waitFor();
+    assert.deepEqual(seen.errors, [], `${kind.id}: no error`);
+    await context.close();
+  }
+});
+
+test('the 15 plan, forecast, scenario, explore and ask kinds keep their rail without a queue Work section', { timeout: 300000 }, async () => {
+  const others = REGISTRY.kinds.filter((k) => !queueKind(k));
+  assert.equal(others.length, 15);
+  for (const kind of others) {
+    const { id, page, seen, context } = await openKind(kind, (pid) => `#/${pid}/work`);
+    await page.waitForFunction((pid) => window.location.hash === `#/${pid}/dashboard`, id);
+    assert.ok(!(await railOf(page)).some(([s]) => s === 'work'), `${kind.id}: no queue Work`);
+    assert.deepEqual(seen.errors, [], `${kind.id}: no error`);
     await context.close();
   }
 });
