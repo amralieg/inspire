@@ -124,3 +124,11 @@ test('an ask Inspire does not build never holds the Rebuild: it is taken out, na
   assert.equal(w.skippedAsksText({ vibes: 'make it better' }), '');
   assert.equal(w.withoutSkippedAsks({ vibes: 'make it better' }).vibes, 'make it better', 'a vague ask is sent as written');
 });
+
+test('a long unbroken ask is checked for an email in well under a second and an email still is not an outside call', () => {
+  const started = Date.now();
+  assert.equal(L.vibeAskLimit('e'.repeat(200000)), null);
+  assert.ok(Date.now() - started < 1000, `took ${Date.now() - started} ms`);
+  assert.equal(L.vibeAskLimit(`${'e'.repeat(50)} mail the list to ops.team+alerts@example.com daily`), null);
+  assert.equal(L.vibeAskLimit('fetch rates from api.example.com').reason, L.VIBE_OUTSIDE_CALL);
+});
