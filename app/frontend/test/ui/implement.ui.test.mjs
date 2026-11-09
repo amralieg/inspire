@@ -1666,7 +1666,7 @@ test('Edit of a version whose swapped secondary table and own table are both gon
   }
 });
 
-test('Use case details on the Implement page open the full use case in a drawer that closes with Escape and leaves Build progress in place', async () => {
+test('Use case details on the Implement page open the full use case in a drawer that closes with Escape and leaves the Build progress card in place', async () => {
   const ui = await openUi('implement', STUDIO_STATE);
   const { page } = ui;
   try {
@@ -1681,7 +1681,8 @@ test('Use case details on the Implement page open the full use case in a drawer 
     assert.equal(await drawer.getByRole('button', { name: /^(Previous|Next) use case$/ }).count(), 0, 'one use case, no paging');
     await page.keyboard.press('Escape');
     await drawer.waitFor({ state: 'detached' });
-    await viewOf(page, 'build').waitFor();
+    await page.locator('[data-progress-card]').waitFor();
+    assert.equal(await page.locator('[data-mvp-progress]').count(), 0, 'the click outside the progress panel closed it');
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'no asset drawer opened behind it');
     assert.equal(await focusedName(page), 'Use case details', 'the focus comes back to the button that opened it');
     await page.getByRole('button', { name: 'Use case details' }).click();

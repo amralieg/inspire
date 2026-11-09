@@ -1350,6 +1350,46 @@ test('a finished build shows a compact card with its status, version, time, warn
   }
 });
 
+test('the progress panel opens at 640px, drags and arrow-keys to a new width that a reopen keeps, closes on a click outside it, and stays open on a click inside it (must-exclude: an inside click never closes it)', async () => {
+  const ui = await openTower({ ...STATE, history: [finished('ready_with_warnings', WARNED), ...HISTORY], steps: doneSteps() }, { expand: false });
+  const { page } = ui;
+  try {
+    const card = page.locator('[data-progress-card]');
+    const panel = page.locator('[data-mvp-progress]');
+    const dialog = panel.getByRole('dialog');
+    const widthOf = () => dialog.evaluate((el) => Math.round(el.getBoundingClientRect().width));
+    await card.locator('[data-progress-show]').click();
+    await panel.waitFor();
+    assert.equal(await widthOf(), 640, 'a smaller panel than before');
+    const handle = panel.locator('[data-drawer-resizer]');
+    const hb = await handle.boundingBox();
+    await page.mouse.move(hb.x + hb.width / 2, hb.y + 200);
+    await page.mouse.down();
+    await page.mouse.move(hb.x + hb.width / 2 - 160, hb.y + 200, { steps: 6 });
+    await page.mouse.up();
+    assert.equal(await widthOf(), 800, 'dragging the left edge left widens it');
+    await handle.focus();
+    await page.keyboard.press('ArrowRight');
+    assert.equal(await widthOf(), 768, 'ArrowRight narrows it by one step');
+    await page.keyboard.press('Home');
+    assert.equal(await widthOf(), 400, 'Home goes to the smallest width');
+    await page.keyboard.press('ArrowLeft');
+    assert.equal(await widthOf(), 432);
+    await panel.locator('[data-build-reason]').click();
+    await painted(page);
+    assert.equal(await panel.count(), 1, 'a click inside keeps it open');
+    await page.mouse.click(40, 300);
+    await panel.waitFor({ state: 'detached' });
+    assert.equal(await card.getAttribute('data-progress-open'), 'false', 'a click outside closes it');
+    await card.locator('[data-progress-show]').click();
+    await panel.waitFor();
+    assert.equal(await widthOf(), 432, 'the reopened panel keeps the chosen width');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('Build progress opens as a full-height side panel whose 500-line log scrolls on its own, the page behind keeps its own scroll, Esc and X close it, a reload keeps it open, and the reason names the threshold the run missed (must-exclude: the log never grows the page)', async () => {
   const said = (i) => `Step ${i}: I checked the notebook instructions and the Databricks workflow before I built the dashboard.`;
   const line = (i, words) => `${agoIso(390 - Math.floor(i * 0.7)).slice(0, 19).replace('T', ' ')} - inspire - INFO - [GENIE N01-U01] [build] Genie: ${words}`;
@@ -1393,7 +1433,7 @@ test('Build progress opens as a full-height side panel whose 500-line log scroll
       const behind = await pane.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
       const pb = await pane.boundingBox();
       if (behind.scroll > behind.client + 1) {
-        await page.mouse.move(pb.x + 40, pb.y + pb.height / 2);
+        await page.mouse.move((pb.x + Math.min(pb.x + pb.width, box.x)) / 2, pb.y + pb.height / 2);
         await page.mouse.wheel(0, 400);
         await page.waitForFunction(() => document.querySelector('section[aria-label="Use case"]').scrollTop > 0);
       }

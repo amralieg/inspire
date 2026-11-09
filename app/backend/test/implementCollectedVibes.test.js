@@ -117,18 +117,26 @@ test('collected asks that make the box too long are caught by the wizard check b
   assert.deepEqual(served(next).errors, ['the MVP vibes are 2,011 characters; at most 2,000 are allowed'], 'and the backend refuses it the same way');
 });
 
-test('rail width: clamps to 240-520 px, starts at 320 and survives a broken store', async () => {
-  const c = await lib('implementControl.js');
-  assert.deepEqual([c.railWidth(100), c.railWidth(600), c.railWidth('300.4'), c.railWidth(''), c.railWidth(null), c.railWidth('wide')], [240, 520, 300, 320, 320, 320]);
+test('pane widths: the rail clamps to 240-520 px from 320, the drawer to 400-1100 px from 640, each under its own key, and both survive a broken store', async () => {
+  const W = await lib('paneWidth.js');
+  const r = (v) => W.paneWidth(W.RAIL_WIDTH, v);
+  assert.deepEqual([r(100), r(600), r('300.4'), r(''), r(null), r('wide')], [240, 520, 300, 320, 320, 320]);
+  const d = (v) => W.paneWidth(W.DRAWER_WIDTH, v);
+  assert.deepEqual([d(100), d(5000), d('700.6'), d(undefined)], [400, 1100, 701, 640]);
   const store = memoryStorage();
-  assert.equal(c.loadRailWidth(store), 320, 'nothing stored yet');
-  assert.equal(c.saveRailWidth(9999, store), true);
-  assert.equal(c.loadRailWidth(store), 520, 'a stored width is clamped on the way in');
+  assert.equal(W.loadPaneWidth(W.RAIL_WIDTH, store), 320, 'nothing stored yet');
+  assert.equal(W.savePaneWidth(W.RAIL_WIDTH, 9999, store), true);
+  assert.equal(W.loadPaneWidth(W.RAIL_WIDTH, store), 520, 'a stored width is clamped on the way in');
+  assert.equal(W.loadPaneWidth(W.DRAWER_WIDTH, store), 640, 'must-exclude: the rail width never sizes the drawer');
   store.setItem('inspire.implement_rail_width', '-5');
-  assert.equal(c.loadRailWidth(store), 240, 'and on the way out');
+  assert.equal(W.loadPaneWidth(W.RAIL_WIDTH, store), 240, 'and on the way out');
+  W.savePaneWidth(W.DRAWER_WIDTH, 900, store);
+  assert.equal(store.getItem('inspire.drawer_width'), '900');
   const broken = { getItem: () => { throw new Error('denied'); }, setItem: () => { throw new Error('quota'); } };
-  assert.equal(c.loadRailWidth(broken), 320);
-  assert.equal(c.saveRailWidth(400, broken), false);
-  assert.equal(c.loadRailWidth(null), 320);
-  assert.equal(c.saveRailWidth(400, null), false);
+  assert.equal(W.loadPaneWidth(W.RAIL_WIDTH, broken), 320);
+  assert.equal(W.savePaneWidth(W.DRAWER_WIDTH, 400, broken), false);
+  assert.equal(W.loadPaneWidth(W.DRAWER_WIDTH, null), 640);
+  assert.equal(W.savePaneWidth(W.RAIL_WIDTH, 400, null), false);
+  assert.deepEqual(['ArrowLeft', 'ArrowRight', 'Home', 'End', 'a'].map((k) => W.resizeKeyWidth(W.RAIL_WIDTH, 320, k)), [304, 336, 240, 520, undefined]);
+  assert.deepEqual(['ArrowLeft', 'ArrowRight'].map((k) => W.resizeKeyWidth(W.DRAWER_WIDTH, 640, k, -1)), [672, 608], 'a drawer on the right grows to the left');
 });

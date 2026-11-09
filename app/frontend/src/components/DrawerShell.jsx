@@ -1,10 +1,16 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { X } from 'lucide-react';
 import BodyPortal from './BodyPortal';
+import PaneResizer from './PaneResizer';
+import { DRAWER_WIDTH, loadPaneWidth, paneWidth, savePaneWidth } from '../lib/paneWidth';
+
+const KEEP_OPEN = '[aria-modal="true"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
 
 export default function DrawerShell({ label, closeLabel, focusKey = null, onClose, title, actions = null, below = null, footer = null, center = false, side = false, bodyRef = null, bodyProps = {}, children, ...rest }) {
   const panelRef = useRef(null);
   const openerRef = useRef(null);
+  const [width, setWidth] = useState(() => loadPaneWidth(DRAWER_WIDTH));
+  useEffect(() => { if (!center) savePaneWidth(DRAWER_WIDTH, width); }, [width, center]);
 
   useEffect(() => {
     openerRef.current = document.activeElement;
@@ -29,6 +35,20 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
     return () => window.removeEventListener('keydown', onKey);
   }, [onClose, side]);
 
+  useEffect(() => {
+    if (!side) return undefined;
+    const onDown = (e) => {
+      const target = e.target;
+      if (!(target instanceof Element) || !target.isConnected) return;
+      if (panelRef.current?.contains(target)) return;
+      if (openerRef.current instanceof Element && openerRef.current.contains(target)) return;
+      if (target.closest(KEEP_OPEN)) return;
+      onClose?.();
+    };
+    document.addEventListener('pointerdown', onDown, true);
+    return () => document.removeEventListener('pointerdown', onDown, true);
+  }, [onClose, side]);
+
   return (
     <BodyPortal>
       <div className={`fixed inset-0 flex ${side ? 'z-[45] pointer-events-none' : 'z-[70]'} ${center ? 'items-center justify-center p-4' : 'justify-end'}`} {...rest}>
@@ -41,8 +61,13 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
           aria-label={label}
           className={`relative flex w-full flex-col bg-surface shadow-elevated outline-none ${side ? 'pointer-events-auto' : ''} ${
             center ? 'max-h-[92dvh] max-w-[44rem] rounded-xl border border-border'
-              : `h-full border-s border-border ${side ? 'md:w-[max(34rem,56vw)] md:max-w-[64rem]' : 'max-w-[46rem]'}`}`}
+              : 'h-full border-s border-border md:w-[var(--drawer-width)] md:max-w-[calc(100vw-3rem)]'}`}
+          style={center ? undefined : { '--drawer-width': `${width}px` }}
         >
+          {!center && (
+            <PaneResizer width={width} onWidth={(next) => setWidth(paneWidth(DRAWER_WIDTH, next))} limits={DRAWER_WIDTH} grows={-1}
+              label="Resize this panel" data-drawer-resizer="" className="absolute inset-y-0 -start-1.5 z-10" />
+          )}
           <div className="shrink-0 border-b border-border px-6 pt-5 pb-4">
             <div className="flex items-start gap-3">
               <div className="min-w-0 flex-1">{title}</div>

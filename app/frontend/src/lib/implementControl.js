@@ -755,31 +755,6 @@ export function rebuildSpec(latest, entries, built = null, previous = '') {
   return String(spec.vibes ?? '').trim() && built != null ? { ...spec, vibe_previous: previous || VIBE_PREVIOUS_DEFAULT } : spec;
 }
 
-export const RAIL_WIDTH = { min: 240, max: 520, start: 320, step: 16 };
-const RAIL_WIDTH_KEY = 'inspire.implement_rail_width';
-
-export function railWidth(value) {
-  const n = value === null || value === undefined || value === '' ? NaN : Math.round(Number(value));
-  return Number.isFinite(n) ? Math.min(RAIL_WIDTH.max, Math.max(RAIL_WIDTH.min, n)) : RAIL_WIDTH.start;
-}
-
-export function loadRailWidth(storage = globalThis.localStorage) {
-  try {
-    return railWidth(storage?.getItem(RAIL_WIDTH_KEY));
-  } catch {
-    return RAIL_WIDTH.start;
-  }
-}
-
-export function saveRailWidth(width, storage = globalThis.localStorage) {
-  try {
-    storage.setItem(RAIL_WIDTH_KEY, String(railWidth(width)));
-    return true;
-  } catch {
-    return false;
-  }
-}
-
 export function rollbackChanges(latest, id, version, vibes) {
   return { rollback_outputs: { [id]: version }, outputs: { ...(latest?.spec_json?.outputs || {}), [vibesKey(id)]: String(vibes ?? '').trim() } };
 }

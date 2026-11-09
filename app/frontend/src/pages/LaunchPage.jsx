@@ -59,14 +59,14 @@ const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
 
 const DISCOVERY_OPTIONS = [
   {
-    key: DISCOVERY_STANDARD,
-    icon: Lock,
-    desc: DISCOVERY_MODE_TEXT[DISCOVERY_STANDARD],
-  },
-  {
     key: DISCOVERY_AI_ENHANCED,
     icon: Sparkles,
     desc: DISCOVERY_MODE_TEXT[DISCOVERY_AI_ENHANCED],
+  },
+  {
+    key: DISCOVERY_STANDARD,
+    icon: Lock,
+    desc: DISCOVERY_MODE_TEXT[DISCOVERY_STANDARD],
   },
 ].map((opt) => (opt.key === DISCOVERY_RECOMMENDED ? { ...opt, badge: DISCOVERY_BADGE } : opt));
 const DISCOVERY_PANEL = [
@@ -1247,16 +1247,18 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     <button
                       key={opt.key}
                       type="button"
+                      data-discovery-option={opt.key}
+                      aria-pressed={active}
                       onClick={() => {
                         setDiscoveryTouched(true);
                         updateParam('03_discovery_type', opt.key);
                       }}
                       className={`relative p-3 rounded-xl text-start transition-smooth border ${
-                        active ? 'border-db-red/30 bg-db-red-50 shadow-sm' : 'border-border hover:border-border-strong'
+                        active ? 'border-success bg-success-bg shadow-sm ring-1 ring-inset ring-success/40' : 'border-border hover:border-border-strong'
                       }`}
                     >
-                      <span className={`flex items-center gap-1.5 text-xs font-semibold ${active ? 'text-db-red-fg' : 'text-text-primary'}`}>
-                        <Icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
+                      <span className={`flex items-center gap-1.5 text-xs font-semibold ${active ? 'text-success-fg' : 'text-text-primary'}`}>
+                        <Icon size={13} className={active ? 'text-success-fg' : 'text-text-tertiary'} />
                         {opt.key}
                         {opt.key === DISCOVERY_RECOMMENDED && <span className="text-[10px] font-normal text-text-tertiary">(default)</span>}
                         {opt.badge && (
@@ -1266,7 +1268,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         )}
                       </span>
                       <p className="text-[10px] text-text-tertiary leading-snug mt-1">{opt.desc}</p>
-                      {active && <CheckCircle2 size={14} className="absolute top-2.5 right-2.5 text-db-red-fg" />}
+                      {active && <CheckCircle2 size={14} className="absolute top-2.5 right-2.5 text-success-fg" />}
                     </button>
                   );
                 })}

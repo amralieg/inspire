@@ -42,6 +42,25 @@ test('AI Enhanced Discovery is recommended and the default, both modes are expla
     const enhanced = page.getByRole('button', { name: /^AI Enhanced Discovery/ });
     assert.ok((await standard.innerText()).includes(DISCOVERY_MODE_TEXT['Standard Discovery']));
     assert.ok((await enhanced.innerText()).includes(DISCOVERY_MODE_TEXT['AI Enhanced Discovery']));
+    assert.deepEqual(await page.locator('[data-discovery-option]').evaluateAll((els) => els.map((el) => el.dataset.discoveryOption)),
+      ['AI Enhanced Discovery', 'Standard Discovery'], 'AI Enhanced Discovery is the left option');
+    const look = (loc) => loc.evaluate((el) => { el.getAnimations().forEach((a) => a.finish()); return { pressed: el.getAttribute('aria-pressed'), border: getComputedStyle(el).borderColor, bg: getComputedStyle(el).backgroundColor }; });
+    const green = await page.evaluate(() => {
+      const probe = Object.assign(document.createElement('div'), { className: 'border border-success bg-success-bg' });
+      document.body.append(probe);
+      const style = getComputedStyle(probe);
+      const out = { border: style.borderColor, bg: style.backgroundColor };
+      probe.remove();
+      return out;
+    });
+    await enhanced.click();
+    assert.deepEqual(await look(enhanced), { pressed: 'true', ...green }, 'the selected option is green');
+    await standard.click();
+    assert.deepEqual(await look(standard), { pressed: 'true', ...green });
+    const off = await look(enhanced);
+    assert.equal(off.pressed, 'false');
+    assert.notEqual(off.bg, green.bg, 'must-exclude: the option not selected is not green');
+    await enhanced.click();
     assert.match(await enhanced.innerText(), /\(default\)/);
     assert.doesNotMatch(await standard.innerText(), /\(default\)|Recommended/);
     const shown = [await panel.innerText(), await standard.innerText(), await enhanced.innerText()].join('\n');
