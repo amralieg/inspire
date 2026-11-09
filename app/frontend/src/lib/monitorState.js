@@ -144,8 +144,11 @@ export function pollFailure(error, failures) {
 
 export const CHECK_AGAIN_LABEL = 'Check again';
 
-export function monitorFailureChoices({ cannotRead = false, runUrl = '' } = {}) {
+export const RUN_AGAIN_LABEL = 'Run again';
+
+export function monitorFailureChoices({ cannotRead = false, runUrl = '', canRunAgain = false } = {}) {
   return [
+    canRunAgain && !cannotRead && { id: 'again', label: RUN_AGAIN_LABEL, detail: 'Starts this run again with the same settings, in a new session.' },
     cannotRead && { id: 'read', label: CHECK_AGAIN_LABEL, detail: 'Once you have access, Inspire reads this run again.' },
     runUrl && { id: 'open', label: 'Open the run in Databricks', url: runUrl, detail: 'The run page shows the full error and every task.' },
     { id: 'copy', label: COPY_SEND_LABEL, detail: cannotRead ? 'Copies the run and what Inspire could not read, to send to the person who started it.' : 'Copies the run and its error, to send to whoever looks after Inspire.' },

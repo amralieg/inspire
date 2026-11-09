@@ -368,6 +368,13 @@ export default function App() {
     }, 200);
   }, [page, inDemo]);
 
+  const onLaunched = useCallback((sid, rid, notes = [], details = []) => {
+    setSessionId(sid);
+    setRunId(rid);
+    setLaunchNotes({ runId: rid, notes, details });
+    nav('monitor');
+  }, [nav]);
+
   const openImplement = useCallback((sid, useCaseId) => {
     if (inDemo) setDemo((prev) => ({ ...prev, focus: useCaseId || null }));
     else setImplement({ sessionId: String(sid), focus: useCaseId || null });
@@ -539,19 +546,14 @@ export default function App() {
               if (sid) setSessionId(sid);
               nav('results');
             }}
-            onLaunched={(sid, rid, notes = [], details = []) => {
-              setSessionId(sid);
-              setRunId(rid);
-              setLaunchNotes({ runId: rid, notes, details });
-              nav('monitor');
-            }}
+            onLaunched={onLaunched}
           />
         )}
 
         {page === 'monitor' && (
           <div className="max-w-7xl mx-auto px-6 py-8">
             <MonitorPage
-              key={demoScope || 'workspace'}
+              key={`${demoScope || 'workspace'}:${inDemo ? '' : runId ?? ''}`}
               settings={pageSettings}
               update={inDemo ? noop : update}
               sessionId={inDemo ? demo.showcase.session_id : sessionId}
@@ -562,6 +564,7 @@ export default function App() {
               onResultsSession={inDemo ? noop : onResultsSession}
               onOpenImplement={openImplement}
               onGenerateData={inDemo ? undefined : () => nav('generate-data')}
+              onRunAgain={inDemo ? null : onLaunched}
             />
           </div>
         )}

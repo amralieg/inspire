@@ -2097,9 +2097,31 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
 // ═══════════════════════════════════════════════════
 
 app.post('/api/run', requireToken, async (req, res) => {
+  const { cluster_id, notebook_path } = req.body;
+  const params = (req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
+  return launchDiscover(req, res, { params, notebook_path, cluster_id });
+});
+
+app.post('/api/run/:runId/again', requireToken, async (req, res) => {
+  const sessionId = String((req.body || {}).session_id || '').trim();
+  if (!isInt64Id(sessionId)) return res.status(400).json({ error: 'session_id must be a numeric Inspire session id' });
   try {
-    const { cluster_id, notebook_path } = req.body;
-    const params = (req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
+    const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${req.params.runId}`);
+    if (!response.ok) {
+      const said = await response.text();
+      return res.status(response.status).json({ error: `Inspire could not read run ${req.params.runId} to run it again: ${said.slice(0, 600)}` });
+    }
+    const again = LC.runAgainOf(parseExactJson(await response.text()), req.params.runId, sessionId);
+    if (again.problem) return res.status(409).json({ error: `${again.problem}.` });
+    return launchDiscover(req, res, again);
+  } catch (err) {
+    const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
+    return res.status(code).json({ error: err.message });
+  }
+});
+
+async function launchDiscover(req, res, { params, notebook_path, cluster_id }) {
+  try {
     const refused = LC.launchParamsProblem(params) || await launchSessionProblem(req, params);
     if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
     const reads = await runReadPlan(dbFetch, req, discoverReads(params));
@@ -2122,7 +2144,7 @@ app.post('/api/run', requireToken, async (req, res) => {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
     res.status(code).json({ error: err.message });
   }
-});
+}
 
 const discoverAccess = createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken: appOwnToken });
 

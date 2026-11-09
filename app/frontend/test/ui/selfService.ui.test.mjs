@@ -140,7 +140,7 @@ test('a failed run on Monitor offers to open the run and to copy what to send, w
   try {
     const choices = page.locator('[data-testid="monitor-failure-choices"]');
     await choices.waitFor({ timeout: 15000 });
-    assert.deepEqual(await choices.locator('[data-failure-choice]').evaluateAll((els) => els.map((e) => e.dataset.failureChoice)), ['open', 'copy']);
+    assert.deepEqual(await choices.locator('[data-failure-choice]').evaluateAll((els) => els.map((e) => e.dataset.failureChoice)), ['again', 'open', 'copy']);
     assert.equal(await choices.getByRole('link', { name: /Open the run in Databricks/ }).getAttribute('href'), 'https://workspace.example.com/#job/1/run/777');
     await choices.getByRole('button', { name: 'Copy what to send' }).click();
     await choices.getByText(COPIED_SEND_TEXT).waitFor();
@@ -149,6 +149,39 @@ test('a failed run on Monitor offers to open the run and to copy what to send, w
     assert.match(copied, /KeyError: domain_name/);
     assert.match(copied, new RegExp(PLATFORM));
     assert.match(copied, /https:\/\/workspace\.example\.com\/#job\/1\/run\/777/);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Run again on a failed Monitor run starts it again in a new session and Monitor follows the new run; a refusal says why', async () => {
+  const backend = monitorBackend(FAILED_RUN);
+  const asked = [];
+  let refuse = true;
+  const mount = (app) => {
+    app.post('/api/run/777/again', (req, res) => {
+      asked.push(req.body);
+      if (refuse) return res.status(403).json({ error: 'Only the person who launched run 777, or an App manager, can run it again. someone@example.com launched it.' });
+      return res.json({ run_id: 888 });
+    });
+    app.get('/api/run/888', (_req, res) => res.json({ run_id: 888, life_cycle_state: 'RUNNING', start_time: Date.now() - 1000, tasks: [] }));
+    backend.mount(app);
+  };
+  const ui = await openUi('monitor', {}, '', { mount, init: (page) => page.addInitScript(CLIPBOARD) });
+  const { page } = ui;
+  try {
+    const choices = page.locator('[data-testid="monitor-failure-choices"]');
+    await choices.getByRole('button', { name: 'Run again' }).click();
+    const refused = choices.locator('[data-run-again-error]');
+    await refused.waitFor({ timeout: 15000 });
+    assert.match(await refused.innerText(), /^Inspire could not run it again: Only the person who launched run 777, or an App manager, can run it again\./);
+    refuse = false;
+    await choices.getByRole('button', { name: 'Run again' }).click();
+    await page.locator('[data-testid="monitor-status"]').getByText('Running', { exact: true }).waitFor({ timeout: 15000 });
+    assert.equal(asked.length, 2);
+    assert.match(asked[1].session_id, /^\d{13,19}$/);
+    assert.notEqual(asked[1].session_id, '42', 'a new session, never the failed one (must-exclude)');
+    assert.equal(await page.locator('[data-run-again-error]').count(), 0);
   } finally {
     await ui.close();
   }

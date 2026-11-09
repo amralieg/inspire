@@ -37,7 +37,7 @@ import StopRunControl from '../components/StopRunControl';
 import RunLogPanel from '../components/RunLogPanel';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
-import { runStateText } from '../lib/runState';
+import { newSessionId, runStateText } from '../lib/runState';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
@@ -60,13 +60,14 @@ const STATUS_FILTERS = [
 
 const MONITOR_NO_PROGRESS = 'Inspire has saved no progress for this run yet. Each step shows here as soon as it is saved.';
 
-export default function MonitorPage({ settings, update, sessionId, runId, launchNotes = [], launchDetails = [], onComplete, onResultsSession, onOpenImplement, onGenerateData }) {
+export default function MonitorPage({ settings, update, sessionId, runId, launchNotes = [], launchDetails = [], onComplete, onResultsSession, onOpenImplement, onGenerateData, onRunAgain = null }) {
   const { databricksHost, token, warehouseId, inspireDatabase, showcase = '' } = settings;
 
   // Run-level state
   const [runInfo, setRunInfo] = useState(null);
   const [runReadError, setRunReadError] = useState('');
   const [sent, setSent] = useState('');
+  const [again, setAgain] = useState({ busy: false, error: '' });
   const [runPhase, setRunPhase] = useState(PHASE_PENDING);
 
   // Session/step state
@@ -250,8 +251,23 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   const platformMessage = String(runInfo?.state_message || '').trim();
   const platformDetail = isFailed && platformMessage && platformMessage !== String(statusDetail || '').trim() && !statusDetails.includes(platformMessage) ? platformMessage : '';
   const elapsedMs = runElapsedMs(runInfo, now);
+  const runAgain = async () => {
+    setAgain({ busy: true, error: '' });
+    const sid = newSessionId();
+    try {
+      const data = await apiFetch(`/api/run/${runId}/again`, { method: 'POST', body: JSON.stringify({ session_id: sid }) });
+      setAgain({ busy: false, error: '' });
+      onRunAgain(sid, data.run_id, Array.isArray(data.warnings) ? data.warnings : [], Array.isArray(data.warning_details) ? data.warning_details : []);
+    } catch (e) {
+      setAgain({ busy: false, error: e.message || String(e) });
+    }
+  };
   const pickFailure = (choice) => {
     setSent('');
+    if (choice.id === 'again') {
+      if (!again.busy) runAgain();
+      return;
+    }
     if (choice.id === 'read') {
       setRunReadError('');
       setPolling(true);
@@ -922,7 +938,9 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
               </p>
               {platformDetail && <TechnicalDetails items={[platformDetail]} className="mt-2" />}
               <div className="mt-3 text-xs" data-testid="monitor-failure-choices">
-                <ChoiceList choices={monitorFailureChoices({ cannotRead, runUrl: runInfo?.run_page_url || '' })} mark="data-failure-choice" onPick={pickFailure} />
+                <ChoiceList choices={monitorFailureChoices({ cannotRead, runUrl: runInfo?.run_page_url || '', canRunAgain: Boolean(runId && onRunAgain && !showcase && runEndedBadly(runInfo)) })} mark="data-failure-choice" onPick={pickFailure} />
+                {again.busy && <p role="status" className="mt-2 text-text-secondary"><Loader2 size={12} className="inline animate-spin me-1" aria-hidden="true" />Starting the run again…</p>}
+                {again.error && <PlainMessage text={`Inspire could not run it again: ${again.error}`} copy role="alert" data-run-again-error="" className="mt-2 text-error-fg" />}
                 {sent && <p role="status" className="mt-2 text-text-secondary select-all">{sent}</p>}
               </div>
             </div>

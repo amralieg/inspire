@@ -127,6 +127,7 @@ const ROUTE_POLICY = {
   'GET /api/run/:runId/output': recorded('read a run output', 'reads the output of a run the App launched and recorded in its own database'),
   'GET /api/run/:runId/cancel': anyone('read the cancel verdict', 'answers the cancel route verdict, changes nothing and reads nothing from the workspace'),
   'POST /api/run/:runId/cancel': { rule: 'launcher', action: 'cancel it', target: runTarget, identity: 'app', why: GATED },
+  'POST /api/run/:runId/again': { rule: 'launcher', action: 'run it again', target: runTarget, identity: 'app', why: GATED, outputWrite: true, scopes: OUTPUT_WRITE_SCOPES },
   'GET /api/run/pages': anyone('list the hosted pages', 'lists the MVP pages Inspire hosts'),
   'GET /api/inspire/session': tracked('read a session'),
   'GET /api/inspire/sessions': tracked('list sessions'),

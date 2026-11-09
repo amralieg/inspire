@@ -47,6 +47,7 @@ import DiscoveryPromise from '../components/DiscoveryPromise';
 import { useOutputFolderCheck } from '../lib/outputFolderCheck';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, START_DRAFT_STAMP, START_DRAFT_STEP, clearWizardDraft, readWizardDraft, startDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import { DEFAULT_DOCUMENT_LANGUAGE, parseDocumentLanguages, formatDocumentLanguages, launchDocLanguages, needsDocumentLanguage } from '../constants/documentLanguages';
+import { newSessionId } from '../lib/runState';
 import { interpretUcPermissionError, parseApiErrorMessage } from '../lib/ucPermissionErrors';
 import { formatWhen, utcDate } from '../lib/formatWhen';
 import { sessionFailed, sessionFinished, sessionStatus } from '../lib/monitorState';
@@ -715,8 +716,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     const finalParams = { ...params };
     finalParams['12_documents_languages'] = formatDocumentLanguages(launchDocLanguages(params));
     // Always auto-generate session ID
-    finalParams['14_session_id'] =
-      String(Date.now()) + String(Math.floor(Math.random() * 1e6));
+    finalParams['14_session_id'] = newSessionId();
 
     try {
       const data = await apiFetch('/api/run', {

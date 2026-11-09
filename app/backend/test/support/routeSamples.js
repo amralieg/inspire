@@ -20,6 +20,7 @@ const SAMPLES = [
   { key: 'POST /api/inspire/implement/submit', rule: 'managers', name: 'uninstall', method: 'POST',
     path: `/api/inspire/implement/submit?${qs(UC)}`, body: { spec: { use_case_id: 'N01-U01', uninstall: true } } },
   { key: 'POST /api/run/:runId/cancel', rule: 'launcher', method: 'POST', path: '/api/run/77/cancel', body: {}, launcher: { run: '77' } },
+  { key: 'POST /api/run/:runId/again', rule: 'launcher', method: 'POST', path: '/api/run/77/again', body: { session_id: '7200' }, launcher: { run: '77' } },
   { key: 'DELETE /api/inspire/session', rule: 'launcher', method: 'DELETE',
     path: `/api/inspire/session?${qs({ inspire_database: DB, warehouse_id: WH, session_id: '1001' })}`, launcher: { session: '1001' } },
   { key: 'GET /api/inspire/log', rule: 'launcher', method: 'GET',

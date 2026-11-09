@@ -38,3 +38,7 @@ export function runStateText(lifeCycle, result) {
   if (RESULT_WORDS[life]) return RESULT_WORDS[life];
   return life || end ? RUN_STATE_UNKNOWN : '';
 }
+
+export function newSessionId(now = Date.now(), random = Math.random()) {
+  return String(now) + String(Math.floor(random * 1e6));
+}

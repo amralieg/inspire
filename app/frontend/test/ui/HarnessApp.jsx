@@ -22,6 +22,16 @@ import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implem
 const AUTH = { token: 'tok', databricksHost: 'https://workspace.example.com' };
 const SETTINGS = { ...HARNESS_SETTINGS, ...AUTH };
 
+function MonitorHarness({ run }) {
+  const [runId, setRunId] = useState(run === 'none' ? null : '777');
+  return (
+    <ThemeProvider>
+      <MonitorPage key={runId ?? ''} settings={SETTINGS} update={() => {}} sessionId={HARNESS_SESSION_ID} runId={runId} onComplete={() => {}}
+        onResultsSession={() => {}} onOpenImplement={() => {}} onRunAgain={(_sid, rid) => setRunId(String(rid))} />
+    </ThemeProvider>
+  );
+}
+
 export default function HarnessApp({ open, nest, discoveryType, step = '', run = '' }) {
   const content = <HarnessContent open={open} discoveryType={discoveryType} step={step} run={run} />;
   if (!nest) return content;
@@ -57,14 +67,7 @@ function HarnessContent({ open, discoveryType, step, run }) {
   if (open === 'landing') return <LandingHarness />;
   if (open === 'choose') return <ChooseHarness />;
   if (open === 'setup') return <SetupHarness blank={step === 'blank'} />;
-  if (open === 'monitor') {
-    return (
-      <ThemeProvider>
-        <MonitorPage settings={SETTINGS} update={() => {}} sessionId={HARNESS_SESSION_ID} runId={run === 'none' ? null : '777'} onComplete={() => {}}
-          onResultsSession={() => {}} onOpenImplement={() => {}} />
-      </ThemeProvider>
-    );
-  }
+  if (open === 'monitor') return <MonitorHarness run={run} />;
   if (open === 'launch') return <LaunchHarness />;
   if (open === 'generate') {
     return (

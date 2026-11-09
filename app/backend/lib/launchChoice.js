@@ -39,4 +39,19 @@ function sessionLaunchProblem(sessionId, { fresh, launcher, person, manager }) {
   return `Session ${str(sessionId)} already exists and ${known}, so only they or an App manager can run it again; launch a new session instead`;
 }
 
-module.exports = { LAUNCH_OPERATIONS, IMPLEMENT_ONLY_PARAMS, ownLaunch, launchParamsProblem, sessionLaunchProblem };
+const RUN_ENDED = ['TERMINATED', 'INTERNAL_ERROR', 'SKIPPED'];
+
+function runAgainOf(run, runId, sessionId) {
+  const label = `Run ${str(runId)}`;
+  const life = str(run?.state?.life_cycle_state);
+  if (!RUN_ENDED.includes(life)) return { problem: `${label} has not ended yet, so it cannot run again; wait for it to end or cancel it` };
+  if (str(run?.state?.result_state) === 'SUCCESS') return { problem: `${label} ended well, so there is nothing to run again; start a new run from Start instead` };
+  const task = (Array.isArray(run?.tasks) ? run.tasks : []).find((t) => t && t.notebook_task && t.notebook_task.notebook_path);
+  if (!task) return { problem: `${label} names no notebook, so Inspire cannot tell what to run again; start a new run from Start instead` };
+  const base = task.notebook_task.base_parameters;
+  const params = base && typeof base === 'object' && !Array.isArray(base) ? { ...base } : {};
+  if (!str(params['00_business_name'])) return { problem: `${label} has no business name in its settings, so Inspire cannot run it again; start a new run from Start instead` };
+  return { params: { ...params, '14_session_id': str(sessionId) }, notebook_path: str(task.notebook_task.notebook_path), cluster_id: str(task.existing_cluster_id) };
+}
+
+module.exports = { LAUNCH_OPERATIONS, IMPLEMENT_ONLY_PARAMS, ownLaunch, launchParamsProblem, sessionLaunchProblem, runAgainOf };
