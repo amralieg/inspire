@@ -363,7 +363,6 @@ async function workspaceVerdict(dbFetch, host, token, path) {
 
 async function volumeVerdict(dbFetch, host, token, path) {
   const [, , catalog, schema, volume] = path.split('/');
-  if (!catalog || !schema || !volume) return { reason: 'it names no Unity Catalog volume', fix: 'choose a folder inside a volume, /Volumes/<catalog>/<schema>/<volume>/...' };
   const full = `${catalog}.${schema}.${volume}`;
   const root = `/Volumes/${catalog}/${schema}/${volume}`;
   const fix = `ask an owner of the volume ${full} for WRITE VOLUME on it`;
@@ -387,9 +386,24 @@ async function volumeVerdict(dbFetch, host, token, path) {
   });
 }
 
-async function folderVerdict(dbFetch, host, token, folder) {
+function folderShapeVerdict(folder) {
   const path = RP.canonicalPath(folder);
   if (!path) return { reason: 'it is not a workspace folder or a volume path Inspire can resolve', fix: 'give an absolute folder, such as one under your own user folder' };
+  const [, top, catalog, schema, volume] = path.split('/');
+  if (top === 'Volumes' && (!catalog || !schema || !volume)) {
+    return { reason: 'it names no Unity Catalog volume', fix: 'choose a folder inside a volume, /Volumes/<catalog>/<schema>/<volume>/...' };
+  }
+  return null;
+}
+
+function notAFolderText(folder, shape) {
+  return `Inspire cannot save to ${folder}: ${shape.reason}. ${shape.fix.charAt(0).toUpperCase()}${shape.fix.slice(1)}.`;
+}
+
+async function folderVerdict(dbFetch, host, token, folder) {
+  const shape = folderShapeVerdict(folder);
+  if (shape) return shape;
+  const path = RP.canonicalPath(folder);
   const verdict = await (path.startsWith('/Volumes/') ? volumeVerdict(dbFetch, host, token, path) : workspaceVerdict(dbFetch, host, token, path));
   return verdict && verdict.at && verdict.at !== path ? { ...verdict, missing: true } : verdict;
 }
@@ -421,6 +435,8 @@ async function appWrites(dbFetch, req, folder, appToken) {
 }
 
 async function folderPlan(dbFetch, req, folder, { manager, appToken }) {
+  const shape = folderShapeVerdict(folder);
+  if (shape) return { folder, refused: { status: 400, message: notAFolderText(folder, shape), unwritable: [folder] }, personUnchecked: '', app: { verdict: null, unchecked: '' } };
   const person = manager ? { refused: null, unchecked: '' } : await personWrites(dbFetch, req, folder);
   if (person.refused) return { folder, refused: person.refused, personUnchecked: '', app: { verdict: null, unchecked: '' } };
   return { folder, refused: null, personUnchecked: person.unchecked, app: await appWrites(dbFetch, req, folder, appToken) };

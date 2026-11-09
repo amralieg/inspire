@@ -12,7 +12,7 @@ export function outputCheckRequest(generationPath) {
 }
 
 export function outputCheckVerdict(path, data, err) {
-  if (err && (err.status === 401 || err.status === 403)) {
+  if (err && [400, 401, 403].includes(err.status)) {
     return { path, state: 'refused', text: String(err.message || 'You cannot write to the output folder.'), folder: '', checked: '', warnings: [], details: [] };
   }
   if (!err && data && data.allowed === true) {

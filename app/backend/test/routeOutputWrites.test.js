@@ -294,3 +294,28 @@ test('a folder that does not exist yet is checked on its nearest existing parent
   assert.deepEqual(volume.data.warnings, ["The Inspire App can't write to /Volumes/main/sales/files/new_out, so the run saves no files there. Ask an owner of its volume to give the App WRITE VOLUME on it."],
     'a volume needs WRITE VOLUME, never CAN MANAGE');
 });
+
+test('a Generation Path that is no folder is refused with a 400 that says why, for an App manager too, before any probe or job (must-exclude)', async () => {
+  const NOT_A_FOLDER = (folder) => `Inspire cannot save to ${folder}: it is not a workspace folder or a volume path Inspire can resolve. Give an absolute folder, such as one under your own user folder.`;
+  const NO_VOLUME = (folder) => `Inspire cannot save to ${folder}: it names no Unity Catalog volume. Choose a folder inside a volume, /Volumes/<catalog>/<schema>/<volume>/....`;
+  for (const [asked, folder, text] of [
+    ['https://x/y', 'https://x/y', NOT_A_FOLDER], ['/Volumes/c', '/Volumes/c', NO_VOLUME], ['/Volumes/c/s', '/Volumes/c/s', NO_VOLUME],
+  ]) {
+    for (const person of [ME, BOSS]) {
+      S.reset({ notebookPresent: true, managers: [BOSS] });
+      const got = await launch(asked, { person });
+      assert.equal(got.status, 400, `${asked} as ${person}: ${got.text}`);
+      assert.equal(got.data.error, text(folder), `${asked} as ${person}`);
+      assert.deepEqual(got.data.unwritable, [folder]);
+      assert.deepEqual(submitted(), [], `${asked} as ${person}: no job`);
+      assert.deepEqual(probes(), [], `${asked} as ${person}: no probe`);
+      S.reset({ notebookPresent: true, managers: [BOSS] });
+      const check = await S.request('POST', '/api/output-folder/check', { person, body: { generation_path: asked } });
+      assert.equal(check.status, 400, `the check of ${asked} as ${person}: ${check.text}`);
+      assert.equal(check.data.error, text(folder));
+    }
+  }
+  S.reset({ notebookPresent: true, managers: [BOSS] });
+  const fine = await launch('/Volumes/c/s/v/out', { person: BOSS });
+  assert.notEqual(fine.status, 400, `a full volume path is a folder: ${fine.text}`);
+});

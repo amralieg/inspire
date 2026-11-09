@@ -206,6 +206,9 @@ test('an allowed answer passes, a refusal or a missing sign-in holds Get Started
   assert.equal(outputCheckVerdict('/x', null, fail(403, REFUSAL)).state, 'refused');
   assert.equal(outputCheckVerdict('/x', null, fail(403, REFUSAL)).text, REFUSAL);
   assert.equal(outputCheckVerdict('/x', null, fail(401, 'Inspire checks with your own sign-in')).state, 'refused', 'no sign-in');
+  const notFolder = 'Inspire cannot save to https://x/y: it is not a workspace folder or a volume path Inspire can resolve. Give an absolute folder, such as one under your own user folder.';
+  assert.deepEqual([outputCheckVerdict('https://x/y', null, fail(400, notFolder)).state, outputCheckVerdict('https://x/y', null, fail(400, notFolder)).text], ['refused', notFolder],
+    'a path that is no folder holds Get Started, never a note that lets it start');
   for (const [label, data, err] of [
     ['a check that cannot finish', null, fail(502, 'upstream timeout')],
     ['a route that is not there', null, fail(404, 'not found')],
