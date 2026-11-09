@@ -1,3 +1,5 @@
+import { joinWords } from './implementWizard.js';
+
 const MESSAGE_KEYS = ['message', 'text', 'reason', 'summary', 'label'];
 
 export function outcomeMessage(value) {
@@ -41,8 +43,6 @@ const DOCUMENT_WORDS = {
   'Language Pack': 'translation',
 };
 
-const listed = (items) => (items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`);
-
 export function missingDocumentsOf(results) {
   const r = results && typeof results === 'object' ? results : {};
   const byLanguage = new Map();
@@ -67,8 +67,8 @@ export function missingDocumentsOf(results) {
   }
   const lines = [];
   for (const [language, { notWritten, englishOnly }] of byLanguage) {
-    if (notWritten.length) lines.push(language ? `Not written in ${language}: ${listed(notWritten)}.` : `Not written: ${listed(notWritten)}.`);
-    if (englishOnly.length && language) lines.push(`Written in English only, not in ${language}: ${listed(englishOnly)}.`);
+    if (notWritten.length) lines.push(language ? `Not written in ${language}: ${joinWords(notWritten)}.` : `Not written: ${joinWords(notWritten)}.`);
+    if (englishOnly.length && language) lines.push(`Written in English only, not in ${language}: ${joinWords(englishOnly)}.`);
   }
   return lines;
 }
