@@ -1,14 +1,16 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { actRecords, getBatches, getSimilar, undoRecords } from './api.js';
+import { recordColumns } from './DataTable.jsx';
+import { useHistory } from './History.jsx';
 import { withNotice } from './alerts.js';
-import { compareValues, countOf, integer, plainText } from './format.js';
+import { compareValues, countOf, integer, kindOf, plainText, unitOf } from './format.js';
 import { Icon } from './icons.jsx';
 import { Popover, SaidNote, useDialog, useToast, PlainNote, toastFailure } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { localDay, nextDay } from './prefs.js';
 import {
-  DRAFT_LABEL, DRAFT_RECORDS, NOTE_CHARS, NO_AS_OF, NO_SIMILAR, REASON_CHARS, actError, listAsOf, matchOf, SIMILAR_KEYS, SIMILAR_SHOWN, STATUSES, UNDO_MS, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
-  recordsText, statusLabel, undoText, UNDO_THEIRS,
+  DRAFT_LABEL, DRAFT_RECORDS, NOTE_CHARS, NO_AS_OF, NO_SIMILAR, REASON_CHARS, actError, listAsOf, matchOf, SIMILAR_KEYS, SIMILAR_PAGE, SIMILAR_SUMMARY, STATUSES, UNDO_MS, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
+  recordDetails, recordLine, recordRef, recordView, recordsText, reviewedText, statusLabel, undoText, UNDO_THEIRS,
 } from './records.js';
 
 export const SHORTCUTS = [
@@ -50,13 +52,13 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
       return null;
     }
   }, [pageId, onActed, toast]);
-  const write = async (body, values, { said, about } = {}) => {
+  const write = async (body, values, { said, about, nameOf } = {}) => {
     const out = await actRecords({ page: pageId, ...body, values });
     const outcome = actOutcome(out);
     if (outcome.batch) last.current = outcome.batch;
     setConflicts(outcome.conflicts ? outcome : null);
     const undoing = outcome.batch ? [{ label: 'Undo', run: () => undo(outcome.batch) }] : [];
-    const text = withNotice(said && !outcome.conflicts && !outcome.leftOut ? said : actedText(outcome, values), out);
+    const text = withNotice(said && !outcome.conflicts && !outcome.leftOut ? said : actedText(outcome, values, nameOf), out);
     const one = about?.record_key ?? (body.record_keys?.length === 1 ? body.record_keys[0] : null);
     const mine = ++told.current;
     setSaid({ key: one == null ? 'all' : String(one), text });
@@ -85,9 +87,19 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
       return null;
     }
   };
+  const applySimilar = function apply(keys, values, key) {
+    const byKey = new Map((similar?.sample || []).map((r) => [String(r.record_key), r]));
+    const nameOf = (k) => plainText(byKey.get(k)?.label ?? k);
+    const seen = Object.fromEntries(keys.map((k) => [k, String(byKey.get(k)?.valid_from_us ?? '')]));
+    return act({ record_keys: keys, seen, similar: similar?.match }, values, { key, nameOf }).catch((err) => {
+      const changed = Array.isArray(err?.detail?.changed) ? err.detail.changed.map(String) : [];
+      toastFailure(toast, err, () => apply(keys, values, key), changed.length ? `Nothing was saved: ${reviewedText(changed, nameOf)}.` : actError(err));
+      return null;
+    });
+  };
   const saidAt = (key) => (said && said.key === String(key) ? <SaidNote text={said.text} at={said.key} /> : null);
   return { act, undo, undoLast: () => undo(last.current), said, saidAt, conflicts, clearConflicts: () => setConflicts(null), similar, closeSimilar: () => setSimilar(null),
-    findSimilar };
+    findSimilar, applySimilar };
 }
 
 export function NoteField({ name, value, onChange, label = 'Note' }) {
@@ -254,30 +266,118 @@ export function QueueBulk({ pageId, list, asked, person = '', onChanged }) {
 
 const SIMILAR_WRITE = 'similar';
 
-export function SimilarDialog({ similar, onClose, onApply }) {
+function recordFields(meta, row, model, details = true) {
+  const all = [...(meta.tier && row[meta.tier] ? [[meta.tier, 'Tier', plainText(row[meta.tier])]] : []),
+    ...recordColumns(meta, model).map((c) => [c.key, c.label, c.render(row)]), ...(details ? recordDetails(meta, row, unitOf(model), kindOf(model)) : [])];
+  const seen = new Set();
+  return all.filter(([column, , text]) => text != null && text !== '' && !seen.has(column) && seen.add(column));
+}
+
+function SimilarRecord({ id, meta, item, pageId, model, summary }) {
+  const log = useHistory(pageId, recordRef(meta, item.row || { record_key: item.record_key }));
+  const current = log.data?.current || null;
+  const row = current ? { ...current, ...item.row } : item.row || {};
+  const view = recordView(meta, current, row, {}, unitOf(model), kindOf(model));
+  const fields = [...(view.explanation ? [['_why', 'Why', view.explanation]] : []), ...(view.action ? [['_do', 'Next best action', view.action]] : []),
+    ...recordFields(meta, row, model).filter(([column]) => !summary.includes(column))];
+  return (
+    <div id={id} className="sim-x" role="region" aria-label={`Details of ${recordLine(meta, row).name || plainText(item.label ?? item.record_key)}`} aria-busy={log.loading || undefined}>
+      {fields.length > 0 && <dl className="sim-d">{fields.map(([column, label, text]) => <div key={column}><dt>{label}</dt><dd><bdi>{text}</bdi></dd></div>)}</dl>}
+      {!fields.length && !log.loading && <small className="faint">This record holds nothing more than the line above.</small>}
+      {log.error && <PlainNote text={log.error} prefix="The rest of the record could not load: " as="small" className="in-err" />}
+    </div>
+  );
+}
+
+function SimilarRow({ meta, item, pageId, model, kept, open, onKeep, onOpen }) {
+  const id = useId();
+  const row = item.row || { [meta.label]: item.label };
+  const { name, sub } = recordLine(meta, row);
+  const label = name || plainText(item.label ?? item.record_key);
+  const summary = recordFields(meta, row, model, false).slice(0, SIMILAR_SUMMARY);
+  return (
+    <li className={kept ? '' : 'is-out'} data-record={String(item.record_key)}>
+      <div className="sim-r">
+        <input type="checkbox" checked={kept} onChange={(e) => onKeep(e.target.checked)} aria-label={`Include ${label}`} />
+        <button type="button" className="sim-t" aria-expanded={open} aria-controls={open ? id : undefined} onClick={onOpen}>
+          <Icon name="right" size={13} className="sim-c" />
+          <span className="sim-n"><b><bdi>{label}</bdi></b>{sub.length > 0 && <small>{sub.map((part, i) => <span key={i}>{i > 0 && ' · '}<bdi>{part}</bdi></span>)}</small>}</span>
+        </button>
+        {summary.length > 0 && <span className="sim-f">{summary.map(([column, title, text]) => <span key={column}><small>{title}</small> <bdi>{text}</bdi></span>)}</span>}
+      </div>
+      {open && <SimilarRecord id={id} meta={meta} item={item} pageId={pageId} model={model} summary={summary.map(([column]) => column)} />}
+    </li>
+  );
+}
+
+export function SimilarDialog({ similar, meta, pageId, model, onClose, onApply }) {
   const ref = useDialog(true, onClose);
+  const list = useRef(null);
+  const head = useId();
   const [status, setStatus] = useState(similar.values?.action_status || 'Done');
   const [reason, setReason] = useState(similar.values?.dismiss_reason || '');
   const [note, setNote] = useState(similar.values?.note || '');
+  const [left, setLeft] = useState(() => new Set());
+  const [opened, setOpened] = useState(() => new Set());
+  const [shown, setShown] = useState(SIMILAR_PAGE);
+  const grown = useRef(0);
   const n = countOf(similar.count);
-  const sample = (similar.sample || []).slice(0, SIMILAR_SHOWN);
+  const records = similar.sample || [];
+  const keys = records.map((r) => String(r.record_key));
+  const kept = keys.filter((k) => !left.has(k));
   const problem = actionProblem({ status, reason });
   const said = byWords(similar.by);
+  useEffect(() => {
+    if (grown.current) list.current?.querySelectorAll('li')[grown.current]?.querySelector('input')?.focus();
+  }, [shown]);
+  const toggle = (set, key, on) => {
+    const next = new Set(set);
+    if (on) next.add(key);
+    else next.delete(key);
+    return next;
+  };
+  const more = () => {
+    grown.current = shown;
+    setShown(shown + SIMILAR_PAGE);
+  };
   const apply = async (e) => {
     e.preventDefault();
-    if (await onApply(withNote(status === 'Dismissed' ? { action_status: status, dismiss_reason: reason.trim() } : { action_status: status }, note), SIMILAR_WRITE)) onClose();
+    if (!kept.length) return;
+    if (await onApply(kept, withNote(status === 'Dismissed' ? { action_status: status, dismiss_reason: reason.trim() } : { action_status: status }, note), SIMILAR_WRITE)) onClose();
   };
   return (
     <dialog ref={ref} className="dialog" aria-label="Apply to similar records" onClick={(e) => { if (e.target === ref.current) onClose(); }}>
-      <form className="dlg" onSubmit={apply}>
+      <form className="dlg dlg--form dlg--sim" onSubmit={apply}>
         <header>
           <h2>Apply to {recordsText(n)} like {similar.about?.label || 'this one'}?</h2>
           <p>{n === 1 ? 'This open record shares' : `These ${integer(n)} open records share`} {said || 'the same values'}. Nothing changes until you apply.</p>
         </header>
-        {sample.length > 0 && (
-          <div className="sim">
-            <b>{n > sample.length ? `${integer(sample.length)} of the ${integer(n)}` : n === 1 ? 'The record' : `All ${integer(n)}`}</b>
-            <ul>{sample.map((s, i) => <li key={s.record_key ?? i}>{plainText(s.label ?? s.record_key)}</li>)}</ul>
+        {records.length > 0 && (
+          <div className="sim" role="group" aria-labelledby={head}>
+            <div className="sim-h">
+              <b id={head}>Records to change</b>
+              <span role="status" className="sim-k" data-kept>{`${integer(kept.length)} of ${integer(records.length)} included`}</span>
+              <span className="sp" />
+              <button type="button" className="link" onClick={() => setLeft(new Set())} disabled={!left.size}>Select all</button>
+              <button type="button" className="link" onClick={() => setLeft(new Set(keys))} disabled={!kept.length}>Select none</button>
+            </div>
+            {n > records.length && (
+              <p className="sim-cap" data-capped>{`The App lists ${integer(records.length)} of the ${integer(n)}, the most one change covers. Apply changes only the listed ones you keep; open Apply to similar again for the rest.`}</p>
+            )}
+            <ul className="sim-l" ref={list}>
+              {records.slice(0, shown).map((r) => {
+                const key = String(r.record_key);
+                return (
+                  <SimilarRow key={key} meta={meta} item={r} pageId={pageId} model={model} kept={!left.has(key)} open={opened.has(key)}
+                    onKeep={(on) => setLeft((s) => toggle(s, key, !on))} onOpen={() => setOpened((s) => toggle(s, key, !s.has(key)))} />
+                );
+              })}
+            </ul>
+            {shown < records.length && (
+              <button type="button" className="link sim-more" onClick={more}>
+                {`Show ${integer(Math.min(SIMILAR_PAGE, records.length - shown))} more (${integer(records.length - shown)} not shown yet)`}
+              </button>
+            )}
           </div>
         )}
         <label className="in"><span>Status</span><select name="similar_status" value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label>
@@ -290,7 +390,7 @@ export function SimilarDialog({ similar, onClose, onApply }) {
         <NoteField name="similar_note" value={note} onChange={setNote} />
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <SaveButton write={SIMILAR_WRITE} type="submit" className="btn btn--pri" disabled={!!problem || !n || !similar.match}>{`Apply to ${recordsText(n)}`}</SaveButton>
+          <SaveButton write={SIMILAR_WRITE} type="submit" className="btn btn--pri" disabled={!!problem || !kept.length || !similar.match}>{`Apply to ${recordsText(kept.length)}`}</SaveButton>
         </footer>
       </form>
     </dialog>

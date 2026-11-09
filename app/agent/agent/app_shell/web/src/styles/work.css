@@ -49,7 +49,32 @@
 .work-k{flex-basis:100%;font-size:12.5px;font-weight:650;color:var(--muted);font-variant-numeric:tabular-nums}
 .work-snz input{height:40px;border:1px solid var(--faint);border-radius:8px;background:var(--card);color:var(--ink);padding:0 8px}
 .sim{display:flex;flex-direction:column;gap:6px;padding:10px 12px;border-radius:10px;background:var(--well);font-size:13px}
-.sim ul{margin:0;padding-inline-start:18px}
+.dlg--sim{width:min(720px,94vw);overflow-y:auto}
+.sim-h{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px}
+.sim-k{color:var(--muted);font-variant-numeric:tabular-nums}
+.sim-cap{margin:0;color:var(--muted);overflow-wrap:anywhere}
+.sim-l{list-style:none;margin:0;padding:0;display:flex;flex-direction:column;max-height:min(46vh,420px);overflow-y:auto;overflow-x:hidden;min-width:0}
+.sim-l li{border-top:1px solid var(--line);min-width:0}
+.sim-l li:first-child{border-top:0}
+.sim-l li.is-out .sim-n,.sim-l li.is-out .sim-f{opacity:.55}
+.sim-r{display:flex;align-items:flex-start;flex-wrap:wrap;gap:4px 10px;padding:8px 2px;min-width:0}
+.sim-r input{margin-top:3px;flex:none}
+.sim-t{display:flex;align-items:flex-start;gap:6px;flex:1 1 220px;min-width:0;padding:0;border:0;background:none;color:inherit;font:inherit;text-align:start;cursor:pointer}
+.sim-t:focus-visible{outline:2px solid var(--brand);outline-offset:2px;border-radius:4px}
+.sim-c{flex:none;margin-top:3px;transition:transform .15s}
+[dir="rtl"] .sim-c{transform:scaleX(-1)}
+.sim-t[aria-expanded="true"] .sim-c{transform:rotate(90deg)}
+.sim-n{display:flex;flex-direction:column;min-width:0;overflow-wrap:anywhere}
+.sim-n small{color:var(--muted)}
+.sim-f{display:flex;flex-wrap:wrap;gap:2px 12px;flex:1 1 240px;min-width:0;padding-inline-start:28px;font-variant-numeric:tabular-nums;overflow-wrap:anywhere}
+.sim-f small{color:var(--muted)}
+.sim-x{padding:0 2px 10px 28px;padding-inline:28px 2px}
+.sim-d{display:grid;grid-template-columns:repeat(auto-fill,minmax(160px,1fr));gap:6px 12px;margin:0}
+.sim-d div{min-width:0}
+.sim-d dt{font-size:12px;color:var(--muted)}
+.sim-d dd{margin:0;overflow-wrap:anywhere}
+.sim-more{align-self:flex-start}
+@media (prefers-reduced-motion:reduce){.sim-c{transition:none}}
 .batches{list-style:none;margin:0;padding:0;display:flex;flex-direction:column}
 .batches li{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid var(--line);font-size:13px;line-height:1.45}
 .batches li:first-child{border-top:0}

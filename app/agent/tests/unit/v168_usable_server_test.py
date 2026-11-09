@@ -897,7 +897,7 @@ def test_a_page_inside_inspire_without_inspire_s_writer_refuses_decisions_and_wi
 
 
 def test_similar_records_come_from_the_page_s_grouping_columns_and_feed_one_match(tmp_path):
-    ws = UsableWorkspace(similar="Books", total=1, rows=[{"_inspire_key": "k2", "entity_label": "Item 2", "_inspire_version": "1001"}])
+    ws = UsableWorkspace(similar="Books", total=1, rows=[dict(CONTRACT["similar"]["response"]["sample"][0]["row"])])
     s = usable_shell(tmp_path, ws)
     query = CONTRACT["similar"]["request"]["query"]
     status, out = call(s, "GET", "records/similar", headers=EDITOR, query=query)
@@ -1164,3 +1164,124 @@ def test_on_postgres_an_edit_after_an_act_carries_the_record_s_state_but_not_the
     (owned,) = pg_run(pg, staged, params.items, tables)
     assert (owned["action_batch"], owned["action_batch_note"], owned["action_status"]) == ("b" * 32, None, "Done"), \
         "a later act carries its own batch and no note but its own"
+
+
+REVIEWED = CONTRACT["act_reviewed"]
+
+
+class ReviewedWorkspace(UsableWorkspace):
+    def __init__(self, matching=(), **kw):
+        super().__init__(**kw)
+        self.matching = list(matching)
+
+    def answer(self, sql, params):
+        if sql.startswith("SELECT w.`_inspire_key` FROM ("):
+            return {"columns": [], "rows": [{"_inspire_key": k} for k in self.matching], "truncated": False}
+        return super().answer(sql, params)
+
+
+def reviewed_body(**changes):
+    body = copy.deepcopy(REVIEWED["request"]["body"])
+    body.pop("page")
+    body.update(changes)
+    return body
+
+
+def merges(ws):
+    return [q for q in ws.queries("MERGE INTO")]
+
+
+def test_similar_lists_every_record_up_to_what_one_act_can_name_with_its_list_row_and_the_agent_still_reads_five(tmp_path):
+    rows = [{"_inspire_key": f"k{i}", "entity_label": f"Item {i}", "_inspire_version": str(1000 + i), "category": "Books"} for i in range(2, 9)]
+    ws = UsableWorkspace(similar="Books", total=7, rows=rows)
+    s = usable_shell(tmp_path, ws)
+    status, out = call(s, "GET", "records/similar", headers=EDITOR, query=CONTRACT["similar"]["request"]["query"])
+    assert status == 200, out
+    assert shell_sql.CAPS["similar_rows"] == shell_sql.CAPS["act_records"], "every listed record can be named in one act"
+    assert [x["record_key"] for x in out["sample"]] == [f"k{i}" for i in range(2, 9)] and out["count"] == 7
+    assert out["sample"][0]["row"] == rows[0], "each record carries the list row the Work list shows"
+    rows_sql, _params, limit = next(q for q in reversed(ws.sql) if " OFFSET " in q[0])
+    assert f"LIMIT {shell_sql.CAPS['similar_rows']} OFFSET 0" in rows_sql and limit == shell_sql.CAPS["similar_rows"]
+    agent_rows = s.similar(EDITOR, CONTRACT["similar"]["request"]["query"], shell_sql.CAPS["similar_sample"])
+    assert agent_rows["sample"][0]["row"] == rows[0]
+    rows_sql = next(q for q in reversed(ws.sql) if " OFFSET " in q[0])[0]
+    assert f"LIMIT {shell_sql.CAPS['similar_sample']} OFFSET 0" in rows_sql, "the agent's tool keeps its five-record read"
+
+
+def test_a_reviewed_act_writes_exactly_the_kept_records_and_names_the_ones_that_changed_since_the_review(tmp_path):
+    ws = ReviewedWorkspace(matching=["k2", "k3"], current=[current("k2", "run", "run r1", version="1001"),
+                                                          current("k3", "action", PERSON, version="2002")])
+    s = usable_shell(tmp_path, ws)
+    status, out = post(s, "records/act", reviewed_body())
+    assert status == 200, out
+    same_shape(out, REVIEWED["response"])
+    assert (out["written"], out["changed"], out["conflicts"]) == (["k2"], ["k3"], [])
+    (merge, params), = merges(ws)
+    seen = json.loads(params[-1]["value"])
+    assert seen == [{"k": "k2", "v": 1001}], "the write names only the record still as it was reviewed, never k3"
+    within = ws.queries("SELECT w.`_inspire_key` FROM (")[-1]
+    assert "COALESCE(c.`_inspire_status`, 'New') IN ('New', 'In progress')" in within[0], "still open is checked at apply time"
+    assert "NOT IN (SELECT explode(from_json(" in within[0], "the record the person started from stays out"
+    assert any(json.loads(p["value"]) == ["k2", "k3"] for p in within[1] if str(p["value"]).startswith("[")), "only the sent ids are checked"
+    assert not ws.queries("COUNT(DISTINCT `_inspire_key`) AS total"), "records like this one are never recounted at apply time"
+
+
+def test_a_reviewed_record_that_no_longer_matches_is_left_as_it_was(tmp_path):
+    ws = ReviewedWorkspace(matching=["k2"], current=[current("k2", "run", "run r1", version="1001"),
+                                                     current("k3", "action", PERSON, {"action_status": "Done"}, version="3003")])
+    status, out = post(usable_shell(tmp_path, ws), "records/act", reviewed_body())
+    assert status == 200 and out["written"] == ["k2"] and out["changed"] == ["k3"], out
+
+
+def test_a_reviewed_act_refuses_any_id_outside_the_records_like_this_one_and_writes_nothing(tmp_path):
+    ws = ReviewedWorkspace(matching=["k2", "k3"], current=[current("k2", "run", "run r1", version="1001"),
+                                                          current("k3", "run", "run r1", version="1002"),
+                                                          current("k9", "run", "run r1", version="1009")])
+    s = usable_shell(tmp_path, ws)
+    status, out = post(s, "records/act", reviewed_body(record_keys=["k2", "k9"], seen={"k2": "1001", "k9": "1009"}))
+    assert (status, out) == (REVIEWED["outside"]["status"], REVIEWED["outside"]["body"])
+    status, out = post(s, "records/act", reviewed_body(record_keys=["k2", "k8"], seen={"k2": "1001", "k8": "1008"}))
+    assert status == 400 and out["outside"] == ["k8"], "an id with no record at all is outside too"
+    status, out = post(s, "records/act", reviewed_body(record_keys=["k1"], seen={"k1": "999"}))
+    assert status == 400 and out["outside"] == ["k1"], "the record the person started from is not one of those like it"
+    assert merges(ws) == []
+
+
+def test_a_reviewed_act_whose_every_record_changed_saves_nothing_and_says_so(tmp_path):
+    ws = ReviewedWorkspace(matching=["k2"], current=[current("k2", "action", PERSON, version="5001"),
+                                                     current("k3", "action", PERSON, version="5002")])
+    status, out = post(usable_shell(tmp_path, ws), "records/act", reviewed_body())
+    assert status == 409 and out == dict(REVIEWED["all_changed"]["body"], code=shell_core.STALE_RECORD), out
+    assert merges(ws) == []
+
+
+@pytest.mark.parametrize("body, fragment", [
+    (dict(match=CONTRACT["act_match"]["request"]["body"]["match"]), "send record_keys with seen, or match"),
+    ({"similar": {"filters": {}}}, "similar takes filters, view and as_of_us"),
+    ({"similar": dict(REVIEWED["request"]["body"]["similar"], view={"sort": "x"})}, "similar view takes only"),
+    ({"record_keys": ["k2"] * 2, "seen": {"k2": "1001"}}, "name each record_key once"),
+    ({"record_keys": [f"k{i}" for i in range(201)], "seen": {f"k{i}": "1" for i in range(201)}}, "name 1 to 200 record_keys"),
+])
+def test_a_bad_reviewed_act_is_refused_before_any_read(tmp_path, body, fragment):
+    ws = ReviewedWorkspace(matching=["k2", "k3"])
+    status, out = post(usable_shell(tmp_path, ws), "records/act", reviewed_body(**body))
+    assert status == 400 and fragment in out["error"], out
+    assert ws.queries("SELECT w.`_inspire_key` FROM (") == [] and merges(ws) == []
+
+
+def test_similar_with_match_is_refused(tmp_path):
+    ws = ReviewedWorkspace()
+    body = match_body(similar=REVIEWED["request"]["body"]["similar"])
+    status, out = post(usable_shell(tmp_path, ws), "records/act", body)
+    assert status == 400 and "never with match" in out["error"], out
+
+
+def test_on_postgres_the_reviewed_ids_still_like_the_record_are_the_open_unsnoozed_ones_with_its_values(pg):
+    rows = [row("k1", 30), row("k2", 20), row("k3", 90, status="Done"), row("k4", 80, snooze=datetime.date(2026, 10, 29)),
+            row("k5", 70, category="Music"), row("k6", 60), row("k7", 50, held=True)]
+    tables = pg_table(pg, "reviewed_rows", rows)
+    context = pg_context()
+    request = shell_sql.list_request(PG_PAGE, {"window": "all", "exclude": ["k1"], "limit": 1}, context, NOW)
+    plan = shell_sql.list_match_query(PG_PAGE, {"category": ["Books"]}, request, context)
+    sql, params = shell_sql.keys_within(plan, ["k1", "k2", "k3", "k4", "k5", "k7", "k9"])
+    assert sorted(r["_inspire_key"] for r in pg_run(pg, sql, params, tables)) == ["k2"], "k6 matches but was not sent, so it stays out"

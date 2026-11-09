@@ -1486,8 +1486,9 @@ class Agent:
         return record_facts(job["page"], self.read(job["ws"], turn.who, job["page"], record_key_of(args.get("record_key"))))
 
     def tool_similar_records(self, turn: Turn, job: dict, args: dict) -> dict:
-        found = self.shell.similar(job["headers"], {"page": job["page"]["id"], "record_key": record_key_of(args.get("record_key"))})
-        return {"by": found["by"], "count": found["count"], "sample": found["sample"]}
+        found = self.shell.similar(job["headers"], {"page": job["page"]["id"], "record_key": record_key_of(args.get("record_key"))},
+                                   shell_sql.CAPS["similar_sample"])
+        return {"by": found["by"], "count": found["count"], "sample": [{k: v for k, v in s.items() if k != "row"} for s in found["sample"]]}
 
     def tool_propose_action(self, turn: Turn, job: dict, args: dict) -> dict:
         if turn.confirm is not None:

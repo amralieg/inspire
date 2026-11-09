@@ -420,7 +420,7 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "realized_note_chars": 500, "realized_value": 10 ** 15, "impact_rows": 100, "promised_chars": 1000, "benefits": 5, "usage_rows": 2000,
         "range_number": 10 ** 15, "blocks": (0, 8), "block_text": 4000, "block_html": 20000, "image_bytes": 2 * 1024 * 1024,
         "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "count_cap": 10000, "changed_keys": 500, "act_match": 100000,
-        "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
+        "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_rows": 200, "similar_by": 3, "batches": 20,
         "exclude_keys": 50, "window_limit": 1000, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_deepest": 10000,
         "my_work_days": 366, "scenario_rows": 200}
 MY_WORK_DEFAULT = "week"
@@ -5079,6 +5079,12 @@ def current_query(table: str, keys: list) -> tuple:
     params = _Params()
     return (f"SELECT *, CAST(unix_micros(`valid_from`) AS STRING) AS `{VERSION_COLUMN}` FROM {table_name(table)} WHERE `is_current` "
             f"AND `record_key` IN ({_key_list(params, keys)})", params.items)
+
+
+def keys_within(match: dict, keys: list) -> tuple:
+    params = match["params"]
+    return (f"SELECT w.`_inspire_key` FROM ({match['keys']}) AS w WHERE w.`_inspire_key` IN ({_key_list(params, keys)})",
+            params.items)
 
 
 def keys_match(keys: list, before: str) -> dict:

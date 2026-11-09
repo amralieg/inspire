@@ -1,6 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { DATE_FORMATS, cellText, compareValues, isAmount, numberOf, plainText, plainWords } from './format.js';
+import { DATE_FORMATS, cellText, compareValues, formatValue, isAmount, kindOf, numberOf, plainText, plainWords, shownUnit, unitOf } from './format.js';
+import Fx from './Fx.jsx';
+import { moneyOf } from './money.js';
+import { MONEY_COLUMN } from './records.js';
 import { askGenieAbout } from './genieAsk.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { columnFiltersOn, withValue } from './filters.js';
@@ -25,6 +28,23 @@ export function columnOf(c, onFilter) {
     },
   };
 }
+
+function moneyColumn(c, model) {
+  const base = columnOf(c);
+  return {
+    ...base,
+    render: (row) => {
+      const kind = kindOf(model);
+      const unit = shownUnit(unitOf(model), c.currency, kind);
+      const shown = moneyOf(model, row, unit, kind);
+      if (shown.amount == null) return base.render(row);
+      return <Fx formula={shown.formula}>{formatValue(shown.amount, c.format || 'currency', unit, undefined, kind)}</Fx>;
+    },
+  };
+}
+
+export const recordColumns = (meta, model, onFilter) => (meta?.columns || []).filter((c) => c.column !== meta.sublabel)
+  .map((c) => (c.column === MONEY_COLUMN ? moneyColumn(c, model) : columnOf({ ...c, filter: meta.filters?.[c.column] }, onFilter)));
 
 export function RowAsk({ about }) {
   return (

@@ -248,6 +248,11 @@ def informational_text(page: dict) -> str:
     return f"page {page.get('id')} is a {label.lower()} page: it shows information only, so people record no decisions on it"
 
 
+def reviewed_text(count: int) -> str:
+    return ("1 record changed since you reviewed it and was left as it was" if count == 1 else
+            f"{shell_sql.plural(count, 'record')} changed since you reviewed them and were left as they were")
+
+
 def unreadable_text(count: int) -> str:
     if count == 1:
         return ("you cannot read this record in Unity Catalog, or it is no longer in the result table, so the App records no decision "
@@ -3462,22 +3467,28 @@ class Shell:
             raise QueryError(f"more than {shell_sql.plural(shell_pg.OVERLAY_ROWS, 'row')} of {table} changed")
         return result["rows"]
 
+    @staticmethod
+    def match_target(match, name: str = "match") -> dict:
+        if not isinstance(match, dict) or sorted(match) != ["as_of_us", "filters", "view"]:
+            raise HttpError(400, f"{name} takes filters, view and as_of_us: the filters and view of the list you loaded and when "
+                                 "you loaded it")
+        if not isinstance(match["filters"], dict) or not isinstance(match["view"], dict):
+            raise HttpError(400, f"{name} filters and view are objects")
+        if not VERSION_US.match(str(match["as_of_us"] or "")):
+            raise HttpError(400, f"{name} as_of_us is the as_of_us the list gave you, in microseconds")
+        wrong = sorted(k for k in match["view"] if k not in MATCH_VIEW)
+        if wrong:
+            raise HttpError(400, f"{name} view takes only {', '.join(MATCH_VIEW)}, not {', '.join(wrong)}")
+        return match
+
     def act_target(self, data: dict) -> tuple:
         keys, seen, match = data.get("record_keys"), data.get("seen"), data.get("match")
         if (keys is None) == (match is None):
             raise HttpError(400, "send record_keys with seen, or match, to say which records to act on, and never both")
         if match is not None:
-            if not isinstance(match, dict) or sorted(match) != ["as_of_us", "filters", "view"]:
-                raise HttpError(400, "match takes filters, view and as_of_us: the filters and view of the list you loaded and when "
-                                     "you loaded it")
-            if not isinstance(match["filters"], dict) or not isinstance(match["view"], dict):
-                raise HttpError(400, "match filters and view are objects")
-            if not VERSION_US.match(str(match["as_of_us"] or "")):
-                raise HttpError(400, "match as_of_us is the as_of_us the list gave you, in microseconds")
-            wrong = sorted(k for k in match["view"] if k not in MATCH_VIEW)
-            if wrong:
-                raise HttpError(400, f"match view takes only {', '.join(MATCH_VIEW)}, not {', '.join(wrong)}")
-            return None, None, match
+            if data.get("similar") is not None:
+                raise HttpError(400, "similar names the records like one record that you reviewed; send it with record_keys, never with match")
+            return None, None, self.match_target(match)
         cap = shell_sql.CAPS["act_records"]
         if not isinstance(keys, list) or not 1 <= len(keys) <= cap:
             raise HttpError(400, f"name 1 to {cap} record_keys to act on")
@@ -3493,6 +3504,7 @@ class Shell:
         page = self.deciding_page(data.get("page"))
         editor = self.editor(headers)
         keys, seen, match = self.act_target(data)
+        similar = None if data.get("similar") is None else self.match_target(data["similar"], "similar")
         values = shell_sql.action_values(data.get("values"), self.now().date())
         treatment = treatment_of(page, data, values)
         request = data.get("request_id")
@@ -3508,6 +3520,8 @@ class Shell:
         batch = {"id": str(request) if request is not None else uuid.uuid4().hex, "values": batch_values(data["values"], values, treatment)}
         if match is not None:
             out = self.act_on_match(ws, writer, who, page, fields, match, editor, values, batch)
+        elif similar is not None:
+            out = self.act_on_reviewed(ws, writer, who, page, fields, keys, seen, similar, editor, values, batch)
         else:
             out = self.act_on_keys(ws, writer, page, fields, keys, seen, editor, values, batch)
         notice = self.alerts.assigned(headers, page, values.get("action_owner"), editor) if values.get("action_owner") else ""
@@ -3615,6 +3629,29 @@ class Shell:
                                            "left_out": len(left_out), "batch_id": None}, code=STALE_RECORD)
         return {"written": written, "conflicts": conflicts, "conflicts_count": len(conflicts), "left_out": len(left_out),
                 "batch_id": batch["id"]}
+
+    def act_on_reviewed(self, ws, writer, who, page: dict, fields: list, keys: list, seen: dict, similar: dict, editor: str, values: dict,
+                        batch: dict) -> dict:
+        context, request, _fields = self.match_plan(ws, who, page, similar["filters"], similar["view"], editor)
+        sql, params = shell_sql.keys_within(shell_sql.list_match_query(page, similar["filters"], request, context, editor), keys)
+        matching = {str(r["_inspire_key"]) for r in self.execute(ws, sql, params, len(keys), delta=True)["rows"]
+                    if r.get("_inspire_key") is not None}
+        current = self.current_versions(ws, page, keys)
+        changed = [k for k in keys if k in current and str(current[k].get("valid_from_us") or "") != str(seen[k])]
+        outside = [k for k in keys if k not in matching and k not in changed]
+        if outside:
+            raise HttpError(400, f"{shell_sql.plural(len(outside), 'record')} you sent {'is' if len(outside) == 1 else 'are'} not among the "
+                                 f"records like this one: {', '.join(outside[:shell_sql.CAPS['conflicts_shown']])}; nothing was saved",
+                            {"outside": outside[:shell_sql.CAPS["conflicts_shown"]], "outside_count": len(outside)})
+        kept = [k for k in keys if k not in changed]
+        print(f"[REVIEWED-ACT FIRED] page={page['id']} sent={len(keys)} kept={len(kept)} changed={len(changed)}", flush=True)
+        if not kept:
+            raise HttpError(409, f"{reviewed_text(len(changed))}; nothing was saved",
+                            {"written": [], "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": None, "changed": changed},
+                            code=STALE_RECORD)
+        out = self.act_on_keys(ws, writer, page, fields, kept, seen, editor, values, batch)
+        raced = [c["record_key"] for c in out["conflicts"]]
+        return dict(out, conflicts=[], conflicts_count=0, changed=changed + raced)
 
     def match_plan(self, ws, who, page: dict, filters: dict, view: dict, editor: str) -> tuple:
         problems = shell_sql.filter_values_problems(page, filters)
@@ -3746,7 +3783,7 @@ class Shell:
             raise HttpError(404, f"no act with batch_id {batch_id} changed a record of this page you can read")
         return keys
 
-    def similar(self, headers: dict, query: dict) -> dict:
+    def similar(self, headers: dict, query: dict, limit: int = shell_sql.CAPS["similar_rows"]) -> dict:
         page = self.page(query.get("page"))
         keys = similar_keys(query)
         offered = {f["id"]: f for f in shell_sql.similar_filters(page)}
@@ -3776,17 +3813,17 @@ class Shell:
             raise HttpError(409, f"record {named} has no value in {where}, so no record is similar to it by them" if len(keys) == 1 else
                             f"{named} has a value in {where}, so no record is similar to them")
         view = {"window": "all", "exclude": keys}
-        request = shell_sql.list_request(page, dict(view, limit=shell_sql.CAPS["similar_sample"]), context, self.now())
+        request = dict(shell_sql.list_request(page, dict(view, limit=1), context, self.now()), limit=limit)
         plan = shell_sql.list_queries(page, filters, request, context)
         read_at = self.clock()
-        done, errors = self._parallel({("similar", name): (lambda q=query_: self.execute(ws, *q, shell_sql.CAPS["similar_sample"], delta=True))
+        done, errors = self._parallel({("similar", name): (lambda q=query_: self.execute(ws, *q, limit, delta=True))
                                        for name, query_ in (("rows", plan["rows"]), ("total", plan["total"]))})
         if errors:
             raise HttpError(502, next(iter(errors.values())))
         rows = done[("similar", "rows")]["rows"]
         records = page.get("records") or {}
-        sample = [{"record_key": r.get("_inspire_key"), "label": r.get(records.get("label")), "valid_from_us": r.get("_inspire_version")}
-                  for r in rows]
+        sample = [{"record_key": r.get("_inspire_key"), "label": r.get(records.get("label")), "valid_from_us": r.get("_inspire_version"),
+                   "row": r} for r in rows]
         return {"by": [{"filter": b, "label": offered[b].get("label"), "value": ", ".join(filters[b]), "values": filters[b]} for b in by if b in filters],
                 "count": int((done[("similar", "total")]["rows"] or [{}])[0].get("total") or 0), "sample": sample,
                 "match": {"filters": filters, "view": view, "as_of_us": self.as_of_us(["delta"], read_at)}}
