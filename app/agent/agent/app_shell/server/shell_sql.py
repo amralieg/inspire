@@ -120,7 +120,8 @@ BATCH_NOTE = shell_facts.BATCH_NOTE
 BATCH_VALUES = shell_facts.BATCH_VALUES
 SNOOZE_COLUMN = "snooze_until"
 JOINED_COLUMN = "joined_at"
-ACTION_TYPES = {"action_owner": "STRING", "action_status": "STRING", "action_due": "DATE", "action_note": "STRING",
+CHOICE_COLUMN = shell_facts.CHOICE_COLUMN
+ACTION_TYPES = {"action_owner": "STRING", "action_status": "STRING", CHOICE_COLUMN: "STRING", "action_due": "DATE", "action_note": "STRING",
                 "dismiss_reason": "STRING", "action_outcome": "STRING", SNOOZE_COLUMN: "DATE", BATCH_COLUMN: "STRING",
                 BATCH_NOTE: "STRING", BATCH_VALUES: "STRING", JOINED_COLUMN: "TIMESTAMP"}
 BATCH_TYPES = shell_facts.BATCH_TYPES
@@ -130,8 +131,8 @@ KEPT_TYPES = {"edited_by_person": "BOOLEAN", "not_listed_since": "TIMESTAMP"}
 KEPT_SINCE = shell_facts.KEPT_SINCE
 NOT_IN_RUN = "Not in the latest run"
 GONE_STATES = shell_facts.GONE_STATES
-ACTION_EDITABLE = ("action_owner", "action_status", "action_due", "action_note", "dismiss_reason", SNOOZE_COLUMN) + tuple(CLOSE_TYPES)
-UNDONE_KEYS = ("action_owner", "action_status", "action_due", "action_note", "dismiss_reason", SNOOZE_COLUMN) + tuple(CLOSE_TYPES)
+ACTION_EDITABLE = ("action_owner", "action_status", CHOICE_COLUMN, "action_due", "action_note", "dismiss_reason", SNOOZE_COLUMN) + tuple(CLOSE_TYPES)
+UNDONE_KEYS = ACTION_EDITABLE
 ACT_NOTE = "note"
 TREATMENT_KEY = "treatment"
 CARD_PICKS = {"segment_cards": "segment_id", "effect_card": "intervention"}
@@ -143,7 +144,10 @@ EPOCH = datetime.datetime(1970, 1, 1, tzinfo=datetime.timezone.utc)
 NO_WINDOW = "no_window"
 BATCH_ID = re.compile(r"^[0-9a-f]{32}$")
 UNDO_KEY = shell_facts.UNDO_KEY
-ACTION_STATUSES = ("New", "In progress", "Done", "Dismissed", "Could not fix")
+ACTION_STATUSES = shell_facts.ACTION_STATUSES
+NEW = shell_facts.NEW
+IN_PROGRESS = shell_facts.IN_PROGRESS
+DEFAULT_CHOICES = shell_facts.DEFAULT_CHOICES
 OPEN_STATUSES = shell_facts.OPEN_STATUSES
 DISMISSED = shell_facts.DISMISSED
 DONE = shell_facts.DONE
@@ -158,7 +162,7 @@ HELD_MEANING = ("Held back records were flagged Act now or Review but are kept o
 MONEY_COLUMN = shell_facts.MONEY_COLUMN
 MONEY_VALUES = "hv"
 LISTED_MONEY = f"COALESCE(c.`_inspire_money`, CAST(d.`{MONEY_COLUMN}` AS DOUBLE))"
-IMPACT_COLUMNS = (("k", "STRING"), ("label", "STRING"), ("status", "STRING"), ("state", "STRING"), ("reason", "STRING"), ("note", "STRING"),
+IMPACT_COLUMNS = (("k", "STRING"), ("label", "STRING"), ("status", "STRING"), ("choice", "STRING"), ("state", "STRING"), ("reason", "STRING"), ("note", "STRING"),
                   ("tier", "STRING"), ("n", "BIGINT"), ("hits", "BIGINT"), ("n_since", "BIGINT"), ("money", "DOUBLE"),
                   ("money_since", "DOUBLE"), ("before", "DOUBLE"), ("after", "DOUBLE"), ("reported", "DOUBLE"), ("at", "TIMESTAMP"))
 IMPACT_REASONS = 5
@@ -389,7 +393,7 @@ FORMAT_FILTERS = {"number": "number_range", "integer": "number_range", "currency
 FIELD_FILTERS = {"text": "multi_select", "boolean": "multi_select", "integer": "number_range", "decimal": "number_range",
                  "date": "date_range", "timestamp": "date_range"}
 COLUMN_FILTER_OFF = "off"
-ACTION_FILTERS = (("action_owner", "Owner", "c.`_inspire_owner`"), ("action_status", "Status", "COALESCE(c.`_inspire_status`, 'New')"))
+ACTION_FILTERS = (("action_owner", "Owner", "c.`_inspire_owner`"), ("action_status", "Status", f"COALESCE(c.`_inspire_status`, '{NEW}')"))
 RANGE_EDGES = {"number_range": ("min", "max"), "date_range": ("from", "to")}
 FILTER_FIELD_KINDS = {"number_range": ("integer", "decimal"), "date_range": ("date", "timestamp")}
 FORMAT_FITS = {"text": "text", "boolean": "text", "integer": "number", "decimal": "number", "date": "date", "timestamp": "date"}
@@ -420,7 +424,7 @@ MY_WORK_MINUTES = "minutes_per_record"
 MY_WORK_COLUMNS = (("k", "STRING"), ("label", "STRING"), ("what", "STRING"), ("status", "STRING"), ("note", "STRING"), ("owner", "STRING"),
                    ("at", "TIMESTAMP"), ("n", "BIGINT"), ("m", "BIGINT"), ("r", "BIGINT"), ("noted", "BIGINT"), ("hours", "BIGINT"),
                    ("money", "DOUBLE"), ("reported", "DOUBLE"), ("before", "DOUBLE"), ("secs", "DOUBLE"))
-MY_WORK_CLOSES = ((DONE, "fixed"), (DISMISSED, "dismissed"), (COULD_NOT, "could_not"))
+MY_WORK_CLOSES = tuple((status, {"done": "fixed"}.get(shell_facts.STATUS_KINDS[status], shell_facts.STATUS_KINDS[status])) for status in CLOSED_STATUSES)
 ALERT_OPERATORS = {">=": "GREATER_THAN_OR_EQUAL", ">": "GREATER_THAN", "=": "EQUAL", "!=": "NOT_EQUAL", "<": "LESS_THAN",
                    "<=": "LESS_THAN_OR_EQUAL"}
 ALERT_BASES = ("fixed", "baseline")
@@ -668,7 +672,7 @@ def review_problems(page: dict) -> list:
     return [] if page.get("use_case_id") else ["the page has a review link but no use_case_id, so the link names no use case"]
 
 
-def spec_problems(page: dict) -> list:
+def spec_problems(page: dict, stored=None) -> list:
     if not isinstance(page, dict):
         return ["the page spec is not a JSON object"]
     problems = []
@@ -758,6 +762,7 @@ def spec_problems(page: dict) -> list:
     for table in tables:
         problems += _table_problems(table, names)
     problems += _records_problems(page.get("records"), RECORDS_DATASET in names)
+    problems += choice_problems(page, stored)
     problems += similar_by_problems(page)
     problems += blocks_problems(page)
     problems += layout_problems(page, names)
@@ -2653,6 +2658,7 @@ def list_context(page: dict, columns, fields, decisions: bool) -> dict:
     ai = ([n for n in AI_LISTED if n in names] + sorted(n for n in names if AI_CATEGORY.match(n))) if join else []
     return {"table": table_name(page["result_table"]) if join else None, "join": join, "held": bool(join and "held_back" in names),
             "actions": bool(join and decisions), "changes": bool(join),
+            "choice": choice_sql(status_choices(page), names) if join and decisions else None,
             "tier": records.get("tier") if records.get("tier") in names else None,
             "tie": "record_key" if "record_key" in columns else key, "ai": ai,
             "categories": [n for n in ai if AI_CATEGORY.match(n)],
@@ -2792,8 +2798,7 @@ WINDOW_PICKED = ("c.`_inspire_due`", "c.`_inspire_snooze`", "c.`_inspire_joined`
 
 
 def window_conditions(bounds: dict, params, held: bool, today: str) -> list:
-    opened = ", ".join(f"'{s}'" for s in OPEN_STATUSES)
-    out = [f"COALESCE(c.`_inspire_status`, 'New') IN ({opened})", f"(c.`_inspire_snooze` IS NULL OR c.`_inspire_snooze` <= {today})"]
+    out = [f"COALESCE(c.`_inspire_status`, '{NEW}') IN ({shell_facts.sql_list(OPEN_STATUSES)})", f"(c.`_inspire_snooze` IS NULL OR c.`_inspire_snooze` <= {today})"]
     if held:
         out.append("NOT COALESCE(c.`_inspire_held`, FALSE)")
     if bounds["window"] != "all":
@@ -2853,11 +2858,16 @@ def _list_request(page: dict, data: dict, context: dict, allowed: list) -> dict:
         raise ValueError("status_counts takes true or false")
     if mine and not context["actions"]:
         raise ValueError("this decision list keeps no action owners, so it cannot show your actions")
+    choice = data.get("choice")
+    ids = [c.get("id") for c in status_choices(page)]
+    if choice is not None and (not context["actions"] or choice not in ids):
+        raise ValueError(f"choice takes one of {', '.join(map(str, ids))} on a list that records decisions" if context["actions"]
+                         else "this decision list keeps no decisions, so it cannot show the records of one choice")
     if changed and not context["changes"]:
         raise ValueError("this decision list keeps no runs to compare, so it cannot show what changed since the last run")
     return {"sort": key, "dir": direction, "offset": offset, "limit": limit, "search": search.strip(), "mine": mine, "changed": changed,
             "ai": ai_request(data.get("ai"), context), "columns": data.get(COLUMN_FILTERS) or {}, "cursor": list_cursor_value(data.get("cursor")),
-            "ai_counts": counts, "treatments": treated, "status_counts": statuses}
+            "ai_counts": counts, "treatments": treated, "status_counts": statuses, "choice": choice}
 
 
 def _cursor_cell(value) -> bool:
@@ -3662,7 +3672,8 @@ def _change_joins(context: dict, key: str, suffix: str = "") -> str:
 def _current_cte(context: dict, extra=()) -> str:
     join, actions = context["join"], context["actions"]
     mapped = f", CAST({quote(join)} AS STRING) AS `_inspire_join`" if join != "record_key" else ""
-    owned = ", `action_owner` AS `_inspire_owner`, `action_status` AS `_inspire_status`" if actions else ""
+    owned = (f", `action_owner` AS `_inspire_owner`, `action_status` AS `_inspire_status`, {context.get('choice') or 'CAST(NULL AS STRING)'} "
+             "AS `_inspire_choice`") if actions else ""
     explained = "".join(f", CAST({quote(n)} AS STRING) AS {quote(ai_alias(n))}" for n in context["ai"])
     more = "".join(f", {e}" for e in [*extra, f"CAST({quote(KEPT_SINCE)} AS TIMESTAMP) AS `_inspire_missing`", *context.get("money", [])])
     held = context.get("floor") or {}
@@ -3681,7 +3692,8 @@ def _current_on(context: dict, alias: str) -> str:
 
 
 def _current_join(context: dict, alias: str) -> tuple:
-    columns = ["c.`_inspire_key`", "c.`_inspire_version`"] + (["c.`_inspire_owner`", "c.`_inspire_status`"] if context["actions"] else [])
+    columns = ["c.`_inspire_key`", "c.`_inspire_version`"] + (["c.`_inspire_owner`", "c.`_inspire_status`", "c.`_inspire_choice`"]
+                                                               if context["actions"] else [])
     money = ["c.`_inspire_money`", "c.`_inspire_fx`"] if context.get("money") else []
     windowed = (list(WINDOW_PICKED) + (["c.`_inspire_held`"] if context.get("held") else [])) if context.get("windowed") else []
     joined = " JOIN" if (context.get("floor") or {}).get("on") == "c" else " LEFT JOIN"
@@ -3781,21 +3793,25 @@ def list_match_query(page: dict, values: dict, request: dict, context: dict, edi
 def status_counts_query(page: dict, values: dict, request: dict, context: dict, editor: str = "") -> tuple:
     params = _Params()
     columns = {k: v for k, v in (request.get("columns") or {}).items() if k != "action_status"}
-    plan = _list_plan(page, values, dict(request, columns=columns, mine=False, window=None, exclude=[]), context, editor, params, current=True)
-    status = "COALESCE(f.`_inspire_status`, 'New')"
+    plan = _list_plan(page, values, dict(request, columns=columns, mine=False, window=None, exclude=[], choice=None), context, editor, params, current=True)
+    status = f"COALESCE(f.`_inspire_status`, '{NEW}')"
     mine = f"lower(f.`_inspire_owner`) = lower({params.add(editor)})" if editor else "FALSE"
-    return (f"{_with(plan['ctes'], plan['counted'])} SELECT {status} AS v, COUNT(*) AS n, COALESCE(SUM(CASE WHEN {mine} THEN 1 ELSE 0 END), 0) "
-            f"AS m FROM f GROUP BY {status}", params.items)
+    return (f"{_with(plan['ctes'], plan['counted'])} SELECT {status} AS v, f.`_inspire_choice` AS c, COUNT(*) AS n, "
+            f"COALESCE(SUM(CASE WHEN {mine} THEN 1 ELSE 0 END), 0) AS m FROM f GROUP BY {status}, f.`_inspire_choice`", params.items)
 
 
-def status_counts_of(rows) -> dict:
+def status_counts_of(rows, choices=None) -> dict:
     statuses = dict.fromkeys(ACTION_STATUSES, 0)
+    picked = dict.fromkeys((c.get("id") for c in (DEFAULT_CHOICES if choices is None else choices)), 0)
     mine = 0
     for row in rows or []:
-        name, n = row.get("v") or "New", int(row.get("n") or 0)
+        name, n = row.get("v") or NEW, int(row.get("n") or 0)
         statuses[name] = statuses.get(name, 0) + n
+        if row.get("c") in picked:
+            picked[row["c"]] += n
         mine += int(row.get("m") or 0)
-    return {"statuses": statuses, "mine": mine, "all": sum(statuses.values())}
+    return {"statuses": statuses, "choices": picked, "open": sum(statuses.get(s, 0) for s in OPEN_STATUSES), "mine": mine,
+            "all": sum(statuses.values())}
 
 
 def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: str, params, current: bool = False) -> dict:
@@ -3822,6 +3838,9 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
         ctes.update(_compare_ctes(context))
     if request["mine"]:
         conditions.append(f"lower(c.`_inspire_owner`) = lower({params.add(editor)})")
+        early.add("c")
+    if request.get("choice") is not None:
+        conditions.append(f"c.`_inspire_choice` = {params.add(request['choice'])}")
         early.add("c")
     money_sort = request["sort"] == MONEY_COLUMN and bool(context.get("money"))
     if money:
@@ -3872,7 +3891,7 @@ def counted_total(row) -> tuple:
 def unfiltered(values: dict, request: dict) -> bool:
     return (not any(v not in (None, "", [], {}) for v in (values or {}).values()) and not request["search"] and not request["mine"]
             and not request["changed"] and not request["ai"] and not request["columns"] and not request.get("window")
-            and not request.get("exclude"))
+            and not request.get("exclude") and request.get("choice") is None)
 
 
 def facts_total_query(facts: dict, table: str, names: set) -> tuple:
@@ -3891,7 +3910,7 @@ def list_floor(page: dict, request: dict, context: dict, facts, model, filtered:
     live = bool(priced and model and model.get("recomputes") and model.get("changed"))
     scaled = live and ready and money_scale(model) is not None
     if live and by_money and not scaled:
-        selective = (request["mine"] or request["changed"] or request["ai"] or request.get("ranked")
+        selective = (request["mine"] or request["changed"] or request["ai"] or request.get("ranked") or request.get("choice") is not None
                      or MONEY_COLUMN in (request.get("columns") or {}))
         if selective or context["join"] != "record_key":
             return None
@@ -4509,7 +4528,7 @@ def tier_preview_query(page: dict, moved: str, cap: int, names) -> tuple:
         order = ("`rank` ASC NULLS LAST, " if "rank" in names else "") + "`record_key` ASC"
         landed = (f"CASE WHEN {seated} AND ROW_NUMBER() OVER (PARTITION BY CASE WHEN {seated} THEN 1 ELSE 0 END ORDER BY {order}) > "
                   f"{int(cap)} THEN 'Review' ELSE `_inspire_moved` END")
-    dismissed = ", COALESCE(`action_status` = 'Dismissed', FALSE) AS `_inspire_dismissed`" if "action_status" in names else ""
+    dismissed = f", COALESCE(`action_status` = '{DISMISSED}', FALSE) AS `_inspire_dismissed`" if "action_status" in names else ""
     keyed = ", `rank`" if "rank" in names else ""
     scope = params.add(str(page.get("use_case_id") or ""))
     rows = (f"SELECT {was} AS `_inspire_from`, {moved} AS `_inspire_moved`, {held} AS `_inspire_held`{dismissed}, `record_key`{keyed} "
@@ -4614,9 +4633,9 @@ def overview_query(page: dict, values: dict, picked: dict, context: dict, fields
             "c": _current_cte(dict(context, actions=True, floor=floor if on == "c" else None), extra)}
     tier = f"CAST(d.{quote(records['tier'])} AS STRING)" if records.get("tier") else None
     due = "c.`_inspire_due`"
-    tiers, opened = ", ".join(f"'{t}'" for t in FLAGGED_TIERS), ", ".join(f"'{s}'" for s in OPEN_STATUSES)
+    tiers, opened = shell_facts.sql_list(FLAGGED_TIERS), shell_facts.sql_list(OPEN_STATUSES)
     flagged = f"{tier} IN ({tiers})" if tier else "FALSE"
-    conditions = [f"({flagged} OR {due} IS NOT NULL)", f"COALESCE(c.`_inspire_status`, 'New') IN ({opened})"]
+    conditions = [f"({flagged} OR {due} IS NOT NULL)", f"COALESCE(c.`_inspire_status`, '{NEW}') IN ({opened})"]
     if held:
         conditions.append("NOT COALESCE(c.`_inspire_held`, FALSE)")
     if on == "d":
@@ -4722,7 +4741,8 @@ def impact_ctes(table: str, names: set, tier, label, scope: str, since: str, lis
     if listed:
         ctes["hl"] = (f"SELECT * FROM hm ORDER BY COALESCE(`_inspire_measured`, `_inspire_realized`, 0) DESC, `_inspire_closed` DESC, "
                       f"`_inspire_k` ASC LIMIT {CAPS['impact_rows']}")
-        cells = {"k": "`_inspire_k`", "label": "`_inspire_label`", "status": "`_inspire_status`", "state": "`_inspire_state`",
+        cells = {"k": "`_inspire_k`", "label": "`_inspire_label`", "status": "`_inspire_status`", "choice": "`_inspire_choice`",
+                 "state": "`_inspire_state`",
                  "reason": "`_inspire_reason`", "note": "`_inspire_note`", "before": "`_inspire_at_close`", "after": "`_inspire_now`",
                  "money": "`_inspire_measured`", "reported": "`_inspire_realized`", "at": "`_inspire_closed`"}
         branches.append(f"{_overview_select('record', cells, IMPACT_COLUMNS)} FROM hl")
@@ -5166,7 +5186,7 @@ def change_fields(columns: list) -> list:
     return out
 
 
-def action_values(values, today: datetime.date = None) -> dict:
+def action_values(values, today: datetime.date = None, choices=None) -> dict:
     if not isinstance(values, dict) or not values:
         raise ValueError("send the action values to change, as an object of column name to value")
     wrong = sorted(str(k) for k in values if k not in ACTION_EDITABLE + (ACT_NOTE,))
@@ -5181,6 +5201,14 @@ def action_values(values, today: datetime.date = None) -> dict:
         if len(note) > CAPS["note_chars"]:
             raise ValueError(f"note takes at most {CAPS['note_chars']} characters")
         out[BATCH_NOTE] = note or None
+    if CHOICE_COLUMN in out and out[CHOICE_COLUMN] is not None:
+        picked = next((c for c in (DEFAULT_CHOICES if choices is None else choices) if c.get("id") == out[CHOICE_COLUMN]), None)
+        if picked is None:
+            raise ValueError(f"{CHOICE_COLUMN} must be one of {', '.join(str(c.get('id')) for c in choices or DEFAULT_CHOICES)}")
+        if out.setdefault("action_status", picked["status"]) != picked["status"]:
+            raise ValueError(f"choice {picked['id']} sets the status {picked['status']}, so send action_status {picked['status']} or leave it out")
+    elif "action_status" in out:
+        out[CHOICE_COLUMN] = None
     if SNOOZE_COLUMN in out:
         out[SNOOZE_COLUMN] = snooze_date(out[SNOOZE_COLUMN], today or datetime.datetime.now(datetime.timezone.utc).date())
     elif "action_status" in out:
@@ -5541,6 +5569,114 @@ def layout_choices(ident: str) -> list:
     return [c for c in (layouts().get(ident) or {}).get("choices") or [] if isinstance(c, dict)]
 
 
+CHOICE_ID = re.compile(r"^[a-z0-9](?:[a-z0-9_-]{0,38}[a-z0-9])?$")
+CHOICE_COUNT = (2, 8)
+CHOICE_LABEL_CHARS = 40
+CHOICE_REASONS = 8
+CHOICE_KEYS = ("id", "label", "status", "reasons")
+CHOICE_TABS = ("open", "mine", "all")
+
+
+def own_choices(page: dict):
+    records = page.get("records") if isinstance(page, dict) else None
+    return records.get("choices") if isinstance(records, dict) else None
+
+
+def page_choices(page: dict) -> list:
+    own = own_choices(page)
+    if isinstance(own, list) and own:
+        return [dict(c) for c in own if isinstance(c, dict)]
+    return [dict(c) for c in layout_choices(page_layout(page))]
+
+
+def status_choices(page: dict) -> list:
+    return page_choices(page) or [dict(c) for c in DEFAULT_CHOICES]
+
+
+def choice_problems(page: dict, stored=None) -> list:
+    own = own_choices(page)
+    where = "the records choices"
+    if own is None:
+        gone = sorted(str(s) for s in stored or () if s not in {c.get("id") for c in status_choices(page)})
+        return [f"the page drops the records choices {', '.join(gone)}, which records already carry; keep each choice id people have used"] if gone else []
+    if not isinstance(own, list) or not all(isinstance(c, dict) for c in own):
+        return [f"{where} must be a list of objects, each with an id, a label, a status and, for a {DISMISSED} status, its reasons"]
+    low, high = CHOICE_COUNT
+    problems = [] if low <= len(own) <= high else [f"{where} hold {low} to {high} choices; there are {shown_number(len(own))}"]
+    ids = [c.get("id") for c in own]
+    for choice in own:
+        ident, label, status, reasons = (choice.get(k) for k in CHOICE_KEYS)
+        named = f"choice {ident!r}"
+        extra = sorted(str(k) for k in choice if k not in CHOICE_KEYS)
+        if extra:
+            problems.append(f"{named} takes only {', '.join(CHOICE_KEYS)}, not {', '.join(extra)}")
+        if not isinstance(ident, str) or not CHOICE_ID.match(ident):
+            problems.append(f"{named} needs an id of 1 to 40 lowercase letters, digits, - or _, starting and ending with a letter or digit")
+        elif ident in CHOICE_TABS:
+            problems.append(f"{named} cannot use the id {ident}, which names the {ident.capitalize()} tab of the Work list")
+        if not isinstance(label, str) or not label.strip() or len(label.strip()) > CHOICE_LABEL_CHARS:
+            problems.append(f"{named} needs a label of 1 to {CHOICE_LABEL_CHARS} characters")
+        if status not in ACTION_STATUSES:
+            problems.append(f"{named} status must be one of {', '.join(ACTION_STATUSES)}")
+        if reasons is not None and (not isinstance(reasons, list) or len(reasons) > CHOICE_REASONS or any(
+                not isinstance(r, str) or not r.strip() or len(r) > CAPS["reason_chars"] for r in reasons)
+                or len({r.strip().lower() for r in reasons if isinstance(r, str)}) != len(reasons)):
+            problems.append(f"{named} reasons must be a list of up to {CHOICE_REASONS} different texts of at most "
+                            f"{CAPS['reason_chars']} characters")
+        if status == DISMISSED and not (isinstance(reasons, list) and reasons):
+            problems.append(f"{named} closes a record as {shell_facts.status_label(DISMISSED)}, so it needs reasons a person picks from")
+    if len({i for i in ids if isinstance(i, str)}) != len(ids):
+        problems.append(f"{where} name each id once")
+    labels = [str(c.get("label") or "").strip().lower() for c in own]
+    if len(set(labels)) != len(labels):
+        problems.append(f"{where} use each label once, so each Work tab is told apart")
+    statuses = [c.get("status") for c in own]
+    if not any(s in OPEN_STATUSES for s in statuses):
+        problems.append(f"{where} need at least one choice with an open status ({', '.join(OPEN_STATUSES)}), so a record can be worked on")
+    if DONE not in statuses:
+        problems.append(f"{where} need at least one choice with the {DONE} status, so a fix can be counted")
+    gone = sorted(str(s) for s in stored or () if s not in ids)
+    if gone:
+        problems.append(f"{where} drop {', '.join(gone)}, which records already carry; keep each choice id people have used")
+    if problems:
+        print(f"[CHOICES FIRED] page={page.get('id')} problems={len(problems)}", flush=True)
+    return problems
+
+
+def status_text(page: dict, values: dict) -> str:
+    status = (values or {}).get("action_status") or NEW
+    choices = [c for c in status_choices(page) if c.get("status") == status]
+    found = next((c for c in choices if c.get("id") == (values or {}).get(CHOICE_COLUMN)), choices[0] if len(choices) == 1 else None)
+    return str((found or {}).get("label") or shell_facts.status_label(status))
+
+
+def choice_sql(choices, names, alias: str = "") -> str:
+    lead = f"{alias}." if alias else ""
+    status = f"COALESCE(CAST({lead}`action_status` AS STRING), '{NEW}')"
+    picked = [c for c in choices or [] if isinstance(c.get("id"), str) and c.get("status") in ACTION_STATUSES]
+    if not picked or "action_status" not in names:
+        return "CAST(NULL AS STRING)"
+    parts = []
+    if CHOICE_COLUMN in names:
+        parts.append(f"CASE WHEN {lead}`{CHOICE_COLUMN}` IN ({', '.join(sql_text(c['id']) for c in picked)}) THEN {lead}`{CHOICE_COLUMN}` END")
+    notes = [f"CAST({lead}`{name}` AS STRING)" for name in (BATCH_NOTE, "dismiss_reason") if name in names]
+    if notes:
+        note = f"COALESCE({', '.join(notes)}, '')"
+        said = []
+        for c in picked:
+            label = str(c.get("label") or "")
+            if label.strip():
+                prefix = sql_text(contains_pattern(label)[1:-1] + ": %")
+                said.append(f"WHEN {status} = {sql_text(c['status'])} AND ({note} = {sql_text(label)} OR {note} LIKE {prefix} "
+                            f"ESCAPE '{LIKE_ESCAPE}') THEN {sql_text(c['id'])}")
+        if said:
+            parts.append(f"CASE {' '.join(said)} END")
+    alone = [c for c in picked if sum(1 for o in picked if o["status"] == c["status"]) == 1]
+    if alone:
+        parts.append("CASE " + " ".join(f"WHEN {status} = {sql_text(c['status'])} THEN {sql_text(c['id'])}" for c in alone) + " END")
+    return parts[0] if len(parts) == 1 else f"COALESCE({', '.join(parts)})"
+
+
 def part_table_problems(page: dict, section: str) -> list:
     tables = [t for t in section_items(page, section) if t in (page.get("tables") or [])]
     if not tables:
@@ -5667,7 +5803,8 @@ def part_column_problems(page: dict, columns) -> list:
 
 def public_parts(page: dict) -> dict:
     out = {key: dict(page[key]) if isinstance(page.get(key), dict) else None for key in PART_BLOCKS.values()}
-    out["choices"] = layout_choices(page_layout(page))
+    out["choices"] = page_choices(page)
+    out["statuses"] = status_choices(page)
     return out
 
 

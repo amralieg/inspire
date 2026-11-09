@@ -4,12 +4,12 @@ import FilterBar from './FilterBar.jsx';
 import { Icon } from './icons.jsx';
 import { PlainNote, Skeleton } from './ui.jsx';
 import { integer } from './format.js';
-import { WORK_TABS, tabCount } from './links.js';
+import { tabCount, workTabs } from './links.js';
 
-export function WorkTabs({ tab, counts, onTab }) {
+export function WorkTabs({ tab, choices, counts, onTab }) {
   return (
     <div className="work-tabs" role="tablist" aria-label="Records by status">
-      {WORK_TABS.map(([id, label]) => {
+      {workTabs(choices).map(([id, label]) => {
         const n = tabCount(counts, id);
         return (
           <button key={id} type="button" role="tab" aria-selected={tab === id} className={`work-t ${tab === id ? 'is-on' : ''}`} onClick={() => onTab(id)} data-tab={id}>
@@ -21,13 +21,13 @@ export function WorkTabs({ tab, counts, onTab }) {
   );
 }
 
-export default function WorkPage({ meta, state, onState, pageId, reasons, plan, tab, counts, onTab, children }) {
+export default function WorkPage({ meta, state, onState, pageId, reasons, plan, tab, choices, counts, onTab, children }) {
   return (
     <section className="work-sec" aria-label="Work" data-work>
       {!meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
       <FilterBar meta={meta?.filters} state={state || { range: {}, sel: {} }} onState={onState} pageId={pageId} reasons={reasons} />
       {meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the list shows all its records: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
-      {tab && <WorkTabs tab={tab} counts={counts} onTab={onTab} />}
+      {tab && <WorkTabs tab={tab} choices={choices} counts={counts} onTab={onTab} />}
       <Placed slots={slotsOf(plan, 'records')}>{children}</Placed>
     </section>
   );

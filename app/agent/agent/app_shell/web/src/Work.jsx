@@ -7,7 +7,7 @@ import { Popover, SaidNote, useDialog, useToast, PlainNote } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { localDay, nextDay } from './prefs.js';
 import {
-  DRAFT_LABEL, DRAFT_RECORDS, NOTE_CHARS, NO_AS_OF, NO_SIMILAR, REASON_CHARS, actError, listAsOf, matchOf, SIMILAR_KEYS, SIMILAR_SHOWN, STATUSES, UNDO_MS, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
+  DRAFT_LABEL, DRAFT_RECORDS, NOTE_CHARS, NO_AS_OF, NO_SIMILAR, REASON_CHARS, actError, listAsOf, matchOf, SIMILAR_KEYS, SIMILAR_SHOWN, UNDO_MS, CHOICE_COLUMN, DEFAULT_CHOICES, DISMISSED, DONE, IN_PROGRESS, choiceOf, choiceValues, statusKind, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
   recordsText, statusLabel, undoText, UNDO_THEIRS,
 } from './records.js';
 
@@ -101,6 +101,19 @@ export function NoteField({ name, value, onChange, label = 'Note' }) {
 
 const withNote = (values, note) => (note.trim() ? { ...values, note: note.trim() } : values);
 
+export function ChoiceSelect({ name, choices, value, status, onChange }) {
+  const known = (choices || []).some((c) => c.id === value);
+  return (
+    <select name={name} value={known ? value : ''} onChange={(e) => onChange(e.target.value)}>
+      {!known && <option value="" disabled>{statusLabel(status)}</option>}
+      {(choices || []).map((c) => <option key={c.id} value={c.id}>{c.label}</option>)}
+    </select>
+  );
+}
+
+const choiceForm = (choices, choice, reason) => choiceValues(choice, statusKind(choice.status) === 'dismissed' ? reason.trim() : '', choices);
+const firstChoice = (choices, status, id) => choiceOf(choices, status, id) || (choices || [])[0] || null;
+
 export function ConflictNote({ conflicts, labelOf, onClose }) {
   if (!conflicts?.conflicts) return null;
   const names = conflicts.sample.map((c) => labelOf(c)).filter(Boolean);
@@ -114,12 +127,15 @@ export function ConflictNote({ conflicts, labelOf, onClose }) {
 }
 
 export function BulkBar({ picked, matching, total, capped = false, allOnPage, owners, person, tomorrow, canMatch = true, onAct, onAll, onClear, onAccept = null,
-  onSimilar = null, onDraft = null }) {
+  onSimilar = null, onDraft = null, choices = DEFAULT_CHOICES }) {
   const { busy } = useWrite();
   const anchors = { done: useRef(null), dismiss: useRef(null), assign: useRef(null), status: useRef(null), snooze: useRef(null) };
   const [open, setOpen] = useState('');
   const [owner, setOwner] = useState(person);
-  const [status, setStatus] = useState('In progress');
+  const [choiceId, setChoiceId] = useState(() => firstChoice(choices, IN_PROGRESS)?.id || '');
+  const choice = (choices || []).find((c) => c.id === choiceId) || null;
+  const status = choice?.status || IN_PROGRESS;
+  const closes = (kind) => (choices || []).some((c) => statusKind(c.status) === kind);
   const [reason, setReason] = useState('');
   const [note, setNote] = useState('');
   const [until, setUntil] = useState(tomorrow);
@@ -128,7 +144,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
   const over = matching?.capped ? 'more than ' : '';
   const what = `${over}${recordsText(n)}`;
   const problem = actionProblem({ status, reason });
-  const why = actionProblem({ status: 'Dismissed', reason });
+  const why = actionProblem({ status: DISMISSED, reason });
   const submit = (name, values) => async (e) => {
     e.preventDefault();
     if (!(await onAct(withNote(values, note), { key: `bulk:${name}` }))) return;
@@ -141,8 +157,8 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
     <div className="bulk" role="region" aria-label="Selected records">
       {matching ? <b>All {over}{integer(matching.total)} matching records selected</b> : <b>{n} selected:</b>}
       {onAccept && <SaveButton write="bulk:accept" className="btn btn--pri" onClick={onAccept} data-accept-picked><Icon name="check" size={14} />Accept the suggestions</SaveButton>}
-      <SaveButton write="bulk:done" ref={anchors.done} onClick={toggle('done')} aria-expanded={open === 'done'} data-bulk="done"><Icon name="check" size={14} />{matching ? 'Mark all done…' : 'Mark done…'}</SaveButton>
-      <SaveButton write="bulk:dismiss" ref={anchors.dismiss} onClick={toggle('dismiss')} aria-expanded={open === 'dismiss'} data-bulk="dismiss">{matching ? 'Not an issue for all…' : 'Not an issue…'}</SaveButton>
+      {closes('done') && <SaveButton write="bulk:done" ref={anchors.done} onClick={toggle('done')} aria-expanded={open === 'done'} data-bulk="done"><Icon name="check" size={14} />{matching ? 'Mark all done…' : 'Mark done…'}</SaveButton>}
+      {closes('dismissed') && <SaveButton write="bulk:dismiss" ref={anchors.dismiss} onClick={toggle('dismiss')} aria-expanded={open === 'dismiss'} data-bulk="dismiss">{matching ? 'Not an issue for all…' : 'Not an issue…'}</SaveButton>}
       <SaveButton write="bulk:assign" ref={anchors.assign} onClick={toggle('assign')} aria-expanded={open === 'assign'}>Assign to…</SaveButton>
       <SaveButton write="bulk:status" ref={anchors.status} onClick={toggle('status')} aria-expanded={open === 'status'}>Set status…</SaveButton>
       <SaveButton write="bulk:snooze" ref={anchors.snooze} onClick={toggle('snooze')} aria-expanded={open === 'snooze'} data-bulk="snooze">{matching ? 'Snooze all…' : 'Snooze…'}</SaveButton>
@@ -159,7 +175,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
       {matching && <small className="bulk-asof">As of {asOfText(matching.as_of_us)}. A record that changes after that is left as it is.</small>}
       {open === 'done' && (
         <Popover anchor={anchors.done.current} onClose={close} label="Mark the selected records done" width={300}>
-          <form className="bulk-pop" onSubmit={submit('done', { action_status: 'Done' })}>
+          <form className="bulk-pop" onSubmit={submit('done', { action_status: DONE })}>
             {note500}
             <SaveButton write="bulk:done" type="submit" className="btn btn--pri"><Icon name="check" size={14} />Mark {what} done</SaveButton>
           </form>
@@ -167,7 +183,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
       )}
       {open === 'dismiss' && (
         <Popover anchor={anchors.dismiss.current} onClose={close} label="Mark the selected records not an issue" width={300}>
-          <form className="bulk-pop" onSubmit={submit('dismiss', { action_status: 'Dismissed', dismiss_reason: reason.trim() })}>
+          <form className="bulk-pop" onSubmit={submit('dismiss', { action_status: DISMISSED, dismiss_reason: reason.trim() })}>
             <label className="in">
               <span>Why are these not issues? *</span>
               <textarea dir="auto" name="bulk_dismiss_reason" autoFocus rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={why ? true : undefined} />
@@ -190,9 +206,9 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
       )}
       {open === 'status' && (
         <Popover anchor={anchors.status.current} onClose={close} label="Set the status of the selected records" width={300}>
-          <form className="bulk-pop" onSubmit={submit('status', status === 'Dismissed' ? { action_status: status, dismiss_reason: reason.trim() } : { action_status: status })}>
-            <label className="in"><span>Status</span><select name="bulk_status" value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label>
-            {status === 'Dismissed' && (
+          <form className="bulk-pop" onSubmit={(e) => (choice ? submit('status', choiceForm(choices, choice, reason))(e) : e.preventDefault())}>
+            <label className="in"><span>Status</span><ChoiceSelect name="bulk_choice" choices={choices} value={choiceId} status={status} onChange={setChoiceId} /></label>
+            {statusKind(status) === 'dismissed' && (
               <label className="in">
                 <span>Why are these not issues? *</span>
                 <textarea dir="auto" name="bulk_reason" rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={problem ? true : undefined} />
@@ -200,7 +216,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
               </label>
             )}
             {note500}
-            <SaveButton write="bulk:status" type="submit" className="btn btn--pri" disabled={!!problem}>Set status of {what}</SaveButton>
+            <SaveButton write="bulk:status" type="submit" className="btn btn--pri" disabled={!!problem || !choice}>Set status of {what}</SaveButton>
           </form>
         </Popover>
       )}
@@ -219,7 +235,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
 
 const NO_PICKS = new Map();
 
-export function QueueBulk({ pageId, list, asked, person = '', onChanged }) {
+export function QueueBulk({ pageId, list, asked, person = '', onChanged, choices = DEFAULT_CHOICES }) {
   const [on, setOn] = useState(false);
   const { busy } = useWrite();
   const toast = useToast();
@@ -247,16 +263,18 @@ export function QueueBulk({ pageId, list, asked, person = '', onChanged }) {
     );
   }
   return (
-    <BulkBar picked={NO_PICKS} matching={{ total, capped: !!list.total_more, as_of_us: asOf }} total={total} capped={!!list.total_more} allOnPage owners={list.summary?.owners || []}
+    <BulkBar choices={choices} picked={NO_PICKS} matching={{ total, capped: !!list.total_more, as_of_us: asOf }} total={total} capped={!!list.total_more} allOnPage owners={list.summary?.owners || []}
       person={person} tomorrow={nextDay(localDay())} onAct={act} onAll={() => {}} onClear={() => setOn(false)} />
   );
 }
 
 const SIMILAR_WRITE = 'similar';
 
-export function SimilarDialog({ similar, onClose, onApply }) {
+export function SimilarDialog({ similar, onClose, onApply, choices = DEFAULT_CHOICES }) {
   const ref = useDialog(true, onClose);
-  const [status, setStatus] = useState(similar.values?.action_status || 'Done');
+  const [choiceId, setChoiceId] = useState(() => firstChoice(choices, similar.values?.action_status || DONE, similar.values?.[CHOICE_COLUMN])?.id || '');
+  const choice = (choices || []).find((c) => c.id === choiceId) || null;
+  const status = choice?.status || DONE;
   const [reason, setReason] = useState(similar.values?.dismiss_reason || '');
   const [note, setNote] = useState(similar.values?.note || '');
   const n = countOf(similar.count);
@@ -265,7 +283,7 @@ export function SimilarDialog({ similar, onClose, onApply }) {
   const said = byWords(similar.by);
   const apply = async (e) => {
     e.preventDefault();
-    if (await onApply(withNote(status === 'Dismissed' ? { action_status: status, dismiss_reason: reason.trim() } : { action_status: status }, note), SIMILAR_WRITE)) onClose();
+    if (await onApply(withNote(choiceForm(choices, choice, reason), note), SIMILAR_WRITE)) onClose();
   };
   return (
     <dialog ref={ref} className="dialog" aria-label="Apply to similar records" onClick={(e) => { if (e.target === ref.current) onClose(); }}>
@@ -280,8 +298,8 @@ export function SimilarDialog({ similar, onClose, onApply }) {
             <ul>{sample.map((s, i) => <li key={s.record_key ?? i}>{plainText(s.label ?? s.record_key)}</li>)}</ul>
           </div>
         )}
-        <label className="in"><span>Status</span><select name="similar_status" value={status} onChange={(e) => setStatus(e.target.value)}>{STATUSES.map((s) => <option key={s} value={s}>{statusLabel(s)}</option>)}</select></label>
-        {status === 'Dismissed' && (
+        <label className="in"><span>Status</span><ChoiceSelect name="similar_choice" choices={choices} value={choiceId} status={status} onChange={setChoiceId} /></label>
+        {statusKind(status) === 'dismissed' && (
           <label className="in"><span>Why are these not issues? *</span>
             <textarea dir="auto" name="similar_reason" rows={2} maxLength={REASON_CHARS} value={reason} onChange={(e) => setReason(e.target.value)} aria-invalid={problem ? true : undefined} />
             {problem && <PlainNote text={problem} as="small" className="in-err" />}
@@ -290,14 +308,14 @@ export function SimilarDialog({ similar, onClose, onApply }) {
         <NoteField name="similar_note" value={note} onChange={setNote} />
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <SaveButton write={SIMILAR_WRITE} type="submit" className="btn btn--pri" disabled={!!problem || !n || !similar.match}>{`Apply to ${recordsText(n)}`}</SaveButton>
+          <SaveButton write={SIMILAR_WRITE} type="submit" className="btn btn--pri" disabled={!!problem || !choice || !n || !similar.match}>{`Apply to ${recordsText(n)}`}</SaveButton>
         </footer>
       </form>
     </dialog>
   );
 }
 
-export function BatchesDialog({ pageId, onClose, onUndo, labelOf }) {
+export function BatchesDialog({ pageId, onClose, onUndo, labelOf, choices = DEFAULT_CHOICES }) {
   const ref = useDialog(true, onClose);
   const [state, setState] = useState({ busy: true, error: '', list: [] });
   const [undone, setUndone] = useState({});
@@ -327,7 +345,7 @@ export function BatchesDialog({ pageId, onClose, onUndo, labelOf }) {
             <ul className="batches">
               {state.list.map((b) => (
                 <li key={b.batch_id} data-batch={b.batch_id}>
-                  <span>{batchText(b)}</span>
+                  <span>{batchText(b, choices)}</span>
                   {b.undone ? <small className="faint">Undone</small> : undone[b.batch_id] ? <small role="status">{undone[b.batch_id]}</small>
                     : !b.undoes && (b.can_undo
                       ? <SaveButton write={`undo:${b.batch_id}`} onClick={() => undo(b.batch_id)}><Icon name="undo" size={13} />Undo</SaveButton>

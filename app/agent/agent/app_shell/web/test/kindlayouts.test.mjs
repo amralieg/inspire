@@ -22,7 +22,8 @@ before(async () => {
   base = served.base;
   browser = await chromium.launch();
   parts = await bundleEntry(`import * as charts from ${JSON.stringify(join(SRC, 'charts.js'))};\n`
-    + `import * as kinds from ${JSON.stringify(join(SRC, 'KindParts.jsx'))};\nwindow.charts = charts;\nwindow.kinds = kinds;`);
+    + `import * as kinds from ${JSON.stringify(join(SRC, 'KindParts.jsx'))};\nimport * as records from ${JSON.stringify(join(SRC, 'records.js'))};\n`
+    + 'window.charts = charts;\nwindow.kinds = { ...kinds, choiceValues: records.choiceValues };');
 });
 
 after(async () => {
@@ -194,14 +195,14 @@ test('the recommendation desk groups the top offers per entity with reasons, sen
   assert.equal(await first.locator('[data-choice="send"]').textContent(), '★ Send');
   await first.locator('[data-choice="send"]').click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Send: Travel card');
-  assert.deepEqual(acts[0], { page: 'n04_u02', record_keys: ['K1'], seen: { K1: '701' }, values: { action_status: 'Done', note: 'Send' } });
+  assert.deepEqual(acts[0], { page: 'n04_u02', record_keys: ['K1'], seen: { K1: '701' }, values: { action_status: 'Done', action_choice: 'send', note: 'Send' } });
   const third = ana.locator('[data-choice-row="K3"]');
   assert.equal(await third.locator('[data-choice="skip"]').textContent(), '★ Skip');
   await third.locator('[data-choice="skip"]').click();
   assert.equal(acts.length, 1, 'a skip waits for its reason');
   await third.getByRole('button', { name: 'Bad timing' }).click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Skip: Phone upgrade');
-  assert.deepEqual(acts[1], { page: 'n04_u02', record_keys: ['K3'], seen: { K3: '703' }, values: { action_status: 'Dismissed', dismiss_reason: 'Skip: Bad timing' } });
+  assert.deepEqual(acts[1], { page: 'n04_u02', record_keys: ['K3'], seen: { K3: '703' }, values: { action_status: 'Dismissed', action_choice: 'skip', dismiss_reason: 'Skip: Bad timing' } });
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -237,12 +238,12 @@ test('the lift readout marks each effect real, losing or unproven and decides sc
   assert.deepEqual(stars, ['scale', 'keep', 'change', 'stop']);
   await page.locator('[data-choice-row="K4"] [data-choice="stop"]').click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Stop: Flash sale');
-  assert.deepEqual(acts[0].values, { action_status: 'Done', note: 'Stop' });
+  assert.deepEqual(acts[0].values, { action_status: 'Done', action_choice: 'stop', note: 'Stop' });
   await page.locator('[data-take-all]').click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Stop on 1 ★ suggestion');
-  assert.deepEqual(acts.slice(1).map((a) => [a.values.action_status, a.values.note, a.record_keys]), [
-    ['Done', 'Scale: the ★ suggestion', ['K1']], ['Done', 'Keep: the ★ suggestion', ['K2']], ['In progress', 'Change: the ★ suggestion', ['K3']],
-    ['Done', 'Stop: the ★ suggestion', ['K4']]]);
+  assert.deepEqual(acts.slice(1).map((a) => [a.values.action_status, a.values.action_choice, a.values.note, a.record_keys]), [
+    ['Done', 'scale', 'Scale: the ★ suggestion', ['K1']], ['Done', 'keep', 'Keep: the ★ suggestion', ['K2']],
+    ['In progress', 'change', 'Change: the ★ suggestion', ['K3']], ['Done', 'stop', 'Stop: the ★ suggestion', ['K4']]]);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -296,7 +297,7 @@ test('the choice helpers pick the earliest named choice, map a skip to a dismiss
   }, { choices: layoutOf('lift_readout').choices });
   assert.deepEqual(got, {
     scale: 'scale', stop: 'stop', none: null, empty: null,
-    skip: { action_status: 'Dismissed', dismiss_reason: 'Skip: Bad timing' }, send: { action_status: 'Done', note: 'Send' },
+    skip: { action_status: 'Dismissed', action_choice: 'skip', dismiss_reason: 'Skip: Bad timing' }, send: { action_status: 'Done', action_choice: 'send', note: 'Send' },
     treat: { action_status: 'In progress', note: 'Treatment: Win-back offer' },
     treated: { S1: [{ treatment: 'Win back', n: 2 }, { treatment: 'Leave', n: 1 }], 1: [{ treatment: 'Leave', n: 3 }] }, none_treated: {},
     grouped: [['A', [1, 2]], ['B', [2]]], real: true, crosses: false, weak: false, missing: false,

@@ -12,6 +12,7 @@ import { getImpact } from './api.js';
 import { NOT_MEASURED, pageCurrency, pageKind, shortDay, visiblePages } from './hub.js';
 import { closedRows, figuresOf, heldShare, holdoutOffText, holdoutView, impactTiles, promisedView, targetKpiView } from './impact.js';
 import { PlainNote } from './ui.jsx';
+import { statusChoices } from './records.js';
 
 const FIGURES = [['estimated', 'Estimated'], ['reported', 'Reported'], ['measured', 'Measured'], ['wrong', 'Said wrong']];
 
@@ -96,8 +97,8 @@ const CLOSED_COLUMNS = [
   { key: 'closed', label: 'Closed', date: true, className: 'nw', sortValue: (r) => r.amounts.closed },
 ];
 
-function Closed({ entry, currency, kind, pageId }) {
-  const rows = closedRows(entry, currency, kind);
+function Closed({ entry, currency, kind, pageId, choices }) {
+  const rows = closedRows(entry, currency, kind, choices);
   if (!rows.length) return null;
   return <DataTable label="Closed records" tableClass="tbl--closed" columns={CLOSED_COLUMNS} rows={rows} rowKey={(r) => r.key} grid={`impact:${pageId}:closed`}
     askRow={(r) => ({ title: String(r.label || r.key), page: pageId, context: { hint: 'A closed record of this use case.', fields: fieldsOf(r, CLOSED_COLUMNS) } })} />;
@@ -148,7 +149,7 @@ function UseCaseImpact({ app, page, entry, currency, kind, figures, meaning, onO
       <TargetKpi run={run} />
       <Holdout entry={entry} meaning={meaning} />
       <Reasons entry={entry} />
-      <Closed entry={entry} currency={currency} kind={kind} pageId={page.id} />
+      <Closed entry={entry} currency={currency} kind={kind} pageId={page.id} choices={statusChoices(page)} />
     </section>
   );
 }

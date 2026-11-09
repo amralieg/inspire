@@ -5,7 +5,8 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
-import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, actBody, appInfo, holdClock, idle, lister, openApp, serveDist, tracked, until, footerActions } from './harness.mjs';
+import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, OWN_STATUSES, PERSON, ROWS, SUMMARY, TABLE, actBody, appInfo, holdClock, idle, lister, openApp, serveDist, tracked, until, footerActions }
+  from './harness.mjs';
 import { actOutcome, actedText, actionForm, actionProblem, actionValues, changeBadge, explainContext, impactText, leftText, pageText, recordRef, undoText }
   from '../src/records.js';
 import { matching, searchHint } from '../src/filters.js';
@@ -54,7 +55,7 @@ test('the list text, badges and impact line read like a person wrote them', () =
 test('an action sends only what changed, and a dismissal needs a reason of at most 300 characters', () => {
   const current = { action_owner: PERSON, action_status: 'Dismissed', action_due: '2026-11-01', action_note: 'n', dismiss_reason: 'Closed store' };
   const form = actionForm(current, OTHER);
-  assert.deepEqual(form, { owner: PERSON, status: 'Dismissed', due: '2026-11-01', note: 'n', reason: 'Closed store', saved: '', how: '' });
+  assert.deepEqual(form, { owner: PERSON, status: 'Dismissed', choice: 'not-an-issue', due: '2026-11-01', note: 'n', reason: 'Closed store', saved: '', how: '' });
   assert.deepEqual(actionValues(current, form), {});
   assert.deepEqual(actionValues(current, { ...form, status: 'Done' }), { action_status: 'Done' });
   assert.deepEqual(actionValues(current, { ...form, reason: 'Sold' }), { action_status: 'Dismissed', dismiss_reason: 'Sold' });
@@ -198,7 +199,7 @@ test('an empty list and a search with no match say so, with no pager', async () 
 
 test('a list that fails to load says why', async () => {
   const routes = { records: ({ json }) => json(502, { error: 'TABLE_OR_VIEW_NOT_FOUND' }) };
-  const { page, seen, context } = await open(appInfo(), routes);
+  const { page, seen, context } = await open(appInfo(), routes, { ready: '.card--table .tile-err' });
   await page.waitForFunction(() => document.querySelector('.card--table .tile-err')?.textContent === 'The list could not load: only an error code came back, listed under Details');
   assert.equal(await page.locator('.card--table [data-technical-details] pre').textContent(), 'TABLE_OR_VIEW_NOT_FOUND');
   assert.deepEqual(seen.errors.filter((e) => !/502/.test(e)), []);
@@ -367,6 +368,25 @@ test('with decisions on the list shows owners, status, change badges, my actions
   await context.close();
 });
 
+test('a page with its own statuses offers its choices and saves the picked one in action_choice', async () => {
+  const info = appInfo(DECIDE, 1, OWN_STATUSES);
+  assert.deepEqual(info.pages[0].statuses.map((c) => c.id), ['reprice', 'keep', 'drop', 'wrong']);
+  const { calls, routes } = tracked();
+  const { page, context } = await open(info, routes, { clock: new Date('2026-10-27T09:30:00Z'), hash: '#/n01_u05/work', ready: '.cell-t' });
+  await page.locator('.cell-t').first().click();
+  const drawer = page.locator('[data-dock="record"] dialog.drawer');
+  await drawer.locator('.dr-act').waitFor();
+  assert.deepEqual(await drawer.locator('select[name="action_choice"] option').allInnerTexts(), ['New', 'Reprice', 'Keep the price', 'Drop the item', 'Wrong flag']);
+  assert.deepEqual(await drawer.locator('[data-choice]').evaluateAll((b) => b.map((x) => [x.dataset.choice, x.innerText.trim()])),
+    [['keep', 'Keep the price'], ['drop', 'Drop the item'], ['wrong', 'Wrong flag']]);
+  await drawer.locator('select[name="action_choice"]').selectOption('drop');
+  await drawer.getByRole('button', { name: 'Save action' }).click();
+  await until(() => calls.acts.length === 1);
+  assert.deepEqual(calls.acts[0].values, { action_status: 'Done', action_choice: 'drop' });
+  await page.locator('.toast.is-on').waitFor();
+  await context.close();
+});
+
 test('the drawer saves an action with the version it read, and a dismissal needs a reason', async () => {
   const { calls, routes } = tracked();
   const { page, seen, context } = await open(appInfo(DECIDE, 1, TABLE), routes, { clock: new Date('2026-10-27T09:30:00Z') });
@@ -374,9 +394,9 @@ test('the drawer saves an action with the version it read, and a dismissal needs
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
   assert.equal(await drawer.locator('input[name="action_owner"]').inputValue(), PERSON);
-  assert.deepEqual(await drawer.locator('select[name="action_status"] option').allInnerTexts(), ['New', 'In progress', 'Done', 'Not an issue', 'Could not fix']);
+  assert.deepEqual(await drawer.locator('select[name="action_choice"] option').allInnerTexts(), ['New', 'In progress', 'Done', 'Not an issue', 'Could not fix']);
   assert.ok(await drawer.locator(`datalist option[value="${OTHER}"]`).count() === 1, 'owner suggestions come from the current owners');
-  await drawer.locator('select[name="action_status"]').selectOption('Done');
+  await drawer.locator('select[name="action_choice"]').selectOption('Done');
   await drawer.locator('input[name="action_due"]').fill('2026-11-15');
   await drawer.locator('textarea[name="action_note"]').fill('Called the store');
   const loads = calls.history;
@@ -387,7 +407,7 @@ test('the drawer saves an action with the version it read, and a dismissal needs
   await page.locator('.toast.is-on').waitFor();
   assert.match(await page.locator('.toast').innerText(), /Action saved/);
   await until(() => calls.history > loads);
-  await page.waitForFunction(() => document.querySelector('dialog.drawer select[name="action_status"]')?.value === 'New');
+  await page.waitForFunction(() => document.querySelector('dialog.drawer select[name="action_choice"]')?.value === 'new');
   await page.evaluate(() => window.addEventListener('click', () => { window.focusedByClick = document.activeElement?.name ?? null; }, { once: true }));
   await drawer.getByRole('button', { name: 'Not an issue' }).click();
   const reason = drawer.locator('textarea[name="dismiss_reason"]');
@@ -413,7 +433,7 @@ test('a conflicting action says who changed the record and reloads it on request
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
-  await drawer.locator('select[name="action_status"]').selectOption('In progress');
+  await drawer.locator('select[name="action_choice"]').selectOption('In progress');
   await drawer.getByRole('button', { name: 'Save action' }).click();
   await drawer.locator('.hint--box').waitFor();
   assert.equal(await drawer.locator('.hint--box span').innerText(), message);
@@ -433,7 +453,7 @@ test('a change the read-only demo refuses reads as a calm note in plain words, a
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
-  await drawer.locator('select[name="action_status"]').selectOption('In progress');
+  await drawer.locator('select[name="action_choice"]').selectOption('In progress');
   await drawer.getByRole('button', { name: 'Save action' }).click();
   const calm = drawer.locator('[data-calm]');
   await calm.waitFor();
@@ -451,7 +471,7 @@ test('a change the read-only demo refuses reads as a calm note in plain words, a
   reply = [500, { error: 'the warehouse stopped' }];
   await page.locator('.cell-t').first().click();
   await drawer.locator('.dr-act').waitFor();
-  await drawer.locator('select[name="action_status"]').selectOption('In progress');
+  await drawer.locator('select[name="action_choice"]').selectOption('In progress');
   await drawer.getByRole('button', { name: 'Save action' }).click();
   await drawer.locator('.hint--box').waitFor();
   assert.equal(await drawer.locator('.hint--box span').innerText(), 'the warehouse stopped');
@@ -472,7 +492,7 @@ test('an action refused for any other reason says why and offers no reload, sinc
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
-  await drawer.locator('select[name="action_status"]').selectOption('In progress');
+  await drawer.locator('select[name="action_choice"]').selectOption('In progress');
   await drawer.getByRole('button', { name: 'Save action' }).click();
   await drawer.locator('.hint--box').waitFor();
   assert.equal(await drawer.locator('.hint--box span').innerText(), message);
@@ -510,7 +530,7 @@ test('row checkboxes feed one bulk call to assign or set status, and conflicts a
   await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
   assert.equal(await page.locator('.bulk b').innerText(), '25 selected:');
   await page.getByRole('button', { name: 'Set status…' }).click();
-  await page.locator('select[name="bulk_status"]').selectOption('Dismissed');
+  await page.locator('select[name="bulk_choice"]').selectOption('Not an issue');
   const apply = page.getByRole('button', { name: 'Set status of 25 records' });
   assert.equal(await apply.isDisabled(), true);
   await page.locator('textarea[name="bulk_reason"]').fill('These items left the range');

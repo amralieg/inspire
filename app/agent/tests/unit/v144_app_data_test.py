@@ -22,7 +22,7 @@ from v142_edits_test import COLUMNS, edit_page
 PERSON = "@".join(["pat.lee", "example.com"])
 OTHER = "@".join(["sam.roe", "example.com"])
 EDITOR = {"x-forwarded-email": PERSON}
-CONTRACT = {"action_owner": "STRING", "action_status": "STRING", "action_due": "DATE", "action_note": "STRING", "dismiss_reason": "STRING",
+CONTRACT = {"action_owner": "STRING", "action_status": "STRING", "action_choice": "STRING", "action_due": "DATE", "action_note": "STRING", "dismiss_reason": "STRING",
             "action_outcome": "STRING", "snooze_until": "DATE", "action_batch": "STRING", "action_batch_note": "STRING",
             "action_batch_values": "STRING", "joined_at": "TIMESTAMP"}
 ACTION_COLUMNS = [{"name": n, "type": t, "type_text": t} for n, t in CONTRACT.items()]
@@ -221,7 +221,7 @@ def test_the_table_join_decorates_only_the_page_of_rows(tmp_path):
     s, ws, _made = shell(tmp_path)
     assert records(s)[0] == 200
     (sql, _params), = ws.queries(" OFFSET ")
-    assert ("k AS (SELECT s.*, c.`_inspire_key`, c.`_inspire_version`, c.`_inspire_owner`, c.`_inspire_status`, c.`_inspire_missing` FROM s "
+    assert ("k AS (SELECT s.*, c.`_inspire_key`, c.`_inspire_version`, c.`_inspire_owner`, c.`_inspire_status`, c.`_inspire_choice`, c.`_inspire_missing` FROM s "
             "LEFT JOIN c ON c.`_inspire_key` = s.`record_key`)") in sql
     assert sql.count("t.`record_key` IN (SELECT `record_key` FROM s)") == 3 and "FROM k)" not in sql
     assert sql.count(" FROM k") == 1, "the joined page is read once, so the warehouse does not scan the list and the table again per change"
@@ -407,7 +407,7 @@ def test_check_finds_nothing_to_flag_on_decisions_for_a_result_table_the_app_can
 
 def test_the_action_columns_match_the_contract_with_the_runs():
     assert shell_sql.ACTION_TYPES == CONTRACT
-    assert shell_sql.ACTION_EDITABLE == ("action_owner", "action_status", "action_due", "action_note", "dismiss_reason", "snooze_until",
+    assert shell_sql.ACTION_EDITABLE == ("action_owner", "action_status", "action_choice", "action_due", "action_note", "dismiss_reason", "snooze_until",
                                          "realized_value", "realized_note")
     assert shell_sql.ACTION_STATUSES == ("New", "In progress", "Done", "Dismissed", "Could not fix")
     assert "action" in shell_sql.CHANGE_SOURCES
@@ -578,7 +578,7 @@ def test_the_list_carries_owner_status_and_version_and_my_actions_filters_in_sql
     assert status == 200
     (sql, params), (total, total_params) = ws.queries(" OFFSET ")[-1], ws.queries("AS total FROM (SELECT 1 FROM f LIMIT")[-1]
     for text in (sql, total):
-        assert ("f AS (SELECT d.*, c.`_inspire_key`, c.`_inspire_version`, c.`_inspire_owner`, c.`_inspire_status`, c.`_inspire_missing` FROM d "
+        assert ("f AS (SELECT d.*, c.`_inspire_key`, c.`_inspire_version`, c.`_inspire_owner`, c.`_inspire_status`, c.`_inspire_choice`, c.`_inspire_missing` FROM d "
                 "LEFT JOIN c") in text
         assert "lower(c.`_inspire_owner`) = lower(:p0)" in text and PERSON not in text
     assert params == total_params == [{"name": "p0", "value": PERSON, "type": "STRING"}]

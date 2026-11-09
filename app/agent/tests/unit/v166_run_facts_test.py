@@ -197,7 +197,8 @@ def _closing_by_joins(table, label):
              "hf": (f"SELECT hx.`record_key` AS `_inspire_fk`, MIN(hx.`valid_from`) AS `_inspire_ok` FROM hx JOIN hk ON {first} WHERE "
                     "hx.`change_source` = 'run' AND hx.`action_outcome` = 'Resolved' AND hx.`valid_from` > hk.`_inspire_closed` "
                     "GROUP BY hx.`record_key`"),
-             "ho": ("SELECT l.`record_key` AS `_inspire_k`, l.`_inspire_label`, l.`action_status` AS `_inspire_status`, k.`_inspire_closed`, "
+             "ho": ("SELECT l.`record_key` AS `_inspire_k`, l.`_inspire_label`, l.`action_status` AS `_inspire_status`, l.`_inspire_choice`, "
+                    "k.`_inspire_closed`, "
                     "k.`_inspire_closer`, k.`_inspire_at_close`, l.`_inspire_realized`, NULLIF(TRIM(l.`_inspire_note`), '') AS `_inspire_note`, "
                     "NULLIF(TRIM(l.`_inspire_reason`), '') AS `_inspire_reason`, CASE WHEN NOT l.`is_current` THEN 'left' WHEN "
                     "l.`_inspire_missing` IS NOT NULL THEN 'missing' WHEN r.`_inspire_found` = 'Resolved' THEN 'resolved' WHEN "
@@ -287,8 +288,8 @@ def test_the_run_keeps_the_latest_close_of_each_closed_record_as_the_key_read_fi
     assert {r["_inspire_k"] for r in kept} - closed, "a record opened again after its close keeps it too, and the list checks its status"
 
 
-def _closing(engine, ctes, source="", table=TABLE, closed=""):
-    closing = shell_facts.closing_ctes(shell_facts.table_name(table), NAMES, "entity_label", SCOPE, HISTORY, source=source, closed=closed)
+def _closing(engine, ctes, source="", table=TABLE, closed="", names=NAMES, history=HISTORY):
+    closing = shell_facts.closing_ctes(shell_facts.table_name(table), names, "entity_label", SCOPE, history, source=source, closed=closed)
     order = [*shell_facts.CHANGE_ORDER, "av", *shell_facts.CLOSING_ORDER]
     merged = dict(ctes, **closing)
     rows = engine["rows"](f"WITH {', '.join(f'{n} AS ({merged[n]})' for n in order if n in merged)} SELECT * FROM hm")
@@ -320,6 +321,34 @@ def test_the_records_people_acted_on_kept_by_the_run_give_the_same_closing_as_th
     owners = engine["rows"](f"{shell_sql._with(ctes, (*shell_facts.CHANGE_ORDER, 'av'))} {shell_facts.owners_sql('av')}")
     assert owners == engine["rows"](shell_facts.owners_sql(quoted)) == [{"v": "pat@example.com"}, {"v": "sam@example.com"}]
     engine["write"]("facts_out", COLUMNS, SNAPSHOT)
+
+
+def test_the_stored_closing_keeps_the_choice_people_picked_and_a_rebuild_keeps_every_close(engine):
+    quoted, columns = shell_facts.table_name(TABLE), COLUMNS + [("action_choice", "STRING", "text")]
+    names, history = NAMES | {"action_choice"}, dict(HISTORY, columns=[n for n, _t, _pg in columns])
+    chosen = [dict(r, action_choice="fixed-price" if r["record_key"] == "c" and r["action_status"] else None) for r in SNAPSHOT]
+    try:
+        engine["write"]("facts_out", columns, chosen)
+        acted = engine["rows"](shell_facts.acted_versions_sql(quoted, names, "entity_label", SCOPE, history))
+        kept = shell_facts.acted_columns(names, "entity_label")
+        assert "action_choice" in kept, "the run keeps the choice with the versions people acted on"
+        engine["write"]("facts_out_acted", [c for c in columns if c[0] in kept], acted)
+        closed = engine["rows"](shell_facts.closed_rows_sql(shell_facts.table_name(ACTED), names, "entity_label"))
+        assert [(r["_inspire_k"], r["_inspire_status"], r["_inspire_choice"]) for r in closed] == [("c", "Done", "fixed-price")]
+        engine["write"]("facts_out_closed", HM_COLUMNS, closed)
+        ctes = shell_facts.change_ctes(quoted, STAMP_US, [], [n for n, _t, _pg in columns], SCOPE)
+        ctes["av"] = shell_facts.acted_source(shell_facts.table_name(ACTED), kept)
+        live = _closing(engine, {}, names=names, history=history)
+        assert _closing(engine, ctes, "av", closed=shell_facts.table_name(CLOSED), names=names, history=history) == live
+        assert [r["_inspire_choice"] for r in live] == ["fixed-price"]
+        rebuilt = engine["rows"](shell_facts.closed_rows_sql(shell_facts.table_name(ACTED), names, "entity_label"))
+        assert rebuilt == closed, "rebuilding the counts from the kept versions keeps every close and its choice"
+        engine["write"]("facts_out", COLUMNS, SNAPSHOT)
+        old = engine["rows"](shell_facts.closed_rows_sql(quoted, NAMES, "entity_label"))
+        assert [(r["_inspire_k"], r["_inspire_choice"]) for r in old] == [("c", None)], \
+            "a table from before the choice column closes the same records with no choice, so the label falls back to the status"
+    finally:
+        engine["write"]("facts_out", COLUMNS, SNAPSHOT)
 
 
 def _reopened():
