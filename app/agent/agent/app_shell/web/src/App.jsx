@@ -4,7 +4,7 @@ import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js'
 import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
-import { NoAccessScope, PlainNote, ToastProvider } from './ui.jsx';
+import { NoAccessScope, PlainNote, RetryProvider, ToastProvider } from './ui.jsx';
 import Page from './Page.jsx';
 import { tabLabel } from './Layouts.jsx';
 import Home, { hubToday } from './Home.jsx';
@@ -48,12 +48,12 @@ function useFavicon() {
   }, []);
 }
 
-function Fatal({ error }) {
+function Fatal({ error, onRetry }) {
   return (
     <div className="fatal" role="alert">
       <span className="mark-tile"><Icon name="info" size={18} /></span>
       <h1>{error.status === 401 ? 'Sign in to see this App' : 'This App could not start'}</h1>
-      <PlainNote text={error.message} />
+      <PlainNote text={error.message} onRetry={onRetry} />
     </div>
   );
 }
@@ -82,12 +82,12 @@ function useHub(pages, asked) {
     getOverview(JSON.parse(asked)).then((data) => { if (mine === seq.current) { setHub(data); setError(''); } })
       .catch((e) => { if (mine === seq.current) setError(e.message); });
   }, [asked]);
+  const summarize = useCallback((id) => getSummary(id).then((s) => setSummaries((x) => ({ ...x, [id]: s })))
+    .catch((e) => setSummaries((x) => ({ ...x, [id]: { run: null, categories: {}, error: e.message } }))), []);
   useEffect(() => {
-    pages.filter((p) => p.history).forEach((p) => {
-      getSummary(p.id).then((s) => setSummaries((x) => ({ ...x, [p.id]: s }))).catch((e) => setSummaries((x) => ({ ...x, [p.id]: { run: null, categories: {}, error: e.message } })));
-    });
-  }, [pages]);
-  return { hub, error, summaries, load };
+    pages.filter((p) => p.history).forEach((p) => summarize(p.id));
+  }, [pages, summarize]);
+  return { hub, error, summaries, load, summarize };
 }
 
 function Shell({ app }) {
@@ -142,7 +142,7 @@ function Shell({ app }) {
   const page = screen === 'page' ? routed || pages[0] : null;
   const genie = useGenie(app, page ? page.id : screen, () => setGenieOpen(true), agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
-  const { hub, error: hubError, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
+  const { hub, error: hubError, summaries, load: loadHub, summarize } = useHub(pages, JSON.stringify(windowParams(prefs)));
   const shown = visiblePages(pages, hub);
 
   useFavicon();
@@ -179,6 +179,7 @@ function Shell({ app }) {
     getDefaults(id).then(start).catch(() => {});
     getFilters(id).then(settle).catch((error) => settle({ filters: [], error: error.message }));
   }, []);
+  const retryMeta = useCallback((id) => { requested.current.delete(id); loadMeta(id); }, [loadMeta]);
   useEffect(() => { if (page) loadMeta(page.id); }, [page, loadMeta]);
 
   const leave = () => { setNavOpen(false); document.querySelector('.main')?.focus(); };
@@ -260,6 +261,7 @@ function Shell({ app }) {
           <TopProvider slot={slot} fit={fit} pageMore={pageMore}>
           <main className="main" tabIndex={-1}>
             <NoAccessScope key={page ? `page:${page.id}` : screen} app={app}>
+            <RetryProvider value={loadHub}>
             {screen === 'overview' && <GenieScope.Provider value={HUB_SCOPES.overview}><Home app={app} hub={hub} hubError={hubError} summaries={summaries} view={view} onView={setView} onOpen={go} onRecord={openRecord}
               onChanges={(id) => { window.location.hash = `#/${encodeURIComponent(id)}?changed=1`; leave(); }} onMyWork={() => go(MY_WORK_ROUTE)} /></GenieScope.Provider>}
             {screen === 'mywork' && <GenieScope.Provider value={HUB_SCOPES.mywork}><MyWorkPage app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} /></GenieScope.Provider>}
@@ -271,8 +273,10 @@ function Shell({ app }) {
             {screen === 'admin' && <Admin />}
             {page && (
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK} onLook={setPageLook(page.id)} themeKey={themeKey}
-                onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]} summary={summaries[page.id]} view={view} onView={setView} genie={genie} />
+                onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]} summary={summaries[page.id]} view={view} onView={setView} genie={genie}
+                onRetryMeta={() => retryMeta(page.id)} onRetrySummary={() => summarize(page.id)} />
             )}
+            </RetryProvider>
             </NoAccessScope>
           </main>
           </TopProvider>
@@ -287,11 +291,12 @@ function Shell({ app }) {
 export default function App() {
   const [app, setApp] = useState(null);
   const [error, setError] = useState(null);
-  useEffect(() => { getApp().then(setApp).catch(setError); }, []);
+  const boot = useCallback(() => getApp().then((got) => { setError(null); setApp(got); }).catch(setError), []);
+  useEffect(() => { boot(); }, [boot]);
   useLayoutEffect(() => { if (!app) applyTheme('default', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', 'a'); }, [app]);
   return (
     <ToastProvider>
-      {error ? <Fatal error={error} /> : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} /></MyViewProvider>
+      {error ? <Fatal error={error} onRetry={boot} /> : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} /></MyViewProvider>
         : <div className="boot" role="status"><span className="ring" /><span>Opening the App…</span></div>}
     </ToastProvider>
   );

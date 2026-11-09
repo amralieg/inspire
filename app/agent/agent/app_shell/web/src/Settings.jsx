@@ -1,8 +1,8 @@
 import { useEffect, useRef, useState } from 'react';
-import { failureOf, getSettings, previewSetting, runSettingsNow, saveSetting, toneOf } from './api.js';
+import { failureOf, getSettings, previewSetting, runSettingsNow, saveSetting } from './api.js';
 import { dayLabel } from './format.js';
 import { Icon } from './icons.jsx';
-import { Failure, useToast, PlainNote } from './ui.jsx';
+import { Failure, useToast, PlainNote, toastFailure, useRetry } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { groupsOf, historyLines, inputText, ownerSettings, savedText, settingProblem, storedText, valueText } from './settings.js';
 import { MyViewGroup } from './MyView.jsx';
@@ -12,12 +12,13 @@ const PREVIEW_MS = 400;
 
 export function useSettings(pageId, nonce = 0) {
   const [data, setData] = useState(null);
+  const [error, setError] = useState('');
   useEffect(() => {
     let live = true;
-    getSettings(pageId).then((d) => { if (live) setData(d); }).catch(() => { if (live) setData(null); });
+    getSettings(pageId).then((d) => { if (live) { setData(d); setError(''); } }).catch((e) => { if (live) { setData(null); setError(e.message); } });
     return () => { live = false; };
   }, [pageId, nonce]);
-  return [data, setData];
+  return [data, setData, error];
 }
 
 const RUN_NOW = 'run-now';
@@ -108,9 +109,10 @@ export function SettingsButton({ open, onOpen, owned }) {
   );
 }
 
-export default function SettingsPanel({ pageId, data, onData, onChanged, onRunStarted, onClose }) {
+export default function SettingsPanel({ pageId, data, error = '', onData, onChanged, onRunStarted, onClose }) {
   const [editing, setEditing] = useState('');
   const toast = useToast();
+  const retry = useRetry();
   const owned = ownerSettings(data);
   const saved = (next, value) => {
     const setting = data.settings.find((s) => s.name === editing);
@@ -126,7 +128,7 @@ export default function SettingsPanel({ pageId, data, onData, onChanged, onRunSt
         toast(`The run is ${started.state || 'starting'}; the page shows its progress at the top.`);
         onRunStarted?.();
       } catch (err) {
-        toast(err.message, toneOf(err));
+        toastFailure(toast, err, run);
       }
     });
   };
@@ -140,6 +142,7 @@ export default function SettingsPanel({ pageId, data, onData, onChanged, onRunSt
         <button type="button" className="btn" onClick={onClose} aria-label="Close the settings"><Icon name="x" size={14} /></button>
       </div>
       <MyViewGroup />
+      {error && <PlainNote text={error} prefix="The settings of this use case could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
       {owned && <p className="why">A saved value applies at the next run of this use case. Every change keeps its note and who made it.</p>}
       {owned && groupsOf(data.settings).map(([group, title, list]) => (
         <div key={group} className="tbl-wrap" data-group={group}>

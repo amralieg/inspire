@@ -482,7 +482,7 @@ export function BuildControls({
           </button>
         )}
       />
-      {liveError && <PlainMessage text={`Inspire cannot read the live status: ${liveError}`} className="px-4 pt-3 text-[12px] text-error-fg" />}
+      {liveError && <PlainMessage text={`Inspire cannot read the live status: ${liveError}`} className="px-4 pt-3 text-[12px] text-error-fg" data-live-error="" onRetry={onRefresh} copy />}
       {live && !strips.length && <p className="px-4 py-3 text-[12px] text-text-secondary">This MVP has no job yet.</p>}
       {strips.length > 0 && (
         <ul className="divide-y divide-border border-b border-border">

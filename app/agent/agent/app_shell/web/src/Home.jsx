@@ -22,7 +22,7 @@ import {
   measured, moneyText, myWork, myWorkText, nothingReason, nothingText, ownerName, pageCurrency, pageKind, plural, reliableText, savedTile, scopeNoteText, scopedPages, tickOf, totals,
   useCaseState, viewIsDefault, viewRows, viewWords, visiblePages, weekBars, windowNoteText,
 } from './hub.js';
-import { PlainNote } from './ui.jsx';
+import { PlainNote, useRetry } from './ui.jsx';
 
 export const REVIEW_LABEL = 'Open in Inspire Review';
 
@@ -223,6 +223,7 @@ export function YourWork({ items, user, today, loading, failed, owners, partial,
 
 export default function Home({ app, hub, hubError, summaries, view, onView, onOpen, onRecord, onChanges, onMyWork }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const retry = useRetry();
   const pages = visiblePages(app.pages, hub);
   const entries = pages.map((p) => hub?.pages?.[p.id]).filter(Boolean);
   const pairs = pages.filter((p) => hub?.pages?.[p.id]).map((p) => [p.id, hub.pages[p.id]]);
@@ -255,8 +256,8 @@ export default function Home({ app, hub, hubError, summaries, view, onView, onOp
       </div>
       {settingsOpen && <SettingsPanel pageId={null} data={null} onClose={() => setSettingsOpen(false)} />}
       <RunningNow pages={app.pages} hub={hub} onSeeChanged={onChanges} />
-      {hubError && <PlainNote text={hubError} prefix="The Overview could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
-      {problems.map(([title, message]) => <p key={title} className="tile-err" role="alert"><Icon name="info" size={14} />{title} could not load: {message}</p>)}
+      {hubError && <PlainNote text={hubError} prefix="The Overview could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
+      {problems.map(([title, message]) => <PlainNote key={title} text={message} prefix={`${title} could not load: `} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />)}
       <Tiles tiles={tiles} loading={loading} />
       <ScopeNote pages={pages} summaries={summaries} />
       <YourWork {...yourWorkProps(app, hub, hubError, summaries)} onRecord={onRecord} onMore={onMyWork} />

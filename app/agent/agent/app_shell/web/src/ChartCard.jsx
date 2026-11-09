@@ -4,7 +4,7 @@ import { HORIZONS, chartIsEmpty, chartOption, clickHint, clickPart, clickPick } 
 import { countOf, largestFirst, numberOf } from './format.js';
 import { chartPalette, hueVars, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
-import { Menu, Skeleton, SoWhat, useToast, PlainNote } from './ui.jsx';
+import { Menu, Skeleton, SoWhat, useToast, PlainNote, useRetry } from './ui.jsx';
 import { saveBlob, saveDataUrl } from './api.js';
 import { barsContext, chartContext, chartItems, chartKind } from './explain.js';
 import { ExplainButton } from './Genie.jsx';
@@ -99,6 +99,7 @@ export function BarsCard({ id, title, hint, action, bars, vertical = false, hue 
 }
 
 export default function ChartCard({ chart, wide, result, error, loading, themeKey, app, pageId, onPick, onExplain, genieBusy }) {
+  const retry = useRetry();
   const fold = useFold(`chart:${chart.id}`);
   const [horizon, setHorizon] = useState(0);
   const shown = chart.type === 'band' && horizon ? { ...chart, horizon } : chart;
@@ -175,7 +176,7 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
       {!fold.folded && (
         <div className="chart" role="img" aria-label={chart.title}>
           {loading && <div className="chart-skel"><Skeleton height="100%" /></div>}
-          {error && <PlainNote text={error} prefix="This chart could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
+          {error && <PlainNote text={error} prefix="This chart could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={retry} />}
           {empty && <p className="empty">No data for these filters.</p>}
           {option && <div ref={el} style={{ position: 'absolute', inset: 0 }} />}
         </div>

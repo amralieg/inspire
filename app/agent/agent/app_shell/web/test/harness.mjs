@@ -422,3 +422,10 @@ export async function footerActions(scope) {
   if (await more.count() && (await more.getAttribute('aria-expanded')) === 'false') await more.click();
   return (await scope.locator('.panel-f > button:not([data-act=more])').allInnerTexts()).sort();
 }
+
+export const saidAll = (locator) => locator.evaluateAll((els) => els.map((el) => {
+  const copy = el.cloneNode(true);
+  copy.querySelectorAll('[data-choices]').forEach((row) => row.remove());
+  return copy.textContent.replace(/\s+/g, ' ').trim();
+}));
+export const said = async (locator) => (await saidAll(locator.first()))[0];

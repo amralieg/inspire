@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
-import { appInfo, chartsDrawn, openApp, pageData, serveDist, until } from './harness.mjs';
+import { appInfo, chartsDrawn, openApp, pageData, said, serveDist, until } from './harness.mjs';
 
 let served;
 let base;
@@ -227,7 +227,7 @@ test('a phone screen has no sideways scroll and stacks the charts', async () => 
 test('a failed tile says why while the rest of the page renders', async () => {
   const { page, seen, context } = await open(appInfo(), { width: 1280, errors: { 'chart:pareto': 'TABLE_OR_VIEW_NOT_FOUND' } });
   await page.waitForSelector('.tile-err');
-  assert.equal(await page.locator('[data-card="pareto"] .tile-err').innerText(), 'This chart could not load: a table it needs does not exist, so check that it was not renamed or dropped, or pick another one.');
+  assert.equal(await said(page.locator('[data-card="pareto"] .tile-err')), 'This chart could not load: a table it needs does not exist, so check that it was not renamed or dropped, or pick another one.');
   assert.equal(await page.locator('[data-card="pareto"] [data-technical-details] pre').textContent(), 'TABLE_OR_VIEW_NOT_FOUND');
   await page.waitForFunction(chartsDrawn, 3);
   assert.deepEqual(seen.errors, []);

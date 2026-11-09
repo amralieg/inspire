@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
-import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, actBody, appInfo, holdClock, idle, lister, openApp, serveDist, tracked, until, footerActions } from './harness.mjs';
+import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, PERSON, ROWS, SUMMARY, TABLE, actBody, appInfo, holdClock, idle, lister, openApp, serveDist, tracked, until, footerActions, said } from './harness.mjs';
 import { actOutcome, actedText, actionForm, actionProblem, actionValues, changeBadge, explainContext, impactText, leftText, pageText, recordRef, undoText }
   from '../src/records.js';
 import { matching, searchHint } from '../src/filters.js';
@@ -199,7 +199,8 @@ test('an empty list and a search with no match say so, with no pager', async () 
 test('a list that fails to load says why', async () => {
   const routes = { records: ({ json }) => json(502, { error: 'TABLE_OR_VIEW_NOT_FOUND' }) };
   const { page, seen, context } = await open(appInfo(), routes);
-  await page.waitForFunction(() => document.querySelector('.card--table .tile-err')?.textContent === 'The list could not load: a table it needs does not exist, so check that it was not renamed or dropped, or pick another one.');
+  await page.locator('.card--table .tile-err').waitFor();
+  assert.equal(await said(page.locator('.card--table .tile-err')), 'The list could not load: a table it needs does not exist, so check that it was not renamed or dropped, or pick another one.');
   assert.equal(await page.locator('.card--table [data-technical-details] pre').textContent(), 'TABLE_OR_VIEW_NOT_FOUND');
   assert.deepEqual(seen.errors.filter((e) => !/502/.test(e)), []);
   await context.close();

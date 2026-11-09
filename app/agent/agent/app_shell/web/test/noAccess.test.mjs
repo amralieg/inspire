@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, openApp, serveDist, until } from './harness.mjs';
+import { appInfo, openApp, said, serveDist, until } from './harness.mjs';
 
 const UNREAD = { 'main.pricing.items': ['GRANT SELECT ON TABLE `main`.`pricing`.`items` TO `sp-1`'] };
 const OWNERS = { 'main.pricing.items': 'data-eng' };
@@ -71,7 +71,7 @@ test('an error that is not about access keeps its own words and raises no banner
   const { page, context } = await openApp(browser, served.base, appInfo(), { errors: { 'chart:pareto': 'the warehouse is stopped' } });
   try {
     await page.locator('[data-card="pareto"] .tile-err').waitFor();
-    assert.equal(await page.locator('[data-card="pareto"] .tile-err').innerText(), 'This chart could not load: the warehouse is stopped');
+    assert.equal(await said(page.locator('[data-card="pareto"] .tile-err')), 'This chart could not load: the SQL warehouse is stopped, so start it on the SQL Warehouses page or ask its owner to, then try again.');
     assert.equal(await page.locator('[data-no-access-banner]').count(), 0);
   } finally {
     await context.close();

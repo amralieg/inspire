@@ -25,7 +25,13 @@ import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyC
 import { formatDuration } from '../lib/formatWhen';
 import { counted } from '../lib/plural';
 import { aiSeesAggregates, discoveryTypeOf } from '../lib/discoveryType';
-import { mergeSteps, pollFailure, quietLine, runElapsedMs, runEndedBadly, runFailureText, runStopped, runTitle, viewerLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
+import {
+  mergeSteps, monitorFailureChoices, monitorSendText, pollFailure, quietLine, runElapsedMs, runEndedBadly, runFailureText, runStopped, runTitle, viewerLine,
+  sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory,
+} from '../lib/monitorState';
+import ChoiceList from '../components/ChoiceList';
+import { copyText } from '../lib/clipboard';
+import { COPIED_SEND_TEXT } from '../lib/plainText';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
 import RunLogPanel from '../components/RunLogPanel';
@@ -59,6 +65,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   // Run-level state
   const [runInfo, setRunInfo] = useState(null);
   const [runReadError, setRunReadError] = useState('');
+  const [sent, setSent] = useState('');
   const [runPhase, setRunPhase] = useState(PHASE_PENDING);
 
   // Session/step state
@@ -242,6 +249,16 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   const platformMessage = String(runInfo?.state_message || '').trim();
   const platformDetail = isFailed && platformMessage && platformMessage !== String(statusDetail || '').trim() && !statusDetails.includes(platformMessage) ? platformMessage : '';
   const elapsedMs = runElapsedMs(runInfo, now);
+  const pickFailure = (choice) => {
+    setSent('');
+    if (choice.id === 'read') {
+      setRunReadError('');
+      setPolling(true);
+      return;
+    }
+    const text = monitorSendText({ label: statusLabel, detail: statusDetail, details: [...statusDetails, platformDetail], runId, sessionId: session?.session_id || sessionId, runUrl: runInfo?.run_page_url });
+    copyText(text).then(() => setSent(COPIED_SEND_TEXT), () => setSent(text));
+  };
   const elapsed = elapsedMs ? formatDuration(elapsedMs) : null;
 
   // Auto-show inline results when pipeline completes
@@ -903,16 +920,10 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                     : 'Open the run in Databricks to see the full error, fix what it names, then run again.'}
               </p>
               {platformDetail && <TechnicalDetails items={[platformDetail]} className="mt-2" />}
-              {runInfo?.run_page_url && (
-                <a
-                  href={runInfo.run_page_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-db-red-fg mt-3 hover:underline font-medium"
-                >
-                  View full error in Databricks <ExternalLink size={12} />
-                </a>
-              )}
+              <div className="mt-3 text-xs" data-testid="monitor-failure-choices">
+                <ChoiceList choices={monitorFailureChoices({ cannotRead, runUrl: runInfo?.run_page_url || '' })} mark="data-failure-choice" onPick={pickFailure} />
+                {sent && <p role="status" className="mt-2 text-text-secondary select-all">{sent}</p>}
+              </div>
             </div>
           </div>
         </div>

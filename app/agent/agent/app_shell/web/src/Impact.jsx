@@ -11,7 +11,7 @@ import { AskGenie } from './AskGenie.jsx';
 import { getImpact } from './api.js';
 import { NOT_MEASURED, pageCurrency, pageKind, shortDay, visiblePages } from './hub.js';
 import { closedRows, figuresOf, heldShare, holdoutOffText, holdoutView, impactTiles, promisedView, targetKpiView } from './impact.js';
-import { PlainNote } from './ui.jsx';
+import { PlainNote, useRetry } from './ui.jsx';
 
 const FIGURES = [['estimated', 'Estimated'], ['reported', 'Reported'], ['measured', 'Measured'], ['wrong', 'Said wrong']];
 
@@ -155,6 +155,7 @@ function UseCaseImpact({ app, page, entry, currency, kind, figures, meaning, onO
 
 export default function Impact({ app, hub, hubError, summaries, onOpen, onExplain, genieBusy }) {
   const explain = hubExplain(app, onExplain, 'impact');
+  const retry = useRetry();
   const impacts = useImpacts(app.pages);
   const pages = visiblePages(app.pages, hub).filter((p) => impacts[p.id]?.visible !== false);
   const rows = pages.map((page) => {
@@ -172,7 +173,7 @@ export default function Impact({ app, hub, hubError, summaries, onOpen, onExplai
   return (
     <div className="page hub imp-page">
       <div className="pg-h"><div><h1>Impact</h1><p>What the use cases delivered. Estimated, reported and measured amounts stay apart and are never added together.</p></div></div>
-      {hubError && <PlainNote text={hubError} prefix="The weekly impact could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+      {hubError && <PlainNote text={hubError} prefix="The weekly impact could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
       <Tiles tiles={impactTiles(rows)} loading={loading} label="Impact" />
       <ScopeNote pages={pages} summaries={summaries} />
       <section className="charts">

@@ -13,8 +13,8 @@ import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, format
 
 export const recordName = (row, meta) => entityName(row, meta?.label);
 import { hueVars, reducedMotion } from './theme.js';
-import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast, PlainNote } from './ui.jsx';
-import { failureOf, getRecords, toneOf } from './api.js';
+import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast, PlainNote, toastFailure } from './ui.jsx';
+import { failureOf, getRecords } from './api.js';
 import { HistoryList, useHistory } from './History.jsx';
 import { SaveButton, savingLabel, useWrite } from './saving.jsx';
 import RecordForm, { DeleteDialog } from './RecordForm.jsx';
@@ -423,7 +423,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               <section className="sec dr-hist" aria-label="History">
                 <h3><Icon name="history" size={13} />History</h3>
                 {log.loading && !log.data && <div style={{ display: 'grid', gap: 8 }}><Skeleton height={18} /><Skeleton height={18} width="70%" /></div>}
-                {log.error && <PlainNote text={log.error} prefix="The history could not load: " icon={<Icon name="info" size={14} />} className="tile-err tile-err--flat" />}
+                {log.error && <PlainNote text={log.error} prefix="The history could not load: " icon={<Icon name="info" size={14} />} className="tile-err tile-err--flat" onRetry={log.reload} />}
                 {log.data && <HistoryList data={log.data} meta={meta} unit={unit} kind={kind} />}
                 {log.data?.truncated && <p className="more">Showing the latest {integer(log.data.versions.length)} versions.</p>}
               </section>
@@ -506,7 +506,7 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
       {acts.similar && (
         <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar}
-          onApply={(values, key) => acts.act({ match: acts.similar.match }, values, { key }).catch((err) => { toast(actError(err), toneOf(err)); return null; })} />
+          onApply={function apply(values, key) { return acts.act({ match: acts.similar.match }, values, { key }).catch((err) => { toastFailure(toast, err, () => apply(values, key), actError(err)); return null; }); }} />
       )}
     </>
   );
@@ -669,7 +669,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       if (out) clearPicks();
       return out;
     } catch (err) {
-      toast(actError(err), toneOf(err));
+      toastFailure(toast, err, () => actOn(values, { said, body, key }), actError(err));
       acted();
       return null;
     }
@@ -694,7 +694,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       await acts.act({ record_keys: [String(key)], seen: { [String(key)]: String(row._inspire_version) } }, values,
         { said, about: { record_key: String(key), label: recordName(row, meta) || String(key) }, key: write });
     } catch (err) {
-      toast(err.message, toneOf(err));
+      toastFailure(toast, err, () => quick(row, values, said, write));
     }
   };
   const clearAll = () => {
@@ -954,7 +954,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           onDraft={() => setDrafted([...picked.keys()])} />
       )}
       {!data && list.busy && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
+      {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={() => setRefresh((n) => n + 1)} />}
       {data && (
         <>
           {claim && <div className="quiet-n" data-claim><Icon name="info" size={13} /><div><p>{claimText(claim.record_keys.length)}</p>
@@ -995,7 +995,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       {doomed && <DeleteDialog target={recordRef(meta, doomed)} label={recordName(doomed, meta) || 'this record'} pageId={pageId} onClose={() => setDoomed(null)} onSaved={saved} />}
       {acts.similar && (
         <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar}
-          onApply={(values, key) => acts.act({ match: acts.similar.match }, values, { key }).catch((err) => { toast(actError(err), toneOf(err)); return null; })} />
+          onApply={function apply(values, key) { return acts.act({ match: acts.similar.match }, values, { key }).catch((err) => { toastFailure(toast, err, () => apply(values, key), actError(err)); return null; }); }} />
       )}
       {dialog === 'batches' && <BatchesDialog pageId={pageId} onClose={() => setDialog('')} onUndo={acts.undo} labelOf={labelOf} />}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog('')} />}

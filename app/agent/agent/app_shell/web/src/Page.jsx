@@ -23,7 +23,7 @@ import PageLink, { usePageAddress } from './PageLink.jsx';
 import { FreshBar, FreshDetail, useFreshness } from './Freshness.jsx';
 import { backendNotes, backendText, lastRunText, latestRunText } from './freshness.js';
 import { TopTools } from './TopBar.jsx';
-import { Skeleton, SoWhat, PlainNote } from './ui.jsx';
+import { Skeleton, SoWhat, PlainNote, RetryProvider, useRetry } from './ui.jsx';
 import MoneyCard from './Money.jsx';
 import SettingsPanel, { SettingsButton, useSettings } from './Settings.jsx';
 import { ownerSettings } from './settings.js';
@@ -86,6 +86,7 @@ function TableCard({ table, result, error, loading, onFilter, pageId, filters, v
   const cut = !!result?.truncated;
   const served = cut || !!sort ? { sort: sort ? { key: sort.key, dir: sort.dir === 'desc' ? -1 : 1 } : null, onSort: (s) => onSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' }) } : {};
   const [opened, setOpened] = useState(null);
+  const retry = useRetry();
   const element = (row) => ({ kind: ITEM_KINDS[table.section], title: rowTitle(row, columns), context: { hint: `A row of the table "${table.title}".`, fields: fieldsOf(row, columns) } });
   return (
     <section className="card card--table" aria-label={table.title}>
@@ -95,7 +96,7 @@ function TableCard({ table, result, error, loading, onFilter, pageId, filters, v
         <AskGenie kind="table" title={table.title} context={tableContext(table.hint || '', result?.rows || [], (row) => fieldsOf(row, columns))} />
       </header>
       {loading && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {error && <PlainNote text={error} prefix="This table could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
+      {error && <PlainNote text={error} prefix="This table could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={retry} />}
       {!loading && !error && <DataTable label={table.title} columns={columns} rows={result?.rows || []} filtering="server" grid={`page:${pageId}:table:${table.id}`} {...served}
         askRow={element} onRow={(row) => setOpened((o) => (o === row ? null : row))}
         detail={(row) => (row === opened ? <RowDetails title={rowTitle(row, columns)} fields={fieldsOf(row, columns)} element={element(row)} onClose={() => setOpened(null)} /> : null)} />}
@@ -167,7 +168,7 @@ function RunsButton({ on, count, onClick, back }) {
   );
 }
 
-function HubTop({ entry, live, summary, latest, onRuns, fixing }) {
+function HubTop({ entry, live, summary, latest, onRuns, fixing, onRetry, onRetrySummary }) {
   const status = useCaseState(entry || live.data, summary);
   const run = summary?.run;
   if (status.kind === 'wait') {
@@ -188,8 +189,8 @@ function HubTop({ entry, live, summary, latest, onRuns, fixing }) {
       )}
       {fixing && status.kind !== 'stale' && nothing && <NothingToFix reason={nothing} latest={latest} onRuns={onRuns} />}
       {capacity && <p className="note" role="status" data-capacity=""><Icon name="info" size={14} />{capacity}</p>}
-      {summary?.error && <PlainNote text={summary.error} prefix="The AI summary could not load: " icon={<Icon name="info" size={14} />} className="note" role="status" />}
-      {live.error && <PlainNote text={live.error} prefix="The things to fix could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+      {summary?.error && <PlainNote text={summary.error} prefix="The AI summary could not load: " icon={<Icon name="info" size={14} />} className="note" role="status" onRetry={onRetrySummary} />}
+      {live.error && <PlainNote text={live.error} prefix="The things to fix could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={onRetry} />}
     </>
   );
 }
@@ -256,9 +257,11 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
   );
 }
 
-export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie }) {
+export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie,
+  onRetryMeta = null, onRetrySummary = null }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
+  const retry = useCallback(() => setNonce((n) => n + 1), []);
   const [queue, setQueue] = useState(null);
   const [tab, setTab] = useState('overview');
   const [compose, setCompose] = useState(false);
@@ -266,7 +269,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const [runNonce, setRunNonce] = useState(0);
   const [runOffset, setRunOffset] = useState(0);
   const [settingsOpen, setSettingsOpen] = useState(false);
-  const [settings, setSettings] = useSettings(page.id, nonce);
+  const [settings, setSettings, settingsError] = useSettings(page.id, nonce);
   const listed = !!(page.history && page.records);
   const sorts = useMemo(() => Object.fromEntries(Object.entries(look.sorts || {}).filter(([id]) => id !== 'records')), [look]);
   const sortBy = (target) => (s) => onLook?.((l) => ({ ...l, sorts: { ...l.sorts, [target]: s } }));
@@ -405,11 +408,11 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <p className="print-only print-filters">Filters: {describeFilters(state, meta?.filters, meta?.columns)}</p>
       </header>
       {settingsOpen && (
-        <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)}
+        <SettingsPanel pageId={page.id} data={settings} error={settingsError} onData={setSettings} onChanged={() => setNonce((n) => n + 1)}
           onRunStarted={() => freshness.load()} onClose={() => setSettingsOpen(false)} />
       )}
       {backendNotes(app.backend, data).map((n) => <p key={n} className="note" role="status" data-backend-note><Icon name="info" size={14} />{n}</p>)}
-      {hubPage && <HubTop entry={hubEntry} live={live} summary={summary} latest={latestRun} onRuns={showRuns} fixing={shown === 'overview'} />}
+      {hubPage && <HubTop entry={hubEntry} live={live} summary={summary} latest={latestRun} onRuns={showRuns} fixing={shown === 'overview'} onRetry={retry} onRetrySummary={onRetrySummary} />}
       {shown !== 'overview' && <ViewBack onBack={() => setTab('overview')} label={tabLabel(page, OVERVIEW_LABEL)} />}
       {!laidOut && shown === 'overview' && recordsCard && <TodoNow page={page} app={app} ready={ready} nonce={nonce} shared={queue} />}
       {hubPage && (
@@ -424,12 +427,12 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           <FilterBar meta={meta?.filters} state={state || { range: {}, sel: {} }} onState={onState} pageId={page.id} />
         </Placed>
       )}
-      {!UNFILTERED.includes(shown) && meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the page shows all its data: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+      {!UNFILTERED.includes(shown) && meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the page shows all its data: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={onRetryMeta} />}
       {shown === 'runs' && <Runs page={page} runs={runs} offset={runOffset} onOffset={setRunOffset} onExplain={hubExplain(app, onExplain, page.id)} genieBusy={genieBusy} />}
       {shown === 'alerts' && <Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} />}
       {shown === 'overview' && (
         <>
-          {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+          {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
           {laidOut && (
             <LayoutSections page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={() => setNonce((n) => n + 1)}
               kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} onPick={pick} genie={genie} />
@@ -459,5 +462,5 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       )}
     </div>
   );
-  return <GenieScope.Provider value={scope}><FoldScope pageId={page.id}>{body}</FoldScope></GenieScope.Provider>;
+  return <GenieScope.Provider value={scope}><RetryProvider value={retry}><FoldScope pageId={page.id}>{body}</FoldScope></RetryProvider></GenieScope.Provider>;
 }

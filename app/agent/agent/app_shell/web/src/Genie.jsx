@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { agentAsk, agentFeedback, agentStatus, agentTurn, askGenie, explainGenie, undoRecords, writeRecord } from './api.js';
+import { agentAsk, agentFeedback, agentStatus, agentTurn, askGenie, explainGenie, retryable, undoRecords, writeRecord } from './api.js';
 import { reducedMotion } from './theme.js';
 import { cellText, integer, isKeyColumn, plainWords } from './format.js';
 import DataTable from './DataTable.jsx';
@@ -75,6 +75,7 @@ export function useGenie(app, current, onOpen, view = null) {
   const running = useRef(false);
   const shown = useRef(app);
   const all = useRef({});
+  const retries = useRef({});
   const modesNow = useRef({});
   const viewNow = useRef(view);
   const key = about ? about.pageId : pinned || genieKey(app, current);
@@ -104,6 +105,7 @@ export function useGenie(app, current, onOpen, view = null) {
       const msg = await genieAnswer(k, started, { onStep: (step) => update(k, n, { step }), alive: () => alive.current });
       if (msg) update(k, n, { state: 'done', answer: msg, ids: started, shown: reducedMotion() ? Infinity : 0 });
     } catch (error) {
+      if (retryable(error)) retries.current[`${k}:${n}`] = () => send(k, you, start);
       update(k, n, { state: 'failed', error: error.message, calm: !!error.calm });
     }
   }, []);
@@ -140,6 +142,7 @@ export function useGenie(app, current, onOpen, view = null) {
         confirm: turn.confirm ? { ...turn.confirm, state: 'ask' } : null, answer: agentAnswer(turn),
         ids: turn.genie ? { conversation_id: turn.genie.conversation_id, message_id: turn.genie.message_id } : null, shown: reducedMotion() ? Infinity : 0 });
     } catch (error) {
+      if (retryable(error)) retries.current[`${k}:${n}`] = () => sendAgent(k, you, extra);
       update(k, n, { state: 'failed', error: error.message, calm: !!error.calm });
     }
   }, [send]);
@@ -240,10 +243,18 @@ export function useGenie(app, current, onOpen, view = null) {
     conversations.current[keyNow.current] = '';
     edit(keyNow.current, () => []);
   }, []);
+  const retry = useCallback((k, n) => {
+    const again = retries.current[`${k}:${n}`];
+    if (!again || running.current) return;
+    delete retries.current[`${k}:${n}`];
+    edit(k, (t) => t.filter((m) => m.n !== n && m.n !== n - 1));
+    again();
+  }, []);
+  const canRetry = useCallback((k, n) => Boolean(retries.current[`${k}:${n}`]), []);
   const busy = thread.some((m) => m.state === 'running');
   useEffect(() => { running.current = busy; }, [busy]);
   const mode = modes[key] || { mode: 'genie', note: '' };
-  return { key, thread, ask, explain, reset, setThread, busy, about, clearAbout, draft, setDraft, mode, confirm, cancel, undoSaved, undoView, rate };
+  return { key, thread, ask, explain, reset, setThread, busy, about, clearAbout, draft, setDraft, mode, confirm, cancel, undoSaved, undoView, rate, retry, canRetry };
 }
 
 export function ExplainButton({ title, busy, onClick }) {
@@ -440,7 +451,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
           <div key={m.n} className="msg msg--genie">
             <span className="msg-av"><GenieMark size={14} /></span>
             {m.state === 'running' && <div className="msg-b"><AgentSteps steps={m.steps} /><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span><Pace since={m.n} /></div>}
-            {m.state === 'failed' && <div className="msg-b">{m.calm ? <PlainNote text={m.error} className="note" role="status" data-calm /> : <PlainNote text={m.error} className="g-err" />}</div>}
+            {m.state === 'failed' && <div className="msg-b">{m.calm ? <PlainNote text={m.error} className="note" role="status" data-calm /> : <PlainNote text={m.error} className="g-err" onRetry={genie.canRetry?.(genie.key, m.n) ? () => genie.retry(genie.key, m.n) : null} />}</div>}
             {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} />}
           </div>
         )))}

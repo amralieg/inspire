@@ -1,7 +1,8 @@
 import { Children, Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './icons.jsx';
-import { DETAILS_LABEL, splitTechnical } from './plainText.js';
+import { COPIED_SEND_TEXT, COPY_SEND_LABEL, DETAILS_LABEL, RETRYING_LABEL, RETRY_LABEL, sendText, splitTechnical } from './plainText.js';
+import { retryable, toneOf } from './api.js';
 
 const ToastContext = createContext(() => {});
 
@@ -114,16 +115,68 @@ export function NoAccessScope({ app, children }) {
   );
 }
 
-export function PlainNote({ text, as: Tag = 'p', icon = null, prefix = '', children, ...rest }) {
+const RETRY_HOLD_MS = 800;
+const RETRY_TOAST_MS = 9000;
+
+export function toastFailure(toast, err, again, text = err?.message || '') {
+  toast(text, toneOf(err), again && retryable(err) ? { actions: [{ label: RETRY_LABEL, run: again }], ms: RETRY_TOAST_MS } : {});
+}
+const RetryContext = createContext(null);
+export const RetryProvider = RetryContext.Provider;
+export const useRetry = () => useContext(RetryContext);
+
+export function RetryButton({ onRetry, label = RETRY_LABEL }) {
+  const [trying, setTrying] = useState(false);
+  const live = useRef(true);
+  useEffect(() => () => { live.current = false; }, []);
+  if (!onRetry) return null;
+  const again = () => {
+    setTrying(true);
+    Promise.resolve().then(onRetry).catch(() => {}).finally(() => setTimeout(() => { if (live.current) setTrying(false); }, RETRY_HOLD_MS));
+  };
+  return (
+    <button type="button" className="lnk retry" data-retry="" disabled={trying} onClick={again}>
+      <Icon name="undo" size={13} />{trying ? RETRYING_LABEL : label}
+    </button>
+  );
+}
+
+function CopySend({ text }) {
+  const toast = useToast();
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(COPIED_SEND_TEXT);
+    } catch {
+      toast(`Select and copy this: ${text}`, 'info', { ms: 12000 });
+    }
+  };
+  return <button type="button" className="lnk retry" data-copy-send="" onClick={copy}>{COPY_SEND_LABEL}</button>;
+}
+
+export function PlainNote({ text, as: Tag = 'p', icon = null, prefix = '', onRetry = null, children, ...rest }) {
   const tables = noAccessOf(text);
   const scoped = useNoAccess(tables);
   if (tables && scoped) return <NoAccessLine tables={tables} as={Tag} icon={icon} rest={rest} />;
   const { plain, details } = splitTechnical(`${prefix}${text ?? ''}`);
   if (!plain && !details.length) return null;
-  return <>{plain && <Tag {...rest}>{icon}{plain}{children}</Tag>}<TechnicalDetails items={details} /></>;
+  const row = (onRetry || details.length > 0) && (
+    <span className="retry-row" data-choices="">
+      <RetryButton onRetry={onRetry} />
+      {details.length > 0 && <CopySend text={sendText(plain, details)} />}
+    </span>
+  );
+  const described = Boolean(rest.id);
+  return (
+    <>
+      {plain && <Tag {...rest}>{icon}{plain}{children}{!described && row}</Tag>}
+      {plain && described && row}
+      <TechnicalDetails items={details} />
+    </>
+  );
 }
 
-export function Failure({ failure, className, as: Tag = 'p', children }) {
+export function Failure({ failure, className, as: Tag = 'p', onRetry = null, children }) {
   const tables = failure?.text ? noAccessOf(failure.text) : null;
   const scoped = useNoAccess(tables);
   if (!failure?.text) return null;
@@ -131,7 +184,20 @@ export function Failure({ failure, className, as: Tag = 'p', children }) {
   const calm = !!failure.calm;
   const { plain, details } = splitTechnical(failure.text);
   const shown = Children.map(children, (child) => (child === failure.text ? plain : child));
-  return <><Tag className={calm ? 'note note--flat' : className} role={calm ? 'status' : 'alert'} data-calm={calm ? '' : undefined}>{shown}</Tag><TechnicalDetails items={details} /></>;
+  const again = calm ? null : onRetry;
+  return (
+    <>
+      <Tag className={calm ? 'note note--flat' : className} role={calm ? 'status' : 'alert'} data-calm={calm ? '' : undefined}>{shown}
+        {(again || (!calm && details.length > 0)) && (
+          <span className="retry-row" data-choices="">
+            <RetryButton onRetry={again} />
+            {!calm && details.length > 0 && <CopySend text={sendText(plain, details)} />}
+          </span>
+        )}
+      </Tag>
+      <TechnicalDetails items={details} />
+    </>
+  );
 }
 
 export function Popover({ anchor, onClose, children, label, role = 'dialog', width }) {

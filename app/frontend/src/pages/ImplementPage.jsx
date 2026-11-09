@@ -49,6 +49,7 @@ import PaneResizer from '../components/PaneResizer';
 import { RAIL_WIDTH, loadPaneWidth, paneWidth, savePaneWidth } from '../lib/paneWidth';
 import MvpProgress, { ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
 import useBuildDiagnostics from '../components/useBuildDiagnostics';
+import ChoiceList from '../components/ChoiceList';
 import { useProgressView } from '../lib/progressView';
 import GenieFeed from '../components/GenieFeed';
 import MoneyReview, { NothingToActCard } from '../components/MoneyReview';
@@ -479,14 +480,14 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
-      {listError && <PlainMessage text={listError} className={ERROR_BOX} />}
+      {listError && <PlainMessage text={listError} className={ERROR_BOX} onRetry={() => setListVersion((n) => n + 1)} copy />}
       {buildNotes.length > 0 && (
         <ul role="note" aria-label="What Inspire changed to start this build" data-build-notes=""
           className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 space-y-0.5 text-xs text-warning-fg">
           {buildNotes.map((note) => <li key={note}>{note}</li>)}
         </ul>
       )}
-      {railError && <PlainMessage text={railError} className={ERROR_BOX} />}
+      {railError && <PlainMessage text={railError} className={ERROR_BOX} onRetry={() => loadRail().catch((e) => setRailError(e.message))} copy />}
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
           className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] overflow-y-auto md:max-h-none md:min-h-0">
@@ -751,7 +752,7 @@ function AssetCard({ asset, locked, lockedReason, active, error, money = null, m
               {asset.warnings.map((w) => <li key={w} className="flex items-start gap-1.5 text-[11px] text-warning-fg"><AlertTriangle size={12} className="mt-px shrink-0" aria-hidden />{w}</li>)}
             </ul>
           )}
-          {error && <PlainMessage text={error} role="alert" className={ERROR_BOX} />}
+          {error && <PlainMessage text={error} role="alert" className={ERROR_BOX} copy />}
         </div>
       </article>
       <AssetVersions asset={asset} locked={locked} lockedReason={lockedReason} onRollback={onRollback} />
@@ -765,29 +766,6 @@ function PartTabs({ assets, picked, onPick }) {
   if (assets.length < 2) return null;
   const tabs = assets.map((asset) => ({ id: asset.id, label: asset.title, ariaLabel: `${asset.title}, ${asset.state?.label || ''}`, mark: <AssetPill state={asset.state} /> }));
   return <TabStrip label="Pick a part" idBase={PART_TABS} tabs={tabs} current={picked} onPick={onPick} />;
-}
-
-function ChoiceList({ heading, choices, mark, tone, disabled, title = '', busy = '', onPick }) {
-  if (!choices.length) return null;
-  return (
-    <div aria-label={heading} className="space-y-1.5">
-      <p className={`font-semibold ${tone}`}>{heading}</p>
-      <ul className="grid gap-1.5 sm:grid-cols-2">
-        {choices.map((choice) => (
-          <li key={choice.id} {...{ [mark]: choice.id }} className="rounded-lg border border-border bg-bg-subtle px-2.5 py-2 space-y-1">
-            {choice.url ? (
-              <a className={OUTLINE_BUTTON} href={choice.url} target="_blank" rel="noreferrer">{choice.label} <ExternalLink size={12} /></a>
-            ) : (
-              <button type="button" disabled={disabled} title={title || undefined} onClick={() => onPick(choice)} className={OUTLINE_BUTTON}>
-                {busy === choice.id ? <Loader2 size={12} className="animate-spin" /> : null} {choice.label}
-              </button>
-            )}
-            <p className="text-text-secondary">{choice.detail}</p>
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
 }
 
 function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson, databricksHost, notebookRunError, refreshKey, collectedKey,
@@ -812,6 +790,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [live, setLive] = useState(null);
   const [liveError, setLiveError] = useState('');
+  const [statusError, setStatusError] = useState('');
   const [actionBusy, setActionBusy] = useState('');
   const [celebrations, setCelebrations] = useState(0);
   const [pickedParts, setPickedParts] = useState({});
@@ -832,6 +811,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
 
   const loadStatus = useCallback(async () => {
     const data = await apiFetch(`/api/inspire/implement/status?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`);
+    setStatusError('');
     setStatus((prev) => steadyFeed(prev, data));
     setArrivals((prev) => feedArrivals(prev, data.feed, Date.now()));
   }, [apiFetch, qBase, useCaseId]);
@@ -854,7 +834,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
 
   useEffect(() => {
     if (!hasMvp) return undefined;
-    loadStatus().catch((e) => setError(e.message));
+    loadStatus().catch((e) => setStatusError(e.message));
     const id = setInterval(() => { loadStatus().catch(() => {}); }, 10000);
     return () => clearInterval(id);
   }, [hasMvp, loadStatus, refreshKey]);
@@ -1717,11 +1697,15 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <p>The result tables, the history and any notebook Discover wrote for this use case stay. An App, dashboard or Genie Agent that other use cases share stays for them, and Inspire takes this use case&apos;s part out of it.</p>
         </ConfirmDialog>
       )}
-      {error && !built && <PlainMessage text={error} className={ERROR_BOX} />}
+      {statusError && (
+        <PlainMessage text={`Inspire could not read how this build is going: ${statusError}`} role="alert" data-status-error="" className={`${ERROR_BOX} shrink-0`}
+          onRetry={() => loadStatus().catch((e) => setStatusError(e.message))} copy actions={diagnostics?.actions} />
+      )}
+      {error && !built && <PlainMessage text={error} className={ERROR_BOX} copy />}
       {notice && <p role="status" className={`${NOTE_BOX} shrink-0`}>{notice}</p>}
       {built && (
         <>
-          {error && !cardFailed && !features && !drawerTile && <PlainMessage text={error} className={`${ERROR_BOX} shrink-0`} />}
+          {error && !cardFailed && !features && !drawerTile && <PlainMessage text={error} className={`${ERROR_BOX} shrink-0`} copy actions={diagnostics?.actions} />}
           {collectError && <PlainMessage text={collectError} className={`${ERROR_BOX} shrink-0`} />}
           {tileRow}
           <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
@@ -1747,7 +1731,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             </>
           )}>
           <div className="space-y-4">
-            {error && !cardFailed && <PlainMessage text={error} className={ERROR_BOX} />}
+            {error && !cardFailed && <PlainMessage text={error} className={ERROR_BOX} copy actions={diagnostics?.actions} />}
             {drawerBody()}
           </div>
         </DrawerShell>

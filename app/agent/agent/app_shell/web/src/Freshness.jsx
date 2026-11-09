@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getFreshness, refreshPage, toneOf } from './api.js';
+import { getFreshness, refreshPage } from './api.js';
 import { Icon } from './icons.jsx';
-import { useToast, PlainNote } from './ui.jsx';
+import { useToast, PlainNote, toastFailure } from './ui.jsx';
 import { runWrite, useWrite } from './saving.jsx';
 import { UNDO_MS } from './records.js';
 import {
@@ -84,7 +84,7 @@ export function useFreshness({ page, onRefreshed, onRun, onSeeChanged, showThrou
     setAsking(true);
     return refreshPage(page.id)
       .then((run) => { watched.current = run.run_id; })
-      .catch((error) => toast(error.message, toneOf(error)))
+      .catch((error) => toastFailure(toast, error, ask))
       .finally(() => load().finally(() => setAsking(false)));
   });
 

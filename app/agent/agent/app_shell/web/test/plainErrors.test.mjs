@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, NO_JOB, openApp, serveDist } from './harness.mjs';
+import { appInfo, NO_JOB, openApp, said, serveDist } from './harness.mjs';
 import { CODE_ONLY_TEXT, splitTechnical } from '../src/plainText.js';
 
 const DENIED = '[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table `main`.`sales`.`loss`. Ask the owner to run: GRANT SELECT ON TABLE main.sales.loss TO `sam@example.com` SQLSTATE: 42501';
@@ -55,7 +55,7 @@ test('a chart that cannot load says so in a sentence and keeps the error code an
 test('an error without codes shows as it is, with no Details', async () => {
   const { page, context } = await openApp(browser, served.base, appInfo(), { errors: { 'chart:pareto': 'the chart has no rows for this month' } });
   await page.locator('[data-card="pareto"] .tile-err').waitFor();
-  assert.equal(await page.locator('[data-card="pareto"] .tile-err').innerText(), 'This chart could not load: the chart has no rows for this month');
+  assert.equal(await said(page.locator('[data-card="pareto"] .tile-err')), 'This chart could not load: the chart has no rows for this month');
   assert.equal(await page.locator('[data-card="pareto"] [data-technical-details]').count(), 0);
   await context.close();
 });

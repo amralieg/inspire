@@ -98,6 +98,7 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved }) {
   const asked = useDebounced(values, 150);
   const [result, setResult] = useState(null);
   const [error, setError] = useState('');
+  const [again, setAgain] = useState(0);
   const P = chartPalette();
   useEffect(() => {
     if (!ready) return undefined;
@@ -106,7 +107,7 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved }) {
       .then((r) => { if (live) { setResult(r); setError(''); } })
       .catch((e) => live && setError(e.message));
     return () => { live = false; };
-  }, [page.id, ready, JSON.stringify(asked)]);
+  }, [page.id, ready, JSON.stringify(asked), again]);
   const { el: dist } = useChart(result ? distributionOption(result, outcome, P) : null, [result]);
   const { el: gauge } = useChart(result && result.outcome.prob_target != null ? gaugeOption(result.outcome.prob_target, P) : null, [result]);
   const { el: sens } = useChart(result ? sensitivityOption(result, scenario.levers, P) : null, [result]);
@@ -122,7 +123,7 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved }) {
           <button type="button" className="btn btn--sm" onClick={() => setValues({})} disabled={!Object.keys(values).length}>Back to the base case</button>
           <AskGenie kind="scenario" title={scenario.title} context={{ hint: scenario.hint || '', fields: { ...levers, ...outcomeFields(result) } }} />
         </header>
-        {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+        {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={() => setAgain((n) => n + 1)} />}
         {!result && !error && <div style={{ padding: 16 }}><Skeleton height={120} /></div>}
         {result && (
           <div className="levers">

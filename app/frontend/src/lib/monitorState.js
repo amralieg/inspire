@@ -1,5 +1,5 @@
 import { formatClockUtc, formatWhen, utcDate } from './formatWhen.js';
-import { failureCauseOf } from './plainText.js';
+import { COPY_SEND_LABEL, failureCauseOf, sendText, splitTechnical } from './plainText.js';
 
 export const SESSION_QUIET_AFTER_MS = 30 * 60 * 1000;
 
@@ -140,4 +140,20 @@ export function pollFailure(error, failures) {
   if (error?.status === 404) return { stop: true, transient, text: RUN_GONE_TEXT, details: message ? [message] : [] };
   const text = transient ? `Inspire stopped checking this run after ${failures} tries: ${message}` : `Inspire cannot check this run: ${message}`;
   return { stop: true, transient, text, details: [] };
+}
+
+export const CHECK_AGAIN_LABEL = 'Check again';
+
+export function monitorFailureChoices({ cannotRead = false, runUrl = '' } = {}) {
+  return [
+    cannotRead && { id: 'read', label: CHECK_AGAIN_LABEL, detail: 'Once you have access, Inspire reads this run again.' },
+    runUrl && { id: 'open', label: 'Open the run in Databricks', url: runUrl, detail: 'The run page shows the full error and every task.' },
+    { id: 'copy', label: COPY_SEND_LABEL, detail: cannotRead ? 'Copies the run and what Inspire could not read, to send to the person who started it.' : 'Copies the run and its error, to send to whoever looks after Inspire.' },
+  ].filter(Boolean);
+}
+
+export function monitorSendText({ label = '', detail = '', details: more = [], runId = '', sessionId = '', runUrl = '' } = {}) {
+  const { plain, details } = splitTechnical(detail);
+  const about = [runId && `Run ${runId}`, sessionId && `session ${sessionId}`].filter(Boolean).join(', ');
+  return sendText([label && `${label}${about ? ` (${about})` : ''}`, plain].filter(Boolean).join(': '), [...details, ...more, runUrl].filter(Boolean));
 }

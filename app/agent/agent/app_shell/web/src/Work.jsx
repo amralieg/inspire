@@ -1,9 +1,9 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { actRecords, getBatches, getSimilar, toneOf, undoRecords } from './api.js';
+import { actRecords, getBatches, getSimilar, undoRecords } from './api.js';
 import { withNotice } from './alerts.js';
 import { compareValues, countOf, integer, plainText } from './format.js';
 import { Icon } from './icons.jsx';
-import { Popover, SaidNote, useDialog, useToast, PlainNote } from './ui.jsx';
+import { Popover, SaidNote, useDialog, useToast, PlainNote, toastFailure } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { localDay, nextDay } from './prefs.js';
 import {
@@ -46,7 +46,7 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
       onActed();
       return out;
     } catch (err) {
-      toast(err.message, toneOf(err));
+      toastFailure(toast, err, () => undo(batch, key));
       return null;
     }
   }, [pageId, onActed, toast]);
@@ -81,7 +81,7 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
       else toast(NO_SIMILAR);
       return found;
     } catch (err) {
-      toast(err.message, toneOf(err));
+      toastFailure(toast, err, () => findSimilar(keys, about));
       return null;
     }
   };
@@ -233,7 +233,7 @@ export function QueueBulk({ pageId, list, asked, person = '', onChanged }) {
       if (out) setOn(false);
       return out;
     } catch (err) {
-      toast(actError(err), toneOf(err));
+      toastFailure(toast, err, () => act(values, { key }), actError(err));
       return null;
     }
   };
@@ -301,13 +301,14 @@ export function BatchesDialog({ pageId, onClose, onUndo, labelOf }) {
   const ref = useDialog(true, onClose);
   const [state, setState] = useState({ busy: true, error: '', list: [] });
   const [undone, setUndone] = useState({});
+  const [again, setAgain] = useState(0);
   useEffect(() => {
     let live = true;
     getBatches(pageId)
       .then((d) => { if (live) setState({ busy: false, error: '', list: d?.batches || [] }); })
       .catch((e) => { if (live) setState({ busy: false, error: e.message, list: [] }); });
     return () => { live = false; };
-  }, [pageId]);
+  }, [pageId, again]);
   const undo = async (batch) => {
     const out = await onUndo(batch);
     if (out) setUndone((u) => ({ ...u, [batch]: undoText(out, labelOf) }));
@@ -321,7 +322,7 @@ export function BatchesDialog({ pageId, onClose, onUndo, labelOf }) {
         </header>
         <div className="dlg-b">
           {state.busy && <p className="more">Loading the changes…</p>}
-          {state.error && <PlainNote text={state.error} prefix="The changes could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+          {state.error && <PlainNote text={state.error} prefix="The changes could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={() => { setState({ busy: true, error: '', list: [] }); setAgain((n) => n + 1); }} />}
           {!state.busy && !state.error && !state.list.length && <p className="more">No change recorded on this list yet.</p>}
           {state.list.length > 0 && (
             <ul className="batches">

@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, FILTERS, idle, LOST, NO_JOB, openApp, serveDist, SILENT, steadyBox, TABLE, until } from './harness.mjs';
+import { appInfo, FILTERS, idle, LOST, NO_JOB, openApp, said, saidAll, serveDist, SILENT, steadyBox, TABLE, until } from './harness.mjs';
 import {
   BUSY, RUN_STATES, activeState, agoText, bannerText, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastRunNote, lastRunText, lastedText,
   progressText, runBars, runFlag, runState, runsPageText, spanText, stampText, toastTone, triggerText,
@@ -736,7 +736,7 @@ test('the Runs tab pages twenty runs at a time, newest first', async () => {
 test('the Runs tab says what could not load and still lists what it has', async () => {
   const { page, seen, context } = await openRuns(history({ runs: [SCHEDULED, OLD], job: { ...JOB, error: 'GET /api/2.2/jobs/runs/list answered HTTP 403: no access' },
     errors: { table: 'the result table has no change_source', summary: 'PERMISSION_DENIED: no SELECT' } }));
-  assert.deepEqual(await page.locator('.runs .tile-err').allInnerTexts(), [
+  assert.deepEqual(await saidAll(page.locator('.runs .tile-err')), [
     "The job's runs could not load, so the list shows only the runs this use case recorded: no access",
     'The runs written to the results table could not load: the result table has no change_source',
     'The details of each run could not load, so the list shows what the job recorded: no SELECT, so ask its owner or a workspace admin to give you access.']);

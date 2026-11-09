@@ -13,6 +13,11 @@ export const DETAILS_LABEL = 'Details';
 export const CODE_ONLY_TEXT = 'Only an error code came back, listed under Details';
 export const ASK_OWNER_TEXT = 'Ask the owner to give you the access listed under Details';
 export const ASK_OWNER_APP_TEXT = 'Ask the owner to give the App the access listed under Details';
+export const RETRY_LABEL = 'Try again';
+export const RETRYING_LABEL = 'Trying again…';
+export const COPY_SEND_LABEL = 'Copy what to send';
+export const COPIED_SEND_TEXT = 'Copied. Paste it to whoever looks after this App.';
+export const sendText = (plain, details) => [plain, ...details].filter(Boolean).join('\n');
 
 const OBJECT_ON = /\bon\s+(catalog|schema|table|view|volume|function|warehouse)\s+[`'"]?([\w-]+(?:[`'"]?\.[`'"]?[\w-]+)*)/i;
 const OBJECT_NAMED = /\bthe\s+(table|view|table or view|schema|catalog)\s+[`'"]?([\w-]+(?:[`'"]?\.[`'"]?[\w-]+)*)[`'"]?\s+(?:cannot be found|does not exist|was not found)/i;

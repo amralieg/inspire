@@ -3,7 +3,7 @@ import { decidePlan, getRecords, runSettingsNow } from './api.js';
 import { entityName, formatValue, integer, numberOf } from './format.js';
 import { canDecide, noDecisionText, pageDecides, recordKeyOf } from './records.js';
 import { Icon } from './icons.jsx';
-import { SaidNote, Skeleton, useToast, PlainNote } from './ui.jsx';
+import { SaidNote, Skeleton, useToast, PlainNote, useRetry } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
 import { ChartsReady, RowPanel, SECTION_PARTS, TAKE_ALL, TakeAll, decidedText, isClosed, useOpenRow } from './KindParts.jsx';
 import { SaveButton, runWrite } from './saving.jsx';
@@ -72,6 +72,7 @@ export function todoSteps(page, list, { modify = false, accept = false, plan = f
 }
 
 export function TodoNow({ page, app, ready, nonce, shared }) {
+  const retry = useRetry();
   const decided = decides(page);
   const fetched = useList(page.id, {}, ready, nonce, TODO_ROWS, decided && shared === undefined);
   const list = shared === undefined ? fetched : shared || {};
@@ -85,7 +86,7 @@ export function TodoNow({ page, app, ready, nonce, shared }) {
       <header className="card-h"><div><h2>What to do now</h2>
         {decided && list.data && <p data-todo-count>{all ? `${integer(waiting)} of ${integer(all)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
         {decided && !list.data && !list.error && <Skeleton height={14} width="40%" />}
-        {list.error && <PlainNote text={list.error} icon={<Icon name="info" size={12} />} className="tile-err" />}
+        {list.error && <PlainNote text={list.error} icon={<Icon name="info" size={12} />} className="tile-err" onRetry={retry} />}
       </div>
       <AskGenie kind="text" title="What to do now" context={{ hint: steps.map((s) => s.text).join('\n') }} /></header>
       {decided && all > 0 && <div className="todo-bar" role="progressbar" aria-label="Done so far" aria-valuetext={`${integer(all - waiting)} of ${integer(all)} done`} aria-valuemin={0} aria-valuemax={all} aria-valuenow={all - waiting}><i style={{ width: `${((all - waiting) / all) * 100}%` }} /></div>}
@@ -215,6 +216,7 @@ function Resolve({ page }) {
 }
 
 export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
+  const retry = useRetry();
   const plan = page.plan;
   const list = useList(page.id, filters, ready, nonce, PLAN_ROWS);
   const opened = useOpenRow();
@@ -252,7 +254,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
       {open.length > 0 && <TakeAll count={open.length} onClick={acceptAll} />}
       <AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
-      {list.error && <PlainNote text={list.error} prefix="The plan could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
+      {list.error && <PlainNote text={list.error} prefix="The plan could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={retry} />}
       {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {!error && <SaidNote text={said} at="all" size={14} />}
       {list.data && !rows.length && <p className="empty">No plan lines for these filters.</p>}
