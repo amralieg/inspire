@@ -70,6 +70,48 @@ test('an owner sees the new issue count, closes one as Not a change, and turns a
   }
 });
 
+test('a use case nobody reported an issue on shows no Reported issues panel, so Build progress keeps the room (must-exclude)', async () => {
+  const { state } = feedbackState([]);
+  const ui = await openBuild({ me: { userName: OWNER, displayName: 'Owner' }, ...state });
+  try {
+    await ui.page.locator('[data-progress-card]').waitFor({ timeout: 15000 });
+    await until(() => ui.made.sqlCalls.some((c) => String(c.sql).includes('_feedback')), 'the issues were read');
+    await ui.page.waitForTimeout(300);
+    assert.equal(await ui.page.locator('[data-reported-issues]').count(), 0);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('reported issues that could not load read one plain sentence with the code under Details, and Try again lists them', async () => {
+  const { state } = feedbackState([issue('f1')]);
+  let failing = true;
+  const list = Object.keys(state.statements).find((k) => k.includes('ORDER BY'));
+  const rows = state.statements[list];
+  state.statements[list] = (...args) => {
+    if (failing) throw new Error('[INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table main.sales.orders_feedback');
+    return rows(...args);
+  };
+  const ui = await openBuild({ me: { userName: OWNER, displayName: 'Owner' }, ...state });
+  try {
+    const panel = ui.page.getByRole('region', { name: 'Reported issues' });
+    const error = panel.locator('[data-issues-error]');
+    await error.waitFor({ timeout: 15000 });
+    const sentence = await error.locator('p').first().innerText();
+    assert.match(sentence, /^Inspire could not read the reported issues/);
+    assert.doesNotMatch(sentence, /INSUFFICIENT_PERMISSIONS/, 'the code sits under Details, not in the sentence');
+    failing = false;
+    await error.getByRole('button', { name: 'Try again' }).click();
+    await panel.locator('[data-issue="f1"]').waitFor({ timeout: 15000 });
+    assert.equal(await panel.locator('[data-issues-error]').count(), 0);
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), [], 'the refused list read is the only console error');
+    assert.ok(ui.pageErrors.length > 0, 'the list read was refused before Try again');
+  } finally {
+    await ui.close();
+  }
+});
+
 test('anyone but an owner sees the issues read only, and a model that answers no JSON says so without opening the vibe box', async () => {
   const other = feedbackState([issue('f1')]);
   const ui = await openBuild({ me: { userName: OTHER, displayName: 'Someone' }, ...other.state });

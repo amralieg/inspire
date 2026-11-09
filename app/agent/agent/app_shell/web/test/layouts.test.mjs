@@ -4,7 +4,7 @@ import { readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, scrollsAsked, serveDist, steadyBox, tracked, watchScrolls } from './harness.mjs';
+import { actBody, DECIDE, ROWS, SRC, TABLE, appInfo, bundleEntry, openApp, openBundle, scrollsAsked, serveDist, steadyBox, tracked, until, watchScrolls } from './harness.mjs';
 import { dashboardRoutes, evaluated, explainerRoutes, fanRows, forecastRoutes, monitorRoutes, plannerRoutes, scenarioRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -532,6 +532,22 @@ test('What to do now counts the records still open, not the ones somebody alread
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
+});
+
+test('What to do now on the Dashboard counts the records under the filters the person picked', async () => {
+  const info = appInfo(DECIDE, 1, TABLE);
+  const { page, seen, context } = await openApp(browser, base, info, { routes: tracked().routes });
+  await page.locator('[data-todo-count]').waitFor();
+  const todoReads = () => seen.records.filter((b) => b.limit === 5);
+  assert.ok(todoReads().length > 0, 'What to do now reads its own list');
+  await page.getByRole('button', { name: /All$/ }).first().click();
+  await page.getByRole('listbox', { name: 'Category' }).getByText('Books', { exact: true }).click();
+  await page.keyboard.press('Escape');
+  await until(() => JSON.stringify(seen.pages.at(-1)?.filters?.category) === '["Books"]');
+  await until(() => todoReads().some((b) => JSON.stringify(b.filters?.category) === '["Books"]'))
+    .catch(() => assert.fail(`What to do now read ${JSON.stringify(todoReads().map((b) => b.filters))}, never the Books filter`));
+  assert.deepEqual(seen.errors, []);
+  await context.close();
 });
 
 test('accepting a suggested action takes one click on a row, or one click for the selected rows, through records/act', async () => {

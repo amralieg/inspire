@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import { MessageSquareWarning, Sparkles, X } from 'lucide-react';
 import { PANEL_CLASS, SectionTitle } from './BuildUi';
+import { PlainMessage } from './TechnicalDetails';
 
 const FILTERS = [['new', 'New'], ['vibe', 'Turned into vibe'], ['closed', 'Closed']];
 const BUTTON = 'inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
@@ -16,6 +17,7 @@ export const FEEDBACK_ROUTES = {
 export function useReportedIssues({ apiFetch, apiPostJson, qBase, useCaseId, on, refreshKey }) {
   const [view, setView] = useState(null);
   const [error, setError] = useState('');
+  const [again, setAgain] = useState(0);
   const query = `${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`;
   useEffect(() => {
     if (!on) return undefined;
@@ -24,14 +26,15 @@ export function useReportedIssues({ apiFetch, apiPostJson, qBase, useCaseId, on,
       .then((data) => { if (live) { setView(data); setError(''); } })
       .catch((e) => { if (live) setError(e.message); });
     return () => { live = false; };
-  }, [apiFetch, query, on, refreshKey]);
+  }, [apiFetch, query, on, refreshKey, again]);
+  const reload = useCallback(() => setAgain((n) => n + 1), []);
   const setStatus = useCallback(async (feedbackId, status, vibeText = '') => {
     const data = await apiPostJson(`${FEEDBACK_ROUTES.status}?${query}`, { feedback_id: feedbackId, status, vibe_text: vibeText });
     setView(data);
     return data;
   }, [apiPostJson, query]);
   const draftVibe = useCallback((feedbackId) => apiPostJson(`${FEEDBACK_ROUTES.vibe}?${query}`, { feedback_id: feedbackId }), [apiPostJson, query]);
-  return { view, error, setStatus, draftVibe };
+  return { view, error, reload, setStatus, draftVibe };
 }
 
 function where(item) {
@@ -40,19 +43,19 @@ function where(item) {
 }
 
 export default function ReportedIssues({ issues, onDraft, locked = '' }) {
-  const { view, error, setStatus, draftVibe } = issues;
+  const { view, error, reload, setStatus, draftVibe } = issues;
   const [shown, setShown] = useState('new');
   const [busy, setBusy] = useState('');
-  const [failure, setFailure] = useState('');
+  const [failure, setFailure] = useState(null);
   const [said, setSaid] = useState('');
   if (!view && !error) return null;
-  if (view?.missing && !view.items?.length) return null;
+  if (!error && !view?.items?.length) return null;
   const items = view?.items || [];
   const counts = Object.fromEntries(FILTERS.map(([id]) => [id, items.filter((i) => i.status === id).length]));
   const listed = items.filter((i) => i.status === shown);
   const act = async (item, kind) => {
     setBusy(`${kind}:${item.feedback_id}`);
-    setFailure('');
+    setFailure(null);
     setSaid('');
     try {
       if (kind === 'close') {
@@ -63,7 +66,7 @@ export default function ReportedIssues({ issues, onDraft, locked = '' }) {
         else onDraft({ text: draft.vibe, feedback: item.feedback_id });
       }
     } catch (e) {
-      setFailure(e.message);
+      setFailure({ text: e.message, again: () => act(item, kind) });
     } finally {
       setBusy('');
     }
@@ -82,8 +85,8 @@ export default function ReportedIssues({ issues, onDraft, locked = '' }) {
             </button>
           ))}
         </div>
-        {error && <p className={ERROR}>{`Inspire could not read the reported issues: ${error}`}</p>}
-        {failure && <p className={ERROR} role="alert">{failure}</p>}
+        {error && <PlainMessage text={`Inspire could not read the reported issues: ${error}`} className={ERROR} data-issues-error="" onRetry={reload} copy />}
+        {failure && <PlainMessage text={failure.text} className={ERROR} role="alert" onRetry={failure.again} copy />}
         {said && <p className={NOTE} role="status">{said}</p>}
         {!view?.editable && view?.why && <p className="text-xs text-text-secondary">{view.why}</p>}
         {!listed.length && view && <p className="text-xs text-text-secondary" data-issues-empty="">Nothing here.</p>}

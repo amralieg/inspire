@@ -1522,7 +1522,7 @@ test('a failed build keeps what you must act on in view on the card, and the pan
     const progress = page.locator('[data-mvp-progress]');
     const job = progress.locator('[data-stage="Job"]');
     assert.equal(await job.getAttribute('data-stage-state'), 'error', 'a failed plan fails the Job');
-    assert.equal(await job.locator('[title]').getAttribute('title'), 'Plan, Preview run: the warehouse is stopped', 'with the plan message');
+    assert.equal(await job.locator('[title]').getAttribute('title'), 'Plan, Preview run: The SQL warehouse is stopped, so start it on the SQL Warehouses page or ask its owner to, then try again.', 'with the plan message in plain words');
     assert.equal(await card.locator('[data-build-attention]').count(), 0);
     assert.equal(await page.getByRole('region', { name: 'Build failed' }).count(), 1, 'the banner moves into the open panel, shown once');
     assert.deepEqual(ui.pageErrors, []);
