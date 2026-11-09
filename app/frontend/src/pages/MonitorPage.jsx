@@ -37,7 +37,7 @@ import StopRunControl from '../components/StopRunControl';
 import RunLogPanel from '../components/RunLogPanel';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
-import { newSessionId, runStateText } from '../lib/runState';
+import { newSessionId, runResultText, runStateText } from '../lib/runState';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
@@ -241,7 +241,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   else if (isComplete) { statusLabel = 'Completed'; statusDetail = 'Inspire finished this run.'; }
   else if (cannotRead) { statusLabel = 'Cannot read this run'; statusDetail = `Inspire cannot read this run with your sign-in: ${runReadError}`; }
   else if (isFailed) {
-    statusLabel = outcome.failed ? outcome.failureTitle : runStateText(runInfo?.life_cycle_state, runInfo?.result_state) || 'Failed';
+    statusLabel = outcome.failed ? outcome.failureTitle : (runEndedBadly(runInfo) && runResultText(runInfo.result_state)) || 'Failed';
     if (outcome.failed && outcome.message) statusDetail = outcome.message;
     else ({ text: statusDetail, details: statusDetails } = runFailureText(runInfo));
   }

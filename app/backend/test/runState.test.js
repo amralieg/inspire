@@ -29,6 +29,13 @@ test('a job state reads in words, the result first and the life cycle when there
   }
 });
 
+test('a result reads as its own word and a life cycle alone has no result word', async () => {
+  const { runResultText } = await lib();
+  for (const [result, want] of [['FAILED', 'Failed'], ['TIMEDOUT', 'Timed out'], [' success_with_failures ', 'Finished with failures'], ['INTERNAL_ERROR', ''], ['TERMINATED', ''], ['', ''], [null, '']]) {
+    assert.equal(runResultText(result), want, JSON.stringify(result));
+  }
+});
+
 test('no page shows a raw job state: every life_cycle_state, result_state and run.state shown goes through runStateText', () => {
   const offenders = [];
   const walk = (dir) => {

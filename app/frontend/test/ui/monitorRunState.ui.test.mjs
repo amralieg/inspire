@@ -64,6 +64,20 @@ for (const [label, run, title] of [
   });
 }
 
+test('a run whose job finished but whose session failed reads Failed on the status card, never Finished', async () => {
+  const backend = runBackend({ run: { life_cycle_state: 'TERMINATED', result_state: 'SUCCESS', start_time: Date.now() - HOUR, end_time: Date.now() - 40 * MINUTE, tasks: [] },
+    session: { completed_on: ago(40 * MINUTE), completed_percent: 100, processing_status: 'failed' } });
+  const ui = await openUi('monitor', {}, '', { mount: backend.mount });
+  try {
+    await card(ui.page).getByText('Failed', { exact: true }).waitFor({ timeout: 15000 });
+    assert.equal(await card(ui.page).getAttribute('data-status'), 'failed');
+    assert.equal(await card(ui.page).getByText('Finished', { exact: true }).count(), 0);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('a failed run names its reason once, keeps the platform line as a detail, and says what to do next', async () => {
   const backend = runBackend({ run: { life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: PLATFORM, start_time: Date.now() - HOUR, run_duration: 3723000,
     tasks: [{ task_key: 'main', result_state: 'FAILED', error: 'KeyError: domain_name' }] } });

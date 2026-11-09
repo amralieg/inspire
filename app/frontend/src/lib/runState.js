@@ -30,13 +30,12 @@ const key = (value) => String(value ?? '').trim().toUpperCase();
 
 export const RUN_STATE_UNKNOWN = 'In a state Inspire does not know';
 
+export const runResultText = (result) => RESULT_WORDS[key(result)] || '';
+
 export function runStateText(lifeCycle, result) {
   const life = key(lifeCycle);
   const end = key(result);
-  if (RESULT_WORDS[end]) return RESULT_WORDS[end];
-  if (LIFE_CYCLE_WORDS[life]) return LIFE_CYCLE_WORDS[life];
-  if (RESULT_WORDS[life]) return RESULT_WORDS[life];
-  return life || end ? RUN_STATE_UNKNOWN : '';
+  return runResultText(end) || LIFE_CYCLE_WORDS[life] || runResultText(life) || (life || end ? RUN_STATE_UNKNOWN : '');
 }
 
 export function newSessionId(now = Date.now(), random = Math.random()) {
