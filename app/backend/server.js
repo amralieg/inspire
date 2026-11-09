@@ -61,6 +61,8 @@ const {
 } = require('./lib/inspireFeedback');
 const { createHostedRun, workspaceFiles } = require('./lib/hostedRun');
 const RP = require('./lib/routePolicy');
+const LC = require('./lib/launchChoice');
+const { crossSiteGuard } = require('./lib/crossSite');
 const L = require('./lib/launchLedger');
 const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath, attachmentHeader } = require('./lib/workspacePaths');
 const { CACHE_REVALIDATE, compressedStatic, staticHeaders } = require('./lib/assetTypes');
@@ -69,6 +71,7 @@ const { discoveryTypeOf } = require('../frontend/src/lib/discoveryType.js');
 const { createPlaceSql } = require('../frontend/src/lib/tableName.js');
 
 const app = express();
+app.use(crossSiteGuard);
 const routePolicy = RP.createRoutePolicy({
   enforce: () => policyEnforced(),
   appName: () => String(process.env.DATABRICKS_APP_NAME || '').trim(),
@@ -758,9 +761,9 @@ async function readAppDatabaseHistory(req, sessionId) {
 
 async function sessionIsNew(host, inspireDatabase, sessionId) {
   const table = L.launchTableName(DEFAULT_INSPIRE_DB);
-  const statements = table && DEFAULT_WAREHOUSE_ID ? L.sessionKnownStatements(table, inspireDatabase, sessionId) : null;
+  const statements = DEFAULT_WAREHOUSE_ID ? L.sessionKnownStatements(table || '', inspireDatabase, sessionId) : null;
   if (!statements) return false;
-  for (const statement of [statements.ledger, statements.session]) {
+  for (const statement of table ? [statements.ledger, statements.session] : [statements.session]) {
     try {
       if ((await launchSql(host, statement)).length) return false;
     } catch (err) {
@@ -768,6 +771,35 @@ async function sessionIsNew(host, inspireDatabase, sessionId) {
     }
   }
   return true;
+}
+
+async function isManager(req) {
+  if (!policyEnforced()) return true;
+  if (!req) return false;
+  return Boolean((await routePolicy.managerOf(req).catch(() => ({ manager: false }))).manager);
+}
+
+async function launchChoiceOf(req, notebookPath, clusterId) {
+  const asked = { notebookPath, clusterId };
+  const own = { notebooks: [DEFAULT_NOTEBOOK_PATH, NOTEBOOK_DEST, cachedNotebookPath],
+    clusters: [process.env.INSPIRE_CLUSTER_ID, process.env.INSPIRE_DEPLOY_CLUSTER_ID] };
+  const plain = LC.ownLaunch(asked, own);
+  if (!plain.warnings.length) return plain;
+  return (await isManager(req)) ? LC.ownLaunch(asked, { ...own, chooses: true }) : plain;
+}
+
+async function launchSessionProblem(req, params) {
+  const sessionId = String(params['14_session_id'] || '').trim();
+  const inspireDatabase = String(params['02_inspire_database'] || '').trim();
+  if (!policyEnforced() || !sessionId || !splitInspireDatabase(inspireDatabase)) return '';
+  if (!isInt64Id(sessionId)) return 'The session id must be a numeric Inspire session id';
+  const host = resolveHost(req);
+  const fresh = await sessionIsNew(host, inspireDatabase, sessionId);
+  if (fresh) return '';
+  const launcher = String(await readLaunchRecord(req, { kind: 'session', inspireDatabase, sessionId }).catch(() => '') || '').trim().toLowerCase();
+  const person = RP.forwardedPerson(req.headers);
+  const owns = Boolean(launcher) && launcher === person;
+  return LC.sessionLaunchProblem(sessionId, { fresh, launcher, person, manager: owns ? false : await isManager(req) });
 }
 
 async function startingSessions(req, inspireDatabase, warehouseId, listed) {
@@ -816,13 +848,15 @@ async function recordLaunch(host, record) {
   }
 }
 
-async function triggerInspireNotebookJob(host, token, { params, notebook_path, cluster_id, jobType = 'discovery', jobName: requestedJobName = '', useCaseIds = [], launchedBy = '', writeCheck = null }) {
+async function triggerInspireNotebookJob(host, token, { params, notebook_path, cluster_id: askedClusterId, jobType = 'discovery', jobName: requestedJobName = '', useCaseIds = [], launchedBy = '', writeCheck = null, asker = null }) {
   normalizeUseCasesQualityParams(params);
   const sanitized = sanitizeInspireNotebookJobParams(params);
   for (const k of Object.keys(params)) delete params[k];
   Object.assign(params, sanitized);
 
-  let resolvedPath = String(notebook_path || DEFAULT_NOTEBOOK_PATH || '').trim();
+  const choice = await launchChoiceOf(asker, notebook_path, askedClusterId);
+  const cluster_id = choice.clusterId;
+  let resolvedPath = String(choice.notebookPath || DEFAULT_NOTEBOOK_PATH || '').trim();
   console.log(`📓 Notebook resolution: frontend="${notebook_path || ''}", env="${DEFAULT_NOTEBOOK_PATH}", resolved="${resolvedPath}"`);
 
   if (resolvedPath) {
@@ -867,7 +901,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   const writes = writeCheck ? discoverWrites(params, resolvedPath) : null;
   let outputChecked = '';
   let outputFolder = writes ? writes.folders[0] : '';
-  const warnings = [];
+  const warnings = [...choice.warnings];
   const warningDetails = [];
   if (writes) {
     const verdict = await writeCheck(writes);
@@ -1154,7 +1188,7 @@ app.post('/api/auth/sp-token', async (req, res) => {
     }
 
     // Azure AD OAuth2 client credentials flow
-    const tokenUrl = `https://login.microsoftonline.com/${tenant_id}/oauth2/v2.0/token`;
+    const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(String(tenant_id))}/oauth2/v2.0/token`;
     // The scope for Databricks is the host + /.default
     const scope = `${databricks_host.replace(/\/$/, '')}/.default`;
 
@@ -1489,7 +1523,7 @@ app.post('/api/setup/verify', async (req, res) => {
   // 3. Warehouse access
   if (checks.auth.ok && warehouse_id) {
     try {
-      const resp = await dbFetch(host, token, `/api/2.0/sql/warehouses/${warehouse_id}`);
+      const resp = await dbFetch(host, token, `/api/2.0/sql/warehouses/${encodeURIComponent(String(warehouse_id))}`);
       if (resp.ok) {
         const wh = await resp.json();
         checks.warehouse = { ok: true, message: `${wh.name} (${wh.state})`, state: wh.state };
@@ -2066,6 +2100,8 @@ app.post('/api/run', requireToken, async (req, res) => {
   try {
     const { cluster_id, notebook_path } = req.body;
     const params = (req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
+    const refused = LC.launchParamsProblem(params) || await launchSessionProblem(req, params);
+    if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
     const reads = await runReadPlan(dbFetch, req, discoverReads(params));
     if (reads.refusal) return res.status(reads.refusal.status).json({ error: reads.refusal.message, unreadable: reads.refusal.unreadable });
     if (reads.scope) params['01_uc_metadata'] = reads.scope;
@@ -2077,6 +2113,7 @@ app.post('/api/run', requireToken, async (req, res) => {
       jobType: 'discovery',
       launchedBy: RP.forwardedPerson(req.headers),
       writeCheck: (writes) => outputWriteVerdict(req, writes),
+      asker: req,
     });
     const warnings = [...reads.warnings, ...access, ...(out.warnings || [])];
     res.json({ ...out, ...(warnings.length ? { warnings } : {}), ...(reads.skipped.length ? { skipped_tables: reads.skipped } : {}) });

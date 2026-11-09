@@ -520,6 +520,24 @@ def test_bad_requests(tmp_path):
     assert s.handle("POST", "page", {}, {}, b" " * (shell_core.MAX_BODY + 1))[0] == 413
 
 
+def test_a_page_on_another_site_cannot_change_anything_in_the_app(tmp_path):
+    s, sp_ws, user_ws, _made = shell(tmp_path)
+    body = json.dumps({"page": "n01_u05"}).encode()
+    attacks = [{"sec-fetch-site": "cross-site"}, {"sec-fetch-site": "same-site"},
+               {"origin": "https://evil.example.com", "host": "app.example.com"}, {"origin": "null", "host": "app.example.com"},
+               {"origin": "https://app.example.com.evil.io", "x-forwarded-host": "app.example.com"}]
+    for headers in attacks:
+        before = len(sp_ws.sql) + len(user_ws.sql)
+        status, out = s.handle("POST", "page", {}, headers, body)
+        assert status == 403, headers
+        assert "another site" in out["error"], headers
+        assert len(sp_ws.sql) + len(user_ws.sql) == before, headers
+    for headers in [{"sec-fetch-site": "same-origin"}, {"sec-fetch-site": "none"}, {},
+                    {"origin": "https://app.example.com", "x-forwarded-host": "app.example.com", "host": "10.0.0.1:8000"}]:
+        assert s.handle("POST", "page", {}, headers, body)[0] == 200, headers
+    assert s.handle("GET", "app", {}, {"sec-fetch-site": "cross-site"}, b"")[0] == 200
+
+
 def test_user_mode_needs_a_token_and_separates_cache(tmp_path):
     settings = dict(SETTINGS, auth="user")
     s, sp_ws, user_ws, made = shell(tmp_path, settings)

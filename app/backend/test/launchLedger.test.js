@@ -74,15 +74,17 @@ test('a launch records who launched it, so that person may cancel the run and de
   assert.equal(refused(await S.request('DELETE', del, { person: 'other@example.com' })), true);
 });
 
-test('launching with a session id that already exists does not make you its launcher', async () => {
+test('launching with a session id that already exists neither runs it for you nor makes you its launcher', async () => {
   S.reset({ notebookPresent: true, knownSessions: ['5002'] });
   const got = await S.request('POST', '/api/run', { person: 'taker@example.com', body: runParams('5002') });
-  assert.equal(got.data.launcher_recorded, true);
-  assert.equal(S.state.launches[0].opened_session, 'false');
+  assert.equal(got.status, 403, got.text.slice(0, 300));
+  assert.equal(S.state.launches.length, 0);
+  assert.deepEqual(S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/')), []);
   const del = `/api/inspire/session?inspire_database=${S.APP_DB}&warehouse_id=${S.APP_WAREHOUSE}&session_id=5002`;
   assert.equal(refused(await S.request('DELETE', del, { person: 'taker@example.com' })), true);
-  S.reset({ notebookPresent: true, ledgerSessions: ['5003'] });
-  await S.request('POST', '/api/run', { person: 'taker@example.com', body: runParams('5003') });
+  S.reset({ notebookPresent: true, ledgerSessions: ['5003'], sessionLaunchers: { 5003: 'owner@example.com' } });
+  const again = await S.request('POST', '/api/run', { person: 'owner@example.com', body: runParams('5003') });
+  assert.equal(again.status, 200, again.text.slice(0, 300));
   assert.equal(S.state.launches[0].opened_session, 'false', 'a session another launch already named is not reopened');
 });
 

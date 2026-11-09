@@ -93,6 +93,18 @@ test('setup verify is refused to a person who is not an App manager, and runs fo
   S.reset({ managers: [BOSS] });
   const allowed = await S.request('POST', '/api/setup/verify', { person: BOSS, body: { warehouse_id: S.APP_WAREHOUSE, inspire_database: S.APP_DB } });
   assert.equal(allowed.status, 200, allowed.text);
+  S.reset({ managers: [BOSS] });
+  await S.request('POST', '/api/setup/verify', { person: BOSS, body: { warehouse_id: '../../preview/scim/v2/Users?filter=x', inspire_database: S.APP_DB } });
+  const asked = S.state.calls.map((c) => c.path);
+  assert.ok(asked.includes('/api/2.0/sql/warehouses/..%2F..%2Fpreview%2Fscim%2Fv2%2FUsers%3Ffilter%3Dx'), asked.join(' | '));
+  assert.deepEqual(asked.filter((p) => p.startsWith('/api/2.0/preview/scim/v2/Users')), [], 'a warehouse id cannot walk the App token to another API');
+});
+
+test('a tenant id typed into the sign-in form stays one path segment of the Microsoft token address (must-exclude)', async () => {
+  S.reset({});
+  await S.request('POST', '/api/auth/sp-token', { body: { client_id: 'c', client_secret: 's', tenant_id: '../common/../x?y=1', databricks_host: 'https://workspace.example.com' } });
+  const asked = S.state.calls.map((c) => c.path);
+  assert.ok(asked.includes('/..%2Fcommon%2F..%2Fx%3Fy%3D1/oauth2/v2.0/token'), asked.join(' | '));
 });
 
 test('run status and output answer only for runs recorded in the App database; any other run id is refused with the reason', async () => {

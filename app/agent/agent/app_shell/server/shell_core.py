@@ -204,6 +204,22 @@ class Probe:
         self.ws, self.timer, self.seconds = ws, timer, {}
 
 
+CROSS_SITE_REFUSAL = "the App takes changes only from its own pages, and this request came from another site, so nothing changed"
+
+
+def cross_site(method: str, headers: dict) -> bool:
+    if str(method or "").upper() in ("GET", "HEAD", "OPTIONS"):
+        return False
+    site = str(headers.get("sec-fetch-site") or "").strip().lower()
+    if site:
+        return site not in ("same-origin", "none")
+    origin = str(headers.get("origin") or "").strip().lower()
+    if not origin:
+        return False
+    own = str(headers.get("x-forwarded-host") or headers.get("host") or "").split(",")[0].strip().lower()
+    return not own or origin.split("://", 1)[-1] != own
+
+
 def query_label(key: tuple) -> str:
     kind, ident = key
     return LIST_LABELS[ident] if kind == "list" else QUERY_LABELS[kind].format(ident)
@@ -1852,6 +1868,8 @@ class Shell:
         try:
             if len(body or b"") > MAX_BODY:
                 raise HttpError(413, "the request is too large")
+            if cross_site(method, headers):
+                raise HttpError(403, CROSS_SITE_REFUSAL)
             kind = str(headers.get("content-type") or "").split(";")[0].strip().lower()
             if method == "POST" and kind and kind != "application/json":
                 raise HttpError(415, "send the request as JSON")
