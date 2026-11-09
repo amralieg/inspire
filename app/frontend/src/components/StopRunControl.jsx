@@ -35,7 +35,7 @@ export default function StopRunControl({ runId, business, apiFetch }) {
 
   if (!verdict || verdict.runId !== runId) return null;
   if (!verdict.allowed) {
-    return <p role="status" className="mt-3 text-xs text-text-secondary">{verdict.error}</p>;
+    return <PlainMessage as="p" text={verdict.error} role="status" className="mt-3 text-xs text-text-secondary" />;
   }
   if (stopped) return <p role="status" className="mt-3 text-xs text-text-secondary">Stopping the run. What it already wrote stays.</p>;
   const name = business || 'this business';

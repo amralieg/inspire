@@ -1456,7 +1456,7 @@ export default function ResultsPage({
                           )}
                           {folderData?.error && (
                             <div className="ms-6 py-1">
-                              <span className="text-[10px] text-text-tertiary">{folderData.error}</span>
+                              <PlainMessage as="span" text={folderData.error} className="text-[10px] text-text-tertiary" />
                               <button type="button" onClick={(e) => { e.stopPropagation(); loadFolder(f.path); }} className="ms-2 text-[10px] text-db-red-fg hover:underline">Retry</button>
                             </div>
                           )}

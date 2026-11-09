@@ -1,5 +1,6 @@
 import { Check } from 'lucide-react';
 import { REMOVE_TABLE } from '../lib/implementWizard';
+import { PlainMessage } from './TechnicalDetails';
 
 const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
 
@@ -48,7 +49,7 @@ export default function SourceTables({
               ))}
               <option value={REMOVE_TABLE} disabled={Boolean(blocker)}>{blocker ? `Don't use this table (${blocker})` : "Don't use this table"}</option>
             </select>
-            {why && <p data-swaps-why="" className="text-[11px] text-text-secondary">{why}</p>}
+            {why && <PlainMessage as="p" text={why} data-swaps-why="" className="text-[11px] text-text-secondary" />}
           </>
         )}
       </div>

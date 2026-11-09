@@ -7,9 +7,12 @@ test.after(closeBrowser);
 
 const RAW = /[A-Z]{2,}_[A-Z_]{2,}|\{"|SQLSTATE|\bHTTP\b|[0-9a-f]{8}-[0-9a-f]{4}-|\b\d{10,}\b/;
 const visible = (page) => page.evaluate(() => {
-  const clone = document.querySelector('main')?.cloneNode(true) || document.body.cloneNode(true);
-  for (const d of clone.querySelectorAll('details')) d.remove();
-  return clone.innerText;
+  const root = document.querySelector('main') || document.body;
+  const hidden = [...root.querySelectorAll('details')].map((d) => [d, d.style.display]);
+  for (const [d] of hidden) d.style.display = 'none';
+  const text = root.innerText;
+  for (const [d, was] of hidden) d.style.display = was;
+  return text;
 });
 
 function monitorBackend(runAnswer) {
@@ -26,10 +29,9 @@ test('a schema list Databricks refuses says so in one sentence with the code und
   const ui = await openUi('launch', { catalogs: ['main'] }, '', { mount });
   try {
     await ui.page.locator('button[title="main"]').click();
-    const note = ui.page.locator('[data-uc-list-error="schemas"]');
-    await note.waitFor({ timeout: 20000 });
-    assert.match(await note.innerText(), /ask its owner or a workspace admin to give you access/);
+    await ui.page.getByText('Inspire could not list the schemas. The message above says why.').waitFor({ timeout: 20000 });
     const shown = await visible(ui.page);
+    assert.match(shown, /Inspire cannot list your Unity Catalog data with your sign-in|give you access/);
     assert.doesNotMatch(shown, RAW);
     assert.doesNotMatch(shown, /No schemas found/);
   } finally {

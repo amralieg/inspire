@@ -684,7 +684,7 @@ test('a change the demo refuses shows as a calm note in plain words, and any oth
     assert.equal(await red.count(), 0, 'the refusal is not shown as an error');
     answer = [500, { error: 'The warehouse is stopped' }];
     await list(page).getByRole('button', { name: 'Planned', exact: true }).click();
-    await red.filter({ hasText: 'The warehouse is stopped' }).waitFor();
+    await red.filter({ hasText: 'The SQL warehouse is stopped, so start it' }).waitFor();
     assert.equal(await calm.count(), 0, 'a real failure is never dressed as the demo note');
   } finally {
     await ui.close();

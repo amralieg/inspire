@@ -174,7 +174,9 @@ test('a run that ended without success is a failure, whatever result Databricks 
 test('a failed run says what happened in one sentence and keeps the Python error under Details', async () => {
   const M = await lib('monitorState.js');
   const raw = 'Workload failed, see run output for details. Task main failed with message: ValueError: column x missing at /Workspace/Shared/inspire-ai/dbx_inspire_ai_agent';
-  const failed = M.runFailureText({ life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: raw });
+  const failed = M.runFailureText({ life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: 'Workload failed, see run output for details', tasks: [{ result_state: 'FAILED', error: raw }] });
+  assert.equal(M.runFailureText({ life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: 'Workload failed, see run output for details' }).text, 'Workload failed, see run output for details', 'with no reason the platform line stays');
+  assert.equal(M.runFailureText({ life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: raw }).text, M.RUN_FAILED_TEXT, 'a platform line with a Python fault is never the reason');
   assert.equal(failed.text, M.RUN_FAILED_TEXT);
   assert.ok(!/ValueError|Workspace|Task main/.test(failed.text));
   assert.ok(failed.details.some((d) => d.includes('ValueError')));

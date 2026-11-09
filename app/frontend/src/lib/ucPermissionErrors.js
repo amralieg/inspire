@@ -39,9 +39,7 @@ export function interpretUcPermissionError(message, opts = {}) {
   const technicalDetail = parseApiErrorMessage(message);
   const text = technicalDetail.toLowerCase();
   const cause = failureCauseOf(technicalDetail);
-  const isPermissionIssue = cause ? cause.kind === 'denied' : (PERMISSION_SIGNAL.test(technicalDetail) || (
-    opts.context === 'catalog_browse' && /catalog|schema|table|unity|metastore|privilege|denied|403/i.test(technicalDetail)
-  ));
+  const isPermissionIssue = cause ? cause.kind === 'denied' : PERMISSION_SIGNAL.test(technicalDetail);
 
   if (!isPermissionIssue) {
     return {
@@ -105,7 +103,7 @@ export function interpretUcPermissionError(message, opts = {}) {
   }
 
   const userMessage =
-    opts.context === 'catalog_browse'
+    opts.context !== 'launch'
       ? 'Inspire cannot list your Unity Catalog data with your sign-in, so copy the message for your admin and ask them for the access listed under Details.'
       : 'Get Started stopped because your sign-in is missing a Unity Catalog or workspace permission, so copy the message for your admin and ask them for the access listed under Details.';
 

@@ -299,7 +299,7 @@ test('totals that cannot be read say why on Start, and the runs list still works
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await totals(page).getByRole('alert').waitFor({ timeout: 20000 });
-    assert.match(await totals(page).getByRole('alert').innerText(), /^Inspire could not count across the runs: User does not have SELECT on __inspire_session$/);
+    assert.match(await totals(page).getByRole('alert').innerText(), /^Inspire could not count across the runs: User does not have SELECT on __inspire_session, so ask its owner or a workspace admin to give you access\.$/);
     assert.equal(await totals(page).locator('[data-portfolio-card]').count(), 0);
     await page.locator('[data-run="42"]').waitFor();
     assert.deepEqual(await rows(page), ['42', '41', '50', '51', '60']);

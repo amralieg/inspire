@@ -1466,7 +1466,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             </div>
           ))}
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary pt-2">Job runs</div>
-          {status?.runs?.ok === false && <p className="text-[12px] text-error-fg">{status.runs.error}</p>}
+          {status?.runs?.ok === false && <PlainMessage as="p" text={status.runs.error} className="text-[12px] text-error-fg" />}
           {(status?.runs?.runs || []).map((run) => (
             <div key={run.run_id} className="border border-border rounded-lg bg-surface px-3 py-2 text-[12px]">
               <div>{runStateText(run.state) || RUN_STATE_UNKNOWN} · {runProfileText(run.profile)} · {run.trigger === 'PERIODIC' ? 'scheduled' : 'started by hand'}</div>
@@ -1474,7 +1474,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
                 {run.started} · {run.duration_s}s
                 {run.url && <> · <a className="text-db-red-fg" href={run.url} target="_blank" rel="noreferrer">Open run</a></>}
               </div>
-              {run.message && <div className="text-text-secondary">{run.message}</div>}
+              {run.message && <PlainMessage as="div" text={run.message} className="text-text-secondary" />}
             </div>
           ))}
           {status?.runs?.ok && status.runs.runs.length === 0 && <p className="text-[12px] text-text-secondary">No job runs yet.</p>}

@@ -822,7 +822,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const pickerReadError = [schemasReadError, tablesReadError].filter(Boolean).join('\n');
   const pickerReadGuidance = useMemo(
     () => (pickerReadError
-      ? interpretUcPermissionError(pickerReadError, { inspireDatabase: effectiveDb, catalogs: selectedCatalogs, warehouseId })
+      ? interpretUcPermissionError(pickerReadError, { context: 'catalog_browse', inspireDatabase: effectiveDb, catalogs: selectedCatalogs, warehouseId })
       : null),
     [pickerReadError, effectiveDb, selectedCatalogs, warehouseId],
   );

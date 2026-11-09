@@ -383,7 +383,7 @@ export function NotebookFacts({ notebook }) {
   return (
     <>
       {notebook.state.reason && <p className={notebook.state.state === 'failed' ? 'text-error-fg' : 'text-text-secondary'}>{notebook.state.reason}</p>}
-      {notebook.runError && <p className="text-error-fg">{notebook.runError}</p>}
+      {notebook.runError && <PlainMessage as="p" text={notebook.runError} className="text-error-fg" />}
       {notebook.path && <p className="font-mono text-[11px] text-text-secondary break-all">{notebook.path}</p>}
     </>
   );

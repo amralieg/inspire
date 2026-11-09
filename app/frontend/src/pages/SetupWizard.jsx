@@ -7,6 +7,7 @@ import DatabricksLogo from '../components/DatabricksLogo';
 import { normalizeDatabricksHost } from '../lib/normalizeDatabricksHost';
 import { responseError } from '../lib/apiClient';
 import CatalogPicker from '../components/CatalogPicker';
+import { PlainMessage } from '../components/TechnicalDetails';
 
 const STEPS = [
   { id: 'connect', label: 'Connect', icon: Globe2, desc: 'Connect to your Databricks workspace' },
@@ -433,7 +434,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                   </datalist>
                 </div>
               </div>
-              {catalogsWhy && <p role="note" data-uc-why="" className="text-xs text-text-secondary">{catalogsWhy}</p>}
+              {catalogsWhy && <PlainMessage as="p" text={catalogsWhy} role="note" data-uc-why="" className="text-xs text-text-secondary" />}
               {inspireDatabase && inspireDatabase.includes('.') && (
                 <div className="flex items-center gap-2 px-3 py-2 rounded-lg bg-info-bg text-info-fg text-xs">
                   <Database size={14} /> Will use <span className="font-mono font-bold">{inspireDatabase}</span>
@@ -472,7 +473,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                       <StatusIcon status={check.ok ? 'ok' : 'error'} />
                       <div className="flex-1">
                         <p className="text-xs font-semibold text-text-primary capitalize">{key}</p>
-                        <p className="text-[10px] text-text-secondary">{check.message}</p>
+                        <PlainMessage as="p" text={check.message} className="text-[10px] text-text-secondary" />
                       </div>
                     </div>
                   ))}

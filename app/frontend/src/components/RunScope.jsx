@@ -75,8 +75,8 @@ export default function RunScope({ page, settings }) {
   return (
     <section aria-label={`Data groups and ${FIRST_RUN_LABEL} of this use case`} data-run-scope="" className="space-y-3 rounded-lg border border-border p-3">
       <RunScopeLine facts={facts} all />
-      {view.why && <p data-settings-why="" className={NOTE}>{view.why}</p>}
-      {runs.why && <p data-run-scope-why="" className={NOTE}>{runs.why}</p>}
+      {view.why && <PlainMessage as="p" text={view.why} data-settings-why="" className={NOTE} />}
+      {runs.why && <PlainMessage as="p" text={runs.why} data-run-scope-why="" className={NOTE} />}
       <ScopeSections settings={scopeList} editable={view.editable === true} scope={profile} onSave={save} everything={facts?.everything || ''} />
       {scope !== GROUP_ALL && (
         <div className="flex flex-wrap items-center gap-2">

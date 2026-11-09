@@ -531,7 +531,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                       )}
 
                       {deleteError && deleteError.sessionId === session.session_id && (
-                        <span role="alert" className="max-w-[18rem] text-[10px] text-error-fg" onClick={(e) => e.stopPropagation()}>{deleteError.message}</span>
+                        <PlainMessage as="span" text={deleteError.message} role="alert" className="max-w-[18rem] text-[10px] text-error-fg" onClick={(e) => e.stopPropagation()} />
                       )}
 
                       {/* Delete button */}

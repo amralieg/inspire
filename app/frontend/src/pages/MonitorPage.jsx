@@ -1090,7 +1090,7 @@ function ResultJsonDisplay({ resultJson }) {
     return (
       <div className="text-xs bg-error-bg/50 rounded-lg p-2.5 border border-error/10">
         <span className="text-error-fg font-semibold">Error:</span>{' '}
-        <span className="text-text-secondary">{rj.error}</span>
+        <PlainMessage as="span" text={rj.error} className="text-text-secondary" />
       </div>
     );
   }

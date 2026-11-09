@@ -115,15 +115,16 @@ const PROGRAM_FAULT = /\b[A-Z]\w*(?:Error|Exception)\b|Traceback|File "/;
 
 export function runFailureText(runInfo) {
   const failedTask = (runInfo?.tasks || []).find((t) => t.result_state && t.result_state !== 'SUCCESS') || null;
-  const raw = [failedTask?.error, failedTask?.state_message, runInfo?.state_message]
-    .map((s) => String(s || '').trim()).filter(Boolean);
+  const platform = String(runInfo?.state_message || '').trim();
+  const raw = [String(failedTask?.error || failedTask?.state_message || '').trim()].filter((s) => s && s !== platform);
   const known = RESULT_TEXT[String(runInfo?.result_state || '')] || (runInfo?.life_cycle_state === 'SKIPPED' ? RESULT_TEXT.SKIPPED : '');
   if (known) return { text: known, details: raw };
-  const caused = raw.find((s) => failureCauseOf(s));
+  const caused = [...raw, platform].find((s) => s && failureCauseOf(s));
   if (caused) return { text: `The run failed: ${caused}`, details: raw.filter((s) => s !== caused) };
   const said = raw.find((s) => !PROGRAM_FAULT.test(s));
   if (said) return { text: said, details: raw.filter((s) => s !== said) };
-  return { text: RUN_FAILED_TEXT, details: raw };
+  if (raw.length) return { text: RUN_FAILED_TEXT, details: raw };
+  return { text: platform && !PROGRAM_FAULT.test(platform) ? platform : RUN_FAILED_TEXT, details: [] };
 }
 
 export const POLL_GIVE_UP_AFTER = 15;

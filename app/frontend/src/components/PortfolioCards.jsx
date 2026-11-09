@@ -66,7 +66,7 @@ export default function PortfolioCards({ portfolio, error, sessions, active = ''
                       ) : (
                         <div data-portfolio-card={card.key} data-card-off="" className={`${CARD} border-border bg-bg`}>
                           <CardFigure card={card} totals={totals} />
-                          {action.why && <span data-card-why="" className="mt-0.5 block text-[10px] leading-snug text-text-secondary">{action.why}</span>}
+                          {action.why && <PlainMessage as="span" text={action.why} data-card-why="" className="mt-0.5 block text-[10px] leading-snug text-text-secondary" />}
                         </div>
                       )}
                     </li>

@@ -100,7 +100,7 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
     <section role="region" aria-label="Settings" className={PANEL_CLASS}>
       <SectionTitle icon={SlidersHorizontal} title="Settings" hint="How this use case counts what is at stake and flags records; owners change them" />
       <div className="p-4 space-y-3 text-[12px]">
-        {view.why && <p data-settings-why="" className="text-text-secondary">{view.why}</p>}
+        {view.why && <PlainMessage as="p" text={view.why} data-settings-why="" className="text-text-secondary" />}
         <ScopeSections settings={settings} editable={editable} scope={scope} onSave={onSave} />
         {groups.map(([group, list]) => (
           <div key={group || 'other'} data-setting-group={group || 'other'} className="space-y-2">

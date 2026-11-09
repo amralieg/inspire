@@ -3,6 +3,7 @@ import { Loader2 } from 'lucide-react';
 import DemoNote from './DemoNote';
 import SourceTables from './SourceTables';
 import { nextSpecFrom, pickedTable, primaryTableOf, removalBlocker, restoreTable, tablesOf } from '../lib/implementWizard';
+import { PlainMessage } from './TechnicalDetails';
 
 const SELECT = 'w-full px-2.5 py-1.5 text-[12px] border border-border rounded-md bg-surface text-text-primary';
 const BUTTON = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50';
@@ -68,7 +69,7 @@ export default function UseCaseTables({ uc, latest, view, readOnly = false, lock
     <div data-settings-tables="" className="space-y-2 border-t border-border pt-3">
       <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Tables</h4>
       {readOnly && <DemoNote />}
-      {!readOnly && !editable && view?.why && <p data-tables-why="" className="text-text-secondary">{view.why}</p>}
+      {!readOnly && !editable && view?.why && <PlainMessage text={view.why} data-tables-why="" className="text-text-secondary" />}
       {notice && <p className="text-text-secondary">{notice}</p>}
       <SourceTables
         tables={tables}

@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, openUi } from './uiSupport.mjs';
+import { RUN_FAILED_TEXT } from '../../src/lib/monitorState.js';
 
 test.after(closeBrowser);
 
@@ -70,8 +71,9 @@ test('a failed run names its reason once, keeps the platform line as a detail, a
   const { page } = ui;
   try {
     await page.locator('[data-testid="monitor-failure-reason"]').waitFor({ timeout: 15000 });
-    assert.equal(await page.locator('[data-testid="monitor-failure-reason"]').innerText(), 'KeyError: domain_name');
-    assert.equal(await page.getByText('KeyError: domain_name', { exact: true }).count(), 1, 'the reason shows once');
+    assert.equal(await page.locator('[data-testid="monitor-failure-reason"]').innerText(), RUN_FAILED_TEXT, 'a Python fault is never the sentence a business user reads');
+    assert.equal(await page.getByText('KeyError: domain_name', { exact: true }).count(), 1, 'the fault shows once, under Details');
+    assert.equal(await page.getByText('KeyError: domain_name', { exact: true }).isVisible(), false);
     assert.equal(await page.getByText(PLATFORM, { exact: true }).isVisible(), false, 'the platform line is a closed detail, never a second reason');
     assert.match(await page.locator('[data-testid="monitor-failure-next"]').innerText(), /^Open the run in Databricks/);
     assert.equal(await page.getByText(/Pipeline/).count(), 0);
