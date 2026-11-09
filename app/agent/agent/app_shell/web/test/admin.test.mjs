@@ -77,10 +77,19 @@ test('someone who is not an owner gets the refusal the App gives, never an empty
 });
 
 test('Admin says when the usage could not load, and when nobody changed anything', async () => {
-  const failed = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: usageRoute(502, { error: 'the warehouse is stopped' }, []) });
+  const asked = [];
+  const healing = { 'admin/usage': ({ json }) => { const status = asked.length ? 200 : 502; asked.push(status); return status === 502 ? json(502, { error: 'DEADLINE_EXCEEDED: usage read timed out (request 7f3a)' }) : json(200, USAGE); } };
+  const failed = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: healing });
   await goAdmin(failed.page);
-  await failed.page.locator('.admin .tile-err').waitFor();
-  assert.equal(await failed.page.locator('.admin .tile-err').innerText(), 'The usage could not load: the warehouse is stopped');
+  const box = failed.page.locator('.admin .tile-err');
+  await box.waitFor();
+  const shown = await box.innerText();
+  assert.match(shown, /^The usage could not load: /);
+  assert.doesNotMatch(shown, /DEADLINE_EXCEEDED/, 'the code stays under Details (must-exclude)');
+  await box.getByRole('button', { name: 'Try again' }).click();
+  await failed.page.locator('.tbl--usage').first().waitFor();
+  assert.deepEqual(asked, [502, 200]);
+  assert.equal(await failed.page.locator('.admin .tile-err').count(), 0);
   await failed.context.close();
   const quiet = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: usageRoute(200, { ...USAGE, pages: [USAGE.pages[1]], people: [] }, []) });
   await goAdmin(quiet.page);

@@ -251,10 +251,16 @@ export function useGenie(app, current, onOpen, view = null) {
     again();
   }, []);
   const canRetry = useCallback((k, n) => Boolean(retries.current[`${k}:${n}`]), []);
+  const reload = useCallback(async (k, n) => {
+    const m = find(k, n);
+    if (!m?.ids?.message_id) return;
+    const msg = await genieAnswer(k, m.ids, { alive: () => alive.current }).catch((error) => ({ ...m.answer, result_error: error.message }));
+    if (msg) update(k, n, { answer: msg, shown: Infinity });
+  }, []);
   const busy = thread.some((m) => m.state === 'running');
   useEffect(() => { running.current = busy; }, [busy]);
   const mode = modes[key] || { mode: 'genie', note: '' };
-  return { key, thread, ask, explain, reset, setThread, busy, about, clearAbout, draft, setDraft, mode, confirm, cancel, undoSaved, undoView, rate, retry, canRetry };
+  return { key, thread, ask, explain, reset, setThread, busy, about, clearAbout, draft, setDraft, mode, confirm, cancel, undoSaved, undoView, rate, retry, canRetry, reload };
 }
 
 export function ExplainButton({ title, busy, onClick }) {
@@ -357,7 +363,10 @@ export function Answer({ message, url, onTick, genie, rating = true }) {
         </div>
       )}
       {done && a.truncated && <p className="g-foot" style={{ padding: '6px 0 0' }}>Showing the first {integer(a.rows.length)} rows of the answer.</p>}
-      {done && a.result_error && <p className="g-foot g-err" style={{ padding: '6px 0 0' }}>The answer's table could not load: {a.result_error}</p>}
+      {done && a.result_error && (
+        <PlainNote text={a.result_error} prefix="The answer's table could not load: " className="g-foot g-err" style={{ padding: '6px 0 0' }} data-result-error=""
+          onRetry={genie?.reload && !message.agent && message.ids?.message_id ? () => genie.reload(genie.key, message.n) : null} />
+      )}
       {done && a.sql && (
         <details className="msg-sql"><summary><Icon name="code" size={13} />The SQL Genie ran</summary><pre>{a.sql}</pre></details>
       )}

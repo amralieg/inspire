@@ -1,6 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('node:fs');
+const path = require('node:path');
 const { SRC, relative, sourceFiles, withoutComments } = require('./support/frontendSource');
 
 const ERROR_PATH = String.raw`(?:[\w$]+\??\.)*(?:[\w$]*[Ee]rror|[\w$]+\??\.message)`;
@@ -38,5 +39,11 @@ test('the scan catches every way an error reached the screen raw, and leaves the
 
 test('no page or component of the Inspire App shows an error text raw: each goes through PlainMessage, so codes, grants and ids sit under Details', () => {
   const hits = sourceFiles(SRC, ['.jsx']).flatMap((file) => rawErrorRenders(fs.readFileSync(file, 'utf8')).map((hit) => `${relative(file)}:${hit}`));
+  assert.deepEqual(hits, []);
+});
+
+test('no screen of a generated MVP App shows an error text raw: each goes through PlainNote, so codes and ids sit under Details', () => {
+  const shell = path.resolve(__dirname, '..', '..', 'agent', 'agent', 'app_shell', 'web', 'src');
+  const hits = sourceFiles(shell, ['.jsx']).flatMap((file) => rawErrorRenders(fs.readFileSync(file, 'utf8')).map((hit) => `${path.relative(shell, file)}:${hit}`));
   assert.deepEqual(hits, []);
 });
