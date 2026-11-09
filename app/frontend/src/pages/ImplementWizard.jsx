@@ -466,10 +466,10 @@ export default function ImplementWizard({
   const stepId = steps[stepIndex].id;
   const shows = (panel) => steps[stepIndex].panels.includes(panel);
   useEffect(() => {
-    if (!scopeSteps.grouping || context?.latest || groupingDefaulted.current) return;
+    if (!context || !scopeSteps.grouping || context.latest || groupingDefaulted.current) return;
     groupingDefaulted.current = true;
     setSpec((prev) => withProfileDefaults(prev, scopeProfile.profile, withGroupingDefault));
-  }, [scopeSteps.grouping, context?.latest, scopeProfile.profile]);
+  }, [scopeSteps.grouping, context, scopeProfile.profile]);
   const lastStep = stepIndex === steps.length - 1;
 
   const q = useMemo(() => {
@@ -742,6 +742,7 @@ export default function ImplementWizard({
         setChecking(PROFILE_WAITING);
         const done = await scopeProfile.wait();
         const doneSteps = scopeStepsOf(done.state, done.profile, ranBefore);
+        if (doneSteps.grouping) return;
         list = wizardSteps(mode, spec, { ...doneSteps, settings: settingsFor(doneSteps, done.state === 'ready').length > 0 });
         profile = done.profile;
       }

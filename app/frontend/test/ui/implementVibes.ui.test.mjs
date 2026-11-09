@@ -3,9 +3,9 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
-import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
+import { defaultSpecFromUseCase, VIBES_STEP_NOTE } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, toSummary, setDark, startMvp, steadyBox, toAppAccess, toVibes, until, wizardFits, goToStep } from './uiSupport.mjs';
+import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, toSummary, setDark, startMvp, steadyBox, toAppAccess, toVibes, until, wizardFits, goToStep, wizardInScreen } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const SHOTS = process.env.VIBES_SHOTS || '';
@@ -79,8 +79,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
     await panel.getByRole('heading', { name: 'Anything else Genie should build in?' }).waitFor();
-    await panel.getByText('There is one box for the whole MVP: Inspire sends each ask to the part it changes, and an ask that changes the analysis rebuilds the notebook and every '
-      + 'part after it. The box is optional, and its gray text is only an example.', { exact: false }).waitFor();
+    await panel.getByText(VIBES_STEP_NOTE, { exact: false }).waitFor();
     assert.deepEqual(await boxLabels(panel), [ONE_BOX], 'one box, never one per asset');
     assert.equal(await panel.getByRole('tablist').count(), 0, 'no tab per asset');
     assert.equal(await panel.locator('[data-vibe-previous]').count(), 0);
@@ -99,7 +98,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     await page.evaluate(() => document.documentElement.classList.remove('dark'));
     assert.deepEqual((await grayExamples(page, panel)).map((e) => e.value), [''], 'the example is never typed into the box');
 
-    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Run it');
     await goToStep(page, 'What to build');
     for (const name of [/^Dashboard/, /^App /, /^Alert/]) await page.getByRole('checkbox', { name }).check();
@@ -132,6 +131,8 @@ test('the one box on the Vibes step takes the full width, is 8 lines tall and gr
       panel: el.closest('section').getBoundingClientRect().width }));
     assert.deepEqual([size.rows, size.resize], [8, 'vertical'], 'the box is 8 lines tall and the person can make it taller');
     assert.ok(size.width >= size.panel - 2, `the box takes the full width of the step (${size.width} of ${size.panel})`);
+    await box.evaluate((el) => el.scrollIntoView({ block: 'start' }));
+    await box.evaluate((el) => el.scrollIntoView({ block: 'start' }));
     const before = await steadyBox(box);
     await page.mouse.move(before.x + before.width - 3, before.y + before.height - 3);
     await page.mouse.down();
@@ -140,9 +141,9 @@ test('the one box on the Vibes step takes the full width, is 8 lines tall and gr
     const after = await box.boundingBox();
     assert.ok(after.height > before.height + 60, `dragging the corner makes the box taller (${before.height} to ${after.height})`);
     await box.fill('Make the trend weekly\nAnswer in euros');
-    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Run it');
-    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'App');
     await toVibes(page);
     assert.equal(await wizardBox(page).inputValue(), 'Make the trend weekly\nAnswer in euros', 'coming back keeps the asks');
@@ -191,7 +192,7 @@ test('the Vibes step keeps a live counter, an ask over 2000 characters stops Sta
     assert.match(await count.getAttribute('class'), /text-error-fg/, 'the counter turns to the error style over the limit');
     await one.getByText('the MVP vibes are 2,001 characters; at most 2,000 are allowed').waitFor();
     assert.equal(await wizardBox(page).getAttribute('aria-invalid'), 'true');
-    await page.getByRole('button', { name: 'Back' }).focus();
+    await page.getByRole('button', { name: 'Back', exact: true }).focus();
     await page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled), BUILD_IT, { timeout: 15000 });
     await page.getByRole('button', { name: BUILD_IT, exact: true }).click();
     await page.locator('[role="alert"]').waitFor();
@@ -217,7 +218,7 @@ test('the Vibes step keeps a live counter, an ask over 2000 characters stops Sta
   }
 });
 
-test('the Vibes step with every output picked fits 1440x900 with its box filled past the limit, and reads at 4.5:1 in light and dark', async () => {
+test('the Vibes box on Summary with every output picked keeps the dialog inside 1440x900 with its box filled past the limit, and reads at 4.5:1 in light and dark', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page } = ui;
   const fits = (name) => wizardFits(page, name);
@@ -230,10 +231,10 @@ test('the Vibes step with every output picked fits 1440x900 with its box filled 
     await toAppAccess(page);
     await page.getByRole('radio', { name: /^Internal data/ }).check();
     await toVibes(page);
-    await fits('vibes-step-empty');
+    await wizardInScreen(page, 'vibes-step-empty');
     await wizardBox(page).fill([LONG_ASK, 'Score the baseline and every model on the same held-out rows', 'Answer in plain words and always say which rows you counted',
       'One page: the decision list on the left and the row detail on the right', 'a'.repeat(1700)].join('\n'));
-    await fits('vibes-step-filled');
+    await wizardInScreen(page, 'vibes-step-filled');
     await readable(page, ['[role="dialog"]'], 'vibes-step');
     assert.deepEqual(ui.pageErrors, []);
   } finally {

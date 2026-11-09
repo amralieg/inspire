@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BUILD_IT, closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardFit, goToStep } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardInScreen, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -122,8 +122,7 @@ test('the last step with its review and the vibes box stays inside a 1440x900 sc
     await page.setViewportSize({ width: 1440, height: 900 });
     await toSummary(page);
     await summary(page).waitFor();
-    const fit = await wizardFit(page);
-    assert.ok(fit.height <= 900, `review-summary: the wizard stays inside the screen (${fit.height})`);
+    await wizardInScreen(page, 'review-summary');
     for (const dark of [false, true]) {
       await setDark(page, dark);
       const result = await lowContrast(page, ['[role="dialog"]']);

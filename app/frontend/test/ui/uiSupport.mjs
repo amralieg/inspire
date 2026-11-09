@@ -377,6 +377,13 @@ export async function wizardFits(page, name) {
   return assertFitsScreen(await wizardFit(page), name);
 }
 
+export async function wizardInScreen(page, name, height = 900) {
+  const fit = await wizardFit(page);
+  assert.ok(fit.top >= 0 && fit.bottom <= height, `${name}: the dialog sits inside the screen ${JSON.stringify(fit)}`);
+  assert.ok(fit.page <= height, `${name}: only the step scrolls, never the page (${fit.page})`);
+  return fit;
+}
+
 export async function clippedExamples(page, boxes) {
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
   const count = await boxes.count();

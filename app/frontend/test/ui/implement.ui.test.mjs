@@ -437,7 +437,7 @@ test('Next warns, without stopping, when the data to work with has no rows and s
     assert.equal(counted.length, 1, 'a narrowed scope counts only the table it narrows');
     assert.ok(counted[0].sql.includes('`order_date` >= CAST(:wstart AS DATE)'), counted[0].sql);
 
-    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data');
     made.state.readinessRows = [{ row_count: '1200' }];
     await eventDate().selectOption('main.s.returns.order_date');
@@ -465,7 +465,7 @@ test('an empty main table warns and moves on, and when every picked table is emp
     assert.deepEqual(counted, ['main.s.orders', 'main.s.returns'], 'Next on Data counts the main table, then the other picked table once');
     assert.ok(made.sqlCalls.some((c) => String(c.sql) === 'SELECT COUNT(*) AS row_count FROM `main`.`s`.`returns`'), 'the other table is counted on the warehouse');
 
-    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data');
     made.state.readinessByTable = { 'main.s.orders': '0', 'main.s.returns': '0' };
     await goToStep(page, 'MVP Test Run');
@@ -473,7 +473,7 @@ test('an empty main table warns and moves on, and when every picked table is emp
       'Warning: every table you picked is empty (main.s.orders, main.s.returns), so no use case can be grounded in rows. You can go on.');
     assert.deepEqual(await footerErrors(page), [], 'all empty still does not stop the wizard (must-exclude)');
 
-    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data');
     made.state.readinessByTable = { 'main.s.orders': '5', 'main.s.returns': '0' };
     await goToStep(page, 'MVP Test Run');

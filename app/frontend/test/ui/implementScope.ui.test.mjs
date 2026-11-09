@@ -47,7 +47,7 @@ async function atWidths(page, name, section, { whole = false } = {}) {
 const checkedChoice = (page, attr) => page.locator(`[${attr}]`).evaluateAll((rows, name) => rows.filter((r) => r.querySelector('input[type="radio"]')?.checked)
   .map((r) => r.getAttribute(name)), attr);
 
-test('a first build asks Data groups after Data with the reason and the columns to combine, then First run with each choice, never everything by default, and sends what the person picked', async () => {
+test('a first build asks Data groups on Data with the reason and the columns to combine, then First run with each choice, never everything by default, and sends what the person picked', async () => {
   const calls = [];
   const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt(calls, PROFILE) });
   const { page, made } = ui;
@@ -57,9 +57,9 @@ test('a first build asks Data groups after Data with the reason and the columns 
     await page.setViewportSize({ width: 1440, height: 900 });
     assert.deepEqual(await page.locator('[data-wizard-header] ol').evaluate((ol) => ({ overflow: ol.scrollWidth > ol.clientWidth + 1,
       rows: new Set([...ol.children].map((li) => Math.round(li.getBoundingClientRect().top))).size })), { overflow: false, rows: 1 },
-    'all thirteen steps on one line at 1440x900');
+    'all seven steps on one line at 1440x900');
     assert.ok(calls.length >= 1 && calls.every((c) => JSON.stringify(c) === JSON.stringify(calls[0])), JSON.stringify(calls));
-    assert.deepEqual(Object.keys(calls[0]).sort(), ['inspire_database', 'session_id', 'use_case_id', 'warehouse_id']);
+    assert.deepEqual(Object.keys(calls[0]).sort(), ['inspire_database', 'session_id', 'table', 'use_case_id', 'warehouse_id']);
     assert.deepEqual([calls[0].inspire_database, calls[0].use_case_id, calls[0].warehouse_id],
       [HARNESS_SETTINGS.inspireDatabase, HARNESS_USE_CASE.id, HARNESS_SETTINGS.warehouseId], 'the route reads the use case from the tracking database');
     const grouping = page.getByRole('region', { name: GROUPING_TITLE, exact: true });
@@ -192,7 +192,7 @@ test('while the groups of a new Data groups pick are read, One group and Several
   }
 });
 
-test('Next on Data waits for a slow read and lands on Data groups, and a first run the person picked stays picked after Back', async () => {
+test('Next on Data waits for a slow read and stays on Data to show its Data groups, and a first run the person picked stays picked after Back', async () => {
   const calls = [];
   const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, PROFILE, { after: 8000 }) });
   const { page } = ui;
@@ -201,12 +201,15 @@ test('Next on Data waits for a slow read and lands on Data groups, and a first r
     assert.deepEqual(await stepBar(page), ['1. Data', '2. Results', '3. Deliver', '4. App', '5. Run it', '6. Summary'], 'the table is still being read');
     await next(page);
     await page.getByRole('button', { name: /Reading the table/ }).waitFor({ timeout: 8000 });
-    await onStep(page, 'Data groups');
-    assert.equal(await page.locator('[aria-current="step"]').innerText(), '3. Data groups');
+    await page.getByRole('button', { name: /Reading the table/ }).waitFor({ state: 'detached', timeout: 30000 });
+    await page.locator('[aria-current="step"]').locator('xpath=..').getByText('2. First run').waitFor({ timeout: 30000 });
+    assert.equal(await page.locator('[aria-current="step"]').innerText(), '1. Data', 'the person sees the Data groups before moving on');
+    assert.deepEqual(await stepBar(page), ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. App', '6. Run it', '7. Summary']);
+    assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['region, country']);
     await goToStep(page, 'MVP Test Run');
     await page.locator('[data-first-run-choice="all"] input').check();
-    await page.getByRole('button', { name: 'Back' }).click();
-    await onStep(page, 'Data groups');
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await onStep(page, 'Data');
     await goToStep(page, 'MVP Test Run');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['all'], 'the default never replaces a choice the person made');
     assert.deepEqual(ui.pageErrors, []);
@@ -237,7 +240,7 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
     await grouping.locator('[data-grouping-choice="all"] input').check();
     assert.equal(await grouping.locator('[data-grouping-chosen-by]').count(), 0, 'once the person picks, the grouping is theirs');
     await goToStep(page, 'MVP Test Run');
-    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data groups');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'the person picked the whole data, so going back never puts the Deep grouping back');
     await toStep(page, 'Summary');
@@ -290,7 +293,7 @@ test('a Deep discovery grouping the profile could not size shows no example, cou
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records']);
     assert.deepEqual(await offered(), ['records', 'recent', 'all'], 'groups of store_id were not listed with sizes, so no group choice is offered (must-exclude)');
     assert.match(await page.locator('[data-first-run-choice="records"]').innerText(), /^About 1,000 records, in whole groups of store_id so no group is cut/);
-    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data groups');
     await grouping.locator('[data-grouping-choice="region, country"] input').check();
     assert.match(await grouping.locator('[data-grouping-example]').textContent(), /Grouped by country/);
@@ -347,7 +350,7 @@ test('a technique Data groups do not apply to asks only for the first run, and a
     await page.locator('[data-scope-problem]').getByText("Records to run on is '0'; allowed: a whole number, at least 1", { exact: true }).waitFor();
     await next(page);
     await page.getByRole('alert').getByText("Records to run on is '0'; allowed: a whole number, at least 1").waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').innerText(), '3. MVP Test Run', 'a refused value keeps the person on MVP Test Run');
+    assert.equal(await page.locator('[aria-current="step"]').innerText(), '2. First run', 'a refused value keeps the person on First run');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -545,107 +548,51 @@ const recordedAsNumber = () => {
 const NOT_QUALIFYING = { ...PROFILE, applies: false, qualifies: false, reason: 'Data groups do not apply: Sentiment Analysis looks at each record on its own, so every record is in one group.',
   recommended: [], default_scope: 'all' };
 
-for (const [name, profile] of [['the data qualifies for Data groups', PROFILE], ['the data does not qualify for Data groups', NOT_QUALIFYING]]) {
-  test(`all settings on a built version that recorded First run as a number walk First run${profile.applies ? ', Data groups' : ''} and Vibes and save the choice, when ${name}`, async () => {
-    const calls = [];
-    let answered = 0;
-    const init = async (page) => {
-      await page.route('**/api/grouping/profile', async (route) => {
-        calls.push(JSON.parse(route.request().postData() || '{}'));
-        await new Promise((done) => setTimeout(done, 4000));
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(profile) });
-        answered += 1;
-      });
-    };
-    const ui = await openBuild({ me: ME, history: [recordedAsNumber()], forwardedToken: PERSON }, { init });
-    const { page, made } = ui;
-    try {
-      await openSettings(page);
-      assert.ok(answered < calls.length, `the wizard is still reading the table (${answered} of ${calls.length} reads answered)`);
-      assert.ok((await stepBar(page)).some((s) => s.endsWith('. MVP Test Run')), `MVP Test Run is a step while the table is read: ${(await stepBar(page)).join(' | ')}`);
-      await until(() => calls.length >= 1 && answered === calls.length, 'every read of the table is answered', 30000);
-      await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-      const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
-      assert.equal(steps.includes('Data groups'), profile.applies, `Data groups only when the technique groups: ${steps.join(' | ')}`);
-      assert.ok(steps.indexOf('MVP Test Run') > steps.indexOf('Data') && steps.indexOf('MVP Test Run') < steps.indexOf('Vibes'), steps.join(' | '));
-      if (profile.applies) assert.equal(steps.indexOf('Data groups') + 1, steps.indexOf('MVP Test Run'));
-      const back = page.getByRole('button', { name: 'Back' });
-      const first = profile.applies ? 'Data groups' : 'MVP Test Run';
-      for (let i = 0; i < steps.length && !(await page.locator('[aria-current="step"]').innerText()).includes(first); i += 1) await back.click();
-      await onStep(page, first);
-      if (profile.applies) {
-        await page.locator('[data-grouping-choice]').first().waitFor();
-        await goToStep(page, 'MVP Test Run');
-      }
-      await page.locator('[data-first-run-choice="recent"] input').check();
-      await toVibes(page);
-      assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|MVP Test Run/.test(t)), [], 'no MVP Test Run problem');
-      const keep = page.getByRole('radio', { name: /^Keep v\d+ live/ });
-      await toSummary(page);
-      await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
-      if (await keep.count()) {
-        await keep.check();
-        await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
-      }
-      await until(() => made.jobs.length === 1, 'the build', 30000);
-      const [sent] = insertsOf(made);
-      assert.equal(sent.config.widgets.run_scope, 'recent', JSON.stringify(sent.config.widgets));
-      assert.deepEqual(ui.pageErrors, []);
-    } finally {
-      await ui.close();
-    }
-  });
-}
-
 const withRecordedValue = (row, value) => {
   const spec = JSON.parse(row.spec_json);
   return { ...row, spec_json: JSON.stringify({ ...spec, config: { ...spec.config, widgets: { ...(spec.config.widgets || {}), run_scope: value } } }) };
 };
 
 for (const [name, profile] of [['the data qualifies for Data groups', PROFILE], ['the data does not qualify for Data groups', NOT_QUALIFYING]]) {
-  test(`all settings on an old spec whose First run is a number open, start from the suggested First run with a plain note, walk to Vibes and save a valid choice, when ${name}`, async () => {
-    const calls = [];
-    let answered = 0;
-    const init = async (page) => {
-      await page.route('**/api/grouping/profile', async (route) => {
-        calls.push(JSON.parse(route.request().postData() || '{}'));
-        await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(profile) });
-        answered += 1;
-      });
-    };
-    const ui = await openBuild({ me: ME, history: [withRecordedValue(recordedAsNumber(), '5')], forwardedToken: PERSON }, { init });
-    const { page, made } = ui;
-    try {
-      await openSettings(page);
-      await until(() => calls.length >= 1 && answered === calls.length, 'every read of the table is answered', 30000);
-      await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
-      const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
-      assert.ok(steps.includes('MVP Test Run'), steps.join(' | '));
-      const back = page.getByRole('button', { name: 'Back' });
-      for (let i = 0; i < steps.length && !(await page.locator('[aria-current="step"]').innerText()).includes('MVP Test Run'); i += 1) await back.click();
-      await onStep(page, 'MVP Test Run');
-      const step = page.locator('[data-scope-step="first_run"]');
-      await step.locator('[data-first-run-choice]').first().waitFor();
-      assert.equal(await step.locator('[data-first-run-unrecorded]').textContent(), RUN_SCOPE_UNRECORDED);
-      assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'the MVP Test Run step default, never everything, even when the profile still says all (must-exclude)');
-      assert.equal(await step.locator('[data-scope-problem]').count(), 0, 'no MVP Test Run problem');
-      await toVibes(page);
-      assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|MVP Test Run/.test(t)), [], 'no MVP Test Run problem');
-      const keep = page.getByRole('radio', { name: /^Keep v\d+ live/ });
-      await toSummary(page);
-      await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
-      if (await keep.count()) {
-        await keep.check();
+  for (const [recorded, value] of [['recorded First run as a number', null], ['whose First run is a number', '5']]) {
+    test(`all settings on a built version that ${recorded} never ask First run again, since runs 2 onward use all groups, and build on about 1,000 records, never everything, when ${name} (must-exclude)`, async () => {
+      const calls = [];
+      let answered = 0;
+      const init = async (page) => {
+        await page.route('**/api/grouping/profile', async (route) => {
+          calls.push(JSON.parse(route.request().postData() || '{}'));
+          await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(profile) });
+          answered += 1;
+        });
+      };
+      const row = value === null ? recordedAsNumber() : withRecordedValue(recordedAsNumber(), value);
+      const ui = await openBuild({ me: ME, history: [row], forwardedToken: PERSON }, { init });
+      const { page, made } = ui;
+      try {
+        await openSettings(page);
+        await until(() => calls.length >= 1 && answered === calls.length, 'every read of the table is answered', 30000);
+        await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+        const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
+        assert.deepEqual(steps, ['Data', 'Results', 'Deliver', 'App', 'Run it', 'Summary'], 'no First run and no Data groups step on a rebuild');
+        assert.equal(await page.locator('[data-first-run-choice]').count(), 0, 'no First run choice anywhere');
+        await toSummary(page);
+        assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|MVP Test Run/.test(t)), [], 'no MVP Test Run problem');
+        const keep = page.getByRole('radio', { name: /^Keep v\d+ live/ });
         await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
+        if (await keep.count()) {
+          await keep.check();
+          await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
+        }
+        await until(() => made.jobs.length === 1, 'the build', 30000);
+        const [sent] = insertsOf(made);
+        assert.notEqual(sent.config.widgets.run_scope, 'all', JSON.stringify(sent.config.widgets));
+        assert.ok(!/^\d+$/.test(String(sent.config.widgets.run_scope ?? '')), `a number is never sent as First run: ${JSON.stringify(sent.config.widgets)}`);
+        assert.deepEqual(ui.pageErrors, []);
+      } finally {
+        await ui.close();
       }
-      await until(() => made.jobs.length === 1, 'the build', 30000);
-      const [sent] = insertsOf(made);
-      assert.equal(sent.config.widgets.run_scope, 'records', JSON.stringify(sent.config.widgets));
-      assert.deepEqual(ui.pageErrors, []);
-    } finally {
-      await ui.close();
-    }
-  });
+    });
+  }
 }
 
 const NOT_FOUND_LOAD = 'Failed to load resource: the server responded with a status of 404 (Not Found)';
@@ -662,13 +609,13 @@ test('all settings on an old spec whose First run is a number, when the table re
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
     const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
     assert.ok(!steps.includes('MVP Test Run') && !steps.includes('Data groups'), `MVP Test Run is hidden: ${steps.join(' | ')}`);
-    const back = page.getByRole('button', { name: 'Back' });
+    const back = page.getByRole('button', { name: 'Back', exact: true });
     for (let i = 0; i < steps.length && !(await page.locator('[aria-current="step"]').innerText()).includes(steps[0]); i += 1) {
       assert.equal(await page.locator('[data-first-run-unrecorded]').count(),
-        (await page.locator('[aria-current="step"]').innerText()).includes('Vibes') ? 1 : 0, 'the note is on Vibes only');
+        (await page.locator('[aria-current="step"]').innerText()).includes('Summary') ? 1 : 0, 'the note is on Summary only');
       await back.click();
     }
-    assert.equal(await page.locator('[data-first-run-unrecorded]').count(), 0, 'the note is on Vibes only');
+    assert.equal(await page.locator('[data-first-run-unrecorded]').count(), 0, 'the note is on Summary only');
     await toVibes(page);
     await onStep(page, 'Vibes');
     assert.deepEqual(await page.locator('[data-first-run-unrecorded]').allTextContents(), [RUN_SCOPE_UNRECORDED_HIDDEN]);
@@ -786,15 +733,13 @@ const STAR_BARE = { ...STAR, qualifies: false, columns: [], recommended: [], sug
   reason: 'Inspire recommends the whole data as one group because no column of main.retail.store_sales or of a table it joins splits it into 2 to 500 groups with 30 records each on average.' };
 const FORECAST = { ...HARNESS_USE_CASE, analytics_technique: 'Forecasting', genie_instruction: INSTRUCTION };
 
-test('a forecast on a star fact table with no column to group by still asks Data groups with the whole data as one group picked and why, then First run right after it on the first 1,000 records', async () => {
+test('a forecast on a star fact table with no column to group by still asks Data groups on Data with the whole data as one group picked and why, then First run right after it on the first 1,000 records', async () => {
   const calls = [];
   const ui = await openUi('wizard', { me: ME, useCase: FORECAST }, '', { init: profileAt(calls, STAR_BARE) });
   const { page } = ui;
   try {
     await toStep(page, 'Data groups');
-    const steps = await stepBar(page);
-    assert.ok(steps.some((s) => s.endsWith('. Data groups')), `the step list holds Data groups: ${steps}`);
-    assert.equal(steps.findIndex((s) => s.endsWith('. MVP Test Run')), steps.findIndex((s) => s.endsWith('. Data groups')) + 1, 'MVP Test Run comes right after Data groups');
+    assert.deepEqual((await stepBar(page)).slice(0, 2), ['1. Data', '2. First run'], 'Data holds Data groups and First run comes right after it');
     const grouping = page.getByRole('region', { name: 'How is the data split into groups?', exact: true });
     assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)), ['all'],
       'only the whole data when no column qualifies, never a custom SQL choice');

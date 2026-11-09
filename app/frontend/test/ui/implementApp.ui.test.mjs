@@ -735,9 +735,9 @@ test('the App is picked on its own App placement step: Delivery only ticks it, a
     const steps = await stepLabels(page);
     assert.ok(!steps.some((s) => /App access|App look/.test(s)), `no App access or App look step: ${steps.join(', ')}`);
     await toVibes(page);
-    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Run it');
-    await page.getByRole('button', { name: 'Back' }).click();
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'App');
     await placeStep(page).getByRole('radio', { name: /^Create a new App/ }).check();
     await page.getByLabel('App name').waitFor();
@@ -1106,9 +1106,9 @@ test('fifteen Apps scroll inside a list of fixed height: the wizard keeps the he
       for (let i = 0; i < 12; i += 1) await page.keyboard.press('ArrowDown');
       assert.equal(await targetRadio(page, 'fin-app-15').isChecked(), true);
       await toVibes(page);
-      await page.getByRole('button', { name: 'Back' }).click();
+      await page.getByRole('button', { name: 'Back', exact: true }).click();
       await onStep(page, 'Run it');
-      await page.getByRole('button', { name: 'Back' }).click();
+      await page.getByRole('button', { name: 'Back', exact: true }).click();
       await onStep(page, 'App');
       await placeStep(page).locator('[data-app-target]').nth(14).waitFor({ state: 'attached' });
       await settled(page, '[data-app-list]');
