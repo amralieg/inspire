@@ -3251,6 +3251,10 @@ def test_an_existing_app_whose_service_principal_cannot_read_its_tables_is_deplo
         f"run: {'; '.join(result)}; for main.s.orders, ask amr@x to run: {'; '.join(orders)}"]
     settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
     assert settings["unread"] == {ACCESS_TABLE: result, "main.s.orders": orders}, "the App's tiles name the exact grants"
+    assert settings["unread_owners"] == {ACCESS_TABLE: "amr@x", "main.s.orders": "amr@x"}, "the App's banner names who can grant"
+    assert fields["_asset"]["unread"] == {"app": "sp-2", "tables": [{"table": ACCESS_TABLE, "owner": "amr@x", "grants": result},
+                                                                     {"table": "main.s.orders", "owner": "amr@x", "grants": orders}]}, \
+        "the build records what the App cannot read, so the Build page asks for the grant instead of saying Done"
     assert ("POST", "/api/2.0/apps/churn-desk/deployments") in [c[:2] for c in calls]
     assert inst.tagged == ["churn-desk"]
 
@@ -3278,7 +3282,8 @@ def test_a_read_grant_the_platform_refuses_is_a_warning_with_the_exact_grant_and
             f"'main.s.orders'), ask inspire-sp to run: {GRANT_ORDERS.format('sp-1')}") in warning
     assert "main.inspire.churn_out" not in warning, "a table whose grant ran is not named (must-exclude)"
     settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
-    assert settings == {"unread": {"main.s.orders": [GRANT_ORDERS.format("sp-1")]}}
+    assert settings == {"unread": {"main.s.orders": [GRANT_ORDERS.format("sp-1")]}, "unread_owners": {"main.s.orders": "inspire-sp"}}
+    assert fields["_asset"]["unread"]["tables"] == [{"table": "main.s.orders", "owner": "inspire-sp", "grants": [GRANT_ORDERS.format("sp-1")]}]
     assert GRANT_SELECT.format("sp-1") in inst.spark.statements
 
 
@@ -3297,6 +3302,7 @@ def test_an_existing_app_whose_service_principal_reads_through_a_group_is_redepl
     assert grants == [GRANT_SELECT.format("sp-2"), GRANT_ORDERS.format("sp-2"), "GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out` TO `sp-2`"], (
         "record decisions starts on, so the App may write its decisions to the result table")
     assert "_warnings" not in fields
+    assert "unread" not in fields["_asset"], "an App that reads every table records nothing to grant (must-exclude)"
     assert inst.tagged == ["churn-desk"], "a redeployed App gets its tags again, so a new spec version shows on it"
 
 

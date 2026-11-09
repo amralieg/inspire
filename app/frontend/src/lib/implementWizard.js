@@ -2580,6 +2580,41 @@ export function lostTables(latest, rerunError) {
   return Array.isArray(data.missing_tables) ? data.missing_tables : [];
 }
 
+export const APP_READS_LABEL = 'MVP built, the App needs read access';
+export const APP_READS_HEADING = 'The App cannot read part of its data';
+export const APP_READS_GRANT = 'Grant access with my permissions';
+export const APP_READS_CHECK = 'Check again';
+
+export function appReadsOf(latest) {
+  if (!latest || !IMPLEMENT_DONE_STATUSES.includes(String(latest.status))) return null;
+  const unread = latest.asset_status?.app?.unread;
+  const tables = Array.isArray(unread?.tables) ? unread.tables.filter((t) => t && String(t.table || '').trim() && Array.isArray(t.grants) && t.grants.length) : [];
+  return tables.length ? { app: String(unread.app || ''), tables: tables.map((t) => ({ table: String(t.table), owner: String(t.owner || ''), grants: t.grants.map(String) })) } : null;
+}
+
+export function appReadsOwners(reads) {
+  return joinWords([...new Set((reads?.tables || []).map((t) => t.owner).filter(Boolean))]) || 'the table owner';
+}
+
+export function appReadsSql(reads) {
+  return [...new Set((reads?.tables || []).flatMap((t) => t.grants))].map((g) => `${g};`).join('\n');
+}
+
+export function appReadsText(reads, appName = '') {
+  const tables = joinWords((reads?.tables || []).map((t) => (t.owner ? `${t.table} (owner ${t.owner})` : t.table)));
+  return `The build finished, but the App${appName ? ` ${appName}` : ''} cannot read ${tables}, so its pages show no data from them yet. `
+    + 'Inspire could not grant the access itself, because it does not own that data.';
+}
+
+export function appReadsChoices(reads) {
+  const owners = appReadsOwners(reads);
+  return [
+    { id: 'grant', label: APP_READS_GRANT, detail: 'Inspire runs exactly the grants listed here as you, then checks the App again. It works when you own the data or hold MANAGE on it.' },
+    { id: 'copy', label: `Copy the grant SQL to send to ${owners}`, detail: `${owners} runs it in the SQL editor, then you press ${APP_READS_CHECK}.`, sql: appReadsSql(reads) },
+    { id: 'check', label: APP_READS_CHECK, detail: 'Inspire checks again whether the App can read its data, for example after the owner granted it.' },
+  ];
+}
+
 export const APP_READ_ACTION = 'Let Inspire read these tables';
 export const NEW_APPS_ACCESS_ACTION = 'Let new Apps use this catalog';
 
@@ -2722,6 +2757,7 @@ export function implementState(latest, notebook = null) {
   }
   if (s) {
     if (['ready', 'ready_with_warnings'].includes(s) && unreliableHold(latest)) return { group: 'held', label: UNRELIABLE_LABEL, tone: 'warning', kind: 'mvp' };
+    if (appReadsOf(latest)) return { group: 'held', label: APP_READS_LABEL, tone: 'warning', kind: 'mvp' };
     if (['ready', 'ready_with_warnings'].includes(s) && undeliveredOutputs(latest).length) return { group: 'held', label: UNDELIVERED_LABEL, tone: 'warning', kind: 'mvp' };
     if (['ready', 'ready_with_warnings'].includes(s) && openVibeAsks(latest).length) return { group: 'unmet', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' };
     if (s === 'ready') return { group: 'ready', label: 'MVP ready', tone: 'success', kind: 'mvp' };

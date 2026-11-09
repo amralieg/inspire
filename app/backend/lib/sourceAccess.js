@@ -72,7 +72,22 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     return { granted: ran.length, ran, failed, missing_tables: after.missing, app_unreadable: after.app_unreadable };
   }
 
-  return { accessRowsOf, appIdentity, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess };
+  async function appReadsLeftOf(req, token, warehouseId, record) {
+    const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, token, warehouseId, t.table)));
+    return I.appReadsLeft(record, record.tables.map((t, i) => I.accessPlan(t.table, rows[i], record.app)));
+  }
+
+  async function appReads(req, warehouseId, record, grant) {
+    const person = P.personTokenOf(req);
+    const token = person || req.dbToken;
+    const before = await appReadsLeftOf(req, token, warehouseId, record);
+    if (!grant) return { left: before, ran: [], failed: [] };
+    if (!person) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);
+    const { ran, failed } = await runPersonGrants(req, person, warehouseId, I.appReadsGrantable(record, before));
+    return { left: ran.length ? await appReadsLeftOf(req, token, warehouseId, record) : before, ran, failed };
+  }
+
+  return { accessRowsOf, appIdentity, appReads, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess };
 }
 
 module.exports = { createSourceAccess };

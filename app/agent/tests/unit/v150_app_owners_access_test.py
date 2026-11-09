@@ -332,9 +332,9 @@ def test_an_owner_whose_app_may_not_write_the_assumptions_gets_a_plain_refusal(t
                        body={"page": "n01_u05", "name": "PRICE", "value": 24, "was": 20})
     assert status == 403 and out["error"] == (
         "Nothing was saved: this App's service principal may not change `main`.`pricing`.`loss_desk_out_assumptions` in Unity "
-        "Catalog (PERMISSION_DENIED: User does not have MODIFY on Table 'main.pricing.loss_desk_out_assumptions'). Ask the person "
-        "who built the App to build it again with Vibe/Add/Remove Features on Inspire's Build page, so Inspire grants the service principal SELECT and MODIFY on that table, or ask the owner "
-        "of that table to grant them")
+        "Catalog (PERMISSION_DENIED: User does not have MODIFY on Table 'main.pricing.loss_desk_out_assumptions'). Ask the owner "
+        "of that table to grant the App's service principal SELECT and MODIFY on it")
+    assert "again" not in out["error"], "a permission error never sends people to rebuild the App"
 
     class Broken(MoneyWorkspace):
         def run_sql(self, warehouse, sql, params, limit=5000):

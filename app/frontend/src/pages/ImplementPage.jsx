@@ -9,7 +9,7 @@ import {
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -767,6 +767,29 @@ function PartTabs({ assets, picked, onPick }) {
   return <TabStrip label="Pick a part" idBase={PART_TABS} tabs={tabs} current={picked} onPick={onPick} />;
 }
 
+function ChoiceList({ heading, choices, mark, tone, disabled, title = '', busy = '', onPick }) {
+  if (!choices.length) return null;
+  return (
+    <div aria-label={heading} className="space-y-1.5">
+      <p className={`font-semibold ${tone}`}>{heading}</p>
+      <ul className="grid gap-1.5 sm:grid-cols-2">
+        {choices.map((choice) => (
+          <li key={choice.id} {...{ [mark]: choice.id }} className="rounded-lg border border-border bg-bg-subtle px-2.5 py-2 space-y-1">
+            {choice.url ? (
+              <a className={OUTLINE_BUTTON} href={choice.url} target="_blank" rel="noreferrer">{choice.label} <ExternalLink size={12} /></a>
+            ) : (
+              <button type="button" disabled={disabled} title={title || undefined} onClick={() => onPick(choice)} className={OUTLINE_BUTTON}>
+                {busy === choice.id ? <Loader2 size={12} className="animate-spin" /> : null} {choice.label}
+              </button>
+            )}
+            <p className="text-text-secondary">{choice.detail}</p>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+}
+
 function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson, databricksHost, notebookRunError, refreshKey, collectedKey,
   onEdit, onOpenRun = null, onOpenDemoMvp = null, onProgress = null, readOnly = false }) {
   const useCaseId = item.id;
@@ -894,6 +917,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const tableChange = useCallback((next) => apiPostJson(`/api/inspire/implement/table-change?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`,
     { spec: next }), [apiPostJson, qBase, useCaseId]);
   const chip = statusChip(latest?.status, stalled);
+  const [readsResult, setReadsResult] = useState(null);
+  const [readsBusy, setReadsBusy] = useState('');
   const tracked = trackedKpiOf(status?.history, latest);
   const kpiView = targetKpiView(tracked?.record, money?.run, liveImpact(money?.run, tracked?.impact || rowImpact(latest)));
   const spec = latest?.spec_json || {};
@@ -1225,25 +1250,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
       )}
       {buildAgain && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : terminal ? TERMINAL_STOP_HINT : buildAgainHint(latest)}</p>}
-      {choicesNow.length > 0 && (
-        <div aria-label={FAILURE_CHOICES_HEADING} className="space-y-1.5">
-          <p className="font-semibold text-error-fg">{FAILURE_CHOICES_HEADING}</p>
-          <ul className="grid gap-1.5 sm:grid-cols-2">
-            {choicesNow.map((choice) => (
-              <li key={choice.id} data-failure-choice={choice.id} className="rounded-lg border border-border bg-bg-subtle px-2.5 py-2 space-y-1">
-                {choice.url ? (
-                  <a className={OUTLINE_BUTTON} href={choice.url} target="_blank" rel="noreferrer">{choice.label} <ExternalLink size={12} /></a>
-                ) : (
-                  <button type="button" disabled={locked || writingNotebook} title={lockedReason || undefined} onClick={() => pickChoice(choice)} className={OUTLINE_BUTTON}>
-                    {choice.id === 'notebook' && writingNotebook ? <Loader2 size={12} className="animate-spin" /> : null} {choice.label}
-                  </button>
-                )}
-                <p className="text-text-secondary">{choice.detail}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
-      )}
+      <ChoiceList heading={FAILURE_CHOICES_HEADING} choices={choicesNow} mark="data-failure-choice" tone="text-error-fg" disabled={locked || writingNotebook}
+        title={lockedReason} busy={writingNotebook ? 'notebook' : ''} onPick={pickChoice} />
       {(buildAgain || onEdit || buildRunUrl) && (
         <div className="flex flex-wrap gap-2">
           {buildAgain && !dataStop && !terminal && (
@@ -1267,6 +1275,58 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             </a>
           )}
         </div>
+      )}
+    </section>
+  );
+
+  const reads = readOnly ? null : appReadsOf(latest);
+  const readsShown = readsResult && !readsResult.error && readsResult.version === latest?.spec_version ? readsResult : null;
+  const readsLeft = readsShown ? { app: reads?.app || '', tables: readsShown.tables || [] } : reads;
+  const runReads = async (action) => {
+    setReadsBusy(action);
+    try {
+      const got = await apiPostJson(`/api/inspire/implement/app-reads?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, { action });
+      setReadsResult({ ...got, version: latest?.spec_version, action });
+    } catch (e) {
+      setReadsResult({ error: e.message, version: latest?.spec_version, action });
+    } finally {
+      setReadsBusy('');
+    }
+  };
+  const pickReads = async (choice) => {
+    if (choice.id !== 'copy') return runReads(choice.id);
+    try {
+      await navigator.clipboard.writeText(choice.sql);
+      setReadsResult((was) => ({ ...(was && !was.error ? was : { tables: readsLeft.tables }), version: latest?.spec_version, action: 'copy', copied: true }));
+    } catch (e) {
+      setReadsResult((was) => ({ ...(was && !was.error ? was : { tables: readsLeft.tables }), version: latest?.spec_version, action: 'copy', copyError: e.message }));
+    }
+  };
+  const readsCard = reads && (
+    <section aria-label={APP_READS_HEADING} data-app-reads="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle size={16} className="mt-px shrink-0 text-warning-fg" aria-hidden />
+        <div className="min-w-0 space-y-1 text-warning-fg">
+          <p className="text-[13px] font-semibold">{readsLeft.tables.length ? APP_READS_HEADING : 'The App can read all its data now'}</p>
+          {readsLeft.tables.length > 0 && <p>{appReadsText(readsLeft, latest?.app_name || '')}</p>}
+          {readsLeft.tables.length > 0 && (
+            <ul aria-label="Grants the App needs" className="space-y-0.5">
+              {[...new Set(readsLeft.tables.flatMap((t) => t.grants))].map((g) => <li key={g} className="font-mono text-[11px] text-text-primary break-all">{g}</li>)}
+            </ul>
+          )}
+        </div>
+      </div>
+      {readsResult && readsResult.version === latest?.spec_version && (
+        <div role="status" data-app-reads-result={readsResult.refused || readsResult.error ? 'refused' : readsResult.action} className="space-y-0.5 text-text-primary">
+          {readsResult.error && <PlainMessage text={readsResult.action === 'grant' ? `Your grant was refused: ${readsResult.error}` : readsResult.error} />}
+          {!readsResult.error && readsResult.action !== 'copy' && <p>{readsResult.text}</p>}
+          {readsResult.copied && <p>The grant SQL is copied. Send it to {readsLeft.tables.map((t) => t.owner).filter(Boolean)[0] || 'the table owner'}.</p>}
+          {readsResult.copyError && <p>The grant SQL could not be copied: {readsResult.copyError}. Select it above and copy it.</p>}
+        </div>
+      )}
+      {readsLeft.tables.length > 0 && (
+        <ChoiceList heading={FAILURE_CHOICES_HEADING} choices={appReadsChoices(readsLeft)} mark="data-app-reads-choice" tone="text-warning-fg"
+          disabled={readsBusy !== ''} busy={readsBusy} onPick={pickReads} />
       )}
     </section>
   );
@@ -1551,6 +1611,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const attention = (
     <>
       {failureBanner}
+      {readsCard}
       {rebuildBanner}
       {missing.length > 0 && (
         <div className="border border-error/30 bg-error-bg rounded-lg px-3 py-2 text-[12px] space-y-2">
@@ -1578,7 +1639,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       )}
     </>
   );
-  const needsAttention = Boolean(failureBanner) || Boolean(rebuildBanner) || missing.length > 0 || Boolean(edited) || Boolean(held);
+  const needsAttention = Boolean(failureBanner) || Boolean(readsCard) || Boolean(rebuildBanner) || missing.length > 0 || Boolean(edited) || Boolean(held);
 
   const stop = stopAction && (
     <button type="button" data-stop-build="" disabled={readOnly || actionBusy !== ''} title={lockedReason || undefined} onClick={() => runControl(stopAction)} className={DANGER_BUTTON}>

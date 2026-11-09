@@ -12,7 +12,8 @@ import shell_sql  # noqa: E402
 
 DENIED = ("[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table `main`.`inspire`.`churn_out_closed`. "
           "SQLSTATE: 42501")
-RAW = ("SQLSTATE", "42501", "INSUFFICIENT_PERMISSIONS", "churn_out_closed", "Traceback", "File \"", "java.", "org.apache")
+RAW = ("SQLSTATE", "42501", "INSUFFICIENT_PERMISSIONS", "Traceback", "File \"", "java.", "org.apache")
+NO_ACCESS = "No access to main.inspire.churn_out_closed"
 
 
 def _plain(text):
@@ -25,7 +26,7 @@ def test_a_permission_error_reaches_the_page_as_a_plain_sentence_and_the_log_kee
     answer = {"rows": [{"note": "SQLSTATE kept in data"}], "errors": {"impact": detail}, "error": detail, "facts": {"reason": "Fine words."},
               "tiles": [{"problem": f"stake failed: {detail}"}]}
     shown = shell_sql.plain_answer(answer)
-    assert shown["errors"]["impact"] == shown["error"] == shell_sql.PLAIN_ERRORS["not_allowed"] and _plain(shown["tiles"][0]["problem"])
+    assert shown["errors"]["impact"] == shown["error"] == NO_ACCESS and _plain(shown["tiles"][0]["problem"])
     assert shown["facts"]["reason"] == "Fine words." and shown["rows"] == [{"note": shell_sql.plain_error("SQLSTATE kept in data")}]
     assert "[PLAIN-ERROR FIRED] not_allowed" in capsys.readouterr().err
     core = open(os.path.join(SERVER, "shell_core.py"), encoding="utf-8").read()
@@ -74,7 +75,7 @@ def test_a_sentence_the_shell_wrote_keeps_its_reason_and_next_step_and_only_the_
         "it could not read it (warehouse stopped) [DIVIDE_BY_ZERO] Division by zero": "",
     }
     for text, code in falls_back.items():
-        assert shell_sql.plain_error(text) == shell_sql.PLAIN_ERRORS[code], text
+        assert shell_sql.plain_error(text) == (NO_ACCESS if code == "not_allowed" else shell_sql.PLAIN_ERRORS[code]), text
     assert shell_sql.plain_error("it could not read it (warehouse stopped)") == "it could not read it (warehouse stopped)"
     assert capsys.readouterr().err.count("[PLAIN-ERROR FIRED]") == len(kept) + len(falls_back)
 
@@ -90,8 +91,24 @@ def test_a_failed_job_run_message_and_a_failed_genie_answer_are_plain():
                                     "start_time": 1, "end_time": 2}, "")
     assert view["result"] == "failed" and view["message"] == DENIED, "the job run keeps its raw message so the run keeps its error class"
     assert shell_core.run_error_code(view["message"]) == "not_allowed"
-    assert shell_sql.plain_answer({"runs": [view]})["runs"][0]["message"] == shell_sql.PLAIN_ERRORS["not_allowed"], "the answer is plain"
+    assert shell_sql.plain_answer({"runs": [view]})["runs"][0]["message"] == NO_ACCESS, "the answer is plain"
     source = open(os.path.join(SERVER, "shell_db.py")).read()
     assert '"error": plain_error(inspire_redact_text((message.get("error") or {}).get("error")' in source
     core = open(os.path.join(SERVER, "shell_core.py")).read()
     assert core.count("shell_sql.plain_error(inspire_redact_text(") == 1 and core.count("shell_sql.plain_error(f\"Inspire could not read the page files") == 1
+
+
+def test_a_permission_error_names_the_data_and_never_sends_people_to_rebuild_the_app():
+    cases = {
+        DENIED: "No access to main.inspire.churn_out_closed",
+        "[INSUFFICIENT_PERMISSIONS] User does not have USE SCHEMA on Schema 'main.s'. SQLSTATE: 42501": "No access to main.s",
+        "PERMISSION_DENIED: User does not have USE CATALOG on Catalog `main` SQLSTATE: 42501": "No access to main",
+        "[INSUFFICIENT_PERMISSIONS] Insufficient privileges SQLSTATE: 42501": shell_sql.PLAIN_ERRORS["not_allowed"],
+    }
+    for text, said in cases.items():
+        assert shell_sql.plain_error(text) == said, text
+        assert said.startswith(shell_sql.NO_ACCESS_LEAD)
+        assert not any(w in said.lower() for w in ("again with", "build it", "rebuild", "person who built")), said
+    assert shell_sql.no_access_text(tables=["`main`.`s`.`a`", "main.s.b", "main.s.a"]) == "No access to main.s.a, main.s.b"
+    assert shell_sql.plain_error("[TABLE_OR_VIEW_NOT_FOUND] The table or view `a`.`b`.`c` cannot be found. SQLSTATE: 42P01") == \
+        shell_sql.PLAIN_ERRORS["missing_table"], "a missing table is not called a permission problem (must-exclude)"

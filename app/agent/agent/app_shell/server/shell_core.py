@@ -318,11 +318,11 @@ def unread_hint(message: str, sql: str, unread: dict) -> str:
     if not unread or not NO_ACCESS.search(message):
         return message
     query = str(sql or "").replace("`", "").lower()
-    named = [(table, grants) for table, grants in unread.items() if table.replace("`", "").lower() in query]
+    named = [table for table in unread if table.replace("`", "").lower() in query]
     if not named:
         return message
-    needs = "; ".join(f"{table}: {'; '.join(grants)}" for table, grants in named)
-    return f"{message}. The App cannot read this data until the table owner runs, for {needs}"
+    print(f"[APP-NO-ACCESS FIRED] {', '.join(named)}: {message[:4000]}", file=sys.stderr, flush=True)
+    return shell_sql.no_access_text(tables=named)
 
 
 def settings_problems(settings: dict, pages: list) -> list:
@@ -386,6 +386,10 @@ def settings_problems(settings: dict, pages: list) -> list:
             isinstance(k, str) and isinstance(v, list) and v and all(isinstance(g, str) and g.startswith("GRANT ") for g in v)
             for k, v in unread.items())):
         problems.append("the App unread must be an object of table name to the GRANT statements its service principal still needs")
+    owners = settings.get("unread_owners")
+    if owners is not None and not (isinstance(owners, dict) and all(
+            isinstance(k, str) and isinstance(v, str) and 0 < len(v.strip()) <= 254 for k, v in owners.items())):
+        problems.append("the App unread_owners must be an object of table name to the owner who can grant the App read access")
     if not isinstance(settings.get("admin"), str):
         problems.append("the App settings need admin, the user name of the person who built the App")
     use_case_owners = settings.get("use_case_owners")
@@ -1965,6 +1969,7 @@ class Shell:
             "is_owner": self.is_owner(headers), "pages": pages, "built_at": s.get("built_at") or "", "backend": self.backend_status(),
             "alerts": {k: v for k, v in (s.get("alerts") or {}).items() if k in self.by_id},
             "alerts_home": f"{host}{ALERTS_HOME}" if host else "", "alerting": self.alerts.status(), "held_meaning": shell_sql.HELD_MEANING,
+            "no_access": {table: owner for table, owner in (s.get("unread_owners") or {}).items() if table in (s.get("unread") or {})},
         }
 
     def _timed(self, fn, key, probe):
@@ -2564,10 +2569,9 @@ class Shell:
         if as_app and self.inside:
             return HttpError(403, f"Nothing was saved: Inspire's service principal records the decisions of this page and may not change "
                                   f"{table} in Unity Catalog ({error}). Ask the owner of that table to grant Inspire's service principal "
-                                  f"SELECT and MODIFY on it, or {shell_sql.rebuild_action('the use case')}")
+                                  "SELECT and MODIFY on it")
         return HttpError(403, f"Nothing was saved: this App's service principal may not change {table} in Unity Catalog ({error}). "
-                              f"Ask the person who built the App to {shell_sql.rebuild_action()}, so Inspire grants the service principal SELECT and "
-                              "MODIFY on that table, or ask the owner of that table to grant them")
+                              "Ask the owner of that table to grant the App's service principal SELECT and MODIFY on it")
 
     def page_editors(self, page: dict) -> set:
         listed = self.settings.get("use_case_owners")

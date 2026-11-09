@@ -121,6 +121,8 @@ button,input,select,textarea{font:inherit;color:inherit}
 .btn--pri:hover{background:var(--btn-bg);filter:brightness(1.08)}
 .btn--danger{background:var(--danger);color:var(--card);border-color:var(--danger)}
 .note{display:flex;gap:8px;align-items:flex-start;margin:8px 16px 0;padding:9px 12px;border-radius:9px;background:var(--blue-bg);color:var(--blue-ink);border:1px solid var(--blue-bd);font-size:13px}
+.note--warn{background:var(--amber-bg);color:var(--amber-ink);border-color:var(--amber-bd);align-items:center}
+.note--warn>span{flex:1}
 .tbl-wrap{overflow-x:auto;margin:10px 0 4px}
 .tbl{width:100%;border-collapse:collapse;font-size:13px}
 .tbl th{position:sticky;top:0;text-align:start;font-size:11px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted);border-bottom:1px solid var(--line);padding:0 12px;background:var(--card)}

@@ -1752,6 +1752,45 @@ paths:
                 $ref: '#/components/schemas/Error'
         '401':
           $ref: '#/components/responses/PersonSignInRequired'
+  /api/inspire/implement/app-reads:
+    post:
+      tags: [Implement]
+      summary: Check or grant the read access of an App Inspire built
+      description: |
+        Reads the tables the latest built version recorded its App could not read (asset_status.app.unread) and checks them again.
+        With action=grant it runs, with the signed-in person's own token, only the recorded GRANT USE CATALOG, USE SCHEMA and SELECT
+        statements to the App's service principal that are still missing, then checks again and updates the version's record.
+        It never runs SQL sent in the request.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+        - {name: inspire_database, in: query, required: true, schema: {type: string}}
+        - {name: warehouse_id, in: query, required: true, schema: {type: string}}
+        - {name: session_id, in: query, required: true, schema: {type: string}}
+        - {name: use_case_id, in: query, required: true, schema: {type: string}}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: {type: string, enum: [check, grant]}
+      responses:
+        '200':
+          description: What the App still cannot read, and the grants that ran or failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state: {type: string, enum: [readable, unreadable]}
+                  tables: {type: array, items: {type: object}}
+                  ran: {type: array, items: {type: string}}
+                  failed: {type: array, items: {type: string}}
+                  refused: {type: boolean}
+                  text: {type: string}
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
   /api/inspire/implement/grant-access:
     post:
       tags: [Implement]

@@ -4,7 +4,7 @@ import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js'
 import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
-import { PlainNote, ToastProvider } from './ui.jsx';
+import { NoAccessScope, PlainNote, ToastProvider } from './ui.jsx';
 import Page from './Page.jsx';
 import { tabLabel } from './Layouts.jsx';
 import Home, { hubToday } from './Home.jsx';
@@ -259,6 +259,7 @@ function Shell({ app }) {
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
           <TopProvider slot={slot} fit={fit} pageMore={pageMore}>
           <main className="main" tabIndex={-1}>
+            <NoAccessScope key={page ? `page:${page.id}` : screen} app={app}>
             {screen === 'overview' && <GenieScope.Provider value={HUB_SCOPES.overview}><Home app={app} hub={hub} hubError={hubError} summaries={summaries} view={view} onView={setView} onOpen={go} onRecord={openRecord}
               onChanges={(id) => { window.location.hash = `#/${encodeURIComponent(id)}?changed=1`; leave(); }} onMyWork={() => go(MY_WORK_ROUTE)} /></GenieScope.Provider>}
             {screen === 'mywork' && <GenieScope.Provider value={HUB_SCOPES.mywork}><MyWorkPage app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} /></GenieScope.Provider>}
@@ -272,6 +273,7 @@ function Shell({ app }) {
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK} onLook={setPageLook(page.id)} themeKey={themeKey}
                 onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]} summary={summaries[page.id]} view={view} onView={setView} genie={genie} />
             )}
+            </NoAccessScope>
           </main>
           </TopProvider>
           {genieOpen && <GeniePanel app={app} genie={genie} page={page} pages={shown} onPick={go} onClose={() => setGenieOpen(false)} />}

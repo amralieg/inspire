@@ -33,9 +33,10 @@ def rebuild_action(what: str = "it", first: bool = False) -> str:
     return text[:1].upper() + text[1:] if first else text
 
 
+NO_ACCESS_LEAD = "No access to "
+ACCESS_ON = re.compile(r"\bon (?:table|view|schema|catalog|volume|function) (`[^`]+`(?:\.`[^`]+`){0,2}|'[^']+'|[\w-]+(?:\.[\w-]+){0,2})", re.I)
 PLAIN_ERRORS = {
-    "not_allowed": f"This App may not read part of its data yet. Ask the person who built the App to {rebuild_action()}, or ask a data "
-                   "owner to give the App read access.",
+    "not_allowed": f"{NO_ACCESS_LEAD}part of this App's data yet. Ask the owner of that data for read access, then try again.",
     "missing_table": "Part of this App's data is not there yet. It appears after the next run; if it stays missing, ask the person who built "
                      "the App to run it again.",
     "missing_column": f"The data changed since the App was built. Ask the person who built the App to {rebuild_action()}.",
@@ -71,6 +72,12 @@ def without_raw_parts(said: str) -> str:
     return "".join(out).strip()
 
 
+def no_access_text(said: str = "", tables=()) -> str:
+    named = list(dict.fromkeys(str(t).replace("`", "").strip("'") for t in tables or ())) or list(dict.fromkeys(
+        m.replace("`", "").strip("'") for m in ACCESS_ON.findall(str(said or ""))))
+    return f"{NO_ACCESS_LEAD}{', '.join(named)}" if named else PLAIN_ERRORS["not_allowed"]
+
+
 def plain_error(text) -> str:
     said = str(text or "")
     if not RAW_ERROR.search(said):
@@ -78,7 +85,9 @@ def plain_error(text) -> str:
     code = run_error_code(said)
     print(f"[PLAIN-ERROR FIRED] {code or 'other'}: {said[:4000]}", file=sys.stderr, flush=True)
     kept = without_raw_parts(said)
-    return kept if kept and not RAW_ERROR.search(kept) else PLAIN_ERRORS[code]
+    if kept and not RAW_ERROR.search(kept):
+        return kept
+    return no_access_text(said) if code == "not_allowed" else PLAIN_ERRORS[code]
 
 
 def error_text(error, secrets=(), known: str = "") -> str:

@@ -141,7 +141,7 @@ function registerImplementRoutes(app, deps) {
   const fetchJsonFor = (req) => (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, path);
 
   const readMeFor = (req) => (token) => jsonOf(dbFetch, req.dbHost, token, P.SCIM_ME_PATH);
-  const { accessRowsOf, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess } = SA.createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken });
+  const { accessRowsOf, appReads, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess } = SA.createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken });
 
   async function loadTokenPrincipal(req) {
     const got = await readMeFor(req)(req.dbToken);
@@ -972,6 +972,30 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  app.post('/api/inspire/implement/app-reads', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const sid = sessionIdOf(req);
+      const { catalog, schema } = dbOf(req, splitInspireDatabase);
+      const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
+      const action = String((req.body && req.body.action) ?? 'check');
+      if (!['check', 'grant'].includes(action)) throw I.badRequest('action must be check or grant');
+      const record = I.appReadsRecord(await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId));
+      if (!record) return res.json({ state: 'readable', tables: [], ran: [], failed: [], text: I.appReadsText([], '') });
+      const { left, ran, failed } = await appReads(req, warehouseId, record, action === 'grant');
+      const was = record.tables.map((t) => `${t.table}:${t.owner}:${t.grants.join(';')}`).join('|');
+      const now = left.map((t) => `${t.table}:${t.owner}:${t.grants.join(';')}`).join('|');
+      if (was !== now) {
+        const update = I.appReadsUpdateStatement(I.implementTableName(catalog, schema), record.row, left);
+        await executeSql(req.dbHost, req.dbToken, warehouseId, update.sql, update.parameters);
+      }
+      res.json({ state: left.length ? 'unreadable' : 'readable', app: record.app, app_name: record.app_name, tables: left, ran, failed,
+        refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, record.app_name, failed) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
   app.post('/api/inspire/implement/create-schema', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);
@@ -1129,14 +1153,16 @@ function registerImplementRoutes(app, deps) {
       const mergeIssues = I.mergeProblems(spec, targets, I.carriedAssets(history));
       if (mergeIssues.length) throw I.badRequest(mergeIssues.join('; '));
     }
-    const [stalled, tables, empty] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
-      emptyDataWarning(req, warehouseId, spec, useCase)]);
+    const [stalled, tables, empty, unshared] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
+      emptyDataWarning(req, warehouseId, spec, useCase), newAppReads(req, warehouseId, spec, useCase)]);
     const plan = I.planSubmission(history, spec, stalled, { requester: person.username, tableChange: tables.change });
     if (moved) plan.summary.result_table_moved = moved;
     if (tables.change) plan.summary.table_change = tables.change;
     if (tables.error) plan.summary.table_change_error = tables.error;
     if (plan.summary.refill || (tables.change && tables.change.class === 'settings')) await refuseMissingSources(req, warehouseId, spec, useCase);
-    const warnings = [asksWarning, ...readWarnings, empty, ...scopeIssues.carried.map((p) => `${I.FIRST_RUN_CARRIED}${p}.`)].filter(Boolean);
+    const appReadsWarning = I.newAppReadsWarning(unshared);
+    const warnings = [asksWarning, ...readWarnings, empty, appReadsWarning, ...scopeIssues.carried.map((p) => `${I.FIRST_RUN_CARRIED}${p}.`)].filter(Boolean);
+    if (unshared.length) plan.summary.app_reads = { tables: unshared.map(({ table, owner }) => ({ table, owner })), text: appReadsWarning };
     return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings };
   }
 
@@ -1177,6 +1203,14 @@ function registerImplementRoutes(app, deps) {
       notes.push(what ? `${pick.chosen} (cleared ${what})` : pick.chosen);
     }
     return { spec: next, warnings: [`Building without ${notes.length === 1 ? 'a table' : `${notes.length} tables`} you can't read: ${I.joinAnd(notes)}.`, ...reads.uncheckedWarnings] };
+  }
+
+  async function newAppReads(req, warehouseId, spec, useCase) {
+    if (!spec.outputs.app || spec.outputs.app_access === 'user') return [];
+    const tables = I.sourceTables(spec, I.useCaseTables(useCase)).filter((t) => !I.resultTableNameError(t, 'tables'));
+    const token = await appTokenOf(req);
+    const rows = await Promise.all(tables.map((t) => accessRowsOf(req, token, warehouseId, t)));
+    return I.newAppReadsGaps(tables, tables.map((t, i) => (rows[i].length ? I.accessPlan(t, rows[i]) : { gaps: [] })));
   }
 
   async function emptyDataWarning(req, warehouseId, spec, useCase) {

@@ -1,4 +1,4 @@
-import { IMPLEMENT_OUTPUTS, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_DONE_STATUSES, IMPLEMENT_VIBE_NOT_MET, heldAsks, joinWords, partLabel, statusChip } from './implementWizard.js';
+import { APP_READS_LABEL, IMPLEMENT_OUTPUTS, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_DONE_STATUSES, IMPLEMENT_VIBE_NOT_MET, appReadsOf, heldAsks, joinWords, partLabel, statusChip } from './implementWizard.js';
 import { formatDuration, formatWhen } from './formatWhen.js';
 import { plural, shown } from './plural.js';
 import { rowImpact } from './targetKpi.js';
@@ -346,6 +346,7 @@ export function mvpStages(steps, latest, { now = Date.now(), stalled = null } = 
       if (lastAt !== null && (s.ended === null || s.ended < lastAt)) s.ended = lastAt;
     });
     stages.forEach((s) => { if (s.state === 'waiting') s.state = 'skipped'; });
+    if (appReadsOf(latest) && finish.state === 'done') finish.state = 'warning';
   }
   if (failed) {
     if (!stages.some((s) => s.state === 'error')) {
@@ -369,6 +370,7 @@ export function mvpStages(steps, latest, { now = Date.now(), stalled = null } = 
     const [noted, label] = STAGE_NOTES[s.id] || [];
     s.notes = ['done', 'warning'].includes(s.state) && noted ? versionNotes(latest, noted).map((note) => `${label}: ${note}`) : [];
   }
+  if (finished && appReadsOf(latest)) finish.notes = [...finish.notes, APP_READS_LABEL];
   return stages;
 }
 

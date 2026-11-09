@@ -118,6 +118,7 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/swaps': yours('look up table swaps', ['sql']),
   'POST /api/inspire/implement/readiness': yours('check data readiness', ['sql']),
   'POST /api/inspire/implement/grant-access': yours('grant read access with your own sign-in', ['sql']),
+  'POST /api/inspire/implement/app-reads': yours('give an App Inspire built read access with your own sign-in', ['sql']),
   'POST /api/inspire/implement/create-schema': yours('create a catalog or schema with your own sign-in', ['sql']),
   'GET /api/inspire/implement/serving-endpoints': yours('list serving endpoints', ['model-serving']),
   'POST /api/run': { ...anyone('launch a run', 'launches the run as the App, which owns the job and its tracking tables'), outputWrite: true, scopes: OUTPUT_WRITE_SCOPES },

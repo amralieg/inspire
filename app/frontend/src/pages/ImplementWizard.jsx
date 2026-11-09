@@ -1893,6 +1893,7 @@ export default function ImplementWizard({
             )}
 
             {folderWarning && <p role="note" aria-label="Where Inspire saves the MVP" className="text-[11px] text-warning-fg">{folderWarning}</p>}
+            {plan?.summary?.app_reads?.text && <p role="note" aria-label="Data the new App cannot read" data-app-reads-warning="" className="text-[11px] text-warning-fg">{plan.summary.app_reads.text}</p>}
 
             {generalChecks.some(([, v]) => !v.ok || v.warn) && (
               <section className="space-y-1" aria-label="Access checks">

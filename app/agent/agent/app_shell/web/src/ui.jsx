@@ -1,4 +1,4 @@
-import { Children, createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Children, Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './icons.jsx';
 import { DETAILS_LABEL, splitTechnical } from './plainText.js';
@@ -59,14 +59,75 @@ export function TechnicalDetails({ items, label = DETAILS_LABEL }) {
   return <details className="tech-details" data-technical-details=""><summary>{label}</summary><pre>{lines.join('\n')}</pre></details>;
 }
 
+export const NO_ACCESS_LEAD = 'No access to ';
+const SOME_DATA = "part of this App's data";
+const NoAccessContext = createContext(null);
+
+export function noAccessOf(text) {
+  const said = String(text ?? '').trim();
+  if (!said.startsWith(NO_ACCESS_LEAD)) return null;
+  const named = said.slice(NO_ACCESS_LEAD.length);
+  return named.startsWith(SOME_DATA) ? [] : named.split(', ').map((t) => t.trim()).filter(Boolean);
+}
+
+export function noAccessBanner(tables, owners, auth) {
+  const who = [...new Set(tables.map((t) => owners?.[t]).filter(Boolean))];
+  const reader = auth === 'user' ? 'You cannot' : 'This App cannot';
+  const what = tables.length ? tables.join(', ') : SOME_DATA.replace("this App's", 'its');
+  const grant = `${who.length ? who.join(', ') : 'The owner of that data'} can give ${auth === 'user' ? 'you' : 'the App'} read access in Unity Catalog`;
+  return `${reader} read ${what} yet, so parts of this page show no data from ${tables.length === 1 ? 'it' : 'them'}. ${grant}. Then press Check again.`;
+}
+
+function useNoAccess(tables) {
+  const scope = useContext(NoAccessContext);
+  const key = tables ? JSON.stringify(tables) : '';
+  useEffect(() => (key && scope ? scope.report(JSON.parse(key)) : undefined), [key, scope]);
+  return Boolean(scope);
+}
+
+function NoAccessLine({ tables, as: Tag, icon, rest }) {
+  return <Tag {...rest} data-no-access="">{icon}{tables.length ? `${NO_ACCESS_LEAD}${tables.join(', ')}` : `${NO_ACCESS_LEAD}this data`}</Tag>;
+}
+
+export function NoAccessScope({ app, children }) {
+  const [seen, setSeen] = useState({});
+  const [round, setRound] = useState(0);
+  const report = useCallback((tables) => {
+    const id = Symbol('no-access');
+    setSeen((s) => ({ ...s, [id]: tables }));
+    return () => setSeen((s) => { const next = { ...s }; delete next[id]; return next; });
+  }, []);
+  const scope = useMemo(() => ({ report }), [report]);
+  const lists = Object.getOwnPropertySymbols(seen).map((id) => seen[id]);
+  const tables = [...new Set(lists.flat())].sort();
+  return (
+    <NoAccessContext.Provider value={scope}>
+      {lists.length > 0 && (
+        <div className="note note--warn" role="alert" data-no-access-banner="">
+          <Icon name="info" size={14} />
+          <span>{noAccessBanner(tables, app?.no_access, app?.auth)}</span>
+          <button type="button" className="btn" onClick={() => { setSeen({}); setRound((n) => n + 1); }}>Check again</button>
+        </div>
+      )}
+      <Fragment key={round}>{children}</Fragment>
+    </NoAccessContext.Provider>
+  );
+}
+
 export function PlainNote({ text, as: Tag = 'p', icon = null, prefix = '', children, ...rest }) {
+  const tables = noAccessOf(text);
+  const scoped = useNoAccess(tables);
+  if (tables && scoped) return <NoAccessLine tables={tables} as={Tag} icon={icon} rest={rest} />;
   const { plain, details } = splitTechnical(`${prefix}${text ?? ''}`);
   if (!plain && !details.length) return null;
   return <>{plain && <Tag {...rest}>{icon}{plain}{children}</Tag>}<TechnicalDetails items={details} /></>;
 }
 
 export function Failure({ failure, className, as: Tag = 'p', children }) {
+  const tables = failure?.text ? noAccessOf(failure.text) : null;
+  const scoped = useNoAccess(tables);
   if (!failure?.text) return null;
+  if (tables && scoped) return <NoAccessLine tables={tables} as={Tag} icon={null} rest={{ className, role: 'status' }} />;
   const calm = !!failure.calm;
   const { plain, details } = splitTechnical(failure.text);
   const shown = Children.map(children, (child) => (child === failure.text ? plain : child));
