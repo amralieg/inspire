@@ -136,7 +136,7 @@ test('a field reads its display key, falls back to the tracking-table column whe
   assert.equal(f.isBlankField(false), false);
 });
 
-test('High priority is one rule: Inspire Score of 3 or more out of 5, read from the stored score or computed as the pipeline does', async () => {
+test('High priority is one rule: the priority tier on the pills when the use case has one (High or above), else an Inspire Score of 3 or more out of 5', async () => {
   const f = await load();
   assert.equal(f.HIGH_PRIORITY_MIN_INSPIRE_SCORE, 3);
   assert.deepEqual([f.INSPIRE_QUALITY_WEIGHT, f.INSPIRE_PRIORITY_WEIGHT], [0.65, 0.35]);
@@ -146,7 +146,15 @@ test('High priority is one rule: Inspire Score of 3 or more out of 5, read from 
     { Priority: 'Ultra High', Quality: 'Very High' }, { priority_score: 8, value_score: 5, feasibility_score: 5 },
     { 'Quality Score': 4, Priority: 7.5 }, { 'Quality Score': 2, Priority: 3.5 },
   ];
-  assert.equal(f.computeHighPriorityCount(list), 3, 'tier labels, priority alone and the top third no longer count (must-exclude)');
+  assert.equal(f.computeHighPriorityCount(list), 4, 'the Ultra High tier counts; priority score alone and the top third do not (must-exclude)');
+  assert.deepEqual(f.HIGH_PRIORITY_TIERS, ['Ultra High', 'Very High', 'High']);
+  assert.equal(f.isHighPriority({ Priority: 'Medium', 'Inspire Score': 9.5 }), false, 'a Medium tier is not high priority whatever its score (must-exclude)');
+  assert.equal(f.isHighPriority({ Priority: 'High', inspire_score: '1' }), true, 'a High tier is high priority whatever its score');
+  assert.equal(f.isHighPriority({ priority: 'Very High' }), true);
+  assert.equal(f.isHighPriority({ Priority: 9.3, 'Inspire Score': 9.34 }), true, 'a numeric priority is not a tier, so the Inspire Score decides');
+  assert.equal(f.isHighPriority({ Priority: 9.3, 'Inspire Score': 5.9 }), false);
+  const pills = [{ Priority: 'Ultra High', inspire_score: '2' }, { Priority: 'Ultra High', inspire_score: '3' }, { Priority: 'Low', inspire_score: '9' }];
+  assert.equal(f.computeHighPriorityCount(pills), 2, 'the tile never reads 0 beside Ultra High pills');
   assert.equal(f.computeHighPriorityCount([]), 0);
   assert.equal(f.computeHighPriorityCount(null), 0);
   assert.equal('isHighPriorityUseCase' in f || 'HIGH_PRIORITY_MIN_SCORE' in f, false, 'no second rule');

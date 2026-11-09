@@ -216,9 +216,17 @@ export function belowBarLabelFromUseCase(uc) {
   return '';
 }
 
+export const HIGH_PRIORITY_TIERS = ['Ultra High', 'Very High', 'High'];
+
+export function isHighPriority(uc) {
+  const tier = String(uc?.Priority ?? uc?.priority ?? '').trim();
+  if (PRIORITY_ORDER.includes(tier)) return HIGH_PRIORITY_TIERS.includes(tier);
+  return (inspireScoreFromUc(uc) ?? 0) / 2 >= HIGH_PRIORITY_MIN_INSPIRE_SCORE;
+}
+
 export function computeHighPriorityCount(list) {
   if (!Array.isArray(list)) return 0;
-  return list.filter((uc) => (inspireScoreFromUc(uc) ?? 0) / 2 >= HIGH_PRIORITY_MIN_INSPIRE_SCORE).length;
+  return list.filter(isHighPriority).length;
 }
 
 export function displayCleanText(s) {
