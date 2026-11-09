@@ -37,6 +37,10 @@ def _protection(ns, *args, policies=(), **kw):
     return ns["implement_protection"](_table(*args, **kw), policies)
 
 
+def _plan(ns, owned_schema="main.inspire"):
+    return lambda *args, **kw: ns["implement_protection_plan"](*args, owned_schema=owned_schema, **kw)
+
+
 def _source(ns, policies=()):
     return {SOURCE: _protection(ns, ["owner", "ssn", "region", "amount"], filters=[(OWN, "owner")],
                                 masks=[("ssn", MASK, "region")], policies=policies)}
@@ -62,7 +66,7 @@ def test_the_protection_read_parses_filters_masks_views_and_abac_policies(agent_
 
 
 def test_a_result_that_lacks_the_filter_column_is_refused_so_every_viewer_does_not_see_all_rows(agent_ns):
-    plan = agent_ns["implement_protection_plan"](_source(agent_ns), {RESULT: _protection(agent_ns, ["entity_id", "value"])})
+    plan = _plan(agent_ns)(_source(agent_ns), {RESULT: _protection(agent_ns, ["entity_id", "value"])})
     assert plan["apply"] == []
     assert plan["refuse"] == [f"{RESULT} has no column owner, so it cannot keep the row filter {OWN} of {SOURCE}, and every viewer "
                               "would see all its rows"]
@@ -72,14 +76,35 @@ def test_a_result_that_lacks_the_filter_column_is_refused_so_every_viewer_does_n
 
 
 def test_a_traceable_result_gets_the_same_filter_and_mask_bound_to_its_own_columns(agent_ns):
-    plan = agent_ns["implement_protection_plan"](_source(agent_ns), {RESULT: _protection(agent_ns, ["Owner", "ssn", "region", "value"])})
+    plan = _plan(agent_ns)(_source(agent_ns), {RESULT: _protection(agent_ns, ["Owner", "ssn", "region", "value"])})
     assert plan == {"apply": [BOUND_FILTER.replace("`owner`", "`Owner`"), BOUND_MASK], "refuse": [], "blocked": []}
     kept = _protection(agent_ns, ["owner", "ssn", "region"], filters=[(OWN, "owner")], masks=[("ssn", MASK, "region")])
-    assert agent_ns["implement_protection_plan"](_source(agent_ns), {RESULT: kept}) == {"apply": [], "refuse": [], "blocked": []}
+    assert _plan(agent_ns)(_source(agent_ns), {RESULT: kept}) == {"apply": [], "refuse": [], "blocked": []}
+
+
+@pytest.mark.parametrize("table", [SOURCE, "main.other.churn_out", "`main`.`s`.`orders_v2`"])
+def test_a_source_table_or_a_table_outside_the_output_schema_is_refused_and_never_altered(agent_ns, table):
+    plan = _plan(agent_ns)(_source(agent_ns), {table: _protection(agent_ns, ["owner", "ssn", "region", "value"])})
+    assert plan["apply"] == []
+    assert plan["refuse"] == [f"{table} is not a table Inspire wrote in the output schema main.inspire, so Inspire will not "
+                              "set row filters or column masks on it"]
+
+
+def test_the_plan_needs_the_output_schema_to_alter_a_table(agent_ns):
+    with pytest.raises(TypeError):
+        agent_ns["implement_protection_plan"](_source(agent_ns), {RESULT: _protection(agent_ns, ["owner"])})
+
+
+def test_the_gate_never_alters_a_source_table_the_use_case_also_writes(agent_ns):
+    inst, context = _gate(agent_ns, ["owner", "ssn", "region", "value"])
+    context["result_table"] = SOURCE
+    with pytest.raises(agent_ns["ImplementStopped"]):
+        inst._implement_protection_gate(context, [])
+    assert not any(s.startswith("ALTER") for s in inst.spark.statements)
 
 
 def test_a_view_over_the_source_is_left_alone_because_it_keeps_the_source_filters(agent_ns):
-    plan = agent_ns["implement_protection_plan"](_source(agent_ns), {RESULT: _protection(agent_ns, ["value"], view=True)})
+    plan = _plan(agent_ns)(_source(agent_ns), {RESULT: _protection(agent_ns, ["value"], view=True)})
     assert plan == {"apply": [], "refuse": [], "blocked": []}
 
 
@@ -88,12 +113,12 @@ def test_a_view_over_the_source_is_left_alone_because_it_keeps_the_source_filter
     ({"masks": [("ssn", "main.sec.other_mask", "region")]}, "already has the mask main.sec.other_mask, not main.sec.mask_ssn"),
 ])
 def test_a_result_with_a_different_filter_or_mask_is_refused(agent_ns, result, fragment):
-    plan = agent_ns["implement_protection_plan"](_source(agent_ns), {RESULT: _protection(agent_ns, ["owner", "ssn", "region"], **result)})
+    plan = _plan(agent_ns)(_source(agent_ns), {RESULT: _protection(agent_ns, ["owner", "ssn", "region"], **result)})
     assert any(fragment in r for r in plan["refuse"]), plan
 
 
 def test_a_mask_whose_using_column_is_missing_is_refused(agent_ns):
-    plan = agent_ns["implement_protection_plan"](_source(agent_ns), {RESULT: _protection(agent_ns, ["owner", "ssn"])})
+    plan = _plan(agent_ns)(_source(agent_ns), {RESULT: _protection(agent_ns, ["owner", "ssn"])})
     assert plan["apply"] == [BOUND_FILTER]
     assert plan["refuse"] == [f"{RESULT} has no column region, which the mask {MASK} of {SOURCE}.ssn reads, so it cannot keep that "
                               "mask on ssn"]
@@ -101,42 +126,42 @@ def test_a_mask_whose_using_column_is_missing_is_refused(agent_ns):
 
 def test_two_sources_with_different_row_filters_are_refused(agent_ns):
     sources = dict(_source(agent_ns), **{"main.s.other": _protection(agent_ns, ["team"], filters=[("main.sec.team_rows", "team")])})
-    plan = agent_ns["implement_protection_plan"](sources, {RESULT: _protection(agent_ns, ["owner", "team", "ssn", "region"])})
+    plan = _plan(agent_ns)(sources, {RESULT: _protection(agent_ns, ["owner", "team", "ssn", "region"])})
     assert any("which have different row filters, and a table keeps only one row filter" in r for r in plan["refuse"])
 
 
 def test_a_masked_column_the_notebook_reads_but_no_result_carries_is_refused(agent_ns):
     sources = {SOURCE: _protection(agent_ns, ["ssn"], masks=[("ssn", MASK, None)])}
     results = {RESULT: _protection(agent_ns, ["entity_id", "value"])}
-    refused = agent_ns["implement_protection_plan"](sources, results, notebook_text="SELECT upper(ssn) AS code FROM t")["refuse"]
+    refused = _plan(agent_ns)(sources, results, notebook_text="SELECT upper(ssn) AS code FROM t")["refuse"]
     assert refused == [f"The notebook reads ssn, which {SOURCE} masks, but no result table has a column ssn, so Inspire cannot tell "
                        "which result column carries it and keep the mask on it"]
-    assert agent_ns["implement_protection_plan"](sources, results, notebook_text="SELECT ssn_count FROM t")["refuse"] == []
+    assert _plan(agent_ns)(sources, results, notebook_text="SELECT ssn_count FROM t")["refuse"] == []
 
 
 def test_totals_over_a_row_filtered_source_are_blocked_but_totals_over_masked_only_sources_are_not(agent_ns):
     results = {RESULT: _protection(agent_ns, ["owner", "ssn", "region"], filters=[(OWN, "owner")], masks=[("ssn", MASK, "region")]),
                SUMMARY: _protection(agent_ns, ["tier", "n"])}
-    assert agent_ns["implement_protection_plan"](_source(agent_ns), results, [SUMMARY])["blocked"] == [SUMMARY]
+    assert _plan(agent_ns)(_source(agent_ns), results, [SUMMARY])["blocked"] == [SUMMARY]
     masked = {SOURCE: _protection(agent_ns, ["ssn"], masks=[("ssn", MASK, None)])}
-    assert agent_ns["implement_protection_plan"](masked, {SUMMARY: _protection(agent_ns, ["tier", "n"])}, [SUMMARY]) == {
+    assert _plan(agent_ns)(masked, {SUMMARY: _protection(agent_ns, ["tier", "n"])}, [SUMMARY]) == {
         "apply": [], "refuse": [], "blocked": []}
     abac = {SOURCE: _protection(agent_ns, ["a"], policies=[{"name": "eu_only", "kind": "row_filter"}])}
-    assert agent_ns["implement_protection_plan"](abac, {SUMMARY: _protection(agent_ns, ["n"])}, [SUMMARY])["blocked"] == [SUMMARY]
+    assert _plan(agent_ns)(abac, {SUMMARY: _protection(agent_ns, ["n"])}, [SUMMARY])["blocked"] == [SUMMARY]
 
 
 def test_an_abac_policy_that_does_not_cover_the_result_is_refused(agent_ns):
     sources = {SOURCE: _protection(agent_ns, ["a"], policies=[{"name": "pii_hide", "kind": "column_mask"}])}
-    refused = agent_ns["implement_protection_plan"](sources, {RESULT: _protection(agent_ns, ["a"])})["refuse"]
+    refused = _plan(agent_ns)(sources, {RESULT: _protection(agent_ns, ["a"])})["refuse"]
     assert refused == [f"{SOURCE} is guarded by the ABAC policy pii_hide, which does not cover {RESULT}, so every viewer would see what "
                        "that policy hides"]
     covered = {RESULT: _protection(agent_ns, ["a"], policies=[{"name": "PII_HIDE", "kind": "column_mask"}])}
-    assert agent_ns["implement_protection_plan"](sources, covered)["refuse"] == []
+    assert _plan(agent_ns)(sources, covered)["refuse"] == []
 
 
 def test_unprotected_sources_need_nothing(agent_ns):
     sources = {SOURCE: _protection(agent_ns, ["owner"])}
-    assert agent_ns["implement_protection_plan"](sources, {RESULT: _protection(agent_ns, ["v"])}, [SUMMARY]) == {
+    assert _plan(agent_ns)(sources, {RESULT: _protection(agent_ns, ["v"])}, [SUMMARY]) == {
         "apply": [], "refuse": [], "blocked": []}
     assert agent_ns["implement_protected_tables"](sources) == {}
 

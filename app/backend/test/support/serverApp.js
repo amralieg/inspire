@@ -91,8 +91,8 @@ function answerSql(body) {
     const sessions = (state.sessionRows || {})[APP_DB] || [];
     const rows = state.launches.filter((l) => /output_checked IN \('passed', 'manager'\)/.test(sql) && ['passed', 'manager'].includes(l.output_checked) && l.inspire_database === db)
       .map((l) => [sessions.find((s) => String(s.session_id) === String(l.session_id)), l.output_folder])
-      .filter(([s]) => s).map(([s, folder]) => [s.generation_path, folder]);
-    return sqlResult(['generation_path', 'output_folder'], rows);
+      .filter(([s]) => s).map(([s, folder]) => [s.generation_path, folder, s.business_name ?? null]);
+    return sqlResult(['generation_path', 'output_folder', 'business_name'], rows);
   }
   if (/^\s*SELECT CAST\(run_id AS STRING\) AS run_id, session_id, launched_at\b/.test(sql) && sql.includes('__inspire_launch')) {
     const db = paramOf(body, 'inspire_database');

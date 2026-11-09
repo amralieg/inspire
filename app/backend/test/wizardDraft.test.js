@@ -24,14 +24,14 @@ function fakeStorage() {
   };
 }
 
-const where = { host: 'Example.Cloud.Databricks.com', inspireDatabase: 'Cat.Inspire', sessionId: 42, useCaseId: 'N01-U03' };
+const where = { host: 'Workspace-A.Example.com', inspireDatabase: 'Cat.Inspire', sessionId: 42, useCaseId: 'N01-U03' };
 const uc = { id: 'N01-U03', use_case: 'Forecast demand', tables_involved: 'a.b.c' };
 
 test('the draft key is per workspace, inspire database, session and use case', () => {
   const key = wizardDraftKey(where);
   assert.ok(key.startsWith(WIZARD_DRAFT_PREFIX));
-  assert.equal(key, wizardDraftKey({ ...where, host: 'example.cloud.databricks.com', inspireDatabase: 'cat.inspire' }));
-  assert.notEqual(key, wizardDraftKey({ ...where, host: 'other.cloud.databricks.com' }));
+  assert.equal(key, wizardDraftKey({ ...where, host: 'workspace-a.example.com', inspireDatabase: 'cat.inspire' }));
+  assert.notEqual(key, wizardDraftKey({ ...where, host: 'workspace-b.example.com' }));
   assert.notEqual(key, wizardDraftKey({ ...where, useCaseId: 'N01-U04' }));
   assert.notEqual(key, wizardDraftKey({ ...where, sessionId: 43 }));
   assert.notEqual(key, wizardDraftKey({ ...where, inspireDatabase: 'cat.other' }));
@@ -99,16 +99,16 @@ test('no storage or a storage that throws never breaks the wizard', () => {
 
 test('the Start form draft is one per workspace, apart from every wizard draft, and goes through the same read, write and clear', () => {
   const store = fakeStorage();
-  const key = startDraftKey({ host: 'Example.Cloud.Databricks.com/' });
+  const key = startDraftKey({ host: 'Workspace-A.Example.com/' });
   assert.ok(key.startsWith(START_DRAFT_PREFIX));
   assert.ok(!key.startsWith(WIZARD_DRAFT_PREFIX), 'a Start draft is never listed as a wizard draft (must-exclude)');
-  assert.equal(key, startDraftKey({ host: 'example.cloud.databricks.com' }));
-  assert.notEqual(key, startDraftKey({ host: 'other.cloud.databricks.com' }));
+  assert.equal(key, startDraftKey({ host: 'workspace-a.example.com' }));
+  assert.notEqual(key, startDraftKey({ host: 'workspace-b.example.com' }));
   assert.equal(startDraftKey({ host: '' }), '', 'no workspace, no draft');
   const form = { params: { '00_business_name': 'Acme' }, selectedCatalogs: ['main'] };
   assert.equal(writeWizardDraft(key, { stamp: START_DRAFT_STAMP, spec: form, step: START_DRAFT_STEP }, store), true);
   assert.deepEqual(readWizardDraft(key, START_DRAFT_STAMP, store), { spec: form, step: START_DRAFT_STEP, visited: [] });
-  assert.equal(readWizardDraft(startDraftKey({ host: 'other.cloud.databricks.com' }), START_DRAFT_STAMP, store), null, 'another workspace reads nothing');
+  assert.equal(readWizardDraft(startDraftKey({ host: 'workspace-b.example.com' }), START_DRAFT_STAMP, store), null, 'another workspace reads nothing');
   assert.equal(readWizardDraft(key, 'start:0', store), null, 'a draft of an older form is dropped');
   assert.equal(store.items.size, 0);
   writeWizardDraft(key, { stamp: START_DRAFT_STAMP, spec: form, step: START_DRAFT_STEP }, store);

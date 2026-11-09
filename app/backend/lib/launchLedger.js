@@ -83,7 +83,7 @@ function checkedOutputStatement(appDatabase) {
   const sessions = quoted(appDatabase, '__inspire_session');
   if (!launches || !sessions) return null;
   return {
-    sql: `SELECT s.generation_path AS generation_path, l.output_folder AS output_folder FROM ${sessions} s JOIN ${launches} l `
+    sql: `SELECT s.generation_path AS generation_path, l.output_folder AS output_folder, s.business_name AS business_name FROM ${sessions} s JOIN ${launches} l `
       + `ON l.session_id = CAST(s.session_id AS STRING) WHERE l.inspire_database = :inspire_database AND l.output_checked IN (${OUTPUT_CHECKS.map((c) => `'${c}'`).join(', ')})`,
     parameters: [{ name: 'inspire_database', value: String(appDatabase).trim().toLowerCase(), type: 'STRING' }],
   };

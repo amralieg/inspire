@@ -198,7 +198,7 @@ test('the output folder check answers the same verdict without launching anythin
 
 test('a launched run opens its output folder with the App token, for a passed check and for a manager skip of that exact folder', async () => {
   for (const [person, seed] of [[ME, {}], [BOSS, { managers: [BOSS], folders: { '/Shared/demos': { id: 7, writers: [S.APP_SP] } } }]]) {
-    S.reset({ notebookPresent: true, sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: './../demos/' }] }, ...seed });
+    S.reset({ notebookPresent: true, sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: './../demos/', business_name: 'Acme' }] }, ...seed });
     assert.equal((await launch(undefined, { person })).status, 200, person);
     S.state.calls.length = 0;
     const got = await S.request('GET', `/api/workspace/list?path=${encodeURIComponent('/Workspace/Shared/demos/acme')}`, { person: 'someone@example.com' });

@@ -68,6 +68,7 @@ const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath, attachmentHeader
 const { CACHE_REVALIDATE, compressedStatic, staticHeaders } = require('./lib/assetTypes');
 const { grantJobViewer, rememberViewer, viewerNoteOf } = require('./lib/jobViewer');
 const { discoveryTypeOf } = require('../frontend/src/lib/discoveryType.js');
+const { generationFolder } = require('../frontend/src/lib/workspaceLinks.js');
 const { createPlaceSql, quotedIdent } = require('../frontend/src/lib/tableName.js');
 
 const app = express();
@@ -745,8 +746,9 @@ async function sessionOutputFolders(req) {
     throw err;
   }
   const notebook = cachedNotebookPath || DEFAULT_NOTEBOOK_PATH;
-  return rows.filter((row) => RP.canonicalPath(row.output_folder) && RP.outputFolderOf(row.generation_path, notebook) === RP.canonicalPath(row.output_folder))
-    .map((row) => RP.canonicalPath(row.output_folder));
+  return rows.filter((row) => RP.canonicalPath(row.output_folder) && RP.outputFolderOf(row.generation_path, notebook) === RP.canonicalPath(row.output_folder)
+    && typeof row.business_name === 'string' && row.business_name.trim())
+    .map((row) => RP.canonicalPath(generationFolder({ generationPath: RP.canonicalPath(row.output_folder), businessName: row.business_name })));
 }
 
 async function readAppDatabaseHistory(req, sessionId) {

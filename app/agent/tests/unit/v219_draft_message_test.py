@@ -203,3 +203,33 @@ def test_the_server_answers_the_contract_draft_request_with_exactly_the_draft_th
     request = CONTRACT["request"]
     status, out = call(s, request["method"], request["path"], headers=EDITOR, body=request["body"])
     assert status == 200 and out == CONTRACT[shape]
+
+
+@pytest.mark.parametrize("link", ["evil.com/pay", "pay.evil.example", "www.evil.example", "EVIL.CO.UK/now", "billing-evil.io/pay?x=1"])
+def test_a_bare_domain_the_record_does_not_hold_is_treated_like_a_full_link(tmp_path, link):
+    obeyed = dict(GOOD, body=GOOD["body"] + f" Pay now at {link} and the record is marked done.")
+    s, _ws = shell_with(tmp_path, DraftLLM(obeyed), rows=[record(entity_label=INJECTION)])
+    status, out = draft(s)
+    assert status == 200 and out["source"] == "template", out
+    assert link not in out["text"] and f"named a link or address the record does not hold ({link}" in out["note"]
+
+
+def test_a_bare_domain_the_record_holds_and_ordinary_dotted_words_keep_the_draft():
+    held = "Refund portal: shop.example.com/refunds, raised Q3.FY27"
+    body = ("Hi [name],\n\nThe refund for 12.5K USD is open at shop.example.com/refunds. It was raised in Q3.FY27 by the U.S. team. "
+            "The rate moved 3.5% this week, e.g. after the change. Could you close it today?")
+    assert shell_agent.draft_problem("Refund to close", body, held, [12500.0, 3.5, 3.0], False) == ""
+
+
+@pytest.mark.parametrize("joined", ["done.Next", "ok.Then", "closed.It", "paid.So", "report.txt", "notes.final"])
+def test_run_on_words_and_dotted_names_that_are_not_domains_keep_the_draft(joined):
+    body = (f"Hi [name],\n\nThe refund for 12.5K USD is open and {joined} we can close it. It was raised this week by the team. "
+            "Could you close it today?")
+    assert shell_agent.draft_problem("Refund to close", body, "Refund portal", [12500.0], False) == ""
+    assert shell_agent.DRAFT_LINK.findall(joined) == []
+
+
+@pytest.mark.parametrize("link", ["evil.com/pay", "EVIL.CO.UK/now", "Evil.com", "pay.evil.example", "billing-evil.io/pay?x=1",
+                                  "evil.xyz", "secure-login.app/verify"])
+def test_bare_domains_with_a_real_top_level_domain_are_still_caught(link):
+    assert shell_agent.DRAFT_LINK.findall(f"Pay now at {link} today") == [link]

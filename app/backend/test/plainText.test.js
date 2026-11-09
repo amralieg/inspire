@@ -28,9 +28,9 @@ test('a grant for a service principal asks the owner to give the App the access,
 
 test('splitTechnical moves the machine paths and hosts of a build message to Details and keeps workspace folders in the sentence (must-exclude)', async () => {
   const { splitTechnical } = await lib('plainText.js');
-  const ready = splitTechnical('Genie Code 0.2.1 is ready and uses the model databricks-gpt-5 (installed at /home/spark-1a2b/.inspire_genie/bin/genie on the x86_64 CPU)');
+  const ready = splitTechnical('Genie Code 0.2.1 is ready and uses the model databricks-gpt-5 (installed at /home/<user>/.inspire_genie/bin/genie on the x86_64 CPU)');
   assert.equal(ready.plain, 'Genie Code 0.2.1 is ready and uses the model databricks-gpt-5');
-  assert.deepEqual(ready.details, ['installed at /home/spark-1a2b/.inspire_genie/bin/genie on the x86_64 CPU']);
+  assert.deepEqual(ready.details, ['installed at /home/<user>/.inspire_genie/bin/genie on the x86_64 CPU']);
   const host = splitTechnical('The model call failed at http://10.0.0.4:8080/ai-gateway/mlflow/v1/chat and Genie stopped.');
   assert.equal(host.plain, 'The model call failed at and Genie stopped.'.replace(' at and', ' and'));
   assert.deepEqual(host.details, ['http://10.0.0.4:8080/ai-gateway/mlflow/v1/chat']);
@@ -40,9 +40,9 @@ test('splitTechnical moves the machine paths and hosts of a build message to Det
 
 test('splitTechnical keeps the clause after the statements and the lower-case ask inside a sentence', async () => {
   const { splitTechnical } = await lib('plainText.js');
-  const { plain, details } = splitTechnical('Inspire cannot create the schema; ask the owner of main to run GRANT CREATE SCHEMA ON CATALOG main TO `a@b.com`, then pick Its own schema again.');
+  const { plain, details } = splitTechnical('Inspire cannot create the schema; ask the owner of main to run GRANT CREATE SCHEMA ON CATALOG main TO `someone@example.com`, then pick Its own schema again.');
   assert.equal(plain, 'Inspire cannot create the schema; ask the owner to give you the access listed under Details, then pick Its own schema again.');
-  assert.deepEqual(details, ['GRANT CREATE SCHEMA ON CATALOG main TO `a@b.com`']);
+  assert.deepEqual(details, ['GRANT CREATE SCHEMA ON CATALOG main TO `someone@example.com`']);
 });
 
 test('splitTechnical moves an internal /api/ path to Details and leaves plain text untouched (must-exclude)', async () => {
