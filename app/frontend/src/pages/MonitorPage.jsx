@@ -1191,7 +1191,7 @@ function RunSetupSummary({ widgetValues }) {
   const strategyText = String(widgetValues?.strategic_context || '').trim();
   if (!discovery && !strategyText) return null;
   const parsed = parseStrategicContext(strategyText);
-  let strategy = 'No strategy given: built-in goals';
+  let strategy = 'No strategy given, so Inspire uses common business goals';
   if (parsed.mode === 'path') strategy = 'Customer strategy';
   else if (parsed.mode === 'tree') {
     const entries = countEntries(parsed.model.strategy);

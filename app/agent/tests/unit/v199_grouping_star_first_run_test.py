@@ -266,8 +266,7 @@ def test_when_every_group_holds_more_than_1000_records_the_smallest_whole_group_
     resolved = fresh_ns["inspire_scope_resolve"](FakeSpark(responder=lambda s: sizes if s.startswith("SELECT CAST(`region`") else []), chosen)
     assert resolved["values"] == ["APAC"], "never a cut group, so the smallest whole group"
     text = fresh_ns["inspire_scope_text"](resolved)
-    assert text == ("470,000 records of main.sales.orders in the smallest whole group, since every group of region holds more than 1,000 records, "
-                    "so no group is cut: region = APAC, 470,000 records"), text
+    assert text == "470,000 records of main.sales.orders, all of region = APAC, the smallest group, since every group holds more than 1,000 records", text
     assert "about 1000" not in text, "a group far above 1,000 records is never called about 1,000 records (must-exclude)"
 
 
