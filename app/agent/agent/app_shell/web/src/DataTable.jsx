@@ -60,12 +60,15 @@ export function RowGenie({ about, element }) {
   return element ? <AskGenie kind={element.kind || 'record'} title={element.title} context={element.context} page={element.page} /> : null;
 }
 
+export function FieldGrid({ fields }) {
+  return <div className="mgrid">{fields.map(([key, label, value]) => <div key={key}><span>{label}</span><b><bdi>{value}</bdi></b></div>)}</div>;
+}
+
 export function RowDetails({ title, fields, element, onClose }) {
   return (
     <div className="row-detail" role="group" aria-label={`Details of ${title}`} data-row-detail>
-      <div className="mgrid">{Object.entries(fields || {}).map(([label, value]) => (
-        <div key={label}><span>{label}</span><b>{value == null || value === '' ? 'Not recorded' : Array.isArray(value) ? value.join(', ') : String(value)}</b></div>
-      ))}</div>
+      <FieldGrid fields={Object.entries(fields || {}).map(([label, value]) => [label, label,
+        value == null || value === '' ? 'Not recorded' : Array.isArray(value) ? value.join(', ') : String(value)])} />
       <div className="row-detail-f"><RowGenie element={element} /><span className="sp" /><button type="button" className="link" onClick={onClose}>Close</button></div>
     </div>
   );

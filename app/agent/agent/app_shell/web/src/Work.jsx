@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useId, useRef, useState } from 'react';
 import { actRecords, getBatches, getSimilar, undoRecords } from './api.js';
-import { recordColumns } from './DataTable.jsx';
+import { FieldGrid, recordColumns } from './DataTable.jsx';
 import { useHistory } from './History.jsx';
 import { withNotice } from './alerts.js';
 import { compareValues, countOf, integer, kindOf, plainText, unitOf } from './format.js';
@@ -282,7 +282,7 @@ function SimilarRecord({ id, meta, item, pageId, model, summary }) {
     ...recordFields(meta, row, model).filter(([column]) => !summary.includes(column))];
   return (
     <div id={id} className="sim-x" role="region" aria-label={`Details of ${recordLine(meta, row).name || plainText(item.label ?? item.record_key)}`} aria-busy={log.loading || undefined}>
-      {fields.length > 0 && <dl className="sim-d">{fields.map(([column, label, text]) => <div key={column}><dt>{label}</dt><dd><bdi>{text}</bdi></dd></div>)}</dl>}
+      {fields.length > 0 && <FieldGrid fields={fields} />}
       {!fields.length && !log.loading && <small className="faint">This record holds nothing more than the line above.</small>}
       {log.error && <PlainNote text={log.error} prefix="The rest of the record could not load: " as="small" className="in-err" />}
     </div>

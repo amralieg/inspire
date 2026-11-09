@@ -175,11 +175,11 @@ test('Apply to similar lists every record the server found as a collapsed row wi
   const region = first.getByRole('region', { name: `Details of ${row.entity_label}` });
   await region.waitFor();
   assert.equal(await toggle.getAttribute('aria-controls'), await region.getAttribute('id'));
-  await page.waitForFunction(() => [...document.querySelectorAll('.sim-x dt')].some((d) => d.textContent === 'Channel'));
-  const shownFields = await region.locator('dt').allInnerTexts();
+  await page.waitForFunction(() => [...document.querySelectorAll('.sim-x .mgrid > div > span')].some((d) => d.textContent === 'Channel'));
+  const shownFields = await region.locator('.mgrid > div > span').allInnerTexts();
   for (const name of ['Next best action', 'Channel', 'Region', 'Rank']) assert.ok(shownFields.includes(name), `the full record shows ${name}: ${shownFields}`);
   assert.equal(shownFields.includes('Loss'), false, 'what the collapsed line already shows is not repeated');
-  assert.equal(await region.locator('div', { has: page.locator('dt', { hasText: /^Channel$/ }) }).locator('dd').innerText(), row.channel);
+  assert.equal(await region.locator('.mgrid > div', { has: page.locator('span', { hasText: /^Channel$/ }) }).locator('b').innerText(), row.channel);
   await toggle.click();
   assert.equal(await first.locator('.sim-x').count(), 0, 'it collapses again');
   assert.equal(await keptText(dialog), '7 of 7 included');

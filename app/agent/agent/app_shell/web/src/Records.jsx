@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
-import DataTable, { recordColumns } from './DataTable.jsx';
+import DataTable, { FieldGrid, recordColumns } from './DataTable.jsx';
 import { GenieMark, Icon } from './icons.jsx';
 import { ExplainButton } from './Genie.jsx';
 import { AGENT_OPEN, showVisible } from './agentView.js';
@@ -397,7 +397,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {details.length > 0 && (
               <section className="sec" aria-label="Details">
                 <h3>Details</h3>
-                <div className="mgrid">{details.map(([column, label, text]) => <div key={column}><span>{label}</span><b>{text}</b></div>)}</div>
+                <FieldGrid fields={details} />
               </section>
             )}
             {history && (
