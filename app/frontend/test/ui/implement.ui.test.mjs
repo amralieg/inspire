@@ -1520,10 +1520,9 @@ test('a version saved while the App offered downloads retries its App and opens 
     await toData(edit.page);
     await toDelivery(edit.page);
     await toAppAccess(edit.page);
-    const access = edit.page.getByRole('region', { name: 'App access' });
-    assert.equal(await access.getByRole('checkbox', { name: /^Let people edit data/ }).isChecked(), true, 'the saved choices come back');
-    await access.getByRole('checkbox', { name: /^Record decisions/ }).check();
-    await goToStep(edit.page, 'App look');
+    const features = edit.page.getByRole('region', { name: 'App features' });
+    assert.equal(await features.getByRole('checkbox', { name: /^Let people edit data/ }).isChecked(), true, 'the saved choices come back');
+    await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
     await implementWhenReady(edit.page);
     await edit.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     assert.deepEqual(submittedSpec(edit.made).outputs.app_options, { modify: true, replace_edits: false, decisions: true, alerts: false });

@@ -538,9 +538,9 @@ export async function settleChoices(page) {
   await page.waitForFunction(() => !document.querySelector('[data-wizard-body] .animate-spin, [role="dialog"] .animate-spin, [role="status"].animate-pulse'), null, { timeout: 15000 });
 }
 
-export function assertOneBadgeOnDefault(shown, where) {
-  const all = shown.flatMap((c) => c.badges);
-  assert.ok(all.length <= 1, `${where}: at most one Highly Recommended badge on the step, has ${JSON.stringify(all)}`);
+export function assertOneBadgeOnDefault(shown, where, { perChoice = false } = {}) {
+  const sets = perChoice ? shown.map((c) => c.badges) : [shown.flatMap((c) => c.badges)];
+  for (const all of sets) assert.ok(all.length <= 1, `${where}: at most one Highly Recommended badge ${perChoice ? 'on each question' : 'on the step'}, has ${JSON.stringify(all)}`);
   for (const { choice, multi, selected, badges } of shown) {
     if (!badges.length) continue;
     if (multi) assert.ok(selected.includes(badges[0]), `${where}: ${choice} starts with its badged option ${badges[0]} ticked, ticked ${JSON.stringify(selected)}`);

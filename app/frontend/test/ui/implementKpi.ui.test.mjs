@@ -88,7 +88,6 @@ test('the picker shows the KPI the built version tracks, its unit and how record
   }
   const none = await openUi('wizard', { me: ME, useCase: withKpis([]) });
   try {
-    await onStep(none.page, 'What to build');
     await goToStep(none.page, 'Data');
     await dataToResults(none.page);
     await goToStep(none.page, 'Measure impact');

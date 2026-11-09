@@ -87,7 +87,7 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     await replace.waitFor();
     assert.deepEqual([await replace.getByRole('radio', { name: /^No:/ }).isChecked(), await replace.getByRole('radio', { name: /^Yes/ }).isChecked()],
       [true, false], 'a new run keeps edited records by default');
-    assert.equal(await features.locator('[data-highly-recommended]').count(), 1, 'one Highly Recommended on the step');
+    assert.equal(await features.locator('[data-highly-recommended]').count(), 1, 'one Highly Recommended in App features');
     assert.equal(await replace.locator('[data-highly-recommended]').count(), 0, 'the replace question shows no second badge (must-exclude)');
     await goToStep(page, 'App look');
     const look = page.getByRole('region', { name: 'App look' });
@@ -137,7 +137,7 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
   }
 });
 
-test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample page that follows every pick, lists only the pages this App gets, and needs no scroll with every App option on', async () => {
+test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample page that follows every pick, lists only the pages this App gets, and fits the step whole with every App option on', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
   const { page } = ui;
   try {
@@ -257,20 +257,20 @@ test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample p
     await tab('Pages').click();
     await shown({ 'app-sample': 'genie' });
 
-    await page.getByRole('button', { name: 'Back', exact: true }).click();
-    await onStep(page, 'App access');
-    const access = page.getByRole('region', { name: 'App access' });
-    await access.getByRole('checkbox', { name: /^Record decisions/ }).check();
-    await access.getByRole('checkbox', { name: /^Send alerts/ }).check();
-    await goToStep(page, 'App look');
+    const features = page.getByRole('region', { name: 'App features' });
+    await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
+    await features.getByRole('checkbox', { name: /^Send alerts/ }).check();
     await tab('Pages').click();
     assert.deepEqual(await pageNames(), ['Things to fix', 'Runs', 'Alerts', 'Impact', 'Ask Genie']);
-    assert.equal(await pages.getByRole('button', { name: /^Things to fix/ }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await pages.getByRole('button', { name: /^Ask Genie/ }).getAttribute('aria-pressed'), 'true', 'the page picked stays picked while App features change');
+    await pages.getByRole('button', { name: /^Things to fix/ }).click();
+    await shown({ 'app-sample': 'fix' });
     assert.match(await blurb.textContent(), /People own, track and dismiss each flagged record\.$/);
     for (const name of ['Style', 'Palette', 'Layout', 'Charts', 'Pages']) {
       await tab(name).click();
       const box = await measure(page, `app-look-all-options-${name.toLowerCase()}`);
-      assert.ok(box.scroll <= box.client + 1, `${name} with every App option on: the step needs no scroll (${box.scroll} > ${box.client})`);
+      const height = await look.evaluate((el) => Math.round(el.getBoundingClientRect().height));
+      assert.ok(height <= box.client + 1, `${name} with every App option on: App look fits the step whole (${height} > ${box.client})`);
     }
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -288,10 +288,9 @@ async function withEveryAppLookOption(check) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await toDelivery(page);
     await toAppAccess(page);
-    const access = page.getByRole('region', { name: 'App access' });
-    await access.getByRole('checkbox', { name: /^Record decisions/ }).check();
-    await access.getByRole('checkbox', { name: /^Send alerts/ }).check();
-    await goToStep(page, 'App look');
+    const features = page.getByRole('region', { name: 'App features' });
+    await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
+    await features.getByRole('checkbox', { name: /^Send alerts/ }).check();
     const look = page.getByRole('region', { name: 'App look' });
     const tabs = look.getByRole('tablist', { name: 'App look sections' });
     const tab = (name) => tabs.getByRole('tab', { name, exact: true });
@@ -707,7 +706,7 @@ test('the App is picked on its own App placement step: Delivery only ticks it, a
     assert.match(await appTile(page), /You pick where it goes next\.Highly Recommended/);
     const genie = page.locator('[data-merge="genie_space"]');
     await genie.getByText('Inspire has built none yet').waitFor();
-    assert.ok((await stepLabels(page)).some((s) => /App placement/.test(s)));
+    assert.ok((await stepLabels(page)).some((s) => /^\d+\. App$/.test(s.trim())), (await stepLabels(page)).join(', '));
     await goToStep(page, 'App placement');
     await placeStep(page).locator('[data-app-target]').first().waitFor();
     assert.deepEqual(await placeTargets(page), [['ops-desk', 'recommended', 'Highly Recommended'], ['care-desk', 'not_recommended', '']],
@@ -1017,15 +1016,14 @@ test('Send alerts is a build setting of a shared App: off until ticked, then sen
     await toDelivery(page);
     await page.getByRole('checkbox', { name: /^App / }).check();
     await toAppAccess(page);
-    const access = page.getByRole('region', { name: 'App access' });
-    await access.getByRole('radio', { name: /^Internal data/ }).check();
-    const alerts = access.getByRole('checkbox', { name: /^Send alerts/ });
+    await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Internal data/ }).check();
+    const features = page.getByRole('region', { name: 'App features' });
+    const alerts = features.getByRole('checkbox', { name: /^Send alerts/ });
     assert.equal(await alerts.isChecked(), false, 'alerts start off');
-    await access.locator('label', { hasText: 'Send alerts' })
+    await features.locator('label', { hasText: 'Send alerts' })
       .getByText('People set up email alerts on what the App shows, each on its own schedule, sent only to people in this workspace.', { exact: false }).waitFor();
-    assert.doesNotMatch(await access.locator('label', { hasText: 'Send alerts' }).textContent(), /\u2014|\u2013/);
+    assert.doesNotMatch(await features.locator('label', { hasText: 'Send alerts' }).textContent(), /\u2014|\u2013/);
     await alerts.check();
-    await goToStep(page, 'App look');
     await startWhenReady(page);
     assert.equal(submittedSpec(made).outputs.app_options.alerts, true);
     assert.deepEqual(ui.pageErrors, []);
@@ -1134,7 +1132,7 @@ const WAREHOUSES = { warehouses: [{ id: 'wh1', name: 'Shared SQL', state: 'RUNNI
   { id: 'wh3', name: 'Ops SQL', state: 'RUNNING' }] };
 const MANAGES = (level) => [{ access_control_list: [{ user_name: OWNER, all_permissions: [{ permission_level: level }] }] }, 200];
 const DELTA_LABEL = 'SQL warehouse the App reads and saves with';
-const LAKEBASE_LABEL = 'SQL warehouse the App saves, keeps history and runs alerts with (pages read from Lakebase)';
+const LAKEBASE_LABEL = 'SQL warehouse the App saves, keeps history and runs alerts with (pages read the fast copy)';
 
 test('the App reads and saves with the SQL warehouse picked on App access, labeled for Lakebase or Delta, the build keeps its own, and a warehouse Inspire cannot manage is named with the permission it needs', async () => {
   const ui = await openUi('wizard', {

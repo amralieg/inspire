@@ -73,18 +73,21 @@ test('the offline walk checks the wizard of a large table that qualifies', { ski
   const calls = [];
   const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt(calls, PROFILE) });
   const { page } = ui;
+  let shownOnData = false;
   try {
     await toStep(page, 'Data groups');
     const grouping = await checkScope(page, PROFILE, { part: 'grouping' });
+    shownOnData = (await page.getByRole('group', { name: 'Data groups', exact: true }).count()) > 0;
     await goToStep(page, 'MVP Test Run');
     const firstRun = await checkScope(page, PROFILE, { part: 'first_run' });
-    const steps = checkWizardSteps(await names(page), PROFILE);
+    const shown = { groupingShown: shownOnData };
+    const steps = checkWizardSteps(await names(page), PROFILE, shown);
     const all = [...grouping, ...firstRun, ...steps];
     console.log(JSON.stringify(all));
     assert.deepEqual(failed(all), []);
     assert.equal(all.filter((c) => c.ok === true).length, 10);
     assert.deepEqual(all.filter((c) => c.ok === null).map((c) => c.check), []);
-    assert.equal(checkWizardSteps(await names(page), { ...PROFILE, applies: false })[0].ok, false, 'a profile where Data groups do not apply fails a wizard that asks Data groups');
+    assert.equal(checkWizardSteps(await names(page), { ...PROFILE, applies: false }, shown)[0].ok, false, 'a profile where Data groups do not apply fails a wizard that asks Data groups');
   } finally {
     await ui.close();
   }
@@ -97,7 +100,7 @@ test('the offline walk checks the wizard of a small table, no Data groups and ne
   const { page } = ui;
   try {
     await toStep(page, 'MVP Test Run');
-    const all = [...await checkScope(page, small, { part: 'first_run' }), ...checkWizardSteps(await names(page), small)];
+    const all = [...await checkScope(page, small, { part: 'first_run' }), ...checkWizardSteps(await names(page), small, { groupingShown: (await page.getByRole('group', { name: 'Data groups', exact: true }).count()) > 0 })];
     console.log(JSON.stringify(all));
     assert.deepEqual(failed(all), []);
     await page.locator('[data-first-run-choice="all"] input[type="radio"]').check();

@@ -111,7 +111,7 @@ test('every Highly Recommended pick is the option the wizard starts on', async (
   assert.equal(W.withOutput(removed, 'dashboard', true, assets).removed_outputs.dashboard, undefined);
 });
 
-test('each wizard step shows one Highly Recommended, the first of its questions that has one', async () => {
+test('each wizard step or App sub-section shows one Highly Recommended, the first of its questions that has one', async () => {
   const H = await lib('highlyRecommended.js');
   const pick = (id) => ({ id, reason: id });
   const all = Object.fromEntries(Object.values(H.STEP_BEST).flat().map((k) => [k, pick(k)]));
@@ -120,8 +120,8 @@ test('each wizard step shows one Highly Recommended, the first of its questions 
     assert.deepEqual(keys.filter((k) => kept[k]), [keys[0]], `${step} keeps one badge`);
   }
   assert.deepEqual([kept.result.id, kept.freshness.id], ['own', 'daily'], 'a step with one question keeps its badge');
-  const later = H.oneBestPerStep({ ...all, appPlace: null, output: null });
-  assert.deepEqual([later.appTarget?.id, later.appAccess, later.removed?.id], ['appTarget', null, 'removed'], 'with no first badge the next question keeps it');
-  assert.deepEqual(Object.keys(H.STEP_BEST), ['delivery', 'app', 'run'], 'Deliver, App and Run it each show one');
+  const later = H.oneBestPerStep({ ...all, appTarget: null, output: null });
+  assert.deepEqual([later.appPlace?.id, later.removed?.id], ['appPlace', 'removed'], 'with no first badge the next question keeps it');
+  assert.deepEqual(Object.keys(H.STEP_BEST), ['delivery', 'app_placement', 'app_features', 'run'], 'Deliver, each App sub-section that asks two questions, and Run it each show one');
   assert.deepEqual(Object.keys(H.STEP_BEST).filter((s) => (H.STEP_BEST[s].filter((k) => H.oneBestPerStep(all)[k]).length !== 1)), [], 'never two (must-exclude)');
 });

@@ -8,7 +8,8 @@ export const HIGHLY_RECOMMENDED = 'Highly Recommended';
 
 export const STEP_BEST = {
   delivery: ['output', 'removed'],
-  app: ['appPlace', 'appTarget', 'heldApp', 'appPolicy', 'appAccess', 'appBackend', 'appOption', 'replaceEdits', 'style', 'layout', 'theme', 'palette'],
+  app_placement: ['appTarget', 'appPlace'],
+  app_features: ['appOption', 'replaceEdits'],
   run: ['freshness', 'kpi', 'holdout'],
 };
 

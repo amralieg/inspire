@@ -10,7 +10,7 @@ const RUN_EMPTY = 'No MVP is deployed yet. Start one from Build, and it shows he
 const INSIDE_BLURB = 'Inspire runs the page in its Run tab, with no App of its own. Each viewer sees only the data they may read. Use it to try a page, '
   + 'then give it its own App.';
 const INSIDE_ACCESS_REASON = 'Inside Inspire, each viewer signs in as themselves and sees only the data they may read';
-const INSIDE_BACKEND_REASON = 'Lakebase needs an App of its own';
+const INSIDE_BACKEND_REASON = 'Fast pages need an App of its own';
 const INSIDE_WAREHOUSE_LABEL = 'SQL warehouse each viewer reads with (each viewer needs CAN USE on it)';
 
 test.after(closeBrowser);
@@ -221,7 +221,6 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
     assert.equal(await page.getByLabel('App name').count(), 0, 'no App name Inside Inspire');
     assert.equal(await page.locator('[data-app-list]').count(), 0, 'the list of existing Apps is hidden');
     assert.equal(await page.getByRole('radiogroup', { name: 'How Inspire organizes Apps' }).count(), 0);
-    await next();
     await onStep(page, 'App access');
     assert.equal(await page.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true);
     assert.equal(await page.getByRole('radio', { name: /^Internal data/ }).isDisabled(), true);

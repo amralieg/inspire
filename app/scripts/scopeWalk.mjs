@@ -1,4 +1,5 @@
 import { FIRST_RUN_LABEL as RUN_LABEL } from '../frontend/src/lib/runScope.js';
+import { FIRST_RUN_STEP } from '../frontend/src/lib/implementWizard.js';
 const profileRoute = await import('../frontend/src/lib/groupingProfile.js').then((m) => m.GROUPING_PROFILE_ROUTE || '', () => '');
 export const SCOPE_WALK_READS = new Set(profileRoute ? [`POST ${profileRoute}`] : []);
 const RECORDS_RE = /· [\d,]+ records?\b/;
@@ -31,13 +32,13 @@ async function choicesOf(group) {
   return texts.map((text, i) => ({ text, checked: checked[i] }));
 }
 
-export function checkWizardSteps(steps, profile) {
+export function checkWizardSteps(steps, profile, { groupingShown = false } = {}) {
   if (!profile) return [{ check: 'the table profile', ok: null, detail: 'the wizard never read a Data groups profile, so nothing can be compared' }];
-  const asked = steps.includes('Data groups');
+  const firstRun = FIRST_RUN_STEP.label;
   return [
-    { check: 'the wizard asks Data groups whenever the technique works in groups', ok: asked === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${asked}` },
-    { check: 'MVP Test Run comes right after Data groups', ok: !asked || steps.indexOf(RUN_LABEL) === steps.indexOf('Data groups') + 1, detail: steps.join(' > ') },
-    { check: 'the wizard asks MVP Test Run', ok: steps.includes(RUN_LABEL), detail: steps.join(' > ') },
+    { check: 'the wizard asks Data groups on Data whenever the technique works in groups', ok: groupingShown === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${groupingShown}` },
+    { check: 'no Data groups step of its own (must-exclude)', ok: !steps.includes('Data groups'), detail: steps.join(' > ') },
+    { check: `${firstRun} comes right after Data`, ok: steps.indexOf(firstRun) === steps.indexOf('Data') + 1, detail: steps.join(' > ') },
   ];
 }
 
