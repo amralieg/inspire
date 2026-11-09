@@ -44,10 +44,11 @@ const report = (id, status, text, over = {}) => ({ feedback_id: id, section: 'wo
 const REPORTS = { items: [report('f1', 'new', 'The due day on Item R003 is wrong'), report('f2', 'vibe', 'Add a column for the store'), report('f3', 'closed', 'Old complaint'),
   report('f4', 'new', 'طلب تغيير عمود المتجر')], everyone: true, missing: false, limit: 2000 };
 
-test('the inbox asks only for your open records, and for the ones nobody owns when you own the use case', () => {
+test('the inbox first reads one row with no window to learn whether the list keeps actions, then asks for your open records, and for the ones nobody owns when you own the use case', () => {
   const mine = { page: 'p1', filters: {}, mine: true, window: 'all', limit: 50 };
-  assert.deepEqual(inboxAsks({ id: 'p1' }), { mine }, 'someone who does not own the use case never asks for the records nobody owns (must-exclude)');
-  assert.deepEqual(inboxAsks({ id: 'p1', is_owner: true }), { mine, unowned: { page: 'p1', filters: {}, unowned: true, window: 'all', due_within: DUE_DAYS, limit: 50 } });
+  const probe = { page: 'p1', filters: {}, changed: true, limit: 1 };
+  assert.deepEqual(inboxAsks({ id: 'p1' }), { probe, mine }, 'someone who does not own the use case never asks for the records nobody owns (must-exclude)');
+  assert.deepEqual(inboxAsks({ id: 'p1', is_owner: true }), { probe, mine, unowned: { page: 'p1', filters: {}, unowned: true, window: 'all', due_within: DUE_DAYS, limit: 50 } });
   const app = { options: { decisions: true }, user: { email: PERSON } };
   assert.equal(inboxOn(app, { history: true, records: {} }), true);
   assert.equal(inboxOn({ ...app, options: { decisions: false } }, { history: true, records: {}, is_owner: true }), true, 'an owner has failed runs and reports to see');
@@ -134,7 +135,7 @@ test('an owner sees one inbox in the rail with its count: Fix this, failed runs,
     assert.ok(!text.includes(gone), `${gone} needs no action, so it is not in the inbox (must-exclude)`);
   }
   assert.ok(asks.some((b) => b.unowned === true && b.due_within === DUE_DAYS) && asks.some((b) => b.feedback));
-  assert.ok(!asks.some((b) => b.changed), 'the inbox no longer asks for records other people changed');
+  assert.ok(!asks.some((b) => b.changed && b.limit !== 1), 'the inbox reads one changed row only to learn whether the list keeps actions, never the records other people changed');
   assert.equal(await page.locator('[data-inbox-item="report:f4"] bdi[dir="auto"]').first().innerText(), 'طلب تغيير عمود المتجر');
   assert.deepEqual(seen.errors, []);
   await context.close();

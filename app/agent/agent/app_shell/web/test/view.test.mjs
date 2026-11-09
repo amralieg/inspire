@@ -104,7 +104,7 @@ test('a window chip hides a record outside the window while an overdue record st
   await page.locator('[data-rail="inbox"]').click();
   const due = page.locator('[data-inbox-group="due"] [data-inbox-item]');
   await due.first().waitFor();
-  assert.deepEqual(await due.locator('bdi').allInnerTexts(), [label(3), label(1)], 'the inbox lists the overdue record first and leaves out the one due next week');
+  assert.deepEqual(await due.locator('.inbox-t bdi').allInnerTexts(), [label(3), label(1)], 'the inbox lists the overdue record first and leaves out the one due next week');
   assert.match(await due.first().locator('small').innerText(), /Overdue since/);
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -442,8 +442,9 @@ test('a window reaches only lists that keep actions: a list that keeps none read
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   await listed(page);
   assert.equal(refused.length, 1, 'the one refused read is asked again without the window');
-  await until(() => seen.records.some((b) => b.page === 'n02_u01' && b.mine));
+  await until(() => seen.records.some((b) => b.page === 'n02_u01' && b.changed));
   await page.waitForFunction(() => !document.querySelector('[data-rail="inbox"]'));
+  assert.deepEqual(seen.records.filter((b) => b.page === 'n02_u01' && (b.mine || b.unowned)), [], 'the inbox never asks a list that keeps no actions for your records');
   assert.equal(await page.locator('[data-rail="inbox"]').count(), 0, 'a list that keeps no actions has no inbox and never asks it for your records');
   assert.equal(await page.locator('.card--table tbody tr').count(), 25, 'no limit applies to a list that keeps no actions');
   assert.equal(await page.locator('.tile-err').count(), 0, 'the refusal is not shown as an error');

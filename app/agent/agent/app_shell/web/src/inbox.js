@@ -17,6 +17,7 @@ const dayPlus = (day, n) => dayAt(Date.parse(`${day}T00:00:00Z`) + n * DAY_MS);
 const versionMs = (row) => Number(row?._inspire_version) / 1000;
 
 export const inboxAsks = (page) => ({
+  probe: { page: page.id, filters: {}, changed: true, limit: 1 },
   mine: { page: page.id, filters: {}, mine: true, window: 'all', limit: INBOX_ROWS },
   ...(page.is_owner === true ? { unowned: { page: page.id, filters: {}, unowned: true, window: 'all', due_within: DUE_DAYS, limit: INBOX_ROWS } } : {}),
 });

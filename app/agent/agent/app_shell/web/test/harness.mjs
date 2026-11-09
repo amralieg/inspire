@@ -255,7 +255,7 @@ export const workEntry = (over = {}) => ({
   overdue: { n: 3, items: [{ key: 'R001', label: 'Item R001', due: '2026-10-20' }, { key: 'R003', label: 'Item R003', due: '2026-10-22' }] }, ...over,
 });
 export const myWorkOf = (pageId, over = {}, activity = []) => ({ ...NO_MY_WORK, person: PERSON, pages: { [pageId]: workEntry(over) }, activity, total: activity.length });
-export const isInboxAsk = (body) => !!body && (body.mine === true || body.unowned === true) && body.window === 'all' && body.limit === INBOX_ROWS && !body.offset;
+export const isInboxAsk = (body) => !!body && ((body.changed === true && body.limit === 1) || ((body.mine === true || body.unowned === true) && body.window === 'all' && body.limit === INBOX_ROWS && !body.offset));
 export const NO_RUNS = { runs: [], total: 0, offset: 0, limit: 20, job: null, errors: {} };
 export const NO_TRENDS = { visible: true, tracked: true, actions: false, note: 'this use case keeps no actions, so it has no work of yours to show' };
 export const NO_MONEY = { model: null, history: [], editable: false, why: 'this page puts no amount at stake on its records' };

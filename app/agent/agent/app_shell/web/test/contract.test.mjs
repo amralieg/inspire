@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { actBody, CONTRACT as C, CURRENT, DECIDE, HISTORY, NO_RUNS, PERSON, ROWS, SILENT, SUMMARY, TABLE, appInfo, lister, openApp, prefsFirst, scrollsAsked, serveDist, until, watchScrolls } from './harness.mjs';
+import { actBody, CONTRACT as C, CURRENT, DECIDE, HISTORY, NO_RUNS, PERSON, ROWS, SILENT, SUMMARY, TABLE, appInfo, isInboxAsk, lister, openApp, prefsFirst, scrollsAsked, serveDist, until, watchScrolls } from './harness.mjs';
 
 let served;
 let browser;
@@ -146,7 +146,7 @@ test('Select all matching under a limit acts on what the limit shows: the match 
   assert.deepEqual(act.values, C.act_match.request.body.values);
   assert.equal(act.match.as_of_us, C.records_window.response_fields.as_of_us, 'the match is as of the moment the list was read on the server');
   assert.deepEqual([act.match.view.window, act.match.view.window_limit, act.match.view.time_zone], ['all', 50, 'Asia/Dubai']);
-  assert.deepEqual(act.match.filters, seen.records.at(-1).filters);
+  assert.deepEqual(act.match.filters, seen.records.filter((b) => !isInboxAsk(b)).at(-1).filters);
   await toastSaid(page, '2 of 3 matching records marked done. 1 record changed since you loaded it and was left as it is.');
   assert.deepEqual(await toastButtons(page), ['Undo']);
   assert.equal(await page.locator('.conflicts').innerText(), `1 record changed since you loaded it and was left as it is: ${label(3)}.`);
@@ -266,8 +266,8 @@ test('the list sends a sort only when the person picks a column, and marks only 
   assert.equal(await page.locator('.card--table thead th[aria-sort]').count(), 0, 'the server ranked by stake, which is no column, so no column is marked');
   const read = seen.records.length;
   await page.locator('.card--table thead').getByRole('button', { name: /^Rank/ }).click();
-  await until(() => seen.records.length > read && 'sort' in seen.records.at(-1));
-  assert.equal(seen.records.at(-1).sort.key, 'rank');
+  await until(() => seen.records.length > read && 'sort' in seen.records.filter((b) => !isInboxAsk(b)).at(-1));
+  assert.equal(seen.records.filter((b) => !isInboxAsk(b)).at(-1).sort.key, 'rank');
   assert.equal(await page.locator('.card--table thead th[aria-sort]').count(), 1);
   assert.deepEqual(seen.errors, []);
   await context.close();

@@ -28,7 +28,8 @@ function useInboxReads(app, page, nonce, on) {
     const asks = inboxAsks(page);
     const settle = (patch) => { if (mine === seq.current) setState((s) => ({ ...s, ...patch(s) })); };
     if (listed) {
-      Promise.all([getRecords(asks.mine), asks.unowned ? getRecords(asks.unowned) : null])
+      getRecords(asks.probe).then((probe) => (probe?.actions === false ? [probe]
+        : Promise.all([getRecords(asks.mine), asks.unowned ? getRecords(asks.unowned) : null])))
         .then(([owned, nobody]) => settle(() => ({ records: owned?.actions === false ? { none: true } : { mine: owned?.rows, unowned: nobody?.rows, today: owned?.window?.today } })))
         .catch((e) => settle((s) => ({ records: { none: true }, errors: { ...s.errors, records: e.message } })));
     }
