@@ -581,6 +581,9 @@ thank please look looks like similar others other one ones row rows record recor
 number numbers value values big small high low good bad right wrong change changed changes deal handle need needs want wants
 owner owns own owned responsible know see find check help sure clear clearer simple simply short summary summarize
 """.split())
+ACTING = frozenset({w for label in ACTIONS.values() for w in WORD.findall(label.lower()) if w not in GENERIC and len(w) > 2}
+                   | {"mark", "marked", "dismiss", "reassign", "unassign", "resolve", "close", "complete"})
+ACTED_ON = frozenset({"every", "each", "all", "both", "list", "page", "selected", "ask", "asking", "confirm", "them", "today", "week", "until", "mistake"})
 
 
 def stem(word: str) -> str:
@@ -595,9 +598,11 @@ def topic_words(text) -> set:
 def topic_by_rule(question: str, known: set, anchored: bool) -> str:
     if INJECTION.search(question) or NOT_THE_USE_CASE.search(question):
         return "UNRELATED"
-    seen = known | {stem(w) for w in known} | GENERIC
-    other = {w for w in topic_words(question) if w not in seen and stem(w) not in seen}
-    if not other and (anchored or words_of(question) <= FOLLOW_UP_WORDS):
+    seen = known | {stem(w) for w in known} | GENERIC | ACTING | ACTED_ON
+    words = topic_words(question)
+    other = {w for w in words if w not in seen and stem(w) not in seen}
+    acting = {w for w in words if w in ACTING or stem(w) in ACTING}
+    if not other and (anchored or acting or words_of(question) <= FOLLOW_UP_WORDS):
         return "RELATED"
     return ""
 

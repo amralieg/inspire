@@ -414,7 +414,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {backendNotes(app.backend, data).map((n) => <p key={n} className="note" role="status" data-backend-note><Icon name="info" size={14} />{n}</p>)}
       {hubPage && <HubTop entry={hubEntry} live={live} summary={summary} latest={latestRun} onRuns={showRuns} fixing={shown === 'overview'} onRetry={retry} onRetrySummary={onRetrySummary} />}
       {shown !== 'overview' && <ViewBack onBack={() => setTab('overview')} label={tabLabel(page, OVERVIEW_LABEL)} />}
-      {!laidOut && shown === 'overview' && recordsCard && <TodoNow page={page} app={app} ready={ready} nonce={nonce} shared={queue} />}
+      {!laidOut && shown === 'overview' && recordsCard && <TodoNow page={page} app={app} ready={ready} nonce={nonce} shared={queue} filters={filters} />}
       {hubPage && (
         <HubBody app={app} page={page} entry={hubEntry} live={live} summary={summary} state={state} onState={onState} view={view} onView={onView} meta={meta}
           pageId={page.id} shown={shown} charts={hubCharts} explain={explain} genieBusy={genieBusy} nonce={nonce}

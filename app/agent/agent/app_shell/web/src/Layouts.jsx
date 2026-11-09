@@ -12,6 +12,7 @@ import { RowGenie } from './DataTable.jsx';
 import { tableContext } from './explain.js';
 import { KIND_PARTS, KindReady } from './KindLayouts.jsx';
 import { reducedMotion } from './theme.js';
+import { DEFAULT_PREFS, windowParams } from './prefs.js';
 
 const ScenarioPanel = lazy(() => import('./Scenario.jsx'));
 
@@ -71,25 +72,27 @@ export function todoSteps(page, list, { modify = false, accept = false, plan = f
   return steps;
 }
 
-export function TodoNow({ page, app, ready, nonce, shared }) {
+export function TodoNow({ page, app, ready, nonce, shared, filters = {} }) {
   const retry = useRetry();
   const decided = decides(page);
-  const fetched = useList(page.id, {}, ready, nonce, TODO_ROWS, decided && shared === undefined);
+  const fetched = useList(page.id, filters, ready, nonce, TODO_ROWS, decided && shared === undefined, windowParams(DEFAULT_PREFS));
   const list = shared === undefined ? fetched : shared || {};
   const steps = todoSteps(page, list.data, { modify: !!app?.options?.modify, accept: !!(list.data?.actions && page.records?.action),
     plan: !!(page.plan && list.data && planDecides(app, page.plan, list.data)) });
+  const counted = decided && !!list.data?.actions;
   const summary = list.data?.summary;
-  const waiting = summary?.open ?? list.data?.total ?? 0;
-  const all = Math.max(waiting, (summary?.open ?? 0) + (summary?.done ?? 0), list.data?.total ?? 0);
+  const closed = list.data?.window ? list.data.demo_moved ?? 0 : (summary?.done ?? 0) + (summary?.resolved ?? 0);
+  const waiting = !list.data ? null : Math.max(0, (list.data.total ?? 0) - (counted ? closed : 0));
+  const all = (waiting ?? 0) + (counted ? summary?.done ?? 0 : 0);
   return (
     <section className="todo card" aria-label="What to do now" data-section="todo">
       <header className="card-h"><div><h2>What to do now</h2>
-        {decided && list.data && <p data-todo-count>{all ? `${integer(waiting)} of ${integer(all)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
+        {decided && list.data && waiting != null && <p data-todo-count>{all ? `${integer(waiting)} of ${integer(all)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
         {decided && !list.data && !list.error && <Skeleton height={14} width="40%" />}
         {list.error && <PlainNote text={list.error} icon={<Icon name="info" size={12} />} className="tile-err" onRetry={retry} />}
       </div>
       <AskGenie kind="text" title="What to do now" context={{ hint: steps.map((s) => s.text).join('\n') }} /></header>
-      {decided && all > 0 && <div className="todo-bar" role="progressbar" aria-label="Done so far" aria-valuetext={`${integer(all - waiting)} of ${integer(all)} done`} aria-valuemin={0} aria-valuemax={all} aria-valuenow={all - waiting}><i style={{ width: `${((all - waiting) / all) * 100}%` }} /></div>}
+      {decided && waiting != null && all > 0 && <div className="todo-bar" role="progressbar" aria-label="Done so far" aria-valuetext={`${integer(all - waiting)} of ${integer(all)} done`} aria-valuemin={0} aria-valuemax={all} aria-valuenow={all - waiting}><i style={{ width: `${((all - waiting) / all) * 100}%` }} /></div>}
       <ol className="todo-steps">
         {steps.map((s) => (
           <li key={s.id} data-step={s.id}>

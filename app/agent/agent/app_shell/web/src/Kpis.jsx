@@ -105,6 +105,7 @@ export function Tiles({ tiles, loading, label = 'Key numbers' }) {
 export function Story({ page, data }) {
   if (!page.story) return null;
   const pieces = storyPieces(page.story, page.kpis, data);
+  if (!pieces.length) return null;
   return (
     <p className="story">
       {pieces.map((piece, i) => (piece.strong

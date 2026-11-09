@@ -91,7 +91,7 @@ export const withDemoDecisions = (page, list, filters = {}) => {
   const listed = new Map(list.rows.map((r) => [String(r.record_key), r]));
   const moved = keys.filter((k) => (listed.has(k) ? !CLOSED_STATUSES.includes(listed.get(k)._inspire_status) : !filtered(filters))).length;
   const summary = list.summary && moved ? { ...list.summary, open: Math.max(0, (list.summary.open ?? 0) - moved), done: (list.summary.done ?? 0) + moved } : list.summary;
-  return { ...list, ...(summary ? { summary } : {}), rows: list.rows.map((r) => (decided[String(r.record_key)] ? { ...r, ...decided[String(r.record_key)] } : r)) };
+  return { ...list, ...(summary ? { summary } : {}), demo_moved: moved, rows: list.rows.map((r) => (decided[String(r.record_key)] ? { ...r, ...decided[String(r.record_key)] } : r)) };
 };
 export const getRecords = async (body) => withDemoDecisions(body?.page, await json('POST', 'records', body), body?.filters);
 export const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
