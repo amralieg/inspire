@@ -6,6 +6,9 @@ import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { apiWatch, keepToOrigins, recordMvpApp, routeInspireDemo, walkInspireDemo } from './showcaseRecorder.mjs';
 import { DEMO_READS_WHEN, demoReads, unrecorded } from './showcaseRoutes.mjs';
+import redact from '../backend/lib/redact.js';
+
+redact.redactOutput();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);

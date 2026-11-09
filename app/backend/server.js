@@ -4,6 +4,9 @@ const dotenv = require('dotenv');
 const fs = require('fs');
 const path = require('path');
 const { APP_DIR, BACKEND_DIR } = require('./lib/appPaths');
+const { redactConsole, redactCrashes } = require('./lib/redact');
+
+redactConsole();
 // Load backend/.env then app/ then repo root — later files only fill keys not already set.
 // Never overrides process.env so Databricks App runtime–injected vars always win.
 dotenv.config({ path: path.join(BACKEND_DIR, '.env'), quiet: true });
@@ -2999,6 +3002,7 @@ const PORT = process.env.PORT || 8080;
 module.exports = { app, registeredRoutes: routePolicyRoutes.registered };
 
 if (require.main === module) (async () => {
+  redactCrashes();
   // Pre-warm SP OAuth token before accepting any requests
   if (SP_CLIENT_ID && SP_CLIENT_SECRET && !SERVICE_TOKEN) {
     await refreshSpToken();

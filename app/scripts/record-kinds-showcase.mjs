@@ -15,6 +15,9 @@ import { closeBrowser, openUi } from '../frontend/test/ui/uiSupport.mjs';
 import { STUDIO_STATE, built } from '../frontend/test/ui/implementFixtures.js';
 import { defaultSpecFromUseCase } from '../frontend/src/lib/implementWizard.js';
 import { computeHighPriorityCount, qualityBarCountsOf } from '../frontend/src/lib/useCaseFields.js';
+import redact from '../backend/lib/redact.js';
+
+redact.redactOutput();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);

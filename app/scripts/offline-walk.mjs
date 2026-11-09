@@ -7,6 +7,9 @@ import { fileURLToPath } from 'node:url';
 import { apiWatch, openShowcase, readOnlyInspire, recordMvpApp, tabButton, walkMvpViews, walkRun, watchOffline } from './showcaseRecorder.mjs';
 import { FIRST_RUN_STEP, START_MVP_LABEL } from '../frontend/src/lib/implementWizard.js';
 import { SCOPE_WALK_READS, checkRunScope, checkScope, checkWizardSteps, profileWatch } from './scopeWalk.mjs';
+import redact from '../backend/lib/redact.js';
+
+redact.redactOutput();
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const require = createRequire(import.meta.url);
@@ -204,9 +207,9 @@ try {
 
 const report = { inspire: origin, mvpApps: [...mvpUrls].sort().map((u) => new URL(u).origin), sections, scope, blocked: [...new Set(blocked)], ...watch.report() };
 fs.mkdirSync(out, { recursive: true });
-fs.writeFileSync(path.join(out, 'offline_walk.json'), `${JSON.stringify(report, null, 1)}\n`);
+fs.writeFileSync(path.join(out, 'offline_walk.json'), `${redact.redactSecrets(JSON.stringify(report, null, 1))}\n`);
 const rows = [['page', 'outside host', 'path', 'initiator']].concat(report.outside.map((o) => [o.page, o.host, o.path, o.initiator]));
 const errors = [['page', 'kind', 'error']].concat(report.pageErrors.map((e) => [e.page, 'page error', e.error]), report.consoleErrors.map((e) => [e.page, 'console error', e.error]));
-fs.writeFileSync(path.join(out, 'offline_walk.tsv'), `${rows.map((r) => r.join('\t')).join('\n')}\n\n${errors.map((r) => r.join('\t')).join('\n')}\n`);
+fs.writeFileSync(path.join(out, 'offline_walk.tsv'), redact.redactSecrets(`${rows.map((r) => r.join('\t')).join('\n')}\n\n${errors.map((r) => r.join('\t')).join('\n')}\n`));
 log(`scope checks: ${scope.filter((c) => c.ok === true).length} passed, ${scope.filter((c) => c.ok === false).length} failed, ${scope.filter((c) => c.ok === null).length} not checkable`);
 log(`${report.outside.length} outside requests, ${report.pageErrors.length} page errors, ${report.consoleErrors.length} console errors, ${sections.filter((s) => !s.ok).length} of ${sections.length} sections failed; wrote ${out}`);
