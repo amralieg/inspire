@@ -90,7 +90,6 @@ const DISCOVERY_PANEL = [
   },
 ];
 const TABLE_ELECTION = ['Let Inspire Decides', 'All Tables', 'Transactional Only'];
-const TABLE_ELECTION_LABELS = { 'Let Inspire Decides': 'Let Inspire choose', 'All Tables': 'All tables', 'Transactional Only': 'Transaction tables only' };
 /** Show guidance when explicit table selection exceeds this count. */
 const TABLE_SELECTION_WARN_THRESHOLD = 10;
 /** Documented sweet spot for discovery quality and runtime. */
@@ -697,11 +696,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     : !effectiveDb ? 'Set the Inspire Database in Advanced Settings to get started.'
       : !params['01_uc_metadata'] ? 'Pick at least one catalog, schema or table under Unity Catalog Metadata to get started.'
         : strategyProblems.length ? `Fix the strategy first, in Advanced Settings under Strategy (optional): ${strategyProblems[0]}`
-          : bestOfBestInvalid ? 'Starred use cases takes a whole number from 0 to 100. Fix it in Advanced Settings.' : '';
+          : bestOfBestInvalid ? 'Best of Best stars takes a whole number from 0 to 100. Fix it in Advanced Settings.' : '';
   const canLaunch = !launchBlock;
   const advancedProblem = !effectiveDb ? 'Set the Inspire Database.'
     : strategyProblems.length ? `Fix the strategy: ${strategyProblems[0]}`
-      : bestOfBestInvalid ? 'Fix Starred use cases: use a whole number from 0 to 100, or leave it empty.'
+      : bestOfBestInvalid ? 'Fix Best of Best stars: use a whole number from 0 to 100, or leave it empty.'
         : needsLanguage && selectedDocLanguages.length === 0 ? 'Select at least one document language for PDF or Presentation.'
           : ['refused', 'error'].includes(outputCheck.state) ? 'Change the Generation Path: Inspire cannot write to it.' : '';
   useEffect(() => {
@@ -1487,7 +1486,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               <Field
                 label="Generation Options"
                 icon={Layers}
-                hint="PDF and presentation files. Full Genie Code instructions are set separately below."
+                hint="PDF / Presentation artifacts. Auto-Genie is configured separately below."
               >
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                   {GENERATION_OPTIONS.map((opt) => {
@@ -1562,12 +1561,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
               {/* Row: Table Election + Quality */}
               <div className="grid grid-cols-1 md:grid-cols-2 gap-5">
-                <FieldSection label="Tables to read">
+                <FieldSection label="Table Election">
                   <GlowSelect
                     value={params['04_table_election']}
                     onChange={(v) => updateParam('04_table_election', v)}
                     options={TABLE_ELECTION}
-                    labels={TABLE_ELECTION_LABELS}
                   />
                   <p className="text-[10px] text-text-tertiary mt-1">Which of the tables you picked Inspire reads</p>
                 </FieldSection>
@@ -1597,9 +1595,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
                 <Field
-                  label="Full Genie Code instructions"
+                  label="Auto-Genie scope"
                   icon={Bot}
-                  hint="How many top use cases get full Genie Code instructions: 0 (the default) gives outline notebooks only, all gives every use case, or type a number such as 5."
+                  hint="In Discover, 0 (the default) writes outline notebooks only; all, or a number such as 5, also writes full Genie Code instructions for that many top use cases."
                 >
                   <input dir="auto"
                     type="text"
@@ -1610,9 +1608,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   />
                 </Field>
                 <Field
-                  label="Starred use cases"
+                  label="Best of Best stars"
                   icon={Star}
-                  hint="How many of the best use cases get a star, 0 to 100. Empty uses the number in your generation instructions, or 20. A star never adds, removes or reorders a use case."
+                  hint="How many use cases to star, 0 to 100. Empty uses the number in your generation instructions, or 20. Stars never add, remove or reorder a use case."
                 >
                   <input dir="auto"
                     type="text"
@@ -1761,7 +1759,7 @@ function FieldSection({ label, required, hint, children }) {
   );
 }
 
-function GlowSelect({ value, onChange, options, labels = {} }) {
+function GlowSelect({ value, onChange, options }) {
   return (
     <select
       className="w-full px-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth"
@@ -1769,7 +1767,7 @@ function GlowSelect({ value, onChange, options, labels = {} }) {
       onChange={(e) => onChange(e.target.value)}
     >
       {options.map((o) => (
-        <option key={o} value={o}>{labels[o] || o}</option>
+        <option key={o} value={o}>{o}</option>
       ))}
     </select>
   );

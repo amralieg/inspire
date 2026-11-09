@@ -32,6 +32,9 @@ test('AI Enhanced Discovery is recommended and the default, both modes are expla
     const more = page.locator('[data-discovery-more]');
     assert.equal(await more.evaluate((d) => d.open), false, 'the longer explanation starts folded, so the section reads in a few lines (must-exclude)');
     assert.equal(await page.locator('[data-discovery-panel-part="why"]').isVisible(), false);
+    for (const mode of ['AI Enhanced Discovery', 'Standard Discovery']) {
+      assert.ok(await page.getByRole('button', { name: new RegExp(`^${mode}`) }).isVisible(), `${mode} stays visible while the explanation is folded`);
+    }
     await more.locator('summary').click();
     const privacy = await page.locator('[data-discovery-panel-part="privacy"]').innerText();
     for (const sentence of PRIVACY) assert.ok(privacy.includes(sentence), `privacy states: ${sentence}`);
