@@ -8,7 +8,7 @@ const S = require('./support/serverApp');
 const NONOWNER = 'nonowner@example.com';
 const VOLUME_OUT = '/Volumes/main/inspire/vol/out';
 const VOLUME_SEED = () => ({
-  sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: VOLUME_OUT }] },
+  sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: VOLUME_OUT, business_name: 'Acme' }] },
   launches: [{ run_id: '91001', inspire_database: S.APP_DB, session_id: '1001', output_folder: VOLUME_OUT, output_checked: 'passed' }],
 });
 const actions = () => S.state.calls.filter((c) => c.category === 'action');
@@ -51,14 +51,14 @@ test('list, export and status refuse a relative or .. path with 400 before any w
 });
 
 test('an encoded .. under an App output volume cannot climb out of the files API with the App token (must-exclude)', async () => {
-  const escape = `${VOLUME_OUT}/${Array(7).fill('%2e%2e').join('/')}/secrets/list`;
+  const escape = `${VOLUME_OUT}/acme/${Array(7).fill('%2e%2e').join('/')}/secrets/list`;
   for (const route of ['/api/workspace/list', '/api/workspace/export']) {
     S.reset(VOLUME_SEED());
     await S.request('GET', `${route}?path=${encodeURIComponent(escape)}`, { person: NONOWNER });
     const called = actions().map((c) => c.path);
     assert.ok(called.length > 0, `${route} reached the files API`);
     assert.deepEqual([...new Set(actions().map((c) => c.token))], ['app-sp-token'], 'the path sits inside an App output folder, so it reads with the App token');
-    for (const p of called) assert.ok(p.startsWith(`/api/2.0/fs/`) && p.includes('/Volumes/main/inspire/vol/out/'), `${route} called ${p}`);
+    for (const p of called) assert.ok(p.startsWith(`/api/2.0/fs/`) && p.includes('/Volumes/main/inspire/vol/out/acme/'), `${route} called ${p}`);
   }
 });
 

@@ -14,12 +14,12 @@ const list = (path) => S.request('GET', `/api/workspace/list?path=${encodeURICom
 const built = (uc, by) => ({ session_id: '1001', use_case_id: uc, spec_version: 1, status: 'ready', created_by: by, spec_json: { use_case_name: 'Payroll leak desk' } });
 const launched = (sid, folder, checked = 'passed', db = S.APP_DB) => ({ run_id: `9${sid}`, inspire_database: db, session_id: sid, output_folder: folder, output_checked: checked });
 const CHECKED = {
-  sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: OUT }, { session_id: '1002', generation_path: './../demos/' }, { session_id: '1004', generation_path: '/' }] },
+  sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: OUT, business_name: 'Acme' }, { session_id: '1002', generation_path: './../demos/', business_name: 'Acme' }, { session_id: '1004', generation_path: '/', business_name: 'Acme' }] },
   launches: [launched('1001', '/Users/launcher@example.com/inspire_out'), launched('1002', '/Shared/demos'), launched('1004', '/')],
 };
 
 test('the output folder of a session in the App database lists and downloads with the App token, so every App user sees what the App produced', async () => {
-  for (const path of [OUT, `${OUT}/acme`, '/Users/launcher@example.com//inspire_out/acme/report.pdf', '/Shared/demos/acme']) {
+  for (const path of [`${OUT}/acme`, `${OUT}/acme/docs`, '/Users/launcher@example.com//inspire_out/acme/report.pdf', '/Shared/demos/acme']) {
     S.reset(structuredClone(CHECKED));
     const got = await list(path);
     assert.equal(got.status, 200, `${path}: ${got.text}`);
@@ -29,6 +29,28 @@ test('the output folder of a session in the App database lists and downloads wit
   const file = await S.request('GET', `/api/workspace/export?path=${encodeURIComponent(`${OUT}/acme/catalog.csv`)}`, { person: NONOWNER });
   assert.notEqual(file.status, 401, file.text);
   assert.deepEqual(tokensTo('/api/2.0/workspace/export'), [APP_TOKEN]);
+});
+
+test('the App token reads only the run\u2019s own output subfolder: the generation path itself, a sibling run folder under it and its parent read with the person token (must-exclude)', async () => {
+  for (const path of [OUT, `${OUT}/`, `${OUT}/other_business`, `${OUT}/other_business/catalog.pdf`, `${OUT}/acme_implemented`, `${OUT}/acmex`,
+    '/Workspace/Users/launcher@example.com', '/Shared/demos', '/Shared/demos/beta/x.csv', '/acme']) {
+    S.reset(structuredClone(CHECKED));
+    const got = await list(path);
+    assert.equal(got.status, 200, `${path}: ${got.text}`);
+    assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [S.PERSON_TOKEN], path);
+  }
+});
+
+test('a run whose own output subfolder is unknown never reads with the App token (must-exclude)', async () => {
+  for (const name of [undefined, null, '', '   ', 7]) {
+    S.reset({ sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: OUT, business_name: name }] }, launches: [launched('1001', '/Users/launcher@example.com/inspire_out')] });
+    for (const path of [OUT, `${OUT}/acme`, `${OUT}/_`]) {
+      S.state.calls.length = 0;
+      const got = await list(path);
+      assert.equal(got.status, 200, `${JSON.stringify(name)} ${path}: ${got.text}`);
+      assert.deepEqual(tokensTo('/api/2.0/workspace/list'), [S.PERSON_TOKEN], `${JSON.stringify(name)} ${path}`);
+    }
+  }
 });
 
 test('a .. escape out of an output folder is refused before any token is chosen (must-exclude)', async () => {
