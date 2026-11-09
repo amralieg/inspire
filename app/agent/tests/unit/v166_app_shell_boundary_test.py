@@ -97,6 +97,7 @@ SHELL_ENTRY_POINTS = {
     ("_implement_page_file", "shell_sql.layout_chart_least"),
     ("_implement_page_file", "shell_sql.page_layout"),
     ("_implement_page_file", "shell_sql.place_items"),
+    ("_implement_page_file", "shell_sql.shape_problems"),
     ("_implement_app_prompt", "shell_sql.layout_chart_least"),
     ("_implement_holder_filters", "shell_sql.list_column_filters"),
     ("_implement_holder_filters", "shell_sql.table_column_filters"),
