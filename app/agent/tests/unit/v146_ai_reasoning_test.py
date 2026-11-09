@@ -306,3 +306,17 @@ def test_genie_writes_the_facts_and_the_level_and_never_explains_rows_itself(age
             "does not set a temperature.") in mandate
     assert "explanation_top_k" not in mandate and "explanation_top_k" not in agent_ns["GENIE_WIDGET_LABELS"]
     assert not {"inspire_filter_sql", "inspire_explain_request", "INSPIRE_EXPLANATION_TOP_K"} & set(agent_ns)
+
+
+def test_an_ai_category_of_levels_is_refused_as_a_reason_and_a_category_of_causes_is_kept(agent_ns):
+    problems = agent_ns["inspire_ai_category_problems"]
+    levels = {"ai_cat_risk": {"meaning": "why the main may break", "values": ["Low", "Medium", " High "]}}
+    found = problems(levels)
+    assert found == ["ai_cat_risk sorts records by a level (Low, Medium, High), which is not a reason: the App shows confidence_level "
+                     "and the priority already, so its values must name what causes the record, such as 'Price', 'Volume' or 'Mix'"]
+    assert problems({"ai_cat_sev": {"meaning": "how bad", "values": ["Minor", "Major", "Critical"]}})
+    assert problems(CATEGORIES) == []
+    assert problems({"ai_cat_cause": {"meaning": "what broke", "values": ["Corrosion", "High pressure", "Low flow"]}}) == []
+    with pytest.raises(ValueError, match="sorts records by a level"):
+        agent_ns["inspire_ai_config"](levels, "ep", "Business: Acme")
+    assert "never a level such as Low, Medium or High, which confidence_level and the priority already show" in agent_ns["GENIE_EXPLANATION_FACTS_RULE"]
