@@ -9,20 +9,20 @@ const ON = { apps: true, genie_spaces: true, alerts: true };
 const APP_DENIED = { ok: false, detail: 'you lack CREATE TABLE on main.n01_u01', grants: ['GRANT USE SCHEMA, CREATE TABLE ON SCHEMA `main`.`n01_u01` TO `sp`'] };
 
 test('an option the person cannot afford is blocked, is never the default, and the badge moves to the best one that works', async () => {
-  const H = await lib('highlyRecommended.js');
+  const H = await lib('recommended.js');
   const w = await lib('implementWizard.js');
   const open = H.affordable(['a', 'b', 'c'], {}, (id) => `why ${id}`);
   assert.deepEqual([open.best, open.none], [{ id: 'a', reason: 'why a' }, '']);
   const moved = H.affordable(['a', 'b', 'c'], { a: { why: 'Off here.' } }, (id) => `why ${id}`);
   assert.deepEqual(moved.open, ['b', 'c']);
   assert.deepEqual(moved.best, { id: 'b', reason: 'why b' }, 'the badge moves to the first option that works');
-  assert.equal(H.bestOutput({ app: w.blockOf(w.OFF_IN_WORKSPACE.app, w.OFF_DETAILS) }).id, 'genie_space', 'App blocked: the Genie Agent is Highly Recommended');
+  assert.equal(H.bestOutput({ app: w.blockOf(w.OFF_IN_WORKSPACE.app, w.OFF_DETAILS) }).id, 'genie_space', 'App blocked: the Genie Agent is Recommended');
   assert.equal(H.bestOutput(w.outputBlocks(ON, { app: APP_DENIED })).id, 'genie_space', 'App denied by the access check: the badge moves too');
   assert.equal(H.bestOutput(w.outputBlocks(ON, null)).id, 'app');
 });
 
 test('when no option works, the wizard says so in one line and blocks Next with that reason', async () => {
-  const H = await lib('highlyRecommended.js');
+  const H = await lib('recommended.js');
   const w = await lib('implementWizard.js');
   const none = H.affordable(['a', 'b'], { a: { why: 'Off here.' }, b: { why: 'Needs access.' } }, () => '', (id) => id.toUpperCase());
   assert.equal(none.best, null);
@@ -53,7 +53,7 @@ test('one shared block shape: a short plain reason, and Details with the exact g
 });
 
 test('the result table place uses the same rule: a blocked place is never the default', async () => {
-  const H = await lib('highlyRecommended.js');
+  const H = await lib('recommended.js');
   const ok = H.resultPlaceBlocks({ place: 'own' }, 'main.n01_u01.out', 'main.inspire.n01_u01_out', 'main');
   assert.deepEqual(ok, {});
   assert.equal(H.bestResultPlace(ok, 'main').id, 'own');
@@ -130,7 +130,7 @@ test('the short reason names the place Inspire lacks access to, never a schema w
 });
 
 test('the badge reason says the App cannot be built here, never that Apps are off, when the App is only blocked', async () => {
-  const H = await lib('highlyRecommended.js');
+  const H = await lib('recommended.js');
   const w = await lib('implementWizard.js');
   const best = H.bestOutput(w.outputBlocks(ON, { app: APP_DENIED }));
   assert.equal(best.id, 'genie_space');

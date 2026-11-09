@@ -1,5 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { INSIDE_WAREHOUSE_TOGGLE } from '../../src/lib/implementWizard.js';
 import { BUILD_IT, closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardInScreen, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
@@ -72,8 +73,9 @@ test('Data, Results, Run it and App show the business settings and keep the tech
     const placed = await page.locator('input[name="app-place"]:checked').getAttribute('value');
     await page.locator('[data-app-place="inspire"] input[type="radio"]').check();
     await page.locator('[data-app-place="inspire"] [data-placement-blurb]').waitFor();
-    assert.equal(await picker.count(), 0, 'the App SQL warehouse shows on App placement before Advanced settings is opened');
-    await open();
+    assert.equal(await picker.count(), 0, 'the App SQL warehouse waits under its own settings on Deliver');
+    assert.equal(await page.getByRole('button', { name: 'Advanced settings', exact: true }).count(), 1, 'one Advanced settings on the step (must-exclude: two of the same name)');
+    await openAdvanced(page, INSIDE_WAREHOUSE_TOGGLE);
     await picker.waitFor();
     await page.locator(`input[name="app-place"][value="${placed}"]`).check();
     assert.deepEqual(ui.pageErrors, []);
@@ -179,7 +181,7 @@ test('an App name that is still refused is named on the last step with the step 
     const field = page.locator('[data-last-app-name]');
     await field.waitFor({ timeout: 15000 });
     assert.match(await field.innerText(), new RegExp(`'${taken}' is used by another App in this workspace; pick another name`));
-    await page.locator('[role="alert"] p', { hasText: '(fix it on Who uses the App)' }).waitFor();
+    await page.locator('[role="alert"] p', { hasText: '(fix it on Deliver)' }).waitFor();
     assert.equal(await startButton(page).isDisabled(), true);
     await field.locator('input').fill('quality-desk');
     await startOn(page);

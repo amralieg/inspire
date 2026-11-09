@@ -71,7 +71,7 @@ test('One App for all use cases never creates a second hub for the same business
 test('an App of its own cannot take a name that starts like the App of all use cases of a business', async () => {
   const { w, spec } = await fresh({ merge: { app: '', dashboard: '', genie_space: '' } });
   const typed = (name, placement = 'use_case') => ({ ...spec, outputs: { ...spec.outputs, app_name: name, app_placement: placement } });
-  const kept = (s, held = {}) => w.stepErrors('app', s, { held }).includes(w.HUB_NAME_KEPT);
+  const kept = (s, held = {}) => w.stepErrors('delivery', s, { held }).includes(w.HUB_NAME_KEPT);
   assert.ok(kept(typed('inspire-hub-nyc-taxi-03')));
   assert.ok(kept(typed('inspire-hub-nyc-taxi')));
   assert.ok(!kept(typed('inspire-hub-nyc-taxi-03'), { app: 'inspire-hub-nyc-taxi-03' }), 'an App the use case already has keeps its name');

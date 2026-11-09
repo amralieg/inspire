@@ -191,7 +191,10 @@ test('each Full MVP step runs the checks of every section it shows, and only tho
   assert.deepEqual(w.IMPLEMENT_STEPS.find((s) => s.id === 'results').sections, ['results'], 'Results holds only where the result table lives');
   assert.equal(w.DELIVERY_QUESTION, 'How will people use this use case?');
   assert.deepEqual([w.SUMMARY_STEP.id, w.SUMMARY_STEP.label, w.SUMMARY_STEP.sections, w.SUMMARY_STEP.panels], ['summary', 'Summary', ['vibes'], ['summary', 'vibes']], 'the optional Vibes box sits on Summary');
-  assert.deepEqual([w.APP_STEP.id, w.APP_STEP.label, w.APP_STEP.panels], ['app', 'Who uses the App', ['app_place', 'app_access']], 'where the App lives and who sees which rows are one step');
+  assert.deepEqual([w.APP_STEP.id, w.APP_STEP.label, w.APP_STEP.sections, w.APP_STEP.panels], ['app', 'Who uses the App', ['app_access'], ['app_access']], 'Who uses the App asks only who sees which rows');
+  const deliver = w.IMPLEMENT_STEPS.find((s) => s.id === 'delivery');
+  assert.deepEqual([deliver.sections, deliver.panels], [['use_it', 'app_place', 'app_owners', 'alert'], ['delivery', 'app_place']], 'where the App goes is decided on Deliver, with how people use the result');
+  assert.equal(w.APP_STEP.panels.includes('app_place'), false, 'never on Who uses the App (must-exclude)');
   assert.deepEqual([w.APP_PAGES_STEP.id, w.APP_PAGES_STEP.label, w.APP_PAGES_STEP.panels], ['app_pages', 'App pages and look', ['app_features', 'app_look']], 'the pages and the look are a step of their own');
   assert.deepEqual([w.RUN_STEP.label, w.RUN_STEP.panels], ['Run it', ['fresh', 'measure']]);
   assert.equal(w.SETTINGS_STEP, undefined, 'Team capacity and the use case settings are set in the App, never in the wizard');
@@ -213,12 +216,13 @@ test('each Full MVP step runs the checks of every section it shows, and only tho
     [cron, "'Revenue' is not one of this use case\u2019s KPIs, so pick one from the list or Let Inspire pick"], 'and Measure impact on the same step');
   assert.deepEqual(w.stepErrors('delivery', bad), [
     w.GENIE_FOR_APP_NOTE,
+    'app name must be 3-30 lowercase letters, digits and dashes',
     'an alert needs at least one recipient email or notification destination',
   ]);
   assert.deepEqual(w.advancedErrors('delivery', bad), [
     'an alert needs at least one recipient email or notification destination',
-  ], 'the App name lives on App placement, so Delivery never checks it');
-  assert.deepEqual(w.stepErrors('app', bad), ['app name must be 3-30 lowercase letters, digits and dashes']);
+  ], 'the App name is a main question on Deliver, never hidden under Advanced');
+  assert.deepEqual(w.stepErrors('app', bad), [], 'Who uses the App no longer checks the App name (must-exclude)');
   assert.deepEqual(w.advancedErrors('data', bad), w.stepErrors('data', bad));
   assert.deepEqual(w.advancedErrors('results', bad), [], 'the catalog and schema show on Results itself, so their problem never opens Advanced');
   assert.deepEqual(w.advancedErrors('run', bad), [cron], 'the cron sits under Advanced on Keep it fresh');
@@ -297,7 +301,7 @@ test('a taken App name suggests the next free-looking name and stays inside the 
 test('Keep it fresh maps Off, Daily and Weekly onto the schedule, and shows Custom for any other cron', async () => {
   const w = await load();
   const spec = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', owner: 'amr@example.com' });
-  assert.equal(w.freshnessOf(spec.schedule), 'daily', 'a new use case starts on Daily, its Highly Recommended option');
+  assert.equal(w.freshnessOf(spec.schedule), 'daily', 'a new use case starts on Daily, its Recommended option');
   assert.equal(spec.schedule.enabled, true);
   const saved = w.specFromLatest({ spec_version: 2, spec_json: { ...spec, schedule: { ...spec.schedule, enabled: false } } }, spec);
   assert.equal(w.freshnessOf(saved.schedule), 'off', 'a saved version someone turned off stays off (must-exclude)');
@@ -1016,16 +1020,18 @@ test('an output that no longer exists is not held, so the use case can join its 
   assert.deepEqual([own.outputs.merge?.app || '', own.outputs.app_placement], ['', 'use_case'], 'one App per use case makes a new App for it');
 });
 
-test('the App placement step checks the placement, the App name and the App it joins', async () => {
+test('Deliver checks the App placement, the App name and the App it joins', async () => {
   const w = await load();
   const spec = w.withOutput(w.defaultSpecFromUseCase({ ...UC, business_domain: 'Customer' }, { businessName: 'Acme', warehouseId: 'w' }), 'app', true);
-  assert.deepEqual(w.stepErrors('app', spec), []);
-  assert.deepEqual(w.stepErrors('app', { ...spec, outputs: { ...spec.outputs, app_placement: 'team' } }), ['choose how Inspire organizes Apps']);
-  assert.deepEqual(w.stepErrors('app', { ...spec, outputs: { ...spec.outputs, app_name: 'X' } }), ['app name must be 3-30 lowercase letters, digits and dashes']);
+  assert.deepEqual(w.sectionErrors('app_place', spec), []);
+  assert.deepEqual(w.sectionErrors('app_place', { ...spec, outputs: { ...spec.outputs, app_placement: 'team' } }), ['choose how Inspire organizes Apps']);
+  assert.ok(w.stepErrors('delivery', { ...spec, outputs: { ...spec.outputs, app_placement: 'team' } }).includes('choose how Inspire organizes Apps'));
+  assert.deepEqual(w.stepErrors('app', { ...spec, outputs: { ...spec.outputs, app_placement: 'team' } }), [], 'and Who uses the App does not (must-exclude)');
+  assert.ok(w.stepErrors('delivery', { ...spec, outputs: { ...spec.outputs, app_name: 'X' } }).includes('app name must be 3-30 lowercase letters, digits and dashes'));
   const target = appTarget('inspire-acme-customer', [holder('N01-U02', 'Acme', 'Customer')]);
   const perUser = w.withMergeTarget(w.withAppAccess(spec, 'user'), 'app', target);
-  assert.ok(w.stepErrors('app', perUser, { mergeTargets: { app: [target] } }).includes('inspire-acme-customer shows everyone the same rows'));
-  assert.equal(w.APP_NEXT_NOTE, 'You pick where it goes next.');
+  assert.ok(w.stepErrors('delivery', perUser, { mergeTargets: { app: [target] } }).includes('inspire-acme-customer shows everyone the same rows'));
+  assert.equal(w.APP_NEXT_NOTE, 'You pick where it goes below.');
   assert.throws(() => w.stepErrors('app', w.withOutput(spec, 'app', false)), /unknown wizard step 'app'/, 'without an App there is no App step');
 });
 
@@ -1081,14 +1087,17 @@ test('Edit opens the wizard on the step it was asked for, and on Data otherwise,
   for (const old of ['kpi', 'holdout', 'schedule', 'measure', 'fresh']) assert.equal(w.initialStepIndex({ step: old }), 4, `${old} lives on Run it`);
   for (const old of ['summary', 'review', 'vibes', 'settings']) assert.equal(w.initialStepIndex({ step: old }), 5, `${old} lands on Summary`);
   const withApp = { outputs: { app: true } };
-  for (const old of ['app', 'app_place', 'app_access']) assert.equal(w.initialStepIndex({ step: old }, 'mvp', withApp), 4, `${old} lands on Who uses the App`);
+  for (const old of ['app', 'app_access']) assert.equal(w.initialStepIndex({ step: old }, 'mvp', withApp), 4, `${old} lands on Who uses the App`);
+  assert.equal(w.initialStepIndex({ step: 'app_place' }, 'mvp', withApp), 3, 'where the App goes lands on Deliver');
   for (const old of ['app_pages', 'app_features', 'app_look']) assert.equal(w.initialStepIndex({ step: old }, 'mvp', withApp), 5, `${old} lands on App pages and look`);
   const joined = { outputs: { app: true, merge: { app: 'finance-desk' } } };
-  assert.equal(w.initialStepIndex({ step: 'app_look' }, 'mvp', joined), 4, 'a joined App has no pages step, so its links land on Who uses the App');
-  assert.equal(w.stepIndexOf(w.wizardSteps('mvp', joined), 'app_pages'), 4);
+  assert.equal(w.initialStepIndex({ step: 'app_look' }, 'mvp', joined), 3, 'a joined App has no App steps, so its links land on Deliver');
+  assert.equal(w.stepIndexOf(w.wizardSteps('mvp', joined), 'app_pages'), 3);
+  assert.equal(w.stepIndexOf(w.wizardSteps('mvp', joined), 'app_access'), 3);
+  assert.equal(w.wizardSteps('mvp', joined).some((s) => s.id === 'app' || s.id === 'app_pages'), false, 'the App it joins keeps its sign-in, pages and look (must-exclude)');
   assert.equal(w.initialStepIndex({ step: 'run' }, 'mvp', withApp), 6, 'Run it comes after the App');
   assert.equal(w.initialStepIndex({ step: 'review' }, 'mvp', withApp), 7);
-  assert.equal(w.initialStepIndex({ step: 'app_place' }), 0, 'no App, no App step');
+  assert.equal(w.initialStepIndex({ step: 'app_place' }), 3, 'with no App the old placement link lands on Deliver, where the App is ticked');
   assert.equal(w.initialStepIndex({ step: 'nope' }), 0);
   assert.equal(w.initialStepIndex(null), 0);
   assert.equal(w.initialStepId(null), 'use_case');

@@ -2,7 +2,7 @@ import { FIRST_RUN_LABEL as RUN_LABEL } from '../frontend/src/lib/runScope.js';
 import { FIRST_RUN_STEP, GROUPING_STEP } from '../frontend/src/lib/implementWizard.js';
 const profileRoute = await import('../frontend/src/lib/groupingProfile.js').then((m) => m.GROUPING_PROFILE_ROUTE || '', () => '');
 export const SCOPE_WALK_READS = new Set(profileRoute ? [`POST ${profileRoute}`] : []);
-const RECORDS_RE = /· [\d,]+ records?\b/;
+const RECORDS_RE = /^[\d,]+ records?\b|· [\d,]+ records?\b/;
 const SCOPE_WORDS_RE = /\b(All records|records?|groups?|days?)\b/;
 
 export function profileWatch(page) {

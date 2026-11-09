@@ -5,14 +5,14 @@ import { PROFILE_READING } from '../lib/groupingProfile';
 import { SETTINGS_NEXT_RUN } from '../lib/useCaseSettings';
 import {
   FIRST_RUN_GROUPS_FIND_FROM, FIRST_RUN_GROUPS_MAX_SHOWN, FIRST_RUN_GROUPS_READING, FIRST_RUN_KEEPS, FIRST_RUN_SAVE_LABEL, GROUP_ALL, GROUP_BY, GROUP_KIND_WORDS, GROUPING_COMBINE,
-  GROUPING_COMBINE_NOTE, GROUPING_DEEP_MARK, GROUPING_DEEP_PICKED, GROUPING_PLAIN, GROUPING_SAVE_LABEL, RUN_SCOPE, RUN_SCOPE_UNRECORDED, RUN_SCOPES, SCOPE_DAYS,
-  SCOPE_GROUPS, SCOPE_LABELS, SCOPE_RECORDS, deepGrouping, firstRunChoiceOf, firstRunChoices, firstRunCoversText, groupByColumns, groupingChoices, groupingExampleText,
+  GROUPING_DEEP_MARK, GROUPING_DEEP_PICKED, GROUPING_PLAIN, GROUPING_SAVE_LABEL, RUN_SCOPE, RUN_SCOPE_UNRECORDED, RUN_SCOPES, SCOPE_DAYS,
+  SCOPE_GROUPS, SCOPE_LABELS, SCOPE_RECORDS, deepGrouping, firstRunChoiceOf, firstRunGroupsPick, groupingCombineNote, firstRunChoices, firstRunCoversText, groupByColumns, groupingChoices, groupingExampleText,
   groupingGroupsOf, groupingMovesUpText, groupingProfiled, groupingReasonText, groupsPickedByRunText, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   profileHeldText, sameGrouping, scopeChanges, scopeGroupKey, scopeGroupText, scopeGroupsColumn, scopeGroupsOf, scopeGroupsValue, scopeProblems, scopeValues,
   suggestedGroups, withScopeDefaults, FIRST_RUN_LABEL, GROUPING_FIND, GROUPING_MORE, groupingCount, groupingCountText, groupingLead, topShown,
 } from '../lib/runScope';
-import { bestFirstRun, bestGrouping, isBest } from '../lib/highlyRecommended';
-import HighlyRecommended from './HighlyRecommended';
+import { bestFirstRun, bestGrouping, isBest } from '../lib/recommended';
+import Recommended from './Recommended';
 import { PlainMessage } from './TechnicalDetails';
 
 const ROW = 'flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] text-text-primary';
@@ -94,7 +94,7 @@ function GroupingPart({ values, onChange, profile, settings, editable, chosenBy 
                 <span data-grouping-count="" className="shrink-0 text-[11px] text-text-secondary">{groupingCountText(groupingCount(c, profile))}</span>
               </span>
               {c.deep && <span data-grouping-deep="" className="block text-[11px] text-text-secondary">{GROUPING_DEEP_MARK}</span>}
-              <HighlyRecommended best={best} id={c.value} />
+              <Recommended best={best} id={c.value} />
               {c.note && <span data-grouping-join-note="" className="block text-[11px] text-text-secondary">{c.note}</span>}
             </span>
           </label>
@@ -105,7 +105,7 @@ function GroupingPart({ values, onChange, profile, settings, editable, chosenBy 
       {columns.length > 1 && (
         <div role="group" aria-label={GROUPING_COMBINE} data-grouping-combine="" className="space-y-1">
           <p className="text-[12px] font-medium text-text-primary">{GROUPING_COMBINE}</p>
-          <p className={NOTE}>{GROUPING_COMBINE_NOTE}</p>
+          <p data-grouping-combine-note="" className={NOTE}>{groupingCombineNote(columns)}</p>
           <div className="flex flex-wrap gap-x-4 gap-y-1">
             {shownColumns.map((c) => (
               <label key={c.name} data-grouping-combine-column={c.name} className="flex items-center gap-1.5 text-[12px] text-text-primary">
@@ -145,7 +145,7 @@ export function GroupingChosen({ values, profile }) {
   const columns = groupByColumns(current).filter((c) => c.toLowerCase() !== GROUP_ALL);
   const choice = groupingChoices(profile).find((c) => sameGrouping(c.value, current)) || { value: current, label: columns.join(', then '), columns };
   return (
-    <p data-grouping-chosen="" className="rounded-lg border border-db-red/40 bg-db-red-50 px-3 py-2 text-[12px] text-text-primary">
+    <p role="note" data-grouping-chosen="" className="rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-[12px] text-text-primary">
       Data groups: <strong>{choice.label}</strong> · {groupingCountText(groupingCount(choice, profile))}. The {FIRST_RUN_LABEL} runs inside these groups.
     </p>
   );
@@ -199,10 +199,8 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
   const pick = (c) => {
     setMode(c.id);
     onChange(RUN_SCOPE, c.scope);
-    if (c.scope !== 'groups' || !groups.length) return;
-    const suggested = suggestedGroups(profile).filter((s) => groups.some((g) => scopeGroupKey(g.parts) === scopeGroupKey(s.parts)));
-    if (c.id === 'one' && picked.length !== 1) onChange(SCOPE_GROUPS, scopeGroupsValue([(picked.length ? { parts: picked[0] } : groups[0]).parts]));
-    if (c.id === 'groups' && !picked.length) onChange(SCOPE_GROUPS, scopeGroupsValue((suggested.length ? suggested : groups.slice(0, 3)).map((g) => g.parts)));
+    if (c.scope !== 'groups' || !groups.length || (c.id === 'one' ? picked.length === 1 : picked.length > 0)) return;
+    onChange(SCOPE_GROUPS, scopeGroupsValue(firstRunGroupsPick(profile, groups, picked, c.id)));
   };
   const best = bestFirstRun(profile, choices);
   const covers = firstRunCoversText(profile, values, everything);
@@ -223,11 +221,18 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
               <input type="radio" name="inspire-first-run" value={c.id} className="mt-0.5" checked={current === c.id} disabled={!editable || waiting(c)} onChange={() => pick(c)} />
               <span className="min-w-0">
                 <span className="font-medium">{c.label}</span>
-                {c.records != null && <span data-first-run-records="" className="text-text-secondary"> · {counted(c.records, 'record')}</span>}
+                {c.records != null && !c.label.startsWith(counted(c.records, 'record')) && <span data-first-run-records="" className="text-text-secondary"> · {counted(c.records, 'record')}</span>}
                 {c.estimate && <span data-first-run-estimate="" className="block text-[11px] text-text-secondary">{c.estimate}</span>}
-                <span className="block"><HighlyRecommended best={best} id={c.id} /></span>
+                <span className="block"><Recommended best={best} id={c.id} /></span>
               </span>
             </label>
+            {c.detail && (
+              <details data-first-run-details={c.id} className={`ms-6 ${NOTE}`}>
+                <summary className="cursor-pointer select-none font-medium text-text-secondary">Details</summary>
+                <p className="mt-1">{c.detail}</p>
+                {c.shown?.length > 0 && <ul className="mt-1 space-y-0.5">{c.shown.map((g) => <li key={g} data-first-run-group="">{g}</li>)}</ul>}
+              </details>
+            )}
             {current === c.id && c.scope === 'groups' && (groups.length ? (
               <GroupsPicker groups={groups} picked={picked} many={c.id === 'groups'} editable={editable} onPick={(v) => onChange(SCOPE_GROUPS, v)} />
             ) : (

@@ -1,14 +1,13 @@
 import { counted } from './plural.js';
 import { firstRunDefault, groupingBest, groupingCount, profileRecords } from './runScope.js';
 import {
-  APP_OWN_PLACEMENTS, IMPLEMENT_OUTPUTS, NONE_WORKS, affordable, blockOf, REMOVED_OUTPUT_DEFAULT, VIBE_PREVIOUS_DEFAULT, appBackendBlocks, appBackendDefault, appPagesOf, newAppPlacementBlock, placementTarget,
+  APP_OWN_PLACEMENTS, IMPLEMENT_OUTPUTS, NONE_WORKS, affordable, blockOf, VIBE_PREVIOUS_DEFAULT, appBackendBlocks, appBackendDefault, appPagesOf, newAppPlacementBlock, placementTarget,
 } from './implementWizard.js';
 
-export const HIGHLY_RECOMMENDED = 'Highly Recommended';
+export const RECOMMENDED = 'Recommended';
 
 export const STEP_BEST = {
-  delivery: ['output', 'removed'],
-  app_placement: ['appTarget', 'appPlace'],
+  app_placement: ['heldApp', 'appTarget'],
   app_features: ['appOption', 'replaceEdits'],
 };
 
@@ -116,20 +115,12 @@ export function bestHoldout() {
 
 export function bestKpi(options = [], tracked = null) {
   const name = tracked?.record?.name || '';
-  if (name && (options || []).some((o) => String(o.name).toLowerCase() === String(name).toLowerCase())) return pick(name, 'It is the KPI this use case already tracks.');
-  return pick('', 'Inspire picks your strategy\u2019s KPI, else the first it can compute.');
+  return name && (options || []).some((o) => String(o.name).toLowerCase() === String(name).toLowerCase()) ? pick(name, 'It is the KPI this use case already tracks.') : null;
 }
 
 export function bestAppTarget(spec, targets, scope) {
   const target = targets ? placementTarget(spec, targets, { ...scope, placement: 'domain' }) : null;
   return target ? pick(target.id, `It already holds ${scope.domain || 'this domain'} use cases.`) : null;
-}
-
-export function bestAppPlace(spec, targets, scope) {
-  if (!targets) return null;
-  const target = placementTarget(spec, targets, { ...scope, placement: 'domain' });
-  return target ? pick('join', `${target.name} already holds ${scope.domain || 'this domain'} use cases.`)
-    : pick('new', (targets.app || []).length ? `No App Inspire built fits ${scope.domain || 'this use case'} yet.` : 'Inspire has built no App yet.');
 }
 
 export function bestHeldApp(name) {
@@ -155,18 +146,12 @@ export function bestAppBackend(spec, lakebase) {
   if (!spec?.outputs?.app) return null;
   const blocks = appBackendBlocks(spec, lakebase);
   const order = appBackendDefault(spec, lakebase) === 'lakebase' ? ['lakebase', 'delta'] : ['delta'];
-  const slow = blocks.lakebase ? 'Fast pages do not apply here.'
-    : spec.outputs.merge?.app ? 'The App it joins reads the result table directly.'
-      : 'Inspire could not check fast pages.';
-  return affordable(order, blocks, (id) => (id === 'lakebase' ? 'Pages open at once.' : slow)).best;
+  const best = affordable(order, blocks, () => 'Pages open at once.').best;
+  return best?.id === 'lakebase' ? best : null;
 }
 
 export function bestAppOption() {
   return pick('decisions', 'Owners track each flagged record to the end.');
-}
-
-export function bestRemoved() {
-  return pick(REMOVED_OUTPUT_DEFAULT, 'Nothing is deleted.');
 }
 
 export function bestVibePrevious(live) {
@@ -180,12 +165,7 @@ export function bestReplaceEdits() {
 export const LAYOUT_TABS_MAX = 3;
 
 export function bestLook(kind, spec) {
-  if (kind === 'style') return pick('a', 'It matches the Lakeview dashboards people know.');
-  if (kind === 'layout') {
-    const pages = appPagesOf(spec).filter((p) => p.on).length;
-    return pages <= LAYOUT_TABS_MAX ? pick('tabs', `${counted(pages, 'page')} fit as tabs on top.`) : pick('sidebar', `${counted(pages, 'page')} fit in one menu.`);
-  }
-  if (kind === 'theme') return pick('light', 'It matches the Databricks workspace.');
-  if (kind === 'palette') return pick('default', 'The Databricks colors.');
-  return null;
+  if (kind !== 'layout') return null;
+  const pages = appPagesOf(spec).filter((p) => p.on).length;
+  return pages <= LAYOUT_TABS_MAX ? pick('tabs', `${counted(pages, 'page')} fit as tabs on top.`) : pick('sidebar', `${counted(pages, 'page')} fit in one menu.`);
 }

@@ -243,7 +243,7 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 }
 
 const STEP_HOLDING = {
-  'What to build': 'Deliver', Delivery: 'Deliver', App: 'Who uses the App', 'App placement': 'Who uses the App', 'App access': 'Who uses the App',
+  'What to build': 'Deliver', Delivery: 'Deliver', App: 'Who uses the App', 'App placement': 'Deliver', 'App access': 'Who uses the App',
   'App features': 'App pages and look', 'App look': 'App pages and look', 'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Summary',
 };
 const exactly = (label) => new RegExp(`^\\s*(\\d+\\.\\s*)?${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
@@ -273,8 +273,8 @@ export async function stepsAre(page, expected) {
   }
 }
 
-export async function openAdvanced(page) {
-  await page.getByRole('button', { name: 'Advanced settings' }).click();
+export async function openAdvanced(page, name = 'Advanced settings') {
+  await page.getByRole('button', { name, exact: true }).click();
 }
 
 export const BUILD_IT = 'All Good, Build it Now';
@@ -532,7 +532,7 @@ export function choicesShown(page) {
       ...inside('select').map((s) => s.value),
       ...(g.hasAttribute('data-choice-value') ? [g.dataset.choiceValue] : []),
     ];
-    return { choice: g.dataset.choice, multi: g.hasAttribute('data-choice-multi'), selected, badges: inside('[data-highly-recommended]').map((b) => b.dataset.highlyRecommended) };
+    return { choice: g.dataset.choice, multi: g.hasAttribute('data-choice-multi'), selected, badges: inside('[data-recommended]').map((b) => b.dataset.recommended) };
   }));
 }
 
@@ -542,7 +542,7 @@ export async function settleChoices(page) {
 
 export function assertOneBadgeOnDefault(shown, where, { perChoice = false } = {}) {
   const sets = perChoice ? shown.map((c) => c.badges) : [shown.flatMap((c) => c.badges)];
-  for (const all of sets) assert.ok(all.length <= 1, `${where}: at most one Highly Recommended badge ${perChoice ? 'on each question' : 'on the step'}, has ${JSON.stringify(all)}`);
+  for (const all of sets) assert.ok(all.length <= 1, `${where}: at most one Recommended badge ${perChoice ? 'on each question' : 'on the step'}, has ${JSON.stringify(all)}`);
   for (const { choice, multi, selected, badges } of shown) {
     if (!badges.length) continue;
     if (multi) assert.ok(selected.includes(badges[0]), `${where}: ${choice} starts with its badged option ${badges[0]} ticked, ticked ${JSON.stringify(selected)}`);

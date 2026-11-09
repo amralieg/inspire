@@ -127,9 +127,9 @@ test('First run offers one group, several groups of the chosen Data groups, abou
   const S = await lib('runScope.js');
   const values = { ...S.withScopeDefaults(S.scopeValues(() => undefined), PROFILE), group_by: 'country' };
   const choices = S.firstRunChoices(PROFILE, values);
-  assert.deepEqual(choices.map((c) => [c.id, c.scope, c.available, c.records]), [['one', 'groups', true, null], ['groups', 'groups', true, 19612],
+  assert.deepEqual(choices.map((c) => [c.id, c.scope, c.available, c.records]), [['one', 'groups', true, 18200], ['groups', 'groups', true, 19612],
     ['records', 'records', true, 300], ['recent', 'recent', true, 3120], ['all', 'all', true, 48210]]);
-  assert.equal(choices[2].label, 'About 1,000 records, in 1 whole group so no group is cut: country = Malta, 300 records');
+  assert.deepEqual([choices[2].label, choices[2].detail, choices[2].shown], ['~1,000 records in 1 whole group', '300 records in all, and no group is cut.', ['country = Malta · 300 records']]);
   assert.equal(choices[3].label, 'The last 30 days of order_date');
   const two = S.firstRunChoices(PROFILE, { ...values, scope_groups: 'USA, Cyprus' });
   assert.equal(two[1].records, 18212, 'the records of the ticked groups');
@@ -138,7 +138,7 @@ test('First run offers one group, several groups of the chosen Data groups, abou
   assert.equal(week[3].label, 'The last 7 days of order_date');
   const standalone = S.firstRunChoices({ ...PROFILE, standalone: true, time_column: null, recent: null }, { ...values, scope_records: '500' });
   assert.deepEqual(standalone.map((c) => [c.id, c.available]), [['one', true], ['groups', true], ['records', true], ['recent', false], ['all', true]]);
-  assert.equal(standalone[2].label, '500 records spread across the whole table, the same records every run');
+  assert.equal(standalone[2].label, '~500 records');
   assert.equal(standalone[2].records, 500);
   const via = { ...PROFILE, records: 718931, suggested_groups: [], first_run: { all: 718931, groups: null, recent: 21000, records: null }, default_scope: 'recent',
     time_column: 'ws_ship_date_sk', time_via: { table: 'samples.tpcds_sf1.date_dim', key: 'd_date_sk', date: 'd_date' }, recent: { days: 30, records: 21000 } };
@@ -149,7 +149,7 @@ test('First run offers one group, several groups of the chosen Data groups, abou
   const dated = S.firstRunChoices(via, viaValues);
   assert.deepEqual(dated.filter((c) => c.available).map((c) => [c.id, c.records]), [['records', 1000], ['recent', 21000], ['all', 718931]],
     'the whole data as one group has no group to pick (must-exclude)');
-  assert.equal(dated[2].label, '1,000 records spread across the whole table, the same records every run, the whole data being one group');
+  assert.deepEqual([dated[2].label, dated[2].detail], ['~1,000 records', 'Spread across the whole table, the same records every run; the whole data is one group.']);
   assert.equal(dated[3].label, 'The last 30 days of d_date in samples.tpcds_sf1.date_dim, through ws_ship_date_sk');
 });
 
@@ -189,7 +189,8 @@ test('First run says in plain words what it covers, for every choice, and a smal
   assert.equal(covers({ run_scope: 'groups', scope_groups: 'USA, Spain' }),
     'The First run covers 2 groups of country: country = USA; country = Spain, 19,600 records. Every other group waits for a run on everything.');
   assert.equal(covers({ run_scope: 'groups' }), 'The First run covers no group yet; pick the groups it runs on.');
-  assert.equal(covers({ run_scope: 'records' }), 'The First run covers about 1,000 records, in 1 whole group so no group is cut: country = Malta, 300 records.');
+  assert.equal(covers({ run_scope: 'records' }), 'The First run covers ~1,000 records in 1 whole group. 300 records in all, and no group is cut.');
+  assert.doesNotMatch(covers({ run_scope: 'records' }), /Malta/, 'the group list sits under Details, not in the sentence (must-exclude)');
   assert.equal(covers({ run_scope: 'records' }, { ...PROFILE, records: 700 }), 'The First run covers all 700 records of main.sales.orders, since it holds no more than 1,000 records.');
   assert.equal(covers({ run_scope: 'recent' }), 'The First run covers the last 30 days of order_date, 3,120 records.');
   assert.match(covers({ run_scope: 'all' }), /^The First run covers everything, 48,210 records\. Everything is 48,210 records, about 48 times a 1,000-record First run/);
@@ -514,15 +515,15 @@ test('a star-schema forecast above 1,000 records defaults to whole groups, never
   assert.notEqual(values.run_scope, 'recent');
   const choices = S.firstRunChoices(STAR_PROFILE, values);
   assert.deepEqual(choices.map((c) => [c.id, c.available, c.records]),
-    [['one', true, null], ['groups', true, null], ['records', true, 470000], ['recent', true, 0], ['all', true, 2880404]]);
-  assert.equal(choices[2].label, '470,000 records, all of ss_store_sk = 7, the smallest group, since every group holds more than 1,000 records',
+    [['one', true, 49210], ['groups', true, 77390], ['records', true, 470000], ['recent', true, 0], ['all', true, 2880404]]);
+  assert.deepEqual([choices[2].label, choices[2].detail], ['470,000 records in 1 whole group', 'All of ss_store_sk = 7, the smallest group, since every group holds more than 1,000 records.'],
     'whole groups of the finest column of the main table, as the run takes them, never of the joined column');
   assert.equal(choices[4].estimate, 'Everything is 2,880,404 records, about 2,880 times a 1,000-record First run; how long it takes is unknown until a larger run is measured');
   assert.equal(S.everythingEstimate('', 8000, 1000), 'Everything is 8,000 records, about 8 times a 1,000-record First run, so it takes up to about 8 times as long');
   assert.equal(S.everythingEstimate('', 1000, 1000), '');
   assert.equal(S.everythingEstimate('the server said so', 7500000, 1000), 'the server said so');
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
-  assert.equal(S.scopeText(values, STAR_PROFILE), 'First run: 470,000 records, all of ss_store_sk = 7, the smallest group, since every group holds more than 1,000 records');
+  assert.equal(S.scopeText(values, STAR_PROFILE), 'First run: 470,000 records in 1 whole group');
   const picked = { ...values, run_scope: 'groups', scope_groups: JSON.stringify(STAR_PROFILE.suggested_groups.map((g) => g.parts)) };
   assert.equal(S.chosenGroupsText, undefined, 'the First run covers line is the one sentence that names the chosen groups');
   assert.equal(S.firstRunCoversText(STAR_PROFILE, picked), 'The First run covers 2 groups of ss_store_sk, then item.i_category: ss_store_sk = 1 and '
@@ -539,12 +540,15 @@ test('above 1,000 records every default is a number of records, never everything
   const values = S.withScopeDefaults(S.scopeValues(() => undefined), bare);
   assert.equal(values.run_scope, 'records');
   const records = S.firstRunChoices(bare, values).find((c) => c.id === 'records');
-  assert.equal(records.label, '1,000 records spread across the whole table, the same records every run; this analysis compares records with each other and no column groups them, so a group may be cut in this First run');
+  assert.equal(records.label, '~1,000 records');
+  assert.equal(records.detail, 'Spread across the whole table, the same records every run. This analysis compares records with each other and no column groups them, so a group may be cut in this First run.');
+  assert.deepEqual(records.shown, []);
   assert.equal(records.available, true);
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
   assert.deepEqual(S.scopeProblems({ ...values, run_scope: 'all' }, 'first_run'), [], 'everything is still a choice someone can make');
   const standalone = { ...bare, standalone: true };
-  assert.equal(S.firstRunChoices(standalone, values).find((c) => c.id === 'records').label, '1,000 records spread across the whole table, the same records every run');
+  const alone = S.firstRunChoices(standalone, values).find((c) => c.id === 'records');
+  assert.deepEqual([alone.label, alone.detail], ['~1,000 records', 'Spread across the whole table, the same records every run.']);
 });
 
 test('a custom first run is refused on the First run step only, and is never described as a run Inspire can do', async () => {
@@ -563,26 +567,27 @@ test('a first run on records of a grouping technique takes whole groups, and fal
   const values = { ...S.scopeValues(() => undefined), group_by: 'ss_store_sk, item.i_category', run_scope: 'records', scope_records: '1000000' };
   assert.deepEqual(S.recordGroups(STAR_PROFILE, values), [{ value: '1', records: 490000 }, { value: '7', records: 470000 }]);
   assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'all' }), null, 'the whole data as one group has no group to keep whole');
-  assert.equal(S.recordGroupsText(STAR_PROFILE, { ...values, group_by: 'all' }), '1,000,000 records spread across the whole table, the same records every run, the whole data being one group');
+  assert.deepEqual(S.recordGroupsSaid(STAR_PROFILE, { ...values, group_by: 'all' }), { label: '~1,000,000 records', detail: 'Spread across the whole table, the same records every run; the whole data is one group.', groups: [] });
   assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'ss_sold_date_sk' }), null,
     'whole groups of another column than the profiled one are not counted until they are read (must-exclude)');
   assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'item.i_category, ss_store_sk' }).length, 2, 'the finest column of the main table decides, whatever the joined one');
-  assert.equal(S.recordGroupsText({ ...STAR_PROFILE, group_column: 'item.i_category' }, values), 'About 1,000,000 records, in whole groups of ss_store_sk so no group is cut');
+  assert.equal(S.recordGroupsText({ ...STAR_PROFILE, group_column: 'item.i_category' }, values), '~1,000,000 records in whole groups of ss_store_sk');
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
   const none = { ...STAR_PROFILE, group_sizes: [] };
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
-  assert.match(S.recordGroupsText(none, values), /^1,000,000 records spread across the whole table, the same records every run; this analysis compares records with each other/);
+  assert.equal(S.recordGroupsText(none, values), '~1,000,000 records');
+  assert.match(S.recordGroupsSaid(none, values).detail, /This analysis compares records with each other/);
 });
 
 test('a first run on about 1,000 records names the real count when every whole group is larger, and never calls it about 1,000 (must-exclude)', async () => {
   const S = await lib('runScope.js');
   const profile = { table: 't', standalone: false, group_column: 'store', group_sizes: [{ value: 'A', records: 480000 }, { value: 'B', records: 470000 }] };
-  const said = S.recordGroupsText(profile, { scope_records: '1000' });
-  assert.equal(said, '470,000 records, all of store = B, the smallest group, since every group holds more than 1,000 records');
-  assert.doesNotMatch(said, /About 1,000/);
-  assert.equal(S.recordGroupsText({ ...profile, group_sizes: [{ value: 'A', records: 600 }, { value: 'B', records: 300 }] }, { scope_records: '1000' }),
-    'About 1,000 records, in 2 whole groups so no group is cut: store = A, 600 records; store = B, 300 records');
-  assert.equal(S.recordGroupsText({ ...profile, standalone: true }, { scope_records: '1000' }), '1,000 records spread across the whole table, the same records every run');
+  const said = S.recordGroupsSaid(profile, { scope_records: '1000' });
+  assert.deepEqual(said, { label: '470,000 records in 1 whole group', detail: 'All of store = B, the smallest group, since every group holds more than 1,000 records.', groups: [] });
+  assert.doesNotMatch(said.label, /~1,000/);
+  assert.deepEqual(S.recordGroupsSaid({ ...profile, group_sizes: [{ value: 'A', records: 600 }, { value: 'B', records: 300 }] }, { scope_records: '1000' }),
+    { label: '~1,000 records in 2 whole groups', detail: '900 records in all, and no group is cut.', groups: ['store = A · 600 records', 'store = B · 300 records'] });
+  assert.equal(S.recordGroupsText({ ...profile, standalone: true }, { scope_records: '1000' }), '~1,000 records');
 });
 
 test('the wizard pre-selects Deep discovery\u2019s grouping, else the recommended grouping with a joined column by its table and column, and Global only when nothing qualifies (must-exclude)', async () => {
@@ -638,10 +643,11 @@ test('a first run on about 1,000 records of a small table with groups of about 5
   const picked = S.wholeGroups(sizes, '1000');
   assert.deepEqual(picked.map((g) => g.value), ['Ginger', 'Pecan', 'Cocoa'], 'the biggest, a typical and the smallest product');
   assert.notEqual(picked.length, 1, 'one product is never the whole first run when three fit (must-exclude)');
-  const said = S.recordGroupsText({ table: 't', standalone: false, group_column: 'product', group_sizes: sizes }, { scope_records: '1000' });
-  assert.equal(said, '1,673 records, in 3 whole groups, so the First run sees more than one group and no group is cut: product = Ginger, 586 records; '
-    + 'product = Pecan, 560 records; product = Cocoa, 527 records');
-  assert.doesNotMatch(said, /smallest whole group|About 1,000/);
+  const said = S.recordGroupsSaid({ table: 't', standalone: false, group_column: 'product', group_sizes: sizes }, { scope_records: '1000' });
+  assert.deepEqual(said, { label: '1,673 records in 3 whole groups', detail: 'The First run sees more than one group and no group is cut.',
+    groups: ['product = Ginger · 586 records', 'product = Pecan · 560 records', 'product = Cocoa · 527 records'] });
+  assert.ok(said.label.length <= 40, 'the option itself is one short line, the groups sit under Details');
+  assert.doesNotMatch(said.label, /smallest whole group|~1,000/);
   assert.deepEqual(S.wholeGroups([{ value: 'A', records: 900 }, { value: 'B', records: 5000 }], '1000').map((g) => g.value), ['A'], 'only one group fits, so one group runs');
   assert.equal(S.WHOLE_GROUPS_MIN, 3);
 });
@@ -672,14 +678,22 @@ test('with Data groups as the whole data, saved groups name their own column and
   assert.doesNotMatch(unnamed, / of :|of all/, unnamed);
 });
 
-test('with one group picked, only One group carries its count, never Several groups (must-exclude)', async () => {
+test('One group and Several groups each show the records they would run, the same groups a click on them picks', async () => {
   const S = await lib('runScope.js');
   const one = { ...S.scopeValues(() => undefined), group_by: 'country', run_scope: 'groups', scope_groups: 'USA' };
-  const many = { ...one, scope_groups: 'USA, Spain' };
+  const many = { ...one, scope_groups: 'Spain, Malta' };
+  const none = { ...one, scope_groups: '' };
   const counts = (values) => Object.fromEntries(S.firstRunChoices(PROFILE, values).filter((c) => c.scope === 'groups').map((c) => [c.id, c.records]));
-  assert.equal(counts(one).groups, null);
-  assert.notEqual(counts(one).one, undefined);
-  assert.equal(counts(many).one, null);
+  assert.deepEqual(counts(one), { one: 18200, groups: 18200 }, 'with one group picked, Several groups keeps that pick and counts it, never groups the person did not pick (must-exclude)');
+  assert.deepEqual(counts(many), { one: 1400, groups: 1700 }, 'with several picked, One group counts the first of them');
+  assert.deepEqual(counts(none), { one: 18200, groups: 19612 }, 'with nothing picked, both count their suggested groups');
+  const listed = PROFILE.group_list;
+  const key = (parts) => JSON.stringify(parts);
+  const picks = (values, id) => S.firstRunGroupsPick(PROFILE, listed, S.scopeGroupsOf(values.scope_groups, 'country'), id).map(key);
+  assert.equal(picks(one, 'groups').length, 1, 'Several groups keeps the one group the person picked');
+  assert.deepEqual(picks(many, 'groups').length, 2);
+  assert.equal(picks(many, 'one').length, 1);
+  assert.deepEqual(S.firstRunGroupsPick(PROFILE, [], [], 'one'), [], 'no listed groups picks nothing');
 });
 
 const WIDE = {

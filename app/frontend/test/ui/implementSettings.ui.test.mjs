@@ -45,7 +45,7 @@ test('a build left alone holds back 10% to measure impact and sends no App owner
     await goToStep(page, 'What to build');
     await startWhenReady(page);
     const spec = submittedSpec(made);
-    assert.deepEqual(spec.holdout, { enabled: true, share: 0.1 }, 'the holdout starts on, where its Highly Recommended badge sits');
+    assert.deepEqual(spec.holdout, { enabled: true, share: 0.1 }, 'the holdout starts on, where its Recommended badge sits');
     assert.deepEqual(spec.outputs.app_owners, []);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -61,9 +61,9 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     await goToStep(page, 'Measure impact');
     const impact = page.getByRole('group', { name: 'Measure impact' });
     const box = impact.getByRole('checkbox', { name: /^Hold back a share of records to measure impact\./ });
-    assert.equal(await box.isChecked(), true, 'it starts on, where its Highly Recommended badge sits');
-    assert.equal(await impact.locator('[data-choice="holdout"] [data-highly-recommended]').count(), 1, 'Measure impact keeps its own Recommended, one per question');
-    await page.locator('[data-choice="freshness"] [data-highly-recommended="daily"]').waitFor();
+    assert.equal(await box.isChecked(), true, 'it starts on, where its Recommended badge sits');
+    assert.equal(await impact.locator('[data-choice="holdout"] [data-recommended]').count(), 1, 'Measure impact keeps its own Recommended, one per question');
+    await page.locator('[data-choice="freshness"] [data-recommended="daily"]').waitFor();
     await impact.getByText('Inspire leaves the held-back records alone, so it can compare their results with the records people acted on.', { exact: false }).waitFor();
     await box.uncheck();
     assert.equal(await impact.getByRole('spinbutton').count(), 0, 'no share to type while it is off');

@@ -5,17 +5,17 @@ const { pathToFileURL } = require('node:url');
 
 const lib = (name) => import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', name)).href);
 
-test('each choice has exactly one Highly Recommended option, with a reason, picked from context', async () => {
-  const H = await lib('highlyRecommended.js');
+test('each choice has exactly one Recommended option, with a reason, picked from context', async () => {
+  const H = await lib('recommended.js');
   const W = await lib('implementWizard.js');
-  assert.equal(H.HIGHLY_RECOMMENDED, 'Highly Recommended');
+  assert.equal(H.RECOMMENDED, 'Recommended');
   const outputs = W.IMPLEMENT_OUTPUTS.map((o) => o.id);
   const one = (best, ids) => {
     assert.ok(best && best.reason, `a reason for ${JSON.stringify(best)}`);
     assert.equal(ids.filter((id) => H.isBest(best, id)).length, 1, JSON.stringify(best));
   };
   one(H.bestOutput([]), outputs);
-  assert.equal(H.bestOutput([]).id, 'app', 'Apps is Highly Recommended');
+  assert.equal(H.bestOutput([]).id, 'app', 'Apps is Recommended');
   assert.equal(H.bestOutput(['app']).id, 'genie_space', 'without Apps the Genie Agent is');
   assert.equal(H.bestOutput(['app', 'genie_space']).id, 'dashboard');
   assert.equal(H.bestOutput(['app', 'genie_space', 'dashboard', 'alert']), null, 'nothing to recommend when nothing can be built (must-exclude)');
@@ -23,24 +23,24 @@ test('each choice has exactly one Highly Recommended option, with a reason, pick
   assert.equal(H.bestMode({ genieOff: 'off' }).id, 'notebook');
   one(H.bestFreshness({ outputs: { alert: false } }), W.FRESHNESS_OPTIONS.map((o) => o.id));
   assert.equal(H.bestFreshness({ outputs: { alert: true } }).id, 'daily');
-  assert.equal(H.bestFreshness({ outputs: { alert: false } }).id, 'daily', 'Keep it fresh is Highly Recommended on Daily, with or without an alert');
+  assert.equal(H.bestFreshness({ outputs: { alert: false } }).id, 'daily', 'Keep it fresh is Recommended on Daily, with or without an alert');
   assert.notEqual(H.bestFreshness({ outputs: { alert: false } }).reason, H.bestFreshness({ outputs: { alert: true } }).reason);
   one(H.bestHoldout(), [true, false]);
   assert.equal(H.bestKpi([{ name: 'Churn rate' }], { record: { name: 'churn rate' } }).id, 'churn rate');
-  assert.equal(H.bestKpi([{ name: 'Churn rate' }], { record: { name: 'Revenue' } }).id, '', 'a tracked KPI not in the list is not recommended (must-exclude)');
+  assert.equal(H.bestKpi([{ name: 'Churn rate' }], { record: { name: 'Revenue' } }), null, 'a tracked KPI not in the list is not recommended (must-exclude)');
+  assert.equal(H.bestKpi([{ name: 'Churn rate' }], null), null, 'no tracked KPI shows no badge (must-exclude)');
   one(H.bestAppAccess(), ['user', 'sp']);
   assert.equal(H.bestAppAccess({ personal: 'owner_email' }).id, 'user');
   assert.equal(H.bestAppAccess({ inside: true }).id, 'user');
   const app = { outputs: { app: true, app_access: 'sp', merge: {} } };
   assert.equal(H.bestAppBackend(app, { state: 'available' }).id, 'lakebase');
-  assert.equal(H.bestAppBackend(app, { state: 'absent' }).id, 'delta');
+  assert.equal(H.bestAppBackend(app, { state: 'absent' }), null, 'with no Lakebase the plain default needs no badge (must-exclude)');
   for (const offer of [null, { state: 'unknown', detail: 'timeout' }, { state: 'denied', detail: 'no' }]) {
-    assert.equal(H.bestAppBackend(app, offer).id, 'delta', `Lakebase Inspire could not check is never recommended (must-exclude) ${JSON.stringify(offer)}`);
+    assert.equal(H.bestAppBackend(app, offer), null, `Lakebase Inspire could not check is never recommended (must-exclude) ${JSON.stringify(offer)}`);
   }
-  assert.equal(H.bestAppBackend({ outputs: { ...app.outputs, app_access: 'user' } }, { state: 'available' }).id, 'delta');
+  assert.equal(H.bestAppBackend({ outputs: { ...app.outputs, app_access: 'user' } }, { state: 'available' }), null);
   assert.equal(H.bestAppBackend({ outputs: { app: false } }, { state: 'available' }), null);
-  one(H.bestRemoved(), ['delete', 'keep']);
-  assert.equal(H.bestRemoved().id, W.REMOVED_OUTPUT_DEFAULT);
+  assert.equal(H.bestRemoved, undefined, 'keeping a removed asset is the default, not a recommendation');
   one(H.bestVibePrevious(3), W.vibePreviousChoices(3, 4).map((c) => c.id));
   assert.equal(H.bestVibePrevious(3).id, W.VIBE_PREVIOUS_DEFAULT);
   one(H.bestReplaceEdits(), [false, true]);
@@ -49,12 +49,12 @@ test('each choice has exactly one Highly Recommended option, with a reason, pick
   assert.equal(H.bestResultTable('own').id, 'own');
   assert.equal(H.bestResultTable('inspire', 'main').id, 'inspire');
   assert.match(H.bestResultTable('inspire', 'main').reason, /CREATE SCHEMA on main/);
-  for (const kind of ['style', 'layout', 'theme', 'palette']) assert.ok(H.bestLook(kind, { outputs: {} })?.reason, kind);
-  assert.equal(H.bestLook('nope', {}), null);
+  assert.ok(H.bestLook('layout', { outputs: {} })?.reason);
+  for (const kind of ['style', 'theme', 'palette', 'nope']) assert.equal(H.bestLook(kind, { outputs: {} }), null, `${kind} is a taste, not a recommendation (must-exclude)`);
 });
 
 test('the App layout pick follows how many pages are on, so its two branches differ (must-exclude)', async () => {
-  const H = await lib('highlyRecommended.js');
+  const H = await lib('recommended.js');
   const W = await lib('implementWizard.js');
   const pages = W.appPagesOf({ outputs: {} });
   const on = (n) => ({ outputs: { app_pages: Object.fromEntries(pages.map((p, i) => [p.id, i < n])) } });
@@ -65,7 +65,7 @@ test('the App layout pick follows how many pages are on, so its two branches dif
 });
 
 test('Data groups recommends the column the profile picks with its group count, and a deep pick says Discovery chose it', async () => {
-  const H = await lib('highlyRecommended.js');
+  const H = await lib('recommended.js');
   const S = await lib('runScope.js');
   const profile = { applies: true, qualifies: true, recommended: ['region'], columns: [{ name: 'region', distinct: 4 }, { name: 'country', distinct: 31 }] };
   const choices = S.groupingChoices(profile);
@@ -85,8 +85,8 @@ test('Data groups recommends the column the profile picks with its group count, 
   assert.equal(H.bestFirstRun({}, []), null);
 });
 
-test('every Highly Recommended pick is the option the wizard starts on', async () => {
-  const H = await lib('highlyRecommended.js');
+test('every Recommended pick is the option the wizard starts on', async () => {
+  const H = await lib('recommended.js');
   const W = await lib('implementWizard.js');
   const uc = { id: 'N01-U01', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', business_domain: 'Customer' };
   const spec = W.defaultSpecFromUseCase(uc, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', businessName: 'Acme' });
@@ -102,17 +102,14 @@ test('every Highly Recommended pick is the option the wizard starts on', async (
   assert.equal(H.bestMode().id, 'mvp');
   assert.ok(spec.outputs[H.bestOutput([]).id]);
   for (const offer of [null, { state: 'available' }, { state: 'absent' }, { state: 'unknown' }, { state: 'denied', detail: 'x' }]) {
-    assert.equal(H.bestAppBackend(spec, offer).id, W.appBackendOf(spec, offer), JSON.stringify(offer));
+    const best = H.bestAppBackend(spec, offer);
+    if (best) assert.equal(best.id, W.appBackendOf(spec, offer), JSON.stringify(offer));
   }
-  for (const kind of ['style', 'layout', 'theme', 'palette']) assert.equal(H.bestLook(kind, spec).id, spec.outputs.app_look[kind], kind);
-  const assets = { dashboard: 'd1' };
-  const removed = W.withOutput({ ...spec, outputs: { ...spec.outputs, dashboard: true } }, 'dashboard', false, assets);
-  assert.equal(removed.removed_outputs.dashboard, H.bestRemoved().id, 'an output turned off keeps its asset, as Highly Recommended');
-  assert.equal(W.withOutput(removed, 'dashboard', true, assets).removed_outputs.dashboard, undefined);
+  assert.equal(H.bestLook('layout', spec).id, spec.outputs.app_look.layout);
 });
 
-test('each wizard step or App sub-section shows one Highly Recommended, the first of its questions that has one', async () => {
-  const H = await lib('highlyRecommended.js');
+test('each wizard step or App sub-section shows one Recommended, the first of its questions that has one', async () => {
+  const H = await lib('recommended.js');
   const pick = (id) => ({ id, reason: id });
   const all = Object.fromEntries(Object.values(H.STEP_BEST).flat().map((k) => [k, pick(k)]));
   const kept = H.oneBestPerStep({ ...all, result: pick('own'), freshness: pick('daily') });
@@ -120,9 +117,10 @@ test('each wizard step or App sub-section shows one Highly Recommended, the firs
     assert.deepEqual(keys.filter((k) => kept[k]), [keys[0]], `${step} keeps one badge`);
   }
   assert.deepEqual([kept.result.id, kept.freshness.id], ['own', 'daily'], 'a step with one question keeps its badge');
-  const later = H.oneBestPerStep({ ...all, appTarget: null, output: null });
-  assert.deepEqual([later.appPlace?.id, later.removed?.id], ['appPlace', 'removed'], 'with no first badge the next question keeps it');
-  assert.deepEqual(Object.keys(H.STEP_BEST), ['delivery', 'app_placement', 'app_features'], 'Deliver and each App sub-section that asks two questions show one');
+  const later = H.oneBestPerStep({ ...all, heldApp: null });
+  assert.equal(later.appTarget?.id, 'appTarget', 'with no first badge the next question keeps it');
+  assert.equal(H.oneBestPerStep({ ...all, appPolicy: pick('domain') }).appPolicy.id, 'domain', 'how Inspire organizes Apps is its own question and keeps its badge');
+  assert.deepEqual(Object.keys(H.STEP_BEST), ['app_placement', 'app_features'], 'each App question that has two ways to pick shows one');
   const run = H.oneBestPerStep({ freshness: pick('daily'), kpi: pick('kpi'), holdout: pick(true) });
   assert.deepEqual([run.freshness?.id, run.kpi?.id, run.holdout?.id], ['daily', 'kpi', true], 'Run it keeps one badge per question: Measure impact keeps its holdout badge (must-exclude: dropping it)');
   assert.deepEqual(Object.keys(H.STEP_BEST).filter((s) => (H.STEP_BEST[s].filter((k) => H.oneBestPerStep(all)[k]).length !== 1)), [], 'never two (must-exclude)');

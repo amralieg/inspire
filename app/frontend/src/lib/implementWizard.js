@@ -30,7 +30,7 @@ export const RUN_IT_TITLE = 'How it keeps running, and how you know it works';
 export const USE_CASE_TITLE = 'Is this the use case you want to build?';
 export const USE_CASE_NOTE = 'Check what it is for and who it helps. The goal, the decision owner and how success is measured sit under Advanced settings.';
 
-const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery'] };
+const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_place', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery', 'app_place'] };
 const USE_CASE_STEP = { id: 'use_case', label: 'Use case', sections: ['use_case'], advanced: ['use_case'], panels: ['use_case'] };
 const DATA_STEP = { id: 'data', label: 'Data', sections: ['data', 'configure'], advanced: ['data', 'configure'], panels: ['data'] };
 export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
@@ -40,9 +40,8 @@ export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule', 'kp
 export const IMPLEMENT_STEPS = [USE_CASE_STEP, DATA_STEP, RESULTS_STEP, DELIVERY_STEP, RUN_STEP];
 
 export const APP_PANELS = ['app_place', 'app_access', 'app_features', 'app_look'];
-export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_place', 'app_access'], advanced: [], panels: ['app_place', 'app_access'] };
+export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_access'], advanced: [], panels: ['app_access'] };
 export const APP_PAGES_STEP = { id: 'app_pages', label: 'App pages and look', sections: ['app_features', 'app_look'], advanced: [], panels: ['app_features', 'app_look'] };
-const JOINED_APP_STEP = { ...APP_STEP, sections: ['app_place'], panels: ['app_place'] };
 export const WIZARD_STEPS_MAX = 10;
 
 export const SUMMARY_STEP = { id: 'summary', label: 'Summary', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
@@ -58,9 +57,15 @@ export const NOTEBOOK_STEPS = [
 
 const STEP_ALIASES = {
   choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: RUN_STEP.id, fresh: RUN_STEP.id, vibes: SUMMARY_STEP.id,
-  settings: SUMMARY_STEP.id, app_place: APP_STEP.id, app_access: APP_STEP.id, app_features: APP_PAGES_STEP.id, app_look: APP_PAGES_STEP.id,
+  settings: SUMMARY_STEP.id, app_place: DELIVERY_STEP.id, app_access: APP_STEP.id, app_features: APP_PAGES_STEP.id, app_look: APP_PAGES_STEP.id,
 };
-const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [APP_PAGES_STEP.id]: APP_STEP.id };
+const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [APP_PAGES_STEP.id]: APP_STEP.id, [APP_STEP.id]: DELIVERY_STEP.id };
+
+function heldStepOf(steps, id) {
+  let want = id;
+  while (want && !steps.some((s) => s.id === want)) want = STEP_FALLBACKS[want];
+  return want || '';
+}
 
 export function joinsApp(spec) {
   return Boolean(spec?.outputs?.app && spec.outputs.merge?.app);
@@ -74,7 +79,7 @@ export function contextSettings(context, spec) {
 export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   if (mode === 'mvp') {
     const app = Boolean(spec?.outputs?.app);
-    const appSteps = !app ? [] : joinsApp(spec) ? [JOINED_APP_STEP] : [APP_STEP, APP_PAGES_STEP];
+    const appSteps = app && !joinsApp(spec) ? [APP_STEP, APP_PAGES_STEP] : [];
     return [USE_CASE_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), RESULTS_STEP, DELIVERY_STEP,
       ...appSteps, RUN_STEP, SUMMARY_STEP];
   }
@@ -98,6 +103,7 @@ export const APP_INSIDE_PLACEMENT = APP_PLACEMENTS.find((p) => p.id === APP_INSI
 export const APP_OWN_PLACEMENTS = APP_PLACEMENTS.filter((p) => p.id !== APP_INSIDE);
 export const INSIDE_ACCESS_REASON = 'Inside Inspire, each viewer signs in as themselves and sees only the data they may read';
 export const INSIDE_BACKEND_REASON = 'Fast pages need an App of its own';
+export const INSIDE_WAREHOUSE_TOGGLE = 'SQL warehouse settings';
 export const INSIDE_WAREHOUSE_LABEL = 'SQL warehouse each viewer reads with (each viewer needs CAN USE on it)';
 export const INSIDE_WAREHOUSE_PROBLEM = 'pick the SQL warehouse each viewer reads with; each viewer needs CAN USE on it';
 export const RUN_LINK_LABEL = 'Open in Run';
@@ -399,7 +405,7 @@ export function withAppPage(spec, id, on) {
   return APP_SCREENS.includes(id) ? withAppScreen(spec, id, on) : spec;
 }
 export const GENIE_FOR_APP_NOTE = 'Ask Genie in the App needs a Genie Agent.';
-export const APP_NEXT_NOTE = 'You pick where it goes next.';
+export const APP_NEXT_NOTE = 'You pick where it goes below.';
 export const RESULT_TABLE_MOVE_NOTE = 'Moving the table later copies its history to the new table and keeps the old one.';
 export const MERGE_OUTPUTS = ['dashboard', 'genie_space', 'app'];
 
@@ -2606,7 +2612,7 @@ export function lostTablesText(missing) {
 export function initialStepIndex(focus, mode = 'mvp', spec = null, scope = NO_SCOPE_STEPS) {
   const steps = wizardSteps(mode, spec, scope);
   const asked = STEP_ALIASES[focus?.step] || focus?.step;
-  const want = steps.some((s) => s.id === asked) ? asked : STEP_FALLBACKS[asked] || asked;
+  const want = heldStepOf(steps, asked) || asked;
   if (want === SUMMARY_STEP.id && mode !== 'mvp') return steps.length - 1;
   const index = steps.findIndex((s) => s.id === want || s.sections.includes(want));
   return index < 0 ? stepIndexOf(steps, want) : index;
@@ -2618,7 +2624,7 @@ export function initialStepId(focus, mode = 'mvp', spec = null, scope = NO_SCOPE
 
 export function stepIndexOf(steps, id) {
   const at = steps.findIndex((s) => s.id === id);
-  return at >= 0 ? at : Math.max(0, steps.findIndex((s) => s.id === STEP_FALLBACKS[id]));
+  return at >= 0 ? at : Math.max(0, steps.findIndex((s) => s.id === heldStepOf(steps, STEP_ALIASES[id] || id)));
 }
 
 export function nextStepAfter(steps, id, { backToSummary = false, visited = [] } = {}) {

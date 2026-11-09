@@ -30,7 +30,7 @@ async function auditEveryStep(page, { look = true } = {}) {
   return seen;
 }
 
-test('every choice in the wizard shows exactly one Highly Recommended badge, and it sits on the option the wizard starts on', async () => {
+test('every choice in the wizard shows exactly one Recommended badge, and it sits on the option the wizard starts on', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
   const { page } = ui;
   try {
@@ -48,7 +48,7 @@ test('every choice in the wizard shows exactly one Highly Recommended badge, and
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
     assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh starts on Daily, where the badge is');
     assertOneBadgeOnDefault((await choicesShown(page)).filter((c) => c.choice === 'freshness'), 'Keep it fresh with an alert');
-    await page.locator('[data-choice="freshness"] [data-highly-recommended="daily"]').waitFor();
+    await page.locator('[data-choice="freshness"] [data-recommended="daily"]').waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

@@ -127,9 +127,9 @@ test('joining an existing App deploys to it with its look, Create new brings the
   assert.deepEqual([joined.outputs.merge.app, joined.outputs.app_name], ['churn-desk', 'churn-desk']);
   assert.deepEqual(joined.outputs.app_look, { style: 'b', layout: 'sidebar', palette: 'ocean', theme: 'light' });
   assert.equal(w.appMergeBlock(joined, sp), 'churn-desk is internal only');
-  assert.deepEqual(w.stepErrors('app', joined, { mergeTargets: targets }), ['churn-desk is internal only'], 'the block shows where the App is picked');
-  assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'Delivery no longer picks the App');
-  assert.deepEqual(w.stepErrors('app', w.withAppAccess(joined, 'sp'), { mergeTargets: targets }), []);
+  assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), ['churn-desk is internal only'], 'the block shows on Deliver, where the App is picked');
+  assert.throws(() => w.stepErrors('app', joined, { mergeTargets: targets }), /unknown wizard step 'app'/, 'a joined App has no Who uses the App step (must-exclude)');
+  assert.deepEqual(w.stepErrors('delivery', w.withAppAccess(joined, 'sp'), { mergeTargets: targets }), []);
   assert.equal(w.appMergeBlock(w.withMergeTarget(spec, 'app', user), user), '', 'per-user may join a per-user App');
   const back = w.withMergeTarget(joined, 'app', null, 'predict-churn');
   assert.deepEqual([back.outputs.merge.app, back.outputs.app_name], ['', 'predict-churn']);
@@ -151,12 +151,12 @@ test('a use case that joins an existing App skips App access and App look, shows
   const joined = w.withMergeTarget(spec, 'app', hub, 'predict-churn');
   const fresh = w.withMergeTarget(joined, 'app', null, 'predict-churn');
   assert.deepEqual([w.joinsApp(joined), w.joinsApp(fresh), w.joinsApp({ ...joined, outputs: { ...joined.outputs, app: false } }), w.joinsApp(null)], [true, false, false, false]);
-  assert.deepEqual(w.wizardSteps('mvp', joined).find((s) => s.id === 'app').panels, ['app_place'], 'the existing App keeps its sign-in, data source and look');
-  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app').panels, ['app_place', 'app_access']);
+  assert.equal(w.wizardSteps('mvp', joined).find((s) => s.id === 'app'), undefined, 'the existing App keeps its sign-in, data source and look');
+  assert.deepEqual(w.wizardSteps('mvp', joined).find((s) => s.id === 'delivery').panels, ['delivery', 'app_place'], 'where it goes is still picked on Deliver');
+  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app').panels, ['app_access']);
   assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app_pages').panels, ['app_features', 'app_look']);
-  assert.deepEqual(w.wizardSteps('mvp', joined).find((s) => s.id === 'app').label, 'Who uses the App');
-  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => id !== 'app_pages'),
-    'a joined App keeps its own pages and look, so it has no pages step (must-exclude)');
+  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => id !== 'app' && id !== 'app_pages'),
+    'a joined App keeps its own pages, look and sign-in, so it has no App steps (must-exclude)');
   assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'no hidden App owner blocks Next');
   assert.deepEqual(w.advancedErrors('delivery', joined, { mergeTargets: targets }), []);
   assert.deepEqual(w.stepErrors('delivery', fresh, { mergeTargets: targets }), ['App owners must be email addresses: nope'], 'a new App still checks its owners');

@@ -88,14 +88,15 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     assert.equal(await page.locator('[data-output="notebook"] input').isDisabled(), true);
     for (const name of [/^Genie Agent/, /^App /]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), true, String(name));
     for (const name of [/^Dashboard/, /^Alert/]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), false, `${name} starts off but stays a choice`);
-    assert.equal(await page.locator('[data-output="app"] [data-highly-recommended]').count(), 1, 'the App tile is Highly Recommended');
-    assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-highly-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
-      1, 'exactly one tile is Highly Recommended');
+    assert.equal(await page.locator('[data-output="app"] [data-recommended]').count(), 1, 'the App tile is Recommended');
+    assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
+      1, 'exactly one tile is Recommended');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
     await stepsAre(page, ['1. Use case', '2. Data', '3. First run', '4. Results', '5. Deliver', '6. Run it', '7. Summary']);
     await page.getByRole('checkbox', { name: /^App / }).check();
     await stepsAre(page, withApp);
-    assert.equal(await page.getByLabel('App name').count(), 0, 'the App name waits for the App step');
+    await page.getByRole('region', { name: 'App placement' }).waitFor();
+    assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'where the App goes is on Deliver, who sees which rows waits for its own step');
     await page.getByRole('checkbox', { name: /^Dashboard/ }).check();
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     await page.getByText(`Emails ${OWNER} when Act now rows in the latest run are at least 1.`).waitFor();
@@ -277,7 +278,7 @@ test('a new App that could not get access is disabled up front with the reason, 
     const reason = await blocked.locator('[data-technical-details] pre').textContent();
     assert.ok(reason.includes(`a new App could not read ${RESULT_TABLE}: its service principal needs USE CATALOG on catalog \`main\` (owner admins)`), reason);
     assert.ok(reason.includes('Inspire cannot manage'), reason);
-    assert.equal(await page.locator('[data-output="app"] [data-highly-recommended]').count(), 0, 'the blocked App carries no badge');
+    assert.equal(await page.locator('[data-output="app"] [data-recommended]').count(), 0, 'the blocked App carries no badge');
     assert.equal(await page.getByRole('checkbox', { name: /^Genie Agent/ }).isDisabled(), false);
     await toSummary(page);
     const warn = page.locator('span.text-warning-fg', { hasText: `${OWNER} may not be able to read the result table` });

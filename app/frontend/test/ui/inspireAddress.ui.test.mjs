@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER } from './implementFixtures.js';
+import { INSIDE_WAREHOUSE_TOGGLE } from '../../src/lib/implementWizard.js';
 import { closeBrowser, goToStep, onStep, openAdvanced, openUi, startMvp, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
@@ -24,7 +25,7 @@ test('the wizard sends the Inspire address for every App placement, so each App 
       await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
       await page.getByRole('radio', { name: label }).check();
       if (id === 'inspire') {
-        await openAdvanced(page);
+        await openAdvanced(page, INSIDE_WAREHOUSE_TOGGLE);
         await page.locator('[data-app-place="inspire"] [data-app-warehouse="pick"]').waitFor();
       }
       await startMvp(page);

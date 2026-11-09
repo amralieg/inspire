@@ -225,9 +225,11 @@ test('the Vibes box on Summary with every output picked keeps the dialog inside 
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await toDelivery(page);
+    await page.getByRole('checkbox', { name: /^App / }).uncheck();
     for (const name of [/^Dashboard/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.getByText(`Emails ${OWNER} when`, { exact: false }).waitFor();
     await fits('vibes-wizard-tiles');
+    await page.getByRole('checkbox', { name: /^App / }).check();
     await toAppAccess(page);
     await page.getByRole('radio', { name: /^Internal data/ }).check();
     await toVibes(page);
@@ -528,7 +530,7 @@ test('a notebook ask the notes hold is removed in Vibe/Add/Remove Features and b
   }
 });
 
-test('a rebuild badges keeping the live version and keeping an output turned off, and both start chosen', async () => {
+test('a rebuild badges keeping the live version, keeps an output turned off without a badge, and each question shows at most one', async () => {
   const ui = await openVibes();
   const { page } = ui;
   try {
@@ -542,8 +544,8 @@ test('a rebuild badges keeping the live version and keeping an output turned off
     await wizard.getByRole('checkbox', { name: /^Dashboard/ }).uncheck();
     await wizard.locator('[data-choice="removed-dashboard"]').waitFor();
     const delivery = await choicesShown(page);
-    assertOneBadgeOnDefault(delivery, 'Delivery with the dashboard turned off');
-    assert.deepEqual(delivery.find((c) => c.choice === 'removed-dashboard').badges, [], 'the step badge stays on the outputs, so keeping the dashboard shows none (must-exclude)');
+    assertOneBadgeOnDefault(delivery, 'Delivery with the dashboard turned off', { perChoice: true });
+    assert.deepEqual(delivery.find((c) => c.choice === 'removed-dashboard').badges, [], 'keeping a turned-off dashboard is the default, not a recommendation, so it shows none (must-exclude)');
     assert.equal(await wizard.getByRole('radio', { name: 'Keep it unmanaged' }).isChecked(), true);
     assert.deepEqual(ui.pageErrors, []);
   } finally {

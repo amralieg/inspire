@@ -72,8 +72,8 @@ test('a first build asks Data groups on their own step with the reason and the c
       ['all', 'region, country', 'region', 'country'], 'the whole data first, the recommended grouping, each column, and no custom SQL');
     assert.equal(await grouping.locator('[data-grouping-choice="all"]').innerText(), 'Whole data as one group\n1 group');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['region, country'], 'the recommended grouping is pre-picked, never a silent whole data');
-    assert.match(await grouping.locator('[data-grouping-choice="region, country"]').innerText(), /^region, then country\n31 groups\nHighly Recommended/);
-    assert.equal(await grouping.locator('[data-grouping-cards] [data-highly-recommended]').count(), 1, 'one Highly Recommended card');
+    assert.match(await grouping.locator('[data-grouping-choice="region, country"]').innerText(), /^region, then country\n31 groups\nRecommended/);
+    assert.equal(await grouping.locator('[data-grouping-cards] [data-recommended]').count(), 1, 'one Recommended card');
     assert.equal(await grouping.getByText(/custom|SQL/i).count(), 0, 'no custom SQL is offered');
     const combine = grouping.getByRole('group', { name: 'Combine columns, coarse to fine' });
     assert.deepEqual(await combine.locator('[data-grouping-combine-column]').allInnerTexts(), ['region · 4 groups', 'country · 31 groups'], 'coarse to fine by their groups');
@@ -91,8 +91,13 @@ test('a first build asks Data groups on their own step with the reason and the c
     assert.deepEqual(await firstRun.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)),
       ['one', 'groups', 'records', 'recent', 'all']);
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'the first run defaults to about 1,000 records, never everything (must-exclude)');
-    assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(), 'The First run covers about 1,000 records, in 3 whole groups so no group is cut: '
-      + 'country = Germany, 600 records; country = Ireland, 300 records; country = Malta, 40 records.');
+    assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(), 'The First run covers ~1,000 records in 3 whole groups. 940 records in all, and no group is cut.');
+    const recordsRow = firstRun.locator('[data-first-run-choice="records"]');
+    assert.equal(await recordsRow.locator('label .font-medium').first().innerText(), '~1,000 records in 3 whole groups', 'the option is one short line');
+    await recordsRow.locator('[data-first-run-details="records"] summary').click();
+    assert.deepEqual(await recordsRow.locator('[data-first-run-group]').allInnerTexts(), ['country = Germany · 600 records', 'country = Ireland · 300 records', 'country = Malta · 40 records'],
+      'the whole groups are listed under Details');
+    for (const id of ['one', 'groups']) assert.match(await firstRun.locator(`[data-first-run-choice="${id}"] [data-first-run-records]`).innerText(), /· [\d,]+ records?$/, `${id} shows its records`);
     await firstRun.locator('[data-first-run-choice="groups"] input[type="radio"]').check();
     assert.deepEqual(await firstRun.locator('[data-scope-group]').allInnerTexts(), PROFILE.group_list.map((g) => `${g.parts.map((p) => `${p.column} = ${p.value}`).join(' and ')} · ${g.records.toLocaleString('en-US')} records`),
       'the groups of the chosen Data groups, with their sizes');
@@ -231,9 +236,9 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
       ['all', 'stores.region, store_id', 'region, country', 'region', 'country']);
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['stores.region, store_id'], 'the Deep grouping is picked before the person chooses');
     assert.match(await grouping.locator('[data-grouping-choice="stores.region, store_id"]').innerText(),
-      /^stores\.region, then store_id\ngroups counted once picked\nSuggested by discovery\nHighly Recommended/);
-    assert.equal(await grouping.locator('[data-grouping-cards] [data-highly-recommended]').count(), 1, 'the picked Deep grouping is the one Highly Recommended card');
-    assert.equal(await grouping.locator('[data-grouping-choice="region, country"] [data-highly-recommended]').count(), 0, 'must-exclude: no second Highly Recommended');
+      /^stores\.region, then store_id\ngroups counted once picked\nSuggested by discovery\nRecommended/);
+    assert.equal(await grouping.locator('[data-grouping-cards] [data-recommended]').count(), 1, 'the picked Deep grouping is the one Recommended card');
+    assert.equal(await grouping.locator('[data-grouping-choice="region, country"] [data-recommended]').count(), 0, 'must-exclude: no second Recommended');
     assert.equal(await grouping.locator('[data-grouping-record-level]').textContent(), 'Discovery found one record per order_id in main.sales.orders.');
     assert.equal(await grouping.locator('[data-grouping-chosen-by="deep"]').textContent(),
       'Discovery picked this grouping. It becomes your choice when you pick it or another one.');
@@ -346,7 +351,7 @@ test('a Deep discovery grouping the profile could not size shows no example, cou
     const offered = () => page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice));
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records']);
     assert.deepEqual(await offered(), ['records', 'recent', 'all'], 'groups of store_id were not listed with sizes, so no group choice is offered (must-exclude)');
-    assert.match(await page.locator('[data-first-run-choice="records"]').innerText(), /^About 1,000 records, in whole groups of store_id so no group is cut/);
+    assert.match(await page.locator('[data-first-run-choice="records"]').innerText(), /^~1,000 records in whole groups of store_id/);
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data groups');
     await grouping.locator('[data-grouping-choice="region, country"] input').check();
@@ -804,7 +809,8 @@ test('a forecast on a star fact table with no column to group by still asks Data
     await goToStep(page, 'First run');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'above 1,000 records with nothing to group by, the first 1,000 records');
     assert.ok(!(await checkedChoice(page, 'data-first-run-choice')).includes('all'), 'everything is never the default (must-exclude)');
-    assert.match(await page.locator('[data-first-run-choice="records"]').innerText(), /^1,000 records spread across the whole table, the same records every run, the whole data being one group/);
+    assert.match(await page.locator('[data-first-run-choice="records"]').innerText(), /^~1,000 records/);
+    assert.match(await page.locator('[data-first-run-covers]').textContent(), /Spread across the whole table, the same records every run; the whole data is one group\./);
     assert.match(await page.locator('[data-first-run-choice="all"] [data-first-run-estimate]').textContent(), /^Everything is 2,880,404 records, about 2,880 times/);
     await page.locator('[data-first-run-choice="all"] input').check();
     await next(page);
@@ -834,7 +840,9 @@ test('a forecast on a star fact table recommends the store and the item category
     const firstRun = page.getByRole('region', { name: 'What should the First run cover?', exact: true });
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'a star-schema forecast runs first on whole groups, never on everything');
     assert.match(await firstRun.locator('[data-first-run-choice="records"]').innerText(),
-      /^470,000 records, all of ss_store_sk = 7, the smallest group, since every group holds more than 1,000 records/);
+      /^470,000 records in 1 whole group\n/);
+    assert.equal(await firstRun.locator('[data-first-run-choice="records"] [data-first-run-records]').count(), 0, 'a label that already says the exact count does not repeat it (must-exclude)');
+    assert.equal(await firstRun.locator('[data-first-run-details="records"] p').textContent(), 'All of ss_store_sk = 7, the smallest group, since every group holds more than 1,000 records.');
     await firstRun.locator('[data-first-run-choice="groups"] input[type="radio"]').check();
     assert.deepEqual(await firstRun.locator('[data-scope-group] input:checked').evaluateAll((inputs) => inputs.length), 2, 'the suggested groups are picked');
     assert.equal(await firstRun.locator('[data-first-run-covers]').textContent(),
@@ -868,8 +876,8 @@ test('Data groups on a 20-column table shows the pick and the top cards with the
     assert.equal(await grouping.locator('[data-grouping-choice="all"] [data-grouping-count]').innerText(), '1 group');
     assert.equal(await grouping.locator('[data-grouping-choice="col_05"] [data-grouping-count]').innerText(), '15 groups');
     assert.equal(await grouping.locator('[data-grouping-choice]:not(:has([data-grouping-count]))').count(), 0, 'every card says how many groups');
-    assert.equal(await grouping.locator('[data-grouping-cards] [data-highly-recommended]').count(), 1, 'one Highly Recommended card');
-    assert.equal(await grouping.locator('[data-grouping-choice="col_05"] [data-highly-recommended]').count(), 1);
+    assert.equal(await grouping.locator('[data-grouping-cards] [data-recommended]').count(), 1, 'one Recommended card');
+    assert.equal(await grouping.locator('[data-grouping-choice="col_05"] [data-recommended]').count(), 1);
     const more = grouping.locator('[data-show-all="grouping"]');
     assert.equal(await more.innerText(), 'Show all 20 columns');
     await more.click();

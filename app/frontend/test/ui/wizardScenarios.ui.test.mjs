@@ -142,8 +142,8 @@ const COMBOS = [
   ['app-off-alert-dashboard', { Deliver: both(uncheck(/^App /), check(/^Dashboard/), check(/^Alert/)) }],
   ['per-user', { 'Who uses the App': radio(/^Sensitive data/) }],
   ['per-user-edit', { 'Who uses the App': radio(/^Sensitive data/), 'App pages and look': check(/^Let people edit data/) }],
-  ['one-app-per-use-case', { 'Who uses the App': radio(/^One App per use case/) }],
-  ['inside-inspire', { 'Who uses the App': radio(/^Inside Inspire/) }],
+  ['one-app-per-use-case', { Deliver: radio(/^One App per use case/) }],
+  ['inside-inspire', { Deliver: radio(/^Inside Inspire/) }],
   ['schedule-off-holdout-off', { 'Run it': both(press('Off'), uncheck(/^Hold back/)) }],
   ['schedule-weekly', { 'Run it': press('Weekly') }],
   ['first-run-everything', { 'First run': radio(/^Everything/) }],
@@ -360,12 +360,15 @@ test('Back from the Summary walks every step in order to the Use case and Next w
   }
 });
 
-test('reloading the page in the middle of the wizard opens it again cleanly with no page error', async () => {
+test('reloading the page in the middle of the wizard opens it again cleanly on the step it was on, with no page error, and Start over goes back to Use case', async () => {
   const { ui } = await scenario('reload', { profile: PROFILE, extra: counted(PROFILE) });
   try {
     const { page } = ui;
     await page.reload();
     await settle(page);
+    await onStep(page, 'Summary');
+    await page.locator('[data-wizard-draft]').waitFor();
+    await page.locator('[data-wizard-start-over]').click();
     await onStep(page, 'Use case');
     await toSummary(page);
     noLeaks([{ step: 'Summary', text: await page.locator('[role="dialog"]').innerText() }], 'reload');

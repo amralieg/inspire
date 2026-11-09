@@ -158,6 +158,7 @@ import {
   APP_PLACE_WAITING,
   INSIDE_ACCESS_REASON,
   INSIDE_WAREHOUSE_LABEL,
+  INSIDE_WAREHOUSE_TOGGLE,
   INSIDE_WAREHOUSE_PROBLEM,
   insideInspire,
   withHeldApp,
@@ -221,11 +222,11 @@ import {
   APP_LOOK_DEFAULT,
 } from '../lib/implementWizard';
 import {
-  bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPlace, bestAppPolicy, bestAppTarget, bestFreshness, bestHoldout, bestKpi, bestLook,
-  bestOutput, bestRemoved, bestReplaceEdits, isBest,
+  bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPolicy, bestAppTarget, bestFreshness, bestHoldout, bestKpi, bestLook,
+  bestOutput, bestReplaceEdits, isBest,
   bestResultPlace, oneBestPerStep, resultPlaceBlocks,
-} from '../lib/highlyRecommended';
-import HighlyRecommended, { BestOf } from '../components/HighlyRecommended';
+} from '../lib/recommended';
+import Recommended, { BestOf } from '../components/Recommended';
 import { counted } from '../lib/plural';
 import { personalColumn } from '../lib/personalColumns';
 import { PLACE_RIGHTS, placeNameProblem } from '../lib/tableName';
@@ -242,6 +243,7 @@ import {
 import ScopeSettings, { GroupingChosen } from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, useScopeProfiles } from '../lib/groupingProfile';
+import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
   FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
@@ -341,11 +343,11 @@ function WidgetInput({ widget, value, endpoints, onChange }) {
   );
 }
 
-function Advanced({ open, onToggle, children }) {
+function Advanced({ open, onToggle, children, label = 'Advanced settings' }) {
   return (
     <div className="border-t border-border pt-3">
       <button type="button" aria-expanded={open} onClick={onToggle} className="inline-flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-text-primary">
-        <ChevronDown size={14} className={open ? 'rotate-180' : ''} /> Advanced settings
+        <ChevronDown size={14} className={open ? 'rotate-180' : ''} /> {label}
       </button>
       {open && <div className="mt-3 space-y-4">{children}</div>}
     </div>
@@ -445,6 +447,12 @@ export default function ImplementWizard({
   const [appRenamed, setAppRenamed] = useState(null);
   const [lastNameShown, setLastNameShown] = useState(false);
   const [placeSet, setPlaceSet] = useState('');
+  const [draftBack, setDraftBack] = useState(false);
+  const draftStamp = useRef('');
+  const touched = useRef(false);
+  const loadedSpec = useRef(null);
+  const draftKey = useMemo(() => wizardDraftKey({ host: settings.databricksHost, inspireDatabase, sessionId, useCaseId: spec.use_case_id }),
+    [settings.databricksHost, inspireDatabase, sessionId, spec.use_case_id]);
   const settingsModel = useMemo(() => settingsModelOf(context?.history), [context?.history]);
   const alertOn = Boolean(spec.outputs.alert);
   const everySetting = useMemo(() => contextSettings(context, { outputs: { alert: alertOn } }), [context, alertOn]);
@@ -549,6 +557,18 @@ export default function ImplementWizard({
         setSpec(next);
         setMissingTables(missing);
         if (['review', 'summary', 'vibes', 'settings', 'app', 'app_pages', 'app_place', 'app_access', 'app_features', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
+        loadedSpec.current = next;
+        draftStamp.current = draftStampOf(data.use_case, data.latest);
+        const draft = readWizardDraft(draftKey, draftStamp.current);
+        if (draft) {
+          groupingDefaulted.current = true;
+          accessDefaulted.current = true;
+          setSpec(draft.spec);
+          if (draft.spec.outputs?.app) setPlaceSet('person');
+          if (!focus?.step) setStep(draft.step);
+          setVisited(draft.visited);
+          setDraftBack(true);
+        }
         const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
         const chosenOf = (t) => ((next.data.removed_tables || []).some((r) => same(r, t)) ? ''
           : next.data.tables[Object.keys(next.data.tables).find((k) => same(k, t))] || t);
@@ -598,6 +618,11 @@ export default function ImplementWizard({
     if (!context) return;
     sourceTables.forEach((t) => { loadColumns(t); });
   }, [context, sourceTables.join('|')]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  useEffect(() => {
+    if (loading || !touched.current || !draftStamp.current) return;
+    writeWizardDraft(draftKey, { stamp: draftStamp.current, spec, step, visited });
+  }, [loading, draftKey, spec, step, visited]);
 
   useEffect(() => {
     bodyRef.current?.scrollTo?.(0, 0);
@@ -889,7 +914,7 @@ export default function ImplementWizard({
   }, [columnsByTable, spec]);
 
   useEffect(() => {
-    const wanted = stepId === 'data' || (spec.outputs.app && stepId === 'app');
+    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'app'));
     if (!wanted || warehouses !== null || warehousesError) return undefined;
     let cancelled = false;
     apiFetch('/api/warehouses')
@@ -952,6 +977,27 @@ export default function ImplementWizard({
     setOutputCheck(null);
   };
 
+  const cancel = () => {
+    clearWizardDraft(draftKey);
+    onClose();
+  };
+
+  const markTouched = (e) => {
+    if (e.target?.closest?.('input, select, textarea, button')) touched.current = true;
+  };
+
+  const startOver = () => {
+    clearWizardDraft(draftKey);
+    touched.current = false;
+    groupingDefaulted.current = false;
+    accessDefaulted.current = false;
+    setDraftBack(false);
+    setPlaceSet('');
+    setVisited([]);
+    if (loadedSpec.current) setSpec(loadedSpec.current);
+    setStep(initialStepId(focus, 'mvp', loadedSpec.current));
+  };
+
   const submit = async () => {
     setErrors([]);
     if (blockedBy(stepId)) return;
@@ -964,6 +1010,7 @@ export default function ImplementWizard({
         notebook_path: settings.notebookPath,
         spec: sent,
       });
+      clearWizardDraft(draftKey);
       onImplemented(data);
     } catch (e) {
       setErrors([e.message]);
@@ -979,6 +1026,7 @@ export default function ImplementWizard({
       const data = await apiPostJson('/api/inspire/generate-genie', genieNotebookRequest({
         inspireDatabase, warehouseId, sessionId, useCaseId: spec.use_case_id, notebookPath: settings.notebookPath,
       }));
+      clearWizardDraft(draftKey);
       onImplemented({ mode: 'notebook', use_case_id: spec.use_case_id, run_id: data.run_id, job_run_url: data.job_run_url });
     } catch (e) {
       setErrors([e.message]);
@@ -1060,7 +1108,7 @@ export default function ImplementWizard({
 
   if (loading) {
     return (
-      <Overlay title={title} uc={uc} steps={steps} step={stepIndex} onClose={onClose}>
+      <Overlay title={title} uc={uc} steps={steps} step={stepIndex} onClose={cancel}>
         <div className="flex items-center gap-2 p-8 text-sm text-text-secondary">
           <Loader2 size={16} className="animate-spin" /> Loading the use case…
         </div>
@@ -1073,7 +1121,8 @@ export default function ImplementWizard({
   const generalChecks = checkEntries.filter(([k]) => !TILE_CHECK_KEYS.includes(k));
   const freshness = freshnessOf(spec.schedule);
   const checkStepOf = (k) => {
-    if (PLACE_CHECKS.includes(k) || ACCESS_CHECKS.includes(k)) return 'app';
+    if (PLACE_CHECKS.includes(k)) return 'delivery';
+    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'delivery' : 'app';
     return CHOOSE_CHECKS.includes(k) || TILE_CHECK_KEYS.includes(k) ? 'delivery' : SUMMARY_STEP.id;
   };
   const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || SUMMARY_STEP.label;
@@ -1097,12 +1146,10 @@ export default function ImplementWizard({
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
   const best = oneBestPerStep({
     output: bestOutput(blocks),
-    removed: bestRemoved(),
     result: bestResultPlace(placeBlocks, ownSchema?.catalog || resultTableParts(ownTable).catalog),
     freshness: bestFreshness(spec),
     holdout: bestHoldout(),
     kpi: bestKpi(kpiOptions, trackedKpi),
-    appPlace: bestAppPlace(spec, targets, placeScope),
     appTarget: bestAppTarget(spec, targets, placeScope),
     heldApp: bestHeldApp(held.app || ''),
     appPolicy: bestAppPolicy(spec, targets, placeScope),
@@ -1110,10 +1157,7 @@ export default function ImplementWizard({
     appBackend: bestAppBackend(spec, lakebase),
     appOption: bestAppOption(),
     replaceEdits: bestReplaceEdits(),
-    style: bestLook('style', spec),
     layout: bestLook('layout', spec),
-    theme: bestLook('theme', spec),
-    palette: bestLook('palette', spec),
   });
   const groupingNow = spec.config.widgets?.[GROUP_BY] || scopeShown[GROUP_BY];
   const groupingPicked = groupingChoices(scopeProfile.profile).find((c) => sameGrouping(c.value, groupingNow));
@@ -1136,8 +1180,14 @@ export default function ImplementWizard({
   const toggleOutput = (id, checked) => setSpec((prev) => withOutput(prev, id, checked, context?.assets));
 
   return (
-    <Overlay title={title} uc={uc} steps={steps} step={stepIndex} onClose={onClose}>
+    <Overlay title={title} uc={uc} steps={steps} step={stepIndex} onClose={cancel} onTouch={markTouched}>
       <div ref={bodyRef} data-wizard-body="" className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
+        {draftBack && (
+          <div role="note" aria-label="Your draft" data-wizard-draft="" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-[12px] text-text-primary">
+            <span>{DRAFT_BACK_NOTE}</span>
+            <button type="button" data-wizard-start-over="" onClick={startOver} className="text-[12px] font-medium text-db-red-fg underline-offset-2 hover:underline glow-focus">{DRAFT_START_OVER}</button>
+          </div>
+        )}
         {stepIndex === 0 && (
           <>
             {stepId === 'use_case' && (
@@ -1551,7 +1601,7 @@ export default function ImplementWizard({
                               {!cannot && item.id === 'app' && ` ${APP_NEXT_NOTE}`}
                             </span>
                             {cannot && on && <span className="block text-[11px] mt-1 text-error-fg">It cannot be built, so turn it off.</span>}
-                            <span className="block mt-1"><HighlyRecommended best={best.output} id={item.id} /></span>
+                            <span className="block mt-1"><Recommended best={best.output} id={item.id} /></span>
                           </span>
                         </label>
                       </div>
@@ -1597,7 +1647,6 @@ export default function ImplementWizard({
                           <div data-choice={`removed-${item.id}`} className="flex flex-wrap items-baseline gap-3">
                             <label><input type="radio" value="delete" checked={spec.removed_outputs[item.id] === 'delete'} onChange={() => patch('removed_outputs', { ...spec.removed_outputs, [item.id]: 'delete' })} /> {holding ? takeOutText(holding) : 'Delete it'}</label>
                             <label><input type="radio" value="keep" checked={spec.removed_outputs[item.id] !== 'delete'} onChange={() => patch('removed_outputs', { ...spec.removed_outputs, [item.id]: 'keep' })} /> Keep it unmanaged</label>
-                            <HighlyRecommended best={best.removed} id="keep" />
                           </div>
                         </div>
                       )}
@@ -1606,6 +1655,34 @@ export default function ImplementWizard({
                 })}
               </div>
             </section>
+
+            {shows('app_place') && spec.outputs.app && (
+              <AppPlacementStep
+                spec={spec}
+                targets={targets}
+                targetsError={targetsError}
+                heldApp={held.app || ''}
+                scope={placeScope}
+                warehouses={warehouses}
+                warehousesError={warehousesError}
+                warehouseCheck={preflight?.checks?.app_warehouse || null}
+                lakebase={lakebase}
+                nameCheck={preflight?.checks?.app_name || null}
+                placeSet={placeSet}
+                onJoin={(target) => { setPlaceSet('person'); setSpec((prev) => withMergeTarget(prev, 'app', target)); }}
+                onNew={(placement) => {
+                  setPlaceSet(targets === null && placement !== APP_INSIDE ? 'waiting' : 'person');
+                  setSpec((prev) => withNewApp(prev, placement, targets, placeScope));
+                }}
+                onName={nameApp}
+                onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
+                warehouseOpen={advanced.app}
+                onWarehouseToggle={() => toggleAdvanced('app')}
+                moveNote={moveNote}
+                onKeep={() => { setPlaceSet('person'); setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
+                best={{ target: best.appTarget, policy: best.appPolicy, held: best.heldApp }}
+              />
+            )}
 
             {['dashboard', 'genie_space', 'app', 'alert'].some((o) => spec.outputs[o]) && (
               <Advanced open={advanced.delivery} onToggle={() => toggleAdvanced('delivery')}>
@@ -1740,34 +1817,6 @@ export default function ImplementWizard({
           </>
         )}
 
-        {shows('app_place') && (
-          <AppPlacementStep
-            spec={spec}
-            targets={targets}
-            targetsError={targetsError}
-            heldApp={held.app || ''}
-            scope={placeScope}
-            warehouses={warehouses}
-            warehousesError={warehousesError}
-            warehouseCheck={preflight?.checks?.app_warehouse || null}
-            lakebase={lakebase}
-            nameCheck={preflight?.checks?.app_name || null}
-            placeSet={placeSet}
-            onJoin={(target) => { setPlaceSet('person'); setSpec((prev) => withMergeTarget(prev, 'app', target)); }}
-            onNew={(placement) => {
-              setPlaceSet(targets === null && placement !== APP_INSIDE ? 'waiting' : 'person');
-              setSpec((prev) => withNewApp(prev, placement, targets, placeScope));
-            }}
-            onName={nameApp}
-            onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
-            warehouseOpen={advanced.app}
-            onWarehouseToggle={() => toggleAdvanced('app')}
-            moveNote={moveNote}
-            onKeep={() => { setPlaceSet('person'); setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
-            best={{ place: best.appPlace, target: best.appTarget, policy: best.appPolicy, held: best.heldApp }}
-          />
-        )}
-
         {shows('app_access') && (
           <AppAccessStep
             spec={spec}
@@ -1805,7 +1854,7 @@ export default function ImplementWizard({
             onChart={(id, on) => setSpec((prev) => withAppChart(prev, id, on, look, chartDates))}
             onInspireCharts={() => setSpec((prev) => withInspireCharts(prev))}
             onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))}
-            best={{ style: best.style, layout: best.layout, theme: best.theme, palette: best.palette }}
+            best={{ layout: best.layout }}
           />
         )}
 
@@ -2081,7 +2130,7 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, wa
       {on && (
         <div className="ps-7 space-y-1">
           {missing && <p data-inside-warehouse-missing="" className="text-[11px] text-error-fg">{INSIDE_WAREHOUSE_PROBLEM}</p>}
-          <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle}>
+          <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle} label={INSIDE_WAREHOUSE_TOGGLE}>
             <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} check={warehouseCheck}
               label={INSIDE_WAREHOUSE_LABEL} onWarehouse={onWarehouse} />
           </Advanced>
@@ -2122,7 +2171,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
               <input type="radio" name="app-place" value="held" className="mt-0.5" checked={!inside} onChange={onKeep} />
               <span className="space-y-0.5">
                 <span className="block text-sm font-semibold text-text-primary">Keep it in {heldApp}</span>
-                <HighlyRecommended best={best?.held} id="held" />
+                <Recommended best={best?.held} id="held" />
               </span>
             </label>
             {!inside && !joined && <div className="ps-7"><AppNameField name={name} nameCheck={nameCheck} onName={onName} /></div>}
@@ -2152,7 +2201,6 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
                 {targets === null && !targetsError && <Loader2 size={11} className="inline animate-spin me-1" aria-hidden="true" />}
                 {joinListText(targets, targetsError, choices, open)}
               </span>
-              <HighlyRecommended best={best?.place} id="join" />
             </span>
           </label>
           {choices.length > 0 && !inside && (
@@ -2166,7 +2214,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
                     <span className="space-y-0.5">
                       <span className="flex flex-wrap items-center gap-2">
                         <span data-fit={c.fit} className="text-[12px] font-medium text-text-primary">{c.target.name}</span>
-                        <HighlyRecommended best={best?.target} id={c.target.id} why={false} />
+                        <Recommended best={best?.target} id={c.target.id} />
                       </span>
                       <span className="block text-[11px] text-text-secondary">Holds {mergeTargetText(c.target)} · {ACCESS_SHORT[c.target.access]}</span>
                       {c.reason && <span className="block text-[11px] text-text-secondary">{c.reason}</span>}
@@ -2191,7 +2239,6 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
               onChange={() => onNew(inside ? APP_PLACEMENT_DEFAULT : placement)} />
             <span className="space-y-0.5">
               <span className="block text-sm font-semibold text-text-primary">Create a new App</span>
-              <HighlyRecommended best={best?.place} id="new" />
             </span>
           </label>
           {fresh && listing && (
@@ -2211,7 +2258,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
                         onChange={() => onNew(p.id)} />
                       <span className="text-[11px] text-text-secondary">
                         <span className="text-[12px] font-medium text-text-primary">{p.label}</span>. {p.blurb}
-                        <span className="block"><HighlyRecommended best={best?.policy} id={p.id} /></span>
+                        <span className="block"><Recommended best={best?.policy} id={p.id} /></span>
                         {off && <span data-placement-off={p.id} className="block">{off}</span>}
                       </span>
                     </label>
@@ -2364,7 +2411,7 @@ function ResultTableStep({ table, ownTable, inspireTable, place, note = '', outp
               <input type="radio" name="result-place" value={option.id} checked={place === option.id}
                 onChange={() => onChange(named[option.id] ? resultTableParts(named[option.id]) : { ...resultTableParts(table), schema: '' })} />
               <span className="font-medium">{option.label}</span>
-              <HighlyRecommended best={best} id={option.id} />
+              <Recommended best={best} id={option.id} />
             </label>
           </div>
         ))}
@@ -2407,7 +2454,7 @@ function KpiTargetSetting({ spec, options, tracked, before, onPick, best = null 
         </select>
         <p data-kpi-tracked="" className="text-[11px] text-text-secondary">{shown}</p>
       </div>
-      <BestOf best={best} label={best?.id || KPI_INSPIRE_PICKS} />
+      <BestOf best={best} label={best?.id} />
       {changed && <p data-kpi-change="" className="text-[11px] text-text-primary">{KPI_CHANGE_NOTE}</p>}
       {problem && <p className="text-[11px] text-error-fg">{problem}</p>}
     </div>
@@ -2446,7 +2493,7 @@ function HoldoutSetting({ spec, onEnabled, children = null, best = null }) {
         <input type="checkbox" value="true" className="mt-0.5" checked={enabled} onChange={(e) => onEnabled(e.target.checked)} />
         <span className="text-[11px] text-text-secondary">
           <span className="text-[12px] font-medium text-text-primary">{HOLDOUT_LABEL}</span>. {HOLDOUT_BLURB}
-          <span className="block mt-1"><HighlyRecommended best={best} id /></span>
+          <span className="block mt-1"><Recommended best={best} id /></span>
         </span>
       </label>
       {problem && <p className="ms-6 text-[11px] text-error-fg">{problem}</p>}
@@ -2461,8 +2508,8 @@ function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = n
   const loading = lakebase === null && !blocks.lakebase;
   const chosen = loading ? null : APP_BACKEND_CHOICES.find((choice) => choice.id === backend);
   return (
-    <fieldset className="space-y-1.5">
-      <legend className="text-sm font-semibold text-text-primary">How fast do the App's pages open?</legend>
+    <fieldset data-app-speed="" className="space-y-1.5 ps-3 border-s-2 border-border">
+      <legend className="text-[12px] font-medium text-text-primary">How fast do the App's pages open?</legend>
       {absent ? (
         <BlockedReason block={blocks.lakebase} id="app-backend" />
       ) : (
@@ -2479,13 +2526,13 @@ function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = n
                 >
                   <input type="radio" name="app-backend" value={choice.id} checked={checked} disabled={off} onChange={() => onBackend(choice.id)} />
                   <span className={checked ? 'font-semibold' : 'font-medium'}>{choice.label}</span>
-                  <HighlyRecommended best={best} id={choice.id} why={false} />
+                  <Recommended best={best} id={choice.id} why={false} />
                 </label>
               );
             })}
           </div>
           {chosen?.blurb && <p className="text-[12px] text-text-secondary">{chosen.blurb}</p>}
-          {!loading && best?.reason && lakebase?.state !== 'unknown' && <p data-highly-recommended-why="" className="text-[11px] text-text-secondary">{best.reason}</p>}
+          {!loading && best?.reason && lakebase?.state !== 'unknown' && <p data-recommended-why="" className="text-[11px] text-text-secondary">{best.reason}</p>}
           {loading && <p className="text-[11px] text-text-tertiary" role="status">{LAKEBASE_CHECKING}…</p>}
           <BlockedReason block={blocks.lakebase} id="app-backend" />
           {lakebase?.state === 'unknown' && !blocks.lakebase && (
@@ -2580,7 +2627,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
                 <span className="space-y-1">
                   <span className="flex items-start gap-1.5 text-sm font-semibold text-text-primary"><Icon size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{choice.label}</span>
                   <span className="block text-[12px] text-text-secondary">{choice.blurb}</span>
-                  <HighlyRecommended best={best.access} id={choice.id} />
+                  <Recommended best={best.access} id={choice.id} />
                 </span>
               </label>
             );
@@ -2590,7 +2637,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
       <AppBackendChoice spec={spec} lakebase={lakebase} onBackend={onBackend} best={best.backend}>
         {inside ? (
           <p data-inside-warehouse="" className="text-[11px] text-text-secondary">
-            Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on App placement.
+            Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on Deliver.
           </p>
         ) : (
           <Advanced open={warehouseOpen || warehouseCheck?.ok === false} onToggle={onWarehouseToggle}>
@@ -2618,7 +2665,7 @@ function AppFeaturesStep({ spec, onOption, best = {} }) {
               <label className="flex items-start gap-2.5 cursor-pointer">
                 <input type="checkbox" value={o.id} className="mt-0.5" checked={Boolean(options[o.id])} onChange={(e) => onOption(o.id, e.target.checked)} />
                 <span className="text-[11px] text-text-secondary">
-                  <span className="text-[12px] font-medium text-text-primary">{o.label}</span>. {o.blurb} <HighlyRecommended best={best.option} id={o.id} />
+                  <span className="text-[12px] font-medium text-text-primary">{o.label}</span>. {o.blurb} <Recommended best={best.option} id={o.id} />
                 </span>
               </label>
               {o.id === 'modify' && appOptionShown(spec, 'replace_edits') && (
@@ -2629,7 +2676,7 @@ function AppFeaturesStep({ spec, onOption, best = {} }) {
                       <input type="radio" name="replace-edits" value={String(c.id)} className="mt-0.5" checked={Boolean(options.replace_edits) === c.id} onChange={() => onOption('replace_edits', c.id)} />
                       <span>
                         <span className="font-medium text-text-primary">{c.label}</span>
-                        <span className="text-text-secondary">: {c.blurb}</span> <HighlyRecommended best={best.replace} id={c.id} />
+                        <span className="text-text-secondary">: {c.blurb}</span> <Recommended best={best.replace} id={c.id} />
                       </span>
                     </label>
                   ))}
@@ -2748,7 +2795,7 @@ function LookCard({ name, value, checked, onChange, label, best = null, blurb = 
       <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <input type="radio" name={name} value={value} checked={checked} onChange={onChange} />
         <span className="text-[12px] font-semibold text-text-primary">{label}</span>
-        <HighlyRecommended best={best} id={value} why={false} />
+        <Recommended best={best} id={value} why={false} />
       </span>
       {(blurb || (isBest(best, value) && best.reason)) && (
         <span className="block text-[11px] leading-snug text-text-secondary">{[blurb, isBest(best, value) ? best.reason : ''].filter(Boolean).join(' ')}</span>
@@ -2787,7 +2834,7 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
           <div data-choice="app-style" className="grid grid-cols-3 gap-3 pt-1">
             {APP_STYLES.map((s) => (
               <LookCard key={s.id} name="app-style" value={s.id} checked={chosen.style === s.id} onChange={() => onLook('style', s.id)}
-                label={s.label} best={best.style} blurb={s.blurb}>
+                label={s.label} blurb={s.blurb}>
                 <StylePreview style={s.id} palette={palette} theme={chosen.theme} />
               </LookCard>
             ))}
@@ -2817,7 +2864,6 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
               })}
               {!look && !lookError && Array.from({ length: 13 }, (_, i) => <span key={i} aria-hidden="true" className="block h-[46px] rounded-md bg-bg-subtle animate-pulse" />)}
             </div>
-            <BestOf best={best.palette} label={best.palette && lookLabel('palette', best.palette.id)} />
           </fieldset>
           <fieldset data-choice="app-theme" className="space-y-2">
             <legend className={LEGEND}>Mode</legend>
@@ -2835,7 +2881,6 @@ function AppLookStep({ spec, look, lookError, palette, title, stake, dates = nul
                 </button>
               ))}
             </div>
-            <BestOf best={best.theme} label={APP_THEMES.find((t) => t.id === best.theme?.id)?.label} />
           </fieldset>
         </div>
       </div>
@@ -2969,7 +3014,7 @@ function ValuePicker({ label, values, selected, onLoad, onChange }) {
   );
 }
 
-function Overlay({ title, uc, steps, step, onClose, children }) {
+function Overlay({ title, uc, steps, step, onClose, onTouch = undefined, children }) {
   const stepsRef = useRef(null);
   useEffect(() => {
     const list = stepsRef.current;
@@ -2983,7 +3028,7 @@ function Overlay({ title, uc, steps, step, onClose, children }) {
   return (
     <BodyPortal>
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" data-implement-overlay="">
-        <div role="dialog" aria-modal="true" aria-label={title ? `${START_MVP_LABEL}: ${title}` : START_MVP_LABEL} className="bg-surface border border-border rounded-xl shadow-elevated w-full max-w-6xl max-h-full flex flex-col overflow-hidden">
+        <div role="dialog" aria-modal="true" onChangeCapture={onTouch} onClickCapture={onTouch} aria-label={title ? `${START_MVP_LABEL}: ${title}` : START_MVP_LABEL} className="bg-surface border border-border rounded-xl shadow-elevated w-full max-w-6xl max-h-full flex flex-col overflow-hidden">
           <header className="px-6 pt-4 pb-3 border-b border-border space-y-3" data-wizard-header="">
             <div className="flex items-start justify-between gap-4">
               <div className="min-w-0">
