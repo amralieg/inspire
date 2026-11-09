@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { actBody, ASK_GROUPS, OWN_CHOICES, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until, footerActions } from './harness.mjs';
+import { actBody, ASK_GROUPS, OWN_CHOICES, OWN_STATUSES, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until, footerActions } from './harness.mjs';
 import { closedRows, estimatedFigure, figuresOf, heldShare, holdoutOffText, holdoutView, measuredFigure, promisedView, reportedFigure, wrongFigure } from '../src/impact.js';
 import { actionForm, actionProblem, actionValues, doneText, statusLabel } from '../src/records.js';
 
@@ -163,6 +163,17 @@ test('Performance shows estimated, reported and measured apart, promised against
   assert.equal(await other.locator('.card-h p').first().innerText(), 'no run of this use case has written its results yet');
   assert.deepEqual(await other.locator('.imp-figs b').allInnerTexts(), Array(4).fill('Not measured yet'));
   assert.equal(await other.locator('.imp-hold').count(), 0);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the closed records on Performance show the choice people picked from the use case\'s own statuses', async () => {
+  const entry = { ...ENTRY, records: ENTRY.records.map((r, i) => (i === 0 ? { ...r, choice: 'drop' } : r)) };
+  const routes = { impact: ({ json }) => json(200, entry), summary: ({ json }) => json(200, SUMMARY) };
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, { ...OWN_STATUSES, promised: PROMISED }),
+    { width: 1440, routes, hash: '#/n01_u05/performance', ready: '.tbl--closed tbody tr' });
+  const outcomes = await page.locator('.tbl--closed tbody tr td:nth-child(2)').allInnerTexts();
+  assert.equal(outcomes[0], 'Drop the item');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
