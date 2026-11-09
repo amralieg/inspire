@@ -1,15 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { GROUPING_TITLE } from '../../src/lib/runScope.js';
-import { RUN_IT_TITLE } from '../../src/lib/implementWizard.js';
+import { GROUPING_EXAMPLE, GROUPING_TITLE } from '../../src/lib/runScope.js';
+import { RUN_IT_TITLE, USE_CASE_TITLE, WIZARD_STEPS_MAX } from '../../src/lib/implementWizard.js';
 import { BUILD_IT, closeBrowser, goToStep, onStep, openUi, profileAt, shot, stepsAre } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const WITH_APP = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. App', '6. Run it', '7. Summary'];
-const NO_APP = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Run it', '6. Summary'];
+const WITH_APP = ['1. Use case', '2. Data', '3. Data groups', '4. First run', '5. Results', '6. Deliver', '7. Who uses the App', '8. App pages and look', '9. Run it', '10. Summary'];
+const NO_APP = ['1. Use case', '2. Data', '3. First run', '4. Results', '5. Deliver', '6. Run it', '7. Summary'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const builtLine = (page) => page.locator('[data-built-sentence]').innerText();
 
@@ -21,10 +21,11 @@ function submittedSpec(made) {
 
 async function noOldSteps(page) {
   const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
-  for (const gone of ['What to build', 'Settings', 'Vibes', 'Data groups', 'MVP Test Run', 'Measure impact', 'Keep it fresh', 'App placement']) {
+  for (const gone of ['What to build', 'Settings', 'Vibes', 'App', 'MVP Test Run', 'Measure impact', 'Keep it fresh', 'App placement']) {
     assert.equal(labels.some((l) => l.endsWith(`. ${gone}`)), false, `no ${gone} step (must-exclude)`);
   }
   assert.equal(await page.locator('input[name="implement-mode"]').count(), 0, 'no MVP or notebook choice (must-exclude)');
+  assert.ok(labels.length <= WIZARD_STEPS_MAX, `${labels.length} steps`);
 }
 
 async function summaryHasNoCapacity(page) {
@@ -33,25 +34,40 @@ async function summaryHasNoCapacity(page) {
   assert.equal(await page.getByText(/team capacity/i).count(), 0);
 }
 
-test('with the App picked the wizard reads Data, First run, Results, Deliver, App, Run it, Summary, from your data to people using it', async () => {
+test('with the App picked the wizard reads Use case, Data, Data groups, First run, Results, Deliver, Who uses the App, App pages and look, Run it, Summary, one decision a screen', async () => {
   const ui = await openUi('wizard', { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } }, '', { init: profileAt([], GROUPING_PROFILE) });
   const { page, made } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await onStep(page, 'Data');
-    await page.getByRole('region', { name: GROUPING_TITLE, exact: true }).waitFor({ timeout: 30000 });
+    await onStep(page, 'Use case');
     await stepsAre(page, WITH_APP);
     await noOldSteps(page);
+    await page.getByRole('region', { name: 'Executive summary' }).waitFor();
+    assert.equal(await page.locator('[data-use-case-title] h3').innerText(), USE_CASE_TITLE);
+    assert.equal(await page.getByRole('heading', { name: 'Source tables' }).count(), 0, 'the tables wait for Data (must-exclude)');
+    assert.equal(await page.getByLabel('Decision owner').isVisible(), false, 'the goal and decision owner sit under Advanced');
+    await shot(page, '01-use-case', false);
+    await next(page);
+    await onStep(page, 'Data');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
-    await shot(page, '1-data', false);
+    assert.equal(await page.getByRole('region', { name: GROUPING_TITLE, exact: true }).count(), 0, 'the groups are their own step, not on Data (must-exclude)');
+    await shot(page, '02-data', false);
+    await next(page);
+    await onStep(page, 'Data groups');
+    const groups = page.getByRole('region', { name: GROUPING_TITLE, exact: true });
+    await groups.waitFor({ timeout: 30000 });
+    assert.equal(await groups.locator('[data-grouping-example-plain]').innerText(), GROUPING_EXAMPLE, 'the step explains groups with the average salary example');
+    assert.equal(await groups.locator('[data-grouping-example-plain]').isVisible(), true, 'in view, not under Details');
+    assert.equal(await page.getByRole('heading', { name: 'Source tables' }).count(), 0);
+    await shot(page, '03-data-groups', false);
     await next(page);
     await onStep(page, 'First run');
-    assert.equal(await page.getByRole('region', { name: GROUPING_TITLE, exact: true }).count(), 0, 'the groups are set on Data, not again on First run');
-    await shot(page, '2-first-run', false);
+    assert.equal(await page.getByRole('region', { name: GROUPING_TITLE, exact: true }).count(), 0, 'the groups are set on Data groups, not again on First run');
+    await shot(page, '04-first-run', false);
     await next(page);
     await onStep(page, 'Results');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Results holds only where the result table lives');
-    await shot(page, '3-results', false);
+    await shot(page, '05-results', false);
     await next(page);
     await onStep(page, 'Deliver');
     const notebook = page.locator('[data-output="notebook"] input');
@@ -59,25 +75,34 @@ test('with the App picked the wizard reads Data, First run, Results, Deliver, Ap
     assert.equal(await page.getByRole('checkbox', { name: /^App / }).isChecked(), true);
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-highly-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       1, 'one Recommended on Deliver');
-    await shot(page, '4-deliver', false);
+    await shot(page, '06-deliver', false);
     await next(page);
-    await onStep(page, 'App');
+    await onStep(page, 'Who uses the App');
     await page.locator('input[name="app-place"]').first().waitFor();
+    await page.getByRole('region', { name: 'App access' }).waitFor();
+    assert.equal(await page.getByRole('region', { name: 'App features' }).count(), 0, 'the pages and look wait for their own step (must-exclude)');
     assert.doesNotMatch(await page.locator('[role="dialog"]').innerText(), /service principal|Lakebase/i, 'no internals in view');
-    await shot(page, '5-app', false);
+    assert.ok((await page.locator('[role="dialog"]').innerText()).split(/could not check/i).length <= 2, 'one sentence says what Inspire could not check');
+    await shot(page, '07-who-uses-the-app', false);
+    await next(page);
+    await onStep(page, 'App pages and look');
+    await page.getByRole('region', { name: 'App features' }).waitFor();
+    assert.equal(await page.locator('input[name="app-place"]').count(), 0, 'placement stays on Who uses the App (must-exclude)');
+    assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'and so does access (must-exclude)');
+    await shot(page, '08-app-pages-and-look', false);
     await next(page);
     await onStep(page, 'Run it');
     assert.equal(await page.locator('[data-run-it]').innerText(), RUN_IT_TITLE);
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
     assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh is on, Daily, by default');
     assert.equal(await page.getByRole('checkbox', { name: /^Hold back/ }).count(), 1, 'Measure impact sits on Run it');
-    await shot(page, '6-run-it', false);
+    await shot(page, '09-run-it', false);
     await next(page);
     await onStep(page, 'Summary');
     assert.match(await builtLine(page), /^The MVP: .*App.*, the result table and the notebook that fills it\.$/);
     await page.getByRole('region', { name: 'Vibes' }).waitFor();
     await summaryHasNoCapacity(page);
-    await shot(page, '7-summary', false);
+    await shot(page, '10-summary', false);
     await page.getByRole('button', { name: BUILD_IT, exact: true }).click();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     const spec = submittedSpec(made);
@@ -101,11 +126,11 @@ test('a notebook-only build is Deliver with only Notebook ticked: no App step, a
     }
     await stepsAre(page, NO_APP);
     await noOldSteps(page);
-    await shot(page, 'notebook-only-4-deliver', false);
+    await shot(page, 'notebook-only-05-deliver', false);
     await goToStep(page, 'Summary');
     assert.equal(await builtLine(page), 'The MVP: the result table and the notebook that fills it.');
     await summaryHasNoCapacity(page);
-    await shot(page, 'notebook-only-6-summary', false);
+    await shot(page, 'notebook-only-07-summary', false);
     await page.getByRole('button', { name: BUILD_IT, exact: true }).click();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     const { outputs } = submittedSpec(made);
@@ -134,12 +159,12 @@ test('an App Inspire cannot afford is dimmed on Deliver with one plain reason an
     assert.equal(await page.locator('[data-output="app"] [data-highly-recommended]').count(), 0, 'the dimmed App carries no Recommended');
     await stepsAre(page, NO_APP);
     await noOldSteps(page);
-    await shot(page, 'app-unaffordable-4-deliver', false);
+    await shot(page, 'app-unaffordable-05-deliver', false);
     await goToStep(page, 'Summary');
     assert.doesNotMatch(await builtLine(page), /\bApp\b/);
     assert.match(await page.locator('[data-picked-row="dropped"] [data-picked-value]').innerText(), /^App: \S/, 'Summary says the App is not built and why');
     await summaryHasNoCapacity(page);
-    await shot(page, 'app-unaffordable-6-summary', false);
+    await shot(page, 'app-unaffordable-07-summary', false);
     await page.getByRole('button', { name: BUILD_IT, exact: true }).click();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     assert.equal(submittedSpec(made).outputs.app, false);

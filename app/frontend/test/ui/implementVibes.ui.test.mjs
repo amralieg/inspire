@@ -19,7 +19,7 @@ const ONE_BOX = 'Vibes for the MVP';
 const wizardBox = (page) => page.getByRole('region', { name: 'Vibes', exact: true }).getByRole('textbox', { name: ONE_BOX, exact: true });
 
 async function toDelivery(page) {
-  await onStep(page, 'Data');
+  await goToStep(page, 'Data');
   await dataToResults(page);
   await goToStep(page, 'What to build');
 }
@@ -46,7 +46,7 @@ async function readable(page, selectors, name) {
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
 }
 
-const STEPS_WITH_APP = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. App', '6. Run it', '7. Summary'];
+const STEPS_WITH_APP = ['1. Use case', '2. Data', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Summary'];
 const boxLabels = (panel) => panel.locator('textarea').evaluateAll((boxes) => boxes.map((b) => b.getAttribute('aria-label')));
 
 async function grayExamples(page, panel) {
@@ -75,7 +75,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await page.getByRole('textbox', { name: /vibes/i }).count(), 0, 'Delivery has no vibes box');
     assert.equal(await page.getByRole('region', { name: 'Vibes' }).count(), 0);
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Run it', '6. Summary'], 'Summary stays last without an App');
+    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Use case', '2. Data', '3. First run', '4. Results', '5. Deliver', '6. Run it', '7. Summary'], 'Summary stays last without an App');
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
     await panel.getByRole('heading', { name: 'Anything else Genie should build in?' }).waitFor();
@@ -144,7 +144,7 @@ test('the one box on the Vibes step takes the full width, is 8 lines tall and gr
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Run it');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
-    await onStep(page, 'App');
+    await onStep(page, 'App pages and look');
     await toVibes(page);
     assert.equal(await wizardBox(page).inputValue(), 'Make the trend weekly\nAnswer in euros', 'coming back keeps the asks');
     assert.deepEqual(ui.pageErrors, []);

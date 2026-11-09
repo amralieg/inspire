@@ -1,5 +1,5 @@
 import { FIRST_RUN_LABEL as RUN_LABEL } from '../frontend/src/lib/runScope.js';
-import { FIRST_RUN_STEP } from '../frontend/src/lib/implementWizard.js';
+import { FIRST_RUN_STEP, GROUPING_STEP } from '../frontend/src/lib/implementWizard.js';
 const profileRoute = await import('../frontend/src/lib/groupingProfile.js').then((m) => m.GROUPING_PROFILE_ROUTE || '', () => '');
 export const SCOPE_WALK_READS = new Set(profileRoute ? [`POST ${profileRoute}`] : []);
 const RECORDS_RE = /· [\d,]+ records?\b/;
@@ -35,10 +35,12 @@ async function choicesOf(group) {
 export function checkWizardSteps(steps, profile, { groupingShown = false } = {}) {
   if (!profile) return [{ check: 'the table profile', ok: null, detail: 'the wizard never read a Data groups profile, so nothing can be compared' }];
   const firstRun = FIRST_RUN_STEP.label;
+  const groups = GROUPING_STEP.label;
   return [
-    { check: 'the wizard asks Data groups on Data whenever the technique works in groups', ok: groupingShown === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${groupingShown}` },
-    { check: 'no Data groups step of its own (must-exclude)', ok: !steps.includes('Data groups'), detail: steps.join(' > ') },
-    { check: `${firstRun} comes right after Data`, ok: steps.indexOf(firstRun) === steps.indexOf('Data') + 1, detail: steps.join(' > ') },
+    { check: 'the wizard asks Data groups whenever the technique works in groups', ok: groupingShown === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${groupingShown}` },
+    { check: `${groups} is a step of its own right after Data exactly when the technique works in groups`,
+      ok: steps.includes(groups) === Boolean(profile.applies) && (!profile.applies || steps.indexOf(groups) === steps.indexOf('Data') + 1), detail: steps.join(' > ') },
+    { check: `${firstRun} comes right after ${groups} or Data`, ok: steps.indexOf(firstRun) === Math.max(steps.indexOf('Data'), steps.indexOf(groups)) + 1, detail: steps.join(' > ') },
   ];
 }
 

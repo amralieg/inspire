@@ -210,6 +210,8 @@ import {
   DELIVERY_LABEL,
   NOTEBOOK_CARD,
   RUN_IT_TITLE,
+  USE_CASE_NOTE,
+  USE_CASE_TITLE,
   builtSentence,
   DELIVERY_QUESTION,
   BUILD_IT_LABEL,
@@ -241,7 +243,7 @@ import ScopeSettings, { GroupingChosen } from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, useScopeProfiles } from '../lib/groupingProfile';
 import {
-  FIRST_RUN_TITLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
+  FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
   withGroupingDefault, withScopeDefaults, GROUP_BY, FIRST_RUN_LABEL, groupingChoices, groupingCount, groupingCountText, sameGrouping, scopeText,
 } from '../lib/runScope';
@@ -384,7 +386,7 @@ export default function ImplementWizard({
   const [errors, setErrors] = useState([]);
   const [attempted, setAttempted] = useState({ data: false, delivery: false });
   const [checking, setChecking] = useState('');
-  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false });
+  const [advanced, setAdvanced] = useState({ use_case: false, data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
   const [columnsByTable, setColumnsByTable] = useState({});
   const [tagNotes, setTagNotes] = useState({});
@@ -546,7 +548,7 @@ export default function ImplementWizard({
         if (!next.config.warehouse_id) next.config.warehouse_id = warehouseId;
         setSpec(next);
         setMissingTables(missing);
-        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_place', 'app_access', 'app_features', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
+        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_pages', 'app_place', 'app_access', 'app_features', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
         const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
         const chosenOf = (t) => ((next.data.removed_tables || []).some((r) => same(r, t)) ? ''
           : next.data.tables[Object.keys(next.data.tables).find((k) => same(k, t))] || t);
@@ -742,7 +744,6 @@ export default function ImplementWizard({
         setChecking(PROFILE_WAITING);
         const done = await scopeProfile.wait();
         const doneSteps = scopeStepsOf(done.state, done.profile, ranBefore);
-        if (doneSteps.grouping) return;
         list = wizardSteps(mode, spec, { ...doneSteps, settings: settingsFor(doneSteps, done.state === 'ready').length > 0 });
         profile = done.profile;
       }
@@ -1139,6 +1140,12 @@ export default function ImplementWizard({
       <div ref={bodyRef} data-wizard-body="" className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
         {stepIndex === 0 && (
           <>
+            {stepId === 'use_case' && (
+              <div data-use-case-title="" className="space-y-0.5">
+                <h3 className="text-sm font-semibold text-text-primary">{USE_CASE_TITLE}</h3>
+                <p className="text-[12px] text-text-secondary">{USE_CASE_NOTE}</p>
+              </div>
+            )}
             <section className="bg-bg border border-border rounded-lg px-4 py-2.5 space-y-1" aria-label="Executive summary">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
                 <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
@@ -1157,6 +1164,29 @@ export default function ImplementWizard({
                 ))}
               </dl>
             </section>
+            {stepId === 'use_case' && (
+              <Advanced open={advanced.use_case} onToggle={() => toggleAdvanced('use_case')}>
+                <Field label="Goal sentence">
+                  <textarea dir="auto" className={inputCls} rows={3} value={spec.use_case.goal} onChange={(e) => patch('use_case.goal', e.target.value)} />
+                </Field>
+                <Field label="Decision owner">
+                  <input dir="auto" className={inputCls} value={spec.use_case.decision_owner} onChange={(e) => { const owner = e.target.value; setSpec((prev) => withDecisionOwner(prev, owner)); }} />
+                </Field>
+                {[0, 1, 2].map((i) => (
+                  <Field key={i} label={i === 0 ? 'Success measures' : `Measure ${i + 1} (optional)`}>
+                    <input dir="auto"
+                      className={inputCls}
+                      value={spec.use_case.success_measures[i] || ''}
+                      onChange={(e) => {
+                        const next = [...spec.use_case.success_measures];
+                        next[i] = e.target.value;
+                        patch('use_case.success_measures', next.filter((m, idx) => m || idx < i));
+                      }}
+                    />
+                  </Field>
+                ))}
+              </Advanced>
+            )}
             {genieOff && (
               <div role="note" aria-label={GENIE_CODE_OFF_TITLE} className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-[12px] space-y-1">
                 <p className="font-semibold text-text-primary">{GENIE_CODE_OFF_TITLE}</p>
@@ -1245,25 +1275,6 @@ export default function ImplementWizard({
                 inputClass={inputBase}
                 onPick={(ref) => setSpec((prev) => withEntityKey(prev, ref))}
               />
-              <Field label="Goal sentence">
-                <textarea dir="auto" className={inputCls} rows={3} value={spec.use_case.goal} onChange={(e) => patch('use_case.goal', e.target.value)} />
-              </Field>
-              <Field label="Decision owner">
-                <input dir="auto" className={inputCls} value={spec.use_case.decision_owner} onChange={(e) => { const owner = e.target.value; setSpec((prev) => withDecisionOwner(prev, owner)); }} />
-              </Field>
-              {[0, 1, 2].map((i) => (
-                <Field key={i} label={i === 0 ? 'Success measures' : `Measure ${i + 1} (optional)`}>
-                  <input dir="auto"
-                    className={inputCls}
-                    value={spec.use_case.success_measures[i] || ''}
-                    onChange={(e) => {
-                      const next = [...spec.use_case.success_measures];
-                      next[i] = e.target.value;
-                      patch('use_case.success_measures', next.filter((m, idx) => m || idx < i));
-                    }}
-                  />
-                </Field>
-              ))}
               <div className="flex items-start justify-between gap-3">
                 <p className="text-[11px] text-text-secondary">
                   Column roles: Inspire&apos;s choice uses the columns the use case&apos;s Genie Code instruction names. Pick a column
@@ -1384,6 +1395,7 @@ export default function ImplementWizard({
         {((shows('grouping') && mode === 'mvp' && (scopeSteps.grouping || scopeProfile.state === 'loading')) || shows('first_run')) && (
           <section aria-label={shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE} data-scope-step={shows('first_run') ? 'first_run' : 'grouping'} className="space-y-3">
             <h3 className="text-sm font-semibold text-text-primary">{shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE}</h3>
+            {shows('grouping') && <p data-grouping-example-plain="" className="text-[12px] text-text-secondary">{GROUPING_EXAMPLE}</p>}
             {shows('first_run') && <GroupingChosen values={scopeShown} profile={scopeProfile.firstRun?.profile || scopeProfile.profile} />}
             <ScopeSettings part={shows('first_run') ? 'first_run' : 'grouping'} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
               groups={shows('first_run') ? scopeProfile.firstRun : null} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
@@ -2473,7 +2485,7 @@ function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = n
             })}
           </div>
           {chosen?.blurb && <p className="text-[12px] text-text-secondary">{chosen.blurb}</p>}
-          {!loading && best?.reason && <p data-highly-recommended-why="" className="text-[11px] text-text-secondary">{best.reason}</p>}
+          {!loading && best?.reason && lakebase?.state !== 'unknown' && <p data-highly-recommended-why="" className="text-[11px] text-text-secondary">{best.reason}</p>}
           {loading && <p className="text-[11px] text-text-tertiary" role="status">{LAKEBASE_CHECKING}…</p>}
           <BlockedReason block={blocks.lakebase} id="app-backend" />
           {lakebase?.state === 'unknown' && !blocks.lakebase && (

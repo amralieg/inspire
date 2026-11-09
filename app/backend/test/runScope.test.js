@@ -769,3 +769,10 @@ test('an edit sends the First run default only when the person changed it, a fir
   assert.deepEqual(sent({ ...before, run_scope: filled }, undefined), { ...before, run_scope: filled }, 'with no edited version the default is sent');
   assert.deepEqual(S.firstRunSent({ run_scope: 'Records' }, {}), {}, 'the agent reads the choice in any case');
 });
+
+test('the Data groups step explains in plain words why some numbers only make sense inside a group, with the average salary example', async () => {
+  const s = await lib('runScope.js');
+  assert.match(s.GROUPING_EXAMPLE, /average salary over all countries/);
+  assert.match(s.GROUPING_EXAMPLE, /per country, or per state/);
+  assert.doesNotMatch(s.GROUPING_EXAMPLE, /[\u2013\u2014]|group_by|\bN\d\d-U\d\d\b/, 'no dashes, setting names or use case ids');
+});

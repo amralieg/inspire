@@ -19,7 +19,7 @@ const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const footerErrors = (page) => page.locator('[role="alert"] p').allTextContents();
 
 async function toDelivery(page) {
-  await onStep(page, 'Data');
+  await goToStep(page, 'Data');
   await dataToResults(page);
   await goToStep(page, 'What to build');
 }
@@ -288,6 +288,7 @@ async function withEveryAppLookOption(check) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await toDelivery(page);
     await toAppAccess(page);
+    await goToStep(page, 'App features');
     const features = page.getByRole('region', { name: 'App features' });
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
     await features.getByRole('checkbox', { name: /^Send alerts/ }).check();
@@ -468,7 +469,7 @@ test('Where results live offers its own schema, falls back to the Inspire databa
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, catalogs: ['main', 'sales'], schemas: { main: ['inspire', 's'], sales: ['mvp', 'gold'] } });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     assert.equal(await page.getByLabel('Output table').count(), 0, 'the result table left the Data step');
     await dataToResults(page);
     const step = page.getByRole('region', { name: 'Where the result table lives' });
@@ -541,7 +542,7 @@ test('A person who may create schemas gets the use case its own schema: Next cre
   });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await dataToResults(page);
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
@@ -571,7 +572,7 @@ test('A schema of the same name that is not this use case\'s: the wizard says so
   });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await dataToResults(page);
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
@@ -602,7 +603,7 @@ test('A re-run of this Inspire database finds the use case\'s schema from sessio
   });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await dataToResults(page);
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
@@ -630,7 +631,7 @@ test('When the use case\'s name and every suffixed name hold other use cases, th
   });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await dataToResults(page);
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
@@ -706,7 +707,7 @@ test('the App is picked on its own App placement step: Delivery only ticks it, a
     assert.match(await appTile(page), /You pick where it goes next\.Highly Recommended/);
     const genie = page.locator('[data-merge="genie_space"]');
     await genie.getByText('Inspire has built none yet').waitFor();
-    assert.ok((await stepLabels(page)).some((s) => /^\d+\. App$/.test(s.trim())), (await stepLabels(page)).join(', '));
+    assert.ok((await stepLabels(page)).some((s) => /^\d+\. Who uses the App$/.test(s.trim())), (await stepLabels(page)).join(', '));
     await goToStep(page, 'App placement');
     await placeStep(page).locator('[data-app-target]').first().waitFor();
     assert.deepEqual(await placeTargets(page), [['ops-desk', 'recommended', 'Highly Recommended'], ['care-desk', 'not_recommended', '']],
@@ -732,7 +733,7 @@ test('the App is picked on its own App placement step: Delivery only ticks it, a
       + 'so everyone who opens it sees the same rows. For your own, choose Create new.');
     assert.equal(await page.getByLabel('App name').count(), 0, 'a joined App keeps its own name');
     const steps = await stepLabels(page);
-    assert.ok(!steps.some((s) => /App access|App look/.test(s)), `no App access or App look step: ${steps.join(', ')}`);
+    assert.ok(!steps.some((s) => /App access|App look|App pages/.test(s)), `no App access, App look or App pages step: ${steps.join(', ')}`);
     await toVibes(page);
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Run it');
@@ -936,7 +937,7 @@ async function measure(page, name) {
   return box;
 }
 
-test('every wizard step but App fits a 1440x900 screen with nothing to scroll, and every step reads at 4.5:1 in light and dark', async () => {
+test('every wizard step but the two App steps fits a 1440x900 screen with nothing to scroll, and every step reads at 4.5:1 in light and dark', async () => {
   const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' } });
   const { page } = ui;
   const heights = {};
@@ -956,7 +957,10 @@ test('every wizard step but App fits a 1440x900 screen with nothing to scroll, a
   };
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await onStep(page, 'Data');
+    await onStep(page, 'Use case');
+    await fits('0-use-case');
+    await readable('use case');
+    await goToStep(page, 'Data');
     await fits('1-data');
     await goToStep(page, 'First run');
     await fits('2-first-run');
@@ -973,7 +977,7 @@ test('every wizard step but App fits a 1440x900 screen with nothing to scroll, a
     await page.locator('[data-merge="dashboard"]').getByRole('button', { name: 'Add to an existing one' }).click();
     await fits('4-deliver-joining');
     await readable('deliver');
-    await goToStep(page, 'App');
+    await goToStep(page, 'Who uses the App');
     await placeStep(page).locator('[data-app-target]').first().waitFor();
     await measure(page, '5-app');
     await readable('app');
@@ -985,6 +989,9 @@ test('every wizard step but App fits a 1440x900 screen with nothing to scroll, a
     await access.getByRole('radio', { name: /^Sensitive data/ }).check();
     await readable('app access per user');
     await access.getByRole('radio', { name: /^Internal data/ }).check();
+    await goToStep(page, 'App pages and look');
+    await measure(page, '5-app-pages');
+    await readable('app pages');
     await page.getByRole('region', { name: 'App features' }).getByRole('checkbox', { name: /^Let people edit data/ }).check();
     await page.locator('[data-swatch="mono"]').waitFor({ state: 'attached' });
     const lookTabs = page.getByRole('tablist', { name: 'App look sections' });
@@ -1017,6 +1024,7 @@ test('Send alerts is a build setting of a shared App: off until ticked, then sen
     await page.getByRole('checkbox', { name: /^App / }).check();
     await toAppAccess(page);
     await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Internal data/ }).check();
+    await goToStep(page, 'App features');
     const features = page.getByRole('region', { name: 'App features' });
     const alerts = features.getByRole('checkbox', { name: /^Send alerts/ });
     assert.equal(await alerts.isChecked(), false, 'alerts start off');

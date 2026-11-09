@@ -71,7 +71,7 @@ test('the picker shows the KPI the built version tracks, its unit and how record
   const ui = await openUi('wizard', { me: ME, useCase: withKpis(KPIS), history: [builtWith(TRACKED)] });
   const { page } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await dataToResults(page);
     await goToStep(page, 'Measure impact');
     const box = page.getByRole('group', { name: 'Target KPI', exact: true });

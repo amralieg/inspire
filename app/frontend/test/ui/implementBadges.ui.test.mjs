@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openUi, settleChoices } from './uiSupport.mjs';
-import { APP_LOOK_TABS } from '../../src/lib/implementWizard.js';
+import { APP_LOOK_TABS, APP_PAGES_STEP, APP_STEP } from '../../src/lib/implementWizard.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const DATED = [{ column_name: 'order_id', data_type: 'STRING', ordinal_position: 1 }, { column_name: 'order_date', data_type: 'DATE', ordinal_position: 2 }];
@@ -13,19 +13,17 @@ async function auditEveryStep(page, { look = true } = {}) {
   const labels = (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\.\s*/, '').trim());
   for (const label of labels) {
     await goToStep(page, label);
-    if (label === 'App') await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
+    if (label === APP_STEP.label) await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     await settleChoices(page);
-    const tabs = label === 'App' && look ? APP_LOOK_TABS.map((t) => t.label) : [null];
+    const tabs = label === APP_PAGES_STEP.label && look ? APP_LOOK_TABS.map((t) => t.label) : [null];
     for (const tab of tabs) {
       if (tab) await page.getByRole('tab', { name: tab, exact: true }).click();
       const shown = await choicesShown(page);
       const where = tab ? `${label} / ${tab}` : label;
       assertOneBadgeOnDefault(shown, where, { perChoice: true });
       assertOneBadgeOnDefault(shown.filter((c) => c.choice === 'outputs' || c.choice.startsWith('removed-')), `${where} outputs`);
-      if (label === 'App') {
-        assertOneBadgeOnDefault(shown.filter((c) => ['app-place', 'app-target'].includes(c.choice)), `${where} placement`);
-        assertOneBadgeOnDefault(shown.filter((c) => ['app-options', 'replace-edits'].includes(c.choice)), `${where} features`);
-      }
+      if (label === APP_STEP.label) assertOneBadgeOnDefault(shown.filter((c) => ['app-place', 'app-target'].includes(c.choice)), `${where} placement`);
+      if (label === APP_PAGES_STEP.label) assertOneBadgeOnDefault(shown.filter((c) => ['app-options', 'replace-edits'].includes(c.choice)), `${where} features`);
       for (const { choice } of shown) seen.add(choice);
     }
   }
@@ -36,7 +34,7 @@ test('every choice in the wizard shows exactly one Highly Recommended badge, and
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
   const { page } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     const seen = await auditEveryStep(page);
     assert.equal(seen.has('mode'), false, 'no MVP or notebook choice (must-exclude)');
     for (const choice of ['outputs', 'first-run', 'result-table', 'kpi', 'holdout', 'freshness', 'app-place', 'app-policy',

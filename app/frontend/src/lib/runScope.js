@@ -27,6 +27,9 @@ export const FIRST_RUN_TITLE = `What should the ${FIRST_RUN_LABEL} cover?`;
 export const FIRST_RUN_KEEPS = 'Only the first run uses this test scope. Every later run, scheduled or not, covers all the records in the Data groups.';
 export const GROUPING_PLAIN = 'Data groups split the data the way the business looks at it, such as per region or per store. Inspire models each group on its own: '
   + 'a sales forecast for one region is not mixed with another, and what is unusual is found within its own group. Choose the whole data as one group to model it all together.';
+export const GROUPING_EXAMPLE = 'Some numbers only mean something inside a group. An average salary over all countries mixes very different pay levels '
+  + 'and tells you little; the average per country, or per state, is one people can act on. Inspire works the same way: it works out each Data group '
+  + 'on its own, so one group never blurs another. Pick how to split the data below.';
 export const GROUPING_COMBINE = 'Combine columns, coarse to fine';
 export const GROUPING_COMBINE_NOTE = 'Tick columns from the broadest to the most detailed; each group is one value of every ticked column.';
 export const GROUP_KIND_WORDS = { biggest: 'the biggest', typical: 'a typical one', smallest: 'the smallest' };
