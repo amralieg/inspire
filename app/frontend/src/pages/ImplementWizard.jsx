@@ -761,13 +761,14 @@ export default function ImplementWizard({
   const specKey = JSON.stringify(sent);
   const ownErrorsKey = ownErrors.join('|');
   const buildStep = BUILD_STEP_IDS.includes(stepId);
+  const appBlocked = Boolean(appUnreadable);
   const planReady = steps.filter((s) => BUILD_STEP_IDS.includes(s.id)).every((s) => !stepErrors(s.id, spec, extras, mode).length);
   useEffect(() => {
     if (!buildStep) return undefined;
     let cancelled = false;
     setChecksBusy(true);
     const timer = setTimeout(async () => {
-      const planNow = !ownErrorsKey && planReady;
+      const planNow = !ownErrorsKey && planReady && !appBlocked;
       const mergeApp = spec.outputs.app ? spec.outputs.merge.app : '';
       const checks = new URLSearchParams({
         result_table: spec.config.result_table,
@@ -797,7 +798,7 @@ export default function ImplementWizard({
       setChecksBusy(false);
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [buildStep, specKey, ownErrorsKey, planReady, q, grantRound]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [buildStep, specKey, ownErrorsKey, planReady, q, grantRound, appBlocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nameApp = (value) => {
     appNameTyped.current = true;
