@@ -271,6 +271,15 @@ def check(base, opener=None, work=None, genie=None, run=subprocess.run):
 
 
 def main(argv=None):
+    starter = load_starter()
+    with starter["redacted_output"]():
+        try:
+            return command(argv)
+        except Exception as exc:
+            raise starter["redact_failure"](exc)
+
+
+def command(argv):
     parser = argparse.ArgumentParser(prog="release.py")
     commands = parser.add_subparsers(dest="command", required=True)
     make = commands.add_parser("build")

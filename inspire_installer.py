@@ -87,6 +87,12 @@ class RedactedOutput(io.TextIOBase):
         self.target.flush()
 
 
+@contextlib.contextmanager
+def redacted_output():
+    with contextlib.redirect_stdout(RedactedOutput(sys.stdout)), contextlib.redirect_stderr(RedactedOutput(sys.stderr)):
+        yield
+
+
 def redacted_display(page_html):
     displayHTML(redact_secrets(page_html))
 
@@ -596,7 +602,7 @@ def acquire(folder, notebook, settings, opener=None, exporter=None):
 
 
 def inspire_install_main():
-    with contextlib.redirect_stdout(RedactedOutput(sys.stdout)):
+    with redacted_output():
         return install_redacted()
 
 
