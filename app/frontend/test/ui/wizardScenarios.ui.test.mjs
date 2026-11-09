@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
-import { GROUPING_INSTRUCTION, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
+import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { closeBrowser, idle, onStep, openUi, profileAt } from './uiSupport.mjs';
 
 test.after(closeBrowser);
@@ -83,9 +83,9 @@ function noLeaks(seen, name) {
   for (const s of seen) for (const leak of LEAKS) assert.doesNotMatch(s.text, leak, `${name} / ${s.step}`);
 }
 
-async function scenario(name, { profile, useCase = {}, viewport = { width: 1440, height: 900 }, extra = {}, actions = {}, delay = 0, status = 200 } = {}) {
+async function scenario(name, { profile, useCase = {}, viewport = { width: 1440, height: 900 }, extra = {}, actions = {}, delay = 0, status = 200, calls = [], init } = {}) {
   const ui = await openUi('wizard', { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION, ...useCase }, ...extra }, '',
-    { init: profile ? profileAt([], profile, { after: delay, status }) : undefined });
+    { init: init || (profile ? profileAt(calls, profile, { after: delay, status }) : undefined) });
   try {
     await ui.page.setViewportSize(viewport);
     await settle(ui.page);
@@ -219,7 +219,9 @@ test('the First run of 20 whole groups of 40 records says about 800 records and 
   const { seen, ui } = await scenario('groups-31-first-run', { profile: PROFILE, extra: counted(PROFILE) });
   try {
     const row = summaryOf(seen).split('\n').find((l) => /whole groups/.test(l)) || '';
-    assert.doesNotMatch(row, /About 1,000 records/);
+    const firstRun = seen.find((s) => s.step === 'First run').text;
+    assert.doesNotMatch(`${row}\n${firstRun}`, /about 1,000 records|~1,000 records in \d+ whole groups/i);
+    assert.match(`${row}\n${firstRun}`, /800 records/);
     assert.ok(row.length < 400, `${row.length} characters`);
   } finally {
     await ui.close();
@@ -295,6 +297,73 @@ for (const [name, typed, refusal] of [
     }
   });
 }
+
+test('the First run names the chosen Data groups in a plain note, never in the red error box', async () => {
+  const { ui } = await scenario('first-run-note', { profile: PROFILE, extra: counted(PROFILE), actions: { 'First run': async (page) => {
+    const note = page.locator('[data-grouping-chosen]');
+    assert.equal(await note.getAttribute('role'), 'note');
+    assert.equal(await note.evaluate((el) => Boolean(el.closest('[role="alert"]'))), false);
+    assert.doesNotMatch(await note.getAttribute('class'), /error/);
+  } } });
+  await ui.close();
+});
+
+test('every question in the wizard shows at most one Recommended choice', async () => {
+  const counts = [];
+  const tally = async (page) => counts.push([await current(page), await page.locator('[role="radiogroup"]').evaluateAll((groups) => groups.map((g) => g.querySelectorAll('[data-recommended]').length))]);
+  const steps = ['Data groups', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', RUN_IT];
+  const { ui } = await scenario('one-recommended', { profile: PROFILE, extra: counted(PROFILE), actions: Object.fromEntries(steps.map((s) => [s, tally])) });
+  try {
+    assert.ok(counts.length >= 5, JSON.stringify(counts));
+    for (const [step, groups] of counts) for (const n of groups) assert.ok(n <= 1, `${step}: ${JSON.stringify(groups)}`);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a build clears the draft, so the next wizard opens on the Use case with no "picks are back" note', async () => {
+  const { ui } = await scenario('draft-after-build', { profile: PROFILE, extra: counted(PROFILE), actions: { [RUN_IT]: press('Weekly') } });
+  try {
+    const { page, made } = ui;
+    await page.getByRole('button', { name: 'All Good, Build it Now' }).click();
+    await settle(page);
+    assert.equal(made.jobs.length, 1);
+    await page.reload();
+    await settle(page);
+    assert.equal(await page.locator('[data-wizard-draft]').count(), 0);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('ticking two columns whose groups multiply past 500 says so before the build', { todo: 'wiz-combine-past-500-silent, wizard lane 8908fa46' }, async () => {
+  const wide = { ...GROUPING_PROFILE, columns: [...GROUPING_PROFILE.columns, { name: 'store', type: 'string', distinct: 300, smallest: 40, largest: 900, nulls: 0, parent: null }] };
+  const calls = [];
+  const groupsOf = (by) => Array.from({ length: by.split(', ').length > 1 ? 1200 : 300 }, (_v, i) => ({ value: `g${i}`, records: 40, parts: [] }));
+  const init = async (page) => page.route('**/api/grouping/profile', async (route) => {
+    const body = JSON.parse(route.request().postData() || '{}');
+    calls.push(body);
+    const list = body.group_by ? groupsOf(body.group_by) : null;
+    const answer = list ? { ...wide, groups_for: body.group_by, group_count: list.length, group_list: list.slice(0, 500) } : wide;
+    await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(answer) });
+  });
+  const { seen, ui } = await scenario('combine-past-500', { profile: wide, calls, init, actions: { 'Data groups': async (page) => {
+    const combine = page.getByRole('group', { name: 'Combine columns, coarse to fine' });
+    for (const box of await combine.locator('input').all()) if (await box.isChecked()) await box.uncheck();
+    await combine.locator('[data-grouping-combine-column="region"] input').check();
+    await combine.locator('[data-grouping-combine-column="store"] input').check();
+  } } });
+  try {
+    const groups = seen.find((s) => s.step === 'Data groups').text;
+    if (DUMP) fs.writeFileSync(`${DUMP}/combine-past-500.groups.txt`, `${JSON.stringify(calls)}\n${groups}`);
+    const summary = seen.find((st) => st.step === 'Summary').text;
+    if (DUMP) fs.writeFileSync(`${DUMP}/combine-past-500.summary.txt`, summary);
+    assert.match(`${groups}\n${summary}`, /500/);
+  } finally {
+    await ui.close();
+  }
+});
 
 const RUN_IT = 'Run it';
 
