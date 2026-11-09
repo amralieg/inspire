@@ -359,7 +359,9 @@ test('each resource kind cleans a tag to its own documented rule, and a kind wit
   assert.equal(resourceTagKey('job', 'k'.repeat(300)).length, 127);
   assert.equal(resourceTagValue('uc', 'main.inspire, x=y'), 'main.inspire, x=y');
   assert.equal(resourceTagValue('job', 'main.inspire, x=y'), 'main.inspire_ x=y');
-  assert.equal(resourceTagValue('uc', `${'a'.repeat(254)} b`), 'a'.repeat(254));
+  assert.equal(resourceTagValue('uc', `${'a'.repeat(255)} b`), 'a'.repeat(255));
+  assert.equal(resourceTagKey('uc', 'k'.repeat(300)).length, 256);
+  assert.equal(resourceTagKey('job', '_.-_x-._'), 'x');
   assert.equal(resourceTagValue('job', '  genie agent_endpoint  '), 'genie agent_endpoint');
   assert.throws(() => resourceTagValue('warehouse', 'x'), /no tag rule for resource kind warehouse/);
 });

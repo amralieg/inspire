@@ -210,9 +210,10 @@ function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateT
 
 const INSPIRE_TAG_VALUE_MAX = 255;
 const TAG_LIST_SEP = ' ';
+const TAG_ITEM_BAD = /[^A-Za-z0-9+=.:/@_-]/g;
 const RESOURCE_TAG_RULES = {
   job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: 127, value: /^[\d \w+\-=.:/@]*$/, valueBad: /[^A-Za-z0-9 +=.:/@_-]/g, valueMax: INSPIRE_TAG_VALUE_MAX },
-  uc: { keyBad: /[^A-Za-z0-9_]/g, keyMax: 255, value: /^[\s\S]*$/, valueBad: null, valueMax: 255 },
+  uc: { keyBad: /[^A-Za-z0-9_]/g, keyMax: 256, value: /^[\s\S]*$/, valueBad: null, valueMax: 256 },
 };
 
 function resourceTagRule(kind) {
@@ -220,22 +221,26 @@ function resourceTagRule(kind) {
   return RESOURCE_TAG_RULES[kind];
 }
 
+function cleanTag(value, bad, max) {
+  return String(value ?? '').replace(bad, '_').replace(/_+/g, '_').replace(/^[_.-]+|[_.-]+$/g, '').slice(0, max);
+}
+
 function resourceTagKey(kind, key) {
   const rule = resourceTagRule(kind);
-  return String(key ?? '').replace(rule.keyBad, '_').replace(/_+/g, '_').replace(/^[_.-]+|[_.-]+$/g, '').slice(0, rule.keyMax);
+  return cleanTag(key, rule.keyBad, rule.keyMax);
 }
 
 function resourceTagValue(kind, value) {
   const rule = resourceTagRule(kind);
   const text = String(value ?? '');
   if (text.length <= rule.valueMax && text === text.trim() && rule.value.test(text)) return text;
-  const cleaned = rule.valueBad ? text.replace(rule.valueBad, '_').replace(/_+/g, '_').replace(/^[_.-]+|[_.-]+$/g, '') : text;
+  const cleaned = rule.valueBad ? cleanTag(text, rule.valueBad, rule.valueMax) : text;
   return cleaned.trim().slice(0, rule.valueMax).trim();
 }
 
 function inspireTagList(items) {
   let joined = '';
-  for (const item of new Set(items.map(inspireTagValue).filter(Boolean))) {
+  for (const item of new Set(items.map((item) => cleanTag(item, TAG_ITEM_BAD, INSPIRE_TAG_VALUE_MAX)).filter(Boolean))) {
     const next = joined ? `${joined}${TAG_LIST_SEP}${item}` : item;
     if (next.length > INSPIRE_TAG_VALUE_MAX) break;
     joined = next;
@@ -249,13 +254,7 @@ function inspireTagListItems(value, legacySep = '') {
 }
 
 function inspireTagValue(value) {
-  return String(value ?? '')
-    .replace(/[^A-Za-z0-9._-]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .replace(/^\.+|\.+$/g, '')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, INSPIRE_TAG_VALUE_MAX);
+  return cleanTag(value, /[^A-Za-z0-9._-]/g, INSPIRE_TAG_VALUE_MAX);
 }
 
 function inspireJobTags({ runType, params = {}, businessName = '', notebookFilename = '', useCaseIds = [] }) {
