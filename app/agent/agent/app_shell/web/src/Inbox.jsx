@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { getRecords } from './api.js';
 import { Icon } from './icons.jsx';
-import { Popover } from './ui.jsx';
+import { PlainNote, Popover } from './ui.jsx';
 import { shortDay } from './hub.js';
 import { visitedAt } from './prefs.js';
 import { useMyView } from './MyView.jsx';
@@ -74,7 +74,7 @@ function Inbox({ page, onOpen }) {
         <Popover anchor={anchor.current} onClose={() => setOpen(false)} label="Inbox" width={380}>
           <div className="inbox-pop" data-inbox-panel>
             <p className="faint">{since}</p>
-            {inbox.error && <p className="tile-err" role="alert">{`The inbox could not load: ${inbox.error}`}</p>}
+            {inbox.error && <PlainNote text={inbox.error} prefix="The inbox could not load: " className="tile-err" role="alert" />}
             {!inbox.groups && !inbox.error && <p className="more">Loading…</p>}
             {inbox.groups && INBOX_GROUPS.map(([id, title]) => (
               <section key={id} className="inbox-g" data-inbox-group={id} aria-label={title}>

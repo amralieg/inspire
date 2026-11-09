@@ -5,7 +5,7 @@ import { grouped } from './format.js';
 import { Icon } from './icons.jsx';
 import { Tiles } from './Kpis.jsx';
 import { BarsCard } from './ChartCard.jsx';
-import { Failure } from './ui.jsx';
+import { Failure, PlainNote } from './ui.jsx';
 import Fx from './Fx.jsx';
 import DataTable from './DataTable.jsx';
 import { RowGenie } from './DataTable.jsx';
@@ -37,7 +37,7 @@ function Period({ choice, from, to, problem, onChoice, onFrom, onTo }) {
           <label className="in"><span>Last day</span><input type="date" name="my_work_to" value={to} onChange={(e) => onTo(e.target.value)} /></label>
         </span>
       )}
-      {problem && choice === CUSTOM && (from || to) && <p className="err" role="alert">{problem}</p>}
+      {problem && choice === CUSTOM && (from || to) && <PlainNote text={problem} className="err" role="alert" />}
     </div>
   );
 }
@@ -296,7 +296,7 @@ export function PromisedDelivered({ app, page, summary }) {
       <header className="card-h">
         <div>
           <h2>Promised and delivered</h2>
-          <p className={entry?.error ? 'tile-err tile-err--flat' : ''}>{note}</p>
+          {entry?.error ? <PlainNote text={note} className="tile-err tile-err--flat" /> : <p>{note}</p>}
           {run?.scope_text && <p className="kpi-scope" data-scope={page.id}>{run.scope_text}</p>}
         </div>
         <ReviewLink page={page} app={app} />
@@ -364,7 +364,7 @@ export default function Performance({ app, page, summary, onRecord, onExplain, g
       <Period choice={choice} from={from} to={to} problem={problem} onChoice={setChoice} onFrom={setFrom} onTo={setTo} />
       {!signedIn && <div className="nomatch">{SIGN_IN}</div>}
       <Failure failure={failure} className="tile-err">{failure?.text}</Failure>
-      {problemText && <p className="tile-err" role="alert"><Icon name="info" size={14} />{`${page.title} could not load: ${problemText}`}</p>}
+      {problemText && <PlainNote text={problemText} prefix={`${page.title} could not load: `} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {signedIn && !data && !failure && !problem && <p className="more">Loading your work…</p>}
       {entry && !entry.tracked && <p className="more" data-quiet={page.id}>{entry.note}</p>}
       {facts && (

@@ -107,3 +107,23 @@ test('the period chips ask again for the same use case, and a person with no his
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+const DENIED = '[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table `main`.`sales`.`loss`. Ask the owner to run: GRANT SELECT ON TABLE main.sales.loss TO `sam@example.com` SQLSTATE: 42501';
+
+test('a use case or its impact that cannot load on Performance says so in a sentence, with the error code and the grant under Details', async () => {
+  const { routes } = tracked({
+    my_work: ({ json }) => json(200, { period: WEEK, pages: {}, activity: [], total: 0, errors: { n01_u05: DENIED } }),
+    impact: ({ json }) => json(403, { error: DENIED }),
+  });
+  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/performance', routes, ready: '[data-performance] .tile-err' });
+  const view = page.locator('[data-performance]');
+  await view.locator('[data-promised-delivered] .tile-err').waitFor();
+  const said = await view.locator('.tile-err').evaluateAll((els) => els.map((e) => e.innerText));
+  assert.ok(said.some((t) => /could not load: Insufficient privileges/.test(t)), said.join(' | '));
+  assert.ok(said.some((t) => /^The impact could not load: Insufficient privileges/.test(t)), said.join(' | '));
+  for (const text of said) for (const raw of ['INSUFFICIENT_PERMISSIONS', 'GRANT SELECT', 'SQLSTATE']) assert.ok(!text.includes(raw), `${raw} stays out of the sentence: ${text}`);
+  assert.ok(await view.locator('[data-technical-details]').count() >= 2, 'each failure keeps its codes under Details');
+  await view.locator('[data-technical-details] summary').first().click();
+  assert.match(await view.locator('[data-technical-details] pre').first().innerText(), /GRANT SELECT ON TABLE main\.sales\.loss/);
+  await context.close();
+});
