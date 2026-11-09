@@ -87,6 +87,12 @@ export const decidePlan = async (body) => {
   return got;
 };
 export const evaluateScenario = (body) => json('POST', 'scenario/evaluate', body);
+export const getPlans = (page) => json('GET', `plans?page=${encodeURIComponent(page)}`);
+export const movePlan = (body) => json('POST', 'plans/version', body);
+export const getPlanResults = (page) => json('GET', `plans/performance?page=${encodeURIComponent(page)}`);
+export const getForecastReview = (page) => json('GET', `forecast/review?page=${encodeURIComponent(page)}`);
+export const overrideForecast = (body) => json('POST', 'forecast/override', body);
+export const getForecastAccuracy = (page) => json('GET', `forecast/accuracy?page=${encodeURIComponent(page)}`);
 export const getSavedScenarios = (page) => json('GET', `scenario/saved?page=${encodeURIComponent(page)}`);
 export const saveScenario = (body) => json('POST', 'scenario/save', body);
 export const shareScenario = (body) => json('POST', 'scenario/share', body);
