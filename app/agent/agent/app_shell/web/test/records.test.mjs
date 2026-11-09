@@ -30,8 +30,11 @@ const count = (text, name) => (text.match(new RegExp(`\\b${name}\\b`, 'g')) || [
 const stem = (file) => file.replace(/\.jsx?$/, '');
 
 function localNames(text, file, name) {
+  const lazyNames = [...text.matchAll(/const\s+([\w$]+)\s*=\s*lazy\(\(\)\s*=>\s*import\('\.\/([^']+)'\)\.then\(\((\w+)\)\s*=>\s*\(\{\s*default:\s*\3\.([\w$]+)\s*\}\)\)\)/g)]
+    .filter((m) => stem(m[2]) === stem(file) && m[4] === name).map((m) => m[1]);
   return [...text.matchAll(/import\s+(?:[\w$]+\s*,\s*)?\{([^}]*)\}\s*from\s*'\.\/([^']+)'/g)].filter((m) => stem(m[2]) === stem(file))
-    .flatMap((m) => m[1].split(',').map((part) => part.trim().split(/\s+as\s+/)).filter(([imported]) => imported === name).map((pair) => pair[pair.length - 1]));
+    .flatMap((m) => m[1].split(',').map((part) => part.trim().split(/\s+as\s+/)).filter(([imported]) => imported === name).map((pair) => pair[pair.length - 1]))
+    .concat(lazyNames);
 }
 
 function unusedExports(files, callers = {}) {
@@ -58,6 +61,11 @@ test('every helper the App exports has a caller in the App, and the check catche
     'a file that imports the helper, even under another name, is its caller');
   assert.deepEqual(unusedExports({ ...twin, 'c.js': "import { pick } from './a.js';\nexport const one = 1;\nconst again = one;\n" }), ['a.js: pick'],
     'an import that is never used is not a caller');
+  const lazily = (body) => "import { lazy } from 'react';\nconst Picked = lazy(() => import('./a.js').then((m) => ({ default: m.pick })));\n" + body;
+  assert.deepEqual(unusedExports({ ...twin, 'c.js': lazily('export const one = () => Picked;\nconst again = one;\n') }), [],
+    'a lazy import of the named helper that is rendered is its caller');
+  assert.deepEqual(unusedExports({ ...twin, 'c.js': lazily('export const one = 1;\nconst again = one;\n') }), ['a.js: pick'],
+    'a lazy import that is never rendered is not a caller');
 });
 
 const F = (name, kind, extra = {}) => ({ name, kind, type: 'STRING', role: 'business', editable: true, ...extra });
