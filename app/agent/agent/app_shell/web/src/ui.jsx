@@ -66,17 +66,22 @@ export function Popover({ anchor, onClose, children, label, role = 'dialog', wid
     const place = () => {
       const a = anchor.getBoundingClientRect();
       const w = ref.current.offsetWidth;
-      const h = ref.current.offsetHeight;
-      const below = a.bottom + 6 + h <= window.innerHeight - 8 || a.top - 6 - h < 8;
+      const h = ref.current.scrollHeight;
+      const roomBelow = window.innerHeight - 8 - (a.bottom + 6);
+      const roomAbove = a.top - 6 - 8;
+      const below = h <= roomBelow || roomBelow >= roomAbove;
+      const room = Math.max(below ? roomBelow : roomAbove, 120);
       setAt({
-        top: below ? a.bottom + 6 : a.top - 6 - h,
+        top: below ? a.bottom + 6 : a.top - 6 - Math.min(h, room),
         left: Math.max(8, Math.min(window.innerWidth - w - 8, a.left)),
+        room,
       });
     };
+    const moved = (e) => { if (!ref.current?.contains(e.target)) place(); };
     place();
     window.addEventListener('resize', place);
-    window.addEventListener('scroll', place, true);
-    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', place, true); };
+    window.addEventListener('scroll', moved, true);
+    return () => { window.removeEventListener('resize', place); window.removeEventListener('scroll', moved, true); };
   }, [anchor]);
   useEffect(() => {
     const down = (e) => { if (ref.current && !ref.current.contains(e.target) && !anchor?.contains(e.target)) onClose(); };
@@ -91,7 +96,7 @@ export function Popover({ anchor, onClose, children, label, role = 'dialog', wid
     return () => { document.removeEventListener('mousedown', down); document.removeEventListener('keydown', key); };
   }, [anchor, onClose]);
   return createPortal(
-    <div ref={ref} className="pop" role={role} aria-label={label} style={{ top: at.top, left: at.left, width }}>{children}</div>,
+    <div ref={ref} className="pop" role={role} aria-label={label} style={{ top: at.top, left: at.left, width, maxHeight: at.room }}>{children}</div>,
     anchor?.closest('dialog[open]') || document.body,
   );
 }
