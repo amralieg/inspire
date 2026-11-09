@@ -5159,5 +5159,1629 @@
     ]
    }
   }
+ },
+ "tour": {
+  "title_chars": 60,
+  "text_chars": 220,
+  "least": 5,
+  "most": 8,
+  "live": [
+   "open_count",
+   "top_record",
+   "kpi"
+  ],
+  "fill": [
+   "use_case",
+   "kpis",
+   "record"
+  ],
+  "pad": [
+   "decision",
+   "kpis",
+   "records",
+   "top_record",
+   "actions",
+   "filters",
+   "genie",
+   "alerts",
+   "view",
+   "bulk",
+   "performance"
+  ],
+  "anchors": {
+   "decision": "the page header with the use case name and the decision the App supports",
+   "kpis": "the key number tiles at the top of the page",
+   "view": "the main chart or view that shows the pattern behind the numbers",
+   "filters": "the filter bar that narrows every number, chart and list on the page",
+   "records": "the list of records that each need a decision, most important first",
+   "top_record": "the first record on the list, the one to start with",
+   "actions": "the button that starts working through the list, where each record can be marked done, dismissed with a reason, given to someone or snoozed",
+   "bulk": "the button that applies one action to many records at once",
+   "genie": "the Ask Genie button, to ask questions about the data in plain words",
+   "alerts": "the alerts entry, to get an email when a new run finds something",
+   "performance": "the performance entry, which shows what was promised and what the actions delivered"
+  },
+  "rail": [
+   "genie",
+   "alerts",
+   "performance"
+  ],
+  "records": [
+   "records",
+   "top_record",
+   "actions",
+   "bulk"
+  ],
+  "layouts": {
+   "decision_queue": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "top_record",
+    "actions",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "monitor_triage": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "top_record",
+    "actions",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "scenario_lab": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "top_record",
+    "actions",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "performance_explainer": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "top_record",
+    "actions",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "forecast_cockpit": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "top_record",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "planner": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "top_record",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "segment_explorer": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "recommendation_desk": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "lift_readout": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "process_flow": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "location_view": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "network_explorer": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "records",
+    "bulk",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "agent_chat": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "genie",
+    "alerts",
+    "performance"
+   ],
+   "dashboard": [
+    "decision",
+    "kpis",
+    "view",
+    "filters",
+    "genie",
+    "alerts",
+    "performance"
+   ]
+  },
+  "rtl": [
+   "Arabic"
+  ],
+  "languages": {
+   "English": {
+    "code": "en",
+    "sep": ", ",
+    "ui": {
+     "skip": "Skip",
+     "back": "Back",
+     "next": "Next",
+     "done": "Done",
+     "label": "Guided tour"
+    },
+    "plain": {
+     "use_case": "this use case",
+     "kpis": "the numbers at the top",
+     "record": "record"
+    },
+    "steps": {
+     "decision": {
+      "title": "What this App is for",
+      "text": "This App is about: {use_case}. Everything on this page helps you decide what to do next and where to start."
+     },
+     "kpis": {
+      "title": "The key numbers",
+      "text": "These numbers show where things stand now: {kpis}. Each one compares with the last run when there is one."
+     },
+     "view": {
+      "title": "The main view",
+      "text": "This view shows the pattern behind the numbers. Click a part of it to see the detail."
+     },
+     "filters": {
+      "title": "Narrow it down",
+      "text": "Use the filters to see only your part. Every number, chart and list on the page follows them."
+     },
+     "records": {
+      "title": "Your list",
+      "text": "Each {record} on this list needs a decision, the most important first. {open_count} are open now."
+     },
+     "top_record": {
+      "title": "Start at the top",
+      "text": "Start with the first {record} on the list, it matters most. Open it to see why and what to do. Right now that is {top_record}."
+     },
+     "actions": {
+      "title": "Act on it",
+      "text": "Open a {record} to mark it done, dismiss it with a reason, give it to someone or snooze it. Each choice is kept in its history."
+     },
+     "bulk": {
+      "title": "Act on many at once",
+      "text": "Select several rows, or every row that matches your filters, and apply one action to all of them."
+     },
+     "genie": {
+      "title": "Ask Genie",
+      "text": "Ask Genie any question about this data in your own words. It answers from the use case's tables and shows the query it ran."
+     },
+     "alerts": {
+      "title": "Get alerted",
+      "text": "Set up an email alert to hear when a new run finds something, without opening the App."
+     },
+     "performance": {
+      "title": "See what it delivered",
+      "text": "Performance shows what this use case promised and what the actions taken on it delivered so far."
+     }
+    }
+   },
+   "Arabic": {
+    "code": "ar",
+    "sep": "، ",
+    "ui": {
+     "skip": "تخطي",
+     "back": "السابق",
+     "next": "التالي",
+     "done": "تم",
+     "label": "جولة إرشادية"
+    },
+    "plain": {
+     "use_case": "حالة الاستخدام هذه",
+     "kpis": "الأرقام في الأعلى"
+    },
+    "steps": {
+     "decision": {
+      "title": "الغرض من هذا التطبيق",
+      "text": "هذا التطبيق يخص: {use_case}. كل ما في هذه الصفحة يساعدك على تقرير الخطوة التالية ومن أين تبدأ."
+     },
+     "kpis": {
+      "title": "الأرقام الرئيسية",
+      "text": "توضح هذه الأرقام الوضع الحالي: {kpis}. يُقارن كل رقم بالتشغيل السابق عند وجوده."
+     },
+     "view": {
+      "title": "العرض الرئيسي",
+      "text": "يعرض هذا القسم النمط وراء الأرقام. انقر على أي جزء منه لرؤية التفاصيل."
+     },
+     "filters": {
+      "title": "ضيّق النطاق",
+      "text": "استخدم عوامل التصفية لرؤية الجزء الخاص بك فقط. كل رقم ومخطط وقائمة في الصفحة يتبعها."
+     },
+     "records": {
+      "title": "قائمتك",
+      "text": "كل عنصر في هذه القائمة يحتاج إلى قرار، والأهم أولاً. {open_count} مفتوحة الآن."
+     },
+     "top_record": {
+      "title": "ابدأ من الأعلى",
+      "text": "ابدأ بأول عنصر في القائمة، فهو الأهم. افتحه لترى السبب وما يجب فعله. حالياً هو {top_record}."
+     },
+     "actions": {
+      "title": "اتخذ إجراءً",
+      "text": "افتح عنصراً لتعليمه كمنجز، أو رفضه مع ذكر السبب، أو إسناده لشخص آخر، أو تأجيله. يُحفظ كل اختيار في سجله."
+     },
+     "bulk": {
+      "title": "إجراء على عدة عناصر",
+      "text": "حدد عدة صفوف، أو كل الصفوف المطابقة لعوامل التصفية، وطبّق إجراءً واحداً عليها جميعاً."
+     },
+     "genie": {
+      "title": "اسأل Genie",
+      "text": "اسأل Genie أي سؤال عن هذه البيانات بكلماتك. يجيب من جداول حالة الاستخدام ويعرض الاستعلام الذي نفذه."
+     },
+     "alerts": {
+      "title": "احصل على تنبيه",
+      "text": "أنشئ تنبيهاً بالبريد الإلكتروني لتعرف عندما يجد تشغيل جديد شيئاً، دون فتح التطبيق."
+     },
+     "performance": {
+      "title": "شاهد النتائج",
+      "text": "يعرض قسم الأداء ما وعدت به حالة الاستخدام هذه وما حققته الإجراءات المتخذة حتى الآن."
+     }
+    }
+   },
+   "Spanish": {
+    "code": "es",
+    "sep": ", ",
+    "ui": {
+     "skip": "Omitir",
+     "back": "Atrás",
+     "next": "Siguiente",
+     "done": "Listo",
+     "label": "Visita guiada"
+    },
+    "plain": {
+     "use_case": "este caso de uso",
+     "kpis": "las cifras de arriba"
+    },
+    "steps": {
+     "decision": {
+      "title": "Para qué sirve esta App",
+      "text": "Esta App trata de: {use_case}. Todo en esta página le ayuda a decidir qué hacer a continuación y por dónde empezar."
+     },
+     "kpis": {
+      "title": "Las cifras clave",
+      "text": "Estas cifras muestran la situación actual: {kpis}. Cada una se compara con la ejecución anterior cuando existe."
+     },
+     "view": {
+      "title": "La vista principal",
+      "text": "Esta vista muestra el patrón detrás de las cifras. Haga clic en una parte para ver el detalle."
+     },
+     "filters": {
+      "title": "Acote la vista",
+      "text": "Use los filtros para ver solo su parte. Cada cifra, gráfico y lista de la página los sigue."
+     },
+     "records": {
+      "title": "Su lista",
+      "text": "Cada elemento de esta lista necesita una decisión, primero lo más importante. Ahora hay {open_count} abiertos."
+     },
+     "top_record": {
+      "title": "Empiece por arriba",
+      "text": "Empiece por el primer elemento de la lista, es el que más importa. Ábralo para ver por qué y qué hacer. Ahora mismo es {top_record}."
+     },
+     "actions": {
+      "title": "Actúe",
+      "text": "Abra un elemento para marcarlo como hecho, descartarlo con un motivo, asignarlo a alguien o posponerlo. Cada decisión queda en su historial."
+     },
+     "bulk": {
+      "title": "Actúe sobre varios a la vez",
+      "text": "Seleccione varias filas, o todas las que cumplen sus filtros, y aplique una misma acción a todas."
+     },
+     "genie": {
+      "title": "Pregunte a Genie",
+      "text": "Pregunte a Genie lo que quiera sobre estos datos con sus palabras. Responde con las tablas del caso de uso y muestra la consulta que ejecutó."
+     },
+     "alerts": {
+      "title": "Reciba alertas",
+      "text": "Cree una alerta por correo para saber cuándo una nueva ejecución encuentra algo, sin abrir la App."
+     },
+     "performance": {
+      "title": "Vea lo conseguido",
+      "text": "Rendimiento muestra lo que prometía este caso de uso y lo que han logrado hasta ahora las acciones tomadas."
+     }
+    }
+   },
+   "French": {
+    "code": "fr",
+    "sep": ", ",
+    "ui": {
+     "skip": "Passer",
+     "back": "Retour",
+     "next": "Suivant",
+     "done": "Terminé",
+     "label": "Visite guidée"
+    },
+    "plain": {
+     "use_case": "ce cas d'usage",
+     "kpis": "les chiffres en haut"
+    },
+    "steps": {
+     "decision": {
+      "title": "À quoi sert cette App",
+      "text": "Cette App porte sur : {use_case}. Tout sur cette page vous aide à décider de la suite et par où commencer."
+     },
+     "kpis": {
+      "title": "Les chiffres clés",
+      "text": "Ces chiffres montrent la situation actuelle : {kpis}. Chacun est comparé à l'exécution précédente quand elle existe."
+     },
+     "view": {
+      "title": "La vue principale",
+      "text": "Cette vue montre la tendance derrière les chiffres. Cliquez sur une partie pour voir le détail."
+     },
+     "filters": {
+      "title": "Affinez la vue",
+      "text": "Utilisez les filtres pour ne voir que votre périmètre. Chaque chiffre, graphique et liste de la page les suit."
+     },
+     "records": {
+      "title": "Votre liste",
+      "text": "Chaque élément de cette liste attend une décision, le plus important en premier. {open_count} sont ouverts maintenant."
+     },
+     "top_record": {
+      "title": "Commencez en haut",
+      "text": "Commencez par le premier élément de la liste, c'est le plus important. Ouvrez-le pour voir pourquoi et quoi faire. En ce moment, c'est {top_record}."
+     },
+     "actions": {
+      "title": "Agissez",
+      "text": "Ouvrez un élément pour le marquer comme fait, l'écarter avec un motif, le confier à quelqu'un ou le reporter. Chaque choix est gardé dans son historique."
+     },
+     "bulk": {
+      "title": "Agissez sur plusieurs à la fois",
+      "text": "Sélectionnez plusieurs lignes, ou toutes celles qui correspondent à vos filtres, et appliquez-leur une même action."
+     },
+     "genie": {
+      "title": "Demandez à Genie",
+      "text": "Posez à Genie une question sur ces données avec vos mots. Il répond à partir des tables du cas d'usage et montre la requête exécutée."
+     },
+     "alerts": {
+      "title": "Soyez alerté",
+      "text": "Créez une alerte e-mail pour savoir quand une nouvelle exécution trouve quelque chose, sans ouvrir l'App."
+     },
+     "performance": {
+      "title": "Voyez les résultats",
+      "text": "Performance montre ce que ce cas d'usage promettait et ce que les actions menées ont apporté jusqu'ici."
+     }
+    }
+   },
+   "German": {
+    "code": "de",
+    "sep": ", ",
+    "ui": {
+     "skip": "Überspringen",
+     "back": "Zurück",
+     "next": "Weiter",
+     "done": "Fertig",
+     "label": "Geführte Tour"
+    },
+    "plain": {
+     "use_case": "diesen Anwendungsfall",
+     "kpis": "die Zahlen oben"
+    },
+    "steps": {
+     "decision": {
+      "title": "Wofür diese App da ist",
+      "text": "Diese App behandelt: {use_case}. Alles auf dieser Seite hilft Ihnen zu entscheiden, was als Nächstes zu tun ist und wo Sie anfangen."
+     },
+     "kpis": {
+      "title": "Die wichtigsten Zahlen",
+      "text": "Diese Zahlen zeigen den aktuellen Stand: {kpis}. Jede wird mit dem letzten Lauf verglichen, wenn es einen gibt."
+     },
+     "view": {
+      "title": "Die Hauptansicht",
+      "text": "Diese Ansicht zeigt das Muster hinter den Zahlen. Klicken Sie auf einen Teil, um die Details zu sehen."
+     },
+     "filters": {
+      "title": "Eingrenzen",
+      "text": "Mit den Filtern sehen Sie nur Ihren Bereich. Jede Zahl, jedes Diagramm und jede Liste der Seite folgt ihnen."
+     },
+     "records": {
+      "title": "Ihre Liste",
+      "text": "Jeder Eintrag in dieser Liste braucht eine Entscheidung, das Wichtigste zuerst. Gerade sind {open_count} offen."
+     },
+     "top_record": {
+      "title": "Oben anfangen",
+      "text": "Beginnen Sie mit dem ersten Eintrag der Liste, er ist am wichtigsten. Öffnen Sie ihn, um zu sehen, warum und was zu tun ist. Gerade ist das {top_record}."
+     },
+     "actions": {
+      "title": "Handeln",
+      "text": "Öffnen Sie einen Eintrag, um ihn als erledigt zu markieren, mit Grund abzulehnen, jemandem zu geben oder zurückzustellen. Jede Wahl bleibt im Verlauf."
+     },
+     "bulk": {
+      "title": "Mehrere auf einmal",
+      "text": "Wählen Sie mehrere Zeilen oder alle Zeilen, die zu Ihren Filtern passen, und wenden Sie eine Aktion auf alle an."
+     },
+     "genie": {
+      "title": "Genie fragen",
+      "text": "Fragen Sie Genie in eigenen Worten nach diesen Daten. Es antwortet aus den Tabellen des Anwendungsfalls und zeigt die ausgeführte Abfrage."
+     },
+     "alerts": {
+      "title": "Benachrichtigt werden",
+      "text": "Richten Sie eine E-Mail-Benachrichtigung ein, um zu erfahren, wenn ein neuer Lauf etwas findet, ohne die App zu öffnen."
+     },
+     "performance": {
+      "title": "Ergebnisse sehen",
+      "text": "Leistung zeigt, was dieser Anwendungsfall versprochen hat und was die ergriffenen Maßnahmen bisher erreicht haben."
+     }
+    }
+   },
+   "Portuguese": {
+    "code": "pt",
+    "sep": ", ",
+    "ui": {
+     "skip": "Saltar",
+     "back": "Voltar",
+     "next": "Seguinte",
+     "done": "Concluído",
+     "label": "Visita guiada"
+    },
+    "plain": {
+     "use_case": "este caso de uso",
+     "kpis": "os números no topo"
+    },
+    "steps": {
+     "decision": {
+      "title": "Para que serve esta App",
+      "text": "Esta App trata de: {use_case}. Tudo nesta página ajuda a decidir o que fazer a seguir e por onde começar."
+     },
+     "kpis": {
+      "title": "Os números principais",
+      "text": "Estes números mostram a situação atual: {kpis}. Cada um é comparado com a execução anterior, quando existe."
+     },
+     "view": {
+      "title": "A vista principal",
+      "text": "Esta vista mostra o padrão por trás dos números. Clique numa parte para ver o detalhe."
+     },
+     "filters": {
+      "title": "Restrinja a vista",
+      "text": "Use os filtros para ver só a sua parte. Cada número, gráfico e lista da página segue-os."
+     },
+     "records": {
+      "title": "A sua lista",
+      "text": "Cada item desta lista precisa de uma decisão, o mais importante primeiro. Há {open_count} em aberto agora."
+     },
+     "top_record": {
+      "title": "Comece pelo topo",
+      "text": "Comece pelo primeiro item da lista, é o que mais importa. Abra-o para ver porquê e o que fazer. Neste momento é {top_record}."
+     },
+     "actions": {
+      "title": "Aja",
+      "text": "Abra um item para o marcar como feito, recusá-lo com um motivo, atribuí-lo a alguém ou adiá-lo. Cada escolha fica no seu histórico."
+     },
+     "bulk": {
+      "title": "Aja sobre vários de uma vez",
+      "text": "Selecione várias linhas, ou todas as que correspondem aos seus filtros, e aplique a mesma ação a todas."
+     },
+     "genie": {
+      "title": "Pergunte ao Genie",
+      "text": "Faça ao Genie qualquer pergunta sobre estes dados com as suas palavras. Responde com as tabelas do caso de uso e mostra a consulta que executou."
+     },
+     "alerts": {
+      "title": "Receba alertas",
+      "text": "Crie um alerta por e-mail para saber quando uma nova execução encontra algo, sem abrir a App."
+     },
+     "performance": {
+      "title": "Veja os resultados",
+      "text": "Desempenho mostra o que este caso de uso prometia e o que as ações tomadas já alcançaram."
+     }
+    }
+   },
+   "Italian": {
+    "code": "it",
+    "sep": ", ",
+    "ui": {
+     "skip": "Salta",
+     "back": "Indietro",
+     "next": "Avanti",
+     "done": "Fine",
+     "label": "Tour guidato"
+    },
+    "plain": {
+     "use_case": "questo caso d'uso",
+     "kpis": "i numeri in alto"
+    },
+    "steps": {
+     "decision": {
+      "title": "A cosa serve questa App",
+      "text": "Questa App riguarda: {use_case}. Tutto in questa pagina ti aiuta a decidere cosa fare dopo e da dove iniziare."
+     },
+     "kpis": {
+      "title": "I numeri chiave",
+      "text": "Questi numeri mostrano la situazione attuale: {kpis}. Ognuno è confrontato con l'esecuzione precedente, se esiste."
+     },
+     "view": {
+      "title": "La vista principale",
+      "text": "Questa vista mostra l'andamento dietro i numeri. Fai clic su una parte per vedere il dettaglio."
+     },
+     "filters": {
+      "title": "Restringi la vista",
+      "text": "Usa i filtri per vedere solo la tua parte. Ogni numero, grafico ed elenco della pagina li segue."
+     },
+     "records": {
+      "title": "Il tuo elenco",
+      "text": "Ogni elemento di questo elenco richiede una decisione, prima il più importante. Ora ce ne sono {open_count} aperti."
+     },
+     "top_record": {
+      "title": "Inizia dall'alto",
+      "text": "Inizia dal primo elemento dell'elenco, è il più importante. Aprilo per vedere perché e cosa fare. In questo momento è {top_record}."
+     },
+     "actions": {
+      "title": "Agisci",
+      "text": "Apri un elemento per segnarlo come fatto, scartarlo con un motivo, assegnarlo a qualcuno o rimandarlo. Ogni scelta resta nella sua cronologia."
+     },
+     "bulk": {
+      "title": "Agisci su più elementi",
+      "text": "Seleziona più righe, o tutte quelle che corrispondono ai filtri, e applica a tutte la stessa azione."
+     },
+     "genie": {
+      "title": "Chiedi a Genie",
+      "text": "Fai a Genie qualsiasi domanda su questi dati con parole tue. Risponde dalle tabelle del caso d'uso e mostra la query eseguita."
+     },
+     "alerts": {
+      "title": "Ricevi avvisi",
+      "text": "Crea un avviso email per sapere quando una nuova esecuzione trova qualcosa, senza aprire l'App."
+     },
+     "performance": {
+      "title": "Guarda i risultati",
+      "text": "Prestazioni mostra cosa prometteva questo caso d'uso e cosa hanno ottenuto finora le azioni intraprese."
+     }
+    }
+   },
+   "Chinese (Mandarin)": {
+    "code": "zh",
+    "sep": "、",
+    "ui": {
+     "skip": "跳过",
+     "back": "上一步",
+     "next": "下一步",
+     "done": "完成",
+     "label": "导览"
+    },
+    "plain": {
+     "use_case": "这个用例",
+     "kpis": "顶部的数字"
+    },
+    "steps": {
+     "decision": {
+      "title": "这个应用的用途",
+      "text": "这个应用关注：{use_case}。本页的所有内容都帮助你决定下一步做什么、从哪里开始。"
+     },
+     "kpis": {
+      "title": "关键数字",
+      "text": "这些数字显示当前状况：{kpis}。如果有上一次运行，每个数字都会与其比较。"
+     },
+     "view": {
+      "title": "主视图",
+      "text": "这个视图展示数字背后的规律。点击其中任意部分即可查看详情。"
+     },
+     "filters": {
+      "title": "缩小范围",
+      "text": "使用筛选器只查看你负责的部分。页面上的每个数字、图表和列表都会随之变化。"
+     },
+     "records": {
+      "title": "你的列表",
+      "text": "列表中的每一项都需要做出决定，最重要的排在最前。当前有 {open_count} 项待处理。"
+     },
+     "top_record": {
+      "title": "从最上面开始",
+      "text": "从列表的第一项开始，它最重要。打开它查看原因以及该怎么做。当前这一项是 {top_record}。"
+     },
+     "actions": {
+      "title": "采取行动",
+      "text": "打开一项，可将其标记为完成、注明原因后驳回、交给他人或暂缓处理。每个选择都会保存在它的历史记录中。"
+     },
+     "bulk": {
+      "title": "批量处理",
+      "text": "选择多行，或选择所有符合筛选条件的行，然后对它们统一执行一个操作。"
+     },
+     "genie": {
+      "title": "询问 Genie",
+      "text": "用你自己的话向 Genie 提出关于这些数据的任何问题。它根据该用例的表格作答，并展示所运行的查询。"
+     },
+     "alerts": {
+      "title": "接收提醒",
+      "text": "设置电子邮件提醒，无需打开应用，即可在新一次运行发现情况时收到通知。"
+     },
+     "performance": {
+      "title": "查看成效",
+      "text": "绩效部分展示该用例的预期成效，以及目前已采取的行动实际带来的成果。"
+     }
+    }
+   },
+   "Japanese": {
+    "code": "ja",
+    "sep": "、",
+    "ui": {
+     "skip": "スキップ",
+     "back": "戻る",
+     "next": "次へ",
+     "done": "完了",
+     "label": "ガイドツアー"
+    },
+    "plain": {
+     "use_case": "このユースケース",
+     "kpis": "上部の数値"
+    },
+    "steps": {
+     "decision": {
+      "title": "このアプリの目的",
+      "text": "このアプリのテーマ：{use_case}。このページのすべてが、次に何をするか、どこから始めるかの判断を助けます。"
+     },
+     "kpis": {
+      "title": "主要な数値",
+      "text": "これらの数値は現在の状況を示します：{kpis}。前回の実行がある場合は、それと比較されます。"
+     },
+     "view": {
+      "title": "メインビュー",
+      "text": "このビューは数値の背後にあるパターンを示します。任意の部分をクリックすると詳細が表示されます。"
+     },
+     "filters": {
+      "title": "絞り込む",
+      "text": "フィルターを使うと、担当する範囲だけを表示できます。ページ上のすべての数値、グラフ、一覧がそれに従います。"
+     },
+     "records": {
+      "title": "一覧",
+      "text": "この一覧の各項目には判断が必要で、重要なものから並んでいます。現在 {open_count} 件が未対応です。"
+     },
+     "top_record": {
+      "title": "一番上から始める",
+      "text": "一覧の最初の項目から始めてください。最も重要な項目です。開くと理由と対応方法がわかります。現在は {top_record} です。"
+     },
+     "actions": {
+      "title": "対応する",
+      "text": "項目を開くと、完了にする、理由を付けて却下する、担当者に渡す、保留にすることができます。各選択は履歴に残ります。"
+     },
+     "bulk": {
+      "title": "まとめて対応する",
+      "text": "複数の行、またはフィルターに一致するすべての行を選び、同じ操作をまとめて適用します。"
+     },
+     "genie": {
+      "title": "Genie に質問する",
+      "text": "このデータについて、自分の言葉で Genie に質問できます。ユースケースのテーブルから回答し、実行したクエリも表示します。"
+     },
+     "alerts": {
+      "title": "アラートを受け取る",
+      "text": "メールアラートを設定すると、アプリを開かなくても、新しい実行で何か見つかったときに通知を受け取れます。"
+     },
+     "performance": {
+      "title": "成果を見る",
+      "text": "パフォーマンスには、このユースケースが約束したことと、これまでの対応で実際に得られた成果が表示されます。"
+     }
+    }
+   },
+   "Korean": {
+    "code": "ko",
+    "sep": ", ",
+    "ui": {
+     "skip": "건너뛰기",
+     "back": "이전",
+     "next": "다음",
+     "done": "완료",
+     "label": "둘러보기"
+    },
+    "plain": {
+     "use_case": "이 사용 사례",
+     "kpis": "위쪽의 수치"
+    },
+    "steps": {
+     "decision": {
+      "title": "이 앱의 목적",
+      "text": "이 앱의 주제: {use_case}. 이 페이지의 모든 내용은 다음에 무엇을 할지, 어디서 시작할지 결정하도록 돕습니다."
+     },
+     "kpis": {
+      "title": "핵심 수치",
+      "text": "이 수치들은 현재 상황을 보여 줍니다: {kpis}. 이전 실행이 있으면 각 수치를 그것과 비교합니다."
+     },
+     "view": {
+      "title": "기본 보기",
+      "text": "이 보기는 수치 뒤의 패턴을 보여 줍니다. 원하는 부분을 클릭하면 세부 정보를 볼 수 있습니다."
+     },
+     "filters": {
+      "title": "범위 좁히기",
+      "text": "필터를 사용하면 담당하는 부분만 볼 수 있습니다. 페이지의 모든 수치, 차트, 목록이 필터를 따릅니다."
+     },
+     "records": {
+      "title": "목록",
+      "text": "이 목록의 각 항목은 결정이 필요하며, 가장 중요한 항목이 먼저 나옵니다. 현재 {open_count}개가 열려 있습니다."
+     },
+     "top_record": {
+      "title": "맨 위부터 시작",
+      "text": "목록의 첫 번째 항목부터 시작하세요. 가장 중요한 항목입니다. 열어서 이유와 할 일을 확인하세요. 지금은 {top_record}입니다."
+     },
+     "actions": {
+      "title": "조치하기",
+      "text": "항목을 열어 완료로 표시하거나, 이유와 함께 기각하거나, 다른 사람에게 넘기거나, 보류할 수 있습니다. 모든 선택은 기록에 남습니다."
+     },
+     "bulk": {
+      "title": "한 번에 여러 개 처리",
+      "text": "여러 행 또는 필터와 일치하는 모든 행을 선택하고 같은 작업을 한 번에 적용하세요."
+     },
+     "genie": {
+      "title": "Genie에게 묻기",
+      "text": "이 데이터에 대해 원하는 질문을 Genie에게 편하게 물어보세요. 사용 사례의 테이블로 답하고 실행한 쿼리를 보여 줍니다."
+     },
+     "alerts": {
+      "title": "알림 받기",
+      "text": "이메일 알림을 설정하면 앱을 열지 않아도 새 실행에서 무언가를 발견했을 때 알 수 있습니다."
+     },
+     "performance": {
+      "title": "성과 보기",
+      "text": "성과에서는 이 사용 사례가 약속한 내용과 지금까지 취한 조치로 얻은 결과를 보여 줍니다."
+     }
+    }
+   },
+   "Hindi": {
+    "code": "hi",
+    "sep": ", ",
+    "ui": {
+     "skip": "छोड़ें",
+     "back": "पीछे",
+     "next": "आगे",
+     "done": "हो गया",
+     "label": "गाइडेड टूर"
+    },
+    "plain": {
+     "use_case": "यह उपयोग का मामला",
+     "kpis": "ऊपर के आंकड़े"
+    },
+    "steps": {
+     "decision": {
+      "title": "यह ऐप किसलिए है",
+      "text": "यह ऐप इस बारे में है: {use_case}। इस पेज की हर चीज़ आपको तय करने में मदद करती है कि आगे क्या करना है और कहाँ से शुरू करना है।"
+     },
+     "kpis": {
+      "title": "मुख्य आंकड़े",
+      "text": "ये आंकड़े अभी की स्थिति दिखाते हैं: {kpis}। पिछला रन होने पर हर आंकड़े की तुलना उससे की जाती है।"
+     },
+     "view": {
+      "title": "मुख्य दृश्य",
+      "text": "यह दृश्य आंकड़ों के पीछे का पैटर्न दिखाता है। विवरण देखने के लिए इसके किसी भी हिस्से पर क्लिक करें।"
+     },
+     "filters": {
+      "title": "दायरा सीमित करें",
+      "text": "फ़िल्टर से केवल अपना हिस्सा देखें। पेज का हर आंकड़ा, चार्ट और सूची इन्हीं के अनुसार बदलती है।"
+     },
+     "records": {
+      "title": "आपकी सूची",
+      "text": "इस सूची की हर प्रविष्टि पर निर्णय लेना है, सबसे ज़रूरी पहले। अभी {open_count} खुली हैं।"
+     },
+     "top_record": {
+      "title": "ऊपर से शुरू करें",
+      "text": "सूची की पहली प्रविष्टि से शुरू करें, वह सबसे ज़रूरी है। कारण और आगे का कदम देखने के लिए उसे खोलें। अभी वह {top_record} है।"
+     },
+     "actions": {
+      "title": "कार्रवाई करें",
+      "text": "किसी प्रविष्टि को खोलकर उसे पूरा चिह्नित करें, कारण के साथ खारिज करें, किसी और को सौंपें या टाल दें। हर विकल्प उसके इतिहास में दर्ज रहता है।"
+     },
+     "bulk": {
+      "title": "एक साथ कई पर कार्रवाई",
+      "text": "कई पंक्तियाँ, या फ़िल्टर से मेल खाने वाली सभी पंक्तियाँ चुनें और सब पर एक ही कार्रवाई लागू करें।"
+     },
+     "genie": {
+      "title": "Genie से पूछें",
+      "text": "इस डेटा के बारे में अपने शब्दों में Genie से कोई भी सवाल पूछें। यह उपयोग के मामले की तालिकाओं से जवाब देता है और चलाई गई क्वेरी दिखाता है।"
+     },
+     "alerts": {
+      "title": "अलर्ट पाएं",
+      "text": "ईमेल अलर्ट सेट करें, ताकि ऐप खोले बिना पता चले कि नए रन में कुछ मिला है।"
+     },
+     "performance": {
+      "title": "नतीजे देखें",
+      "text": "परफ़ॉर्मेंस दिखाता है कि इस उपयोग के मामले ने क्या वादा किया था और अब तक की गई कार्रवाइयों से क्या हासिल हुआ।"
+     }
+    }
+   },
+   "Russian": {
+    "code": "ru",
+    "sep": ", ",
+    "ui": {
+     "skip": "Пропустить",
+     "back": "Назад",
+     "next": "Далее",
+     "done": "Готово",
+     "label": "Обзор"
+    },
+    "plain": {
+     "use_case": "этот сценарий",
+     "kpis": "показатели вверху"
+    },
+    "steps": {
+     "decision": {
+      "title": "Для чего это приложение",
+      "text": "Тема приложения: {use_case}. Всё на этой странице помогает решить, что делать дальше и с чего начать."
+     },
+     "kpis": {
+      "title": "Ключевые показатели",
+      "text": "Эти показатели отражают текущее положение: {kpis}. Каждый сравнивается с прошлым запуском, если он был."
+     },
+     "view": {
+      "title": "Основной вид",
+      "text": "Этот вид показывает закономерность за цифрами. Нажмите на любую часть, чтобы увидеть подробности."
+     },
+     "filters": {
+      "title": "Сузьте выборку",
+      "text": "С помощью фильтров смотрите только свою часть. Все цифры, графики и списки на странице следуют за ними."
+     },
+     "records": {
+      "title": "Ваш список",
+      "text": "Каждый пункт этого списка требует решения, самые важные идут первыми. Сейчас открыто: {open_count}."
+     },
+     "top_record": {
+      "title": "Начните сверху",
+      "text": "Начните с первого пункта списка, он самый важный. Откройте его, чтобы увидеть причину и что делать. Сейчас это {top_record}."
+     },
+     "actions": {
+      "title": "Действуйте",
+      "text": "Откройте пункт, чтобы отметить его выполненным, отклонить с указанием причины, передать коллеге или отложить. Каждый выбор сохраняется в истории."
+     },
+     "bulk": {
+      "title": "Сразу для нескольких",
+      "text": "Выберите несколько строк или все строки, подходящие под фильтры, и примените ко всем одно действие."
+     },
+     "genie": {
+      "title": "Спросите Genie",
+      "text": "Задайте Genie любой вопрос об этих данных своими словами. Он отвечает по таблицам сценария и показывает выполненный запрос."
+     },
+     "alerts": {
+      "title": "Получайте оповещения",
+      "text": "Настройте оповещение по почте, чтобы узнавать, когда новый запуск что-то нашёл, не открывая приложение."
+     },
+     "performance": {
+      "title": "Посмотрите результат",
+      "text": "Раздел «Эффективность» показывает, что обещал этот сценарий и чего уже добились принятые меры."
+     }
+    }
+   },
+   "Swedish": {
+    "code": "sv",
+    "sep": ", ",
+    "ui": {
+     "skip": "Hoppa över",
+     "back": "Tillbaka",
+     "next": "Nästa",
+     "done": "Klar",
+     "label": "Guidad tur"
+    },
+    "plain": {
+     "use_case": "det här användningsfallet",
+     "kpis": "talen högst upp"
+    },
+    "steps": {
+     "decision": {
+      "title": "Vad appen är till för",
+      "text": "Den här appen handlar om: {use_case}. Allt på sidan hjälper dig att bestämma vad du ska göra härnäst och var du ska börja."
+     },
+     "kpis": {
+      "title": "Nyckeltalen",
+      "text": "De här talen visar läget just nu: {kpis}. Vart och ett jämförs med föregående körning när en sådan finns."
+     },
+     "view": {
+      "title": "Huvudvyn",
+      "text": "Den här vyn visar mönstret bakom siffrorna. Klicka på en del för att se detaljerna."
+     },
+     "filters": {
+      "title": "Avgränsa",
+      "text": "Använd filtren för att bara se din del. Varje siffra, diagram och lista på sidan följer dem."
+     },
+     "records": {
+      "title": "Din lista",
+      "text": "Varje post i listan behöver ett beslut, den viktigaste först. Just nu är {open_count} öppna."
+     },
+     "top_record": {
+      "title": "Börja överst",
+      "text": "Börja med den första posten i listan, den är viktigast. Öppna den för att se varför och vad du ska göra. Just nu är det {top_record}."
+     },
+     "actions": {
+      "title": "Agera",
+      "text": "Öppna en post för att markera den som klar, avvisa den med ett skäl, ge den till någon annan eller skjuta upp den. Varje val sparas i historiken."
+     },
+     "bulk": {
+      "title": "Agera på flera samtidigt",
+      "text": "Markera flera rader, eller alla rader som matchar filtren, och tillämpa samma åtgärd på alla."
+     },
+     "genie": {
+      "title": "Fråga Genie",
+      "text": "Ställ vilken fråga som helst om datan till Genie med egna ord. Den svarar utifrån användningsfallets tabeller och visar frågan den körde."
+     },
+     "alerts": {
+      "title": "Få aviseringar",
+      "text": "Skapa en e-postavisering så att du får veta när en ny körning hittar något, utan att öppna appen."
+     },
+     "performance": {
+      "title": "Se resultatet",
+      "text": "Prestanda visar vad användningsfallet lovade och vad de åtgärder som vidtagits har gett hittills."
+     }
+    }
+   },
+   "Danish": {
+    "code": "da",
+    "sep": ", ",
+    "ui": {
+     "skip": "Spring over",
+     "back": "Tilbage",
+     "next": "Næste",
+     "done": "Færdig",
+     "label": "Rundvisning"
+    },
+    "plain": {
+     "use_case": "denne use case",
+     "kpis": "tallene øverst"
+    },
+    "steps": {
+     "decision": {
+      "title": "Hvad appen er til",
+      "text": "Denne app handler om: {use_case}. Alt på siden hjælper dig med at beslutte, hvad du skal gøre nu, og hvor du skal starte."
+     },
+     "kpis": {
+      "title": "Nøgletallene",
+      "text": "Disse tal viser, hvordan det står til nu: {kpis}. Hvert tal sammenlignes med den forrige kørsel, når der er en."
+     },
+     "view": {
+      "title": "Hovedvisningen",
+      "text": "Denne visning viser mønsteret bag tallene. Klik på en del af den for at se detaljerne."
+     },
+     "filters": {
+      "title": "Afgræns",
+      "text": "Brug filtrene til kun at se din del. Hvert tal, diagram og hver liste på siden følger dem."
+     },
+     "records": {
+      "title": "Din liste",
+      "text": "Hver post på listen kræver en beslutning, den vigtigste først. Lige nu er {open_count} åbne."
+     },
+     "top_record": {
+      "title": "Start øverst",
+      "text": "Start med den første post på listen, den er vigtigst. Åbn den for at se hvorfor, og hvad du skal gøre. Lige nu er det {top_record}."
+     },
+     "actions": {
+      "title": "Handl",
+      "text": "Åbn en post for at markere den som udført, afvise den med en begrundelse, give den til en anden eller udsætte den. Hvert valg gemmes i historikken."
+     },
+     "bulk": {
+      "title": "Handl på flere på én gang",
+      "text": "Vælg flere rækker, eller alle rækker der matcher filtrene, og anvend den samme handling på dem alle."
+     },
+     "genie": {
+      "title": "Spørg Genie",
+      "text": "Stil Genie et hvilket som helst spørgsmål om dataene med dine egne ord. Den svarer ud fra use casens tabeller og viser den forespørgsel, den kørte."
+     },
+     "alerts": {
+      "title": "Få besked",
+      "text": "Opret en e-mailbesked, så du får at vide, når en ny kørsel finder noget, uden at åbne appen."
+     },
+     "performance": {
+      "title": "Se resultatet",
+      "text": "Ydeevne viser, hvad denne use case lovede, og hvad de handlinger, der er taget, har givet indtil nu."
+     }
+    }
+   },
+   "Norwegian": {
+    "code": "nb",
+    "sep": ", ",
+    "ui": {
+     "skip": "Hopp over",
+     "back": "Tilbake",
+     "next": "Neste",
+     "done": "Ferdig",
+     "label": "Omvisning"
+    },
+    "plain": {
+     "use_case": "dette brukstilfellet",
+     "kpis": "tallene øverst"
+    },
+    "steps": {
+     "decision": {
+      "title": "Hva appen er til",
+      "text": "Denne appen handler om: {use_case}. Alt på siden hjelper deg å bestemme hva du skal gjøre nå, og hvor du skal begynne."
+     },
+     "kpis": {
+      "title": "Nøkkeltallene",
+      "text": "Disse tallene viser hvordan det står nå: {kpis}. Hvert tall sammenlignes med forrige kjøring når det finnes en."
+     },
+     "view": {
+      "title": "Hovedvisningen",
+      "text": "Denne visningen viser mønsteret bak tallene. Klikk på en del av den for å se detaljene."
+     },
+     "filters": {
+      "title": "Avgrens",
+      "text": "Bruk filtrene for å se bare din del. Hvert tall, diagram og hver liste på siden følger dem."
+     },
+     "records": {
+      "title": "Listen din",
+      "text": "Hver post i listen trenger en beslutning, den viktigste først. Akkurat nå er {open_count} åpne."
+     },
+     "top_record": {
+      "title": "Begynn øverst",
+      "text": "Begynn med den første posten i listen, den er viktigst. Åpne den for å se hvorfor og hva du skal gjøre. Akkurat nå er det {top_record}."
+     },
+     "actions": {
+      "title": "Handle",
+      "text": "Åpne en post for å merke den som ferdig, avvise den med en begrunnelse, gi den til noen andre eller utsette den. Hvert valg lagres i historikken."
+     },
+     "bulk": {
+      "title": "Handle på flere samtidig",
+      "text": "Velg flere rader, eller alle rader som passer filtrene, og bruk den samme handlingen på alle."
+     },
+     "genie": {
+      "title": "Spør Genie",
+      "text": "Still Genie et hvilket som helst spørsmål om dataene med dine egne ord. Den svarer ut fra brukstilfellets tabeller og viser spørringen den kjørte."
+     },
+     "alerts": {
+      "title": "Få varsler",
+      "text": "Opprett et e-postvarsel, så du får vite når en ny kjøring finner noe, uten å åpne appen."
+     },
+     "performance": {
+      "title": "Se resultatet",
+      "text": "Ytelse viser hva dette brukstilfellet lovet, og hva tiltakene som er gjort, har gitt så langt."
+     }
+    }
+   },
+   "Finnish": {
+    "code": "fi",
+    "sep": ", ",
+    "ui": {
+     "skip": "Ohita",
+     "back": "Takaisin",
+     "next": "Seuraava",
+     "done": "Valmis",
+     "label": "Esittely"
+    },
+    "plain": {
+     "use_case": "tämä käyttötapaus",
+     "kpis": "ylimmät luvut"
+    },
+    "steps": {
+     "decision": {
+      "title": "Mihin sovellus on tarkoitettu",
+      "text": "Tämän sovelluksen aihe: {use_case}. Kaikki tällä sivulla auttaa päättämään, mitä tehdä seuraavaksi ja mistä aloittaa."
+     },
+     "kpis": {
+      "title": "Tärkeimmät luvut",
+      "text": "Nämä luvut kertovat nykytilanteen: {kpis}. Kutakin verrataan edelliseen ajoon, jos sellainen on."
+     },
+     "view": {
+      "title": "Päänäkymä",
+      "text": "Tämä näkymä näyttää lukujen taustalla olevan kuvion. Napsauta mitä tahansa osaa nähdäksesi tiedot."
+     },
+     "filters": {
+      "title": "Rajaa näkymää",
+      "text": "Suodattimilla näet vain oman osuutesi. Jokainen sivun luku, kaavio ja luettelo seuraa niitä."
+     },
+     "records": {
+      "title": "Luettelosi",
+      "text": "Jokainen luettelon kohta vaatii päätöksen, tärkein ensin. Nyt avoinna on {open_count}."
+     },
+     "top_record": {
+      "title": "Aloita ylhäältä",
+      "text": "Aloita luettelon ensimmäisestä kohdasta, se on tärkein. Avaa se nähdäksesi syyn ja mitä tehdä. Nyt se on {top_record}."
+     },
+     "actions": {
+      "title": "Toimi",
+      "text": "Avaa kohta merkitäksesi sen tehdyksi, hylätäksesi sen perustellen, antaaksesi sen toiselle tai lykätäksesi sitä. Jokainen valinta tallentuu historiaan."
+     },
+     "bulk": {
+      "title": "Toimi monelle kerralla",
+      "text": "Valitse useita rivejä tai kaikki suodattimia vastaavat rivit ja tee niille kaikille sama toimenpide."
+     },
+     "genie": {
+      "title": "Kysy Genieltä",
+      "text": "Kysy Genieltä mitä tahansa näistä tiedoista omin sanoin. Se vastaa käyttötapauksen taulujen pohjalta ja näyttää suorittamansa kyselyn."
+     },
+     "alerts": {
+      "title": "Saa ilmoituksia",
+      "text": "Luo sähköposti-ilmoitus, niin tiedät, kun uusi ajo löytää jotain, avaamatta sovellusta."
+     },
+     "performance": {
+      "title": "Katso tulokset",
+      "text": "Suorituskyky näyttää, mitä tämä käyttötapaus lupasi ja mitä tehdyt toimet ovat tähän mennessä tuottaneet."
+     }
+    }
+   },
+   "Polish": {
+    "code": "pl",
+    "sep": ", ",
+    "ui": {
+     "skip": "Pomiń",
+     "back": "Wstecz",
+     "next": "Dalej",
+     "done": "Gotowe",
+     "label": "Przewodnik"
+    },
+    "plain": {
+     "use_case": "ten przypadek użycia",
+     "kpis": "liczby na górze"
+    },
+    "steps": {
+     "decision": {
+      "title": "Do czego służy ta aplikacja",
+      "text": "Ta aplikacja dotyczy: {use_case}. Wszystko na tej stronie pomaga zdecydować, co zrobić dalej i od czego zacząć."
+     },
+     "kpis": {
+      "title": "Kluczowe liczby",
+      "text": "Te liczby pokazują obecną sytuację: {kpis}. Każda jest porównywana z poprzednim uruchomieniem, jeśli było."
+     },
+     "view": {
+      "title": "Widok główny",
+      "text": "Ten widok pokazuje wzorzec stojący za liczbami. Kliknij dowolną część, aby zobaczyć szczegóły."
+     },
+     "filters": {
+      "title": "Zawęź widok",
+      "text": "Użyj filtrów, aby widzieć tylko swoją część. Każda liczba, wykres i lista na stronie się do nich dostosowuje."
+     },
+     "records": {
+      "title": "Twoja lista",
+      "text": "Każda pozycja na tej liście wymaga decyzji, najważniejsze są pierwsze. Teraz otwartych jest {open_count}."
+     },
+     "top_record": {
+      "title": "Zacznij od góry",
+      "text": "Zacznij od pierwszej pozycji na liście, jest najważniejsza. Otwórz ją, aby zobaczyć powód i co zrobić. Teraz jest to {top_record}."
+     },
+     "actions": {
+      "title": "Działaj",
+      "text": "Otwórz pozycję, aby oznaczyć ją jako wykonaną, odrzucić z podaniem powodu, przekazać komuś lub odłożyć. Każdy wybór zostaje w jej historii."
+     },
+     "bulk": {
+      "title": "Działaj na wielu naraz",
+      "text": "Zaznacz kilka wierszy albo wszystkie pasujące do filtrów i zastosuj do nich jedną akcję."
+     },
+     "genie": {
+      "title": "Zapytaj Genie",
+      "text": "Zadaj Genie dowolne pytanie o te dane własnymi słowami. Odpowiada na podstawie tabel przypadku użycia i pokazuje wykonane zapytanie."
+     },
+     "alerts": {
+      "title": "Otrzymuj alerty",
+      "text": "Ustaw alert e-mail, aby wiedzieć, kiedy nowe uruchomienie coś znajdzie, bez otwierania aplikacji."
+     },
+     "performance": {
+      "title": "Zobacz efekty",
+      "text": "Wydajność pokazuje, co obiecywał ten przypadek użycia i co dotąd dały podjęte działania."
+     }
+    }
+   },
+   "Romanian": {
+    "code": "ro",
+    "sep": ", ",
+    "ui": {
+     "skip": "Omite",
+     "back": "Înapoi",
+     "next": "Înainte",
+     "done": "Gata",
+     "label": "Tur ghidat"
+    },
+    "plain": {
+     "use_case": "acest caz de utilizare",
+     "kpis": "cifrele de sus"
+    },
+    "steps": {
+     "decision": {
+      "title": "La ce folosește aplicația",
+      "text": "Această aplicație se referă la: {use_case}. Totul pe această pagină te ajută să decizi ce faci mai departe și de unde începi."
+     },
+     "kpis": {
+      "title": "Cifrele cheie",
+      "text": "Aceste cifre arată situația actuală: {kpis}. Fiecare este comparată cu rularea anterioară, dacă există."
+     },
+     "view": {
+      "title": "Vizualizarea principală",
+      "text": "Această vizualizare arată tiparul din spatele cifrelor. Fă clic pe o parte pentru a vedea detaliile."
+     },
+     "filters": {
+      "title": "Restrânge vizualizarea",
+      "text": "Folosește filtrele ca să vezi doar partea ta. Fiecare cifră, grafic și listă de pe pagină le urmează."
+     },
+     "records": {
+      "title": "Lista ta",
+      "text": "Fiecare element din listă necesită o decizie, cel mai important primul. Acum sunt {open_count} deschise."
+     },
+     "top_record": {
+      "title": "Începe de sus",
+      "text": "Începe cu primul element din listă, este cel mai important. Deschide-l ca să vezi de ce și ce trebuie făcut. Acum este {top_record}."
+     },
+     "actions": {
+      "title": "Acționează",
+      "text": "Deschide un element ca să-l marchezi ca rezolvat, să-l respingi cu un motiv, să-l dai altcuiva sau să-l amâni. Fiecare alegere rămâne în istoric."
+     },
+     "bulk": {
+      "title": "Acționează pe mai multe deodată",
+      "text": "Selectează mai multe rânduri, sau toate cele care se potrivesc filtrelor, și aplică aceeași acțiune tuturor."
+     },
+     "genie": {
+      "title": "Întreabă Genie",
+      "text": "Pune-i lui Genie orice întrebare despre aceste date, cu propriile cuvinte. Răspunde din tabelele cazului de utilizare și arată interogarea rulată."
+     },
+     "alerts": {
+      "title": "Primește alerte",
+      "text": "Creează o alertă pe e-mail ca să afli când o rulare nouă găsește ceva, fără să deschizi aplicația."
+     },
+     "performance": {
+      "title": "Vezi rezultatele",
+      "text": "Performanța arată ce a promis acest caz de utilizare și ce au adus până acum acțiunile luate."
+     }
+    }
+   },
+   "Ukrainian": {
+    "code": "uk",
+    "sep": ", ",
+    "ui": {
+     "skip": "Пропустити",
+     "back": "Назад",
+     "next": "Далі",
+     "done": "Готово",
+     "label": "Огляд"
+    },
+    "plain": {
+     "use_case": "цей сценарій",
+     "kpis": "показники вгорі"
+    },
+    "steps": {
+     "decision": {
+      "title": "Для чого цей застосунок",
+      "text": "Тема застосунку: {use_case}. Усе на цій сторінці допомагає вирішити, що робити далі і з чого почати."
+     },
+     "kpis": {
+      "title": "Ключові показники",
+      "text": "Ці показники відображають поточний стан: {kpis}. Кожен порівнюється з попереднім запуском, якщо він був."
+     },
+     "view": {
+      "title": "Основний вигляд",
+      "text": "Цей вигляд показує закономірність за цифрами. Натисніть будь-яку частину, щоб побачити деталі."
+     },
+     "filters": {
+      "title": "Звузьте вибірку",
+      "text": "За допомогою фільтрів дивіться лише свою частину. Усі цифри, графіки й списки на сторінці слідують за ними."
+     },
+     "records": {
+      "title": "Ваш список",
+      "text": "Кожен пункт цього списку потребує рішення, найважливіші йдуть першими. Зараз відкрито: {open_count}."
+     },
+     "top_record": {
+      "title": "Почніть згори",
+      "text": "Почніть з першого пункту списку, він найважливіший. Відкрийте його, щоб побачити причину і що робити. Зараз це {top_record}."
+     },
+     "actions": {
+      "title": "Дійте",
+      "text": "Відкрийте пункт, щоб позначити його виконаним, відхилити із зазначенням причини, передати колезі або відкласти. Кожен вибір зберігається в історії."
+     },
+     "bulk": {
+      "title": "Одразу для кількох",
+      "text": "Виберіть кілька рядків або всі рядки, що відповідають фільтрам, і застосуйте до всіх одну дію."
+     },
+     "genie": {
+      "title": "Запитайте Genie",
+      "text": "Поставте Genie будь-яке запитання про ці дані своїми словами. Він відповідає за таблицями сценарію та показує виконаний запит."
+     },
+     "alerts": {
+      "title": "Отримуйте сповіщення",
+      "text": "Налаштуйте сповіщення поштою, щоб дізнаватися, коли новий запуск щось знайшов, не відкриваючи застосунок."
+     },
+     "performance": {
+      "title": "Перегляньте результат",
+      "text": "Розділ «Ефективність» показує, що обіцяв цей сценарій і чого вже досягли вжиті заходи."
+     }
+    }
+   },
+   "Dutch": {
+    "code": "nl",
+    "sep": ", ",
+    "ui": {
+     "skip": "Overslaan",
+     "back": "Terug",
+     "next": "Volgende",
+     "done": "Klaar",
+     "label": "Rondleiding"
+    },
+    "plain": {
+     "use_case": "deze use case",
+     "kpis": "de cijfers bovenaan"
+    },
+    "steps": {
+     "decision": {
+      "title": "Waar deze app voor is",
+      "text": "Deze app gaat over: {use_case}. Alles op deze pagina helpt je te beslissen wat je nu doet en waar je begint."
+     },
+     "kpis": {
+      "title": "De kerncijfers",
+      "text": "Deze cijfers tonen hoe het er nu voor staat: {kpis}. Elk cijfer wordt vergeleken met de vorige run als die er is."
+     },
+     "view": {
+      "title": "De hoofdweergave",
+      "text": "Deze weergave toont het patroon achter de cijfers. Klik op een deel ervan om de details te zien."
+     },
+     "filters": {
+      "title": "Beperk de weergave",
+      "text": "Gebruik de filters om alleen jouw deel te zien. Elk cijfer, elke grafiek en lijst op de pagina volgt ze."
+     },
+     "records": {
+      "title": "Je lijst",
+      "text": "Elk item op deze lijst vraagt om een beslissing, het belangrijkste eerst. Er staan er nu {open_count} open."
+     },
+     "top_record": {
+      "title": "Begin bovenaan",
+      "text": "Begin met het eerste item op de lijst, dat is het belangrijkst. Open het om te zien waarom en wat je moet doen. Nu is dat {top_record}."
+     },
+     "actions": {
+      "title": "Onderneem actie",
+      "text": "Open een item om het als gedaan te markeren, met een reden af te wijzen, aan iemand te geven of uit te stellen. Elke keuze blijft in de geschiedenis."
+     },
+     "bulk": {
+      "title": "Meerdere tegelijk",
+      "text": "Selecteer meerdere rijen, of alle rijen die bij je filters passen, en pas één actie op allemaal toe."
+     },
+     "genie": {
+      "title": "Vraag het Genie",
+      "text": "Stel Genie in je eigen woorden elke vraag over deze gegevens. Genie antwoordt uit de tabellen van de use case en toont de uitgevoerde query."
+     },
+     "alerts": {
+      "title": "Ontvang meldingen",
+      "text": "Maak een e-mailmelding aan, zodat je weet wanneer een nieuwe run iets vindt, zonder de app te openen."
+     },
+     "performance": {
+      "title": "Bekijk het resultaat",
+      "text": "Prestaties toont wat deze use case beloofde en wat de genomen acties tot nu toe hebben opgeleverd."
+     }
+    }
+   },
+   "Indonesian": {
+    "code": "id",
+    "sep": ", ",
+    "ui": {
+     "skip": "Lewati",
+     "back": "Kembali",
+     "next": "Berikutnya",
+     "done": "Selesai",
+     "label": "Tur terpandu"
+    },
+    "plain": {
+     "use_case": "kasus penggunaan ini",
+     "kpis": "angka di bagian atas"
+    },
+    "steps": {
+     "decision": {
+      "title": "Kegunaan aplikasi ini",
+      "text": "Aplikasi ini membahas: {use_case}. Semua di halaman ini membantu Anda memutuskan langkah berikutnya dan dari mana memulai."
+     },
+     "kpis": {
+      "title": "Angka utama",
+      "text": "Angka-angka ini menunjukkan kondisi saat ini: {kpis}. Setiap angka dibandingkan dengan eksekusi sebelumnya jika ada."
+     },
+     "view": {
+      "title": "Tampilan utama",
+      "text": "Tampilan ini menunjukkan pola di balik angka. Klik bagian mana pun untuk melihat detailnya."
+     },
+     "filters": {
+      "title": "Persempit tampilan",
+      "text": "Gunakan filter untuk melihat bagian Anda saja. Setiap angka, grafik, dan daftar di halaman mengikutinya."
+     },
+     "records": {
+      "title": "Daftar Anda",
+      "text": "Setiap item di daftar ini perlu diputuskan, yang terpenting lebih dulu. Saat ini ada {open_count} yang terbuka."
+     },
+     "top_record": {
+      "title": "Mulai dari atas",
+      "text": "Mulai dari item pertama di daftar, item itu paling penting. Buka untuk melihat alasannya dan apa yang harus dilakukan. Saat ini item itu adalah {top_record}."
+     },
+     "actions": {
+      "title": "Ambil tindakan",
+      "text": "Buka item untuk menandainya selesai, menolaknya dengan alasan, memberikannya kepada orang lain, atau menundanya. Setiap pilihan tersimpan di riwayatnya."
+     },
+     "bulk": {
+      "title": "Tindakan sekaligus",
+      "text": "Pilih beberapa baris, atau semua baris yang cocok dengan filter, lalu terapkan satu tindakan ke semuanya."
+     },
+     "genie": {
+      "title": "Tanya Genie",
+      "text": "Ajukan pertanyaan apa pun tentang data ini kepada Genie dengan kata-kata Anda sendiri. Genie menjawab dari tabel kasus penggunaan dan menampilkan kueri yang dijalankan."
+     },
+     "alerts": {
+      "title": "Dapatkan peringatan",
+      "text": "Buat peringatan email agar Anda tahu saat eksekusi baru menemukan sesuatu, tanpa membuka aplikasi."
+     },
+     "performance": {
+      "title": "Lihat hasilnya",
+      "text": "Kinerja menunjukkan apa yang dijanjikan kasus penggunaan ini dan apa yang telah dicapai oleh tindakan yang diambil sejauh ini."
+     }
+    }
+   },
+   "Malay": {
+    "code": "ms",
+    "sep": ", ",
+    "ui": {
+     "skip": "Langkau",
+     "back": "Kembali",
+     "next": "Seterusnya",
+     "done": "Selesai",
+     "label": "Lawatan berpandu"
+    },
+    "plain": {
+     "use_case": "kes penggunaan ini",
+     "kpis": "angka di bahagian atas"
+    },
+    "steps": {
+     "decision": {
+      "title": "Kegunaan aplikasi ini",
+      "text": "Aplikasi ini berkenaan: {use_case}. Semua di halaman ini membantu anda memutuskan langkah seterusnya dan di mana untuk bermula."
+     },
+     "kpis": {
+      "title": "Angka utama",
+      "text": "Angka-angka ini menunjukkan keadaan semasa: {kpis}. Setiap angka dibandingkan dengan larian sebelumnya jika ada."
+     },
+     "view": {
+      "title": "Paparan utama",
+      "text": "Paparan ini menunjukkan corak di sebalik angka. Klik mana-mana bahagian untuk melihat butirannya."
+     },
+     "filters": {
+      "title": "Kecilkan skop",
+      "text": "Gunakan penapis untuk melihat bahagian anda sahaja. Setiap angka, carta dan senarai di halaman mengikutinya."
+     },
+     "records": {
+      "title": "Senarai anda",
+      "text": "Setiap item dalam senarai ini memerlukan keputusan, yang paling penting dahulu. Kini ada {open_count} yang terbuka."
+     },
+     "top_record": {
+      "title": "Mula dari atas",
+      "text": "Mula dengan item pertama dalam senarai, ia paling penting. Bukanya untuk melihat sebab dan tindakan yang perlu. Kini item itu ialah {top_record}."
+     },
+     "actions": {
+      "title": "Ambil tindakan",
+      "text": "Buka item untuk menandakannya selesai, menolaknya dengan sebab, menyerahkannya kepada orang lain atau menangguhkannya. Setiap pilihan disimpan dalam sejarahnya."
+     },
+     "bulk": {
+      "title": "Tindakan serentak",
+      "text": "Pilih beberapa baris, atau semua baris yang sepadan dengan penapis, dan gunakan satu tindakan pada semuanya."
+     },
+     "genie": {
+      "title": "Tanya Genie",
+      "text": "Tanya Genie apa-apa soalan tentang data ini dengan kata-kata anda sendiri. Ia menjawab daripada jadual kes penggunaan dan menunjukkan pertanyaan yang dijalankan."
+     },
+     "alerts": {
+      "title": "Terima amaran",
+      "text": "Sediakan amaran e-mel supaya anda tahu apabila larian baharu menemui sesuatu, tanpa membuka aplikasi."
+     },
+     "performance": {
+      "title": "Lihat hasilnya",
+      "text": "Prestasi menunjukkan apa yang dijanjikan oleh kes penggunaan ini dan apa yang telah dicapai oleh tindakan yang diambil setakat ini."
+     }
+    }
+   },
+   "Tamil": {
+    "code": "ta",
+    "sep": ", ",
+    "ui": {
+     "skip": "தவிர்",
+     "back": "பின்",
+     "next": "அடுத்து",
+     "done": "முடிந்தது",
+     "label": "வழிகாட்டும் சுற்றுலா"
+    },
+    "plain": {
+     "use_case": "இந்தப் பயன்பாட்டு நிகழ்வு",
+     "kpis": "மேலே உள்ள எண்கள்"
+    },
+    "steps": {
+     "decision": {
+      "title": "இந்த ஆப் எதற்காக",
+      "text": "இந்த ஆப் இதைப் பற்றியது: {use_case}. அடுத்து என்ன செய்வது, எங்கே தொடங்குவது என்று முடிவெடுக்க இந்தப் பக்கம் உதவுகிறது."
+     },
+     "kpis": {
+      "title": "முக்கிய எண்கள்",
+      "text": "இந்த எண்கள் தற்போதைய நிலையைக் காட்டுகின்றன: {kpis}. முந்தைய ஓட்டம் இருந்தால், ஒவ்வொன்றும் அதனுடன் ஒப்பிடப்படும்."
+     },
+     "view": {
+      "title": "முதன்மைக் காட்சி",
+      "text": "இந்தக் காட்சி எண்களுக்குப் பின்னால் உள்ள போக்கைக் காட்டுகிறது. விவரங்களைப் பார்க்க அதன் எந்தப் பகுதியையும் கிளிக் செய்யவும்."
+     },
+     "filters": {
+      "title": "வரம்பைக் குறைக்கவும்",
+      "text": "உங்கள் பகுதியை மட்டும் பார்க்க வடிகட்டிகளைப் பயன்படுத்தவும். பக்கத்தின் ஒவ்வொரு எண்ணும் வரைபடமும் பட்டியலும் அவற்றைப் பின்பற்றும்."
+     },
+     "records": {
+      "title": "உங்கள் பட்டியல்",
+      "text": "இந்தப் பட்டியலில் உள்ள ஒவ்வொரு உருப்படிக்கும் முடிவு தேவை, முக்கியமானது முதலில். இப்போது {open_count} திறந்த நிலையில் உள்ளன."
+     },
+     "top_record": {
+      "title": "மேலிருந்து தொடங்கவும்",
+      "text": "பட்டியலின் முதல் உருப்படியிலிருந்து தொடங்கவும், அதுவே மிக முக்கியமானது. காரணத்தையும் செய்ய வேண்டியதையும் பார்க்க அதைத் திறக்கவும். இப்போது அது {top_record}."
+     },
+     "actions": {
+      "title": "நடவடிக்கை எடுக்கவும்",
+      "text": "ஒரு உருப்படியைத் திறந்து முடிந்ததாகக் குறிக்கலாம், காரணத்துடன் நிராகரிக்கலாம், வேறொருவருக்கு ஒப்படைக்கலாம் அல்லது தள்ளிவைக்கலாம். ஒவ்வொரு தேர்வும் சேமிக்கப்படும்."
+     },
+     "bulk": {
+      "title": "பலவற்றில் ஒரே நேரத்தில்",
+      "text": "பல வரிசைகளை, அல்லது வடிகட்டிகளுக்குப் பொருந்தும் எல்லா வரிசைகளையும் தேர்ந்தெடுத்து, அனைத்திற்கும் ஒரே நடவடிக்கையைப் பயன்படுத்தவும்."
+     },
+     "genie": {
+      "title": "Genie-யிடம் கேளுங்கள்",
+      "text": "இந்தத் தரவைப் பற்றி உங்கள் சொந்த வார்த்தைகளில் Genie-யிடம் எதையும் கேளுங்கள். அது அட்டவணைகளிலிருந்து பதிலளித்து, இயக்கிய வினவலைக் காட்டும்."
+     },
+     "alerts": {
+      "title": "எச்சரிக்கைகளைப் பெறுங்கள்",
+      "text": "ஆப்பைத் திறக்காமலேயே, புதிய ஓட்டம் எதையாவது கண்டறியும்போது தெரிந்துகொள்ள மின்னஞ்சல் எச்சரிக்கையை அமைக்கவும்."
+     },
+     "performance": {
+      "title": "முடிவுகளைப் பாருங்கள்",
+      "text": "இந்தப் பயன்பாட்டு நிகழ்வு எதை உறுதியளித்தது, இதுவரை எடுத்த நடவடிக்கைகள் எதைச் சாதித்தன என்பதை செயல்திறன் காட்டுகிறது."
+     }
+    }
+   }
+  }
  }
 }

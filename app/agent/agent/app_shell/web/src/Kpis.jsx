@@ -53,7 +53,7 @@ export default function Kpis({ page, data, errors, loading, plan, scope }) {
   const strip = (
     <>
     {scope?.text && <p className="kpi-scope scope-banner" data-scope-banner>{scope.text}</p>}
-    <section className="kpis" aria-label="Key numbers" data-n={entries.length}>
+    <section className="kpis" aria-label="Key numbers" data-n={entries.length} data-tour="kpis">
       {entries.map((entry) => {
         if (entry.block) return <Block key={entry.key} block={entry.block} tile />;
         const kpi = entry.item;

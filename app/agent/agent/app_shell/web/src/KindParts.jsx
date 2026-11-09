@@ -210,7 +210,7 @@ export const TAKE_ALL = 'take-all';
 
 export function TakeAll({ count, onClick }) {
   if (!count) return null;
-  return <SaveButton write={TAKE_ALL} className="btn btn--sm btn--pri" onClick={onClick} data-take-all>{count === 1 ? 'Take the ★ suggestion' : `Take all ${integer(count)} ★ suggestions`}</SaveButton>;
+  return <SaveButton write={TAKE_ALL} className="btn btn--sm btn--pri" onClick={onClick} data-take-all data-tour="bulk">{count === 1 ? 'Take the ★ suggestion' : `Take all ${integer(count)} ★ suggestions`}</SaveButton>;
 }
 
 function Lookup({ label, value, onLook }) {

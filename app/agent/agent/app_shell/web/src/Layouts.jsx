@@ -23,6 +23,7 @@ export const pageSections = (app, page) => ['dashboard', ...(hasWork(page) ? ['w
   ...(app?.alerting?.on ? ['alerts'] : []), 'settings'];
 export const decides = pageDecides;
 const PLAN_ROWS = 50;
+const TOUR_HELD = ['todo', 'kpis', 'objective', 'records', 'plan', 'resolve'];
 const TODO_ROWS = 5;
 
 const scrollTo = (section) => document.querySelector(`[data-section="${section}"]`)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
@@ -130,7 +131,7 @@ export async function decidePlanLine(page, plan, row, decision, reason = '', val
 
 const planOpen = (row) => recordKeyOf(row) != null && !!row._inspire_version && !isClosed(row);
 
-function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
+function PlanRow({ page, app, plan, row, actions, onDecided, onOpen, first }) {
   const [open, setOpen] = useState(false);
   const [value, setValue] = useState('');
   const [reason, setReason] = useState('');
@@ -159,7 +160,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
   const cols = actions ? 7 : 6;
   return (
     <>
-      <tr data-plan-row={key}>
+      <tr data-plan-row={key} data-tour={first ? 'top_record' : undefined}>
         <th scope="row"><button type="button" className="choice-open" onClick={() => onOpen(row)} data-open-row={key} aria-label={`Open ${lineName(page, row)}`}><bdi>{lineName(page, row)}</bdi></button></th>
         <td className="num">{fmt(row[plan.current])}</td>
         <td className="num plan-rec"><span aria-hidden="true">★ </span>{fmt(row[plan.recommended])}</td>
@@ -250,7 +251,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
       {rows.length > 0 && (
         <div className="tbl-wrap"><table className="plan-t">
           <thead><tr><th scope="col">{page.records.label_title || 'Line'}</th><th scope="col">Now</th><th scope="col">Suggested</th><th scope="col">Change</th><th scope="col">Status</th>{can && <th scope="col"><span className="sr">Decide</span></th>}<th scope="col"><span className="sr">Ask Genie</span></th></tr></thead>
-          <tbody>{rows.map((row) => <PlanRow key={recordKeyOf(row)} page={page} app={app} plan={plan} row={row} actions={can} onDecided={onChanged} onOpen={opened.open} />)}</tbody>
+          <tbody>{rows.map((row, i) => <PlanRow key={recordKeyOf(row)} page={page} app={app} plan={plan} row={row} actions={can} onDecided={onChanged} onOpen={opened.open} first={i === 0} />)}</tbody>
         </table></div>
       )}
       <RowPanel page={page} app={app} list={list.data} opened={opened} filters={filters} onChanged={onChanged} />
@@ -264,6 +265,10 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kp
   const sections = page.layout?.sections || [];
   const holds = page.layout?.holds || {};
   const placed = new Set();
+  const shows = (s) => !!(SECTION_PARTS[s] || KIND_PARTS[s]) || page.charts.some((c) => c.section === s) || page.tables.some((t) => t.section === s);
+  const viewAt = sections.find((s) => !TOUR_HELD.includes(holds[s]) && !SCENARIO_HOLDS.includes(holds[s]) && shows(s));
+  const listAt = sections.find((s) => holds[s] === 'records' || holds[s] === 'plan');
+  const toured = (s) => (s === viewAt ? 'view' : s === listAt ? 'records' : undefined);
   const plan = (key) => <PlanTable key={key} page={page} app={app} filters={filters} ready={ready} nonce={nonce} onChanged={onChanged} />;
   const draw = (section) => {
     const hold = holds[section];
@@ -274,9 +279,9 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kp
       return hero.length ? <div key={section} className="objective" data-section={section}>{kpisOf(hero, false)}</div> : null;
     }
     const Part = SECTION_PARTS[section] || KIND_PARTS[section];
-    if (Part) return <div key={section} data-section={section}><Part page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} data={data} records={records} onPick={onPick} genie={genie} section={section} /></div>;
+    if (Part) return <div key={section} data-section={section} data-tour={toured(section)}><Part page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} data={data} records={records} onPick={onPick} genie={genie} section={section} /></div>;
     if (hold === 'plan' || hold === 'records') {
-      if (page.plan) return <div key={section} data-section={section}>{plan(section)}</div>;
+      if (page.plan) return <div key={section} data-section={section} data-tour={toured(section)}>{plan(section)}</div>;
       return records ? <div key={section} data-section={section}>{records}</div> : null;
     }
     if (hold === 'resolve') return page.plan && onRun ? <div key={section} className="resolve" data-section={section}><Resolve onRun={onRun} running={running} /></div> : null;
@@ -286,8 +291,8 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kp
     const tables = page.tables.filter((t) => t.section === section);
     charts.forEach((c) => placed.add(c.id));
     tables.forEach((t) => placed.add(t.id));
-    const out = tables.map((t) => <div key={`${section}:${t.id}`} data-section={section}>{tableCard(t)}</div>);
-    if (charts.length) out.unshift(<section key={section} className="charts" data-section={section}>{chartCards(charts)}</section>);
+    const out = tables.map((t, i) => <div key={`${section}:${t.id}`} data-section={section} data-tour={!charts.length && !i ? toured(section) : undefined}>{tableCard(t)}</div>);
+    if (charts.length) out.unshift(<section key={section} className="charts" data-section={section} data-tour={toured(section)}>{chartCards(charts)}</section>);
     return out.length ? out : null;
   };
   const drawn = sections.map((s) => [s, draw(s)]).filter(([, part]) => part);

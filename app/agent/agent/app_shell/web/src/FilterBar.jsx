@@ -147,7 +147,7 @@ export default function FilterBar({ meta, state, onState, pageId, reasons = [], 
   };
   return (
     <>
-      <section className="fbar" aria-label="Filters">
+      <section className="fbar" aria-label="Filters" data-tour="filters">
         {reasons.map((r) => (
           <MultiSelect key={r.name} filter={{ id: r.name, label: r.label, options: r.options }} selected={ai[r.name] || []} pageId={pageId}
             mark={<GenieMark size={12} />} onChange={(values) => onState(setReason(now, r.name, values))} />

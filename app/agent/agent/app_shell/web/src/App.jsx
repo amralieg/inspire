@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { getApp, getDefaults, getFilters, getOverview, getSummary } from './api.js';
 import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js';
 import { apiValues, initialFilterState } from './filters.js';
@@ -23,6 +23,9 @@ import { windowParams } from './prefs.js';
 import { DEFAULT_VIEW, visiblePages } from './hub.js';
 import logo from './databricks-logo.png?inline';
 import { integer } from './format.js';
+import { markTourSeen, tourDue, tourKey } from './tourStart.js';
+
+const Tour = lazy(() => import('./Tour.jsx'));
 
 const THEME_KEY = 'inspire-app-theme';
 const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', settings: 'sliders' };
@@ -82,10 +85,12 @@ function railOf(app, page) {
   return [...all.slice(0, at), 'performance', ...all.slice(at)];
 }
 
-function SectionRail({ sections, on, onGo, open, page, counts = {} }) {
+function SectionRail({ sections, on, onGo, open, page, counts = {}, alerting }) {
   const top = sections.filter((s) => s !== 'settings');
+  const toured = (s) => (s === 'performance' || s === 'alerts' ? s : s === 'runs' && alerting && !sections.includes('alerts') ? 'alerts' : undefined);
   const item = (s) => (
     <button key={s} type="button" className={`nav-i rail-i ${on === s ? 'is-on' : ''}`} onClick={() => onGo(s)} aria-current={on === s ? 'page' : undefined} data-rail={s}
+      data-tour={toured(s)}
       aria-label={counts[s] != null ? `${sectionTitle(page, s)} (${integer(counts[s])})` : undefined}>
       <span className="nav-ic"><Icon name={RAIL_ICONS[s]} size={15} /></span>
       <span className="nav-t"><b>{sectionTitle(page, s)}</b></span>
@@ -157,6 +162,8 @@ function Shell({ app }) {
   const [dockSlot, setDockSlot] = useState(null);
   const [showing, setShowing] = useState(false);
   const [view, setView] = useState(DEFAULT_VIEW);
+  const [touring, setTouring] = useState('');
+  const [tourFacts, setTourFacts] = useState({});
   const admin = route === ADMIN_ROUTE;
   const page = pages.find((p) => p.id === route) || (admin ? pages.find((p) => p.id === prefs.last) || pages[0] : null);
   const section = admin ? '' : link.section;
@@ -191,6 +198,15 @@ function Shell({ app }) {
   useEffect(() => {
     if (page && !admin && prefs.last !== page.id) update((p) => ({ ...p, last: page.id }));
   }, [page?.id, admin]);
+  const person = app.user?.email || app.user?.name || '';
+  const tourAt = page && !admin && page.tour ? tourKey(person, page.id, page.tour.version) : '';
+  useEffect(() => {
+    if (!tourAt || touring || !tourDue(tourAt)) return;
+    markTourSeen(tourAt);
+    setTouring(page.id);
+  }, [tourAt]);
+  const takeTour = useCallback(() => { if (tourAt) { markTourSeen(tourAt); setTouring(page.id); } }, [tourAt, page?.id]);
+  const keepFacts = useCallback((id, facts) => setTourFacts((x) => (JSON.stringify(x[id]) === JSON.stringify(facts) ? x : { ...x, [id]: facts })), []);
   useEffect(() => {
     document.title = admin ? `Admin · ${app.title}` : page ? `${page.title} · ${app.title}` : app.title;
   }, [page, admin, app.title]);
@@ -271,12 +287,12 @@ function Shell({ app }) {
           </button>
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
-          <button className="genie-btn" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
+          <button className="genie-btn" data-tour="genie" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>
         <div className="body">
           {page && <SectionRail sections={rail} on={section === 'alerts' && !rail.includes('alerts') ? 'runs' : section} onGo={goSection} open={navOpen} page={page}
-            counts={railCounts.page === page.id ? railCounts : {}} />}
+            counts={railCounts.page === page.id ? railCounts : {}} alerting={!!app.alerting?.on} />}
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
           <main className="main" tabIndex={-1}>
             <NoAccessScope key={page ? `page:${page.id}` : admin ? 'admin' : 'home'} app={app}>
@@ -292,7 +308,8 @@ function Shell({ app }) {
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK}
                 onLook={setPageLook(page.id)} themeKey={themeKey} onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]}
                 summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} focus={link.focus} chrome={chrome}
-                onCounts={setRailCounts} onRecord={openRecord} onRetryMeta={() => retryMeta(page.id)} onRetrySummary={() => summarize(page.id)} />
+                onCounts={setRailCounts} onRecord={openRecord} onRetryMeta={() => retryMeta(page.id)} onRetrySummary={() => summarize(page.id)}
+                onTour={page.tour ? takeTour : null} onTourFacts={keepFacts} />
             )}
             </RetryProvider>
             </NoAccessScope>
@@ -301,6 +318,12 @@ function Shell({ app }) {
           {working && dock === 'record' && <RecordDock tabs={tabs} onSlot={setDockSlot} onClose={() => setDock('')} empty={!showing} />}
           {!working && !fullChat && genieOpen && <GeniePanel {...genieProps} onClose={() => setGenieOpen(false)} />}
         </div>
+        {page && touring === page.id && page.tour && (
+          <Suspense fallback={null}>
+            <Tour key={`${page.id}:${page.tour.version}`} tour={page.tour} facts={tourFacts[page.id]} queue={isQueue(page)} section={section}
+              onSection={goSection} onEnd={() => setTouring('')} />
+          </Suspense>
+        )}
       </div>
     </div>
     </DockContext.Provider>

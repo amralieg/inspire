@@ -204,7 +204,7 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
           onRun={onRun} running={running} />
       )}
       {!hubPage && !laidOut && <Placed slots={slotsOf(plan, 'kpis')}>{kpisCard}</Placed>}
-      {!hubPage && !laidOut && <Placed slots={moreSlots}><section className="charts">{chartCards(page.charts.filter((c) => !c.driver))}</section></Placed>}
+      {!hubPage && !laidOut && <Placed slots={moreSlots}><section className="charts" data-tour="view">{chartCards(page.charts.filter((c) => !c.driver))}</section></Placed>}
       {hubPage && more.some((c) => !c.driver) && (
         <Placed slots={moreSlots}><section className="charts charts--more" aria-label="More charts">{chartCards(more.filter((c) => !c.driver))}</section></Placed>
       )}

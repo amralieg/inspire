@@ -629,6 +629,41 @@ test('every card, key number and row on Performance and on a Runs view shows a v
   await context.close();
 });
 
+test('Ask Genie on a record of another use case from Performance keeps that record: the chip stays, the question names it, and only leaving for a third use case clears it', async () => {
+  const other = { page: 'n02_u01', key: 'c', label: 'Supplier 3381, invoice 77188', kind: 'status', status: 'Done', at: '2026-10-22T06:00:00Z' };
+  const routes = {
+    ...hubRoutes(),
+    my_work: ({ route, json }) => {
+      const body = route.request().postDataJSON();
+      const items = OVERDUE[body.page] || [];
+      return json(200, myWorkOf(body.page, { overdue: { n: items.length, items } }, body.page === 'n01_u05' ? [other] : []));
+    },
+  };
+  const { page, seen, context } = await open(INFO(), { routes, hash: '#/n01_u05/performance' });
+  const did = page.getByRole('region', { name: 'What you did' });
+  await did.locator('tbody tr').first().waitFor();
+  await did.getByRole('button', { name: `Ask Genie about ${other.label}`, exact: true }).click();
+  await page.locator('aside.genie').waitFor();
+  await idle(page);
+  assert.equal(await page.locator('.g-chip-t').count(), 1, 'the record chip stays while Performance of another use case is open');
+  assert.equal(await page.locator('.g-chip-t').innerText(), `About: ${other.label}`);
+  assert.equal(await page.getByLabel('Your question').getAttribute('placeholder'), `Ask about ${other.label}`);
+  assert.match(await page.locator('aside.genie .g-h small').innerText(), /^Answers from the Genie Agent "Second desk 1"/, 'the Genie Agent of the record\'s use case answers');
+  await page.locator('aside.genie .g-sugg .sugg').first().click();
+  await until(() => seen.asks.length === 1);
+  assert.deepEqual([seen.asks[0].page, seen.asks[0].record_key], ['n02_u01', 'c'], 'Genie of the record\'s own use case is asked about that record');
+  await page.locator('aside.genie .msg--genie').waitFor();
+  assert.equal(await page.locator('aside.genie .msg-about').first().innerText(), `About: ${other.label}`);
+  assert.match(await hashOf(page), /^#\/n01_u05\/performance/);
+  await page.evaluate(() => { window.location.hash = '#/n02_u01/dashboard'; });
+  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
+  assert.equal(await page.locator('.g-chip-t').innerText(), `About: ${other.label}`, 'opening the record\'s own use case keeps the chip');
+  await page.evaluate(() => { window.location.hash = '#/n02_u02/dashboard'; });
+  await page.locator('.g-chip').waitFor({ state: 'detached' });
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
 test('a record of a use case with Ask Genie off still shows Ask Genie on Performance, and it opens the panel on why with nothing sent', async () => {
   const { calls, routes } = explainHub();
   const info = INFO();
