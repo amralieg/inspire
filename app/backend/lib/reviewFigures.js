@@ -25,7 +25,7 @@ const SESSION_LIST_COLUMNS = ['session_id', 'processing_status', 'completed_perc
 
 const INSPIRE_QUALITY_WEIGHT = 0.65;
 const INSPIRE_PRIORITY_WEIGHT = 0.35;
-const HIGH_PRIORITY_MIN_INSPIRE_SCORE = 3;
+const HIGH_PRIORITY_MIN_INSPIRE_SCORE = 3.5;
 const BELOW_BAR_ELITE_STATUSES = ['FALLBACK_BELOW_BAR', 'DOMAIN_COVERAGE_PICK'];
 const MEETS_BAR_SQL = `UPPER(TRIM(COALESCE(elite_status, ''))) NOT IN (${BELOW_BAR_ELITE_STATUSES.map((s) => `'${s}'`).join(', ')})`;
 const everyColumn = () => true;

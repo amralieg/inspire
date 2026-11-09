@@ -68,6 +68,7 @@ import {
   cardTitlesOfUseCase,
   computeHighPriorityCount,
   isHighPriority,
+  priorityTierOf,
   displayCleanText,
   expandWorkspaceListCandidates,
   findUcForNotebookFilename,
@@ -526,7 +527,7 @@ export default function ResultsPage({
         if (!uc || typeof uc !== 'object') return false;
         if (filterDomain !== 'all' && uc._domain !== filterDomain) return false;
         if (filterSubdomain !== 'all' && String(uc.Subdomain || '') !== filterSubdomain) return false;
-        if (filterPriority !== 'all' && uc.Priority !== filterPriority)
+        if (filterPriority !== 'all' && priorityTierOf(uc) !== filterPriority)
           return false;
         if (filterType !== 'all' && uc.type !== filterType) return false;
         if (filterTechnique !== 'all' && String(fieldOf(uc, 'Analytics Technique', 'analytics_technique') || '') !== filterTechnique) return false;
@@ -554,7 +555,7 @@ export default function ResultsPage({
       .sort((a, b) => {
         const chosen = sortBy === 'domain' ? String(a._domain || '').localeCompare(String(b._domain || ''))
           : sortBy === 'name' ? String(a.Name || '').localeCompare(String(b.Name || ''))
-            : sortBy === 'priority' ? priorityRank(a.Priority) - priorityRank(b.Priority) : 0;
+            : sortBy === 'priority' ? priorityRank(priorityTierOf(a)) - priorityRank(priorityTierOf(b)) : 0;
         if (chosen !== 0) return chosen;
         const meetsFirst = compareMeetsQualityBarFirst(a, b);
         if (meetsFirst !== 0) return meetsFirst;
@@ -595,7 +596,7 @@ export default function ResultsPage({
     ...new Set(allUseCases.map((uc) => uc?._domain).filter(Boolean)),
   ];
   const priorities = [
-    ...new Set(allUseCases.map((uc) => uc?.Priority).filter(Boolean)),
+    ...new Set(allUseCases.map(priorityTierOf).filter(Boolean)),
   ];
   const types = [
     ...new Set(allUseCases.map((uc) => uc?.type).filter(Boolean)),
@@ -2070,7 +2071,7 @@ export default function ResultsPage({
                     <div className="flex items-center gap-1">
                       {PRIORITY_ORDER.filter((p) => priorities.includes(p)).map((p) => {
                         const active = filterPriority === p;
-                        const cnt = allUseCases.filter((uc) => uc.Priority === p).length;
+                        const cnt = allUseCases.filter((uc) => priorityTierOf(uc) === p).length;
                         return (
                           <button
                             key={p}

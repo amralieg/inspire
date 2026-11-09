@@ -21,9 +21,19 @@ export function isNumericPriorityString(str) {
   return x !== '' && /^\d+(\.\d+)?$/.test(x);
 }
 
+export const PRIORITY_BANDS = [
+  [4.5, 'Ultra High'],
+  [4, 'Very High'],
+  [3.5, 'High'],
+  [2.5, 'Medium'],
+  [2, 'Low'],
+  [1.5, 'Very Low'],
+  [-Infinity, 'Ultra Low'],
+];
+
 export const INSPIRE_QUALITY_WEIGHT = 0.65;
 export const INSPIRE_PRIORITY_WEIGHT = 0.35;
-export const HIGH_PRIORITY_MIN_INSPIRE_SCORE = 3;
+export const HIGH_PRIORITY_MIN_INSPIRE_SCORE = PRIORITY_BANDS.find(([, tier]) => tier === 'High')[0];
 
 const toTen = (x) => Math.min(10, Math.max(0, x));
 
@@ -218,10 +228,16 @@ export function belowBarLabelFromUseCase(uc) {
 
 export const HIGH_PRIORITY_TIERS = ['Ultra High', 'Very High', 'High'];
 
+export function priorityTierOf(uc) {
+  const label = String(uc?.Priority ?? uc?.priority ?? '').trim();
+  if (PRIORITY_ORDER.includes(label)) return label;
+  const score = inspireScoreFromUc(uc);
+  if (score == null) return '';
+  return PRIORITY_BANDS.find(([floor]) => score / 2 >= floor)[1];
+}
+
 export function isHighPriority(uc) {
-  const tier = String(uc?.Priority ?? uc?.priority ?? '').trim();
-  if (PRIORITY_ORDER.includes(tier)) return HIGH_PRIORITY_TIERS.includes(tier);
-  return (inspireScoreFromUc(uc) ?? 0) / 2 >= HIGH_PRIORITY_MIN_INSPIRE_SCORE;
+  return HIGH_PRIORITY_TIERS.includes(priorityTierOf(uc));
 }
 
 export function computeHighPriorityCount(list) {

@@ -166,3 +166,37 @@ test('Review names every document a language did not get, counts High priority b
     await clean.close();
   }
 });
+
+test('on a run whose priority is a number, the priority pills, the priority filter and Sort: Priority tier use the tier of each score, and a 6.0 is not in High (must-exclude)', async () => {
+  const numeric = {
+    ...LIST_RESULTS,
+    domains: [{ domain_name: 'Customer', use_cases: [
+      uc('N01-U01', 'Middle stock', { Priority: 6.0, Quality: 'Medium', inspire_score: '6.0' }),
+      uc('N01-U02', 'Alpha basket', { Priority: 7.6, Quality: 'High', inspire_score: '7.5' }),
+      uc('N01-U03', 'Zeta churn', { Priority: 9.3, Quality: 'Ultra High', inspire_score: '9.34' }),
+      uc('N01-U04', 'Twin one', { Priority: '8.2', Quality: 'Very High', inspire_score: '8.2' }),
+    ] }],
+    delivery_order: [],
+  };
+  const ui = await openUi('results', { ...REVIEW_STATE, results: numeric });
+  const { page } = ui;
+  try {
+    await cards(page).first().waitFor();
+    await idle(page);
+    const pill = (name) => page.getByRole('button', { name: new RegExp(`^${name}\\s*\\d+$`) });
+    for (const [name, count] of [['U-High', 1], ['V-High', 1], ['High', 1], ['Medium', 1]]) {
+      assert.match((await pill(name).innerText()).replace(/\s+/g, ' '), new RegExp(`${count}$`), `${name} pill counts ${count}`);
+    }
+    assert.equal(await pill('Low').count(), 0, 'no pill for a tier no use case has');
+    assert.equal((await page.locator('[data-stat="High Priority"] [data-stat-value]').innerText()).trim(), '3', 'High, Very High and Ultra High, not the 6.0');
+    await pill('High').click();
+    assert.deepEqual(await shownNames(page), ['Alpha basket'], 'the High filter shows the High use case and not the 6.0 (must-exclude)');
+    await pill('High').click();
+    const sort = page.locator('select').filter({ has: page.locator('option', { hasText: 'Sort: Name' }) });
+    await sort.selectOption({ label: 'Sort: Priority tier' });
+    assert.deepEqual(await shownNames(page), ['Zeta churn', 'Twin one', 'Alpha basket', 'Middle stock'], 'Sort: Priority tier orders by the tier of each score');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
