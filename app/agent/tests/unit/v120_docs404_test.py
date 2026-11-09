@@ -116,6 +116,44 @@ def test_mkdirs_retry_is_bounded_and_reraises_when_persistent(docs_ns):
     assert len(fs.mkdirs_calls) == 4
 
 
+@pytest.mark.parametrize("error", [ValueError("default auth: cannot configure default credentials"),
+                                   PermissionError("PERMISSION_DENIED: you may not write here"),
+                                   RuntimeError("INVALID_PARAMETER_VALUE: Path must be absolute")],
+                         ids=["no credentials", "permission denied", "invalid path"])
+def test_mkdirs_gives_up_at_once_on_an_error_a_retry_cannot_fix(docs_ns, error, monkeypatch):
+    fs = FakeWorkspaceFS()
+    calls, slept = [], []
+
+    def refuse(path):
+        calls.append(path)
+        raise error
+
+    fs.mkdirs = refuse
+    obj = _with_fs(docs_ns, fs)
+    monkeypatch.setattr("time.sleep", slept.append)
+    with pytest.raises(type(error)):
+        obj._workspace_mkdirs_with_retry(DOCS, attempts=4, base_delay=1.0)
+    assert calls == [DOCS] and slept == []
+
+
+@pytest.mark.parametrize("message", ["INTERNAL_ERROR: Error handling request", "TEMPORARILY_UNAVAILABLE: 503 Service Unavailable",
+                                     "Read timed out", "429 Too Many Requests"])
+def test_mkdirs_retries_a_transient_error_with_backoff(docs_ns, message, monkeypatch):
+    fs = FakeWorkspaceFS()
+    calls, slept = [], []
+
+    def refuse(path):
+        calls.append(path)
+        raise RuntimeError(message)
+
+    fs.mkdirs = refuse
+    obj = _with_fs(docs_ns, fs)
+    monkeypatch.setattr("time.sleep", slept.append)
+    with pytest.raises(RuntimeError):
+        obj._workspace_mkdirs_with_retry(DOCS, attempts=4, base_delay=1.0)
+    assert calls == [DOCS] * 4 and slept == [1.0, 2.0, 4.0]
+
+
 def test_ensure_output_directories_recovers_from_transient_on_session(docs_ns):
     fs = FakeWorkspaceFS(fail_mkdirs_on={SESSION: 1})
     obj = _with_fs(docs_ns, fs, base_output_dir=BASE, session_output_dir=SESSION,
