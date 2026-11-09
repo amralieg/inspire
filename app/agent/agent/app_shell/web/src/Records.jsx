@@ -15,7 +15,7 @@ import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, format
 
 export const recordName = (row, meta) => entityName(row, meta?.label);
 import { hueVars, reducedMotion } from './theme.js';
-import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast } from './ui.jsx';
+import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast, PlainNote } from './ui.jsx';
 import { failureOf, getRecords, toneOf } from './api.js';
 import { HistoryList, useHistory } from './History.jsx';
 import { SaveButton, savingLabel, useWrite } from './saving.jsx';
@@ -228,14 +228,14 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
             <label className="in in--wide"><span>How you know<small> · optional · {String(form.how || '').trim().length}/{NOTE_CHARS}</small></span>
               <textarea dir="auto" name="realized_note" rows={2} maxLength={NOTE_CHARS} value={form.how} onChange={set('how')} />
             </label>
-            {problem && <small className="in-err in--wide">{problem}</small>}
+            {problem && <PlainNote text={problem} as="small" className="in-err in--wide" />}
           </>
         )}
         {form.status === 'Dismissed' && (
           <label className="in in--wide">
             <span>Why is it not an issue? *<small> · {form.reason.trim().length}/{REASON_CHARS}</small></span>
             <textarea dir="auto" ref={reason} name="dismiss_reason" rows={2} maxLength={REASON_CHARS} value={form.reason} onChange={set('reason')} aria-invalid={problem ? true : undefined} required />
-            {problem && <small className="in-err">{problem}</small>}
+            {problem && <PlainNote text={problem} as="small" className="in-err" />}
           </label>
         )}
         <div className="act-btns in--wide">
@@ -427,7 +427,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               <section className="sec dr-hist" aria-label="History">
                 <h3><Icon name="history" size={13} />History</h3>
                 {log.loading && !log.data && <div style={{ display: 'grid', gap: 8 }}><Skeleton height={18} /><Skeleton height={18} width="70%" /></div>}
-                {log.error && <p className="tile-err tile-err--flat"><Icon name="info" size={14} />The history could not load: {log.error}</p>}
+                {log.error && <PlainNote text={log.error} prefix="The history could not load: " icon={<Icon name="info" size={14} />} className="tile-err tile-err--flat" />}
                 {log.data && <HistoryList data={log.data} meta={meta} unit={unit} kind={kind} />}
                 {log.data?.truncated && <p className="more">Showing the latest {integer(log.data.versions.length)} versions.</p>}
               </section>
@@ -977,7 +977,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           onDraft={() => setDrafted([...picked.keys()])} />
       )}
       {!data && list.busy && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {list.error && <p className="tile-err"><Icon name="info" size={14} />The list could not load: {list.error}</p>}
+      {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
       {data && (
         <>
           {claim && <div className="quiet-n" data-claim><Icon name="info" size={13} /><div><p>{claimText(claim.record_keys.length)}</p>

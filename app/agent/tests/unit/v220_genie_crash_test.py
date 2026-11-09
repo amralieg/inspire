@@ -245,6 +245,78 @@ def test_a_relay_that_cannot_start_leaves_genie_calling_the_gateway_directly(age
     assert "127.0.0.1" in env["NO_PROXY"] and "localhost" in env["no_proxy"]
 
 
+def test_the_codex_route_calls_the_gateway_directly_and_never_starts_the_relay(agent_ns, tmp_path):
+    codex = agent_ns["GenieCodeRoute"]("gpt-5.6-sol", agent_ns["GENIE_CODE_GATEWAYS"][0])
+    runner = _runner(agent_ns, tmp_path, "https://workspace.example.com", _scripted_genie([(0, "")], []), route_obj=codex)
+    started = []
+    runner.relay_factory = lambda host, logger: started.append(host)
+    assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
+    assert started == [] and runner.relay is None
+    base = tomllib.loads(runner.config_toml())["model_providers"]["databricks"]["base_url"]
+    assert base == "https://workspace.example.com" + agent_ns["GENIE_CODE_GATEWAYS"][0]["base"]
+    claude = _runner(agent_ns, tmp_path, "https://workspace.example.com", _scripted_genie([(0, "")], []))
+    claude.relay_factory = lambda host, logger: types.SimpleNamespace(base="http://127.0.0.1:9", stop=lambda: None)
+    claude.relay_probe = lambda url, token, env: ""
+    claude.run("build it", str(tmp_path / "w"))
+    assert tomllib.loads(claude.config_toml())["model_providers"]["databricks"]["base_url"].startswith("http://127.0.0.1:9/"), (
+        "the Claude route still goes through the relay that repairs its resends (must-include)")
+
+
+def _closed_port():
+    import socket
+    probe = socket.socket()
+    probe.bind(("127.0.0.1", 0))
+    port = probe.getsockname()[1]
+    probe.close()
+    return port
+
+
+@pytest.mark.parametrize("relay_of", [
+    lambda ns: types.SimpleNamespace(base=f"http://127.0.0.1:{_closed_port()}", stop=lambda: None),
+    lambda ns: ns["GenieCodeRelay"]("http://127.0.0.1:1", CapturingLogger()),
+])
+def test_a_relay_genie_code_cannot_get_an_answer_through_is_dropped_before_genie_runs(agent_ns, tmp_path, relay_of):
+    relay = relay_of(agent_ns)
+    if hasattr(relay, "start"):
+        relay.start()
+    made, popen = [], _scripted_genie([(0, ""), (0, "")], [])
+    runner = _runner(agent_ns, tmp_path, "https://workspace.example.com", popen)
+    runner.relay_factory = lambda host, logger: made.append(host) or relay
+    try:
+        assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
+        assert runner.relay is None and runner.relay_off
+        base = tomllib.loads(runner.config_toml())["model_providers"]["databricks"]["base_url"]
+        assert base == "https://workspace.example.com" + agent_ns["UNITY_GATEWAY_MLFLOW_PATH"], "Genie Code calls the gateway directly"
+        fired = [line for _level, line in runner.logger.records if "[GENIE-RELAY FIRED]" in line]
+        assert len(fired) == 1 and runner.relay_off in fired[0]
+        runner.run("build it again", str(tmp_path / "w"))
+        assert made == ["https://workspace.example.com"], "a relay found unreachable is not started and checked again every round"
+    finally:
+        if hasattr(relay, "start"):
+            relay.stop()
+
+
+def test_a_relay_that_answers_a_process_started_from_the_notebook_is_kept(agent_ns, tmp_path, route):
+    runner = _runner(agent_ns, tmp_path, route.base, _scripted_genie([(0, "")], []))
+    assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
+    assert runner.relay is not None and not runner.relay_off
+    assert tomllib.loads(runner.config_toml())["model_providers"]["databricks"]["base_url"] == runner.relay.base + agent_ns["UNITY_GATEWAY_MLFLOW_PATH"]
+    assert not any("[GENIE-RELAY FIRED]" in line for _level, line in runner.logger.records)
+
+
+@pytest.mark.parametrize("upstream", ["workspace.example.com", "http://127.0.0.1:1"])
+def test_a_relay_that_cannot_reach_the_gateway_answers_with_the_reason_and_logs_it(agent_ns, upstream):
+    logger = CapturingLogger()
+    relay = agent_ns["GenieCodeRelay"](upstream, logger)
+    relay.start()
+    try:
+        status, text = _post(f"{relay.base}/ai-gateway/mlflow/v1/responses", {"model": "m", "input": [USER]})
+    finally:
+        relay.stop()
+    assert status == 502 and "the relay could not reach Unity Gateway" in text
+    assert any("[GENIE-RELAY FIRED]" in line and "/ai-gateway/mlflow/v1/responses" in line for _level, line in logger.records)
+
+
 def _wrapped(ns):
     try:
         try:

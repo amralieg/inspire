@@ -107,3 +107,45 @@ test('the Build pane names the next step without the left/right wording or the n
     await ui.close();
   }
 });
+
+const DENIED = 'PERMISSION_DENIED: User does not have USE SCHEMA on Schema main._inspire. Ask the owner to run: GRANT USE SCHEMA ON SCHEMA main._inspire TO `someone@example.com`';
+const DENIED_PLAIN = 'User does not have USE SCHEMA on Schema main._inspire. Ask the owner to give you the access listed under Details';
+
+async function plainError(page, needle) {
+  await page.getByText(needle).first().waitFor({ timeout: 15000 });
+  const text = await shownText(page);
+  assert.doesNotMatch(text, /PERMISSION_DENIED|\bGRANT\s+[A-Z]|\{"error"/, 'no error code, GRANT or JSON body outside Details (must-exclude)');
+  const details = page.locator('[data-technical-details]');
+  assert.ok(await details.count() > 0, 'the technical words sit under Details');
+  assert.equal(await details.first().getAttribute('open'), null, 'Details starts closed');
+  assert.match((await details.allTextContents()).join('\n'), /PERMISSION_DENIED|GRANT USE SCHEMA/);
+}
+
+for (const [name, open, state, needle] of [
+  ['Home runs list', 'choose', { sessionsErrors: [DENIED, DENIED, DENIED, DENIED] }, 'Could not load all runs. You can still start a new run.'],
+  ['Review runs list', 'results', { sessionsErrors: [DENIED, DENIED, DENIED] }, DENIED_PLAIN],
+  ['Build', 'implement', { sqlErrors: { __inspire_implement: DENIED } }, DENIED_PLAIN],
+  ['Run', 'run', { registryError: DENIED }, `Inspire cannot list the deployed use cases: ${DENIED_PLAIN}`],
+]) {
+  test(`a permission error on ${name} reads as a plain sentence with the code and GRANT under a closed Details`, async () => {
+    const ui = await openUi(open, state);
+    try {
+      await plainError(ui.page, needle);
+    } finally {
+      await ui.close();
+    }
+  });
+}
+
+test('Monitor says it cannot read a run the person may not see, instead of waiting for it to start forever', async () => {
+  const ui = await openUi('monitor', { runRead: { status: 403, body: { error: 'PERMISSION_DENIED: User cannot view run 777.' } } });
+  const { page } = ui;
+  try {
+    const status = page.locator('[data-testid="monitor-status"]');
+    await page.waitForFunction(() => document.querySelector('[data-testid="monitor-status"]')?.dataset.status === 'failed', null, { timeout: 15000 });
+    assert.match(await status.innerText(), /^Cannot read this run\s+Inspire cannot read this run with your sign-in: User cannot view run 777\./);
+    assert.doesNotMatch(await shownText(page), /waiting to start|PERMISSION_DENIED/, 'no waiting claim and no code outside Details (must-exclude)');
+  } finally {
+    await ui.close();
+  }
+});

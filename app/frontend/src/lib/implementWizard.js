@@ -19,53 +19,41 @@ export const OPEN_ALL_SETTINGS = 'Open all settings';
 
 export const MVP_MODE_LABEL = 'Inspire builds the MVP';
 export const NOTEBOOK_MODE_LABEL = 'I will build it myself';
-export const IMPLEMENT_MODES = [
-  { id: 'mvp', label: MVP_MODE_LABEL, blurb: 'Genie builds the data, then the App, dashboard, alerts or Genie Agent you pick.' },
-  { id: 'notebook', label: NOTEBOOK_MODE_LABEL, blurb: 'Inspire hands you the Genie Code notebook for this use case. Nothing else is built.' },
-];
 
-export const DELIVERY_LABEL = 'Delivery consumption';
-export const DELIVERY_QUESTION = 'How do you like to consume or use this use case?';
+export const DELIVERY_LABEL = 'Deliver';
+export const DELIVERY_QUESTION = 'How will people use this use case?';
 export const BUILD_IT_LABEL = 'All Good, Build it Now';
 export const BACK_TO_SUMMARY = 'Back to Summary';
+export const WIZARD_LINE = 'From your data to people using it';
+export const NOTEBOOK_CARD = { id: 'notebook', label: 'Notebook', blurb: 'The notebook that reads your data and fills the result table. Always built.' };
+export const RUN_IT_TITLE = 'How it keeps running, and how you know it works';
 
-const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'] };
-const NOTEBOOK_DELIVERY_STEP = { ...DELIVERY_STEP, sections: [], advanced: [] };
+const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery'] };
+const DATA_STEP = { id: 'data', label: 'Data', sections: ['use_case', 'data', 'configure'], advanced: ['use_case', 'data', 'configure'], panels: ['data', 'grouping'] };
+const RESULTS_STEP = { id: 'results', label: 'Results', sections: ['results'], advanced: [], panels: ['results'] };
+export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule', 'kpi', 'holdout'], advanced: ['schedule', 'holdout'], panels: ['fresh', 'measure'] };
 
-export const IMPLEMENT_STEPS = [
-  DELIVERY_STEP,
-  { id: 'data', label: 'Data', sections: ['use_case', 'data', 'configure'], advanced: ['use_case', 'data', 'configure'] },
-  { id: 'results', label: 'Results', sections: ['results'], advanced: [] },
-  { id: 'measure', label: 'Measure impact', sections: ['kpi', 'holdout'], advanced: ['holdout'] },
-  { id: 'fresh', label: 'Keep it fresh', sections: ['schedule'], advanced: ['schedule'] },
-];
+export const IMPLEMENT_STEPS = [DATA_STEP, RESULTS_STEP, DELIVERY_STEP, RUN_STEP];
 
-export const APP_STEPS = [
-  { id: 'app_access', label: 'App access', sections: ['app_access'], advanced: [] },
-  { id: 'app_look', label: 'App look', sections: ['app_look'], advanced: [] },
-];
+export const APP_PANELS = ['app_place', 'app_access', 'app_features', 'app_look'];
+export const APP_STEP = { id: 'app', label: 'App', sections: APP_PANELS, advanced: [], panels: APP_PANELS };
+const JOINED_APP_STEP = { ...APP_STEP, sections: ['app_place'], panels: ['app_place'] };
 
-export const APP_PLACE_STEP = { id: 'app_place', label: 'App placement', sections: ['app_place'], advanced: [] };
+export const SUMMARY_STEP = { id: 'summary', label: 'Summary', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
 
-export const SETTINGS_STEP = { id: 'settings', label: 'Settings', sections: ['settings'], advanced: [] };
+export const FIRST_RUN_STEP = { id: 'first_run', label: 'First run', sections: ['first_run'], advanced: [], panels: ['first_run'] };
 
-export const VIBES_STEP = { id: 'vibes', label: 'Vibes', sections: ['vibes'], advanced: [] };
-
-export const SUMMARY_STEP = { id: 'summary', label: 'Summary', sections: [], advanced: [] };
-
-export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [] };
-
-export const FIRST_RUN_STEP = { id: 'first_run', label: FIRST_RUN_LABEL, sections: ['first_run'], advanced: [] };
-
-export const NO_SCOPE_STEPS = { grouping: false, firstRun: false, settings: false };
+export const NO_SCOPE_STEPS = { grouping: false, firstRun: false };
 
 export const NOTEBOOK_STEPS = [
-  NOTEBOOK_DELIVERY_STEP,
-  { id: 'data', label: 'Data', sections: [], advanced: [] },
-  { id: 'notebook', label: 'Notebook', sections: [], advanced: [] },
+  { id: 'data', label: 'Data', sections: [], advanced: [], panels: ['data'] },
+  { id: 'notebook', label: 'Notebook', sections: [], advanced: [], panels: ['notebook'] },
 ];
 
-const STEP_ALIASES = { choose: DELIVERY_STEP.id, review: SUMMARY_STEP.id };
+const STEP_ALIASES = {
+  choose: DATA_STEP.id, review: SUMMARY_STEP.id, grouping: DATA_STEP.id, measure: RUN_STEP.id, fresh: RUN_STEP.id, vibes: SUMMARY_STEP.id,
+  settings: SUMMARY_STEP.id, app_place: APP_STEP.id, app_access: APP_STEP.id, app_features: APP_STEP.id, app_look: APP_STEP.id,
+};
 
 export function joinsApp(spec) {
   return Boolean(spec?.outputs?.app && spec.outputs.merge?.app);
@@ -79,16 +67,15 @@ export function contextSettings(context, spec) {
 export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   if (mode === 'mvp') {
     const app = Boolean(spec?.outputs?.app);
-    const [delivery, data, ...results] = IMPLEMENT_STEPS;
-    return [delivery, data, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), ...results,
-      ...(app ? [APP_PLACE_STEP] : []), ...(app && !joinsApp(spec) ? APP_STEPS : []),
-      ...(scope?.settings ? [SETTINGS_STEP] : []), VIBES_STEP, SUMMARY_STEP];
+    const data = scope?.grouping ? { ...DATA_STEP, sections: [...DATA_STEP.sections, 'grouping'] } : DATA_STEP;
+    return [data, ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), RESULTS_STEP, DELIVERY_STEP,
+      ...(app ? [joinsApp(spec) ? JOINED_APP_STEP : APP_STEP] : []), RUN_STEP, SUMMARY_STEP];
   }
   if (mode === 'notebook') return NOTEBOOK_STEPS;
   throw new Error(`unknown implement mode '${mode}'`);
 }
 
-export const BUILD_STEP_IDS = ['delivery', APP_PLACE_STEP.id, ...APP_STEPS.map((s) => s.id), SETTINGS_STEP.id, VIBES_STEP.id, SUMMARY_STEP.id];
+export const BUILD_STEP_IDS = [DELIVERY_STEP.id, APP_STEP.id, SUMMARY_STEP.id];
 
 export const APP_PLACEMENTS = [
   { id: 'domain', label: 'One App per business domain', blurb: 'Use cases of the same domain share one App, so the people of that domain find them in one place.' },
@@ -103,7 +90,7 @@ export const APP_INSIDE = 'inspire';
 export const APP_INSIDE_PLACEMENT = APP_PLACEMENTS.find((p) => p.id === APP_INSIDE);
 export const APP_OWN_PLACEMENTS = APP_PLACEMENTS.filter((p) => p.id !== APP_INSIDE);
 export const INSIDE_ACCESS_REASON = 'Inside Inspire, each viewer signs in as themselves and sees only the data they may read';
-export const INSIDE_BACKEND_REASON = 'Lakebase needs an App of its own';
+export const INSIDE_BACKEND_REASON = 'Fast pages need an App of its own';
 export const INSIDE_WAREHOUSE_LABEL = 'SQL warehouse each viewer reads with (each viewer needs CAN USE on it)';
 export const INSIDE_WAREHOUSE_PROBLEM = 'pick the SQL warehouse each viewer reads with; each viewer needs CAN USE on it';
 export const RUN_LINK_LABEL = 'Open in Run';
@@ -130,25 +117,25 @@ export function withHeldApp(spec, saved = {}) {
 }
 
 export const APP_ACCESS_CHOICES = [
-  { id: 'sp', label: 'Internal data: the App uses its own service principal',
-    blurb: 'Everyone sees the same rows, read with the App\'s own access. Inspire grants it read access to the result table.' },
+  { id: 'sp', label: 'Internal data: everyone sees the same rows',
+    blurb: 'The App reads with its own access, and Inspire lets it read the result table.' },
   { id: 'user', label: 'Sensitive data: each person signs in as themselves (per-user)',
     blurb: 'Each person sees only the rows their own access allows.' },
 ];
 export const APP_ACCESS_DEFAULT = 'sp';
 export const REMOVED_OUTPUT_DEFAULT = 'keep';
-export const APP_ACCESS_NOTE = 'Inspire starts with the App\'s own service principal, so its pages load at once from Lakebase. '
-  + 'Pick per-user when each person must see only the rows their own access allows; that App reads Delta tables.';
+export const APP_ACCESS_NOTE = 'Inspire starts with everyone seeing the same rows, so pages open at once. '
+  + 'Pick per-user when each person must see only the rows their own access allows; those pages take a few seconds.';
 
 export const APP_BACKENDS = ['lakebase', 'delta'];
 export const APP_BACKEND_CHOICES = [
-  { id: 'lakebase', label: 'Lakebase (Loads instantly)',
-    blurb: 'Inspire copies the result into Lakebase after every run, so pages open at once. Edits still go to the Delta tables.' },
-  { id: 'delta', label: 'Delta Tables (Takes a few seconds to load)' },
+  { id: 'lakebase', label: 'Fast pages (open at once)',
+    blurb: 'Inspire keeps a fast copy of the result after every run, so pages open at once. Edits still save to the result table.' },
+  { id: 'delta', label: 'Standard pages (take a few seconds to open)' },
 ];
-export const LAKEBASE_PER_USER_REASON = 'Each person signs in as themselves, and Lakebase does not carry Unity Catalog row filters, column masks '
-  + 'or grants to each viewer, so this App reads Delta tables.';
-export const LAKEBASE_CHECKING = 'Inspire is still checking whether this workspace has Lakebase';
+export const LAKEBASE_PER_USER_REASON = 'Each person signs in as themselves, and the fast copy cannot keep each person to their own rows, '
+  + 'so this App\'s pages take a few seconds to open.';
+export const LAKEBASE_CHECKING = 'Inspire is still checking whether fast pages are possible here';
 
 export function appBackendDefault(spec, offer) {
   const outputs = spec?.outputs || {};
@@ -164,11 +151,15 @@ export function appBackendOf(spec, offer) {
   return picked || appBackendDefault(spec, offer);
 }
 
-export function lakebaseBlock(spec, offer) {
-  if (insideInspire(spec)) return INSIDE_BACKEND_REASON;
-  if (spec?.outputs?.app_access === 'user') return LAKEBASE_PER_USER_REASON;
-  if (offer?.state === 'denied') return `Databricks refused to list the Lakebase projects of this workspace for you (${offer.detail}). A workspace admin can let you use Lakebase`;
-  return '';
+export const LAKEBASE_ABSENT = 'Fast pages are not possible in this workspace, so the App\'s pages take a few seconds to open.';
+export const LAKEBASE_UNCHECKED = 'Inspire could not check whether fast pages are possible. If the build cannot use them, the App\'s pages take a few seconds and the build says why.';
+
+export function appBackendBlocks(spec, offer) {
+  if (insideInspire(spec)) return { lakebase: blockOf(INSIDE_BACKEND_REASON) };
+  if (spec?.outputs?.app_access === 'user') return { lakebase: blockOf(LAKEBASE_PER_USER_REASON) };
+  if (offer?.state === 'denied') return { lakebase: blockOf(needsAccess(offer.detail), offer.detail) };
+  if (offer?.state === 'absent') return { lakebase: blockOf(LAKEBASE_ABSENT, offer.detail) };
+  return {};
 }
 
 export function specWithBackend(spec, offer) {
@@ -408,7 +399,6 @@ export const MERGE_OUTPUTS = ['dashboard', 'genie_space', 'app'];
 export const FRESH_DEFAULT = 'daily';
 export const FRESH_HELP = 'Runs the MVP again each day or week, so the results stay current. Only the first run is the MVP Test Run; '
   + 'every later run covers all your Data groups.';
-export const CAPACITY_IN_APP = 'Set in the App\u2019s Settings';
 
 export const FRESHNESS_OPTIONS = [
   { id: 'off', label: 'Off' },
@@ -427,7 +417,7 @@ export const VIBES_MAX = 2000;
 export const VIBES_HELP = "Tell Genie what you want in your own words. Your asks win over Inspire's defaults.";
 export const VIBES_STEP_TITLE = 'Anything else Genie should build in?';
 export const VIBE_ROUTING = 'Inspire sends each ask to the part it changes, and an ask that changes the analysis rebuilds the notebook and every part after it';
-export const VIBES_STEP_NOTE = `${VIBES_HELP} There is one box for the whole MVP: ${VIBE_ROUTING}. The box is optional, and its gray text is only an example.`;
+export const VIBES_STEP_NOTE = `${VIBES_HELP} One optional box for the whole MVP; the gray text is only an example.`;
 
 export const IMPLEMENT_DONE_STATUSES = ['ready', 'ready_with_warnings'];
 export const BUILT_ASSET_STATES = IMPLEMENT_DONE_STATUSES;
@@ -520,8 +510,7 @@ export function vibesPreview(text, max = 80) {
 export function vibesSkippedText(spec) {
   const off = IMPLEMENT_OUTPUTS.filter((o) => !spec?.outputs?.[o.id]).map((o) => `the ${o.label}`);
   if (!off.length) return '';
-  const them = off.length > 1 ? 'them' : 'it';
-  return `Genie builds only what you picked in ${DELIVERY_LABEL}, so an ask for ${joinWords(off)} is not done. To vibe ${them}, go back to ${DELIVERY_LABEL} and pick ${them}.`;
+  return `Not picked in ${DELIVERY_LABEL}, so not built: ${joinWords(off)}.`;
 }
 
 export function vibePreviousProblem(spec, built) {
@@ -1666,7 +1655,7 @@ export function sectionErrors(section, spec, extras = {}) {
   if (section === 'results') errors.push(...resultTableProblems(spec.config.result_table));
   if (section === 'app_access' && spec.outputs.app) {
     if (!APP_ACCESS_CHOICES.some((c) => c.id === spec.outputs.app_access)) {
-      errors.push('choose who the App signs people in as: each person (per-user) or its own service principal');
+      errors.push('choose who sees which rows: everyone the same rows, or each person only their own');
     }
     if (insideInspire(spec) && spec.outputs.app_access !== 'user') errors.push(`${INSIDE_ACCESS_REASON}, so pick per-user`);
     if (extras.lakebase === null && spec.outputs.app_access === 'sp' && !spec.outputs.merge?.app) errors.push(LAKEBASE_CHECKING);
@@ -1707,7 +1696,6 @@ export function sectionErrors(section, spec, extras = {}) {
     if (extras.trainsModel !== false) errors.push(...profileProblems(spec.config.profiles, ['retrain']));
   }
   if (section === 'use_it') {
-    if (!IMPLEMENT_OUTPUTS.some((o) => spec.outputs[o.id])) errors.push('pick at least one way to use it');
     if (spec.outputs.app && !spec.outputs.genie_space) errors.push(GENIE_FOR_APP_NOTE);
     errors.push(...blockedOutputProblems(spec, extras.outputBlocks || {}));
     errors.push(...mergePickProblems(spec, extras, MERGE_OUTPUTS.filter((name) => name !== 'app')));
@@ -1817,8 +1805,14 @@ export function affordable(order, blocks = {}, reasonOf = () => '', labelOf = (i
   return { open, blocks: held, best: open.length ? { id: open[0], reason: reasonOf(open[0]) } : null, none };
 }
 
+export function notFoundPlace(detail = '') {
+  const found = /\b(catalog|schema) (\S+) does not exist\b/i.exec(String(detail || ''));
+  return found ? `The ${found[1].toLowerCase()} ${found[2]} does not exist, or Inspire cannot see it.` : '';
+}
+
 export function blockWhy(detail) {
-  return /\b(grant|privilege|permission|access|use schema|use catalog|create table|manage)\b/i.test(String(detail || '')) ? needsAccess(detail) : CANNOT_HERE;
+  return notFoundPlace(detail)
+    || (/\b(grant|privilege|permission|access|use schema|use catalog|create table|manage)\b/i.test(String(detail || '')) ? needsAccess(detail) : CANNOT_HERE);
 }
 
 export function blockOf(why, details = '') {
@@ -1933,7 +1927,7 @@ export function withJoinedApp(spec, targets) {
 
 export const APP_WAREHOUSE_LABELS = {
   delta: 'SQL warehouse the App reads and saves with',
-  lakebase: 'SQL warehouse the App saves, keeps history and runs alerts with (pages read from Lakebase)',
+  lakebase: 'SQL warehouse the App saves, keeps history and runs alerts with (pages read the fast copy)',
 };
 
 export function appWarehouseLabel(backend) {
@@ -2369,6 +2363,11 @@ export function buildsText(built) {
   return `The MVP: ${joinWords([...(built || []).filter(Boolean), 'the result table', 'the notebook that fills it'])}`;
 }
 
+export function builtSentence(spec) {
+  const outputs = spec?.outputs || {};
+  return `${buildsText(IMPLEMENT_OUTPUTS.filter((o) => outputs[o.id]).map((o) => o.label))}.`;
+}
+
 export function pickedSummary(spec, sourceTables = [], more = {}) {
   const outputs = spec?.outputs || {};
   const built = IMPLEMENT_OUTPUTS.filter((o) => outputs[o.id]).map((o) => o.label);
@@ -2380,7 +2379,6 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
   const joined = joinsApp(spec);
   const placement = APP_PLACEMENTS.find((p) => p.id === outputs.app_placement);
   const row = (id, step, label, value) => ({ id, step, label, value: String(value ?? '') });
-  const vibes = String(spec?.vibes ?? '').trim();
   return [
     row('outputs', 'delivery', 'What it builds', buildsText(built)),
     ...((more.dropped || []).length ? [row('dropped', 'delivery', 'Not built', more.dropped.map((d) => `${d.label}: ${d.why}`).join('; '))] : []),
@@ -2388,23 +2386,21 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
       ? `Emails ${outputs.alert_recipients.join(', ')} when ${alertTriggerText(outputs)}` : 'Nobody gets it yet')] : []),
     row('data', 'data', 'Data it reads', sourceTables.join(', ') || 'none'),
     ...(filters ? [row('filters', 'data', 'Filters', plural(filters, 'filter'))] : []),
-    ...(more.grouping ? [row('grouping', 'grouping', 'Data groups', more.grouping)] : []),
+    ...(more.grouping ? [row('grouping', 'data', 'Data groups', more.grouping)] : []),
     ...(more.firstRun ? [row('first_run', 'first_run', FIRST_RUN_LABEL, more.firstRun)] : []),
     row('result', 'results', 'Result table', String(spec?.config?.result_table || '') || 'not named yet'),
-    row('kpi', 'measure', 'Target KPI', kpiTargetOf(spec) || 'Inspire picks'),
-    row('holdout', 'measure', HOLDOUT_LABEL, holdout.enabled ? `On, ${holdoutPercentText(spec) || '?'}% kept aside` : 'Off'),
-    row('schedule', 'fresh', FRESH_LABEL, freshness === 'off' ? 'Off, it runs once'
+    row('kpi', 'run', 'Target KPI', kpiTargetOf(spec) || 'Inspire picks'),
+    row('holdout', 'run', HOLDOUT_LABEL, holdout.enabled ? `On, ${holdoutPercentText(spec) || '?'}% kept aside` : 'Off'),
+    row('schedule', 'run', FRESH_LABEL, freshness === 'off' ? 'Off, it runs once'
       : `${freshness === 'custom' ? 'Custom' : FRESHNESS_OPTIONS.find((o) => o.id === freshness).label}, runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`),
     ...(principals.length ? [row('sharing', 'delivery', 'Shared with', principals.join(', '))] : []),
-    ...(app ? [row('app', 'app_place', 'App', joined ? `Joins ${outputs.merge.app}`
+    ...(app ? [row('app', 'app', 'App', joined ? `Joins ${outputs.merge.app}`
       : [placement?.label, outputs.app_name].filter(Boolean).join(': ') || 'not placed yet')] : []),
     ...(app && !joined ? [
-      row('app_access', 'app_access', 'App access', APP_ACCESS_CHOICES.find((c) => c.id === outputs.app_access)?.label || 'not picked yet'),
-      row('app_look', 'app_look', 'App look', lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
+      row('app_access', 'app', 'App access', APP_ACCESS_CHOICES.find((c) => c.id === outputs.app_access)?.label || 'not picked yet'),
+      row('app_features', 'app', 'App features', APP_OPTIONS.filter((o) => outputs.app_options?.[o.id] && appOptionShown(spec, o.id)).map((o) => o.label).join(', ') || 'none'),
+      row('app_look', 'app', 'App look', lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
     ] : []),
-    row('capacity', SUMMARY_STEP.id, 'Team capacity', CAPACITY_IN_APP),
-    ...(more.settings ? [row('settings', 'settings', 'Settings', more.settings)] : []),
-    row('vibes', 'vibes', 'Vibes', vibes.length > SUMMARY_TEXT_MAX ? `${vibes.slice(0, SUMMARY_TEXT_MAX)}\u2026` : vibes || 'none'),
   ];
 }
 
@@ -2582,10 +2578,21 @@ export function appGrantText(got) {
   return got?.app_unreadable ? `${head}, and the App still cannot read every table` : `${head}, and the App can now read these tables`;
 }
 
+export function lostTablesList(missing) {
+  return (missing || []).map((m) => `${m.table} (${m.primary ? `the primary table, ${m.reason}` : m.reason})`).join(', ');
+}
+
+export function lostTablesAction(missing) {
+  const primary = (missing || []).find((m) => m.primary);
+  if (!primary) return 'swap each for a table with the same role or remove it';
+  const rest = (missing || []).length > 1 ? ', and swap or remove the others' : '';
+  return `swap ${primary.table} for a table with the same role, because the primary table can be swapped, not removed${rest}`;
+}
+
 export function lostTablesText(missing) {
   if (!missing?.length) return '';
-  return `These source tables are missing or not readable: ${missing.map((m) => `${m.table} (${m.reason})`).join(', ')}. `
-    + 'Swap each for a table with the same role, or remove it.';
+  const action = lostTablesAction(missing);
+  return `These source tables are missing or not readable: ${lostTablesList(missing)}. ${action[0].toUpperCase()}${action.slice(1)}.`;
 }
 
 export function initialStepIndex(focus, mode = 'mvp', spec = null, scope = NO_SCOPE_STEPS) {
@@ -2597,14 +2604,11 @@ export function initialStepIndex(focus, mode = 'mvp', spec = null, scope = NO_SC
 }
 
 export function initialStepId(focus, mode = 'mvp', spec = null, scope = NO_SCOPE_STEPS) {
-  if (mode === 'mvp' && focus?.step === SETTINGS_STEP.id) return SETTINGS_STEP.id;
   return wizardSteps(mode, spec, scope)[initialStepIndex(focus, mode, spec, scope)].id;
 }
 
 export function stepIndexOf(steps, id) {
-  const index = steps.findIndex((s) => s.id === id);
-  if (index < 0 && id === SETTINGS_STEP.id) return Math.max(0, steps.findIndex((s) => s.id === VIBES_STEP.id));
-  return Math.max(0, index);
+  return Math.max(0, steps.findIndex((s) => s.id === id));
 }
 
 export function nextStepAfter(steps, id, { backToSummary = false, visited = [] } = {}) {
@@ -2660,7 +2664,7 @@ export function undeliveredOutputs(latest) {
     .map((entry) => ({ output: String(entry.output).trim(), label: String(entry.label ?? entry.output).trim(), reason: String(entry.reason ?? '').trim() }));
 }
 
-export const UNRELIABLE_REBUILD_NOTE = 'The newest run says its results are not reliable yet. Fix what it names, then rebuild.';
+export const UNRELIABLE_REBUILD_NOTE = `The newest run says its results are not reliable yet. Next step: ${UNRELIABLE_FIX}, then build again with ${VIBE_FEATURES_LABEL}.`;
 
 export function newestRunUnreliable(latest) {
   const run = latest?.latest_run;

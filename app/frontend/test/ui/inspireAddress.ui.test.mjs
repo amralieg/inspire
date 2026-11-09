@@ -19,7 +19,7 @@ test('the wizard sends the Inspire address for every App placement, so each App 
     });
     const { page, made } = ui;
     try {
-      await onStep(page, 'Delivery consumption');
+      await goToStep(page, 'What to build');
       await goToStep(page, 'App placement');
       await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
       await page.getByRole('radio', { name: label }).check();
@@ -47,7 +47,7 @@ test('the wizard sends the Inspire address for a dashboard with no App, and none
     const { page, made } = ui;
     const what = tick.map(String).join(' ') || 'nothing';
     try {
-      await onStep(page, 'Delivery consumption');
+      await goToStep(page, 'What to build');
       await page.getByRole('checkbox', { name: /^App / }).uncheck();
       for (const name of tick) await page.getByRole('checkbox', { name }).check();
       await startMvp(page);

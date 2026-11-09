@@ -34,9 +34,13 @@ test('the wizard offers exactly the App choices the backend and the App shell ac
   assert.deepEqual(w.APP_THEMES.map((t) => t.id), SHELL.themes);
   assert.deepEqual(w.APP_OPTIONS.map((o) => o.id), backend.IMPLEMENT_APP_OPTION_KEYS.filter((o) => o !== 'replace_edits'));
   assert.deepEqual(w.APP_ACCESS_CHOICES.map((c) => c.label), [
-    'Internal data: the App uses its own service principal',
+    'Internal data: everyone sees the same rows',
     'Sensitive data: each person signs in as themselves (per-user)',
   ]);
+  for (const text of [...w.APP_ACCESS_CHOICES.flatMap((c) => [c.label, c.blurb]), w.APP_ACCESS_NOTE,
+    ...w.APP_BACKEND_CHOICES.flatMap((c) => [c.label, c.blurb]).filter(Boolean), w.LAKEBASE_PER_USER_REASON, w.LAKEBASE_ABSENT, w.LAKEBASE_UNCHECKED]) {
+    assert.doesNotMatch(text, /service principal|lakebase|delta/i, `plain words: ${text}`);
+  }
   assert.equal(w.LAKEVIEW_STYLE_NOTE, 'Only style A matches the Lakeview dashboard look.');
   assert.deepEqual(w.APP_OPTIONS.map((o) => o.label), ['Let people edit data', 'Record decisions', 'Send alerts']);
   assert.match(w.APP_OPTIONS.find((o) => o.id === 'decisions').blurb, /They own, track and dismiss each flagged record \(the action tracker\)\.$/);
@@ -61,9 +65,9 @@ test('a new spec has the Genie Agent and App on and the dashboard and alert off,
   assert.equal(fresh.outputs.app_access, 'sp');
   assert.equal(w.appBackendOf(fresh, { state: 'available' }), 'lakebase', 'a workspace with Lakebase gets a Lakebase App by default');
   assert.equal(w.appBackendOf(fresh, { state: 'absent' }), 'delta');
-  assert.equal(w.lakebaseBlock(fresh, { state: 'available' }), '');
-  assert.match(w.APP_ACCESS_NOTE, /service principal, so its pages load at once from Lakebase\. Pick per-user when each person must see only/);
-  assert.match(w.APP_ACCESS_CHOICES.find((c) => c.id === 'sp').blurb, /^Everyone sees the same rows/);
+  assert.deepEqual(w.appBackendBlocks(fresh, { state: 'available' }), {});
+  assert.match(w.APP_ACCESS_NOTE, /everyone seeing the same rows, so pages open at once\. Pick per-user when each person must see only/);
+  assert.match(w.APP_ACCESS_CHOICES.find((c) => c.id === 'sp').blurb, /^The App reads with its own access/);
   assert.deepEqual(fresh.outputs.app_look, { style: 'a', layout: 'sidebar', palette: 'default', theme: 'light' });
   assert.deepEqual(fresh.outputs.app_options, { modify: false, replace_edits: false, decisions: true, alerts: false }, 'record decisions start on, alerts start off');
   assert.deepEqual(fresh.outputs.merge, { app: '', dashboard: '', genie_space: '' });
@@ -107,8 +111,8 @@ test('ticking the App ticks the Genie Agent and locks it, and the lock refuses a
   assert.deepEqual([off.outputs.app, off.outputs.genie_space], [false, true], 'unticking the App leaves the Genie Agent as it is');
   assert.equal(w.withOutput(off, 'genie_space', false).outputs.genie_space, false);
   assert.deepEqual(w.withOutput(spec, 'alert', true).outputs.alert_recipients, w.defaultAlertRecipients(spec));
-  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['delivery', 'data', 'results', 'measure', 'fresh', 'app_place', 'app_access', 'app_look', 'vibes', 'summary']);
-  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['delivery', 'data', 'results', 'measure', 'fresh', 'vibes', 'summary'], 'with Apps unticked no App step shows');
+  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['data', 'results', 'delivery', 'app', 'run', 'summary']);
+  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['data', 'results', 'delivery', 'run', 'summary'], 'with Apps unticked no App step shows');
   assert.deepEqual(w.stepErrors('delivery', { ...ticked, outputs: { ...ticked.outputs, genie_space: false } }), [w.GENIE_FOR_APP_NOTE]);
 });
 
@@ -123,9 +127,9 @@ test('joining an existing App deploys to it with its look, Create new brings the
   assert.deepEqual([joined.outputs.merge.app, joined.outputs.app_name], ['churn-desk', 'churn-desk']);
   assert.deepEqual(joined.outputs.app_look, { style: 'b', layout: 'sidebar', palette: 'ocean', theme: 'light' });
   assert.equal(w.appMergeBlock(joined, sp), 'churn-desk is internal only');
-  assert.deepEqual(w.stepErrors('app_place', joined, { mergeTargets: targets }), ['churn-desk is internal only'], 'the block shows where the App is picked');
+  assert.deepEqual(w.stepErrors('app', joined, { mergeTargets: targets }), ['churn-desk is internal only'], 'the block shows where the App is picked');
   assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'Delivery no longer picks the App');
-  assert.deepEqual(w.stepErrors('app_place', w.withAppAccess(joined, 'sp'), { mergeTargets: targets }), []);
+  assert.deepEqual(w.stepErrors('app', w.withAppAccess(joined, 'sp'), { mergeTargets: targets }), []);
   assert.equal(w.appMergeBlock(w.withMergeTarget(spec, 'app', user), user), '', 'per-user may join a per-user App');
   const back = w.withMergeTarget(joined, 'app', null, 'predict-churn');
   assert.deepEqual([back.outputs.merge.app, back.outputs.app_name], ['', 'predict-churn']);
@@ -147,9 +151,9 @@ test('a use case that joins an existing App skips App access and App look, shows
   const joined = w.withMergeTarget(spec, 'app', hub, 'predict-churn');
   const fresh = w.withMergeTarget(joined, 'app', null, 'predict-churn');
   assert.deepEqual([w.joinsApp(joined), w.joinsApp(fresh), w.joinsApp({ ...joined, outputs: { ...joined.outputs, app: false } }), w.joinsApp(null)], [true, false, false, false]);
-  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), ['delivery', 'data', 'results', 'measure', 'fresh', 'app_place', 'vibes', 'summary'], 'the existing App keeps its sign-in, data source and look');
-  assert.deepEqual(w.wizardSteps('mvp', fresh).map((s) => s.id), ['delivery', 'data', 'results', 'measure', 'fresh', 'app_place', 'app_access', 'app_look', 'vibes', 'summary']);
-  assert.throws(() => w.stepErrors('app_access', joined, { mergeTargets: targets }), /unknown wizard step 'app_access'/);
+  assert.deepEqual(w.wizardSteps('mvp', joined).find((s) => s.id === 'app').panels, ['app_place'], 'the existing App keeps its sign-in, data source and look');
+  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app').panels, ['app_place', 'app_access', 'app_features', 'app_look']);
+  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id));
   assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'no hidden App owner blocks Next');
   assert.deepEqual(w.advancedErrors('delivery', joined, { mergeTargets: targets }), []);
   assert.deepEqual(w.stepErrors('delivery', fresh, { mergeTargets: targets }), ['App owners must be email addresses: nope'], 'a new App still checks its owners');
@@ -167,7 +171,7 @@ test('the App reads Lakebase by default when the workspace has it, Delta tables 
   const { w, spec } = await appSpec({ app_access: 'sp' });
   const offer = (state, detail = '') => ({ state, detail });
   assert.deepEqual(w.APP_BACKEND_CHOICES.map((c) => [c.id, c.label]), [
-    ['lakebase', 'Lakebase (Loads instantly)'], ['delta', 'Delta Tables (Takes a few seconds to load)']]);
+    ['lakebase', 'Fast pages (open at once)'], ['delta', 'Standard pages (take a few seconds to open)']]);
   assert.deepEqual(w.APP_BACKENDS, SHELL.backends, 'the wizard offers the backends the App shell reads');
   for (const text of [...w.APP_BACKEND_CHOICES.flatMap((c) => [c.label, c.blurb]).filter(Boolean), w.LAKEBASE_PER_USER_REASON, w.LAKEBASE_CHECKING]) {
     assert.doesNotMatch(text, /\u2014|\u2013/, `no dashes: ${text}`);
@@ -183,9 +187,12 @@ test('the App reads Lakebase by default when the workspace has it, Delta tables 
   assert.equal(w.appBackendOf(kept, offer('absent')), 'delta', 'a workspace without Lakebase reads Delta tables');
   const perUser = w.withAppAccess(kept, 'user');
   assert.equal(w.appBackendOf(perUser, offer('available')), 'delta');
-  assert.equal(w.lakebaseBlock(perUser, offer('available')), w.LAKEBASE_PER_USER_REASON);
-  assert.equal(w.lakebaseBlock(spec, offer('denied', 'PERMISSION_DENIED')), 'Databricks refused to list the Lakebase projects of this workspace for you (PERMISSION_DENIED). A workspace admin can let you use Lakebase');
-  assert.equal(w.lakebaseBlock(spec, offer('available')), '');
+  assert.deepEqual(w.appBackendBlocks(perUser, offer('available')), { lakebase: { why: w.LAKEBASE_PER_USER_REASON, details: '' } });
+  assert.deepEqual(w.appBackendBlocks(spec, offer('denied', 'PERMISSION_DENIED')), { lakebase: { why: w.needsAccess('PERMISSION_DENIED'), details: 'PERMISSION_DENIED' } },
+    'the raw refusal goes under Details, never in the reason');
+  assert.deepEqual(w.appBackendBlocks(spec, offer('absent', 'no projects')), { lakebase: { why: w.LAKEBASE_ABSENT, details: 'no projects' } });
+  assert.deepEqual(w.appBackendBlocks(spec, offer('unknown')), {}, 'an unchecked workspace blocks nothing');
+  assert.deepEqual(w.appBackendBlocks(spec, offer('available')), {});
   assert.equal(w.appBackendOf(w.withAppAccess(perUser, 'sp'), offer('available')), 'lakebase', 'back to a shared App, the pick comes back');
   const joined = w.withMergeTarget(spec, 'app', { id: 'churn-desk', name: 'churn-desk', access: 'sp' });
   assert.equal(w.appBackendOf(joined, offer('available')), 'delta', 'a use case that joins an App sends no new backend of its own');
@@ -198,10 +205,10 @@ test('the App reads Lakebase by default when the workspace has it, Delta tables 
   assert.equal(served(sent).spec.outputs.app_backend, 'lakebase');
   assert.equal(served(w.specWithBackend(perUser, offer('available'))).spec.outputs.app_backend, 'delta');
 
-  assert.deepEqual(w.stepErrors('app_access', spec, { lakebase: null }), [w.LAKEBASE_CHECKING], 'Next waits for the Lakebase check');
-  assert.deepEqual(w.stepErrors('app_access', spec, { lakebase: offer('absent') }), []);
-  assert.deepEqual(w.stepErrors('app_access', perUser, { lakebase: null }), [], 'a per-user App does not wait: it reads Delta tables');
-  assert.deepEqual(w.stepErrors('app_access', spec, {}), [], 'a caller that does not check Lakebase is not blocked');
+  assert.deepEqual(w.stepErrors('app', spec, { lakebase: null }), [w.LAKEBASE_CHECKING], 'Next waits for the Lakebase check');
+  assert.deepEqual(w.stepErrors('app', spec, { lakebase: offer('absent') }), []);
+  assert.deepEqual(w.stepErrors('app', perUser, { lakebase: null }), [], 'a per-user App does not wait: it reads Delta tables');
+  assert.deepEqual(w.stepErrors('app', spec, {}), [], 'a caller that does not check Lakebase is not blocked');
 });
 
 test('Edit of an App built before Lakebase keeps it on Delta tables, and one never built keeps the choice open', async () => {

@@ -1,7 +1,7 @@
 import { useRef, useState } from 'react';
 import { addView, readViews, removeView, sameView, writeViews } from './links.js';
 import { Icon } from './icons.jsx';
-import { Popover, useDialog, useToast } from './ui.jsx';
+import { Popover, useDialog, useToast, PlainNote } from './ui.jsx';
 
 function browserStorage() {
   try { return window.localStorage; } catch { return null; }
@@ -23,7 +23,7 @@ function SaveDialog({ onSave, onClose }) {
           <p>Keeps the filters and the view of this page in this browser, so you can come back to them in one click.</p>
         </header>
         <label className="in">Name<input dir="auto" autoFocus value={name} onChange={(e) => { setName(e.target.value); setProblem(''); }} placeholder="For example, Weekly review" /></label>
-        {problem && <p className="hint" role="alert">{problem}</p>}
+        {problem && <PlainNote text={problem} className="hint" role="alert" />}
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <button type="submit" className="btn btn--pri"><Icon name="bookmark" size={14} />Save view</button>

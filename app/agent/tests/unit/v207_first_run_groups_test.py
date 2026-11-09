@@ -17,4 +17,4 @@ def test_the_scope_text_names_the_real_count_of_several_groups_and_never_calls_t
                     "product = Ginger, 586 records; product = Pecan, 560 records; product = Cocoa, 527 records")
     assert "smallest whole group" not in said
     one = dict(chosen, values=["Big"], group_records={"Big": 4000})
-    assert "in the smallest whole group" in agent_ns["inspire_scope_text"](one)
+    assert agent_ns["inspire_scope_text"](one) == "4,000 records of main.sales.tx, all of product = Big, the smallest group, since every group holds more than 1,000 records"

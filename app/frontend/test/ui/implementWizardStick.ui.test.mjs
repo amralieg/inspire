@@ -34,8 +34,7 @@ test('the wizard groups the rows by the use case\'s subject, asks no team capaci
     if (r.method() === 'POST' && r.url().includes('/api/inspire/implement/submit')) sent.push(JSON.parse(r.postData()));
   });
   try {
-    await onStep(page, 'Delivery consumption');
-    await goToStep(page, 'Data');
+    await onStep(page, 'Data');
     await openAdvanced(page);
     const grain = page.getByRole('region', { name: 'What one row means' });
     await grain.getByText('This use case is about customers, but one row of the result would be one order (main.s.orders.order_id). '
@@ -47,7 +46,7 @@ test('the wizard groups the rows by the use case\'s subject, asks no team capaci
     await dataToResults(page);
     assert.equal(await page.getByRole('group', { name: 'Team capacity' }).count(), 0, 'the wizard asks no team capacity (must-exclude)');
     assert.equal(await page.getByLabel('Rows the team can act on each run').count(), 0);
-    await goToStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     const digest = page.getByRole('checkbox', { name: /^Send a weekly value email to the alert recipients/ });
     assert.equal(await digest.isChecked(), true, 'the email is on once the alert has a recipient');
@@ -91,10 +90,9 @@ test('removing an App another use case shares offers to take this use case\'s pa
   });
   const { page, pageErrors } = ui;
   try {
-    await onStep(page, 'Delivery consumption');
-    await goToStep(page, 'Data');
+    await onStep(page, 'Data');
     await dataToResults(page);
-    await goToStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
     const tile = page.locator('[data-output="app"]');
     await tile.getByText('This use case already has an App. What should happen to it?').waitFor();
@@ -111,7 +109,7 @@ test('removing an App another use case shares offers to take this use case\'s pa
     await plan();
     await page.getByText(TAKE_OUT, { exact: true }).and(page.locator('p')).waitFor();
     assert.equal(await page.getByText('Deletes: App', { exact: true }).count(), 0, 'the plan never says it deletes a shared App');
-    await goToStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     await tile.getByRole('radio', { name: 'Keep it unmanaged' }).check();
     assert.equal(await tile.getByRole('radio', { name: TAKE_OUT }).count(), 1, 'the radio keeps the last check while the plan no longer deletes it');
     await plan();
@@ -135,12 +133,12 @@ test('Open all settings on the Build page hands the wizard its live check, so a 
     await page.locator('[data-asset-tile="app"] [data-tile-versions]').waitFor({ timeout: 15000 });
     await (await openAsset(page, 'app')).getByRole('button', { name: 'Remove from churn-desk' }).waitFor({ timeout: 15000 });
     await openSettings(page);
-    for (let i = 0; i < 13 && await page.locator('[aria-current="step"]', { hasText: 'Delivery' }).count() === 0; i += 1) {
+    for (let i = 0; i < 13 && await page.locator('[aria-current="step"]', { hasText: 'What to build' }).count() === 0; i += 1) {
       const from = await page.locator('[aria-current="step"]').innerText();
       await page.getByRole('button', { name: 'Back', exact: true }).click();
       await page.waitForFunction((was) => document.querySelector('[aria-current="step"]')?.innerText !== was, from, { timeout: 15000 });
     }
-    await onStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
     const tile = page.locator('[data-output="app"]');
     await tile.getByText('This use case already has an App. What should happen to it?').waitFor();

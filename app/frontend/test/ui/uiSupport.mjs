@@ -242,7 +242,17 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
   await request.response();
 }
 
-export async function onStep(page, label) {
+const STEP_HOLDING = {
+  'What to build': 'Deliver', Delivery: 'Deliver', 'App placement': 'App', 'App access': 'App', 'App features': 'App', 'App look': 'App',
+  'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Summary', 'Data groups': 'Data', 'MVP Test Run': 'First run',
+};
+
+export function stepHolding(part) {
+  return STEP_HOLDING[part] || part;
+}
+
+export async function onStep(page, part) {
+  const label = stepHolding(part);
   try {
     await page.locator('[aria-current="step"]', { hasText: label }).waitFor({ timeout: 15000 });
   } catch (e) {
@@ -267,11 +277,8 @@ export async function openAdvanced(page) {
 
 export const BUILD_IT = 'All Good, Build it Now';
 
-export async function dataToResults(page, { grouping = false } = {}) {
-  for (const label of [...(grouping ? ['Data groups'] : []), 'MVP Test Run', 'Results']) {
-    await page.getByRole('button', { name: 'Next' }).click();
-    await onStep(page, label);
-  }
+export async function dataToResults(page) {
+  await nextUntil(page, 'Results');
 }
 
 export async function toAppAccess(page) {
@@ -288,7 +295,8 @@ export async function toSummary(page) {
   await nextUntil(page, 'Summary');
 }
 
-export async function goToStep(page, label) {
+export async function goToStep(page, part) {
+  const label = stepHolding(part);
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
@@ -301,7 +309,8 @@ export async function goToStep(page, label) {
   await onStep(page, label);
 }
 
-async function nextUntil(page, label) {
+async function nextUntil(page, part) {
+  const label = stepHolding(part);
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const steps = page.locator('[data-wizard-header] ol li');
@@ -342,25 +351,6 @@ export async function painted(page) {
   await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
 }
 
-export async function wheelScrolls(page, box, { lines = '', readable = 3, delta = 1200 } = {}) {
-  await box.evaluate((el) => { el.scrollTop = 0; });
-  await painted(page);
-  const at = await box.boundingBox();
-  assert.ok(at && at.width > 0 && at.height > 0, `the scroll box is on screen ${JSON.stringify(at)}`);
-  const [x, y] = [at.x + at.width / 2, at.y + at.height / 2];
-  assert.ok(await box.evaluate((el, [px, py]) => el.contains(document.elementFromPoint(px, py)), [x, y]), 'the scroll box is what the pointer lands on, nothing covers it');
-  await page.mouse.move(x, y);
-  await page.mouse.wheel(0, delta);
-  await page.waitForFunction((el) => el.scrollTop > 0, await box.elementHandle(), { timeout: 5000 });
-  if (!lines) return;
-  await painted(page);
-  const seen = await box.evaluate((el, sel) => {
-    const r = el.getBoundingClientRect();
-    return [...el.querySelectorAll(sel)].filter((n) => { const b = n.getBoundingClientRect(); return b.height > 0 && b.top >= r.top - 1 && b.bottom <= r.bottom + 1; }).length;
-  }, lines);
-  assert.ok(seen >= readable, `the person reads at least ${readable} whole lines in the box after scrolling, not ${seen}`);
-}
-
 export async function setDark(page, dark) {
   await page.evaluate((on) => document.documentElement.classList.toggle('dark', on), dark);
   await page.evaluate(() => Promise.all(document.getAnimations().filter((a) => a instanceof CSSTransition).map((a) => a.finished.catch(() => null))));
@@ -385,6 +375,13 @@ export function assertFitsScreen(fit, name, height = 900) {
 
 export async function wizardFits(page, name) {
   return assertFitsScreen(await wizardFit(page), name);
+}
+
+export async function wizardInScreen(page, name, height = 900) {
+  const fit = await wizardFit(page);
+  assert.ok(fit.top >= 0 && fit.bottom <= height, `${name}: the dialog sits inside the screen ${JSON.stringify(fit)}`);
+  assert.ok(fit.page <= height, `${name}: only the step scrolls, never the page (${fit.page})`);
+  return fit;
 }
 
 export async function clippedExamples(page, boxes) {
@@ -542,9 +539,19 @@ export async function settleChoices(page) {
 }
 
 export function assertOneBadgeOnDefault(shown, where) {
+  const all = shown.flatMap((c) => c.badges);
+  assert.ok(all.length <= 1, `${where}: at most one Highly Recommended badge on the step, has ${JSON.stringify(all)}`);
   for (const { choice, multi, selected, badges } of shown) {
-    assert.equal(badges.length, 1, `${where}: ${choice} has exactly one Highly Recommended badge, has ${JSON.stringify(badges)}`);
+    if (!badges.length) continue;
     if (multi) assert.ok(selected.includes(badges[0]), `${where}: ${choice} starts with its badged option ${badges[0]} ticked, ticked ${JSON.stringify(selected)}`);
     else assert.deepEqual(selected, [badges[0]], `${where}: ${choice} starts on its badged option`);
   }
 }
+
+export const profileAt = (calls, answer, { status = 200, after = 0 } = {}) => async (page) => {
+  await page.route('**/api/grouping/profile', async (route) => {
+    calls.push(JSON.parse(route.request().postData() || '{}'));
+    if (after) await new Promise((done) => setTimeout(done, after));
+    await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(answer) });
+  });
+};

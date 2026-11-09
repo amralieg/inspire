@@ -35,15 +35,17 @@ import { Counter, CounterDivider, IconChip, PANEL_CLASS, SectionTitle } from '..
 import { catalogRow } from '../lib/useCaseFacets';
 import { fieldOf } from '../lib/useCaseFields';
 import {
-  ASSET_TILES, CONTROL_REFRESH_MS, RAIL_WIDTH, REBUILD_NOTHING, appUpdateChanges, assetFilterCounts, assetGroups, assetUninstall, buildSummary, canPublishHeld, checksSummary, collectAsk,
+  ASSET_TILES, CONTROL_REFRESH_MS, REBUILD_NOTHING, appUpdateChanges, assetFilterCounts, assetGroups, assetUninstall, buildSummary, canPublishHeld, checksSummary, collectAsk,
   collectRemoval, collectedScope, controlRows, controlTiles, deliveredOutputs, dropCollected, filterByAsset, filterByMvp, heldVersion, keptVersions,
-  loadCollectedVibes, loadRailWidth, missingAsks, railWidth, rebuildSpec, rebuildingText, rephraseOf, rephrasedAsk, removeChanges, removeKeptChanges, rollbackChanges, rollingBackText,
-  saveCollectedVibes, saveRailWidth, statusWarnings, tryAgainChanges, uninstallChanges, vibeCards, vibeFeaturesLabel,
+  loadCollectedVibes, missingAsks, rebuildSpec, rebuildingText, rephraseOf, rephrasedAsk, removeChanges, removeKeptChanges, rollbackChanges, rollingBackText,
+  saveCollectedVibes, statusWarnings, tryAgainChanges, uninstallChanges, vibeCards, vibeFeaturesLabel,
 } from '../lib/implementControl';
 import {
   buildingAssets, mvpScope, mvpStages, mvpProgressSummary, mvpRepairOf, feedArrivals, railProgress, sortedTo, statusProgress, steadyFeed, versionPlan, vibeChecklist,
   genieChangesOf, GENIE_CHANGES_HEADING, mvpFailureOf,
 } from '../lib/mvpProgress';
+import PaneResizer from '../components/PaneResizer';
+import { RAIL_WIDTH, loadPaneWidth, paneWidth, savePaneWidth } from '../lib/paneWidth';
 import MvpProgress, { ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
 import { useProgressView } from '../lib/progressView';
 import GenieFeed from '../components/GenieFeed';
@@ -162,7 +164,7 @@ function SummaryBanner({ summary }) {
             </>
           )}
           <CounterDivider />
-          <Counter value={summary.notebooks} label="Notebooks" />
+          <Counter value={summary.notebooks} label="Genie Code notebooks" />
           <CounterDivider />
           <Counter value={summary.notStarted} label="Not started" />
         </div>
@@ -308,48 +310,6 @@ function Rail({ groups, listLoading, query, asset, mvp = '', assetLabel, shownId
   );
 }
 
-function RailResizer({ width, onWidth }) {
-  const drag = useRef(null);
-  const onPointerDown = (e) => {
-    drag.current = { x: e.clientX, width };
-    e.currentTarget.setPointerCapture?.(e.pointerId);
-  };
-  const onPointerMove = (e) => {
-    if (drag.current) onWidth(drag.current.width + e.clientX - drag.current.x);
-  };
-  const onPointerUp = (e) => {
-    if (!drag.current) return;
-    drag.current = null;
-    e.currentTarget.releasePointerCapture?.(e.pointerId);
-  };
-  const onKeyDown = (e) => {
-    const to = { ArrowLeft: width - RAIL_WIDTH.step, ArrowRight: width + RAIL_WIDTH.step, Home: RAIL_WIDTH.min, End: RAIL_WIDTH.max }[e.key];
-    if (to === undefined) return;
-    e.preventDefault();
-    onWidth(to);
-  };
-  return (
-    <div
-      role="separator"
-      aria-orientation="vertical"
-      aria-label="Resize the use case list"
-      aria-valuemin={RAIL_WIDTH.min}
-      aria-valuemax={RAIL_WIDTH.max}
-      aria-valuenow={width}
-      tabIndex={0}
-      data-rail-resizer=""
-      onPointerDown={onPointerDown}
-      onPointerMove={onPointerMove}
-      onPointerUp={onPointerUp}
-      onPointerCancel={onPointerUp}
-      onKeyDown={onKeyDown}
-      className="group hidden md:flex self-stretch w-3 shrink-0 cursor-col-resize touch-none justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40"
-    >
-      <span aria-hidden className="h-full w-px bg-border transition-smooth group-hover:w-0.5 group-hover:bg-db-red/60" />
-    </div>
-  );
-}
-
 function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
   return (
     <section aria-label="Filter from Start" data-build-filter={filter.key} className="rounded-xl border border-db-red/30 bg-db-red-50 px-3 py-2.5 space-y-2">
@@ -401,8 +361,8 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
   const [progress, setProgress] = useState({});
   const reportProgress = useCallback((id, value) => setProgress((prev) => (
     prev[id]?.percent === value.percent && prev[id]?.step === value.step ? prev : { ...prev, [id]: value })), []);
-  const [railPx, setRailPx] = useState(() => loadRailWidth());
-  useEffect(() => { saveRailWidth(railPx); }, [railPx]);
+  const [railPx, setRailPx] = useState(() => loadPaneWidth(RAIL_WIDTH));
+  useEffect(() => { savePaneWidth(RAIL_WIDTH, railPx); }, [railPx]);
   const scopeOf = (id) => collectedScope(databricksHost || globalThis.location?.host || '', settings.inspireDatabase, sessionId, id);
 
   const qBase = useMemo(() => new URLSearchParams({
@@ -517,14 +477,14 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
-      {listError && <p className={ERROR_BOX}>{listError}</p>}
+      {listError && <PlainMessage text={listError} className={ERROR_BOX} />}
       {buildNotes.length > 0 && (
         <ul role="note" aria-label="What Inspire changed to start this build" data-build-notes=""
           className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 space-y-0.5 text-xs text-warning-fg">
           {buildNotes.map((note) => <li key={note}>{note}</li>)}
         </ul>
       )}
-      {railError && <p className={ERROR_BOX}>{railError}</p>}
+      {railError && <PlainMessage text={railError} className={ERROR_BOX} />}
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
           className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] overflow-y-auto md:max-h-none md:min-h-0">
@@ -532,7 +492,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
           <Rail groups={groups} listLoading={listLoading} query={query} asset={assetFilter} mvp={mvpFilter}
             assetLabel={assetCounts.find((entry) => entry.id === assetFilter)?.label || ''} shownId={shownId} progress={progress} onSelect={select} />
         </div>
-        <RailResizer width={railPx} onWidth={(width) => setRailPx(railWidth(width))} />
+        <PaneResizer width={railPx} onWidth={(width) => setRailPx(paneWidth(RAIL_WIDTH, width))} limits={RAIL_WIDTH} label="Resize the use case list" data-rail-resizer="" className="self-stretch" />
         <section ref={paneRef} aria-label="Use case" className="relative flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">
           {selected ? (
             <UseCaseDetail
@@ -789,7 +749,7 @@ function AssetCard({ asset, locked, lockedReason, active, error, money = null, m
               {asset.warnings.map((w) => <li key={w} className="flex items-start gap-1.5 text-[11px] text-warning-fg"><AlertTriangle size={12} className="mt-px shrink-0" aria-hidden />{w}</li>)}
             </ul>
           )}
-          {error && <p role="alert" className={ERROR_BOX}>{error}</p>}
+          {error && <PlainMessage text={error} role="alert" className={ERROR_BOX} />}
         </div>
       </article>
       <AssetVersions asset={asset} locked={locked} lockedReason={lockedReason} onRollback={onRollback} />
@@ -1690,12 +1650,12 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <p>The result tables, the history and any notebook Discover wrote for this use case stay. An App, dashboard or Genie Agent that other use cases share stays for them, and Inspire takes this use case&apos;s part out of it.</p>
         </ConfirmDialog>
       )}
-      {error && !built && <p className={ERROR_BOX}>{error}</p>}
+      {error && !built && <PlainMessage text={error} className={ERROR_BOX} />}
       {notice && <p role="status" className={`${NOTE_BOX} shrink-0`}>{notice}</p>}
       {built && (
         <>
-          {error && !cardFailed && !features && !drawerTile && <p className={`${ERROR_BOX} shrink-0`}>{error}</p>}
-          {collectError && <p className={`${ERROR_BOX} shrink-0`}>{collectError}</p>}
+          {error && !cardFailed && !features && !drawerTile && <PlainMessage text={error} className={`${ERROR_BOX} shrink-0`} />}
+          {collectError && <PlainMessage text={collectError} className={`${ERROR_BOX} shrink-0`} />}
           {tileRow}
           <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
             stop={stop} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}>
@@ -1719,7 +1679,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             </>
           )}>
           <div className="space-y-4">
-            {error && !cardFailed && <p className={ERROR_BOX}>{error}</p>}
+            {error && !cardFailed && <PlainMessage text={error} className={ERROR_BOX} />}
             {drawerBody()}
           </div>
         </DrawerShell>

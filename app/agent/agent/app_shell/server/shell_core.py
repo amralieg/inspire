@@ -3996,7 +3996,7 @@ class Shell:
                "typical_s": None}
         successes = []
         if not job_id:
-            out["reason"] = "This page has no job of its own, so the App cannot refresh it"
+            out["reason"] = "The App does not refresh this page: it shows its tables as they are"
         elif self.inside:
             out.update(reason=USER_JOBS, active=self.marker_active(ws, who, page, now), last_run=self.marker_last_run(ws, who, page, now))
         else:
@@ -4057,7 +4057,7 @@ class Shell:
         page = self.page(ident)
         job_id = self.job_of(page)
         if not job_id:
-            raise HttpError(409, "This page has no job of its own, so the App cannot refresh it")
+            raise HttpError(409, "The App does not refresh this page: it shows its tables as they are")
         if self.inside:
             raise HttpError(403, USER_JOBS)
         person, status, refusal = self.requester(headers, page)

@@ -235,12 +235,11 @@ test('the wizard has no Team capacity field: the Summary says it is set in the A
     assert.equal(w[gone], undefined, gone);
   }
   const spec = w.defaultSpecFromUseCase({ id: 'N01-U01', primary_table: 'main.s.orders' }, { warehouseId: 'wh', inspireDatabase: 'main.inspire' });
-  assert.equal(w.stepErrors('settings', spec, { scopeSteps: { settings: true } }).length, 0);
-  assert.throws(() => w.stepErrors('settings', spec), /unknown wizard step 'settings'/, 'no settings, no Settings step');
-  for (const step of w.wizardSteps('mvp', { outputs: { app: true } }, { grouping: true, firstRun: true, settings: true })) {
+  assert.throws(() => w.stepErrors('settings', spec, { scopeSteps: { grouping: true, firstRun: true } }), /unknown wizard step 'settings'/, 'the wizard has no Settings step (must-exclude)');
+  for (const step of w.wizardSteps('mvp', { outputs: { app: true } }, { grouping: true, firstRun: true })) {
     assert.ok(!(step.sections || []).includes('capacity'), step.id);
   }
-  assert.deepEqual(w.pickedSummary(spec).find((r) => r.id === 'capacity'), { id: 'capacity', step: 'summary', label: 'Team capacity', value: w.CAPACITY_IN_APP });
+  assert.equal(w.pickedSummary(spec).some((r) => r.id === 'capacity' || /capacity/i.test(r.label)), false, 'the Summary lists no team capacity, which is set in the App (must-exclude)');
   const src = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ImplementWizard.jsx'), 'utf8');
   assert.doesNotMatch(src, /TeamCapacity|withCapacity|capacitySuggestion/);
 });

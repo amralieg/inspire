@@ -1,7 +1,7 @@
 import { change, changeParts, changeText, formatValue, storyPieces, wholeFormat } from './format.js';
 import { HUES } from './theme.js';
 import { Icon } from './icons.jsx';
-import { Skeleton } from './ui.jsx';
+import { Skeleton, PlainNote } from './ui.jsx';
 import { useFx } from './Fx.jsx';
 import { Block } from './Blocks.jsx';
 import { withBlocks } from './blocks.js';
@@ -58,7 +58,7 @@ export default function Kpis({ page, data, errors, loading, plan, scope }) {
         return (
           <div key={kpi.id} className="kpi" style={{ '--k-line': `var(--${hues[i]}-line)`, '--k-bg': `var(--${hues[i]}-bg)`, '--k-tile': `var(--${hues[i]}-tile)`, '--k-ink': `var(--${hues[i]}-ink)` }}>
             <div className="kpi-l">{kpi.label}</div>
-            {loading ? <Skeleton height={30} width="60%" /> : error ? <p className="tile-err"><Icon name="info" size={12} />{error}</p> : (
+            {loading ? <Skeleton height={30} width="60%" /> : error ? <PlainNote text={error} icon={<Icon name="info" size={12} />} className="tile-err" /> : (
               <>
                 <div className="kpi-v">{kpiValue(kpi, data?.[kpi.id])}</div>
                 <Delta kpi={kpi} data={data?.[kpi.id]} scope={scope} />

@@ -5,6 +5,7 @@ import { useScopeProfiles } from '../lib/groupingProfile';
 import { FIRST_RUN_LABEL, GROUP_ALL, GROUP_BY, RUN_EVERYTHING_LABEL, RUN_SCOPE, isScopeSetting, runScopeFacts } from '../lib/runScope';
 import { SETTINGS_ROUTES, settingsViewSaved } from '../lib/useCaseSettings';
 import { ScopeSections } from './ScopeSettings';
+import { PlainMessage } from './TechnicalDetails';
 
 const NOTE = 'text-[12px] text-text-secondary';
 
@@ -50,7 +51,7 @@ export default function RunScope({ page, settings }) {
     setView((prev) => settingsViewSaved(prev, got));
     return got;
   }, [apiPostJson, query]);
-  if (error) return <p role="alert" className="text-[12px] text-error-fg">Inspire could not read the Data groups and {FIRST_RUN_LABEL} of this use case: {error}</p>;
+  if (error) return <PlainMessage text={`Inspire could not read the Data groups and ${FIRST_RUN_LABEL} of this use case: ${error}`} role="alert" className="text-[12px] text-error-fg" />;
   if (!view || !runs) return <p className={NOTE}><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> Reading the Data groups and {FIRST_RUN_LABEL}</p>;
   if (!scopeList.length) return null;
   const facts = runScopeFacts(runs.runs);

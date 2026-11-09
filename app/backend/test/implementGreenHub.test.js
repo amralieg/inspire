@@ -10,7 +10,7 @@ const BUSINESS = 'NYC Taxi Operations';
 const SCOPE = { business: BUSINESS, domain: 'Demand', useCaseAppName: 'forecast-demand' };
 const use = (id, domain, placement, business = BUSINESS) => ({ use_case_id: id, session_id: '42', name: id, business, domain, placement });
 const HUB = { id: 'inspire-hub-nyc-taxi', name: 'inspire-hub-nyc-taxi', access: 'sp', placement: '',
-  per_user_block: 'inspire-hub-nyc-taxi signs everyone in with its own service principal',
+  per_user_block: 'inspire-hub-nyc-taxi shows everyone the same rows',
   use_cases: [use('N01-U01', 'Demand', 'domain'), use('N02-U01', 'Fares', 'domain'), use('N03-U01', 'Fleet', '')] };
 const SPLIT = { id: 'inspire-hub-nyc-taxi-03', name: 'inspire-hub-nyc-taxi-03', access: 'sp', placement: 'domain', use_cases: [use('N03-U02', 'Fleet', 'domain')] };
 
@@ -71,7 +71,7 @@ test('One App for all use cases never creates a second hub for the same business
 test('an App of its own cannot take a name that starts like the App of all use cases of a business', async () => {
   const { w, spec } = await fresh({ merge: { app: '', dashboard: '', genie_space: '' } });
   const typed = (name, placement = 'use_case') => ({ ...spec, outputs: { ...spec.outputs, app_name: name, app_placement: placement } });
-  const kept = (s, held = {}) => w.stepErrors('app_place', s, { held }).includes(w.HUB_NAME_KEPT);
+  const kept = (s, held = {}) => w.stepErrors('app', s, { held }).includes(w.HUB_NAME_KEPT);
   assert.ok(kept(typed('inspire-hub-nyc-taxi-03')));
   assert.ok(kept(typed('inspire-hub-nyc-taxi')));
   assert.ok(!kept(typed('inspire-hub-nyc-taxi-03'), { app: 'inspire-hub-nyc-taxi-03' }), 'an App the use case already has keeps its name');

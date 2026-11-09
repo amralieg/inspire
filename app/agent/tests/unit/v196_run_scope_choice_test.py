@@ -72,5 +72,5 @@ def test_the_genie_code_ready_line_names_the_cpu_whose_cli_builds_the_run_unpack
     runner = fresh_ns["DatabricksInspire"]._implement_runner(fake, "N01-U01")
     assert runner.install()["machine"] == named == fresh_ns["inspire_asset_machine"](machine)
     ready = [m for step, m, status in emitted if status == "ended_success"]
-    assert ready == [f"Genie Code {fresh_ns['GENIE_CODE_CLI_VERSION']} ready at {tmp_path / 'r' / 'bin' / 'genie'} on the {named} CPU, "
-                     f"using the model {fresh_ns['GENIE_CODE_MODEL']}"]
+    assert ready == [f"Genie Code {fresh_ns['GENIE_CODE_CLI_VERSION']} is ready and uses the model {fresh_ns['GENIE_CODE_MODEL']} "
+                     f"(installed at {tmp_path / 'r' / 'bin' / 'genie'} on the {named} CPU)"]

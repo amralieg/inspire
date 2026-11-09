@@ -1,6 +1,7 @@
-import { createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Children, createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './icons.jsx';
+import { DETAILS_LABEL, splitTechnical } from './plainText.js';
 
 const ToastContext = createContext(() => {});
 
@@ -52,10 +53,24 @@ export function ToastProvider({ children }) {
 
 export const useToast = () => useContext(ToastContext);
 
+export function TechnicalDetails({ items, label = DETAILS_LABEL }) {
+  const lines = (Array.isArray(items) ? items : [items]).map((item) => String(item ?? '').trim()).filter(Boolean);
+  if (!lines.length) return null;
+  return <details className="tech-details" data-technical-details=""><summary>{label}</summary><pre>{lines.join('\n')}</pre></details>;
+}
+
+export function PlainNote({ text, as: Tag = 'p', icon = null, prefix = '', children, ...rest }) {
+  const { plain, details } = splitTechnical(`${prefix}${text ?? ''}`);
+  if (!plain && !details.length) return null;
+  return <>{plain && <Tag {...rest}>{icon}{plain}{children}</Tag>}<TechnicalDetails items={details} /></>;
+}
+
 export function Failure({ failure, className, as: Tag = 'p', children }) {
   if (!failure?.text) return null;
   const calm = !!failure.calm;
-  return <Tag className={calm ? 'note note--flat' : className} role={calm ? 'status' : 'alert'} data-calm={calm ? '' : undefined}>{children}</Tag>;
+  const { plain, details } = splitTechnical(failure.text);
+  const shown = Children.map(children, (child) => (child === failure.text ? plain : child));
+  return <><Tag className={calm ? 'note note--flat' : className} role={calm ? 'status' : 'alert'} data-calm={calm ? '' : undefined}>{shown}</Tag><TechnicalDetails items={details} /></>;
 }
 
 export function Popover({ anchor, onClose, children, label, role = 'dialog', width }) {

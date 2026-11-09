@@ -1,4 +1,5 @@
-import { AlertTriangle, CheckCircle2, Loader2 } from 'lucide-react';
+import { AlertTriangle, Loader2 } from 'lucide-react';
+import TechnicalDetails from './TechnicalDetails';
 
 function Notes({ items }) {
   if (!items.length) return null;
@@ -24,17 +25,17 @@ export default function OutputFolderCheck({ check, where = '', id }) {
     );
   }
   if (check.state === 'passed') {
+    const warnings = check.warnings || [];
     return (
       <div id={id} role="status" data-output-check="passed" className="mt-2">
-        <p className="flex items-start gap-1.5 text-xs text-success-fg">
-          <CheckCircle2 size={12} className="shrink-0 mt-0.5" />
-          <span className="break-words min-w-0">
-            {check.checked === 'manager'
-              ? `You manage this App, so Inspire skips the write check for ${check.folder}.`
-              : `You can write to ${check.folder}.`}
-          </span>
-        </p>
-        <Notes items={check.warnings || []} />
+        {warnings.length ? (
+          <>
+            <Notes items={warnings} />
+            <TechnicalDetails items={check.details || []} className="mt-1" />
+          </>
+        ) : (
+          <p className="text-xs text-text-tertiary break-words min-w-0">{`Results go to ${check.folder}.`}</p>
+        )}
       </div>
     );
   }

@@ -2,6 +2,7 @@ import { Icon } from './icons.jsx';
 import { confirmText } from './agentView.js';
 import { SaveButton } from './saving.jsx';
 import './styles/agent.css';
+import { PlainNote } from './ui.jsx';
 
 export const RATINGS = [{ id: 'POSITIVE', label: 'Helpful' }, { id: 'NEGATIVE', label: 'Not helpful' }];
 
@@ -43,7 +44,7 @@ export function ConfirmCard({ confirm, write, onConfirm, onCancel, onUndo }) {
       )}
       {confirm.state === 'undone' && <p className="ag-done" role="status">Undone. The records are back as they were.</p>}
       {confirm.state === 'cancelled' && <p className="ag-done">Cancelled. Nothing changed.</p>}
-      {confirm.error && confirm.state !== 'saving' && <p className="g-err" role="alert">{confirm.error}</p>}
+      {confirm.error && confirm.state !== 'saving' && <PlainNote text={confirm.error} className="g-err" role="alert" />}
     </div>
   );
 }
@@ -66,7 +67,7 @@ export function Rate({ message, onRate, disabled }) {
         <SaveButton key={r.id} write={`rate:${message.turn_id}:${r.id}`} className={`btn btn--sm ${message.rated === r.id ? 'btn--pri' : ''}`} aria-pressed={message.rated === r.id} data-rating={r.id}
           disabled={disabled} onClick={() => onRate(r.id)}>{r.label}</SaveButton>
       ))}
-      {message.rateError && <small className="g-err">{message.rateError}</small>}
+      {message.rateError && <PlainNote text={message.rateError} as="small" className="g-err" />}
     </span>
   );
 }

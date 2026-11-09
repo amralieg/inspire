@@ -300,11 +300,11 @@ test('a built use case is profiled on the table its build swapped in, and bad in
       assert.deepEqual(made.sqlCalls, []);
     });
   }
-  const none = profiled({ useCase: { id: 'N01-U01', primary_table: 'orders', analytics_technique: 'Anomaly Detection' } });
+  const none = profiled({ useCase: { id: 'N01-U01', use_case: 'Spot odd orders', primary_table: 'orders', analytics_technique: 'Anomaly Detection' } });
   await withApp(none, async (srv) => {
     const got = await post(srv, ASK);
     assert.equal(got.status, 400);
-    assert.equal(got.data.error, 'Use case N01-U01 names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.');
+    assert.equal(got.data.error, 'Spot odd orders names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.');
     assert.deepEqual(tableReads(none.sqlCalls), []);
   });
 });
@@ -515,4 +515,34 @@ test('a Deep discovery grouping the profile can size becomes the one recommendat
     const kept = GP.profileView({ ...base, deep: unsized });
     assert.deepEqual([kept.recommended, kept.group_column, kept.first_run.groups], [own.recommended, own.group_column, own.first_run.groups], JSON.stringify(unsized));
   }
+});
+
+test('the profile reads the main table picked in the wizard, not the one of the last build', async () => {
+  const made = profiled();
+  await withApp(made, async (srv) => {
+    const picked = await post(srv, { ...ASK, table: 'main.sales.orders_v2' });
+    assert.equal(picked.status, 200, JSON.stringify(picked.data));
+    assert.equal(picked.data.table, 'main.sales.orders_v2', 'the MVP Test Run counts the table the Data step counts');
+    assert.equal((await post(srv, ASK)).data.table, 'main.sales.orders', 'with no table picked, the use case main table is read');
+    const bad = await post(srv, { ...ASK, table: 'main.sales.`x`; DROP TABLE y' });
+    assert.equal(bad.status, 400, 'a table that is not catalog.schema.table is refused (must-exclude)');
+  });
+});
+
+test('a technique Data groups do not apply to recommends no grouping and no example, yet keeps whole groups for its First run (must-exclude)', async () => {
+  const made = profiled({ useCase: { id: 'N01-U01', primary_table: 'main.sales.orders', tables_involved: 'main.sales.orders', analytics_technique: 'Optimization' } });
+  await withApp(made, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    const d = got.data;
+    assert.deepEqual([d.applies, d.qualifies, d.recommended, d.example], [false, false, [], null]);
+    assert.match(d.reason, /^Data groups do not apply: Optimization does not work out what is normal inside groups/);
+    assert.equal(d.group_column, 'country', 'a technique that reads records together still samples its First run in whole groups');
+    assert.ok(d.group_sizes.length > 0);
+  });
+  const grouped = profiled();
+  await withApp(grouped, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.deepEqual([got.data.applies, got.data.recommended], [true, ['region', 'country']], 'a technique Data groups apply to keeps its recommendation');
+  });
 });

@@ -4,7 +4,7 @@ import { formatValue } from './format.js';
 import { stampText } from './freshness.js';
 import { plural } from './hub.js';
 import { Icon } from './icons.jsx';
-import { Failure, Skeleton, useToast } from './ui.jsx';
+import { Failure, Skeleton, useToast, PlainNote } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import DataTable from './DataTable.jsx';
 import { AskGenie } from './AskGenie.jsx';
@@ -137,7 +137,7 @@ function AlertForm({ listing, meta, page, start, onDone, onCancel }) {
       )}
       {preview && <p className="note note--flat alert-preview" role="status">{previewText(preview, format)}</p>}
       <Failure failure={failure} className="tile-err tile-err--flat"><Icon name="info" size={14} />{failure?.text}</Failure>
-      {problem && <p className="hint">{problem}</p>}
+      {problem && <PlainNote text={problem} className="hint" />}
       <div className="alert-acts">
         <button type="button" className="btn" onClick={check} disabled={!!problem || checking}><Icon name="search" size={14} />{checking ? 'Checking' : 'Check the value now'}</button>
         <span className="sp" />
@@ -254,7 +254,7 @@ export default function Alerts({ app, page, meta, compose = false, onComposed })
         <AskGenie kind="table" title="Alerts" context={tableContext('The alerts of this use case.', listing?.alerts || [], fields)} />
       </header>
       {!listing && !error && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The alerts could not load: {error}</p>}
+      {error && <PlainNote text={error} prefix="The alerts could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {listing && form && <AlertForm key={form.id || 'new'} listing={listing} meta={meta} page={page} start={form} onDone={done} onCancel={() => setForm(null)} />}
       {listing && (
         <>

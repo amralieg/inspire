@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
 import { closeBrowser, goToStep, onStep, openAdvanced, openUi, startMvp, toVibes, until, toSummary } from './uiSupport.mjs';
+import { wheelEveryRegion, wheelScrolls } from './wheelScroll.mjs';
 
 const HOSTED_NO_TOKEN = 'Inspire needs permission to act as you to show this page; a workspace admin turns on user authorization for Apps, then reopen Inspire';
 const RUN_BANNER = 'Inside Inspire, only for testing. Give it its own App for real use.';
@@ -109,6 +110,27 @@ test('Run lists every deployed use case by domain, opens an Inside Inspire page 
   }
 });
 
+test('Run names each page by its use case and never shows a use case id (must-exclude)', async () => {
+  const ui = await openRun({ registry: REGISTRY, useCaseScope: SCOPE, hostedRun: hostedFake({ state: 'ready' }) },
+    { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER });
+  const { page } = ui;
+  try {
+    await page.locator('[data-run-banner]').waitFor({ timeout: 15000 });
+    const shown = await page.locator('body').innerText();
+    assert.match(shown, /Predict churn/);
+    assert.doesNotMatch(shown, /\bN\d\d-U\d\d\b/, shown);
+    await page.locator('[data-run-open="n01-u01-a"]').click();
+    await onFull(page, 'n01-u01-a');
+    await page.locator('[aria-controls="run-control-menu"]').click();
+    const menu = page.locator('#run-control-menu');
+    await menu.waitFor();
+    assert.doesNotMatch(`${await menu.getAttribute('aria-label')} ${await menu.innerText()}`, /\bN\d\d-U\d\d\b/);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('the chosen page panel is as tall as what it shows, never stretched to a long list beside it (must-exclude: the list keeps its own height)', async () => {
   const many = Array.from({ length: 14 }, (_, i) => registryRow(String(50 + i), `N03-U${String(i + 1).padStart(2, '0')}`, 1,
     { app: { state: 'ready' }, appName: `hub-${i}`, appUrl: `https://hub-${i}.example.com`, name: `Use case ${i + 1}` }));
@@ -184,7 +206,7 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
   const { page, made } = ui;
   const next = () => page.getByRole('button', { name: 'Next' }).click();
   try {
-    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'What to build');
     await goToStep(page, 'App placement');
     await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     const card = page.locator('[data-app-place="inspire"]');
@@ -204,8 +226,8 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
     assert.equal(await page.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true);
     assert.equal(await page.getByRole('radio', { name: /^Internal data/ }).isDisabled(), true);
     assert.equal(await page.getByRole('note', { name: 'Why each person signs in as themselves' }).textContent(), `${INSIDE_ACCESS_REASON}.`);
-    assert.equal(await page.getByRole('radio', { name: /^Lakebase/ }).isDisabled(), true);
-    assert.equal(await page.getByRole('note', { name: 'Why Lakebase is off' }).textContent(), INSIDE_BACKEND_REASON);
+    assert.equal(await page.getByRole('radio', { name: /^Fast pages/ }).isDisabled(), true);
+    assert.equal(await page.locator('[data-blocked-reason="app-backend"] p').textContent(), INSIDE_BACKEND_REASON);
     await page.locator('[data-inside-warehouse]').waitFor();
     await startMvp(page);
     await until(() => made.jobs.length === 1, 'the build');
@@ -274,7 +296,7 @@ test('a #/run/<id> link opens the Run tab on that page, and a link to a page tha
 const MOVE_NOTE = "churn-desk is left as it is and no longer refreshed; Inspire runs this use case's page in its Run tab instead and deletes nothing.";
 
 async function toPlacement(page) {
-  await onStep(page, 'Delivery consumption');
+  await goToStep(page, 'What to build');
   await goToStep(page, 'App placement');
 }
 
@@ -557,5 +579,29 @@ test('Run shows each MVP\'s last result: when it ran, what it flagged with the m
     assert.equal(await outcome.locator('[data-run-outcome-owner]').count(), 0, 'someone who does not own the MVP is not told they own it');
   } finally {
     await empty.close();
+  }
+});
+
+test('a failed page with 120 stderr lines takes the mouse wheel to its last line on the Run tab and in the Inspire menu at 1280x800 and 1024x700', async () => {
+  const stderr = [...Array.from({ length: 119 }, (_, i) => `  File "app.py", line ${i}, in render`), 'ValueError: the last stderr line'];
+  const ui = await openRun({ registry: REGISTRY, useCaseScope: SCOPE, hostedRun: hostedFake({ state: 'failed', error: 'the page stopped with exit code 1', stderr }) },
+    { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER });
+  const { page } = ui;
+  try {
+    const pre = page.locator('[data-run-stderr]').first();
+    await pre.waitFor({ timeout: 15000 });
+    await wheelScrolls(page, pre, () => pre, { name: 'Run stderr' });
+    const end = await pre.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop);
+    assert.ok(end <= 2, `the wheel reaches the last stderr line (${end} px left)`);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.locator('[data-run-open="n01-u01-a"]').click();
+    await onFull(page, 'n01-u01-a');
+    const menu = page.locator('#run-control-menu');
+    await menu.waitFor();
+    const names = await wheelEveryRegion(page, menu, 'Inspire menu', { min: 1, copies: 0 });
+    assert.ok(names.some((n) => n.includes('wheeled')), JSON.stringify(names));
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
   }
 });

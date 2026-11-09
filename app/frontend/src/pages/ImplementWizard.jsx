@@ -9,11 +9,8 @@ import { generationFolder, sharedFolderWarning } from '../lib/workspaceLinks';
 import { catalogRow } from '../lib/useCaseFacets';
 import { insideMoveNote } from '../lib/implementControl';
 import {
-  IMPLEMENT_MODES,
   GENIE_CODE_OFF_TITLE,
   genieCodeOff,
-  MVP_MODE_LABEL,
-  NOTEBOOK_MODE_LABEL,
   wizardSteps,
   contextSettings,
   IMPLEMENT_OUTPUTS,
@@ -82,14 +79,14 @@ import {
   START_MVP_LABEL,
   RESET_ROLES_LABEL,
   BUILD_STEP_IDS,
-  VIBES_STEP,
   pickedSummary,
   APP_ACCESS_CHOICES,
   APP_ACCESS_NOTE,
   APP_BACKEND_CHOICES,
   LAKEBASE_CHECKING,
   appBackendOf,
-  lakebaseBlock,
+  appBackendBlocks,
+  LAKEBASE_UNCHECKED,
   sentSpec,
   editedWidgets,
   withFirstRunSaved,
@@ -211,6 +208,9 @@ import {
   uncountedReadiness,
   outputUncheckedText,
   DELIVERY_LABEL,
+  NOTEBOOK_CARD,
+  RUN_IT_TITLE,
+  builtSentence,
   DELIVERY_QUESTION,
   BUILD_IT_LABEL,
   BACK_TO_SUMMARY,
@@ -219,24 +219,23 @@ import {
   APP_LOOK_DEFAULT,
 } from '../lib/implementWizard';
 import {
-  bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPlace, bestAppPolicy, bestAppTarget, bestFreshness, bestHoldout, bestKpi, bestLook, bestMerge,
-  bestMode, bestOutput, bestRemoved, bestReplaceEdits, isBest,
-  bestResultPlace, resultPlaceBlocks,
+  bestAppAccess, bestAppBackend, bestHeldApp, bestAppOption, bestAppPlace, bestAppPolicy, bestAppTarget, bestFreshness, bestHoldout, bestKpi, bestLook,
+  bestOutput, bestRemoved, bestReplaceEdits, isBest,
+  bestResultPlace, oneBestPerStep, resultPlaceBlocks,
 } from '../lib/highlyRecommended';
 import HighlyRecommended, { BestOf } from '../components/HighlyRecommended';
 import { counted } from '../lib/plural';
 import { personalColumn } from '../lib/personalColumns';
 import { PLACE_RIGHTS, placeNameProblem } from '../lib/tableName';
 import { BlockedReason, ClearsChoice, DigestChoice, RowSubjectCheck } from '../components/WizardStickParts';
+import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 import { placeholderWords } from '../lib/placeholderWords';
 import {
   KPI_CHANGE_NOTE, KPI_INSPIRE_PICKS, KPI_NONE_YET, KPI_PICK_RULE, kpiKey, kpiOptionLabel, kpiTargetOf, kpiTargetOptions, kpiTargetProblems, trackedKpiOf,
-  rowImpact, trackedKpiText, withKpiTarget,
+  trackedKpiText, withKpiTarget,
 } from '../lib/targetKpi';
 import {
-  SETTINGS_ASSUMPTIONS_LATER, SETTINGS_NOTE_LABEL, SETTINGS_NOTE_PLACEHOLDER, SETTINGS_ON_THEIR_STEP, SETTINGS_STEP_NOTE, SETTINGS_TECHNICAL_NOTE, SETTING_GROUPS,
-  isSettingWidget, settingGroupTitle, settingIssue, settingUnitLabel, settingValue, settingsModelOf, settingsNoteOf, settingsNoteProblem, widgetSetProblems,
-  withSetting, withSettingsNote,
+  SETTINGS_ON_THEIR_STEP, isSettingWidget, settingsModelOf, withSetting,
 } from '../lib/useCaseSettings';
 import ScopeSettings, { GroupingChosen } from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
@@ -279,7 +278,6 @@ function Field({ label, children }) {
 
 const inputFrame = 'border border-border rounded-md bg-surface text-text-primary glow-focus';
 const inputBase = `px-2.5 py-2 text-sm ${inputFrame}`;
-const settingInputClass = `w-28 shrink-0 px-2 py-1 text-sm ${inputFrame}`;
 const inputCls = `w-full ${inputBase}`;
 
 function ListInput({ value, separator, onChange, multiline = false, ...props }) {
@@ -448,11 +446,15 @@ export default function ImplementWizard({
   const settingsModel = useMemo(() => settingsModelOf(context?.history), [context?.history]);
   const alertOn = Boolean(spec.outputs.alert);
   const everySetting = useMemo(() => contextSettings(context, { outputs: { alert: alertOn } }), [context, alertOn]);
+  const ucRow = useMemo(() => rowWithCard(uc, context?.use_case), [uc, context?.use_case]);
+  const primaryOriginal = primaryTableOf(ucRow);
+  const primaryChosen = spec.data.tables[primaryOriginal] || primaryOriginal;
   const scopeProfile = useScopeProfiles({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp',
-    groupBy: spec.config.widgets?.[GROUP_BY] });
+    groupBy: spec.config.widgets?.[GROUP_BY], table: primaryChosen });
   const builtFirstRun = builtFirstRunOf(settingsModel);
   const firstRunUnrecorded = useMemo(() => latestRunScope(context?.latest).unrecorded, [context?.latest]);
-  const scopeSteps = scopeStepsOf(scopeProfile.state, scopeProfile.profile, builtFirstRun);
+  const ranBefore = builtFirstRun || Boolean(context?.latest && context.latest.status !== 'failed');
+  const scopeSteps = scopeStepsOf(scopeProfile.state, scopeProfile.profile, ranBefore);
   const scopeSettingList = useMemo(() => everySetting.filter(isScopeSetting), [everySetting]);
   const settingsFor = useCallback((scope, read) => everySetting.filter((s) => !(isGroupingSetting(s) && (scope.grouping || read))
     && !(isFirstRunSetting(s) && scope.firstRun)), [everySetting]);
@@ -462,6 +464,12 @@ export default function ImplementWizard({
   const steps = wizardSteps(mode, spec, stepScope);
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
+  const shows = (panel) => steps[stepIndex].panels.includes(panel);
+  useEffect(() => {
+    if (!context || !scopeSteps.grouping || context.latest || groupingDefaulted.current) return;
+    groupingDefaulted.current = true;
+    setSpec((prev) => withProfileDefaults(prev, scopeProfile.profile, withGroupingDefault));
+  }, [scopeSteps.grouping, context, scopeProfile.profile]);
   const lastStep = stepIndex === steps.length - 1;
 
   const q = useMemo(() => {
@@ -538,12 +546,13 @@ export default function ImplementWizard({
         if (!next.config.warehouse_id) next.config.warehouse_id = warehouseId;
         setSpec(next);
         setMissingTables(missing);
-        if (['review', 'summary', 'vibes', 'settings'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
+        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_place', 'app_access', 'app_features', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
         const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
         const chosenOf = (t) => ((next.data.removed_tables || []).some((r) => same(r, t)) ? ''
           : next.data.tables[Object.keys(next.data.tables).find((k) => same(k, t))] || t);
         const lost = tablesOf(row).filter((t) => chosenOf(t) && missing.some((m) => same(m.table, chosenOf(t))));
-        const stillLost = missing.filter((m) => lost.some((t) => same(chosenOf(t), m.table)));
+        const stillLost = missing.filter((m) => lost.some((t) => same(chosenOf(t), m.table)))
+          .map((m) => (same(chosenOf(primaryTableOf(row)), m.table) ? { ...m, primary: true } : m));
         setNotice([revertedSwapsText(reverted), lostTablesText(stillLost)].filter(Boolean).join(' '));
         setCollectedNote(collectedVibesText(collected));
         if (lost.length) {
@@ -559,7 +568,6 @@ export default function ImplementWizard({
     return () => { cancelled = true; };
   }, [q]); // eslint-disable-line react-hooks/exhaustive-deps
 
-  const ucRow = useMemo(() => rowWithCard(uc, context?.use_case), [uc, context?.use_case]);
   const placeScope = useMemo(() => ({ business: context?.business_name || '', domain: domainOf(ucRow), useCaseAppName: caseAppNameOf(ucRow) }),
     [context?.business_name, ucRow]);
   const notebookEdit = editedNotebook(context?.latest);
@@ -617,8 +625,6 @@ export default function ImplementWizard({
   const chartDates = appInputDates(columnsByTable, sourceTables);
   const ownErrors = stepErrors(stepId, spec, extras, mode);
 
-  const primaryOriginal = primaryTableOf(ucRow);
-  const primaryChosen = spec.data.tables[primaryOriginal] || primaryOriginal;
   const eventRef = spec.data.column_roles.event_date || '';
   const estimate = (windowDays, more = {}) => profileEstimate({
     evidence: context?.evidence,
@@ -644,7 +650,7 @@ export default function ImplementWizard({
     setAttempted((prev) => ({ ...prev, [id]: true }));
     if (!stepErrors(id, spec, extras, mode).length) return false;
     if (advancedErrors(id, spec, extras, mode).length) setAdvanced((prev) => ({ ...prev, [id]: true }));
-    if (id === 'vibes') {
+    if (id === SUMMARY_STEP.id) {
       const where = vibesProblem('mvp', spec.vibes, 'MVP') ? '[data-vibes="mvp"] textarea' : vibePreviousProblem(spec, built) ? '[data-vibe-previous] input' : '';
       if (where) bodyRef.current?.querySelector(where)?.focus();
     }
@@ -735,15 +741,12 @@ export default function ImplementWizard({
       if (stepId === 'data' && scopeProfile.state === 'loading') {
         setChecking(PROFILE_WAITING);
         const done = await scopeProfile.wait();
-        const doneSteps = scopeStepsOf(done.state, done.profile, builtFirstRun);
+        const doneSteps = scopeStepsOf(done.state, done.profile, ranBefore);
+        if (doneSteps.grouping) return;
         list = wizardSteps(mode, spec, { ...doneSteps, settings: settingsFor(doneSteps, done.state === 'ready').length > 0 });
         profile = done.profile;
       }
       const next = list[stepIndexOf(list, nextStepAfter(list, stepId, { backToSummary, visited }))];
-      if (next.id === 'grouping' && !context?.latest && !groupingDefaulted.current) {
-        groupingDefaulted.current = true;
-        setSpec((prev) => withProfileDefaults(prev, profile, withGroupingDefault));
-      }
       if (next.id === 'first_run') setSpec((prev) => withProfileDefaults(prev, profile));
       setStep(next.id);
     } catch (e) {
@@ -760,13 +763,14 @@ export default function ImplementWizard({
   const specKey = JSON.stringify(sent);
   const ownErrorsKey = ownErrors.join('|');
   const buildStep = BUILD_STEP_IDS.includes(stepId);
+  const appBlocked = Boolean(appUnreadable);
   const planReady = steps.filter((s) => BUILD_STEP_IDS.includes(s.id)).every((s) => !stepErrors(s.id, spec, extras, mode).length);
   useEffect(() => {
     if (!buildStep) return undefined;
     let cancelled = false;
     setChecksBusy(true);
     const timer = setTimeout(async () => {
-      const planNow = !ownErrorsKey && planReady;
+      const planNow = !ownErrorsKey && planReady && !appBlocked;
       const mergeApp = spec.outputs.app ? spec.outputs.merge.app : '';
       const checks = new URLSearchParams({
         result_table: spec.config.result_table,
@@ -796,7 +800,7 @@ export default function ImplementWizard({
       setChecksBusy(false);
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [buildStep, specKey, ownErrorsKey, planReady, q, grantRound]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [buildStep, specKey, ownErrorsKey, planReady, q, grantRound, appBlocked]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nameApp = (value) => {
     appNameTyped.current = true;
@@ -884,7 +888,7 @@ export default function ImplementWizard({
   }, [columnsByTable, spec]);
 
   useEffect(() => {
-    const wanted = stepId === 'data' || (spec.outputs.app && ['app_place', 'app_access'].includes(stepId));
+    const wanted = stepId === 'data' || (spec.outputs.app && stepId === 'app');
     if (!wanted || warehouses !== null || warehousesError) return undefined;
     let cancelled = false;
     apiFetch('/api/warehouses')
@@ -1068,8 +1072,7 @@ export default function ImplementWizard({
   const generalChecks = checkEntries.filter(([k]) => !TILE_CHECK_KEYS.includes(k));
   const freshness = freshnessOf(spec.schedule);
   const checkStepOf = (k) => {
-    if (PLACE_CHECKS.includes(k)) return 'app_place';
-    if (ACCESS_CHECKS.includes(k)) return 'app_access';
+    if (PLACE_CHECKS.includes(k) || ACCESS_CHECKS.includes(k)) return 'app';
     return CHOOSE_CHECKS.includes(k) || TILE_CHECK_KEYS.includes(k) ? 'delivery' : SUMMARY_STEP.id;
   };
   const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || SUMMARY_STEP.label;
@@ -1091,9 +1094,9 @@ export default function ImplementWizard({
   const implementBlocked = busy || checksBusy || !placeSettled || Boolean(plan?.unchanged)
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || !plan || Boolean(planError)));
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
-  const best = {
-    mode: bestMode({ genieOff }),
+  const best = oneBestPerStep({
     output: bestOutput(blocks),
+    removed: bestRemoved(),
     result: bestResultPlace(placeBlocks, ownSchema?.catalog || resultTableParts(ownTable).catalog),
     freshness: bestFreshness(spec),
     holdout: bestHoldout(),
@@ -1110,7 +1113,7 @@ export default function ImplementWizard({
     layout: bestLook('layout', spec),
     theme: bestLook('theme', spec),
     palette: bestLook('palette', spec),
-  };
+  });
   const groupingNow = spec.config.widgets?.[GROUP_BY] || scopeShown[GROUP_BY];
   const groupingPicked = groupingChoices(scopeProfile.profile).find((c) => sameGrouping(c.value, groupingNow));
   const summaryRows = pickedSummary(spec, sourceTables, {
@@ -1134,7 +1137,7 @@ export default function ImplementWizard({
   return (
     <Overlay title={title} uc={uc} steps={steps} step={stepIndex} onClose={onClose}>
       <div ref={bodyRef} data-wizard-body="" className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
-        {stepId === 'delivery' && (
+        {stepIndex === 0 && (
           <>
             <section className="bg-bg border border-border rounded-lg px-4 py-2.5 space-y-1" aria-label="Executive summary">
               <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
@@ -1154,41 +1157,13 @@ export default function ImplementWizard({
                 ))}
               </dl>
             </section>
-            <fieldset data-choice="mode" className="space-y-2">
-              <legend className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary mb-1">What to build</legend>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                {IMPLEMENT_MODES.map((m) => {
-                  const off = m.id === 'mvp' && Boolean(genieOff);
-                  return (
-                  <label
-                    key={m.id}
-                    className={`flex items-start gap-2.5 border rounded-lg p-3 ${off ? 'cursor-not-allowed border-border bg-bg-subtle text-text-secondary' : `cursor-pointer ${mode === m.id ? 'border-db-red bg-db-red-50' : 'border-border hover:border-border-strong'}`}`}
-                  >
-                    <input type="radio" name="implement-mode" value={m.id} checked={mode === m.id} disabled={off} onChange={() => setMode(m.id)} className="mt-0.5" />
-                    <span className="space-y-0.5">
-                      <span className="flex flex-wrap items-baseline gap-x-2">
-                        <span className="text-sm font-semibold text-text-primary">{m.label}</span>
-                        <HighlyRecommended best={best.mode} id={m.id} why={false} />
-                      </span>
-                      <span className="block text-[12px] text-text-secondary">{[m.blurb, isBest(best.mode, m.id) && !genieOff ? best.mode.reason : ''].filter(Boolean).join(' ')}</span>
-                    </span>
-                  </label>
-                  );
-                })}
+            {genieOff && (
+              <div role="note" aria-label={GENIE_CODE_OFF_TITLE} className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-[12px] space-y-1">
+                <p className="font-semibold text-text-primary">{GENIE_CODE_OFF_TITLE}</p>
+                <p className="text-text-secondary">{genieOff.reason}</p>
+                {genieOff.fix && <p className="text-text-secondary">Admin fix: {genieOff.fix}</p>}
               </div>
-              {genieOff && (
-                <div role="note" aria-label={GENIE_CODE_OFF_TITLE} className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-[12px] space-y-1">
-                  <p className="font-semibold text-text-primary">{GENIE_CODE_OFF_TITLE}</p>
-                  <p className="text-text-secondary">{genieOff.reason}</p>
-                  {genieOff.fix && <p className="text-text-secondary">Admin fix: {genieOff.fix}</p>}
-                </div>
-              )}
-              {editing && (
-                <p data-editing-note="" className="text-[11px] text-text-tertiary">
-                  This use case already has an MVP (version {context.latest.spec_version}). Pick “{MVP_MODE_LABEL}” to update that MVP, or “{NOTEBOOK_MODE_LABEL}” to leave it unchanged.
-                </p>
-              )}
-            </fieldset>
+            )}
           </>
         )}
 
@@ -1196,7 +1171,7 @@ export default function ImplementWizard({
           <section className="space-y-3" aria-label="Tables the notebook uses">
             <h3 className="text-sm font-semibold text-text-primary">Tables the notebook uses</h3>
             <p className="text-[12px] text-text-secondary">
-              {NOTEBOOK_MODE_LABEL} writes the notebook over the tables this use case was discovered with. To swap, remove or filter a table, go back and choose {MVP_MODE_LABEL}.
+              Inspire writes the notebook over the tables this use case was discovered with.
             </p>
             <ul className="space-y-1.5">
               {tablesOf(ucRow).map((t) => (
@@ -1406,12 +1381,12 @@ export default function ImplementWizard({
           </>
         )}
 
-        {(stepId === 'grouping' || stepId === 'first_run') && (
-          <section aria-label={stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE} data-scope-step={stepId} className="space-y-3">
-            <h3 className="text-sm font-semibold text-text-primary">{stepId === 'grouping' ? GROUPING_TITLE : FIRST_RUN_TITLE}</h3>
-            {stepId === 'first_run' && <GroupingChosen values={scopeShown} profile={scopeProfile.firstRun?.profile || scopeProfile.profile} />}
-            <ScopeSettings part={stepId} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
-              groups={stepId === 'first_run' ? scopeProfile.firstRun : null} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
+        {((shows('grouping') && mode === 'mvp' && (scopeSteps.grouping || scopeProfile.state === 'loading')) || shows('first_run')) && (
+          <section aria-label={shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE} data-scope-step={shows('first_run') ? 'first_run' : 'grouping'} className="space-y-3">
+            <h3 className="text-sm font-semibold text-text-primary">{shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE}</h3>
+            {shows('first_run') && <GroupingChosen values={scopeShown} profile={scopeProfile.firstRun?.profile || scopeProfile.profile} />}
+            <ScopeSettings part={shows('first_run') ? 'first_run' : 'grouping'} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
+              groups={shows('first_run') ? scopeProfile.firstRun : null} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
               unrecorded={firstRunUnrecorded}
               groupingChosenBy={groupingChosenBy(spec.config.widgets?.[GROUP_BY], scopeProfile.profile)} />
           </section>
@@ -1443,25 +1418,8 @@ export default function ImplementWizard({
           </>
         )}
 
-        {stepId === 'measure' && (
-          <>
-            <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
-              <KpiTargetSetting
-                spec={spec}
-                best={best.kpi}
-                options={kpiOptions}
-                tracked={trackedKpi}
-                before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
-                onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
-              />
-            </HoldoutSetting>
-            <Advanced open={advanced.measure} onToggle={() => toggleAdvanced('measure')}>
-              <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
-            </Advanced>
-          </>
-        )}
-
-        {stepId === 'fresh' && (
+        {shows('fresh') && <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>}
+        {shows('fresh') && (
           <>
             <section className="space-y-2">
               <h3 className="text-sm font-semibold text-text-primary">{FRESH_LABEL}</h3>
@@ -1491,7 +1449,23 @@ export default function ImplementWizard({
               </p>
             </section>
 
-            <Advanced open={advanced.fresh} onToggle={() => toggleAdvanced('fresh')}>
+          </>
+        )}
+
+        {shows('measure') && (
+          <>
+            <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
+              <KpiTargetSetting
+                spec={spec}
+                best={best.kpi}
+                options={kpiOptions}
+                tracked={trackedKpi}
+                before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
+                onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
+              />
+            </HoldoutSetting>
+            <Advanced open={advanced.run} onToggle={() => toggleAdvanced('run')}>
+              <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
               <div className="space-y-2">
                 <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Schedule</h4>
                 <Field label="Cron (Quartz)">
@@ -1527,6 +1501,17 @@ export default function ImplementWizard({
                 <p className="text-[11px] text-text-tertiary">Pick one or more. Genie builds each one for you.</p>
               </div>
               <div data-choice="outputs" data-choice-multi="" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div data-output={NOTEBOOK_CARD.id} className="border rounded-lg p-3 border-db-red/50 bg-db-red-50/40">
+                  <label className="flex items-start gap-3">
+                    <input type="checkbox" value={NOTEBOOK_CARD.id} className="mt-0.5" checked disabled readOnly />
+                    <span className="flex-1">
+                      <span className="flex items-center gap-2 text-sm font-semibold text-text-primary">
+                        {NOTEBOOK_CARD.label} <Lock size={12} className="text-text-tertiary" aria-hidden="true" />
+                      </span>
+                      <span className="block text-[11px] mt-1 text-text-secondary">{NOTEBOOK_CARD.blurb}</span>
+                    </span>
+                  </label>
+                </div>
                 {IMPLEMENT_OUTPUTS.map((item) => {
                   const Icon = ICONS[item.id];
                   const on = spec.outputs[item.id];
@@ -1600,7 +1585,7 @@ export default function ImplementWizard({
                           <div data-choice={`removed-${item.id}`} className="flex flex-wrap items-baseline gap-3">
                             <label><input type="radio" value="delete" checked={spec.removed_outputs[item.id] === 'delete'} onChange={() => patch('removed_outputs', { ...spec.removed_outputs, [item.id]: 'delete' })} /> {holding ? takeOutText(holding) : 'Delete it'}</label>
                             <label><input type="radio" value="keep" checked={spec.removed_outputs[item.id] !== 'delete'} onChange={() => patch('removed_outputs', { ...spec.removed_outputs, [item.id]: 'keep' })} /> Keep it unmanaged</label>
-                            <HighlyRecommended best={bestRemoved()} id="keep" />
+                            <HighlyRecommended best={best.removed} id="keep" />
                           </div>
                         </div>
                       )}
@@ -1743,7 +1728,7 @@ export default function ImplementWizard({
           </>
         )}
 
-        {stepId === 'app_place' && (
+        {shows('app_place') && (
           <AppPlacementStep
             spec={spec}
             targets={targets}
@@ -1763,15 +1748,15 @@ export default function ImplementWizard({
             }}
             onName={nameApp}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
-            warehouseOpen={advanced.app_place}
-            onWarehouseToggle={() => toggleAdvanced('app_place')}
+            warehouseOpen={advanced.app}
+            onWarehouseToggle={() => toggleAdvanced('app')}
             moveNote={moveNote}
             onKeep={() => { setPlaceSet('person'); setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
             best={{ place: best.appPlace, target: best.appTarget, policy: best.appPolicy, held: best.heldApp }}
           />
         )}
 
-        {stepId === 'app_access' && (
+        {shows('app_access') && (
           <AppAccessStep
             spec={spec}
             lakebase={lakebase}
@@ -1779,16 +1764,23 @@ export default function ImplementWizard({
             warehousesError={warehousesError}
             warehouseCheck={preflight?.checks?.app_warehouse || null}
             onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
-            onOption={(key, value) => setSpec((prev) => withAppOption(prev, key, value))}
             onBackend={(backend) => setSpec((prev) => withAppBackend(prev, backend))}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
-            warehouseOpen={advanced.app_access}
-            onWarehouseToggle={() => toggleAdvanced('app_access')}
-            best={{ access: best.appAccess, backend: best.appBackend, option: best.appOption, replace: best.replaceEdits }}
+            warehouseOpen={advanced.app}
+            onWarehouseToggle={() => toggleAdvanced('app')}
+            best={{ access: best.appAccess, backend: best.appBackend }}
           />
         )}
 
-        {stepId === 'app_look' && (
+        {shows('app_features') && (
+          <AppFeaturesStep
+            spec={spec}
+            onOption={(key, value) => setSpec((prev) => withAppOption(prev, key, value))}
+            best={{ option: best.appOption, replace: best.replaceEdits }}
+          />
+        )}
+
+        {shows('app_look') && (
           <AppLookStep
             spec={spec}
             look={look}
@@ -1805,38 +1797,12 @@ export default function ImplementWizard({
           />
         )}
 
-        {stepId === 'settings' && (
-          <>
-            {settingsList.length > 0 && (
-              <SettingsStep
-                spec={spec}
-                settings={settingsList}
-                recorded={Array.isArray(settingsModel)}
-                impact={context?.latest ? rowImpact(context.latest) : null}
-                onChange={(setting, text) => setSpec((prev) => withSetting(prev, setting, text))}
-                onNote={(text) => setSpec((prev) => withSettingsNote(prev, text))}
-              />
-            )}
-          </>
-        )}
-
-        {stepId === 'vibes' && collectedNote && (
-          <p role="status" data-collected-vibes="" className="mb-3 text-[11px] text-text-secondary bg-bg border border-border rounded-md px-3 py-2">{collectedNote}</p>
-        )}
-        {stepId === 'vibes' && firstRunUnrecorded && !scopeSteps.firstRun && scopeProfile.state !== 'loading' && (
-          <p role="note" data-first-run-unrecorded="" className="mb-3 text-[11px] text-text-secondary bg-bg border border-border rounded-md px-3 py-2">
-            {RUN_SCOPE_UNRECORDED_HIDDEN}
-          </p>
-        )}
-        {stepId === 'vibes' && (
-          <VibesPanel spec={spec} built={built} next={(context?.latest?.spec_version ?? 0) + 1} onChange={(value) => patch('vibes', value)}
-            onPrevious={(choice) => patch('vibe_previous', choice)} />
-        )}
         {stepId === SUMMARY_STEP.id && (
           <>
             {readinessText(readiness, readiness?.scope) && (
               <p className="text-[11px] text-text-secondary">{readinessText(readiness, readiness.scope)}</p>
             )}
+            <p data-built-sentence="" className="text-sm font-semibold text-text-primary">{builtSentence(spec)}</p>
             <section aria-label="What Inspire picked" data-picked-summary="" className="bg-bg border border-border rounded-lg p-4 space-y-3">
               <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr_auto] gap-x-4 gap-y-2 text-[12px]">
                 {summaryRows.map((row) => (
@@ -1894,6 +1860,18 @@ export default function ImplementWizard({
               <p className="text-[11px] text-text-tertiary">Cost hint: {costHint(spec)}</p>
             </Advanced>
           </>
+        )}
+        {shows('vibes') && collectedNote && (
+          <p role="status" data-collected-vibes="" className="mb-3 text-[11px] text-text-secondary bg-bg border border-border rounded-md px-3 py-2">{collectedNote}</p>
+        )}
+        {shows('vibes') && firstRunUnrecorded && !scopeSteps.firstRun && scopeProfile.state !== 'loading' && (
+          <p role="note" data-first-run-unrecorded="" className="mb-3 text-[11px] text-text-secondary bg-bg border border-border rounded-md px-3 py-2">
+            {RUN_SCOPE_UNRECORDED_HIDDEN}
+          </p>
+        )}
+        {shows('vibes') && (
+          <VibesPanel spec={spec} built={built} next={(context?.latest?.spec_version ?? 0) + 1} onChange={(value) => patch('vibes', value)}
+            onPrevious={(choice) => patch('vibe_previous', choice)} />
         )}
       </div>
 
@@ -1981,7 +1959,7 @@ export default function ImplementWizard({
 }
 
 const LEGEND = 'text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary';
-const ACCESS_SHORT = { user: 'each person signs in', sp: 'its own service principal' };
+const ACCESS_SHORT = { user: 'each person sees only their own rows', sp: 'everyone sees the same rows' };
 
 function SegmentButton({ on, disabled = false, onClick, option, children }) {
   return (
@@ -2151,7 +2129,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
         <p className="text-[11px] text-text-tertiary">Add it to an App Inspire built, or create a new one.{memory && ` ${memory}`}</p>
       </div>
       <div role="radiogroup" aria-label="Where the App goes" aria-busy={listing} data-choice="app-place" className="space-y-3">
-        <div data-app-place="join" className={placeCard(Boolean(joined))}>
+        {(joined || choices.length > 0 || targets === null) && <div data-app-place="join" className={placeCard(Boolean(joined))}>
           <label className="flex items-start gap-2.5 cursor-pointer">
             <input type="radio" name="app-place" value="join" className="mt-0.5" checked={Boolean(joined)} disabled={!joined && !open.length}
               onChange={() => onJoin(open[0].target)} />
@@ -2193,7 +2171,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
           {joined && !chosen && targets !== null && (
             <p className="ps-7 text-[11px] text-error-fg">{joined} is not one Inspire built that you can open: pick another, or create a new App.</p>
           )}
-        </div>
+        </div>}
         <div data-app-place="new" className={placeCard(fresh)}>
           <label className="flex items-start gap-2.5 cursor-pointer">
             <input type="radio" name="app-place" value="new" className="mt-0.5" checked={fresh}
@@ -2247,15 +2225,16 @@ function MergeChoice({ name, label, chosen, targets, targetsError, onPick }) {
   return (
     <div className="ps-7 space-y-1.5" data-merge={name}>
       <div className="flex flex-wrap items-center gap-2">
-        <div data-choice={`merge-${name}`} className="flex flex-wrap items-center gap-2">
-          <div role="group" aria-label={`Where Genie builds the ${label}`} className="inline-flex rounded-md border border-border overflow-hidden">
-            <SegmentButton option="" on={!chosen} onClick={() => onPick(null)}>Create new</SegmentButton>
-            <SegmentButton option="existing" on={Boolean(chosen)} disabled={!chosen && !open} onClick={() => { if (!chosen) onPick(open); }}>Add to an existing one</SegmentButton>
+        {(chosen || open) && (
+          <div data-choice={`merge-${name}`} className="flex flex-wrap items-center gap-2">
+            <div role="group" aria-label={`Where Genie builds the ${label}`} className="inline-flex rounded-md border border-border overflow-hidden">
+              <SegmentButton option="" on={!chosen} onClick={() => onPick(null)}>Create new</SegmentButton>
+              <SegmentButton option="existing" on={Boolean(chosen)} onClick={() => { if (!chosen) onPick(open); }}>Add to an existing one</SegmentButton>
+            </div>
           </div>
-          {targets !== null && <HighlyRecommended best={bestMerge(label, list)} id="" why={false} />}
-        </div>
+        )}
         {!chosen && targets === null && <span className="text-[11px] text-text-tertiary"><Loader2 size={11} className="inline animate-spin" /> Finding the ones Inspire built</span>}
-        {!chosen && targets !== null && !targetsError && !list.length && <span className="text-[11px] text-text-tertiary">Inspire has built none yet</span>}
+        {!chosen && targets !== null && !targetsError && !list.length && <span className="text-[11px] text-text-tertiary">Genie creates a new one, since Inspire has built none yet</span>}
       </div>
       {targetsError && <p className="text-[11px] text-text-tertiary">Inspire could not list the {label}s it built ({targetsError}), so Genie creates a new one.</p>}
       {chosen && (
@@ -2366,31 +2345,30 @@ function ResultTableStep({ table, ownTable, inspireTable, place, note = '', outp
         <p className="text-[11px] text-text-tertiary">Genie writes this MVP&apos;s results to this table, and Inspire writes nowhere else. Next checks live that you can create or write it.</p>
       </div>
       <div role="radiogroup" aria-label="Where the tables go" data-choice="result-table" className="flex flex-wrap gap-x-5 gap-y-1">
-        {RESULT_PLACES.map((option) => (
-          <div key={option.id} data-option={option.id} data-blocked={blocks[option.id] ? '' : undefined} className={blocks[option.id] ? 'cursor-not-allowed text-text-secondary' : ''}>
+        {RESULT_PLACES.filter((option) => !blocks[option.id] && (option.id === 'pick' || named[option.id])).map((option) => (
+          <div key={option.id} data-option={option.id}>
             <label className="flex items-baseline gap-x-1.5 text-[12px] text-text-primary">
               <input type="radio" name="result-place" value={option.id} checked={place === option.id}
-                disabled={Boolean(blocks[option.id]) || (option.id !== 'pick' && !named[option.id])}
                 onChange={() => onChange(named[option.id] ? resultTableParts(named[option.id]) : { ...resultTableParts(table), schema: '' })} />
               <span className="font-medium">{option.label}</span>
-              {option.id === 'own' && ownTable && <span className="font-mono text-[11px] text-text-secondary break-all">{ownTable}</span>}
               <HighlyRecommended best={best} id={option.id} />
             </label>
-            <div className="ps-5"><BlockedReason block={blocks[option.id]} id={option.id} /></div>
           </div>
         ))}
       </div>
-      {note && <p role="note" aria-label="Where the tables go note" data-place-note="" className="text-[11px] text-text-secondary">{note}</p>}
+      {note ? (
+        <div role="note" aria-label="Where the tables go note" data-place-note="" className="text-[11px] text-text-secondary"><PlainMessage text={note} /></div>
+      ) : <BlockedReason block={blocks.own} id="own" />}
       {children}
       <p className="text-[11px] text-text-secondary" role="group" aria-label="Result table" data-result-table={table}>
         Main table: <span className="font-mono text-[12px] text-text-primary break-all">{table || 'catalog.schema.table'}</span>
       </p>
       {outputCheck && (
         <div className="text-[11px] space-y-0.5" aria-label="Result table check">
-          <p className={outputCheck.write?.ok ? 'text-success-fg' : 'text-error-fg'}>{outputCheck.write?.detail}</p>
-          {outputCheck.write?.ok && <p className={outputCheck.safety?.ok ? 'text-success-fg' : 'text-error-fg'}>{outputCheck.safety?.detail}</p>}
-          {outputCheck.model && <p className={outputCheck.model.ok ? 'text-success-fg' : 'text-error-fg'}>{outputCheck.model.detail}</p>}
-          {outputCheck.write?.ok && outputCheck.safety?.ok && <p className="text-text-tertiary">Sharing: {outputCheck.grant?.detail}</p>}
+          <PlainMessage text={outputCheck.write?.detail} className={outputCheck.write?.ok ? 'text-success-fg' : 'text-error-fg'} />
+          {outputCheck.write?.ok && <PlainMessage text={outputCheck.safety?.detail} className={outputCheck.safety?.ok ? 'text-success-fg' : 'text-error-fg'} />}
+          {outputCheck.model && <PlainMessage text={outputCheck.model.detail} className={outputCheck.model.ok ? 'text-success-fg' : 'text-error-fg'} />}
+          {outputCheck.write?.ok && outputCheck.safety?.ok && <PlainMessage text={`Sharing: ${outputCheck.grant?.detail || ''}`} className="text-text-tertiary" />}
           {outputCheck.identity && <p className="text-text-tertiary">Checked live as {outputCheck.identity}.</p>}
         </div>
       )}
@@ -2420,83 +2398,6 @@ function KpiTargetSetting({ spec, options, tracked, before, onPick, best = null 
       {changed && <p data-kpi-change="" className="text-[11px] text-text-primary">{KPI_CHANGE_NOTE}</p>}
       {problem && <p className="text-[11px] text-error-fg">{problem}</p>}
     </div>
-  );
-}
-
-function SettingInput({ setting, value, problem, showChange, onChange }) {
-  const choices = Array.isArray(setting.choices) ? setting.choices : [];
-  const allowed = setting.allowed || (choices.length ? [...choices, ...(setting.many ? ['all'] : [])].join(', ') : 'any value');
-  return (
-    <div data-setting={setting.name} className="space-y-0.5">
-      <div className="flex items-center gap-2">
-        <div className="min-w-0 flex-1">
-          <span className="block text-[12px] leading-4 text-text-primary" title={setting.help || undefined}>
-            {setting.label}{settingUnitLabel(setting)}
-          </span>
-          <span className="block text-[10px] leading-[14px] text-text-secondary">
-            <span data-setting-allowed="">Allowed: {allowed}</span>
-            {showChange && setting.change && <> · <span data-setting-change="">{setting.change}</span></>}
-          </span>
-        </div>
-        {setting.kind === 'choice' && !setting.many && choices.length > 0 ? (
-          <select aria-label={setting.label} className={settingInputClass} value={value} onChange={(e) => onChange(e.target.value)}>
-            {!choices.includes(value) && <option value={value}>{value || 'Pick one'}</option>}
-            {choices.map((c) => <option key={c} value={c}>{c}</option>)}
-          </select>
-        ) : (
-          <input dir="auto" type="text" inputMode={setting.kind === 'choice' ? 'text' : 'decimal'} aria-label={setting.label} className={settingInputClass}
-            value={value} onChange={(e) => onChange(e.target.value)} />
-        )}
-      </div>
-      {problem && <p data-setting-problem="" className="text-[11px] leading-4 text-error-fg">{problem}</p>}
-    </div>
-  );
-}
-
-function SettingsStep({ spec, settings, recorded, impact, onChange, onNote }) {
-  const groups = [...SETTING_GROUPS, ''].map((group) => [group, settings.filter((s) => (group ? s.group === group : !SETTING_GROUPS.includes(s.group)))])
-    .filter(([, list]) => list.length);
-  const values = Object.fromEntries(settings.filter((s) => s.source === 'widget').map((s) => [s.name, settingValue(spec, s)]));
-  const together = widgetSetProblems(values);
-  return (
-    <section className="space-y-2" aria-label="Use case settings">
-      <div>
-        <h3 className="text-sm font-semibold text-text-primary">How should this use case count and flag records?</h3>
-        <p className="text-[11px] text-text-tertiary">{SETTINGS_STEP_NOTE}</p>
-        <p data-settings-technical="" className="text-[11px] text-text-tertiary">{SETTINGS_TECHNICAL_NOTE}</p>
-      </div>
-      {!recorded && <p className="text-[11px] text-text-secondary">{SETTINGS_ASSUMPTIONS_LATER}</p>}
-      <div data-settings-list="" className="max-h-[24rem] space-y-2.5 overflow-y-auto pe-1">
-        {groups.map(([group, list]) => {
-          const shared = list.every((s) => s.change === list[0].change) ? list[0].change : null;
-          return (
-            <div key={group || 'other'} data-setting-group={group || 'other'} className="space-y-1">
-              <div className="flex flex-wrap items-baseline justify-between gap-x-3 border-b border-border pb-1">
-                <h4 className="text-[11px] font-semibold uppercase tracking-[0.14em] text-text-secondary">{settingGroupTitle(group, impact)}</h4>
-                {shared && <span data-setting-group-change="" className="text-[10px] text-text-secondary">{shared}</span>}
-              </div>
-              <div className="grid grid-cols-1 gap-x-4 gap-y-1 sm:grid-cols-2">
-                {list.map((s) => (
-                  <SettingInput key={s.name} setting={s} value={settingValue(spec, s)} problem={settingIssue(spec, s)} showChange={shared === null}
-                    onChange={(text) => onChange(s, text)} />
-                ))}
-              </div>
-            </div>
-          );
-        })}
-        {together.length > 0 && <ul className="space-y-0.5">{together.map((t) => <li key={t} className="text-[11px] text-error-fg">{t}</li>)}</ul>}
-      </div>
-      {settings.length > 0 && (
-        <div data-settings-note="" className="space-y-0.5">
-          <label className="flex items-center gap-2">
-            <span className="shrink-0 text-[12px] text-text-primary">{SETTINGS_NOTE_LABEL}</span>
-            <input dir="auto" type="text" aria-label={SETTINGS_NOTE_LABEL} placeholder={SETTINGS_NOTE_PLACEHOLDER}
-              className={`${inputFrame} min-w-0 flex-1 px-2 py-1 text-sm`} value={settingsNoteOf(spec)} onChange={(e) => onNote(e.target.value)} />
-          </label>
-          {settingsNoteProblem(spec) && <p className="text-[11px] leading-4 text-error-fg">{settingsNoteProblem(spec)}</p>}
-        </div>
-      )}
-    </section>
   );
 }
 
@@ -2541,23 +2442,21 @@ function HoldoutSetting({ spec, onEnabled, children = null, best = null }) {
 }
 
 function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = null }) {
-  const absent = lakebase?.state === 'absent';
   const backend = appBackendOf(spec, lakebase);
-  const block = lakebaseBlock(spec, lakebase);
-  const loading = lakebase === null && !block;
+  const blocks = appBackendBlocks(spec, lakebase);
+  const absent = lakebase?.state === 'absent';
+  const loading = lakebase === null && !blocks.lakebase;
   const chosen = loading ? null : APP_BACKEND_CHOICES.find((choice) => choice.id === backend);
   return (
     <fieldset className="space-y-1.5">
-      <legend className="text-sm font-semibold text-text-primary">Where does the App read its data?</legend>
+      <legend className="text-sm font-semibold text-text-primary">How fast do the App's pages open?</legend>
       {absent ? (
-        <p className="text-[11px] text-text-secondary" role="note" aria-label="Why the App reads Delta tables">
-          The App reads Delta tables through the SQL warehouse{lakebase.detail ? `, because ${lakebase.detail}` : ''}.
-        </p>
+        <BlockedReason block={blocks.lakebase} id="app-backend" />
       ) : (
         <>
           <div data-choice="app-backend" className="flex flex-wrap gap-x-6 gap-y-1.5 pt-1">
             {APP_BACKEND_CHOICES.map((choice) => {
-              const off = loading || (choice.id === 'lakebase' && Boolean(block));
+              const off = loading || Boolean(blocks[choice.id]);
               const checked = !loading && backend === choice.id;
               return (
                 <label
@@ -2575,11 +2474,12 @@ function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = n
           {chosen?.blurb && <p className="text-[12px] text-text-secondary">{chosen.blurb}</p>}
           {!loading && best?.reason && <p data-highly-recommended-why="" className="text-[11px] text-text-secondary">{best.reason}</p>}
           {loading && <p className="text-[11px] text-text-tertiary" role="status">{LAKEBASE_CHECKING}…</p>}
-          {block && <p className="text-[11px] text-text-secondary" role="note" aria-label="Why Lakebase is off">{block}</p>}
-          {lakebase?.state === 'unknown' && !block && (
-            <p className="text-[11px] text-text-secondary" role="note" aria-label="Lakebase not checked">
-              Inspire could not check Lakebase ({lakebase.detail}). If the build cannot use it, the App reads Delta tables and the build says why.
-            </p>
+          <BlockedReason block={blocks.lakebase} id="app-backend" />
+          {lakebase?.state === 'unknown' && !blocks.lakebase && (
+            <div role="note" aria-label="Fast pages not checked" className="text-[11px] text-text-secondary">
+              <p>{LAKEBASE_UNCHECKED}</p>
+              <TechnicalDetails items={lakebase.detail} />
+            </div>
           )}
         </>
       )}
@@ -2642,14 +2542,13 @@ function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, check,
   );
 }
 
-function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseCheck, onAccess, onOption, onBackend, onWarehouse, warehouseOpen = false, onWarehouseToggle, best = {} }) {
+function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseCheck, onAccess, onBackend, onWarehouse, warehouseOpen = false, onWarehouseToggle, best = {} }) {
   const access = spec.outputs.app_access;
-  const options = spec.outputs.app_options;
   const inside = insideInspire(spec);
   return (
     <section className="space-y-4" aria-label="App access">
       <fieldset data-choice="app-access" className="space-y-2">
-        <legend className="text-sm font-semibold text-text-primary">Who does the App sign people in as?</legend>
+        <legend className="text-sm font-semibold text-text-primary">Who uses the App, and which rows do they see?</legend>
         <p className="text-[11px] text-text-tertiary" {...(inside ? { role: 'note', 'aria-label': 'Why each person signs in as themselves' } : {})}>
           {inside ? `${INSIDE_ACCESS_REASON}.` : APP_ACCESS_NOTE}
         </p>
@@ -2687,6 +2586,15 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, warehouseC
           </Advanced>
         )}
       </AppBackendChoice>
+    </section>
+  );
+}
+
+function AppFeaturesStep({ spec, onOption, best = {} }) {
+  const access = spec.outputs.app_access;
+  const options = spec.outputs.app_options;
+  return (
+    <section className="space-y-4" aria-label="App features">
       <fieldset className="space-y-2">
         <legend className={LEGEND}>
           What people can do in the App<span className="ms-2 normal-case tracking-normal font-normal text-[11px]">Record decisions starts on; the others stay off unless you turn them on.</span>
@@ -3058,7 +2966,7 @@ function Overlay({ title, uc, steps, step, onClose, children }) {
     if (left < list.scrollLeft || left + current.offsetWidth > list.scrollLeft + list.clientWidth) list.scrollLeft = Math.max(0, left - 8);
   }, [step, steps.length]);
   const row = uc ? catalogRow(uc, 0) : null;
-  const facts = row ? [['ID', row.id], ['Domain', row.domain], ['Subdomain', row.subdomain], ['Technique', row.technique]].filter(([, v]) => v) : [];
+  const facts = row ? [['Domain', row.domain], ['Subdomain', row.subdomain], ['Technique', row.technique]].filter(([, v]) => v) : [];
   return (
     <BodyPortal>
       <div className="fixed inset-0 z-50 bg-black/40 flex items-center justify-center p-4" data-implement-overlay="">

@@ -5,7 +5,7 @@ import os from 'node:os';
 import path from 'node:path';
 import { createRequire } from 'node:module';
 import { closeBrowser, openUi, until } from './uiSupport.mjs';
-import { apiWatch, openShowcase, tabButton, walkInspireDemo } from '../../../scripts/showcaseRecorder.mjs';
+import { replayWatch, openShowcase, tabButton, walkInspireDemo } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_LAYOUTS, DEMO_RECORDED, KINDS_DEMO, USE_CASES } from '../../../scripts/kindsShowcase.mjs';
 import { SHOWCASE_NOTE } from '../../src/lib/showcase.js';
 import { RUN_BACK } from '../../src/lib/runPages.js';
@@ -131,7 +131,7 @@ test('Build shows Open MVP on every use case of the kinds demo, and each opens i
   const ui = await openKindsDemo();
   const { page } = ui;
   try {
-    const settle = apiWatch(page);
+    const settle = replayWatch(page);
     const layouts = new Set();
     for (const u of USE_CASES) {
       const frame = await openMvpFromBuild(page, settle, u);
@@ -185,7 +185,7 @@ test('Genie in a kinds demo MVP App answers a suggested question with the record
   const ui = await openKindsDemo();
   const { page } = ui;
   try {
-    const settle = apiWatch(page);
+    const settle = replayWatch(page);
     const u = USE_CASES[0];
     const frame = await openMvpFromBuild(page, settle, u);
     await frame.locator('header.top button.genie-btn').click();
@@ -210,7 +210,7 @@ for (const name of FILES) {
     const bundle = Object.values(loadShowcases(dir))[0];
     const ui = await openDemoApp(dir);
     try {
-      const settle = apiWatch(ui.page);
+      const settle = replayWatch(ui.page);
       const walk = await walkInspireDemo(ui.page, { settle, mvps: Object.keys(bundle.mvps).length > 0 });
       const n = useCasesOf(bundle).length;
       t.diagnostic(`${name}: ${fs.statSync(path.join(dir, name)).size} bytes, ${n} use cases`);
@@ -239,7 +239,7 @@ test('with more than one demo, the demo bar lists them and switches to the use c
   const ui = await openDemoApp(SHOWCASE_DIR);
   const { page } = ui;
   try {
-    const settle = apiWatch(page);
+    const settle = replayWatch(page);
     const [first, second] = Object.values(COMMITTED);
     const titles = Object.values(COMMITTED).map((b) => b.title);
     await openShowcase(page);
@@ -296,7 +296,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     assert.deepEqual([...new Set(plans.map((c) => c.mvp.layout))].sort(), ['forecast_cockpit', 'planner'], 'the demo carries both plan layouts');
     for (const u of plans) {
     decided.length = 0;
-    let frame = await openMvpFromBuild(page, apiWatch(page), u);
+    let frame = await openMvpFromBuild(page, replayWatch(page), u);
     const plan = () => frame.locator('section.plan');
     const rows = () => plan().locator('tbody tr[data-plan-row]');
     await rows().first().waitFor({ timeout: 60000 });
@@ -342,7 +342,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
 
     await page.reload();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor({ timeout: 60000 });
-    frame = await openMvpFromBuild(page, apiWatch(page), u);
+    frame = await openMvpFromBuild(page, replayWatch(page), u);
     await rows().first().waitFor({ timeout: 60000 });
     await until(async () => (await plan().locator('[data-decided]').count()) === keys.length, 'the decisions are still there after a refresh');
     assert.match((await line(keys[1]).locator('[data-decided]').innerText()).trim(), /^Override to 7 instead of .+: Store event this week$/);
@@ -350,7 +350,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     assert.equal(await takeAll().count(), 0, 'after a refresh Take all offers no line already decided');
     await waits(total - keys.length);
     assert.equal(decided.length, keys.length, 'the refresh decided nothing again');
-    await backToRun(page, apiWatch(page));
+    await backToRun(page, replayWatch(page));
     }
     assert.deepEqual(ui.missing, []);
     assert.deepEqual(ui.outside, []);

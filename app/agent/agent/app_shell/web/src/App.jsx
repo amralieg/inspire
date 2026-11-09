@@ -4,7 +4,7 @@ import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js'
 import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
-import { ToastProvider, useToast } from './ui.jsx';
+import { PlainNote, ToastProvider, useToast } from './ui.jsx';
 import Page, { SECTION_TITLES } from './Page.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
 import Impact from './Impact.jsx';
@@ -46,7 +46,7 @@ function Fatal({ error }) {
     <div className="fatal" role="alert">
       <span className="mark-tile"><Icon name="info" size={18} /></span>
       <h1>{error.status === 401 ? 'Sign in to see this App' : 'This App could not start'}</h1>
-      <p>{error.message}</p>
+      <PlainNote text={error.message} />
     </div>
   );
 }
@@ -249,7 +249,7 @@ function Shell({ app }) {
   const setPageState = (id) => (next) => setStates((s) => ({ ...s, [id]: next }));
   const setPageLook = (id) => (change) => setLooks((l) => ({ ...l, [id]: change(l[id] || EMPTY_LOOK) }));
   const themeKey = `${palette}:${theme}:${app.style}`;
-  const crumb = page ? [[page.domain, page.subdomain].filter(Boolean).join(' › '), page.use_case_id].filter(Boolean).join(' · ') : '';
+  const crumb = page ? [page.domain, page.subdomain].filter(Boolean).join(' › ') : '';
   const chrome = { palette, built: app.palette, theme, onPalette: choosePalette, onTheme: toggleTheme };
   const genieShown = working ? dock === 'genie' : genieOpen;
   const toggleGenie = () => (working ? setDock(dock === 'genie' ? '' : 'genie') : setGenieOpen(!genieOpen));

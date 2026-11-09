@@ -231,7 +231,8 @@ test('a phone screen has no sideways scroll and stacks the charts', async () => 
 test('a failed tile says why while the rest of the page renders', async () => {
   const { page, seen, context } = await open(appInfo(), { width: 1280, errors: { 'chart:pareto': 'TABLE_OR_VIEW_NOT_FOUND' } });
   await page.waitForSelector('.tile-err');
-  assert.match(await page.locator('[data-card="pareto"] .tile-err').innerText(), /TABLE_OR_VIEW_NOT_FOUND/);
+  assert.equal(await page.locator('[data-card="pareto"] .tile-err').innerText(), 'This chart could not load: only an error code came back, listed under Details');
+  assert.equal(await page.locator('[data-card="pareto"] [data-technical-details] pre').textContent(), 'TABLE_OR_VIEW_NOT_FOUND');
   await page.waitForFunction(chartsDrawn, 3);
   assert.deepEqual(seen.errors, []);
   await context.close();

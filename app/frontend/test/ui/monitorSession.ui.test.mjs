@@ -292,7 +292,7 @@ test('a run whose notebook refused its inputs shows the reason on the Monitor, n
     try {
       const card = await statusCard(ui.page);
       await card.getByText(expected).first().waitFor({ timeout: 10000 });
-      assert.equal(await card.getByText('Run completed, waiting for results...').count(), 0);
+      assert.equal(await card.getByText('The run ended. Inspire is saving the use cases...').count(), 0);
       if (error) assert.equal(await card.getByText(platform).count(), 0, 'the platform line gives way to the reason the notebook gave');
       assert.deepEqual(ui.pageErrors, []);
     } finally {
@@ -338,6 +338,19 @@ test('a running Discovery fills its steps and the use cases each step found whil
     }
     assert.equal(await card.getByText('Running', { exact: true }).count(), 1, 'the run has not ended');
     assert.equal(await card.getByText('Completed', { exact: true }).count(), 0);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a run with no strategy says in plain words that Inspire uses common business goals', async () => {
+  const backend = sessionBackend({ session: () => ({ processing_status: 'done', completed_percent: 40, completed_on: null, last_updated: ago(MINUTE),
+    widget_values: { business: 'Acme Retail', discovery_type: 'Standard Discovery' } }) });
+  const ui = await openMonitor(backend);
+  try {
+    await ui.page.getByText('No strategy given, so Inspire uses common business goals').first().waitFor({ timeout: 10000 });
+    assert.doesNotMatch(await ui.page.locator('body').innerText(), /built-in goals/);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

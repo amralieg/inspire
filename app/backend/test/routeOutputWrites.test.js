@@ -14,8 +14,11 @@ const launch = (generationPath, options = {}) => S.request('POST', '/api/run', {
   person: options.person || ME, signedIn: options.signedIn, userToken: options.userToken,
   body: { params: { '00_business_name': 'Acme', '02_inspire_database': S.APP_DB, '14_session_id': '1001', ...(generationPath === undefined ? {} : { '11_generation_path': generationPath }) } },
 });
-const SHARED_ONLY = (person, why = 'the Inspire App cannot write there; give the App CAN MANAGE on it to keep your runs private') =>
-  `Inspire cannot save to your folder /Users/${person}/inspire_output (${why}), so it saves to /Shared/demos, which everyone in the workspace can read.`;
+const SHARED_ONLY = (person) =>
+  `Inspire cannot save to your own folder /Users/${person}/inspire_output, so it saves to /Shared/demos, a shared folder that everyone in the workspace can open.`;
+const SCOPE_ONLY = (person) =>
+  `Inspire cannot save to your own folder /Users/${person}/inspire_output, because this App may not use your sign-in for workspace folders (run the Inspire installer again to allow it), so it saves to /Shared/demos, a shared folder that everyone in the workspace can open.`;
+const WRITE_CALL = (c) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.method) && !c.path.startsWith('/api/2.0/sql/') && c.path !== '/oidc/v1/token';
 const APP_CANT = (folder) => `The Inspire App can't write to ${folder}, so the run saves no files there. Ask an App manager to give the App CAN MANAGE on it.`;
 const APP_CANT_CREATE = (folder) => `${folder} does not exist yet, and the Inspire App can't create it, so the run saves no files there. Create ${folder}, then give the App CAN MANAGE on it.`;
 const submitted = () => S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/'));
@@ -172,10 +175,16 @@ test('the output folder check answers the same verdict without launching anythin
   assert.equal(mine.status, 200, mine.text);
   assert.deepEqual(mine.data, { allowed: true, folder: `${HOME}/inspire_out`, checked: 'passed', warnings: [APP_CANT_CREATE(`${HOME}/inspire_out`)] });
   assert.deepEqual(S.state.created, [], 'the probe was deleted');
-  S.reset({ folders: { ...folders, '/Shared/demos': { id: 7, writers: '*' } }, managers: [BOSS] });
   for (const path of ['./../demos/', '']) {
+    S.reset({ folders: { ...folders, '/Shared/demos': { id: 7, writers: '*' } }, managers: [BOSS] });
+    const own = await ask(OWNER, path);
+    assert.deepEqual([own.status, own.data], [200, { allowed: true, folder: `${HOME}/inspire_output`, checked: 'passed', warnings: [], generation_path: `/Workspace${HOME}/inspire_output` }], `${JSON.stringify(path)}: ${own.text}`);
+    assert.deepEqual(S.state.calls.filter(WRITE_CALL).map((c) => `${c.method} ${c.path}`), [], `${JSON.stringify(path)}: loading Start writes nothing (must-exclude)`);
+    assert.deepEqual([S.state.grants, S.state.folders[`${HOME}/inspire_output`]], [[], undefined], `${JSON.stringify(path)}: no folder and no grant until Start`);
+    S.reset({ folders: { ...folders, '/Shared/demos': { id: 7, writers: '*' } }, managers: [BOSS], scopeless: true });
     const fallback = await ask(OWNER, path);
-    assert.deepEqual([fallback.status, fallback.data], [200, { allowed: true, folder: '/Shared/demos', checked: 'passed', warnings: [SHARED_ONLY(OWNER)], generation_path: '/Workspace/Shared/demos' }], `${JSON.stringify(path)}: ${fallback.text}`);
+    assert.deepEqual([fallback.status, fallback.data.folder, fallback.data.warnings, fallback.data.generation_path],
+      [200, '/Shared/demos', [SCOPE_ONLY(OWNER)], '/Workspace/Shared/demos'], `${JSON.stringify(path)}: ${fallback.text}`);
   }
   const old = await S.request('GET', `/api/output-folder/check?generation_path=${encodeURIComponent('./../demos/')}`, { person: OWNER });
   assert.equal(old.status, 404, 'the check is a POST, so no generation path ever travels in a request URL');
@@ -226,19 +235,21 @@ test('the default output folder is the person\u2019s own inspire_output, a locke
   const typed = await launch('/Shared/demos/');
   assert.equal(typed.status, 200, typed.text);
   assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], '/Shared/demos/', 'a folder the person typed is never swapped');
-  S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' }, [mine]: { id: 12, writers: [ME] } } });
+  S.reset({ notebookPresent: true, permissionsRefused: 'sharing is off', folders: { '/Shared/demos': { id: 7, writers: '*' }, [mine]: { id: 12, writers: [ME] } } });
   const appless = await launch(undefined);
   assert.equal(appless.status, 200, appless.text);
   assert.deepEqual(appless.data.warnings, [SHARED_ONLY(ME)]);
   assert.equal(S.state.launches[0].output_folder, '/Shared/demos');
   assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], '/Workspace/Shared/demos',
     'the shared folder the warning names is the folder the notebook is told to save to, never an empty path it refuses');
-  S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' }, [mine]: { id: 12, writers: [ME] } } });
+  S.reset({ notebookPresent: true, scopeless: true, folders: { '/Shared/demos': { id: 7, writers: '*' }, [mine]: { id: 12, writers: [ME] } } });
   const applessCheck = await S.request('POST', '/api/output-folder/check', { person: ME, body: { generation_path: '' } });
   assert.equal(applessCheck.data.generation_path, '/Workspace/Shared/demos');
   S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' } } });
   const nohome = await launch(undefined);
-  assert.deepEqual(nohome.data.warnings, [SHARED_ONLY(ME, 'you cannot write there')]);
+  assert.deepEqual(nohome.data.warnings, [SHARED_ONLY(ME)]);
+  assert.match(nohome.data.warning_details[0], /^You cannot write to \/Users\/nonowner@example\.com\/inspire_output \(/, 'why the person\u2019s own folder failed sits under Details');
+  assert.deepEqual(S.state.grants, [], 'a folder the person cannot write is never shared');
   assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], '/Workspace/Shared/demos');
   S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: [] }, [mine]: { id: 12, writers: [ME, S.APP_SP] } } });
   const locked = await launch(undefined);

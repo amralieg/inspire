@@ -1,10 +1,25 @@
 import { counted } from './plural.js';
 import { firstRunDefault, groupingBest, groupingCount, profileRecords } from './runScope.js';
 import {
-  APP_OWN_PLACEMENTS, IMPLEMENT_OUTPUTS, NONE_WORKS, affordable, blockOf, REMOVED_OUTPUT_DEFAULT, VIBE_PREVIOUS_DEFAULT, appBackendDefault, appPagesOf, insideInspire, newAppPlacementBlock, placementTarget,
+  APP_OWN_PLACEMENTS, IMPLEMENT_OUTPUTS, NONE_WORKS, affordable, blockOf, REMOVED_OUTPUT_DEFAULT, VIBE_PREVIOUS_DEFAULT, appBackendBlocks, appBackendDefault, appPagesOf, newAppPlacementBlock, placementTarget,
 } from './implementWizard.js';
 
 export const HIGHLY_RECOMMENDED = 'Highly Recommended';
+
+export const STEP_BEST = {
+  delivery: ['output', 'removed'],
+  app: ['appPlace', 'appTarget', 'heldApp', 'appPolicy', 'appAccess', 'appBackend', 'appOption', 'replaceEdits', 'style', 'layout', 'theme', 'palette'],
+  run: ['freshness', 'kpi', 'holdout'],
+};
+
+export function oneBestPerStep(best) {
+  const out = { ...best };
+  for (const keys of Object.values(STEP_BEST)) {
+    const kept = keys.find((k) => out[k]);
+    for (const k of keys) if (k !== kept) out[k] = null;
+  }
+  return out;
+}
 export { NONE_WORKS, affordable };
 
 const OUTPUT_ORDER = ['app', 'genie_space', 'dashboard', 'alert'];
@@ -138,19 +153,16 @@ export function bestAppAccess({ inside = false, personal = '' } = {}) {
 
 export function bestAppBackend(spec, lakebase) {
   if (!spec?.outputs?.app) return null;
-  if (appBackendDefault(spec, lakebase) === 'lakebase') return pick('lakebase', 'Pages open at once.');
-  if (insideInspire(spec) || spec.outputs.app_access === 'user') return pick('delta', 'Lakebase does not apply here, so it reads Delta tables.');
-  if (spec.outputs.merge?.app) return pick('delta', 'The App it joins reads Delta tables.');
-  return lakebase?.state === 'absent' ? pick('delta', 'Lakebase is not open to this App, so it reads Delta tables.')
-    : pick('delta', 'Inspire could not check Lakebase, so it reads Delta tables.');
+  const blocks = appBackendBlocks(spec, lakebase);
+  const order = appBackendDefault(spec, lakebase) === 'lakebase' ? ['lakebase', 'delta'] : ['delta'];
+  const slow = blocks.lakebase ? 'Fast pages do not apply here.'
+    : spec.outputs.merge?.app ? 'The App it joins reads the result table directly.'
+      : 'Inspire could not check fast pages.';
+  return affordable(order, blocks, (id) => (id === 'lakebase' ? 'Pages open at once.' : slow)).best;
 }
 
 export function bestAppOption() {
   return pick('decisions', 'Owners track each flagged record to the end.');
-}
-
-export function bestMerge(label, list = []) {
-  return pick('', (list || []).length ? `A new ${label} holds only this use case.` : 'Inspire has built none yet.');
 }
 
 export function bestRemoved() {

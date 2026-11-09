@@ -258,7 +258,7 @@ test('the wizard locks an App Inside Inspire to per-user access, Delta tables an
   assert.equal(W.insideInspire(inside), true);
   assert.equal(W.withAppAccess(inside, 'sp'), inside, 'per-user is locked');
   assert.equal(W.withAppBackend(inside, 'lakebase'), inside, 'Delta tables are locked');
-  assert.equal(W.lakebaseBlock(inside, { state: 'available' }), 'Lakebase needs an App of its own');
+  assert.deepEqual(W.appBackendBlocks(inside, { state: 'available' }), { lakebase: { why: 'Fast pages need an App of its own', details: '' } });
   assert.equal(W.appBackendOf({ ...inside, outputs: { ...inside.outputs, app_backend: 'lakebase' } }, { state: 'available' }), 'delta');
   assert.equal(W.withAppWarehouse(inside, 'wh1').outputs.app_warehouse_id, 'wh1', 'the build warehouse stays explicit Inside Inspire');
   assert.equal(W.withAppWarehouse(start, 'wh1').outputs.app_warehouse_id, '', 'an own App still leaves it empty for the build warehouse');

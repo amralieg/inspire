@@ -10,7 +10,6 @@ import {
   Wrench,
 } from 'lucide-react';
 import DatabricksLogo from '../components/DatabricksLogo';
-import DiscoveryPromise from '../components/DiscoveryPromise';
 import { useTheme } from '../ThemeContext';
 import { Sun, Moon } from 'lucide-react';
 import { APP_TABS } from '../lib/tabs';
@@ -622,14 +621,15 @@ export default function LandingPage({ onStart, onOpenSetup }) {
         </div>
       </nav>
 
-      {/* ═══ Scroll Container — snap sections ═══ */}
+      {/* ═══ Scroll Container — sections ═══ */}
       <div
         ref={scrollContainerRef}
-        className="h-full overflow-y-auto snap-y snap-mandatory scrollbar-hide"
+        data-landing-slides
+        className="h-full overflow-y-auto scrollbar-hide"
       >
 
         {/* ═══ SECTION 1: Hero ═══ */}
-        <section className="h-screen snap-start relative flex items-center justify-center overflow-hidden">
+        <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <FloatingSchemas opacity={0.03} />
           {/* Ambient glow */}
           <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-db-red/[0.05] blur-[150px] animate-ambient-float" aria-hidden="true" />
@@ -662,11 +662,9 @@ export default function LandingPage({ onStart, onOpenSetup }) {
                   <span style={{ color: C.textMuted }}>from your data.</span>
                 </h1>
 
-                <p className="text-base sm:text-lg mb-6 max-w-lg leading-relaxed" style={{ color: C.textMuted }}>
+                <p className="text-base sm:text-lg mb-8 max-w-lg leading-relaxed" style={{ color: C.textMuted }}>
                   Inspire reads your Unity Catalog metadata, counts your data to check that each use case can be built, and writes use cases ranked for your business and your goals. Genie then builds an MVP for each one you pick.
                 </p>
-
-                <DiscoveryPromise className="mb-8 max-w-lg rounded-xl border border-success/30 bg-success-bg p-3.5" />
 
                 <LandingActions onStart={onStart} />
 
@@ -714,7 +712,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
         </section>
 
         {/* ═══ SECTION 2: Neural Constellation — "Analyze" ═══ */}
-        <section className="h-screen snap-start relative flex items-center justify-center overflow-hidden">
+        <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <FloatingSchemas opacity={0.02} />
           <div className="absolute inset-0" style={{ background: `linear-gradient(to bottom, ${C.pageBg}, ${C.pageBg})` }} />
 
@@ -751,7 +749,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
         </section>
 
         {/* ═══ SECTION 3: How it works ═══ */}
-        <section className="h-screen snap-start relative flex items-center justify-center overflow-hidden">
+        <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0" style={{ background: C.pageBg }} />
           <div className="absolute top-[30%] right-[-5%] w-[30%] h-[30%] rounded-full bg-db-red/[0.03] blur-[100px]" aria-hidden="true" />
 
@@ -794,7 +792,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
         </section>
 
         {/* ═══ SECTION 4: The Inspire Agent ═══ */}
-        <section className="h-screen snap-start relative flex items-center justify-center overflow-hidden">
+        <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0" style={{ background: C.pageBg }} />
           {/* Subtle blue-ish glow to match the robot's lighting */}
           <div className="absolute top-[20%] left-[30%] w-[40%] h-[50%] rounded-full bg-info/[0.06] blur-[120px]" aria-hidden="true" />
@@ -838,7 +836,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
         </section>
 
         {/* ═══ SECTION 5: What you get ═══ */}
-        <section className="h-screen snap-start relative flex items-center justify-center overflow-hidden">
+        <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0" style={{ background: C.pageBg }} />
           <FloatingSchemas opacity={0.015} />
 
@@ -864,7 +862,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
         </section>
 
         {/* ═══ SECTION 6: CTA — "Start" ═══ */}
-        <section className="h-screen snap-start relative flex items-center justify-center overflow-hidden">
+        <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0" style={{ background: C.pageBg }} />
           <div className="absolute top-[40%] left-[40%] w-[30%] h-[30%] rounded-full bg-db-red/[0.06] blur-[120px]" aria-hidden="true" />
 

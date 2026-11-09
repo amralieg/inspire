@@ -20,6 +20,7 @@ import { readOnlyReason } from '../lib/showcase';
 import { placeholderWords } from '../lib/placeholderWords';
 import DemoNote from './DemoNote';
 import ValueEstimateLine from './ValueEstimateLine';
+import { PlainMessage } from './TechnicalDetails';
 
 function Section({ title, tone, children }) {
   return (
@@ -317,7 +318,7 @@ export function FeedbackControls({ useCaseKey, available, current, busy, error, 
       </p>
       {readOnly && <DemoNote className="mt-2" />}
       {error && note && <DemoNote className="mt-2">{error}</DemoNote>}
-      {error && !note && <p className="mt-1 text-[11px] text-error-fg">{error}</p>}
+      {error && !note && <PlainMessage text={error} className="mt-1 text-[11px] text-error-fg" />}
     </div>
   );
 }

@@ -54,7 +54,7 @@ test('Let Inspire read these tables runs the exact grants with the person sign-i
   const ui = await openUi('wizard', state);
   const { page } = ui;
   try {
-    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'What to build');
     const panel = panelOf(page);
     await panel.waitFor({ timeout: 15000 });
     const reason = await panel.locator('p').first().textContent();
@@ -137,12 +137,11 @@ test('the App tile offers to let new Apps use the result table catalog, grants w
   const { page } = ui;
   const CATALOG_GRANT = 'GRANT USE CATALOG ON CATALOG `main` TO `account users`';
   try {
-    await onStep(page, 'Delivery consumption');
-    await goToStep(page, 'Data');
+    await onStep(page, 'Data');
     await dataToResults(page);
     await page.getByRole('button', { name: 'Next' }).click();
     await page.locator('[aria-current="step"]', { hasText: 'Results' }).waitFor({ state: 'detached' });
-    await goToStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     const tile = page.locator('[data-output="app"]');
     await tile.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
     assert.deepEqual(await tile.getByRole('list', { name: 'Grant Inspire can run for new Apps' }).locator('li').allTextContents(), [CATALOG_GRANT]);

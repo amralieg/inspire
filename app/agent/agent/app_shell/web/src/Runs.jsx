@@ -3,7 +3,7 @@ import { getRuns, runSettingsNow, saveSetting } from './api.js';
 import { formatValue, integer, kindOf, unitOf } from './format.js';
 import Fx from './Fx.jsx';
 import { Icon } from './icons.jsx';
-import { Skeleton } from './ui.jsx';
+import { Skeleton, PlainNote } from './ui.jsx';
 import { SaveButton, runWrite } from './saving.jsx';
 import { BarsCard } from './ChartCard.jsx';
 import DataTable from './DataTable.jsx';
@@ -173,10 +173,10 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
           <AskGenie kind="table" title="Runs" context={tableContext('The runs of this use case, newest first.', list, (run) => fieldsOf(run, columns), total)} />
         </header>
         {busy && !data && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
-        {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The runs could not load: {error}</p>}
-        {data?.job?.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The job's runs could not load, so the list shows only the runs this use case recorded: {data.job.error}</p>}
-        {errors.table && <p className="tile-err" role="alert"><Icon name="info" size={14} />The runs written to the results table could not load: {errors.table}</p>}
-        {details && <p className="tile-err" role="alert"><Icon name="info" size={14} />The details of each run could not load, so the list shows what the job recorded: {details}</p>}
+        {error && <PlainNote text={error} prefix="The runs could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+        {data?.job?.error && <PlainNote text={data.job.error} prefix="The job's runs could not load, so the list shows only the runs this use case recorded: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+        {errors.table && <PlainNote text={errors.table} prefix="The runs written to the results table could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+        {details && <PlainNote text={details} prefix="The details of each run could not load, so the list shows what the job recorded: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
         {data && (
           <>
             <DataTable label="Runs of this use case" tableClass="runs-tbl" columns={columns} rows={list} rowKey={runKey} paged={false} grid={`page:${page.id}:runs`}

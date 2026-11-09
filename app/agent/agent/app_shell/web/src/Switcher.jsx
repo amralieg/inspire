@@ -8,7 +8,7 @@ import { switcherMatches, useCaseState } from './hub.js';
 const TONES = { stale: 'bad', error: 'bad', wait: 'warn' };
 
 function caseNote(page, state) {
-  return state.text || [tabLabel(page, ''), page.use_case_id, page.domain].filter(Boolean).join(' · ');
+  return state.text || [tabLabel(page, ''), page.domain].filter(Boolean).join(' · ');
 }
 
 export default function Switcher({ pages, page, hub, summaries, onPick, onOpen }) {

@@ -96,6 +96,7 @@ import { RESULTS_PENDING_TEXT, noResultsText, reviewLinkText } from '../lib/runP
 import { sessionFailed, sessionFinished, sessionSucceeded } from '../lib/monitorState';
 import { placeholderWords } from '../lib/placeholderWords';
 import { reducedMotion } from '../lib/motion';
+import { PlainMessage } from '../components/TechnicalDetails';
 
 /* ── Date formatter for session display ── */
 function formatSessionDate(dateStr) {
@@ -1118,7 +1119,7 @@ export default function ResultsPage({
                 </div>
                 <div className="flex-1">
                   <p className="text-sm font-semibold text-text-primary mb-1">Could not load the runs</p>
-                  <p className="text-xs text-text-secondary mb-3">{sessionsError}</p>
+                  <PlainMessage text={sessionsError} className="text-xs text-text-secondary mb-3" />
                   <button onClick={() => handleLoadSessions(false)} className="inline-flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium text-db-red-fg bg-db-red-50 border border-db-red/20 rounded-lg hover:bg-db-red/10 transition-smooth">
                     <RefreshCw size={12} /> Retry
                   </button>
@@ -1247,7 +1248,7 @@ export default function ResultsPage({
       {error && (
         <div data-results-error="" data-tone={error === RESULTS_PENDING_TEXT ? 'info' : 'error'} className={`flex items-center gap-2 p-3 border rounded-lg mb-6 ${error === RESULTS_PENDING_TEXT ? 'bg-bg-subtle border-border' : 'bg-error-bg border-error/20'}`}>
           {error === RESULTS_PENDING_TEXT ? <Loader2 size={14} className="text-text-tertiary shrink-0 animate-spin" /> : <AlertCircle size={14} className="text-error-fg shrink-0" />}
-          <span className={`text-sm ${error === RESULTS_PENDING_TEXT ? 'text-text-secondary' : 'text-error-fg'}`}>{error}</span>
+          <PlainMessage text={error} as="span" className={`text-sm ${error === RESULTS_PENDING_TEXT ? 'text-text-secondary' : 'text-error-fg'}`} />
         </div>
       )}
 

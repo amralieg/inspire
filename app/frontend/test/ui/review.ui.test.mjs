@@ -7,6 +7,7 @@ import { LATEST_RUN_LABEL } from '../../src/lib/reviewFigures.js';
 import * as V from '../../src/lib/v130UseCase.js';
 import * as A from '../../src/lib/artifactFiles.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
+import { wheelScrolls } from './wheelScroll.mjs';
 
 const AdmZip = createRequire(import.meta.url)('../../../backend/node_modules/adm-zip');
 
@@ -391,5 +392,37 @@ test('a live preview heads the run with its business name and offers no MVP star
     assert.ok((await saved.page.getByRole('button', { name: START_MVP_LABEL }).count()) > 0, 'a finished run still offers the MVP start');
   } finally {
     await saved.close();
+  }
+});
+
+test('a 300-row CSV preview and its 300-value column filter take the mouse wheel to their last row at 1280x800 and 1024x700', async () => {
+  const folder = '/Workspace/Users/someone/inspire/acme';
+  const csv = ['No,Name,Score', ...Array.from({ length: 300 }, (_, i) => `N01-U${String(i).padStart(3, '0')},Use case ${i},${(i % 50) / 10}`)].join('\n');
+  const mount = (app) => {
+    app.get('/api/workspace/list', (_req, res) => res.json({ files: [{ name: 'catalog.csv', path: `${folder}/catalog.csv`, is_directory: false, file_size: csv.length }] }));
+    app.get('/api/workspace/export', (_req, res) => res.type('text/csv').send(csv));
+  };
+  const sessions = REVIEW_STATE.sessions.map((s) => (s.session_id === '42' ? { ...s, generation_path: folder, widget_values: { ...s.widget_values, generation_path: folder } } : s));
+  const ui = await openUi('results', { ...REVIEW_STATE, sessions }, '', { mount });
+  const { page } = ui;
+  try {
+    await ready(page);
+    const quick = page.locator('div', { has: page.getByRole('heading', { name: /^Quick access/i }) })
+      .filter({ has: page.getByRole('button', { name: /Preview/ }) }).last();
+    await quick.waitFor();
+    await quick.locator('div', { hasText: 'catalog.csv' }).filter({ has: page.getByRole('button', { name: /Preview/ }) }).last().getByRole('button', { name: /Preview/ }).click();
+    const table = page.getByRole('table', { name: 'Preview of catalog.csv' }).last();
+    await table.waitFor({ timeout: 15000 });
+    const scroller = table.locator('xpath=ancestor::*[contains(@class,"overflow-auto")][1]');
+    const lastRow = () => table.locator('tbody tr').last();
+    await wheelScrolls(page, scroller, lastRow, { name: 'CSV preview' });
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await table.getByRole('button', { name: 'Filter Name' }).click();
+    const values = page.locator('[data-grid-panel] ul');
+    await values.waitFor();
+    await wheelScrolls(page, values, () => values.locator('li').last(), { name: 'CSV column filter values' });
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
   }
 });

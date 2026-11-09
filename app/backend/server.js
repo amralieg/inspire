@@ -865,6 +865,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   let outputChecked = '';
   let outputFolder = writes ? writes.folders[0] : '';
   const warnings = [];
+  const warningDetails = [];
   if (writes) {
     const verdict = await writeCheck(writes);
     if (verdict.refused) throw Object.assign(new Error(verdict.refused.message), { statusCode: verdict.refused.status, writeRefusal: verdict.refused });
@@ -872,6 +873,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
     if (verdict.generationPath) params['11_generation_path'] = verdict.generationPath;
     if (verdict.folder) outputFolder = verdict.folder;
     warnings.push(...verdict.warnings);
+    warningDetails.push(...(verdict.details || []));
   }
 
   const businessName = params['00_business_name'] || 'Run';
@@ -952,6 +954,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
     viewer_granted: viewer.granted,
     ...(viewer.note ? { viewer_note: viewer.note } : {}),
     ...(warnings.length ? { warnings } : {}),
+    ...(warningDetails.length ? { warning_details: warningDetails } : {}),
   };
 }
 
@@ -2110,17 +2113,18 @@ async function discoverAppAccess(req, scope) {
   }
 }
 
-async function outputWriteVerdict(req, writes) {
+async function outputWriteVerdict(req, writes, { preview = false } = {}) {
   const manager = await routePolicy.managerOf(req).catch(() => ({ manager: false }));
-  const plan = await outputPlan(dbFetch, req, writes, { manager: manager.manager, appToken: await appOwnToken() });
+  const plan = await outputPlan(dbFetch, req, writes, { manager: manager.manager, appToken: await appOwnToken(), appId: SP_CLIENT_ID, preview });
   return { ...plan, checked: manager.manager ? 'manager' : 'passed' };
 }
 
 app.post('/api/output-folder/check', requireToken, async (req, res) => {
   const writes = discoverWrites({ '11_generation_path': String((req.body || {}).generation_path || '') }, cachedNotebookPath || DEFAULT_NOTEBOOK_PATH);
-  const verdict = await outputWriteVerdict(req, writes);
+  const verdict = await outputWriteVerdict(req, writes, { preview: true });
   if (verdict.refused) return res.status(verdict.refused.status).json(writeRefusalBody(req.policyKey, verdict.refused));
   res.json({ allowed: true, folder: verdict.folder || writes.folders[0], checked: verdict.checked, warnings: verdict.warnings,
+    ...(verdict.details.length ? { warning_details: verdict.details } : {}),
     ...(verdict.generationPath ? { generation_path: verdict.generationPath } : {}) });
 });
 

@@ -288,7 +288,8 @@ test('a use case dashboard leads with its area, title, AI summary, four tiles, t
   const { page, seen, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: hubRoutes() });
   await page.goto(`${served.base}#/n01_u05`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk' && document.querySelectorAll('.kpi-v').length === 4);
-  assert.equal(await page.locator('.top .mark-t small').innerText(), 'Pricing › Markdown control · N01-U05');
+  assert.equal(await page.locator('.top .mark-t small').innerText(), 'Pricing › Markdown control');
+  assert.doesNotMatch(await page.locator('body').innerText(), /\bN\d\d-U\d\d\b/, 'no use case id shows on the page');
   assert.match(await page.locator('.sum').innerText(), /^AI summary\s+Deep discounts on winter wear are losing margin without selling more\.\s+Ask Genie$/);
   assert.deepEqual(await tileTexts(page), [
     ['To fix', '3', '2 of them are yours'], ['Could save', '$21,600', 'Money at stake on the 3 things to fix, added up'],
@@ -573,6 +574,28 @@ test('Your work keeps an overdue Monitor record that is mine, shows eight at fir
   await whole.page.getByRole('region', { name: 'Your work' }).locator('tbody tr').first().waitFor();
   assert.equal(await whole.page.getByRole('region', { name: 'Your work' }).locator('.more').count(), 0, 'a whole list needs no note and no Show all');
   await whole.context.close();
+});
+
+test('the Genie button on a Your work record asks Genie about that record by Enter, and Performance stays open', async () => {
+  const { page, seen, context } = await open(INFO(), { hash: '#/n01_u05/performance' });
+  const work = page.getByRole('region', { name: 'Your work' });
+  await work.locator('tbody tr').first().waitFor();
+  const first = work.getByRole('button', { name: 'Ask Genie about Leather boots, store 2', exact: true });
+  assert.equal(await first.innerText(), 'Ask Genie', 'the button reads Ask Genie');
+  await first.focus();
+  await page.keyboard.press('Enter');
+  await page.locator('aside.genie').waitFor();
+  assert.equal(await page.locator('.g-chip-t').innerText(), 'About: Leather boots, store 2');
+  await page.locator('aside.genie .g-sugg .sugg').first().click();
+  await until(() => seen.asks.length === 1);
+  assert.deepEqual([seen.asks[0].page, seen.asks[0].record_key], ['n01_u05', 'd']);
+  await page.locator('aside.genie .msg--genie').waitFor();
+  await idle(page);
+  assert.ok(await work.isVisible(), 'Enter on the Genie button does not open the record');
+  assert.doesNotMatch(await hashOf(page), /rec=/);
+  assert.match(await hashOf(page), /^#\/n01_u05\/performance/);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
 });
 
 test('Your work says plainly why it is empty: loading, nothing mine, a use case that failed, no results yet, not signed in, the hub failed', async () => {

@@ -9,7 +9,7 @@ import FilterBar from './FilterBar.jsx';
 import { Tiles } from './Kpis.jsx';
 import { BarsCard } from './ChartCard.jsx';
 import DataTable, { RowDetails, columnOf } from './DataTable.jsx';
-import { Skeleton, SoWhat } from './ui.jsx';
+import { PlainNote, Skeleton, SoWhat } from './ui.jsx';
 import MoneyCard from './Money.jsx';
 import { LayoutSections, TodoNow } from './Layouts.jsx';
 import { backendNotes } from './freshness.js';
@@ -33,7 +33,7 @@ export function TableCard({ table, result, error, loading, onFilter, pageId, fil
         <AskGenie kind="table" title={table.title} context={tableContext(table.hint || '', result?.rows || [], (row) => fieldsOf(row, columns))} />
       </header>
       {loading && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {error && <p className="tile-err"><Icon name="info" size={14} />This table could not load: {error}</p>}
+      {error && <PlainNote text={error} prefix="This table could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
       {!loading && !error && <DataTable label={table.title} columns={columns} rows={result?.rows || []} filtering="server" grid={`page:${pageId}:table:${table.id}`} {...served}
         askRow={element} onRow={(row) => setOpened((o) => (o === row ? null : row))}
         detail={(row) => (row === opened ? <RowDetails title={rowTitle(row, columns)} fields={fieldsOf(row, columns)} element={element(row)} onClose={() => setOpened(null)} /> : null)} />}
@@ -111,8 +111,8 @@ export function HubTop({ entry, live, summary, latest, onRuns, fixing }) {
       )}
       {fixing && status.kind !== 'stale' && nothing && <NothingToFix reason={nothing} latest={latest} onRuns={onRuns} />}
       {capacity && <p className="note" role="status" data-capacity=""><Icon name="info" size={14} />{capacity}</p>}
-      {summary?.error && <p className="note" role="status"><Icon name="info" size={14} />The AI summary could not load: {summary.error}</p>}
-      {live.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The things to fix could not load: {live.error}</p>}
+      {summary?.error && <PlainNote text={summary.error} prefix="The AI summary could not load: " icon={<Icon name="info" size={14} />} className="note" role="status" />}
+      {live.error && <PlainNote text={live.error} prefix="The things to fix could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
     </>
   );
 }
@@ -197,8 +197,8 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
           <FilterBar meta={meta?.filters} state={state || { range: {}, sel: {} }} onState={onState} pageId={page.id} />
         </Placed>
       )}
-      {meta?.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The filters could not load, so the page shows all its data: {meta.error}</p>}
-      {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
+      {meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the page shows all its data: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+      {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {laidOut && (
         <LayoutSections page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} onAsk={onAsk}
           kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} onPick={onPick} genie={genie} />

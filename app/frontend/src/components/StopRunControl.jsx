@@ -1,5 +1,6 @@
 import { useEffect, useRef, useState } from 'react';
 import { Loader2, Square } from 'lucide-react';
+import { PlainMessage } from './TechnicalDetails';
 
 export default function StopRunControl({ runId, business, apiFetch }) {
   const [verdict, setVerdict] = useState(null);
@@ -56,7 +57,7 @@ export default function StopRunControl({ runId, business, apiFetch }) {
             className="px-3 py-1.5 text-text-secondary border border-border rounded-lg">Keep it running</button>
         </div>
       )}
-      {error && <p role="alert" className="mt-2 text-xs text-error-fg">{error}</p>}
+      {error && <PlainMessage text={error} role="alert" className="mt-2 text-xs text-error-fg" />}
     </div>
   );
 }

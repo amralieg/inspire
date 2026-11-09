@@ -11,6 +11,7 @@ import { PANEL_CLASS } from '../components/BuildUi';
 import BodyPortal from '../components/BodyPortal';
 import RunScope from '../components/RunScope';
 import { runOutcome } from '../lib/moneyReview';
+import { PlainMessage } from '../components/TechnicalDetails';
 
 const STATE_TONE = { ready: 'text-success-fg', starting: 'text-text-secondary', stopped: 'text-text-secondary', failed: 'text-error-fg' };
 const LINK_CLASS = 'inline-flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-semibold';
@@ -18,8 +19,8 @@ const PRIMARY_CLASS = `${LINK_CLASS} text-white bg-db-red-solid hover:opacity-90
 const SECONDARY_CLASS = `${LINK_CLASS} border border-border bg-surface text-text-primary hover:border-border-strong`;
 
 function pageDetail(page) {
-  if (page.kind === RUN_DEMO_KIND) return `${page.use_case_id} · MVP App`;
-  return `${page.use_case_id} · v${page.version} · ${page.kind === APP_INSIDE ? APP_INSIDE_PLACEMENT.label : page.app_name}`;
+  if (page.kind === RUN_DEMO_KIND) return 'MVP App';
+  return `v${page.version} · ${page.kind === APP_INSIDE ? APP_INSIDE_PLACEMENT.label : page.app_name}`;
 }
 
 function frameTitle(page) {
@@ -196,7 +197,7 @@ function RunOutcome({ page, apiFetch, query }) {
       .catch((e) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [apiFetch, query, page.session_id, page.use_case_id]);
-  if (error) return <p role="alert" data-run-outcome-error="" className="text-[12px] text-error-fg">Inspire could not read the last result of this MVP: {error}</p>;
+  if (error) return <PlainMessage text={`Inspire could not read the last result of this MVP: ${error}`} role="alert" data-run-outcome-error="" className="text-[12px] text-error-fg" />;
   if (!money) return <p className="text-[12px] text-text-secondary"><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> Reading the last result</p>;
   const said = runOutcome(money, { owner: page.owner === true });
   return (
@@ -318,7 +319,7 @@ export default function RunPage({ settings, focusId = null, onFocus = ignore, on
         )}
       </div>
       {notice && <p role="note" data-run-left-demo="" className="text-[12px] text-text-secondary">{notice}</p>}
-      {error && <p role="alert" className="text-[12px] text-error-fg">Inspire cannot list the deployed use cases: {error}</p>}
+      {error && <PlainMessage text={`Inspire cannot list the deployed use cases: ${error}`} role="alert" className="text-[12px] text-error-fg" />}
       {missing && <p role="note" data-run-unknown="" className="text-[12px] text-warning-fg">{runUnknownText(asked)}</p>}
       {!shown && !error && <p className="text-[12px] text-text-secondary"><Loader2 size={12} className="inline me-1 animate-spin" aria-hidden /> Reading the deployed use cases</p>}
       {shown && !pages.length && <p data-run-empty="" className={`${PANEL_CLASS} p-6 text-[12px] text-text-secondary`}>{RUN_EMPTY}</p>}

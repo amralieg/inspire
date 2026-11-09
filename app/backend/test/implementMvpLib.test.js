@@ -66,7 +66,9 @@ test('the rail filter counts and keeps only use cases that have the asset, and a
   const requested = { id: 'C', latest: null, notebook: { state: 'requested' } };
   const gone = { id: 'D', latest: { status: 'uninstalled', dashboard_url: 'https://x/stale', notebook_path: '/W/stale' }, notebook: null };
   const goneKeepsDiscovery = { id: 'E', latest: { status: 'uninstalled' }, notebook: { state: 'ready' } };
-  const items = [full, notebookOnly, requested, gone, goneKeepsDiscovery];
+  const building = { id: 'F', latest: { status: 'filling', notebook_path: '/W/f' }, notebook: null };
+  const items = [full, notebookOnly, requested, gone, goneKeepsDiscovery, building];
+  assert.deepEqual([...C.itemAssets(building)], [], 'an MVP Genie is still building has no notebook to show yet, so Build never counts it (must-exclude)');
   assert.deepEqual([...C.itemAssets(full)].sort(), ['app', 'dashboard', 'notebook']);
   assert.deepEqual([...C.itemAssets(gone)], [], 'an uninstalled MVP shows none of the assets it removed');
   assert.deepEqual([...C.itemAssets(goneKeepsDiscovery)], ['notebook'], 'the notebook Discover wrote survives an uninstall');

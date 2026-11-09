@@ -9,7 +9,7 @@ const many = Array.from({ length: 80 }, (_, i) => `cat_${String(i).padStart(3, '
 
 async function resultStep(state) {
   const ui = await openUi('wizard', { me: { userName: 'owner@example.com', displayName: 'Owner' }, schemas: { main: ['inspire'] }, ...state });
-  await onStep(ui.page, 'Delivery consumption');
+  await goToStep(ui.page, 'What to build');
   await goToStep(ui.page, 'Data');
   await dataToResults(ui.page);
   const step = ui.page.getByRole('region', { name: 'Where the result table lives' });

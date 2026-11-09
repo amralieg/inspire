@@ -287,7 +287,16 @@ test('the wizard shows only the business settings; the technical ones Genie decl
   const model = [...MODEL, { name: 'min_interactions', label: 'Minimum interactions', group: 'scope', kind: 'integer', low: 1, high: null, allowed: 'whole number, at least 1',
     source: 'widget', default: '1000', reason: 'Genie Code chose it when it built the notebook', applies: 'run' }];
   const fromWidgets = S.wizardSettings({ widgets, family: 'D' }).map((s) => s.name);
-  assert.deepEqual(fromWidgets, ['act_now_share', 'review_share', 'min_score', 'items_per_entity', 'run_scope']);
+  assert.deepEqual(fromWidgets, ['min_score', 'items_per_entity', 'run_scope'], 'before the App exists, the Act now and Review cut-offs wait for its Settings (must-exclude)');
+  assert.deepEqual(S.wizardSettings({ widgets, family: 'D', editing: true }).map((s) => s.name), ['act_now_share', 'review_share', 'min_score', 'items_per_entity', 'run_scope'],
+    'once built, the wizard edits them again');
+  assert.deepEqual(S.wizardSettings({ widgets: [{ name: 'act_now_capacity', allowed: 'whole number, at least 1', default: '' }], family: 'D' }).map((s) => s.name), [],
+    'team capacity is set in the App');
+  assert.deepEqual(['act_now_share', 'review_amount', 'act_now_capacity', 'min_score'].map((n) => S.isAppOnlySetting(n)), [true, true, true, false]);
+  assert.deepEqual(['act_now_share', 'act_now_capacity'].map((n) => S.isAppOnlySetting(n, true)), [false, true], 'team capacity never leaves the App');
+  const recorded = [{ name: 'act_now_capacity', label: 'Team capacity', group: 'flagging', kind: 'integer', source: 'widget' }, ...MODEL];
+  assert.equal(S.wizardSettings({ model: recorded, widgets, family: 'D', editing: true }).some((s) => s.name === 'act_now_capacity'), false,
+    'a built use case keeps team capacity in the App Settings, not the wizard (must-exclude)');
   const fromModel = S.wizardSettings({ model, widgets, family: 'D' }).map((s) => s.name);
   assert.ok(fromModel.includes('WEEKS_LEFT') && fromModel.includes('act_now_share'), 'the impact and flagging settings stay');
   for (const technical of ['min_interactions', 'min_rows', 'min_join_coverage', 'svd_factors', 'neighbors_per_item', 'holdout_days']) {

@@ -13,12 +13,12 @@ export default function TechnicalDetails({ items, label = DETAILS_LABEL, classNa
   );
 }
 
-export function PlainMessage({ text, className = '', ...rest }) {
+export function PlainMessage({ text, as: Tag = 'p', className = '', ...rest }) {
   const { plain, details } = splitTechnical(text);
   if (!plain && !details.length) return null;
   return (
     <>
-      {plain && <p className={className} {...rest}>{plain}</p>}
+      {plain && <Tag className={className} {...rest}>{plain}</Tag>}
       <TechnicalDetails items={details} />
     </>
   );

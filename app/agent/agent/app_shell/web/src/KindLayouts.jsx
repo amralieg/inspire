@@ -7,7 +7,7 @@ import { genieOf, genieOn } from './genieAsk.js';
 import { ChoiceList } from './KindParts.jsx';
 import { KIND_LAZY } from './kindCharts.js';
 import { GenieMark, Icon } from './icons.jsx';
-import { Skeleton } from './ui.jsx';
+import { Skeleton, PlainNote } from './ui.jsx';
 import { SaveButton, runWrite } from './saving.jsx';
 import './styles/kindlayouts.css';
 
@@ -75,7 +75,7 @@ function Conversation({ page, app, genie }) {
           <div key={m.n} className="msg msg--genie" data-chat={m.state}>
             <span className="msg-av"><GenieMark size={14} /></span>
             {m.state === 'running' && <div className="msg-b"><AgentSteps steps={m.steps} /><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span></div>}
-            {m.state === 'failed' && <div className="msg-b"><p className="g-err">{m.error}</p></div>}
+            {m.state === 'failed' && <div className="msg-b"><PlainNote text={m.error} className="g-err" /></div>}
             {m.state === 'done' && <Answer message={m} url={chat.info.url} onTick={tick} genie={genie} rating={false} />}
           </div>
         )))}
@@ -143,7 +143,7 @@ function Feedback({ page, app, genie }) {
     <section className="card" aria-label="Rate the answers" data-part="feedback">
       <header className="card-h"><div><h2>Rate the answers</h2><p>Your mark goes to the Genie Agent, so its owner can see which answers to fix.</p></div>
         <AskGenie kind="text" title="Rate the answers" context={{ hint: done.map((p) => `${p.question?.text || 'Answer'}: ${RATINGS.find((r) => r.id === sent[p.answer.n])?.label || 'not rated'}`).join('; ') }} /></header>
-      {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
+      {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {!done.length && <p className="empty">Answers you get show here for a helpful or not helpful mark.</p>}
       <ol className="chat-rate">
         {done.map(({ answer, question }) => (

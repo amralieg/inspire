@@ -59,14 +59,14 @@ const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
 
 const DISCOVERY_OPTIONS = [
   {
-    key: DISCOVERY_STANDARD,
-    icon: Lock,
-    desc: DISCOVERY_MODE_TEXT[DISCOVERY_STANDARD],
-  },
-  {
     key: DISCOVERY_AI_ENHANCED,
     icon: Sparkles,
     desc: DISCOVERY_MODE_TEXT[DISCOVERY_AI_ENHANCED],
+  },
+  {
+    key: DISCOVERY_STANDARD,
+    icon: Lock,
+    desc: DISCOVERY_MODE_TEXT[DISCOVERY_STANDARD],
   },
 ].map((opt) => (opt.key === DISCOVERY_RECOMMENDED ? { ...opt, badge: DISCOVERY_BADGE } : opt));
 const DISCOVERY_PANEL = [
@@ -650,7 +650,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         }),
       });
       update('inspireDatabase', finalParams['02_inspire_database']);
-      onLaunched?.(finalParams['14_session_id'], data.run_id, Array.isArray(data.warnings) ? data.warnings : []);
+      onLaunched?.(finalParams['14_session_id'], data.run_id, Array.isArray(data.warnings) ? data.warnings : [],
+        Array.isArray(data.warning_details) ? data.warning_details : []);
     } catch (err) {
       setLaunchError(parseApiErrorMessage(err.message));
     } finally {
@@ -1246,16 +1247,18 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     <button
                       key={opt.key}
                       type="button"
+                      data-discovery-option={opt.key}
+                      aria-pressed={active}
                       onClick={() => {
                         setDiscoveryTouched(true);
                         updateParam('03_discovery_type', opt.key);
                       }}
                       className={`relative p-3 rounded-xl text-start transition-smooth border ${
-                        active ? 'border-db-red/30 bg-db-red-50 shadow-sm' : 'border-border hover:border-border-strong'
+                        active ? 'border-success bg-success-bg shadow-sm ring-1 ring-inset ring-success/40' : 'border-border hover:border-border-strong'
                       }`}
                     >
-                      <span className={`flex items-center gap-1.5 text-xs font-semibold ${active ? 'text-db-red-fg' : 'text-text-primary'}`}>
-                        <Icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
+                      <span className={`flex items-center gap-1.5 text-xs font-semibold ${active ? 'text-success-fg' : 'text-text-primary'}`}>
+                        <Icon size={13} className={active ? 'text-success-fg' : 'text-text-tertiary'} />
                         {opt.key}
                         {opt.key === DISCOVERY_RECOMMENDED && <span className="text-[10px] font-normal text-text-tertiary">(default)</span>}
                         {opt.badge && (
@@ -1265,13 +1268,15 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         )}
                       </span>
                       <p className="text-[10px] text-text-tertiary leading-snug mt-1">{opt.desc}</p>
-                      {active && <CheckCircle2 size={14} className="absolute top-2.5 right-2.5 text-db-red-fg" />}
+                      {active && <CheckCircle2 size={14} className="absolute top-2.5 right-2.5 text-success-fg" />}
                     </button>
                   );
                 })}
               </div>
               <div data-discovery-panel className="mt-2.5 rounded-xl border border-success/30 bg-success-bg p-3.5">
                 <DiscoveryPromise />
+                <details data-discovery-more="" className="mt-2">
+                  <summary className="cursor-pointer text-[11px] font-semibold text-success-fg">How Inspire checks your data and keeps it private</summary>
                 <div className="mt-2 grid grid-cols-1 gap-2.5 md:grid-cols-3">
                   {DISCOVERY_PANEL.map((part) => {
                     const PartIcon = part.icon;
@@ -1286,6 +1291,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     );
                   })}
                 </div>
+                </details>
               </div>
               {prefillNote && <p className="text-[10px] text-text-tertiary mt-1.5">{prefillNote}</p>}
             </FieldSection>

@@ -89,6 +89,7 @@ async function auditEvery(page, at, least) {
     const found = await page.evaluate(audit, GROUPS);
     assert.deepEqual(found.missing, [], `${at} at ${width}px: 0 missing`);
     assert.deepEqual(found.hidden, [], `${at} at ${width}px: 0 hidden`);
+    assert.deepEqual(found.doubled, [], `${at} at ${width}px: no element shows two Ask Genie controls`);
     for (const [kind, low] of Object.entries(least)) {
       assert.ok(found.counts[kind] >= low, `${at} at ${width}px: ${found.counts[kind]} ${kind} element(s) with Ask Genie, needs ${low}: ${JSON.stringify(found.counts)}`);
     }
@@ -318,6 +319,15 @@ test('the audit catches an element whose Ask Genie is missing or hidden', async 
   const { routes } = genieRoutes();
   const { page, context } = await open(appInfo({}, 1, CHANGES), { routes });
   await ready(page);
+  assert.deepEqual((await page.evaluate(audit, GROUPS)).doubled, [], 'What to do now and every card show one Ask Genie');
+  await page.evaluate(() => {
+    const card = document.querySelector('[data-card="pareto"]');
+    const extra = document.createElement('button');
+    extra.textContent = 'Ask Genie about this';
+    card.querySelector('.card-h').after(extra);
+  });
+  assert.deepEqual((await page.evaluate(audit, GROUPS)).doubled, ['card: pareto'], 'a second Ask Genie in one card is caught');
+  await page.evaluate(() => document.querySelector('[data-card="pareto"] .card-h + button').remove());
   await page.evaluate(() => {
     document.querySelector('.kpi .ask-genie').remove();
     document.querySelector('[data-card="pareto"] .card-h .ask-genie').style.visibility = 'hidden';

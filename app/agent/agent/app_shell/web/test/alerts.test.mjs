@@ -1,12 +1,13 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { actBody, ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, until } from './harness.mjs';
+import { actBody, ASK_GROUPS, FILTERS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, until } from './harness.mjs';
 import {
   blankForm, capText, capped, defaultName, filtersText, formFrom, formProblem, operatorLabel, parseEmails, previewText, ruleText, stateFlag, watchOf,
   withNotice,
 } from '../src/alerts.js';
 import { stampText } from '../src/freshness.js';
+import { dropCopies, fillWithCopies, wheelScrolls } from '../../../../../frontend/test/ui/wheelScroll.mjs';
 
 const NOW = Date.parse('2026-10-27T09:30:00Z');
 const { vs, marks, words } = appInfo().pages[0].kpis[0];
@@ -402,6 +403,19 @@ test('the person can turn off the email an alert sends when it clears, and an ed
   await until(() => calls.saves.length === 2);
   assert.equal(calls.saves[1].notify_on_ok, false);
   assert.doesNotMatch(await edit.innerText().catch(() => ''), /[\u2013\u2014]/);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the mouse wheel scrolls a new alert filter with 80 values to its last value at 1280x800 and 1024x700', async () => {
+  const many = { filters: FILTERS.filters.map((f) => (f.id === 'category' ? { ...f, options: Array.from({ length: 80 }, (_, i) => `value ${String(i).padStart(2, '0')}`) } : f)) };
+  const { routes } = alertRoutes(LISTING, { filters: ({ json }) => json(200, many) });
+  const { page, seen, context } = await open(appInfo(ON, 1, TABLE), routes, { width: 1280, height: 800 });
+  await alertsTab(page);
+  await page.getByRole('button', { name: 'New alert' }).click();
+  const opts = page.getByRole('form', { name: 'New alert' }).locator('.alert-opts').first();
+  await opts.getByText('value 79', { exact: true }).waitFor({ state: 'attached' });
+  await wheelScrolls(page, opts, () => opts.getByText('value 79', { exact: true }), { name: 'alert filter values' });
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

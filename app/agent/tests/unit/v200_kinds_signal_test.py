@@ -96,7 +96,7 @@ NAMES = {"levers": "price, discount", "outcome": "units", "group": "store", "ste
 
 @pytest.mark.parametrize("check,family,measures,fragment", [
     ("scenario", "H", {"row_count": 1000, "moving_levers": 1, "strongest_lever_effect": 0.4},
-     "Too few of the named levers (price, discount) move units with a correlation of at least 0.05 (1); at least 2"),
+     "Too few of the named levers (price, discount) move units, so the scenarios have nothing to compare: name levers that change it (1 do, 2 must)"),
     ("impact", "I", {"row_count": 1000, "compared_groups": 1, "periods": 140},
      "Too few values of store hold enough rows to compare a change against a control group (1)"),
     ("impact", "I", {"row_count": 1000, "compared_groups": 2, "control_rows": 400, "history_weeks": 4.0, "periods": 28},

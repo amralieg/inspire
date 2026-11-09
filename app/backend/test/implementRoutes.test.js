@@ -1254,8 +1254,9 @@ test('an Implement page re-run runs without a dropped secondary table and refuse
     const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
     assert.equal(got.status, 409);
     assert.equal(got.data.error, 'the preview cannot run because these source tables are missing or not readable: main.s.orders '
-      + '(not found). Open Edit, Data step, to swap each for a table with the same role or remove it');
-    assert.deepEqual(got.data.missing_tables, [{ table: 'main.s.orders', reason: 'not found', error: lost }]);
+      + '(the primary table, not found). Open Edit, Data step, to swap main.s.orders for a table with the same role, because the primary table '
+      + 'can be swapped, not removed');
+    assert.deepEqual(got.data.missing_tables, [{ table: 'main.s.orders', reason: 'not found', error: lost, primary: true }]);
     assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
   });
   const denied = "[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table 'main.s.orders'.";
@@ -1301,8 +1302,9 @@ test('plan and submit refuse a rebuild that inherits a swap of the primary table
       const got = await call(url, `/api/inspire/implement/${route}`, { method: 'POST', body: { ...SUBMIT, spec } });
       assert.equal(got.status, 409, `${route}: ${JSON.stringify(got.data)}`);
       assert.equal(got.data.error, 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old '
-        + '(not found). Open Edit, Data step, to swap each for a table with the same role or remove it');
-      assert.deepEqual(got.data.missing_tables, [{ table: 'main.s.orders_old', reason: 'not found', error: GONE_PRIMARY }]);
+        + '(the primary table, not found). Open Edit, Data step, to swap main.s.orders_old for a table with the same role, because the primary table '
+        + 'can be swapped, not removed');
+      assert.deepEqual(got.data.missing_tables, [{ table: 'main.s.orders_old', reason: 'not found', error: GONE_PRIMARY, primary: true }]);
     }
     assert.equal(made.sqlCalls.some((c) => /INSERT INTO/.test(String(c.sql))), false, 'no version row is written');
     assert.equal(made.jobs.length, 0, 'no job starts');

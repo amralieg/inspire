@@ -194,10 +194,12 @@ test('when the person may not refresh, the button is disabled and the reason sho
     await banner(page).waitFor();
     const button = page.getByRole('button', { name: 'Refresh now' });
     assert.equal(await button.isDisabled(), true);
-    assert.equal(await page.locator('.fresh-why').innerText(), reason);
+    const plain = reason.replace(' GET /api/2.2/jobs/runs/list answered HTTP 403:', '');
+    assert.equal(await page.locator('.fresh-why').innerText(), plain);
     assert.equal(await page.locator('.fresh-why').isVisible(), true);
     const described = await button.getAttribute('aria-describedby');
-    assert.equal(await page.locator(`#${described}`).innerText(), reason);
+    assert.equal(await page.locator(`#${described}`).innerText(), plain);
+    assert.equal(await page.locator('[data-technical-details] pre').count(), reason === REFUSED ? 1 : 0);
     assert.deepEqual(seen.errors, []);
     await context.close();
   }
@@ -735,9 +737,9 @@ test('the Runs tab says what could not load and still lists what it has', async 
   const { page, seen, context } = await openRuns(history({ runs: [SCHEDULED, OLD], job: { ...JOB, error: 'GET /api/2.2/jobs/runs/list answered HTTP 403: no access' },
     errors: { table: 'the result table has no change_source', summary: 'PERMISSION_DENIED: no SELECT' } }));
   assert.deepEqual(await page.locator('.runs .tile-err').allInnerTexts(), [
-    "The job's runs could not load, so the list shows only the runs this use case recorded: GET /api/2.2/jobs/runs/list answered HTTP 403: no access",
+    "The job's runs could not load, so the list shows only the runs this use case recorded: no access",
     'The runs written to the results table could not load: the result table has no change_source',
-    'The details of each run could not load, so the list shows what the job recorded: PERMISSION_DENIED: no SELECT']);
+    'The details of each run could not load, so the list shows what the job recorded: no SELECT']);
   assert.equal(await mainRows(page).count(), 2);
   assert.deepEqual(seen.errors, []);
   await context.close();

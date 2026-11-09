@@ -33,7 +33,9 @@ export async function idle(page, timeout = SHOWN_WAIT_MS) {
   await page.locator('[aria-busy="true"]').first().waitFor({ state: 'detached', timeout });
 }
 
-export function apiWatch(page) {
+const REPLAY_QUIET_MS = 300;
+
+export function apiWatch(page, { quiet: base = 1500 } = {}) {
   let inflight = 0;
   let last = Date.now();
   const mine = (request) => new URL(request.url()).pathname.includes('/api/');
@@ -41,7 +43,7 @@ export function apiWatch(page) {
   const done = (r) => { if (mine(r)) { inflight = Math.max(0, inflight - 1); last = Date.now(); } };
   page.on('requestfinished', done);
   page.on('requestfailed', done);
-  return async ({ quiet = 1500, max = 90000 } = {}) => {
+  return async ({ quiet = base, max = 90000 } = {}) => {
     const end = Date.now() + max;
     while (Date.now() < end) {
       if (inflight === 0 && Date.now() - last >= quiet) return true;
@@ -50,6 +52,8 @@ export function apiWatch(page) {
     return false;
   };
 }
+
+export const replayWatch = (page) => apiWatch(page, { quiet: REPLAY_QUIET_MS });
 
 const parsed = (text) => {
   try {

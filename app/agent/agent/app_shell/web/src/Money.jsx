@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { changeAssumption, failureOf, getMoney } from './api.js';
 import { dayLabel, kindOf, stakeWords, unitOf, wholeMoney } from './format.js';
 import { Icon } from './icons.jsx';
-import { Failure, useToast } from './ui.jsx';
+import { Failure, useToast, PlainNote } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { amountText, assumptionLabel, columnWords, ruleText } from './money.js';
 import { AskGenie } from './AskGenie.jsx';
@@ -77,7 +77,7 @@ function Editor({ pageId, a, onSaved, onCancel }) {
       </label>
       <SaveButton write={`money:${a.name}`} type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />Save</SaveButton>
       <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>
-      {problem && text.trim() !== '' && <p className="err" role="alert">{problem}</p>}
+      {problem && text.trim() !== '' && <PlainNote text={problem} className="err" role="alert" />}
       <Failure failure={failure} className="err">{failure?.text}</Failure>
     </form>
   );
@@ -104,7 +104,7 @@ export default function MoneyCard({ pageId, nonce = 0, onChanged }) {
     getMoney(pageId).then((d) => { if (live) { setData(d); setError(''); } }).catch((e) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [pageId, nonce]);
-  if (error) return <p className="tile-err" role="alert"><Icon name="info" size={14} />How the amount at stake is worked out could not load: {error}</p>;
+  if (error) return <PlainNote text={error} prefix="How the amount at stake is worked out could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />;
   const model = data?.model;
   if (!model || (!model.parts.length && !model.assumptions.length)) return null;
   const saved = (next, value) => {

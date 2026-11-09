@@ -43,7 +43,7 @@ test('App look turns the trend chart off with one line when the input tables car
   const open = async (columns) => {
     const ui = await openUi('wizard', { me: { userName: 'owner@example.com', displayName: 'Owner' }, columns });
     const { page } = ui;
-    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'What to build');
     await goToStep(page, 'App access');
     await goToStep(page, 'App look');
     const look = page.getByRole('region', { name: 'App look' });
@@ -87,7 +87,7 @@ test('a business with an App for all its use cases joins it, cannot create a sec
   const { page } = ui;
   const next = () => page.getByRole('button', { name: 'Next' }).click();
   try {
-    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'What to build');
     await page.getByRole('checkbox', { name: /^App / }).check();
     await goToStep(page, 'App placement');
     const place = page.getByRole('region', { name: 'App placement' });

@@ -2,8 +2,8 @@ import { Suspense, lazy, useEffect, useState } from 'react';
 import { decidePlan, getRecords, runSettingsNow } from './api.js';
 import { entityName, formatValue, integer, numberOf } from './format.js';
 import { canDecide, noDecisionText, pageDecides, recordKeyOf } from './records.js';
-import { Icon, GenieMark } from './icons.jsx';
-import { SaidNote, Skeleton, useToast } from './ui.jsx';
+import { Icon } from './icons.jsx';
+import { SaidNote, Skeleton, useToast, PlainNote } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
 import { ChartsReady, RowPanel, SECTION_PARTS, TAKE_ALL, TakeAll, decidedText, isClosed, useOpenRow } from './KindParts.jsx';
 import { SaveButton, runWrite } from './saving.jsx';
@@ -44,7 +44,7 @@ export function useList(pageId, filters, ready, nonce, limit, on = true, view = 
 
 const decisionSection = (page) => Object.keys(page?.layout?.holds || {}).find((s) => ['plan', 'records'].includes(page.layout.holds[s])) || 'records';
 
-export function todoSteps(page, list, { genie = false, modify = false, accept = false, plan = false } = {}) {
+export function todoSteps(page, list, { modify = false, accept = false, plan = false } = {}) {
   const label = page.records?.label;
   const to = decisionSection(page);
   const first = list?.rows?.[0];
@@ -71,16 +71,14 @@ export function todoSteps(page, list, { genie = false, modify = false, accept = 
     else if (accept) steps.push({ id: 'accept', text: 'Accept the suggested action where you agree: one row at a time, or select several and accept them together.', action: 'Show me', to });
     else steps.push({ id: 'down', text: 'Work down the list in order and record what you did on each one.', action: null });
   }
-  if (genie && !chat) steps.push({ id: 'genie', text: 'Not sure where to start? Ask Genie what to do first and why.', action: 'Ask Genie what to do first', ask: true });
   return steps;
 }
 
-export function TodoNow({ page, app, ready, nonce, onAsk, shared, onRecords }) {
+export function TodoNow({ page, app, ready, nonce, shared, onRecords }) {
   const decided = decides(page);
   const fetched = useList(page.id, {}, ready, nonce, TODO_ROWS, decided && shared === undefined);
   const list = shared === undefined ? fetched : shared || {};
-  const genie = genieOn(app, page.id) && !!onAsk;
-  const steps = todoSteps(page, list.data, { genie, modify: !!app?.options?.modify, accept: !!(list.data?.actions && page.records?.action),
+  const steps = todoSteps(page, list.data, { modify: !!app?.options?.modify, accept: !!(list.data?.actions && page.records?.action),
     plan: !!(page.plan && list.data && planDecides(app, page.plan, list.data)) });
   const summary = list.data?.summary;
   const waiting = summary?.open ?? list.data?.total ?? 0;
@@ -90,7 +88,7 @@ export function TodoNow({ page, app, ready, nonce, onAsk, shared, onRecords }) {
       <header className="card-h"><div><h2>What to do now</h2>
         {decided && list.data && <p data-todo-count>{all ? `${integer(waiting)} of ${integer(all)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
         {decided && !list.data && !list.error && <Skeleton height={14} width="40%" />}
-        {list.error && <p className="tile-err"><Icon name="info" size={12} />{list.error}</p>}
+        {list.error && <PlainNote text={list.error} icon={<Icon name="info" size={12} />} className="tile-err" />}
       </div>
       <AskGenie kind="text" title="What to do now" context={{ hint: steps.map((s) => s.text).join('\n') }} /></header>
       {decided && all > 0 && <div className="todo-bar" role="progressbar" aria-valuemin={0} aria-valuemax={all} aria-valuenow={all - waiting}><i style={{ width: `${((all - waiting) / all) * 100}%` }} /></div>}
@@ -99,8 +97,8 @@ export function TodoNow({ page, app, ready, nonce, onAsk, shared, onRecords }) {
           <li key={s.id} data-step={s.id}>
             <span>{s.value ? <>{s.value[0]}<bdi>{s.value[1]}</bdi>{s.value[2]}</> : s.text}</span>
             {s.action && (
-              <button type="button" className="btn btn--sm" onClick={() => (s.ask ? onAsk(`What should I do first on ${page.title}, and why?`) : s.to === 'records' && onRecords ? onRecords() : scrollTo(s.to))}>
-                {s.ask && <GenieMark size={14} />}{s.action}
+              <button type="button" className="btn btn--sm" onClick={() => (s.to === 'records' && onRecords ? onRecords() : scrollTo(s.to))}>
+                {s.action}
               </button>
             )}
           </li>
@@ -190,7 +188,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen }) {
         </td></tr>
       )}
       {said && !error && <tr className="plan-said"><td colSpan={cols}><SaidNote text={said} at={key} /></td></tr>}
-      {error && <tr><td colSpan={cols}><p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p></td></tr>}
+      {error && <tr><td colSpan={cols}><PlainNote text={error} icon={<Icon name="info" size={12} />} className="tile-err" role="alert" /></td></tr>}
     </>
   );
 }
@@ -257,8 +255,8 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
       {open.length > 0 && <TakeAll count={open.length} onClick={acceptAll} />}
       <AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
-      {list.error && <p className="tile-err"><Icon name="info" size={14} />The plan could not load: {list.error}</p>}
-      {error && <p className="tile-err" role="alert"><Icon name="info" size={14} />{error}</p>}
+      {list.error && <PlainNote text={list.error} prefix="The plan could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
+      {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {!error && <SaidNote text={said} at="all" size={14} />}
       {list.data && !rows.length && <p className="empty">No plan lines for these filters.</p>}
       {rows.length > 0 && (
@@ -274,14 +272,14 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
 
 const SCENARIO_HOLDS = ['levers', 'scenario', 'target'];
 
-export function LayoutSections({ page, app, ready, nonce, filters, onChanged, onAsk, kpisOf, records, chartCards, tableCard, data, onPick, genie }) {
+export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kpisOf, records, chartCards, tableCard, data, onPick, genie }) {
   const sections = page.layout?.sections || [];
   const holds = page.layout?.holds || {};
   const placed = new Set();
   const plan = (key) => <PlanTable key={key} page={page} app={app} filters={filters} ready={ready} nonce={nonce} onChanged={onChanged} />;
   const draw = (section) => {
     const hold = holds[section];
-    if (hold === 'todo') return <TodoNow key="todo" page={page} app={app} ready={ready} nonce={nonce} onAsk={onAsk} />;
+    if (hold === 'todo') return <TodoNow key="todo" page={page} app={app} ready={ready} nonce={nonce} />;
     if (hold === 'kpis') return <div key="kpis" data-section="kpis">{kpisOf(page.kpis.filter((k) => !holds[k.section]))}</div>;
     if (hold === 'objective') {
       const hero = page.kpis.filter((k) => k.section === section);

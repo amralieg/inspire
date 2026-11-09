@@ -257,7 +257,7 @@ test('the wizard counts, limits and words vibes the way the backend does, and a 
   assert.equal('rollback_outputs' in w.nextSpecFrom(latest, { schedule: { enabled: true } }), false);
   assert.deepEqual(w.nextSpecFrom(latest, { rollback_outputs: { app: 3 } }).rollback_outputs, { app: 3 });
   const ticked = { ...fallback, vibes: 'c'.repeat(2001), outputs: { ...fallback.outputs, genie_space: true } };
-  assert.deepEqual(w.stepErrors('vibes', ticked), ['the MVP vibes are 2,001 characters; at most 2,000 are allowed'], 'the one box can block Start');
+  assert.deepEqual(w.stepErrors('summary', ticked), ['the MVP vibes are 2,001 characters; at most 2,000 are allowed'], 'the one box can block Start');
   assert.deepEqual([w.vibesProblem('mvp', ticked.vibes, 'MVP')], spec({}, { vibes: ticked.vibes }).errors, 'in the words the backend uses');
   assert.deepEqual(w.stepErrors('delivery', ticked), [], 'the vibes are checked on the Vibes step, never on Delivery');
   assert.deepEqual(w.planLines({ classes: ['rollback'], refill: false, rollback: ['app', 'dashboard'] }).slice(-1), ['Rolls back: App, Dashboard']);
@@ -277,15 +277,14 @@ test('the Vibes step says its one box is optional with gray example text, and na
   const w = await lib('implementWizard.js');
   assert.equal(w.VIBES_STEP_TITLE, 'Anything else Genie should build in?');
   assert.ok(w.VIBES_STEP_NOTE.startsWith(w.VIBES_HELP), 'the step opens with the same help the Build page vibes use');
-  assert.match(w.VIBES_STEP_NOTE, / The box is optional, and its gray text is only an example\.$/);
+  assert.match(w.VIBES_STEP_NOTE, / One optional box for the whole MVP; the gray text is only an example\.$/);
+  assert.ok(w.VIBES_STEP_NOTE.length <= 160, 'the note stays short');
   const all = { outputs: { dashboard: true, genie_space: true, app: true, alert: true } };
   assert.equal(w.vibesSkippedText(all), '', 'every output picked, nothing to name');
   assert.equal(w.vibesSkippedText({ outputs: { ...all.outputs, alert: false } }),
-    'Genie builds only what you picked in Delivery consumption, so an ask for the Alert is not done. To vibe it, go back to Delivery consumption and pick it.');
-  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, alert: false } }),
-    'Genie builds only what you picked in Delivery consumption, so an ask for the Genie Agent, the App and the Alert is not done. To vibe them, go back to Delivery consumption and pick them.');
-  assert.equal(w.vibesSkippedText(null), 'Genie builds only what you picked in Delivery consumption, so an ask for the Dashboard, the Genie Agent, the App and the Alert is not done. '
-    + 'To vibe them, go back to Delivery consumption and pick them.');
+    'Not picked in Deliver, so not built: the Alert.');
+  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, alert: false } }), 'Not picked in Deliver, so not built: the Genie Agent, the App and the Alert.');
+  assert.equal(w.vibesSkippedText(null), 'Not picked in Deliver, so not built: the Dashboard, the Genie Agent, the App and the Alert.');
   for (const text of [w.VIBES_STEP_TITLE, w.VIBES_STEP_NOTE, w.vibesSkippedText(null)]) assert.doesNotMatch(text, /[\u2013\u2014]|\bgrey\b/, text);
 });
 

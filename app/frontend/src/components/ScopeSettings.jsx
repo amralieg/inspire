@@ -13,6 +13,7 @@ import {
 } from '../lib/runScope';
 import { bestFirstRun, bestGrouping, isBest } from '../lib/highlyRecommended';
 import HighlyRecommended from './HighlyRecommended';
+import { PlainMessage } from './TechnicalDetails';
 
 const ROW = 'flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] text-text-primary';
 const NUMBER = 'w-24 px-2 py-1 text-[12px] border border-border rounded-md bg-surface text-text-primary';
@@ -26,7 +27,7 @@ function ProfileNote({ state, error }) {
       </p>
     );
   }
-  if (state === 'error') return <p role="alert" data-scope-profile="error" className="text-[11px] text-error-fg">Inspire could not read the table for its suggestions: {error}</p>;
+  if (state === 'error') return <PlainMessage text={`Inspire could not read the table for its suggestions: ${error}`} role="alert" data-scope-profile="error" className="text-[11px] text-error-fg" />;
   return null;
 }
 

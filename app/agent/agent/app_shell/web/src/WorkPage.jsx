@@ -2,7 +2,7 @@ import { Placed } from './Blocks.jsx';
 import { slotsOf } from './blocks.js';
 import FilterBar from './FilterBar.jsx';
 import { Icon } from './icons.jsx';
-import { Skeleton } from './ui.jsx';
+import { PlainNote, Skeleton } from './ui.jsx';
 import { integer } from './format.js';
 import { WORK_TABS, tabCount } from './links.js';
 
@@ -26,7 +26,7 @@ export default function WorkPage({ meta, state, onState, pageId, reasons, plan, 
     <section className="work-sec" aria-label="Work" data-work>
       {!meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
       <FilterBar meta={meta?.filters} state={state || { range: {}, sel: {} }} onState={onState} pageId={pageId} reasons={reasons} />
-      {meta?.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The filters could not load, so the list shows all its records: {meta.error}</p>}
+      {meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the list shows all its records: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {tab && <WorkTabs tab={tab} counts={counts} onTab={onTab} />}
       <Placed slots={slotsOf(plan, 'records')}>{children}</Placed>
     </section>

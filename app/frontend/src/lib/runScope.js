@@ -40,7 +40,7 @@ export const FIRST_RUN_GROUPS_MAX_SHOWN = 50;
 export const FIRST_RUN_GROUPS_FIND_FROM = 10;
 export const FIRST_RUN_GROUPS_READING = 'Inspire is reading the groups of the Data groups you chose.';
 export const FIRST_RUN_COVERS = `The ${FIRST_RUN_LABEL} covers`;
-export const SPREAD_WORDS = 'spread across the whole table, picked by a stable hash of each record';
+export const SPREAD_WORDS = 'spread across the whole table, the same records every run';
 export const GROUPING_JOINED_NOTE = 'Each run reads it from that table through this join.';
 
 const isMap = (value) => Boolean(value) && typeof value === 'object' && !Array.isArray(value);
@@ -430,13 +430,14 @@ export function recordGroupsText(profile, values) {
   }
   if (!picked) return `${counted(goal, 'record')} ${SPREAD_WORDS}`;
   if (!picked.length) {
-    return `${counted(goal, 'record')} ${SPREAD_WORDS}; this technique reads records together and no column groups them, so a group may be cut in this ${FIRST_RUN_LABEL}`;
+    return `${counted(goal, 'record')} ${SPREAD_WORDS}; this analysis compares records with each other and no column groups them, so a group may be cut in this ${FIRST_RUN_LABEL}`;
   }
   const column = finestGroupColumn(profile);
   const total = picked.reduce((sum, g) => sum + g.records, 0);
-  const lead = picked.length === 1 && total > goal
-    ? `${counted(total, 'record')} in the smallest whole group, since every group of ${column || 'the grouping'} holds more than ${counted(goal, 'record')}, so no group is cut: `
-    : total > goal
+  if (picked.length === 1 && total > goal) {
+    return `${counted(total, 'record')}, all of ${column ? `${column} = ` : ''}${picked[0].value}, the smallest group, since every group holds more than ${counted(goal, 'record')}`;
+  }
+  const lead = total > goal
       ? `${counted(total, 'record')}, in ${counted(picked.length, 'whole group')}, so the ${FIRST_RUN_LABEL} sees more than one group and no group is cut: `
       : `About ${counted(goal, 'record')}, in ${counted(picked.length, 'whole group')} so no group is cut: `;
   return lead + picked.map((g) => `${column ? `${column} = ` : ''}${g.value}, ${counted(g.records, 'record')}`).join('; ');
@@ -607,7 +608,7 @@ export function runScopeFacts(runs) {
 
 export function scopeStepsOf(profileState, profile, builtFirstRun = false) {
   const ready = profileState === 'ready' && isMap(profile);
-  return { grouping: ready && (profile.applies === true || deepGrouping(profile).length > 0), firstRun: ready || profileState === 'error' || (builtFirstRun === true && profileState === 'loading') };
+  return { grouping: ready && (profile.applies === true || deepGrouping(profile).length > 0), firstRun: builtFirstRun !== true && (ready || profileState === 'error') };
 }
 
 export function builtFirstRunOf(model) {
@@ -626,7 +627,7 @@ export function scopeText(values, profile = null) {
   if (scope === 'records') {
     const goal = counted(whole(values?.[SCOPE_RECORDS]) ?? Number(SCOPE_DEFAULTS[SCOPE_RECORDS]), 'record');
     return isMap(profile) ? `${FIRST_RUN_LABEL}: ${recordGroupsText(profile, values)}`
-      : `${FIRST_RUN_LABEL}: about ${goal}, in whole groups when the technique reads records together`;
+      : `${FIRST_RUN_LABEL}: about ${goal}, keeping related records together`;
   }
   return SCOPE_ALL_TEXT;
 }

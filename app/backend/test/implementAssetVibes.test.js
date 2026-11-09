@@ -147,6 +147,23 @@ test('submit rebuilds one built part with the vibes exactly as typed, and plan s
   }
 });
 
+test('a vibe aimed at the dashboard alone plans, stores and launches a rebuild of the dashboard only, and every other asset stays as built', async () => {
+  const history = [versionRow(2, { assets: PARTS }), versionRow(1)];
+  await served(history, async (url, { sqlCalls, jobs }) => {
+    const sent = { ...BASE, based_on_version: 2, outputs: { ...BASE.outputs, dashboard_vibes: ASKED } };
+    const plan = await call(url, '/api/inspire/implement/plan', submitBody(sent));
+    assert.equal(plan.status, 200, JSON.stringify(plan.data));
+    assert.deepEqual([plan.data.summary.refresh, plan.data.summary.build, plan.data.summary.refill], [['dashboard'], [], false]);
+    const got = await call(url, '/api/inspire/implement/submit', submitBody(sent));
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    const stored = storedSpec(sqlCalls);
+    assert.equal(stored.spec.outputs.dashboard_vibes, ASKED.trim());
+    for (const other of ['app_vibes', 'genie_space_vibes', 'alert_vibes']) assert.ok(!stored.spec.outputs[other], `${other} stays empty`);
+    assert.deepEqual(stored.spec.retry_outputs || [], []);
+    assert.equal(jobs.length, 1, 'one build job, for the dashboard');
+  });
+});
+
 test('a rebuild after a held version whose App page carries vibes rebuilds that page itself instead of refusing in retry_outputs words', async () => {
   const held = ['Put the rows to act on first', 'Add a map by region', 'Show the churn trend', 'Sort by risk', 'Name the owner', 'Add a total'];
   const history = [versionRow(2, { status: 'vibe_not_met', outputs: { [`${PAGE}_vibes`]: held.join('\n') }, top: { retry_outputs: [PAGE] } }),

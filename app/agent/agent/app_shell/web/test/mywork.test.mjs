@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { ASK_GROUPS, DECIDE, PERSON, TABLE, appInfo, askAudit, openApp, serveDist, until } from './harness.mjs';
+import { ASK_GROUPS, DECIDE, PERSON, TABLE, appInfo, askAudit, idle, openApp, serveDist, until } from './harness.mjs';
 import {
   CUSTOM, activityText, aiQuestion, checkedAnswer, factLines, notableOf, periodBody, periodProblem, periodText, scopeText, templateText, whenText, workFacts,
 } from '../src/mywork.js';
@@ -199,6 +199,32 @@ test('Genie writes the summary only with the person\'s own numbers, and an inven
     assert.deepEqual(app.errors, []);
     await context.close();
   }
+});
+
+test('a period with no work of the person offers no Genie praise and names no example', async () => {
+  const seen = {};
+  const none = { fixed: 0, dismissed: 0, could_not: 0, assigned: 0, notes: 0, changes: 0, records: 0 };
+  const routes = {
+    ...workRoutes(seen),
+    my_work: ({ route, json }) => {
+      (seen.work ||= []).push(route.request().postDataJSON());
+      return json(200, { person: PERSON, period: WEEK, errors: {}, offset: 0, size: 50, total: 0,
+        pages: { n01_u05: entry({ worked: none, active_hours: 0, money: money(0, 0, 0), close: { n: 0, median_hours: null }, best: null }), n02_u01: entry({ worked: none, active_hours: 0, money: money(0, 0, 0), close: { n: 0, median_hours: null }, best: null }) },
+        activity: [] });
+    },
+  };
+  const { page, seen: app, context } = await openApp(browser, served.base, appInfo(DECIDE, 2, TABLE), { routes });
+  await page.evaluate(() => { window.location.hash = '#/mywork'; });
+  await page.waitForSelector('[data-summary-text]');
+  await until(() => (seen.work || []).length > 0);
+  const said = await page.locator('[data-summary-text]').innerText();
+  assert.equal(said, 'You changed no records from Oct 19, 2026 to Oct 25, 2026, Asia/Dubai time.');
+  assert.doesNotMatch(said, /Item a1|stands out|great|well done/i);
+  assert.equal(await page.locator('[data-summary-ai]').count(), 0, 'no Write it with Genie button when there is nothing to praise');
+  await idle(page);
+  assert.equal((seen.asks || []).length, 0, 'Genie is never asked to praise an idle period');
+  assert.deepEqual(app.errors, []);
+  await context.close();
 });
 
 test('a single use case App offers Performance in its rail, and the old My work link opens it', async () => {

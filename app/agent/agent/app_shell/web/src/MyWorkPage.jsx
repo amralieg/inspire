@@ -4,7 +4,7 @@ import { genieAnswer, genieOn } from './genieAsk.js';
 import { grouped } from './format.js';
 import { Icon } from './icons.jsx';
 import { Tiles } from './Kpis.jsx';
-import { Failure } from './ui.jsx';
+import { Failure, PlainNote } from './ui.jsx';
 import { statusClass, statusLabel } from './records.js';
 import { UseCaseName, YourWork, yourWorkProps } from './Home.jsx';
 import { RowGenie } from './DataTable.jsx';
@@ -54,7 +54,7 @@ function Period({ choice, from, to, problem, onChoice, onFrom, onTo }) {
           <label className="in"><span>Last day</span><input type="date" name="my_work_to" value={to} onChange={(e) => onTo(e.target.value)} /></label>
         </span>
       )}
-      {problem && choice === CUSTOM && (from || to) && <p className="err" role="alert">{problem}</p>}
+      {problem && choice === CUSTOM && (from || to) && <PlainNote text={problem} className="err" role="alert" />}
     </div>
   );
 }
