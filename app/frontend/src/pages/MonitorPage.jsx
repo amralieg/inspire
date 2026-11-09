@@ -460,7 +460,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
             </p>
           </div>
         )}
-        {runInfo?.run_name && !latestStep && (
+        {runInfo?.run_name && !(latestStep && isRunning) && (
           <p className="text-[11px] text-text-tertiary mt-3" title={runInfo.run_name}>{runTitle(runInfo, session?.business_name)}</p>
         )}
         {viewerLine(runInfo) && (

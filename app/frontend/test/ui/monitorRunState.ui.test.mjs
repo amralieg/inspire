@@ -50,6 +50,7 @@ for (const [label, run, title] of [
       await card(page).getByText(title, { exact: true }).waitFor({ timeout: 15000 });
       await steps(page).waitFor({ timeout: 15000 });
       assert.match(await steps(page).locator('xpath=following-sibling::p').innerText(), /2 stages · 2 steps/);
+      assert.match(await card(page).innerText(), /Acme Retail, started /, 'the ended run is named by its business');
       const read = backend.reads.session;
       assert.ok(read >= 1);
       await page.waitForTimeout(4500);
