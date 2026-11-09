@@ -61,7 +61,7 @@ async function joiner(outputs = {}) {
 }
 
 test('a use case added to an existing App takes that App\'s look and sign-in, so the build never finds a difference', async () => {
-  const { w, spec } = await joiner({ app_look: { style: 'c', layout: 'home', palette: 'neon', theme: 'dark' } });
+  const { w, spec } = await joiner({ app_access: 'sp', app_look: { style: 'c', layout: 'home', palette: 'neon', theme: 'dark' } });
   const hub = { id: 'inspire-hub', name: 'inspire-hub', access: 'user', look: { style: 'a', layout: 'tabs', palette: 'ocean', theme: 'light' },
     use_cases: [{ use_case_id: 'N01-U01', name: 'Trips' }] };
   const joined = w.withMergeTarget({ ...spec, outputs: { ...spec.outputs, app_options: { modify: true, decisions: true, alerts: true } } }, 'app', hub);

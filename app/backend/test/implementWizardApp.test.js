@@ -34,8 +34,8 @@ test('the wizard offers exactly the App choices the backend and the App shell ac
   assert.deepEqual(w.APP_THEMES.map((t) => t.id), SHELL.themes);
   assert.deepEqual(w.APP_OPTIONS.map((o) => o.id), backend.IMPLEMENT_APP_OPTION_KEYS.filter((o) => o !== 'replace_edits'));
   assert.deepEqual(w.APP_ACCESS_CHOICES.map((c) => c.label), [
-    'Internal data: everyone sees the same rows',
     'Sensitive data: each person signs in as themselves (per-user)',
+    'Internal data: everyone sees the same rows',
   ]);
   for (const text of [...w.APP_ACCESS_CHOICES.flatMap((c) => [c.label, c.blurb]), w.APP_ACCESS_NOTE,
     ...w.APP_BACKEND_CHOICES.flatMap((c) => [c.label, c.blurb]).filter(Boolean), w.LAKEBASE_PER_USER_REASON, w.LAKEBASE_ABSENT, w.LAKEBASE_UNCHECKED]) {
@@ -57,16 +57,19 @@ test('the wizard offers exactly the App choices the backend and the App shell ac
   assert.deepEqual(w.REPLACE_EDITS_CHOICES.map((c) => [c.id, c.label]), [[false, 'No'], [true, 'Yes']], 'No comes first, as the default');
 });
 
-test('a new spec has the Genie Agent and App on and the dashboard and alert off, reads as the App\'s service principal, and validates as made', async () => {
+test('a new spec has the Genie Agent and App on and the dashboard and alert off, signs each viewer in as themselves, and validates as made', async () => {
   const { w, spec } = await appSpec();
   const fresh = w.defaultSpecFromUseCase(UC, {});
   assert.deepEqual(['dashboard', 'genie_space', 'app', 'alert'].map((k) => fresh.outputs[k]), [false, true, true, false], 'the dashboard starts off but stays a choice');
   assert.ok(w.IMPLEMENT_OUTPUTS.some((o) => o.id === 'dashboard') && w.IMPLEMENT_OUTPUTS.some((o) => o.id === 'alert'), 'Dashboard and Alert are still offered');
-  assert.equal(fresh.outputs.app_access, 'sp');
-  assert.equal(w.appBackendOf(fresh, { state: 'available' }), 'lakebase', 'a workspace with Lakebase gets a Lakebase App by default');
+  assert.equal(fresh.outputs.app_access, 'user');
+  assert.equal(w.appBackendOf(fresh, { state: 'available' }), 'delta', 'a per-user App reads Delta tables even where Lakebase is offered');
+  const shared = { ...fresh, outputs: { ...fresh.outputs, app_access: 'sp' } };
+  assert.equal(w.appBackendOf(shared, { state: 'available' }), 'lakebase', 'a shared App in a workspace with Lakebase gets Lakebase by default');
   assert.equal(w.appBackendOf(fresh, { state: 'absent' }), 'delta');
-  assert.deepEqual(w.appBackendBlocks(fresh, { state: 'available' }), {});
-  assert.match(w.APP_ACCESS_NOTE, /everyone seeing the same rows, so pages open at once\. Pick per-user when each person must see only/);
+  assert.deepEqual(Object.keys(w.appBackendBlocks(fresh, { state: 'available' })), ['lakebase'], 'per-user keeps Lakebase off');
+  assert.deepEqual(w.appBackendBlocks(shared, { state: 'available' }), {});
+  assert.match(w.APP_ACCESS_NOTE, /^Inspire starts with each person signing in as themselves, so they see only the rows and values their own access allows\. Pick everyone sees the same rows only when no table has row filters, column masks or access policies/);
   assert.match(w.APP_ACCESS_CHOICES.find((c) => c.id === 'sp').blurb, /^The App reads with its own access/);
   assert.deepEqual(fresh.outputs.app_look, { style: 'a', layout: 'sidebar', palette: 'default', theme: 'light' });
   assert.deepEqual(fresh.outputs.app_options, { modify: false, replace_edits: false, decisions: true, alerts: false }, 'record decisions start on, alerts start off');
@@ -267,9 +270,11 @@ test('Edit of a version the old wizard saved gets every new App setting with its
   const w = await load();
   const fallback = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire' });
   const old = w.specFromLatest({ spec_version: 1, spec_json: { ...fallback, outputs: { dashboard: true, app: true, app_name: 'churn-desk' } } }, fallback);
-  assert.equal(old.outputs.app_access, 'sp', 'a version saved before the choice existed gets the default: the App\'s service principal');
+  assert.equal(old.outputs.app_access, 'user', 'a version saved before the choice existed gets the default: each viewer signs in');
   const unpicked = w.specFromLatest({ spec_version: 1, spec_json: { ...fallback, outputs: { ...fallback.outputs, app_access: '' } } }, fallback);
-  assert.equal(unpicked.outputs.app_access, 'sp', 'a saved draft that never picked the access gets the default');
+  assert.equal(unpicked.outputs.app_access, 'user', 'a saved draft that never picked the access gets the default');
+  const shared = w.specFromLatest({ spec_version: 1, spec_json: { ...fallback, outputs: { ...fallback.outputs, app_access: 'sp' } } }, fallback);
+  assert.equal(shared.outputs.app_access, 'sp', 'a saved shared choice is kept');
   const perUser = w.specFromLatest({ spec_version: 1, spec_json: { ...fallback, outputs: { ...fallback.outputs, app_access: 'user' } } }, fallback);
   assert.equal(perUser.outputs.app_access, 'user', 'a saved per-user choice is kept');
   const live = w.specFromLatest({ spec_version: 1, spec_json: { ...fallback, outputs: { dashboard: true, app: true, app_name: 'churn-desk' } } }, fallback,

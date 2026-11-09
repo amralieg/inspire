@@ -131,15 +131,15 @@ export function withHeldApp(spec, saved = {}) {
 }
 
 export const APP_ACCESS_CHOICES = [
-  { id: 'sp', label: 'Internal data: everyone sees the same rows',
-    blurb: 'The App reads with its own access, and Inspire lets it read the result table.' },
   { id: 'user', label: 'Sensitive data: each person signs in as themselves (per-user)',
     blurb: 'Each person sees only the rows their own access allows.' },
+  { id: 'sp', label: 'Internal data: everyone sees the same rows',
+    blurb: 'The App reads with its own access, and Inspire lets it read the result table.' },
 ];
-export const APP_ACCESS_DEFAULT = 'sp';
+export const APP_ACCESS_DEFAULT = 'user';
 export const REMOVED_OUTPUT_DEFAULT = 'keep';
-export const APP_ACCESS_NOTE = 'Inspire starts with everyone seeing the same rows, so pages open at once. '
-  + 'Pick per-user when each person must see only the rows their own access allows; those pages take a few seconds.';
+export const APP_ACCESS_NOTE = 'Inspire starts with each person signing in as themselves, so they see only the rows and values their own access allows. '
+  + 'Pick everyone sees the same rows only when no table has row filters, column masks or access policies; those pages open at once.';
 
 export const APP_BACKENDS = ['lakebase', 'delta'];
 export const APP_BACKEND_CHOICES = [
@@ -1191,7 +1191,7 @@ export function specFromLatest(latest, fallback, assets = {}) {
     outputs[key] = { ...fallback.outputs[key], ...(saved[key] && typeof saved[key] === 'object' && !Array.isArray(saved[key]) ? saved[key] : {}) };
   }
   if (!Array.isArray(outputs.app_owners)) outputs.app_owners = fallback.outputs.app_owners;
-  if (!APP_ACCESS_CHOICES.some((c) => c.id === outputs.app_access)) outputs.app_access = APP_ACCESS_DEFAULT;
+  if (!APP_ACCESS_CHOICES.some((c) => c.id === saved.app_access)) outputs.app_access = saved.app && assets?.app ? 'sp' : APP_ACCESS_DEFAULT;
   if (saved.app && assets?.app && !Object.prototype.hasOwnProperty.call(saved, 'app_backend')) outputs.app_backend = 'delta';
   const idDefault = !assets?.app && outputs.app_name === idAppNameOf(fallback.use_case_id);
   if ((!outputs.app || !outputs.app_name || idDefault) && !(outputs.app && outputs.app_placement === APP_INSIDE)) outputs.app_name = fallback.outputs.app_name;
@@ -2621,6 +2621,29 @@ export function appReadsChoices(reads) {
     { id: 'grant', label: APP_READS_GRANT, detail: 'Inspire runs exactly the grants listed here as you, then checks the App again. It works when you own the data or hold MANAGE on it.' },
     { id: 'copy', label: `Copy the grant SQL to send to ${owners}`, detail: `${owners} runs it in the SQL editor, then you press ${APP_READS_CHECK}.`, sql: appReadsSql(reads) },
     { id: 'check', label: APP_READS_CHECK, detail: 'Inspire checks again whether the App can read its data, for example after the owner granted it.' },
+  ];
+}
+
+export const PROTECTION_SQL_LABEL = 'Copy SQL';
+export const PROTECTION_ACCESS_LABEL = 'Change who uses the App';
+
+export function protectionStopOf(latest) {
+  const record = latest?.asset_status?.protection;
+  if (String(latest?.status || '') !== 'failed' || !record || typeof record !== 'object' || record.state !== 'failed'
+    || String(record.spec_version ?? '') !== String(latest?.spec_version ?? '')) return null;
+  return { reason: String(record.reason || '').trim(), sql: Array.isArray(record.sql) ? record.sql.map(String).filter((s) => s.trim()) : [],
+    check: record.check !== false };
+}
+
+export function protectionChoices(stop) {
+  if (!stop) return [];
+  if (!stop.check) {
+    return [{ id: 'access', label: PROTECTION_ACCESS_LABEL, detail: 'Pick that each person signs in as themselves, then build again.' }];
+  }
+  return [
+    ...(stop.sql.length ? [{ id: 'copy', label: PROTECTION_SQL_LABEL, sql: stop.sql.join('\n'),
+      detail: 'The owner of the result tables runs it in the SQL editor, then you press Check again.' }] : []),
+    { id: 'check', label: APP_READS_CHECK, detail: 'Inspire reads the row filters, column masks and access policies again, and publishes once the results keep them.' },
   ];
 }
 

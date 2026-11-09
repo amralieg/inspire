@@ -861,6 +861,7 @@ def _inspire(ns, spark, **attrs):
     inst._implement_params = {}
     inst.emitted = []
     inst._emit_pipeline_status = lambda **kw: inst.emitted.append(kw) or kw.get("step_id") or len(inst.emitted)
+    inst._implement_abac = lambda table, warnings: []
     return inst
 
 

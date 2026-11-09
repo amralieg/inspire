@@ -9,7 +9,7 @@ import {
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -899,6 +899,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const chip = statusChip(latest?.status, stalled);
   const [readsResult, setReadsResult] = useState(null);
   const [readsBusy, setReadsBusy] = useState('');
+  const [protectionCopy, setProtectionCopy] = useState('');
   const tracked = trackedKpiOf(status?.history, latest);
   const kpiView = targetKpiView(tracked?.record, money?.run, liveImpact(money?.run, tracked?.impact || rowImpact(latest)));
   const spec = latest?.spec_json || {};
@@ -1183,9 +1184,11 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const buildRunUrl = stalled?.run_url || status?.build_run_url || '';
   const dataStop = !readOnly && dataStopped(latest);
   const genieChanges = genieChangesOf(status?.steps, latest);
-  const choicesNow = buildAgain && !dataStop && !stopped && latest?.status === 'failed' ? failureChoices(latest, {
-    technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '',
-  }) : [];
+  const protection = readOnly ? null : protectionStopOf(latest);
+  const choicesNow = protection ? protectionChoices(protection)
+    : buildAgain && !dataStop && !stopped && latest?.status === 'failed' ? failureChoices(latest, {
+      technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '',
+    }) : [];
   const writeNotebook = async () => {
     setWritingNotebook(true);
     setError('');
@@ -1200,7 +1203,18 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       setWritingNotebook(false);
     }
   };
-  const pickChoice = (choice) => {
+  const pickChoice = async (choice) => {
+    if (choice.id === 'copy' && choice.sql) {
+      try {
+        await navigator.clipboard.writeText(choice.sql);
+        setProtectionCopy('The SQL is copied. Send it to the owner of the result tables.');
+      } catch (e) {
+        setProtectionCopy(`The SQL could not be copied: ${e.message}. Select it above and copy it.`);
+      }
+      return undefined;
+    }
+    if (protection && choice.id === 'check') return sendAgain();
+    if (protection && choice.id === 'access') return onEdit?.({ step: 'app_access' }, live);
     if (choice.changes) return submitChecked(nextSpecFrom(latest, { ...buildAgainChanges(latest), ...choice.changes }));
     if (choice.seed) return openFeatures(choice.seed.text ? choice.seed : null);
     return writeNotebook();
@@ -1229,7 +1243,13 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           </ol>
         </div>
       )}
-      {buildAgain && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : terminal ? TERMINAL_STOP_HINT : buildAgainHint(latest)}</p>}
+      {protection?.sql.length > 0 && (
+        <ul aria-label="SQL that keeps the filters and masks" data-protection-sql="" className="space-y-0.5">
+          {protection.sql.map((line) => <li key={line} className="font-mono text-[11px] text-text-primary break-all">{line}</li>)}
+        </ul>
+      )}
+      {protectionCopy && <p role="status" data-protection-copy="" className="text-text-primary">{protectionCopy}</p>}
+      {buildAgain && !protection && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : terminal ? TERMINAL_STOP_HINT : buildAgainHint(latest)}</p>}
       <ChoiceList heading={FAILURE_CHOICES_HEADING} choices={choicesNow} mark="data-failure-choice" tone="text-error-fg" disabled={locked || writingNotebook}
         title={lockedReason} busy={writingNotebook ? 'notebook' : ''} onPick={pickChoice} />
       {(buildAgain || onEdit || buildRunUrl) && (

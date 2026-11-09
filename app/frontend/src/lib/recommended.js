@@ -142,7 +142,7 @@ export function bestAppPolicy(spec, targets, scope) {
 export function bestAppAccess({ inside = false, personal = '' } = {}) {
   if (inside) return pick('user', 'Inside Inspire, each viewer signs in as themselves.');
   return personal ? pick('user', `${personal} looks personal, so each person sees only their own rows.`)
-    : pick('sp', 'No column looks personal, so everyone can see the same rows.');
+    : pick('user', 'Each person sees only the rows and values their own access allows.');
 }
 
 export function bestAppBackend(spec, lakebase) {

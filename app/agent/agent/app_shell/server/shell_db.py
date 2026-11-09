@@ -21,6 +21,8 @@ GENIE_STEPS = {"SUBMITTED": "Reading your question", "FILTERING_CONTEXT": "Findi
                "PENDING_WAREHOUSE": "Waiting for the SQL warehouse", "EXECUTING_QUERY": "Running the query"}
 JOB_RUNS_PAGE = 25
 TABLE_HISTORY_ROWS = 20
+BLOCKED_TEXT = ("this is worked out over rows some viewers may not see, so the App does not show it; the records list shows the rows "
+                "you may read")
 CONCURRENT = re.compile(r"DELTA_CONCURRENT_\w+|DELTA_(METADATA|PROTOCOL)_CHANGED|CONCURRENT_(APPEND|DELETE|TRANSACTION|WRITE)|"
                         r"Concurrent\w*Exception|(Metadata|Protocol)ChangedException", re.I)
 CONFLICT_WINDOW_S = 60.0
@@ -152,6 +154,7 @@ class Workspace:
         self.secrets = (self.host, urllib.parse.urlsplit(self.host).netloc)
         self.auth_headers = auth_headers
         self.sleep, self.clock = sleep, clock
+        self.blocked = ()
         if session is None:
             import requests
             session = requests.Session()
@@ -186,6 +189,9 @@ class Workspace:
 
     def run_sql(self, warehouse_id: str, statement: str, parameters=None, limit: int = 5000,
                 deadline_s: int = QUERY_DEADLINE_S) -> dict:
+        query = str(statement or "").replace("`", "").lower()
+        if any(re.search(rf"(?<![\w.]){re.escape(table)}(?![\w])", query) for table in self.blocked):
+            raise QueryError(BLOCKED_TEXT)
         started = self.clock()
         for attempt in range(1, CONFLICT_ATTEMPTS + 1):
             try:

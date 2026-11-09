@@ -46,16 +46,19 @@ test('a use case already in the hub records the hub\'s placement, never the defa
 });
 
 test('a new use case of a business whose use cases live in its hub joins that hub', async () => {
-  const { w, spec } = await fresh();
+  const { w, spec: personal } = await fresh();
+  const spec = w.withAppAccess(personal, 'sp');
   const hub = { ...HUB, use_cases: HUB.use_cases.map((u) => ({ ...u, placement: 'business', updated_at: '2026-10-31T10:00:00Z' })) };
   const joined = w.withPlacementDefault(spec, { app: [SPLIT, hub] }, SCOPE);
   assert.deepEqual([joined.outputs.app_placement, joined.outputs.merge.app], ['business', 'inspire-hub-nyc-taxi']);
   const picked = w.withAppPlacement(spec, 'business', { app: [SPLIT, HUB] }, SCOPE);
   assert.equal(picked.outputs.merge.app, 'inspire-hub-nyc-taxi', 'One App for all use cases joins the hub even before its holders record it');
+  assert.equal(w.withPlacementDefault(personal, { app: [SPLIT, hub] }, SCOPE).outputs.merge.app, '', 'a new use case signs each viewer in, so it never joins a hub that shows everyone the same rows');
 });
 
 test('One App for all use cases never creates a second hub for the same business', async () => {
-  const { w, spec } = await fresh();
+  const { w, spec: fresher } = await fresh();
+  const spec = w.withAppAccess(fresher, 'sp');
   assert.match(w.newAppPlacementBlock(spec, { app: [HUB] }, SCOPE, 'business'), /^inspire-hub-nyc-taxi is the App for all use cases of NYC Taxi Operations: add/);
   assert.equal(w.newAppPlacementBlock(spec, { app: [HUB] }, SCOPE, 'domain'), '');
   const personal = w.withAppAccess(spec, 'user');

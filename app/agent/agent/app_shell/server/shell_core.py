@@ -346,6 +346,24 @@ def unread_hint(message: str, sql: str, unread: dict) -> str:
     return shell_sql.no_access_text(tables=named)
 
 
+def protected_problems(settings: dict) -> list:
+    protected, blocked = settings.get("protected"), settings.get("blocked")
+    if protected is not None and not (isinstance(protected, dict) and all(
+            isinstance(k, str) and isinstance(v, str) and v.strip() for k, v in protected.items())):
+        return ["the App protected must be an object of table name to the row filters, column masks or ABAC policies it has"]
+    if blocked is not None and not (isinstance(blocked, list) and all(isinstance(t, str) and t.strip() for t in blocked)):
+        return ["the App blocked must be a list of the tables the App does not read"]
+    if protected and settings.get("auth") != "user":
+        named = ", ".join(f"{table} ({words})" for table, words in sorted(protected.items()))
+        return [f"the App reads {named}, so it must sign each viewer in as themselves: its auth must be user, because its service "
+                "principal would show every viewer the rows and values only it may see"]
+    return []
+
+
+def blocked_tables(settings: dict) -> tuple:
+    return tuple(sorted({str(t).replace("`", "").strip().lower() for t in settings.get("blocked") or () if str(t).strip()}))
+
+
 def settings_problems(settings: dict, pages: list) -> list:
     if not isinstance(settings, dict):
         return ["the App settings are not a JSON object"]
@@ -373,6 +391,7 @@ def settings_problems(settings: dict, pages: list) -> list:
         problems.append(f"the App host must be {INSIDE} when it is set, for a page inside Inspire")
     elif host == INSIDE and settings.get("auth") != "user":
         problems.append("a page inside Inspire signs each viewer in as themselves, so its auth must be user")
+    problems += protected_problems(settings)
     if host == INSIDE and isinstance(settings.get("backend"), dict) and settings["backend"].get("kind") == shell_pg.LAKEBASE:
         problems.append("a page inside Inspire reads Delta tables, so its backend must be delta")
     screens = settings.get("screens")
@@ -1528,7 +1547,9 @@ class Shell:
             if not token:
                 raise HttpError(401, "sign in to the workspace to see this App; it shows each person only the data they may read")
             who = headers.get("x-forwarded-email") or hashlib.sha256(token.encode()).hexdigest()[:16]
-            return self.user_factory(self.env.get("DATABRICKS_HOST", ""), token), f"user:{who}"
+            ws = self.user_factory(self.env.get("DATABRICKS_HOST", ""), token)
+            ws.blocked = blocked_tables(self.settings)
+            return ws, f"user:{who}"
         return self.service(), "sp"
 
     def service(self):
