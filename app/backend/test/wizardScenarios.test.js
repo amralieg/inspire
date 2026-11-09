@@ -78,3 +78,67 @@ test('group values in other scripts, with commas, slashes or quotes reach the li
   assert.deepEqual(view.group_list.map((g) => g.value).sort(), [...odd].sort());
   assert.ok(view.group_list.every((g) => g.parts.length === 1 && g.parts[0].column === 'city' && g.parts[0].value === g.value));
 });
+
+const { makeApp, listen } = require('./support/implementApp');
+
+function sharedHistoryApp() {
+  const history = [];
+  const made = makeApp({
+    history,
+    statements: {
+      'spec_json, status, status_message': async (_sql, parameters) => {
+        await new Promise((resolve) => { setTimeout(resolve, 400); });
+        const v = Number((parameters.find((p) => p.name === 'v') || {}).value);
+        history.push({ spec_version: v, status: 'queued', spec_json: (parameters.find((p) => p.name === 'spec') || {}).value });
+        return { rows: [] };
+      },
+    },
+  });
+  return { ...made, history };
+}
+
+async function submit(url, spec) {
+  const resp = await fetch(`${url}/api/inspire/implement/submit`, {
+    method: 'POST', headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', spec }),
+  });
+  return { status: resp.status, data: await resp.json() };
+}
+
+const BUILD = { use_case_id: 'N01-U01', use_case_name: 'Predict churn', config: { warehouse_id: 'wh1', result_table: 'main.inspire.churn_out' }, outputs: { dashboard: true } };
+
+test('two tabs that press Build at the same moment start one build: the other tab is told a build already started and nothing is written twice', async () => {
+  const made = sharedHistoryApp();
+  const srv = await listen(made.app);
+  try {
+    const got = await Promise.all([submit(srv.url, BUILD), submit(srv.url, BUILD)]);
+    const statuses = got.map((g) => g.status).sort();
+    assert.deepEqual(statuses, [200, 409], JSON.stringify(got.map((g) => g.data)));
+    assert.equal(made.jobs.length, 1);
+    assert.deepEqual(made.history.map((h) => h.spec_version), [1]);
+    const refused = got.find((g) => g.status === 409).data.error;
+    assert.match(refused, /^Another tab or click is already starting a build of this use case/);
+    assert.doesNotMatch(refused, /undefined|null|NaN/);
+    const after = await submit(srv.url, BUILD);
+    assert.equal(after.status, 409);
+    assert.match(after.data.error, /^spec v1 is still queued/);
+    assert.equal(made.jobs.length, 1);
+  } finally {
+    await srv.close();
+  }
+});
+
+test('a build that fails to start frees the use case at once, so the next Build press is not refused as already starting', async () => {
+  const made = makeApp({ sqlErrors: { 'spec_json, status, status_message': 'warehouse stopped' } });
+  const srv = await listen(made.app);
+  try {
+    const first = await submit(srv.url, BUILD);
+    assert.notEqual(first.status, 200);
+    assert.match(first.data.error, /warehouse stopped/);
+    const second = await submit(srv.url, BUILD);
+    assert.match(second.data.error, /warehouse stopped/);
+    assert.doesNotMatch(second.data.error, /already/);
+  } finally {
+    await srv.close();
+  }
+});

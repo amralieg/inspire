@@ -1290,11 +1290,27 @@ function registerImplementRoutes(app, deps) {
     };
   }
 
+  const buildGuard = createGenieJobGuard();
+  const BUILD_STARTING = 'Another tab or click is already starting a build of this use case, so Inspire did not start a second one. Open Build in a moment to follow it';
+
+  async function oneBuildAtATime(req, run) {
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const key = [catalog, schema, sessionIdOf(req), I.validateImplementSpec(req.body?.spec || req.body).spec.use_case_id].join('|');
+    if (!(await buildGuard.claim(key, () => null)).ok) throw I.badRequest(BUILD_STARTING, 409);
+    try {
+      return await run();
+    } finally {
+      buildGuard.failed(key);
+    }
+  }
+
   app.post('/api/inspire/implement/submit', requireToken, async (req, res) => {
     try {
-      const prepared = await prepareSubmission(req);
-      if (GC.needsGenieCode(prepared.spec)) await requireGenieCode(req);
-      res.json(await startVersion(req, prepared));
+      res.json(await oneBuildAtATime(req, async () => {
+        const prepared = await prepareSubmission(req);
+        if (GC.needsGenieCode(prepared.spec)) await requireGenieCode(req);
+        return startVersion(req, prepared);
+      }));
     } catch (err) {
       sendError(res, err);
     }
@@ -1302,11 +1318,13 @@ function registerImplementRoutes(app, deps) {
 
   app.post('/api/inspire/implement/publish', requireToken, async (req, res) => {
     try {
-      const prepared = await prepareSubmission(req);
-      const named = q(req, 'use_case_id');
-      if (named && named !== prepared.useCaseId) throw I.badRequest(`the spec is for use case ${prepared.useCaseId}, not ${named}`);
-      if (prepared.spec.publish_held == null) throw I.badRequest('Publish anyway sends the held spec with publish_held set to the held version');
-      res.json(await startVersion(req, prepared));
+      res.json(await oneBuildAtATime(req, async () => {
+        const prepared = await prepareSubmission(req);
+        const named = q(req, 'use_case_id');
+        if (named && named !== prepared.useCaseId) throw I.badRequest(`the spec is for use case ${prepared.useCaseId}, not ${named}`);
+        if (prepared.spec.publish_held == null) throw I.badRequest('Publish anyway sends the held spec with publish_held set to the held version');
+        return startVersion(req, prepared);
+      }));
     } catch (err) {
       sendError(res, err);
     }
