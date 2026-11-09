@@ -149,3 +149,21 @@ test('GET money reviews the latest version and treats tables a run has not writt
     assert.match(got.data.error, /PERMISSION_DENIED/);
   });
 });
+
+test('GET money does not read or show the totals of a result whose run summary adds up rows some people may not see', async () => {
+  const kept = { state: 'kept', spec_version: 2, blocked: ['main.inspire.churn_out_summary'], protected: { 'main.s.orders': 'a row filter' } };
+  await withApp({ history: [{ ...BUILT, asset_status: { protection: kept } }], moneySummary: [SUMMARY], moneyEdits: EDITS }, async (base, made) => {
+    const got = await call(base, `/api/inspire/implement/money?${Q}`);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual([got.data.run, got.data.model, got.data.history], [null, null, []]);
+    assert.equal(got.data.withheld, 'Inspire does not show the totals of main.inspire.churn_out, because they are worked out over rows some '
+      + 'people may not see; open the App, where each person sees the rows they may read.');
+    assert.equal(made.sqlCalls.filter((c) => c.sql.includes('churn_out_summary')).length, 0, 'the summary is never read through the App');
+  });
+  const masked = { ...kept, blocked: [] };
+  await withApp({ history: [{ ...BUILT, asset_status: { protection: masked } }], moneySummary: [SUMMARY], moneyEdits: [] }, async (base) => {
+    const got = await call(base, `/api/inspire/implement/money?${Q}`);
+    assert.equal(got.data.withheld, undefined, 'a summary that is not blocked is shown as before (must-exclude)');
+    assert.equal(got.data.run.run_id, 'r-9');
+  });
+});

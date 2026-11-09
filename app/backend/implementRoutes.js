@@ -5,7 +5,7 @@ const { createGenieJobGuard } = require('./lib/genieJobGuard');
 const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNotebookJob');
 const C = require('./lib/implementControl');
 const { appShellCatalog, bundledBuildStamp } = require('./lib/appShell');
-const { moneyStatements, moneyView } = require('./lib/implementMoney');
+const { moneyStatements, moneyView, moneyWithheld } = require('./lib/implementMoney');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
 const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning } = require('./lib/inspireJobParams');
 const R = require('./lib/reviewFigures');
@@ -1514,6 +1514,8 @@ function registerImplementRoutes(app, deps) {
       const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
       const table = String(history[0]?.spec_json?.config?.result_table || '').trim();
       if (!table) return res.json({ run: null, model: null, history: [], result_table: '' });
+      const withheld = moneyWithheld(history[0], table);
+      if (withheld) return res.json({ run: null, model: null, history: [], result_table: table, withheld });
       const statements = moneyStatements(table, useCaseId);
       const summary = (await optionalRows(req, warehouseId, statements.summary))[0] || null;
       const edits = summary && summary.value_assumptions ? await optionalRows(req, warehouseId, statements.edits) : [];

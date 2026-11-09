@@ -250,11 +250,12 @@ def test_a_service_principal_app_over_a_protected_source_stops_before_the_notebo
     assert any("[IMPLEMENT-PROTECTED-ACCESS FIRED]" in m for _, m in inst.logger.records)
 
 
-def test_a_failed_protection_read_is_named_and_does_not_count_as_protected(agent_ns):
+def test_a_failed_protection_read_is_named_and_counts_as_protected(agent_ns):
     inst, context = _gate(agent_ns, ["owner"])
     inst.spark.sql = lambda statement, args=None: (_ for _ in ()).throw(RuntimeError("TABLE_OR_VIEW_NOT_FOUND"))
     warnings = []
-    assert inst._implement_protections([SOURCE], warnings) == {}
+    read = inst._implement_protections([SOURCE], warnings)
+    assert read[SOURCE]["unread"].startswith("TABLE_OR_VIEW_NOT_FOUND") and agent_ns["implement_is_protected"](read[SOURCE])
     assert warnings and warnings[0].startswith(f"Sharing: Inspire could not read the row filters and column masks of {SOURCE}")
 
 

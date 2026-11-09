@@ -36,6 +36,7 @@ export default function MoneyReview({ money, error = '', impact = null, scope = 
   const words = stakeWords(stake);
   if (error) return <PlainMessage text={`Inspire could not read the ${words} of the last run: ${error}`} role="alert" className="text-[12px] text-error-fg" />;
   if (!money) return <p className="text-[12px] text-text-secondary">Reading how the last run counted the {words}</p>;
+  if (money.withheld) return <p data-money-withheld="" className="text-[12px] text-text-secondary">{money.withheld}</p>;
   const { model, run } = money;
   const sample = previewSampleText(run);
   const capacity = capacityText(run);
