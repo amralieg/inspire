@@ -1055,6 +1055,13 @@ paths:
                     type: array
                     items: { type: string }
                     description: What the run does differently, such as a default that falls back to the shared folder or a folder the App cannot write
+                  warning_details:
+                    type: array
+                    items: { type: string }
+                    description: |
+                      The technical lines behind the warnings, shown under Details. When no folder was typed and the App cannot
+                      write to your own inspire_output, Inspire creates it with your own sign-in and gives the App's service
+                      principal CAN MANAGE on that one folder; when Databricks refuses, this names the exact grant and the answer.
                   generation_path:
                     type: string
                     description: The folder the run saves to when no folder was typed, the person's own inspire_output

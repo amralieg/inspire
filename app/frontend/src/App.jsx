@@ -94,7 +94,7 @@ export default function App() {
   // Session tracking
   const [sessionId, setSessionId] = useState(null);
   const [runId, setRunId] = useState(null);
-  const [launchNotes, setLaunchNotes] = useState({ runId: null, notes: [] });
+  const [launchNotes, setLaunchNotes] = useState({ runId: null, notes: [], details: [] });
   const [implement, setImplement] = useState({ sessionId: null, focus: null });
   const [showcases, setShowcases] = useState([]);
   const [setupManaged, setSetupManaged] = useState(false);
@@ -539,10 +539,10 @@ export default function App() {
               if (sid) setSessionId(sid);
               nav('results');
             }}
-            onLaunched={(sid, rid, notes = []) => {
+            onLaunched={(sid, rid, notes = [], details = []) => {
               setSessionId(sid);
               setRunId(rid);
-              setLaunchNotes({ runId: rid, notes });
+              setLaunchNotes({ runId: rid, notes, details });
               nav('monitor');
             }}
           />
@@ -557,6 +557,7 @@ export default function App() {
               sessionId={inDemo ? demo.showcase.session_id : sessionId}
               runId={inDemo ? null : runId}
               launchNotes={!inDemo && runId != null && launchNotes.runId === runId ? launchNotes.notes : []}
+              launchDetails={!inDemo && runId != null && launchNotes.runId === runId ? launchNotes.details || [] : []}
               onComplete={() => nav('results')}
               onResultsSession={inDemo ? noop : onResultsSession}
               onOpenImplement={openImplement}

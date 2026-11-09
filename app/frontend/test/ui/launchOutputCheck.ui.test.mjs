@@ -10,6 +10,10 @@ test.after(closeBrowser);
 const SHOTS = process.env.LAUNCH_SHOTS || '';
 const MINE = '/Workspace/Users/someone@example.com/inspire_out';
 const BOSS_FOLDER = '/Workspace/Shared/team_out';
+const BOSS_DEFAULT = '/Workspace/Users/boss@example.com/inspire_output';
+const FALLBACK = '/Workspace/fallback';
+const FALLBACK_SENTENCE = 'Inspire cannot save to your own folder /Users/boss@example.com/inspire_output, so it saves to /Shared/demos, a shared folder that everyone in the workspace can open.';
+const FALLBACK_GRANT = 'PATCH /api/2.0/permissions/directories/42 {"access_control_list":[{"service_principal_name":"app-sp","permission_level":"CAN_MANAGE"}]} answered HTTP 403: refused';
 const REFUSAL = 'You cannot write to /Shared/demos (you cannot create anything in /Shared) with your own sign-in, and Inspire never writes for you '
   + 'where you cannot write: choose a folder you can manage, such as one under your own user folder, or ask its owner for CAN MANAGE on it, '
   + 'which Databricks needs before anyone can create something in a folder.';
@@ -24,11 +28,16 @@ function folderBackend() {
       calls.urls.push(req.originalUrl);
       if (asked === MINE) return res.json({ allowed: true, folder: '/Users/someone@example.com/inspire_out', checked: 'passed' });
       if (asked === BOSS_FOLDER) return res.json({ allowed: true, folder: '/Shared/team_out', checked: 'manager' });
+      if (asked === BOSS_DEFAULT) return res.json({ allowed: true, folder: '/Users/boss@example.com/inspire_output', checked: 'manager', warnings: [] });
+      if (asked === FALLBACK) {
+        return res.json({ allowed: true, folder: '/Shared/demos', checked: 'manager', warnings: [FALLBACK_SENTENCE], warning_details: [FALLBACK_GRANT] });
+      }
       if (asked === '/Workspace/broken') return res.status(502).json({ error: 'Inspire could not check that you can write to /broken, so it starts no run: upstream timeout', unwritable: [] });
       return res.status(403).json({ error: REFUSAL, policy: { route: 'POST /api/output-folder/check', rule: 'writer' }, unwritable: ['/Shared/demos'] });
     });
     app.post('/api/run', (_req, res) => {
       calls.runs += 1;
+      if (calls.checks.at(-1) === FALLBACK) return res.json({ run_id: 901, warnings: [FALLBACK_SENTENCE], warning_details: [FALLBACK_GRANT] });
       res.json({ run_id: 901 });
     });
   };
@@ -87,7 +96,7 @@ test('a folder the person cannot write keeps Get Started off and shows the refus
     await until(async () => (await page.locator('#output-folder-check-field').getAttribute('data-output-check')) === 'passed', 'the passed check under the field');
     assert.equal(calls.checks.length - typedBefore, 1, `typing the path asks once, after it settles: ${JSON.stringify(calls.checks.slice(typedBefore))}`);
     assert.equal(calls.checks.at(-1), MINE);
-    assert.equal(await page.locator('#output-folder-check-field').innerText(), 'You can write to /Users/someone@example.com/inspire_out.');
+    assert.equal(await page.locator('#output-folder-check-field').innerText(), 'Results go to /Users/someone@example.com/inspire_out.');
     assert.equal(await nearLaunch(page).count(), 0, 'nothing blocks Get Started any more');
     assert.equal(await launchButton(page).isDisabled(), false);
     for (const width of [1440, 390]) {
@@ -127,9 +136,52 @@ test('changing a passed folder turns Get Started off at once, and a check that c
     assert.equal(await launchButton(page).isDisabled(), false, 'a check that could not answer never holds Get Started');
     await setPath(page, BOSS_FOLDER);
     await until(async () => (await page.locator('#output-folder-check-field').getAttribute('data-output-check')) === 'passed', 'the manager skip');
-    assert.equal(await page.locator('#output-folder-check-field').innerText(), 'You manage this App, so Inspire can save to /Shared/team_out.');
+    assert.equal(await page.locator('#output-folder-check-field').innerText(), 'Results go to /Shared/team_out.');
     assert.equal(await launchButton(page).isDisabled(), false);
     assert.equal(calls.runs, 0, 'nothing launched');
+    assert.deepEqual(notFound(ui.pageErrors), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('an App manager on Start sees one quiet line naming where results go and never a write-check line; a fallback shows one sentence with the grant under Details (must-exclude)', async () => {
+  const { mount } = folderBackend();
+  const ui = await openUi('launch', {}, '', { mount, ...FAKE_CLOCK });
+  try {
+    const { page } = ui;
+    await readyToLaunch(page);
+    const field = page.locator('#output-folder-check-field');
+    await setPath(page, BOSS_DEFAULT);
+    await until(async () => (await field.getAttribute('data-output-check')) === 'passed', 'the manager own folder');
+    assert.equal(await field.innerText(), 'Results go to /Users/boss@example.com/inspire_output.');
+    assert.equal(await page.getByText(/skips the write check|You manage this App|write check/i).count(), 0, 'no line about the write check (must-exclude)');
+    assert.equal(await field.locator('[data-output-check-notes]').count(), 0, 'no warning when the folder works');
+    assert.equal(await launchButton(page).isDisabled(), false);
+    await shoot(page, 'launch-manager-own-folder');
+
+    await setPath(page, FALLBACK);
+    await until(async () => (await field.getAttribute('data-output-check')) === 'passed' && (await field.locator('[data-output-check-notes] li').count()) === 1, 'the fallback note');
+    assert.equal(await field.locator('[data-output-check-notes] li').innerText(), FALLBACK_SENTENCE);
+    assert.equal(await field.getByText(/Results go to/).count(), 0, 'the quiet line never sits beside a warning that names another folder');
+    const details = field.locator('details[data-technical-details]');
+    assert.equal(await details.count(), 1);
+    assert.equal(await details.locator('summary').innerText(), 'Details');
+    assert.equal(await details.locator('pre').isVisible(), false, 'the grant stays folded until opened');
+    await details.locator('summary').click();
+    assert.equal(await details.locator('pre').innerText(), FALLBACK_GRANT);
+    assert.doesNotMatch(await field.locator('[data-output-check-notes]').innerText(), /\/api\/|CAN_MANAGE|HTTP/, 'no technical text inline');
+    assert.equal(await page.getByText(/skips the write check|You manage this App/i).count(), 0, 'still no write-check line (must-exclude)');
+    await shoot(page, 'launch-manager-fallback');
+
+    await launchButton(page).click();
+    const notes = page.getByTestId('launch-notes');
+    await notes.waitFor({ timeout: 15000 });
+    assert.equal(await notes.locator('li > span').innerText(), FALLBACK_SENTENCE, 'the run page repeats the one sentence');
+    const runDetails = notes.locator('details[data-technical-details]');
+    await runDetails.locator('summary').click();
+    assert.equal(await runDetails.locator('pre').innerText(), FALLBACK_GRANT, 'and keeps the grant under Details');
+    assert.equal(await page.getByText(/skips the write check|You manage this App/i).count(), 0, 'no write-check line on the run page either (must-exclude)');
     assert.deepEqual(notFound(ui.pageErrors), []);
   } finally {
     await ui.close();
@@ -146,7 +198,10 @@ test('an allowed answer passes, a refusal or a missing sign-in holds Get Started
   assert.doesNotMatch(OUTPUT_CHECK_URL, /\.\.|%2E%2E/i, 'the Databricks Apps front door refuses a request URL that holds ..');
   const fail = (status, message) => Object.assign(new Error(message), { status });
   assert.deepEqual(outputCheckVerdict('/x', { allowed: true, folder: '/Users/someone@example.com/x', checked: 'passed' }, null),
-    { path: '/x', state: 'passed', text: '', folder: '/Users/someone@example.com/x', checked: 'passed', warnings: [] });
+    { path: '/x', state: 'passed', text: '', folder: '/Users/someone@example.com/x', checked: 'passed', warnings: [], details: [] });
+  assert.deepEqual(outputCheckVerdict('/x', { allowed: true, folder: '/Shared/demos', warnings: ['w', null], warning_details: ['d', '', null] }, null),
+    { path: '/x', state: 'passed', text: '', folder: '/Shared/demos', checked: '', warnings: ['w'], details: ['d'] });
+  assert.deepEqual(outputCheckVerdict('/x', { allowed: true, warning_details: 'not a list' }, null).details, []);
   assert.equal(outputCheckVerdict('/x', { allowed: true, checked: 'manager' }, null).checked, 'manager');
   assert.equal(outputCheckVerdict('/x', null, fail(403, REFUSAL)).state, 'refused');
   assert.equal(outputCheckVerdict('/x', null, fail(403, REFUSAL)).text, REFUSAL);

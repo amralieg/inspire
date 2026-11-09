@@ -436,6 +436,40 @@ function appCantWriteText(folder, verdict) {
 
 const folderScore = (plan) => (plan.refused ? 0 : plan.app.verdict ? 1 : 2);
 
+const ownFolderOf = (me) => (/^[^/\\\s]+$/.test(me) && me !== '.' && me !== '..' ? `/Users/${me}/${FALLBACK_FOLDER}` : '');
+const appGrant = (appId) => ({ access_control_list: [{ service_principal_name: appId, permission_level: 'CAN_MANAGE' }] });
+const answered = (step, got) => `${step} answered HTTP ${got.status}: ${String(got.data.message || got.data.error || got.data.raw || '').slice(0, 300)}`;
+
+async function shareOwnFolder(dbFetch, req, folder, appId) {
+  const grant = (id) => `PATCH /api/2.0/permissions/directories/${id} ${JSON.stringify(appGrant(appId || '<the App service principal>'))}`;
+  const token = P.personTokenOf(req);
+  if (!token || !appId || !folder || folder !== ownFolderOf(RP.forwardedPerson(req.headers))) {
+    return { ok: false, details: [`Inspire did not change ${folder || 'your folder'}: ${!token ? 'no sign-in of yours reached the App' : 'it knows no App service principal to share with'}`, grant('<folder id>')] };
+  }
+  const call = (p, options) => answer(dbFetch, req.dbHost, token, p, options).catch((err) => ({ ok: false, status: err.status || 502, data: { message: whyOf(err) } }));
+  const made = await call('/api/2.0/workspace/mkdirs', json('POST', { path: folder }));
+  if (!made.ok) return { ok: false, details: [answered(`POST /api/2.0/workspace/mkdirs ${folder}`, made), grant('<folder id>')] };
+  const got = await call(`/api/2.0/workspace/get-status?path=${encodeURIComponent(folder)}`);
+  const id = got.ok && String(got.data.object_type || '').toUpperCase() === 'DIRECTORY' ? String(got.data.object_id || '') : '';
+  if (!id) return { ok: false, details: [got.ok ? `${folder} is not a folder` : answered(`GET /api/2.0/workspace/get-status ${folder}`, got), grant('<folder id>')] };
+  const shared = await call(`/api/2.0/permissions/directories/${encodeURIComponent(id)}`, json('PATCH', appGrant(appId)));
+  if (!shared.ok) return { ok: false, details: [answered(grant(id), shared)] };
+  return { ok: true, details: [grant(id)] };
+}
+
+async function ownFolderPlan(dbFetch, req, home, { manager, appToken, appId }) {
+  const first = await folderPlan(dbFetch, req, home, { manager, appToken });
+  if (first.refused || !first.app.verdict) return { plan: first, details: [] };
+  const shared = await shareOwnFolder(dbFetch, req, home, appId);
+  if (!shared.ok) {
+    console.warn(`output write check: Inspire could not share ${home} with the App: ${shared.details.join('; ')}`);
+    return { plan: first, details: shared.details };
+  }
+  const after = await folderPlan(dbFetch, req, home, { manager, appToken });
+  if (!after.app.verdict) return { plan: after, details: [] };
+  return { plan: after, details: [`${shared.details[0]} succeeded, and the App still cannot write there: ${after.app.verdict.reason}`] };
+}
+
 function folderWarnings(plan) {
   const out = [];
   if (plan.personUnchecked) {
@@ -450,25 +484,26 @@ function folderWarnings(plan) {
   return out;
 }
 
-const planVerdict = (plan, extra = []) => (plan.refused
-  ? { refused: plan.refused, folder: plan.folder, generationPath: '', warnings: [] }
-  : { refused: null, folder: plan.folder, generationPath: '', warnings: [...extra, ...folderWarnings(plan)] });
+function planVerdict(plan, extra = [], details = []) {
+  if (plan.refused) return { refused: plan.refused, folder: plan.folder, generationPath: '', warnings: [], details: [] };
+  const warnings = [...extra, ...folderWarnings(plan)];
+  return { refused: null, folder: plan.folder, generationPath: '', warnings, details: warnings.length ? details : [] };
+}
 
-async function outputPlan(dbFetch, req, writes, { manager = false, appToken = '' } = {}) {
+async function outputPlan(dbFetch, req, writes, { manager = false, appToken = '', appId = '' } = {}) {
   const folders = ((writes && writes.folders) || []).filter(Boolean);
-  if (!folders.length) return { refused: null, folder: '', generationPath: '', warnings: [] };
-  const me = RP.forwardedPerson(req.headers);
+  if (!folders.length) return { refused: null, folder: '', generationPath: '', warnings: [], details: [] };
   if (!writes.defaulted) return planVerdict(await folderPlan(dbFetch, req, folders[0], { manager, appToken }));
-  const savedIn = (plan, extra) => ({ ...planVerdict(plan, extra), generationPath: plan.refused ? '' : workspaceFolderPath(plan.folder) });
-  if (!me) return savedIn(await folderPlan(dbFetch, req, folders[0], { manager, appToken }));
-  const home = `/Users/${me}/${FALLBACK_FOLDER}`;
-  const own = await folderPlan(dbFetch, req, home, { manager, appToken });
+  const savedIn = (plan, extra, details) => ({ ...planVerdict(plan, extra, details), generationPath: plan.refused ? '' : workspaceFolderPath(plan.folder) });
+  const home = ownFolderOf(RP.forwardedPerson(req.headers));
+  if (!home) return savedIn(await folderPlan(dbFetch, req, folders[0], { manager, appToken }));
+  const { plan: own, details } = await ownFolderPlan(dbFetch, req, home, { manager, appToken, appId });
   if (folderScore(own) === 2 || own.refused?.status === 401) return savedIn(own);
   const shared = await folderPlan(dbFetch, req, folders[0], { manager, appToken });
-  if (shared.refused) return own.refused ? planVerdict(shared) : savedIn(own);
-  if (folderScore(shared) <= folderScore(own)) return savedIn(own);
-  const why = own.refused ? 'you cannot write there' : 'the Inspire App cannot write there; give the App CAN MANAGE on it to keep your runs private';
-  return savedIn(shared, [`Inspire cannot save to your folder ${home} (${why}), so it saves to ${shared.folder}, a shared folder that everyone in the workspace can open.`]);
+  if (shared.refused) return own.refused ? planVerdict(shared) : savedIn(own, [], details);
+  if (folderScore(shared) <= folderScore(own)) return savedIn(own, [], details);
+  return savedIn(shared, [`Inspire cannot save to your own folder ${home}, so it saves to ${shared.folder}, a shared folder that everyone in the workspace can open.`],
+    own.refused ? [own.refused.message] : details);
 }
 
 function writeRefusalBody(key, refused) {

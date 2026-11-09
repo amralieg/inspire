@@ -211,9 +211,6 @@ async function stubFetch(url, opts = {}) {
   const folder = folderAnswer(state, { method, pathname: u.pathname, searchParams: u.searchParams, body, token }, writableBy);
   if (folder) return json(folder[1], folder[0]);
   if (u.pathname === '/api/2.0/workspace/get-status') return json({});
-  if (token === PERSON_TOKEN && u.pathname.startsWith('/api/2.0/permissions/directories/')) {
-    return json({ error_code: 403, message: 'Provided OAuth token does not have required scopes: access-management' }, 403);
-  }
   if (token === PERSON_TOKEN && /^\/api\/2\.1\/unity-catalog\/(effective-permissions|permissions|volumes)\//.test(u.pathname)) {
     return json({ error_code: 403, message: 'Provided OAuth token does not have required scopes: unity-catalog' }, 403);
   }

@@ -650,7 +650,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         }),
       });
       update('inspireDatabase', finalParams['02_inspire_database']);
-      onLaunched?.(finalParams['14_session_id'], data.run_id, Array.isArray(data.warnings) ? data.warnings : []);
+      onLaunched?.(finalParams['14_session_id'], data.run_id, Array.isArray(data.warnings) ? data.warnings : [],
+        Array.isArray(data.warning_details) ? data.warning_details : []);
     } catch (err) {
       setLaunchError(parseApiErrorMessage(err.message));
     } finally {

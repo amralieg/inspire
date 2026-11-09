@@ -32,7 +32,7 @@ import { nameOfUseCase } from '../lib/useCaseFields';
 import { runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 import { reducedMotion } from '../lib/motion';
-import { PlainMessage } from '../components/TechnicalDetails';
+import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 
 // Run lifecycle phases
 const PHASE_PENDING = 'PENDING';
@@ -51,7 +51,7 @@ const STATUS_FILTERS = [
 
 const MONITOR_NO_PROGRESS = 'Inspire has saved no progress for this run yet. Each step shows here as soon as it is saved.';
 
-export default function MonitorPage({ settings, update, sessionId, runId, launchNotes = [], onComplete, onResultsSession, onOpenImplement, onGenerateData }) {
+export default function MonitorPage({ settings, update, sessionId, runId, launchNotes = [], launchDetails = [], onComplete, onResultsSession, onOpenImplement, onGenerateData }) {
   const { databricksHost, token, warehouseId, inspireDatabase, showcase = '' } = settings;
 
   // Run-level state
@@ -352,6 +352,11 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
               <span className="break-words min-w-0">{note}</span>
             </li>
           ))}
+          {launchDetails.length > 0 && (
+            <li className="pl-6">
+              <TechnicalDetails items={launchDetails} />
+            </li>
+          )}
         </ul>
       )}
 
