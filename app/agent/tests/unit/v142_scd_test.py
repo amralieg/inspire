@@ -737,6 +737,8 @@ HISTORY_OBJECTS = {"{inspire_table_name(table)}", "{inspire_table_name(inspire_r
                    "{inspire_table_name(result_table)}", "{inspire_table_name(inspire_run_log_table(result_table))}",
                    "{inspire_table_name(inspire_ai_summary_table(result_table))}",
                    "{inspire_table_name(inspire_assumptions_table(result_table))}",
+                   "{inspire_table_name(inspire_sibling_table(result_table, suffix))}",
+                   "{inspire_table_name(inspire_scenarios_table(result_table))}",
                    "{inspire_table_name(inspire_changes_table(table))}"}
 HISTORY_BOUND = {"target": "inspire_table_name(table)", "source": "inspire_table_name(stage)",
                  "log": "inspire_table_name(inspire_run_log_table(table))", "pinned": "f'{target} VERSION AS OF {int(version)}'"}

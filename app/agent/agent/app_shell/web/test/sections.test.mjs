@@ -8,6 +8,7 @@ import { canonicalHash, fixThis, parseHash, restoreFilters, sectionHash, staleSe
 import { FIX_TIERS, isToFix, shownTiers, switcherMatches } from '../src/hub.js';
 import { MY_KEY } from '../src/prefs.js';
 import { evaluated } from './exampleRoutes.mjs';
+import { hasWork, pageMode } from '../src/modes.js';
 
 let served;
 let browser;
@@ -385,6 +386,7 @@ test('the Work dock switches between the record and Genie, and remembers the cho
 test('every example layout renders its dashboard, rail and settings with no error', async () => {
   const examples = readdirSync(join(HERE, '..', '..', 'examples')).filter((f) => f.endsWith('.json')).sort();
   assert.equal(examples.length, 13);
+  const worked = [];
   for (const file of examples) {
     const info = appInfo(DECIDE, 1, {}, `examples/${file}`);
     const { page, seen, context } = await openApp(browser, served.base, info, { ready: '.ph h1', watch: prefsFirst(MY_KEY, PERSON, {}),
@@ -392,12 +394,18 @@ test('every example layout renders its dashboard, rail and settings with no erro
     const rail = (await railOf(page)).map(([id]) => id);
     assert.equal(rail[0], 'dashboard', `${file}: the rail starts with Dashboard`);
     assert.equal(rail.at(-1), 'settings', `${file}: Settings sits at the bottom`);
-    assert.equal(rail.includes('work'), info.pages[0].layout.work === 'queue', `${file}: Work follows the work the registry gives the layout`);
+    const mode = pageMode(info.pages[0]);
+    if (mode.queue) assert.equal(rail.includes('work'), info.pages[0].layout.work === 'queue', `${file}: a queue's Work follows the work the registry gives the layout`);
+    assert.equal(rail.includes('work'), hasWork(info.pages[0]), `${file}: the ${mode.id} mode and the registry decide whether there is a work section`);
+    if (rail.includes('work')) worked.push(`${file}:${mode.id}`);
     await page.locator('[data-rail="settings"]').click();
     await page.locator('[data-group="look"]').waitFor();
     assert.deepEqual(seen.errors, [], `${file}: no error`);
     await context.close();
   }
+  assert.deepEqual(worked, ['agent_chat.json:ask', 'dashboard.json:explore', 'forecast_cockpit.json:forecast', 'lift_readout.json:queue', 'location_view.json:queue',
+    'monitor_triage.json:queue', 'network_explorer.json:queue', 'performance_explainer.json:queue', 'planner.json:plan', 'process_flow.json:queue',
+    'recommendation_desk.json:queue', 'scenario_lab.json:scenarios', 'segment_explorer.json:queue'], 'every mode with work of its own and every queue the registry gives work has a work section');
 });
 
 const REGISTRY = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
@@ -411,7 +419,8 @@ async function openKind(kind, hash) {
   const info = appInfo(DECIDE, 1, { layout: kind.layout, result_table: example.result_table || TABLE.result_table }, exampleOf(kind.layout));
   const id = info.pages[0].id;
   const routes = trackedRoutes({ overview: ({ json }) => json(200, { ...HUB, pages: { [id]: TRACKED } }),
-    'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})) });
+    'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})),
+    'scenario/saved': ({ json }) => json(200, { scenarios: [], decisions: [], mine: 0, note: '' }) });
   return { id, ...(await openApp(browser, served.base, info, { hash: hash(id), routes, ready: '[data-rail]', watch: prefsFirst(MY_KEY, PERSON, {}) })) };
 }
 
@@ -431,14 +440,24 @@ test('every one of the 25 queue kinds has Work in its rail and Work shows the st
   }
 });
 
-test('the 15 plan, forecast, scenario, explore and ask kinds keep their rail without a queue Work section', { timeout: 300000 }, async () => {
+test('the 15 plan, forecast, scenario, explore and ask kinds never show the queue Work: each opens the work of its own mode under that mode\'s name', { timeout: 300000 }, async () => {
   const others = REGISTRY.kinds.filter((k) => !queueKind(k));
   assert.equal(others.length, 15);
+  const own = [];
   for (const kind of others) {
     const { id, page, seen, context } = await openKind(kind, (pid) => `#/${pid}/work`);
-    await page.waitForFunction((pid) => window.location.hash === `#/${pid}/dashboard`, id);
-    assert.ok(!(await railOf(page)).some(([s]) => s === 'work'), `${kind.id}: no queue Work`);
+    await page.waitForFunction((pid) => [`#/${pid}/work`, `#/${pid}/dashboard`].includes(window.location.hash), id);
+    const atWork = (await hashOf(page)) === `#/${id}/work`;
+    assert.equal((await railOf(page)).some(([s]) => s === 'work'), atWork, `${kind.id}: the rail has a work section only when the address keeps it`);
+    if (atWork) {
+      const title = await page.locator('[data-section-title]').innerText();
+      assert.notEqual(title, 'Work', `${kind.id}: the work section carries the mode's own name`);
+      own.push(title);
+    }
+    assert.equal(await page.locator('[data-work]').count(), 0, `${kind.id}: no queue Work`);
     assert.deepEqual(seen.errors, [], `${kind.id}: no error`);
     await context.close();
   }
+  assert.deepEqual([...new Set(own)].sort(), ['ASK', 'EXPLORE', 'PLAN', 'REVIEW', 'SCENARIOS'], 'each of the five modes names its own work section');
+  assert.equal(own.length, others.length, 'every one of these kinds has work of its own');
 });

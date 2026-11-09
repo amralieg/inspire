@@ -25,21 +25,24 @@ import { isLaidOut, isQueue, pageSections } from './Layouts.jsx';
 import { windowParams } from './prefs.js';
 import { pageDecides, statusChoices } from './records.js';
 import { GenieScope } from './AskGenie.jsx';
+import { SharedFailureScope } from './PageFailure.jsx';
+import { pageFailures } from './failures.js';
 import { FIX_TIERS, hubView, reasonFilters, useCaseState } from './hub.js';
 import { inboxOn } from './inbox.js';
-import InboxSection, { useInbox } from './Inbox.jsx';
+import { useInbox } from './Inbox.jsx';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
 import WorkPage from './WorkPage.jsx';
 import { RetryProvider, Skeleton } from './ui.jsx';
+import ModeView from './ModeView.jsx';
+import { pageMode, sectionTitle } from './modes.js';
 
 const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
+const InboxSection = lazy(() => import('./InboxSection.jsx'));
 const Runs = lazy(() => import('./Runs.jsx'));
 const Alerts = lazy(() => import('./Alerts.jsx'));
 const TrendCards = lazy(() => import('./Trends.jsx'));
 const Waiting = ({ height = 180 }) => <section className="card" role="status" aria-label="Loading"><Skeleton height={height} /></section>;
-
-export const SECTION_TITLES = { dashboard: 'Dashboard', inbox: 'Inbox', work: 'Work', performance: 'Performance', runs: 'Runs', alerts: 'Alerts', settings: 'Settings' };
 
 export function usePageData(pageId, state, ready, nonce = 0, sorts = null) {
   const [data, setData] = useState(null);
@@ -114,6 +117,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const live = usePageHub(page.id, state, ready, nonce, listed);
   const laidOut = isLaidOut(page);
   const work = isQueue(page);
+  const mode = pageMode(page);
   const sections = pageSections(app, page);
   const inboxHere = inboxOn(app, page);
   const views = inboxHere ? [...sections, 'inbox'] : sections;
@@ -153,7 +157,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const inboxOff = !!inbox?.off;
   useEffect(() => { onCounts?.({ page: page.id, runs: runTotal, inbox: inboxCount, inboxOff }); }, [page.id, runTotal, inboxCount, inboxOff, onCounts]);
   const unreliable = hubPage && !!useCaseState(entry, summary).unreliable;
-  const loading = !data;
+  const failures = pageFailures(page, data, error);
+  const loading = !data && !failures.whole;
   const pick = (filterId, value) => onState(toggleValue(state, filterId, value));
   const filters = apiValues(state);
   const scope = { page: page.id, filters: filterWords(meta?.filters, state) };
@@ -163,7 +168,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const address = usePageAddress({ page, meta, state, onState, view: shown, onView: (to) => go(to), views });
   const latestRun = counted.current.latest ? latestRunText(counted.current.latest) : freshness.fresh?.last_run ? `${lastRunText(freshness.fresh.last_run).text}.`
     : runs.busy ? 'Reading the latest run.' : latestRunText(null);
-  const errors = data?.errors || {};
+  const { errors } = failures;
   const alert = app.alerts?.[page.id] || app.alerts_home;
   const notify = () => { go('alerts'); setCompose(true); };
   const alertLink = hubPage && !!alert && !app.alerting?.on && !app.alerting?.reason;
@@ -248,7 +253,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           </FreshBar>
         </div>
       </div>
-      {shown !== 'dashboard' && <p className="ph-sec" data-section-title>{SECTION_TITLES[shown]}</p>}
+      {shown !== 'dashboard' && <p className="ph-sec" data-section-title>{sectionTitle(page, shown)}</p>}
       {shown === 'dashboard' && !hubPage && <p className="ph-q">{page.question}</p>}
       {shown === 'dashboard' && !hubPage && page.promised?.estimate && <p className="ph-value" data-value-estimate="">{page.promised.estimate}</p>}
       {shown === 'dashboard' && !hubPage && data && <Story page={page} data={data.kpis} />}
@@ -280,7 +285,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {shown === 'dashboard' && (
         <Dashboard app={app} page={page} meta={meta} state={state} onState={onState} view={view} onView={onView} hubPage={hubPage} laidOut={laidOut} work={work}
           onRetry={retry} onRetryMeta={onRetryMeta} onRetrySummary={onRetrySummary}
-          hubEntry={hubEntry} live={live} summary={summary} latestRun={latestRun} onRuns={showRuns} data={data} error={error} plan={plan} topSlots={topSlots}
+          hubEntry={hubEntry} live={live} summary={summary} latestRun={latestRun} onRuns={showRuns} data={data} error={error} failures={failures} plan={plan} topSlots={topSlots}
           moreSlots={moreSlots} more={more} kpisCard={kpisOf(page.kpis)} kpisOf={kpisOf} chartCards={chartCards} hubCharts={hubCharts} tableCard={tableCard}
           recordsCard={laidOut ? records() : null} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}
           genie={genie} ready={ready} filters={filters} onPick={pick} onFix={fix} onWork={() => go('work')} onRun={freshness.ask} running={freshness.busy}
@@ -292,8 +297,12 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
             </Suspense>
           ) : null} />
       )}
-      {shown === 'inbox' && <InboxSection page={page} inbox={inbox} onOpen={openInbox} />}
-      {shown === 'work' && (
+      {shown === 'inbox' && <Suspense fallback={<Waiting />}><InboxSection page={page} inbox={inbox} onOpen={openInbox} /></Suspense>}
+      {shown === 'work' && !mode.queue && (
+        <ModeView mode={mode.id} part="Work" app={app} page={page} meta={meta} state={state} onState={onState} ready={ready} tableCard={tableCard} genie={genie}
+          views={<PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />} notify={notifyButton} onGo={(to) => go(to)} />
+      )}
+      {shown === 'work' && mode.queue && (
         <WorkPage meta={meta} state={state} onState={onState} onRetryMeta={onRetryMeta} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
           {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, docked: true, section: 'records' })}
@@ -346,5 +355,5 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       )}
     </div>
   );
-  return <GenieScope.Provider value={scope}><RetryProvider value={retry}><FoldScope pageId={page.id}>{body}</FoldScope></RetryProvider></GenieScope.Provider>;
+  return <GenieScope.Provider value={scope}><RetryProvider value={retry}><SharedFailureScope value={shown === 'dashboard' ? failures.shared : ''}><FoldScope pageId={page.id}>{body}</FoldScope></SharedFailureScope></RetryProvider></GenieScope.Provider>;
 }

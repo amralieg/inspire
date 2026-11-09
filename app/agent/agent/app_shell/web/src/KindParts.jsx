@@ -11,6 +11,7 @@ import { SaveButton, runWrite } from './saving.jsx';
 import { genieOn } from './genieAsk.js';
 import { plural } from './hub.js';
 import { AskGenie } from './AskGenie.jsx';
+import { CardFailure, useShared } from './PageFailure.jsx';
 import { RowGenie, columnOf } from './DataTable.jsx';
 import { ITEM_KINDS, fieldsOf, tableContext } from './explain.js';
 import './styles/kindparts.css';
@@ -327,6 +328,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
   const table = sectionTable(page, 'segment_cards');
   const result = table ? data?.tables?.[table.id] : null;
   const failed = table ? data?.errors?.[`table:${table.id}`] : '';
+  const shared = useShared(failed);
   const rows = (result?.rows || []).slice(0, SEGMENT_CARDS);
   const cols = columnsOf(table);
   const block = page.segments || {};
@@ -356,10 +358,10 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
           {off ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p>
             : <p>{table?.hint || 'Choose a treatment for each segment once: every member of the segment gets it.'}</p>}</div>
           {can && waiting.length > 0 && <TakeAll count={waiting.length} onClick={() => runWrite(TAKE_ALL, async () => { for (const r of waiting) if (!(await choose(r, suggestedOf(r), true))) return; })} />}
-          <AskGenie kind="table" title={table?.title || 'Segments'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />
+          {!shared && <AskGenie kind="table" title={table?.title || 'Segments'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />}
         </header>
         {!result && !failed && <div style={{ padding: 16 }}><Skeleton height={90} /></div>}
-        {failed && <p className="tile-err"><Icon name="info" size={14} />The segments could not load: {failed}</p>}
+        <CardFailure text={failed} prefix="The segments could not load: " />
         {decide.error && <PlainNote text={decide.error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
         {result && !rows.length && <p className="empty">No segments for these filters.</p>}
         <div className="seg-cards">
@@ -412,15 +414,16 @@ export function EffectCard({ page, data, filters, onPick }) {
   const table = sectionTable(page, 'effect_card');
   const result = table ? data?.tables?.[table.id] : null;
   const failed = table ? data?.errors?.[`table:${table.id}`] : '';
+  const shared = useShared(failed);
   const rows = (result?.rows || []).slice(0, EFFECT_CARDS);
   const cols = columnsOf(table);
   return (
     <section className="card effects" aria-label={table?.title || 'Effect'} data-part="effect_card">
       <header className="card-h"><div><h2>{table?.title || 'Effect'}</h2>{table?.hint && <p>{table.hint}</p>}
         {table?.so_what && <p className="so-what" data-so-what><b>So what:</b> {table.so_what}</p>}</div>
-        <AskGenie kind="table" title={table?.title || 'Effect'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} /></header>
+        {!shared && <AskGenie kind="table" title={table?.title || 'Effect'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />}</header>
       {!result && !failed && <div style={{ padding: 16 }}><Skeleton height={90} /></div>}
-      {failed && <p className="tile-err"><Icon name="info" size={14} />The effect could not load: {failed}</p>}
+      <CardFailure text={failed} prefix="The effect could not load: " />
       {result && !rows.length && <p className="empty">No measured effect for these filters.</p>}
       <div className="effect-cards">
         {rows.map((row, i) => {

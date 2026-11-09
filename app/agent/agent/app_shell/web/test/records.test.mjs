@@ -76,6 +76,8 @@ test('every helper the App exports has a caller in the App, and the check catche
     'a file that loads the helper later and reads it is its caller');
   assert.deepEqual(unusedExports({ ...twin, 'c.js': "export const one = () => import('./a.js');\nconst again = one;\n" }), ['a.js: pick'],
     'a later load that never reads the helper is not a caller');
+  assert.deepEqual(unusedExports({ ...twin, 'c.js': "import { lazy } from 'react';\nconst Picked = lazy(() => import('./b.js').then((m) => ({ default: m.pick })));\nexport const one = () => Picked;\nconst again = one;\n" }),
+    ['a.js: pick'], 'a rendered lazy import of another file is not a caller');
 });
 
 const F = (name, kind, extra = {}) => ({ name, kind, type: 'STRING', role: 'business', editable: true, ...extra });

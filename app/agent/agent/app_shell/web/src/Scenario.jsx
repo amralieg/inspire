@@ -91,7 +91,7 @@ function SaveScenario({ page, app, result, onSaved }) {
   );
 }
 
-export default function ScenarioPanel({ page, app, ready, order, onSaved }) {
+export default function ScenarioPanel({ page, app, ready, order, onSaved, saver = null }) {
   const scenario = page.scenario;
   const outcome = scenario.outcome || {};
   const [values, setValues] = useState({});
@@ -142,7 +142,7 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved }) {
             })}
           </div>
         )}
-        {result && <SaveScenario page={page} app={app} result={result} onSaved={onSaved} />}
+        {result && (saver ? saver(result) : <SaveScenario page={page} app={app} result={result} onSaved={onSaved} />)}
       </section>
     ),
     scenario: (section) => (

@@ -1,7 +1,9 @@
 import { change, changeParts, changeText, formatValue, storyPieces, wholeFormat } from './format.js';
 import { HUES } from './theme.js';
 import { Icon } from './icons.jsx';
-import { Skeleton, PlainNote, useRetry } from './ui.jsx';
+import { Skeleton, useRetry } from './ui.jsx';
+import { CardFailure, useSharedFailure } from './PageFailure.jsx';
+import { sharedBy } from './failures.js';
 import { useFx } from './Fx.jsx';
 import { Block } from './Blocks.jsx';
 import { withBlocks } from './blocks.js';
@@ -43,6 +45,7 @@ function Delta({ kpi, data, scope }) {
 export default function Kpis({ page, data, errors, loading, plan, scope }) {
   const retry = useRetry();
   const fold = useFold('kpis');
+  const shared = useSharedFailure();
   const hues = kpiHues(page.hue, page.kpis.length);
   const entries = withBlocks(page.kpis, plan);
   const index = new Map(page.kpis.map((kpi, i) => [kpi.id, i]));
@@ -59,13 +62,13 @@ export default function Kpis({ page, data, errors, loading, plan, scope }) {
         return (
           <div key={kpi.id} className="kpi" style={{ '--k-line': `var(--${hues[i]}-line)`, '--k-bg': `var(--${hues[i]}-bg)`, '--k-tile': `var(--${hues[i]}-tile)`, '--k-ink': `var(--${hues[i]}-ink)` }}>
             <div className="kpi-l">{kpi.label}</div>
-            {loading ? <Skeleton height={30} width="60%" /> : error ? <PlainNote text={error} icon={<Icon name="info" size={12} />} className="tile-err" onRetry={retry} /> : (
+            {loading ? <Skeleton height={30} width="60%" /> : error ? <CardFailure text={error} size={12} onRetry={retry} /> : (
               <>
                 <div className="kpi-v">{kpiValue(kpi, data?.[kpi.id])}</div>
                 <Delta kpi={kpi} data={data?.[kpi.id]} scope={scope} />
               </>
             )}
-            {!loading && <AskGenie kind="kpi" title={kpi.label} context={kpiContext(kpi, data?.[kpi.id], error, scope)} />}
+            {!loading && !sharedBy(shared, error) && <AskGenie kind="kpi" title={kpi.label} context={kpiContext(kpi, data?.[kpi.id], error, scope)} />}
           </div>
         );
       })}
