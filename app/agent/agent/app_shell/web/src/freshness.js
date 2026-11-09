@@ -240,3 +240,5 @@ export function backendNotes(backend, data) {
   if (data?.catching_up) out.push('Showing your latest changes from Delta tables until Lakebase syncs them, usually within a few minutes');
   return out;
 }
+
+//END

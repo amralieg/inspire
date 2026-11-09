@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { failureOf, getSettings, previewSetting, runSettingsNow, saveSetting, toneOf } from './api.js';
+import { failureOf, getSettings, previewSetting, saveSetting } from './api.js';
 import { dayLabel } from './format.js';
 import { Icon } from './icons.jsx';
 import { Failure, useToast, PlainNote } from './ui.jsx';
@@ -20,7 +20,6 @@ export function useSettings(pageId, nonce = 0) {
   return [data, setData];
 }
 
-const RUN_NOW = 'run-now';
 
 function Choice({ setting, text, onText }) {
   if (!setting.many) {
@@ -99,9 +98,10 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
   );
 }
 
-export default function SettingsPanel({ pageId, data, onData, onChanged, onRunStarted, onClose, children, footer = null }) {
+export default function SettingsPanel({ pageId, data, onData, onChanged, onRun, running, onClose, children, footer = null }) {
   const [editing, setEditing] = useState('');
   const toast = useToast();
+  const writing = useWrite().busy;
   const owned = ownerSettings(data);
   const saved = (next, value) => {
     const setting = data.settings.find((s) => s.name === editing);
@@ -110,24 +110,13 @@ export default function SettingsPanel({ pageId, data, onData, onChanged, onRunSt
     toast(savedText(setting, value));
     onChanged?.();
   };
-  const run = async () => {
-    await runWrite(RUN_NOW, async () => {
-      try {
-        const started = await runSettingsNow(pageId);
-        toast(`The run is ${started.state || 'starting'}; the page shows its progress at the top.`);
-        onRunStarted?.();
-      } catch (err) {
-        toast(err.message, toneOf(err));
-      }
-    });
-  };
   const lines = owned ? historyLines(data.history, data.settings) : [];
   const last = Object.fromEntries([...(data?.history || [])].reverse().map((h) => [h.name, h]));
   return (
     <section className="money settings" aria-label="Settings" data-settings>
       <div className="set-head">
         <h2>Settings</h2>
-        {owned && data.can_run && <SaveButton write={RUN_NOW} onClick={run} data-run-now><Icon name="trend" size={14} />Run now</SaveButton>}
+        {owned && data.can_run && onRun && <button type="button" className="btn" onClick={() => onRun()} disabled={running || writing} aria-busy={running} data-run-now><Icon name="trend" size={14} />{running ? 'Starting…' : 'Run now'}</button>}
         {onClose && <button type="button" className="btn" onClick={onClose} aria-label="Close the settings"><Icon name="x" size={14} /></button>}
       </div>
       <MyViewGroup />

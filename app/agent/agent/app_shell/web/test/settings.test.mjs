@@ -70,7 +70,7 @@ function routes(seen) {
         history: [{ name: body.name, value: Number(body.value), changed_by: OWNER, changed_at: '2026-10-30T09:00:00Z', note: body.note }] };
       return json(200, state.view);
     },
-    'settings/run': ({ route, json }) => { (seen.runs ||= []).push(route.request().postDataJSON()); return json(200, { run_id: '9000', state: 'queued' }); },
+    refresh: ({ route, json }) => { (seen.runs ||= []).push(route.request().postDataJSON()); return json(200, { run_id: '9000', state: 'queued' }); },
   };
 }
 
@@ -103,7 +103,7 @@ test('an owner changes a cutoff with a live preview and a note, and starts a run
   assert.equal(seen.saves[1].value, '0.1', 'a percent typed as 10 is saved as the share 0.1');
   await page.click('[data-run-now]');
   await toastSays(page, 'The run is queued; the page shows its progress at the top.');
-  assert.deepEqual(seen.runs, [{ page: 'n01_u05' }]);
+  assert.deepEqual(seen.runs, [{ page: 'n01_u05' }], 'Run now in Settings sends the same refresh as Run now in Runs and the top bar');
   assert.deepEqual(app.errors, []);
   await context.close();
 });

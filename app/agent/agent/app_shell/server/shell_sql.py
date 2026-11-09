@@ -418,7 +418,12 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
         "exclude_keys": 50, "window_limit": 1000, "due_within_days": 31, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_deepest": 10000,
         "my_work_days": 366, "my_work_overdue": 20, "my_work_weeks": 53, "scenario_rows": 200, "feedback_chars": 2000, "feedback_filters": 1000,
-        "feedback_rows": 50, "feedback_per_hour": 10}
+        "feedback_rows": 50, "feedback_per_hour": 10, "trend_runs": 20, "trend_weeks": 12, "trend_reasons": 8}
+TREND_COLUMNS = (("k", "STRING"), ("at", "TIMESTAMP"), ("n", "BIGINT"), ("m", "BIGINT"), ("overdue", "BIGINT"), ("unowned", "BIGINT"),
+                 ("fresh", "BIGINT"), ("month", "BIGINT"), ("older", "BIGINT"), ("money", "DOUBLE"), ("secs", "DOUBLE"))
+AGE_DAYS = (7, 30)
+DAY_US = 86400 * 1000000
+FOCUSES = ("overdue", "unassigned", "older")
 MY_WORK_DEFAULT = "week"
 MY_WORK_CUSTOM = "custom"
 MY_WORK_MINUTES = "minutes_per_record"
@@ -426,6 +431,12 @@ MY_WORK_COLUMNS = (("k", "STRING"), ("label", "STRING"), ("what", "STRING"), ("s
                    ("at", "TIMESTAMP"), ("n", "BIGINT"), ("m", "BIGINT"), ("r", "BIGINT"), ("noted", "BIGINT"), ("hours", "BIGINT"),
                    ("money", "DOUBLE"), ("reported", "DOUBLE"), ("before", "DOUBLE"), ("secs", "DOUBLE"))
 MY_WORK_CLOSES = tuple((status, {"done": "fixed"}.get(shell_facts.STATUS_KINDS[status], shell_facts.STATUS_KINDS[status])) for status in CLOSED_STATUSES)
+
+
+def page_statuses(page) -> dict:
+    return {"all": ACTION_STATUSES, "open": OPEN_STATUSES, "closed": CLOSED_STATUSES, "dismissed": DISMISSED, "unset": OPEN_STATUSES[0]}
+
+
 ALERT_OPERATORS = {">=": "GREATER_THAN_OR_EQUAL", ">": "GREATER_THAN", "=": "EQUAL", "!=": "NOT_EQUAL", "<": "LESS_THAN",
                    "<=": "LESS_THAN_OR_EQUAL"}
 ALERT_BASES = ("fixed", "baseline")
@@ -2858,7 +2869,33 @@ def list_request(page: dict, data: dict, context: dict, now: datetime.datetime =
     allowed = list_columns(page) + (list(ACTION_SORTS) if context["actions"] else [])
     ranked = bool(window) and not sort
     return dict(_list_request(page, data, context, allowed), window=window, ranked=ranked, exclude=list(dict.fromkeys(exclude)),
-                unowned=unowned, due_within=within)
+                unowned=unowned, due_within=within, focus=focus_request(data, context, now or datetime.datetime.now(datetime.timezone.utc)))
+
+
+def focus_request(data: dict, context: dict, now: datetime.datetime):
+    focus = data.get("focus")
+    if focus in (None, ""):
+        return None
+    if focus not in FOCUSES:
+        raise ValueError(f"focus takes one of {', '.join(FOCUSES)}")
+    if not context["actions"]:
+        raise ValueError("this decision list keeps no actions, so it cannot show overdue, unassigned or older records")
+    before = utc_micros(now) - DAY_US * (AGE_DAYS[1] + 1)
+    return {"focus": focus, "today": now.date().isoformat(), "before_us": before}
+
+
+def focus_conditions(page: dict, focus: dict, context: dict, params) -> list:
+    statuses = page_statuses(page)
+    opened = ", ".join(params.add(s) for s in statuses["open"])
+    out = [f"COALESCE(c.`_inspire_status`, {params.add(statuses['unset'])}) IN ({opened})"]
+    if focus["focus"] == "overdue":
+        out.append(f"c.`_inspire_due` < {params.add(focus['today'], 'DATE')}")
+    elif focus["focus"] == "unassigned":
+        out.append("NULLIF(TRIM(c.`_inspire_owner`), '') IS NULL")
+    else:
+        first = f"(SELECT MIN(t.`valid_from`) FROM {context['table']} AS t WHERE t.`record_key` = c.`_inspire_key`)"
+        out.append(f"unix_micros(COALESCE(c.`_inspire_joined`, {first})) < {params.add(str(focus['before_us']), 'BIGINT')}")
+    return out
 
 
 def _list_request(page: dict, data: dict, context: dict, allowed: list) -> dict:
@@ -3861,6 +3898,10 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
     if window:
         today = params.add(window["today"], "DATE")
         conditions += window_conditions(window, params, context["held"], today)
+    focus = request.get("focus")
+    if focus:
+        early.add("c")
+        conditions += focus_conditions(page, focus, context, params)
     if request.get("exclude"):
         conditions.append(f"COALESCE(c.`_inspire_key`, '') NOT IN (SELECT explode(from_json("
                           f"{params.add(json.dumps(request['exclude'], ensure_ascii=False))}, 'ARRAY<STRING>')))")
@@ -3896,7 +3937,7 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
     if context["join"]:
         held = context.get("floor")
         ctes["c"] = _current_cte(dict(context, floor=held if held and (held["on"] == "c" or "c" not in early) else None),
-                                 _window_extra(context) if window else ())
+                                 _window_extra(context) if window or focus else ())
     picked, joins = ["d.*"], ""
     if "c" in early:
         join, columns = _current_join(context, "d")
@@ -3927,7 +3968,7 @@ def counted_total(row) -> tuple:
 def unfiltered(values: dict, request: dict) -> bool:
     return (not any(v not in (None, "", [], {}) for v in (values or {}).values()) and not request["search"] and not request["mine"]
             and not request.get("unowned") and request.get("due_within") is None and not request["changed"] and not request["ai"] and not request["columns"] and not request.get("window")
-            and not request.get("exclude") and request.get("choice") is None)
+            and not request.get("exclude") and request.get("choice") is None and not request.get("focus"))
 
 
 def facts_total_query(facts: dict, table: str, names: set) -> tuple:
@@ -3947,7 +3988,7 @@ def list_floor(page: dict, request: dict, context: dict, facts, model, filtered:
     scaled = live and ready and money_scale(model) is not None
     if live and by_money and not scaled:
         selective = (request["mine"] or request.get("unowned") or request["changed"] or request["ai"] or request.get("ranked") or request.get("choice") is not None
-                     or MONEY_COLUMN in (request.get("columns") or {}))
+                     or request.get("focus") or MONEY_COLUMN in (request.get("columns") or {}))
         if selective or context["join"] != "record_key":
             return None
         depth = shell_facts.floor_depth(shell_facts.FLOOR_DEPTHS, int(request["offset"]) + int(request["limit"]), filtered)
@@ -4929,6 +4970,85 @@ def my_work_query(page: dict, names: set, person: str, bounds: dict, rows: int, 
         due = {"k": "`record_key`", "label": "`_w_label`", "at": "CAST(`_w_due` AS TIMESTAMP)", "n": "`_w_n`"}
         branches.append(f"{_overview_select('overdue', due, MY_WORK_COLUMNS)} FROM wo")
     return f"{_with(ctes, MY_WORK_ORDER)} {' UNION ALL '.join(branches)}", params.items
+
+
+TRENDS_ORDER = ("kv", "kc", "ko", "ks", "kl", "ka", "kw", "kx", "kr", "kp", "kn", "kf", "kq")
+WEEK_US = 7 * DAY_US
+
+
+def utc_micros(at: datetime.datetime) -> int:
+    stamped = at if at.tzinfo else at.replace(tzinfo=datetime.timezone.utc)
+    return int(stamped.timestamp() * 1000000)
+
+
+def trends_query(page: dict, names: set, now: datetime.datetime, since: datetime.date, history=None, model=None, category=None) -> tuple:
+    params, table = _Params(), table_name(page["result_table"])
+    scope = use_case_scope(page, params)
+    statuses = page_statuses(page)
+    listed = lambda values: ", ".join(params.add(str(v)) for v in values)
+    opened, closed = listed(statuses["open"]), listed(statuses["closed"])
+    raw = "CAST(`action_status` AS STRING)"
+    status = f"COALESCE({raw}, {params.add(statuses['unset'])})"
+    text = lambda name: f"CAST({quote(name)} AS STRING)" if name in names else "CAST(NULL AS STRING)"
+    money = money_sql(model) if MONEY_COLUMN in names else "CAST(NULL AS DOUBLE)"
+    reason = text(category) if category else "CAST(NULL AS STRING)"
+    joined = f"CAST({quote(JOINED_COLUMN)} AS TIMESTAMP)" if JOINED_COLUMN in names else "CAST(NULL AS TIMESTAMP)"
+    due = "CAST(`action_due` AS DATE)" if "action_due" in names else "CAST(NULL AS DATE)"
+    today, now_us = params.add(now.date().isoformat(), "DATE"), params.add(str(utc_micros(now)), "BIGINT")
+    since_us = params.add(str(utc_micros(datetime.datetime.combine(since, datetime.time()))), "BIGINT")
+    ctes = {"kv": (f"SELECT `record_key`, `run_id`, `valid_from`, `valid_to`, `is_current`, `change_source`, {raw} AS `_t_raw`, "
+                   f"{status} AS `_t_status`, LAG({raw}) OVER (PARTITION BY `record_key` ORDER BY `valid_from`) AS `_t_was`, "
+                   f"{text('action_owner')} AS `_t_owner`, {due} AS `_t_due`, {money} AS `_t_money`, {reason} AS `_t_reason`, "
+                   f"{joined} AS `_t_joined`, MIN(`valid_from`) OVER (PARTITION BY `record_key`) AS `_t_first`, "
+                   f"ROW_NUMBER() OVER (PARTITION BY `record_key` ORDER BY `valid_from` DESC) AS `_t_nth` FROM {table}"
+                   f"{' WHERE ' + scope if scope else ''}"),
+            "kc": "SELECT * FROM kv WHERE `is_current` AND `change_source` <> 'delete'",
+            "ko": f"SELECT * FROM kc WHERE `_t_status` IN ({opened})"}
+    age = f"({now_us} - unix_micros(COALESCE(`_t_joined`, `_t_first`)))"
+    fresh, month = DAY_US * (AGE_DAYS[0] + 1), DAY_US * (AGE_DAYS[1] + 1)
+    open_cells = {"n": "COUNT(*)", "overdue": _count(f"`_t_due` < {today}"), "unowned": _count("NULLIF(TRIM(`_t_owner`), '') IS NULL"),
+                  "fresh": _count(f"{age} < {fresh}"), "month": _count(f"{age} >= {fresh} AND {age} < {month}"),
+                  "older": _count(f"{age} >= {month}"), "money": "SUM(`_t_money`)"}
+    branches = [f"{_overview_select('open', open_cells, TREND_COLUMNS)} FROM ko"]
+    gone = f"`_t_raw` = {params.add(statuses['dismissed'])}"
+    ctes["kl"] = f"SELECT * FROM kv WHERE `_t_nth` = 1 AND `change_source` <> 'delete' AND `_t_raw` IN ({closed})"
+    branches.append(f"{_overview_select('alarms', {'n': 'COUNT(*)', 'm': _count(gone)}, TREND_COLUMNS)} FROM kl")
+    if category:
+        label = f"COALESCE(`_t_reason`, {sql_text(AI_UNEXPLAINED)})"
+        ctes["ka"] = (f"SELECT `_t_k`, COUNT(*) AS `_t_n`, {_count(gone)} AS `_t_m` FROM (SELECT {label} AS `_t_k`, `_t_raw` FROM kl) AS a "
+                      f"GROUP BY `_t_k` ORDER BY `_t_n` DESC, `_t_k` ASC LIMIT {CAPS['trend_reasons']}")
+        branches.append(f"{_overview_select('alarm', {'k': '`_t_k`', 'n': '`_t_n`', 'm': '`_t_m`'}, TREND_COLUMNS)} FROM ka")
+    week = lambda stamp: f"CAST((unix_micros({stamp}) - {since_us}) / {WEEK_US} AS BIGINT)"
+    ctes["kw"] = (f"SELECT `_t_w`, COUNT(*) AS `_t_n` FROM (SELECT {week('`_t_first`')} AS `_t_w` FROM kv WHERE `_t_nth` = 1 AND "
+                  f"unix_micros(`_t_first`) >= {since_us}) AS w GROUP BY `_t_w`")
+    shut = shell_facts.close_event("`_t_raw`", "`_t_was`", closed)
+    ctes["kx"] = (f"SELECT `_t_w`, COUNT(DISTINCT `record_key`) AS `_t_n` FROM (SELECT {week('`valid_from`')} AS `_t_w`, `record_key` FROM kv "
+                  f"WHERE {shut} AND unix_micros(`valid_from`) >= {since_us}) AS x GROUP BY `_t_w`")
+    branches += [f"{_overview_select(kind, {'k': 'CAST(`_t_w` AS STRING)', 'n': '`_t_n`'}, TREND_COLUMNS)} FROM {cte}"
+                 for kind, cte in (("in", "kw"), ("out", "kx"))]
+    if history:
+        source, ran, only = history["log"], "`ran_at`", f" WHERE {scope}" if scope else ""
+    else:
+        source, ran, only = table, "`valid_from`", f" WHERE {scope + ' AND ' if scope else ''}`change_source` = 'run'"
+    ctes["kr"] = (f"SELECT CAST(`run_id` AS STRING) AS `_t_run`, MAX({ran}) AS `_t_at` FROM {source}{only} GROUP BY CAST(`run_id` AS STRING) "
+                  f"ORDER BY `_t_at` DESC LIMIT {CAPS['trend_runs']}")
+    ctes["kp"] = (f"SELECT r.`_t_run`, r.`_t_at`, COUNT(v.`record_key`) AS `_t_n` FROM kr AS r LEFT JOIN kv AS v ON v.`valid_from` <= r.`_t_at` "
+                  f"AND (v.`valid_to` IS NULL OR v.`valid_to` > r.`_t_at`) AND v.`change_source` <> 'delete' AND v.`_t_status` IN ({opened}) "
+                  f"GROUP BY r.`_t_run`, r.`_t_at`")
+    ctes["kn"] = ("SELECT CAST(`run_id` AS STRING) AS `_t_run`, COUNT(*) AS `_t_n` FROM kv WHERE `valid_from` = `_t_first` AND "
+                  "`change_source` = 'run' GROUP BY CAST(`run_id` AS STRING)")
+    branches.append(f"{_overview_select('run', {'k': 'p.`_t_run`', 'at': 'p.`_t_at`', 'n': 'p.`_t_n`', 'm': 'COALESCE(n.`_t_n`, 0)'}, TREND_COLUMNS)} "
+                    f"FROM kp AS p LEFT JOIN kn AS n ON n.`_t_run` = p.`_t_run`")
+    still = f"CASE WHEN `is_current` AND `change_source` <> 'delete' AND `_t_status` IN ({opened}) THEN 1 ELSE 0 END"
+    ctes["kf"] = (f"SELECT `record_key`, MIN(`_t_first`) AS `_t_first`, MIN(CASE WHEN `change_source` = 'action' THEN `valid_from` END) AS "
+                  f"`_t_act`, MAX({still}) AS `_t_open` FROM kv WHERE unix_micros(`_t_first`) >= {since_us} GROUP BY `record_key`")
+    secs = "(unix_micros(`_t_act`) - unix_micros(`_t_first`)) / 1000000.0"
+    ctes["kq"] = (f"SELECT `_t_s`, ROW_NUMBER() OVER (ORDER BY `_t_s`) AS `_t_i`, COUNT(*) OVER () AS `_t_c` FROM (SELECT {secs} AS `_t_s` "
+                  f"FROM kf WHERE `_t_act` IS NOT NULL) AS q")
+    branches += [f"{_overview_select('first', {'n': 'MAX(`_t_c`)', 'secs': 'AVG(`_t_s`)'}, TREND_COLUMNS)} FROM kq WHERE `_t_i` * 2 >= `_t_c` "
+                 f"AND `_t_i` * 2 <= `_t_c` + 2",
+                 f"{_overview_select('wait', {'n': _count('`_t_act` IS NULL AND `_t_open` = 1')}, TREND_COLUMNS)} FROM kf"]
+    return f"{_with(ctes, TRENDS_ORDER)} {' UNION ALL '.join(branches)}", params.items
 
 
 def sql_text(value) -> str:

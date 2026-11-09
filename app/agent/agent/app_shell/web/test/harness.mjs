@@ -257,6 +257,7 @@ export const workEntry = (over = {}) => ({
 export const myWorkOf = (pageId, over = {}, activity = []) => ({ ...NO_MY_WORK, person: PERSON, pages: { [pageId]: workEntry(over) }, activity, total: activity.length });
 export const isInboxAsk = (body) => !!body && (body.changed === true || ((body.mine === true || body.unowned === true) && body.window === 'all' && body.limit === INBOX_ROWS && !body.offset));
 export const NO_RUNS = { runs: [], total: 0, offset: 0, limit: 20, job: null, errors: {} };
+export const NO_TRENDS = { visible: true, tracked: true, actions: false, note: 'this use case keeps no actions, so it has no work of yours to show' };
 export const NO_MONEY = { model: null, history: [], editable: false, why: 'this page puts no amount at stake on its records' };
 export const NO_SETTINGS = { settings: [], history: [], editable: false, why: 'Only the owners of this use case can change its settings', can_run: false };
 export const NO_IMPACT = { visible: true, tracked: false, empty: true, note: 'no run of this use case has written its results yet', promised: null };
@@ -342,6 +343,7 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
     if (path === 'overview') return json(200, NO_HUB);
     if (path === 'summary') return json(200, NO_SUMMARY);
     if (path === 'runs') return json(200, NO_RUNS);
+    if (path === 'trends') return json(200, NO_TRENDS);
     if (path === 'money') return json(200, NO_MONEY);
     if (path === 'settings') return json(200, NO_SETTINGS);
     if (path === 'impact') return json(200, NO_IMPACT);

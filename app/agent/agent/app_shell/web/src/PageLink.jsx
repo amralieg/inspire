@@ -17,7 +17,7 @@ export function usePageAddress({ page, meta, state, onState, view, onView, views
     const route = parseHash(window.location.hash).route;
     if (route !== page.id && route !== openedAt.current) return;
     const link = parseHash(window.location.hash);
-    const next = buildHash(page.id, link.section || view, state, meta.filters, link.rec, meta.columns, link.tab);
+    const next = buildHash(page.id, link.section || view, state, meta.filters, link.rec, meta.columns, link.tab, link.focus);
     if (next !== window.location.hash) window.history.replaceState(window.history.state, '', next);
   };
   useEffect(() => {

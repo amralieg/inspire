@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getFreshness, refreshPage, toneOf } from './api.js';
+import { getFreshness, getImpact, getRuns, getTrends, refreshPage, toneOf } from './api.js';
 import { Icon } from './icons.jsx';
 import { useToast, PlainNote } from './ui.jsx';
 import { runWrite, useWrite } from './saving.jsx';
@@ -30,6 +30,8 @@ export function RunBar({ active, label }) {
     </span>
   );
 }
+
+export const startedText = (run) => `The run is ${run.state || 'starting'}; the page shows its progress at the top.`;
 
 export function useFreshness({ page, onRefreshed, onRun, onSeeChanged, showThrough = true }) {
   const toast = useToast();
@@ -80,11 +82,11 @@ export function useFreshness({ page, onRefreshed, onRun, onSeeChanged, showThrou
     onRefreshed?.();
   }, [fresh]);
 
-  const ask = () => runWrite('refresh', () => {
+  const ask = (said = startedText) => runWrite('refresh', () => {
     setAsking(true);
     return refreshPage(page.id)
-      .then((run) => { watched.current = run.run_id; })
-      .catch((error) => toast(error.message, toneOf(error)))
+      .then((run) => { watched.current = run.run_id; toast(said(run)); return run; })
+      .catch((error) => { toast(error.message, toneOf(error)); return null; })
       .finally(() => load().finally(() => setAsking(false)));
   });
 
@@ -112,7 +114,7 @@ export function FreshBar({ freshness, children }) {
         )}
       </span>
       {children}
-      <button className="btn fresh-btn top-ic2" onClick={ask} disabled={busy || writing || !fresh.can_refresh} title="Run this use case again on all its data"
+      <button className="btn fresh-btn top-ic2" onClick={() => ask()} disabled={busy || writing || !fresh.can_refresh} title="Run this use case again on all its data"
         aria-label="Refresh now" aria-describedby={busy || reason ? why : undefined}>
         <Icon name="undo" size={15} /><span>Refresh now</span>
       </button>
@@ -144,4 +146,48 @@ export function FreshDetail({ freshness }) {
       )}
     </div>
   );
+}
+
+export function useRuns(pageId, offset, nonce, on = true) {
+  const [out, setOut] = useState({ data: null, error: '', busy: on });
+  const seq = useRef(0);
+  useEffect(() => {
+    const mine = ++seq.current;
+    if (!on) {
+      setOut({ data: null, error: '', busy: false });
+      return;
+    }
+    setOut((o) => ({ ...o, busy: true }));
+    getRuns(pageId, offset)
+      .then((data) => { if (mine === seq.current) setOut({ data, error: '', busy: false }); })
+      .catch((e) => { if (mine === seq.current) setOut({ data: null, error: e.message, busy: false }); });
+  }, [pageId, offset, nonce, on]);
+  return out;
+}
+
+export function runCounts(data) {
+  if (!data) return {};
+  return { runs: data.total, latest: data.offset === 0 ? (data.runs || [])[0] || null : null };
+}
+
+export function useTrends(pageId, nonce, on) {
+  const [out, setOut] = useState({ data: null, impact: null, error: '' });
+  const seq = useRef(0);
+  useEffect(() => {
+    const mine = ++seq.current;
+    if (!on) {
+      setOut({ data: null, impact: null, error: '' });
+      return;
+    }
+    getTrends(pageId)
+      .then((data) => {
+        if (mine !== seq.current) return;
+        setOut({ data, impact: null, error: '' });
+        if (data?.actions && data.holds) {
+          getImpact(pageId).then((impact) => { if (mine === seq.current) setOut((o) => ({ ...o, impact })); }).catch(() => {});
+        }
+      })
+      .catch((e) => { if (mine === seq.current) setOut({ data: null, impact: null, error: e.message }); });
+  }, [pageId, nonce, on]);
+  return out;
 }

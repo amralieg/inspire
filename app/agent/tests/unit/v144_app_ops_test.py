@@ -614,7 +614,7 @@ def test_run_health_lists_the_job_runs_with_the_stats_of_the_run_versions_they_w
     assert (rows[0]["error_code"], rows[1]["error_code"], rows[2]["error_code"]) == ("missing_table", "", ""), \
         "only a failed run says what kind of failure it was"
     assert rows[5]["job_run_id"] is None and rows[5]["status"] == "done", "a run older than the listed job runs still shows"
-    assert out == {"runs": rows, "total": 7, "offset": 0, "limit": 20, "job": {"id": JOB, "url": JOB_URL, "error": ""}, "errors": {}}
+    assert out == {"runs": rows, "total": 7, "offset": 0, "limit": 20, "job": {"id": JOB, "url": JOB_URL, "error": ""}, "errors": {}, "can_run": True}
     assert set(rows[0]) == {"run_id", "job_run_id", "url", "started", "ended", "duration_s", "status", "trigger", "by", "segments", "tables",
                             "stages", "grouping", "records", "to_fix", "could_save", "currency", "unit", "impact_kind", "summary",
                             "nothing_to_act", "error", "error_code", "scope", "scope_text", "facts"}

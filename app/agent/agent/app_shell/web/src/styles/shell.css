@@ -74,6 +74,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .ph-tools{flex:none;display:flex;align-items:center;gap:8px;flex-wrap:wrap}
 .ph-sec{margin:4px 0 0;font-size:13px;font-weight:700;letter-spacing:.08em;text-transform:uppercase;color:var(--hue-ink,var(--muted))}
 .work-tabs{display:flex;gap:2px;margin:14px 0 0;border-bottom:1px solid var(--line);overflow-x:auto;scrollbar-width:none}
+.work-focus{display:flex;align-items:center;flex-wrap:wrap;gap:10px;margin:12px 0 0;font-size:13px;color:var(--ink)}
+.trends{display:grid;gap:14px;margin:14px 0 0}
+.runs-now{display:flex;align-items:center;flex-wrap:wrap;gap:10px}
 .work-t{display:inline-flex;align-items:center;gap:7px;white-space:nowrap;padding:8px 12px;border:0;background:none;border-radius:8px 8px 0 0;color:var(--muted);font-weight:600;cursor:pointer}
 .work-t:hover{background:var(--well);color:var(--ink)}
 .work-t.is-on{color:var(--brand-ink);box-shadow:inset 0 -2px 0 var(--brand)}

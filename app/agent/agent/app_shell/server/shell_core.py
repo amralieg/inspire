@@ -84,7 +84,7 @@ RECORD_STAKE = "value_at_stake"
 NO_ACCESS = re.compile(r"INSUFFICIENT_PERMISSIONS|PERMISSION_DENIED|permission denied|TABLE_OR_VIEW_NOT_FOUND|answered HTTP 403", re.I)
 VERSION_US = re.compile(r"^\d{1,19}$")
 RECORD_KEY_CHARS = 512
-MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "time_zone", "exclude", "choice")
+MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "time_zone", "exclude", "choice", "focus")
 RANKED_SORT = "stake"
 BOUNDS_KEY = ("bounds", "dates")
 STALE_LIST, UNKNOWN_COPY, NO_MATCH, OVER_CAP, STALE_RECORD = "stale_list", "unknown_copy", "no_match", "over_cap", "stale_record"
@@ -148,6 +148,8 @@ USAGE_PARTS = {"changes": "The changes people made", "assumptions": "The assumpt
 IDENTITY_HEADERS = ("x-forwarded-email", "x-forwarded-preferred-username")
 OVERVIEW_LIMIT = shell_sql.CAPS["overview_rows"] + shell_sql.OVERVIEW_RUNS + OVERVIEW_WEEKS * 7 + 6 + shell_sql.CAPS["closers_today"]
 IMPACT_LIMIT = shell_sql.CAPS["impact_rows"] + shell_sql.IMPACT_REASONS + 20
+TREND_WEEKS = shell_sql.CAPS["trend_weeks"]
+TRENDS_LIMIT = shell_sql.CAPS["trend_runs"] + 2 * TREND_WEEKS + shell_sql.CAPS["trend_reasons"] + 4
 FACT_ROWS = 50
 MY_WORK_SIGN_IN = "sign in so the App can show the work you did"
 MY_WORK_NO_EXPORT = "the App offers no download of your work, so send no export"
@@ -1404,6 +1406,39 @@ def my_work_view(rows: list) -> dict:
                           "owner": r.get("owner"), "at": r.get("at")} for r in by.get("act", [])]}
 
 
+def share(part: int, whole: int):
+    return round(part / whole, 4) if whole else None
+
+
+def trends_view(rows: list, since: datetime.date, weeks: int) -> dict:
+    by = {}
+    for row in rows:
+        by.setdefault(row.get("kind"), []).append(row)
+    whole = lambda value: int(value or 0)
+    first = lambda kind: (by.get(kind) or [{}])[0]
+    weekly = lambda kind: {count_of(r.get("k")): whole(r.get("n")) for r in by.get(kind, []) if count_of(r.get("k")) is not None}
+    came, went = weekly("in"), weekly("out")
+    runs = sorted(({"run_id": r.get("k"), "at": r.get("at"), "open": whole(r.get("n")), "new": whole(r.get("m"))} for r in by.get("run", [])),
+                  key=lambda r: str(r["at"] or ""))
+    for before, run in zip([None] + runs[:-1], runs):
+        run["cleared"] = None if before is None else max(before["open"] + run["new"] - run["open"], 0)
+    opened, alarms, median = first("open"), first("alarms"), first("first")
+    secs = shell_sql.as_number(median.get("secs"))
+    return {"since": since.isoformat(),
+            "weeks": [{"week": (since + datetime.timedelta(weeks=i)).isoformat(), "new": came.get(i, 0), "cleared": went.get(i, 0)}
+                      for i in range(weeks)],
+            "backlog": runs,
+            "open": {"n": whole(opened.get("n")), "overdue": whole(opened.get("overdue")), "unassigned": whole(opened.get("unowned")),
+                     "ages": {"0-7": whole(opened.get("fresh")), "8-30": whole(opened.get("month")), "over_30": whole(opened.get("older"))},
+                     "money": shell_sql.as_number(opened.get("money"))},
+            "false_alarms": {"closed": whole(alarms.get("n")), "dismissed": whole(alarms.get("m")),
+                             "rate": share(whole(alarms.get("m")), whole(alarms.get("n"))),
+                             "reasons": [{"reason": r.get("k"), "closed": whole(r.get("n")), "dismissed": whole(r.get("m")),
+                                          "rate": share(whole(r.get("m")), whole(r.get("n")))} for r in by.get("alarm", [])]},
+            "first_action": {"n": whole(median.get("n")), "median_hours": None if secs is None else round(max(secs, 0) / 3600, 2),
+                             "waiting": whole(first("wait").get("n"))}}
+
+
 def usage_view(pages: list, rows: list, errors: dict, since: datetime.date) -> dict:
     by_page = {p["id"]: {"id": p["id"], "title": p.get("title") or p["id"], "counts": dict.fromkeys(USAGE_KINDS, 0), "people": set(),
                          "last": None, "errors": []} for p in pages}
@@ -1967,6 +2002,8 @@ class Shell:
                 return 200, self.run_now(headers, data)
             if route == ("GET", "impact"):
                 return 200, self.impact(headers, query.get("page"))
+            if route == ("GET", "trends"):
+                return 200, self.trends(headers, query.get("page"))
             if route == ("POST", "refresh"):
                 return 200, self.refresh(headers, data.get("page"))
             if route == ("GET", "alerts"):
@@ -2760,7 +2797,7 @@ class Shell:
         settings, history, _model, _names = self.settings_model(ws, who, page)
         why = "" if settings else NO_SETTINGS
         return {"settings": settings, "history": history, "editable": not why, "why": why,
-                "can_run": not why and bool(self.job_of(page)), "job": bool(self.job_of(page))}
+                "can_run": not why and self.may_run(headers, page), "job": bool(self.job_of(page))}
 
     def setting_change(self, headers: dict, data: dict) -> tuple:
         page = self.page(data.get("page"))
@@ -2991,6 +3028,25 @@ class Shell:
             raise
         self.forget()
         return self.money(headers, page["id"])
+
+    def trends(self, headers: dict, ident) -> dict:
+        page = self.page(ident)
+        ws, who = self.workspace(headers)
+        fields, untracked = self.tracked_fields(ws, who, page)
+        if untracked:
+            return untracked
+        if not self.keeps_actions(ws, who, page, fields):
+            return {"visible": True, "tracked": True, "actions": False, "note": NO_ACTIONS}
+        names = {f["name"] for f in fields}
+        now = self.now()
+        since = week_start(now.date()) - datetime.timedelta(weeks=TREND_WEEKS - 1)
+        model = self.money_model(ws, who, page, fields) if shell_sql.MONEY_COLUMN in names else None
+        category = next(iter(sorted(n for n in names if shell_sql.AI_CATEGORY.match(n))), None)
+        history = self.history_for(ws, who, page, fields)
+        result = self.run(ws, who, *shell_sql.trends_query(page, names, now, since, history, model, category), TRENDS_LIMIT)
+        return dict(trends_view(result["rows"], since, TREND_WEEKS), visible=True, tracked=True, actions=True,
+                    money=shell_sql.MONEY_COLUMN in names, reason=category, holds=all(n in names for n in shell_sql.HOLDOUT_TYPES),
+                    served=result.get("served"))
 
     def impact(self, headers: dict, ident, probe=None) -> dict:
         page = self.page(ident)
@@ -3986,6 +4042,9 @@ class Shell:
             self.cache.put(key, listed, JOB_TTL_S)
         return [job_run_view(r, self.job_url(job_id)) for r in listed["runs"]], listed["more"]
 
+    def may_run(self, headers: dict, page: dict) -> bool:
+        return bool(self.job_of(page)) and not self.inside and not self.requester(headers, page)[2]
+
     def requester(self, headers: dict, page: dict) -> tuple:
         names = [str(headers.get(h) or "").strip() for h in IDENTITY_HEADERS]
         person = next((n for n in names if n), "")
@@ -4022,7 +4081,8 @@ class Shell:
                 details = {str(r.get("run_id")): r for r in rows or []}
         return {"runs": [run_view(r, details.get(r.get("run_id")), page) for r in shown], "total": len(merged), "offset": at,
                 "limit": RUNS_PAGE, "job": {"id": job_id, "url": self.job_url(job_id), "error": errors.get("job", "")} if job_id else None,
-                "errors": {k: errors[k] for k in ("table", "summary", "details") if k in errors}}
+                "errors": {k: errors[k] for k in ("table", "summary", "details") if k in errors},
+                "can_run": self.may_run(headers, page)}
 
     def stage_marker_of(self, ws, who, page: dict):
         if not page.get("result_table"):

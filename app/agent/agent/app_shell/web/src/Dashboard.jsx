@@ -15,7 +15,7 @@ import { LayoutSections, TodoNow } from './Layouts.jsx';
 import { backendNotes } from './freshness.js';
 import { AskGenie } from './AskGenie.jsx';
 import {
-  NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason,
+  NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason, plural,
   reasonFilters, reliableText, savedTile, shortDay, totals, useCaseState, viewRows, viewWords,
 } from './hub.js';
 
@@ -63,12 +63,13 @@ function hubTiles(page, entry, summary, fix, user, stale, onFix) {
 function reasonBars(rows, page) {
   const by = new Map();
   rows.forEach((r) => {
-    const at = by.get(r.reason) || { key: r.reason, label: r.reason, hue: page.hue || 'blue', value: 0, currency: r.currency, kind: r.kind };
+    const at = by.get(r.reason) || { key: r.reason, label: r.reason, hue: page.hue || 'blue', value: 0, n: 0, currency: r.currency, kind: r.kind };
     at.value = addCounts([at.value, r.money]);
+    at.n += 1;
     by.set(r.reason, at);
   });
   return [...by.values()].sort((a, b) => largestFirst(a.value, b.value)).map((b) => ({
-    ...b, text: wholeMoney(b.value, b.currency, b.kind), formula: couldSaveFormula(rows.filter((r) => r.reason === b.key), ` the AI groups as ${b.label}`),
+    ...b, text: `${wholeMoney(b.value, b.currency, b.kind)} on ${plural(b.n, 'record')}`, formula: couldSaveFormula(rows.filter((r) => r.reason === b.key), ` the AI groups as ${b.label}`),
   }));
 }
 
@@ -180,7 +181,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
 
 export default function Dashboard({ app, page, meta, state, onState, view, onView, hubPage, laidOut, work, hubEntry, live, summary, latestRun, onRuns, data, error,
   plan, topSlots, moreSlots, more, kpisCard, kpisOf, chartCards, hubCharts, tableCard, recordsCard, explain, genieBusy, nonce, onChanged, onAsk, genie, ready, filters,
-  onPick, onFix, onWork }) {
+  onPick, onFix, onWork, trends, onRun, running }) {
   return (
     <>
       {backendNotes(app.backend, data).map((n) => <p key={n} className="note" role="status" data-backend-note><Icon name="info" size={14} />{n}</p>)}
@@ -190,6 +191,7 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
         <HubBody app={app} page={page} entry={hubEntry} live={live} summary={summary} state={state} onState={onState} view={view} onView={onView} meta={meta}
           pageId={page.id} charts={hubCharts} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={onChanged} plan={plan} topSlots={topSlots} onFix={onFix} />
       )}
+      {trends}
       {!hubPage && slotsOf(plan, '@top').after.map((b) => <Block key={b.id} block={b} />)}
       {!hubPage && !meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
       {!hubPage && (
@@ -201,7 +203,8 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
       {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {laidOut && (
         <LayoutSections page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} onAsk={onAsk}
-          kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} onPick={onPick} genie={genie} />
+          kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} onPick={onPick} genie={genie}
+          onRun={onRun} running={running} />
       )}
       {!hubPage && !laidOut && <Placed slots={slotsOf(plan, 'kpis')}>{kpisCard}</Placed>}
       {!hubPage && !laidOut && <Placed slots={moreSlots}><section className="charts">{chartCards(page.charts.filter((c) => !c.driver))}</section></Placed>}

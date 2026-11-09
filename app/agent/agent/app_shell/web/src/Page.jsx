@@ -12,12 +12,10 @@ import { GenieMark, Icon } from './icons.jsx';
 import Kpis, { Story } from './Kpis.jsx';
 import ChartCard from './ChartCard.jsx';
 import Records from './Records.jsx';
-import Runs, { runCounts, useRuns } from './Runs.jsx';
-import Alerts from './Alerts.jsx';
 import { ReviewLink, hubExplain, reviewItem } from './Home.jsx';
 import { genieOn } from './genieAsk.js';
 import PageLink, { usePageAddress } from './PageLink.jsx';
-import { FreshBar, FreshDetail, useFreshness } from './Freshness.jsx';
+import { FreshBar, FreshDetail, runCounts, useFreshness, useRuns, useTrends } from './Freshness.jsx';
 import { backendText, lastRunText, latestRunText } from './freshness.js';
 import SettingsPanel, { SettingGroup, useSettings } from './Settings.jsx';
 import { paletteItems } from './Palette.jsx';
@@ -34,6 +32,10 @@ import { Skeleton } from './ui.jsx';
 
 const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
+const Runs = lazy(() => import('./Runs.jsx'));
+const Alerts = lazy(() => import('./Alerts.jsx'));
+const TrendCards = lazy(() => import('./Trends.jsx'));
+const Waiting = ({ height = 180 }) => <section className="card" role="status" aria-label="Loading"><Skeleton height={height} /></section>;
 
 export const SECTION_TITLES = { dashboard: 'Dashboard', work: 'Work', performance: 'Performance', runs: 'Runs', alerts: 'Alerts', settings: 'Settings' };
 
@@ -88,7 +90,7 @@ function radioKeys(e) {
 }
 
 export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie,
-  section = 'dashboard', tab = '', chrome, onCounts }) {
+  section = 'dashboard', tab = '', focus = '', chrome, onCounts }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
   const [queue, setQueue] = useState(null);
@@ -120,14 +122,17 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const [opened, setOpened] = useState(() => parseHash(window.location.hash).rec || '');
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
   const runsOn = sections.includes('runs');
-  const go = (to, { tab: nextTab = '', state: next = state, sort } = {}) => {
+  const go = (to, { tab: nextTab = '', state: next = state, sort, focus: only = '' } = {}) => {
     if (next !== state) onState(next);
     if (sort) onLook?.((l) => ({ ...l, sorts: { ...l.sorts, records: sort } }));
-    window.location.hash = buildHash(page.id, to, next, meta?.filters, null, meta?.columns, nextTab);
+    window.location.hash = buildHash(page.id, to, next, meta?.filters, null, meta?.columns, nextTab, only);
   };
   const showRuns = runsOn ? () => go('runs') : null;
   const seeWhatChanged = page.records ? () => { go(work ? 'work' : 'dashboard'); setSeeChanged((n) => n + 1); } : showRuns;
   const runs = useRuns(page.id, runOffset, `${nonce}:${runNonce}`, runsOn);
+  const trendsOn = listed && !!app.options?.decisions && pageDecides(page) && ['dashboard', 'runs'].includes(shown);
+  const trends = useTrends(page.id, `${nonce}:${runNonce}`, trendsOn);
+  const focused = tabbed ? focus : '';
   const counted = useRef({});
   if (runs.data?.offset === 0) counted.current = runCounts(runs.data);
   const runTotal = counted.current.runs;
@@ -153,7 +158,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     : null;
   const fix = work ? (opts) => {
     const next = fixThis(page, meta?.columns?.list, state, view, opts);
-    go('work', { tab: tabbed ? next.tab : '', state: next.state, sort: next.sort });
+    go('work', { tab: tabbed ? next.tab : '', state: next.state, sort: next.sort, focus: tabbed ? next.focus : '' });
   } : null;
   const trendChart = page.charts.find((c) => c.x?.kind === 'time') || page.charts[0];
   const onTop = hubPage && hubChartsOnTop(hubEntry, live, summary);
@@ -254,18 +259,31 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           hubEntry={hubEntry} live={live} summary={summary} latestRun={latestRun} onRuns={showRuns} data={data} error={error} plan={plan} topSlots={topSlots}
           moreSlots={moreSlots} more={more} kpisCard={kpisOf(page.kpis)} kpisOf={kpisOf} chartCards={chartCards} hubCharts={hubCharts} tableCard={tableCard}
           recordsCard={laidOut ? records() : null} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}
-          genie={genie} ready={ready} filters={filters} onPick={pick} onFix={fix} onWork={() => go('work')} />
+          genie={genie} ready={ready} filters={filters} onPick={pick} onFix={fix} onWork={() => go('work')} onRun={freshness.ask} running={freshness.busy}
+          trends={hubPage && trendsOn ? (
+            <Suspense fallback={<Waiting />}>
+              <TrendCards trends={trends.data} impact={trends.impact} error={trends.error} latest={counted.current.latest} page={page} app={app} themeKey={themeKey}
+                onFix={tabbed ? fix : null} onRuns={showRuns} onFeedback={() => go('settings')}
+                onExplain={explain} genieBusy={genieBusy} />
+            </Suspense>
+          ) : null} />
       )}
       {shown === 'work' && (
         <WorkPage meta={meta} state={state} onState={onState} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
-          counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id })}>
-          {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, docked: true, section: 'records' })}
+          counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
+          {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, docked: true, section: 'records' })}
         </WorkPage>
       )}
-      {shown === 'runs' && <Runs page={page} runs={runs} offset={runOffset} onOffset={setRunOffset} onExplain={hubExplain(app, onExplain, page.id)} genieBusy={genieBusy} />}
-      {shown === 'alerts' && <Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} />}
+      {shown === 'runs' && (
+        <Suspense fallback={<Waiting />}>
+          <Runs page={page} runs={runs} offset={runOffset} onOffset={setRunOffset} onExplain={hubExplain(app, onExplain, page.id)} genieBusy={genieBusy}
+            trends={trends.data} themeKey={themeKey} app={app} onRun={freshness.ask} running={freshness.busy} />
+          {app.alerting?.on && <Alerts app={app} page={page} meta={meta} compose={false} onComposed={composed} />}
+        </Suspense>
+      )}
+      {shown === 'alerts' && <Suspense fallback={<Waiting />}><Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} /></Suspense>}
       {shown === 'settings' && (
-        <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRunStarted={() => freshness.load()}
+        <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRun={freshness.ask} running={freshness.busy}
           footer={reporting && (
             <SettingGroup id="feedback" title="App Feedback" why="Tell the owners of this use case what is wrong or what you would change. They see it on its Build page in Inspire.">
               <Suspense fallback={<Skeleton height={120} />}>

@@ -117,7 +117,7 @@ test('accepting and overriding a plan line go through plan/decide, and an overri
   await context.close();
 });
 
-test('the planner opens with What to do now, draws the plan, its limits and what moves the result, and re-solves through settings/run', async () => {
+test('the planner opens with What to do now, draws the plan, its limits and what moves the result, and re-solves through the shared refresh', async () => {
   const info = appInfo(DECIDE, 1, {}, 'examples/planner.json');
   const layout = KINDS.layouts.find((l) => l.id === 'planner');
   assert.equal(layout.enabled, true);
@@ -146,6 +146,60 @@ test('the planner opens with What to do now, draws the plan, its limits and what
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+const RUN_STARTS = {
+  resolve: { section: 'dashboard', button: '[data-resolve]' },
+  runs: { section: 'runs', button: '[data-runs-now] button' },
+  settings: { section: 'settings', button: '[data-run-now]' },
+};
+
+for (const start of Object.keys(RUN_STARTS)) {
+  test(`starting a run from ${start} sends one refresh and disables Run now in Settings, Runs and Re-solve until it ends`, async () => {
+    const info = appInfo(DECIDE, 1, {}, 'examples/planner.json');
+    const id = info.pages[0].id;
+    const solved = [];
+    const state = { active: null };
+    const idle = { has_job: true, source: 'job', last_success: null, last_run: null, active: null, overdue: false, cadence_days: 1, data_through: null,
+      can_refresh: true, reason: '', run_url: '' };
+    const setting = { low: 0, high: null, whole: false, low_open: false, high_open: false, choices: [], many: false, unit: 'USD', reason: "Inspire's default",
+      help: 'What it does.', applies: 'run', source: 'widget', editable: true, name: 'act_now_amount', label: 'Money at stake to act now', group: 'flagging',
+      kind: 'money', allowed: 'at least 0', default: '800', value: '800' };
+    const routes = {
+      ...plannerRoutes([], solved),
+      refresh: ({ route, json }) => {
+        solved.push(route.request().postDataJSON());
+        state.active = { run_id: '77', state: 'pending', result: 'pending', started: new Date().toISOString(), by: '', url: '' };
+        return json(200, { run_id: '77', state: 'pending' });
+      },
+      freshness: ({ json }) => json(200, { ...idle, active: state.active, can_refresh: !state.active, reason: state.active ? 'A run is already going' : '' }),
+      runs: ({ json }) => json(200, { runs: [], total: 0, offset: 0, limit: 20, job: { id: '1' }, errors: {}, can_run: true }),
+      settings: ({ json }) => json(200, { settings: [setting], history: [], editable: true, why: '', can_run: true, job: true }),
+    };
+    const { page, seen, context } = await openApp(browser, base, info, { routes, ready: '[data-page-section]' });
+    const go = async (section) => {
+      await page.evaluate((hash) => { window.location.hash = hash; }, `#/${id}/${section}`);
+      await page.waitForSelector(`[data-page-section="${section}"]`);
+    };
+    const button = async (name) => {
+      await go(RUN_STARTS[name].section);
+      const el = page.locator(RUN_STARTS[name].button);
+      await el.waitFor();
+      return el;
+    };
+    for (const name of Object.keys(RUN_STARTS)) assert.equal(await (await button(name)).isDisabled(), false, `${name} can start a run while none is going`);
+    await (await button(start)).click();
+    await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent?.length > 0);
+    assert.deepEqual(solved, [{ page: id }], `${start} sends one refresh`);
+    for (const name of Object.keys(RUN_STARTS)) {
+      const el = await button(name);
+      await page.waitForFunction((sel) => document.querySelector(sel)?.disabled === true, RUN_STARTS[name].button);
+      assert.equal(await el.isDisabled(), true, `${name} waits for the run started from ${start}`);
+    }
+    assert.equal(solved.length, 1);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  });
+}
 
 test('a plan with no decisions shows its suggestions with no accept, no override and no per-row read only', async () => {
   for (const [settings, said] of [[{}, 'This App does not record decisions, so this list shows its suggestions only.'],
@@ -555,4 +609,14 @@ test('the scenario chart modules load in their own chunk and the main bundle sta
   assert.ok(statSync(join(ASSETS, 'app.js')).size < MAIN_BUDGET, `app.js is ${statSync(join(ASSETS, 'app.js')).size} bytes`);
   assert.ok(!main.includes('series.gauge') && !main.includes('type="markLine"'), 'the gauge and mark lines stay out of the main bundle');
   assert.ok(lazy.includes('series.gauge') && lazy.includes('type="markLine"'), 'the layout chart chunk registers them');
+});
+
+test('the Runs, Trends and Alerts sections load in their own chunks, not the main bundle', () => {
+  const main = readFileSync(join(ASSETS, 'app.js'), 'utf8');
+  const chunks = { 'Runs.js': 'runs-now', 'Trends.js': 'data-trends', 'Alerts.js': 'alert-filters' };
+  for (const [chunk, marker] of Object.entries(chunks)) {
+    assert.ok(!main.includes(marker), `${marker} stays out of app.js`);
+    assert.ok(readFileSync(join(ASSETS, chunk), 'utf8').includes(marker), `${chunk} carries ${marker}`);
+  }
+  assert.ok(!main.includes('run_timeline'), 'the run timeline chart stays out of app.js');
 });

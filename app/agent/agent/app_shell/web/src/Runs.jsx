@@ -1,11 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
-import { getRuns, runSettingsNow, saveSetting } from './api.js';
+import { saveSetting } from './api.js';
 import { formatValue, integer, kindOf, unitOf } from './format.js';
 import Fx from './Fx.jsx';
 import { Icon } from './icons.jsx';
 import { Skeleton, PlainNote } from './ui.jsx';
-import { SaveButton, runWrite } from './saving.jsx';
-import { BarsCard } from './ChartCard.jsx';
+import ChartCard, { BarsCard } from './ChartCard.jsx';
 import DataTable from './DataTable.jsx';
 import { fieldsOf, tableContext } from './explain.js';
 import { AskGenie } from './AskGenie.jsx';
@@ -13,32 +12,22 @@ import {
   RUNS_PAGE, STOPPED, couldSaveRunFormula, coveredText, errorText, foundText, groupingText, lastedText, runBars, runFlag, runKey, runsPageText, stampText, stepsText,
   triggerText,
 } from './freshness.js';
+import { timelineChart } from './trends.js';
+
+function RunNow({ onRun, running }) {
+  return (
+    <div className="runs-now" data-runs-now>
+      <button type="button" className="btn btn--pri" onClick={() => onRun()} disabled={running} aria-busy={running}>
+        <Icon name="undo" size={14} />{running ? 'Running' : 'Run now'}
+      </button>
+      <p className="note">Runs this use case again on all its data. Only its owners can start a run.</p>
+    </div>
+  );
+}
 
 const slug = (text) => String(text).toLowerCase().replace(/[^a-z0-9]+/g, '-');
 const None = () => <span className="none">none</span>;
 const count = (n) => (n == null ? <None /> : integer(n));
-
-export function useRuns(pageId, offset, nonce, on = true) {
-  const [out, setOut] = useState({ data: null, error: '', busy: on });
-  const seq = useRef(0);
-  useEffect(() => {
-    const mine = ++seq.current;
-    if (!on) {
-      setOut({ data: null, error: '', busy: false });
-      return;
-    }
-    setOut((o) => ({ ...o, busy: true }));
-    getRuns(pageId, offset)
-      .then((data) => { if (mine === seq.current) setOut({ data, error: '', busy: false }); })
-      .catch((e) => { if (mine === seq.current) setOut({ data: null, error: e.message, busy: false }); });
-  }, [pageId, offset, nonce, on]);
-  return out;
-}
-
-export function runCounts(data) {
-  if (!data) return {};
-  return { runs: data.total, latest: data.offset === 0 ? (data.runs || [])[0] || null : null };
-}
 
 const TABLE_COLUMNS = [
   { key: 'table', label: 'Table', className: 'nowrap', render: (t) => <code>{t.table}</code> },
@@ -110,25 +99,27 @@ function runColumns(isOpen, toggle) {
   ];
 }
 
-function ScopeFacts({ page, run }) {
+function ScopeFacts({ page, run, onRun, running }) {
+  const [busy, setBusy] = useState(false);
   const [said, setSaid] = useState('');
   const everything = async () => {
-    await runWrite('run-everything', async () => {
-      try {
-        await saveSetting({ page: page.id, name: 'run_scope', value: 'all', was: run.scope?.scope || '', note: 'Run on everything' });
-        const started = await runSettingsNow(page.id);
-        setSaid(`The run on everything is ${started.state || 'starting'}; schedules now cover all the records too.`);
-      } catch (err) {
-        setSaid(err.message);
-      }
-    });
+    setBusy(true);
+    try {
+      await saveSetting({ page: page.id, name: 'run_scope', value: 'all', was: run.scope?.scope || '', note: 'Run on everything' });
+      setSaid('');
+      await onRun((started) => `The run on everything is ${started.state || 'starting'}; schedules now cover all the records too.`);
+    } catch (err) {
+      setSaid(err.message);
+    } finally {
+      setBusy(false);
+    }
   };
   return (
     <section className="card runs-scope" aria-label="First run">
       <p>{run.facts.covered}</p>
       {run.facts.everything && <p>{run.facts.everything}</p>}
       {run.facts.trained && <p>{run.facts.trained}</p>}
-      <SaveButton write="run-everything" onClick={everything}>Run on everything</SaveButton>
+      <button className="btn" onClick={everything} disabled={busy || running}>Run on everything</button>
       {said && <p role="status">{said}</p>}
     </section>
   );
@@ -139,7 +130,7 @@ function emptyText(page, job) {
   return page.history ? 'This use case has not recorded a run yet.' : 'This use case has no job and keeps no results table, so it has no runs to show.';
 }
 
-export default function Runs({ page, runs, offset, onOffset, onExplain, genieBusy }) {
+export default function Runs({ page, runs, offset, onOffset, onExplain, genieBusy, trends, themeKey, app, onRun, running }) {
   const [open, setOpen] = useState(() => new Set());
   const { data, error, busy } = runs;
   const list = data?.runs || [];
@@ -156,14 +147,19 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
     return next;
   });
   const columns = runColumns(isOpen, toggle);
+  const timeline = timelineChart(list, trends);
   return (
     <>
+      {data?.can_run && onRun && <RunNow onRun={onRun} running={running} />}
+      {data && timeline.result.rows.length > 0 && (
+        <ChartCard chart={timeline.chart} result={timeline.result} themeKey={themeKey} app={app || {}} pageId={page.id} onExplain={onExplain} genieBusy={genieBusy} />
+      )}
       {((busy && !data) || list.length > 0) && (
         <BarsCard id="to_fix_runs" title="To fix per run" hint="Each bar is a run listed below, oldest on the left." vertical hue={page.hue || 'blue'}
           loading={busy && !data} bars={runBars(list)} empty="No run listed below wrote a count of things to fix." x="Run" measure="To fix"
           onExplain={onExplain} genieBusy={genieBusy} />
       )}
-      {scoped && <ScopeFacts page={page} run={scoped} />}
+      {scoped && onRun && <ScopeFacts page={page} run={scoped} onRun={onRun} running={running} />}
       <section className="card card--table runs" aria-label="Runs" aria-busy={busy}>
         <header className="card-h">
           <div>

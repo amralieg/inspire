@@ -25,6 +25,7 @@ export const OPEN_TAB = 'open';
 export const workTabs = (choices) => [[OPEN_TAB, 'Open'], ...(choices || []).map((c) => [c.id, c.label]), ['mine', 'Mine'], ['all', 'All']];
 export const tabChoice = (choices, tab) => (choices || []).find((c) => c.id === tab) || null;
 export const DEFAULT_TAB = OPEN_TAB;
+export const FOCUSES = { overdue: 'Past their due date', unassigned: 'With no owner', older: 'On the list more than 30 days' };
 const LEGACY_VIEWS = { overview: DEFAULT_SECTION };
 const HUB_HOME = ['', 'home', 'overview'];
 const HUB_PERFORMANCE = [MY_WORK_ROUTE, 'impact', 'results'];
@@ -38,12 +39,14 @@ export function parseHash(hash) {
   const v = query.get('v');
   const f = query.get('f');
   const [route = '', section = ''] = (cut < 0 ? body : body.slice(0, cut)).split('/').map(decodePart);
-  return { route, section, tab: query.get('tab') || '', v, f, rec: query.get('rec'), changed: query.get('changed') === '1', present: v != null || f != null };
+  const focus = query.get('focus');
+  return { route, section, tab: query.get('tab') || '', focus: FOCUSES[focus] ? focus : '', v, f, rec: query.get('rec'), changed: query.get('changed') === '1',
+    present: v != null || f != null };
 }
 
 export const sectionOfView = (view) => LEGACY_VIEWS[view] || view || DEFAULT_SECTION;
 
-export function fixThis(page, listColumns, state, view, { reason = null, money = false } = {}) {
+export function fixThis(page, listColumns, state, view, { reason = null, money = false, focus = '' } = {}) {
   const tier = page?.records?.tier;
   const filter = tier ? (listColumns || []).find((f) => f.column === tier && f.type === 'multi_select') : null;
   const tiers = (shownTiers(view?.show)).filter((t) => !Array.isArray(filter?.options) || filter.options.includes(t));
@@ -51,7 +54,8 @@ export function fixThis(page, listColumns, state, view, { reason = null, money =
   if (filter && tiers.length) next = setColumnValue(next, null, tier, tiers);
   if (reason?.name && reason.value != null) next = setReason(next, reason.name, [reason.value]);
   const ranked = money && [...(page?.records?.columns || [])].some((c) => c.column === MONEY_COLUMN);
-  return { tab: view?.owner === 'me' ? 'mine' : DEFAULT_TAB, state: next, sort: ranked ? { key: MONEY_COLUMN, dir: 'desc' } : null };
+  const tab = FOCUSES[focus] ? 'all' : view?.owner === 'me' ? 'mine' : DEFAULT_TAB;
+  return { tab, state: next, sort: ranked ? { key: MONEY_COLUMN, dir: 'desc' } : null, focus: FOCUSES[focus] ? focus : '' };
 }
 
 function withQuery(path, query) {
@@ -86,7 +90,10 @@ export function canonicalHash(hash, { pages = [], last = '', sectionsOf = () => 
   const has = sectionsOf(page);
   const asked = link.section || legacy || ((link.rec || link.changed) && has.includes('work') ? 'work' : DEFAULT_SECTION);
   const section = has.includes(asked) ? asked : DEFAULT_SECTION;
-  if (section !== 'work') query.delete('tab');
+  if (section !== 'work') {
+    query.delete('tab');
+    query.delete('focus');
+  }
   const next = sectionHash(page.id, section, query);
   return next === hash ? null : next;
 }
@@ -332,9 +339,10 @@ export function readSaved(entry, filters, views, columns) {
   return combine(restoreFilters(entry.filters, filters, columns), restoreView(entry.view, views));
 }
 
-export function buildHash(pageId, section, state, filters, rec, columns, tab) {
+export function buildHash(pageId, section, state, filters, rec, columns, tab, focus) {
   const query = new URLSearchParams();
   if (tab && section === 'work') query.set('tab', tab);
+  if (FOCUSES[focus] && section === 'work') query.set('focus', focus);
   const compact = compactState(state, filters, columns);
   if (Object.keys(compact).length) query.set('f', encodeFilters(compact));
   if (rec) query.set('rec', rec);
