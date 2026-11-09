@@ -48,7 +48,7 @@ function listRoutes(writes) {
 }
 
 async function openList(routes) {
-  const opened = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, clock: CLOCK, timezone: 'Asia/Dubai' });
+  const opened = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes, clock: CLOCK, timezone: 'Asia/Dubai', hash: '#/n01_u05/work' });
   await opened.page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0 && document.querySelector('.list-tools'));
   return opened;
 }
