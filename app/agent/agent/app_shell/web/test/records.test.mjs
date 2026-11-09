@@ -34,9 +34,12 @@ function localNames(text, file, name) {
     .flatMap((m) => m[1].split(',').map((part) => part.trim().split(/\s+as\s+/)).filter(([imported]) => imported === name).map((pair) => pair[pair.length - 1]));
 }
 
+const loadsLater = (text, file) => [...text.matchAll(/import\(\s*'\.\/([^']+)'\s*\)/g)].some((m) => stem(m[1]) === stem(file));
+
 function unusedExports(files, callers = {}) {
   const used = (file, name) => count(files[file], name) >= 2 || count(callers[file] || '', name) >= 2
-    || Object.entries(files).some(([other, text]) => other !== file && localNames(text, file, name).some((local) => count(text, local) >= 2));
+    || Object.entries(files).some(([other, text]) => other !== file && (localNames(text, file, name).some((local) => count(text, local) >= 2)
+      || (loadsLater(text, file) && count(text, name) >= 1)));
   return Object.entries(files).flatMap(([file, text]) => [...text.matchAll(/^export (?:async )?(?:const|function|class) ([A-Za-z_]\w*)/gm)]
     .map((m) => m[1]).filter((name) => !used(file, name)).map((name) => `${file}: ${name}`));
 }
@@ -58,6 +61,10 @@ test('every helper the App exports has a caller in the App, and the check catche
     'a file that imports the helper, even under another name, is its caller');
   assert.deepEqual(unusedExports({ ...twin, 'c.js': "import { pick } from './a.js';\nexport const one = 1;\nconst again = one;\n" }), ['a.js: pick'],
     'an import that is never used is not a caller');
+  assert.deepEqual(unusedExports({ ...twin, 'c.js': "export const one = () => import('./a.js').then((m) => m.pick(1));\nconst again = one;\n" }), [],
+    'a file that loads the helper later and reads it is its caller');
+  assert.deepEqual(unusedExports({ ...twin, 'c.js': "export const one = () => import('./a.js');\nconst again = one;\n" }), ['a.js: pick'],
+    'a later load that never reads the helper is not a caller');
 });
 
 const F = (name, kind, extra = {}) => ({ name, kind, type: 'STRING', role: 'business', editable: true, ...extra });
