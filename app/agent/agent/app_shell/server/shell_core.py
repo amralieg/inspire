@@ -547,7 +547,7 @@ def tour_step_problems(step, anchors, kpi_ids, used=()) -> list:
             out.append(f"the {field} is empty")
             continue
         if len(value) > most:
-            out.append(f"the {field} has {len(value)} characters, more than {most}")
+            out.append(f"the {field} has {shell_sql.plural(len(value), 'character')}, more than {most}")
         if TOUR_SQL.search(value) or TOUR_RAW.search(TOUR_PLACEHOLDER.sub(" ", value)):
             out.append(f"the {field} shows a raw column id or SQL")
         named = TOUR_PLACEHOLDER.findall(value)
@@ -609,7 +609,7 @@ def fit_tour(page: dict, languages=None) -> tuple:
             notes.append(f"tour {language}: no steps were written, the template steps stand in")
             raw = []
         if len(raw) > most:
-            notes.append(f"tour {language}: {len(raw)} steps, more than {most}; the steps after {most} are dropped")
+            notes.append(f"tour {language}: {shell_sql.plural(len(raw), 'step')}, more than {most}; the steps after {most} are dropped")
         kept, used = [], set()
         for at, step in enumerate(raw[:most], 1):
             problems = tour_step_problems(step, anchors, kpi_ids, used)
