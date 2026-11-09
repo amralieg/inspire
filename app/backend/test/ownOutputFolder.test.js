@@ -11,6 +11,8 @@ const APP = 'app-token';
 const APP_ID = 'app-sp-0001';
 const DEFAULTED = { folders: ['/Shared/demos'], defaulted: true };
 const SHARED_SENTENCE = `Inspire cannot save to your own folder ${OWN}, so it saves to /Shared/demos, a shared folder that everyone in the workspace can open.`;
+const SCOPE_SENTENCE = `Inspire cannot save to your own folder ${OWN}, because this App may not use your sign-in for workspace folders (run the Inspire installer again to allow it), so it saves to /Shared/demos, a shared folder that everyone in the workspace can open.`;
+const WRITES = new Set(['POST', 'PUT', 'PATCH', 'DELETE']);
 
 function workspace(folders, overrides = {}) {
   const model = folderModel({ folders, ...overrides });
@@ -93,13 +95,13 @@ test('a sign-in whose scopes do not cover workspace permissions falls back the s
   const ws = workspace({ ...SHARED_OPEN, [HOME]: { id: 12, writers: [ME] } },
     { scopeFor: (path, token) => (token === PERSON && path.startsWith('/api/2.0/permissions/') ? 'workspace' : '') });
   const got = await plan(ws);
-  assert.deepEqual([got.folder, got.warnings], ['/Shared/demos', [SHARED_SENTENCE]]);
+  assert.deepEqual([got.folder, got.warnings], ['/Shared/demos', [SCOPE_SENTENCE]]);
   assert.equal(got.details.length, 1);
   assert.match(got.details[0], /^PATCH \/api\/2\.0\/permissions\/directories\/\d+ \{"access_control_list":\[\{"service_principal_name":"app-sp-0001","permission_level":"CAN_MANAGE"\}\]\} answered HTTP 403: Provided OAuth token does not have required scopes: workspace$/);
   const noWorkspaceScope = workspace({ ...SHARED_OPEN, [HOME]: { id: 12, writers: [ME] } },
     { scopeFor: (path, token) => (token === PERSON && path === '/api/2.0/workspace/mkdirs' ? 'workspace' : '') });
   const early = await plan(noWorkspaceScope);
-  assert.deepEqual([early.folder, early.warnings], ['/Shared/demos', [SHARED_SENTENCE]]);
+  assert.deepEqual([early.folder, early.warnings], ['/Shared/demos', [SCOPE_SENTENCE]]);
   assert.match(early.details[0], new RegExp(`^POST /api/2\\.0/workspace/mkdirs ${OWN} answered HTTP 403: Provided OAuth token does not have required scopes: workspace$`));
   assert.match(early.details[1], /^PATCH \/api\/2\.0\/permissions\/directories\/<folder id> /, 'the exact grant to ask for is still named');
   assert.deepEqual(permissionCalls(noWorkspaceScope), [], 'no grant tried on a folder that could not be made');
@@ -165,4 +167,38 @@ test('the shared fake workspace answers directory permissions like the live work
   assert.equal(ask('GET', '/api/2.0/permissions/directories/12', undefined, ME)[1].access_control_list.length, 2);
   assert.equal(ask('PATCH', '/api/2.0/permissions/directories/999', acl, ME)[0], 404);
   assert.equal(ask('PUT', '/api/2.0/permissions/directories/12', acl, ME)[0], 405, 'a PUT would replace the folder ACL, and Inspire never sends one');
+});
+
+test('loading Start only reads: the check names the own folder when the person can share it, and makes no folder, no grant and no write call (must-exclude)', async () => {
+  for (const [label, folders] of [
+    ['the folder does not exist yet', { ...SHARED_OPEN, [HOME]: { id: 12, writers: [ME] } }],
+    ['the folder exists', { ...SHARED_OPEN, [HOME]: { id: 12, writers: [ME] }, [OWN]: { id: 13, writers: [ME] } }],
+  ]) {
+    const ws = workspace(folders);
+    const got = await plan(ws, DEFAULTED, { preview: true, manager: false });
+    assert.deepEqual([got.refused, got.folder, got.generationPath, got.warnings, got.details], [null, OWN, `/Workspace${OWN}`, [], []], label);
+    assert.deepEqual(ws.calls.filter((c) => WRITES.has(c.method)), [], `${label}: no write call of any kind`);
+    assert.deepEqual(ws.model.grants, [], label);
+    assert.equal(Boolean(ws.model.folders[OWN]), label === 'the folder exists', `${label}: no folder made`);
+    assert.deepEqual(permissionCalls(ws).map((c) => [c.method, c.token]), [['GET', PERSON]], `${label}: the person sign-in reads the folder permissions once`);
+    const started = await plan(ws, DEFAULTED, { manager: false });
+    assert.deepEqual([started.folder, started.warnings], [OWN, []], `${label}: starting the run makes and shares it`);
+    assert.deepEqual(ws.model.grants.map((g) => g.path), [OWN], label);
+  }
+});
+
+test('loading Start says the run falls back, and why, when the sign-in cannot read the folder permissions, still without any write call', async () => {
+  const scoped = workspace({ ...SHARED_OPEN, [HOME]: { id: 12, writers: [ME] } },
+    { scopeFor: (path, token) => (token === PERSON && path.startsWith('/api/2.0/permissions/') ? 'workspace' : '') });
+  const got = await plan(scoped, DEFAULTED, { preview: true });
+  assert.deepEqual([got.folder, got.generationPath, got.warnings], ['/Shared/demos', '/Workspace/Shared/demos', [SCOPE_SENTENCE]]);
+  assert.match(got.details[0], /^GET \/api\/2\.0\/permissions\/directories\/12 answered HTTP 403: Provided OAuth token does not have required scopes: workspace$/);
+  assert.match(got.details[1], /^PATCH \/api\/2\.0\/permissions\/directories\/<folder id> /);
+  const locked = workspace({ ...SHARED_OPEN, [HOME]: { id: 12, writers: ['someone@example.com'] } });
+  const theirs = await plan(locked, DEFAULTED, { preview: true });
+  assert.deepEqual([theirs.folder, theirs.warnings], ['/Shared/demos', [SHARED_SENTENCE]]);
+  const unsigned = workspace({ ...SHARED_OPEN, [HOME]: { id: 12, writers: [ME] } });
+  const none = await plan(unsigned, DEFAULTED, { preview: true }, request(ME, ''));
+  assert.equal(none.refused.status, 401);
+  for (const ws of [scoped, locked, unsigned]) assert.deepEqual(ws.calls.filter((c) => WRITES.has(c.method)), []);
 });

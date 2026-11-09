@@ -2113,15 +2113,15 @@ async function discoverAppAccess(req, scope) {
   }
 }
 
-async function outputWriteVerdict(req, writes) {
+async function outputWriteVerdict(req, writes, { preview = false } = {}) {
   const manager = await routePolicy.managerOf(req).catch(() => ({ manager: false }));
-  const plan = await outputPlan(dbFetch, req, writes, { manager: manager.manager, appToken: await appOwnToken(), appId: SP_CLIENT_ID });
+  const plan = await outputPlan(dbFetch, req, writes, { manager: manager.manager, appToken: await appOwnToken(), appId: SP_CLIENT_ID, preview });
   return { ...plan, checked: manager.manager ? 'manager' : 'passed' };
 }
 
 app.post('/api/output-folder/check', requireToken, async (req, res) => {
   const writes = discoverWrites({ '11_generation_path': String((req.body || {}).generation_path || '') }, cachedNotebookPath || DEFAULT_NOTEBOOK_PATH);
-  const verdict = await outputWriteVerdict(req, writes);
+  const verdict = await outputWriteVerdict(req, writes, { preview: true });
   if (verdict.refused) return res.status(verdict.refused.status).json(writeRefusalBody(req.policyKey, verdict.refused));
   res.json({ allowed: true, folder: verdict.folder || writes.folders[0], checked: verdict.checked, warnings: verdict.warnings,
     ...(verdict.details.length ? { warning_details: verdict.details } : {}),

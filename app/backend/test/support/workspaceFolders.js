@@ -20,10 +20,10 @@ function permissionsAnswer(model, { method, pathname, body, token }, writable) {
   const folder = model.folders[path];
   const acl = () => [200, { object_id: `/directories/${id}`, object_type: 'directory',
     access_control_list: (Array.isArray(folder.writers) ? folder.writers : []).map((w) => ({ user_name: w, all_permissions: [{ permission_level: 'CAN_MANAGE' }] })) }];
-  if (method === 'GET') return acl();
-  if (method !== 'PATCH') return [405, { error_code: 'BAD_REQUEST', message: `${method} is not how this fake grants` }];
-  if (model.permissionsRefused) return [403, { error_code: 'PERMISSION_DENIED', message: model.permissionsRefused }];
+  if (method !== 'GET' && method !== 'PATCH') return [405, { error_code: 'BAD_REQUEST', message: `${method} is not how this fake grants` }];
+  if (model.permissionsRefused && method === 'PATCH') return [403, { error_code: 'PERMISSION_DENIED', message: model.permissionsRefused }];
   if (!writable(path, token)) return [403, { error_code: 'PERMISSION_DENIED', message: `no CAN_MANAGE on ${path}` }];
+  if (method === 'GET') return acl();
   const entries = Array.isArray(body.access_control_list) ? body.access_control_list : [];
   model.grants.push({ path, token, entries });
   if (Array.isArray(folder.writers)) folder.writers = [...new Set([...folder.writers, ...entries.map(principalOf).filter(Boolean)])];
