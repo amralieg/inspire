@@ -139,3 +139,14 @@ test('ids in an error stay under Details, words that only look like codes stay i
   assert.deepEqual(splitTechnical('Keep WEEKS_LEFT under 52'), { plain: 'Keep WEEKS_LEFT under 52', details: [] });
   assert.deepEqual(splitTechnical('Your table has 12 rows'), { plain: 'Your table has 12 rows', details: [] });
 });
+
+test('an App sentence that names SQL, HTTP, an API or REST keeps its words before the cause; a machine label that starts with one of them never becomes the sentence (must-exclude)', async () => {
+  const { splitTechnical } = await lib('plainText.js');
+  const denied = 'PERMISSION_DENIED: User does not have permission to list warehouses';
+  assert.match(splitTechnical(`Inspire could not list the SQL warehouses: ${denied}`).plain, /^Inspire could not list the SQL warehouses: /);
+  assert.match(splitTechnical(`Inspire could not read the REST API answer for this App: ${denied}`).plain, /^Inspire could not read the REST API answer for this App: /);
+  for (const label of ['SQL failed', 'HTTP error', 'API call failed', 'REST request']) {
+    const { plain } = splitTechnical(`${label}: ${denied}`);
+    assert.ok(!plain.startsWith(label), `${label} must not lead the sentence: ${plain}`);
+  }
+});
