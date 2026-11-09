@@ -162,7 +162,7 @@ test('an owner sets the team capacity on the App Settings page, checked as the r
     return json(200, state.view);
   };
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: r });
-  await page.click('[data-settings-open]');
+  await goRail(page, 'settings');
   await page.waitForSelector('[data-setting="act_now_capacity"]');
   assert.match(await page.locator('[data-setting="act_now_capacity"]').innerText(), /Team capacity/);
   await page.click('[data-setting="act_now_capacity"] button');

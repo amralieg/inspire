@@ -429,14 +429,15 @@ test('the dashboard is read only: What to do now, a So what line and Ask Genie o
   await context.close();
 });
 
-test('the use case switcher names each layout by its tab label, and the decision queue by its use case id with no layout label', async () => {
+test('the use case switcher names each layout by its tab label, and the decision queue by its area with no layout label and no use case id', async () => {
   for (const [example, label] of [['examples/scenario_lab.json', 'Scenarios'], ['examples/monitor_triage.json', 'Triage'], ['examples/performance_explainer.json', 'Explain'],
     ['examples/dashboard.json', 'Overview'], ['example_page.json', null]]) {
     const info = appInfo(DECIDE, 2, {}, example);
     const { page, context } = await openApp(browser, base, info, { ready: '[data-switcher]' });
     await page.locator('[data-switcher]').click();
     const note = await page.locator(`[data-case="${info.pages[0].id}"] small`).innerText();
-    assert.equal(note.split(' · ')[0], label || info.pages[0].use_case_id, example);
+    assert.equal(note.split(' · ')[0], label || info.pages[0].domain, example);
+    assert.ok(!note.includes(info.pages[0].use_case_id), `${example}: the switcher shows no use case id (must-exclude)`);
     await context.close();
   }
 });

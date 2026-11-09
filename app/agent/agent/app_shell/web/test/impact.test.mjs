@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { actBody, ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until } from './harness.mjs';
+import { actBody, ASK_GROUPS, TABLE, appInfo, askAudit, openApp, pageData, serveDist, toastSays, until, footerActions } from './harness.mjs';
 import { closedRows, estimatedFigure, figuresOf, heldShare, holdoutOffText, holdoutView, impactTiles, measuredFigure, promisedView, reportedFigure, wrongFigure } from '../src/impact.js';
 import { actionForm, actionProblem, actionValues, doneText, statusLabel } from '../src/records.js';
 
@@ -236,7 +236,7 @@ test('the record panel closes a record as fixed, not an issue or could not fix, 
   await page.locator('.cell-t').first().click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.dr-act').waitFor();
-  assert.deepEqual(await drawer.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft Message to Someone', 'Ask Genie to fix']);
+  assert.deepEqual(await footerActions(drawer), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft Message to Someone', 'Ask Genie to fix'].sort());
   assert.equal(await drawer.locator('input[name="realized_value"]').count(), 0, 'the amount shows only for a fix');
   await drawer.locator('select[name="action_status"]').selectOption('Done');
   await drawer.locator('input[name="realized_value"]').fill('-3');

@@ -96,7 +96,8 @@ const hashOf = (page) => page.evaluate(() => window.location.hash);
 test('the header carries the Databricks logo, the hub title and where the open use case sits', async () => {
   const { page, seen, context } = await open(INFO());
   assert.equal(await page.locator('.mark-t b').innerText(), 'Contoso Retail - Databricks Inspire Use Cases Hub');
-  assert.equal(await page.locator('.mark-t small').innerText(), 'Pricing › Markdown control · N01-U05');
+  assert.equal(await page.locator('.mark-t small').innerText(), 'Pricing › Markdown control');
+  assert.doesNotMatch(await page.locator('header.top').innerText(), /\bN\d\d-U\d\d\b/, 'the header shows no use case id (must-exclude)');
   const logo = await page.locator('.mark-tile.logo img').getAttribute('src');
   assert.match(logo, /^data:image\/png;base64,/);
   assert.equal(await page.evaluate(() => document.querySelector('link[rel="icon"]').href), logo);
