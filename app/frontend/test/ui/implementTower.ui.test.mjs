@@ -132,6 +132,12 @@ async function openTower(state = STATE, { expand = true, clock = null } = {}) {
   return ui;
 }
 
+const sentenceOf = (alert) => alert.evaluate((el) => {
+  const copy = el.cloneNode(true);
+  copy.querySelectorAll('[data-choices]').forEach((row) => row.remove());
+  return copy.textContent.trim();
+});
+
 test('the build page has one tile per asset in a fixed order; each asset opens a drawer that lists only its own parts with their pills, the first is picked, and picking another shows it', async () => {
   const ui = await openTower();
   const { page } = ui;
@@ -1074,7 +1080,8 @@ test('a notebook Try again that would read a swapped primary table that is gone 
     await card.getByRole('button', { name: 'Try again with the missing thing', exact: true }).click();
     const alert = card.getByRole('alert');
     await alert.waitFor();
-    assert.equal((await alert.textContent()).trim(), 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old (the primary table, '
+    assert.equal(await alert.getByRole('button', { name: 'Copy what to send' }).count(), 1);
+    assert.equal(await sentenceOf(alert), 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old (the primary table, '
       + 'not found). Open Edit, Data step, to swap main.s.orders_old for a table with the same role, because the primary table can be swapped, not removed');
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(insertsOf(made), []);
@@ -1093,7 +1100,7 @@ test('a Try again on a part the build no longer has is refused with a clear mess
     await card.getByRole('button', { name: 'Try again with the missing thing', exact: true }).click();
     const alert = card.getByRole('alert');
     await alert.waitFor();
-    assert.equal((await alert.textContent()).trim(), NOT_BUILT);
+    assert.equal(await sentenceOf(alert), NOT_BUILT);
     assert.equal(made.jobs.length, 0);
     assert.deepEqual(insertsOf(made), []);
     await showAsset(page, 'notebook');
