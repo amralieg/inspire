@@ -157,3 +157,35 @@ def test_a_different_failure_each_round_is_never_called_a_repeat(agent_ns):
     inst._implement_fill_and_preview("N01-U01", (5150, "N01-U01", 1), {}, spec, None, "/W/nb", ["result_table", "run_profile"], runner, True)
     assert not any(agent_ns["GENIE_SAME_FAILURE_NOTE"].strip() in p for p in runner.prompts)
     assert not inst.logger.matching("[GENIE-REPEAT FIRED]")
+
+
+SLIP = "the generated page had a setting without a valid name, a one-off generation slip, so running the step again should produce a corrected page"
+SAME_CHECK = "page.json does not fit the App: page setting 5 repeats the name act_now_capacity of an earlier setting"
+
+
+def test_a_retry_the_model_picks_never_promises_the_rerun_will_fix_it_and_names_the_cause(agent_ns, monkeypatch):
+    exhausted = agent_ns["ImplementGenieExhausted"]
+    inst = _inspire(agent_ns, monkeypatch, [exhausted("the App", 3, SAME_CHECK), "ready"], picks=[{"repair": "retry", "why": SLIP}])
+    assert inst._implement_one(TARGET) == "ready"
+    [told] = [e["result_json"]["why"] for e in inst.emitted if (e.get("result_json") or {}).get("repair") == "retry"]
+    assert "should produce" not in told and "one-off" not in told, told
+    assert "helps only when the cause does not repeat" in told and "act_now_capacity" in told, told
+
+
+def test_the_same_check_failing_the_same_way_after_a_retry_stops_and_names_the_cause_instead_of_retrying(agent_ns, monkeypatch):
+    exhausted = agent_ns["ImplementGenieExhausted"]
+    inst = _inspire(agent_ns, monkeypatch, [exhausted("the App", 3, SAME_CHECK), exhausted("the App", 3, SAME_CHECK), "ready"],
+                    picks=[{"repair": "retry", "why": SLIP}, {"repair": "retry", "why": SLIP}])
+    assert inst._implement_one(TARGET) == "failed"
+    assert len(inst.prompts) == 1, "the repeat is caught before the model is asked again"
+    final = inst.updates[-1]["status_message"]
+    assert "act_now_capacity" in final and agent_ns["IMPLEMENT_REPEAT_RETRY_STOP"] in final and "should produce" not in final, final
+
+
+def test_a_passing_platform_failure_still_offers_a_plain_retry(agent_ns, monkeypatch):
+    busy = RuntimeError("Jobs API returned 503 Service Unavailable")
+    inst = _inspire(agent_ns, monkeypatch, [busy, busy, "ready"])
+    assert inst._implement_one(TARGET) == "ready" and len(inst.locked_targets) == 3, "a passing cause gets every attempt, repeat or not"
+    whys = [r.get("why") for r in _repairs(inst)]
+    assert whys and all("helps only when" not in str(w) and agent_ns["IMPLEMENT_REPEAT_RETRY_STOP"] not in str(w) for w in whys), whys
+    assert "do not say a rerun will fix it" in agent_ns["IMPLEMENT_REPAIR_PROMPT"].lower()
