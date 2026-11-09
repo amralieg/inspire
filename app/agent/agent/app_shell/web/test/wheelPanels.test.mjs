@@ -44,3 +44,17 @@ test('the mouse wheel scrolls a filter with 500 choices to the last of the 200 i
   assert.deepEqual(real(seen.errors), []);
   await context.close();
 });
+
+test('the mouse wheel scrolls a chart Export menu to its last item at 1280x800 and 1024x700', async () => {
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { width: 1280, height: 800, routes: tracked().routes });
+  await page.getByRole('button', { name: 'Export Where the loss sits' }).click();
+  const menu = page.getByRole('menu', { name: 'Export Where the loss sits' });
+  await menu.waitFor();
+  const list = menu.locator('.menu-list');
+  await wheelScrolls(page, menu, () => list.locator('[data-wheel-copy]').last(), { name: 'chart Export menu', ...copies(list, ':scope > *', 30) });
+  const box = await menu.boundingBox();
+  const { height } = page.viewportSize();
+  assert.ok(box.y >= 0 && box.y + box.height <= height, `the menu stays on the screen ${JSON.stringify(box)}`);
+  assert.deepEqual(real(seen.errors), []);
+  await context.close();
+});

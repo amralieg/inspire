@@ -1,7 +1,7 @@
 .explain-btn{flex:none;display:inline-flex;align-items:center;gap:5px;height:28px;padding:0 10px;border-radius:999px;border:1px solid var(--brand-bd);background:var(--brand-wash);color:var(--brand-ink);font-size:12px;font-weight:650;cursor:pointer;white-space:nowrap}
 .explain-btn:hover:not(:disabled){background:var(--btn-bg);color:var(--btn-fg);border-color:var(--btn-bg)}
 .explain-btn:disabled{opacity:.55;cursor:default}
-.menu-list{max-height:calc(100vh - 80px);overflow:auto}
+.pop{overflow:auto}
 .menu-t{flex:1;display:flex;align-items:baseline;gap:8px;min-width:0}
 .menu-t small{font-size:11.5px;font-weight:500;color:var(--muted)}
 .menu-on{margin-inline-start:auto;color:var(--brand-ink)}
