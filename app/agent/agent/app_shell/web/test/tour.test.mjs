@@ -124,14 +124,14 @@ test('the tour starts on a first visit only, never under automation unless asked
   const out = await page.evaluate(() => {
     const { tourDue, tourKey, markTourSeen, tourAsked } = window.start;
     localStorage.clear();
-    const key = tourKey('pat@x.com', 'n01_u01', 'abc');
-    const row = [key, key === tourKey('sam@x.com', 'n01_u01', 'abc'), tourAsked('?tour=auto&x=1'), tourAsked('?x=1'),
+    const key = tourKey('pat@example.com', 'n01_u01', 'abc');
+    const row = [key, key === tourKey('sam@example.com', 'n01_u01', 'abc'), tourAsked('?tour=auto&x=1'), tourAsked('?x=1'),
       tourDue(key, '', true), tourDue(key, '', false), tourDue(key, 'auto', true)];
     markTourSeen(key);
-    row.push(tourDue(key, '', false), tourDue(key, 'auto', true), tourDue(key, '1', true), tourDue(tourKey('pat@x.com', 'n01_u01', 'new'), '', false));
+    row.push(tourDue(key, '', false), tourDue(key, 'auto', true), tourDue(key, '1', true), tourDue(tourKey('pat@example.com', 'n01_u01', 'new'), '', false));
     return row;
   });
-  assert.deepEqual(out, ['inspire-tour:v1:pat@x.com:n01_u01:abc', false, 'auto', '', false, true, true, false, false, true, true]);
+  assert.deepEqual(out, ['inspire-tour:v1:pat@example.com:n01_u01:abc', false, 'auto', '', false, true, true, false, false, true, true]);
   assert.deepEqual(errors, []);
   await context.close();
 });
