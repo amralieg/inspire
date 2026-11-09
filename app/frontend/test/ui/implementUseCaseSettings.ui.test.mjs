@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
 import { SETTINGS_TECHNICAL_NOTE } from '../../src/lib/useCaseSettings.js';
 import { wheelScrolls } from './wheelScroll.mjs';
-import { closeBrowser, lowContrast, onStep, openAsset, openBuild, openUi, setDark, settled, toVibes, until, wizardFits, goToStep, toSummary } from './uiSupport.mjs';
+import { closeBrowser, stepHolding, lowContrast, onStep, openAsset, openBuild, openUi, setDark, settled, toVibes, until, wizardFits, goToStep, toSummary } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -30,7 +30,8 @@ const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const insertsOf = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
   .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
 
-async function toStep(page, label) {
+async function toStep(page, part) {
+  const label = stepHolding(part);
   for (let i = 0; i < 9 && await page.locator('[aria-current="step"]', { hasText: label }).count() === 0; i += 1) {
     const from = await page.locator('[aria-current="step"]').innerText();
     await next(page);
@@ -40,95 +41,6 @@ async function toStep(page, label) {
 }
 
 const settingRow = (page, name) => page.locator(`[data-setting="${name}"]`);
-
-test('all settings has a Settings step with the settings the built notebook reads, their ranges, and the agent\u2019s refusal; the values go where the agent reads them and rebuild nothing', async () => {
-  const ui = await openUi('wizard', { me: ME, history: [withModel()] });
-  const { page, made } = ui;
-  try {
-    await toStep(page, 'Settings');
-    const step = page.getByRole('region', { name: 'Use case settings', exact: true });
-    await step.waitFor();
-    assert.deepEqual(await step.locator('[data-setting]').evaluateAll((rows) => rows.map((r) => r.dataset.setting)), ['WEEKS_LEFT', 'act_now_share', 'review_share', 'alert_threshold']);
-    assert.deepEqual(await step.locator('[data-setting-group]').evaluateAll((g) => g.map((x) => x.querySelector('h4').textContent)),
-      ['How the money at stake is counted', 'How records are flagged', 'Alerts']);
-    assert.equal(await settingRow(page, 'WEEKS_LEFT').getByRole('textbox', { name: 'Weeks left' }).inputValue(), '12');
-    assert.equal(await settingRow(page, 'WEEKS_LEFT').locator('[data-setting-allowed]').textContent(), 'Allowed: 1 to 52');
-    assert.deepEqual(await step.locator('[data-setting-group]').evaluateAll((g) => g.map((x) => x.querySelector('[data-setting-group-change]')?.textContent || '')),
-      ['Saved as a setting, no rebuild', 'Saved as a setting, no rebuild', 'Rebuilds the alert']);
-    assert.equal(await step.locator('[data-setting-change]').count(), 0, 'a group whose settings change the same way says it once');
-    await settingRow(page, 'WEEKS_LEFT').getByRole('textbox', { name: 'Weeks left' }).fill('60');
-    await settingRow(page, 'WEEKS_LEFT').getByText("WEEKS_LEFT is '60'; allowed: 1 to 52", { exact: true }).waitFor();
-    await next(page);
-    await page.getByRole('alert').filter({ hasText: "WEEKS_LEFT is '60'; allowed: 1 to 52" }).waitFor();
-    await onStep(page, 'Settings');
-    await settingRow(page, 'WEEKS_LEFT').getByRole('textbox', { name: 'Weeks left' }).fill('20');
-    await settingRow(page, 'act_now_share').getByRole('textbox', { name: 'Act now share' }).fill('0.1');
-    assert.equal(await step.locator('[data-setting-problem]').count(), 0);
-    const note = step.getByRole('textbox', { name: 'Note for the settings change', exact: true });
-    assert.equal(await note.inputValue(), '', 'each change starts with no note');
-    await note.fill('  more to act on this quarter  ');
-    const contrast = await lowContrast(page, ['[aria-label="Use case settings"]']);
-    assert.ok(contrast.checked >= 12, `measured ${contrast.checked}`);
-    assert.deepEqual(contrast.low, []);
-    await goToStep(page, 'Vibes');
-    await toSummary(page);
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 15000 });
-    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
-    await until(() => made.jobs.length === 1, 'the settings version');
-    const [sent] = insertsOf(made);
-    assert.deepEqual([sent.config.widgets.act_now_share, sent.config.assumptions, sent.config.settings_note], ['0.1', { WEEKS_LEFT: 20 }, 'more to act on this quarter'],
-      'the note goes with the settings, for the agent to save in place of its own');
-    const insert = made.sqlCalls.find((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'));
-    const classes = insert.parameters.find((p) => p.name === 'classes').value.split(',');
-    assert.ok(classes.includes('settings') && !classes.includes('config') && !classes.includes('data'), `a settings change, never a rebuild: ${classes.join(',')}`);
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
-
-test('a first build lists the instruction\u2019s widgets as settings with their ranges, says the assumptions come with the first run, and the Data step no longer repeats them', async () => {
-  const instruction = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
-    + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `top_k` | text | 25 | whole number, at least 1 | Top K |\n| `model_name` | text | m | | Model |\n';
-  const ui = await openUi('wizard', { me: ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: instruction } });
-  const { page } = ui;
-  try {
-    await onStep(page, 'Delivery consumption');
-    await goToStep(page, 'Data');
-    await page.getByRole('button', { name: /Advanced/ }).first().click();
-    await page.getByText('The rules that flag records and the use case\u2019s own settings are on the Settings step.', { exact: true }).waitFor();
-    assert.equal(await page.getByRole('textbox', { name: /Top K/ }).count(), 0, 'top_k is a setting, so the Data step does not edit it');
-    await toStep(page, 'Settings');
-    const step = page.getByRole('region', { name: 'Use case settings', exact: true });
-    assert.deepEqual(await step.locator('[data-setting]').evaluateAll((rows) => rows.map((r) => r.dataset.setting)), ['act_now_share'],
-      'top_k and model_name are technical, so they keep the values Genie declared and the wizard does not ask them');
-    assert.equal(await page.locator('[data-settings-technical]').textContent(), SETTINGS_TECHNICAL_NOTE);
-    await step.getByText('Genie proposes the assumptions of what is at stake on each record, with their lowest and highest values, when the notebook first runs; '
-      + 'you set them here after that run.', { exact: true }).waitFor();
-    assert.equal(await step.locator('[data-setting-change], [data-setting-group-change]').count(), 0, 'nothing is built yet, so nothing rebuilds');
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
-
-test('a group whose settings change differently names the change on each row: a widget the built notebook does not read as a setting rebuilds it', async () => {
-  const ui = await openUi('wizard', { me: ME, history: [withModel(MODEL.filter((s) => s.name !== 'review_share'))] });
-  const { page } = ui;
-  try {
-    await toStep(page, 'Settings');
-    const step = page.getByRole('region', { name: 'Use case settings', exact: true });
-    await settingRow(page, 'review_share').waitFor();
-    const flagging = step.locator('[data-setting-group="flagging"]');
-    assert.equal(await flagging.locator('[data-setting-group-change]').count(), 0);
-    assert.deepEqual(await flagging.locator('[data-setting]').evaluateAll((rows) => rows.map((r) => [r.dataset.setting, r.querySelector('[data-setting-change]')?.textContent])),
-      [['act_now_share', 'Saved as a setting, no rebuild'], ['review_share', 'Rebuilds the notebook']]);
-    assert.equal(await step.locator('[data-setting-group="impact"] [data-setting-group-change]').textContent(), 'Saved as a setting, no rebuild');
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
 
 const CONSTANTS = ['AVG_MONTHLY_REVENUE', 'RETENTION_OFFER_COST', 'GROSS_MARGIN_RATE', 'EXPECTED_RECOVERY_RATE_AFTER_OUTREACH', 'WEEKS_LEFT',
   'SERVICE_CALL_COST', 'CONTRACT_MONTHS_REMAINING', 'DISCOUNT_RATE'];
@@ -152,78 +64,6 @@ const fullModel = (assumptions) => [
   widgetRow('max_rows_per_segment', 'Most rows per segment', 'scope', 'whole number, at least 1', 1, null, true),
   MODEL[3],
 ];
-
-test('the Settings step fits 1440x900 with nothing to scroll at the most settings the agent builds, with every value refused too, and past that the list scrolls inside while the wizard never does', async () => {
-  for (const [assumptions, listScrolls] of [[CONSTANTS.length, false], [30, true]]) {
-    const ui = await openUi('wizard', { me: ME, history: [withModel(fullModel(assumptions))] });
-    const { page } = ui;
-    try {
-      await page.setViewportSize({ width: 1440, height: 900 });
-      await toStep(page, 'Settings');
-      const step = page.getByRole('region', { name: 'Use case settings', exact: true });
-      await step.locator('[data-setting="alert_threshold"]').waitFor({ state: 'attached' });
-      assert.equal(await step.locator('[data-setting]').count(), assumptions + 5);
-      assert.equal(await step.locator('[data-setting="top_k"], [data-setting="lookback_days"], [data-setting="history_weeks"]').count(), 0,
-        'the technical settings keep the values Genie declared and are not asked');
-      const where = `${assumptions} assumptions`;
-      const fits = (what) => wizardFits(page, `${where}, ${what}`);
-      const fit = await fits('as built');
-      const list = await step.locator('[data-settings-list]').evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
-      console.log(`settings step at 1440x900 with ${where}: ${JSON.stringify({ body: [fit.scroll, fit.client], list: [list.scroll, list.client] })}`);
-      assert.equal(list.scroll > list.client + 1, listScrolls, `${where}: the list ${listScrolls ? 'scrolls inside' : 'shows every setting'} ${JSON.stringify(list)}`);
-      if (!listScrolls) {
-        for (const dark of [false, true]) {
-          await setDark(page, dark);
-          const contrast = await lowContrast(page, ['[aria-label="Use case settings"]']);
-          assert.ok(contrast.checked >= 40, `measured ${contrast.checked}`);
-          assert.deepEqual(contrast.low, [], dark ? 'dark' : 'light');
-        }
-        await page.evaluate(() => document.documentElement.classList.remove('dark'));
-        for (const name of CONSTANTS) await settingRow(page, name).getByRole('textbox').fill('-1');
-        await settingRow(page, CONSTANTS[CONSTANTS.length - 1]).locator('[data-setting-problem]').waitFor();
-        assert.equal(await step.locator('[data-setting-problem]').count(), CONSTANTS.length);
-        await fits('every assumption refused');
-      } else {
-        const last = settingRow(page, 'EXTRA_RATE_30').getByRole('textbox');
-        const list = step.locator('[data-settings-list]');
-        await wheelScrolls(page, list, () => settingRow(page, 'EXTRA_RATE_30'), { name: 'Use case settings list' });
-        await page.setViewportSize({ width: 1440, height: 900 });
-        await last.fill('7');
-        assert.equal(await last.inputValue(), '7');
-        await fits('the last setting typed in');
-      }
-      assert.deepEqual(ui.pageErrors, []);
-    } finally {
-      await ui.close();
-    }
-  }
-});
-
-test('the step bar keeps all twelve steps on one line: at 1440x900 every step shows, and on a phone the bar scrolls so the current step is in view', async () => {
-  const ui = await openUi('wizard', { me: ME });
-  const { page } = ui;
-  try {
-    const bar = page.locator('[data-wizard-header] ol');
-    const shown = () => bar.evaluate((ol) => {
-      const box = ol.getBoundingClientRect();
-      const current = ol.querySelector('[aria-current="step"]').getBoundingClientRect();
-      return { overflow: ol.scrollWidth > ol.clientWidth + 1, rows: new Set([...ol.children].map((li) => Math.round(li.getBoundingClientRect().top))).size,
-        inView: current.left >= box.left - 1 && current.right <= box.right + 1 };
-    });
-    await page.setViewportSize({ width: 1440, height: 900 });
-    await toVibes(page);
-    assert.equal(await bar.locator('li').count(), 12);
-    assert.deepEqual(await shown(), { overflow: false, rows: 1, inView: true }, 'every step on one line at 1440x900');
-    await page.setViewportSize({ width: 390, height: 844 });
-    await page.getByRole('button', { name: 'Back' }).click();
-    await onStep(page, 'Settings');
-    await settled(page, '[data-wizard-header] ol');
-    assert.deepEqual(await shown(), { overflow: true, rows: 1, inView: true }, 'a phone keeps one line and scrolls the current step into view');
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
 
 const VIEW = {
   settings: [

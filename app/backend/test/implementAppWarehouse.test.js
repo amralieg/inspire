@@ -183,7 +183,7 @@ test('the wizard keeps an empty App warehouse for the build one, labels the fiel
   assert.deepEqual([picked.outputs.app_warehouse_id, w.appWarehouseOf(picked)], ['wh2', 'wh2']);
   assert.equal(w.withAppWarehouse(picked, 'wh1').outputs.app_warehouse_id, '', 'picking the build warehouse again stores no choice');
   assert.equal(w.appWarehouseLabel('delta'), 'SQL warehouse the App reads and saves with');
-  assert.equal(w.appWarehouseLabel('lakebase'), 'SQL warehouse the App saves, keeps history and runs alerts with (pages read from Lakebase)');
+  assert.equal(w.appWarehouseLabel('lakebase'), 'SQL warehouse the App saves, keeps history and runs alerts with (pages read the fast copy)');
   assert.equal(w.appWarehouseLabel(''), w.appWarehouseLabel('delta'));
   assert.equal(w.APP_BACKEND_CHOICES.find((c) => c.id === 'delta').blurb, undefined,
     'a Delta App needs no blurb: the warehouse row under it says the App reads and saves with that SQL warehouse');

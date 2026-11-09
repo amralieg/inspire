@@ -242,7 +242,17 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
   await request.response();
 }
 
-export async function onStep(page, label) {
+const STEP_HOLDING = {
+  'What to build': 'Deliver', Delivery: 'Deliver', 'App placement': 'App', 'App access': 'App', 'App features': 'App', 'App look': 'App',
+  'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Summary', 'Data groups': 'Data', 'MVP Test Run': 'First run',
+};
+
+export function stepHolding(part) {
+  return STEP_HOLDING[part] || part;
+}
+
+export async function onStep(page, part) {
+  const label = stepHolding(part);
   try {
     await page.locator('[aria-current="step"]', { hasText: label }).waitFor({ timeout: 15000 });
   } catch (e) {
@@ -267,11 +277,8 @@ export async function openAdvanced(page) {
 
 export const BUILD_IT = 'All Good, Build it Now';
 
-export async function dataToResults(page, { grouping = false } = {}) {
-  for (const label of [...(grouping ? ['Data groups'] : []), 'MVP Test Run', 'Results']) {
-    await page.getByRole('button', { name: 'Next' }).click();
-    await onStep(page, label);
-  }
+export async function dataToResults(page) {
+  await nextUntil(page, 'Results');
 }
 
 export async function toAppAccess(page) {
@@ -288,7 +295,8 @@ export async function toSummary(page) {
   await nextUntil(page, 'Summary');
 }
 
-export async function goToStep(page, label) {
+export async function goToStep(page, part) {
+  const label = stepHolding(part);
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
@@ -301,7 +309,8 @@ export async function goToStep(page, label) {
   await onStep(page, label);
 }
 
-async function nextUntil(page, label) {
+async function nextUntil(page, part) {
+  const label = stepHolding(part);
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const steps = page.locator('[data-wizard-header] ol li');
@@ -523,8 +532,10 @@ export async function settleChoices(page) {
 }
 
 export function assertOneBadgeOnDefault(shown, where) {
+  const all = shown.flatMap((c) => c.badges);
+  assert.ok(all.length <= 1, `${where}: at most one Highly Recommended badge on the step, has ${JSON.stringify(all)}`);
   for (const { choice, multi, selected, badges } of shown) {
-    assert.equal(badges.length, 1, `${where}: ${choice} has exactly one Highly Recommended badge, has ${JSON.stringify(badges)}`);
+    if (!badges.length) continue;
     if (multi) assert.ok(selected.includes(badges[0]), `${where}: ${choice} starts with its badged option ${badges[0]} ticked, ticked ${JSON.stringify(selected)}`);
     else assert.deepEqual(selected, [badges[0]], `${where}: ${choice} starts on its badged option`);
   }

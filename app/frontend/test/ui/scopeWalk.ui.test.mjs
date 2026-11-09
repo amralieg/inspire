@@ -4,7 +4,7 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
-import { closeBrowser, onStep, openUi, goToStep, profileAt } from './uiSupport.mjs';
+import { closeBrowser, profileAt, stepHolding, onStep, openUi, goToStep } from './uiSupport.mjs';
 import { checkRunScope, checkScope, checkWizardSteps } from '../../../scripts/scopeWalk.mjs';
 
 test.after(closeBrowser);
@@ -33,7 +33,8 @@ const stepBar = (page) => page.locator('[aria-current="step"]').locator('xpath=.
 const insertsOf = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
   .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
 
-async function toStep(page, label) {
+async function toStep(page, part) {
+  const label = stepHolding(part);
   for (let i = 0; i < 12 && await page.locator('[aria-current="step"]', { hasText: label }).count() === 0; i += 1) {
     const from = await page.locator('[aria-current="step"]').innerText();
     await next(page);

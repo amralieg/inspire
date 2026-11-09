@@ -1566,7 +1566,9 @@ function registerImplementRoutes(app, deps) {
     return spec.data && typeof spec.data === 'object' ? spec.data : {};
   }
 
-  function profiledTable(useCase, data) {
+  function profiledTable(useCase, data, asked = '') {
+    const chosen = String(asked || '').trim();
+    if (chosen) return chosen;
     const primary = I.primaryTableOf(useCase) || I.useCaseTables(useCase)[0] || '';
     const swaps = data.tables && typeof data.tables === 'object' ? data.tables : {};
     const swapped = Object.keys(swaps).find((k) => k.replace(/`/g, '').toLowerCase() === primary.replace(/`/g, '').toLowerCase());
@@ -1593,7 +1595,7 @@ function registerImplementRoutes(app, deps) {
         loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId)]);
       if (!useCase) throw I.badRequest(`No use case ${useCaseId} in this session.`, 404);
       const data = builtData(history);
-      table = profiledTable(useCase, data);
+      table = profiledTable(useCase, data, req.body?.table ?? req.query.table);
       const main = G.groupingMainTable(table);
       if (!main || !/^[^`]+\.[^`]+\.[^`]+$/.test(table)) {
         throw I.badRequest(`Use case ${useCaseId} names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.`);

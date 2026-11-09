@@ -3,7 +3,7 @@ import { Check, Copy, ExternalLink } from 'lucide-react';
 import { BestOfBestDetail, FeedbackControls, UseCaseStrategyDetail } from './UseCaseStrategyDetail';
 import { workspaceNotebookUrl } from '../lib/workspaceLinks';
 import { placeholderWords } from '../lib/placeholderWords';
-import { NOTEBOOK_MODE_LABEL, START_MVP_LABEL } from '../lib/implementWizard';
+import { START_MVP_LABEL } from '../lib/implementWizard';
 import { KIND_INFORMATIONAL_LABEL, kindChipStyle } from '../lib/useCaseKind';
 import { beneficiaryFromUc, fieldOf, hasShippedGenieCode, notebookPathOf, sponsorFromUc } from '../lib/useCaseFields';
 
@@ -212,7 +212,7 @@ export default function UseCaseDetailBody({
           </div>
           {!shippedGenie && (
             <p className="mt-2 text-[10px] text-text-tertiary leading-relaxed">
-              This notebook holds an outline or part of the instruction. To write the full Genie Code instruction, use <span className="font-semibold">{START_MVP_LABEL}</span> and choose {NOTEBOOK_MODE_LABEL}.
+              This notebook holds an outline or part of the instruction. To write the full Genie Code instruction, use <span className="font-semibold">{START_MVP_LABEL}</span> and tick only Notebook under Deliver.
             </p>
           )}
         </div>

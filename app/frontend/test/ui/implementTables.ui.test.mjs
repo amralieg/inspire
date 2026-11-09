@@ -213,8 +213,7 @@ test('similar tables come from the person\u2019s own sign-in: a table only the A
   ui = await openUi('wizard', appOnly);
   try {
     const { page } = ui;
-    await onStep(page, 'Delivery consumption');
-    await goToStep(page, 'Data');
+    await onStep(page, 'Data');
     await page.getByRole('alert').getByText(NO_PERSON_TOKEN, { exact: true }).waitFor({ timeout: 15000 });
     assert.equal(ui.made.sqlCalls.filter((c) => /information_schema\.columns/.test(String(c.sql))).length, 0, 'the column picker reads nothing as the App');
     await page.locator('[data-table="main.s.orders"]').getByRole('button', { name: 'Change', exact: true }).click();

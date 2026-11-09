@@ -138,7 +138,7 @@ test('First run offers one group, several groups of the chosen Data groups, abou
   assert.equal(week[3].label, 'The last 7 days of order_date');
   const standalone = S.firstRunChoices({ ...PROFILE, standalone: true, time_column: null, recent: null }, { ...values, scope_records: '500' });
   assert.deepEqual(standalone.map((c) => [c.id, c.available]), [['one', true], ['groups', true], ['records', true], ['recent', false], ['all', true]]);
-  assert.equal(standalone[2].label, '500 records spread across the whole table, picked by a stable hash of each record');
+  assert.equal(standalone[2].label, '500 records spread across the whole table, the same records every run');
   assert.equal(standalone[2].records, 500);
   const via = { ...PROFILE, records: 718931, suggested_groups: [], first_run: { all: 718931, groups: null, recent: 21000, records: null }, default_scope: 'recent',
     time_column: 'ws_ship_date_sk', time_via: { table: 'samples.tpcds_sf1.date_dim', key: 'd_date_sk', date: 'd_date' }, recent: { days: 30, records: 21000 } };
@@ -149,7 +149,7 @@ test('First run offers one group, several groups of the chosen Data groups, abou
   const dated = S.firstRunChoices(via, viaValues);
   assert.deepEqual(dated.filter((c) => c.available).map((c) => [c.id, c.records]), [['records', 1000], ['recent', 21000], ['all', 718931]],
     'the whole data as one group has no group to pick (must-exclude)');
-  assert.equal(dated[2].label, '1,000 records spread across the whole table, picked by a stable hash of each record, the whole data being one group');
+  assert.equal(dated[2].label, '1,000 records spread across the whole table, the same records every run, the whole data being one group');
   assert.equal(dated[3].label, 'The last 30 days of d_date in samples.tpcds_sf1.date_dim, through ws_ship_date_sk');
 });
 
@@ -225,7 +225,7 @@ test('the scope reads as the agent writes it, and counts carry thousands separat
   assert.equal(S.scopeText({ run_scope: '' }), 'All records');
   assert.equal(S.scopeText({ run_scope: 'groups', scope_groups: 'USA, Spain' }), 'MVP Test Run: 2 groups (USA, Spain)');
   assert.equal(S.scopeText({ run_scope: 'recent', scope_days: '1' }), 'MVP Test Run: the last 1 day');
-  assert.equal(S.scopeText({ run_scope: 'records', scope_records: '1500' }), 'MVP Test Run: about 1,500 records, in whole groups when the technique reads records together');
+  assert.equal(S.scopeText({ run_scope: 'records', scope_records: '1500' }), 'MVP Test Run: about 1,500 records, keeping related records together');
   assert.equal(P.counted(48210, 'record'), '48,210 records');
   assert.equal(P.counted(1, 'record'), '1 record');
   assert.equal(S.profileHeldText(PROFILE), 'main.sales.orders holds 48,210 records, so Inspire suggests a smaller MVP Test Run to show results sooner.');
@@ -353,17 +353,17 @@ test('the recorded settings read run_scope as the First run choice on both sides
   assert.equal(S.runScopeSetting(null), null);
 });
 
-test('a built version that recorded a First run keeps the First run step while the table is read, the same as the step bar it ends on', async () => {
+test('a version that already ran has no First run step: runs 2 onward use every group', async () => {
   const S = await lib('runScope.js');
   assert.equal(S.builtFirstRunOf([RECORDED_RUN_SCOPE]), true);
   assert.equal(S.builtFirstRunOf([{ ...RECORDED_RUN_SCOPE, source: 'inspire' }]), false, 'only a setting the build ran with');
   assert.equal(S.builtFirstRunOf([{ name: 'horizon', source: 'widget' }]), false);
   for (const model of [null, undefined, 'x', [], [null]]) assert.equal(S.builtFirstRunOf(model), false, JSON.stringify(model));
-  assert.deepEqual(S.scopeStepsOf('loading', null, true), { grouping: false, firstRun: true });
-  assert.deepEqual(S.scopeStepsOf('ready', PROFILE, true), { grouping: true, firstRun: true });
-  assert.deepEqual(S.scopeStepsOf('ready', { ...PROFILE, applies: false, qualifies: false }, true), { grouping: false, firstRun: true });
+  assert.deepEqual(S.scopeStepsOf('loading', null, true), { grouping: false, firstRun: false });
+  assert.deepEqual(S.scopeStepsOf('ready', PROFILE, true), { grouping: true, firstRun: false }, 'Data groups stay on Data; the First run step goes (must-exclude)');
+  assert.deepEqual(S.scopeStepsOf('error', null, true), { grouping: false, firstRun: false });
   for (const state of ['none', 'off']) assert.deepEqual(S.scopeStepsOf(state, null, true), { grouping: false, firstRun: false }, state);
-  assert.deepEqual(S.scopeStepsOf('loading', null, 'yes'), { grouping: false, firstRun: false }, 'only true keeps it');
+  assert.deepEqual(S.scopeStepsOf('ready', PROFILE, 'yes'), { grouping: true, firstRun: true }, 'only true means it ran');
 });
 
 test('the wizard reads a First run, recorded or still a notebook widget, as its choice, checks it and does not mark it as derived', async () => {
@@ -539,12 +539,12 @@ test('above 1,000 records every default is a number of records, never everything
   const values = S.withScopeDefaults(S.scopeValues(() => undefined), bare);
   assert.equal(values.run_scope, 'records');
   const records = S.firstRunChoices(bare, values).find((c) => c.id === 'records');
-  assert.equal(records.label, '1,000 records spread across the whole table, picked by a stable hash of each record; this technique reads records together and no column groups them, so a group may be cut in this MVP Test Run');
+  assert.equal(records.label, '1,000 records spread across the whole table, the same records every run; this analysis compares records with each other and no column groups them, so a group may be cut in this MVP Test Run');
   assert.equal(records.available, true);
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
   assert.deepEqual(S.scopeProblems({ ...values, run_scope: 'all' }, 'first_run'), [], 'everything is still a choice someone can make');
   const standalone = { ...bare, standalone: true };
-  assert.equal(S.firstRunChoices(standalone, values).find((c) => c.id === 'records').label, '1,000 records spread across the whole table, picked by a stable hash of each record');
+  assert.equal(S.firstRunChoices(standalone, values).find((c) => c.id === 'records').label, '1,000 records spread across the whole table, the same records every run');
 });
 
 test('a custom first run is refused on the First run step only, and is never described as a run Inspire can do', async () => {
@@ -563,7 +563,7 @@ test('a first run on records of a grouping technique takes whole groups, and fal
   const values = { ...S.scopeValues(() => undefined), group_by: 'ss_store_sk, item.i_category', run_scope: 'records', scope_records: '1000000' };
   assert.deepEqual(S.recordGroups(STAR_PROFILE, values), [{ value: '1', records: 490000 }, { value: '7', records: 470000 }]);
   assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'all' }), null, 'the whole data as one group has no group to keep whole');
-  assert.equal(S.recordGroupsText(STAR_PROFILE, { ...values, group_by: 'all' }), '1,000,000 records spread across the whole table, picked by a stable hash of each record, the whole data being one group');
+  assert.equal(S.recordGroupsText(STAR_PROFILE, { ...values, group_by: 'all' }), '1,000,000 records spread across the whole table, the same records every run, the whole data being one group');
   assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'ss_sold_date_sk' }), null,
     'whole groups of another column than the profiled one are not counted until they are read (must-exclude)');
   assert.equal(S.recordGroups(STAR_PROFILE, { ...values, group_by: 'item.i_category, ss_store_sk' }).length, 2, 'the finest column of the main table decides, whatever the joined one');
@@ -571,7 +571,7 @@ test('a first run on records of a grouping technique takes whole groups, and fal
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
   const none = { ...STAR_PROFILE, group_sizes: [] };
   assert.deepEqual(S.scopeProblems(values, 'first_run'), []);
-  assert.match(S.recordGroupsText(none, values), /^1,000,000 records spread across the whole table, picked by a stable hash of each record; this technique reads records together/);
+  assert.match(S.recordGroupsText(none, values), /^1,000,000 records spread across the whole table, the same records every run; this analysis compares records with each other/);
 });
 
 test('a first run on about 1,000 records names the real count when every whole group is larger, and never calls it about 1,000 (must-exclude)', async () => {
@@ -582,7 +582,7 @@ test('a first run on about 1,000 records names the real count when every whole g
   assert.doesNotMatch(said, /About 1,000/);
   assert.equal(S.recordGroupsText({ ...profile, group_sizes: [{ value: 'A', records: 600 }, { value: 'B', records: 300 }] }, { scope_records: '1000' }),
     'About 1,000 records, in 2 whole groups so no group is cut: store = A, 600 records; store = B, 300 records');
-  assert.equal(S.recordGroupsText({ ...profile, standalone: true }, { scope_records: '1000' }), '1,000 records spread across the whole table, picked by a stable hash of each record');
+  assert.equal(S.recordGroupsText({ ...profile, standalone: true }, { scope_records: '1000' }), '1,000 records spread across the whole table, the same records every run');
 });
 
 test('the wizard pre-selects Deep discovery\u2019s grouping, else the recommended grouping with a joined column by its table and column, and Global only when nothing qualifies (must-exclude)', async () => {

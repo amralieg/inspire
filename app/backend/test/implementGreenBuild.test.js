@@ -74,7 +74,7 @@ test('a use case added to an existing App takes that App\'s look and sign-in, so
   assert.deepEqual(w.sentSpec(stale, null, null, { app: [] }).outputs.app_look, stale.outputs.app_look,
     'a hub Inspire cannot list leaves the spec as it was, and the build notes the difference');
   assert.deepEqual(w.sentSpec(stale, null).outputs.app_look, stale.outputs.app_look, 'no targets loaded yet: nothing is changed');
-  const sp = { ...hub, access: 'sp', per_user_block: 'inspire-hub signs everyone in with its own service principal' };
+  const sp = { ...hub, access: 'sp', per_user_block: 'inspire-hub shows everyone the same rows' };
   const sensitive = w.withMergeTarget({ ...spec, outputs: { ...spec.outputs, app_access: 'user' } }, 'app', sp);
   assert.equal(w.sentSpec(sensitive, null, null, { app: [sp] }).outputs.app_access, 'user',
     'a sensitive use case is never quietly switched to a shared sign-in');
@@ -97,10 +97,10 @@ test('the wizard turns off a trend chart when the input tables carry no date, an
   assert.deepEqual(w.appChartsOf(spec, null, true), ['trend', 'bars', 'pareto']);
   assert.equal(w.withAppChart(spec, 'trend', true, null, false), spec, 'a trend cannot be picked with no date');
   const picked = { ...spec, outputs: { ...spec.outputs, app_charts: ['trend', 'bars', 'split'] } };
-  assert.deepEqual(w.stepErrors('app_look', picked, { columnsByTable: undated, sourceTables: tables }),
+  assert.deepEqual(w.stepErrors('app', picked, { columnsByTable: undated, sourceTables: tables }),
     [`${w.APP_TREND_NO_DATE} Pick another kind of chart`]);
-  assert.deepEqual(w.stepErrors('app_look', picked, { columnsByTable: dated, sourceTables: tables }), []);
-  assert.deepEqual(w.stepErrors('app_look', picked, {}), [], 'with no profiles the wizard leaves the pick alone');
+  assert.deepEqual(w.stepErrors('app', picked, { columnsByTable: dated, sourceTables: tables }), []);
+  assert.deepEqual(w.stepErrors('app', picked, {}), [], 'with no profiles the wizard leaves the pick alone');
   assert.deepEqual(w.withAppChart(picked, 'pareto', true, null, false).outputs.app_charts, ['bars', 'split', 'pareto']);
   assert.equal(w.appChartPickText(null, false), "Inspire's pick: bars by segment and biggest first.");
   assert.equal(w.appChartPickText(null, true), "Inspire's pick: trend over time, bars by segment and biggest first.");
@@ -117,5 +117,5 @@ test('a merge target App shows the sign-in and look its live settings hold, and 
   assert.deepEqual([live.access, live.look], ['sp', { style: 'a', layout: 'tabs', palette: 'ocean', theme: 'dark' }]);
   const unread = I.mergeTarget('app', entry, got, '', null);
   assert.deepEqual([unread.access, unread.look], ['sp', { style: 'b' }], 'a per-user joiner does not make the owner\'s shared App per-user');
-  assert.match(unread.per_user_block, /^hub signs everyone in with its own service principal/);
+  assert.match(unread.per_user_block, /^hub shows everyone the same rows/);
 });

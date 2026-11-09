@@ -232,9 +232,9 @@ test('the Build page collects asks for the whole MVP, once each, and a held ask 
 test('the Vibes step note and the outputs Genie does not build say there is one box for the whole MVP', async () => {
   const W = await lib('implementWizard.js');
   assert.match(W.VIBES_STEP_NOTE, /^Tell Genie what you want in your own words\. Your asks win over Inspire's defaults\. /);
-  assert.match(W.VIBES_STEP_NOTE, /one box for the whole MVP/);
+  assert.match(W.VIBES_STEP_NOTE, /One optional box for the whole MVP; the gray text is only an example\.$/);
   assert.doesNotMatch(W.VIBES_STEP_NOTE, /Each box/);
   assert.equal(W.vibesSkippedText({ outputs: { dashboard: true, genie_space: true, app: true, alert: false } }),
-    'Genie builds only what you picked in Delivery consumption, so an ask for the Alert is not done. To vibe it, go back to Delivery consumption and pick it.');
+    'Not picked in Deliver, so not built: the Alert.');
   assert.equal(W.vibesEntries, undefined, 'no box per asset');
 });

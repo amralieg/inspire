@@ -5,12 +5,12 @@ export const GROUPING_PROFILE_ROUTE = '/api/grouping/profile';
 export const PROFILE_READING = `Inspire is reading the table to suggest Data groups and an ${FIRST_RUN_LABEL}.`;
 export const PROFILE_WAITING = 'Reading the table';
 
-export function profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true, groupBy = '' }) {
-  const [db, sid, uc, wh] = [inspireDatabase, sessionId, useCaseId, warehouseId].map((part) => String(part ?? '').trim());
+export function profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true, groupBy = '', table = '' }) {
+  const [db, sid, uc, wh, main] = [inspireDatabase, sessionId, useCaseId, warehouseId, table].map((part) => String(part ?? '').trim());
   if (!enabled || !db || !sid || !uc) return '';
   const columns = groupByColumns(groupBy).filter((c) => c.toLowerCase() !== GROUP_ALL);
-  return new URLSearchParams({ inspire_database: db, session_id: sid, use_case_id: uc, warehouse_id: wh, ...(columns.length ? { [GROUP_BY]: columns.join(', ') } : {}) })
-    .toString();
+  return new URLSearchParams({ inspire_database: db, session_id: sid, use_case_id: uc, warehouse_id: wh, ...(main ? { table: main } : {}),
+    ...(columns.length ? { [GROUP_BY]: columns.join(', ') } : {}) }).toString();
 }
 
 export function profileBody(key) {
@@ -24,8 +24,8 @@ export function profileState(key, got) {
   return { state: got.status === 404 ? 'none' : 'error', profile: null, error: got.error };
 }
 
-export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true, groupBy = '' }) {
-  const key = profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled, groupBy });
+export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true, groupBy = '', table = '' }) {
+  const key = profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled, groupBy, table });
   const [got, setGot] = useState(null);
   const post = useRef(apiPostJson);
   const pending = useRef({ key: '', promise: null });

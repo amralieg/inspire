@@ -1,13 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { BUILD_IT, closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardFits, goToStep } from './uiSupport.mjs';
-import { NOTEBOOK_MODE_LABEL } from '../../src/lib/implementWizard.js';
+import { BUILD_IT, closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardFit, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['Delivery consumption', 'Data', 'MVP Test Run', 'Results', 'Measure impact', 'Keep it fresh', 'App placement', 'App access', 'App look', 'Settings', 'Vibes', 'Summary'];
+const FULL_MVP_STEPS = ['Data', 'First run', 'Results', 'Deliver', 'App', 'Run it', 'Summary'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));
@@ -22,16 +21,17 @@ function submittedSpec(made) {
   return JSON.parse(inserts[0].parameters.find((p) => p.name === 'spec').value);
 }
 
-test('a fresh Inspire builds the MVP shows every step in the step bar, with no shortcut that hides them', async () => {
+test('a fresh MVP shows every step in the step bar, with no shortcut that hides them', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await onStep(page, 'Delivery consumption');
+    await onStep(page, 'Data');
     assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS);
+    await goToStep(page, 'Deliver');
     assert.equal(await page.getByRole('button', { name: 'Customize' }).count(), 0);
-    await page.getByRole('heading', { name: 'How do you like to consume or use this use case?' }).waitFor();
+    await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
     await page.getByRole('checkbox', { name: /^App/ }).first().uncheck();
-    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS.filter((l) => !l.startsWith('App ')), 'with Apps unticked the App steps are hidden');
+    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS.filter((l) => l !== 'App'), 'with Apps unticked the App step is hidden');
     await page.getByRole('checkbox', { name: /^App/ }).first().check();
     assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS);
     await goToStep(page, 'Data');
@@ -41,7 +41,7 @@ test('a fresh Inspire builds the MVP shows every step in the step bar, with no s
   }
 });
 
-test('Data, Results, Measure impact, Keep it fresh, App placement and App access show the business settings and keep the technical ones under Advanced settings until it is opened', async () => {
+test('Data, Results, Run it and App show the business settings and keep the technical ones under Advanced settings until it is opened', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   const field = (label) => page.getByLabel(new RegExp(`^${label.replace(/[()]/g, '\\$&')}`));
@@ -61,15 +61,11 @@ test('Data, Results, Measure impact, Keep it fresh, App placement and App access
     for (const label of ['Table name', 'Catalog', 'Schema']) await shown(label);
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Results holds only where the result table lives');
     assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Results holds only where the result table lives');
-    await goToStep(page, 'Measure impact');
+    await goToStep(page, 'Run it');
     await page.getByRole('checkbox', { name: /^Hold back/ }).check();
-    await hidden('Share of records held back');
+    for (const label of ['Share of records held back', 'Cron (Quartz)', 'Timezone']) await hidden(label);
     await open();
-    await shown('Share of records held back');
-    await goToStep(page, 'Keep it fresh');
-    for (const label of ['Cron (Quartz)', 'Timezone']) await hidden(label);
-    await open();
-    for (const label of ['Cron (Quartz)', 'Timezone']) await shown(label);
+    for (const label of ['Share of records held back', 'Cron (Quartz)', 'Timezone']) await shown(label);
     await hidden('Rows the team can act on each run');
     const picker = page.locator('[data-app-warehouse="pick"]');
     await goToStep(page, 'App placement');
@@ -80,10 +76,6 @@ test('Data, Results, Measure impact, Keep it fresh, App placement and App access
     await open();
     await picker.waitFor();
     await page.locator(`input[name="app-place"][value="${placed}"]`).check();
-    await goToStep(page, 'App access');
-    assert.equal(await picker.count(), 0, 'the App SQL warehouse shows on App access before Advanced settings is opened');
-    await open();
-    await picker.waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -99,9 +91,9 @@ test('Summary is the last step, lists every pick with a Change link that jumps t
     await toSummary(page);
     await summary(page).waitFor();
     const rows = await summary(page).locator('[data-picked-row]').evaluateAll((items) => items.map((r) => r.dataset.pickedRow));
-    for (const id of ['outputs', 'data', 'first_run', 'result', 'kpi', 'holdout', 'schedule', 'app', 'app_access', 'app_look', 'capacity', 'vibes']) assert.ok(rows.includes(id), id);
-    assert.equal(await summary(page).locator('[data-picked-change]').count(), rows.length - 1, 'every row but Team capacity has a Change link');
-    assert.equal(await summary(page).locator('[data-picked-row="capacity"] [data-picked-change]').count(), 0, 'Team capacity is set in the App, not in the wizard');
+    for (const id of ['outputs', 'data', 'first_run', 'result', 'kpi', 'holdout', 'schedule', 'app', 'app_access', 'app_features', 'app_look']) assert.ok(rows.includes(id), id);
+    for (const id of ['capacity', 'settings', 'vibes']) assert.equal(rows.includes(id), false, `${id} is not a Summary row (must-exclude)`);
+    assert.equal(await summary(page).locator('[data-picked-change]').count(), rows.length, 'every row has a Change link');
     assert.match(await summary(page).locator('[data-picked-row="outputs"] [data-picked-value]').innerText(), /^The MVP: /);
     assert.match(await summary(page).locator('[data-picked-row="schedule"] [data-picked-value]').innerText(), /^Daily, runs every day at /);
     const result = await summary(page).locator('[data-picked-row="result"] [data-picked-value]').innerText();
@@ -110,7 +102,7 @@ test('Summary is the last step, lists every pick with a Change link that jumps t
     await page.getByRole('button', { name: 'Back to Summary' }).click();
     await onStep(page, 'Summary');
     await summary(page).getByRole('button', { name: 'Change What it builds' }).click();
-    await onStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     await page.getByRole('button', { name: 'Back to Summary' }).click();
     await onStep(page, 'Summary');
     await startOn(page);
@@ -123,28 +115,15 @@ test('Summary is the last step, lists every pick with a Change link that jumps t
   }
 });
 
-test('I will build it myself keeps its own three steps and shows no review', async () => {
-  const ui = await openUi('wizard', ME);
-  const { page } = ui;
-  try {
-    await onStep(page, 'Delivery consumption');
-    await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).check();
-    assert.deepEqual(await stepLabels(page), ['Delivery consumption', 'Data', 'Notebook']);
-    assert.equal(await summary(page).count(), 0);
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
-
-test('the last step with its review fits a 1440x900 screen and reads at 4.5:1 in light and dark', async () => {
+test('the last step with its review and the vibes box stays inside a 1440x900 screen and reads at 4.5:1 in light and dark', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await toSummary(page);
     await summary(page).waitFor();
-    await wizardFits(page, 'review-summary');
+    const fit = await wizardFit(page);
+    assert.ok(fit.height <= 900, `review-summary: the wizard stays inside the screen (${fit.height})`);
     for (const dark of [false, true]) {
       await setDark(page, dark);
       const result = await lowContrast(page, ['[role="dialog"]']);
@@ -201,7 +180,7 @@ test('an App name that is still refused is named on the last step with the step 
     const field = page.locator('[data-last-app-name]');
     await field.waitFor({ timeout: 15000 });
     assert.match(await field.innerText(), new RegExp(`'${taken}' is used by another App in this workspace; pick another name`));
-    await page.locator('[role="alert"] p', { hasText: '(fix it on App placement)' }).waitFor();
+    await page.locator('[role="alert"] p', { hasText: '(fix it on App)' }).waitFor();
     assert.equal(await startButton(page).isDisabled(), true);
     await field.locator('input').fill('quality-desk');
     await startOn(page);

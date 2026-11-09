@@ -43,8 +43,6 @@ test('each choice has exactly one Highly Recommended option, with a reason, pick
   assert.equal(H.bestRemoved().id, W.REMOVED_OUTPUT_DEFAULT);
   one(H.bestVibePrevious(3), W.vibePreviousChoices(3, 4).map((c) => c.id));
   assert.equal(H.bestVibePrevious(3).id, W.VIBE_PREVIOUS_DEFAULT);
-  one(H.bestMerge('dashboard', []), ['', 'existing']);
-  assert.equal(H.bestMerge('dashboard', [{ id: 'd1' }]).reason, 'A new dashboard holds only this use case.');
   one(H.bestReplaceEdits(), [false, true]);
   assert.equal(H.bestHeldApp(''), null);
   assert.equal(H.bestResultTable(''), null);
@@ -111,4 +109,19 @@ test('every Highly Recommended pick is the option the wizard starts on', async (
   const removed = W.withOutput({ ...spec, outputs: { ...spec.outputs, dashboard: true } }, 'dashboard', false, assets);
   assert.equal(removed.removed_outputs.dashboard, H.bestRemoved().id, 'an output turned off keeps its asset, as Highly Recommended');
   assert.equal(W.withOutput(removed, 'dashboard', true, assets).removed_outputs.dashboard, undefined);
+});
+
+test('each wizard step shows one Highly Recommended, the first of its questions that has one', async () => {
+  const H = await lib('highlyRecommended.js');
+  const pick = (id) => ({ id, reason: id });
+  const all = Object.fromEntries(Object.values(H.STEP_BEST).flat().map((k) => [k, pick(k)]));
+  const kept = H.oneBestPerStep({ ...all, result: pick('own'), freshness: pick('daily') });
+  for (const [step, keys] of Object.entries(H.STEP_BEST)) {
+    assert.deepEqual(keys.filter((k) => kept[k]), [keys[0]], `${step} keeps one badge`);
+  }
+  assert.deepEqual([kept.result.id, kept.freshness.id], ['own', 'daily'], 'a step with one question keeps its badge');
+  const later = H.oneBestPerStep({ ...all, appPlace: null, output: null });
+  assert.deepEqual([later.appTarget?.id, later.appAccess, later.removed?.id], ['appTarget', null, 'removed'], 'with no first badge the next question keeps it');
+  assert.deepEqual(Object.keys(H.STEP_BEST), ['delivery', 'app', 'run'], 'Deliver, App and Run it each show one');
+  assert.deepEqual(Object.keys(H.STEP_BEST).filter((s) => (H.STEP_BEST[s].filter((k) => H.oneBestPerStep(all)[k]).length !== 1)), [], 'never two (must-exclude)');
 });

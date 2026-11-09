@@ -106,3 +106,25 @@ export const STUDIO_STATE = {
       state: { life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: 'Workload failed' } },
   ] },
 };
+
+export const GROUPING_PROFILE = {
+  table: 'main.sales.orders', records: 48210, applies: true, qualifies: true, standalone: false,
+  reason: 'Inspire recommends region, then country because Anomaly Detection works out what is normal inside each group, and country splits main.sales.orders into 31 groups.',
+  columns: [{ name: 'region', type: 'string', distinct: 4, smallest: 210, largest: 30110, nulls: 0, parent: null },
+    { name: 'country', type: 'string', distinct: 31, smallest: 12, largest: 18200, nulls: 3, parent: 'region' }],
+  recommended: ['region', 'country'],
+  example: { column: 'country', small_groups: [{ value: 'Cyprus', records: 12 }], moves_to: 'Europe' },
+  time_column: 'order_date', recent: { days: 30, records: 3120 },
+  suggested_groups: [{ value: 'USA', records: 18200, kind: 'biggest' }, { value: 'Spain', records: 1400, kind: 'typical' }, { value: 'Cyprus', records: 12, kind: 'smallest' }],
+  group_column: 'country', group_sizes: [{ value: 'USA', records: 18200 }, { value: 'Spain', records: 1400 }, { value: 'Germany', records: 600 },
+    { value: 'Ireland', records: 300 }, { value: 'Malta', records: 40 }],
+  groups_for: 'region, country',
+  group_list: [['AMER', 'USA', 18200], ['EMEA', 'Spain', 1400], ['EMEA', 'Germany', 600], ['EMEA', 'Ireland', 300], ['EMEA', 'Malta', 40]]
+    .map(([region, country, records]) => ({ value: `${region} / ${country}`, records, parts: [{ column: 'region', value: region }, { column: 'country', value: country }] })),
+  column_groups: { region: [{ value: 'AMER', records: 30110 }, { value: 'EMEA', records: 17890 }, { value: 'APAC', records: 210 }],
+    country: [{ value: 'USA', records: 18200 }, { value: 'Spain', records: 1400 }, { value: 'Germany', records: 600 }, { value: 'Ireland', records: 300 },
+      { value: 'Malta', records: 40 }] },
+  first_run: { all: 48210, groups: 19612, recent: 3120, records: null }, default_scope: 'records', read_at: '2026-11-01T15:00:00Z',
+};
+export const GROUPING_INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
+  + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Data groups |\n| `run_scope` | text | all | | First run |\n';

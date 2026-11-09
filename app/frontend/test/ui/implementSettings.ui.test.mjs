@@ -16,8 +16,7 @@ const footerErrors = (page) => page.locator('[role="alert"] p').allTextContents(
 const advanced = (page) => page.getByRole('button', { name: 'Advanced settings' });
 
 async function toResults(page) {
-  await onStep(page, 'Delivery consumption');
-  await goToStep(page, 'Data');
+  await onStep(page, 'Data');
   await dataToResults(page);
 }
 
@@ -43,7 +42,7 @@ test('a build left alone holds back 10% to measure impact and sends no App owner
   const { page, made } = ui;
   try {
     await toResults(page);
-    await goToStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     await startWhenReady(page);
     const spec = submittedSpec(made);
     assert.deepEqual(spec.holdout, { enabled: true, share: 0.1 }, 'the holdout starts on, where its Highly Recommended badge sits');
@@ -77,7 +76,7 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     await impact.getByText(SHARE_PROBLEM, { exact: true }).waitFor();
     await next(page);
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '5. Measure impact', 'a share above half the records keeps the person on Measure impact');
+    assert.equal(await page.locator('[aria-current="step"]').textContent(), '6. Run it', 'a share above half the records keeps the person on Measure impact');
     await share.fill('');
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
     await box.uncheck();
@@ -86,7 +85,7 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     assert.equal(await share.inputValue(), '10', 'turning it back on starts again from the default');
     await share.fill('25');
     assert.equal(await impact.getByText(SHARE_PROBLEM).count(), 0);
-    await goToStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     await startWhenReady(page);
     assert.deepEqual(submittedSpec(made).holdout, { enabled: true, share: 0.25 });
     assert.deepEqual(ui.pageErrors, []);
@@ -110,7 +109,7 @@ test('every list field keeps the comma or new line a person types, and sends eac
     await goToStep(page, 'Keep it fresh');
     await advanced(page).click();
     await keeps([[page.getByLabel('Failure emails (comma separated; default: the decision owner)'), `${OWNER}, ${OPS}`]]);
-    await goToStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     for (const name of [/^Dashboard/, /^App /, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await advanced(page).click();
     await keeps([
@@ -136,7 +135,7 @@ test('the alert row keeps its threshold short and its lists as wide as their cho
   const { page } = ui;
   try {
     await toResults(page);
-    await goToStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     await advanced(page).click();
     const width = async (locator) => Math.round((await locator.boundingBox()).width);
@@ -158,7 +157,7 @@ test('App owners are typed under Advanced settings like alert recipients, checke
   const { page, made } = ui;
   try {
     await toResults(page);
-    await goToStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     await advanced(page).click();
     const owners = page.getByLabel('App owners (comma separated)');
     await owners.waitFor();
@@ -171,7 +170,7 @@ test('App owners are typed under Advanced settings like alert recipients, checke
     assert.equal(await owners.inputValue(), `${PAT}, nope`);
     await next(page);
     await page.locator('[role="alert"] p', { hasText: 'App owners must be email addresses: nope' }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '1. Delivery consumption');
+    assert.equal(await page.locator('[aria-current="step"]').textContent(), '4. Deliver');
     await owners.fill(`${PAT}, ${PAT.toUpperCase()}, ${LEE}`);
     await throughApp(page);
     await startWhenReady(page);

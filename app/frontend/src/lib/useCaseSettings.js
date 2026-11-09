@@ -12,10 +12,10 @@ export const FAMILY_FLAGGING = { A: ['min_probability'], B: ['alert_quantile', '
 export const ALERT_THRESHOLD_SETTING = 'alert_threshold';
 export const SETTINGS_ASSUMPTIONS_LATER = 'Genie proposes the assumptions of what is at stake on each record, with their lowest and highest values, '
   + 'when the notebook first runs; you set them here after that run.';
-export const SETTINGS_ON_THEIR_STEP = 'The rules that flag records and the use case\u2019s own settings are on the Settings step.';
-export const SETTINGS_STEP_NOTE = 'How this use case counts what is at stake and flags records. Every value stays inside the range Genie declared, and owners change '
+export const SETTINGS_ON_THEIR_STEP = 'The rules that flag records and the use case\u2019s own settings start at their defaults; after the first run you change them in the MVP App\u2019s Settings page.';
+export const SETTINGS_STEP_NOTE = 'How this use case counts what is at stake and flags records. Every value stays inside its allowed range, and owners change '
   + 'them later on the Build page or in the App.';
-export const SETTINGS_TECHNICAL_NOTE = 'Technical settings, such as how much data a model needs, keep the values Genie declared; the App owner changes them in the App\u2019s settings.';
+export const SETTINGS_TECHNICAL_NOTE = 'Technical settings, such as how much data a model needs, and the Act now and Review cut-offs and team capacity are set in the App\u2019s Settings once the App exists.';
 export const SETTINGS_NO_REBUILD = 'Saved as a setting, no rebuild';
 export const SETTINGS_REBUILDS = 'Rebuilds the notebook';
 export const SETTINGS_ALERT_REFRESH = 'Rebuilds the alert';
@@ -186,13 +186,18 @@ export function isBusinessSetting(setting) {
   return BUSINESS_SETTING_GROUPS.includes(String(setting?.group || '')) || isScopeSetting(setting);
 }
 
+export function isAppOnlySetting(name, editing = false) {
+  const text = String(name || '');
+  return /capacity/i.test(text) || (!editing && [...TIER_SETTINGS.measured, ...TIER_SETTINGS.predicted].includes(text));
+}
+
 export function wizardSettings({ model = null, widgets = [], spec = null, family = '', editing = false } = {}) {
   const list = [];
   const seen = new Set();
   const recorded = Array.isArray(model);
   for (const s of recorded ? model : []) {
     const name = String(s.name || '');
-    if (!name || seen.has(name)) continue;
+    if (!name || seen.has(name) || isAppOnlySetting(name, true)) continue;
     seen.add(name);
     const change = s.source === 'alert' ? SETTINGS_ALERT_REFRESH : SETTINGS_NO_REBUILD;
     list.push(runScopeSetting({ ...s, name, label: String(s.label || name), derived: false, change }));
@@ -200,7 +205,7 @@ export function wizardSettings({ model = null, widgets = [], spec = null, family
   const flagging = new Set([...TIER_SETTINGS.measured, ...TIER_SETTINGS.predicted, ...(FAMILY_FLAGGING[family] || [])]);
   for (const widget of Array.isArray(widgets) ? widgets : []) {
     const name = String(widget?.name || '');
-    if (!isSettingWidget(widget) || seen.has(name)) continue;
+    if (!isSettingWidget(widget) || seen.has(name) || isAppOnlySetting(name, editing)) continue;
     seen.add(name);
     const rule = allowedRule(widget.allowed) || { low: null, high: null, whole: false, lowOpen: false, highOpen: false };
     list.push(runScopeSetting({

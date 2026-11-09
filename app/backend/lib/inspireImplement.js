@@ -1495,7 +1495,7 @@ function mergeTargetPath(name, id) {
 
 function appMergeBlock(target, access) {
   return access === 'user' && target && target.access === 'sp'
-    ? `${target.name} signs everyone in with its own service principal, so a per-user (sensitive) use case cannot join it: `
+    ? `${target.name} shows everyone the same rows, so a per-user (sensitive) use case cannot join it: `
       + 'create a new App, or choose Internal data'
     : '';
 }

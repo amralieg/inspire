@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, MVP_MODE_LABEL, NOTEBOOK_MODE_LABEL, VIBE_FEATURES_LABEL } from '../../src/lib/implementWizard.js';
+import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, VIBE_FEATURES_LABEL } from '../../src/lib/implementWizard.js';
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
@@ -45,14 +45,13 @@ async function openHistory(page) {
 }
 
 async function toData(page) {
-  await onStep(page, 'Delivery consumption');
-  await goToStep(page, 'Data');
+  await onStep(page, 'Data');
 }
 async function toDelivery(page) {
   await dataToResults(page);
   await next(page);
   await page.locator('[aria-current="step"]', { hasText: 'Results' }).waitFor({ state: 'detached' });
-  await goToStep(page, 'Delivery');
+  await goToStep(page, 'What to build');
 }
 
 async function throughApp(page, access = /^Internal data/) {
@@ -71,33 +70,32 @@ function submittedSpec(made) {
   return JSON.parse(inserts[0].parameters.find((p) => p.name === 'spec').value);
 }
 
-test('the wizard opens on Delivery consumption with the App and Genie Agent ticked, drops the App steps while the App is unticked, and All Good, Build it Now launches one run', async () => {
+test('the wizard opens on Data with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
-  const withApp = ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. Measure impact', '6. Keep it fresh', '7. App placement', '8. App access', '9. App look', '10. Settings', '11. Vibes', '12. Summary'];
+  const withApp = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. App', '6. Run it', '7. Summary'];
   try {
-    await onStep(page, 'Delivery consumption');
+    await onStep(page, 'Data');
     await stepsAre(page, withApp);
     const summary = page.getByRole('region', { name: 'Executive summary' });
     await summary.getByText('Cut churn in the top segment').waitFor();
     await summary.getByText('Head of Retention').waitFor();
-    assert.equal(await page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL}`) }).isChecked(), true);
-    assert.equal(await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).isChecked(), false);
-    const modes = page.locator('label:has(input[name="implement-mode"])');
-    assert.equal(await modes.locator('[data-highly-recommended]').count(), 1, 'one of the two ways is Highly Recommended');
-    assert.match(await modes.first().innerText(), /Highly Recommended/);
+    assert.equal(await page.locator('input[name="implement-mode"]').count(), 0, 'no MVP or notebook choice (must-exclude)');
+    await goToStep(page, 'What to build');
     assert.equal(await page.getByText('(default)', { exact: false }).count(), 0);
-    await page.getByRole('heading', { name: 'How do you like to consume or use this use case?' }).waitFor();
+    await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
+    assert.equal(await page.locator('[data-output="notebook"] input').isChecked(), true, 'the notebook is always built');
+    assert.equal(await page.locator('[data-output="notebook"] input').isDisabled(), true);
     for (const name of [/^Genie Agent/, /^App /]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), true, String(name));
     for (const name of [/^Dashboard/, /^Alert/]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), false, `${name} starts off but stays a choice`);
     assert.equal(await page.locator('[data-output="app"] [data-highly-recommended]').count(), 1, 'the App tile is Highly Recommended');
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-highly-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       1, 'exactly one tile is Highly Recommended');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    await stepsAre(page, ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. Measure impact', '6. Keep it fresh', '7. Settings', '8. Vibes', '9. Summary']);
+    await stepsAre(page, ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Run it', '6. Summary']);
     await page.getByRole('checkbox', { name: /^App / }).check();
     await stepsAre(page, withApp);
-    assert.equal(await page.getByLabel('App name').count(), 0, 'the App name waits for App placement');
+    assert.equal(await page.getByLabel('App name').count(), 0, 'the App name waits for the App step');
     await page.getByRole('checkbox', { name: /^Dashboard/ }).check();
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     await page.getByText(`Emails ${OWNER} when Act now rows in the latest run are at least 1.`).waitFor();
@@ -159,13 +157,11 @@ test('the wizard names the use case as the card the person clicked, while the da
   const ui = await openUi('wizard', { useCase: { ...row, use_case: 'Keep customers who would leave', statement: 'Keep the top segment buying' } });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Delivery consumption');
+    await onStep(page, 'Data');
     const summary = page.getByRole('region', { name: 'Executive summary' });
     await summary.getByText('Keep the top segment buying').waitFor();
     assert.equal(await summary.locator('h3').innerText(), HARNESS_USE_CASE.Name);
     assert.equal(await page.getByRole('dialog').getByText('Keep customers who would leave').count(), 0, 'one name for the use case, the one on its card');
-    await goToStep(page, 'Data');
-    await toDelivery(page);
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     assert.equal(submittedSpec(made).use_case_name, HARNESS_USE_CASE.Name);
@@ -278,7 +274,7 @@ test('a new App that could not get access is disabled up front with the reason, 
     const blocked = page.locator('[data-blocked-reason="app"]');
     assert.equal(await blocked.locator('p').textContent(), 'Needs access Inspire does not have on the catalog, the schema and the SQL warehouse.', 'one short plain line says why, naming the place');
     await blocked.getByText('Details', { exact: true }).click();
-    const reason = await blocked.locator('code').textContent();
+    const reason = await blocked.locator('[data-technical-details] pre').textContent();
     assert.ok(reason.includes(`a new App could not read ${RESULT_TABLE}: its service principal needs USE CATALOG on catalog \`main\` (owner admins)`), reason);
     assert.ok(reason.includes('Inspire cannot manage'), reason);
     assert.equal(await page.locator('[data-output="app"] [data-highly-recommended]').count(), 0, 'the blocked App carries no badge');
@@ -367,7 +363,7 @@ test('every column role starts as Inspire\'s choice, a picked column is type-che
     await page.locator('[role="alert"]').waitFor();
     assert.ok((await footerErrors(page)).some((e) => e.includes('event date main.s.orders.order_id: pick a DATE or TIMESTAMP column')),
       (await footerErrors(page)).join(' | '));
-    assert.equal(await page.locator('[aria-current="step"]').innerText(), '2. Data', 'a wrong type keeps the wizard on Data');
+    assert.equal(await page.locator('[aria-current="step"]').innerText(), '1. Data', 'a wrong type keeps the wizard on Data');
     await role('event date').selectOption('main.s.orders.order_date');
     await role('entity id').selectOption('main.s.orders.order_id');
     await role('event date').selectOption('');
@@ -553,7 +549,7 @@ test('an App name another App already uses is changed to the next free name, and
     await page.getByLabel('App name').fill('inspire-hub-acme');
     await page.getByText("'inspire-hub-acme' is used by another App in this workspace; pick another name.", { exact: false }).waitFor();
     assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-hub-acme', 'a name the person typed is never changed for them');
-    await goToStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     await throughApp(page);
     await toSummary(page);
     await page.locator('[role="alert"] p', { hasText: "App name: 'inspire-hub-acme' is used by another App in this workspace; pick another name" }).waitFor();
@@ -1708,16 +1704,16 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     assert.equal(await never.page.locator('[data-mvp-progress]').count(), 0, 'no build to follow before an MVP exists');
     assert.equal(never.made.sqlCalls.some((c) => /^SELECT \* FROM `main`\.`inspire`\.`n01_u01_s42_out`/.test(String(c.sql))), false, 'no result table read');
     await never.page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
-    await onStep(never.page, 'Delivery consumption');
+    await onStep(never.page, 'Data');
     assert.equal(await never.page.getByRole('region', { name: 'Executive summary' }).locator('h3').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
-    for (const label of ['Delivery consumption', 'Data', 'MVP Test Run', 'Results', 'Measure impact', 'Keep it fresh', 'App placement']) {
-      if (label !== 'Delivery consumption') {
+    for (const label of ['Data', 'First run', 'Results', 'Deliver', 'App', 'Run it']) {
+      if (label !== 'Data') {
         await next(never.page);
         await onStep(never.page, label);
       }
       assert.equal(await header.getByRole('heading', { level: 2 }).innerText(), HARNESS_USE_CASE.Name, label);
-      assert.equal(await header.getByRole('list', { name: 'About this use case' }).innerText().then((t) => t.replace(/\s+/g, ' ').trim()), 'ID N01-U01', label);
+      assert.doesNotMatch(await header.innerText(), /\bID\b|N01-U01/, `${label}: the header shows no use case id (must-exclude)`);
     }
     await never.page.getByRole('dialog', { name: `Start Use Case MVP with Genie: ${HARNESS_USE_CASE.Name}` }).waitFor();
     assert.deepEqual(never.pageErrors, []);
@@ -1843,42 +1839,41 @@ test('Edit after notebook edits asks on Summary whether to overwrite them, and o
   }
 });
 
-test('with no Genie Code route, Inspire builds the MVP is disabled with the reason and the admin fix, and I will build it myself is picked for you', async () => {
+test('with no Genie Code route, the wizard offers only the notebook with the reason and the admin fix', async () => {
   const noRoute = { answer: () => [{ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no such model' }, 404] };
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, gateway: noRoute });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Delivery consumption');
-    const full = page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL}`) });
-    assert.equal(await full.isDisabled(), true);
-    assert.equal(await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).isChecked(), true);
+    await onStep(page, 'Data');
+    await stepsAre(page, ['1. Data', '2. Notebook']);
+    assert.equal(await page.locator('input[name="implement-mode"]').count(), 0, 'no MVP or notebook choice (must-exclude)');
     const note = page.getByRole('note', { name: GENIE_CODE_OFF_TITLE });
     await note.getByText(/^Genie Code is not available in this workspace/).waitFor();
     await note.getByText(/^Admin fix: Ask a workspace admin to serve a model to Genie Code/).waitFor();
     assert.doesNotMatch(await note.textContent(), /contact|ticket|support/i);
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Delivery consumption', '2. Data', '3. Notebook']);
     assert.equal(made.jobs.length, 0);
   } finally {
     await ui.close();
   }
 });
 
-test('with a Genie Code route, Inspire builds the MVP stays the default and no note shows', async () => {
+test('with a Genie Code route, the wizard walks the MVP steps and no note shows', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
-    await onStep(ui.page, 'Delivery consumption');
-    assert.equal(await ui.page.getByRole('radio', { name: new RegExp(`^${MVP_MODE_LABEL}`) }).isChecked(), true);
+    await onStep(ui.page, 'Data');
+    await stepsAre(ui.page, ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. App', '6. Run it', '7. Summary']);
     assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
   } finally {
     await ui.close();
   }
 });
 
-test('I will build it myself skips the MVP settings, flags only this use case, starts Generate Use Cases, and the Implement page follows the notebook run', async () => {
+test('with no Genie Code route, the notebook skips the MVP settings, flags only this use case, starts Generate Use Cases, and the Implement page follows the notebook run', async () => {
   const notebookPath = '/Users/owner@example.com/inspire/Acme/N01-U01';
   const flaggedRow = { ...HARNESS_USE_CASE, generate_genie_code_instruction: 'Yes', has_genie_code: 'N' };
   const runUrl = 'https://workspace.example.com/#job/7/run/99';
-  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
+  const noRoute = { answer: () => [{ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no such model' }, 404] };
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, gateway: noRoute });
   const { page, made } = ui;
   made.state.afterTrigger = () => {
     made.state.useCase = flaggedRow;
@@ -1886,10 +1881,8 @@ test('I will build it myself skips the MVP settings, flags only this use case, s
     made.state.runsByJob = { 7: { runs: [{ run_id: 99, state: { life_cycle_state: 'RUNNING' }, run_page_url: runUrl }] } };
   };
   try {
-    await onStep(page, 'Delivery consumption');
-    await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).check();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Delivery consumption', '2. Data', '3. Notebook']);
-    await goToStep(page, 'Data');
+    await onStep(page, 'Data');
+    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Data', '2. Notebook']);
     const tables = page.getByRole('region', { name: 'Tables the notebook uses' });
     assert.deepEqual(await tables.locator('li > span.font-mono').allTextContents(), ['main.s.orders', 'main.s.returns']);
     await tables.locator('li', { hasText: 'main.s.orders' }).getByText('primary', { exact: true }).waitFor();
@@ -1947,10 +1940,11 @@ test('I will build it myself skips the MVP settings, flags only this use case, s
   }
 });
 
-test('I will build it myself started from the Build page of a use case that has a notebook shows it running at once, not the old notebook as ready', async () => {
+test('with no Genie Code route, a notebook started from the Build page of a use case that has a notebook shows it running at once, not the old notebook as ready', async () => {
   const notebookPath = '/Users/owner@example.com/inspire/Acme/N01-U01';
   const runUrl = 'https://workspace.example.com/#job/7/run/99';
-  const ui = await openUi('implement', { useCase: { ...HARNESS_USE_CASE, has_genie_code: 'Y', generate_genie_code_instruction: 'No', notebook_path: notebookPath } });
+  const noRoute = { answer: () => [{ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no such model' }, 404] };
+  const ui = await openUi('implement', { gateway: noRoute, useCase: { ...HARNESS_USE_CASE, has_genie_code: 'Y', generate_genie_code_instruction: 'No', notebook_path: notebookPath } });
   const { page, made } = ui;
   made.state.afterTrigger = () => {
     made.state.useCase = { ...HARNESS_USE_CASE, has_genie_code: 'N', generate_genie_code_instruction: 'Yes', notebook_path: notebookPath };
@@ -1961,9 +1955,7 @@ test('I will build it myself started from the Build page of a use case that has 
     const nav = page.getByRole('navigation', { name: 'Use cases' });
     await nav.getByRole('region', { name: 'Ready' }).getByText('Notebook ready', { exact: true }).waitFor();
     await page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
-    await onStep(page, 'Delivery consumption');
-    await page.getByRole('radio', { name: new RegExp(`^${NOTEBOOK_MODE_LABEL}`) }).check();
-    await goToStep(page, 'Data');
+    await onStep(page, 'Data');
     await goToStep(page, 'Notebook');
     await page.getByRole('button', { name: 'Generate notebook' }).click();
     await page.getByRole('dialog').waitFor({ state: 'detached' });
@@ -2019,7 +2011,7 @@ test('the Implement page groups every use case by its state, searches by name, i
     await page.getByText('Not built yet.', { exact: false }).waitFor();
     assert.equal(await page.locator('[data-asset-tiles]').count(), 0);
     await page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
-    await onStep(page, 'Delivery consumption');
+    await onStep(page, 'Data');
     assert.equal(await page.getByRole('region', { name: 'Executive summary' }).locator('h3').innerText(), 'Forecast demand');
     await page.getByRole('button', { name: 'Close' }).click();
     await page.locator('[data-implement-overlay]').waitFor({ state: 'detached' });
@@ -2205,7 +2197,7 @@ test('each output the version lacks shows faded with its name and Add opens Edit
     assert.equal(await page.getByRole('dialog', { name: /^Start Use Case MVP|^Edit/ }).count(), 0, 'Add on the Alert opens its drawer, not the wizard');
     await closeAsset(page);
     await tile(page, 'genie_space').getByRole('button', { name: 'Add the Genie Agent', exact: true }).click();
-    await onStep(page, 'Delivery');
+    await goToStep(page, 'What to build');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

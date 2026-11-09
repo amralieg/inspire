@@ -44,7 +44,7 @@ test('the Measure impact step offers the use case\u2019s own KPIs with Let Inspi
     const ui = await openUi('wizard', { me: ME, useCase: withKpis(KPIS) });
     const { page, made } = ui;
     try {
-      await onStep(page, 'Delivery consumption');
+      await goToStep(page, 'What to build');
       await goToStep(page, 'Data');
       await dataToResults(page);
       await goToStep(page, 'Measure impact');
@@ -71,8 +71,7 @@ test('the picker shows the KPI the built version tracks, its unit and how record
   const ui = await openUi('wizard', { me: ME, useCase: withKpis(KPIS), history: [builtWith(TRACKED)] });
   const { page } = ui;
   try {
-    await onStep(page, 'Delivery consumption');
-    await goToStep(page, 'Data');
+    await onStep(page, 'Data');
     await dataToResults(page);
     await goToStep(page, 'Measure impact');
     const box = page.getByRole('group', { name: 'Target KPI', exact: true });
@@ -89,7 +88,7 @@ test('the picker shows the KPI the built version tracks, its unit and how record
   }
   const none = await openUi('wizard', { me: ME, useCase: withKpis([]) });
   try {
-    await onStep(none.page, 'Delivery consumption');
+    await onStep(none.page, 'What to build');
     await goToStep(none.page, 'Data');
     await dataToResults(none.page);
     await goToStep(none.page, 'Measure impact');

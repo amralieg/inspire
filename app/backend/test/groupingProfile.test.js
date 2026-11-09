@@ -516,3 +516,15 @@ test('a Deep discovery grouping the profile can size becomes the one recommendat
     assert.deepEqual([kept.recommended, kept.group_column, kept.first_run.groups], [own.recommended, own.group_column, own.first_run.groups], JSON.stringify(unsized));
   }
 });
+
+test('the profile reads the main table picked in the wizard, not the one of the last build', async () => {
+  const made = profiled();
+  await withApp(made, async (srv) => {
+    const picked = await post(srv, { ...ASK, table: 'main.sales.orders_v2' });
+    assert.equal(picked.status, 200, JSON.stringify(picked.data));
+    assert.equal(picked.data.table, 'main.sales.orders_v2', 'the MVP Test Run counts the table the Data step counts');
+    assert.equal((await post(srv, ASK)).data.table, 'main.sales.orders', 'with no table picked, the use case main table is read');
+    const bad = await post(srv, { ...ASK, table: 'main.sales.`x`; DROP TABLE y' });
+    assert.equal(bad.status, 400, 'a table that is not catalog.schema.table is refused (must-exclude)');
+  });
+});

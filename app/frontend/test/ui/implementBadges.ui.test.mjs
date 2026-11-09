@@ -13,9 +13,9 @@ async function auditEveryStep(page, { look = true } = {}) {
   const labels = (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\.\s*/, '').trim());
   for (const label of labels) {
     await goToStep(page, label);
-    if (label === 'App placement') await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
+    if (label === 'App') await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     await settleChoices(page);
-    const tabs = label === 'App look' && look ? APP_LOOK_TABS.map((t) => t.label) : [null];
+    const tabs = label === 'App' && look ? APP_LOOK_TABS.map((t) => t.label) : [null];
     for (const tab of tabs) {
       if (tab) await page.getByRole('tab', { name: tab, exact: true }).click();
       const shown = await choicesShown(page);
@@ -30,13 +30,15 @@ test('every choice in the wizard shows exactly one Highly Recommended badge, and
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
   const { page } = ui;
   try {
-    await onStep(page, 'Delivery consumption');
+    await onStep(page, 'Data');
     const seen = await auditEveryStep(page);
-    for (const choice of ['mode', 'outputs', 'merge-genie_space', 'first-run', 'result-table', 'kpi', 'holdout', 'freshness', 'app-place', 'app-policy',
+    assert.equal(seen.has('mode'), false, 'no MVP or notebook choice (must-exclude)');
+    for (const choice of ['outputs', 'first-run', 'result-table', 'kpi', 'holdout', 'freshness', 'app-place', 'app-policy',
       'app-access', 'app-backend', 'app-options', 'app-style', 'app-palette', 'app-theme', 'app-layout']) {
       assert.ok(seen.has(choice), `the walk reached ${choice}: ${[...seen].join(', ')}`);
     }
-    await goToStep(page, 'Delivery consumption');
+    assert.equal(seen.has('merge-genie_space'), false, 'with nothing built there is no existing Genie Agent to add to (must-exclude)');
+    await goToStep(page, 'What to build');
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     await goToStep(page, 'Keep it fresh');
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });

@@ -185,7 +185,7 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
   const { page, made } = ui;
   const next = () => page.getByRole('button', { name: 'Next' }).click();
   try {
-    await onStep(page, 'Delivery consumption');
+    await goToStep(page, 'What to build');
     await goToStep(page, 'App placement');
     await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     const card = page.locator('[data-app-place="inspire"]');
@@ -205,8 +205,8 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
     assert.equal(await page.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true);
     assert.equal(await page.getByRole('radio', { name: /^Internal data/ }).isDisabled(), true);
     assert.equal(await page.getByRole('note', { name: 'Why each person signs in as themselves' }).textContent(), `${INSIDE_ACCESS_REASON}.`);
-    assert.equal(await page.getByRole('radio', { name: /^Lakebase/ }).isDisabled(), true);
-    assert.equal(await page.getByRole('note', { name: 'Why Lakebase is off' }).textContent(), INSIDE_BACKEND_REASON);
+    assert.equal(await page.getByRole('radio', { name: /^Fast pages/ }).isDisabled(), true);
+    assert.equal(await page.locator('[data-blocked-reason="app-backend"] p').textContent(), INSIDE_BACKEND_REASON);
     await page.locator('[data-inside-warehouse]').waitFor();
     await startMvp(page);
     await until(() => made.jobs.length === 1, 'the build');
@@ -275,7 +275,7 @@ test('a #/run/<id> link opens the Run tab on that page, and a link to a page tha
 const MOVE_NOTE = "churn-desk is left as it is and no longer refreshed; Inspire runs this use case's page in its Run tab instead and deletes nothing.";
 
 async function toPlacement(page) {
-  await onStep(page, 'Delivery consumption');
+  await goToStep(page, 'What to build');
   await goToStep(page, 'App placement');
 }
 

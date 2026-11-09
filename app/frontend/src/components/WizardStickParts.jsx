@@ -8,18 +8,14 @@ import {
   grainText,
 } from '../lib/implementWizard';
 import { CLEARS_HINT, CLEARS_LABEL } from '../lib/useCaseAlerts';
+import TechnicalDetails from './TechnicalDetails';
 
 export function BlockedReason({ block, id = '' }) {
   if (!block?.why) return null;
   return (
     <div data-blocked-reason={id} className="text-[11px] text-text-secondary">
       <p>{block.why}</p>
-      {block.details && (
-        <details>
-          <summary className="cursor-pointer text-text-tertiary">Details</summary>
-          <code dir="ltr" className="block whitespace-pre-wrap break-all text-text-primary">{block.details}</code>
-        </details>
-      )}
+      <TechnicalDetails items={block.details} />
     </div>
   );
 }

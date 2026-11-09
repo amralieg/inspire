@@ -141,3 +141,44 @@ test('an owner changes the alert threshold when the alert reads the App settings
   assert.deepEqual(app.errors, []);
   await context.close();
 });
+
+test('an owner sets the team capacity on the App Settings page, checked as the run checks it, and can clear it for no cap', async () => {
+  const capacity = { ...BASE, name: 'act_now_capacity', label: 'Team capacity', group: 'flagging', kind: 'integer', unit: 'records', low: 1, whole: true, optional: true,
+    allowed: 'a whole number, at least 1, or empty for no cap', default: '', value: '', reason: "Inspire's default, no cap" };
+  assert.equal(settingProblem(capacity, ''), '', 'empty is no cap');
+  assert.equal(settingProblem(capacity, '0'), "act_now_capacity is '0'; allowed: a whole number, at least 1, or empty for no cap", 'zero is refused (must-exclude)');
+  assert.equal(settingProblem(capacity, '2.5'), "act_now_capacity is '2.5'; allowed: a whole number, at least 1, or empty for no cap", 'a part of a record is refused (must-exclude)');
+  assert.equal(settingProblem(capacity, '25'), '');
+  assert.equal(valueText(capacity, '25'), '25 records');
+  const seen = {};
+  const r = routes(seen);
+  const state = { view: { ...VIEW, settings: [...SETTINGS, capacity] } };
+  r.settings = ({ json }) => json(200, state.view);
+  r['settings/save'] = ({ route, json }) => {
+    const body = route.request().postDataJSON();
+    (seen.saves ||= []).push(body);
+    state.view = { ...state.view, settings: state.view.settings.map((s) => (s.name === body.name ? { ...s, value: body.value } : s)) };
+    return json(200, state.view);
+  };
+  const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: r });
+  await page.click('[data-settings-open]');
+  await page.waitForSelector('[data-setting="act_now_capacity"]');
+  assert.match(await page.locator('[data-setting="act_now_capacity"]').innerText(), /Team capacity/);
+  await page.click('[data-setting="act_now_capacity"] button');
+  const input = page.locator('input[name="setting_act_now_capacity"]');
+  await input.fill('0');
+  await page.waitForSelector('[data-setting="act_now_capacity"] .err');
+  assert.equal(await page.locator('[data-setting="act_now_capacity"] button[type="submit"]').isDisabled(), true, 'a capacity of 0 cannot be saved');
+  await input.fill('25');
+  await page.click('[data-setting="act_now_capacity"] button[type="submit"]');
+  await until(() => (seen.saves || []).length === 1);
+  assert.deepEqual(seen.saves[0], { page: 'n01_u05', name: 'act_now_capacity', value: '25', was: '', note: '' });
+  await toastSays(page, 'Team capacity is 25 records now. The next run uses it.');
+  await page.click('[data-setting="act_now_capacity"] button');
+  await page.locator('input[name="setting_act_now_capacity"]').fill('');
+  await page.click('[data-setting="act_now_capacity"] button[type="submit"]');
+  await until(() => (seen.saves || []).length === 2);
+  assert.deepEqual([seen.saves[1].value, seen.saves[1].was], ['', '25'], 'clearing it saves no cap');
+  assert.deepEqual(app.errors, []);
+  await context.close();
+});

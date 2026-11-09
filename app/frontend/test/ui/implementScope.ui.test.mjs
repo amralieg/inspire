@@ -2,42 +2,21 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
-import { HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
+import { GROUPING_INSTRUCTION as INSTRUCTION, GROUPING_PROFILE as PROFILE, HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
 import { FIRST_RUN_TITLE, GROUPING_JOINED_NOTE, GROUPING_PLAIN, GROUPING_TITLE, RUN_SCOPE_UNRECORDED, RUN_SCOPE_UNRECORDED_HIDDEN } from '../../src/lib/runScope.js';
-import { closeBrowser, goToStep, profileAt, idle, lowContrast, onStep, openAsset, openBuild, openSettings, openUi, toSummary, toVibes, until } from './uiSupport.mjs';
+import { closeBrowser, profileAt, stepHolding, goToStep, idle, lowContrast, onStep, openAsset, openBuild, openSettings, openUi, toSummary, toVibes, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const ME = { userName: OWNER, displayName: 'Owner' };
 const PERSON = 'person-token';
-const PROFILE = {
-  table: 'main.sales.orders', records: 48210, applies: true, qualifies: true, standalone: false,
-  reason: 'Inspire recommends region, then country because Anomaly Detection works out what is normal inside each group, and country splits main.sales.orders into 31 groups.',
-  columns: [{ name: 'region', type: 'string', distinct: 4, smallest: 210, largest: 30110, nulls: 0, parent: null },
-    { name: 'country', type: 'string', distinct: 31, smallest: 12, largest: 18200, nulls: 3, parent: 'region' }],
-  recommended: ['region', 'country'],
-  example: { column: 'country', small_groups: [{ value: 'Cyprus', records: 12 }], moves_to: 'Europe' },
-  time_column: 'order_date', recent: { days: 30, records: 3120 },
-  suggested_groups: [{ value: 'USA', records: 18200, kind: 'biggest' }, { value: 'Spain', records: 1400, kind: 'typical' }, { value: 'Cyprus', records: 12, kind: 'smallest' }],
-  group_column: 'country', group_sizes: [{ value: 'USA', records: 18200 }, { value: 'Spain', records: 1400 }, { value: 'Germany', records: 600 },
-    { value: 'Ireland', records: 300 }, { value: 'Malta', records: 40 }],
-  groups_for: 'region, country',
-  group_list: [['AMER', 'USA', 18200], ['EMEA', 'Spain', 1400], ['EMEA', 'Germany', 600], ['EMEA', 'Ireland', 300], ['EMEA', 'Malta', 40]]
-    .map(([region, country, records]) => ({ value: `${region} / ${country}`, records, parts: [{ column: 'region', value: region }, { column: 'country', value: country }] })),
-  column_groups: { region: [{ value: 'AMER', records: 30110 }, { value: 'EMEA', records: 17890 }, { value: 'APAC', records: 210 }],
-    country: [{ value: 'USA', records: 18200 }, { value: 'Spain', records: 1400 }, { value: 'Germany', records: 600 }, { value: 'Ireland', records: 300 },
-      { value: 'Malta', records: 40 }] },
-  first_run: { all: 48210, groups: 19612, recent: 3120, records: null }, default_scope: 'records', read_at: '2026-11-01T15:00:00Z',
-};
-const INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
-  + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Data groups |\n| `run_scope` | text | all | | First run |\n';
-
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const stepBar = (page) => page.locator('[aria-current="step"]').locator('xpath=..').locator('li').allTextContents();
 const insertsOf = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
   .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
 
-async function toStep(page, label) {
+async function toStep(page, part) {
+  const label = stepHolding(part);
   for (let i = 0; i < 12 && await page.locator('[aria-current="step"]', { hasText: label }).count() === 0; i += 1) {
     const from = await page.locator('[aria-current="step"]').innerText();
     await next(page);
@@ -74,7 +53,7 @@ test('a first build asks Data groups after Data with the reason and the columns 
   const { page, made } = ui;
   try {
     await toStep(page, 'Data groups');
-    assert.deepEqual(await stepBar(page), ['1. Delivery consumption', '2. Data', '3. Data groups', '4. MVP Test Run', '5. Results', '6. Measure impact', '7. Keep it fresh', '8. App placement', '9. App access', '10. App look', '11. Settings', '12. Vibes', '13. Summary']);
+    assert.deepEqual(await stepBar(page), ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. App', '6. Run it', '7. Summary']);
     await page.setViewportSize({ width: 1440, height: 900 });
     assert.deepEqual(await page.locator('[data-wizard-header] ol').evaluate((ol) => ({ overflow: ol.scrollWidth > ol.clientWidth + 1,
       rows: new Set([...ol.children].map((li) => Math.round(li.getBoundingClientRect().top))).size })), { overflow: false, rows: 1 },
@@ -135,10 +114,6 @@ test('a first build asks Data groups after Data with the reason and the columns 
     await atWidths(page, 'first_run', firstRun, { whole: true });
     await firstRun.locator('[data-first-run-choice="groups"] input[type="radio"]').check();
     await firstRun.locator('[data-scope-group="AMER / USA"] input').check();
-    await toStep(page, 'Settings');
-    const settings = page.getByRole('region', { name: 'Use case settings', exact: true });
-    assert.deepEqual(await settings.locator('[data-setting]').evaluateAll((rows) => rows.map((r) => r.dataset.setting)), ['act_now_share'],
-      'Data groups and MVP Test Run have their own steps, so the Settings step does not list them again');
     await toStep(page, 'Summary');
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
     await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
@@ -222,9 +197,8 @@ test('Next on Data waits for a slow read and lands on Data groups, and a first r
   const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, PROFILE, { after: 8000 }) });
   const { page } = ui;
   try {
-    await onStep(page, 'Delivery consumption');
-    await goToStep(page, 'Data');
-    assert.deepEqual(await stepBar(page), ['1. Delivery consumption', '2. Data', '3. Results', '4. Measure impact', '5. Keep it fresh', '6. App placement', '7. App access', '8. App look', '9. Settings', '10. Vibes', '11. Summary'], 'the table is still being read');
+    await onStep(page, 'Data');
+    assert.deepEqual(await stepBar(page), ['1. Data', '2. Results', '3. Deliver', '4. App', '5. Run it', '6. Summary'], 'the table is still being read');
     await next(page);
     await page.getByRole('button', { name: /Reading the table/ }).waitFor({ timeout: 8000 });
     await onStep(page, 'Data groups');
@@ -362,7 +336,7 @@ test('a technique Data groups do not apply to asks only for the first run, and a
   const { page } = ui;
   try {
     await toStep(page, 'MVP Test Run');
-    assert.deepEqual(await stepBar(page), ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results', '5. Measure impact', '6. Keep it fresh', '7. App placement', '8. App access', '9. App look', '10. Settings', '11. Vibes', '12. Summary']);
+    assert.deepEqual(await stepBar(page), ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. App', '6. Run it', '7. Summary']);
     assert.equal(await page.locator('[data-first-run-held]').textContent(), 'main.sales.orders holds 800 records, so the MVP Test Run covers all of it.');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'a profile that still says all is never the default');
     assert.equal(await page.locator('[data-first-run-covers]').textContent(), 'The MVP Test Run covers all 800 records of main.sales.orders, since it holds no more than 1,000 records.');
@@ -386,7 +360,7 @@ test('when Inspire cannot read the table, First run says why and still lets the 
   const { page } = ui;
   try {
     await toStep(page, 'MVP Test Run');
-    assert.deepEqual((await stepBar(page)).slice(0, 4), ['1. Delivery consumption', '2. Data', '3. MVP Test Run', '4. Results']);
+    assert.deepEqual((await stepBar(page)).slice(0, 3), ['1. Data', '2. First run', '3. Results']);
     const refusal = await page.locator('[data-scope-profile="error"]').textContent();
     assert.match(refusal, /^Inspire could not read the table for its suggestions: .*You cannot read main\.sales\.orders/);
     assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['one', 'groups', 'records', 'recent', 'all']);
@@ -829,7 +803,7 @@ test('a forecast on a star fact table with no column to group by still asks Data
     await goToStep(page, 'MVP Test Run');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'above 1,000 records with nothing to group by, the first 1,000 records');
     assert.ok(!(await checkedChoice(page, 'data-first-run-choice')).includes('all'), 'everything is never the default (must-exclude)');
-    assert.match(await page.locator('[data-first-run-choice="records"]').innerText(), /^1,000 records spread across the whole table, picked by a stable hash of each record, the whole data being one group/);
+    assert.match(await page.locator('[data-first-run-choice="records"]').innerText(), /^1,000 records spread across the whole table, the same records every run, the whole data being one group/);
     assert.match(await page.locator('[data-first-run-choice="all"] [data-first-run-estimate]').textContent(), /^Everything is 2,880,404 records, about 2,880 times/);
     await page.locator('[data-first-run-choice="all"] input').check();
     await next(page);

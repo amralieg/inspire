@@ -317,7 +317,7 @@ test('a per-user use case cannot join a service-principal App, and a merge targe
   const spec = (outputs) => check(outputs).spec;
   assert.deepEqual(I.mergeProblems(spec({ merge: { app: 'churn-desk' } }), targets), []);
   const blocked = I.mergeProblems(spec({ app_access: 'user', merge: { app: 'churn-desk' } }), targets);
-  assert.deepEqual(blocked, ['churn-desk signs everyone in with its own service principal, so a per-user (sensitive) use case cannot join it: '
+  assert.deepEqual(blocked, ['churn-desk shows everyone the same rows, so a per-user (sensitive) use case cannot join it: '
     + 'create a new App, or choose Internal data']);
   assert.equal(I.appMergeBlock(sp, 'user'), blocked[0]);
   assert.deepEqual(I.mergeProblems(spec({ app_access: 'user', merge: { app: 'care-desk' } }), targets), [], 'per-user into per-user is fine');
@@ -370,7 +370,7 @@ test('the App lists the merge targets Inspire built and confirms each one live',
     const got = await call(srv.url, `/api/inspire/implement/merge-targets?${Q}`);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data.targets.app.map((t) => [t.id, t.access, t.use_cases.map((u) => u.name)]), [['churn-desk', 'sp', ['Forecast demand']]]);
-    assert.match(got.data.targets.app[0].per_user_block, /^churn-desk signs everyone in with its own service principal/);
+    assert.match(got.data.targets.app[0].per_user_block, /^churn-desk shows everyone the same rows/);
     assert.deepEqual(got.data.targets.dashboard.map((t) => [t.id, t.name]), [['d1', 'Dashboard']]);
     assert.deepEqual(got.data.targets.genie_space.map((t) => [t.id, t.name]), [['g1', 'Demand agent']]);
     assert.ok(fetches.some((f) => f.path === '/api/2.0/apps/not-ours'), 'every recorded App is checked live');
@@ -452,7 +452,7 @@ test('plan and submit refuse a per-user use case joining a service-principal App
   try {
     const refused = await call(srv.url, '/api/inspire/implement/plan', body({ app_access: 'user' }));
     assert.equal(refused.status, 400);
-    assert.match(refused.data.error, /churn-desk signs everyone in with its own service principal, so a per-user \(sensitive\) use case cannot join it/);
+    assert.match(refused.data.error, /churn-desk shows everyone the same rows, so a per-user \(sensitive\) use case cannot join it/);
     const notListed = await call(srv.url, '/api/inspire/implement/submit', body({ merge: { app: 'not-ours' } }));
     assert.equal(notListed.status, 400);
     assert.match(notListed.data.error, /not-ours is not an App Inspire built that you can open/);
