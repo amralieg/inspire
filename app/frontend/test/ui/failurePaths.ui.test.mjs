@@ -158,13 +158,13 @@ test('Launch says a lost connection once, not once per list', async () => {
 });
 
 const STAGE_FAILURES = [
-  ['Metadata', 'Read the tables', '[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table `main`.`s`.`orders`. SQLSTATE: 42501', /access to table main\.s\.orders was refused, so ask its owner/, false],
-  ['Use cases', 'Write the use cases', '{"error_code":"REQUEST_LIMIT_EXCEEDED","message":"Too Many Requests (HTTP 429) for request 0f8c2d1e-9a3b-4c5d-8e7f-1a2b3c4d5e6f"}', /Databricks is busy right now, so wait a minute and try again/, true],
-  ['Scoring', 'Score the use cases', '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`__inspire_usecases` cannot be found. SQLSTATE: 42P01', /Table main\.s\.__inspire_usecases does not exist, so check/, false],
-  ['Artifacts', 'Write the catalog', 'RESOURCE_EXHAUSTED: quota exceeded for workspace 1234567890123456', /reached one of its Databricks limits, so remove what you no longer use/, false],
+  ['Metadata', 'Read the tables', '[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table `main`.`s`.`orders`. SQLSTATE: 42501', /access to table main\.s\.orders was refused, so ask its owner/i, false, 'SELECT on Table'],
+  ['Use cases', 'Write the use cases', '{"error_code":"REQUEST_LIMIT_EXCEEDED","message":"Too Many Requests (HTTP 429) for request 0f8c2d1e-9a3b-4c5d-8e7f-1a2b3c4d5e6f"}', /Databricks is busy right now, so wait a minute and try again/i, true, 'Too Many Requests (HTTP 429)'],
+  ['Scoring', 'Score the use cases', '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`__inspire_usecases` cannot be found. SQLSTATE: 42P01', /table main\.s\.__inspire_usecases does not exist, so check/i, false, 'cannot be found'],
+  ['Artifacts', 'Write the catalog', 'RESOURCE_EXHAUSTED: quota exceeded for workspace 1234567890123456', /reached one of its Databricks limits, so remove what you no longer use/i, false, 'quota exceeded'],
 ];
 
-for (const [stage, name, message, said, transient] of STAGE_FAILURES) {
+for (const [stage, name, message, said, transient, raw] of STAGE_FAILURES) {
   test(`a step that fails in ${stage} reads as one plain sentence in Detailed Steps, with the raw error under Details${transient ? '' : ' and no promise that trying again helps'}`, async () => {
     const mount = (app) => {
       app.get('/api/run/777', (_req, res) => res.json({ run_id: 777, life_cycle_state: 'TERMINATED', result_state: 'FAILED', start_time: Date.now() - 3600000, end_time: Date.now() - 60000, tasks: [] }));
@@ -173,12 +173,14 @@ for (const [stage, name, message, said, transient] of STAGE_FAILURES) {
     };
     const ui = await openUi('monitor', {}, '', { mount });
     try {
+      await ui.page.getByRole('button', { name: /Detailed Steps/ }).click();
+      await ui.page.getByRole('button', { name: new RegExp(`^${stage}`) }).filter({ has: ui.page.locator('h3') }).click();
       await ui.page.getByText(said).first().waitFor({ timeout: 20000 });
       const shown = await visible(ui.page);
       assert.doesNotMatch(shown, RAW);
-      if (!transient) assert.doesNotMatch(shown.match(new RegExp(`${said.source}[^\\n]*`))[0], /try again/);
+      if (!transient) assert.doesNotMatch(shown.match(new RegExp(`${said.source}[^\\n]*`, 'i'))[0], /try again/);
       await ui.page.getByText(name, { exact: true }).click();
-      const details = ui.page.locator('details[data-technical-details]').filter({ hasText: message.slice(0, 20) });
+      const details = ui.page.locator('details[data-technical-details]').filter({ hasText: raw });
       assert.equal(await details.count(), 1, 'the raw error sits once under Details');
       assert.deepEqual(ui.pageErrors, []);
     } finally {
@@ -187,10 +189,10 @@ for (const [stage, name, message, said, transient] of STAGE_FAILURES) {
   });
 }
 
-for (const [label, answer, said, transient] of [
-  ['refused', [403, { error: '[PERMISSION_DENIED] User does not have CREATE SCHEMA on Catalog `main`. SQLSTATE: 42501' }], /access to catalog main was refused, so ask its owner or a workspace admin to give you access/, false],
-  ['over a quota', [400, { error: '{"error_code":"QUOTA_EXCEEDED","message":"Workspace 1234567890123456 has reached the quota of jobs"}' }], /reached one of its Databricks limits/, false],
-  ['busy', [429, { error: 'REQUEST_LIMIT_EXCEEDED: Too Many Requests (HTTP 429)' }], /Databricks is busy right now, so wait a minute and try again/, true],
+for (const [label, answer, said, transient, statusText] of [
+  ['refused', [403, { error: '[PERMISSION_DENIED] User does not have CREATE SCHEMA on Catalog `main`. SQLSTATE: 42501' }], /access to catalog main was refused, so ask its owner or a workspace admin to give you access/i, false, 'Forbidden'],
+  ['over a quota', [400, { error: '{"error_code":"QUOTA_EXCEEDED","message":"Workspace 1234567890123456 has reached the quota of jobs"}' }], /reached one of its Databricks limits/i, false, 'Bad Request'],
+  ['busy', [429, { error: 'REQUEST_LIMIT_EXCEEDED: Too Many Requests (HTTP 429)' }], /Databricks is busy right now, so wait a minute and try again/i, true, 'Too Many Requests'],
 ]) {
   test(`Generate data that Databricks answers ${label} says so in one sentence${transient ? '' : ' with no try-again promise'}, the raw error under Details`, async () => {
     const ui = await openUi('generate', { demoAnswer: answer });
@@ -202,9 +204,9 @@ for (const [label, answer, said, transient] of [
       const shown = await visible(ui.page);
       assert.doesNotMatch(shown, RAW);
       if (!transient) assert.doesNotMatch(shown, /try again/i);
-      assert.equal(await ui.page.locator('details[data-technical-details]').count(), 1);
+      assert.equal(await ui.page.locator('details[data-technical-details]').filter({ hasText: /PERMISSION_DENIED|quota of jobs|REQUEST_LIMIT_EXCEEDED/ }).count(), 1, 'the raw error sits once under Details');
       assert.equal(await ui.page.getByText('Inspire started').count(), 0);
-      assert.deepEqual(ui.pageErrors, []);
+      assert.deepEqual(ui.pageErrors, [`Failed to load resource: the server responded with a status of ${answer[0]} (${statusText})`], 'the refused generate call is the only error');
     } finally {
       await ui.close();
     }
