@@ -706,7 +706,7 @@ def test_genie_run_streams_events_and_parses_the_final_json(agent_ns, tmp_path):
     command, kw = commands[0]
     assert command[:2] == ["/bin/genie", "exec"] and "--output-schema" in command
     assert command[-1] == "build it" + agent_ns["GENIE_CLI_AUTH_NOTE"] + agent_ns["GENIE_CLI_WRITE_NOTE"] and kw["start_new_session"] is True
-    assert command[-1].endswith("jq is not installed here: read the CLI's JSON output with python instead.")
+    assert "jq is not installed here: read the CLI's JSON output with python instead." in command[-1]
     assert "--profile" not in command and kw["env"]["DATABRICKS_TOKEN"] == "tok-123"
     assert json.load(open(work / "genie_output_schema.json")) == {"type": "object"}
 
@@ -2000,6 +2000,39 @@ def test_genie_run_drains_stderr_so_a_noisy_genie_never_blocks(agent_ns, tmp_pat
     result = runner.run("x", str(tmp_path / "w"))
     assert result["timed_out"] is False and result["exit"] == 0 and result["events"] == 1
     assert result["stderr"] == "e" * 2000
+
+
+def test_genie_run_redacts_only_the_tail_of_a_huge_error_output(agent_ns, tmp_path):
+    import time
+    script = ("import json, sys\nsys.stderr.write('e' * 8000000)\nsys.stderr.flush()\n"
+              "print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'done'}}), flush=True)\n")
+    redact, seen = agent_ns["inspire_redact_text"], []
+    agent_ns["inspire_redact_text"] = lambda text, *a, **k: seen.append(len(text)) or redact(text, *a, **k)
+    runner = _runner(agent_ns, tmp_path, popen=_python_popen(script), timeout_s=120)
+    started = time.time()
+    result = runner.run("x", str(tmp_path / "w"))
+    assert result["timed_out"] is False and result["exit"] == 0 and result["events"] == 1
+    assert result["stderr"] == "e" * 2000
+    assert seen and max(seen) <= 2000 + len("tok-123"), "the whole error output went through the redaction"
+    assert time.time() - started < 60, "an 8 MB error output held the run after Genie exited"
+
+
+def test_a_token_cut_by_the_kept_tail_never_shows_in_part(agent_ns, tmp_path):
+    work = tmp_path / "w"
+    stderr = "A" * 100 + "tok-123" + "e" * (2000 + len("tok-123") - 1 - 4)
+    last = "B" * 100 + "tok-123" + "f" * (4000 + len("tok-123") - 1 - 4)
+
+    def popen(command, **kw):
+        proc = _FakeProc([{"type": "item.completed", "item": {"type": "agent_message", "text": "done"}}],
+                         write_last=last, last_path=str(work / "genie_last.txt"))
+        proc.stderr = io.StringIO(stderr)
+        return proc
+
+    result = _runner(agent_ns, tmp_path, popen=popen).run("x", str(work))
+    assert "123" not in result["stderr"] and "tok" not in result["stderr"] and set(result["stderr"]) == {"e"}
+    assert "123" not in result["last"] and "tok" not in result["last"] and set(result["last"]) == {"f"}
+    whole = _runner(agent_ns, tmp_path, popen=lambda c, **k: _FakeProc([], 1)).run("x", str(work))
+    assert whole["stderr"] == "warn"
 
 
 def test_genie_run_stops_a_child_that_keeps_the_output_open_after_genie_exits(fresh_ns, tmp_path):
