@@ -413,7 +413,7 @@ export function statusProgress(data, now = Date.now()) {
   const stalled = data?.stalled || null;
   const stages = mvpStages(data?.steps, latest, { now, stalled });
   const summary = mvpProgressSummary(stages, latest, { now, stalled, repair: mvpRepairOf(data?.steps, latest) });
-  return railProgress(statusChip(latest?.status, stalled), summary);
+  return railProgress(statusChip(latest?.status, stalled, latest), summary);
 }
 
 export function stagesRecorded(stages) {

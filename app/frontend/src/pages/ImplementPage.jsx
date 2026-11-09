@@ -4,7 +4,7 @@ import {
   NotebookPen, Pencil, RefreshCw, Rocket, RotateCcw, Search, Settings2, Sparkles, Square, Trash2, XCircle,
 } from 'lucide-react';
 import {
-  statusChip, statusReason, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
+  statusChip, statusReason, statusDetails, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
   runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
@@ -551,7 +551,7 @@ function VersionRow({ card, version, locked, lockedReason, pending, confirming, 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="font-semibold text-text-primary">Version {version.version}</span>
         {version.at && <span className="text-text-secondary">· {formatWhen(version.at, version.at)}</span>}
-        <span className="rounded-full border border-border px-1.5 py-px text-[10px] text-text-secondary">{statusChip(version.status).label}</span>
+        <span className="rounded-full border border-border px-1.5 py-px text-[10px] text-text-secondary">{statusChip(version.status, null, version).label}</span>
         <button type="button" disabled={locked || confirming} title={lockedReason || undefined} onClick={onAsk} aria-label={`Roll back to ${name}`} className={`ms-auto ${OUTLINE_BUTTON}`}>
           <History size={12} /> Roll back
         </button>
@@ -896,7 +896,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     { table, required_columns: [] }).then((data) => ({ swaps: data.swaps || [], why: data.why || '' })), [apiPostJson, qBase, useCaseId]);
   const tableChange = useCallback((next) => apiPostJson(`/api/inspire/implement/table-change?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`,
     { spec: next }), [apiPostJson, qBase, useCaseId]);
-  const chip = statusChip(latest?.status, stalled);
+  const chip = statusChip(latest?.status, stalled, latest);
   const [readsResult, setReadsResult] = useState(null);
   const [readsBusy, setReadsBusy] = useState('');
   const [protectionCopy, setProtectionCopy] = useState('');
@@ -1728,7 +1728,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {error && !cardFailed && !features && !drawerTile && <PlainMessage text={error} className={`${ERROR_BOX} shrink-0`} copy actions={diagnostics?.actions} />}
           {collectError && <PlainMessage text={collectError} className={`${ERROR_BOX} shrink-0`} />}
           {tileRow}
-          <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
+          <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} reasonDetails={missing.length || edited ? '' : statusDetails(latest)} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
             stop={stop} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}
             diagnostics={diagnostics}>
             <VibeChecklist checklist={checklist} assets={latest?.asset_status} readOnly={readOnly} locked={locked} lockedReason={lockedReason} busy={submitBusy}

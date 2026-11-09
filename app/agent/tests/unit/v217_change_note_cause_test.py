@@ -17,8 +17,6 @@ LIVE = [
 ]
 PLAIN = [
     "Genie set Minimum positive outcomes to 50, not 200: The readiness preview found 61 positives, so 200 would knowingly fail.",
-    "Genie used Numeric significant-figure rounding instead of Python g formatting: the number helpers cell asks for significant figures.",
-    "Genie used inspire_group_records before modeling instead of No grouping helper call: the grouping rule asks for the helper.",
     "Genie set Minimum positive outcomes to 0, not 50: The transparent rule requires no positive labels.",
 ]
 
@@ -44,6 +42,8 @@ def test_the_four_live_notes_are_not_put_down_to_a_shortfall_the_same_build_meas
 def test_changes_genie_did_not_tie_to_the_data_keep_the_plain_wording_even_while_the_data_is_short(agent_ns):
     notes = agent_ns["implement_genie_change_notes"](_with(LIVE[1:]), _short(agent_ns))
     assert notes == PLAIN[1:]
+    assert agent_ns["implement_genie_rule_methods"]([_with(LIVE[1:])]) == [
+        "Numeric significant-figure rounding instead of Python g formatting", "inspire_group_records before modeling instead of No grouping helper call"]
 
 
 def test_a_shortfall_driven_method_change_tells_the_user_to_rebuild_once_the_data_meets_the_minimum(agent_ns):
@@ -67,7 +67,7 @@ def test_one_join_shortfall_reworded_by_genie_in_many_changes_gives_one_note_tha
                   {"method_was": "Inner join", "method_now": "Left join", "why": "coverage counts all rows", "cause": "rule"}],
                  [{"check": "join coverage", "measured": "0.000155"}])
     notes = agent_ns["implement_genie_change_notes"](fill, short)
-    assert len(notes) == 2 and notes[1] == "Genie used Left join instead of Inner join: coverage counts all rows."
+    assert len(notes) == 1, "a method change Inspire's own rule asked for is no move away from the design"
     assert notes[0].startswith("Genie found 0.000155 join coverage, fewer than the ")
     assert notes[0].endswith("so it used T1-T5 and Benford T7; T6 unavailable instead. Results will be less precise; "
                              "Rebuild once the data meets that minimum to use T1-T6 and Benford T7.")

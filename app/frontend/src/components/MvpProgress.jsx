@@ -1,7 +1,7 @@
 import { useId } from 'react';
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, Circle, Loader2, PanelRightOpen, X, XCircle } from 'lucide-react';
 import DrawerShell from './DrawerShell';
-import { PlainMessage } from './TechnicalDetails';
+import TechnicalDetails, { PlainMessage } from './TechnicalDetails';
 import { splitTechnical } from '../lib/plainText';
 import GenieLogo from './GenieLogo';
 import { IconChip, PANEL_CLASS } from './BuildUi';
@@ -160,7 +160,7 @@ function Heading({ title, active, tone, line, lineClass }) {
 }
 
 export default function MvpProgress({
-  stages, summary, chip, reason, toneClass, version, sorted = null, stop = null, logRef = null, view, warnings = 0, attention = null, diagnostics = null, children,
+  stages, summary, chip, reason, reasonDetails = '', toneClass, version, sorted = null, stop = null, logRef = null, view, warnings = 0, attention = null, diagnostics = null, children,
 }) {
   const panelId = useId();
   const headline = summary.headline || chip?.label || '';
@@ -186,6 +186,7 @@ export default function MvpProgress({
           {diagnostics?.note}
         </div>
         {!view.open && plainReason && <p data-build-summary-reason="" title={plainReason} className={`text-[12px] line-clamp-2 ${toneClass(chip?.tone)}`}>{plainReason}</p>}
+        {!view.open && plainReason && <TechnicalDetails items={reasonDetails} />}
         {!view.open && chips}
         {!view.open && attention && <div data-build-attention="" className="space-y-3">{attention}</div>}
       </section>
@@ -198,6 +199,7 @@ export default function MvpProgress({
             <div className="mt-3 space-y-3">
               {summary.detail && <p className="text-[12px] text-text-secondary">{summary.detail}</p>}
               {reason && <PlainMessage text={reason} data-build-reason="" className={`text-[12px] ${toneClass(chip?.tone)}`} />}
+              {reason && <TechnicalDetails items={reasonDetails} />}
               {chips}
               {sorted && <p data-sorted-to="" className="text-[12px] font-medium text-text-primary">{sorted.text}</p>}
             </div>

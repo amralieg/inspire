@@ -677,6 +677,19 @@ def review_problems(page: dict) -> list:
     return [] if page.get("use_case_id") else ["the page has a review link but no use_case_id, so the link names no use case"]
 
 
+RESULT_TABLE_PROBLEM = "the page result_table: "
+
+
+def inspire_part_problems(page: dict) -> list:
+    problems = page_settings_problems(page.get("settings")) + review_problems(page)
+    if page.get("result_table") is not None:
+        try:
+            table_name(page["result_table"])
+        except ValueError as error:
+            problems.append(f"{RESULT_TABLE_PROBLEM}{error_text(error)}")
+    return problems
+
+
 PAGE_OBJECT_LISTS = ("datasets", "filters", "kpis", "charts", "tables")
 
 
@@ -699,17 +712,11 @@ def spec_problems(page: dict) -> list:
     problems += _text_problem("the page", page.get("question"), "question")
     problems += _text_problem("the page", page.get("sponsor"), "sponsor", required=False)
     problems += _promised_problems(page.get("promised"))
-    problems += page_settings_problems(page.get("settings"))
-    problems += review_problems(page)
+    owned = inspire_part_problems(page)
+    problems += owned
     if page.get("icon") not in ICONS:
         problems.append(f"the page icon must be one of {', '.join(ICONS)}")
-    result = page.get("result_table")
-    if result is not None:
-        try:
-            table_name(result)
-        except ValueError as error:
-            problems.append(f"the page result_table: {error_text(error)}")
-            result = None
+    result = None if any(p.startswith(RESULT_TABLE_PROBLEM) for p in owned) else page.get("result_table")
     datasets = page.get("datasets")
     if not isinstance(datasets, list) or not datasets:
         return problems + ["the page has no datasets"]

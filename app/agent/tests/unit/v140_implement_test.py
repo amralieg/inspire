@@ -3665,7 +3665,8 @@ def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_
                                      "delivery": {"delivered": ["alert", "app"], "spec_version": 3, "not_delivered": [
                                          {"output": "genie_space", "label": "Genie Agent", "reason": agent_ns["implement_short_reason"](reason)},
                                          {"output": "dashboard", "label": "Dashboard", "reason": agent_ns["implement_short_reason"](reason)}]}}
-    assert ("Dashboard", "ended_warning") in emitted and ("Genie Agent", "ended_warning") in emitted and emitted[-1] == ("Done", "ended_warning")
+    assert ("Dashboard", "ended_error") in emitted and ("Genie Agent", "ended_error") in emitted and emitted[-1] == ("Done", "ended_warning"), \
+        "an output that was asked for and not built is a failed step, never a step done with warnings"
 
 
 def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp_path, monkeypatch):

@@ -2524,8 +2524,9 @@ export function runStopped(status, stalled = null) {
   return Boolean(stalled) && (IMPLEMENT_ACTIVE_STATUSES.includes(s) || (s === 'failed' && stalled.ended === true));
 }
 
-export function statusChip(status, stalled = null) {
+export function statusChip(status, stalled = null, latest = null) {
   const s = String(status || '');
+  if (['ready', 'ready_with_warnings'].includes(s) && undeliveredOutputs(latest).length) return { label: UNDELIVERED_LABEL, tone: 'warning' };
   if (s === 'ready') return { label: 'Ready', tone: 'success' };
   if (s === IMPLEMENT_UNINSTALLED) return { label: 'Uninstalled', tone: 'idle' };
   if (s === 'ready_with_warnings') return { label: 'Warnings', tone: 'warning' };
@@ -2556,8 +2557,18 @@ export function statusReason(latest, stalled = null) {
     return `The latest run's results are not reliable yet: ${unreliable.replace(/[.\s]+$/, '')}. ${app} `
       + `Next step: ${UNRELIABLE_FIX}, then build again with ${VIBE_FEATURES_LABEL}.`;
   }
+  const missing = ['ready', 'ready_with_warnings'].includes(s) ? undeliveredOutputs(latest) : [];
+  if (missing.length) {
+    return `The MVP is incomplete: Inspire could not build ${joinWords(missing.map((m) => `the ${m.label}`))}. `
+      + `Rebuild in ${VIBE_FEATURES_LABEL} to try again.`;
+  }
   if (!['ready_with_warnings', 'failed'].includes(s)) return '';
   return String(latest?.status_message || '').trim();
+}
+
+export function statusDetails(latest) {
+  const s = String(latest?.status || '');
+  return ['ready', 'ready_with_warnings'].includes(s) && undeliveredOutputs(latest).length ? String(latest?.status_message || '').trim() : '';
 }
 
 const NOT_ASK_KINDS = ['self_fix', 'settings_refused', 'not_decided', 'unrequested_change'];
