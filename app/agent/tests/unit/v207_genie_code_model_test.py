@@ -3,6 +3,7 @@ its first choice, and stops with a plain reason when no model answers; a run wit
 model check."""
 import ast
 import logging
+import re
 import types
 
 import pytest
@@ -62,7 +63,8 @@ def test_a_gateway_without_the_first_model_builds_with_the_next_served_model_and
             f"Unity Gateway (")
     assert runner.model_note.startswith(note)
     [(status, message)] = _genie_steps(inst)
-    assert status == "ended_warning" and "using the model system.ai.glm-5-3" in message and note in message
+    ready = f"Genie Code {agent_ns['GENIE_CODE_CLI_VERSION']} is ready and uses the model system.ai.glm-5-3 (installed at "
+    assert status == "ended_warning" and message.startswith(ready) and f"CPU). {note}" in message
 
 
 def test_the_first_model_is_kept_when_the_gateway_serves_it(agent_ns, monkeypatch):
@@ -72,7 +74,9 @@ def test_the_first_model_is_kept_when_the_gateway_serves_it(agent_ns, monkeypatc
     runner = inst._implement_runner("N01-U01")
     assert runner.model == first and runner.model_note == "" and gateway.checked() == [first]
     [(status, message)] = _genie_steps(inst)
-    assert status == "ended_success" and message.endswith(f"using the model {first}")
+    assert status == "ended_success" and re.fullmatch(
+        rf"Genie Code {re.escape(agent_ns['GENIE_CODE_CLI_VERSION'])} is ready and uses the model {re.escape(first)} "
+        r"\(installed at \S+ on the \w+ CPU\)", message), message
     inst._implement_runner("N01-U02")
     assert gateway.checked() == [first]
 
