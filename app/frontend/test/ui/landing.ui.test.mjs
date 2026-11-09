@@ -80,15 +80,14 @@ test('scrolling the home page down and back step by step, through the section wh
   const { page } = ui;
   try {
     await page.getByText('Scroll to explore').waitFor();
-    const height = await page.locator('.snap-y').evaluate((el) => {
-      el.style.scrollSnapType = 'none';
+    const height = await page.locator('[data-landing-slides]').evaluate((el) => {
       el.style.scrollBehavior = 'auto';
       return el.scrollHeight - el.clientHeight;
     });
     const stops = Array.from({ length: 41 }, (_, i) => Math.round((height * i) / 40));
     const seen = new Set();
     for (const y of [...stops, ...[...stops].reverse(), ...stops]) {
-      await page.locator('.snap-y').evaluate((el, to) => { el.scrollTop = to; }, y);
+      await page.locator('[data-landing-slides]').evaluate((el, to) => { el.scrollTop = to; }, y);
       await painted(page);
       const rings = await page.evaluate(() => [...document.querySelectorAll('[class*="rounded-full border"]')]
         .map((el) => `${el.style.animationName || 'none'} ${el.style.animationDelay || '0s'}`));

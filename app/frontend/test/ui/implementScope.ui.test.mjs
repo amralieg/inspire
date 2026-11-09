@@ -4,7 +4,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import { HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
 import { FIRST_RUN_TITLE, GROUPING_JOINED_NOTE, GROUPING_PLAIN, GROUPING_TITLE, RUN_SCOPE_UNRECORDED, RUN_SCOPE_UNRECORDED_HIDDEN } from '../../src/lib/runScope.js';
-import { closeBrowser, goToStep, idle, lowContrast, onStep, openAsset, openBuild, openSettings, openUi, toSummary, toVibes, until } from './uiSupport.mjs';
+import { closeBrowser, goToStep, profileAt, idle, lowContrast, onStep, openAsset, openBuild, openSettings, openUi, toSummary, toVibes, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -32,13 +32,6 @@ const PROFILE = {
 const INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
   + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Data groups |\n| `run_scope` | text | all | | First run |\n';
 
-const profileAt = (calls, answer, { status = 200, after = 0 } = {}) => async (page) => {
-  await page.route('**/api/grouping/profile', async (route) => {
-    calls.push(JSON.parse(route.request().postData() || '{}'));
-    if (after) await new Promise((done) => setTimeout(done, after));
-    await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(answer) });
-  });
-};
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const stepBar = (page) => page.locator('[aria-current="step"]').locator('xpath=..').locator('li').allTextContents();
 const insertsOf = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))

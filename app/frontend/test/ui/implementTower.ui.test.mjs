@@ -5,7 +5,8 @@ import path from 'node:path';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB } from './implementFixtures.js';
-import { FAKE_CLOCK, closeAsset, closeBrowser, closeBuild, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, shot, steadyBox, until, wheelScrolls } from './uiSupport.mjs';
+import { FAKE_CLOCK, closeAsset, closeBrowser, closeBuild, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, shot, steadyBox, until } from './uiSupport.mjs';
+import { wheelReads } from './wheelScroll.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAGE = 'app:page:decisions';
@@ -1115,7 +1116,7 @@ test('the name and the tiles stay in view while the Genie feed scrolls inside Bu
     await painted(page);
     const before = await Promise.all([name, tiles, rail].map(async (el) => (await el.boundingBox()).y));
     await log.evaluate((el) => el.append(Object.assign(document.createElement('div'), { style: 'height:2000px' })));
-    await wheelScrolls(page, log, { delta: 600 });
+    await wheelReads(page, log, { delta: 600 });
     const room = await log.evaluate((el) => document.scrollingElement.scrollHeight - window.innerHeight);
     assert.ok(room <= 1, `the page itself never grows a second scrollbar (${room})`);
     const after = await Promise.all([name, tiles, rail].map(async (el) => (await el.boundingBox()).y));
@@ -1386,7 +1387,7 @@ test('Build progress opens as a full-height side panel whose 500-line log scroll
         page: document.scrollingElement.scrollHeight - window.innerHeight }));
       assert.ok(room.scroll > room.client && room.overflow === 'auto', `at ${width}x${height} the log scrolls inside the panel ${JSON.stringify(room)}`);
       assert.ok(room.page <= 1, `at ${width}x${height} the page never grows with the log (${room.page} px)`);
-      await wheelScrolls(page, log, { lines: '[data-feed-kind]', readable: 4 });
+      await wheelReads(page, log, { lines: '[data-feed-kind]', readable: 4 });
       const pane = page.locator('section[aria-label="Use case"]');
       await pane.evaluate((el) => { el.scrollTop = 0; });
       const behind = await pane.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));

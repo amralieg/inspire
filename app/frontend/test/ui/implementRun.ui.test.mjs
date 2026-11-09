@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
 import { closeBrowser, goToStep, onStep, openAdvanced, openUi, startMvp, toVibes, until, toSummary } from './uiSupport.mjs';
+import { wheelEveryRegion, wheelScrolls } from './wheelScroll.mjs';
 
 const HOSTED_NO_TOKEN = 'Inspire needs permission to act as you to show this page; a workspace admin turns on user authorization for Apps, then reopen Inspire';
 const RUN_BANNER = 'Inside Inspire, only for testing. Give it its own App for real use.';
@@ -557,5 +558,29 @@ test('Run shows each MVP\'s last result: when it ran, what it flagged with the m
     assert.equal(await outcome.locator('[data-run-outcome-owner]').count(), 0, 'someone who does not own the MVP is not told they own it');
   } finally {
     await empty.close();
+  }
+});
+
+test('a failed page with 120 stderr lines takes the mouse wheel to its last line on the Run tab and in the Inspire menu at 1280x800 and 1024x700', async () => {
+  const stderr = [...Array.from({ length: 119 }, (_, i) => `  File "app.py", line ${i}, in render`), 'ValueError: the last stderr line'];
+  const ui = await openRun({ registry: REGISTRY, useCaseScope: SCOPE, hostedRun: hostedFake({ state: 'failed', error: 'the page stopped with exit code 1', stderr }) },
+    { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER });
+  const { page } = ui;
+  try {
+    const pre = page.locator('[data-run-stderr]').first();
+    await pre.waitFor({ timeout: 15000 });
+    await wheelScrolls(page, pre, () => pre, { name: 'Run stderr' });
+    const end = await pre.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop);
+    assert.ok(end <= 2, `the wheel reaches the last stderr line (${end} px left)`);
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.locator('[data-run-open="n01-u01-a"]').click();
+    await onFull(page, 'n01-u01-a');
+    const menu = page.locator('#run-control-menu');
+    await menu.waitFor();
+    const names = await wheelEveryRegion(page, menu, 'Inspire menu', { min: 1, copies: 0 });
+    assert.ok(names.some((n) => n.includes('wheeled')), JSON.stringify(names));
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
   }
 });

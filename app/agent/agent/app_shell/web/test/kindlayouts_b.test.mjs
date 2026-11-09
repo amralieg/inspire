@@ -5,6 +5,7 @@ import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { DECIDE, SRC, appInfo, bundleEntry, openApp, openBundle, serveDist } from './harness.mjs';
+import { dropCopies, fillWithCopies, wheelScrolls } from '../../../../../frontend/test/ui/wheelScroll.mjs';
 import { LAYOUT_B_CASES as CASES, MOVES, STEPS, kindRoutes, unlinkedRecords } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
@@ -160,6 +161,17 @@ test('the agent chat asks a suggested question, cites the SQL and the tables it 
   await page.waitForFunction(() => document.querySelector('[data-rate] [data-rating="POSITIVE"]')?.getAttribute('aria-pressed') === 'true');
   assert.deepEqual(rated, [{ page: 'n09_u01', conversation_id: 'c1', message_id: 'm1', rating: 'POSITIVE' }]);
   assert.deepEqual(acts, []);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the mouse wheel scrolls the chat conversation to its last message at 1280x800 and 1024x700', async () => {
+  const { page, seen, context } = await open('agent_chat', [], {});
+  await page.locator('[data-question]').first().click();
+  await page.locator('[data-chat="done"]').waitFor();
+  const log = page.locator('.chat-log');
+  await wheelScrolls(page, log, () => log.locator('[data-wheel-copy]').last(), { name: 'chat conversation',
+    fill: () => fillWithCopies(log, ':scope > .msg', 14), unfill: () => dropCopies(log) });
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

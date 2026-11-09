@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, idle, openUi, until } from './uiSupport.mjs';
+import { wheelEveryRegion } from './wheelScroll.mjs';
 
 test.after(closeBrowser);
 
@@ -98,6 +99,25 @@ test('with the strategy left alone the launch sends no strategy, and a level nam
     await section.getByLabel('Level 2 name').fill('Goal');
     await until(async () => !(await start.isDisabled()), 'Get Started opens again once the level is renamed');
     assert.equal(made.launches.length, 0);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a pasted strategy of 30 pillars takes the mouse wheel to its last row in the preview and in the pillar column at 1280x800 and 1024x700', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page, pageErrors } = ui;
+  try {
+    const section = await openStrategy(page);
+    await section.getByRole('button', { name: 'Paste a list or table' }).click();
+    await section.getByLabel('Paste your strategy').fill(Array.from({ length: 30 }, (_, i) => `Pillar ${i}\n  Goal ${i}\n    KPI: Measure ${i} (%, increase)`).join('\n'));
+    await section.getByTestId('strategy-paste-preview').getByText('Pillar 29', { exact: false }).first().waitFor();
+    const before = await wheelEveryRegion(page, section, 'Strategy preview', { min: 1, copies: 0 });
+    await section.getByRole('button', { name: 'Use this' }).click();
+    await section.getByTestId('strategy-paste-preview').waitFor({ state: 'detached' });
+    const after = await wheelEveryRegion(page, section, 'Strategy', { min: 1, copies: 0 });
+    assert.ok([...before, ...after].filter((n) => n.includes('wheeled')).length >= 2, JSON.stringify([...before, ...after]));
+    assert.deepEqual(pageErrors, []);
   } finally {
     await ui.close();
   }
