@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { CURRENT, DECIDE, HISTORY, ROWS, SUMMARY, TABLE, actBody, appInfo, idle, lister, openApp, sent, serveDist, tracked, until } from './harness.mjs';
+import { CURRENT, DECIDE, HISTORY, ROWS, SUMMARY, TABLE, actBody, appInfo, idle, lister, openApp, sent, serveDist, tracked, until, footerActions } from './harness.mjs';
 
 let served;
 let browser;
@@ -79,6 +79,7 @@ test('a drawer action shows Saving… with a spinner at once, locks the other wr
   const drawer = page.locator('dialog.drawer');
   await page.locator('.cell-t').first().click();
   await drawer.locator('.dr-act').waitFor();
+  await footerActions(drawer);
   const hold = writes.hold();
   const ms = await spinnerWithin(page, 'dialog.drawer [data-act="done"]');
   assert.ok(ms < 100, `the spinner showed after ${ms} ms`);

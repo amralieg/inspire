@@ -410,3 +410,9 @@ export function askAudit(groups) {
   });
   return out;
 }
+
+export async function footerActions(scope) {
+  const more = scope.locator('.panel-f > [data-act=more]');
+  if (await more.count() && (await more.getAttribute('aria-expanded')) === 'false') await more.click();
+  return (await scope.locator('.panel-f > button:not([data-act=more])').allInnerTexts()).sort();
+}

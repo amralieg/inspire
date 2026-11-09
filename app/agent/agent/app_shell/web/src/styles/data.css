@@ -91,7 +91,7 @@
 .dr-f > select.btn{grid-column:1/-1}
 .dr-f > :is(.hint--box,.work-f,.undo-ask,[data-calm]){grid-column:1/-1}
 .dr-f > .sp{display:none}
-@media (max-width: 560px){.dr-f > [data-act=draft]{grid-column:1/-1}}
+.dr-f[data-narrow] > [data-act=draft]{grid-column:1/-1}
 @container app (max-width: 560px){
   .act-form{grid-template-columns:1fr}
   .bulk{margin:10px 12px 0}

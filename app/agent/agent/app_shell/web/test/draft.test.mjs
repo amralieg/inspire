@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdirSync } from 'node:fs';
 import { chromium } from 'playwright';
-import { CONTRACT, DECIDE, TABLE, appInfo, openApp, serveDist, tracked } from './harness.mjs';
+import { CONTRACT, DECIDE, TABLE, appInfo, openApp, serveDist, tracked, footerActions } from './harness.mjs';
 import { DRAFT_COPIED, DRAFT_MANUAL, DRAFT_RECORDS } from '../src/records.js';
 
 let served;
@@ -49,7 +49,7 @@ test('a record drafts a message to copy, regenerates it, and never changes the r
     window.copied = [];
     Object.defineProperty(navigator, 'clipboard', { configurable: true, value: { writeText: async (text) => { window.copied.push(text); } } });
   });
-  assert.deepEqual(await drawer.locator('.panel-f > button').allInnerTexts(), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft Message to Someone', 'Ask Genie to fix']);
+  assert.deepEqual(await footerActions(drawer), ['Mark done', 'Not an issue', 'Could not fix', 'Snooze…', 'Draft Message to Someone', 'Ask Genie to fix'].sort(), 'every drawer action can be reached');
   await drawer.getByRole('button', { name: 'Draft Message to Someone' }).click();
   const dialog = page.locator('dialog[data-draft]');
   const box = dialog.locator('textarea[name="draft_message"]');
@@ -211,7 +211,9 @@ for (const [width, height] of [[390, 844], [1280, 800]]) {
     assert.deepEqual(owner, { text: 'With pat.lee@example.com', shows: true, inside: true }, 'the owner menu shows the whole owner');
     if (shots) await page.screenshot({ path: `${shots}/drawer_draft_${width}x${height}.png` });
     const layout = await footer(drawer);
-    const phone = width < 560;
+    const phone = await drawer.locator('footer.dr-f').evaluate((f) => f.hasAttribute('data-narrow'));
+    assert.equal(phone, (await drawer.locator('footer.dr-f').evaluate((f) => f.getBoundingClientRect().width)) < 470, 'the footer folds by its own width');
+    assert.equal(phone, width < 560, 'the 480px drawer folds on a phone only');
     assert.deepEqual(layout.rows.map((row) => row.map(([text]) => text)), phone
       ? [['Mark done', 'Not an issue'], ['select'], ['Could not fix', 'More'], ['Draft Message to Someone']]
       : [['Mark done', 'Not an issue'], ['select'], ['Could not fix', 'Snooze…'], ['Draft Message to Someone', 'Ask Genie to fix']], 'two to a row, the owner menu on its own row');

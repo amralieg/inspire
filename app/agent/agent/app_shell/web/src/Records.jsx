@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { flushSync } from 'react-dom';
 import DataTable, { columnOf } from './DataTable.jsx';
 import { GenieMark, Icon } from './icons.jsx';
@@ -42,7 +42,7 @@ const NO_ALIASES = {};
 const KEPT = new Map();
 const NO_PICKS = {};
 const FOOTER_CELLS = 6;
-const NARROW = '(max-width: 560px)';
+const NARROW_FOOTER = 470;
 const NARROW_KEEP = ['done', 'dismiss', 'cannot'];
 const SOMEONE_ELSE = ' someone else';
 const SAVED = 'Action saved. The earlier version stays in the history.';
@@ -299,13 +299,16 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const [undoAsk, setUndoAsk] = useState(false);
   const [drafting, setDrafting] = useState(false);
   const [more, setMore] = useState(false);
-  const [narrow, setNarrow] = useState(() => window.matchMedia(NARROW).matches);
-  useEffect(() => {
-    const query = window.matchMedia(NARROW);
-    const read = () => setNarrow(query.matches);
-    query.addEventListener('change', read);
-    return () => query.removeEventListener('change', read);
-  }, []);
+  const [foot, setFoot] = useState(null);
+  const [narrow, setNarrow] = useState(false);
+  useLayoutEffect(() => {
+    if (!foot) return undefined;
+    const read = () => setNarrow(foot.getBoundingClientRect().width < NARROW_FOOTER);
+    read();
+    const watch = new ResizeObserver(read);
+    watch.observe(foot);
+    return () => watch.disconnect();
+  }, [foot]);
   useEffect(() => { setUndoAsk(false); }, [linkKey, undoBatch]);
   useEffect(() => { setMore(false); }, [linkKey]);
   const modify = canModify && !deleted && !readOnly;
@@ -426,7 +429,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               </section>
             )}
           </div>
-          <footer className="panel-f dr-f" data-toast-host>
+          <footer ref={setFoot} className="panel-f dr-f" data-toast-host data-narrow={narrow || undefined}>
             <Failure failure={action.failure} as="div" className="hint hint--box">
               <Icon name="info" size={14} /><span>{action.failure?.text}</span>
               {action.failure?.stale && <button type="button" className="link" onClick={() => log.reload().catch(() => {})}><Icon name="undo" size={13} />Reload the record</button>}
