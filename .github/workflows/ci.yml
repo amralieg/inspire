@@ -142,7 +142,7 @@ jobs:
             if (( i % SHARDS == SHARD )); then files+=("tests/unit/${all[$i]}"); fi
           done
           echo "shard $SHARD/$SHARDS: ${#files[@]} of ${#all[@]} files"
-          python -m pytest -q -rfE -p no:cacheprovider --timeout=600 --durations=15 "${files[@]}"
+          python -m pytest -q -rfE -p no:cacheprovider --timeout=600 --durations=15 -o faulthandler_timeout=25 "${files[@]}"
 
   installer:
     name: installer suite
