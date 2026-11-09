@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { MVP_JOB, RESULTS, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
 import { REVIEW_PORTFOLIO, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
 import { closeAsset, closeBrowser, expandBuild, openAsset, openUi, until } from './uiSupport.mjs';
-import { apiWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
+import { READ_QUIET_MS, apiWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_READS, DEMO_READS_WHEN, routeOf, unrecorded } from '../../../scripts/showcaseRoutes.mjs';
 import { SHOWCASE_ALERT_NOTE, SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
@@ -101,7 +101,7 @@ const controlsOf = (page) => page.evaluate(() => [...document.querySelectorAll('
 
 let demoDir = '';
 
-const LATE_MS = 2000;
+const LATE_MS = 4 * READ_QUIET_MS;
 const startReadsLate = (page) => page.addInitScript((ms) => {
   const real = window.fetch.bind(window);
   window.fetch = (input, init) => {
@@ -144,7 +144,7 @@ function assertWalkSawEverything(walk) {
   assert.deepEqual(walk.monitor, { steps: true }, 'the walk saw the steps of the run on Monitor');
 }
 
-test('the recording walk waits for what a slow page draws late: with every read of the App starting 2 s late it still sees every view, panel, card and step', async () => {
+test('the recording walk waits for what a slow page draws late: with every read of the App starting 4 times the quiet window late it still sees every view, panel, card and step', async () => {
   const { ui, exchanges, blocked } = await recordDemo({ late: true });
   try {
     const walk = await walkInspireDemo(ui.page, { settle: apiWatch(ui.page) });

@@ -5,6 +5,7 @@ import {
 } from 'lucide-react';
 import DatabricksLogo from './DatabricksLogo';
 import { formatDuration as formatSpan } from '../lib/formatWhen';
+import { runStateText } from '../lib/runState';
 
 const formatDuration = (ms) => formatSpan(ms, 'n/a');
 
@@ -168,7 +169,7 @@ export default function RunStatus({ runId, onNewRun, apiFetch }) {
                 {status?.state?.life_cycle_state && (
                   <div className="flex items-center gap-1.5">
                     <Cpu className="w-4 h-4" />
-                    State: {status.state.life_cycle_state}
+                    State: {runStateText(status.state.life_cycle_state, status.state.result_state)}
                   </div>
                 )}
               </div>

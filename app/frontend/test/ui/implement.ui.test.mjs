@@ -703,8 +703,8 @@ test('the Build page shows one row of tiles in a fixed order, each tile opens it
     assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
     assert.equal(await page.locator(`[id="${await toggle.getAttribute('aria-controls')}"]`).isVisible(), true);
     await page.getByText('v1 · ready · initial').waitFor();
-    await page.getByText('SUCCESS · preview · started by hand').waitFor();
-    await page.getByText('FAILED · full (job default) · scheduled').waitFor();
+    await page.getByText('Finished · preview · started by hand').waitFor();
+    await page.getByText('Failed · full (job default) · scheduled').waitFor();
     await page.getByText('Workload failed').waitFor();
     assert.equal(await page.getByRole('link', { name: 'Open run' }).first().getAttribute('href'), 'https://workspace.example.com/#job/77/run/9001');
     await toggle.click();

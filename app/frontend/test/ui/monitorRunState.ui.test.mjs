@@ -111,3 +111,29 @@ test('a finished run says how long it took in plain words, never "Pipeline" or "
     await ui.close();
   }
 });
+
+for (const [run, session, want] of [
+  [{ life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: PLATFORM, tasks: [] }, {}, 'Databricks job: Failed'],
+  [{ life_cycle_state: 'TERMINATED', result_state: 'CANCELED', tasks: [] }, {}, 'Databricks job: Stopped'],
+  [{ life_cycle_state: 'INTERNAL_ERROR', state_message: 'Cluster lost', tasks: [] }, {}, 'Databricks job: Ended by Databricks'],
+  [{ life_cycle_state: 'TERMINATED', result_state: 'TIMEDOUT', tasks: [] }, {}, 'Databricks job: Timed out'],
+  [{ life_cycle_state: 'PENDING', tasks: [] }, {}, 'Databricks job: Waiting to start'],
+  [{ life_cycle_state: 'RUNNING', tasks: [] }, {}, 'Databricks job: Running'],
+  [{ life_cycle_state: 'TERMINATED', result_state: 'SUCCESS', tasks: [] },
+    { completed_percent: 100, completed_on: ago(20 * MINUTE), results_json: { run_status: 'success', quality_bar: { found: 3, meets: 3, mode: 'Good' } } }, 'Databricks job: Finished'],
+]) {
+  test(`the job state badge reads "${want}" in words, never the raw platform state`, async () => {
+    const backend = runBackend({ run: { start_time: Date.now() - HOUR, ...run }, session });
+    const ui = await openUi('monitor', {}, '', { mount: backend.mount });
+    const { page } = ui;
+    try {
+      const badge = page.locator('[data-testid="monitor-job-state"]');
+      await badge.waitFor({ timeout: 15000 });
+      assert.equal((await badge.innerText()).trim(), want);
+      assert.doesNotMatch(await card(page).innerText(), /\b(TERMINATED|INTERNAL_ERROR|TIMEDOUT|CANCELED|FAILED|SUCCESS|PENDING|RUNNING|WARNING)\b/);
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}

@@ -31,6 +31,7 @@ import StopRunControl from '../components/StopRunControl';
 import RunLogPanel from '../components/RunLogPanel';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
+import { runStateText } from '../lib/runState';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
@@ -406,7 +407,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
               </div>
             )}
             {runInfo?.life_cycle_state && (
-              <span className={`font-mono px-2.5 py-1 rounded-lg font-medium text-[11px] ${
+              <span data-testid="monitor-job-state" className={`px-2.5 py-1 rounded-lg font-medium text-[11px] ${
                 isWarning ? 'bg-warning-bg text-warning-fg' :
                 isComplete ? 'bg-success-bg text-success-fg' :
                 isFailed ? 'bg-error-bg text-error-fg' :
@@ -414,8 +415,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                 isPending ? 'bg-info-bg text-info-fg' :
                 'bg-db-red-50 text-db-red-fg'
               }`}>
-                {isWarning ? 'WARNING' : isComplete ? 'SUCCESS' : runInfo.life_cycle_state}
-                {!isComplete && runInfo.result_state ? ` / ${runInfo.result_state}` : ''}
+                Databricks job: {isWarning ? 'Finished with a warning' : runStateText(runInfo.life_cycle_state, runInfo.result_state)}
               </span>
             )}
             {isRunning && (

@@ -33,7 +33,7 @@ export async function idle(page, timeout = SHOWN_WAIT_MS) {
   await page.locator('[aria-busy="true"]').first().waitFor({ state: 'detached', timeout });
 }
 
-const READ_QUIET_MS = 300;
+export const READ_QUIET_MS = 300;
 const WATCHED = new WeakMap();
 
 function countReads() {

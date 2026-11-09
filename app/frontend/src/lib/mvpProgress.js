@@ -3,6 +3,7 @@ import { formatDuration, formatWhen } from './formatWhen.js';
 import { plural, shown } from './plural.js';
 import { rowImpact } from './targetKpi.js';
 import { splitTechnical } from './plainText.js';
+import { RUN_STATE_UNKNOWN, runStateText } from './runState.js';
 
 export const MVP_BUILD_STAGES = [
   { id: 'Plan', label: 'Plan', working: 'Inspire is working out what this version rebuilds' },
@@ -744,7 +745,7 @@ function rawFeedLine(item, text) {
     if (RUN_STARTING_STATES.includes(state)) return { who: 'inspire', tone: 'quiet', text: `${what} is starting${after}` };
     if (state === 'RUNNING' || state === 'TERMINATING') return { who: 'inspire', tone: 'quiet', text: `${what} is running${after}` };
     if (state === 'TERMINATED' && result === 'SUCCESS') return { who: 'inspire', tone: 'plain', text: `${what} finished${after}` };
-    return { who: 'inspire', tone: 'error', text: `${what} ended: ${[state, result].filter(Boolean).join(' / ')}${after}` };
+    return { who: 'inspire', tone: 'error', text: `${what} ended: ${runStateText(state, result) || RUN_STATE_UNKNOWN}${after}` };
   }
   if (kind === 'failed') return { who: 'inspire', tone: 'error', text };
   if (kind === 'note') return { who: 'inspire', tone: 'quiet', text };

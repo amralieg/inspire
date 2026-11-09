@@ -18,6 +18,7 @@ const {
   ownSchemaAllTakenNote, ownSchemaClashNote, ownSchemaFallbackNote, ownSchemaReuseNote, rowKeyOf, USE_CASE_SCHEMA_CLASH_LIMIT,
 } = require('../../frontend/src/lib/implementWizard.js');
 const { quotedIdent } = require('../../frontend/src/lib/tableName.js');
+const { RUN_STATE_UNKNOWN, runStateText } = require('../../frontend/src/lib/runState.js');
 
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
@@ -1716,7 +1717,7 @@ function implementStalled(row, run, now = Date.now()) {
     const lifeCycle = str(state.life_cycle_state || status.state).toUpperCase();
     if (!IMPLEMENT_RUN_ENDED_STATES.includes(lifeCycle)) return null;
     const details = isPlainObject(status.termination_details) ? status.termination_details : {};
-    const how = [str(state.result_state || details.code || lifeCycle), str(state.state_message || details.message).trim()]
+    const how = [runStateText(lifeCycle, state.result_state || details.code) || RUN_STATE_UNKNOWN, str(state.state_message || details.message).trim()]
       .filter(Boolean).join(': ');
     return {
       run_id: runId,

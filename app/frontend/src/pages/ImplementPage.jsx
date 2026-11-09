@@ -26,6 +26,7 @@ import QualityBarChip from '../components/QualityBarChip';
 import UseCaseDetailBody from '../components/UseCaseDetailBody';
 import InspireScoreBadge from '../components/InspireScoreBadge';
 import Celebration from '../components/Celebration';
+import { RUN_STATE_UNKNOWN, runStateText } from '../lib/runState';
 import GenieLogo from '../components/GenieLogo';
 import DrawerShell from '../components/DrawerShell';
 import VibeFeatures from '../components/VibeFeatures';
@@ -1408,7 +1409,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {status?.runs?.ok === false && <p className="text-[12px] text-error-fg">{status.runs.error}</p>}
           {(status?.runs?.runs || []).map((run) => (
             <div key={run.run_id} className="border border-border rounded-lg bg-surface px-3 py-2 text-[12px]">
-              <div>{run.state || 'unknown'} · {runProfileText(run.profile)} · {run.trigger === 'PERIODIC' ? 'scheduled' : 'started by hand'}</div>
+              <div>{runStateText(run.state) || RUN_STATE_UNKNOWN} · {runProfileText(run.profile)} · {run.trigger === 'PERIODIC' ? 'scheduled' : 'started by hand'}</div>
               <div className="text-text-secondary">
                 {run.started} · {run.duration_s}s
                 {run.url && <> · <a className="text-db-red-fg" href={run.url} target="_blank" rel="noreferrer">Open run</a></>}
