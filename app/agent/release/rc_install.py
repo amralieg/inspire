@@ -366,6 +366,18 @@ def main():
               **verify(w, args.tag, out, app_name, key, work)}
     (W40 / f"{key}_verify.json").write_text(json.dumps(result, indent=1), encoding="utf-8")
     print(json.dumps(result, indent=1))
+    failed = install_failures(result)
+    if failed:
+        raise SystemExit(f"the install of {args.tag} on {app_name} failed: {'; '.join(failed)}")
+
+
+def install_failures(result):
+    failed = []
+    if result.get("result") != "SUCCESS":
+        failed.append(f"the installer job {result.get('run_id')} ended {result.get('result')}")
+    if result.get("envSkipsSetupWizard") is not True:
+        failed.append(f"/api/defaults gives envSkipsSetupWizard {result.get('envSkipsSetupWizard')!r}, so the App opens on the setup wizard")
+    return failed
 
 
 if __name__ == "__main__":
