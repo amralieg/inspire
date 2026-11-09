@@ -508,3 +508,58 @@ test('the Markdown catalog and the JSON catalog preview in the file list: headin
     await ui.close();
   }
 });
+
+const GATE_DROPS = [
+  { no: 'N09-U01', name: 'Guess tomorrow from weather alone', domain: 'Sales', subdomain: 'Demand', gate: 'D5', gate_name: 'logical possibility check', gate_score: 2, bob_score: 2 },
+  { no: 'N09-U02', name: 'رصد الأسعار الخاطئة', domain: 'Pricing', subdomain: '', gate: 'D14', gate_name: 'engineering test', gate_score: 1.5, bob_score: 2 },
+];
+
+test('Review keeps the use cases the quality gates dropped in one collapsed read-only group, each with the gate in plain words, its score and the code under Details, and none of them reaches the list or the figures (must-exclude)', async () => {
+  const stats = async (page) => page.evaluate(() => Object.fromEntries([...document.querySelectorAll('[aria-label="Figures of this run"] [data-stat]')]
+    .map((el) => [el.getAttribute('data-stat'), el.querySelector('[data-stat-value]')?.textContent.trim()])));
+  const before = await openUi('results', REVIEW_STATE);
+  let baseline;
+  try {
+    await ready(before.page);
+    await idle(before.page);
+    baseline = { stats: await stats(before.page), cards: await cards(before.page).count() };
+    assert.equal(await before.page.locator('[data-quality-gate-drops]').count(), 0, 'a run with no dropped use case, or an older run, shows no group');
+    assert.equal(await before.page.locator('[role="alert"]').count(), 0, 'and no error');
+  } finally {
+    await before.close();
+  }
+  const ui = await openUi('results', { ...REVIEW_STATE, results: { ...REVIEW_RESULTS, quality_gate_drops: GATE_DROPS } }, '', { init: (page) => page.setViewportSize({ width: 1280, height: 900 }) });
+  const { page } = ui;
+  try {
+    await ready(page);
+    await idle(page);
+    const group = page.locator('[data-quality-gate-drops]');
+    await group.waitFor();
+    assert.equal(await group.evaluate((el) => el.open), false, 'the group starts collapsed');
+    assert.equal((await group.locator(':scope > summary').innerText()).replace(/\s+/g, ' ').trim(), 'Dropped by quality gates 2');
+    assert.deepEqual(await stats(page), baseline.stats, 'Use Cases, High Priority and every other figure leave the dropped ones out (must-exclude)');
+    assert.equal(await cards(page).count(), baseline.cards, 'the use case list leaves them out (must-exclude)');
+    for (const drop of GATE_DROPS) assert.equal(await list(page).getByText(drop.name).count(), 0);
+    await group.locator(':scope > summary').focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await group.evaluate((el) => el.open), true, 'the keyboard opens it');
+    const first = group.locator('[data-dropped-use-case="N09-U01"]');
+    assert.equal(await first.locator('[data-dropped-reason]').innerText(), 'It scored 2 out of 10 on the logical possibility check, below the 3 every use case needs.');
+    assert.equal(await first.locator('[data-dropped-score]').innerText(), '2 / 10');
+    assert.doesNotMatch(await first.locator('[data-dropped-reason]').innerText(), /D5/, 'the gate code stays under Details');
+    await first.locator('summary').click();
+    assert.match(await first.locator('[data-technical-details]').innerText(), /Quality gate D5/);
+    assert.equal(await group.locator('button, a, input, select, textarea').count(), 0, 'read-only: no action on a dropped use case');
+    for (const width of [1280, 1440]) {
+      await page.setViewportSize({ width, height: 900 });
+      for (const dir of ['ltr', 'rtl']) {
+        await page.evaluate((d) => { document.documentElement.dir = d; }, dir);
+        const fits = await group.evaluate((el) => el.scrollWidth <= el.clientWidth + 1 && el.getBoundingClientRect().right <= window.innerWidth);
+        assert.equal(fits, true, `the group fits at ${width} px in ${dir}`);
+      }
+    }
+    assert.equal(await group.locator('[data-dropped-use-case="N09-U02"] p[dir="auto"]').first().innerText(), 'رصد الأسعار الخاطئة');
+  } finally {
+    await ui.close();
+  }
+});
