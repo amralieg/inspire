@@ -176,7 +176,7 @@ test('the Launch chips of 80 chosen tables and the metadata preview take the mou
     const chips = lastChip.locator('xpath=../..');
     await wheelScrolls(page, chips, () => lastChip, { name: 'Launch chosen tables' });
     const all = tables.map((t) => `catalog_00.s.${t}`).join(',');
-    await page.getByRole('button', { name: /80 items/ }).click();
+    await page.getByRole('button', { name: 'Metadata Selected 80 tables', exact: true }).click();
     const preview = page.getByText(all, { exact: true });
     await preview.waitFor();
     await wheelScrolls(page, preview.locator('..'), () => preview, { name: 'Launch metadata preview' });
