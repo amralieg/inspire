@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, idle, openUi } from './uiSupport.mjs';
+import { closeBrowser, goToStep, idle, onStep, openUi, profileAt } from './uiSupport.mjs';
 import { REVIEW_STATE } from './reviewFixtures.js';
-import { HARNESS_SESSION_ID, HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
+import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_SESSION_ID, HARNESS_SETTINGS, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { activeRing, sideScroll, unnamedControls, weakFocus } from '../../../agent/agent/app_shell/web/test/access.mjs';
 
@@ -147,6 +147,34 @@ test('the diagnostics Download, Copy and Report issue controls each show the App
     }
   }
 });
+
+for (const theme of ['light', 'dark']) {
+  test(`every wizard step at 1280x800 in the ${theme} theme names every control and rings every control the keyboard reaches at 3:1 or more`, async () => {
+    const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } }, '',
+      { init: async (page) => { await sized(SCREEN, theme)(page); await profileAt([], GROUPING_PROFILE)(page); } });
+    try {
+      await onStep(ui.page, 'Use case');
+      assert.equal(await ui.page.evaluate(() => document.documentElement.classList.contains('dark')), theme === 'dark');
+      const labels = (await ui.page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\.\s*/, '').trim());
+      const missed = [];
+      let reached = 0;
+      for (const label of labels) {
+        await goToStep(ui.page, label);
+        await idle(ui.page);
+        const unnamed = await unnamedControls(ui.page);
+        const walk = await weakFocus(ui.page, { max: 45 });
+        reached += walk.checked;
+        if (unnamed.length || walk.weak.length || !walk.checked) missed.push({ label, checked: walk.checked, unnamed, weak: walk.weak });
+      }
+      assert.ok(labels.length >= 7, labels.join(' | '));
+      assert.ok(reached >= 25, `the keyboard reached ${reached} wizard controls`);
+      assert.deepEqual(missed, [], `${theme}: wizard steps with unnamed controls or no visible focus`);
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}
 
 test('under right to left the arrows and chevrons point the reading way, an open chevron still points down, and a pane resizer moves with the arrow key pressed (must-exclude: left to right stays as is)', async () => {
   const review = await openAt('#/review/42', { width: 1280, height: 800 });
