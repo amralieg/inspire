@@ -91,6 +91,9 @@ test('a job is this MVP\'s only when its tags say implement, this session and, w
   assert.equal(C.jobOwnerProblem(tagged({ dbx_inspire_ai_run_type: 'discovery' }), CTX), 'the job is not an Inspire MVP job');
   assert.equal(C.jobOwnerProblem(tagged({ dbx_inspire_ai_session_id: '43' }), CTX), 'the job belongs to another Inspire session');
   assert.equal(C.jobOwnerProblem(tagged({ dbx_inspire_ai_usecase_id: 'N01-U02' }), CTX), 'the job belongs to another use case');
+  assert.equal(C.jobOwnerProblem(tagged({ dbx_inspire_ai_usecase_id: 'N01-U02 N01-U01' }), CTX), '', 'the space list names this use case');
+  assert.equal(C.jobOwnerProblem(tagged({ dbx_inspire_ai_usecase_id: 'N01-U02_N01-U01' }), CTX), '', 'the older underscore list still reads');
+  assert.equal(C.jobOwnerProblem(tagged({ dbx_inspire_ai_usecase_id: 'N01-U02 N01-U011' }), CTX), 'the job belongs to another use case');
   assert.equal(C.jobOwnerProblem(ok({ settings: {} }), CTX), 'the job is not an Inspire MVP job');
   assert.equal(C.jobOwnerProblem(missing('Job 77 does not exist.'), CTX), 'Inspire cannot read this job: Job 77 does not exist.');
 });

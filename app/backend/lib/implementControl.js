@@ -1,5 +1,6 @@
 const I = require('./inspireImplement');
 const { int64Id, requireInt64Id } = require('./int64Id');
+const { inspireTagListItems } = require('./inspireJobParams');
 
 const CONTROL_CACHE_MS = 15000;
 const CONTROL_LOG_TABLE = '__inspire_control_log';
@@ -81,7 +82,7 @@ function jobOwnerProblem(got, { useCaseId, sessionId } = {}) {
   const tags = (dataOf(got).settings || {}).tags || {};
   if (str(tags.dbx_inspire_ai_run_type) !== 'implement') return 'the job is not an Inspire MVP job';
   if (str(tags.dbx_inspire_ai_session_id) !== str(sessionId)) return 'the job belongs to another Inspire session';
-  if (tags.dbx_inspire_ai_usecase_id && str(tags.dbx_inspire_ai_usecase_id) !== str(useCaseId)) return 'the job belongs to another use case';
+  if (tags.dbx_inspire_ai_usecase_id && !inspireTagListItems(tags.dbx_inspire_ai_usecase_id, '_').includes(str(useCaseId))) return 'the job belongs to another use case';
   return '';
 }
 

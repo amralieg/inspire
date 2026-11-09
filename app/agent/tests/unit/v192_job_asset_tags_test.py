@@ -12,7 +12,7 @@ from v120_artifacts_support import FakeSpark, make_inspire  # noqa: E402
 from v120_genie_support import build_inspire, make_uc  # noqa: E402
 from v120_launcher_fix_test import _CapJobs, cap_sdk  # noqa: E402,F401
 from v120_modes_main_test import FakeDbutils, widget_values  # noqa: E402
-from v140_implement_test import VALID, _probe_inspire  # noqa: E402
+from v140_implement_test import VALID, _probe_inspire, _tag_inspire  # noqa: E402
 
 VERSION_KEY = "dbx_inspire_ai_version"
 JOB_TAG_VALUE = re.compile(r"^[\d \w\+\-=\.:/@]*$", re.ASCII)
@@ -497,3 +497,43 @@ def test_closing_grep_no_tag_value_is_joined_with_a_comma():
     start = src.index("class JobLauncher:")
     launcher = src[start:src.index("\n'''", start)]
     assert 'TAG_VALUE_CHARS = "A-Za-z0-9 +=.:/@_-"' in launcher and "," not in launcher.split("TAG_VALUE_CHARS = ")[1].split("\n")[0]
+
+
+APP_TAG_KEY_BAD = re.compile(r"[,.:/\-=]|^\s|\s$")
+JOB_TAG_KEY = re.compile(r"^[A-Za-z0-9._-]{1,127}$")
+
+
+@pytest.mark.parametrize("raw", ["dbx.inspire-ai", "a,b", "a:b", "a/b", "a=b", " lead", "trail "])
+def test_an_app_tag_key_the_entity_tag_api_refuses_is_cleaned_for_apps_but_a_job_keeps_its_wider_set(ns, raw):
+    launcher = ns["JobLauncher"]
+    assert APP_TAG_KEY_BAD.search(raw)
+    app_key = launcher.tag_key(raw, "app")
+    assert app_key and not APP_TAG_KEY_BAD.search(app_key) and len(app_key) <= 256
+    assert JOB_TAG_KEY.fullmatch(launcher.tag_key(raw, "job"))
+    assert launcher.tag_key("dbx.inspire-ai", "job") == "dbx.inspire-ai" and launcher.tag_key("dbx.inspire-ai", "app") == "dbx_inspire_ai"
+
+
+@pytest.mark.parametrize("kind,raw,limit", [("job", "k" * 300, 127), ("app", "k" * 300, 256)])
+def test_a_tag_key_is_cut_to_the_limit_of_its_resource_kind(ns, kind, raw, limit):
+    assert len(ns["JobLauncher"].tag_key(raw, kind)) == limit
+
+
+def test_an_app_tag_value_keeps_any_character_up_to_its_own_limit_and_never_an_edge_space(ns):
+    launcher = ns["JobLauncher"]
+    assert launcher.tag_value("genie,agent_endpoint", "app") == "genie,agent_endpoint"
+    assert launcher.tag_value("genie,agent_endpoint", "job") == "genie_agent_endpoint"
+    assert len(launcher.tag_value("v" * 1200, "app")) == 1000 and len(launcher.tag_value("v" * 1200, "job")) == 255
+    assert launcher.tag_value("  padded  ", "app") == "padded"
+    with pytest.raises(KeyError):
+        launcher.tag_value("x", "warehouse")
+
+
+def test_every_tag_the_agent_puts_on_an_app_meets_the_entity_tag_rule(agent_ns):
+    inst, context, calls, _ = _tag_inspire(agent_ns, None)
+    context["notebook_spec"]["job_tags"]["dbx.inspire-ai:odd"] = " v " * 400
+    inst._implement_tag_app(context, "churn-desk")
+    posted = [c[2] for c in calls if c[0] == "POST"]
+    assert posted and "dbx_inspire_ai_odd" in {body["tag_key"] for body in posted}
+    for body in posted:
+        assert 1 <= len(body["tag_key"]) <= 256 and not APP_TAG_KEY_BAD.search(body["tag_key"])
+        assert len(body["tag_value"]) <= 1000 and body["tag_value"] == body["tag_value"].strip()
