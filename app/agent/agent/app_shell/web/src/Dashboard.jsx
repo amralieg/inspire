@@ -14,6 +14,7 @@ import MoneyCard from './Money.jsx';
 import { LayoutSections, TodoNow } from './Layouts.jsx';
 import { backendNotes } from './freshness.js';
 import { AskGenie } from './AskGenie.jsx';
+import { CardFailure, PageFailure, useShared } from './PageFailure.jsx';
 import {
   FIX_TIERS, NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, hubView, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason, plural,
   reasonFilters, reliableText, savedTile, shortDay, shownTiers, totals, useCaseState, viewWords,
@@ -24,16 +25,17 @@ export function TableCard({ table, result, error, loading, onFilter, pageId, fil
   const cut = !!result?.truncated;
   const served = cut || !!sort ? { sort: sort ? { key: sort.key, dir: sort.dir === 'desc' ? -1 : 1 } : null, onSort: (s) => onSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' }) } : {};
   const [opened, setOpened] = useState(null);
+  const shared = useShared(error);
   const element = (row) => ({ kind: ITEM_KINDS[table.section], title: rowTitle(row, columns), context: { hint: `A row of the table "${table.title}".`, fields: fieldsOf(row, columns) } });
   return (
     <section className="card card--table" aria-label={table.title}>
       <header className="card-h">
         <div><h2>{table.title}</h2>{table.hint && <p>{table.hint}</p>}<SoWhat text={table.so_what} /></div>
         {filters?.length > 0 && <div className="tbar"><ColumnFilterStatus filters={filters} values={values} onClear={onClear} /></div>}
-        <AskGenie kind="table" title={table.title} context={tableContext(table.hint || '', result?.rows || [], (row) => fieldsOf(row, columns))} />
+        {!shared && <AskGenie kind="table" title={table.title} context={tableContext(table.hint || '', result?.rows || [], (row) => fieldsOf(row, columns))} />}
       </header>
       {loading && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {error && <PlainNote text={error} prefix="This table could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
+      <CardFailure text={error} prefix="This table could not load: " />
       {!loading && !error && <DataTable label={table.title} columns={columns} rows={result?.rows || []} filtering="server" grid={`page:${pageId}:table:${table.id}`} {...served}
         askRow={element} onRow={(row) => setOpened((o) => (o === row ? null : row))}
         detail={(row) => (row === opened ? <RowDetails title={rowTitle(row, columns)} fields={fieldsOf(row, columns)} element={element(row)} onClose={() => setOpened(null)} /> : null)} />}
@@ -172,7 +174,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
   );
 }
 
-export default function Dashboard({ app, page, meta, state, onState, view, onView, hubPage, laidOut, work, hubEntry, live, summary, latestRun, onRuns, data, error,
+export default function Dashboard({ app, page, meta, state, onState, view, onView, hubPage, laidOut, work, hubEntry, live, summary, latestRun, onRuns, data, error, failures,
   plan, topSlots, moreSlots, more, kpisCard, kpisOf, chartCards, hubCharts, tableCard, recordsCard, explain, genieBusy, nonce, onChanged, onAsk, genie, ready, filters,
   onPick, onFix, onWork, trends, onRun, running }) {
   return (
@@ -193,10 +195,11 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
         </Placed>
       )}
       {meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the page shows all its data: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
-      {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+      <PageFailure failures={failures} onRetry={onChanged} onRuns={onRuns} />
+      {error && !failures?.whole && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {laidOut && (
         <LayoutSections page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} onAsk={onAsk}
-          kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data} onPick={onPick} genie={genie}
+          kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data || (failures?.whole ? { errors: failures.errors } : null)} onPick={onPick} genie={genie}
           onRun={onRun} running={running} />
       )}
       {!hubPage && !laidOut && <Placed slots={slotsOf(plan, 'kpis')}>{kpisCard}</Placed>}

@@ -4,10 +4,11 @@ import { HORIZONS, chartIsEmpty, chartOption, clickHint, clickPart, clickPick } 
 import { countOf, largestFirst, numberOf } from './format.js';
 import { chartPalette, hueVars, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
-import { Menu, Skeleton, SoWhat, useToast, PlainNote } from './ui.jsx';
+import { Menu, Skeleton, SoWhat, useToast } from './ui.jsx';
 import { saveBlob, saveDataUrl } from './api.js';
 import { barsContext, chartContext, chartItems, chartKind } from './explain.js';
 import { ExplainButton } from './Genie.jsx';
+import { CardFailure, useShared } from './PageFailure.jsx';
 import { AskGenie } from './AskGenie.jsx';
 import { genieOn } from './genieAsk.js';
 import { useFx } from './Fx.jsx';
@@ -107,6 +108,7 @@ export function BarsCard({ id, title, hint, action, bars, vertical = false, hue 
 
 export default function ChartCard({ chart, wide, result, error, loading, themeKey, app, pageId, onPick, onExplain, genieBusy }) {
   const fold = useFold(`chart:${chart.id}`);
+  const shared = useShared(error);
   const [horizon, setHorizon] = useState(0);
   const shown = chart.type === 'band' && horizon ? { ...chart, horizon } : chart;
   const rows = result?.rows || [];
@@ -170,7 +172,7 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
           </div>
         )}
         {explain && <ExplainButton title={chart.title} busy={genieBusy} onClick={explain} />}
-        <AskGenie kind={chartKind(chart)} title={chart.title} context={drawn} items={!loading && !error ? chartItems(chart, result) : []} />
+        {!shared && <AskGenie kind={chartKind(chart)} title={chart.title} context={drawn} items={!loading && !error ? chartItems(chart, result) : []} />}
         {items.length > 0 && (
           <button ref={more} className="ibtn ibtn--sm" aria-label={`Export ${chart.title}`} aria-haspopup="menu" aria-expanded={menu} onClick={() => setMenu(!menu)}>
             <Icon name="dots" size={16} />
@@ -182,7 +184,7 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
       {!fold.folded && (
         <div className="chart" role="img" aria-label={chart.title}>
           {loading && <div className="chart-skel"><Skeleton height="100%" /></div>}
-          {error && <PlainNote text={error} prefix="This chart could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
+          <CardFailure text={error} prefix="This chart could not load: " />
           {empty && <p className="empty">No data for these filters.</p>}
           {option && <div ref={el} style={{ position: 'absolute', inset: 0 }} />}
         </div>
