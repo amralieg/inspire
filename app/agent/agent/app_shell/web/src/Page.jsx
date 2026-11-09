@@ -30,7 +30,7 @@ import { inboxOn } from './inbox.js';
 import InboxSection, { useInbox } from './Inbox.jsx';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
 import WorkPage from './WorkPage.jsx';
-import { Skeleton } from './ui.jsx';
+import { RetryProvider, Skeleton } from './ui.jsx';
 
 const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
@@ -92,15 +92,16 @@ function radioKeys(e) {
 }
 
 export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie,
-  section = 'dashboard', tab = '', focus = '', chrome, onCounts, onRecord }) {
+  section = 'dashboard', tab = '', focus = '', chrome, onCounts, onRecord, onRetryMeta = null, onRetrySummary = null }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
+  const retry = useCallback(() => setNonce((n) => n + 1), []);
   const [queue, setQueue] = useState(null);
   const [compose, setCompose] = useState(false);
   const composed = useCallback(() => setCompose(false), []);
   const [runNonce, setRunNonce] = useState(0);
   const [runOffset, setRunOffset] = useState(0);
-  const [settings, setSettings] = useSettings(page.id, nonce);
+  const [settings, setSettings, settingsError] = useSettings(page.id, nonce);
   const listed = !!(page.history && page.records);
   const sorts = useMemo(() => Object.fromEntries(Object.entries(look.sorts || {}).filter(([id]) => id !== 'records')), [look]);
   const sortBy = (target) => (s) => onLook?.((l) => ({ ...l, sorts: { ...l.sorts, [target]: s } }));
@@ -278,6 +279,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {head}
       {shown === 'dashboard' && (
         <Dashboard app={app} page={page} meta={meta} state={state} onState={onState} view={view} onView={onView} hubPage={hubPage} laidOut={laidOut} work={work}
+          onRetry={retry} onRetryMeta={onRetryMeta} onRetrySummary={onRetrySummary}
           hubEntry={hubEntry} live={live} summary={summary} latestRun={latestRun} onRuns={showRuns} data={data} error={error} plan={plan} topSlots={topSlots}
           moreSlots={moreSlots} more={more} kpisCard={kpisOf(page.kpis)} kpisOf={kpisOf} chartCards={chartCards} hubCharts={hubCharts} tableCard={tableCard}
           recordsCard={laidOut ? records() : null} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}
@@ -292,7 +294,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       )}
       {shown === 'inbox' && <InboxSection page={page} inbox={inbox} onOpen={openInbox} />}
       {shown === 'work' && (
-        <WorkPage meta={meta} state={state} onState={onState} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
+        <WorkPage meta={meta} state={state} onState={onState} onRetryMeta={onRetryMeta} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
           {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, docked: true, section: 'records' })}
         </WorkPage>
@@ -306,7 +308,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       )}
       {shown === 'alerts' && <Suspense fallback={<Waiting />}><Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} /></Suspense>}
       {shown === 'settings' && (
-        <SettingsPanel pageId={page.id} data={settings} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRun={freshness.ask} running={freshness.busy}
+        <SettingsPanel pageId={page.id} data={settings} error={settingsError} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRun={freshness.ask} running={freshness.busy}
           footer={reporting && (
             <SettingGroup id="feedback" title="App Feedback" why="Tell the owners of this use case what is wrong or what you would change. They see it on its Build page in Inspire.">
               <Suspense fallback={<Skeleton height={120} />}>
@@ -344,5 +346,5 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       )}
     </div>
   );
-  return <GenieScope.Provider value={scope}><FoldScope pageId={page.id}>{body}</FoldScope></GenieScope.Provider>;
+  return <GenieScope.Provider value={scope}><RetryProvider value={retry}><FoldScope pageId={page.id}>{body}</FoldScope></RetryProvider></GenieScope.Provider>;
 }

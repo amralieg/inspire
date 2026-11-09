@@ -58,7 +58,7 @@ test('a run is named by the business_name of its session row alone, everywhere t
     const text = fs.readFileSync(path.join(src, page), 'utf8');
     assert.doesNotMatch(text, /widget_values\?\.(business|\['00_business_name'\])/, `${page} reads no business from the widgets`);
   }
-  for (const page of pages.slice(0, 3)) assert.match(fs.readFileSync(path.join(src, page), 'utf8'), /runBusiness\(/, page);
+  for (const page of pages.slice(0, 3)) assert.match(fs.readFileSync(path.join(src, page), 'utf8'), /run(Business|Label)\(/, page);
 });
 
 test('the figures of a run come from the portfolio, else from the run list overview, else there are none', async () => {
@@ -96,4 +96,13 @@ test('the demo Run tab lists the demo MVP Apps and frames only their own demo pa
   assert.equal(P.runPolling(pages, 'demo:N01-U01'), false, 'a demo page never polls');
   assert.deepEqual(P.demoRunPages({ mvps: 'x' }), []);
   assert.deepEqual(P.demoRunPages(null), []);
+});
+
+test('a run with no business name is called Run <number> on every list, never Session <number>', async () => {
+  const F = await lib('reviewFigures.js');
+  assert.equal(F.runLabel({ session_id: 60, business_name: '  ' }), 'Run 60');
+  assert.equal(F.runLabel({ session_id: 60, business_name: ' Acme ' }), 'Acme');
+  assert.equal(F.runLabel(null), 'Run');
+  const src = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ChoosePage.jsx'), 'utf8');
+  assert.doesNotMatch(src, /`Session \$\{/);
 });

@@ -193,7 +193,9 @@ test('each feed item reads as a sentence, never as a log line', async () => {
   assert.deepEqual(feedLine({ kind: 'run', check: true, seconds: 90, state: 'TERMINATED', result: 'SUCCESS' }),
     { who: 'inspire', tone: 'plain', text: 'The alert check run finished (1m 30s)' });
   assert.deepEqual(feedLine({ kind: 'run', check: false, seconds: 5, state: 'TERMINATED', result: 'FAILED' }),
-    { who: 'inspire', tone: 'error', text: 'The preview run ended: TERMINATED / FAILED (5s)' });
+    { who: 'inspire', tone: 'error', text: 'The preview run ended: Failed (5s)' });
+  assert.equal(feedLine({ kind: 'run', check: false, seconds: 5, state: 'INTERNAL_ERROR' }).text, 'The preview run ended: Ended by Databricks (5s)');
+  assert.equal(feedLine({ kind: 'run', check: true, seconds: 5, state: 'TERMINATED', result: 'CANCELED' }).text, 'The alert check run ended: Stopped (5s)');
   assert.deepEqual(feedLine({ kind: 'failed', text: 'no rows' }), { who: 'inspire', tone: 'error', text: 'no rows' });
   assert.equal(feedLine({ kind: 'note', text: 'Wrote the notebook x' }).who, 'inspire');
   assert.equal(feedLine({ kind: 'unknown' }), null);

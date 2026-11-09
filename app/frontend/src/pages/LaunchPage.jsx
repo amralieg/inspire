@@ -33,25 +33,29 @@ import {
   Calendar,
   ExternalLink,
   Sparkles,
+  AlertTriangle,
 } from 'lucide-react';
 import DocumentLanguagesMultiselect from '../components/DocumentLanguagesMultiselect';
 import StrategyEditor from '../components/StrategyEditor';
 import { parseStrategicContext, splitPriorities, validateStrategicContextText, withPriorities } from '../lib/strategyContext';
 import UcPermissionErrorHelp from '../components/UcPermissionErrorHelp';
+import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { runBusiness } from '../lib/reviewFigures';
 import OutputFolderCheck from '../components/OutputFolderCheck';
 import DiscoveryPromise from '../components/DiscoveryPromise';
 import { useOutputFolderCheck } from '../lib/outputFolderCheck';
+import { DRAFT_BACK_NOTE, DRAFT_START_OVER, START_DRAFT_STAMP, START_DRAFT_STEP, clearWizardDraft, readWizardDraft, startDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import { DEFAULT_DOCUMENT_LANGUAGE, parseDocumentLanguages, formatDocumentLanguages, launchDocLanguages, needsDocumentLanguage } from '../constants/documentLanguages';
+import { newSessionId } from '../lib/runState';
 import { interpretUcPermissionError, parseApiErrorMessage } from '../lib/ucPermissionErrors';
-import { formatWhen } from '../lib/formatWhen';
-import { sessionFailed, sessionFinished } from '../lib/monitorState';
+import { formatWhen, utcDate } from '../lib/formatWhen';
+import { sessionFailed, sessionFinished, sessionStatus } from '../lib/monitorState';
 import { responseError } from '../lib/apiClient';
 import { placeholderWords } from '../lib/placeholderWords';
 import { inspireScoreFromUc, nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
-import { catalogListNote, typedCatalog } from '../lib/catalogList';
+import { catalogListNote, pickedScope, scopeSummary, typedCatalog } from '../lib/catalogList';
 import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_PRIVACY, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
@@ -138,6 +142,67 @@ function blurbOfUseCase(uc) {
 }
 
 /** Optional warehouse_id improves UC browsing for service principals (SQL SHOW … fallback). */
+function pickerReadFailure(what, parent, err) {
+  return `Inspire could not list the ${what} of ${parent}: ${parseApiErrorMessage(err?.message || String(err))}`;
+}
+
+function prefillNoteOf(session) {
+  const started = formatWhen(utcDate(session.create_at));
+  return started ? `Prefilled from this business's last run, started ${started}.` : "Prefilled from this business's last run.";
+}
+
+const defaultParams = (inspireDatabase) => ({
+  '15_operation': 'Discover Use Cases',
+  '00_business_name': '',
+  '01_uc_metadata': '',
+  '02_inspire_database': inspireDatabase || '',
+  '03_discovery_type': DISCOVERY_RECOMMENDED,
+  '04_table_election': 'Let Inspire Decides',
+  '05_use_cases_quality': 'Good',
+  '06_business_domains': '',
+  '07_business_priorities': '',
+  '08_generation_instructions': '',
+  '09_generation_options': 'PDF Catalog',
+  '10_strategic_context': '',
+  '11_generation_path': '',
+  '12_documents_languages': 'English',
+  '13_generate_genie_code_for': '0',
+  '14_session_id': '',
+  '16_best_of_best_count': '',
+});
+const DRAFT_PARAMS = ['00_business_name', '03_discovery_type', '04_table_election', '05_use_cases_quality', '06_business_domains', '08_generation_instructions',
+  '11_generation_path', '12_documents_languages', '13_generate_genie_code_for', '15_operation', '16_best_of_best_count'];
+const FORM_DEFAULTS = {
+  genChecks: { 'PDF Catalog': true, Presentation: false }, priorityChecks: {}, customPriorities: [], strategyBase: '',
+  selectedCatalogs: [], selectedSchemas: [], selectedTables: [],
+  electionTouched: false, discoveryTouched: false, strategyTouched: false, prioritiesTouched: false,
+};
+const FLAGS = ['electionTouched', 'discoveryTouched', 'strategyTouched', 'prioritiesTouched'];
+const LISTS = ['customPriorities', 'selectedCatalogs', 'selectedSchemas', 'selectedTables'];
+
+function draftFormOf(params, form) {
+  const priorityChecks = Object.fromEntries(Object.entries(form.priorityChecks).filter(([, on]) => on === true));
+  return { ...form, priorityChecks, params: Object.fromEntries(DRAFT_PARAMS.map((key) => [key, params[key]])) };
+}
+
+const PRISTINE_FORM = JSON.stringify(draftFormOf(defaultParams(''), FORM_DEFAULTS));
+
+function restoredForm(draft) {
+  const spec = draft && draft.step === START_DRAFT_STEP ? draft.spec : null;
+  if (!spec || typeof spec !== 'object') return null;
+  const checks = (v, fallback) => (v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.entries(v).filter(([, on]) => typeof on === 'boolean')) : fallback);
+  const saved = spec.params && typeof spec.params === 'object' ? spec.params : {};
+  return {
+    params: Object.fromEntries(DRAFT_PARAMS.filter((key) => ['string', 'number'].includes(typeof saved[key])).map((key) => [key, String(saved[key])])),
+    genChecks: { ...FORM_DEFAULTS.genChecks, ...checks(spec.genChecks, {}) },
+    priorityChecks: checks(spec.priorityChecks, {}),
+    strategyBase: typeof spec.strategyBase === 'string' ? spec.strategyBase : '',
+    ...Object.fromEntries(LISTS.map((key) => [key, Array.isArray(spec[key]) ? spec[key].filter((x) => typeof x === 'string') : []])),
+    ...Object.fromEntries(FLAGS.map((key) => [key, spec[key] === true])),
+  };
+}
+
 function ucBrowseQuery(warehouseId) {
   if (!warehouseId) return '';
   return `?warehouse_id=${encodeURIComponent(warehouseId)}`;
@@ -147,33 +212,20 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const { databricksHost, token, notebookPath, warehouseId, inspireDatabase, serverEnvHasPat } = settings;
   const canUseUcApi = !!(databricksHost && (token || serverEnvHasPat));
 
+  const draftKey = useMemo(() => startDraftKey({ host: databricksHost }), [databricksHost]);
+  const [draft] = useState(() => restoredForm(readWizardDraft(draftKey, START_DRAFT_STAMP)));
+  const [draftBack, setDraftBack] = useState(Boolean(draft));
+  const start = draft || FORM_DEFAULTS;
+
   // ── Widget params (must match notebook widget names exactly) ──
-  const [params, setParams] = useState({
-    '15_operation': 'Discover Use Cases',
-    '00_business_name': '',
-    '01_uc_metadata': '',
-    '02_inspire_database': inspireDatabase || '',
-    '03_discovery_type': DISCOVERY_RECOMMENDED,
-    '04_table_election': 'Let Inspire Decides',
-    '05_use_cases_quality': 'Good',
-    '06_business_domains': '',
-    '07_business_priorities': '',
-    '08_generation_instructions': '',
-    '09_generation_options': 'PDF Catalog',
-    '10_strategic_context': '',
-    '11_generation_path': '',
-    '12_documents_languages': 'English',
-    '13_generate_genie_code_for': '0',
-    '14_session_id': '',
-    '16_best_of_best_count': '',
-  });
+  const [params, setParams] = useState(() => ({ ...defaultParams(inspireDatabase), ...(draft ? draft.params : {}) }));
 
   // ── Catalog/Schema pickers ──
   const [catalogs, setCatalogs] = useState([]);
   const [catalogsCut, setCatalogsCut] = useState(false);
   const [schemas, setSchemas] = useState([]);
-  const [selectedCatalogs, setSelectedCatalogs] = useState([]);
-  const [selectedSchemas, setSelectedSchemas] = useState([]);
+  const [selectedCatalogs, setSelectedCatalogs] = useState(start.selectedCatalogs);
+  const [selectedSchemas, setSelectedSchemas] = useState(start.selectedSchemas);
   const [loadingCatalogs, setLoadingCatalogs] = useState(false);
   const [loadingSchemas, setLoadingSchemas] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
@@ -181,7 +233,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // ── Table state ──
   const [tables, setTables] = useState([]);
-  const [selectedTables, setSelectedTables] = useState([]);
+  const [selectedTables, setSelectedTables] = useState(start.selectedTables);
   const [loadingTables, setLoadingTables] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
 
@@ -189,11 +241,14 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [launching, setLaunching] = useState(false);
   const [launchError, setLaunchError] = useState('');
   const [catalogBrowseError, setCatalogBrowseError] = useState('');
+  const [schemasReadError, setSchemasReadError] = useState('');
+  const [tablesReadError, setTablesReadError] = useState('');
   const [catalogsWhy, setCatalogsWhy] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showStrategy, setShowStrategy] = useState(false);
-  const [discoveryTouched, setDiscoveryTouched] = useState(false);
-  const [strategyTouched, setStrategyTouched] = useState(false);
+  const [discoveryTouched, setDiscoveryTouched] = useState(start.discoveryTouched);
+  const [electionTouched, setElectionTouched] = useState(start.electionTouched);
+  const [strategyTouched, setStrategyTouched] = useState(start.strategyTouched);
   const [prefillNote, setPrefillNote] = useState('');
 
   const [sessionsList, setSessionsList] = useState([]);
@@ -212,14 +267,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [metadataPreviewExpanded, setMetadataPreviewExpanded] = useState(false);
 
   // ── Multiselects ──
-  const [genChecks, setGenChecks] = useState({
-    'PDF Catalog': true,
-    Presentation: false,
-  });
-  const [priorityChecks, setPriorityChecks] = useState({});
-  const [customPriorities, setCustomPriorities] = useState([]);
+  const [genChecks, setGenChecks] = useState(start.genChecks);
+  const [priorityChecks, setPriorityChecks] = useState(start.priorityChecks);
+  const [customPriorities, setCustomPriorities] = useState(start.customPriorities);
   const [customPriorityDraft, setCustomPriorityDraft] = useState('');
-  const [strategyBase, setStrategyBase] = useState('');
+  const [strategyBase, setStrategyBase] = useState(start.strategyBase);
 
 
   // In Databricks App mode, the proxy injects x-forwarded-access-token automatically.
@@ -292,6 +344,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         ]);
         if (cancelled) return;
         setSessionsList(sessionPayload.sessions || []);
+        if (sessionPayload.connection_error) setOverviewError(sessionPayload.connection_error);
         if (allUcPayload._err) setAllCreatedError(allUcPayload._err);
         else setAllCreatedUcs(allUcPayload.usecases || []);
       } catch (e) {
@@ -393,27 +446,16 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     setParams((p) => ({ ...p, '07_business_priorities': sel.join(',') }));
   }, [priorityChecks]);
 
-  // Build UC metadata — uses the most specific level selected (tables > schemas > catalogs)
-  // All values use the Databricks 3-level namespace: catalog.schema.table
+  const scope = useMemo(() => pickedScope(selectedCatalogs, selectedSchemas, selectedTables), [selectedCatalogs, selectedSchemas, selectedTables]);
+  const scopeText = scopeSummary(scope);
+
   useEffect(() => {
-    let metadata = '';
-    if (selectedTables.length > 0) {
-      // Tables are the most specific — use full 3-level names (catalog.schema.table)
-      metadata = selectedTables.join(',');
-      setParams((p) => ({ ...p, '01_uc_metadata': metadata, '04_table_election': 'All Tables' })
-      );
-    } else if (selectedSchemas.length > 0) {
-      // Schemas selected — use 2-level names (catalog.schema)
-      metadata = selectedSchemas.join(',');
-      setParams((p) => ({ ...p, '01_uc_metadata': metadata }));
-    } else if (selectedCatalogs.length > 0) {
-      // Only catalogs — use catalog names
-      metadata = selectedCatalogs.join(',');
-      setParams((p) => ({ ...p, '01_uc_metadata': metadata }));
-    } else {
-      setParams((p) => ({ ...p, '01_uc_metadata': '' }));
-    }
-  }, [selectedCatalogs, selectedSchemas, selectedTables]);
+    setParams((p) => ({
+      ...p,
+      '01_uc_metadata': scope.entries.join(','),
+      ...(electionTouched ? {} : { '04_table_election': scope.tables.length ? 'All Tables' : 'Let Inspire Decides' }),
+    }));
+  }, [scope, electionTouched]);
 
   // Load catalogs — host required; browser PAT optional when server has SP OAuth / DATABRICKS_TOKEN.
   useEffect(() => {
@@ -445,11 +487,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           return;
         } catch (err) {
           lastError = err.message || String(err);
-          if (err.status === 401) {
+          if (err.status) {
             if (!cancelled) {
               setCatalogs([]);
               setCatalogsCut(false);
-              setCatalogsWhy(lastError);
+              if (err.status === 401) setCatalogsWhy(lastError);
+              else setCatalogBrowseError(lastError);
               setLoadingCatalogs(false);
             }
             return;
@@ -469,21 +512,24 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // Load schemas when catalogs selected
   useEffect(() => {
+    setSchemasReadError('');
     if (selectedCatalogs.length === 0) { setSchemas([]); return; }
     if (!canUseUcApi) { setSchemas([]); return; }
     let cancelled = false;
     setLoadingSchemas(true);
+    const failed = [];
     Promise.all(
       selectedCatalogs.map((cat) =>
         apiFetch(`/api/catalogs/${encodeURIComponent(cat)}/schemas${ucBrowseQuery(warehouseId)}`)
           .then(d => d.schemas || [])
-          .catch(() => [])
+          .catch((err) => { failed.push(pickerReadFailure('schemas', cat, err)); return []; })
       )
     ).then((r) => {
       if (!cancelled) {
         const all = r.flat();
         console.log(`[schemas] loaded ${all.length} for ${selectedCatalogs.join(',')}`);
         setSchemas(all);
+        setSchemasReadError(failed.join('\n'));
       }
     }).finally(() => { if (!cancelled) setLoadingSchemas(false); });
     return () => { cancelled = true; };
@@ -491,10 +537,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // Load tables when schemas selected
   useEffect(() => {
+    setTablesReadError('');
     if (selectedSchemas.length === 0) { setTables([]); return; }
     if (!canUseUcApi) { setTables([]); return; }
     let cancelled = false;
     setLoadingTables(true);
+    const failed = [];
     Promise.all(
       selectedSchemas.map((schemaFullName) => {
         const [catalog, schema] = schemaFullName.split('.');
@@ -503,13 +551,14 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             ...t,
             full_name: t.full_name || `${catalog}.${schema}.${t.name}`,
           })))
-          .catch(() => []);
+          .catch((err) => { failed.push(pickerReadFailure('tables', schemaFullName, err)); return []; });
       })
     ).then((r) => {
       if (!cancelled) {
         const allTables = r.flat();
         console.log(`[tables] loaded ${allTables.length} for ${selectedSchemas.join(',')}`);
         setTables(allTables);
+        setTablesReadError(failed.join('\n'));
       }
     }).finally(() => { if (!cancelled) setLoadingTables(false); });
     return () => { cancelled = true; };
@@ -526,6 +575,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   const updateParam = (key, val) => {
     setParams((p) => ({ ...p, [key]: val }));
+    if (key === '04_table_election') setElectionTouched(true);
     if (key === '02_inspire_database') {
       update('inspireDatabase', val);
     }
@@ -537,7 +587,36 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     strategyBaseRef.current = strategyBase;
   }, [strategyBase]);
   const [strategyEditorKey, setStrategyEditorKey] = useState(0);
-  const [prioritiesTouched, setPrioritiesTouched] = useState(false);
+  const [prioritiesTouched, setPrioritiesTouched] = useState(start.prioritiesTouched);
+
+  const draftForm = useMemo(() => draftFormOf(params, {
+    genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables,
+    electionTouched, discoveryTouched, strategyTouched, prioritiesTouched,
+  }), [params, genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables,
+    electionTouched, discoveryTouched, strategyTouched, prioritiesTouched]);
+  useEffect(() => {
+    if (JSON.stringify(draftForm) === PRISTINE_FORM) clearWizardDraft(draftKey);
+    else writeWizardDraft(draftKey, { stamp: START_DRAFT_STAMP, spec: draftForm, step: START_DRAFT_STEP });
+  }, [draftKey, draftForm]);
+
+  const startOver = () => {
+    clearWizardDraft(draftKey);
+    setDraftBack(false);
+    setParams(defaultParams(inspireDatabase));
+    setGenChecks(FORM_DEFAULTS.genChecks);
+    setPriorityChecks(FORM_DEFAULTS.priorityChecks);
+    setCustomPriorities(FORM_DEFAULTS.customPriorities);
+    setStrategyBase(FORM_DEFAULTS.strategyBase);
+    setSelectedCatalogs(FORM_DEFAULTS.selectedCatalogs);
+    setSelectedSchemas(FORM_DEFAULTS.selectedSchemas);
+    setSelectedTables(FORM_DEFAULTS.selectedTables);
+    setElectionTouched(false);
+    setDiscoveryTouched(false);
+    setStrategyTouched(false);
+    setPrioritiesTouched(false);
+    setPrefillNote('');
+    setStrategyEditorKey((k) => k + 1);
+  };
 
   const handleStrategyChange = useCallback((value) => {
     if (strategyBaseRef.current === value) return;
@@ -607,7 +686,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             setStrategyBase(withPriorities(prefillStrategy, []));
             setStrategyEditorKey((k) => k + 1);
           }
-          setPrefillNote(`Prefilled from this business's last session (${match.session_id}).`);
+          setPrefillNote(prefillNoteOf(match));
         }
       } catch {
         if (!cancelled) setPrefillNote('');
@@ -637,8 +716,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     const finalParams = { ...params };
     finalParams['12_documents_languages'] = formatDocumentLanguages(launchDocLanguages(params));
     // Always auto-generate session ID
-    finalParams['14_session_id'] =
-      String(Date.now()) + String(Math.floor(Math.random() * 1e6));
+    finalParams['14_session_id'] = newSessionId();
 
     try {
       const data = await apiFetch('/api/run', {
@@ -649,6 +727,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           warehouse_id: warehouseId,
         }),
       });
+      clearWizardDraft(draftKey);
       update('inspireDatabase', finalParams['02_inspire_database']);
       onLaunched?.(finalParams['14_session_id'], data.run_id, Array.isArray(data.warnings) ? data.warnings : [],
         Array.isArray(data.warning_details) ? data.warning_details : []);
@@ -699,6 +778,15 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         : strategyProblems.length ? `Fix the strategy first, in Advanced Settings under Strategy (optional): ${strategyProblems[0]}`
           : bestOfBestInvalid ? 'Best of Best stars takes a whole number from 0 to 100. Fix it in Advanced Settings.' : '';
   const canLaunch = !launchBlock;
+  const liveRunNote = useMemo(() => {
+    const name = String(params['00_business_name'] || '').trim().toLowerCase();
+    const at = Date.now();
+    const live = name && sessionsList.find((s) => runBusiness(s).toLowerCase() === name && sessionStatus(s, at) === 'running');
+    if (!live) return '';
+    const percent = Number(live.completed_percent) > 0 ? ` (${Math.round(Number(live.completed_percent))}% done)` : '';
+    const started = formatWhen(utcDate(live.create_at));
+    return `${runBusiness(live)} already has a run going${percent}${started ? `, started ${started}` : ''}. Get Started starts a second run next to it, and each run keeps its own use cases.`;
+  }, [params['00_business_name'], sessionsList]); // eslint-disable-line react-hooks/exhaustive-deps
   const advancedProblem = !effectiveDb ? 'Set the Inspire Database.'
     : strategyProblems.length ? `Fix the strategy: ${strategyProblems[0]}`
       : bestOfBestInvalid ? 'Fix Best of Best stars: use a whole number from 0 to 100, or leave it empty.'
@@ -731,43 +819,50 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       : null),
     [catalogBrowseError, effectiveDb, selectedCatalogs, warehouseId],
   );
+  const pickerReadError = [schemasReadError, tablesReadError].filter(Boolean).join('\n');
+  const pickerReadGuidance = useMemo(
+    () => (pickerReadError
+      ? interpretUcPermissionError(pickerReadError, { context: 'catalog_browse', inspireDatabase: effectiveDb, catalogs: selectedCatalogs, warehouseId })
+      : null),
+    [pickerReadError, effectiveDb, selectedCatalogs, warehouseId],
+  );
 
   const tableSelectionWarning = useMemo(() => {
     const longer = 'so this run will likely take longer.';
-    if (selectedTables.length > TABLE_SELECTION_WARN_THRESHOLD) {
+    if (scope.tables.length > TABLE_SELECTION_WARN_THRESHOLD) {
       return {
         show: true,
-        heading: `You selected ${selectedTables.length} tables, ${longer}`,
-        tableCount: selectedTables.length,
+        heading: `You selected ${scope.tables.length} tables, ${longer}`,
+        tableCount: scope.tables.length,
         scope: 'tables',
       };
     }
-    if (selectedSchemas.length > 0 && selectedTables.length === 0) {
-      if (loadingTables || tables.length <= TABLE_SELECTION_WARN_THRESHOLD) return { show: false };
-      const names = selectedSchemas.join(', ');
-      const held = counted(tables.length, 'table');
+    if (scope.catalogs.length > 0) {
+      const names = scope.catalogs.join(', ');
       return {
         show: true,
-        heading: selectedSchemas.length === 1
-          ? `The schema ${names} holds ${held}, ${longer}`
-          : `The ${selectedSchemas.length} schemas ${names} hold ${held} in total, ${longer}`,
-        tableCount: tables.length,
-        scope: 'schemas',
-      };
-    }
-    if (selectedCatalogs.length > 0 && selectedSchemas.length === 0 && selectedTables.length === 0) {
-      const names = selectedCatalogs.join(', ');
-      return {
-        show: true,
-        heading: selectedCatalogs.length === 1
+        heading: scope.catalogs.length === 1
           ? `The whole catalog ${names} is in scope, with all its schemas and tables, ${longer}`
-          : `The ${selectedCatalogs.length} whole catalogs ${names} are in scope, with all their schemas and tables, ${longer}`,
+          : `The ${scope.catalogs.length} whole catalogs ${names} are in scope, with all their schemas and tables, ${longer}`,
         tableCount: null,
         scope: 'catalogs',
       };
     }
+    if (scope.schemas.length > 0) {
+      const held = tables.filter((t) => scope.schemas.some((schema) => String(t.full_name).startsWith(`${schema}.`))).length;
+      if (loadingTables || held <= TABLE_SELECTION_WARN_THRESHOLD) return { show: false };
+      const names = scope.schemas.join(', ');
+      return {
+        show: true,
+        heading: scope.schemas.length === 1
+          ? `The schema ${names} holds ${counted(held, 'table')}, ${longer}`
+          : `The ${scope.schemas.length} schemas ${names} hold ${counted(held, 'table')} in total, ${longer}`,
+        tableCount: held,
+        scope: 'schemas',
+      };
+    }
     return { show: false };
-  }, [selectedTables, selectedSchemas, selectedCatalogs, tables, loadingTables]);
+  }, [scope, tables, loadingTables]);
 
   /** Shown in the page `<h1>` — updates after a short typing pause or immediately on blur (“finished writing”). */
   const [headlineBusiness, setHeadlineBusiness] = useState('');
@@ -806,6 +901,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             </p>
           </div>
         </div>
+        {draftBack && (
+          <div role="note" aria-label="Your draft" data-launch-draft="" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-[12px] text-text-primary">
+            <span>{DRAFT_BACK_NOTE}</span>
+            <button type="button" data-launch-start-over="" onClick={startOver} className="text-[12px] font-medium text-db-red-fg underline-offset-2 hover:underline glow-focus">{DRAFT_START_OVER}</button>
+          </div>
+        )}
       </div>
 
       {(token || serverEnvHasPat) && warehouseId && previewDb && (
@@ -825,7 +926,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               <p className="text-[11px] text-text-secondary truncate">
                 {overviewLoading
                   ? 'Loading your recent runs…'
-                  : sessionsList.length > 0
+                  : overviewError
+                    ? 'Inspire could not read your runs, see the message below'
+                    : sessionsList.length > 0
                     ? `${sessionsList.length} run${sessionsList.length === 1 ? '' : 's'} · use Quick view to see the use cases each run found`
                     : 'No runs yet. Start one to see it listed here.'}
               </p>
@@ -839,16 +942,16 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           {(overviewError || allCreatedError) && (
             <div className="space-y-2 border-b border-border bg-surface/60 px-5 py-2.5">
               {overviewError && (
-                <p className="flex items-center gap-1.5 text-xs text-error-fg">
-                  <AlertCircle size={14} className="shrink-0" />
-                  {overviewError}
-                </p>
+                <div role="alert" data-overview-error="" className="flex items-start gap-1.5 text-xs text-error-fg">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1"><PlainMessage text={overviewError} /></div>
+                </div>
               )}
-              {allCreatedError && (
-                <p className="flex items-center gap-1.5 text-xs text-warning-fg">
-                  <AlertCircle size={14} className="shrink-0" />
-                  {allCreatedError}
-                </p>
+              {allCreatedError && !overviewError && (
+                <div role="alert" className="flex items-start gap-1.5 text-xs text-warning-fg">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1"><PlainMessage text={`Inspire could not count the use cases of your runs: ${allCreatedError}`} /></div>
+                </div>
               )}
             </div>
           )}
@@ -857,12 +960,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             {overviewLoading && !overviewError && (
               <div className="flex items-center gap-2 text-sm text-text-secondary py-2">
                 <Loader2 size={16} className="animate-spin text-db-red-fg" />
-                Loading experiments…
+                Loading runs…
               </div>
             )}
             {!overviewLoading && !overviewError && sessionsList.length === 0 && (
               <p className="text-sm text-text-secondary py-1">
-                Run the Inspire pipeline once to populate sessions. Use cases appear under Quick view when data exists.
+                No runs yet. The use cases of a run show under Quick view once it saves them.
               </p>
             )}
             {!overviewLoading && sessionsList.length > 0 && (
@@ -1037,7 +1140,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             {/* UC Metadata — Catalog/Schema/Table pickers with shopping basket */}
             <Field label="Unity Catalog Metadata" required icon={Database} hint="Pick the catalogs, schemas or tables that hold your business data">
                 {catalogBrowseGuidance && <UcPermissionErrorHelp guidance={catalogBrowseGuidance} />}
-                {catalogsWhy && <p role="note" data-uc-why="" className="mb-3 text-xs text-text-secondary">{catalogsWhy}</p>}
+                {pickerReadGuidance && <UcPermissionErrorHelp guidance={pickerReadGuidance} />}
+                {catalogsWhy && <PlainMessage text={catalogsWhy} role="note" data-uc-why="" className="mb-3 text-xs text-text-secondary" />}
                 {onNoData && (
                   <button
                     type="button"
@@ -1055,11 +1159,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       <ShoppingCart size={12} className="text-db-red-fg" />
                       <span className="text-[11px] font-bold text-db-red-fg">Selected Metadata</span>
                       <span className="text-[10px] text-text-tertiary ms-auto">
-                        {selectedTables.length > 0 && `${selectedTables.length} table${selectedTables.length > 1 ? 's' : ''}`}
-                        {selectedTables.length > 0 && selectedSchemas.length > 0 && ', '}
-                        {selectedSchemas.length > 0 && `${selectedSchemas.length} schema${selectedSchemas.length > 1 ? 's' : ''}`}
-                        {(selectedTables.length > 0 || selectedSchemas.length > 0) && selectedCatalogs.length > 0 && ', '}
-                        {selectedCatalogs.length > 0 && `${selectedCatalogs.length} catalog${selectedCatalogs.length > 1 ? 's' : ''}`}
+                        {scopeText}
                       </span>
                     </div>
                     <div className="max-h-32 overflow-y-auto flex flex-wrap gap-1">
@@ -1108,7 +1208,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   {pickerExpanded ? 'Hide catalog browser' : 'Browse catalogs'}
                   {!pickerExpanded && (selectedCatalogs.length + selectedSchemas.length + selectedTables.length > 0) && (
                     <span className="text-[10px] text-db-red-fg font-medium ms-1">
-                      ({selectedTables.length > 0 ? counted(selectedTables.length, 'table') : selectedSchemas.length > 0 ? counted(selectedSchemas.length, 'schema') : counted(selectedCatalogs.length, 'catalog')} selected)
+                      ({scopeText} selected)
                     </span>
                   )}
                 </button>
@@ -1145,7 +1245,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                               ? 'Inspire cannot sign in to the workspace. Ask whoever installed Inspire to run inspire_installer.py again.'
                               : loadingCatalogs
                                 ? 'Loading...'
-                                : 'No catalogs found'
+                                : catalogBrowseError || catalogsWhy
+                                  ? 'Inspire could not list the catalogs. The message above says why.'
+                                  : 'No catalogs found'
                         }
                       />
                       {catalogsCut && (
@@ -1175,7 +1277,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         searchValue={schemaSearch}
                         onSearch={setSchemaSearch}
                         searchPlaceholder="Search schemas..."
-                        emptyText={selectedCatalogs.length === 0 ? 'Select catalogs first' : loadingSchemas ? 'Loading...' : 'No schemas found'}
+                        emptyText={selectedCatalogs.length === 0 ? 'Select catalogs first' : loadingSchemas ? 'Loading...' : schemasReadError ? 'Inspire could not list the schemas. The message above says why.' : `No schemas you can see in ${selectedCatalogs.join(', ')}`}
                       />
                     </div>
 
@@ -1207,7 +1309,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         searchValue={tableSearch}
                         onSearch={setTableSearch}
                         searchPlaceholder="Search tables..."
-                        emptyText={selectedSchemas.length === 0 ? 'Select schemas first' : loadingTables ? 'Loading...' : 'No tables found'}
+                        emptyText={selectedSchemas.length === 0 ? 'Select schemas first' : loadingTables ? 'Loading...' : tablesReadError ? 'Inspire could not list the tables. The message above says why.' : `No tables you can see in ${selectedSchemas.join(', ')}`}
                       />
                     </div>
                   </div>
@@ -1224,7 +1326,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       <CheckCircle2 size={14} className="text-success-fg shrink-0" />
                       <p className="text-[10px] text-success-fg font-semibold uppercase tracking-wider flex-1">Metadata Selected</p>
                       <span className="text-[10px] text-success-fg font-mono">
-                        {params['01_uc_metadata'].split(',').length} item{params['01_uc_metadata'].split(',').length > 1 ? 's' : ''}
+                        {scopeText}
                       </span>
                       <ChevronDown size={12} className={`text-success-fg transition-transform duration-200 ${metadataPreviewExpanded ? 'rotate-180' : ''}`} />
                     </button>
@@ -1651,21 +1753,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           <div className="flex flex-wrap items-center gap-2 mb-5">
             <Chip icon={<Building2 size={10} />}>{params['00_business_name']}</Chip>
             <Chip icon={<Database size={10} />}>{params['02_inspire_database']}</Chip>
-            {selectedTables.length > 0 && (
-              <Chip icon={<Table2 size={10} />}>
-                {selectedTables.length} table{selectedTables.length > 1 ? 's' : ''}
-              </Chip>
-            )}
-            {selectedTables.length === 0 && selectedCatalogs.length > 0 && (
-              <Chip icon={<Database size={10} />}>
-                {selectedCatalogs.length} catalog{selectedCatalogs.length > 1 ? 's' : ''}
-              </Chip>
-            )}
-            {selectedTables.length === 0 && selectedSchemas.length > 0 && (
-              <Chip icon={<Layers size={10} />}>
-                {selectedSchemas.length} schema{selectedSchemas.length > 1 ? 's' : ''}
-              </Chip>
-            )}
+            {scope.tables.length > 0 && <Chip icon={<Table2 size={10} />}>{counted(scope.tables.length, 'table')}</Chip>}
+            {scope.schemas.length > 0 && <Chip icon={<Layers size={10} />}>{counted(scope.schemas.length, 'schema')}</Chip>}
+            {scope.catalogs.length > 0 && <Chip icon={<Database size={10} />}>{counted(scope.catalogs.length, 'catalog')}</Chip>}
             <Chip icon={<Sliders size={10} />}>{params['05_use_cases_quality']}</Chip>
             <Chip icon={params['03_discovery_type'] === DISCOVERY_AI_ENHANCED ? <Sparkles size={10} /> : <Lock size={10} />}>
               {params['03_discovery_type'] || DISCOVERY_RECOMMENDED}
@@ -1690,6 +1780,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           </div>
         )}
 
+        {liveRunNote && (
+          <p role="note" data-testid="launch-live-run" className="mb-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-xs text-warning-fg">
+            <AlertTriangle size={14} className="shrink-0 mt-0.5" aria-hidden="true" />
+            <span className="min-w-0 break-words">{liveRunNote}</span>
+          </p>
+        )}
         <button
           onClick={handleLaunch}
           disabled={launching || !canLaunch || !outputCheck.ready}
@@ -1700,7 +1796,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           {launching ? (
             <>
               <Loader2 size={18} className="animate-spin" />
-              Starting pipeline…
+              Starting the run…
             </>
           ) : (
             <>
@@ -1781,7 +1877,7 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, searchValue, 
         <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
         <input dir="auto"
           type="text"
-          className="w-full bg-transparent border-b border-border pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none"
+          className="w-full bg-transparent border-b border-border pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary"
           placeholder={searchPlaceholder}
           value={searchValue}
           onChange={(e) => onSearch(e.target.value)}

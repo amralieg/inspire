@@ -68,7 +68,7 @@ test('the Choose page overview names each 19-digit session exactly, so its count
   for (const c of asked) assert.ok(c.statement.includes(`IN (${MAX},${HALF},17)`), c.statement);
 });
 
-test('the Choose page counts high priority by one rule, Inspire Score of 3 or more out of 5, the same count the frontend gives, and counts the ones that meet the bar on their own', async () => {
+test('the Choose page counts high priority by one rule, the High band of the Inspire Score (3.5 or more out of 5), the same count the frontend gives, and counts the ones that meet the bar on their own', async () => {
   const { computeHighPriorityCount } = await import('../../frontend/src/lib/useCaseFields.js');
   const usecases = [
     { session_id: MAX, use_case: 'Stored Inspire Score 7 of 10', inspire_score: '7', priority_score: '8.6', business_domain: 'Sales' },
@@ -84,9 +84,11 @@ test('the Choose page counts high priority by one rule, Inspire Score of 3 or mo
   const got = await S.request('GET', LIST, { person: 'reader@example.com' });
   assert.equal(got.status, 200, got.text.slice(0, 300));
   const { total, high, meets } = got.data.sessions[0].usecase_overview;
-  assert.deepEqual({ total, high, meets }, { total: 8, high: 4, meets: 6 });
-  assert.equal(computeHighPriorityCount(usecases), high, 'the frontend gives the same count on the same rows');
-  assert.equal(usecases.filter((u) => Number(u.priority_score) >= 3).length, 6, 'the old score-of-3 rule counted 6 of these, the new rule counts 4 (must-exclude)');
+  assert.deepEqual({ total, high, meets }, { total: 8, high: 3, meets: 6 }, 'an Inspire Score of exactly 6 of 10 is Medium, not High (must-exclude)');
+  const tracked = usecases.filter((u) => !u.Priority);
+  assert.equal(computeHighPriorityCount(tracked), high, 'the frontend gives the same count on the rows the tracking table holds');
+  assert.equal(computeHighPriorityCount(usecases), high + 1, 'a Very High label counts on the pills; the tracking table has no label column to count it');
+  assert.equal(usecases.filter((u) => Number(u.priority_score) >= 3).length, 6, 'the old score-of-3 rule counted 6 of these, the new rule counts 3 (must-exclude)');
   const statement = S.state.calls.find((c) => c.statement.includes('AS usecase_count')).statement;
   assert.ok(statement.includes('COALESCE(inspire_score, 0.65 * LEAST(10, GREATEST(0, quality_score * 2)) + 0.35 * LEAST(10, GREATEST(0, priority_score))) / 2'), statement);
   assert.equal(statement.includes('COALESCE(priority_score, 0) >= 3'), false, 'no priority-only cut (must-exclude)');

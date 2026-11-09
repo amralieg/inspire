@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { changeAssumption, failureOf, getMoney } from './api.js';
 import { dayLabel, kindOf, stakeWords, unitOf, wholeMoney } from './format.js';
 import { Icon } from './icons.jsx';
-import { Failure, useToast, PlainNote } from './ui.jsx';
+import { Failure, useToast, PlainNote, useRetry } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { amountText, assumptionLabel, columnWords, ruleText } from './money.js';
 import { AskGenie } from './AskGenie.jsx';
@@ -99,12 +99,13 @@ export default function MoneyCard({ pageId, nonce = 0, onChanged }) {
   const [editing, setEditing] = useState('');
   const toast = useToast();
   const fold = useFold('money');
+  const retry = useRetry();
   useEffect(() => {
     let live = true;
     getMoney(pageId).then((d) => { if (live) { setData(d); setError(''); } }).catch((e) => { if (live) setError(e.message); });
     return () => { live = false; };
   }, [pageId, nonce]);
-  if (error) return <PlainNote text={error} prefix="How the amount at stake is worked out could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />;
+  if (error) return <PlainNote text={error} prefix="How the amount at stake is worked out could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />;
   const model = data?.model;
   if (!model || (!model.parts.length && !model.assumptions.length)) return null;
   const saved = (next, value) => {

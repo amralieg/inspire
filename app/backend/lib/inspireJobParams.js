@@ -209,25 +209,52 @@ function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateT
 }
 
 const INSPIRE_TAG_VALUE_MAX = 255;
+const TAG_LIST_SEP = ' ';
+const TAG_ITEM_BAD = /[^A-Za-z0-9+=.:/@_-]/g;
+const RESOURCE_TAG_RULES = {
+  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: 127, value: /^[\d \w+\-=.:/@]*$/, valueBad: /[^A-Za-z0-9 +=.:/@_-]/g, valueMax: INSPIRE_TAG_VALUE_MAX },
+  uc: { keyBad: /[^A-Za-z0-9_]/g, keyMax: 256, value: /^[\s\S]*$/, valueBad: null, valueMax: 256 },
+};
 
-function inspireTagValue(value) {
-  return String(value ?? '')
-    .replace(/[^A-Za-z0-9._-]/g, '_')
-    .replace(/_+/g, '_')
-    .replace(/^_+|_+$/g, '')
-    .replace(/^\.+|\.+$/g, '')
-    .replace(/^-+|-+$/g, '')
-    .slice(0, INSPIRE_TAG_VALUE_MAX);
+function resourceTagRule(kind) {
+  if (!Object.hasOwn(RESOURCE_TAG_RULES, kind)) throw new Error(`no tag rule for resource kind ${kind}`);
+  return RESOURCE_TAG_RULES[kind];
 }
 
-function inspireUseCaseIdsTag(useCaseIds) {
+function cleanTag(value, bad, max) {
+  return String(value ?? '').replace(bad, '_').replace(/_+/g, '_').replace(/^[_.-]+|[_.-]+$/g, '').slice(0, max);
+}
+
+function resourceTagKey(kind, key) {
+  const rule = resourceTagRule(kind);
+  return cleanTag(key, rule.keyBad, rule.keyMax);
+}
+
+function resourceTagValue(kind, value) {
+  const rule = resourceTagRule(kind);
+  const text = String(value ?? '');
+  if (text.length <= rule.valueMax && text === text.trim() && rule.value.test(text)) return text;
+  const cleaned = rule.valueBad ? cleanTag(text, rule.valueBad, rule.valueMax) : text;
+  return cleaned.trim().slice(0, rule.valueMax).trim();
+}
+
+function inspireTagList(items) {
   let joined = '';
-  for (const id of useCaseIds) {
-    const next = joined ? `${joined}_${id}` : id;
+  for (const item of new Set(items.map((item) => cleanTag(item, TAG_ITEM_BAD, INSPIRE_TAG_VALUE_MAX)).filter(Boolean))) {
+    const next = joined ? `${joined}${TAG_LIST_SEP}${item}` : item;
     if (next.length > INSPIRE_TAG_VALUE_MAX) break;
     joined = next;
   }
   return joined;
+}
+
+function inspireTagListItems(value, legacySep = '') {
+  const items = String(value ?? '').split(/\s+/).filter(Boolean);
+  return legacySep ? items.flatMap((item) => item.split(legacySep)).filter(Boolean) : items;
+}
+
+function inspireTagValue(value) {
+  return cleanTag(value, /[^A-Za-z0-9._-]/g, INSPIRE_TAG_VALUE_MAX);
 }
 
 function inspireJobTags({ runType, params = {}, businessName = '', notebookFilename = '', useCaseIds = [] }) {
@@ -248,11 +275,15 @@ function inspireJobTags({ runType, params = {}, businessName = '', notebookFilen
     tags.dbx_inspire_ai_session = sessionId;
     tags.dbx_inspire_ai_session_id = sessionId;
   }
-  if (ids.length) tags.dbx_inspire_ai_usecase_id = inspireUseCaseIdsTag(ids);
+  if (ids.length) tags.dbx_inspire_ai_usecase_id = inspireTagList(ids);
   if (specVersion) tags.dbx_inspire_ai_spec_version = specVersion;
   const test = inspireTestTag();
   if (test) tags[INSPIRE_TEST_TAG] = test;
-  return tags;
+  return resourceTags('job', tags);
+}
+
+function resourceTags(kind, tags) {
+  return Object.fromEntries(Object.entries(tags).map(([key, value]) => [resourceTagKey(kind, key), resourceTagValue(kind, value)]));
 }
 
 function inspireTaskCompute(clusterId) {
@@ -296,7 +327,7 @@ function inspireJobTestTagChange(settings) {
   const current = settings && settings.tags && typeof settings.tags === 'object' ? settings.tags : {};
   const tags = { ...current };
   delete tags[INSPIRE_TEST_TAG];
-  const test = inspireTestTag();
+  const test = resourceTagValue('job', inspireTestTag());
   if (test) tags[INSPIRE_TEST_TAG] = test;
   return current[INSPIRE_TEST_TAG] === tags[INSPIRE_TEST_TAG] ? null : { tags, from: current[INSPIRE_TEST_TAG] || '', to: test };
 }
@@ -390,6 +421,12 @@ module.exports = {
   DEFAULT_GENERATION_PATH,
   buildDemoInspireDiscoveryParams,
   inspireTagValue,
+  inspireTagList,
+  inspireTagListItems,
+  resourceTagKey,
+  resourceTagValue,
+  RESOURCE_TAG_RULES,
+  TAG_LIST_SEP,
   inspireJobTags,
   withInspireInstallParams,
   INSPIRE_TEST_TAG,

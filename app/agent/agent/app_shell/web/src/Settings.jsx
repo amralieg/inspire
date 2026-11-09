@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { failureOf, getSettings, previewSetting, saveSetting } from './api.js';
 import { dayLabel } from './format.js';
 import { Icon } from './icons.jsx';
-import { Failure, useToast, PlainNote } from './ui.jsx';
+import { Failure, useToast, PlainNote, useRetry } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { groupsOf, historyLines, inputText, ownerSettings, savedText, settingProblem, storedText, valueText } from './settings.js';
 import { MyViewGroup } from './MyView.jsx';
@@ -12,12 +12,13 @@ const PREVIEW_MS = 400;
 
 export function useSettings(pageId, nonce = 0) {
   const [data, setData] = useState(null);
+  const [error, setError] = useState('');
   useEffect(() => {
     let live = true;
-    getSettings(pageId).then((d) => { if (live) setData(d); }).catch(() => { if (live) setData(null); });
+    getSettings(pageId).then((d) => { if (live) { setData(d); setError(''); } }).catch((e) => { if (live) { setData(null); setError(e.message); } });
     return () => { live = false; };
   }, [pageId, nonce]);
-  return [data, setData];
+  return [data, setData, error];
 }
 
 
@@ -98,9 +99,10 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
   );
 }
 
-export default function SettingsPanel({ pageId, data, onData, onChanged, onRun, running, onClose, children, footer = null }) {
+export default function SettingsPanel({ pageId, data, error = '', onData, onChanged, onRun, running, onClose, children, footer = null }) {
   const [editing, setEditing] = useState('');
   const toast = useToast();
+  const retry = useRetry();
   const writing = useWrite().busy;
   const owned = ownerSettings(data);
   const saved = (next, value) => {
@@ -120,6 +122,7 @@ export default function SettingsPanel({ pageId, data, onData, onChanged, onRun, 
         {onClose && <button type="button" className="btn" onClick={onClose} aria-label="Close the settings"><Icon name="x" size={14} /></button>}
       </div>
       <MyViewGroup />
+      {error && <PlainNote text={error} prefix="The settings of this use case could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
       {children}
       {owned && <p className="why">A saved value applies at the next run of this use case. Every change keeps its note and who made it.</p>}
       {owned && groupsOf(data.settings).map(([group, title, list]) => (

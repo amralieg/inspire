@@ -5,7 +5,7 @@ import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { apiWatch, openShowcase, readOnlyInspire, recordMvpApp, tabButton, walkMvpViews, walkRun, watchOffline } from './showcaseRecorder.mjs';
-import { FIRST_RUN_STEP, START_MVP_LABEL } from '../frontend/src/lib/implementWizard.js';
+import { FIRST_RUN_STEP, GROUPING_STEP, START_MVP_LABEL } from '../frontend/src/lib/implementWizard.js';
 import { SCOPE_WALK_READS, checkRunScope, checkScope, checkWizardSteps, profileWatch } from './scopeWalk.mjs';
 import redact from '../backend/lib/redact.js';
 
@@ -155,9 +155,9 @@ try {
     for (let i = 0; i < 10; i += 1) {
       const step = (await page.locator('[aria-current="step"]').first().innerText().catch(() => '?')).trim().replace(/^\d+\.\s*/, '');
       seen.push(step);
-      if (step === 'Data') groupingShown = (await dialog.first().getByRole('group', { name: 'Data groups', exact: true }).count()) > 0;
-      if (step === 'Data' || step === FIRST_RUN_STEP.label) {
-        for (const c of await checkScope(dialog.first(), scopeProfile.profile, { part: step === 'Data' ? 'grouping' : 'first_run' })) scope.push({ where: `wizard ${step}`, ...c });
+      if (step === GROUPING_STEP.label) groupingShown = (await dialog.first().getByRole('group', { name: 'Data groups', exact: true }).count()) > 0;
+      if (step === GROUPING_STEP.label || step === FIRST_RUN_STEP.label) {
+        for (const c of await checkScope(dialog.first(), scopeProfile.profile, { part: step === GROUPING_STEP.label ? 'grouping' : 'first_run' })) scope.push({ where: `wizard ${step}`, ...c });
       }
       const next = page.getByRole('button', { name: 'Next', exact: true });
       if (!(await next.count()) || await next.isDisabled()) break;

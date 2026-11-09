@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { TABLE, appInfo, openApp, serveDist, until } from './harness.mjs';
+import { TABLE, appInfo, openApp, said, serveDist, until } from './harness.mjs';
 
 const DEMO = 'In the demo, Genie answers the questions it suggests. Ask your own questions in an MVP built on your data.';
 
@@ -52,7 +52,8 @@ test('in the demo, a question Genie has no saved answer for reads as a calm note
 
 test('a real Genie failure still reads as an error and does not bring the suggestions back (must-exclude)', async () => {
   const { panel, seen, context } = await askOwn([500, { error: 'the warehouse stopped' }]);
-  assert.equal(await panel.locator('.msg--genie .g-err').innerText(), 'the warehouse stopped');
+  assert.equal(await said(panel.locator('.msg--genie .g-err')), 'the warehouse stopped');
+  assert.equal(await panel.locator('.msg--genie .g-err [data-retry]').count(), 1, 'a failure that may pass on a resend offers Try again');
   assert.equal(await panel.locator('[data-calm]').count(), 0);
   assert.equal(await panel.locator('.g-sugg').count(), 0);
   assert.deepEqual(seen.errors.filter((e) => !/500/.test(e)), []);

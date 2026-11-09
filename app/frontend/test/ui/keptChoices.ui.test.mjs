@@ -32,7 +32,7 @@ test('a table the person picked stays picked when a later listing of its schema 
     await idle(page);
     await page.getByRole('button', { name: 'Get Started' }).click();
     await until(() => made.launches.length === 1, 'the launch was sent once');
-    assert.equal(made.launches[0].params['01_uc_metadata'], 'main.s.salaries', 'a failed re-listing never drops a table the person picked');
+    assert.equal(made.launches[0].params['01_uc_metadata'], 'main.s.salaries,main.t', 'a failed re-listing never drops a table the person picked, and the whole schema t picked next stays in scope');
   } finally {
     await ui.close();
   }
@@ -61,7 +61,7 @@ test('a discovery type the person picks while the last session is still being re
     await until(() => asked.length === 1, 'the last session is asked');
     await page.getByRole('button', { name: /^Standard Discovery/ }).click();
     first.open();
-    await page.getByText("Prefilled from this business's last session (6001).").waitFor({ timeout: 20000 });
+    await page.getByText(/^Prefilled from this business's last run/).waitFor({ timeout: 20000 });
     await idle(page);
     await page.locator('button[title="main"]').click();
     await page.locator('button[title="s"]').click();

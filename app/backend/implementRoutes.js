@@ -30,6 +30,7 @@ const { parseExactJson } = require('./lib/exactJson');
 const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
 const GC = require('./lib/genieCodeCheck');
 const SA = require('./lib/sourceAccess');
+const D = require('./lib/buildDiagnostics');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -142,7 +143,7 @@ function registerImplementRoutes(app, deps) {
   const fetchJsonFor = (req) => (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, path);
 
   const readMeFor = (req) => (token) => jsonOf(dbFetch, req.dbHost, token, P.SCIM_ME_PATH);
-  const { accessRowsOf, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess } = SA.createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken });
+  const { accessRowsOf, appReads, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess } = SA.createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken });
 
   async function loadTokenPrincipal(req) {
     const got = await readMeFor(req)(req.dbToken);
@@ -478,6 +479,7 @@ function registerImplementRoutes(app, deps) {
           notebook_path,
           cluster_id,
           jobType: 'genie_regen',
+          asker: req,
           jobName: genieNotebookJobName(sidStr),
           useCaseIds: safeIds,
           launchedBy: (await personOf(req)).username,
@@ -973,6 +975,30 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  app.post('/api/inspire/implement/app-reads', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const sid = sessionIdOf(req);
+      const { catalog, schema } = dbOf(req, splitInspireDatabase);
+      const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
+      const action = String((req.body && req.body.action) ?? 'check');
+      if (!['check', 'grant'].includes(action)) throw I.badRequest('action must be check or grant');
+      const record = I.appReadsRecord(await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId));
+      if (!record) return res.json({ state: 'readable', tables: [], ran: [], failed: [], text: I.appReadsText([], '') });
+      const { left, ran, failed } = await appReads(req, warehouseId, record, action === 'grant');
+      const was = record.tables.map((t) => `${t.table}:${t.owner}:${t.grants.join(';')}`).join('|');
+      const now = left.map((t) => `${t.table}:${t.owner}:${t.grants.join(';')}`).join('|');
+      if (was !== now) {
+        const update = I.appReadsUpdateStatement(I.implementTableName(catalog, schema), record.row, left);
+        await executeSql(req.dbHost, req.dbToken, warehouseId, update.sql, update.parameters);
+      }
+      res.json({ state: left.length ? 'unreadable' : 'readable', app: record.app, app_name: record.app_name, tables: left, ran, failed,
+        refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, record.app_name, failed) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
   app.post('/api/inspire/implement/create-schema', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);
@@ -1130,14 +1156,16 @@ function registerImplementRoutes(app, deps) {
       const mergeIssues = I.mergeProblems(spec, targets, I.carriedAssets(history));
       if (mergeIssues.length) throw I.badRequest(mergeIssues.join('; '));
     }
-    const [stalled, tables, empty] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
-      emptyDataWarning(req, warehouseId, spec, useCase)]);
+    const [stalled, tables, empty, unshared] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
+      emptyDataWarning(req, warehouseId, spec, useCase), newAppReads(req, warehouseId, spec, useCase)]);
     const plan = I.planSubmission(history, spec, stalled, { requester: person.username, tableChange: tables.change });
     if (moved) plan.summary.result_table_moved = moved;
     if (tables.change) plan.summary.table_change = tables.change;
     if (tables.error) plan.summary.table_change_error = tables.error;
     if (plan.summary.refill || (tables.change && tables.change.class === 'settings')) await refuseMissingSources(req, warehouseId, spec, useCase);
-    const warnings = [asksWarning, ...readWarnings, empty, ...scopeIssues.carried.map((p) => `${I.FIRST_RUN_CARRIED}${p}.`)].filter(Boolean);
+    const appReadsWarning = I.newAppReadsWarning(unshared);
+    const warnings = [asksWarning, ...readWarnings, empty, appReadsWarning, ...scopeIssues.carried.map((p) => `${I.FIRST_RUN_CARRIED}${p}.`)].filter(Boolean);
+    if (unshared.length) plan.summary.app_reads = { tables: unshared.map(({ table, owner }) => ({ table, owner })), text: appReadsWarning };
     return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings };
   }
 
@@ -1178,6 +1206,14 @@ function registerImplementRoutes(app, deps) {
       notes.push(what ? `${pick.chosen} (cleared ${what})` : pick.chosen);
     }
     return { spec: next, warnings: [`Building without ${notes.length === 1 ? 'a table' : `${notes.length} tables`} you can't read: ${I.joinAnd(notes)}.`, ...reads.uncheckedWarnings] };
+  }
+
+  async function newAppReads(req, warehouseId, spec, useCase) {
+    if (!spec.outputs.app || spec.outputs.app_access === 'user') return [];
+    const tables = I.sourceTables(spec, I.useCaseTables(useCase)).filter((t) => !I.resultTableNameError(t, 'tables'));
+    const token = await appTokenOf(req);
+    const rows = await Promise.all(tables.map((t) => accessRowsOf(req, token, warehouseId, t)));
+    return I.newAppReadsGaps(tables, tables.map((t, i) => (rows[i].length ? I.accessPlan(t, rows[i]) : { gaps: [] })));
   }
 
   async function emptyDataWarning(req, warehouseId, spec, useCase) {
@@ -1263,6 +1299,7 @@ function registerImplementRoutes(app, deps) {
         notebook_path: req.body?.notebook_path,
         cluster_id: req.body?.cluster_id,
         jobType: 'implement',
+        asker: req,
         jobName: I.implementJobName(useCaseId, spec.use_case_name, plan.nextVersion),
         useCaseIds: [useCaseId],
         launchedBy: createdBy,
@@ -1292,11 +1329,27 @@ function registerImplementRoutes(app, deps) {
     };
   }
 
+  const buildGuard = createGenieJobGuard();
+  const BUILD_STARTING = 'Another tab or click is already starting a build of this use case, so Inspire did not start a second one. Open Build in a moment to follow it';
+
+  async function oneBuildAtATime(req, run) {
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const key = [catalog, schema, sessionIdOf(req), I.validateImplementSpec(req.body?.spec || req.body).spec.use_case_id].join('|');
+    if (!(await buildGuard.claim(key, () => null)).ok) throw I.badRequest(BUILD_STARTING, 409);
+    try {
+      return await run();
+    } finally {
+      buildGuard.failed(key);
+    }
+  }
+
   app.post('/api/inspire/implement/submit', requireToken, async (req, res) => {
     try {
-      const prepared = await prepareSubmission(req);
-      if (GC.needsGenieCode(prepared.spec)) await requireGenieCode(req);
-      res.json(await startVersion(req, prepared));
+      res.json(await oneBuildAtATime(req, async () => {
+        const prepared = await prepareSubmission(req);
+        if (GC.needsGenieCode(prepared.spec)) await requireGenieCode(req);
+        return startVersion(req, prepared);
+      }));
     } catch (err) {
       sendError(res, err);
     }
@@ -1304,82 +1357,98 @@ function registerImplementRoutes(app, deps) {
 
   app.post('/api/inspire/implement/publish', requireToken, async (req, res) => {
     try {
-      const prepared = await prepareSubmission(req);
-      const named = q(req, 'use_case_id');
-      if (named && named !== prepared.useCaseId) throw I.badRequest(`the spec is for use case ${prepared.useCaseId}, not ${named}`);
-      if (prepared.spec.publish_held == null) throw I.badRequest('Publish anyway sends the held spec with publish_held set to the held version');
-      res.json(await startVersion(req, prepared));
+      res.json(await oneBuildAtATime(req, async () => {
+        const prepared = await prepareSubmission(req);
+        const named = q(req, 'use_case_id');
+        if (named && named !== prepared.useCaseId) throw I.badRequest(`the spec is for use case ${prepared.useCaseId}, not ${named}`);
+        if (prepared.spec.publish_held == null) throw I.badRequest('Publish anyway sends the held spec with publish_held set to the held version');
+        return startVersion(req, prepared);
+      }));
     } catch (err) {
       sendError(res, err);
     }
   });
 
+  async function loadStatus(req) {
+    const sid = sessionIdOf(req);
+    const warehouseId = warehouseOf(req);
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
+    const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
+    const stepTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_step\``;
+    const stepStmt = stepsStatement(stepTable, sid, q(req, 'since') || (history[0] && history[0].created_at) || '');
+    let steps = [];
+    try {
+      steps = I.filterImplementSteps(await sqlRows(req.dbHost, req.dbToken, warehouseId, stepStmt), useCaseId);
+    } catch (err) {
+      if (!isMissingTableError(err)) throw err;
+    }
+    const session = await loadSession(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid).catch(() => null);
+    const runLog = I.liveLogPath(`${catalog}.${schema}`, session?.business_name, sid, history[0] && history[0].implement_run_id);
+    const sessionLog = I.liveLogPath(`${catalog}.${schema}`, session?.business_name, sid);
+    let logPath = runLog;
+    let feed = [];
+    const readLog = (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, fsApiPath('files', path)).catch((err) => {
+      console.warn(`[implement] live log read ended early, the feed keeps its last messages: ${path}: ${err.message}`);
+      return { ok: false, status: 0, data: {} };
+    });
+    if (runLog) {
+      let got = await readLog(runLog);
+      if (!got.ok && got.status === 404 && runLog !== sessionLog) {
+        logPath = sessionLog;
+        got = await readLog(sessionLog);
+      }
+      if (got.ok) {
+        const text = typeof got.data === 'string' ? got.data : (got.data.raw || '');
+        feed = I.genieFeed(text, useCaseId, history[0] && history[0].created_at);
+      }
+    }
+    const appName = I.carriedAssets(history).app;
+    const jobId = int64Id((history.find((r) => r.job_id) || {}).job_id);
+    const held = history[0] && history[0].status === I.IMPLEMENT_VIBE_NOT_MET ? history[0].spec_version : null;
+    const appUpdate = history[0] ? I.appShellUpdate(history, buildStamp()) : null;
+    const builtBy = I.implementBuildRunId(history[0]);
+    const [appInfo, runInfo, stalled, person, buildRun] = await Promise.all([
+      appName ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.0/apps/${encodeURIComponent(appName)}`) : null,
+      jobId ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/list?job_id=${jobId}&limit=10`) : null,
+      stalledOf(req, history[0]),
+      held == null && !appUpdate ? null : personOf(req),
+      latestRunOf(req, warehouseId, history[0], history),
+      builtBy ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${builtBy}`).catch(() => null) : null,
+    ]);
+    if (history[0]) {
+      history[0].app_update = appUpdate && !I.appShellUpdateRefusal(history, { rollback_outputs: { app: appUpdate.version } }, person.username) ? appUpdate : null;
+    }
+    const listedNone = runInfo && runInfo.ok && !(Array.isArray(runInfo.data && runInfo.data.runs) && runInfo.data.runs.length);
+    const jobInfo = listedNone ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/get?job_id=${jobId}`) : null;
+    const body = {
+      latest: history[0] || null,
+      stalled,
+      build_run_url: (stalled && stalled.run_url) || (buildRun && buildRun.ok && String(buildRun.data?.run_page_url || '')) || null,
+      history,
+      steps,
+      log_path: logPath,
+      feed,
+      rerun_widgets: I.rerunWidgets(history),
+      app_status: I.appStatusFrom(appInfo, { useCaseId, sessionId: sid, history }),
+      runs: I.jobRunsFrom(runInfo, jobInfo),
+      can_publish_held: held != null && !I.publishHeldRefusal(history, { publish_held: held }, person.username),
+    };
+    return { body, context: { host: req.dbHost, catalog, schema, business: session?.business_name || '', useCaseId } };
+  }
+
   app.get('/api/inspire/implement/status', requireToken, async (req, res) => {
     try {
-      const sid = sessionIdOf(req);
-      const warehouseId = warehouseOf(req);
-      const { catalog, schema } = dbOf(req, splitInspireDatabase);
-      const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
-      const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
-      const stepTable = `\`${catalog}\`.\`${schema}\`.\`__inspire_step\``;
-      const stepStmt = stepsStatement(stepTable, sid, q(req, 'since') || (history[0] && history[0].created_at) || '');
-      let steps = [];
-      try {
-        steps = I.filterImplementSteps(await sqlRows(req.dbHost, req.dbToken, warehouseId, stepStmt), useCaseId);
-      } catch (err) {
-        if (!isMissingTableError(err)) throw err;
-      }
-      const session = await loadSession(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid).catch(() => null);
-      const runLog = I.liveLogPath(`${catalog}.${schema}`, session?.business_name, sid, history[0] && history[0].implement_run_id);
-      const sessionLog = I.liveLogPath(`${catalog}.${schema}`, session?.business_name, sid);
-      let logPath = runLog;
-      let feed = [];
-      const readLog = (path) => jsonOf(dbFetch, req.dbHost, req.dbToken, fsApiPath('files', path)).catch((err) => {
-        console.warn(`[implement] live log read ended early, the feed keeps its last messages: ${path}: ${err.message}`);
-        return { ok: false, status: 0, data: {} };
-      });
-      if (runLog) {
-        let got = await readLog(runLog);
-        if (!got.ok && got.status === 404 && runLog !== sessionLog) {
-          logPath = sessionLog;
-          got = await readLog(sessionLog);
-        }
-        if (got.ok) {
-          const text = typeof got.data === 'string' ? got.data : (got.data.raw || '');
-          feed = I.genieFeed(text, useCaseId, history[0] && history[0].created_at);
-        }
-      }
-      const appName = I.carriedAssets(history).app;
-      const jobId = int64Id((history.find((r) => r.job_id) || {}).job_id);
-      const held = history[0] && history[0].status === I.IMPLEMENT_VIBE_NOT_MET ? history[0].spec_version : null;
-      const appUpdate = history[0] ? I.appShellUpdate(history, buildStamp()) : null;
-      const builtBy = I.implementBuildRunId(history[0]);
-      const [appInfo, runInfo, stalled, person, buildRun] = await Promise.all([
-        appName ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.0/apps/${encodeURIComponent(appName)}`) : null,
-        jobId ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/list?job_id=${jobId}&limit=10`) : null,
-        stalledOf(req, history[0]),
-        held == null && !appUpdate ? null : personOf(req),
-        latestRunOf(req, warehouseId, history[0], history),
-        builtBy ? jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${builtBy}`).catch(() => null) : null,
-      ]);
-      if (history[0]) {
-        history[0].app_update = appUpdate && !I.appShellUpdateRefusal(history, { rollback_outputs: { app: appUpdate.version } }, person.username) ? appUpdate : null;
-      }
-      const listedNone = runInfo && runInfo.ok && !(Array.isArray(runInfo.data && runInfo.data.runs) && runInfo.data.runs.length);
-      const jobInfo = listedNone ? await jsonOf(dbFetch, req.dbHost, req.dbToken, `/api/2.1/jobs/get?job_id=${jobId}`) : null;
-      res.json({
-        latest: history[0] || null,
-        stalled,
-        build_run_url: (stalled && stalled.run_url) || (buildRun && buildRun.ok && String(buildRun.data?.run_page_url || '')) || null,
-        history,
-        steps,
-        log_path: logPath,
-        feed,
-        rerun_widgets: I.rerunWidgets(history),
-        app_status: I.appStatusFrom(appInfo, { useCaseId, sessionId: sid, history }),
-        runs: I.jobRunsFrom(runInfo, jobInfo),
-        can_publish_held: held != null && !I.publishHeldRefusal(history, { publish_held: held }, person.username),
-      });
+      res.json((await loadStatus(req)).body);
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.get('/api/inspire/implement/diagnostics', requireToken, async (req, res) => {
+    try {
+      const { body, context } = await loadStatus(req);
+      res.json(await D.buildDiagnostics(body, { ...context, stamp: buildStamp() }));
     } catch (err) {
       sendError(res, err);
     }

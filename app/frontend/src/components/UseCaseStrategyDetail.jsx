@@ -297,7 +297,7 @@ export function FeedbackControls({ useCaseKey, available, current, busy, error, 
             maxLength={2000}
             onChange={(e) => setReason(e.target.value)}
             placeholder="Why is this not useful? (optional)"
-            className="min-w-[14rem] flex-1 px-2.5 py-1.5 text-xs border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-db-red/30"
+            className="min-w-[14rem] flex-1 px-2.5 py-1.5 text-xs border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary focus:border-db-red/30"
           />
           <button
             type="button"
@@ -317,7 +317,7 @@ export function FeedbackControls({ useCaseKey, available, current, busy, error, 
         A rejected use case is left out of this business&apos;s next runs. For an implemented one, the next run tracks its KPIs against the baseline.
       </p>
       {readOnly && <DemoNote className="mt-2" />}
-      {error && note && <DemoNote className="mt-2">{error}</DemoNote>}
+      {error && note && <DemoNote className="mt-2" text={error} />}
       {error && !note && <PlainMessage text={error} className="mt-1 text-[11px] text-error-fg" />}
     </div>
   );

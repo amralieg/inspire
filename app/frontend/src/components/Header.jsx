@@ -50,8 +50,9 @@ export default function Header({
                   onClick={() => can && setPage(item.id)}
                   disabled={!can}
                   aria-current={active ? 'page' : undefined}
+                  title={item.label}
                   className={`
-                    relative shrink-0 whitespace-nowrap px-1.5 sm:px-4 py-2 text-sm font-medium rounded-md transition-smooth
+                    relative shrink-0 whitespace-nowrap px-1.5 lg:px-4 py-2 text-sm font-medium rounded-md transition-smooth
                     ${active
                       ? 'text-db-red-fg bg-db-red-50'
                       : can
@@ -66,10 +67,10 @@ export default function Header({
                         {String(item.step).padStart(2, '0')}
                       </span>
                     )}
-                    <span className="sr-only sm:not-sr-only">{item.label}</span>
+                    <span className="sr-only lg:not-sr-only">{item.label}</span>
                   </span>
                   {active && (
-                    <span className="absolute bottom-0 left-3 right-3 h-0.5 bg-db-red rounded-full" />
+                    <span className="absolute bottom-0 inset-x-3 h-0.5 bg-db-red rounded-full" />
                   )}
                 </button>
               );

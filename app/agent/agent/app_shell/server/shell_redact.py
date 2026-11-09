@@ -5,7 +5,7 @@ import datetime as _redact_datetime
 
 INSPIRE_SECRET_TOKEN_RE = _redact_re.compile(r"\bdapi[0-9a-f]{16,}\b|\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]+|(?<=Bearer )[\w.~+/=-]{8,}", _redact_re.IGNORECASE)
 INSPIRE_SECRET_HOST_RE = _redact_re.compile(r"(https?://)[^\s/'\"<>]*[^\s/'\"<>.,;:!?)]", _redact_re.IGNORECASE)
-INSPIRE_SECRET_EMAIL_RE = _redact_re.compile(r"[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
+INSPIRE_SECRET_EMAIL_RE = _redact_re.compile(r"(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+")
 INSPIRE_ANSI_RE = _redact_re.compile(r"\x1b\[[0-?]*[ -/]*[@-~]|\x1b[@-Z\\-_]")
 
 

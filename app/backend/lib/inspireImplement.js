@@ -1,5 +1,5 @@
 const { appShellCatalog } = require('./appShell');
-const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, withInspireInstallParams } = require('./inspireJobParams');
+const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, resourceTagKey, resourceTagValue, withInspireInstallParams } = require('./inspireJobParams');
 const { parseExactJson } = require('./exactJson');
 const { int64Id } = require('./int64Id');
 const { plural } = require('./plural');
@@ -18,6 +18,7 @@ const {
   ownSchemaAllTakenNote, ownSchemaClashNote, ownSchemaFallbackNote, ownSchemaReuseNote, rowKeyOf, USE_CASE_SCHEMA_CLASH_LIMIT,
 } = require('../../frontend/src/lib/implementWizard.js');
 const { quotedIdent } = require('../../frontend/src/lib/tableName.js');
+const { RUN_STATE_UNKNOWN, runStateText } = require('../../frontend/src/lib/runState.js');
 
 const IMPLEMENT_OPERATION = 'Implement Use Cases';
 const IMPLEMENT_TABLE = '__inspire_implement';
@@ -1716,7 +1717,7 @@ function implementStalled(row, run, now = Date.now()) {
     const lifeCycle = str(state.life_cycle_state || status.state).toUpperCase();
     if (!IMPLEMENT_RUN_ENDED_STATES.includes(lifeCycle)) return null;
     const details = isPlainObject(status.termination_details) ? status.termination_details : {};
-    const how = [str(state.result_state || details.code || lifeCycle), str(state.state_message || details.message).trim()]
+    const how = [runStateText(lifeCycle, state.result_state || details.code) || RUN_STATE_UNKNOWN, str(state.state_message || details.message).trim()]
       .filter(Boolean).join(': ');
     return {
       run_id: runId,
@@ -3055,6 +3056,79 @@ function appUnreadableMessage(offer, job = 'build') {
   return `${head}. ${offer.can_grant ? words.grant : 'Ask the owner to run'}: ${offer.grants.join('; ')}`;
 }
 
+const APP_READ_GRANT = /^GRANT (USE CATALOG|USE SCHEMA|SELECT) ON (CATALOG|SCHEMA|TABLE) (`[^`]+`(?:\.`[^`]+`){0,2}) TO `([^`]+)`$/;
+const APP_READ_LEVELS = { 'USE CATALOG': 'CATALOG', 'USE SCHEMA': 'SCHEMA', SELECT: 'TABLE' };
+
+function appReadsRecord(history) {
+  const row = (history || [])[0];
+  if (!row || !IMPLEMENT_DONE_STATUSES.includes(str(row.status))) return null;
+  const app = isPlainObject(row.asset_status) && isPlainObject(row.asset_status.app) ? row.asset_status.app : null;
+  const unread = app && isPlainObject(app.unread) ? app.unread : null;
+  const id = str(unread && unread.app).trim();
+  if (!id || id.includes('`') || !Array.isArray(unread.tables)) return null;
+  const tables = unread.tables.filter((t) => isPlainObject(t) && !resultTableNameError(str(t.table)))
+    .map((t) => ({ table: str(t.table), owner: str(t.owner), grants: (Array.isArray(t.grants) ? t.grants : []).map(str).filter((g) => appReadGrantFor(g, id)) }));
+  return tables.length ? { row, app: id, app_name: str(row.app_name), tables } : null;
+}
+
+function appReadGrantFor(sql, appId) {
+  const m = APP_READ_GRANT.exec(str(sql));
+  return Boolean(m) && APP_READ_LEVELS[m[1]] === m[2] && m[4] === str(appId) && m[3].split('.').length === ['CATALOG', 'SCHEMA', 'TABLE'].indexOf(m[2]) + 1;
+}
+
+function appReadsLeft(record, plans) {
+  return record.tables.map((t, i) => {
+    const plan = plans[i] || { grants: [], gaps: [] };
+    const order = (g) => IMPLEMENT_READ_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
+    const needed = [...plan.grants, ...plan.gaps].sort((a, b) => order(a) - order(b)).map((g) => grantSql(g, record.app));
+    const owner = joinAnd([...new Set(plan.gaps.map((g) => g.owner).filter(Boolean))]) || t.owner;
+    return { table: t.table, owner, grants: needed.filter((g) => appReadGrantFor(g, record.app)) };
+  }).filter((t) => t.grants.length);
+}
+
+function appReadsGrantable(record, left) {
+  const recorded = new Set(record.tables.flatMap((t) => t.grants));
+  return [...new Set(left.flatMap((t) => t.grants))].filter((g) => recorded.has(g) && appReadGrantFor(g, record.app));
+}
+
+function appReadsUpdateStatement(table, row, left) {
+  const assets = isPlainObject(row.asset_status) ? row.asset_status : {};
+  const app = { ...(isPlainObject(assets.app) ? assets.app : {}) };
+  if (left.length) app.unread = { ...app.unread, tables: left };
+  else delete app.unread;
+  return {
+    sql: `UPDATE ${table} SET asset_status = parse_json(:assets) WHERE session_id = :sid AND use_case_id = :uc AND spec_version = :v `
+      + `AND status IN (${IMPLEMENT_DONE_STATUSES.map((s) => `'${s}'`).join(', ')})`,
+    parameters: [
+      { name: 'assets', value: JSON.stringify({ ...assets, app }), type: 'STRING' },
+      ...implementVersionParameters({ sessionId: row.session_id, useCaseId: row.use_case_id, specVersion: row.spec_version }),
+    ],
+  };
+}
+
+function appReadsText(left, app, refused = []) {
+  if (!left.length) return 'The App can read all its data now';
+  const tables = joinAnd(left.map((t) => t.table));
+  const owners = joinAnd([...new Set(left.map((t) => t.owner).filter(Boolean))]);
+  const head = `The App ${app ? `${app} ` : ''}cannot read ${tables}, so its pages show no data from ${left.length === 1 ? 'it' : 'them'}`;
+  const ask = owners ? `${owners} can grant it` : 'the owner of each table can grant it';
+  return refused.length ? `${head}. Your grant was refused: ${refused.join('; ')}. ${ask[0].toUpperCase()}${ask.slice(1)}` : `${head}. ${ask[0].toUpperCase()}${ask.slice(1)}`;
+}
+
+function newAppReadsGaps(tables, plans) {
+  return (tables || []).map((table, i) => ({ table, owner: joinAnd([...new Set(((plans[i] || {}).gaps || []).map((g) => g.owner).filter(Boolean))]), gaps: (plans[i] || {}).gaps || [] }))
+    .filter((t) => t.gaps.length);
+}
+
+function newAppReadsWarning(unshared) {
+  if (!unshared.length) return '';
+  const one = unshared.length === 1;
+  const owners = joinAnd([...new Set(unshared.map((t) => t.owner).filter(Boolean))]) || 'the owner of each table';
+  return `Inspire cannot share ${joinAnd(unshared.map((t) => (t.owner ? `${t.table} (owner ${t.owner})` : t.table)))} with the App this build makes, `
+    + `because Inspire neither owns nor manages ${one ? 'it' : 'them'}, so the App cannot read ${one ? 'it' : 'them'} on its own. The build still runs. `
+    + `When it ends, the Build page offers Grant access with my permissions to grant ${one ? 'it' : 'them'} as you in one click, or the grant SQL to send to ${owners}`;
+}
+
 function gapList(gaps) {
   return joinAnd(gaps.map((g) => `${g.privilege} on ${g.level} ${g.object}${g.owner ? ` (owner ${g.owner})` : ''}`));
 }
@@ -3284,10 +3358,10 @@ function useCaseSchemaPlace({ inspireDatabase, useCaseId, sessionId, businessNam
 }
 
 function useCaseSchemaTagsSql(catalog, schema, tags) {
-  const pairs = USE_CASE_SCHEMA_TAGS.map((name) => [name, str(tags && tags[name]).trim()]).filter(([, value]) => value);
+  const pairs = USE_CASE_SCHEMA_TAGS.map((name) => [resourceTagKey('uc', name), resourceTagValue('uc', str(tags && tags[name]))]).filter(([, value]) => value);
   if (!pairs.length) return '';
   const lit = (value) => `'${value.replace(/\\/g, '\\\\').replace(/'/g, "\\'")}'`;
-  return `ALTER SCHEMA ${quotedIdent(catalog)}.${quotedIdent(schema)} SET TAGS (${pairs.map(([n, v]) => `${lit(n)} = ${lit(v.slice(0, 255))}`).join(', ')})`;
+  return `ALTER SCHEMA ${quotedIdent(catalog)}.${quotedIdent(schema)} SET TAGS (${pairs.map(([n, v]) => `${lit(n)} = ${lit(v)}`).join(', ')})`;
 }
 
 function useCaseSchemaBuilderGrant(catalog, schema, who) {
@@ -3737,6 +3811,14 @@ module.exports = {
   newAppsAccessText,
   appReadGrantsOffer,
   appUnreadableMessage,
+  appReadsRecord,
+  appReadGrantFor,
+  appReadsLeft,
+  appReadsGrantable,
+  appReadsUpdateStatement,
+  appReadsText,
+  newAppReadsGaps,
+  newAppReadsWarning,
   discoverGrantedText,
   discoverUnreadText,
   shareWarnings,

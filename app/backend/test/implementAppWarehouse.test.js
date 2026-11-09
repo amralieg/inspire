@@ -225,5 +225,4 @@ test('the build SQL warehouse is picked by name from the list, keeps a saved id 
   assert.equal(w.warehouseListNote(listed, ''), '', 'a listed set needs no note and no typed fallback (must-exclude)');
   assert.equal(w.warehouseListNote(null, ''), '', 'still loading is not an empty list (must-exclude)');
   assert.equal(w.warehouseListNote([], ''), 'Inspire found no SQL warehouse you can use. Type the warehouse id, or ask an admin for CAN USE on one.');
-  assert.equal(w.warehouseListNote(null, 'HTTP 403'), 'Inspire could not list the SQL warehouses (HTTP 403). Type the warehouse id instead.');
 });

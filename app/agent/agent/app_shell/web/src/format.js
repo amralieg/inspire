@@ -304,7 +304,10 @@ const COMPARED_TO = /^\s*(?:on|over|versus|vs\.?|against|compared\s+(?:to|with)|
 export function storyPieces(story, kpis, data) {
   const byId = Object.fromEntries((kpis || []).map((k) => [k.id, k]));
   const parts = String(story ?? '').split(STORY_TOKEN);
+  const used = parts.map((p) => /^\{([A-Za-z_][A-Za-z0-9_]*)(?::change)?\}$/.exec(p)?.[1]).filter((id) => byId[id]);
+  if (used.some((id) => data?.[id]?.now == null || data[id].now === '')) return [];
   const out = [];
+  let noneSaid = false;
   for (let i = 0; i < parts.length; i += 1) {
     const m = /^\{([A-Za-z_][A-Za-z0-9_]*)(:change)?\}$/.exec(parts[i]);
     const kpi = m && byId[m[1]];
@@ -319,8 +322,10 @@ export function storyPieces(story, kpis, data) {
     }
     const d = change(value?.now, value?.before);
     if (d == null) {
-      if (value?.before == null) out.push({ text: kpi.words.story_none });
-      else if (out.length && !out[out.length - 1].strong) out[out.length - 1].text = out[out.length - 1].text.replace(/[,;:]?\s*$/, '');
+      if (value?.before == null && !noneSaid) {
+        out.push({ text: kpi.words.story_none });
+        noneSaid = true;
+      } else if (out.length && !out[out.length - 1].strong) out[out.length - 1].text = out[out.length - 1].text.replace(/[,;:]?\s*$/, '');
       const next = parts[i + 1] ?? '';
       const compared = COMPARED_TO.exec(next);
       if (compared && (compared[0].length < next.length || i + 2 >= parts.length)) parts[i + 1] = next.slice(compared[0].length);

@@ -520,6 +520,24 @@ def test_bad_requests(tmp_path):
     assert s.handle("POST", "page", {}, {}, b" " * (shell_core.MAX_BODY + 1))[0] == 413
 
 
+def test_a_page_on_another_site_cannot_change_anything_in_the_app(tmp_path):
+    s, sp_ws, user_ws, _made = shell(tmp_path)
+    body = json.dumps({"page": "n01_u05"}).encode()
+    attacks = [{"sec-fetch-site": "cross-site"}, {"sec-fetch-site": "same-site"},
+               {"origin": "https://evil.example.com", "host": "app.example.com"}, {"origin": "null", "host": "app.example.com"},
+               {"origin": "https://app.example.com.evil.io", "x-forwarded-host": "app.example.com"}]
+    for headers in attacks:
+        before = len(sp_ws.sql) + len(user_ws.sql)
+        status, out = s.handle("POST", "page", {}, headers, body)
+        assert status == 403, headers
+        assert "another site" in out["error"], headers
+        assert len(sp_ws.sql) + len(user_ws.sql) == before, headers
+    for headers in [{"sec-fetch-site": "same-origin"}, {"sec-fetch-site": "none"}, {},
+                    {"origin": "https://app.example.com", "x-forwarded-host": "app.example.com", "host": "10.0.0.1:8000"}]:
+        assert s.handle("POST", "page", {}, headers, body)[0] == 200, headers
+    assert s.handle("GET", "app", {}, {"sec-fetch-site": "cross-site"}, b"")[0] == 200
+
+
 def test_user_mode_needs_a_token_and_separates_cache(tmp_path):
     settings = dict(SETTINGS, auth="user")
     s, sp_ws, user_ws, made = shell(tmp_path, settings)
@@ -760,15 +778,21 @@ UNREAD = {"main.pricing.items": ["GRANT SELECT ON TABLE `main`.`pricing`.`items`
 
 def test_unread_settings_must_name_grant_statements():
     assert shell_core.settings_problems(dict(SETTINGS, unread=UNREAD), [PAGE]) == []
+    assert shell_core.settings_problems(dict(SETTINGS, unread=UNREAD, unread_owners={"main.pricing.items": "data-eng"}), [PAGE]) == []
+    for bad in ({"main.pricing.items": ""}, {"main.pricing.items": ["data-eng"]}, ["data-eng"]):
+        assert any(p.startswith("the App unread_owners must be") for p in shell_core.settings_problems(
+            dict(SETTINGS, unread=UNREAD, unread_owners=bad), [PAGE])), bad
     for bad in ({"main.pricing.items": ["SELECT 1"]}, {"main.pricing.items": []}, ["GRANT SELECT"], {"main.pricing.items": "GRANT x"}):
         assert any(p.startswith("the App unread must be") for p in shell_core.settings_problems(dict(SETTINGS, unread=bad), [PAGE])), bad
 
 
-def test_unread_hint_names_the_grants_only_for_a_no_access_error_on_a_table_the_query_reads():
+def test_unread_hint_names_the_table_only_for_a_no_access_error_on_a_table_the_query_reads(capsys):
     sql = "SELECT * FROM `main`.`pricing`.`items` AS i"
     hinted = shell_core.unread_hint("PERMISSION_DENIED: no SELECT", sql, UNREAD)
-    assert hinted == ("PERMISSION_DENIED: no SELECT. The App cannot read this data until the table owner runs, for main.pricing.items: "
-                      "GRANT SELECT ON TABLE `main`.`pricing`.`items` TO `sp-1`")
+    assert hinted == "No access to main.pricing.items"
+    assert "[APP-NO-ACCESS FIRED] main.pricing.items: PERMISSION_DENIED: no SELECT" in capsys.readouterr().err
+    assert shell_core.unread_hint("[TABLE_OR_VIEW_NOT_FOUND] `main`.`pricing`.`items`", sql, UNREAD) == "No access to main.pricing.items", \
+        "Unity Catalog hides a table the App may not read as not found"
     assert shell_core.unread_hint("warehouse stopped", sql, UNREAD) == "warehouse stopped", "a non-access error is left alone"
     assert shell_core.unread_hint("PERMISSION_DENIED", "SELECT * FROM main.pricing.loss_trend", UNREAD) == "PERMISSION_DENIED"
     assert shell_core.unread_hint("PERMISSION_DENIED", sql, None) == "PERMISSION_DENIED"
@@ -783,10 +807,14 @@ def test_a_tile_whose_table_the_app_cannot_read_names_the_grant_and_other_tiles_
                          sp_factory=lambda: ws, user_factory=lambda h, t: ws)
     status, data = call(s, "POST", "page", body={"page": "n01_u05", "filters": {}})
     assert status == 200
-    assert data["errors"]["chart:by_category"].endswith(
-        "The App cannot read this data until the table owner runs, for main.pricing.items: "
-        "GRANT SELECT ON TABLE `main`.`pricing`.`items` TO `sp-1`")
+    assert data["errors"]["chart:by_category"] == "No access to main.pricing.items"
     assert "chart:loss_trend" not in data["errors"] and data["charts"]["loss_trend"]["rows"]
+    status, info = call(s, "GET", "app")
+    assert status == 200 and info["no_access"] == {}, "no owner recorded names no one"
+    (tmp_path / "owned").mkdir()
+    owned = shell_core.Shell(app_dir(tmp_path / "owned", dict(SETTINGS, unread=UNREAD, unread_owners={"main.pricing.items": "data-eng", "main.x.gone": "x"})),
+                             env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws, user_factory=lambda h, t: ws)
+    assert call(owned, "GET", "app")[1]["no_access"] == {"main.pricing.items": "data-eng"}, "only tables the App still lists as unread"
 
 
 def test_check_flags_a_date_filter_with_no_dates_and_a_failed_filter(tmp_path):

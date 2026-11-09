@@ -61,14 +61,17 @@ const {
 } = require('./lib/inspireFeedback');
 const { createHostedRun, workspaceFiles } = require('./lib/hostedRun');
 const RP = require('./lib/routePolicy');
+const LC = require('./lib/launchChoice');
+const { crossSiteGuard } = require('./lib/crossSite');
 const L = require('./lib/launchLedger');
-const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath } = require('./lib/workspacePaths');
+const { workspacePathProblem, rejectUnsafeQueryPath, fsApiPath, attachmentHeader } = require('./lib/workspacePaths');
 const { CACHE_REVALIDATE, compressedStatic, staticHeaders } = require('./lib/assetTypes');
 const { grantJobViewer, rememberViewer, viewerNoteOf } = require('./lib/jobViewer');
 const { discoveryTypeOf } = require('../frontend/src/lib/discoveryType.js');
 const { createPlaceSql } = require('../frontend/src/lib/tableName.js');
 
 const app = express();
+app.use(crossSiteGuard);
 const routePolicy = RP.createRoutePolicy({
   enforce: () => policyEnforced(),
   appName: () => String(process.env.DATABRICKS_APP_NAME || '').trim(),
@@ -758,9 +761,9 @@ async function readAppDatabaseHistory(req, sessionId) {
 
 async function sessionIsNew(host, inspireDatabase, sessionId) {
   const table = L.launchTableName(DEFAULT_INSPIRE_DB);
-  const statements = table && DEFAULT_WAREHOUSE_ID ? L.sessionKnownStatements(table, inspireDatabase, sessionId) : null;
+  const statements = DEFAULT_WAREHOUSE_ID ? L.sessionKnownStatements(table || '', inspireDatabase, sessionId) : null;
   if (!statements) return false;
-  for (const statement of [statements.ledger, statements.session]) {
+  for (const statement of table ? [statements.ledger, statements.session] : [statements.session]) {
     try {
       if ((await launchSql(host, statement)).length) return false;
     } catch (err) {
@@ -768,6 +771,35 @@ async function sessionIsNew(host, inspireDatabase, sessionId) {
     }
   }
   return true;
+}
+
+async function isManager(req) {
+  if (!policyEnforced()) return true;
+  if (!req) return false;
+  return Boolean((await routePolicy.managerOf(req).catch(() => ({ manager: false }))).manager);
+}
+
+async function launchChoiceOf(req, notebookPath, clusterId) {
+  const asked = { notebookPath, clusterId };
+  const own = { notebooks: [DEFAULT_NOTEBOOK_PATH, NOTEBOOK_DEST, cachedNotebookPath],
+    clusters: [process.env.INSPIRE_CLUSTER_ID, process.env.INSPIRE_DEPLOY_CLUSTER_ID] };
+  const plain = LC.ownLaunch(asked, own);
+  if (!plain.warnings.length) return plain;
+  return (await isManager(req)) ? LC.ownLaunch(asked, { ...own, chooses: true }) : plain;
+}
+
+async function launchSessionProblem(req, params) {
+  const sessionId = String(params['14_session_id'] || '').trim();
+  const inspireDatabase = String(params['02_inspire_database'] || '').trim();
+  if (!policyEnforced() || !sessionId || !splitInspireDatabase(inspireDatabase)) return '';
+  if (!isInt64Id(sessionId)) return 'The session id must be a numeric Inspire session id';
+  const host = resolveHost(req);
+  const fresh = await sessionIsNew(host, inspireDatabase, sessionId);
+  if (fresh) return '';
+  const launcher = String(await readLaunchRecord(req, { kind: 'session', inspireDatabase, sessionId }).catch(() => '') || '').trim().toLowerCase();
+  const person = RP.forwardedPerson(req.headers);
+  const owns = Boolean(launcher) && launcher === person;
+  return LC.sessionLaunchProblem(sessionId, { fresh, launcher, person, manager: owns ? false : await isManager(req) });
 }
 
 async function startingSessions(req, inspireDatabase, warehouseId, listed) {
@@ -816,13 +848,15 @@ async function recordLaunch(host, record) {
   }
 }
 
-async function triggerInspireNotebookJob(host, token, { params, notebook_path, cluster_id, jobType = 'discovery', jobName: requestedJobName = '', useCaseIds = [], launchedBy = '', writeCheck = null }) {
+async function triggerInspireNotebookJob(host, token, { params, notebook_path, cluster_id: askedClusterId, jobType = 'discovery', jobName: requestedJobName = '', useCaseIds = [], launchedBy = '', writeCheck = null, asker = null }) {
   normalizeUseCasesQualityParams(params);
   const sanitized = sanitizeInspireNotebookJobParams(params);
   for (const k of Object.keys(params)) delete params[k];
   Object.assign(params, sanitized);
 
-  let resolvedPath = String(notebook_path || DEFAULT_NOTEBOOK_PATH || '').trim();
+  const choice = await launchChoiceOf(asker, notebook_path, askedClusterId);
+  const cluster_id = choice.clusterId;
+  let resolvedPath = String(choice.notebookPath || DEFAULT_NOTEBOOK_PATH || '').trim();
   console.log(`📓 Notebook resolution: frontend="${notebook_path || ''}", env="${DEFAULT_NOTEBOOK_PATH}", resolved="${resolvedPath}"`);
 
   if (resolvedPath) {
@@ -867,7 +901,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   const writes = writeCheck ? discoverWrites(params, resolvedPath) : null;
   let outputChecked = '';
   let outputFolder = writes ? writes.folders[0] : '';
-  const warnings = [];
+  const warnings = [...choice.warnings];
   const warningDetails = [];
   if (writes) {
     const verdict = await writeCheck(writes);
@@ -1154,7 +1188,7 @@ app.post('/api/auth/sp-token', async (req, res) => {
     }
 
     // Azure AD OAuth2 client credentials flow
-    const tokenUrl = `https://login.microsoftonline.com/${tenant_id}/oauth2/v2.0/token`;
+    const tokenUrl = `https://login.microsoftonline.com/${encodeURIComponent(String(tenant_id))}/oauth2/v2.0/token`;
     // The scope for Databricks is the host + /.default
     const scope = `${databricks_host.replace(/\/$/, '')}/.default`;
 
@@ -1281,7 +1315,7 @@ app.get('/api/workspace/export', rejectUnsafeQueryPath, requireToken, async (req
           lastErr = await response.text();
           continue;
         }
-        res.setHeader('Content-Disposition', `attachment; filename="${baseName}"`);
+        res.setHeader('Content-Disposition', attachmentHeader(baseName));
         return res.send(Buffer.from(await response.arrayBuffer()));
       }
 
@@ -1294,18 +1328,18 @@ app.get('/api/workspace/export', rejectUnsafeQueryPath, requireToken, async (req
           const data = await resp1.json();
           if (data.content) {
             const buffer = Buffer.from(data.content, 'base64');
-            res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+            res.setHeader('Content-Disposition', attachmentHeader(fileName));
             return res.send(buffer);
           }
         }
         const buffer = Buffer.from(await resp1.arrayBuffer());
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Disposition', attachmentHeader(fileName));
         return res.send(buffer);
       }
 
       const resp2 = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/workspace/export?path=${encodeURIComponent(wsPath)}&direct_download=true`);
       if (resp2.ok) {
-        res.setHeader('Content-Disposition', `attachment; filename="${fileName}"`);
+        res.setHeader('Content-Disposition', attachmentHeader(fileName));
         return res.send(Buffer.from(await resp2.arrayBuffer()));
       }
       lastStatus = resp2.status;
@@ -1489,7 +1523,7 @@ app.post('/api/setup/verify', async (req, res) => {
   // 3. Warehouse access
   if (checks.auth.ok && warehouse_id) {
     try {
-      const resp = await dbFetch(host, token, `/api/2.0/sql/warehouses/${warehouse_id}`);
+      const resp = await dbFetch(host, token, `/api/2.0/sql/warehouses/${encodeURIComponent(String(warehouse_id))}`);
       if (resp.ok) {
         const wh = await resp.json();
         checks.warehouse = { ok: true, message: `${wh.name} (${wh.state})`, state: wh.state };
@@ -1643,6 +1677,8 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
   }
 });
 
+const restFailureStatus = (err) => ([401, 403, 404, 429].includes(Number(err && err.status)) ? Number(err.status) : 502);
+
 app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
   try {
     const { catalog } = req.params;
@@ -1651,10 +1687,12 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
     let raw = [];
     let restCut = false;
     let restErr = null;
+    let restStatus = 502;
     try {
       ({ items: raw, truncated: restCut } = await listSchemas(dbFetch, req.dbHost, token, catalog));
     } catch (e) {
       restErr = e.message || String(e);
+      restStatus = restFailureStatus(e);
       console.warn(`   ⚠️ UC REST schemas failed for ${catalog}: ${restErr}`);
     }
     const byKey = new Map();
@@ -1678,7 +1716,7 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
     const schemas = [...byKey.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
     console.log(`   📂 schemas ${catalog}: REST=${raw.length} merged=${schemas.length}`);
     if (raw.length === 0 && schemas.length === 0 && restErr) {
-      return res.status(502).json({ error: restErr });
+      return res.status(restStatus).json({ error: restErr });
     }
     res.json({ schemas, count: schemas.length, truncated: restCut && byKey.size === countAfterRest });
   } catch (err) {
@@ -1694,10 +1732,12 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     let raw = [];
     let restCut = false;
     let restErr = null;
+    let restStatus = 502;
     try {
       ({ items: raw, truncated: restCut } = await listTables(dbFetch, req.dbHost, token, catalog, schema));
     } catch (e) {
       restErr = e.message || String(e);
+      restStatus = restFailureStatus(e);
       console.warn(`   ⚠️ UC REST tables failed for ${catalog}.${schema}: ${restErr}`);
     }
     const mapRow = (t) => ({
@@ -1729,7 +1769,7 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     const tables = [...byKey.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
     console.log(`   📋 tables ${catalog}.${schema}: REST=${raw.length} merged=${tables.length}`);
     if (raw.length === 0 && tables.length === 0 && restErr) {
-      return res.status(502).json({ error: restErr });
+      return res.status(restStatus).json({ error: restErr });
     }
     res.json({ tables, count: tables.length, truncated: restCut && byKey.size === countAfterRest });
   } catch (err) {
@@ -2063,9 +2103,33 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
 // ═══════════════════════════════════════════════════
 
 app.post('/api/run', requireToken, async (req, res) => {
+  const { cluster_id, notebook_path } = req.body;
+  const params = (req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
+  return launchDiscover(req, res, { params, notebook_path, cluster_id });
+});
+
+app.post('/api/run/:runId/again', requireToken, async (req, res) => {
+  const sessionId = String((req.body || {}).session_id || '').trim();
+  if (!isInt64Id(sessionId)) return res.status(400).json({ error: 'session_id must be a numeric Inspire session id' });
   try {
-    const { cluster_id, notebook_path } = req.body;
-    const params = (req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
+    const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${req.params.runId}`);
+    if (!response.ok) {
+      const said = await response.text();
+      return res.status(response.status).json({ error: `Inspire could not read run ${req.params.runId} to run it again: ${said.slice(0, 600)}` });
+    }
+    const again = LC.runAgainOf(parseExactJson(await response.text()), req.params.runId, sessionId);
+    if (again.problem) return res.status(409).json({ error: `${again.problem}.` });
+    return launchDiscover(req, res, again);
+  } catch (err) {
+    const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
+    return res.status(code).json({ error: err.message });
+  }
+});
+
+async function launchDiscover(req, res, { params, notebook_path, cluster_id }) {
+  try {
+    const refused = LC.launchParamsProblem(params) || await launchSessionProblem(req, params);
+    if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
     const reads = await runReadPlan(dbFetch, req, discoverReads(params));
     if (reads.refusal) return res.status(reads.refusal.status).json({ error: reads.refusal.message, unreadable: reads.refusal.unreadable });
     if (reads.scope) params['01_uc_metadata'] = reads.scope;
@@ -2077,6 +2141,7 @@ app.post('/api/run', requireToken, async (req, res) => {
       jobType: 'discovery',
       launchedBy: RP.forwardedPerson(req.headers),
       writeCheck: (writes) => outputWriteVerdict(req, writes),
+      asker: req,
     });
     const warnings = [...reads.warnings, ...access, ...(out.warnings || [])];
     res.json({ ...out, ...(warnings.length ? { warnings } : {}), ...(reads.skipped.length ? { skipped_tables: reads.skipped } : {}) });
@@ -2085,7 +2150,7 @@ app.post('/api/run', requireToken, async (req, res) => {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
     res.status(code).json({ error: err.message });
   }
-});
+}
 
 const discoverAccess = createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken: appOwnToken });
 
@@ -2176,6 +2241,7 @@ app.get('/api/run/:runId', requireToken, async (req, res) => {
       setup_duration: data.setup_duration,
       execution_duration: data.execution_duration,
       cleanup_duration: data.cleanup_duration,
+      run_duration: data.run_duration,
       run_page_url: data.run_page_url,
       run_name: data.run_name,
       tasks,
@@ -2320,7 +2386,7 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
     res.json({ session });
   } catch (err) {
     // Table might not exist yet — return null session
-    if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
+    if (isMissingTableError(err)) {
       return res.json({ session: null, message: 'Inspire is getting ready...' });
     }
     res.status(500).json({ error: err.message });
@@ -2357,7 +2423,7 @@ app.get('/api/inspire/steps', requireToken, async (req, res) => {
 
     res.json({ steps, count: steps.length });
   } catch (err) {
-    if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
+    if (isMissingTableError(err)) {
       return res.json({ steps: [], count: 0, message: 'Step table not yet created.' });
     }
     res.status(500).json({ error: err.message });
@@ -2418,7 +2484,7 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
     console.log(`   📊 step-results: ${plural(allUcs.length, 'use case')} from ${plural(steps.length, 'step')}, ${plural(domains.length, 'domain')}`);
     res.json({ results: progressiveResults, session_id });
   } catch (err) {
-    if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
+    if (isMissingTableError(err)) {
       return res.json({ results: null, message: 'Step table not yet created.' });
     }
     res.status(500).json({ error: err.message });
@@ -2505,7 +2571,7 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
     );
     res.json({ usecases: rows, count: rows.length, all_sessions: listAll });
   } catch (err) {
-    if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
+    if (isMissingTableError(err)) {
       return res.json({ usecases: [], count: 0, message: 'Usecases table not found.' });
     }
     res.status(500).json({ error: err.message });
@@ -2769,7 +2835,7 @@ app.get('/api/inspire/results', requireToken, async (req, res) => {
       completed_on: rows[0].completed_on,
     });
   } catch (err) {
-    if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
+    if (isMissingTableError(err)) {
       return res.json({ results: null, found: false, message: 'Session table not found.' });
     }
     if (isReadDenied(err.message)) return res.status(403).json({ error: err.message });
@@ -2826,7 +2892,7 @@ app.get('/api/inspire/sessions', requireToken, async (req, res) => {
     res.json({ sessions, truncated });
   } catch (err) {
     const msg = err.message || String(err);
-    if (msg.includes('TABLE_OR_VIEW_NOT_FOUND') || msg.includes('does not exist')) {
+    if (isMissingTableError(msg)) {
       return res.json({ sessions: [], message: 'Session table not found. Run Inspire once to create __inspire_session.' });
     }
     // Non-fatal: allow "New experiment" when workspace is unreachable or not yet provisioned

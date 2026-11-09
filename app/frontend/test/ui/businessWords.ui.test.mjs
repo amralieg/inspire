@@ -122,7 +122,7 @@ async function plainError(page, needle) {
 }
 
 for (const [name, open, state, needle] of [
-  ['Home runs list', 'choose', { sessionsErrors: [DENIED, DENIED, DENIED, DENIED] }, 'Could not load all runs. You can still start a new run.'],
+  ['Home runs list', 'choose', { sessionsErrors: [DENIED, DENIED, DENIED, DENIED] }, 'Inspire could not load your runs, and you can still start a new one: User does not have USE SCHEMA'],
   ['Review runs list', 'results', { sessionsErrors: [DENIED, DENIED, DENIED] }, DENIED_PLAIN],
   ['Build', 'implement', { sqlErrors: { __inspire_implement: DENIED } }, DENIED_PLAIN],
   ['Run', 'run', { registryError: DENIED }, `Inspire cannot list the deployed use cases: ${DENIED_PLAIN}`],
@@ -143,7 +143,7 @@ test('Monitor says it cannot read a run the person may not see, instead of waiti
   try {
     const status = page.locator('[data-testid="monitor-status"]');
     await page.waitForFunction(() => document.querySelector('[data-testid="monitor-status"]')?.dataset.status === 'failed', null, { timeout: 15000 });
-    assert.match(await status.innerText(), /^Cannot read this run\s+Inspire cannot read this run with your sign-in: User cannot view run 777\./);
+    assert.match(await status.innerText(), /^Cannot read this run\s+Inspire cannot read this run with your sign-in: User cannot view run 777, so ask its owner or a workspace admin to give you access\./);
     assert.doesNotMatch(await shownText(page), /waiting to start|PERMISSION_DENIED/, 'no waiting claim and no code outside Details (must-exclude)');
   } finally {
     await ui.close();

@@ -1,3 +1,5 @@
+import { counted } from './plural.js';
+
 export const CATALOG_SEARCH_FROM = 50;
 
 const nameOf = (c) => (typeof c === 'string' ? c : c && typeof c.name === 'string' ? c.name : '');
@@ -25,4 +27,29 @@ export function catalogListNote(catalogs, truncated, typed = '') {
 export function typedCatalog(catalogs, truncated, typed) {
   const name = String(typed || '').trim();
   return truncated && name && !/[\s.`]/.test(name) && !catalogListed(catalogs, name) ? { name, typed: true } : null;
+}
+
+const under = (parent) => (name) => String(name).startsWith(`${parent}.`);
+
+export function pickedScope(catalogs = [], schemas = [], tables = []) {
+  const scope = { entries: [], catalogs: [], schemas: [], tables: [] };
+  const add = (kind, names) => { scope[kind].push(...names); scope.entries.push(...names); };
+  for (const catalog of catalogs) {
+    const picked = schemas.filter(under(catalog));
+    if (!picked.length) { add('catalogs', [catalog]); continue; }
+    for (const schema of picked) {
+      const named = tables.filter(under(schema));
+      if (named.length) add('tables', named);
+      else add('schemas', [schema]);
+    }
+  }
+  return scope;
+}
+
+export function scopeSummary(scope) {
+  return [
+    scope.tables.length && counted(scope.tables.length, 'table'),
+    scope.schemas.length && counted(scope.schemas.length, 'schema'),
+    scope.catalogs.length && counted(scope.catalogs.length, 'catalog'),
+  ].filter(Boolean).join(', ');
 }

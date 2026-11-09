@@ -27,7 +27,7 @@ function SegmentPicks({ filter, picked, onPick }) {
   return (
     <fieldset className="min-w-0">
       <legend className="text-[11px] font-semibold text-text-primary">{filter.label}</legend>
-      {filter.error && <p className="text-[11px] text-error-fg">Inspire could not read its values: {filter.error}</p>}
+      {filter.error && <PlainMessage text={`Inspire could not read its values: ${filter.error}`} className="text-[11px] text-error-fg" />}
       {!filter.error && !filter.options.length && <p className="text-[11px] text-text-secondary">No values to pick</p>}
       <div className="flex flex-wrap gap-x-3 gap-y-1">
         {filter.options.map((value) => (
@@ -164,7 +164,7 @@ function BuiltRow({ alert }) {
         {alert.trigger && <p className="text-text-secondary">Fires when {alert.trigger}</p>}
         {typeof alert.notify_on_ok === 'boolean' && <p className="text-text-secondary">{clearsText(alert.notify_on_ok)}</p>}
         <p className="text-text-secondary">{BUILT_DETAIL}</p>
-        {alert.error && <p className="text-error-fg">Inspire cannot read it: {alert.error}</p>}
+        {alert.error && <PlainMessage text={`Inspire cannot read it: ${alert.error}`} className="text-error-fg" />}
       </div>
       {alert.url && (
         <a href={alert.url} target="_blank" rel="noreferrer" className={OUTLINE}>Open in Databricks <ExternalLink size={11} /></a>
@@ -275,7 +275,7 @@ export default function UseCaseAlerts({ apiFetch, apiPostJson, qBase, useCaseId,
       {readOnly && <DemoNote className="m-4" />}
       {!listing && !loadError && <p className="px-4 py-3 text-[12px] text-text-secondary">Reading the alerts of this use case</p>}
       {loadError && <PlainMessage text={`The alerts could not load: ${loadError}`} role="alert" className={`m-4 ${ERROR}`} />}
-      {listing && !listing.can_add && listing.why && <p className={`m-4 ${NOTE}`}>{listing.why}</p>}
+      {listing && !listing.can_add && listing.why && <PlainMessage as="p" text={listing.why} className={`m-4 ${NOTE}`} />}
       {listing && listing.can_add && !(listing.measures || []).length && <p className={`m-4 ${NOTE}`}>{ALERTS_NOTHING}</p>}
       {notice && <p role="status" className={`m-4 ${NOTE}`}>{notice}</p>}
       {listing && form && !readOnly && (

@@ -110,8 +110,10 @@ test('a failed draft says why and tries again, and a template draft says it was 
   await drawer.getByRole('button', { name: 'Draft Message to Someone' }).click();
   const dialog = page.locator('dialog[data-draft]');
   await dialog.locator('[data-draft-error]').waitFor();
-  assert.equal(await dialog.locator('[data-draft-error]').innerText(), 'The message could not be drafted: the SQL warehouse is stopped');
-  assert.equal(await dialog.getByRole('button', { name: 'Copy' }).isDisabled(), true);
+  const failed = dialog.locator('[data-draft-error]');
+  assert.equal((await failed.innerText()).split('\n')[0], 'The message could not be drafted: the SQL warehouse is stopped, so start it on the SQL Warehouses page or ask its owner to, then try again.');
+  assert.equal(await failed.getByRole('button', { name: 'Copy what to send' }).count(), 1);
+  assert.equal(await dialog.getByRole('button', { name: 'Copy', exact: true }).isDisabled(), true);
   assert.equal(await dialog.locator('textarea').count(), 0);
   await dialog.getByRole('button', { name: 'Try again' }).click();
   await dialog.locator('textarea').waitFor();

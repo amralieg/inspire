@@ -32,3 +32,17 @@ test('the catalog pickers list system and hive_metastore with every other catalo
   assert.match(picker, /const names = catalogNames\(catalogs\);/);
   assert.match(launch, /\.\.\.catalogs\.filter\(\(c\) => !catalogSearch/);
 });
+
+test('the picked scope keeps every branch at its most specific level, so a whole catalog or schema next to a narrower pick is never dropped (must-exclude)', async () => {
+  const C = await lib();
+  const scope = C.pickedScope(['main', 'samples'], ['main.s', 'main.x'], ['main.s.orders', 'main.s.customers']);
+  assert.deepEqual(scope.entries, ['main.s.orders', 'main.s.customers', 'main.x', 'samples']);
+  assert.deepEqual(scope.tables, ['main.s.orders', 'main.s.customers']);
+  assert.deepEqual(scope.schemas, ['main.x']);
+  assert.deepEqual(scope.catalogs, ['samples']);
+  assert.equal(C.scopeSummary(scope), '2 tables, 1 schema, 1 catalog');
+  assert.deepEqual(C.pickedScope(['main'], ['main.s'], []).entries, ['main.s'], 'a schema replaces its own catalog only');
+  assert.deepEqual(C.pickedScope(['ma', 'main'], ['main.s'], []).entries, ['ma', 'main.s'], 'a catalog whose name starts another is not taken as its parent');
+  assert.deepEqual(C.pickedScope([], [], []).entries, []);
+  assert.equal(C.scopeSummary(C.pickedScope([], [], [])), '');
+});

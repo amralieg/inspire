@@ -5,7 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
 import { build } from 'vite';
 import react from '@vitejs/plugin-react';
-import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, OWN_STATUSES, PERSON, ROWS, SUMMARY, TABLE, actBody, appInfo, holdClock, idle, lister, openApp, serveDist, tracked, until, footerActions }
+import { CURRENT, DECIDE, F, FIELDS, FILTERS, HISTORY, LABEL, OTHER, OWN_STATUSES, PERSON, ROWS, SUMMARY, TABLE, actBody, appInfo, holdClock, idle, lister, openApp, serveDist, tracked, until, footerActions, said }
   from './harness.mjs';
 import { actOutcome, actedText, actionForm, actionProblem, actionValues, changeBadge, explainContext, impactText, leftText, pageText, recordRef, undoText }
   from '../src/records.js';
@@ -199,9 +199,11 @@ test('an empty list and a search with no match say so, with no pager', async () 
 
 test('a list that fails to load says why', async () => {
   const routes = { records: ({ json }) => json(502, { error: 'TABLE_OR_VIEW_NOT_FOUND' }) };
-  const { page, seen, context } = await open(appInfo(), routes, { ready: '.card--table .tile-err' });
-  await page.waitForFunction(() => document.querySelector('.card--table .tile-err')?.textContent === 'The list could not load: only an error code came back, listed under Details');
+  const { page, seen, context } = await open(appInfo(), routes);
+  await page.locator('.card--table .tile-err').waitFor();
+  assert.equal(await said(page.locator('.card--table .tile-err')), 'The list could not load: a table it needs does not exist, so check that it was not renamed or dropped, or pick another one.');
   assert.equal(await page.locator('.card--table [data-technical-details] pre').textContent(), 'TABLE_OR_VIEW_NOT_FOUND');
+  assert.equal(await page.locator('.card--table .card-h').getByText('Loading the list…').count(), 0, 'no loading text beside the error (must-exclude)');
   assert.deepEqual(seen.errors.filter((e) => !/502/.test(e)), []);
   await context.close();
 });
@@ -217,7 +219,7 @@ test('a filter with 500 choices searches the server and keeps the picked values 
     },
   };
   const { page, seen, context } = await open(appInfo(), routes, { clock: Date.parse('2026-10-27T09:30:00Z') });
-  await page.getByRole('button', { name: /^All/ }).first().click();
+  await page.getByRole('button', { name: /All$/ }).first().click();
   const pop = page.getByRole('dialog', { name: 'Category' });
   assert.equal(await pop.locator('.msel-hint').innerText(), 'Showing the first 500 choices. Type to search all of them.');
   await page.getByRole('listbox', { name: 'Category' }).getByText('v001').click();

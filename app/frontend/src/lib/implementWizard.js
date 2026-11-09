@@ -1,6 +1,6 @@
 import { compareMeetsQualityBarFirst, subtitleOfUseCase } from './useCaseFields.js';
 import { placeholderWords } from './placeholderWords.js';
-import { plural } from './plural.js';
+import { briefList, plural } from './plural.js';
 import { PERSONAL_KEY_REASON, personalColumn } from './personalColumns.js';
 import { specVibeAsks, vibeConflicts, vibeRefusalText, vibeRefusals } from './vibeLimits.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
@@ -22,22 +22,28 @@ export const NOTEBOOK_MODE_LABEL = 'I will build it myself';
 
 export const DELIVERY_LABEL = 'Deliver';
 export const DELIVERY_QUESTION = 'How will people use this use case?';
+export const DELIVER_MORE = 'What each one builds';
 export const BUILD_IT_LABEL = 'All Good, Build it Now';
 export const BACK_TO_SUMMARY = 'Back to Summary';
 export const WIZARD_LINE = 'From your data to people using it';
 export const NOTEBOOK_CARD = { id: 'notebook', label: 'Notebook', blurb: 'The notebook that reads your data and fills the result table. Always built.' };
 export const RUN_IT_TITLE = 'How it keeps running, and how you know it works';
+export const USE_CASE_TITLE = 'Is this the use case you want to build?';
+export const USE_CASE_NOTE = 'Check what it is for and who it helps. The goal, the decision owner and how success is measured sit under Advanced settings.';
 
-const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery'] };
-const DATA_STEP = { id: 'data', label: 'Data', sections: ['use_case', 'data', 'configure'], advanced: ['use_case', 'data', 'configure'], panels: ['data', 'grouping'] };
+const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_place', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery', 'app_place'] };
+const USE_CASE_STEP = { id: 'use_case', label: 'Use case', sections: ['use_case'], advanced: ['use_case'], panels: ['use_case'] };
+const DATA_STEP = { id: 'data', label: 'Data', sections: ['data', 'configure'], advanced: ['data', 'configure'], panels: ['data'] };
+export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
 const RESULTS_STEP = { id: 'results', label: 'Results', sections: ['results'], advanced: [], panels: ['results'] };
 export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule', 'kpi', 'holdout'], advanced: ['schedule', 'holdout'], panels: ['fresh', 'measure'] };
 
-export const IMPLEMENT_STEPS = [DATA_STEP, RESULTS_STEP, DELIVERY_STEP, RUN_STEP];
+export const IMPLEMENT_STEPS = [USE_CASE_STEP, DATA_STEP, RESULTS_STEP, DELIVERY_STEP, RUN_STEP];
 
 export const APP_PANELS = ['app_place', 'app_access', 'app_features', 'app_look'];
-export const APP_STEP = { id: 'app', label: 'App', sections: APP_PANELS, advanced: [], panels: APP_PANELS };
-const JOINED_APP_STEP = { ...APP_STEP, sections: ['app_place'], panels: ['app_place'] };
+export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_access'], advanced: [], panels: ['app_access'] };
+export const APP_PAGES_STEP = { id: 'app_pages', label: 'App pages and look', sections: ['app_features', 'app_look'], advanced: [], panels: ['app_features', 'app_look'] };
+export const WIZARD_STEPS_MAX = 10;
 
 export const SUMMARY_STEP = { id: 'summary', label: 'Summary', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
 
@@ -51,9 +57,16 @@ export const NOTEBOOK_STEPS = [
 ];
 
 const STEP_ALIASES = {
-  choose: DATA_STEP.id, review: SUMMARY_STEP.id, grouping: DATA_STEP.id, measure: RUN_STEP.id, fresh: RUN_STEP.id, vibes: SUMMARY_STEP.id,
-  settings: SUMMARY_STEP.id, app_place: APP_STEP.id, app_access: APP_STEP.id, app_features: APP_STEP.id, app_look: APP_STEP.id,
+  choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: RUN_STEP.id, fresh: RUN_STEP.id, vibes: SUMMARY_STEP.id,
+  settings: SUMMARY_STEP.id, app_place: DELIVERY_STEP.id, app_access: APP_STEP.id, app_features: APP_PAGES_STEP.id, app_look: APP_PAGES_STEP.id,
 };
+const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [APP_PAGES_STEP.id]: APP_STEP.id, [APP_STEP.id]: DELIVERY_STEP.id };
+
+function heldStepOf(steps, id) {
+  let want = id;
+  while (want && !steps.some((s) => s.id === want)) want = STEP_FALLBACKS[want];
+  return want || '';
+}
 
 export function joinsApp(spec) {
   return Boolean(spec?.outputs?.app && spec.outputs.merge?.app);
@@ -67,15 +80,15 @@ export function contextSettings(context, spec) {
 export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   if (mode === 'mvp') {
     const app = Boolean(spec?.outputs?.app);
-    const data = scope?.grouping ? { ...DATA_STEP, sections: [...DATA_STEP.sections, 'grouping'] } : DATA_STEP;
-    return [data, ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), RESULTS_STEP, DELIVERY_STEP,
-      ...(app ? [joinsApp(spec) ? JOINED_APP_STEP : APP_STEP] : []), RUN_STEP, SUMMARY_STEP];
+    const appSteps = app && !joinsApp(spec) ? [APP_STEP, APP_PAGES_STEP] : [];
+    return [USE_CASE_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), RESULTS_STEP, DELIVERY_STEP,
+      ...appSteps, RUN_STEP, SUMMARY_STEP];
   }
   if (mode === 'notebook') return NOTEBOOK_STEPS;
   throw new Error(`unknown implement mode '${mode}'`);
 }
 
-export const BUILD_STEP_IDS = [DELIVERY_STEP.id, APP_STEP.id, SUMMARY_STEP.id];
+export const BUILD_STEP_IDS = [DELIVERY_STEP.id, APP_STEP.id, APP_PAGES_STEP.id, SUMMARY_STEP.id];
 
 export const APP_PLACEMENTS = [
   { id: 'domain', label: 'One App per business domain', blurb: 'Use cases of the same domain share one App, so the people of that domain find them in one place.' },
@@ -91,6 +104,7 @@ export const APP_INSIDE_PLACEMENT = APP_PLACEMENTS.find((p) => p.id === APP_INSI
 export const APP_OWN_PLACEMENTS = APP_PLACEMENTS.filter((p) => p.id !== APP_INSIDE);
 export const INSIDE_ACCESS_REASON = 'Inside Inspire, each viewer signs in as themselves and sees only the data they may read';
 export const INSIDE_BACKEND_REASON = 'Fast pages need an App of its own';
+export const INSIDE_WAREHOUSE_TOGGLE = 'SQL warehouse settings';
 export const INSIDE_WAREHOUSE_LABEL = 'SQL warehouse each viewer reads with (each viewer needs CAN USE on it)';
 export const INSIDE_WAREHOUSE_PROBLEM = 'pick the SQL warehouse each viewer reads with; each viewer needs CAN USE on it';
 export const RUN_LINK_LABEL = 'Open in Run';
@@ -117,15 +131,15 @@ export function withHeldApp(spec, saved = {}) {
 }
 
 export const APP_ACCESS_CHOICES = [
-  { id: 'sp', label: 'Internal data: everyone sees the same rows',
-    blurb: 'The App reads with its own access, and Inspire lets it read the result table.' },
   { id: 'user', label: 'Sensitive data: each person signs in as themselves (per-user)',
     blurb: 'Each person sees only the rows their own access allows.' },
+  { id: 'sp', label: 'Internal data: everyone sees the same rows',
+    blurb: 'The App reads with its own access, and Inspire lets it read the result table.' },
 ];
-export const APP_ACCESS_DEFAULT = 'sp';
+export const APP_ACCESS_DEFAULT = 'user';
 export const REMOVED_OUTPUT_DEFAULT = 'keep';
-export const APP_ACCESS_NOTE = 'Inspire starts with everyone seeing the same rows, so pages open at once. '
-  + 'Pick per-user when each person must see only the rows their own access allows; those pages take a few seconds.';
+export const APP_ACCESS_NOTE = 'Inspire starts with each person signing in as themselves, so they see only the rows and values their own access allows. '
+  + 'Pick everyone sees the same rows only when no table has row filters, column masks or access policies; those pages open at once.';
 
 export const APP_BACKENDS = ['lakebase', 'delta'];
 export const APP_BACKEND_CHOICES = [
@@ -392,7 +406,7 @@ export function withAppPage(spec, id, on) {
   return APP_SCREENS.includes(id) ? withAppScreen(spec, id, on) : spec;
 }
 export const GENIE_FOR_APP_NOTE = 'Ask Genie in the App needs a Genie Agent.';
-export const APP_NEXT_NOTE = 'You pick where it goes next.';
+export const APP_NEXT_NOTE = 'You pick where it goes below.';
 export const RESULT_TABLE_MOVE_NOTE = 'Moving the table later copies its history to the new table and keeps the old one.';
 export const MERGE_OUTPUTS = ['dashboard', 'genie_space', 'app'];
 
@@ -507,8 +521,8 @@ export function vibesPreview(text, max = 80) {
   return chars.length > max ? `${chars.slice(0, max).join('').trimEnd()}…` : chars.join('');
 }
 
-export function vibesSkippedText(spec) {
-  const off = IMPLEMENT_OUTPUTS.filter((o) => !spec?.outputs?.[o.id]).map((o) => `the ${o.label}`);
+export function vibesSkippedText(spec, blocks = {}) {
+  const off = IMPLEMENT_OUTPUTS.filter((o) => !spec?.outputs?.[o.id] && !blocks?.[o.id]).map((o) => `the ${o.label}`);
   if (!off.length) return '';
   return `Not picked in ${DELIVERY_LABEL}, so not built: ${joinWords(off)}.`;
 }
@@ -972,7 +986,7 @@ export const USE_CASE_SCHEMA_CLASH_MARK = '__';
 export const USE_CASE_SCHEMA_CLASH_LIMIT = 9;
 const UC_NAME_LIMIT = 255;
 
-export function useCaseSchemaName(businessName, useCaseId, sessionId, { clash = 0 } = {}) {
+export function schemaNameOfUseCase(businessName, useCaseId, sessionId, { clash = 0 } = {}) {
   const sid = String(sessionId ?? '').trim();
   if (!/^\d+$/.test(sid)) throw new Error('a numeric session id is needed to name the use case schema');
   const uc = slugOf(useCaseId);
@@ -988,7 +1002,7 @@ export function defaultResultTable(inspireDatabase, useCaseId, sessionId, busine
   const catalog = String(inspireDatabase ?? '').split('.')[0].replace(/`/g, '').trim();
   const uc = slugOf(useCaseId);
   if (!catalog || !uc) return '';
-  const schema = useCaseSchemaName(businessName, useCaseId, sessionId, { clash });
+  const schema = schemaNameOfUseCase(businessName, useCaseId, sessionId, { clash });
   return `${catalog}.${schema}.${uc}_results${ofSession ? `_s${String(sessionId).trim()}` : ''}`;
 }
 
@@ -1177,7 +1191,7 @@ export function specFromLatest(latest, fallback, assets = {}) {
     outputs[key] = { ...fallback.outputs[key], ...(saved[key] && typeof saved[key] === 'object' && !Array.isArray(saved[key]) ? saved[key] : {}) };
   }
   if (!Array.isArray(outputs.app_owners)) outputs.app_owners = fallback.outputs.app_owners;
-  if (!APP_ACCESS_CHOICES.some((c) => c.id === outputs.app_access)) outputs.app_access = APP_ACCESS_DEFAULT;
+  if (!APP_ACCESS_CHOICES.some((c) => c.id === saved.app_access)) outputs.app_access = saved.app && assets?.app ? 'sp' : APP_ACCESS_DEFAULT;
   if (saved.app && assets?.app && !Object.prototype.hasOwnProperty.call(saved, 'app_backend')) outputs.app_backend = 'delta';
   const idDefault = !assets?.app && outputs.app_name === idAppNameOf(fallback.use_case_id);
   if ((!outputs.app || !outputs.app_name || idDefault) && !(outputs.app && outputs.app_placement === APP_INSIDE)) outputs.app_name = fallback.outputs.app_name;
@@ -1556,7 +1570,7 @@ export const PREFLIGHT_LABELS = {
   alerts: 'Alerts',
 };
 
-export function costHint(spec) {
+export function costHint(spec, { scheduleSaid = false } = {}) {
   const preview = 'one preview run now';
   const alert = spec.outputs?.alert ? ', plus one alert check after each full run' : '';
   if (!spec.schedule?.enabled) return `${preview}; no scheduled runs until you turn the schedule on${alert}.`;
@@ -1564,7 +1578,7 @@ export function costHint(spec) {
   if (runs == null) return `${preview}; the schedule's run count is unknown until its cron is valid.`;
   const count = runs >= 10 ? Math.round(runs).toLocaleString('en-US') : String(Math.round(runs * 10) / 10);
   const years = String(spec.schedule.cron).trim().split(/\s+/)[6];
-  return `${preview}, then about ${count} full serverless runs a month (${cronInWords(spec.schedule.cron, spec.schedule.timezone)})`
+  return `${preview}, then about ${count} full serverless runs a month${scheduleSaid ? '' : ` (${cronInWords(spec.schedule.cron, spec.schedule.timezone)})`}`
     + `${years && years !== '*' ? `, only in ${years}` : ''}${alert}.`;
 }
 
@@ -1786,6 +1800,7 @@ export function withResultTable(spec, { catalog, schema, table }) {
 export const OFF_IN_WORKSPACE = { app: 'Apps are turned off in this workspace.', genie_space: 'Genie Agents are turned off in this workspace.',
   alert: 'Alerts are turned off in this workspace.' };
 export const OFF_DETAILS = 'A workspace admin turns this feature on in the workspace settings.';
+export const APP_NEEDS_GENIE = 'The App needs a Genie Agent, which this workspace cannot build.';
 const ACCESS_PLACES = [['the catalog', /\bon catalog\b/i], ['the schema', /\bon schema\b/i], ['the table', /\bon table\b/i], ['the SQL warehouse', /\bwarehouse\b/i]];
 
 export function needsAccess(detail = '') {
@@ -1828,6 +1843,7 @@ function checkBlock(check) {
 export function outputBlocks(features, outputCheck, assets = {}, preflight = null) {
   const on = features || {};
   const app = !on.apps ? blockOf(OFF_IN_WORKSPACE.app, OFF_DETAILS)
+    : !on.genie_spaces && !assets?.app ? blockOf(APP_NEEDS_GENIE, OFF_DETAILS)
     : !assets?.app && (checkBlock(outputCheck?.app) || checkBlock(preflight?.checks?.app_access) || checkBlock(preflight?.new_app));
   return Object.fromEntries([
     ['app', app],
@@ -1855,7 +1871,7 @@ export function droppedOutputs(before, after, blocks = {}) {
 export function blockedOutputProblems(spec, blocks = {}) {
   const { none } = affordable(IMPLEMENT_OUTPUTS.map((o) => o.id), blocks, () => '', (id) => IMPLEMENT_OUTPUTS.find((o) => o.id === id).label);
   return [...(none ? [none] : []), ...IMPLEMENT_OUTPUTS.filter((o) => spec?.outputs?.[o.id] && blocks[o.id])
-    .map((o) => `${o.label} cannot be built: ${blocks[o.id].why} Turn it off on ${DELIVERY_LABEL}, or ask an admin to run the grant under Details`)];
+    .map((o) => `${o.label} cannot be built: ${blocks[o.id].why} Turn it off on ${DELIVERY_LABEL}, or ${blocks[o.id].details === OFF_DETAILS ? 'ask a workspace admin to turn it on' : 'ask an admin to run the grant under Details'}`)];
 }
 
 export function withoutUnavailableOutputs(spec, unavailable, assets = {}) {
@@ -1970,8 +1986,7 @@ export function warehouseStateNote(warehouses, id) {
   return `${found.name || id} is ${state.toLowerCase()}; it starts when the run uses it, which can take a few minutes.`;
 }
 
-export function warehouseListNote(warehouses, error) {
-  if (error) return `Inspire could not list the SQL warehouses (${error}). Type the warehouse id instead.`;
+export function warehouseListNote(warehouses) {
   if (Array.isArray(warehouses) && !warehouses.length) return 'Inspire found no SQL warehouse you can use. Type the warehouse id, or ask an admin for CAN USE on one.';
   return '';
 }
@@ -2084,7 +2099,10 @@ export function appPlacementOf(appName, scope = {}, target = null) {
   return target ? '' : 'use_case';
 }
 
+export const NO_DOMAIN_APP = 'This use case has no business domain, so there is no domain App to share it with.';
+
 export function newAppPlacementBlock(spec, targets, scope, placement) {
+  if (placement === 'domain' && !domainAppName(scope?.business, scope?.domain)) return NO_DOMAIN_APP;
   const hub = placement === 'business' ? businessHubOf(targets, scope.business) : null;
   if (!hub) return '';
   return appMergeBlock(spec, hub)
@@ -2109,8 +2127,13 @@ export function placementTarget(spec, targets, scope) {
   return older.reduce((best, t) => (!best || t.use_cases.length > best.use_cases.length ? t : best), null);
 }
 
+export function placementThatFits(spec, targets, scope, chosen) {
+  if (!newAppPlacementBlock(spec, targets, scope, chosen)) return chosen;
+  return chosen === 'domain' && hubAppName(scope?.business) && !newAppPlacementBlock(spec, targets, scope, 'business') ? 'business' : 'use_case';
+}
+
 export function withNewApp(spec, chosen, targets, scope = {}) {
-  const placement = newAppPlacementBlock(spec, targets, scope, chosen) ? 'use_case' : chosen;
+  const placement = placementThatFits(spec, targets, scope, chosen);
   const next = { ...spec, outputs: { ...spec.outputs, app_placement: placement } };
   if (placement === APP_INSIDE) {
     const user = withAppAccess(next, 'user');
@@ -2140,9 +2163,7 @@ export function withPlacementDefault(spec, targets, { held = {}, saved = '', sav
 }
 
 export function mergeTargetText(target) {
-  const held = (target?.use_cases || []).map((u) => u.name || u.use_case_id);
-  const shown = held.slice(0, 3).join(', ');
-  return held.length > 3 ? `${shown} and ${held.length - 3} more` : shown;
+  return briefList((target?.use_cases || []).map((u) => u.name || u.use_case_id));
 }
 
 export function splitList(text, separator) {
@@ -2387,7 +2408,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
       ? `Emails ${outputs.alert_recipients.join(', ')} when ${alertTriggerText(outputs)}` : 'Nobody gets it yet')] : []),
     row('data', 'data', 'Data it reads', sourceTables.join(', ') || 'none'),
     ...(filters ? [row('filters', 'data', 'Filters', plural(filters, 'filter'))] : []),
-    ...(more.grouping ? [row('grouping', 'data', 'Data groups', more.grouping)] : []),
+    ...(more.grouping ? [row('grouping', 'grouping', 'Data groups', more.grouping)] : []),
     ...(more.firstRun ? [row('first_run', 'first_run', FIRST_RUN_LABEL, more.firstRun)] : []),
     row('result', 'results', 'Result table', String(spec?.config?.result_table || '') || 'not named yet'),
     row('kpi', 'run', 'Target KPI', kpiTargetOf(spec) || 'Inspire picks'),
@@ -2399,8 +2420,8 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
       : [placement?.label, outputs.app_name].filter(Boolean).join(': ') || 'not placed yet')] : []),
     ...(app && !joined ? [
       row('app_access', 'app', 'App access', APP_ACCESS_CHOICES.find((c) => c.id === outputs.app_access)?.label || 'not picked yet'),
-      row('app_features', 'app', 'App features', APP_OPTIONS.filter((o) => outputs.app_options?.[o.id] && appOptionShown(spec, o.id)).map((o) => o.label).join(', ') || 'none'),
-      row('app_look', 'app', 'App look', lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
+      row('app_features', 'app_pages', 'App features', APP_OPTIONS.filter((o) => outputs.app_options?.[o.id] && appOptionShown(spec, o.id)).map((o) => o.label).join(', ') || 'none'),
+      row('app_look', 'app_pages', 'App look', lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
     ] : []),
   ];
 }
@@ -2502,8 +2523,9 @@ export function runStopped(status, stalled = null) {
   return Boolean(stalled) && (IMPLEMENT_ACTIVE_STATUSES.includes(s) || (s === 'failed' && stalled.ended === true));
 }
 
-export function statusChip(status, stalled = null) {
+export function statusChip(status, stalled = null, latest = null) {
   const s = String(status || '');
+  if (['ready', 'ready_with_warnings'].includes(s) && undeliveredOutputs(latest).length) return { label: UNDELIVERED_LABEL, tone: 'warning' };
   if (s === 'ready') return { label: 'Ready', tone: 'success' };
   if (s === IMPLEMENT_UNINSTALLED) return { label: 'Uninstalled', tone: 'idle' };
   if (s === 'ready_with_warnings') return { label: 'Warnings', tone: 'warning' };
@@ -2534,8 +2556,18 @@ export function statusReason(latest, stalled = null) {
     return `The latest run's results are not reliable yet: ${unreliable.replace(/[.\s]+$/, '')}. ${app} `
       + `Next step: ${UNRELIABLE_FIX}, then build again with ${VIBE_FEATURES_LABEL}.`;
   }
+  const missing = ['ready', 'ready_with_warnings'].includes(s) ? undeliveredOutputs(latest) : [];
+  if (missing.length) {
+    return `The MVP is incomplete: Inspire could not build ${joinWords(missing.map((m) => `the ${m.label}`))}. `
+      + `Rebuild in ${VIBE_FEATURES_LABEL} to try again.`;
+  }
   if (!['ready_with_warnings', 'failed'].includes(s)) return '';
   return String(latest?.status_message || '').trim();
+}
+
+export function statusDetails(latest) {
+  const s = String(latest?.status || '');
+  return ['ready', 'ready_with_warnings'].includes(s) && undeliveredOutputs(latest).length ? String(latest?.status_message || '').trim() : '';
 }
 
 const NOT_ASK_KINDS = ['self_fix', 'settings_refused', 'not_decided', 'unrequested_change'];
@@ -2565,6 +2597,64 @@ export function lostTables(latest, rerunError) {
   const data = latest?.asset_status?.data;
   if (latest?.status !== 'failed' || data?.state !== 'failed' || data?.spec_version !== latest?.spec_version) return [];
   return Array.isArray(data.missing_tables) ? data.missing_tables : [];
+}
+
+export const APP_READS_LABEL = 'MVP built, the App needs read access';
+export const APP_READS_HEADING = 'The App cannot read part of its data';
+export const APP_READS_GRANT = 'Grant access with my permissions';
+export const APP_READS_CHECK = 'Check again';
+
+export function appReadsOf(latest) {
+  if (!latest || !IMPLEMENT_DONE_STATUSES.includes(String(latest.status))) return null;
+  const unread = latest.asset_status?.app?.unread;
+  const tables = Array.isArray(unread?.tables) ? unread.tables.filter((t) => t && String(t.table || '').trim() && Array.isArray(t.grants) && t.grants.length) : [];
+  return tables.length ? { app: String(unread.app || ''), tables: tables.map((t) => ({ table: String(t.table), owner: String(t.owner || ''), grants: t.grants.map(String) })) } : null;
+}
+
+export function appReadsOwners(reads) {
+  return joinWords([...new Set((reads?.tables || []).map((t) => t.owner).filter(Boolean))]) || 'the table owner';
+}
+
+export function appReadsSql(reads) {
+  return [...new Set((reads?.tables || []).flatMap((t) => t.grants))].map((g) => `${g};`).join('\n');
+}
+
+export function appReadsText(reads, appName = '') {
+  const tables = joinWords((reads?.tables || []).map((t) => (t.owner ? `${t.table} (owner ${t.owner})` : t.table)));
+  return `The build finished, but the App${appName ? ` ${appName}` : ''} cannot read ${tables}, so its pages show no data from them yet. `
+    + 'Inspire could not grant the access itself, because it does not own that data.';
+}
+
+export function appReadsChoices(reads) {
+  const owners = appReadsOwners(reads);
+  return [
+    { id: 'grant', label: APP_READS_GRANT, detail: 'Inspire runs exactly the grants listed here as you, then checks the App again. It works when you own the data or hold MANAGE on it.' },
+    { id: 'copy', label: `Copy the grant SQL to send to ${owners}`, detail: `${owners} runs it in the SQL editor, then you press ${APP_READS_CHECK}.`, sql: appReadsSql(reads) },
+    { id: 'check', label: APP_READS_CHECK, detail: 'Inspire checks again whether the App can read its data, for example after the owner granted it.' },
+  ];
+}
+
+export const PROTECTION_SQL_LABEL = 'Copy SQL';
+export const PROTECTION_ACCESS_LABEL = 'Change who uses the App';
+
+export function protectionStopOf(latest) {
+  const record = latest?.asset_status?.protection;
+  if (String(latest?.status || '') !== 'failed' || !record || typeof record !== 'object' || record.state !== 'failed'
+    || String(record.spec_version ?? '') !== String(latest?.spec_version ?? '')) return null;
+  return { reason: String(record.reason || '').trim(), sql: Array.isArray(record.sql) ? record.sql.map(String).filter((s) => s.trim()) : [],
+    check: record.check !== false };
+}
+
+export function protectionChoices(stop) {
+  if (!stop) return [];
+  if (!stop.check) {
+    return [{ id: 'access', label: PROTECTION_ACCESS_LABEL, detail: 'Pick that each person signs in as themselves, then build again.' }];
+  }
+  return [
+    ...(stop.sql.length ? [{ id: 'copy', label: PROTECTION_SQL_LABEL, sql: stop.sql.join('\n'),
+      detail: 'The owner of the result tables runs it in the SQL editor, then you press Check again.' }] : []),
+    { id: 'check', label: APP_READS_CHECK, detail: 'Inspire reads the row filters, column masks and access policies again, and publishes once the results keep them.' },
+  ];
 }
 
 export const APP_READ_ACTION = 'Let Inspire read these tables';
@@ -2598,7 +2688,8 @@ export function lostTablesText(missing) {
 
 export function initialStepIndex(focus, mode = 'mvp', spec = null, scope = NO_SCOPE_STEPS) {
   const steps = wizardSteps(mode, spec, scope);
-  const want = STEP_ALIASES[focus?.step] || focus?.step;
+  const asked = STEP_ALIASES[focus?.step] || focus?.step;
+  const want = heldStepOf(steps, asked) || asked;
   if (want === SUMMARY_STEP.id && mode !== 'mvp') return steps.length - 1;
   const index = steps.findIndex((s) => s.id === want || s.sections.includes(want));
   return index < 0 ? stepIndexOf(steps, want) : index;
@@ -2609,7 +2700,8 @@ export function initialStepId(focus, mode = 'mvp', spec = null, scope = NO_SCOPE
 }
 
 export function stepIndexOf(steps, id) {
-  return Math.max(0, steps.findIndex((s) => s.id === id));
+  const at = steps.findIndex((s) => s.id === id);
+  return at >= 0 ? at : Math.max(0, steps.findIndex((s) => s.id === heldStepOf(steps, STEP_ALIASES[id] || id)));
 }
 
 export function nextStepAfter(steps, id, { backToSummary = false, visited = [] } = {}) {
@@ -2707,6 +2799,7 @@ export function implementState(latest, notebook = null) {
   }
   if (s) {
     if (['ready', 'ready_with_warnings'].includes(s) && unreliableHold(latest)) return { group: 'held', label: UNRELIABLE_LABEL, tone: 'warning', kind: 'mvp' };
+    if (appReadsOf(latest)) return { group: 'held', label: APP_READS_LABEL, tone: 'warning', kind: 'mvp' };
     if (['ready', 'ready_with_warnings'].includes(s) && undeliveredOutputs(latest).length) return { group: 'held', label: UNDELIVERED_LABEL, tone: 'warning', kind: 'mvp' };
     if (['ready', 'ready_with_warnings'].includes(s) && openVibeAsks(latest).length) return { group: 'unmet', label: 'MVP vibes not met', tone: 'warning', kind: 'mvp' };
     if (s === 'ready') return { group: 'ready', label: 'MVP ready', tone: 'success', kind: 'mvp' };

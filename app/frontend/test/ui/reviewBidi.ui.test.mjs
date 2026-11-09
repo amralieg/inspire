@@ -159,6 +159,33 @@ test('the use case search box takes Arabic right to left and English left to rig
   }
 });
 
+test('an Arabic business on Start, Monitor and Build reads in its own direction, with every Arabic value isolated and nothing past the screen at 1280 and 640 px', async () => {
+  const sessions = REVIEW_STATE.sessions.map((s) => (s.session_id === '42' ? { ...s, business_name: AR.domain, widget_values: { business: AR.domain } } : s));
+  const state = { ...REVIEW_STATE, results: arabicResults(), sessions, knownRuns: ['42', '41', '50', '51'] };
+  const mount = (app) => {
+    app.get('/api/defaults', (_req, res) => res.json({ envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com',
+      warehouseId: 'wh1', inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai' }));
+    app.get('/api/showcase', (_req, res) => res.json({}));
+  };
+  const pages = [['#/start', AR.domain], ['#/monitor/42', null], ['#/build/42', AR.name]];
+  for (const width of [1280, 640]) {
+    for (const [hash, shown] of pages) {
+      const ui = await openUi('app', state, hash, { mount, init: (page) => page.setViewportSize({ width, height: 800 }) });
+      try {
+        await ui.page.locator('main h1, main h2').first().waitFor({ timeout: 20000 }).catch((e) => { throw new Error(`${hash} at ${width} px: ${e.message}`); });
+        if (shown) await ui.page.getByText(shown).first().waitFor({ timeout: 20000 });
+        const { unisolated } = await ui.page.locator('main').first().evaluate(layout);
+        assert.deepEqual(unisolated, [], `${hash} at ${width} px isolates every Arabic value`);
+        const side = await ui.page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth);
+        assert.ok(side <= 0, `${hash} at ${width} px scrolls sideways by ${side} px`);
+        assert.deepEqual(ui.pageErrors, []);
+      } finally {
+        await ui.close();
+      }
+    }
+  }
+});
+
 const TEXT_TYPES = new Set(['', 'text', 'search', 'email', 'url', 'tel', 'password']);
 
 function jsxFiles(dir) {

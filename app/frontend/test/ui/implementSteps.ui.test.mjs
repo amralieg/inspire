@@ -1,12 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
+import { INSIDE_WAREHOUSE_TOGGLE } from '../../src/lib/implementWizard.js';
 import { BUILD_IT, closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardInScreen, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['Data', 'First run', 'Results', 'Deliver', 'App', 'Run it', 'Summary'];
+const FULL_MVP_STEPS = ['Use case', 'Data', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it', 'Summary'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));
@@ -25,13 +26,13 @@ test('a fresh MVP shows every step in the step bar, with no shortcut that hides 
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS);
     await goToStep(page, 'Deliver');
     assert.equal(await page.getByRole('button', { name: 'Customize' }).count(), 0);
     await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
     await page.getByRole('checkbox', { name: /^App/ }).first().uncheck();
-    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS.filter((l) => l !== 'App'), 'with Apps unticked the App step is hidden');
+    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS.filter((l) => !/App/.test(l)), 'with Apps unticked both App steps are hidden');
     await page.getByRole('checkbox', { name: /^App/ }).first().check();
     assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS);
     await goToStep(page, 'Data');
@@ -72,8 +73,9 @@ test('Data, Results, Run it and App show the business settings and keep the tech
     const placed = await page.locator('input[name="app-place"]:checked').getAttribute('value');
     await page.locator('[data-app-place="inspire"] input[type="radio"]').check();
     await page.locator('[data-app-place="inspire"] [data-placement-blurb]').waitFor();
-    assert.equal(await picker.count(), 0, 'the App SQL warehouse shows on App placement before Advanced settings is opened');
-    await open();
+    assert.equal(await picker.count(), 0, 'the App SQL warehouse waits under its own settings on Deliver');
+    assert.equal(await page.getByRole('button', { name: 'Advanced settings', exact: true }).count(), 1, 'one Advanced settings on the step (must-exclude: two of the same name)');
+    await openAdvanced(page, INSIDE_WAREHOUSE_TOGGLE);
     await picker.waitFor();
     await page.locator(`input[name="app-place"][value="${placed}"]`).check();
     assert.deepEqual(ui.pageErrors, []);
@@ -179,7 +181,7 @@ test('an App name that is still refused is named on the last step with the step 
     const field = page.locator('[data-last-app-name]');
     await field.waitFor({ timeout: 15000 });
     assert.match(await field.innerText(), new RegExp(`'${taken}' is used by another App in this workspace; pick another name`));
-    await page.locator('[role="alert"] p', { hasText: '(fix it on App)' }).waitFor();
+    await page.locator('[role="alert"] p', { hasText: '(fix it on Deliver)' }).waitFor();
     assert.equal(await startButton(page).isDisabled(), true);
     await field.locator('input').fill('quality-desk');
     await startOn(page);
@@ -245,7 +247,8 @@ test('the build SQL warehouse falls back to a typed id when the list is empty or
     await goToStep(failed.page, 'Data');
     await openAdvanced(failed.page);
     await failed.page.locator('[data-build-warehouse="typed"]').waitFor();
-    assert.match(await failed.page.locator('[data-build-warehouse-note]').innerText(), /^Inspire could not list the SQL warehouses \(.*warehouse list is down.*\)\. Type the warehouse id instead\.$/);
+    assert.equal((await failed.page.locator('[data-build-warehouse-error]').innerText()).split('\n')[0], 'Inspire could not list the SQL warehouses: warehouse list is down. Type the warehouse id instead.');
+    assert.equal(await failed.page.locator('[data-build-warehouse-note]').count(), 0, 'the empty-list note stays away while the list failed (must-exclude)');
     assert.equal(await failed.page.locator('[data-build-warehouse="pick"]').count(), 0, 'no drop list without a list (must-exclude)');
     await failed.page.getByLabel('SQL warehouse id').fill(' wh7 ');
     assert.equal(await failed.page.getByLabel('SQL warehouse id').inputValue(), 'wh7');

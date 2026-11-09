@@ -4,7 +4,9 @@ import {
   RotateCcw, StopCircle, Timer, Cpu, Trash2, FileText
 } from 'lucide-react';
 import DatabricksLogo from './DatabricksLogo';
+import { PlainMessage } from './TechnicalDetails';
 import { formatDuration as formatSpan } from '../lib/formatWhen';
+import { runStateText } from '../lib/runState';
 
 const formatDuration = (ms) => formatSpan(ms, 'n/a');
 
@@ -168,7 +170,7 @@ export default function RunStatus({ runId, onNewRun, apiFetch }) {
                 {status?.state?.life_cycle_state && (
                   <div className="flex items-center gap-1.5">
                     <Cpu className="w-4 h-4" />
-                    State: {status.state.life_cycle_state}
+                    State: {runStateText(status.state.life_cycle_state, status.state.result_state)}
                   </div>
                 )}
               </div>
@@ -208,9 +210,7 @@ export default function RunStatus({ runId, onNewRun, apiFetch }) {
             {output.error && (
               <div className="mb-4">
                 <p className="text-xs text-red-400 uppercase font-medium mb-2">Error</p>
-                <div className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 text-sm text-red-300 font-mono whitespace-pre-wrap break-all max-h-96 overflow-y-auto">
-                  {output.error}
-                </div>
+                <PlainMessage as="div" text={output.error} className="p-4 rounded-xl bg-red-500/5 border border-red-500/20 text-sm text-red-300 whitespace-pre-wrap break-words max-h-96 overflow-y-auto" />
               </div>
             )}
             {output.error_trace && (
@@ -230,9 +230,7 @@ export default function RunStatus({ runId, onNewRun, apiFetch }) {
 
       {/* Error */}
       {error && (
-        <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm">
-          {error}
-        </div>
+        <PlainMessage as="div" text={error} className="p-4 rounded-xl bg-red-500/10 border border-red-500/30 text-red-300 text-sm" />
       )}
 
       {/* Success message */}

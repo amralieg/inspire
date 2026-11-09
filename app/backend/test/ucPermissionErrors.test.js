@@ -33,3 +33,19 @@ test('the API error parser reads error, message and error_message, stringifies a
   assert.equal(apiErrorDetail({ error: '', message: 'm' }), 'm');
   assert.equal(apiErrorDetail({}), '');
 });
+
+test('a refusal says Get Started stopped only when it came from Get Started, and a list read never does (must-exclude)', async () => {
+  const { interpretUcPermissionError } = await import(libUrl);
+  const raw = "PERMISSION_DENIED: User does not have USE CATALOG on Catalog 'main'.";
+  assert.match(interpretUcPermissionError(raw, { context: 'launch' }).userMessage, /^Get Started stopped/);
+  for (const opts of [{}, { context: 'catalog_browse' }]) {
+    const out = interpretUcPermissionError(raw, opts);
+    assert.doesNotMatch(out.userMessage, /Get Started/, JSON.stringify(opts));
+    assert.equal(out.userMessage.split(/(?<=\.)\s+(?=[A-Z])/).length, 1);
+  }
+  assert.equal(interpretUcPermissionError('{"error_code":"REQUEST_LIMIT_EXCEEDED","message":"Exceeded rate limit for /api/2.1/unity-catalog/catalogs."}', { context: 'catalog_browse' }).isPermissionIssue, false,
+    'Databricks being busy is not a missing permission');
+  for (const raw of ['Inspire could not list the tables of main.s: listing failed', 'Inspire could not list the schemas of sales: the catalog list timed out']) {
+    assert.equal(interpretUcPermissionError(raw, { context: 'catalog_browse' }).isPermissionIssue, false, `a failure that names a catalog or table is not a refusal: ${raw}`);
+  }
+});

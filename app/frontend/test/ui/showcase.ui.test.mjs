@@ -7,7 +7,7 @@ import { createRequire } from 'node:module';
 import { MVP_JOB, RESULTS, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
 import { REVIEW_PORTFOLIO, REVIEW_SESSIONS, REVIEW_STATE } from './reviewFixtures.js';
 import { closeAsset, closeBrowser, expandBuild, openAsset, openUi, until } from './uiSupport.mjs';
-import { apiWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
+import { READ_QUIET_MS, apiWatch, keepToOrigins, openShowcase, readOnlyInspire, recordMvpApp, routeInspireDemo, tabButton, walkInspireDemo, walkMvpViews, watchOffline } from '../../../scripts/showcaseRecorder.mjs';
 import { DEMO_READS, DEMO_READS_WHEN, routeOf, unrecorded } from '../../../scripts/showcaseRoutes.mjs';
 import { SHOWCASE_ALERT_NOTE, SHOWCASE_BUTTON, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NOTE, SHOWCASE_OPEN_APP, SHOWCASE_PAGES } from '../../src/lib/showcase.js';
 import { START_MVP_LABEL } from '../../src/lib/implementWizard.js';
@@ -101,15 +101,29 @@ const controlsOf = (page) => page.evaluate(() => [...document.querySelectorAll('
 
 let demoDir = '';
 
-const LATE_MS = 2000;
+const LATE_MS = 4 * READ_QUIET_MS;
 const startReadsLate = (page) => page.addInitScript((ms) => {
   const real = window.fetch.bind(window);
   window.fetch = (input, init) => {
     const at = new URL(typeof input === 'string' ? input : input.url, window.location.href);
     if (!at.pathname.startsWith('/api/')) return real(input, init);
-    return new Promise((resolve) => { setTimeout(resolve, ms); }).then(() => real(input, init));
+    window.__lateReads = (window.__lateReads || 0) + 1;
+    const read = new Promise((resolve) => { setTimeout(resolve, ms); }).then(() => real(input, init));
+    read.then(() => { window.__lateReads -= 1; }, () => { window.__lateReads -= 1; });
+    return read;
   };
 }, LATE_MS);
+
+const checkedSettle = (page, settle) => {
+  const early = [];
+  const checked = async (...args) => {
+    const done = await settle(...args);
+    const pending = await page.evaluate(() => window.__lateReads || 0);
+    if (pending) early.push(pending);
+    return done;
+  };
+  return { settle: checked, early };
+};
 
 async function recordDemo({ late = false } = {}) {
   const exchanges = [];
@@ -144,14 +158,27 @@ function assertWalkSawEverything(walk) {
   assert.deepEqual(walk.monitor, { steps: true }, 'the walk saw the steps of the run on Monitor');
 }
 
-test('the recording walk waits for what a slow page draws late: with every read of the App starting 2 s late it still sees every view, panel, card and step', async () => {
+test('the recording walk waits for what a slow page draws late: with every read of the App starting 4 times the quiet window late it still sees every view, panel, card and step', async () => {
   const { ui, exchanges, blocked } = await recordDemo({ late: true });
   try {
-    const walk = await walkInspireDemo(ui.page, { settle: apiWatch(ui.page) });
+    const watched = checkedSettle(ui.page, apiWatch(ui.page));
+    const walk = await walkInspireDemo(ui.page, { settle: watched.settle });
+    assert.deepEqual(watched.early, [], 'every settle of the walk returned only once no late read was still on its way');
     assertWalkSawEverything(walk);
     assert.deepEqual(blocked, [], 'viewing the demo sends no write');
     assert.deepEqual(unrecorded(exchanges, { ...DEMO_READS, ...DEMO_READS_WHEN }), [], 'the slow walk still recorded every read the demo answers');
     assert.deepEqual(besidesRefusals(ui.pageErrors), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the late-read check fails a walk that does not wait: a settle that returns at once is caught with reads still on their way (must-fail)', async () => {
+  const { ui } = await recordDemo({ late: true });
+  try {
+    const watched = checkedSettle(ui.page, async () => true);
+    await walkInspireDemo(ui.page, { settle: watched.settle, parts: ['start'] });
+    assert.ok(watched.early.length > 0, 'a walk that never waits returns while late reads are still on their way, and the check sees it');
   } finally {
     await ui.close();
   }
@@ -402,7 +429,7 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     const heading = page.getByText(/^Use cases of /);
     await heading.waitFor();
     assert.doesNotMatch(await heading.innerText(), /\b42\b|\brun \d/, 'the use cases are named by the business and start, never by the internal run number');
-    await page.getByText('Pipeline completed successfully').waitFor();
+    await page.getByText('Run completed', { exact: true }).waitFor();
     await settle();
     await demoBar(page).getByText(SHOWCASE_NOTE).waitFor();
 
@@ -566,6 +593,33 @@ test('the demo disables every control that writes in Build progress, on every ti
   }
 });
 
+test('the demo Build progress card offers no Download diagnostics, Copy diagnostics or Report issue and reads no diagnostics, on a ready and on a failed build (must-exclude)', async () => {
+  for (const history of [WARNED, [built({ status: 'failed', status_message: 'Genie stopped the build: no approved model yet', ...NOTHING_BUILT })]]) {
+    const ui = await openDemoBuild(history);
+    const reads = [];
+    ui.page.on('request', (r) => { if (r.url().includes('/implement/diagnostics')) reads.push(r.url()); });
+    try {
+      const card = ui.page.locator('[data-progress-card]');
+      await card.locator('[data-progress-show]').waitFor();
+      await card.locator('[data-progress-show]').hover();
+      await card.locator('[data-progress-show]').focus();
+      await ui.page.keyboard.press('Tab');
+      await ui.settle();
+      assert.equal(await card.locator('[data-diagnostics-download], [data-diagnostics-copy], [data-diagnostics-report], [data-diagnostics-note]').count(), 0, `no diagnostics controls on ${history[0].status}`);
+      for (const name of ['Download diagnostics', 'Copy diagnostics', 'Report issue']) {
+        assert.equal(await ui.page.getByRole(name === 'Report issue' ? 'link' : 'button', { name }).count(), 0, `the demo has no ${name}`);
+      }
+      assert.equal(await card.getByText('no private or personal data').count(), 0, 'and no privacy note');
+      assert.equal(await card.locator('[data-progress-actions] [data-progress-show]').count(), 1, 'Show progress stays in its row');
+      assert.deepEqual(reads, [], 'the demo sends no diagnostics read');
+      assert.deepEqual(ui.blocked, []);
+      assert.deepEqual(besidesRefusals(ui.pageErrors), []);
+    } finally {
+      await ui.close();
+    }
+  }
+});
+
 test('a run link that arrives during the demo leaves the demo and opens the workspace Run tab with a plain note, from the demo Run tab too', async () => {
   const blocked = [];
   const ui = await openUi('app', STATE, '', {
@@ -630,7 +684,7 @@ test('a change the demo refuses shows as a calm note in plain words, and any oth
     assert.equal(await red.count(), 0, 'the refusal is not shown as an error');
     answer = [500, { error: 'The warehouse is stopped' }];
     await list(page).getByRole('button', { name: 'Planned', exact: true }).click();
-    await red.filter({ hasText: 'The warehouse is stopped' }).waitFor();
+    await red.filter({ hasText: 'The SQL warehouse is stopped, so start it' }).waitFor();
     assert.equal(await calm.count(), 0, 'a real failure is never dressed as the demo note');
   } finally {
     await ui.close();

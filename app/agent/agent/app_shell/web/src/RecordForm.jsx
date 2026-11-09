@@ -85,7 +85,7 @@ export default function RecordForm({ mode, target, meta, pageId, rows, onClose, 
         </header>
         <div className="dlg-b">
           {load.busy && <div className="fgrid">{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={52} />)}</div>}
-          {load.error && <PlainNote text={load.error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+          {load.error && <PlainNote text={load.error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={fetchRecord} />}
           {gone && <p className="tile-err" role="alert"><Icon name="info" size={14} />{data.current ? `${whoText(data.current)} deleted this record on ${whenText(data.current.valid_from)}.` : 'This record is no longer current.'}</p>}
           {data && !gone && !fields.length && <p className="more">The result table has no column people can change here.</p>}
           {data && !gone && fields.length > 0 && (
@@ -147,7 +147,7 @@ export function DeleteDialog({ target, pageId, label, onClose, onSaved }) {
           <p>The record leaves the decision list. Its history keeps every version, with your name on the deletion.</p>
           {data?.current && !gone && <p className="dlg-meta"><Icon name="history" size={13} />Last change by {whoText(data.current)} on {whenText(data.current.valid_from)}</p>}
         </header>
-        {load.error && <PlainNote text={load.error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+        {load.error && <PlainNote text={load.error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={fetchRecord} />}
         {gone && <p className="tile-err" role="alert"><Icon name="info" size={14} />This record is already deleted.</p>}
         <Failure failure={failure} as="div" className="hint hint--box">
           <Icon name="info" size={14} /><span>{failure?.text}</span>

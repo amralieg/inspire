@@ -117,8 +117,8 @@ test('a previous value of 0 is a change from 0, and only a missing previous valu
   const story = 'The list holds {orders} orders, {orders:change} on the previous run.';
   assert.equal(sentence(story, { orders: { now: 800, before: 0 } }), 'The list holds 800 orders, up from 0 on the previous run.');
   assert.equal(sentence(story, { orders: { now: 800, before: null } }), `The list holds 800 orders, ${NO_EARLIER}.`);
-  assert.equal(sentence(story, { orders: { now: null, before: 4 } }), 'The list holds Not recorded orders.',
-    'a missing value now says nothing about an earlier run');
+  assert.equal(sentence(story, { orders: { now: null, before: 4 } }), '',
+    'a missing value now leaves the story out rather than reading Not recorded as a number');
 });
 
 test('a table shows identifiers as written and counts in full, never as 10K or 1.2K', () => {
@@ -155,4 +155,18 @@ test('neighbouring axis ticks never share a label, and a whole tick keeps no dec
   for (const ticks of [[1000, 1200, 1400, 1600, 1800, 2000], [10000, 12500, 15000, 17500, 20000], [0, 0.25, 0.5, 0.75, 1]]) {
     assert.equal(new Set(labels(ticks)).size, ticks.length, ticks.join(', '));
   }
+});
+
+test('a story whose numbers did not load is not shown, and a first run says it has no earlier run to compare once', () => {
+  const story = 'Discounts cost {total_loss} in the selected period; {orders} orders are marked act now, {orders:change} on the previous run, putting '
+    + '{share} at stake, {share:change} on the previous run.';
+  assert.deepEqual(storyPieces(story, KPIS, {}), [], 'no numbers loaded');
+  assert.deepEqual(storyPieces(story, KPIS, { total_loss: { now: 5 }, orders: { now: null }, share: { now: 2 } }), [], 'one number did not load');
+  assert.deepEqual(storyPieces(story, KPIS, undefined), []);
+  const first = sentence(story, { total_loss: { now: 125000 }, orders: { now: 800 }, share: { now: 4 } });
+  assert.equal(first, `Discounts cost $125K in the selected period; 800 orders are marked act now, ${NO_EARLIER}, putting 4.0% at stake.`);
+  assert.equal(sentence(story, { total_loss: { now: 125000 }, orders: { now: 800, before: 400 }, share: { now: 4 } }),
+    `Discounts cost $125K in the selected period; 800 orders are marked act now, up 100.0% on the previous run, putting 4.0% at stake, ${NO_EARLIER}.`);
+  assert.equal(sentence('Loss reached {total_loss}.', { total_loss: { now: 0 } }), 'Loss reached $0.', 'a zero is a number that loaded');
+  assert.equal(sentence('No numbers here.', {}), 'No numbers here.');
 });

@@ -3,6 +3,7 @@ import { PANEL_CLASS, SectionTitle } from './BuildUi';
 import { RunScopeLine } from './RunScope';
 import { impactText, kpiLine } from '../lib/targetKpi';
 import { VIBE_FEATURES_LABEL } from '../lib/implementWizard';
+import { PlainMessage } from './TechnicalDetails';
 
 const NOTE_TONE = {
   warning: 'border-warning/40 bg-warning-bg text-warning-fg',
@@ -40,7 +41,7 @@ export default function TargetKpiCard({ view, builtBefore = false, readOnly = fa
       <div className="p-4 space-y-3 text-[12px]">
         <h4 className="text-[15px] font-semibold text-text-primary">Target KPI: {view.name}</h4>
         <RunScopeLine facts={scope} />
-        {view.why && <p data-kpi-why="" className="text-text-secondary">{view.why}</p>}
+        {view.why && <PlainMessage as="p" text={view.why} data-kpi-why="" className="text-text-secondary" />}
         <dl className="grid grid-cols-2 gap-3 sm:grid-cols-5">
           {facts.map(([label, value, on]) => (
             <div key={label} data-kpi-fact="" className="rounded-lg border border-border bg-surface px-3 py-2">

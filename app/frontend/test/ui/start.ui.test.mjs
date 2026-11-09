@@ -126,9 +126,9 @@ test('Start shows the totals above the runs list from three aggregate reads, and
       focused = await page.evaluate(() => document.activeElement?.getAttribute('data-portfolio-card') || '');
     }
     assert.equal(focused, 'businesses', 'the keyboard reaches the cards');
-    const ring = await card(page, 'businesses').evaluate((el) => ({ visible: el.matches(':focus-visible'), shadow: getComputedStyle(el).boxShadow }));
+    const ring = await card(page, 'businesses').evaluate((el) => ({ visible: el.matches(':focus-visible'), outline: getComputedStyle(el).outlineStyle, width: getComputedStyle(el).outlineWidth }));
     assert.equal(ring.visible, true);
-    assert.notEqual(ring.shadow, 'none', 'a focused card shows its focus ring');
+    assert.deepEqual([ring.outline, ring.width], ['solid', '2px'], 'a focused card shows its focus ring');
     await page.keyboard.press('Tab');
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('data-portfolio-card')), 'runs');
 
@@ -299,7 +299,7 @@ test('totals that cannot be read say why on Start, and the runs list still works
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await totals(page).getByRole('alert').waitFor({ timeout: 20000 });
-    assert.match(await totals(page).getByRole('alert').innerText(), /^Inspire could not count across the runs: User does not have SELECT on __inspire_session$/);
+    assert.match(await totals(page).getByRole('alert').innerText(), /^Inspire could not count across the runs: User does not have SELECT on __inspire_session, so ask its owner or a workspace admin to give you access\.$/);
     assert.equal(await totals(page).locator('[data-portfolio-card]').count(), 0);
     await page.locator('[data-run="42"]').waitFor();
     assert.deepEqual(await rows(page), ['42', '41', '50', '51', '60']);

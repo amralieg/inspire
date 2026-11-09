@@ -136,9 +136,9 @@ test('a field reads its display key, falls back to the tracking-table column whe
   assert.equal(f.isBlankField(false), false);
 });
 
-test('High priority is one rule: Inspire Score of 3 or more out of 5, read from the stored score or computed as the pipeline does', async () => {
+test('High priority is one rule: the priority tier on the pills (High or above), with a numeric priority read as the tier of its Inspire Score', async () => {
   const f = await load();
-  assert.equal(f.HIGH_PRIORITY_MIN_INSPIRE_SCORE, 3);
+  assert.equal(f.HIGH_PRIORITY_MIN_INSPIRE_SCORE, 3.5);
   assert.deepEqual([f.INSPIRE_QUALITY_WEIGHT, f.INSPIRE_PRIORITY_WEIGHT], [0.65, 0.35]);
   assert.equal('inspireScoreOutOfFive' in f, false, 'one Inspire Score helper');
   const list = [
@@ -146,10 +146,53 @@ test('High priority is one rule: Inspire Score of 3 or more out of 5, read from 
     { Priority: 'Ultra High', Quality: 'Very High' }, { priority_score: 8, value_score: 5, feasibility_score: 5 },
     { 'Quality Score': 4, Priority: 7.5 }, { 'Quality Score': 2, Priority: 3.5 },
   ];
-  assert.equal(f.computeHighPriorityCount(list), 3, 'tier labels, priority alone and the top third no longer count (must-exclude)');
+  assert.equal(f.computeHighPriorityCount(list), 3, 'the Ultra High tier counts; a 6.0, a priority score alone and the top third do not (must-exclude)');
+  assert.deepEqual(f.HIGH_PRIORITY_TIERS, ['Ultra High', 'Very High', 'High']);
+  assert.equal(f.isHighPriority({ Priority: 'Medium', 'Inspire Score': 9.5 }), false, 'a Medium tier is not high priority whatever its score (must-exclude)');
+  assert.equal(f.isHighPriority({ Priority: 'High', inspire_score: '1' }), true, 'a High tier is high priority whatever its score');
+  assert.equal(f.isHighPriority({ priority: 'Very High' }), true);
+  assert.equal(f.isHighPriority({ Priority: 9.3, 'Inspire Score': 9.34 }), true, 'a numeric priority is not a tier, so the Inspire Score decides');
+  assert.equal(f.isHighPriority({ Priority: 9.3, 'Inspire Score': 5.9 }), false);
+  const pills = [{ Priority: 'Ultra High', inspire_score: '2' }, { Priority: 'Ultra High', inspire_score: '3' }, { Priority: 'Low', inspire_score: '9' }];
+  assert.equal(f.computeHighPriorityCount(pills), 2, 'the tile never reads 0 beside Ultra High pills');
   assert.equal(f.computeHighPriorityCount([]), 0);
   assert.equal(f.computeHighPriorityCount(null), 0);
   assert.equal('isHighPriorityUseCase' in f || 'HIGH_PRIORITY_MIN_SCORE' in f, false, 'no second rule');
+});
+
+test('a numeric priority reads as the tier the pipeline gives its score, so the priority pills, filter and tier sort work on real runs', async () => {
+  const f = await load();
+  const tierOf = (score) => f.priorityTierOf({ Priority: score, 'Inspire Score': score });
+  assert.deepEqual([9.3, 9.0, 8.99, 8.0, 7.0, 6.99, 6.0, 5.0, 4.99, 4.0, 3.0, 2.99, 0].map(tierOf),
+    ['Ultra High', 'Ultra High', 'Very High', 'Very High', 'High', 'Medium', 'Medium', 'Medium', 'Low', 'Low', 'Very Low', 'Ultra Low', 'Ultra Low']);
+  assert.equal(f.isHighPriority({ Priority: 6.0, 'Inspire Score': 6.0 }), false, 'a 6.0 use case is not in High (must-exclude)');
+  assert.equal(f.isHighPriority({ Priority: '6.99', inspire_score: '6.99' }), false, 'just under the High band is not in High (must-exclude)');
+  assert.equal(f.isHighPriority({ Priority: 7.0, 'Inspire Score': 7.0 }), true);
+  assert.equal(f.priorityTierOf({ Priority: 'Medium', 'Inspire Score': 9.5 }), 'Medium', 'a tier label is kept as written');
+  assert.equal(f.priorityTierOf({ 'Quality Score': 4, Priority: 7.5 }), 'High', 'no stored score: the Inspire Score from quality and priority decides');
+  assert.equal(f.priorityTierOf({ priority_score: 8 }), '', 'a priority score alone has no Inspire Score and no tier (must-exclude)');
+  assert.equal(f.priorityTierOf(null), '');
+  assert.equal(f.priorityTierOf({}), '');
+  const ranked = [{ 'Inspire Score': 6 }, { 'Inspire Score': 9.3 }, {}, { 'Inspire Score': 7.5 }]
+    .sort((a, b) => f.priorityRank(f.priorityTierOf(a)) - f.priorityRank(f.priorityTierOf(b)));
+  assert.deepEqual(ranked.map((uc) => uc['Inspire Score']), [9.3, 7.5, 6, undefined], 'Sort: Priority tier orders numeric runs by their tier, no tier last');
+  assert.deepEqual(f.PRIORITY_BANDS.map(([, tier]) => tier), f.PRIORITY_ORDER, 'one band per tier, in tier order');
+});
+
+test('the priority bands are the pipeline quality-label bands, and the Start page counts High priority from the same floor', () => {
+  const fs = require('node:fs');
+  const nb = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'), 'utf8'));
+  const source = nb.cells.map((c) => [].concat(c.source).join('')).join('\n');
+  const rule = /\*\*QUALITY LABEL\*\*[^\n]*/.exec(source);
+  assert.ok(rule, 'the pipeline states its label bands');
+  const bands = [...rule[0].matchAll(/(\d+(?:\.\d+)?)\s*[–-]\s*\d+(?:\.\d+)?\s*=\s*"([^"]+)"/g)].map((m) => [Number(m[1]), m[2]]);
+  return load().then((f) => {
+    assert.deepEqual(f.PRIORITY_BANDS.slice(0, -1), bands.slice(0, -1), 'every floor matches the pipeline');
+    assert.equal(f.PRIORITY_BANDS.at(-1)[1], bands.at(-1)[1]);
+    const backend = require('../lib/reviewFigures');
+    assert.equal(backend.HIGH_PRIORITY_MIN_INSPIRE_SCORE, f.HIGH_PRIORITY_MIN_INSPIRE_SCORE, 'Start and Review count High priority from one floor');
+    assert.match(backend.HIGH_PRIORITY_SQL, />= 3\.5$/);
+  });
 });
 
 test('Review shows the Best of Best, High Priority and Avg Inspire score tiles and the Feedback panel even when no use case meets the bar', () => {

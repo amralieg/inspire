@@ -212,6 +212,22 @@ class Probe:
         self.ws, self.timer, self.seconds = ws, timer, {}
 
 
+CROSS_SITE_REFUSAL = "the App takes changes only from its own pages, and this request came from another site, so nothing changed"
+
+
+def cross_site(method: str, headers: dict) -> bool:
+    if str(method or "").upper() in ("GET", "HEAD", "OPTIONS"):
+        return False
+    site = str(headers.get("sec-fetch-site") or "").strip().lower()
+    if site:
+        return site not in ("same-origin", "none")
+    origin = str(headers.get("origin") or "").strip().lower()
+    if not origin:
+        return False
+    own = str(headers.get("x-forwarded-host") or headers.get("host") or "").split(",")[0].strip().lower()
+    return not own or origin.split("://", 1)[-1] != own
+
+
 def query_label(key: tuple) -> str:
     kind, ident = key
     return LIST_LABELS[ident] if kind == "list" else QUERY_LABELS[kind].format(ident)
@@ -254,6 +270,11 @@ def informational_text(page: dict) -> str:
         return f"page {page.get('id')} has no decision list, so people record no decisions on it"
     label = (shell_sql.layouts().get(ident) or {}).get("label") or ident
     return f"page {page.get('id')} is a {label.lower()} page: it shows information only, so people record no decisions on it"
+
+
+def reviewed_text(count: int) -> str:
+    return shell_sql.plural(count, "record changed since you reviewed it and was left as it was",
+                            "records changed since you reviewed them and were left as they were")
 
 
 def unreadable_text(count: int) -> str:
@@ -326,11 +347,29 @@ def unread_hint(message: str, sql: str, unread: dict) -> str:
     if not unread or not NO_ACCESS.search(message):
         return message
     query = str(sql or "").replace("`", "").lower()
-    named = [(table, grants) for table, grants in unread.items() if table.replace("`", "").lower() in query]
+    named = [table for table in unread if table.replace("`", "").lower() in query]
     if not named:
         return message
-    needs = "; ".join(f"{table}: {'; '.join(grants)}" for table, grants in named)
-    return f"{message}. The App cannot read this data until the table owner runs, for {needs}"
+    print(f"[APP-NO-ACCESS FIRED] {', '.join(named)}: {message[:4000]}", file=sys.stderr, flush=True)
+    return shell_sql.no_access_text(tables=named)
+
+
+def protected_problems(settings: dict) -> list:
+    protected, blocked = settings.get("protected"), settings.get("blocked")
+    if protected is not None and not (isinstance(protected, dict) and all(
+            isinstance(k, str) and isinstance(v, str) and v.strip() for k, v in protected.items())):
+        return ["the App protected must be an object of table name to the row filters, column masks or ABAC policies it has"]
+    if blocked is not None and not (isinstance(blocked, list) and all(isinstance(t, str) and t.strip() for t in blocked)):
+        return ["the App blocked must be a list of the tables the App does not read"]
+    if protected and settings.get("auth") != "user":
+        named = ", ".join(f"{table} ({words})" for table, words in sorted(protected.items()))
+        return [f"the App reads {named}, so it must sign each viewer in as themselves: its auth must be user, because its service "
+                "principal would show every viewer the rows and values only it may see"]
+    return []
+
+
+def blocked_tables(settings: dict) -> tuple:
+    return tuple(sorted({str(t).replace("`", "").strip().lower() for t in settings.get("blocked") or () if str(t).strip()}))
 
 
 def settings_problems(settings: dict, pages: list) -> list:
@@ -360,6 +399,7 @@ def settings_problems(settings: dict, pages: list) -> list:
         problems.append(f"the App host must be {INSIDE} when it is set, for a page inside Inspire")
     elif host == INSIDE and settings.get("auth") != "user":
         problems.append("a page inside Inspire signs each viewer in as themselves, so its auth must be user")
+    problems += protected_problems(settings)
     if host == INSIDE and isinstance(settings.get("backend"), dict) and settings["backend"].get("kind") == shell_pg.LAKEBASE:
         problems.append("a page inside Inspire reads Delta tables, so its backend must be delta")
     screens = settings.get("screens")
@@ -394,6 +434,10 @@ def settings_problems(settings: dict, pages: list) -> list:
             isinstance(k, str) and isinstance(v, list) and v and all(isinstance(g, str) and g.startswith("GRANT ") for g in v)
             for k, v in unread.items())):
         problems.append("the App unread must be an object of table name to the GRANT statements its service principal still needs")
+    owners = settings.get("unread_owners")
+    if owners is not None and not (isinstance(owners, dict) and all(
+            isinstance(k, str) and isinstance(v, str) and 0 < len(v.strip()) <= 254 for k, v in owners.items())):
+        problems.append("the App unread_owners must be an object of table name to the owner who can grant the App read access")
     if not isinstance(settings.get("admin"), str):
         problems.append("the App settings need admin, the user name of the person who built the App")
     use_case_owners = settings.get("use_case_owners")
@@ -1578,7 +1622,9 @@ class Shell:
             if not token:
                 raise HttpError(401, "sign in to the workspace to see this App; it shows each person only the data they may read")
             who = headers.get("x-forwarded-email") or hashlib.sha256(token.encode()).hexdigest()[:16]
-            return self.user_factory(self.env.get("DATABRICKS_HOST", ""), token), f"user:{who}"
+            ws = self.user_factory(self.env.get("DATABRICKS_HOST", ""), token)
+            ws.blocked = blocked_tables(self.settings)
+            return ws, f"user:{who}"
         return self.service(), "sp"
 
     def service(self):
@@ -1918,6 +1964,8 @@ class Shell:
         try:
             if len(body or b"") > MAX_BODY:
                 raise HttpError(413, "the request is too large")
+            if cross_site(method, headers):
+                raise HttpError(403, CROSS_SITE_REFUSAL)
             kind = str(headers.get("content-type") or "").split(";")[0].strip().lower()
             if method == "POST" and kind and kind != "application/json":
                 raise HttpError(415, "send the request as JSON")
@@ -2047,6 +2095,7 @@ class Shell:
             "is_owner": self.is_owner(headers), "pages": pages, "built_at": s.get("built_at") or "", "backend": self.backend_status(),
             "alerts": {k: v for k, v in (s.get("alerts") or {}).items() if k in self.by_id},
             "alerts_home": f"{host}{ALERTS_HOME}" if host else "", "alerting": self.alerts.status(), "held_meaning": shell_sql.HELD_MEANING,
+            "no_access": {table: owner for table, owner in (s.get("unread_owners") or {}).items() if table in (s.get("unread") or {})},
         }
 
     def _timed(self, fn, key, probe):
@@ -2659,10 +2708,9 @@ class Shell:
         if as_app and self.inside:
             return HttpError(403, f"Nothing was saved: Inspire's service principal records the decisions of this page and may not change "
                                   f"{table} in Unity Catalog ({error}). Ask the owner of that table to grant Inspire's service principal "
-                                  f"SELECT and MODIFY on it, or {shell_sql.rebuild_action('the use case')}")
+                                  "SELECT and MODIFY on it")
         return HttpError(403, f"Nothing was saved: this App's service principal may not change {table} in Unity Catalog ({error}). "
-                              f"Ask the person who built the App to {shell_sql.rebuild_action()}, so Inspire grants the service principal SELECT and "
-                              "MODIFY on that table, or ask the owner of that table to grant them")
+                              "Ask the owner of that table to grant the App's service principal SELECT and MODIFY on it")
 
     def page_editors(self, page: dict) -> set:
         listed = self.settings.get("use_case_owners")
@@ -2768,7 +2816,8 @@ class Shell:
         for item in items:
             setting = dict(item)
             saved = latest.get(setting["name"]) if setting.get("source") in ("widget", "alert", "app") else None
-            held = (saved.get("text_value") if setting.get("kind") == "choice" else shell_sql.as_number(saved.get("value"))) if saved else None
+            held = (saved.get("text_value") if setting.get("kind") == "choice" else "" if setting.get("optional") and saved.get("value") is None
+                    else shell_sql.as_number(saved.get("value"))) if saved else None
             if held is not None and shell_sql.setting_problem(setting, held if isinstance(held, str) else shell_sql.number_text(held)):
                 held = None
             setting["value"] = setting.get("default") or "" if held is None else (held if isinstance(held, str) else shell_sql.number_text(held))
@@ -3630,22 +3679,28 @@ class Shell:
             raise QueryError(f"more than {shell_sql.plural(shell_pg.OVERLAY_ROWS, 'row')} of {table} changed")
         return result["rows"]
 
+    @staticmethod
+    def match_target(match, name: str = "match") -> dict:
+        if not isinstance(match, dict) or sorted(match) != ["as_of_us", "filters", "view"]:
+            raise HttpError(400, f"{name} takes filters, view and as_of_us: the filters and view of the list you loaded and when "
+                                 "you loaded it")
+        if not isinstance(match["filters"], dict) or not isinstance(match["view"], dict):
+            raise HttpError(400, f"{name} filters and view are objects")
+        if not VERSION_US.match(str(match["as_of_us"] or "")):
+            raise HttpError(400, f"{name} as_of_us is the as_of_us the list gave you, in microseconds")
+        wrong = sorted(k for k in match["view"] if k not in MATCH_VIEW)
+        if wrong:
+            raise HttpError(400, f"{name} view takes only {', '.join(MATCH_VIEW)}, not {', '.join(wrong)}")
+        return match
+
     def act_target(self, data: dict) -> tuple:
         keys, seen, match = data.get("record_keys"), data.get("seen"), data.get("match")
         if (keys is None) == (match is None):
             raise HttpError(400, "send record_keys with seen, or match, to say which records to act on, and never both")
         if match is not None:
-            if not isinstance(match, dict) or sorted(match) != ["as_of_us", "filters", "view"]:
-                raise HttpError(400, "match takes filters, view and as_of_us: the filters and view of the list you loaded and when "
-                                     "you loaded it")
-            if not isinstance(match["filters"], dict) or not isinstance(match["view"], dict):
-                raise HttpError(400, "match filters and view are objects")
-            if not VERSION_US.match(str(match["as_of_us"] or "")):
-                raise HttpError(400, "match as_of_us is the as_of_us the list gave you, in microseconds")
-            wrong = sorted(k for k in match["view"] if k not in MATCH_VIEW)
-            if wrong:
-                raise HttpError(400, f"match view takes only {', '.join(MATCH_VIEW)}, not {', '.join(wrong)}")
-            return None, None, match
+            if data.get("similar") is not None:
+                raise HttpError(400, "similar names the records like one record that you reviewed; send it with record_keys, never with match")
+            return None, None, self.match_target(match)
         cap = shell_sql.CAPS["act_records"]
         if not isinstance(keys, list) or not 1 <= len(keys) <= cap:
             raise HttpError(400, f"name 1 to {cap} record_keys to act on")
@@ -3661,6 +3716,7 @@ class Shell:
         page = self.deciding_page(data.get("page"))
         editor = self.editor(headers)
         keys, seen, match = self.act_target(data)
+        similar = None if data.get("similar") is None else self.match_target(data["similar"], "similar")
         values = shell_sql.action_values(data.get("values"), self.now().date(), shell_sql.status_choices(page))
         treatment = treatment_of(page, data, values)
         request = data.get("request_id")
@@ -3676,6 +3732,8 @@ class Shell:
         batch = {"id": str(request) if request is not None else uuid.uuid4().hex, "values": batch_values(data["values"], values, treatment)}
         if match is not None:
             out = self.act_on_match(ws, writer, who, page, fields, match, editor, values, batch)
+        elif similar is not None:
+            out = self.act_on_reviewed(ws, writer, who, page, fields, keys, seen, similar, editor, values, batch)
         else:
             out = self.act_on_keys(ws, writer, page, fields, keys, seen, editor, values, batch)
         notice = self.alerts.assigned(headers, page, values.get("action_owner"), editor) if values.get("action_owner") else ""
@@ -3783,6 +3841,29 @@ class Shell:
                                            "left_out": len(left_out), "batch_id": None}, code=STALE_RECORD)
         return {"written": written, "conflicts": conflicts, "conflicts_count": len(conflicts), "left_out": len(left_out),
                 "batch_id": batch["id"]}
+
+    def act_on_reviewed(self, ws, writer, who, page: dict, fields: list, keys: list, seen: dict, similar: dict, editor: str, values: dict,
+                        batch: dict) -> dict:
+        context, request, _fields = self.match_plan(ws, who, page, similar["filters"], similar["view"], editor)
+        sql, params = shell_sql.keys_within(shell_sql.list_match_query(page, similar["filters"], request, context, editor), keys)
+        matching = {str(r["_inspire_key"]) for r in self.execute(ws, sql, params, len(keys), delta=True)["rows"]
+                    if r.get("_inspire_key") is not None}
+        current = self.current_versions(ws, page, keys)
+        changed = [k for k in keys if k in current and str(current[k].get("valid_from_us") or "") != str(seen[k])]
+        outside = [k for k in keys if k not in matching and k not in changed]
+        if outside:
+            raise HttpError(400, f"{shell_sql.plural(len(outside), 'record')} you sent {'is' if len(outside) == 1 else 'are'} not among the "
+                                 f"records like this one: {', '.join(outside[:shell_sql.CAPS['conflicts_shown']])}; nothing was saved",
+                            {"outside": outside[:shell_sql.CAPS["conflicts_shown"]], "outside_count": len(outside)})
+        kept = [k for k in keys if k not in changed]
+        print(f"[REVIEWED-ACT FIRED] page={page['id']} sent={len(keys)} kept={len(kept)} changed={len(changed)}", flush=True)
+        if not kept:
+            raise HttpError(409, f"{reviewed_text(len(changed))}; nothing was saved",
+                            {"written": [], "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": None, "changed": changed},
+                            code=STALE_RECORD)
+        out = self.act_on_keys(ws, writer, page, fields, kept, seen, editor, values, batch)
+        raced = [c["record_key"] for c in out["conflicts"]]
+        return dict(out, conflicts=[], conflicts_count=0, changed=changed + raced)
 
     def match_plan(self, ws, who, page: dict, filters: dict, view: dict, editor: str) -> tuple:
         problems = shell_sql.filter_values_problems(page, filters)
@@ -3914,7 +3995,7 @@ class Shell:
             raise HttpError(404, f"no act with batch_id {batch_id} changed a record of this page you can read")
         return keys
 
-    def similar(self, headers: dict, query: dict) -> dict:
+    def similar(self, headers: dict, query: dict, limit: int = shell_sql.CAPS["similar_rows"]) -> dict:
         page = self.page(query.get("page"))
         keys = similar_keys(query)
         offered = {f["id"]: f for f in shell_sql.similar_filters(page)}
@@ -3944,17 +4025,17 @@ class Shell:
             raise HttpError(409, f"record {named} has no value in {where}, so no record is similar to it by them" if len(keys) == 1 else
                             f"{named} has a value in {where}, so no record is similar to them")
         view = {"window": "all", "exclude": keys}
-        request = shell_sql.list_request(page, dict(view, limit=shell_sql.CAPS["similar_sample"]), context, self.now())
+        request = dict(shell_sql.list_request(page, dict(view, limit=1), context, self.now()), limit=limit)
         plan = shell_sql.list_queries(page, filters, request, context)
         read_at = self.clock()
-        done, errors = self._parallel({("similar", name): (lambda q=query_: self.execute(ws, *q, shell_sql.CAPS["similar_sample"], delta=True))
+        done, errors = self._parallel({("similar", name): (lambda q=query_: self.execute(ws, *q, limit, delta=True))
                                        for name, query_ in (("rows", plan["rows"]), ("total", plan["total"]))})
         if errors:
             raise HttpError(502, next(iter(errors.values())))
         rows = done[("similar", "rows")]["rows"]
         records = page.get("records") or {}
-        sample = [{"record_key": r.get("_inspire_key"), "label": r.get(records.get("label")), "valid_from_us": r.get("_inspire_version")}
-                  for r in rows]
+        sample = [{"record_key": r.get("_inspire_key"), "label": r.get(records.get("label")), "valid_from_us": r.get("_inspire_version"),
+                   "row": r} for r in rows]
         return {"by": [{"filter": b, "label": offered[b].get("label"), "value": ", ".join(filters[b]), "values": filters[b]} for b in by if b in filters],
                 "count": int((done[("similar", "total")]["rows"] or [{}])[0].get("total") or 0), "sample": sample,
                 "match": {"filters": filters, "view": view, "as_of_us": self.as_of_us(["delta"], read_at)}}

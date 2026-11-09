@@ -1,8 +1,9 @@
-import { IMPLEMENT_OUTPUTS, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_DONE_STATUSES, IMPLEMENT_VIBE_NOT_MET, heldAsks, joinWords, partLabel, statusChip } from './implementWizard.js';
+import { APP_READS_LABEL, IMPLEMENT_OUTPUTS, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_DONE_STATUSES, IMPLEMENT_VIBE_NOT_MET, appReadsOf, heldAsks, joinWords, partLabel, statusChip } from './implementWizard.js';
 import { formatDuration, formatWhen } from './formatWhen.js';
 import { plural, shown } from './plural.js';
 import { rowImpact } from './targetKpi.js';
 import { splitTechnical } from './plainText.js';
+import { RUN_STATE_UNKNOWN, runStateText } from './runState.js';
 
 export const MVP_BUILD_STAGES = [
   { id: 'Plan', label: 'Plan', working: 'Inspire is working out what this version rebuilds' },
@@ -345,6 +346,7 @@ export function mvpStages(steps, latest, { now = Date.now(), stalled = null } = 
       if (lastAt !== null && (s.ended === null || s.ended < lastAt)) s.ended = lastAt;
     });
     stages.forEach((s) => { if (s.state === 'waiting') s.state = 'skipped'; });
+    if (appReadsOf(latest) && finish.state === 'done') finish.state = 'warning';
   }
   if (failed) {
     if (!stages.some((s) => s.state === 'error')) {
@@ -368,6 +370,7 @@ export function mvpStages(steps, latest, { now = Date.now(), stalled = null } = 
     const [noted, label] = STAGE_NOTES[s.id] || [];
     s.notes = ['done', 'warning'].includes(s.state) && noted ? versionNotes(latest, noted).map((note) => `${label}: ${note}`) : [];
   }
+  if (finished && appReadsOf(latest)) finish.notes = [...finish.notes, APP_READS_LABEL];
   return stages;
 }
 
@@ -410,7 +413,7 @@ export function statusProgress(data, now = Date.now()) {
   const stalled = data?.stalled || null;
   const stages = mvpStages(data?.steps, latest, { now, stalled });
   const summary = mvpProgressSummary(stages, latest, { now, stalled, repair: mvpRepairOf(data?.steps, latest) });
-  return railProgress(statusChip(latest?.status, stalled), summary);
+  return railProgress(statusChip(latest?.status, stalled, latest), summary);
 }
 
 export function stagesRecorded(stages) {
@@ -454,7 +457,7 @@ export function stageSteps(stages) {
     const state = stepState((reached.length ? reached : members).map((s) => s.state));
     const now = members.find((s) => s.state === state) || members[members.length - 1];
     const elapsed = LIVE.includes(state) ? now.elapsed : ['done', 'warning', 'error'].includes(state) ? stepSpan(members) : '';
-    const message = state === 'error' ? String(now.message || '').trim() : '';
+    const message = state === 'error' ? splitTechnical(String(now.message || '').trim()).plain : '';
     const labels = members.map((s) => s.label).join(', ');
     return { id, label: id, title: message ? `${labels}: ${message}` : labels, state, elapsed, message };
   }).filter((step) => step.state !== 'skipped');
@@ -744,7 +747,7 @@ function rawFeedLine(item, text) {
     if (RUN_STARTING_STATES.includes(state)) return { who: 'inspire', tone: 'quiet', text: `${what} is starting${after}` };
     if (state === 'RUNNING' || state === 'TERMINATING') return { who: 'inspire', tone: 'quiet', text: `${what} is running${after}` };
     if (state === 'TERMINATED' && result === 'SUCCESS') return { who: 'inspire', tone: 'plain', text: `${what} finished${after}` };
-    return { who: 'inspire', tone: 'error', text: `${what} ended: ${[state, result].filter(Boolean).join(' / ')}${after}` };
+    return { who: 'inspire', tone: 'error', text: `${what} ended: ${runStateText(state, result) || RUN_STATE_UNKNOWN}${after}` };
   }
   if (kind === 'failed') return { who: 'inspire', tone: 'error', text };
   if (kind === 'note') return { who: 'inspire', tone: 'quiet', text };
@@ -836,3 +839,14 @@ export function typingSchedule(feed, arrivals, wordsPerSecond = FEED_WORDS_PER_S
   }
   return { starts, end };
 }
+
+const NAMED_STAGES = [...MVP_BUILD_STAGES, VIBE_STAGE, FINISH_STAGE, SELF_FIX_STAGE];
+export const MVP_PHASE_WORDS = [...new Set([
+  ...NAMED_STAGES.flatMap((s) => [s.id, s.label, ...(s.phases || [])]),
+  PLAN_PHASE, VIBE_PHASE, MVP_REPAIR_PHASE, GENIE_CHANGES_PHASE, WHOLE_BUILD, ...Object.values(EARLIER_PHASES).flat(),
+  ...IMPLEMENT_OUTPUTS.flatMap((o) => [o.id, o.label]),
+])];
+export const MVP_WORKING_TEXTS = [...new Set([
+  ...NAMED_STAGES.map((s) => s.working),
+  ...[{ schedule: true, sharing: true }, { schedule: true }, { sharing: true }, {}].map(finishWords),
+])];

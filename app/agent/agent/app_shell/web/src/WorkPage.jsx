@@ -21,12 +21,12 @@ export function WorkTabs({ tab, choices, counts, onTab }) {
   );
 }
 
-export default function WorkPage({ meta, state, onState, pageId, reasons, plan, tab, choices, counts, onTab, focus, onClearFocus, children }) {
+export default function WorkPage({ meta, state, onState, onRetryMeta = null, pageId, reasons, plan, tab, choices, counts, onTab, focus, onClearFocus, children }) {
   return (
     <section className="work-sec" aria-label="Work" data-work>
       {!meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
       <FilterBar meta={meta?.filters} state={state || { range: {}, sel: {} }} onState={onState} pageId={pageId} reasons={reasons} />
-      {meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the list shows all its records: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+      {meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the list shows all its records: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={onRetryMeta} />}
       {focus && FOCUSES[focus] && (
         <p className="work-focus" role="status" data-focus={focus}>
           <span>Only open records {FOCUSES[focus].toLowerCase()}</span>

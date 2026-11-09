@@ -33,9 +33,10 @@ def rebuild_action(what: str = "it", first: bool = False) -> str:
     return text[:1].upper() + text[1:] if first else text
 
 
+NO_ACCESS_LEAD = "No access to "
+ACCESS_ON = re.compile(r"\bon (?:table|view|schema|catalog|volume|function) (`[^`]+`(?:\.`[^`]+`){0,2}|'[^']+'|[\w-]+(?:\.[\w-]+){0,2})", re.I)
 PLAIN_ERRORS = {
-    "not_allowed": f"This App may not read part of its data yet. Ask the person who built the App to {rebuild_action()}, or ask a data "
-                   "owner to give the App read access.",
+    "not_allowed": f"{NO_ACCESS_LEAD}part of this App's data yet. Ask the owner of that data for read access, then try again.",
     "missing_table": "Part of this App's data is not there yet. It appears after the next run; if it stays missing, ask the person who built "
                      "the App to run it again.",
     "missing_column": f"The data changed since the App was built. Ask the person who built the App to {rebuild_action()}.",
@@ -71,6 +72,12 @@ def without_raw_parts(said: str) -> str:
     return "".join(out).strip()
 
 
+def no_access_text(said: str = "", tables=()) -> str:
+    named = list(dict.fromkeys(str(t).replace("`", "").strip("'") for t in tables or ())) or list(dict.fromkeys(
+        m.replace("`", "").strip("'") for m in ACCESS_ON.findall(str(said or ""))))
+    return f"{NO_ACCESS_LEAD}{', '.join(named)}" if named else PLAIN_ERRORS["not_allowed"]
+
+
 def plain_error(text) -> str:
     said = str(text or "")
     if not RAW_ERROR.search(said):
@@ -78,7 +85,9 @@ def plain_error(text) -> str:
     code = run_error_code(said)
     print(f"[PLAIN-ERROR FIRED] {code or 'other'}: {said[:4000]}", file=sys.stderr, flush=True)
     kept = without_raw_parts(said)
-    return kept if kept and not RAW_ERROR.search(kept) else PLAIN_ERRORS[code]
+    if kept and not RAW_ERROR.search(kept):
+        return kept
+    return no_access_text(said) if code == "not_allowed" else PLAIN_ERRORS[code]
 
 
 def error_text(error, secrets=(), known: str = "") -> str:
@@ -415,7 +424,7 @@ CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "
         "realized_note_chars": 500, "realized_value": 10 ** 15, "impact_rows": 100, "promised_chars": 1000, "benefits": 5, "usage_rows": 2000,
         "range_number": 10 ** 15, "blocks": (0, 8), "block_text": 4000, "block_html": 20000, "image_bytes": 2 * 1024 * 1024,
         "image_height": (40, 1200), "url_chars": 2000, "kpi_rows": 2, "count_cap": 10000, "changed_keys": 500, "act_match": 100000,
-        "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_by": 3, "batches": 20,
+        "act_match_user": 10000, "note_chars": 500, "snooze_days": 365, "conflicts_shown": 20, "similar_sample": 5, "similar_rows": 200, "similar_by": 3, "batches": 20,
         "exclude_keys": 50, "window_limit": 1000, "due_within_days": 31, "act_history": 200, "closers_today": 200, "my_work_rows": 50, "my_work_deepest": 10000,
         "my_work_days": 366, "my_work_overdue": 20, "my_work_weeks": 53, "scenario_rows": 200, "feedback_chars": 2000, "feedback_filters": 1000,
         "feedback_rows": 50, "feedback_per_hour": 10, "trend_runs": 20, "trend_weeks": 12, "trend_reasons": 8}
@@ -684,9 +693,32 @@ def review_problems(page: dict) -> list:
     return [] if page.get("use_case_id") else ["the page has a review link but no use_case_id, so the link names no use case"]
 
 
-def spec_problems(page: dict, stored=None) -> list:
+RESULT_TABLE_PROBLEM = "the page result_table: "
+
+
+def inspire_part_problems(page: dict) -> list:
+    problems = page_settings_problems(page.get("settings")) + review_problems(page)
+    if page.get("result_table") is not None:
+        try:
+            table_name(page["result_table"])
+        except ValueError as error:
+            problems.append(f"{RESULT_TABLE_PROBLEM}{error_text(error)}")
+    return problems
+
+
+PAGE_OBJECT_LISTS = ("datasets", "filters", "kpis", "charts", "tables")
+
+
+def shape_problems(page) -> list:
     if not isinstance(page, dict):
         return ["the page spec is not a JSON object"]
+    return shell_facts.object_shape_problems(page, "the page", lists=PAGE_OBJECT_LISTS)
+
+
+def spec_problems(page: dict, stored=None) -> list:
+    shape = shape_problems(page)
+    if shape:
+        return shape
     problems = []
     if page.get("version") not in SPEC_VERSIONS:
         problems.append(f"the page spec version must be {SPEC_VERSION}")
@@ -696,17 +728,11 @@ def spec_problems(page: dict, stored=None) -> list:
     problems += _text_problem("the page", page.get("question"), "question")
     problems += _text_problem("the page", page.get("sponsor"), "sponsor", required=False)
     problems += _promised_problems(page.get("promised"))
-    problems += page_settings_problems(page.get("settings"))
-    problems += review_problems(page)
+    owned = inspire_part_problems(page)
+    problems += owned
     if page.get("icon") not in ICONS:
         problems.append(f"the page icon must be one of {', '.join(ICONS)}")
-    result = page.get("result_table")
-    if result is not None:
-        try:
-            table_name(result)
-        except ValueError as error:
-            problems.append(f"the page result_table: {error_text(error)}")
-            result = None
+    result = None if any(p.startswith(RESULT_TABLE_PROBLEM) for p in owned) else page.get("result_table")
     datasets = page.get("datasets")
     if not isinstance(datasets, list) or not datasets:
         return problems + ["the page has no datasets"]
@@ -732,8 +758,7 @@ def spec_problems(page: dict, stored=None) -> list:
         for dataset, column in columns.items():
             if dataset not in names:
                 problems.append(f"{where} names dataset {dataset}, which the page does not define")
-            if not IDENT.match(str(column or "")):
-                problems.append(f"{where} column {column!r} is not a column name")
+            problems += column_problem(column, f"{where} needs a column for dataset {dataset}")
         if f["type"] == "date_range":
             if f.get("grain", "month") not in GRAINS:
                 problems.append(f"{where} grain must be day or month")
@@ -880,19 +905,17 @@ def _chart_problems(chart: dict, names: set) -> list:
         problems += _format_problems(f"{where} measure {index + 1}", y)
     if kind == "scatter":
         problems += expression_problems(f"{where} x", x.get("expression"))
-        if not IDENT.match(str(chart.get("group") or "")):
-            problems.append(f"{where} is a scatter, so it needs a group column that names each point")
+        problems += column_problem(chart.get("group"), f"{where} is a scatter, so it needs a group column that names each point")
         if len(ys) != 1:
             problems.append(f"{where} is a scatter, so it plots exactly one measure against x")
     else:
-        if not IDENT.match(str(x.get("column") or "")):
-            problems.append(f"{where} x needs a column")
+        problems += column_problem(x.get("column"), f"{where} x needs a column")
         if x.get("kind") not in ("time", "category"):
             problems.append(f"{where} x kind must be time or category")
     series = chart.get("series")
     if series is not None:
         if not isinstance(series, dict) or not IDENT.match(str(series.get("column") or "")):
-            problems.append(f"{where} series needs a column")
+            problems += column_problem(series.get("column") if isinstance(series, dict) else None, f"{where} series needs a column")
         elif not _whole(series.get("top", 5), 1, 8):
             problems.append(f"{where} series top must be a whole number from 1 to 8")
     if kind in SERIES_CHARTS and not series:
@@ -905,8 +928,9 @@ def _chart_problems(chart: dict, names: set) -> list:
             problems.append(f"{where} is a {kind}, so its x kind must be {axis}")
         if len(ys) != len(roles):
             problems.append(f"{where} is a {kind}, so y holds exactly {plural(len(roles), 'measure')} in this order: {', '.join(roles)}")
-        if kind == "bridge" and not IDENT.match(str(x.get("order") or "")):
-            problems.append(f"{where} is a bridge, so x needs an order column that puts its steps in order, first total to last")
+        if kind == "bridge":
+            problems += column_problem(x.get("order"), f"{where} is a bridge, so x needs an order column that puts its steps in order, "
+                                                       "first total to last")
     if kind not in DURATION_CHARTS:
         problems += [_date_measure_problem(f"{where} {name}", kind) for name, _key, item in _chart_measures(chart) if date_measure(item)]
     if chart.get("sort", "value_desc") not in SORTS:
@@ -929,16 +953,25 @@ def _table_problems(table: dict, names: set) -> list:
     if not 1 <= len(columns) <= 12:
         problems.append(f"{where} needs 1 to 12 columns")
     for column in columns:
-        if not IDENT.match(str((column or {}).get("column") or "")):
-            problems.append(f"{where} column {column!r} needs a column name")
+        problems += column_problem(column.get("column") if isinstance(column, dict) else None,
+                                   f"{where} column {column!r} needs a column name")
         problems += _text_problem(f"{where} column {(column or {}).get('column')}", (column or {}).get("label"), "label")
         problems += _format_problems(f"{where} column {(column or {}).get('column')}", column or {})
     sort = table.get("sort") or {}
-    if sort and not IDENT.match(str(sort.get("column") or "")):
-        problems.append(f"{where} sort needs a column")
+    if sort:
+        problems += column_problem(sort.get("column"), f"{where} sort needs a column")
     if not _whole(table.get("limit", CAPS["table_rows"]), 1, CAPS["table_rows"]):
         problems.append(f"{where} limit must be a whole number from 1 to {shown_number(CAPS['table_rows'])}")
     return problems + column_filter_problems(where, table.get(COLUMN_FILTERS), table_shown(table))
+
+
+def column_problem(value, text: str) -> list:
+    if isinstance(value, str) and IDENT.match(value):
+        return []
+    if not isinstance(value, str) or not value.strip():
+        return [text]
+    return [f"{text}, and {value!r} is not a plain column name: in the dataset SQL select it AS a name of letters A to Z, digits and "
+            "underscores that starts with a letter or underscore, and name that here"]
 
 
 def _records_problems(records, has_dataset: bool) -> list:
@@ -952,18 +985,17 @@ def _records_problems(records, has_dataset: bool) -> list:
     problems = _text_problem(where, records.get("title"), "title") + _text_problem(where, records.get("hint"), "hint", required=False)
     problems += _text_problem(f"{where} label_title", records.get("label_title"), "label", required=False)
     for key in ("key", "label", "rank"):
-        if not IDENT.match(str(records.get(key) or "")):
-            problems.append(f"{where} needs a {key} column")
+        problems += column_problem(records.get(key), f"{where} needs a {key} column")
     for key in ("sublabel", "tier", "reasons", "action"):
-        if records.get(key) is not None and not IDENT.match(str(records.get(key))):
-            problems.append(f"{where} {key} must be a column name")
+        if records.get(key) is not None:
+            problems += column_problem(records.get(key), f"{where} {key} must be a column name")
     for key, low, high in (("columns", 1, 8), ("detail", 0, 12)):
         items = records.get(key) if isinstance(records.get(key), list) else []
         if not low <= len(items) <= high:
             problems.append(f"{where} needs {low} to {high} {key}")
         for column in items:
-            if not IDENT.match(str((column or {}).get("column") or "")):
-                problems.append(f"{where} {key} entry {column!r} needs a column name")
+            problems += column_problem(column.get("column") if isinstance(column, dict) else None,
+                                       f"{where} {key} entry {column!r} needs a column name")
             problems += _text_problem(f"{where} {key} {(column or {}).get('column')}", (column or {}).get("label"), "label")
             problems += _format_problems(f"{where} {key} {(column or {}).get('column')}", column or {})
     return problems + column_filter_problems(where, records.get(COLUMN_FILTERS), list_shown(records))
@@ -1003,7 +1035,7 @@ def column_filter_problems(where: str, entries, shown: dict) -> list:
     for entry in entries:
         column = entry.get("column") if isinstance(entry, dict) else None
         if not isinstance(column, str) or not IDENT.match(column):
-            problems.append(f"{where} column filter {entry!r} needs a column name")
+            problems += column_problem(column, f"{where} column filter {entry!r} needs a column name")
             continue
         if column in seen:
             problems.append(f"{where} column filter {column} appears twice")
@@ -1621,10 +1653,16 @@ def kind_problems(page: dict, kinds, skipped=()) -> tuple:
         print(f"[LAYOUT-KINDS SKIPPED] page={page.get('id')} layout={page_layout(page)} kinds={','.join(held)}: no section of the "
               "layout holds them", flush=True)
     missing = [k for k in kinds if k in CHART_KIND_TYPES and k not in held and not drawn & set(CHART_KIND_TYPES[k])]
-    homes = {k: native_homes(page, "charts", CHART_KIND_TYPES[k]) for k in missing}
-    return ([f"the page draws no {CHART_KIND_LABELS[k].lower()} chart: add one of type {' or '.join(CHART_KIND_TYPES[k])}"
-             + (f" in the {' or '.join(homes[k])} section" if homes[k] else "")
+    return ([f"the page draws no {CHART_KIND_LABELS[k].lower()} chart: add one " + kind_homes_text(page, CHART_KIND_TYPES[k])
              for k in missing if k not in skipped], [k for k in missing if k in skipped])
+
+
+def kind_homes_text(page: dict, types) -> str:
+    homes = native_homes(page, "charts", types)
+    if not homes:
+        return f"of type {' or '.join(types)}"
+    return ", or ".join(f"of type {' or '.join(t for t in types if _section_fits(home, 'charts', t))} in the {home} section"
+                        for home in homes)
 
 
 def kinds_registry() -> dict:
@@ -1833,11 +1871,10 @@ def plan_problems(plan, wanted: bool, allowed: bool) -> list:
         return ["the plan section is not a JSON object"]
     problems = _text_problem("the plan", plan.get("title"), "title") + _text_problem("the plan", plan.get("hint"), "hint", required=False)
     for key in ("current", "recommended"):
-        if not IDENT.match(str(plan.get(key) or "")):
-            problems.append(f"the plan needs its {key} column, a column of the records dataset")
+        problems += column_problem(plan.get(key), f"the plan needs its {key} column, a column of the records dataset")
     for key in ("delta", "override"):
-        if plan.get(key) is not None and not IDENT.match(str(plan.get(key))):
-            problems.append(f"the plan {key} must be a column name")
+        if plan.get(key) is not None:
+            problems += column_problem(plan.get(key), f"the plan {key} must be a column name")
     return problems + _format_problems("the plan", plan)
 
 
@@ -5317,6 +5354,12 @@ def current_query(table: str, keys: list) -> tuple:
             f"AND `record_key` IN ({_key_list(params, keys)})", params.items)
 
 
+def keys_within(match: dict, keys: list) -> tuple:
+    params = match["params"]
+    return (f"SELECT w.`_inspire_key` FROM ({match['keys']}) AS w WHERE w.`_inspire_key` IN ({_key_list(params, keys)})",
+            params.items)
+
+
 def keys_match(keys: list, before: str) -> dict:
     params = _Params()
     return {"keys": f"{_key_list(params, keys)} AS `_inspire_key`", "params": params, "before": before}
@@ -5953,13 +5996,13 @@ def recs_problems(page: dict) -> list:
     block = page.get("recs")
     if not isinstance(block, dict):
         return ["a recommendation desk page needs a recs section naming the entity column of its decision list"]
-    problems = [f"the recs {key} must be a column of the {RECORDS_DATASET} dataset" for key in ("entity", "score")
-                if not IDENT.match(str(block.get(key) or ""))]
+    problems = [p for key in ("entity", "score")
+                for p in column_problem(block.get(key), f"the recs {key} must be a column of the {RECORDS_DATASET} dataset")]
     low, high = RECS_PER_ENTITY
     if not _whole(block.get("per_entity", 3), low, high):
         problems.append(f"the recs per_entity must be a whole number from {low} to {high}")
-    if not IDENT.match(str((page.get("records") or {}).get("reasons") or "")):
-        problems.append("a recommendation desk shows why each item is offered, so its decision list needs a reasons column")
+    problems += column_problem((page.get("records") or {}).get("reasons"),
+                               "a recommendation desk shows why each item is offered, so its decision list needs a reasons column")
     named = [(page.get("records") or {}).get(k) for k in ("label", "sublabel", "key")]
     if IDENT.match(str(block.get("entity") or "")) and block.get("entity") not in named:
         problems.append(f"the recs entity {block.get('entity')} must be the label, sublabel or key of the decision list, so a person can look an "
@@ -6004,8 +6047,9 @@ def part_problems(page: dict) -> list:
     if ident == CHAT_LAYOUT:
         problems += chat_problems(page)
     problems += kind_chart_problems(page)
-    if layout_choices(ident) and not IDENT.match(str((page.get("records") or {}).get("action") or "")):
-        problems.append(f"a {ident} page marks a suggested choice on each row, so its decision list needs an action column")
+    if layout_choices(ident):
+        problems += column_problem((page.get("records") or {}).get("action"),
+                                   f"a {ident} page marks a suggested choice on each row, so its decision list needs an action column")
     if ident == DEFAULT_LAYOUT:
         problems += [f"chart {c.get('id')} is a {c.get('type')}, which only a laid-out page draws; on a {ident} page use another type"
                      for c in page.get("charts") or [] if isinstance(c, dict) and c.get("type") in LAZY_CHARTS]

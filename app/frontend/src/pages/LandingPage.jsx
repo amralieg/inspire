@@ -14,6 +14,7 @@ import { useTheme } from '../ThemeContext';
 import { Sun, Moon } from 'lucide-react';
 import { APP_TABS } from '../lib/tabs';
 import { reducedMotion } from '../lib/motion';
+import { INSPIRE_ISSUES_URL } from '../lib/issues';
 
 /* ═══════════════════════════════════════════════════
    DATA
@@ -894,7 +895,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
           <footer role="contentinfo" aria-label="About Inspire" data-landing-about=""
             className="absolute bottom-0 inset-x-0 z-10 px-6 pb-5 text-center text-[11px] leading-relaxed" style={{ color: C.textFaint }}>
             Inspire is open source and provided as is. Databricks Support does not cover it: ask questions and request features on the{' '}
-            <a href="https://github.com/amralieg/inspire/issues" target="_blank" rel="noreferrer" className="underline hover:text-db-red-fg">Inspire GitHub Issues page</a>.
+            <a href={INSPIRE_ISSUES_URL} target="_blank" rel="noreferrer" className="underline hover:text-db-red-fg">Inspire GitHub Issues page</a>.
           </footer>
         </section>
       </div>

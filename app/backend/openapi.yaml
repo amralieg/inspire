@@ -391,6 +391,9 @@ components:
         cleanup_duration:
           type: integer
           description: Milliseconds
+        run_duration:
+          type: integer
+          description: Milliseconds the whole run took; Databricks leaves the per-phase durations at 0 for job runs with tasks
         run_page_url:
           type: string
           description: Direct link to the run in the Databricks workspace UI
@@ -1120,6 +1123,7 @@ paths:
                 setup_duration: 12000
                 execution_duration: 45000
                 cleanup_duration: 0
+                run_duration: 57000
                 run_page_url: https://example.workspace.azuredatabricks.net/#job/123/run/456
                 run_name: Inspire AI - Acme Corp - 2026-04-03T10:00:00
         '401':
@@ -1746,6 +1750,45 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/Error'
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
+  /api/inspire/implement/app-reads:
+    post:
+      tags: [Implement]
+      summary: Check or grant the read access of an App Inspire built
+      description: |
+        Reads the tables the latest built version recorded its App could not read (asset_status.app.unread) and checks them again.
+        With action=grant it runs, with the signed-in person's own token, only the recorded GRANT USE CATALOG, USE SCHEMA and SELECT
+        statements to the App's service principal that are still missing, then checks again and updates the version's record.
+        It never runs SQL sent in the request.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+        - {name: inspire_database, in: query, required: true, schema: {type: string}}
+        - {name: warehouse_id, in: query, required: true, schema: {type: string}}
+        - {name: session_id, in: query, required: true, schema: {type: string}}
+        - {name: use_case_id, in: query, required: true, schema: {type: string}}
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                action: {type: string, enum: [check, grant]}
+      responses:
+        '200':
+          description: What the App still cannot read, and the grants that ran or failed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  state: {type: string, enum: [readable, unreadable]}
+                  tables: {type: array, items: {type: object}}
+                  ran: {type: array, items: {type: string}}
+                  failed: {type: array, items: {type: string}}
+                  refused: {type: boolean}
+                  text: {type: string}
         '401':
           $ref: '#/components/responses/PersonSignInRequired'
   /api/inspire/implement/grant-access:

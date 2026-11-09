@@ -55,7 +55,7 @@ class SlowRoute:
                     event = f"event: response.output_text.delta\ndata: {json.dumps({'n': index, 'pad': 'x' * 200})}\n\n".encode()
                     self.wfile.write(f"{len(event):x}\r\n".encode() + event + b"\r\n")
                     self.wfile.flush()
-                done = b"event: response.completed\ndata: {}\n\n"
+                done = b'event: response.completed\ndata: {"type": "response.completed"}\n\n'
                 self.wfile.write(f"{len(done):x}\r\n".encode() + done + b"\r\n0\r\n\r\n")
                 self.wfile.flush()
 
@@ -140,7 +140,7 @@ def test_a_sandbox_without_an_ipv6_loopback_falls_back_to_127_0_0_1_and_logs_why
     try:
         assert runner.run("build it", str(tmp_path / "w"))["exit"] == 0
         assert made == ["::1", "127.0.0.1"] and runner.relay.base.startswith("http://127.0.0.1:")
-        said = [line for _level, line in runner.logger.records if line.startswith("[GENIE-RELAY]")]
+        said = [line for _level, line in runner.logger.records if line.startswith("[GENIE-RELAY] Genie Code calls")]
         assert len(said) == 1 and "Address family not supported" in said[0]
         assert not _fired(runner.logger), "a relay that works on 127.0.0.1 is not a failure"
     finally:
@@ -272,8 +272,12 @@ def test_a_stream_that_closed_for_another_reason_keeps_the_relay(agent_ns, tmp_p
 
 
 class _BrokenStderr:
-    def __iter__(self):
-        yield "first line\n"
+    def __init__(self):
+        self.lines = ["first line\n"]
+
+    def readline(self, size=-1):
+        if self.lines:
+            return self.lines.pop(0)
         raise OSError("Bad file descriptor")
 
 

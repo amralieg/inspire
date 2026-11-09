@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react';
-import { FIRST_RUN_LABEL, GROUP_BY, GROUP_ALL, groupByColumns, groupsReadNeeded } from './runScope.js';
+import { FIRST_RUN_LABEL, GROUP_BY, GROUP_ALL, groupByColumns, groupsReadNeeded, withGroupingDefault } from './runScope.js';
 
 export const GROUPING_PROFILE_ROUTE = '/api/grouping/profile';
 export const PROFILE_READING = `Inspire is reading the table to suggest Data groups and a ${FIRST_RUN_LABEL}.`;
@@ -50,9 +50,10 @@ export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, us
   return { ...profileState(key, got), key, wait };
 }
 
-export function useScopeProfiles({ groupBy = '', ...ask }) {
+export function useScopeProfiles({ groupBy = '', defaultGrouping = false, ...ask }) {
   const base = useGroupingProfile(ask);
-  const reread = base.state === 'ready' && groupsReadNeeded(base.profile, groupBy);
-  const chosen = useGroupingProfile({ ...ask, enabled: ask.enabled !== false && reread, groupBy });
+  const shown = defaultGrouping && base.state === 'ready' ? withGroupingDefault({ [GROUP_BY]: groupBy }, base.profile, groupBy)[GROUP_BY] : groupBy;
+  const reread = base.state === 'ready' && groupsReadNeeded(base.profile, shown);
+  const chosen = useGroupingProfile({ ...ask, enabled: ask.enabled !== false && reread, groupBy: shown });
   return { ...base, firstRun: reread ? chosen : base };
 }

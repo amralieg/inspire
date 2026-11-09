@@ -204,7 +204,7 @@ function RunOutcome({ page, apiFetch, query }) {
     <div data-run-outcome="" aria-label="Last result" className="space-y-0.5 rounded-lg bg-bg-subtle px-3 py-2">
       {said.when && <p data-run-outcome-when="" className="text-[12px] font-semibold text-text-primary">{said.when}</p>}
       <p data-run-outcome-flagged="" className="text-[12px] text-text-primary">{said.flagged}</p>
-      {said.why && <p data-run-outcome-why="" className="text-[12px] text-text-secondary">{said.why}</p>}
+      {said.why && <PlainMessage as="p" text={said.why} data-run-outcome-why="" className="text-[12px] text-text-secondary" />}
       {said.owner && <p data-run-outcome-owner="" className="text-[12px] text-text-secondary">{said.owner}</p>}
     </div>
   );

@@ -128,7 +128,7 @@ function StripRow({ row, controls }) {
             <span className="font-mono text-[11px] text-text-secondary truncate">{row.name}</span>
             <ImplementStatusBadge state={row.state} />
           </div>
-          {row.detail && <p data-control-detail="" className={row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}>{row.detail}</p>}
+          {row.detail && <PlainMessage text={row.detail} data-control-detail="" className={row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'} />}
         </div>
       </div>
       <div className={ACTION_ROW}>{controls}</div>
@@ -233,7 +233,7 @@ export function AssetTile({
       </span>
     </>
   );
-  const headClass = 'flex items-start gap-2 min-w-0 rounded-lg -m-1 p-1 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+  const headClass = 'flex items-start gap-2 min-w-0 rounded-lg -m-1 p-1 text-start';
   return (
     <li data-asset-tile={id} data-tile-kind={kind} data-tile-building={busy ? (busy.now ? 'now' : 'waiting') : undefined} data-tile-animated={building ? '' : undefined}
       title={reason || undefined}
@@ -336,12 +336,13 @@ export function AssetPanel({
           </div>
           {row && <p className="font-mono text-[11px] text-text-secondary truncate" title={row.name}>{row.name}</p>}
           {note && <p data-shared-note="" className="mt-1 text-text-primary">{note}</p>}
-          {row?.detail && <p data-control-detail="" className={`mt-1 ${row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`}>{row.detail}</p>}
+          {row?.detail && <PlainMessage text={row.detail} data-control-detail="" className={`mt-1 ${row.state.tone === 'error' ? 'text-error-fg' : 'text-text-secondary'}`} />}
           {row?.backend && <p data-app-backend="" className="mt-1 text-text-secondary">{row.backend}</p>}
           {row?.notes?.map((n) => <p key={n} data-built-note="" className="mt-1 text-text-secondary">{n}</p>)}
-          {row && failure && <p data-asset-failure="" className="mt-1 text-error-fg">{failure}</p>}
-          {look && (
-            <p className={kind === 'failed' ? 'text-error-fg' : 'text-text-secondary'}>
+          {row && failure && <PlainMessage text={failure} data-asset-failure="" className="mt-1 text-error-fg" />}
+          {look && kind === 'failed' && <PlainMessage text={look.text} className="text-error-fg" />}
+          {look && kind !== 'failed' && (
+            <p className="text-text-secondary">
               {busy?.now && <Loader2 size={11} className="inline me-1 align-[-1px] motion-safe:animate-spin text-db-red-fg" aria-hidden />}
               {look.text}
             </p>
@@ -383,7 +384,7 @@ export function NotebookFacts({ notebook }) {
   return (
     <>
       {notebook.state.reason && <p className={notebook.state.state === 'failed' ? 'text-error-fg' : 'text-text-secondary'}>{notebook.state.reason}</p>}
-      {notebook.runError && <p className="text-error-fg">{notebook.runError}</p>}
+      {notebook.runError && <PlainMessage as="p" text={notebook.runError} className="text-error-fg" />}
       {notebook.path && <p className="font-mono text-[11px] text-text-secondary break-all">{notebook.path}</p>}
     </>
   );
@@ -482,7 +483,7 @@ export function BuildControls({
           </button>
         )}
       />
-      {liveError && <PlainMessage text={`Inspire cannot read the live status: ${liveError}`} className="px-4 pt-3 text-[12px] text-error-fg" />}
+      {liveError && <PlainMessage text={`Inspire cannot read the live status: ${liveError}`} className="px-4 pt-3 text-[12px] text-error-fg" data-live-error="" onRetry={onRefresh} copy />}
       {live && !strips.length && <p className="px-4 py-3 text-[12px] text-text-secondary">This MVP has no job yet.</p>}
       {strips.length > 0 && (
         <ul className="divide-y divide-border border-b border-border">

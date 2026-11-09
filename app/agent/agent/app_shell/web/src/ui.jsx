@@ -1,7 +1,30 @@
-import { Children, createContext, useCallback, useContext, useEffect, useLayoutEffect, useRef, useState } from 'react';
+import { Children, Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './icons.jsx';
-import { DETAILS_LABEL, splitTechnical } from './plainText.js';
+import { COPIED_SEND_TEXT, COPY_SEND_LABEL, DETAILS_LABEL, RETRYING_LABEL, RETRY_LABEL, failureCausesLoaded, sendText, setFailureCauses, splitTechnical } from './plainText.js';
+import { retryable, toneOf } from './api.js';
+
+let causesLoading = null;
+const loadFailureCauses = () => {
+  causesLoading ||= import('./failureCauses.js').then((m) => setFailureCauses(m.FAILURE_CAUSES)).catch((error) => {
+    causesLoading = null;
+    throw error;
+  });
+  return causesLoading;
+};
+loadFailureCauses().catch(() => {});
+
+function useFailureCauses() {
+  const [, setLoaded] = useState(failureCausesLoaded);
+  useEffect(() => {
+    if (failureCausesLoaded()) return undefined;
+    let live = true;
+    loadFailureCauses().then(() => live && setLoaded(true), () => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+}
 
 const ToastContext = createContext(() => {});
 
@@ -59,18 +82,146 @@ export function TechnicalDetails({ items, label = DETAILS_LABEL }) {
   return <details className="tech-details" data-technical-details=""><summary>{label}</summary><pre>{lines.join('\n')}</pre></details>;
 }
 
-export function PlainNote({ text, as: Tag = 'p', icon = null, prefix = '', children, ...rest }) {
-  const { plain, details } = splitTechnical(`${prefix}${text ?? ''}`);
-  if (!plain && !details.length) return null;
-  return <>{plain && <Tag {...rest}>{icon}{plain}{children}</Tag>}<TechnicalDetails items={details} /></>;
+export const NO_ACCESS_LEAD = 'No access to ';
+const SOME_DATA = "part of this App's data";
+const NoAccessContext = createContext(null);
+
+export function noAccessOf(text) {
+  const said = String(text ?? '').trim();
+  if (!said.startsWith(NO_ACCESS_LEAD)) return null;
+  const named = said.slice(NO_ACCESS_LEAD.length);
+  return named.startsWith(SOME_DATA) ? [] : named.split(', ').map((t) => t.trim()).filter(Boolean);
 }
 
-export function Failure({ failure, className, as: Tag = 'p', children }) {
+export function noAccessBanner(tables, owners, auth) {
+  const who = [...new Set(tables.map((t) => owners?.[t]).filter(Boolean))];
+  const reader = auth === 'user' ? 'You cannot' : 'This App cannot';
+  const what = tables.length ? tables.join(', ') : SOME_DATA.replace("this App's", 'its');
+  const grant = `${who.length ? who.join(', ') : 'The owner of that data'} can give ${auth === 'user' ? 'you' : 'the App'} read access in Unity Catalog`;
+  return `${reader} read ${what} yet, so parts of this page show no data from ${tables.length === 1 ? 'it' : 'them'}. ${grant}. Then press Check again.`;
+}
+
+function useNoAccess(tables) {
+  const scope = useContext(NoAccessContext);
+  const key = tables ? JSON.stringify(tables) : '';
+  useEffect(() => (key && scope ? scope.report(JSON.parse(key)) : undefined), [key, scope]);
+  return Boolean(scope);
+}
+
+function NoAccessLine({ tables, as: Tag, icon, rest }) {
+  return <Tag {...rest} data-no-access="">{icon}{tables.length ? `${NO_ACCESS_LEAD}${tables.join(', ')}` : `${NO_ACCESS_LEAD}this data`}</Tag>;
+}
+
+export function NoAccessScope({ app, children }) {
+  const [seen, setSeen] = useState({});
+  const [round, setRound] = useState(0);
+  const report = useCallback((tables) => {
+    const id = Symbol('no-access');
+    setSeen((s) => ({ ...s, [id]: tables }));
+    return () => setSeen((s) => { const next = { ...s }; delete next[id]; return next; });
+  }, []);
+  const scope = useMemo(() => ({ report }), [report]);
+  const lists = Object.getOwnPropertySymbols(seen).map((id) => seen[id]);
+  const tables = [...new Set(lists.flat())].sort();
+  return (
+    <NoAccessContext.Provider value={scope}>
+      {lists.length > 0 && (
+        <div className="note note--warn" role="alert" data-no-access-banner="">
+          <Icon name="info" size={14} />
+          <span>{noAccessBanner(tables, app?.no_access, app?.auth)}</span>
+          <button type="button" className="btn" onClick={() => { setSeen({}); setRound((n) => n + 1); }}>Check again</button>
+        </div>
+      )}
+      <Fragment key={round}>{children}</Fragment>
+    </NoAccessContext.Provider>
+  );
+}
+
+const RETRY_HOLD_MS = 800;
+const RETRY_TOAST_MS = 9000;
+
+export function toastFailure(toast, err, again, text = err?.message || '') {
+  toast(text, toneOf(err), again && retryable(err) ? { actions: [{ label: RETRY_LABEL, run: again }], ms: RETRY_TOAST_MS } : {});
+}
+const RetryContext = createContext(null);
+export const RetryProvider = RetryContext.Provider;
+export const useRetry = () => useContext(RetryContext);
+
+export function RetryButton({ onRetry, label = RETRY_LABEL }) {
+  const [trying, setTrying] = useState(false);
+  const live = useRef(true);
+  useEffect(() => () => { live.current = false; }, []);
+  if (!onRetry) return null;
+  const again = () => {
+    setTrying(true);
+    Promise.resolve().then(onRetry).catch(() => {}).finally(() => setTimeout(() => { if (live.current) setTrying(false); }, RETRY_HOLD_MS));
+  };
+  return (
+    <button type="button" className="lnk retry" data-retry="" disabled={trying} onClick={again}>
+      <Icon name="undo" size={13} />{trying ? RETRYING_LABEL : label}
+    </button>
+  );
+}
+
+function CopySend({ text }) {
+  const toast = useToast();
+  const copy = async () => {
+    try {
+      await navigator.clipboard.writeText(text);
+      toast(COPIED_SEND_TEXT);
+    } catch {
+      toast(`Select and copy this: ${text}`, 'info', { ms: 12000 });
+    }
+  };
+  return <button type="button" className="lnk retry" data-copy-send="" onClick={copy}>{COPY_SEND_LABEL}</button>;
+}
+
+export function PlainNote({ text, as: Tag = 'p', icon = null, prefix = '', onRetry = null, children, ...rest }) {
+  const tables = noAccessOf(text);
+  const scoped = useNoAccess(tables);
+  useFailureCauses();
+  if (tables && scoped) return <NoAccessLine tables={tables} as={Tag} icon={icon} rest={rest} />;
+  const { plain, details } = splitTechnical(`${prefix}${text ?? ''}`);
+  if (!plain && !details.length) return null;
+  const row = (onRetry || details.length > 0) && (
+    <span className="retry-row" data-choices="">
+      <RetryButton onRetry={onRetry} />
+      {details.length > 0 && <CopySend text={sendText(plain, details)} />}
+    </span>
+  );
+  const described = Boolean(rest.id);
+  return (
+    <>
+      {plain && <Tag {...rest}>{icon}{plain}{children}{!described && row}</Tag>}
+      {plain && described && row}
+      <TechnicalDetails items={details} />
+    </>
+  );
+}
+
+export function Failure({ failure, className, as: Tag = 'p', onRetry = null, children }) {
+  const tables = failure?.text ? noAccessOf(failure.text) : null;
+  const scoped = useNoAccess(tables);
+  useFailureCauses();
   if (!failure?.text) return null;
+  if (tables && scoped) return <NoAccessLine tables={tables} as={Tag} icon={null} rest={{ className, role: 'status' }} />;
   const calm = !!failure.calm;
   const { plain, details } = splitTechnical(failure.text);
   const shown = Children.map(children, (child) => (child === failure.text ? plain : child));
-  return <><Tag className={calm ? 'note note--flat' : className} role={calm ? 'status' : 'alert'} data-calm={calm ? '' : undefined}>{shown}</Tag><TechnicalDetails items={details} /></>;
+  const again = calm ? null : onRetry;
+  return (
+    <>
+      <Tag className={calm ? 'note note--flat' : className} role={calm ? 'status' : 'alert'} data-calm={calm ? '' : undefined}>{shown}
+        {(again || (!calm && details.length > 0)) && (
+          <span className="retry-row" data-choices="">
+            <RetryButton onRetry={again} />
+            {!calm && details.length > 0 && <CopySend text={sendText(plain, details)} />}
+          </span>
+        )}
+      </Tag>
+      <TechnicalDetails items={details} />
+    </>
+  );
 }
 
 export function Popover({ anchor, onClose, children, label, role = 'dialog', width }) {

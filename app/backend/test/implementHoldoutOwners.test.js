@@ -139,7 +139,7 @@ test('the wizard holdout starts on at 10% for a new use case, off for a saved on
   assert.equal(w.HOLDOUT_MAX_PERCENT / 100, I.IMPLEMENT_HOLDOUT_MAX_SHARE);
   assert.equal(w.HOLDOUT_MIN_PERCENT, 1);
   const fresh = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire', sessionId: '42' });
-  assert.deepEqual(fresh.holdout, { enabled: true, share: 0.1 }, 'a new spec holds back 10%, as Highly Recommended');
+  assert.deepEqual(fresh.holdout, { enabled: true, share: 0.1 }, 'a new spec holds back 10%, as Recommended');
   assert.deepEqual(I.validateImplementSpec(I.withInspireUrl(fresh, 'https://inspire.example.com')).spec.holdout, { enabled: true, share: 0.1 });
   const old = w.specFromLatest({ spec_version: 1, spec_json: Object.fromEntries(Object.entries(fresh).filter(([k]) => k !== 'holdout')) }, fresh);
   assert.deepEqual(old.holdout, { enabled: false, share: 0.1 }, 'a saved version without a holdout stays without one (must-exclude)');

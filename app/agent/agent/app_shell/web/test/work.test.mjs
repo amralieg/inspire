@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { actBody, appInfo, CURRENT, DECIDE, HISTORY, LABEL, lister, moved, openApp, OTHER, ROWS, sent, serveDist, SUMMARY, TABLE, tracked, until } from './harness.mjs';
+import { actBody, appInfo, CURRENT, DECIDE, HISTORY, LABEL, lister, moved, openApp, OTHER, resizeTo, ROWS, sent, serveDist, SUMMARY, TABLE, tracked, until } from './harness.mjs';
 
 let served;
 let browser;
@@ -10,7 +10,7 @@ after(async () => { await browser?.close(); served?.close(); });
 
 const CLOCK = new Date('2026-10-27T09:30:00Z');
 const TOMORROW = '2026-10-28';
-const toastText = (page) => page.evaluate(() => document.querySelector('.toast .toast-t')?.textContent || '');
+const toastText = (page) => page.evaluate(() => (document.querySelector('.toast.is-on .toast-t') || document.querySelector('.toast .toast-t'))?.textContent || '');
 const toastButtons = (page) => page.locator('.toast .toast-a button').allInnerTexts();
 const label = (n) => `Item number ${n} with a long descriptive name`;
 const AS_OF = String((CLOCK.getTime() - 5000) * 1000);
@@ -121,59 +121,198 @@ test('every status takes a note, a dismissal still needs its reason, and Snooze 
   await context.close();
 });
 
-test('Apply to similar shows the count and five of the records the server found, writes nothing before Apply, and Apply sends the similar match', async () => {
-  const sample = Array.from({ length: 7 }, (_, i) => ({ record_key: `S${i}`, label: `Similar record ${i + 1}`, valid_from_us: String(300 + i) }));
-  const matchOf = (key) => ({ filters: { category: ['Books'], region: ['South'] }, view: { window: 'all', exclude: [key] }, as_of_us: '5555555555555555' });
+const SIM_MATCH = (key) => ({ filters: { category: ['Books'], region: ['South'] }, view: { window: 'all', exclude: [key] }, as_of_us: '5555555555555555' });
+const SIM_BY = [{ filter: 'category', label: 'Category', value: 'Books' }, { filter: 'region', label: 'Region', value: 'South' }];
+const simRow = (i, extra = {}) => {
+  const base = ROWS[i % ROWS.length];
+  const key = i < ROWS.length ? base.record_key : `X${String(i).padStart(3, '0')}`;
+  return { ...base, entity_id: key, record_key: key, _inspire_key: key, _inspire_version: String(300 + i), entity_label: base.entity_label, ...extra };
+};
+const simOf = (row) => ({ record_key: row.record_key, label: row.entity_label, valid_from_us: row._inspire_version, row });
+
+async function openSimilar(found, reply = {}) {
   const asked = [];
-  const { routes } = routesFor({}, {
+  const { routes } = routesFor(reply, {
     'records/similar': ({ json, url }) => {
       asked.push(Object.fromEntries(url.searchParams));
-      return json(200, { by: [{ filter: 'category', label: 'Category', value: 'Books' }, { filter: 'region', label: 'Region', value: 'South' }], count: 12, sample,
-        match: matchOf(url.searchParams.get('record_key')) });
+      return json(200, { by: SIM_BY, ...found, match: SIM_MATCH(url.searchParams.get('record_key')) });
     },
   });
-  const { page, seen, context } = await openList(routes, appInfo(DECIDE, 1, { ...TABLE, similar_by: ['category', 'region'] }));
-  const drawer = page.locator('dialog.drawer');
+  const opened = await openList(routes, appInfo(DECIDE, 1, { ...TABLE, similar_by: ['category', 'region'] }));
+  const { page, seen } = opened;
   await page.locator('.cell-t').first().click();
-  await drawer.locator('.dr-act').waitFor();
-  await drawer.getByRole('button', { name: 'Mark done' }).click();
+  await page.locator('dialog.drawer .dr-act').waitFor();
+  await page.locator('dialog.drawer').getByRole('button', { name: 'Mark done' }).click();
   await until(() => seen.acts?.length === 1);
-  await page.waitForFunction(() => document.querySelectorAll('.toast.is-on .toast-a button').length === 2);
-  assert.deepEqual(asked, [{ page: 'n01_u05', record_key: 'R001', by: 'category,region' }], 'by is one value of the filter ids the page names, comma separated');
-  assert.deepEqual(await toastButtons(page), ['Undo', 'Apply to 12 similar']);
-  assert.equal(await page.locator('dialog.drawer .toast').count(), 1, 'the toast sits inside the open record so its buttons can be pressed');
-  await page.locator('.toast-a').getByRole('button', { name: 'Apply to 12 similar' }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll('.toast.is-on .toast-a button')].some((b) => /^Apply to \d+ similar$/.test(b.textContent)));
+  await page.locator('.toast-a').getByRole('button', { name: /^Apply to \d+ similar$/ }).click();
   const dialog = page.getByRole('dialog', { name: 'Apply to similar records' });
   await dialog.waitFor();
-  assert.equal(await dialog.locator('h2').innerText(), `Apply to 12 records like ${LABEL}?`);
-  assert.match(await dialog.locator('header p').innerText(), /^These 12 open records share Category Books, Region South\. Nothing changes until you apply\.$/);
-  assert.deepEqual(await dialog.locator('.sim li').allInnerTexts(), sample.slice(0, 5).map((s) => s.label));
-  assert.equal(await dialog.locator('.sim b').innerText(), '5 of the 12');
+  return { ...opened, asked, dialog };
+}
+
+const rowsIn = (dialog) => dialog.locator('.sim-l > li');
+const keptText = (dialog) => dialog.locator('[data-kept]').innerText();
+const applyButton = (dialog) => dialog.locator('footer button[type="submit"]');
+
+test('Apply to similar lists every record the server found as a collapsed row with the Work list fields, expands one in place, and writes nothing before Apply', async () => {
+  const records = Array.from({ length: 7 }, (_, i) => simOf(simRow(i + 2)));
+  const { page, seen, context, asked, dialog } = await openSimilar({ count: 7, sample: records });
+  assert.deepEqual(asked, [{ page: 'n01_u05', record_key: 'R001', by: 'category,region' }]);
+  assert.equal(await dialog.locator('h2').innerText(), `Apply to 7 records like ${LABEL}?`);
+  assert.match(await dialog.locator('header p').innerText(), /^These 7 open records share Category Books, Region South\. Nothing changes until you apply\.$/);
+  assert.equal(await rowsIn(dialog).count(), 7, 'every record is listed, never five of them');
+  assert.deepEqual(await dialog.locator('.sim-l .sim-n b').allInnerTexts(), records.map((r) => r.label));
+  const first = rowsIn(dialog).first();
+  const row = records[0].row;
+  assert.equal(await first.locator('.sim-n small').innerText(), `${row.entity_id} · ${row.category}`, 'the key and segment line the Work list shows');
+  assert.deepEqual(await first.locator('.sim-f > span').allInnerTexts(), [`Tier ${row.priority_tier}`, `Loss ${new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', notation: 'compact' }).format(row.value)}`]);
+  assert.equal(await first.locator('.sim-x').count(), 0, 'every row starts collapsed');
+  const toggle = first.getByRole('button', { name: new RegExp(`^${row.entity_label}`) });
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+  await toggle.click();
+  assert.equal(await toggle.getAttribute('aria-expanded'), 'true');
+  const region = first.getByRole('region', { name: `Details of ${row.entity_label}` });
+  await region.waitFor();
+  assert.equal(await toggle.getAttribute('aria-controls'), await region.getAttribute('id'));
+  await page.waitForFunction(() => [...document.querySelectorAll('.sim-x .mgrid > div > span')].some((d) => d.textContent === 'Channel'));
+  const shownFields = await region.locator('.mgrid > div > span').allInnerTexts();
+  for (const name of ['Next best action', 'Channel', 'Region', 'Rank']) assert.ok(shownFields.includes(name), `the full record shows ${name}: ${shownFields}`);
+  assert.equal(shownFields.includes('Loss'), false, 'what the collapsed line already shows is not repeated');
+  assert.equal(await region.locator('.mgrid > div', { has: page.locator('span', { hasText: /^Channel$/ }) }).locator('b').innerText(), row.channel);
+  await toggle.click();
+  assert.equal(await first.locator('.sim-x').count(), 0, 'it collapses again');
+  assert.equal(await keptText(dialog), '7 of 7 included');
+  assert.equal(await applyButton(dialog).innerText(), 'Apply to 7 records');
   assert.equal(await dialog.locator('select[name="similar_choice"]').inputValue(), 'done', 'the dialog starts from what was just applied');
   await sent(page);
-  assert.equal(seen.acts.length, 1, 'opening the preview writes nothing');
+  assert.equal(seen.acts.length, 1, 'opening and expanding writes nothing');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await dialog.waitFor({ state: 'hidden' });
   await sent(page);
   assert.equal(seen.acts.length, 1, 'Cancel writes nothing');
-  await page.keyboard.press('Escape');
-  await page.locator('.cell-t').nth(1).click();
-  await drawer.locator('.dr-act').waitFor();
-  await drawer.getByRole('button', { name: 'Could not fix' }).click();
-  await until(() => seen.acts?.length === 2);
-  await page.waitForFunction(() => [...document.querySelectorAll('.toast.is-on .toast-a button')].some((b) => b.textContent === 'Apply to 12 similar'));
-  await page.locator('.toast-a').getByRole('button', { name: 'Apply to 12 similar' }).click();
-  await dialog.waitFor();
-  assert.equal(await dialog.locator('select[name="similar_choice"]').inputValue(), 'could-not-fix');
-  await dialog.locator('textarea[name="similar_note"]').fill('Same store, same supplier');
-  await dialog.getByRole('button', { name: 'Apply to 12 records' }).click();
-  await until(() => seen.acts?.length === 3);
-  const applied = seen.acts[2];
-  assert.equal('record_keys' in applied, false);
-  assert.deepEqual(applied.values, { action_status: 'Could not fix', note: 'Same store, same supplier' });
-  assert.deepEqual(applied.match, matchOf('R002'), 'Apply sends back the match the server gave with its count');
   assert.deepEqual(seen.errors, []);
   await context.close();
+});
+
+test('a record left out of Apply to similar is never sent, the count and button follow every checkbox, and none included disables Apply', async () => {
+  const records = Array.from({ length: 7 }, (_, i) => simOf(simRow(i + 2)));
+  const out = records[2];
+  const reply = { act: (body) => (body.similar ? { written: body.record_keys.slice(1), conflicts: [], conflicts_count: 0, left_out: 0, batch_id: 'b-9',
+    changed: [body.record_keys[0]] } : { written: body.record_keys, conflicts: [], batch_id: 'b-1' }) };
+  const { page, seen, context, dialog } = await openSimilar({ count: 7, sample: records }, reply);
+  await dialog.getByRole('checkbox', { name: `Include ${out.label}` }).uncheck();
+  assert.equal(await keptText(dialog), '6 of 7 included');
+  assert.equal(await applyButton(dialog).innerText(), 'Apply to 6 records');
+  assert.match(await rowsIn(dialog).nth(2).getAttribute('class'), /is-out/);
+  await dialog.getByRole('button', { name: 'Select none' }).click();
+  assert.equal(await keptText(dialog), '0 of 7 included');
+  assert.equal(await applyButton(dialog).innerText(), 'Apply to 0 records');
+  assert.equal(await applyButton(dialog).isDisabled(), true, 'nothing included, nothing to apply');
+  assert.equal(await dialog.getByRole('button', { name: 'Select none' }).isDisabled(), true);
+  await dialog.getByRole('button', { name: 'Select all' }).click();
+  assert.equal(await keptText(dialog), '7 of 7 included');
+  assert.equal(await dialog.getByRole('button', { name: 'Select all' }).isDisabled(), true);
+  const box = dialog.getByRole('checkbox', { name: `Include ${out.label}` });
+  await box.focus();
+  await page.keyboard.press('Space');
+  assert.equal(await box.isChecked(), false, 'Space leaves a record out from the keyboard');
+  assert.equal(await keptText(dialog), '6 of 7 included');
+  assert.equal(await dialog.locator('[data-kept]').getAttribute('role'), 'status', 'a screen reader hears the count change');
+  await page.keyboard.press('Tab');
+  await page.keyboard.press('Enter');
+  assert.equal(await rowsIn(dialog).nth(2).locator('.sim-t').getAttribute('aria-expanded'), 'true', 'Tab reaches the row and Enter expands it');
+  await dialog.locator('select[name="similar_choice"]').selectOption('could-not-fix');
+  await dialog.locator('textarea[name="similar_note"]').fill('Same store, same supplier');
+  await applyButton(dialog).click();
+  await until(() => seen.acts?.length === 2);
+  const applied = seen.acts[1];
+  const kept = records.filter((r) => r !== out);
+  assert.deepEqual(applied.record_keys, kept.map((r) => r.record_key), 'Apply sends exactly the records kept');
+  assert.equal(applied.record_keys.includes(out.record_key), false, 'the record left out is never sent');
+  assert.deepEqual(applied.seen, Object.fromEntries(kept.map((r) => [r.record_key, r.valid_from_us])), 'each with the version the person reviewed');
+  assert.deepEqual(applied.similar, SIM_MATCH('R001'), 'with the records like this one the server found, never a fresh match');
+  assert.equal('match' in applied, false, 'the server is never asked to work out records like this one again');
+  assert.deepEqual(applied.values, { action_status: 'Could not fix', note: 'Same store, same supplier' });
+  await dialog.waitFor({ state: 'hidden' });
+  await page.waitForFunction(() => /changed since you reviewed/.test(document.querySelector('.toast.is-on .toast-t')?.textContent || ''));
+  assert.equal(await toastText(page), `5 records marked as could not fix. 1 record changed since you reviewed it and was left as it was: ${kept[0].label}.`);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('when every reviewed record changed meanwhile, Apply to similar says nothing was saved and names them', async () => {
+  const records = Array.from({ length: 2 }, (_, i) => simOf(simRow(i + 2)));
+  const { routes } = routesFor({}, {
+    'records/similar': ({ json }) => json(200, { by: SIM_BY, count: 2, sample: records, match: SIM_MATCH('R001') }),
+    'records/act': ({ route, json, seen }) => {
+      const body = actBody(route);
+      (seen.acts ||= []).push(body);
+      if (!body.similar) return json(200, { written: body.record_keys, conflicts: [], batch_id: 'b-1' });
+      return json(409, { error: '2 records changed since you reviewed them and were left as they were; nothing was saved', written: [], conflicts: [],
+        conflicts_count: 0, left_out: 0, batch_id: null, changed: body.record_keys, code: 'stale_record' });
+    },
+  });
+  const { page, seen, context } = await openList(routes, appInfo(DECIDE, 1, { ...TABLE, similar_by: ['category', 'region'] }));
+  await page.locator('.cell-t').first().click();
+  await page.locator('dialog.drawer .dr-act').waitFor();
+  await page.locator('dialog.drawer').getByRole('button', { name: 'Mark done' }).click();
+  await page.waitForFunction(() => [...document.querySelectorAll('.toast.is-on .toast-a button')].some((b) => b.textContent === 'Apply to 2 similar'));
+  await page.locator('.toast-a').getByRole('button', { name: 'Apply to 2 similar' }).click();
+  const dialog = page.getByRole('dialog', { name: 'Apply to similar records' });
+  await applyButton(dialog).click();
+  await until(() => seen.acts?.length === 2);
+  await page.waitForFunction(() => /^Nothing was saved/.test(document.querySelector('.toast.is-on .toast-t')?.textContent || ''));
+  assert.equal(await toastText(page), `Nothing was saved: 2 records changed since you reviewed them and were left as they were: ${records[0].label}, ${records[1].label}.`);
+  assert.equal(await dialog.isVisible(), true, 'the dialog stays open so the person can review again');
+  await context.close();
+});
+
+test('over 50 similar records show 50 with Show more, the rest stay included and counted, and a list the server capped says so', async () => {
+  const records = Array.from({ length: 120 }, (_, i) => simOf(simRow(i + 40)));
+  const { page, context, dialog } = await openSimilar({ count: 130, sample: records });
+  assert.equal(await rowsIn(dialog).count(), 50);
+  assert.equal(await keptText(dialog), '120 of 120 included', 'records not shown yet are still counted, never dropped silently');
+  assert.equal(await dialog.locator('[data-capped]').innerText(),
+    'The App lists 120 of the 130, the most one change covers. Apply changes only the listed ones you keep; open Apply to similar again for the rest.');
+  const more = dialog.locator('.sim-more');
+  assert.equal(await more.innerText(), 'Show 50 more (70 not shown yet)');
+  await more.click();
+  assert.equal(await rowsIn(dialog).count(), 100);
+  assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), `Include ${records[50].label}`, 'focus lands on the first record just shown');
+  assert.equal(await more.innerText(), 'Show 20 more (20 not shown yet)');
+  await more.click();
+  assert.equal(await rowsIn(dialog).count(), 120);
+  assert.equal(await dialog.locator('.sim-more').count(), 0);
+  assert.equal(await applyButton(dialog).innerText(), 'Apply to 120 records');
+  await context.close();
+});
+
+test('the similar records dialog fits at 1280 and 1440 with Arabic values that read right to left, and in a right-to-left page', async () => {
+  const AR = 'منتج رقم';
+  const records = Array.from({ length: 12 }, (_, i) => simOf(simRow(i + 2, { entity_label: `${AR} ${i + 1} ${'وصف طويل جدا '.repeat(i % 3 + 1)}`, category: 'كتب', priority_tier: 'تصرف الآن' })));
+  for (const width of [1280, 1440]) {
+    const { page, context, dialog } = await openSimilar({ count: 12, sample: records });
+    await resizeTo(page, width);
+    await rowsIn(dialog).first().locator('.sim-t').click();
+    await dialog.locator('.sim-x').waitFor();
+    for (const dir of ['ltr', 'rtl']) {
+      await page.evaluate((d) => { document.documentElement.dir = d; }, dir);
+      const fit = await page.evaluate(() => {
+        const form = document.querySelector('dialog[open] form.dlg');
+        const list = form.querySelector('.sim-l');
+        const box = form.getBoundingClientRect();
+        const outside = [...form.querySelectorAll('.sim-l li, .sim-l li *')].filter((el) => {
+          const r = el.getBoundingClientRect();
+          return r.width && (r.left < box.left - 1 || r.right > box.right + 1);
+        }).length;
+        return { form: form.scrollWidth <= form.clientWidth, list: list.scrollWidth <= list.clientWidth, outside, inView: box.left >= 0 && box.right <= window.innerWidth,
+          rtl: list.querySelector('.sim-n b bdi').matches(':dir(rtl)'), tier: list.querySelector('.sim-f bdi').matches(':dir(rtl)') };
+      });
+      assert.deepEqual(fit, { form: true, list: true, outside: 0, inView: true, rtl: true, tier: true }, `${width} ${dir}`);
+    }
+    await context.close();
+  }
 });
 
 test('Recent changes lists each change newest first, and Undo on one says what it put back and what it left', async () => {

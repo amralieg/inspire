@@ -3,6 +3,7 @@ import { Check, Copy, ExternalLink } from 'lucide-react';
 import { BestOfBestDetail, FeedbackControls, UseCaseStrategyDetail } from './UseCaseStrategyDetail';
 import { workspaceNotebookUrl } from '../lib/workspaceLinks';
 import { placeholderWords } from '../lib/placeholderWords';
+import { copyText } from '../lib/clipboard';
 import { START_MVP_LABEL } from '../lib/implementWizard';
 import { KIND_INFORMATIONAL_LABEL, kindChipStyle } from '../lib/useCaseKind';
 import { beneficiaryFromUc, fieldOf, hasShippedGenieCode, notebookPathOf, sponsorFromUc } from '../lib/useCaseFields';
@@ -16,18 +17,11 @@ export function CopyButton({ text }) {
   const handleCopy = async (e) => {
     e.stopPropagation();
     try {
-      await navigator.clipboard.writeText(text);
+      await copyText(text);
       setCopied(true);
       setTimeout(() => setCopied(false), 2000);
     } catch {
-      const textarea = document.createElement('textarea');
-      textarea.value = text;
-      document.body.appendChild(textarea);
-      textarea.select();
-      document.execCommand('copy');
-      document.body.removeChild(textarea);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
+      setCopied(false);
     }
   };
 

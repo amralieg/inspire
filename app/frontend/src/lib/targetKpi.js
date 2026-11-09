@@ -10,8 +10,7 @@ export const IMPACT_KINDS = ['money', 'count', 'hours', 'percent', 'number'];
 export const KPI_STATUSES = ['measured', 'not_measured', 'failed'];
 export const KPI_NOT_MEASURED = 'Not measured';
 export const KPI_PICK_RULE = 'Inspire picks it when it builds: your strategy\u2019s KPI, else the first it can compute. Records count in its unit, and in money only for a money KPI.';
-export const KPI_NONE_YET = 'This use case has no Inspire KPI yet, so Inspire evaluates the best KPIs for it from its tables when it builds. '
-  + 'After the build you can pick one of them here.';
+export const KPI_NONE_YET = `This use case has no Inspire KPI yet. ${KPI_PICK_RULE}`;
 export const KPI_CHANGE_NOTE = 'A new target KPI rebuilds the notebook, so every run counts records in the new KPI\u2019s unit.';
 
 const DIRECTIONS = { increase: 'Increase', decrease: 'Decrease', maintain: 'Maintain' };

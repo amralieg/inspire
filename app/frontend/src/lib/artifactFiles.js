@@ -1,3 +1,5 @@
+import { parseApiErrorMessage } from './ucPermissionErrors.js';
+
 const HIDDEN_EXTENSIONS = ['.json', '.jsonl'];
 const CATALOG_JSON_NAME = /-dbx_inspire(_[a-z]{2})?\.json$/;
 
@@ -17,9 +19,36 @@ export function fileExtension(file) {
   return name.includes('.') ? name.split('.').pop() : '';
 }
 
+const TEXT_PREVIEW_EXTENSIONS = ['md', 'json'];
+
+export function fileActions(file) {
+  const ext = fileExtension(file);
+  return { preview: QUICK_ACCESS_EXTENSIONS.includes(ext) || TEXT_PREVIEW_EXTENSIONS.includes(ext), open: ext === 'pdf' };
+}
+
+export function fileSizeText(bytes) {
+  const n = Number(bytes);
+  if (!Number.isFinite(n) || n <= 0) return '';
+  if (n < 1024) return `${Math.round(n)} B`;
+  if (n < 1024 * 1024) return `${Math.round(n / 1024)} KB`;
+  return `${(n / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+export async function fileProblemText(action, name, resp) {
+  let why = resp ? `the workspace answered ${resp.status}` : 'the App did not answer';
+  if (resp) {
+    const body = await resp.json().catch(() => null);
+    const said = parseApiErrorMessage(String(body?.error || body?.message || '')).trim();
+    if (said) why = said.length > 200 ? `${said.slice(0, 200)}…` : said;
+  }
+  return `Inspire could not ${action} ${name}: ${why}${/[.!?…]$/.test(why) ? '' : '.'}`;
+}
+
 export const PREVIEW_ROWS = 5000;
 export const PREVIEW_PAGE_ROWS = 50;
 export const EXCEL_UNREADABLE = 'Inspire could not read this Excel file. Download it instead.';
+export const JSON_UNREADABLE = 'Inspire could not read this JSON file. Download it instead.';
+export const TEXT_PREVIEW_CHARS = 200000;
 export const EXCEL_OLD_FORMAT = 'Inspire previews .xlsx files only. Download this .xls file instead.';
 
 function cellText(cell) {
@@ -85,4 +114,49 @@ export function quickAccessFiles(files) {
     .filter((file) => file && !file.is_directory && QUICK_ACCESS_EXTENSIONS.includes(fileExtension(file)));
   if (!shown.some((file) => EXCEL_EXTENSIONS.includes(fileExtension(file)))) return shown;
   return shown.filter((file) => fileExtension(file) !== 'csv');
+}
+
+function indentJson(text) {
+  let out = '';
+  let depth = 0;
+  let quoted = false;
+  const line = () => `\n${'  '.repeat(depth)}`;
+  for (let i = 0; i < text.length; i += 1) {
+    const ch = text[i];
+    if (quoted) {
+      out += ch;
+      if (ch === '\\') { out += text[i + 1] ?? ''; i += 1; } else if (ch === '"') quoted = false;
+    } else if (ch === '"') {
+      out += ch;
+      quoted = true;
+    } else if (ch === '{' || ch === '[') {
+      const close = ch === '{' ? '}' : ']';
+      const next = text.slice(i + 1).search(/\S/);
+      if (next >= 0 && text[i + 1 + next] === close) { out += ch + close; i += 1 + next; } else { depth += 1; out += ch + line(); }
+    } else if (ch === '}' || ch === ']') {
+      depth -= 1;
+      out += line() + ch;
+    } else if (ch === ',') {
+      out += ch + line();
+    } else if (ch === ':') {
+      out += ': ';
+    } else if (!/\s/.test(ch)) {
+      out += ch;
+    }
+  }
+  return out;
+}
+
+export function textPreview(ext, raw) {
+  let text = String(raw ?? '').replace(/^\uFEFF/, '');
+  if (ext === 'json') {
+    try {
+      JSON.parse(text);
+    } catch {
+      return { type: 'error', message: JSON_UNREADABLE };
+    }
+    text = indentJson(text);
+  }
+  const cut = text.length > TEXT_PREVIEW_CHARS;
+  return { type: ext === 'md' ? 'markdown' : 'json', text: cut ? text.slice(0, TEXT_PREVIEW_CHARS) : text, totalChars: text.length, cut };
 }

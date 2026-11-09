@@ -181,6 +181,47 @@ def test_a_failed_arabic_writer_is_a_recorded_gap_and_the_others_still_land(ns):
     assert any(path.endswith("readme_ar.md") for path in obj.w_client.workspace.files)
 
 
+def test_a_language_pack_without_use_cases_is_a_recorded_gap_never_a_silent_skip(ns):
+    obj = bilingual(ns, generate_choices=[])
+    run_documents(ns, obj, pack=lambda lang, flat, grouped, name, batch_parallelism=1: (
+        lang, "ar", arabic_labels(ns), {"المبيعات": []}, {"Executive": "<p>ملخص</p>"}, name))
+    names = sorted(path.rsplit("/", 1)[-1] for path in obj.w_client.workspace.files)
+    assert names == ["Acme-dbx_inspire_en.csv", "readme_en.md"]
+    failed = {(f["step"], f["language"]) for f in obj.failed_steps}
+    assert failed == {("Markdown Catalog", "Arabic"), ("CSV Catalog", "Arabic"), ("Use Case Excel", "Arabic"), ("JSON Catalog", "Arabic")}
+    assert not obj.logger.matching("[VIBE-LANG all-artifacts-produced] language=Arabic")
+    assert obj.logger.matching("[VIBE-LANG missing-artifacts] language=Arabic", level="WARNING")
+    assert obj.logger.matching("[ARTIFACT STEP FAILED] step=CSV Catalog language=Arabic", level="WARNING")
+    exit_value = obj.run_exit_value()
+    for label in ("Markdown Catalog (Arabic)", "CSV Catalog (Arabic)", "Use Case Excel (Arabic)", "JSON Catalog (Arabic)"):
+        assert label in exit_value, label
+    assert "has no use cases to write" in str(obj.failed_steps)
+    assert obj.logger.matching("[VIBE-LANG all-artifacts-produced] language=English", level="INFO")
+
+
+@pytest.mark.parametrize("step,write", [
+    ("PDF Catalog", lambda obj, labels: obj.generate_catalog_pdf("Arabic", "ar", labels, {}, {"المبيعات": []}, "Acme")),
+    ("Presentation", lambda obj, labels: obj.generate_presentation_pptx("Arabic", "ar", labels, {}, {}, "Acme")),
+    ("Use Case Excel", lambda obj, labels: obj._generate_use_case_excel("Arabic", "ar", {}, translations=labels)),
+    ("CSV Catalog", lambda obj, labels: obj._generate_csv_catalog("Arabic", "ar", {"المبيعات": []}, translations=labels)),
+    ("Markdown Catalog", lambda obj, labels: obj._generate_markdown_catalog("Arabic", "ar", {}, {}, "Acme", translations=labels)),
+    ("JSON Catalog", lambda obj, labels: obj._generate_json_catalog("Arabic", "ar", {}, {}, "Acme", translations=labels)),
+])
+def test_every_writer_refuses_an_empty_portfolio_instead_of_returning_as_if_written(ns, step, write):
+    obj = bilingual(ns)
+    with pytest.raises(ValueError, match=f"the {step} for Arabic has no use cases to write"):
+        write(obj, arabic_labels(ns))
+    assert not obj.w_client.workspace.files
+    if step != "JSON Catalog":
+        assert [(f["step"], f["language"]) for f in obj.failed_steps] == [(step, "Arabic")]
+
+
+def test_no_artifact_writer_skips_silently_on_empty_input():
+    import re
+    from _agentload import agent_source
+    assert not re.search(r"(No use cases provided to|No data to write to)[^\n]*Skipping", agent_source())
+
+
 def test_requested_artifacts_name_only_what_the_user_asked_for(ns):
     obj = make_inspire(ns, generate_choices=[])
     assert [step for _s, step in obj._requested_language_artifacts("Arabic", ["English"])] == [

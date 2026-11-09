@@ -23,16 +23,23 @@ const ROWS = ['Oat bar', 'Rye loaf', 'Tea tin', 'Fig jam', 'Soy milk', 'Rice cak
   recommended_action: 'Raise the order', top_reasons: ['demand rising'], as_of_date: '2026-10-15',
 }));
 
+const CLOSED = ['Done', 'Dismissed', 'Could not fix'];
+const isOpen = (r) => !CLOSED.includes(r._inspire_status);
+
+export function decisionList(lines, body, extra = {}) {
+  const shown = body.window ? lines.filter(isOpen) : lines;
+  const acted = lines.filter((r) => r._inspire_status);
+  const done = acted.filter((r) => r._inspire_status === 'Done').length;
+  return { rows: shown.slice(0, body.limit || 25), total: shown.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
+    summary: { open: acted.filter(isOpen).length, done, resolved: 0, left: lines.length - done, owners: [] }, errors: {},
+    window: body.window ? { window: body.window, limit: body.window_limit || null, shown: shown.length, more: 0, today: '2026-10-27' } : null, ...extra };
+}
+
 export function forecastRoutes(decided, { keep = false } = {}) {
   const lines = ROWS.map((r) => ({ ...r }));
   return {
     page: ({ json }) => json(200, forecastData()),
-    records: ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      const closed = lines.filter((r) => r._inspire_status === 'Done').length;
-      return json(200, { rows: lines.slice(0, body.limit || 25), total: lines.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
-        summary: keep ? { open: lines.length - closed, done: closed, resolved: 0, left: lines.length - closed, owners: [] } : { open: 7, done: 3, resolved: 0, left: 7, owners: [] }, errors: {} });
-    },
+    records: ({ route, json }) => json(200, decisionList(lines, route.request().postDataJSON())),
     'plan/decide': ({ route, json }) => {
       const body = route.request().postDataJSON();
       decided.push(body);
@@ -61,12 +68,7 @@ export function plannerRoutes(decided, solved, { keep = false, actions = true } 
       },
       tables: {}, errors: {},
     }),
-    records: ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      const closed = lines.filter((r) => r._inspire_status === 'Done').length;
-      return json(200, { rows: lines.slice(0, body.limit || 25), total: lines.length, offset: 0, limit: body.limit || 25, actions, changes: false,
-        summary: keep ? { open: lines.length - closed, done: closed, resolved: 0, left: lines.length - closed, owners: [] } : { open: 2, done: 1, resolved: 0, left: 2, owners: [] }, errors: {} });
-    },
+    records: ({ route, json }) => json(200, decisionList(lines, route.request().postDataJSON(), { actions })),
     'plan/decide': ({ route, json }) => {
       const body = route.request().postDataJSON();
       decided.push(body);
@@ -250,11 +252,7 @@ export function monitorRoutes() {
       },
       tables: {}, errors: {},
     }),
-    records: ({ route, json }) => {
-      const body = route.request().postDataJSON();
-      return json(200, { rows: TRIAGE.slice(0, body.limit || 25), total: TRIAGE.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
-        summary: { open: 24, done: 0, resolved: 0, left: 24, owners: [] }, errors: {} });
-    },
+    records: ({ route, json }) => json(200, decisionList(TRIAGE, route.request().postDataJSON())),
   };
 }
 

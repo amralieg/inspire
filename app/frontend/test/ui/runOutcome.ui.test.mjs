@@ -123,7 +123,7 @@ test('Monitor: a finished session with zero use cases is failed with the reason,
     await page.waitForFunction(() => document.querySelector('[data-testid="monitor-status"]')?.dataset.status === 'failed', null, { timeout: 15000 });
     assert.match(await status.innerText(), /No use cases produced/);
     assert.match(await status.innerText(), /The run produced no use cases/);
-    assert.equal(await page.getByText('Pipeline completed successfully').count(), 0);
+    assert.equal(await page.getByText('Run completed', { exact: true }).count(), 0);
     assert.equal(await page.getByText('Inspire finished this run.').count(), 0);
     assert.equal(await page.locator('[data-testid="monitor-failure-reason"]').innerText(), NO_USE_CASES_MESSAGE);
   } finally {

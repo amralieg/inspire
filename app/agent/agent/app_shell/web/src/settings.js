@@ -65,7 +65,7 @@ export function storedText(setting, text) {
 }
 
 export function valueText(setting, value) {
-  if (value === null || value === undefined || value === '') return 'not set';
+  if (value === null || value === undefined || value === '') return /, or empty for (.+)$/.exec(String(setting?.allowed || ''))?.[1] || 'not set';
   if (setting.kind === 'choice') return String(value) === ALL ? 'every segment' : String(value).split(',').map((p) => p.trim()).join(', ');
   const n = Number(value);
   if (!Number.isFinite(n)) return String(value);

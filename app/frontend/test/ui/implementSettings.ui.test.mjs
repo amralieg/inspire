@@ -16,7 +16,7 @@ const footerErrors = (page) => page.locator('[role="alert"] p').allTextContents(
 const advanced = (page) => page.getByRole('button', { name: 'Advanced settings' });
 
 async function toResults(page) {
-  await onStep(page, 'Data');
+  await goToStep(page, 'Data');
   await dataToResults(page);
 }
 
@@ -45,7 +45,7 @@ test('a build left alone holds back 10% to measure impact and sends no App owner
     await goToStep(page, 'What to build');
     await startWhenReady(page);
     const spec = submittedSpec(made);
-    assert.deepEqual(spec.holdout, { enabled: true, share: 0.1 }, 'the holdout starts on, where its Highly Recommended badge sits');
+    assert.deepEqual(spec.holdout, { enabled: true, share: 0.1 }, 'the holdout starts on, where its Recommended badge sits');
     assert.deepEqual(spec.outputs.app_owners, []);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -61,9 +61,9 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     await goToStep(page, 'Measure impact');
     const impact = page.getByRole('group', { name: 'Measure impact' });
     const box = impact.getByRole('checkbox', { name: /^Hold back a share of records to measure impact\./ });
-    assert.equal(await box.isChecked(), true, 'it starts on, where its Highly Recommended badge sits');
-    assert.equal(await impact.locator('[data-choice="holdout"] [data-highly-recommended]').count(), 1, 'Measure impact keeps its own Recommended, one per question');
-    await page.locator('[data-choice="freshness"] [data-highly-recommended="daily"]').waitFor();
+    assert.equal(await box.isChecked(), true, 'it starts on, where its Recommended badge sits');
+    assert.equal(await impact.locator('[data-choice="holdout"] [data-recommended]').count(), 1, 'Measure impact keeps its own Recommended, one per question');
+    await page.locator('[data-choice="freshness"] [data-recommended="daily"]').waitFor();
     await impact.getByText('Inspire leaves the held-back records alone, so it can compare their results with the records people acted on.', { exact: false }).waitFor();
     await box.uncheck();
     assert.equal(await impact.getByRole('spinbutton').count(), 0, 'no share to type while it is off');
@@ -77,7 +77,7 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     await impact.getByText(SHARE_PROBLEM, { exact: true }).waitFor();
     await next(page);
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '6. Run it', 'a share above half the records keeps the person on Measure impact');
+    assert.equal(await page.locator('[aria-current="step"]').textContent(), '8. Run it', 'a share above half the records keeps the person on Measure impact');
     await share.fill('');
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
     await box.uncheck();
@@ -171,7 +171,7 @@ test('App owners are typed under Advanced settings like alert recipients, checke
     assert.equal(await owners.inputValue(), `${PAT}, nope`);
     await next(page);
     await page.locator('[role="alert"] p', { hasText: 'App owners must be email addresses: nope' }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '4. Deliver');
+    assert.equal(await page.locator('[aria-current="step"]').textContent(), '5. Deliver');
     await owners.fill(`${PAT}, ${PAT.toUpperCase()}, ${LEE}`);
     await throughApp(page);
     await startWhenReady(page);

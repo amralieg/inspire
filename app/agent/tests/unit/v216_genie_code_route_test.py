@@ -2,6 +2,7 @@
 route lists, called through the MLflow responses path with web search off and the reply schema in the prompt. With no route
 it stops before Genie starts, with the choices that change the outcome. Only a route that answered is reused, and a route
 Genie Code refuses during a build is dropped for the next round."""
+import io
 import json
 import tomllib
 import types
@@ -160,7 +161,7 @@ def test_the_mlflow_route_config_turns_web_search_off_and_points_at_the_mlflow_p
 class _Proc:
     def __init__(self, command, reply, code=0, stderr=""):
         self.command, self.pid, self.reply, self.code = command, 999999, reply, code
-        self.stdout, self.stderr = iter([json.dumps({"type": "turn.completed"}) + "\n"]), iter([stderr])
+        self.stdout, self.stderr = io.StringIO(json.dumps({"type": "turn.completed"}) + "\n"), io.StringIO(stderr)
         last = command[command.index("-o") + 1]
         with open(last, "w", encoding="utf-8") as f:
             f.write(reply)

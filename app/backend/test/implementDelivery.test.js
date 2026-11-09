@@ -37,6 +37,22 @@ test('a delivery record of an older version, an empty list or a full delivery ch
   assert.equal(W.DELIVERY_RECORD, 'delivery', 'the agent writes this record');
 });
 
+test('a version that left an asked output undelivered reads MVP incomplete in one plain sentence, the raw reason kept for Details', async () => {
+  const W = await lib('implementWizard.js');
+  const P = await lib('mvpProgress.js');
+  const said = `Genie Agent not built: ${REASON}; Notebook: Genie set Minimum usable rows to 1, not 0`;
+  const latest = row('ready_with_warnings', missing(), { status_message: said });
+  assert.deepEqual(W.statusChip(latest.status, null, latest), { label: W.UNDELIVERED_LABEL, tone: 'warning' });
+  assert.equal(W.statusReason(latest), 'The MVP is incomplete: Inspire could not build the Genie Agent. Rebuild in Vibe/Add/Remove Features to try again.');
+  assert.equal(W.statusDetails(latest), said);
+  assert.equal(P.statusProgress({ latest, steps: [] }).percent, 100);
+  const older = row('ready_with_warnings', missing(2), { status_message: said });
+  assert.deepEqual(W.statusChip(older.status, null, older), { label: 'Warnings', tone: 'warning' }, 'an older version record changes nothing');
+  assert.equal(W.statusReason(older), said);
+  assert.equal(W.statusDetails(older), '');
+  assert.deepEqual(W.statusChip('ready_with_warnings'), { label: 'Warnings', tone: 'warning' });
+});
+
 test('the Genie round label says the ceiling is an upper bound', async () => {
   const source = require('node:fs').readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'mvpProgress.js'), 'utf8');
   assert.match(source, /` of up to \$\{current\.rounds\}`/);

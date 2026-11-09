@@ -210,8 +210,10 @@ export function lister(rows, extra = {}, total = null) {
     const body = route.request().postDataJSON();
     seen.records.push(body);
     const picked = typeof rows === 'function' ? rows(body) : rows.slice(body.offset, body.offset + body.limit);
-    return json(200, { rows: picked, total: total ?? rows.length, offset: body.offset, limit: body.limit, actions: false, changes: false, summary: null,
-      errors: {}, ...extra });
+    const all = total ?? rows.length;
+    const shown = body.window_limit ? Math.min(all, body.window_limit) : all;
+    return json(200, { rows: picked, total: all, offset: body.offset, limit: body.limit, actions: false, changes: false, summary: null, errors: {},
+      window: body.window ? { window: body.window, limit: body.window_limit ?? null, shown, more: all - shown, today: '2026-10-27' } : null, ...extra });
   };
 }
 
@@ -456,3 +458,10 @@ export async function footerActions(scope) {
   if (await more.count() && (await more.getAttribute('aria-expanded')) === 'false') await more.click();
   return (await scope.locator('.panel-f > button:not([data-act=more])').allInnerTexts()).sort();
 }
+
+export const saidAll = (locator) => locator.evaluateAll((els) => els.map((el) => {
+  const copy = el.cloneNode(true);
+  copy.querySelectorAll('[data-choices]').forEach((row) => row.remove());
+  return copy.textContent.replace(/\s+/g, ' ').trim();
+}));
+export const said = async (locator) => (await saidAll(locator.first()))[0];

@@ -242,7 +242,7 @@ test('a version whose run ended while it was still active is written failed once
   const history = fresh();
   const ended = { run_id: 5555555555555555, run_page_url: 'https://x/run/5555555555555555',
     state: { life_cycle_state: 'TERMINATED', result_state: 'CANCELED', state_message: 'Run cancelled by amr@x' } };
-  const reason = 'the run building v1 ended (CANCELED: Run cancelled by amr@x) while v1 was still filling';
+  const reason = 'the run building v1 ended (Stopped: Run cancelled by amr@x) while v1 was still filling';
   const endedWrites = (made) => made.sqlCalls.filter((c) => /^UPDATE .* SET status = 'failed'/.test(String(c.sql)) && /implement_run_id = :run/.test(String(c.sql)));
   for (const read of [`/api/inspire/implement/status?${Q}`, `/api/inspire/implement/history?${RAIL}`, `/api/inspire/implement/live?${Q}`]) {
     await withApp({ history: fresh(), implementRun: ended }, async (url, made) => {

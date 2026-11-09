@@ -73,7 +73,7 @@ test('the scope list drops a scope when no route needs it and adds one a new per
 
 test('reads use :read scopes where the route only reads, and the person routes are the reads that browse what a person picks', () => {
   const writers = scopedRoutes().filter(([, e]) => e.outputWrite === true).map(([key]) => key).sort();
-  assert.deepEqual(writers, ['POST /api/demo-data/start', 'POST /api/output-folder/check', 'POST /api/run'], 'only the routes that write into the folder the person picks probe it');
+  assert.deepEqual(writers, ['POST /api/demo-data/start', 'POST /api/output-folder/check', 'POST /api/run', 'POST /api/run/:runId/again'], 'only the routes that write into the folder the person picks probe it');
   for (const key of writers) assert.deepEqual(P.ROUTE_POLICY[key].scopes, P.OUTPUT_WRITE_SCOPES, key);
   for (const [key, entry] of personRoutes().filter(([, e]) => e.outputWrite !== true)) {
     for (const scope of entry.scopes) {

@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { askGenie, failureOf, getImpact, getMyWork } from './api.js';
 import { genieAnswer, genieOn } from './genieAsk.js';
 import { grouped } from './format.js';
@@ -335,6 +335,8 @@ export default function Performance({ app, page, summary, onRecord, onExplain, g
   const problem = periodProblem(choice, from, to);
   const asked = problem ? '' : JSON.stringify({ page: page.id, ...periodBody(choice, from, to) });
   const seq = useRef(0);
+  const [again, setAgain] = useState(0);
+  const retry = useCallback(() => setAgain((n) => n + 1), []);
   useEffect(() => {
     if (!signedIn || !asked) return;
     const mine = ++seq.current;
@@ -342,7 +344,7 @@ export default function Performance({ app, page, summary, onRecord, onExplain, g
     setFailure(null);
     getMyWork(JSON.parse(asked)).then((d) => { if (mine === seq.current) setData(d); })
       .catch((e) => { if (mine === seq.current) setFailure(failureOf(e)); });
-  }, [asked, signedIn]);
+  }, [asked, signedIn, again]);
   const more = () => {
     const mine = seq.current;
     setData((d) => ({ ...d, more: true }));
@@ -363,8 +365,8 @@ export default function Performance({ app, page, summary, onRecord, onExplain, g
       </div>
       <Period choice={choice} from={from} to={to} problem={problem} onChoice={setChoice} onFrom={setFrom} onTo={setTo} />
       {!signedIn && <div className="nomatch">{SIGN_IN}</div>}
-      <Failure failure={failure} className="tile-err">{failure?.text}</Failure>
-      {problemText && <PlainNote text={problemText} prefix={`${page.title} could not load: `} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
+      <Failure failure={failure} className="tile-err" onRetry={retry}>{failure?.text}</Failure>
+      {problemText && <PlainNote text={problemText} prefix={`${page.title} could not load: `} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
       {signedIn && !data && !failure && !problem && <p className="more">Loading your work…</p>}
       {entry && !entry.tracked && <p className="more" data-quiet={page.id}>{entry.note}</p>}
       {facts && (

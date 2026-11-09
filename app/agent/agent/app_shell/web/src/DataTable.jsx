@@ -1,6 +1,9 @@
 import { Fragment, useEffect, useMemo, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { DATE_FORMATS, cellText, compareValues, isAmount, numberOf, plainText, plainWords } from './format.js';
+import { DATE_FORMATS, cellText, compareValues, formatValue, isAmount, kindOf, numberOf, plainText, plainWords, shownUnit, unitOf } from './format.js';
+import Fx from './Fx.jsx';
+import { moneyOf } from './money.js';
+import { MONEY_COLUMN } from './records.js';
 import { askGenieAbout } from './genieAsk.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { columnFiltersOn, withValue } from './filters.js';
@@ -26,6 +29,23 @@ export function columnOf(c, onFilter) {
   };
 }
 
+function moneyColumn(c, model) {
+  const base = columnOf(c);
+  return {
+    ...base,
+    render: (row) => {
+      const kind = kindOf(model);
+      const unit = shownUnit(unitOf(model), c.currency, kind);
+      const shown = moneyOf(model, row, unit, kind);
+      if (shown.amount == null) return base.render(row);
+      return <Fx formula={shown.formula}>{formatValue(shown.amount, c.format || 'currency', unit, undefined, kind)}</Fx>;
+    },
+  };
+}
+
+export const recordColumns = (meta, model, onFilter) => (meta?.columns || []).filter((c) => c.column !== meta.sublabel)
+  .map((c) => (c.column === MONEY_COLUMN ? moneyColumn(c, model) : columnOf({ ...c, filter: meta.filters?.[c.column] }, onFilter)));
+
 export function RowAsk({ about }) {
   return (
     <button type="button" className="row-ask" aria-label={`Ask Genie about ${about.label}`}
@@ -40,12 +60,15 @@ export function RowGenie({ about, element }) {
   return element ? <AskGenie kind={element.kind || 'record'} title={element.title} context={element.context} page={element.page} /> : null;
 }
 
+export function FieldGrid({ fields }) {
+  return <div className="mgrid">{fields.map(([key, label, value]) => <div key={key}><span>{label}</span><b><bdi>{value}</bdi></b></div>)}</div>;
+}
+
 export function RowDetails({ title, fields, element, onClose }) {
   return (
     <div className="row-detail" role="group" aria-label={`Details of ${title}`} data-row-detail>
-      <div className="mgrid">{Object.entries(fields || {}).map(([label, value]) => (
-        <div key={label}><span>{label}</span><b>{value == null || value === '' ? 'Not recorded' : Array.isArray(value) ? value.join(', ') : String(value)}</b></div>
-      ))}</div>
+      <FieldGrid fields={Object.entries(fields || {}).map(([label, value]) => [label, label,
+        value == null || value === '' ? 'Not recorded' : Array.isArray(value) ? value.join(', ') : String(value)])} />
       <div className="row-detail-f"><RowGenie element={element} /><span className="sp" /><button type="button" className="link" onClick={onClose}>Close</button></div>
     </div>
   );

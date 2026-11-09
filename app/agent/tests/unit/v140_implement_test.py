@@ -705,8 +705,8 @@ def test_genie_run_streams_events_and_parses_the_final_json(agent_ns, tmp_path):
     assert result["errors"] == ["Genie error: transient"] and result["timed_out"] is False
     command, kw = commands[0]
     assert command[:2] == ["/bin/genie", "exec"] and "--output-schema" in command
-    assert command[-1] == "build it" + agent_ns["GENIE_CLI_AUTH_NOTE"] and kw["start_new_session"] is True
-    assert command[-1].endswith("jq is not installed here: read the CLI's JSON output with python instead.")
+    assert command[-1] == "build it" + agent_ns["GENIE_CLI_AUTH_NOTE"] + agent_ns["GENIE_CLI_WRITE_NOTE"] and kw["start_new_session"] is True
+    assert "jq is not installed here: read the CLI's JSON output with python instead." in command[-1]
     assert "--profile" not in command and kw["env"]["DATABRICKS_TOKEN"] == "tok-123"
     assert json.load(open(work / "genie_output_schema.json")) == {"type": "object"}
 
@@ -861,6 +861,7 @@ def _inspire(ns, spark, **attrs):
     inst._implement_params = {}
     inst.emitted = []
     inst._emit_pipeline_status = lambda **kw: inst.emitted.append(kw) or kw.get("step_id") or len(inst.emitted)
+    inst._implement_abac = lambda table, warnings: []
     return inst
 
 
@@ -2000,6 +2001,39 @@ def test_genie_run_drains_stderr_so_a_noisy_genie_never_blocks(agent_ns, tmp_pat
     result = runner.run("x", str(tmp_path / "w"))
     assert result["timed_out"] is False and result["exit"] == 0 and result["events"] == 1
     assert result["stderr"] == "e" * 2000
+
+
+def test_genie_run_redacts_only_the_tail_of_a_huge_error_output(agent_ns, tmp_path):
+    import time
+    script = ("import json, sys\nsys.stderr.write('e' * 8000000)\nsys.stderr.flush()\n"
+              "print(json.dumps({'type': 'item.completed', 'item': {'type': 'agent_message', 'text': 'done'}}), flush=True)\n")
+    redact, seen = agent_ns["inspire_redact_text"], []
+    agent_ns["inspire_redact_text"] = lambda text, *a, **k: seen.append(len(text)) or redact(text, *a, **k)
+    runner = _runner(agent_ns, tmp_path, popen=_python_popen(script), timeout_s=120)
+    started = time.time()
+    result = runner.run("x", str(tmp_path / "w"))
+    assert result["timed_out"] is False and result["exit"] == 0 and result["events"] == 1
+    assert result["stderr"] == "e" * 2000
+    assert seen and max(seen) <= 2000 + len("tok-123"), "the whole error output went through the redaction"
+    assert time.time() - started < 60, "an 8 MB error output held the run after Genie exited"
+
+
+def test_a_token_cut_by_the_kept_tail_never_shows_in_part(agent_ns, tmp_path):
+    work = tmp_path / "w"
+    stderr = "A" * 100 + "tok-123" + "e" * (2000 + len("tok-123") - 1 - 4)
+    last = "B" * 100 + "tok-123" + "f" * (4000 + len("tok-123") - 1 - 4)
+
+    def popen(command, **kw):
+        proc = _FakeProc([{"type": "item.completed", "item": {"type": "agent_message", "text": "done"}}],
+                         write_last=last, last_path=str(work / "genie_last.txt"))
+        proc.stderr = io.StringIO(stderr)
+        return proc
+
+    result = _runner(agent_ns, tmp_path, popen=popen).run("x", str(work))
+    assert "123" not in result["stderr"] and "tok" not in result["stderr"] and set(result["stderr"]) == {"e"}
+    assert "123" not in result["last"] and "tok" not in result["last"] and set(result["last"]) == {"f"}
+    whole = _runner(agent_ns, tmp_path, popen=lambda c, **k: _FakeProc([], 1)).run("x", str(work))
+    assert whole["stderr"] == "warn"
 
 
 def test_genie_run_stops_a_child_that_keeps_the_output_open_after_genie_exits(fresh_ns, tmp_path):
@@ -3274,6 +3308,10 @@ def test_an_existing_app_whose_service_principal_cannot_read_its_tables_is_deplo
         f"run: {'; '.join(result)}; for main.s.orders, ask amr@x to run: {'; '.join(orders)}"]
     settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
     assert settings["unread"] == {ACCESS_TABLE: result, "main.s.orders": orders}, "the App's tiles name the exact grants"
+    assert settings["unread_owners"] == {ACCESS_TABLE: "amr@x", "main.s.orders": "amr@x"}, "the App's banner names who can grant"
+    assert fields["_asset"]["unread"] == {"app": "sp-2", "tables": [{"table": ACCESS_TABLE, "owner": "amr@x", "grants": result},
+                                                                     {"table": "main.s.orders", "owner": "amr@x", "grants": orders}]}, \
+        "the build records what the App cannot read, so the Build page asks for the grant instead of saying Done"
     assert ("POST", "/api/2.0/apps/churn-desk/deployments") in [c[:2] for c in calls]
     assert inst.tagged == ["churn-desk"]
 
@@ -3301,7 +3339,8 @@ def test_a_read_grant_the_platform_refuses_is_a_warning_with_the_exact_grant_and
             f"'main.s.orders'), ask inspire-sp to run: {GRANT_ORDERS.format('sp-1')}") in warning
     assert "main.inspire.churn_out" not in warning, "a table whose grant ran is not named (must-exclude)"
     settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
-    assert settings == {"unread": {"main.s.orders": [GRANT_ORDERS.format("sp-1")]}}
+    assert settings == {"unread": {"main.s.orders": [GRANT_ORDERS.format("sp-1")]}, "unread_owners": {"main.s.orders": "inspire-sp"}}
+    assert fields["_asset"]["unread"]["tables"] == [{"table": "main.s.orders", "owner": "inspire-sp", "grants": [GRANT_ORDERS.format("sp-1")]}]
     assert GRANT_SELECT.format("sp-1") in inst.spark.statements
 
 
@@ -3321,6 +3360,7 @@ def test_an_existing_app_whose_service_principal_reads_through_a_group_is_redepl
         _feedback_writes(agent_ns, "sp-2")[2:], (
         "record decisions starts on, so the App may write its decisions to the result table, and people may report issues into its feedback table")
     assert "_warnings" not in fields
+    assert "unread" not in fields["_asset"], "an App that reads every table records nothing to grant (must-exclude)"
     assert inst.tagged == ["churn-desk"], "a redeployed App gets its tags again, so a new spec version shows on it"
 
 
@@ -3649,7 +3689,8 @@ def test_a_genie_code_install_failure_fails_only_the_outputs_genie_builds(agent_
                                      "delivery": {"delivered": ["alert", "app"], "spec_version": 3, "not_delivered": [
                                          {"output": "genie_space", "label": "Genie Agent", "reason": agent_ns["implement_short_reason"](reason)},
                                          {"output": "dashboard", "label": "Dashboard", "reason": agent_ns["implement_short_reason"](reason)}]}}
-    assert ("Dashboard", "ended_warning") in emitted and ("Genie Agent", "ended_warning") in emitted and emitted[-1] == ("Done", "ended_warning")
+    assert ("Dashboard", "ended_error") in emitted and ("Genie Agent", "ended_error") in emitted and emitted[-1] == ("Done", "ended_warning"), \
+        "an output that was asked for and not built is a failed step, never a step done with warnings"
 
 
 def test_a_failed_genie_code_install_ends_its_step_with_the_reason(fresh_ns, tmp_path, monkeypatch):

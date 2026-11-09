@@ -174,19 +174,32 @@ function UseCaseLink({ entry, onOpen }) {
   if (!entry.useCase || !onOpen) return <span dir="auto" className="min-w-0 break-words text-text-primary">{entry.name}</span>;
   return (
     <button type="button" dir="auto" onClick={() => onOpen(entry.useCase)} title={`Open ${entry.name} in the list`}
-      className="min-w-0 text-start break-words text-text-primary hover:text-db-red-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/30 rounded">
+      className="min-w-0 text-start break-words text-text-primary hover:text-db-red-fg hover:underline rounded">
       {entry.name}
     </button>
   );
 }
 
-function BuildOrder({ order, describe, onOpenUseCase }) {
+function knownOrder(deliveryOrder, describe) {
+  if (!Array.isArray(deliveryOrder) || typeof describe !== 'function') return [];
+  const seen = new Set();
+  const known = [];
+  for (const id of deliveryOrder) {
+    const entry = describe(id);
+    const key = String(id ?? '').trim();
+    if (!entry || !key || seen.has(key)) continue;
+    seen.add(key);
+    known.push({ id: key, entry });
+  }
+  return known;
+}
+
+function BuildOrder({ order, onOpenUseCase }) {
   const list = usePreview(order, LIST_PREVIEW);
   return (
     <div>
       <ol className="space-y-1 text-[11px]" aria-label="Suggested build order">
-        {list.shown.map((id, i) => {
-          const entry = describe(id);
+        {list.shown.map(({ id, entry }, i) => {
           return (
             <li key={id} className="grid grid-cols-[1.5rem_minmax(0,1fr)_auto] items-baseline gap-x-2">
               <span className="font-mono text-[10px] text-text-secondary tabular-nums">{i + 1}.</span>
@@ -206,11 +219,11 @@ function BuildOrder({ order, describe, onOpenUseCase }) {
 }
 
 export function BuildOrderPanel({ deliveryOrder, describe, onOpenUseCase }) {
-  const order = Array.isArray(deliveryOrder) ? deliveryOrder : [];
-  if (!order.length || typeof describe !== 'function') return null;
+  const order = knownOrder(deliveryOrder, describe);
+  if (!order.length) return null;
   return (
     <InsightCard icon={ListOrdered} title="Suggested build order" summary={plural(order.length, 'use case')}>
-      <BuildOrder order={order} describe={describe} onOpenUseCase={onOpenUseCase} />
+      <BuildOrder order={order} onOpenUseCase={onOpenUseCase} />
     </InsightCard>
   );
 }
@@ -335,7 +348,7 @@ export function FeedbackPanel({ results, feedback }) {
 }
 
 export function InsightsGrid({ results, feedback, describe, onOpenUseCase }) {
-  const order = Array.isArray(results?.delivery_order) && results.delivery_order.length > 0 && typeof describe === 'function'
+  const order = knownOrder(results?.delivery_order, describe).length > 0
     ? <BuildOrderPanel key="order" deliveryOrder={results.delivery_order} describe={describe} onOpenUseCase={onOpenUseCase} />
     : null;
   const notes = feedbackParts(results, feedback).shows ? <FeedbackPanel key="feedback" results={results} feedback={feedback} /> : null;

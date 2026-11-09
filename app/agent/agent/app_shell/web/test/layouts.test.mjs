@@ -60,7 +60,7 @@ test('the forecast cockpit opens with What to do now and draws every section of 
     const n = await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal(await page.locator('[data-todo-count]').innerText(), '7 of 10 waiting for you');
+  assert.equal(await page.locator('[data-todo-count]').innerText(), '6 of 6 waiting for you');
   assert.match(await page.locator('[data-so-what]').first().innerText(), /So what: Order to the forecast line/);
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -507,6 +507,31 @@ test('the decision queue page opens with What to do now', async () => {
   assert.equal(seen.records.length, 1, 'What to do now reads the list the records card loaded, with no second request');
   assert.deepEqual(seen.errors, []);
   await context.close();
+});
+
+test('What to do now counts the records still open, not the ones somebody already touched, so a first run reads all waiting with an empty bar', async () => {
+  for (const [acted, done, open, said, bar] of [[0, 0, 908, '908 of 908 waiting for you', '0'], [7, 5, 900, '900 of 905 waiting for you', '5']]) {
+    const info = appInfo(DECIDE, 1, TABLE);
+    const { routes } = tracked();
+    const asked = [];
+    routes.records = ({ route, json, seen }) => {
+      const body = route.request().postDataJSON();
+      seen.records.push(body);
+      asked.push(body.window || null);
+      return json(200, { rows: ROWS.slice(0, body.limit), total: body.window ? open : 1000, offset: 0, limit: body.limit, actions: true, changes: true,
+        summary: { open: acted, done, resolved: 0, left: 0, owners: [] }, errors: {},
+        window: body.window ? { window: body.window, limit: null, shown: open, more: 0, today: '2026-10-27' } : null });
+    };
+    const { page, seen, context } = await openApp(browser, base, info, { routes });
+    await page.locator('[data-todo-count]').waitFor();
+    await page.waitForFunction((t) => document.querySelector('[data-todo-count]')?.textContent === t, said, { timeout: 10000 })
+      .catch(async () => assert.fail(`the count reads "${await page.locator('[data-todo-count]').innerText()}", not "${said}"`));
+    assert.equal(await page.locator('.todo-bar').getAttribute('aria-valuenow'), bar, 'the bar fills only with what was done');
+    assert.ok(asked.includes('all'), 'the count reads the open window of the list');
+    assert.ok(seen.records.every((b) => b.limit !== 1), 'the list read in the open window is counted as it is, with no second request');
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
 });
 
 test('accepting a suggested action takes one click on a row, or one click for the selected rows, through records/act', async () => {

@@ -2,6 +2,8 @@
  * Detect Unity Catalog / workspace permission failures and build admin-ready guidance.
  */
 
+import { failureCauseOf } from './plainText.js';
+
 const PERMISSION_SIGNAL =
   /permission[_\s-]?denied|insufficient[_\s-]?privilege|insufficient[_\s-]?permission|does not have (?:\w+ )?privilege|not authorized|unauthorized|access denied|forbidden|cannot access catalog|cannot access schema|lack(?:s|ing)? (?:the )?(?:required )?privilege|privilege(?:s)? required|\b403\b/i;
 
@@ -36,9 +38,8 @@ export function parseApiErrorMessage(errText) {
 export function interpretUcPermissionError(message, opts = {}) {
   const technicalDetail = parseApiErrorMessage(message);
   const text = technicalDetail.toLowerCase();
-  const isPermissionIssue = PERMISSION_SIGNAL.test(technicalDetail) || (
-    opts.context === 'catalog_browse' && /catalog|schema|table|unity|metastore|privilege|denied|403/i.test(technicalDetail)
-  );
+  const cause = failureCauseOf(technicalDetail);
+  const isPermissionIssue = cause ? cause.kind === 'denied' : PERMISSION_SIGNAL.test(technicalDetail);
 
   if (!isPermissionIssue) {
     return {
@@ -102,9 +103,9 @@ export function interpretUcPermissionError(message, opts = {}) {
   }
 
   const userMessage =
-    opts.context === 'catalog_browse'
-      ? 'Inspire could not list Unity Catalog metadata with your current credentials. An admin needs to grant UC browse and Inspire schema permissions before you can select data and run Get Started.'
-      : 'Get Started failed because your account is missing Unity Catalog or workspace permissions. Share the checklist below with your Databricks admin.';
+    opts.context !== 'launch'
+      ? 'Inspire cannot list your Unity Catalog data with your sign-in, so copy the message for your admin and ask them for the access listed under Details.'
+      : 'Get Started stopped because your sign-in is missing a Unity Catalog or workspace permission, so copy the message for your admin and ask them for the access listed under Details.';
 
   const adminEmailText = [
     'Hi, I need Unity Catalog permissions to run Inspire AI (Get Started).',

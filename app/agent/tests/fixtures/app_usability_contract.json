@@ -73,9 +73,23 @@
   "similar": {
     "request": {"method": "GET", "path": "records/similar", "query": {"page": "n01_u05", "record_key": "k1", "by": "category"}},
     "response": {"by": [{"filter": "category", "label": "Category", "value": "Books", "values": ["Books"]}], "count": 1,
-                 "sample": [{"record_key": "k2", "label": "Item 2", "valid_from_us": "1001"}],
+                 "sample": [{"record_key": "k2", "label": "Item 2", "valid_from_us": "1001",
+                             "row": {"_inspire_key": "k2", "_inspire_version": "1001", "record_key": "k2", "entity_id": "k2",
+                                     "entity_label": "Item 2", "category": "Books"}}],
                  "match": {"filters": {"category": ["Books"]}, "view": {"window": "all", "exclude": ["k1"]},
                            "as_of_us": "5555555555555555"}}
+  },
+  "act_reviewed": {
+    "request": {"method": "POST", "path": "records/act", "body": {"page": "n01_u05", "record_keys": ["k2", "k3"], "seen": {"k2": "1001", "k3": "1002"},
+                "similar": {"filters": {"category": ["Books"]}, "view": {"window": "all", "exclude": ["k1"]}, "as_of_us": "5555555555555555"},
+                "values": {"action_status": "Done"}}},
+    "response": {"written": ["k2"], "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": "0123456789abcdef0123456789abcdef",
+                 "changed": ["k3"]},
+    "outside": {"status": 400, "body": {"error": "1 record you sent is not among the records like this one: k9; nothing was saved",
+                                        "outside": ["k9"], "outside_count": 1}},
+    "all_changed": {"status": 409, "body": {"error": "2 records changed since you reviewed them and were left as they were; nothing was saved",
+                                            "written": [], "conflicts": [], "conflicts_count": 0, "left_out": 0, "batch_id": null,
+                                            "changed": ["k2", "k3"]}}
   },
   "batches": {
     "request": {"method": "GET", "path": "records/batches", "query": {"page": "n01_u05"}},

@@ -1,0 +1,174 @@
+import { counted } from './plural.js';
+import { firstRunDefault, groupingBest, groupingCount, profileRecords } from './runScope.js';
+import {
+  APP_OWN_PLACEMENTS, APP_PLACEMENT_DEFAULT, IMPLEMENT_OUTPUTS, NONE_WORKS, affordable, blockOf, VIBE_PREVIOUS_DEFAULT, appBackendBlocks, appBackendDefault, appPagesOf, newAppPlacementBlock, placementTarget, placementThatFits,
+} from './implementWizard.js';
+
+export const RECOMMENDED = 'Recommended';
+
+export const STEP_BEST = {
+  app_placement: ['heldApp', 'appTarget'],
+  app_features: ['appOption', 'replaceEdits'],
+};
+
+export function oneBestPerStep(best) {
+  const out = { ...best };
+  for (const keys of Object.values(STEP_BEST)) {
+    const kept = keys.find((k) => out[k]);
+    for (const k of keys) if (k !== kept) out[k] = null;
+  }
+  return out;
+}
+export { NONE_WORKS, affordable };
+
+const OUTPUT_ORDER = ['app', 'genie_space', 'dashboard', 'alert'];
+const OUTPUT_REASONS = {
+  app: 'People act on each flagged record in one place.',
+  genie_space: 'The App cannot be built here, so people ask about the results in plain words.',
+  dashboard: 'The App and the Genie Agent cannot be built here, so a dashboard shows the results.',
+  alert: 'Only alerts can be built here, so people get an email when records need action.',
+};
+const POLICY_REASONS = {
+  domain: (scope) => `Use cases of ${scope.domain || 'the same domain'} share one App.`,
+  use_case: () => 'This use case needs an App of its own.',
+  business: (scope) => `Every use case of ${scope.business || 'this business'} shares one App.`,
+};
+
+function pick(id, reason) {
+  return { id, reason };
+}
+
+export function isBest(best, id) {
+  return Boolean(best) && best.id === id;
+}
+
+export function bestMode({ genieOff = null } = {}) {
+  return genieOff ? pick('notebook', 'Genie Code is off in this workspace, so Inspire writes the notebook only.')
+    : pick('mvp', 'You see it run end to end.');
+}
+
+function blocksOf(given) {
+  return Array.isArray(given) ? Object.fromEntries(given.map((id) => [id, { why: 'off' }])) : given || {};
+}
+
+export function bestOutput(unavailable = []) {
+  const order = OUTPUT_ORDER.filter((o) => IMPLEMENT_OUTPUTS.some((x) => x.id === o));
+  return affordable(order, blocksOf(unavailable), (id) => OUTPUT_REASONS[id]).best;
+}
+
+export function bestGrouping(profile, choices) {
+  const best = groupingBest(profile, choices);
+  if (!best) return null;
+  if (best.deep) return pick(best.value, 'Discovery picked it for this use case.');
+  if (best.columns.length) {
+    const count = groupingCount(best, profile);
+    return pick(best.value, count == null ? 'It splits the data into fair groups.' : `It splits the data into ${counted(count, 'fair group')}.`);
+  }
+  return pick(best.value, profile?.applies === true ? 'No column splits the data into fair groups.' : 'Groups do not apply to this technique.');
+}
+
+export function bestFirstRun(profile, choices = []) {
+  const open = (choices || []).filter((c) => c.available !== false);
+  const want = firstRunDefault(profile) || 'records';
+  const found = open.find((c) => c.id === want) || open.find((c) => c.scope === want) || open[0];
+  const records = profileRecords(profile);
+  if (!found || records === 0) return null;
+  const reasons = {
+    one: 'One group shows results soonest.',
+    groups: 'A few groups show results sooner.',
+    records: records == null ? 'A sample shows results sooner.'
+      : found.records != null && found.records >= records ? `It covers all ${counted(records, 'record')}.` : `A sample shows results sooner than all ${counted(records, 'record')}.`,
+    recent: 'Recent records show results sooner.',
+    all: 'It covers every record.',
+  };
+  return pick(found.id, reasons[found.id] || '');
+}
+
+export const RESULT_PLACE_ORDER = ['own', 'inspire', 'pick'];
+
+export function resultPlaceBlocks(ownSchema, ownTable, inspireTable, catalog = '') {
+  const blocks = {};
+  if (!ownTable || ownSchema?.place === 'inspire') {
+    blocks.own = blockOf(ownTable ? 'Inspire cannot create a schema of its own here.' : 'There is no schema of its own to name here.',
+      ownSchema?.note || (catalog ? `GRANT CREATE SCHEMA ON CATALOG \`${catalog}\` TO <you>` : ''));
+  }
+  if (!inspireTable) blocks.inspire = blockOf('There is no Inspire database to hold it.');
+  return blocks;
+}
+
+export function bestResultPlace(blocks, catalog = '') {
+  return affordable(RESULT_PLACE_ORDER, blocks, (id) => (id === 'own' ? bestResultTable('own').reason : bestResultTable(id, catalog)?.reason || '')).best;
+}
+
+export function bestResultTable(place, catalog = '') {
+  if (place === 'own') return pick('own', 'A schema of its own keeps this use case\'s tables apart from every other use case.');
+  return place ? pick(place, `It is where you can write today${catalog ? `; a schema of its own needs CREATE SCHEMA on ${catalog}` : ''}.`) : null;
+}
+
+export function bestFreshness(spec) {
+  return spec?.outputs?.alert ? pick('daily', 'The alert checks fresh records each day.')
+    : pick('daily', 'Fresh results every morning, so people act on today\u2019s records.');
+}
+
+export function bestHoldout() {
+  return pick(true, 'It shows what the MVP changed, against records nobody acted on.');
+}
+
+export function bestKpi(options = [], tracked = null) {
+  const name = tracked?.record?.name || '';
+  return name && (options || []).some((o) => String(o.name).toLowerCase() === String(name).toLowerCase()) ? pick(name, 'It is the KPI this use case already tracks.') : null;
+}
+
+export function bestAppTarget(spec, targets, scope) {
+  const target = targets ? placementTarget(spec, targets, { ...scope, placement: 'domain' }) : null;
+  return target ? pick(target.id, `It already holds ${scope.domain || 'this domain'} use cases.`) : null;
+}
+
+export function bestHeldApp(name) {
+  return name ? pick('held', `People already open ${name}.`) : null;
+}
+
+export function appPolicyBlocks(spec, targets, scope) {
+  return Object.fromEntries(APP_OWN_PLACEMENTS.map((p) => [p.id, newAppPlacementBlock(spec, targets, scope, p.id)])
+    .filter(([, why]) => why).map(([id, why]) => [id, blockOf(why)]));
+}
+
+export function bestAppPolicy(spec, targets, scope) {
+  const first = placementThatFits(spec, targets, scope, APP_PLACEMENT_DEFAULT);
+  const order = [first, ...APP_OWN_PLACEMENTS.map((p) => p.id).filter((id) => id !== first)];
+  return affordable(order, appPolicyBlocks(spec, targets, scope), (id) => POLICY_REASONS[id](scope)).best;
+}
+
+export function bestAppAccess({ inside = false, personal = '' } = {}) {
+  if (inside) return pick('user', 'Inside Inspire, each viewer signs in as themselves.');
+  return personal ? pick('user', `${personal} looks personal, so each person sees only their own rows.`)
+    : pick('user', 'Each person sees only the rows and values their own access allows.');
+}
+
+export function bestAppBackend(spec, lakebase) {
+  if (!spec?.outputs?.app) return null;
+  const blocks = appBackendBlocks(spec, lakebase);
+  const order = appBackendDefault(spec, lakebase) === 'lakebase' ? ['lakebase', 'delta'] : ['delta'];
+  const best = affordable(order, blocks, () => 'Pages open at once.').best;
+  return best?.id === 'lakebase' ? best : null;
+}
+
+export function bestAppOption() {
+  return pick('decisions', 'Owners track each flagged record to the end.');
+}
+
+export function bestVibePrevious(live) {
+  return pick(VIBE_PREVIOUS_DEFAULT, `You can compare v${live} with the new version.`);
+}
+
+export function bestReplaceEdits() {
+  return pick(false, 'What people changed stays.');
+}
+
+export const LAYOUT_TABS_MAX = 3;
+
+export function bestLook(kind, spec) {
+  if (kind !== 'layout') return null;
+  const pages = appPagesOf(spec).filter((p) => p.on).length;
+  return pages <= LAYOUT_TABS_MAX ? pick('tabs', `${counted(pages, 'page')} fit as tabs on top.`) : pick('sidebar', `${counted(pages, 'page')} fit in one menu.`);
+}

@@ -73,3 +73,12 @@ test('a missing feedback table is recognized, other errors are not', () => {
   assert.ok(isMissingTableError('Table main.s.__inspire_feedback does not exist'));
   assert.ok(!isMissingTableError(new Error('PERMISSION_DENIED: User does not have INSERT')));
 });
+
+test('a deleted or stopped SQL warehouse is never read as a missing table', () => {
+  assert.ok(!isMissingTableError(new Error('SQL failed (404): {"error_code":"RESOURCE_DOES_NOT_EXIST","message":"SQL warehouse wh1 does not exist."}')));
+  assert.ok(!isMissingTableError('Warehouse 4b9b953939869799 does not exist'));
+  assert.ok(!isMissingTableError('Catalog sales does not exist'));
+  assert.ok(!isMissingTableError('Job 123 does not exist'));
+  assert.ok(isMissingTableError('[SCHEMA_NOT_FOUND] The schema `main`.`_inspire` cannot be found'));
+  assert.ok(isMissingTableError('relation "n01" does not exist'));
+});

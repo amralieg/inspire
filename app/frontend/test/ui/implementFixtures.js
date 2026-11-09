@@ -120,6 +120,7 @@ export const GROUPING_PROFILE = {
     { value: 'Ireland', records: 300 }, { value: 'Malta', records: 40 }],
   groups_for: 'region, country',
   group_count: 31,
+  group_max: 500,
   group_list: [['AMER', 'USA', 18200], ['EMEA', 'Spain', 1400], ['EMEA', 'Germany', 600], ['EMEA', 'Ireland', 300], ['EMEA', 'Malta', 40]]
     .map(([region, country, records]) => ({ value: `${region} / ${country}`, records, parts: [{ column: 'region', value: region }, { column: 'country', value: country }] })),
   column_groups: { region: [{ value: 'AMER', records: 30110 }, { value: 'EMEA', records: 17890 }, { value: 'APAC', records: 210 }],

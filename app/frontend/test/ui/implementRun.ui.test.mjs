@@ -12,6 +12,7 @@ const INSIDE_BLURB = 'Inspire runs the page in its Run tab, with no App of its o
 const INSIDE_ACCESS_REASON = 'Inside Inspire, each viewer signs in as themselves and sees only the data they may read';
 const INSIDE_BACKEND_REASON = 'Fast pages need an App of its own';
 const INSIDE_WAREHOUSE_LABEL = 'SQL warehouse each viewer reads with (each viewer needs CAN USE on it)';
+const INSIDE_WAREHOUSE_TOGGLE = 'SQL warehouse settings';
 
 test.after(closeBrowser);
 
@@ -214,14 +215,14 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
     assert.equal(await card.getByText(/Not recommended/).count(), 0, 'no Not recommended tag: the badge sits on the best place');
     assert.equal(await page.getByLabel('App name').count(), 1, 'a new App asks for its name');
     await page.getByRole('radio', { name: /^Inside Inspire/ }).check();
-    await openAdvanced(page);
+    await openAdvanced(page, INSIDE_WAREHOUSE_TOGGLE);
     await card.locator('[data-app-warehouse="pick"]').waitFor();
     assert.equal(await card.locator('[data-placement-blurb]').textContent(), INSIDE_BLURB);
     assert.equal(await card.getByText(INSIDE_WAREHOUSE_LABEL).count(), 1);
     assert.equal(await page.getByLabel('App name').count(), 0, 'no App name Inside Inspire');
     assert.equal(await page.locator('[data-app-list]').count(), 0, 'the list of existing Apps is hidden');
     assert.equal(await page.getByRole('radiogroup', { name: 'How Inspire organizes Apps' }).count(), 0);
-    await onStep(page, 'App access');
+    await goToStep(page, 'App access');
     assert.equal(await page.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true);
     assert.equal(await page.getByRole('radio', { name: /^Internal data/ }).isDisabled(), true);
     assert.equal(await page.getByRole('note', { name: 'Why each person signs in as themselves' }).textContent(), `${INSIDE_ACCESS_REASON}.`);

@@ -51,7 +51,7 @@ export default function UseCaseCard({
         <button
           type="button"
           onClick={(e) => { e.stopPropagation(); onToggleFavorite(); }}
-          className={`ps-3 pe-1 py-4 shrink-0 transition-smooth ${isFavorite ? 'text-db-red-fg' : 'text-text-disabled hover:text-db-red-fg'}`}
+          className={`ps-3 pe-1 py-4 shrink-0 transition-smooth ${isFavorite ? 'text-db-red-fg' : 'text-text-tertiary hover:text-db-red-fg'}`}
           aria-pressed={isFavorite}
           title={isFavorite ? 'Remove from favorites' : 'Add to favorites'}
         >
@@ -69,7 +69,7 @@ export default function UseCaseCard({
               onToggle();
             }
           }}
-          className="flex-1 flex items-center gap-3 px-3 py-4 text-start hover:bg-bg-subtle transition-smooth cursor-pointer outline-none focus-visible:ring-2 focus-visible:ring-db-red/25"
+          className="flex-1 flex items-center gap-3 px-3 py-4 text-start hover:bg-bg-subtle transition-smooth cursor-pointer"
         >
           <div className="flex-1 min-w-0">
             <div className="flex items-start justify-between gap-3">

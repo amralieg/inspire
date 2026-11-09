@@ -10,7 +10,7 @@ import types
 
 import pytest
 
-from v120_artifacts_support import CapturingLogger, make_inspire, make_uc
+from v120_artifacts_support import CapturingLogger, elite_assessment, make_inspire, make_uc
 
 
 @pytest.fixture
@@ -59,7 +59,7 @@ def test_no_measured_baseline_says_not_measured_yet_and_never_shows_a_number(ns)
         assert not re.search(r"\d", estimate["text"]), estimate["text"]
     assert "measure Weekly sales value by running its KPI query" in estimate_of(ns, money_uc(ns, kpi(ns, value=None)))["text"]
     ticked = estimate_of(ns, money_uc(ns, kpi(ns, name="`units_sold` value", value=None)))
-    assert "measure units_sold value by running" in ticked["text"] and "`" not in ticked["text"], ticked["text"]
+    assert "measure units sold value by running" in ticked["text"] and "`" not in ticked["text"], ticked["text"]
     assert "`units_sold`" in ticked["measure"], "only the line a person reads drops the backticks; the stored measure keeps its text"
     assert "sum of a revenue or cost column in c.s.orders" in estimate_of(ns, money_uc(ns, kpi(ns, name="Late orders", unit="orders")))["text"]
     assert "money value per unit of order count" in estimate_of(ns, money_uc(ns, kpi(ns, name="Order count", unit="orders", aggregation="COUNT")))["text"]
@@ -407,3 +407,18 @@ def test_a_new_kind_flagged_in_the_registry_takes_its_number_from_its_kpi_with_n
     for not_true in ("true", 1, None):
         monkeypatch.setitem(registry, "kinds", list(registry["kinds"][:-2]) + [dict(flagged, value_from_kpi=not_true)])
         assert estimate_of(ns, money_uc(ns, revenue, use_case_kind="kpi_lift_new"))["status"] == "not measured yet", not_true
+
+
+def test_the_value_line_a_person_reads_names_columns_in_words_never_as_raw_column_ids(ns):
+    signals = ["c.s.mains.install_year", "c.s.mains.material", "c.s.mains.condition_score", "c.s.zones.operating_pressure_m"]
+    uc = make_uc("N02-U01", use_case_kind="risk_propensity", KPIs=[kpi(ns, name="Late orders", unit="orders", value=None)],
+                 elite_assessment=elite_assessment(signal_columns=signals, entity_key_column="c.s.zones.pressure_zone_id"))
+    text = estimate_of(ns, uc)["text"]
+    assert "from install year, material, condition score, operating pressure m" in text, text
+    assert not re.search(r"[a-z0-9]_[a-z0-9]", text) and "`" not in text, text
+    assert ns["inspire_ident_words"]("cut `loss_m3` and `Main Break` by 2026-01-01 at `rate_v2.x`") == \
+        "cut loss m3 and Main Break by 2026-01-01 at rate_v2.x", "only a whole column id in backticks becomes words (must-exclude)"
+    promised = ns["implement_promised"]({"Business Value": "This should reduce confirmed `Main Break` incidents, `awareness_hours` and `loss_m3`.",
+                                         "Financial Benefits": ["Fewer `repair_cost` overruns"], "value_estimate_text": "Value not measured yet: measure `loss_m3`."})
+    assert promised == {"value": "This should reduce confirmed Main Break incidents, awareness hours and loss m3.",
+                        "benefits": ["Fewer repair cost overruns"], "estimate": "Value not measured yet: measure loss m3."}

@@ -47,7 +47,7 @@ def test_a_key_result_whose_target_the_sponsor_has_not_set_is_no_target_and_neve
 def test_the_app_promise_reads_in_plain_words(agent_ns):
     promised = agent_ns["implement_promised"](make_uc("N01-U01", **TAGGED))
     assert promised["value"] == "Cuts stockouts from the current value once (missing data: supplier lead times) is loaded"
-    assert promised["benefits"] == ["Margin driven by `price` from the current value, (assumption: uplift to be agreed with the sponsor)"]
+    assert promised["benefits"] == ["Margin driven by price from the current value, (assumption: uplift to be agreed with the sponsor)"]
 
 
 def test_no_document_notebook_or_export_shows_a_raw_placeholder_tag(docs):

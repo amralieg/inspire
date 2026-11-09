@@ -60,7 +60,8 @@ test('Setup shows why the policy refused to publish the notebook, and offers Pub
     await ui.page.getByRole('button', { name: 'Publish Notebook to Workspace' }).click();
     const alert = ui.page.getByRole('alert').filter({ hasText: 'Only an App manager can republish' });
     await alert.waitFor({ timeout: 10000 });
-    assert.equal(await alert.innerText(), message);
+    assert.equal((await alert.innerText()).split('\n')[0], `Inspire could not publish the notebook: ${message}`);
+    assert.equal(await alert.getByRole('button', { name: 'Copy what to send' }).count(), 1);
     assert.deepEqual(publishes, ['POST']);
     await ui.page.getByRole('button', { name: 'Publish Notebook to Workspace' }).click();
     await until(() => publishes.length === 2, 'a second publish attempt');

@@ -31,7 +31,7 @@ async function openAt(hash, info = appInfo(), { routes = {}, init, ready = '.ph 
 }
 
 async function pickCategory(page, value) {
-  await page.getByRole('button', { name: /^All/ }).first().click();
+  await page.getByRole('button', { name: /All$/ }).first().click();
   await page.getByRole('listbox', { name: 'Category' }).getByText(value).click();
   await page.keyboard.press('Escape');
   await page.waitForFunction((v) => [...document.querySelectorAll('.chip')].some((c) => c.textContent.includes(v)), value);

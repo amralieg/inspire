@@ -49,7 +49,7 @@ test('with 41 newer Apps the oldest App of all use cases of the business is stil
   assert.deepEqual([hub.placement, hub.use_cases.map((u) => u.business)], ['business', ['Acme', 'Acme']]);
   const w = await wizard();
   const uc = { id: 'N01-U01', Name: 'Predict churn', business_domain: 'Customer' };
-  const spec = w.withOutput(w.defaultSpecFromUseCase(uc, { businessName: 'Acme' }), 'app', true);
+  const spec = w.withAppAccess(w.withOutput(w.defaultSpecFromUseCase(uc, { businessName: 'Acme' }), 'app', true), 'sp');
   const scope = { business: 'Acme', domain: 'Customer', useCaseAppName: 'predict-churn' };
   const placed = w.withPlacementDefault(spec, got.data.targets, { ...scope, saved: 'business' });
   assert.equal(placed.outputs.merge.app, HUB);

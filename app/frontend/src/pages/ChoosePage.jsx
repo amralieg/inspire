@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useId } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo, useId } from 'react';
 import { Rocket, BarChart3, Loader2, AlertCircle, Clock, CheckCircle2, ArrowRight, ChevronRight, ChevronDown, ChevronUp, Trash2, Eye, EyeOff, Target, FileText, Sparkles, X } from 'lucide-react';
 import SessionSparkline from '../components/SessionSparkline';
 import MagneticButton from '../components/MagneticButton';
@@ -6,11 +6,13 @@ import { SkeletonCard } from '../components/SkeletonLoader';
 import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
-import { buildFilterOf, portfolioCard, runBusiness, runCounts, runFilterText, runsOfCard } from '../lib/reviewFigures';
+import { buildFilterOf, portfolioCard, runCounts, runLabel, runFilterText, runsOfCard } from '../lib/reviewFigures';
 import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
 import { SHOWCASE_BUTTON } from '../lib/showcase';
 import { compareUseCaseRank, computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf } from '../lib/useCaseFields';
-import TechnicalDetails from '../components/TechnicalDetails';
+import { PlainMessage } from '../components/TechnicalDetails';
+
+const RUNS_ERROR_TEXT = 'Inspire could not load your runs, and you can still start a new one';
 
 const STATUS_CONFIG = {
   finished: { label: 'Completed', bg: 'bg-success-bg', text: 'text-success-fg', dot: 'bg-success' },
@@ -69,7 +71,7 @@ function getSessionSummary(session) {
   return { total: useCases.length, high: computeHighPriorityCount(useCases), meets, below, domains: domains.size, domainNames: [...domains], useCases };
 }
 
-const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-start transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-start transition-all';
 
 function StartChoice({ choice, icon: Icon, title, text, onClick, strong = false }) {
   const textId = useId();
@@ -315,12 +317,12 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         {/* ── Header ── */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-bg-subtle border border-border rounded-full">
+          {!error && <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-bg-subtle border border-border rounded-full">
             <BarChart3 size={12} className="text-db-red-fg" />
             <span className="text-[11px] font-medium text-text-secondary">
               {completedCount} completed{inProgressCount > 0 ? ` · ${inProgressCount} in progress` : ''}
             </span>
-          </div>
+          </div>}
           <h1 className="text-3xl sm:text-4xl font-bold tracking-[-0.03em]">
             Welcome back
           </h1>
@@ -353,7 +355,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
               <button
                 type="button"
                 onClick={() => setRunFilter('')}
-                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red"
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50"
               >
                 <X size={11} aria-hidden /> Clear
               </button>
@@ -364,7 +366,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
             {listed.map((session) => {
               const status = sessionStatus(session, loadedAt);
               const cfg = session.starting && status === 'running' ? STATUS_CONFIG.starting : STATUS_CONFIG[status];
-              const name = runBusiness(session) || `Session ${session.session_id}`;
+              const name = runLabel(session);
               const date = session.completed_on || session.create_at;
               const mode = session.widget_values?.operation_mode
                 || session.widget_values?.['15_operation']
@@ -386,18 +388,17 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                 const rj = session.results_json;
                 if (rj && Array.isArray(rj.domains)) {
                   const domainNames = rj.domains.map(d => d.domain_name).filter(Boolean);
-                  if (domainNames.length > 0) {
-                    parts.push(domainNames.length <= 3 ? domainNames.join(', ') : `${domainNames.slice(0, 3).join(', ')} +${domainNames.length - 3} more`);
-                  }
+                  domainNames.slice(0, 3).forEach((d, i) => parts.push([i ? ', ' : '', d]));
+                  if (domainNames.length > 3) parts.push([' ', `+${domainNames.length - 3} more`]);
                 }
                 // Catalog info
                 const db = session.inspire_database_name || '';
-                if (db) parts.push(db.split('.')[0]);
+                if (db) parts.push([parts.length ? ' · ' : '', db.split('.')[0]]);
                 // Business domains from session config (fallback if no results_json)
                 if (parts.length === 0 && session.business_domains) {
-                  parts.push(session.business_domains.length > 60 ? session.business_domains.slice(0, 57) + '...' : session.business_domains);
+                  parts.push(['', session.business_domains.length > 60 ? session.business_domains.slice(0, 57) + '...' : session.business_domains]);
                 }
-                return parts.join(' · ');
+                return parts.length ? parts.map(([sep, value], i) => <Fragment key={i}>{sep}<bdi>{value}</bdi></Fragment>) : null;
               })();
 
               const isQuickOpen = String(expandedQuickView) === sidStr;
@@ -413,7 +414,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                   <button
                     type="button"
                     onClick={() => onViewResults(session.session_id, session.starting ? session.run_id : null)}
-                    className="flex min-w-0 flex-1 items-center gap-4 text-start before:absolute before:inset-0 before:rounded-xl before:content-[''] focus-visible:outline-none focus-visible:before:ring-2 focus-visible:before:ring-db-red/30"
+                    className="flex min-w-0 flex-1 items-center gap-4 text-start before:absolute before:inset-0 before:rounded-xl before:content-['']"
                   >
                     {/* Status indicator */}
                     <div className="flex-shrink-0 relative">
@@ -433,7 +434,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-medium text-text-primary truncate">{name}</span>
+                        <span dir="auto" className="text-sm font-medium text-text-primary truncate">{name}</span>
                         <LatestRunBadge session={session} />
                       </p>
                       {description && (
@@ -530,7 +531,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                       )}
 
                       {deleteError && deleteError.sessionId === session.session_id && (
-                        <span role="alert" className="max-w-[18rem] text-[10px] text-error-fg" onClick={(e) => e.stopPropagation()}>{deleteError.message}</span>
+                        <PlainMessage as="span" text={deleteError.message} role="alert" className="max-w-[18rem] text-[10px] text-error-fg" onClick={(e) => e.stopPropagation()} />
                       )}
 
                       {/* Delete button */}
@@ -664,11 +665,10 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         {error && (
           <div className="flex flex-col items-center gap-1 text-xs text-warning-fg justify-center pt-2 px-4 text-center">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" data-runs-error="">
               <AlertCircle size={13} />
-              <span>Could not load all runs. You can still start a new run.</span>
+              <PlainMessage as="span" text={`${RUNS_ERROR_TEXT}: ${typeof error === 'string' && error.trim() && error !== 'false' ? error : 'Databricks gave no reason'}`} />
             </div>
-            {typeof error === 'string' && error.trim() && error !== 'false' && <TechnicalDetails items={error} />}
           </div>
         )}
       </div>

@@ -104,3 +104,11 @@ test('a previous run that held 0 reads as a change from 0, never as no earlier r
   assert.equal(await itemsTile(still.page), '\u25a0 unchanged vs previous run');
   await still.context.close();
 });
+
+test('a story whose number did not load is left out, never read with Not recorded in place of the number', async () => {
+  const { page, seen, context } = await open({ now: null, before: null });
+  assert.equal(await page.locator('.story').count(), 0);
+  assert.doesNotMatch(await page.locator('main').innerText(), /holds Not recorded|Not recorded items/);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});

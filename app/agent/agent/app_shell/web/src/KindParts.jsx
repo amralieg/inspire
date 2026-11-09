@@ -6,7 +6,7 @@ import { QueueBulk, useActs } from './Work.jsx';
 import { RecordPanel } from './Records.jsx';
 import { useList } from './Layouts.jsx';
 import { Icon } from './icons.jsx';
-import { Skeleton, PlainNote } from './ui.jsx';
+import { Skeleton, PlainNote, useRetry } from './ui.jsx';
 import { SaveButton, runWrite } from './saving.jsx';
 import { genieOn } from './genieAsk.js';
 import { plural } from './hub.js';
@@ -189,13 +189,14 @@ export function RowPanel({ page, app, list, opened, filters, view, onChanged }) 
 }
 
 function ListShell({ page, app, title, hint, section, list, empty, actions, error, filters, view, onChanged, opened, children }) {
+  const retry = useRetry();
   const off = !!list.data && !canDecide(app, list.data);
   return (
     <section className="card card--table choices" aria-label={title} data-part={section}>
       <header className="card-h"><div><h2>{title}</h2>{off ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p> : hint && <p>{hint}</p>}</div>{actions}
         <AskGenie kind="table" title={title} context={tableContext(hint || '', list.data?.rows || [], (row) => choiceFields(page, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
-      {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
+      {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={retry} />}
       {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {list.data && !(list.data.rows || []).length && <p className="empty">{empty}</p>}
       {children}

@@ -1,4 +1,4 @@
-import { asDate, cap, countOf, dayLabel, formatValue, grouped, integer, isAmount, isCurrency, plainText, plainWords, savedVerb, savedWords, shownUnit, wholeMoney } from './format.js';
+import { addedParts, asDate, cap, countOf, dayLabel, entityName, formatValue, grouped, integer, isAmount, isCurrency, plainText, plainWords, savedVerb, savedWords, shownUnit, wholeMoney } from './format.js';
 
 const LONG_TEXT = /(action|note|comment|description|reason|summary|detail|explanation|why)/i;
 const NUMBER = /^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$/;
@@ -96,7 +96,8 @@ export function impactText(summary) {
 }
 
 export const UNDO_MS = 15000;
-export const SIMILAR_SHOWN = 5;
+export const SIMILAR_PAGE = 50;
+export const SIMILAR_SUMMARY = 3;
 export const CONFLICTS_SHOWN = 20;
 const VIEW_KEYS = ['ai', 'search', 'mine', 'changed', 'column_filters', 'window', 'window_limit', 'time_zone', 'focus'];
 const WINDOW_KEYS = ['window', 'window_limit', 'time_zone'];
@@ -123,7 +124,31 @@ export function changeWords(values, choices = DEFAULT_CHOICES) {
 export function actOutcome(out) {
   const sample = Array.isArray(out?.conflicts) ? out.conflicts.slice(0, CONFLICTS_SHOWN) : [];
   return { written: howMany(out?.written), conflicts: out?.conflicts_count == null ? howMany(out?.conflicts) : countOf(out.conflicts_count), sample,
-    batch: String(out?.batch_id || ''), matched: out?.matched == null ? null : countOf(out.matched), leftOut: countOf(out?.left_out) };
+    batch: String(out?.batch_id || ''), matched: out?.matched == null ? null : countOf(out.matched), leftOut: countOf(out?.left_out),
+    changed: Array.isArray(out?.changed) ? out.changed.map(String) : [] };
+}
+
+export function reviewedText(keys, nameOf = (k) => k) {
+  const n = keys.length;
+  if (!n) return '';
+  const said = n === 1 ? '1 record changed since you reviewed it and was left as it was' : `${count(n)} records changed since you reviewed them and were left as they were`;
+  const names = keys.slice(0, CONFLICTS_SHOWN).map((k) => plainText(nameOf(k))).filter(Boolean);
+  return `${said}${names.length ? `: ${names.join(', ')}${n > names.length ? `, and ${count(n - names.length)} more` : ''}` : ''}`;
+}
+
+export const MONEY_COLUMN = 'value_at_stake';
+
+export function recordDetails(meta, row, unit, kind) {
+  return [...(meta?.detail || []).map((d) => [d.column, d.label, d.column === MONEY_COLUMN
+      ? formatValue(row?.[d.column], d.format || 'currency', shownUnit(unit, d.currency, kind), undefined, kind)
+      : formatValue(row?.[d.column], d.format || 'text', d.currency)]),
+    ...(meta?.rank && row?.[meta.rank] != null ? [[meta.rank, 'Rank', `${integer(row[meta.rank])} on the latest run`]] : [])];
+}
+
+export function recordLine(meta, row) {
+  const name = entityName(row, meta?.label);
+  const [segment, key] = addedParts(name, [meta?.sublabel ? row?.[meta.sublabel] : '', row?.[meta?.key]]);
+  return { name, sub: [key, segment].filter(Boolean) };
 }
 
 export function conflictText(n) {
@@ -136,10 +161,11 @@ function leftOutText(n) {
   return n === 1 ? '1 record you cannot read was left out' : `${count(n)} records you cannot read were left out`;
 }
 
-export function actedText(outcome, values) {
+export function actedText(outcome, values, nameOf) {
   const who = outcome.matched > outcome.written
     ? `${count(outcome.written)} of ${count(outcome.matched)} matching ${outcome.matched === 1 ? 'record' : 'records'}` : recordsText(outcome.written);
-  return [`${who} ${changeWords(values)}.`, ...[conflictText(outcome.conflicts), leftOutText(outcome.leftOut)].filter(Boolean).map((t) => `${t}.`)].join(' ');
+  return [`${who} ${changeWords(values)}.`, ...[conflictText(outcome.conflicts), reviewedText(outcome.changed || [], nameOf), leftOutText(outcome.leftOut)]
+    .filter(Boolean).map((t) => `${t}.`)].join(' ');
 }
 
 export const STALE_LIST = 'The list changed since you loaded it. Reload and try again.';

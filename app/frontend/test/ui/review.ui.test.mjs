@@ -469,3 +469,42 @@ test('a file both in Quick access and in the file list previews once, under the 
     await ui.close();
   }
 });
+
+test('the Markdown catalog and the JSON catalog preview in the file list: headings and tables read as text, JSON reads pretty printed, a broken JSON file says so', async () => {
+  const folder = '/Workspace/Users/someone/inspire/acme';
+  const files = {
+    'Acme-dbx_inspire.md': '# Acme use cases\n\n| No | Name |\n| --- | --- |\n| N01-U01 | Predict churn |\n\n![logo](https://outside.example/logo.png)',
+    'Acme-dbx_inspire.json': '{"use_cases":[{"id":"N01-U01"}]}',
+    'Acme-dbx_inspire_ar.json': '{"use_cases":',
+  };
+  const mount = (app) => {
+    app.get('/api/workspace/list', (_req, res) => res.json({ files: Object.keys(files).map((name) => ({ name, path: `${folder}/${name}`, is_directory: false, file_size: 2048 })) }));
+    app.get('/api/workspace/export', (req, res) => res.type('application/octet-stream').send(files[String(req.query.path).split('/').pop()]));
+  };
+  const sessions = REVIEW_STATE.sessions.map((s) => (s.session_id === '42' ? { ...s, generation_path: folder, widget_values: { ...s.widget_values, generation_path: folder } } : s));
+  const ui = await openUi('results', { ...REVIEW_STATE, sessions }, '', { mount });
+  const { page } = ui;
+  const outside = outsideHosts(page);
+  try {
+    await ready(page);
+    const row = (name) => page.locator('div', { hasText: name }).filter({ has: page.getByRole('button', { name: `Download ${name}` }) }).last();
+    await row('Acme-dbx_inspire.md').waitFor({ timeout: 15000 });
+    await row('Acme-dbx_inspire.md').getByRole('button', { name: 'Preview' }).click();
+    const md = page.getByRole('document', { name: 'Preview of Acme-dbx_inspire.md' });
+    await md.waitFor({ timeout: 15000 });
+    assert.equal(await md.getByRole('heading', { name: 'Acme use cases' }).count(), 1);
+    assert.deepEqual((await md.locator('tbody td').allInnerTexts()).map((t) => t.trim()), ['N01-U01', 'Predict churn']);
+    assert.equal(await md.locator('img').count(), 0, 'no image loads from the file (must-exclude)');
+    await row('Acme-dbx_inspire.json').getByRole('button', { name: 'Preview' }).click();
+    const json = page.getByRole('document', { name: 'Preview of Acme-dbx_inspire.json' });
+    await json.waitFor({ timeout: 15000 });
+    assert.equal(await json.locator('pre').innerText(), '{\n  "use_cases": [\n    {\n      "id": "N01-U01"\n    }\n  ]\n}');
+    assert.equal(await md.count(), 0, 'one preview at a time');
+    await row('Acme-dbx_inspire_ar.json').getByRole('button', { name: 'Preview' }).click();
+    await page.getByText(A.JSON_UNREADABLE).waitFor({ timeout: 15000 });
+    assert.deepEqual(outside, [], 'nothing came from an outside host');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

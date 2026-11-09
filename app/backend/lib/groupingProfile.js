@@ -1,6 +1,7 @@
 const G = require('../../frontend/src/lib/tableName.js');
 const R = require('./groupingRule');
 const { parseExactJson } = require('./exactJson');
+const { plural } = require('./plural');
 
 const PROFILE_MS = 60000;
 const PROFILE_DAYS_MAX = 3650;
@@ -239,19 +240,33 @@ function columnTagsOf(rows) {
   return out;
 }
 
-function reasonOf({ technique, qualifies, standalone, recommended, table, groups }) {
+function overLimitOf(candidates, stats, groups) {
+  return candidates.map((name, at) => (groups.has(name) ? { name, groups: groups.get(name).size, about: false } : { name, groups: num(stats[`d${at}`]), about: true }))
+    .filter((c) => c.groups > R.GROUP_MAX_GROUPS);
+}
+
+function overLimitText(over) {
+  const limit = `the ${R.GROUP_MAX_GROUPS} Inspire models one by one`;
+  const size = (c) => `${c.about ? 'about ' : ''}${plural(c.groups, 'group')}`;
+  if (!over.length) return '';
+  if (over.length === 1) return ` ${over[0].name} makes ${size(over[0])}, more than ${limit}.`;
+  return ` These columns make more groups than ${limit}: ${over.map((c) => `${c.name}, ${size(c)}`).join('; ')}.`;
+}
+
+function reasonOf({ technique, qualifies, standalone, recommended, table, groups, records, over }) {
   const named = str(technique).trim() || 'this use case';
   if (qualifies) {
     return `Inspire recommends ${recommended.join(', then ')} because ${named} works out what is normal inside each group, and ${recommended[recommended.length - 1]} `
-      + `splits ${table} into ${groups} groups.`;
+      + `splits ${table} into ${groups} groups.${overLimitText(over)}`;
   }
   if (!R.techniqueRecords(technique)) return `Data groups do not apply: ${named} is not a technique in Inspire's technique table, so every record is in one group.`;
   if (!R.groupingApplies(technique)) {
     return standalone ? `Data groups do not apply: ${named} looks at each record on its own, so every record is in one group.`
       : `Data groups do not apply: ${named} does not work out what is normal inside groups, so every record is in one group.`;
   }
+  if (records === 0) return `Inspire recommends the whole data as one group because ${table} holds no records yet, so no column can split it into groups.`;
   return `Inspire recommends the whole data as one group because no column of ${table} or of a table it joins splits it into ${R.GROUP_MIN_GROUPS} to `
-    + `${R.GROUP_MAX_GROUPS} groups with ${R.GROUP_MIN_RECORDS} records each on average.`;
+    + `${R.GROUP_MAX_GROUPS} groups with ${R.GROUP_MIN_RECORDS} records each on average.${overLimitText(over)}`;
 }
 
 function joinOf(candidate) {
@@ -318,7 +333,7 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
     records,
     applies,
     qualifies,
-    reason: reasonOf({ technique, qualifies, standalone, recommended, table, groups: recommendedGroups }),
+    reason: reasonOf({ technique, qualifies, standalone, recommended, table, groups: recommendedGroups, records, over: overLimitOf(candidates, stats, groups) }),
     standalone,
     columns: shown,
     recommended: applies ? recommended : [],
@@ -333,6 +348,7 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
     groups_for: grouped.join(', '),
     group_list: groupList.slice(0, R.GROUP_MAX_GROUPS),
     group_count: groupList.length,
+    group_max: R.GROUP_MAX_GROUPS,
     column_groups: columnGroups,
     first_run: firstRun,
     default_scope: R.FIRST_RUN_DEFAULT,

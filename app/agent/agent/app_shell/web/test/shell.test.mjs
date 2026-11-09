@@ -2,7 +2,7 @@ import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { readFile } from 'node:fs/promises';
 import { chromium } from 'playwright';
-import { appInfo, chartsDrawn, goRail, openApp, pageData, pickCase, serveDist, until } from './harness.mjs';
+import { appInfo, chartsDrawn, goRail, openApp, pageData, pickCase, said, serveDist, until } from './harness.mjs';
 
 let served;
 let base;
@@ -47,7 +47,7 @@ test('the page renders KPIs, four charts, the story and the decision list', asyn
 
 test('filters change the request, chips clear them, and a record opens its drawer', async () => {
   const { page, seen, context } = await open(appInfo());
-  await page.getByRole('button', { name: /^All/ }).first().click();
+  await page.getByRole('button', { name: /All$/ }).first().click();
   await page.getByRole('listbox', { name: 'Category' }).getByText('Music').click();
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('.chip'));
@@ -88,7 +88,7 @@ test('a decision list whose rows share a key shows only the rows of the latest a
   const { page, seen, context } = await open(appInfo(), { routes, hash: '#/n01_u05/work' });
   const labels = () => page.locator('.card--table tbody tr .cell-t').allInnerTexts();
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 25);
-  await page.getByRole('button', { name: /^All/ }).first().click();
+  await page.getByRole('button', { name: /All$/ }).first().click();
   await page.getByRole('listbox', { name: 'Category' }).getByText('Music').click();
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('.chip'));
@@ -231,7 +231,7 @@ test('a phone screen has no sideways scroll and stacks the charts', async () => 
 test('a failed tile says why while the rest of the page renders', async () => {
   const { page, seen, context } = await open(appInfo(), { width: 1280, errors: { 'chart:pareto': 'TABLE_OR_VIEW_NOT_FOUND' } });
   await page.waitForSelector('.tile-err');
-  assert.equal(await page.locator('[data-card="pareto"] .tile-err').innerText(), 'This chart could not load: only an error code came back, listed under Details');
+  assert.equal(await said(page.locator('[data-card="pareto"] .tile-err')), 'This chart could not load: a table it needs does not exist, so check that it was not renamed or dropped, or pick another one.');
   assert.equal(await page.locator('[data-card="pareto"] [data-technical-details] pre').textContent(), 'TABLE_OR_VIEW_NOT_FOUND');
   await page.waitForFunction(chartsDrawn, 3);
   assert.deepEqual(seen.errors, []);

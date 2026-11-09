@@ -4,12 +4,12 @@ import {
   NotebookPen, Pencil, RefreshCw, Rocket, RotateCcw, Search, Settings2, Sparkles, Square, Trash2, XCircle,
 } from 'lucide-react';
 import {
-  statusChip, statusReason, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
+  statusChip, statusReason, statusDetails, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
   runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -26,6 +26,7 @@ import QualityBarChip from '../components/QualityBarChip';
 import UseCaseDetailBody from '../components/UseCaseDetailBody';
 import InspireScoreBadge from '../components/InspireScoreBadge';
 import Celebration from '../components/Celebration';
+import { RUN_STATE_UNKNOWN, runStateText } from '../lib/runState';
 import GenieLogo from '../components/GenieLogo';
 import DrawerShell from '../components/DrawerShell';
 import VibeFeatures from '../components/VibeFeatures';
@@ -48,6 +49,8 @@ import {
 import PaneResizer from '../components/PaneResizer';
 import { RAIL_WIDTH, loadPaneWidth, paneWidth, savePaneWidth } from '../lib/paneWidth';
 import MvpProgress, { ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
+import useBuildDiagnostics from '../components/useBuildDiagnostics';
+import ChoiceList from '../components/ChoiceList';
 import { useProgressView } from '../lib/progressView';
 import GenieFeed from '../components/GenieFeed';
 import MoneyReview, { NothingToActCard } from '../components/MoneyReview';
@@ -317,7 +320,7 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p role="status" className="min-w-0 text-[12px] font-medium text-db-red-fg">{buildFilterText(filter, sessionId)}</p>
         <button type="button" onClick={onClear}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red">
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50">
           <XCircle size={11} aria-hidden /> Clear
         </button>
       </div>
@@ -327,7 +330,7 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
             const on = run.session_id === String(sessionId);
             return (
               <button key={run.session_id} type="button" data-build-run={run.session_id} aria-pressed={on} onClick={() => { if (!on) onPickRun(run.session_id); }}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
                   on ? 'border-db-red/50 bg-surface text-db-red-fg' : 'border-border bg-surface text-text-primary hover:bg-bg-subtle'}`}>
                 {run.name} <span className="font-mono text-text-secondary">{run.count}</span>
               </button>
@@ -478,14 +481,14 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
-      {listError && <PlainMessage text={listError} className={ERROR_BOX} />}
+      {listError && <PlainMessage text={listError} className={ERROR_BOX} onRetry={() => setListVersion((n) => n + 1)} copy />}
       {buildNotes.length > 0 && (
         <ul role="note" aria-label="What Inspire changed to start this build" data-build-notes=""
           className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 space-y-0.5 text-xs text-warning-fg">
           {buildNotes.map((note) => <li key={note}>{note}</li>)}
         </ul>
       )}
-      {railError && <PlainMessage text={railError} className={ERROR_BOX} />}
+      {railError && <PlainMessage text={railError} className={ERROR_BOX} onRetry={() => loadRail().catch((e) => setRailError(e.message))} copy />}
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
           className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] overflow-y-auto md:max-h-none md:min-h-0">
@@ -549,7 +552,7 @@ function VersionRow({ card, version, locked, lockedReason, pending, confirming, 
       <div className="flex flex-wrap items-center gap-x-2 gap-y-1">
         <span className="font-semibold text-text-primary">Version {version.version}</span>
         {version.at && <span className="text-text-secondary">· {formatWhen(version.at, version.at)}</span>}
-        <span className="rounded-full border border-border px-1.5 py-px text-[10px] text-text-secondary">{statusChip(version.status).label}</span>
+        <span className="rounded-full border border-border px-1.5 py-px text-[10px] text-text-secondary">{statusChip(version.status, null, version).label}</span>
         <button type="button" disabled={locked || confirming} title={lockedReason || undefined} onClick={onAsk} aria-label={`Roll back to ${name}`} className={`ms-auto ${OUTLINE_BUTTON}`}>
           <History size={12} /> Roll back
         </button>
@@ -750,7 +753,7 @@ function AssetCard({ asset, locked, lockedReason, active, error, money = null, m
               {asset.warnings.map((w) => <li key={w} className="flex items-start gap-1.5 text-[11px] text-warning-fg"><AlertTriangle size={12} className="mt-px shrink-0" aria-hidden />{w}</li>)}
             </ul>
           )}
-          {error && <PlainMessage text={error} role="alert" className={ERROR_BOX} />}
+          {error && <PlainMessage text={error} role="alert" className={ERROR_BOX} copy />}
         </div>
       </article>
       <AssetVersions asset={asset} locked={locked} lockedReason={lockedReason} onRollback={onRollback} />
@@ -788,6 +791,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const [detailsOpen, setDetailsOpen] = useState(false);
   const [live, setLive] = useState(null);
   const [liveError, setLiveError] = useState('');
+  const [statusError, setStatusError] = useState('');
   const [actionBusy, setActionBusy] = useState('');
   const [celebrations, setCelebrations] = useState(0);
   const [pickedParts, setPickedParts] = useState({});
@@ -808,6 +812,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
 
   const loadStatus = useCallback(async () => {
     const data = await apiFetch(`/api/inspire/implement/status?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`);
+    setStatusError('');
     setStatus((prev) => steadyFeed(prev, data));
     setArrivals((prev) => feedArrivals(prev, data.feed, Date.now()));
   }, [apiFetch, qBase, useCaseId]);
@@ -830,7 +835,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
 
   useEffect(() => {
     if (!hasMvp) return undefined;
-    loadStatus().catch((e) => setError(e.message));
+    loadStatus().catch((e) => setStatusError(e.message));
     const id = setInterval(() => { loadStatus().catch(() => {}); }, 10000);
     return () => clearInterval(id);
   }, [hasMvp, loadStatus, refreshKey]);
@@ -893,7 +898,10 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     { table, required_columns: [] }).then((data) => ({ swaps: data.swaps || [], why: data.why || '' })), [apiPostJson, qBase, useCaseId]);
   const tableChange = useCallback((next) => apiPostJson(`/api/inspire/implement/table-change?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`,
     { spec: next }), [apiPostJson, qBase, useCaseId]);
-  const chip = statusChip(latest?.status, stalled);
+  const chip = statusChip(latest?.status, stalled, latest);
+  const [readsResult, setReadsResult] = useState(null);
+  const [readsBusy, setReadsBusy] = useState('');
+  const [protectionCopy, setProtectionCopy] = useState('');
   const tracked = trackedKpiOf(status?.history, latest);
   const kpiView = targetKpiView(tracked?.record, money?.run, liveImpact(money?.run, tracked?.impact || rowImpact(latest)));
   const spec = latest?.spec_json || {};
@@ -911,6 +919,10 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     return () => clearInterval(id);
   }, [active]);
   const stages = useMemo(() => mvpStages(status?.steps, latest, { now, stalled }), [status?.steps, latest, now, stalled]);
+  const diagnostics = useBuildDiagnostics({
+    apiFetch, query: `${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, enabled: built && !readOnly,
+    refreshKey: `${latest?.spec_version ?? ''}|${latest?.status ?? ''}|${stages.map((s) => s.state).join(',')}`,
+  });
   const repair = useMemo(() => mvpRepairOf(status?.steps, latest), [status?.steps, latest]);
   const plan = useMemo(() => versionPlan(status?.steps, latest), [status?.steps, latest]);
   const scope = useMemo(() => mvpScope(status?.steps, latest), [status?.steps, latest]);
@@ -1181,9 +1193,11 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const buildRunUrl = stalled?.run_url || status?.build_run_url || '';
   const dataStop = !readOnly && dataStopped(latest);
   const genieChanges = genieChangesOf(status?.steps, latest);
-  const choicesNow = buildAgain && !dataStop && !stopped && latest?.status === 'failed' ? failureChoices(latest, {
-    technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '',
-  }) : [];
+  const protection = readOnly ? null : protectionStopOf(latest);
+  const choicesNow = protection ? protectionChoices(protection)
+    : buildAgain && !dataStop && !stopped && latest?.status === 'failed' ? failureChoices(latest, {
+      technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '',
+    }) : [];
   const writeNotebook = async () => {
     setWritingNotebook(true);
     setError('');
@@ -1198,7 +1212,18 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       setWritingNotebook(false);
     }
   };
-  const pickChoice = (choice) => {
+  const pickChoice = async (choice) => {
+    if (choice.id === 'copy' && choice.sql) {
+      try {
+        await navigator.clipboard.writeText(choice.sql);
+        setProtectionCopy('The SQL is copied. Send it to the owner of the result tables.');
+      } catch (e) {
+        setProtectionCopy(`The SQL could not be copied: ${e.message}. Select it above and copy it.`);
+      }
+      return undefined;
+    }
+    if (protection && choice.id === 'check') return sendAgain();
+    if (protection && choice.id === 'access') return onEdit?.({ step: 'app_access' }, live);
     if (choice.changes) return submitChecked(nextSpecFrom(latest, { ...buildAgainChanges(latest), ...choice.changes }));
     if (choice.seed) return openFeatures(choice.seed.text ? choice.seed : null);
     return writeNotebook();
@@ -1220,33 +1245,22 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <ol className="list-decimal ps-5 space-y-1">
             {failure.rounds.map((round) => (
               <li key={round.attempt}>
-                <span>Attempt {round.attempt}{round.error ? ` failed: ${round.error}` : ' failed'}. </span>
+                <PlainMessage as="span" text={`Attempt ${round.attempt}${round.error ? ` failed: ${round.error}` : ' failed'}.`} />{' '}
                 <span>Inspire {round.tried}{round.why ? `: ${round.why}` : ''}.</span>
               </li>
             ))}
           </ol>
         </div>
       )}
-      {buildAgain && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : terminal ? TERMINAL_STOP_HINT : buildAgainHint(latest)}</p>}
-      {choicesNow.length > 0 && (
-        <div aria-label={FAILURE_CHOICES_HEADING} className="space-y-1.5">
-          <p className="font-semibold text-error-fg">{FAILURE_CHOICES_HEADING}</p>
-          <ul className="grid gap-1.5 sm:grid-cols-2">
-            {choicesNow.map((choice) => (
-              <li key={choice.id} data-failure-choice={choice.id} className="rounded-lg border border-border bg-bg-subtle px-2.5 py-2 space-y-1">
-                {choice.url ? (
-                  <a className={OUTLINE_BUTTON} href={choice.url} target="_blank" rel="noreferrer">{choice.label} <ExternalLink size={12} /></a>
-                ) : (
-                  <button type="button" disabled={locked || writingNotebook} title={lockedReason || undefined} onClick={() => pickChoice(choice)} className={OUTLINE_BUTTON}>
-                    {choice.id === 'notebook' && writingNotebook ? <Loader2 size={12} className="animate-spin" /> : null} {choice.label}
-                  </button>
-                )}
-                <p className="text-text-secondary">{choice.detail}</p>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {protection?.sql.length > 0 && (
+        <ul aria-label="SQL that keeps the filters and masks" data-protection-sql="" className="space-y-0.5">
+          {protection.sql.map((line) => <li key={line} className="font-mono text-[11px] text-text-primary break-all">{line}</li>)}
+        </ul>
       )}
+      {protectionCopy && <PlainMessage text={protectionCopy} role="status" data-protection-copy="" className="text-text-primary" />}
+      {buildAgain && !protection && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : terminal ? TERMINAL_STOP_HINT : buildAgainHint(latest)}</p>}
+      <ChoiceList heading={FAILURE_CHOICES_HEADING} choices={choicesNow} mark="data-failure-choice" tone="text-error-fg" disabled={locked || writingNotebook}
+        title={lockedReason} busy={writingNotebook ? 'notebook' : ''} onPick={pickChoice} />
       {(buildAgain || onEdit || buildRunUrl) && (
         <div className="flex flex-wrap gap-2">
           {buildAgain && !dataStop && !terminal && (
@@ -1270,6 +1284,58 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             </a>
           )}
         </div>
+      )}
+    </section>
+  );
+
+  const reads = readOnly ? null : appReadsOf(latest);
+  const readsShown = readsResult && !readsResult.error && readsResult.version === latest?.spec_version ? readsResult : null;
+  const readsLeft = readsShown ? { app: reads?.app || '', tables: readsShown.tables || [] } : reads;
+  const runReads = async (action) => {
+    setReadsBusy(action);
+    try {
+      const got = await apiPostJson(`/api/inspire/implement/app-reads?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, { action });
+      setReadsResult({ ...got, version: latest?.spec_version, action });
+    } catch (e) {
+      setReadsResult({ error: e.message, version: latest?.spec_version, action });
+    } finally {
+      setReadsBusy('');
+    }
+  };
+  const pickReads = async (choice) => {
+    if (choice.id !== 'copy') return runReads(choice.id);
+    try {
+      await navigator.clipboard.writeText(choice.sql);
+      setReadsResult((was) => ({ ...(was && !was.error ? was : { tables: readsLeft.tables }), version: latest?.spec_version, action: 'copy', copied: true }));
+    } catch (e) {
+      setReadsResult((was) => ({ ...(was && !was.error ? was : { tables: readsLeft.tables }), version: latest?.spec_version, action: 'copy', copyError: e.message }));
+    }
+  };
+  const readsCard = reads && (
+    <section aria-label={APP_READS_HEADING} data-app-reads="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
+      <div className="flex items-start gap-2.5">
+        <AlertTriangle size={16} className="mt-px shrink-0 text-warning-fg" aria-hidden />
+        <div className="min-w-0 space-y-1 text-warning-fg">
+          <p className="text-[13px] font-semibold">{readsLeft.tables.length ? APP_READS_HEADING : 'The App can read all its data now'}</p>
+          {readsLeft.tables.length > 0 && <p>{appReadsText(readsLeft, latest?.app_name || '')}</p>}
+          {readsLeft.tables.length > 0 && (
+            <ul aria-label="Grants the App needs" className="space-y-0.5">
+              {[...new Set(readsLeft.tables.flatMap((t) => t.grants))].map((g) => <li key={g} className="font-mono text-[11px] text-text-primary break-all">{g}</li>)}
+            </ul>
+          )}
+        </div>
+      </div>
+      {readsResult && readsResult.version === latest?.spec_version && (
+        <div role="status" data-app-reads-result={readsResult.refused || readsResult.error ? 'refused' : readsResult.action} className="space-y-0.5 text-text-primary">
+          {readsResult.error && <PlainMessage text={readsResult.action === 'grant' ? `Your grant was refused: ${readsResult.error}` : readsResult.error} />}
+          {!readsResult.error && readsResult.action !== 'copy' && <p>{readsResult.text}</p>}
+          {readsResult.copied && <p>The grant SQL is copied. Send it to {readsLeft.tables.map((t) => t.owner).filter(Boolean)[0] || 'the table owner'}.</p>}
+          {readsResult.copyError && <PlainMessage text={`The grant SQL could not be copied: ${readsResult.copyError}`} after="Select it above and copy it." />}
+        </div>
+      )}
+      {readsLeft.tables.length > 0 && (
+        <ChoiceList heading={FAILURE_CHOICES_HEADING} choices={appReadsChoices(readsLeft)} mark="data-app-reads-choice" tone="text-warning-fg"
+          disabled={readsBusy !== ''} busy={readsBusy} onPick={pickReads} />
       )}
     </section>
   );
@@ -1409,15 +1475,15 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             </div>
           ))}
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary pt-2">Job runs</div>
-          {status?.runs?.ok === false && <p className="text-[12px] text-error-fg">{status.runs.error}</p>}
+          {status?.runs?.ok === false && <PlainMessage as="p" text={status.runs.error} className="text-[12px] text-error-fg" />}
           {(status?.runs?.runs || []).map((run) => (
             <div key={run.run_id} className="border border-border rounded-lg bg-surface px-3 py-2 text-[12px]">
-              <div>{run.state || 'unknown'} · {runProfileText(run.profile)} · {run.trigger === 'PERIODIC' ? 'scheduled' : 'started by hand'}</div>
+              <div>{runStateText(run.state) || RUN_STATE_UNKNOWN} · {runProfileText(run.profile)} · {run.trigger === 'PERIODIC' ? 'scheduled' : 'started by hand'}</div>
               <div className="text-text-secondary">
                 {run.started} · {run.duration_s}s
                 {run.url && <> · <a className="text-db-red-fg" href={run.url} target="_blank" rel="noreferrer">Open run</a></>}
               </div>
-              {run.message && <div className="text-text-secondary">{run.message}</div>}
+              {run.message && <PlainMessage as="div" text={run.message} className="text-text-secondary" />}
             </div>
           ))}
           {status?.runs?.ok && status.runs.runs.length === 0 && <p className="text-[12px] text-text-secondary">No job runs yet.</p>}
@@ -1554,6 +1620,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const attention = (
     <>
       {failureBanner}
+      {readsCard}
       {rebuildBanner}
       {missing.length > 0 && (
         <div className="border border-error/30 bg-error-bg rounded-lg px-3 py-2 text-[12px] space-y-2">
@@ -1581,7 +1648,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       )}
     </>
   );
-  const needsAttention = Boolean(failureBanner) || Boolean(rebuildBanner) || missing.length > 0 || Boolean(edited) || Boolean(held);
+  const needsAttention = Boolean(failureBanner) || Boolean(readsCard) || Boolean(rebuildBanner) || missing.length > 0 || Boolean(edited) || Boolean(held);
 
   const stop = stopAction && (
     <button type="button" data-stop-build="" disabled={readOnly || actionBusy !== ''} title={lockedReason || undefined} onClick={() => runControl(stopAction)} className={DANGER_BUTTON}>
@@ -1598,7 +1665,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             <h2 className="truncate text-lg font-bold text-text-primary" title={item.name}>{item.name}</h2>
             <div data-use-case-meta="" className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-secondary">
               <span className="font-mono">{item.id}</span>
-              {row?.domain && <span>· {row.domain}{row.subdomain ? ` › ${row.subdomain}` : ''}</span>}
+              {row?.domain && <span>· <bdi>{row.domain}</bdi>{row.subdomain && <> › <bdi>{row.subdomain}</bdi></>}</span>}
               {latest?.spec_version != null && <span className="font-mono">· v{latest.spec_version}</span>}
               <ImplementStatusBadge state={item.state} />
             </div>
@@ -1659,16 +1726,21 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <p>The result tables, the history and any notebook Discover wrote for this use case stay. An App, dashboard or Genie Agent that other use cases share stays for them, and Inspire takes this use case&apos;s part out of it.</p>
         </ConfirmDialog>
       )}
-      {error && !built && <PlainMessage text={error} className={ERROR_BOX} />}
+      {statusError && (
+        <PlainMessage text={`Inspire could not read how this build is going: ${statusError}`} role="alert" data-status-error="" className={`${ERROR_BOX} shrink-0`}
+          onRetry={() => loadStatus().catch((e) => setStatusError(e.message))} copy actions={diagnostics?.actions} />
+      )}
+      {error && !built && <PlainMessage text={error} className={ERROR_BOX} copy />}
       {notice && <p role="status" className={`${NOTE_BOX} shrink-0`}>{notice}</p>}
       {built && (
         <>
-          {error && !cardFailed && !features && !drawerTile && <PlainMessage text={error} className={`${ERROR_BOX} shrink-0`} />}
+          {error && !cardFailed && !features && !drawerTile && <PlainMessage text={error} className={`${ERROR_BOX} shrink-0`} copy actions={diagnostics?.actions} />}
           {collectError && <PlainMessage text={collectError} className={`${ERROR_BOX} shrink-0`} />}
           {tileRow}
           {!readOnly && <ReportedIssues issues={issues} locked={locked ? lockedReason || 'Wait for this run to finish' : ''} onDraft={openFeatures} />}
-          <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
-            stop={stop} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}>
+          <MvpProgress stages={stages} summary={progress} chip={chip} reason={reason} reasonDetails={missing.length || edited ? '' : statusDetails(latest)} toneClass={toneClass} version={latest?.spec_version} sorted={sorted}
+            stop={stop} logRef={logRef} view={progressView} warnings={statusWarnings(latest).length} attention={needsAttention ? attention : null}
+            diagnostics={diagnostics}>
             <VibeChecklist checklist={checklist} assets={latest?.asset_status} readOnly={readOnly} locked={locked} lockedReason={lockedReason} busy={submitBusy}
               onSendAgain={buildAgain && !terminal ? () => sendAgain() : undefined} onEdit={onEdit ? () => openFeatures() : undefined} />
             <StageNotes stages={stages} />
@@ -1689,7 +1761,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             </>
           )}>
           <div className="space-y-4">
-            {error && !cardFailed && <PlainMessage text={error} className={ERROR_BOX} />}
+            {error && !cardFailed && <PlainMessage text={error} className={ERROR_BOX} copy actions={diagnostics?.actions} />}
             {drawerBody()}
           </div>
         </DrawerShell>

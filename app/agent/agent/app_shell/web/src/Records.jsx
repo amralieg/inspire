@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { createPortal, flushSync } from 'react-dom';
-import DataTable, { columnOf } from './DataTable.jsx';
+import DataTable, { FieldGrid, recordColumns } from './DataTable.jsx';
 import { GenieMark, Icon } from './icons.jsx';
 import { ExplainButton } from './Genie.jsx';
 import { AGENT_OPEN, showVisible } from './agentView.js';
@@ -10,17 +10,15 @@ import { AskGenie } from './AskGenie.jsx';
 import { DraftDialog } from './Draft.jsx';
 import { OPEN_TAB, tabChoice, withRecord, withoutRecord } from './links.js';
 import { useDock } from './Dock.jsx';
-import { MONEY_COLUMN as MONEY } from './hub.js';
-import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, formatValue, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
+import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
 
 export const recordName = (row, meta) => entityName(row, meta?.label);
 import { hueVars, reducedMotion } from './theme.js';
-import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast, PlainNote } from './ui.jsx';
-import { failureOf, getRecords, toneOf } from './api.js';
+import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast, PlainNote, toastFailure } from './ui.jsx';
+import { failureOf, getRecords } from './api.js';
 import { HistoryList, useHistory } from './History.jsx';
 import { SaveButton, savingLabel, useWrite } from './saving.jsx';
 import RecordForm, { DeleteDialog } from './RecordForm.jsx';
-import Fx from './Fx.jsx';
 import { moneyOf } from './money.js';
 import { apiColumns } from './filters.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
@@ -34,7 +32,7 @@ import {
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
   statusLabel, actError, withoutWindow, NO_AS_OF, listAsOf,
   CODES, isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
-  CLOSED_PICK, ACCEPTED, acceptable, acceptedText, quietList, claimTarget, claimText, pageDecides,
+  CLOSED_PICK, ACCEPTED, acceptable, acceptedText, quietList, claimTarget, claimText, pageDecides, recordLine, recordDetails,
 } from './records.js';
 
 const tierClass = (t) => `tier tier--${String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
@@ -54,20 +52,6 @@ const GIVE_WRITE = 'drawer:give';
 const closeWrite = (choice) => `drawer:close:${choice.id}`;
 const NO_FORMULA = 'How this amount is counted is not recorded for this record.';
 const LATER = 'An assumption changed since the last update, so this record shows the amount the update wrote until it runs again.';
-
-function moneyColumn(c, model) {
-  const base = columnOf(c);
-  return {
-    ...base,
-    render: (row) => {
-      const kind = kindOf(model);
-      const unit = shownUnit(unitOf(model), c.currency, kind);
-      const shown = moneyOf(model, row, unit, kind);
-      if (shown.amount == null) return base.render(row);
-      return <Fx formula={shown.formula}>{formatValue(shown.amount, c.format || 'currency', unit, undefined, kind)}</Fx>;
-    },
-  };
-}
 
 function savingOf(view, row, model) {
   if (!view.saving || !model) return view.saving;
@@ -352,10 +336,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   useEffect(() => {
     if (focusOwner && acting) ownerInput.current?.focus();
   }, [focusOwner, acting]);
-  const details = [...(meta.detail || []).map((d) => [d.column, d.label, d.column === MONEY
-      ? formatValue(row?.[d.column], d.format || 'currency', shownUnit(unit, d.currency, kind), undefined, kind)
-      : formatValue(row?.[d.column], d.format || 'text', d.currency)]),
-    ...(meta.rank && row?.[meta.rank] != null ? [[meta.rank, 'Rank', `${integer(row[meta.rank])} on the latest run`]] : [])];
+  const details = recordDetails(meta, row, unit, kind);
   const shown = (
     <dialog ref={ref} className={`drawer panel ${dock ? 'drawer--docked' : ''}`} aria-label={row ? title : 'Record'} data-closed={closed ? '' : undefined}
       open={dock ? !!row : undefined} onClick={(e) => { if (!dock && e.target === ref.current) onClose(); }}
@@ -421,14 +402,14 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
             {details.length > 0 && (
               <section className="sec" aria-label="Details">
                 <h3>Details</h3>
-                <div className="mgrid">{details.map(([column, label, text]) => <div key={column}><span>{label}</span><b>{text}</b></div>)}</div>
+                <FieldGrid fields={details} />
               </section>
             )}
             {history && (
               <section className="sec dr-hist" aria-label="History">
                 <h3><Icon name="history" size={13} />History</h3>
                 {log.loading && !log.data && <div style={{ display: 'grid', gap: 8 }}><Skeleton height={18} /><Skeleton height={18} width="70%" /></div>}
-                {log.error && <PlainNote text={log.error} prefix="The history could not load: " icon={<Icon name="info" size={14} />} className="tile-err tile-err--flat" />}
+                {log.error && <PlainNote text={log.error} prefix="The history could not load: " icon={<Icon name="info" size={14} />} className="tile-err tile-err--flat" onRetry={log.reload} />}
                 {log.data && <HistoryList data={log.data} meta={meta} unit={unit} kind={kind} />}
                 {log.data?.truncated && <p className="more">Showing the latest {integer(log.data.versions.length)} versions.</p>}
               </section>
@@ -513,7 +494,6 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
   }, [onChanged]);
   const labelOf = (c) => plainText(c?.label ?? c?.record_key ?? '');
   const acts = useActs({ pageId, similarBy, onActed: acted, labelOf });
-  const toast = useToast();
   const decides = !!app?.options?.decisions && pageDecides((app.pages || []).find((p) => p.id === pageId) || { records: meta });
   const choices = pageChoices(app, pageId);
   return (
@@ -522,10 +502,7 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
         pageId={pageId} nonce={nonce} aliases={list?.ai?.columns || NO_ALIASES} acts={acts} onExplain={onExplain} genieBusy={genieBusy} model={list?.money}
         work={null} tomorrow={nextDay(today)} today={today} />
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
-      {acts.similar && (
-        <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar} choices={choices}
-          onApply={(values, key) => acts.act({ match: acts.similar.match }, values, { key }).catch((err) => { toast(actError(err), toneOf(err)); return null; })} />
-      )}
+      {acts.similar && <SimilarDialog similar={acts.similar} meta={meta} pageId={pageId} model={list?.money} choices={choices} onClose={acts.closeSimilar} onApply={acts.applySimilar} />}
     </>
   );
 }
@@ -704,7 +681,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       if (out) clearPicks();
       return out;
     } catch (err) {
-      toast(actError(err), toneOf(err));
+      toastFailure(toast, err, () => actOn(values, { said, body, key }), actError(err));
       acted();
       return null;
     }
@@ -729,7 +706,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       await acts.act({ record_keys: [String(key)], seen: { [String(key)]: String(row._inspire_version) } }, values,
         { said, about: { record_key: String(key), label: recordName(row, meta) || String(key) }, key: write });
     } catch (err) {
-      toast(err.message, toneOf(err));
+      toastFailure(toast, err, () => quick(row, values, said, write));
     }
   };
   const clearAll = () => {
@@ -879,8 +856,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       key: meta.label, label: meta.label_title || 'Item', className: 'wrap',
       render: (r) => {
         const why = aiValue('ai_explanation', null, r, aliases);
-        const [segment, key] = addedParts(recordName(r, meta), [meta.sublabel ? r[meta.sublabel] : '', r[meta.key]]);
-        const sub = [key, segment].filter(Boolean);
+        const { sub } = recordLine(meta, r);
         return (
           <>
             <button className="cell-t" onClick={(e) => { e.stopPropagation(); setOpen(r); }}>
@@ -897,8 +873,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       },
     },
     ...(meta.tier ? [{ key: meta.tier, label: 'Tier', render: (r) => (r[meta.tier] ? <span className={tierClass(r[meta.tier])}>{r[meta.tier]}</span> : '') }] : []),
-    ...meta.columns.filter((c) => c.column !== meta.sublabel).map((c) => (c.column === MONEY ? moneyColumn(c, data?.money)
-      : columnOf({ ...c, filter: meta.filters?.[c.column] }, onFilter))),
+    ...recordColumns(meta, data?.money, onFilter),
     ...(tracker ? [
       { key: 'action_owner', label: 'Owner', className: 'nowrap', render: (r) => r._inspire_owner || <span className="unset">Unassigned</span> },
       {
@@ -938,12 +913,14 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const workText = work && !work.ended ? `${integer(work.seen.size + 1)} of ${integer(compareValues(work.n, work.seen.size + 1) > 0 ? work.n : work.seen.size + 1)} ${!tab && narrowWindow(prefs) ? 'in your window' : 'on this list'}` : '';
   const beyond = data?.window?.more ?? (compareValues(total, cap) > 0 ? addCounts([total, -cap]) : 0);
   const shownSort = sort || data?.sort || null;
+  const countText = !data ? (list.error ? meta.hint || '' : 'Loading the list…')
+    : `${capped ? `More than ${integer(total)}` : integer(total)} ${total === 1 && !capped ? 'record' : 'records'}${meta.hint ? `. ${meta.hint}` : ''}`;
   return (
     <section ref={card} className={`card card--table card--list ${list.busy && data ? 'is-busy' : ''}`} aria-label={meta.title} aria-busy={list.busy} data-section={section}>
       <header className="card-h">
         <div>
           <h2>{meta.title}</h2>
-          <p>{!data ? 'Loading the list…' : `${capped ? `More than ${integer(total)}` : integer(total)} ${total === 1 && !capped ? 'record' : 'records'}${meta.hint ? `. ${meta.hint}` : ''}`}</p>
+          {countText && <p>{countText}</p>}
           {left && <p className="left-n"><Icon name="trend" size={13} />{left}</p>}
         </div>
         <div className="tbar">
@@ -993,7 +970,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           onDraft={() => setDrafted([...picked.keys()])} />
       )}
       {!data && list.busy && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" />}
+      {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={() => setRefresh((n) => n + 1)} />}
       {data && (
         <>
           {claim && <div className="quiet-n" data-claim><Icon name="info" size={13} /><div><p>{claimText(claim.record_keys.length)}</p>
@@ -1032,10 +1009,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         closedReadOnly={everything} dock={dock} />
       {form && <RecordForm mode={form.mode} target={form.target} meta={meta} pageId={pageId} rows={rows} onClose={() => setForm(null)} onSaved={saved} />}
       {doomed && <DeleteDialog target={recordRef(meta, doomed)} label={recordName(doomed, meta) || 'this record'} pageId={pageId} onClose={() => setDoomed(null)} onSaved={saved} />}
-      {acts.similar && (
-        <SimilarDialog similar={acts.similar} onClose={acts.closeSimilar} choices={choices}
-          onApply={(values, key) => acts.act({ match: acts.similar.match }, values, { key }).catch((err) => { toast(actError(err), toneOf(err)); return null; })} />
-      )}
+      {acts.similar && <SimilarDialog similar={acts.similar} meta={meta} pageId={pageId} model={data?.money} choices={choices} onClose={acts.closeSimilar} onApply={acts.applySimilar} />}
       {dialog === 'batches' && <BatchesDialog choices={choices} pageId={pageId} onClose={() => setDialog('')} onUndo={acts.undo} labelOf={labelOf} />}
       {dialog === 'help' && <HelpDialog onClose={() => setDialog('')} />}
       {drafted && <DraftDialog pageId={pageId} keys={drafted} label={recordsText(drafted.length)} onClose={() => setDrafted(null)} />}

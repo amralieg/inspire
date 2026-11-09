@@ -25,15 +25,23 @@ import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyC
 import { formatDuration } from '../lib/formatWhen';
 import { counted } from '../lib/plural';
 import { aiSeesAggregates, discoveryTypeOf } from '../lib/discoveryType';
-import { mergeSteps, quietLine, runTitle, viewerLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
+import {
+  mergeSteps, monitorFailureChoices, monitorSendText, pollFailure, quietLine, runElapsedMs, runEndedBadly, runFailureText, runStopped, runTitle, viewerLine,
+  sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory,
+} from '../lib/monitorState';
+import ChoiceList from '../components/ChoiceList';
+import { copyText } from '../lib/clipboard';
+import { COPIED_SEND_TEXT } from '../lib/plainText';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
 import RunLogPanel from '../components/RunLogPanel';
 import { nameOfUseCase } from '../lib/useCaseFields';
-import { runOutcomeOf } from '../lib/runOutcome';
+import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
+import { newSessionId, runResultText, runStateText } from '../lib/runState';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
+import { splitTechnical } from '../lib/plainText';
 
 // Run lifecycle phases
 const PHASE_PENDING = 'PENDING';
@@ -52,18 +60,22 @@ const STATUS_FILTERS = [
 
 const MONITOR_NO_PROGRESS = 'Inspire has saved no progress for this run yet. Each step shows here as soon as it is saved.';
 
-export default function MonitorPage({ settings, update, sessionId, runId, launchNotes = [], launchDetails = [], onComplete, onResultsSession, onOpenImplement, onGenerateData }) {
+export default function MonitorPage({ settings, update, sessionId, runId, launchNotes = [], launchDetails = [], onComplete, onResultsSession, onOpenImplement, onGenerateData, onRunAgain = null }) {
   const { databricksHost, token, warehouseId, inspireDatabase, showcase = '' } = settings;
 
   // Run-level state
   const [runInfo, setRunInfo] = useState(null);
   const [runReadError, setRunReadError] = useState('');
+  const [sent, setSent] = useState('');
+  const [again, setAgain] = useState({ busy: false, error: '' });
   const [runPhase, setRunPhase] = useState(PHASE_PENDING);
 
   // Session/step state
   const [session, setSession] = useState(null);
   const [steps, setSteps] = useState([]);
   const [polling, setPolling] = useState(true);
+  const [pollProblem, setPollProblem] = useState(null);
+  const failuresRef = useRef(0);
   const [now, setNow] = useState(() => Date.now());
   const lastPollRef = useRef(null);
   const trackedSessionRef = useRef(null);
@@ -97,7 +109,21 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
     if (!polling) return;
 
     const poll = async () => {
+      const failed = [];
+      await pollOnce(failed);
+      if (!failed.length) {
+        failuresRef.current = 0;
+        setPollProblem(null);
+        return;
+      }
+      failuresRef.current += 1;
+      const problem = pollFailure(failed[0], failuresRef.current);
+      setPollProblem(problem);
+      if (problem.stop) setPolling(false);
+    };
+    const pollOnce = async (failed) => {
       let currentRunInfo = runInfo;
+      let lastRead = false;
       if (runId) {
         try {
           const ri = await apiFetch(`/api/run/${runId}`);
@@ -111,12 +137,14 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
           } else {
             setRunPhase(PHASE_TERMINATED);
           }
-          if (lcs === 'INTERNAL_ERROR' || lcs === 'SKIPPED') { setPolling(false); return; }
-          if (lcs === 'TERMINATED' && (ri.result_state === 'FAILED' || ri.result_state === 'CANCELED')) { setPolling(false); return; }
+          lastRead = runEndedBadly(ri) || runStopped(ri);
         } catch (e) {
-          if (e.status === 403) { setRunReadError(e.message); setPolling(false); return; }
+          if (e.status === 403) { setRunReadError(e.message); lastRead = true; }
+          else failed.push(e);
         }
       }
+      if (lastRead) setPolling(false);
+      setNow(Date.now());
 
       if (warehouseId && inspireDatabase) {
         try {
@@ -132,7 +160,6 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
             }
             trackedSessionRef.current = String(sid);
             setSession(sess);
-            setNow(Date.now());
 
             try {
               const stepQ = new URLSearchParams({
@@ -160,7 +187,9 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
             const runDone = !runId || currentRunInfo?.life_cycle_state === 'TERMINATED' || currentRunInfo?.life_cycle_state === 'INTERNAL_ERROR';
             if (runDone && sessionFinished(sess)) setPolling(false);
           }
-        } catch { /* session table might not exist */ }
+        } catch (e) {
+          failed.push(e);
+        }
       } else if (!runId) {
         setPolling(false);
       }
@@ -183,8 +212,8 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   const isStaleSession = !sessionOnly && session?.completed_on && runPhase !== PHASE_TERMINATED;
   const percent = isStaleSession ? 0 : (session?.completed_percent || 0);
   const outcome = runOutcomeOf(session?.results_json);
-  const runFailed = runInfo?.result_state === 'FAILED' || runInfo?.life_cycle_state === 'INTERNAL_ERROR' || (!isStaleSession && sessionFailed(session));
-  const isStopped = runInfo?.life_cycle_state === 'TERMINATED' && runInfo?.result_state === 'CANCELED';
+  const runFailed = runEndedBadly(runInfo) || (!isStaleSession && sessionFailed(session));
+  const isStopped = runStopped(runInfo);
   const quietSince = sessionOnly ? sessionQuietSince(session, now) : null;
   const isQuiet = Boolean(quietSince);
   const finished = sessionOnly
@@ -203,6 +232,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
 
   let statusLabel = 'Initializing';
   let statusDetail = '';
+  let statusDetails = [];
   if (isPending && sessionOnly) { statusLabel = 'Waiting'; statusDetail = MONITOR_NO_PROGRESS; }
   else if (isPending) { statusLabel = 'Starting'; statusDetail = 'Databricks is starting the run...'; }
   else if (isRunning) { statusLabel = 'Running'; statusDetail = isStaleSession || !session ? 'Inspire is getting ready...' : `${Math.round(percent)}% complete`; }
@@ -211,21 +241,42 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   else if (isComplete) { statusLabel = 'Completed'; statusDetail = 'Inspire finished this run.'; }
   else if (cannotRead) { statusLabel = 'Cannot read this run'; statusDetail = `Inspire cannot read this run with your sign-in: ${runReadError}`; }
   else if (isFailed) {
-    statusLabel = outcome.failed ? outcome.failureTitle : 'Failed';
-    const failedTask = runInfo?.tasks?.find((t) => t.result_state === 'FAILED');
-    statusDetail =
-      (outcome.failed && outcome.message) ||
-      failedTask?.error ||
-      failedTask?.state_message ||
-      runInfo?.state_message ||
-      (failedTask
-        ? `Task "${failedTask.task_key}" failed${failedTask.notebook_path ? ` (${failedTask.notebook_path})` : ''}.`
-        : 'The run failed.');
+    statusLabel = outcome.failed ? outcome.failureTitle : (runEndedBadly(runInfo) && runResultText(runInfo.result_state)) || 'Failed';
+    if (outcome.failed && outcome.message) statusDetail = outcome.message;
+    else ({ text: statusDetail, details: statusDetails } = runFailureText(runInfo));
   }
-  else if (isStopped) { statusLabel = 'Stopped'; statusDetail = 'The run was stopped. What it already wrote stays.'; }
+  else if (isStopped) { statusLabel = 'Stopped'; statusDetail = 'The run was stopped before it finished and what it already wrote stays, so start a new run on the Start page if you need the rest.'; }
   else if (runPhase === PHASE_TERMINATED && runInfo?.result_state === 'SUCCESS' && !session?.completed_on) { statusLabel = 'Finishing'; statusDetail = 'The run ended. Inspire is saving the use cases...'; }
 
-  const elapsed = runInfo?.execution_duration ? formatDuration(runInfo.execution_duration) : null;
+  const platformMessage = String(runInfo?.state_message || '').trim();
+  const platformDetail = isFailed && platformMessage && platformMessage !== String(statusDetail || '').trim() && !statusDetails.includes(platformMessage) ? platformMessage : '';
+  const elapsedMs = runElapsedMs(runInfo, now);
+  const runAgain = async () => {
+    setAgain({ busy: true, error: '' });
+    const sid = newSessionId();
+    try {
+      const data = await apiFetch(`/api/run/${runId}/again`, { method: 'POST', body: JSON.stringify({ session_id: sid }) });
+      setAgain({ busy: false, error: '' });
+      onRunAgain(sid, data.run_id, Array.isArray(data.warnings) ? data.warnings : [], Array.isArray(data.warning_details) ? data.warning_details : []);
+    } catch (e) {
+      setAgain({ busy: false, error: e.message || String(e) });
+    }
+  };
+  const pickFailure = (choice) => {
+    setSent('');
+    if (choice.id === 'again') {
+      if (!again.busy) runAgain();
+      return;
+    }
+    if (choice.id === 'read') {
+      setRunReadError('');
+      setPolling(true);
+      return;
+    }
+    const text = monitorSendText({ label: statusLabel, detail: statusDetail, details: [...statusDetails, platformDetail], runId, sessionId: session?.session_id || sessionId, runUrl: runInfo?.run_page_url });
+    copyText(text).then(() => setSent(COPIED_SEND_TEXT), () => setSent(text));
+  };
+  const elapsed = elapsedMs ? formatDuration(elapsedMs) : null;
 
   // Auto-show inline results when pipeline completes
   useEffect(() => {
@@ -374,7 +425,18 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
               {statusDetail && (
                 <PlainMessage className={`text-xs mt-0.5 ${
                   isWarning ? 'text-warning-fg' : isComplete ? 'text-success-fg' : isFailed ? 'text-error-fg' : 'text-text-secondary'
-                }`} text={statusDetail} />
+                }`} text={statusDetail} {...(isFailed ? { 'data-testid': 'monitor-failure-reason' } : {})} />
+              )}
+              <TechnicalDetails items={statusDetails} className="mt-1" />
+              {pollProblem && (
+                <div role="status" data-poll-problem={pollProblem.stop ? 'stopped' : 'checking'} className="mt-1 text-xs text-warning-fg">
+                  <PlainMessage text={pollProblem.text} />
+                  <TechnicalDetails items={pollProblem.details} />
+                  {pollProblem.stop && pollProblem.transient && (
+                    <button type="button" onClick={() => { failuresRef.current = 0; setPollProblem(null); setPolling(true); }}
+                      className="mt-1 font-semibold underline">Check again</button>
+                  )}
+                </div>
               )}
               {isComplete && outcome.found > 0 && (
                 <p className="text-xs mt-0.5 text-text-secondary" data-testid="monitor-bar-counts">
@@ -402,7 +464,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
               </div>
             )}
             {runInfo?.life_cycle_state && (
-              <span className={`font-mono px-2.5 py-1 rounded-lg font-medium text-[11px] ${
+              <span data-testid="monitor-job-state" className={`px-2.5 py-1 rounded-lg font-medium text-[11px] ${
                 isWarning ? 'bg-warning-bg text-warning-fg' :
                 isComplete ? 'bg-success-bg text-success-fg' :
                 isFailed ? 'bg-error-bg text-error-fg' :
@@ -410,8 +472,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                 isPending ? 'bg-info-bg text-info-fg' :
                 'bg-db-red-50 text-db-red-fg'
               }`}>
-                {isWarning ? 'WARNING' : isComplete ? 'SUCCESS' : runInfo.life_cycle_state}
-                {!isComplete && runInfo.result_state ? ` / ${runInfo.result_state}` : ''}
+                Databricks job: {isWarning ? 'Finished with a warning' : runStateText(runInfo.life_cycle_state, runInfo.result_state)}
               </span>
             )}
             {isRunning && (
@@ -456,7 +517,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
             </p>
           </div>
         )}
-        {runInfo?.run_name && !latestStep && (
+        {runInfo?.run_name && !(latestStep && isRunning) && (
           <p className="text-[11px] text-text-tertiary mt-3" title={runInfo.run_name}>{runTitle(runInfo, session?.business_name)}</p>
         )}
         {viewerLine(runInfo) && (
@@ -629,7 +690,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                     placeholder="Search steps, messages..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-db-red/30 focus:ring-1 focus:ring-db-red/20 transition-smooth"
+                    className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:border-db-red/30 transition-smooth"
                   />
                 </div>
 
@@ -765,7 +826,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                 })}
                 <div ref={follow.ref} data-steps-end="" />
                 {follow.unseen && (
-                  <div className="sticky bottom-4 flex justify-center pointer-events-none">
+                  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
                     <button type="button" onClick={follow.jump} className="pointer-events-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-white bg-db-red-solid shadow-lg">
                       <ArrowDown size={12} /> New steps
                     </button>
@@ -867,25 +928,21 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
           <div className="flex items-start gap-3">
             <XCircle size={18} className="text-error-fg mt-0.5 shrink-0" />
             <div className="flex-1">
-              <p className="text-sm font-bold text-text-primary">{outcome.failed ? outcome.failureTitle : 'Pipeline failed'}</p>
-              {outcome.failed && (
-                <p className="text-xs text-text-secondary mt-1" data-testid="monitor-failure-reason">{outcome.message}</p>
-              )}
-              {runInfo?.state_message && (
-                <p className="text-xs text-text-secondary mt-1 font-mono whitespace-pre-wrap bg-error-bg/50 rounded-lg p-3 mt-2 border border-error/10">
-                  {runInfo.state_message}
-                </p>
-              )}
-              {runInfo?.run_page_url && (
-                <a
-                  href={runInfo.run_page_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="inline-flex items-center gap-1 text-xs text-db-red-fg mt-3 hover:underline font-medium"
-                >
-                  View full error in Databricks <ExternalLink size={12} />
-                </a>
-              )}
+              <p className="text-sm font-bold text-text-primary">What you can do</p>
+              <p className="text-xs text-text-secondary mt-1" data-testid="monitor-failure-next">
+                {cannotRead
+                  ? 'Ask the person who started this run, or a workspace admin, to give you access to it.'
+                  : outcome.failed
+                    ? `Next step: ${nextStepOf(outcome)}`
+                    : 'Open the run in Databricks to see the full error, fix what it names, then run again.'}
+              </p>
+              {platformDetail && <TechnicalDetails items={[platformDetail]} className="mt-2" />}
+              <div className="mt-3 text-xs" data-testid="monitor-failure-choices">
+                <ChoiceList choices={monitorFailureChoices({ cannotRead, runUrl: runInfo?.run_page_url || '', canRunAgain: Boolean(runId && onRunAgain && !showcase && runEndedBadly(runInfo)) })} mark="data-failure-choice" onPick={pickFailure} />
+                {again.busy && <p role="status" className="mt-2 text-text-secondary"><Loader2 size={12} className="inline animate-spin me-1" aria-hidden="true" />Starting the run again…</p>}
+                {again.error && <PlainMessage text={`Inspire could not run it again: ${again.error}`} copy role="alert" data-run-again-error="" className="mt-2 text-error-fg" />}
+                {sent && <p role="status" className="mt-2 text-text-secondary select-all">{sent}</p>}
+              </div>
             </div>
           </div>
         </div>
@@ -900,10 +957,10 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                 {isWarning ? <AlertTriangle size={22} className="text-warning-fg" /> : <CheckCircle2 size={22} className="text-success-fg" />}
               </div>
               <div>
-                <p className="text-sm font-bold text-text-primary">{isWarning ? 'Pipeline completed with a warning' : 'Pipeline completed successfully'}</p>
-                <p className="text-xs text-text-secondary mt-0.5">
-                  Results are ready for review.
-                  {elapsed && ` Total execution time: ${elapsed}.`}
+                <p className="text-sm font-bold text-text-primary">{isWarning ? 'Run completed with a warning' : 'Run completed'}</p>
+                <p className="text-xs text-text-secondary mt-0.5" data-testid="monitor-complete-detail">
+                  The use cases are ready to review.
+                  {elapsed && ` The run took ${elapsed}.`}
                   {totalCount > 0 && ` ${counted(totalCount, 'step')} processed.`}
                 </p>
               </div>
@@ -997,6 +1054,7 @@ function highlightMatch(text, query) {
 function StepRow({ step, live, searchQuery }) {
   const style = getStepStyle(stepCategory(step.status, live));
   const [expanded, setExpanded] = useState(false);
+  const said = splitTechnical(step.message || '');
   const hasDetails = step.message || step.sub_step_name || (step.result_json && Object.keys(step.result_json).length > 0);
 
   return (
@@ -1012,7 +1070,7 @@ function StepRow({ step, live, searchQuery }) {
           </div>
           {step.message && !expanded && (
             <p className="text-[11px] text-text-tertiary mt-0.5 truncate">
-              {highlightMatch(step.message, searchQuery)}
+              {highlightMatch(said.plain, searchQuery)}
             </p>
           )}
         </div>
@@ -1039,11 +1097,7 @@ function StepRow({ step, live, searchQuery }) {
               <span className="text-text-tertiary">Sub-step:</span> {step.sub_step_name}
             </p>
           )}
-          {step.message && (
-            <p className="text-xs text-text-secondary bg-bg-subtle rounded-lg p-2.5 font-mono leading-relaxed">
-              {step.message}
-            </p>
-          )}
+          <PlainMessage text={step.message} className="text-xs text-text-secondary bg-bg-subtle rounded-lg p-2.5 leading-relaxed" />
           {step.result_json && Object.keys(step.result_json).length > 0 && (
             <ResultJsonDisplay resultJson={step.result_json} />
           )}
@@ -1063,7 +1117,7 @@ function ResultJsonDisplay({ resultJson }) {
     return (
       <div className="text-xs bg-error-bg/50 rounded-lg p-2.5 border border-error/10">
         <span className="text-error-fg font-semibold">Error:</span>{' '}
-        <span className="text-text-secondary">{rj.error}</span>
+        <PlainMessage as="span" text={rj.error} className="text-text-secondary" />
       </div>
     );
   }

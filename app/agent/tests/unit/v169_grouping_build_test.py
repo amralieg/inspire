@@ -347,3 +347,22 @@ def test_a_grouping_stop_ends_the_run_as_stopped_before_scoring_and_records_why(
     assert gate["outcome"].startswith("stopped without writing: Grouping: the saved grouping SQL failed when it ran over main.geo.countries")
     assert gate["outcome"].endswith(f"so this run stopped before it scored any record; change the grouping on the Run page: {GROUPING['link']}")
     assert any("not_reliable" in s and "Grouping: the saved grouping SQL failed" in s for s in ns["spark"].statements)
+
+
+SEGMENT_TYPES_GROUPED = ("STRING", "string collate UTF8_LCASE", "VARCHAR(20)", "BOOLEAN", "INT", "BIGINT", "DECIMAL(10,2)", "DATE", "TIMESTAMP",
+                         "TIMESTAMP_NTZ")
+SEGMENT_TYPES_REFUSED = ("MAP<STRING,STRING>", "map<string, int>", "VARIANT", "ARRAY<STRING>", "STRUCT<a: INT>", "BINARY", "GEOGRAPHY(4326)",
+                         "INTERVAL DAY", "DOUBLE", "")
+
+
+def test_a_segment_column_is_a_candidate_only_when_databricks_can_group_by_its_type_as_the_app_profile_does(agent_ns):
+    roles = {"segment": "main.retail.sales.tier"}
+    for kind, want in [(k, ["tier", "region"]) for k in SEGMENT_TYPES_GROUPED] + [(k, ["region"]) for k in SEGMENT_TYPES_REFUSED]:
+        columns = [{"column_name": "tier", "data_type": kind}, {"column_name": "region", "data_type": "string"}]
+        assert agent_ns["implement_grouping_candidates"](columns, roles, "main.retail.sales") == want, kind
+    backend = os.path.join(ROOT, "..", "backend", "lib", "groupingRule.js")
+    with open(backend, encoding="utf-8") as handle:
+        source = handle.read()
+    assert "'timestamp_ntz', 'decimal'" in source and "GROUP_SEGMENT_TYPES.includes" in source
+    assert set(agent_ns["IMPLEMENT_GROUP_SEGMENT_TYPES"]) == (set(agent_ns["IMPLEMENT_GROUP_TYPES"]) | set(agent_ns["IMPLEMENT_GROUP_KEY_TYPES"])
+                                                              | {"date", "timestamp", "timestamp_ntz", "decimal"})

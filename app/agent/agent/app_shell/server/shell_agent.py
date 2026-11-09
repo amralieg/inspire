@@ -126,7 +126,7 @@ SLOP = re.compile(r"hope this (?:message|email|note) finds you|feel free|do not 
 DRAFT_NUMBER = re.compile(r"(?<![\w.])[-+]?\d[\d,]*(?:\.\d+)?(?:\s?(%|percent\b|bn\b|[kmb]\b))?", re.I)
 DRAFT_CODE = re.compile(r"(?<![\w.-])(?=[\w-]*[A-Za-z])(?=[\w-]*\d)[\w-]+\b")
 DRAFT_SCALED = re.compile(r"\d+(?:bn|[kmb])", re.I)
-DRAFT_LINK = re.compile(r"https?://\S+|www\.\S+|[\w.+-]+@[\w-]+(?:\.[\w-]+)+", re.I)
+DRAFT_LINK = re.compile(r"https?://\S+|www\.\S+|(?<![\w.+-])[\w.+-]+@[\w-]+(?:\.[\w-]+)+", re.I)
 DRAFT_SCALE = {"k": 1e3, "m": 1e6, "b": 1e9, "bn": 1e9}
 DRAFT_DIGITS = re.compile(r"\d+(?:[.,]\d+)*")
 DRAFT_FALLBACK = "so this draft is built from the record fields"
@@ -579,6 +579,9 @@ thank please look looks like similar others other one ones row rows record recor
 number numbers value values big small high low good bad right wrong change changed changes deal handle need needs want wants
 owner owns own owned responsible know see find check help sure clear clearer simple simply short summary summarize
 """.split())
+ACTING = frozenset({w for label in ACTIONS.values() for w in WORD.findall(label.lower()) if w not in GENERIC and len(w) > 2}
+                   | {"mark", "marked", "dismiss", "reassign", "unassign", "resolve", "close", "complete"})
+ACTED_ON = frozenset({"every", "each", "all", "both", "list", "page", "selected", "ask", "asking", "confirm", "them", "today", "week", "until", "mistake"})
 
 
 def stem(word: str) -> str:
@@ -593,9 +596,11 @@ def topic_words(text) -> set:
 def topic_by_rule(question: str, known: set, anchored: bool) -> str:
     if INJECTION.search(question) or NOT_THE_USE_CASE.search(question):
         return "UNRELATED"
-    seen = known | {stem(w) for w in known} | GENERIC
-    other = {w for w in topic_words(question) if w not in seen and stem(w) not in seen}
-    if not other and (anchored or words_of(question) <= FOLLOW_UP_WORDS):
+    seen = known | {stem(w) for w in known} | GENERIC | ACTING | ACTED_ON
+    words = topic_words(question)
+    other = {w for w in words if w not in seen and stem(w) not in seen}
+    acting = {w for w in words if w in ACTING or stem(w) in ACTING}
+    if not other and (anchored or acting or words_of(question) <= FOLLOW_UP_WORDS):
         return "RELATED"
     return ""
 
@@ -1484,8 +1489,9 @@ class Agent:
         return record_facts(job["page"], self.read(job["ws"], turn.who, job["page"], record_key_of(args.get("record_key"))))
 
     def tool_similar_records(self, turn: Turn, job: dict, args: dict) -> dict:
-        found = self.shell.similar(job["headers"], {"page": job["page"]["id"], "record_key": record_key_of(args.get("record_key"))})
-        return {"by": found["by"], "count": found["count"], "sample": found["sample"]}
+        found = self.shell.similar(job["headers"], {"page": job["page"]["id"], "record_key": record_key_of(args.get("record_key"))},
+                                   shell_sql.CAPS["similar_sample"])
+        return {"by": found["by"], "count": found["count"], "sample": [{k: v for k, v in s.items() if k != "row"} for s in found["sample"]]}
 
     def tool_propose_action(self, turn: Turn, job: dict, args: dict) -> dict:
         if turn.confirm is not None:

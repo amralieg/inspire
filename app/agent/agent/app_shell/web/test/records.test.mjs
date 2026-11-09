@@ -14,7 +14,7 @@ process.env.TZ = 'Asia/Kolkata';
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 
 const FRONTEND = join(SRC, '..', '..', '..', '..', '..', 'frontend', 'src');
-const SHARED = { 'kinds.js': join('lib', 'kinds.js') };
+const SHARED = { 'kinds.js': join('lib', 'kinds.js'), 'plainText.js': join('lib', 'plainText.js') };
 
 function sourcesUnder(dir, skip) {
   if (!existsSync(dir)) return '';
@@ -29,17 +29,23 @@ function sourcesUnder(dir, skip) {
 const count = (text, name) => (text.match(new RegExp(`\\b${name}\\b`, 'g')) || []).length;
 const stem = (file) => file.replace(/\.jsx?$/, '');
 
+const LAZY_IMPORT = /const\s+([\w$]+)\s*=\s*lazy\(\(\)\s*=>\s*import\('\.\/([^']+)'\)\.then\(\((\w+)\)\s*=>\s*\(\{\s*default:\s*\3\.([\w$]+)\s*\}\)\)\)/g;
+
 function localNames(text, file, name) {
-  const lazyNames = [...text.matchAll(/const\s+([\w$]+)\s*=\s*lazy\(\(\)\s*=>\s*import\('\.\/([^']+)'\)\.then\(\((\w+)\)\s*=>\s*\(\{\s*default:\s*\3\.([\w$]+)\s*\}\)\)\)/g)]
+  const lazyNames = [...text.matchAll(LAZY_IMPORT)]
     .filter((m) => stem(m[2]) === stem(file) && m[4] === name).map((m) => m[1]);
   return [...text.matchAll(/import\s+(?:[\w$]+\s*,\s*)?\{([^}]*)\}\s*from\s*'\.\/([^']+)'/g)].filter((m) => stem(m[2]) === stem(file))
     .flatMap((m) => m[1].split(',').map((part) => part.trim().split(/\s+as\s+/)).filter(([imported]) => imported === name).map((pair) => pair[pair.length - 1]))
     .concat(lazyNames);
 }
 
+const loadsLater = (text, file) => [...text.matchAll(/import\(\s*'\.\/([^']+)'\s*\)/g)].some((m) => stem(m[1]) === stem(file));
+
 function unusedExports(files, callers = {}) {
+  const eager = (text) => text.replace(LAZY_IMPORT, '');
   const used = (file, name) => count(files[file], name) >= 2 || count(callers[file] || '', name) >= 2
-    || Object.entries(files).some(([other, text]) => other !== file && localNames(text, file, name).some((local) => count(text, local) >= 2));
+    || Object.entries(files).some(([other, text]) => other !== file && (localNames(text, file, name).some((local) => count(text, local) >= 2)
+      || (loadsLater(eager(text), file) && count(eager(text), name) >= 1)));
   return Object.entries(files).flatMap(([file, text]) => [...text.matchAll(/^export (?:async )?(?:const|function|class) ([A-Za-z_]\w*)/gm)]
     .map((m) => m[1]).filter((name) => !used(file, name)).map((name) => `${file}: ${name}`));
 }
@@ -53,7 +59,7 @@ test('every helper the App exports has a caller in the App, and the check catche
     ['extra.js: lonely']);
   assert.deepEqual(unusedExports({ ...files, 'kinds.js': `${files['kinds.js']}export const nobodyReads = 1;\n` }, callers), ['kinds.js: nobodyReads'],
     'a shared helper still needs a caller in the App or the Inspire App, not only the line that passes it on');
-  assert.deepEqual(unusedExports(files, { 'kinds.js': callers['kinds.js'].replace(/\b(familyOf|kindForTechnique)\b/g, 'x') }).sort(),
+  assert.deepEqual(unusedExports(files, { ...callers, 'kinds.js': callers['kinds.js'].replace(/\b(familyOf|kindForTechnique)\b/g, 'x') }).sort(),
     ['kinds.js: familyOf', 'kinds.js: kindForTechnique']);
   const twin = { 'a.js': 'export const pick = (id) => id;\n', 'b.js': 'export const pick = (page) => page.id;\nconst both = (p) => pick(p);\n' };
   assert.deepEqual(unusedExports(twin), ['a.js: pick'], 'a helper of the same name in another file is not a caller');
@@ -66,6 +72,10 @@ test('every helper the App exports has a caller in the App, and the check catche
     'a lazy import of the named helper that is rendered is its caller');
   assert.deepEqual(unusedExports({ ...twin, 'c.js': lazily('export const one = 1;\nconst again = one;\n') }), ['a.js: pick'],
     'a lazy import that is never rendered is not a caller');
+  assert.deepEqual(unusedExports({ ...twin, 'c.js': "export const one = () => import('./a.js').then((m) => m.pick(1));\nconst again = one;\n" }), [],
+    'a file that loads the helper later and reads it is its caller');
+  assert.deepEqual(unusedExports({ ...twin, 'c.js': "export const one = () => import('./a.js');\nconst again = one;\n" }), ['a.js: pick'],
+    'a later load that never reads the helper is not a caller');
 });
 
 const F = (name, kind, extra = {}) => ({ name, kind, type: 'STRING', role: 'business', editable: true, ...extra });

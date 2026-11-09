@@ -1,3 +1,4 @@
+import base64
 import contextlib
 import io
 import json
@@ -136,6 +137,39 @@ class PreflightTest(unittest.TestCase):
     def tearDown(self):
         for name, value in self.saved.items():
             setattr(setup, name, value)
+
+    def test_an_app_of_the_same_name_that_is_not_inspire_is_left_alone_and_an_older_inspire_app_is_still_replaced(self):
+        def named(app, yaml_status=200, yaml_text=""):
+            plain = app_exists()
+
+            def script(method, path, body):
+                if path == "/api/2.0/apps/inspire-ai" and method == "GET":
+                    return Resp(200, dict({"name": "inspire-ai"}, **app))
+                if path.startswith("/api/2.0/workspace/export?") and "Shared/other/app.yaml" in path:
+                    return Resp(yaml_status, {"content": base64.b64encode(yaml_text.encode()).decode()}, "" if yaml_status == 200 else "denied")
+                return plain(method, path, body)
+            return script
+
+        deployed = {"active_deployment": {"deployment_artifacts": {"source_code_path": "/Workspace/Shared/other"}}}
+        for name, app, yaml, refused in (
+                ("someone's dashboard App", dict(deployed, description="Sales board"), (200, "command: [python, app.py]\n"),
+                 "its app.yaml names no Inspire setting"),
+                ("an App whose files you cannot read", deployed, (403, ""), "its app.yaml could not be read (403 denied)"),
+                ("an Inspire App of an older release", deployed, (200, "env:\n  - name: INSPIRE_WAREHOUSE_ID\n"), None),
+                ("an Inspire App that names its release", dict(deployed, description="Inspire AI v1.2.9"), (403, ""), None),
+                ("an App with nothing deployed", {"description": ""}, (403, ""), None)):
+            api, calls = recording(named(app, *yaml))
+            steps, error, _ = self.run_install(context(api))
+            if refused:
+                self.assertEqual(steps, [], name)
+                self.assertIn("Nothing was replaced", error, name)
+                self.assertIn(f"An App named inspire-ai already exists and is not an Inspire App ({refused}), so the installer leaves it alone. "
+                              "Its owner can delete it; then run this installer again.", error, name)
+                self.assertEqual([c for c in calls if c[0] in ("DELETE", "PATCH", "PUT") or c[1].startswith("/api/2.0/apps/inspire-ai/")
+                                  or (c[0] == "POST" and c[1] != "/api/2.0/workspace/mkdirs")], [], name)
+            else:
+                self.assertIsNone(error, name)
+                self.assertEqual(list(steps), list(INSTALL_STEPS), name)
 
     def test_a_failed_preflight_leaves_the_old_app_and_its_service_principal_untouched(self):
         for name, ctx_args, words in (
@@ -1122,6 +1156,36 @@ class DeployedSettingsTest(unittest.TestCase):
             setup.write_app_yaml_deploy, setup.time = saved, clock
         return calls, deployed, out.getvalue(), error
 
+    def test_compute_that_never_gets_active_is_named_with_the_state_it_stayed_in(self):
+        for stays, started in (("STOPPED", True), ("ERROR", False), ("STARTING", False)):
+            asked = []
+
+            def api(method, path, body=None):
+                asked.append((method, path))
+                return Resp(409, {}, "App already exists") if path == "/api/2.0/apps" else Resp(200, {})
+
+            def api_get(path):
+                return {"compute_status": {"state": stays}, "description": setup.app_description("v1.4.0"),
+                        "user_api_scopes": list(setup.INSPIRE_APP_OWN_SCOPES)} if path == "/api/2.0/apps/inspire-ai" else {"Resources": []}
+
+            saved, clock = setup.write_app_yaml_deploy, setup.time
+            setup.write_app_yaml_deploy = lambda *a: WANTED_YAML
+            setup.time = types.SimpleNamespace(sleep=lambda s: None)
+            ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/Shared/inspire-ai/apps/inspire-ai/b", "INSPIRE_DB": "main._inspire",
+                   "WAREHOUSE_ID": "wh", "NOTEBOOK_PATH": "/n", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai", "CATALOG": "main",
+                   "RELEASE_VERSION": "v1.4.0"}
+            try:
+                with self.assertRaises(RuntimeError) as caught, contextlib.redirect_stdout(io.StringIO()):
+                    setup.step_deploy_and_find_sp(ctx)
+            finally:
+                setup.write_app_yaml_deploy, setup.time = saved, clock
+            message = str(caught.exception)
+            self.assertIn(f"did not reach ACTIVE after 5 minutes (still {stays}", message, stays)
+            self.assertEqual("after the installer asked it to start" in message, started, stays)
+            self.assertEqual(("POST", "/api/2.0/apps/inspire-ai/start") in asked, started, stays)
+            if stays != "STARTING":
+                self.assertNotIn("STARTING", message, stays)
+
     def test_a_deployment_that_copied_the_old_app_yaml_is_deployed_again_with_the_settings(self):
         calls, deployed, said, error = self.deploy([ZIP_YAML, WANTED_YAML], defaults=[(200, {"envSkipsSetupWizard": True})])
         self.assertIsNone(error)
@@ -1411,7 +1475,7 @@ class RuntimeContextTest(unittest.TestCase):
         return tuple(f"cat_{index:04d}" for index in range(count))
 
     def test_a_catalog_list_never_holds_more_choices_than_a_notebook_widget_allows(self):
-        for count, shown, hidden_words in ((0, ["workspace"], False), (1, ["cat_0000"], False), (1022, list(self.many(1022)), False),
+        for count, shown, hidden_words in ((1, ["cat_0000"], False), (1022, list(self.many(1022)), False),
                                            (1023, list(self.many(1022)), True), (1024, list(self.many(1022)), True),
                                            (1025, list(self.many(1022)), True), (3588, list(self.many(1022)), True)):
             widgets = support.FakeWidgets()
@@ -1431,6 +1495,49 @@ class RuntimeContextTest(unittest.TestCase):
         with contextlib.redirect_stdout(printed := io.StringIO()):
             setup.ensure_parameter_widgets([self.warehouse()], list(self.many(1022)))
         self.assertNotIn("lists 1022 of", printed.getvalue())
+
+    def test_a_catalog_listing_that_fails_part_way_stops_with_its_reason_and_never_claims_the_typed_catalog_is_missing(self):
+        def listing():
+            yield types.SimpleNamespace(name="main", owner="data-owners")
+            raise RuntimeError("PERMISSION_DENIED: page 2 of the catalogs could not be read")
+
+        widgets = support.FakeWidgets({"00_sql_warehouse": {"kind": "combobox", "value": "Shared (wh1)"},
+                                       "01_inspire_catalog": {"kind": "combobox", "value": "main"}})
+        setup.dbutils = types.SimpleNamespace(widgets=widgets)
+        saved = setup.WorkspaceClient
+        try:
+            self.context(dict(self.ENV), widgets)
+            client = setup.WorkspaceClient
+            client.catalogs = types.SimpleNamespace(list=listing)
+            setup.WorkspaceClient = lambda: client
+            with self.assertRaises(RuntimeError) as caught, contextlib.redirect_stdout(io.StringIO()):
+                setup.build_runtime_context(dict(self.ENV))
+        finally:
+            setup.WorkspaceClient = saved
+        message = str(caught.exception)
+        self.assertIn("could not list the catalogs you can use (PERMISSION_DENIED: page 2 of the catalogs could not be read), after 1 of them", message)
+        self.assertIn("changed nothing", message)
+        self.assertNotIn("No catalog you can use is named", message + self.banner())
+        self.assertNotIn("workspace", message.replace("this workspace", ""))
+
+    def test_no_catalog_and_no_warehouse_you_can_use_stop_with_who_can_fix_it(self):
+        with self.assertRaises(RuntimeError) as caught:
+            self.run_with(support.FakeWidgets(), catalogs=())
+        self.assertIn("You cannot use any catalog in this workspace", str(caught.exception))
+        self.assertIn("give someone@example.com USE CATALOG and CREATE SCHEMA on a catalog", str(caught.exception))
+        saved = setup.WorkspaceClient
+        try:
+            self.context(dict(self.ENV), support.FakeWidgets())
+            client = setup.WorkspaceClient
+            client.warehouses = types.SimpleNamespace(list=lambda: [])
+            setup.WorkspaceClient = lambda: client
+            with self.assertRaises(RuntimeError) as caught, contextlib.redirect_stdout(io.StringIO()):
+                setup.build_runtime_context(dict(self.ENV))
+        finally:
+            setup.WorkspaceClient = saved
+        self.assertIn("You cannot use any SQL warehouse in this workspace", str(caught.exception))
+        self.assertIn("give someone@example.com Can Use on a SQL warehouse, or create one", str(caught.exception))
+        self.assertNotIn("No SQL warehouses found", str(caught.exception))
 
     def test_a_capped_catalog_list_puts_your_own_catalogs_and_your_pick_first(self):
         names = self.many(3588)

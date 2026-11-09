@@ -50,6 +50,7 @@ export const NOT_IN_DEMO = {
   'GET /api/inspire/log': 'Monitor reads the live run log only outside the demo; the demo Monitor page offers no run log',
   'GET /api/run/pages': 'the demo Run tab lists the MVP Apps the demo carries, never the deployed pages of this workspace',
   'GET /api/inspire/implement/feedback': 'the Build page lists the issues people reported from a deployed use case’s App outside the demo only; the demo is read only and hides the Reported issues panel',
+  'GET /api/inspire/implement/diagnostics': 'the Build page offers Download diagnostics, Copy diagnostics and Report issue only outside the demo; the demo hides them because it is read only and has no build to report',
   'GET /api/inspire/implement/runs': 'the Run tab and the Build page read the last runs of a deployed use case from its App outside the demo only; the demo is read only and shows its recorded MVP Apps',
   'GET /api/workspace/list': 'Review lists the files a run wrote only outside the demo; the demo hides the files panel',
   'GET /api/workspace/export': 'Review previews and downloads the files a run wrote only outside the demo, where the demo hides the files panel; a use case card opens its notebook in the workspace and never previews it',

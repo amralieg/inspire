@@ -4,7 +4,7 @@ import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js'
 import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
-import { PlainNote, ToastProvider, useToast } from './ui.jsx';
+import { NoAccessScope, PlainNote, RetryProvider, ToastProvider, useToast } from './ui.jsx';
 import Page, { SECTION_TITLES } from './Page.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
 import Performance from './Performance.jsx';
@@ -39,12 +39,12 @@ function useFavicon() {
   }, []);
 }
 
-function Fatal({ error }) {
+function Fatal({ error, onRetry }) {
   return (
     <div className="fatal" role="alert">
       <span className="mark-tile"><Icon name="info" size={18} /></span>
       <h1>{error.status === 401 ? 'Sign in to see this App' : 'This App could not start'}</h1>
-      <PlainNote text={error.message} />
+      <PlainNote text={error.message} onRetry={onRetry} />
     </div>
   );
 }
@@ -64,12 +64,12 @@ function useHub(pages, asked) {
     getOverview(JSON.parse(asked)).then((data) => { if (mine === seq.current) { setHub(data); setError(''); } })
       .catch((e) => { if (mine === seq.current) setError(e.message); });
   }, [asked]);
+  const summarize = useCallback((id) => getSummary(id).then((s) => setSummaries((x) => ({ ...x, [id]: s })))
+    .catch((e) => setSummaries((x) => ({ ...x, [id]: { run: null, categories: {}, error: e.message } }))), []);
   useEffect(() => {
-    pages.filter((p) => p.history).forEach((p) => {
-      getSummary(p.id).then((s) => setSummaries((x) => ({ ...x, [p.id]: s }))).catch((e) => setSummaries((x) => ({ ...x, [p.id]: { run: null, categories: {}, error: e.message } })));
-    });
-  }, [pages]);
-  return { hub, error, summaries, load };
+    pages.filter((p) => p.history).forEach((p) => summarize(p.id));
+  }, [pages, summarize]);
+  return { hub, error, summaries, load, summarize };
 }
 
 function railOf(app, page) {
@@ -167,7 +167,7 @@ function Shell({ app }) {
   const openGenie = () => (working ? setDock('genie') : setGenieOpen(true));
   const genie = useGenie(app, page ? page.id : '', openGenie, agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
-  const { hub, summaries, load: loadHub } = useHub(pages, JSON.stringify(windowParams(prefs)));
+  const { hub, summaries, load: loadHub, summarize } = useHub(pages, JSON.stringify(windowParams(prefs)));
   const shown = visiblePages(pages, hub);
   const toast = useToast();
 
@@ -211,6 +211,7 @@ function Shell({ app }) {
     getDefaults(id).then(start).catch(() => {});
     getFilters(id).then(settle).catch((error) => settle({ filters: [], error: error.message }));
   }, []);
+  const retryMeta = useCallback((id) => { requested.current.delete(id); loadMeta(id); }, [loadMeta]);
   useEffect(() => { if (page) loadMeta(page.id); }, [page, loadMeta]);
 
   const leave = () => { setNavOpen(false); document.querySelector('.main')?.focus(); };
@@ -274,6 +275,8 @@ function Shell({ app }) {
             counts={railCounts.page === page.id ? railCounts : {}} />}
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}
           <main className="main" tabIndex={-1}>
+            <NoAccessScope key={page ? `page:${page.id}` : admin ? 'admin' : 'home'} app={app}>
+            <RetryProvider value={loadHub}>
             {admin && <Admin />}
             {!admin && page && section === 'performance' && (
               <GenieScope.Provider value={perfScope}>
@@ -284,8 +287,10 @@ function Shell({ app }) {
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK}
                 onLook={setPageLook(page.id)} themeKey={themeKey} onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]}
                 summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} focus={link.focus} chrome={chrome}
-                onCounts={setRailCounts} onRecord={openRecord} />
+                onCounts={setRailCounts} onRecord={openRecord} onRetryMeta={() => retryMeta(page.id)} onRetrySummary={() => summarize(page.id)} />
             )}
+            </RetryProvider>
+            </NoAccessScope>
           </main>
           {working && dock === 'genie' && <GeniePanel {...genieProps} tabs={tabs} onClose={() => setDock('')} />}
           {working && dock === 'record' && <RecordDock tabs={tabs} onSlot={setDockSlot} onClose={() => setDock('')} empty={!showing} />}
@@ -301,11 +306,12 @@ function Shell({ app }) {
 export default function App() {
   const [app, setApp] = useState(null);
   const [error, setError] = useState(null);
-  useEffect(() => { getApp().then(setApp).catch(setError); }, []);
+  const boot = useCallback(() => getApp().then((got) => { setError(null); setApp(got); }).catch(setError), []);
+  useEffect(() => { boot(); }, [boot]);
   useLayoutEffect(() => { if (!app) applyTheme('default', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', 'a'); }, [app]);
   return (
     <ToastProvider>
-      {error ? <Fatal error={error} /> : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} /></MyViewProvider>
+      {error ? <Fatal error={error} onRetry={boot} /> : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} /></MyViewProvider>
         : <div className="boot" role="status"><span className="ring" /><span>Opening the App…</span></div>}
     </ToastProvider>
   );

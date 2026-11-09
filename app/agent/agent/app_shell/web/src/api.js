@@ -2,14 +2,38 @@ import { CLOSED_STATUSES } from './records.js';
 export const DEMO_NOTE = 'This is a demo, so it is read-only: nothing you do here changes any data.';
 export const toneOf = (err) => (err?.calm ? 'info' : 'error');
 export const failureOf = (err, text) => ({ text: text ?? (err?.message || ''), calm: !!err?.calm });
+export const retryable = (err) => !err?.calm && !(err?.status >= 400 && err.status < 500 && err.status !== 429);
 
-async function send(method, path, body) {
-  const response = await fetch(`./api/${path}`, {
-    method,
-    headers: body ? { 'Content-Type': 'application/json' } : undefined,
-    body: body ? JSON.stringify(body) : undefined,
-    credentials: 'same-origin',
-  });
+export const UNREACHABLE_TEXT = 'The App could not be reached. Check your connection, then try again';
+export const RETRY_STATUSES = [429, 503, 504];
+export const RETRY_WAIT_MS = 700;
+const READ_POSTS = new Set(['page', 'records', 'overview', 'my_work']);
+export const readsOnly = (method, path) => method === 'GET' || READ_POSTS.has(path);
+const pause = (ms) => new Promise((done) => { setTimeout(done, ms); });
+
+async function send(method, path, body, again = readsOnly(method, path)) {
+  let response;
+  try {
+    response = await fetch(`./api/${path}`, {
+      method,
+      headers: body ? { 'Content-Type': 'application/json' } : undefined,
+      body: body ? JSON.stringify(body) : undefined,
+      credentials: 'same-origin',
+    });
+  } catch (err) {
+    if (again) {
+      await pause(RETRY_WAIT_MS);
+      return send(method, path, body, false);
+    }
+    const error = new Error(UNREACHABLE_TEXT);
+    error.status = 0;
+    error.cause = err;
+    throw error;
+  }
+  if (!response.ok && again && RETRY_STATUSES.includes(response.status)) {
+    await pause(RETRY_WAIT_MS);
+    return send(method, path, body, false);
+  }
   if (!response.ok) {
     let message = `The App answered HTTP ${response.status}`;
     let detail = null;
@@ -67,7 +91,7 @@ export const withDemoDecisions = (page, list, filters = {}) => {
   const listed = new Map(list.rows.map((r) => [String(r.record_key), r]));
   const moved = keys.filter((k) => (listed.has(k) ? !CLOSED_STATUSES.includes(listed.get(k)._inspire_status) : !filtered(filters))).length;
   const summary = list.summary && moved ? { ...list.summary, open: Math.max(0, (list.summary.open ?? 0) - moved), done: (list.summary.done ?? 0) + moved } : list.summary;
-  return { ...list, ...(summary ? { summary } : {}), rows: list.rows.map((r) => (decided[String(r.record_key)] ? { ...r, ...decided[String(r.record_key)] } : r)) };
+  return { ...list, ...(summary ? { summary } : {}), demo_moved: moved, rows: list.rows.map((r) => (decided[String(r.record_key)] ? { ...r, ...decided[String(r.record_key)] } : r)) };
 };
 export const getRecords = async (body) => withDemoDecisions(body?.page, await json('POST', 'records', body), body?.filters);
 export const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');

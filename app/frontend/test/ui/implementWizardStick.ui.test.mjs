@@ -34,7 +34,7 @@ test('the wizard groups the rows by the use case\'s subject, asks no team capaci
     if (r.method() === 'POST' && r.url().includes('/api/inspire/implement/submit')) sent.push(JSON.parse(r.postData()));
   });
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await openAdvanced(page);
     const grain = page.getByRole('region', { name: 'What one row means' });
     await grain.getByText('This use case is about customers, but one row of the result would be one order (main.s.orders.order_id). '
@@ -90,7 +90,7 @@ test('removing an App another use case shares offers to take this use case\'s pa
   });
   const { page, pageErrors } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await dataToResults(page);
     await goToStep(page, 'What to build');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();

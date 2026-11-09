@@ -123,10 +123,10 @@ const BIG_PROFILE = {
 };
 const INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
   + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Data groups |\n| `run_scope` | text | all | | First run |\n';
-const STEPS = ['Data', 'First run', 'Results', 'Deliver', 'App', 'Run it', 'Summary'];
+const STEPS = ['Use case', 'Data', 'Data groups', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it', 'Summary'];
 
 const OPEN_ALL = {
-  Data: async (page) => {
+  'Data groups': async (page) => {
     await page.locator('[data-show-all="grouping"]').click();
     await page.locator('[data-show-all="combine"]').click();
     await page.locator('[data-grouping-combine-column="country"]').waitFor();
@@ -140,7 +140,7 @@ const OPEN_ALL = {
   },
 };
 
-test('every scroll region of every Build wizard step, with 120 data groups and 32 columns, takes the mouse wheel to its last item at 1280x800 and 1024x700', async () => {
+test('every scroll region of every one of the 10 Build wizard steps, with 120 data groups and 32 columns, takes the mouse wheel to its last item at 1280x800 and 1024x700', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, useCase: { ...HARNESS_USE_CASE, genie_instruction: INSTRUCTION } }, '', { init: profileAt([], BIG_PROFILE) });
   const { page } = ui;
   const seen = [];
@@ -148,13 +148,13 @@ test('every scroll region of every Build wizard step, with 120 data groups and 3
     await page.locator('[data-wizard-body]').waitFor({ timeout: 20000 });
     for (const step of STEPS) {
       const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
-      if (!labels.some((l) => l.includes(step))) continue;
+      assert.ok(labels.some((l) => l.replace(/^\d+\. /, '') === step), `the wizard has the ${step} step: ${labels.join(' | ')}`);
       await page.setViewportSize({ width: 1280, height: 800 });
       await goToStep(page, step);
       await (OPEN_ALL[step] || (() => null))(page);
       seen.push(...await wheelEveryRegion(page, page.locator('[data-wizard-body]'), `wizard ${step}`, { min: 1, copies: 0 }));
     }
-    assert.ok(seen.some((n) => n.startsWith('wizard Data ') && /: wheeled\/wheeled$/.test(n)), JSON.stringify(seen));
+    assert.ok(seen.some((n) => n.startsWith('wizard Data groups ') && /: wheeled\/wheeled$/.test(n)), JSON.stringify(seen));
     assert.ok(seen.some((n) => n.startsWith('wizard First run ') && /: wheeled\/wheeled$/.test(n)), JSON.stringify(seen));
     console.log('WIZARD REGIONS', JSON.stringify(seen));
     assert.deepEqual(ui.pageErrors, []);
@@ -176,7 +176,7 @@ test('the Launch chips of 80 chosen tables and the metadata preview take the mou
     const chips = lastChip.locator('xpath=../..');
     await wheelScrolls(page, chips, () => lastChip, { name: 'Launch chosen tables' });
     const all = tables.map((t) => `catalog_00.s.${t}`).join(',');
-    await page.getByRole('button', { name: /80 items/ }).click();
+    await page.getByRole('button', { name: 'Metadata Selected 80 tables', exact: true }).click();
     const preview = page.getByText(all, { exact: true });
     await preview.waitFor();
     await wheelScrolls(page, preview.locator('..'), () => preview, { name: 'Launch metadata preview' });

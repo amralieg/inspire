@@ -53,6 +53,8 @@ const BROWSER_ALLOWED = [
   ['lib/implementWizard.js', "JSON.parse(String(raw || ''))", 'the elite assessment of a use case, which names no id'],
   ['lib/v130UseCase.js', 'JSON.parse(text)', 'the strategy alignment and data evidence of a use case, which name no id'],
   ['lib/runScope.js', 'JSON.parse(raw)', 'the first run groups the App saved, whose values it writes as text, so a key value never passes through a number'],
+  ['lib/artifactFiles.js', 'JSON.parse(text);', 'a JSON file read only to check it is valid JSON; the preview prints the file\'s own text, so every id reads as the file holds it'],
+  ['lib/wizardDraft.js', "JSON.parse(raw || 'null')", 'the wizard draft this browser stored itself from the spec it holds, so every id in it reads back as the wizard wrote it'],
 ];
 
 function sources(dir, ext = ['.js']) {

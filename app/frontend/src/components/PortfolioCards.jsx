@@ -58,7 +58,7 @@ export default function PortfolioCards({ portfolio, error, sessions, active = ''
                           aria-label={action.label}
                           aria-pressed={card.opens === 'runs' ? on : undefined}
                           onClick={() => onCard(card.key)}
-                          className={`${CARD} transition-smooth focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red focus-visible:ring-offset-2 focus-visible:ring-offset-surface ${
+                          className={`${CARD} transition-smooth ${
                             on ? 'border-db-red/50 bg-db-red-50' : 'border-border bg-bg hover:border-db-red/40 hover:bg-db-red-50/40'}`}
                         >
                           <CardFigure card={card} totals={totals} />
@@ -66,7 +66,7 @@ export default function PortfolioCards({ portfolio, error, sessions, active = ''
                       ) : (
                         <div data-portfolio-card={card.key} data-card-off="" className={`${CARD} border-border bg-bg`}>
                           <CardFigure card={card} totals={totals} />
-                          {action.why && <span data-card-why="" className="mt-0.5 block text-[10px] leading-snug text-text-secondary">{action.why}</span>}
+                          {action.why && <PlainMessage as="span" text={action.why} data-card-why="" className="mt-0.5 block text-[10px] leading-snug text-text-secondary" />}
                         </div>
                       )}
                     </li>

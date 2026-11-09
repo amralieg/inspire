@@ -63,9 +63,12 @@ import {
 import {
   FAVORITES_STORAGE_KEY,
   PRIORITY_ORDER,
+  priorityRank,
   beneficiaryFromUc,
   cardTitlesOfUseCase,
   computeHighPriorityCount,
+  isHighPriority,
+  priorityTierOf,
   displayCleanText,
   expandWorkspaceListCandidates,
   findUcForNotebookFilename,
@@ -84,7 +87,8 @@ import {
 } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText } from '../lib/liveUseCases';
-import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileExtension, quickAccessFiles, sheetPreview, visibleArtifactFiles } from '../lib/artifactFiles';
+import { saveBlob } from '../lib/download';
+import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
@@ -221,6 +225,7 @@ export default function ResultsPage({
   const [previewFrom, setPreviewFrom] = useState(null);
   const [previewData, setPreviewData] = useState(null); // { type: 'pdf'|'csv', url?, rows?, headers? }
   const [previewLoading, setPreviewLoading] = useState(false);
+  const [fileProblem, setFileProblem] = useState('');
   // Subdomain expansion state
   const [expandedDomains, setExpandedDomains] = useState({});
   const [domainPanelOpen, setDomainPanelOpen] = useState(false);
@@ -485,7 +490,7 @@ export default function ResultsPage({
         return 'found';
       }
 
-      setError(noResultsText(run));
+      setError(noResultsText(run, { inMonitor: embedded }));
       return 'pending';
     } catch (err) {
       if (sid && err.status === 403) {
@@ -522,7 +527,7 @@ export default function ResultsPage({
         if (!uc || typeof uc !== 'object') return false;
         if (filterDomain !== 'all' && uc._domain !== filterDomain) return false;
         if (filterSubdomain !== 'all' && String(uc.Subdomain || '') !== filterSubdomain) return false;
-        if (filterPriority !== 'all' && uc.Priority !== filterPriority)
+        if (filterPriority !== 'all' && priorityTierOf(uc) !== filterPriority)
           return false;
         if (filterType !== 'all' && uc.type !== filterType) return false;
         if (filterTechnique !== 'all' && String(fieldOf(uc, 'Analytics Technique', 'analytics_technique') || '') !== filterTechnique) return false;
@@ -539,61 +544,27 @@ export default function ResultsPage({
         if (!qualityBarFilterMatches(filterQualityBar, uc)) return false;
         if (!mvpFilterMatches(filterMvp, mvpStateOf(uc))) return false;
         if (searchQuery) {
-          const q = searchQuery.toLowerCase();
+          const q = searchQuery.trim().toLowerCase();
           const shown = cardTitlesOfUseCase(uc);
-          return (
-            String(uc.Name || '').toLowerCase().includes(q) ||
-            shown.title.toLowerCase().includes(q) ||
-            shown.subtitle.toLowerCase().includes(q) ||
-            String(uc.Statement || '').toLowerCase().includes(q) ||
-            String(uc.Solution || '').toLowerCase().includes(q) ||
-            beneficiaryFromUc(uc).toLowerCase().includes(q) ||
-            sponsorFromUc(uc).toLowerCase().includes(q)
-          );
+          return [uc.Name, shown.title, shown.subtitle, uc.Statement, uc.Solution, fieldOf(uc, 'Business Value', 'business_value'),
+            beneficiaryFromUc(uc), sponsorFromUc(uc), uc._domain, uc.Subdomain, fieldOf(uc, 'Analytics Technique', 'analytics_technique')]
+            .some((text) => String(text || '').toLowerCase().includes(q));
         }
         return true;
       })
       .sort((a, b) => {
+        const chosen = sortBy === 'domain' ? String(a._domain || '').localeCompare(String(b._domain || ''))
+          : sortBy === 'name' ? String(a.Name || '').localeCompare(String(b.Name || ''))
+            : sortBy === 'priority' ? priorityRank(priorityTierOf(a)) - priorityRank(priorityTierOf(b)) : 0;
+        if (chosen !== 0) return chosen;
         const meetsFirst = compareMeetsQualityBarFirst(a, b);
         if (meetsFirst !== 0) return meetsFirst;
         const starred = compareBestOfBestFirst(a._v130, b._v130);
         if (starred !== 0) return starred;
-        const sa = inspireScoreFromUc(a);
-        const sb = inspireScoreFromUc(b);
-        const scoreFirst = () => {
-          const va = sa ?? -Infinity;
-          const vb = sb ?? -Infinity;
-          if (vb !== va) return vb - va;
-          return 0;
-        };
-        if (sortBy === 'inspire') {
-          const c = scoreFirst();
-          if (c !== 0) return c;
-          return String(a.Name || '').localeCompare(String(b.Name || ''));
-        }
-        if (sortBy === 'domain') {
-          const d = String(a._domain || '').localeCompare(String(b._domain || ''));
-          if (d !== 0) return d;
-          const cDom = scoreFirst();
-          if (cDom !== 0) return cDom;
-          return String(a.Name || '').localeCompare(String(b.Name || ''));
-        }
-        if (sortBy === 'name') {
-          const n = String(a.Name || '').localeCompare(String(b.Name || ''));
-          if (n !== 0) return n;
-          const cNm = scoreFirst();
-          if (cNm !== 0) return cNm;
-          return 0;
-        }
-        // priority — tier after score so list stays score-ranked when scores exist
-        if (sortBy === 'priority') {
-          const c = scoreFirst();
-          if (c !== 0) return c;
-          const ia = PRIORITY_ORDER.indexOf(a.Priority);
-          const ib = PRIORITY_ORDER.indexOf(b.Priority);
-          return (ia === -1 ? 99 : ia) - (ib === -1 ? 99 : ib);
-        }
-        return scoreFirst();
+        const sa = inspireScoreFromUc(a) ?? -Infinity;
+        const sb = inspireScoreFromUc(b) ?? -Infinity;
+        if (sb !== sa) return sb - sa;
+        return String(a.Name || '').localeCompare(String(b.Name || ''));
       });
   } catch (err) {
     console.error('Error filtering/sorting use cases:', err);
@@ -612,12 +583,20 @@ export default function ResultsPage({
       return k && favorites[k];
     });
   }
+  const cardKeys = new Map();
+  const usedCardKeys = new Set();
+  for (const [idx, uc] of filteredUseCases.entries()) {
+    const base = cardKeyOf(uc, idx);
+    const key = usedCardKeys.has(base) ? `${base}#${idx}` : base;
+    usedCardKeys.add(key);
+    cardKeys.set(uc, key);
+  }
 
   const domains = [
     ...new Set(allUseCases.map((uc) => uc?._domain).filter(Boolean)),
   ];
   const priorities = [
-    ...new Set(allUseCases.map((uc) => uc?.Priority).filter(Boolean)),
+    ...new Set(allUseCases.map(priorityTierOf).filter(Boolean)),
   ];
   const types = [
     ...new Set(allUseCases.map((uc) => uc?.type).filter(Boolean)),
@@ -683,7 +662,7 @@ export default function ResultsPage({
     const uc = useCaseById.get(String(id ?? '').trim());
     return uc
       ? { name: String(uc.Name || id), domain: String(uc._domain || ''), score: inspireScoreFromUc(uc), useCase: uc.No ? uc : null }
-      : { name: String(id), domain: '', score: null, useCase: null };
+      : null;
   };
   const feedbackLatest = useMemo(() => latestFeedbackMap(feedbackState.latest), [feedbackState.latest]);
 
@@ -736,7 +715,8 @@ export default function ResultsPage({
     filterHasGenie !== 'all' ||
     filterQualityBar !== 'all' ||
     filterMvp !== 'all' ||
-    showBestOfBestOnly;
+    showBestOfBestOnly ||
+    showFavoritesOnly;
 
   const clearAllFilters = () => {
     setSearchQuery(''); setFilterDomain('all'); setFilterSubdomain('all');
@@ -749,6 +729,7 @@ export default function ResultsPage({
     setFilterQualityBar('all');
     setFilterMvp('all');
     setShowBestOfBestOnly(false);
+    setShowFavoritesOnly(false);
   };
 
   const openUseCase = (uc) => {
@@ -756,7 +737,7 @@ export default function ResultsPage({
     if (!no) return;
     clearAllFilters();
     setShowFavoritesOnly(false);
-    setExpandedUseCase(uc.No);
+    setExpandedUseCase(cardKeyOf(uc));
     requestAnimationFrame(() => requestAnimationFrame(() => {
       const card = [...document.querySelectorAll('[data-use-case-no]')].find((el) => el.getAttribute('data-use-case-no') === no);
       if (card) card.scrollIntoView({ block: 'start', behavior: reducedMotion() ? 'auto' : 'smooth' });
@@ -857,36 +838,31 @@ export default function ResultsPage({
     });
   }, [artifactTree, loadFolder]);
 
-  const downloadFile = useCallback((filePath, fileName) => {
-    const headers = artifactHeaders();
-    fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers })
-      .then(resp => {
-        if (!resp.ok) throw new Error('Download failed');
-        return resp.blob();
-      })
-      .then(blob => {
-        const url = URL.createObjectURL(blob);
-        const a = document.createElement('a');
-        a.href = url; a.download = fileName; a.click();
-        URL.revokeObjectURL(url);
-      })
-      .catch(() => { /* silent */ });
+  const exportedFile = useCallback(async (filePath, fileName, action) => {
+    setFileProblem('');
+    const resp = await fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers: artifactHeaders() }).catch(() => null);
+    const blob = resp?.ok ? await resp.blob().catch(() => null) : null;
+    if (blob) return blob;
+    setFileProblem(await fileProblemText(action, fileName, resp?.ok ? null : resp));
+    return null;
   }, [artifactHeaders]);
 
-  // Open a file (PDF/Excel) in a new browser tab
+  const downloadFile = useCallback(async (filePath, fileName) => {
+    const blob = await exportedFile(filePath, fileName, 'download');
+    if (blob) saveBlob(blob, fileName);
+  }, [exportedFile]);
+
   const openFileInTab = useCallback(async (filePath, fileName) => {
-    const headers = artifactHeaders();
-    try {
-      const resp = await fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers });
-      if (!resp.ok) return;
-      const blob = await resp.blob();
-      const ext = (fileName || '').toLowerCase().split('.').pop();
-      const mimeType = ext === 'pdf' ? 'application/pdf' : ext === 'csv' ? 'text/csv' : 'application/octet-stream';
-      const typedBlob = new Blob([blob], { type: mimeType });
-      const url = URL.createObjectURL(typedBlob);
-      window.open(url, '_blank');
-    } catch { /* silent */ }
-  }, [artifactHeaders]);
+    const tab = window.open('', '_blank');
+    const blob = await exportedFile(filePath, fileName, 'open');
+    if (!blob) {
+      tab?.close();
+      return;
+    }
+    const url = URL.createObjectURL(new Blob([blob], { type: 'application/pdf' }));
+    if (tab) tab.location.href = url;
+    else window.open(url, '_blank');
+  }, [exportedFile]);
 
   // Toggle inline preview for a file
   const togglePreview = useCallback(async (filePath, fileName, from) => {
@@ -907,10 +883,11 @@ export default function ResultsPage({
     setPreviewData(null);
     setPreviewLoading(true);
     const headers = artifactHeaders();
+    let resp = null;
     try {
-      const resp = await fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers });
+      resp = await fetch(`/api/workspace/export?path=${encodeURIComponent(filePath)}`, { headers });
       if (!resp.ok) throw new Error('fetch failed');
-      const ext = (fileName || '').toLowerCase().split('.').pop();
+      const ext = fileExtension({ name: fileName });
       if (ext === 'pdf') {
         const blob = new Blob([await resp.blob()], { type: 'application/pdf' });
         setPreviewData({ type: 'pdf', url: URL.createObjectURL(blob) });
@@ -926,9 +903,11 @@ export default function ResultsPage({
         }
       } else if (ext === 'xls') {
         setPreviewData({ type: 'error', message: EXCEL_OLD_FORMAT });
+      } else if (ext === 'md' || ext === 'json') {
+        setPreviewData(textPreview(ext, await resp.text()));
       }
     } catch {
-      setPreviewData({ type: 'error', message: 'Could not load file' });
+      setPreviewData({ type: 'error', message: resp?.ok ? `Inspire could not preview ${fileName}: the file could not be read.` : await fileProblemText('preview', fileName, resp) });
     }
     setPreviewLoading(false);
   }, [previewFile, previewFrom, previewData, artifactHeaders]);
@@ -1344,7 +1323,14 @@ export default function ResultsPage({
                       </h3>
                       {runOutcome.failed
                         ? <p className="text-[11px] text-error-fg" data-testid="execution-failure">{displayCleanText(runOutcome.message)}</p>
-                        : <p className="text-[11px] text-text-secondary">Every step of the run finished.</p>}
+                        : runOutcome.missingDocuments.length > 0
+                          ? (
+                            <ul className="text-[11px] text-warning-fg" data-testid="missing-documents" aria-label="Documents the run did not write">
+                              {runOutcome.missingDocuments.map((line) => <li key={line} dir="auto">{line}</li>)}
+                              <li className="text-text-secondary">Open the run log to see why.</li>
+                            </ul>
+                          )
+                          : <p className="text-[11px] text-text-secondary">Every step of the run finished.</p>}
                       {qualityBarCounts.found > 0 && (
                         <p className="text-[11px] text-text-secondary mt-0.5" data-testid="quality-bar-counts">
                           {qualityBarCounts.found} found, {qualityBarCounts.meets} {qualityBarCounts.meets === 1 ? 'meets' : 'meet'} your quality bar
@@ -1408,21 +1394,14 @@ export default function ResultsPage({
                           </>
                         )}
                         <span className="text-xs text-text-primary font-mono truncate flex-1">{f.name}</span>
-                        {f.file_size > 0 && (
-                          <span className="text-[9px] text-text-tertiary">
-                            {f.file_size >= 1024 * 1024
-                              ? `${(f.file_size / (1024 * 1024)).toFixed(1)}MB`
-                              : `${(f.file_size / 1024).toFixed(0)}KB`}
-                          </span>
+                        {fileSizeText(f.file_size) && (
+                          <span className="text-[9px] text-text-tertiary">{fileSizeText(f.file_size)}</span>
                         )}
                         {!isDir && (() => {
-                          const ext = (f.name || '').toLowerCase().split('.').pop();
-                          const isPdf = ext === 'pdf';
-                          const isSpreadsheet = ext === 'csv' || ext === 'xlsx' || ext === 'xls';
-                          const isPreviewable = isPdf || isSpreadsheet;
+                          const actions = fileActions(f);
                           return (
                             <div className="flex items-center gap-2 shrink-0">
-                              {isPreviewable && (
+                              {actions.preview && (
                                 <button
                                   type="button"
                                   className="text-[10px] text-info-fg hover:underline font-medium flex items-center gap-0.5"
@@ -1431,10 +1410,11 @@ export default function ResultsPage({
                                   {previewFile === f.path && previewFrom === 'files' ? <><Eye size={10} /> Hide</> : <><Eye size={10} /> Preview</>}
                                 </button>
                               )}
-                              {(isPdf || isSpreadsheet) && (
+                              {actions.open && (
                                 <button
                                   type="button"
                                   className="text-[10px] text-success-fg hover:underline font-medium flex items-center gap-0.5"
+                                  aria-label={`Open ${f.name}`}
                                   onClick={(e) => { e.stopPropagation(); openFileInTab(f.path, f.name); }}
                                 >
                                   <ExternalLink size={10} /> Open
@@ -1443,6 +1423,7 @@ export default function ResultsPage({
                               <button
                                 type="button"
                                 className="text-[10px] text-db-red-fg hover:underline font-medium flex items-center gap-0.5"
+                                aria-label={`Download ${f.name}`}
                                 onClick={(e) => { e.stopPropagation(); downloadFile(f.path, f.name); }}
                               >
                                 <Download size={10} /> Download
@@ -1455,6 +1436,7 @@ export default function ResultsPage({
                             type="button"
                             className="text-[10px] text-info-fg hover:underline font-medium flex items-center gap-0.5 shrink-0"
                             onClick={(e) => { e.stopPropagation(); downloadFile(f.path, `${f.name}.zip`); }}
+                            aria-label={`Download the ${f.name} folder`}
                             title="Download folder"
                           >
                             <Download size={10} />
@@ -1477,7 +1459,7 @@ export default function ResultsPage({
                           )}
                           {folderData?.error && (
                             <div className="ms-6 py-1">
-                              <span className="text-[10px] text-text-tertiary">{folderData.error}</span>
+                              <PlainMessage as="span" text={folderData.error} className="text-[10px] text-text-tertiary" />
                               <button type="button" onClick={(e) => { e.stopPropagation(); loadFolder(f.path); }} className="ms-2 text-[10px] text-db-red-fg hover:underline">Retry</button>
                             </div>
                           )}
@@ -1614,10 +1596,12 @@ export default function ResultsPage({
                           <button type="button" className="text-[10px] text-info-fg hover:text-info-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => togglePreview(f.path, f.name, 'quick')}>
                             {isActive ? <><EyeOff size={9} /> Hide</> : <><Eye size={9} /> Preview</>}
                           </button>
-                          <button type="button" className="text-[10px] text-success-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => openFileInTab(f.path, f.name)}>
-                            <ExternalLink size={9} /> Open
-                          </button>
-                          <button type="button" className="text-[10px] text-db-red-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => downloadFile(f.path, f.name)}>
+                          {fileActions(f).open && (
+                            <button type="button" aria-label={`Open ${f.name}`} className="text-[10px] text-success-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => openFileInTab(f.path, f.name)}>
+                              <ExternalLink size={9} /> Open
+                            </button>
+                          )}
+                          <button type="button" aria-label={`Download ${f.name}`} title={`Download ${f.name}`} className="text-[10px] text-db-red-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => downloadFile(f.path, f.name)}>
                             <Download size={9} />
                           </button>
                         </div>
@@ -1665,7 +1649,7 @@ export default function ResultsPage({
                   aria-expanded={genieQuickAccessExpanded}
                   aria-controls="genie-quick-access-list"
                   id="genie-quick-access-toggle"
-                  className="flex w-full items-center justify-between gap-3 rounded-lg text-start outline-none transition-smooth hover:bg-bg-subtle/80 focus-visible:ring-2 focus-visible:ring-db-red/25 -mx-1 px-1 py-0.5"
+                  className="flex w-full items-center justify-between gap-3 rounded-lg text-start transition-smooth hover:bg-bg-subtle/80 -mx-1 px-1 py-0.5"
                 >
                   <h3 className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.18em] flex items-center gap-2 min-w-0">
                     <Sparkles size={12} className="text-db-red-fg shrink-0" aria-hidden />
@@ -1740,7 +1724,7 @@ export default function ResultsPage({
           {/* Stats */}
           <section aria-label="Figures of this run" className="grid grid-cols-2 sm:grid-cols-4 gap-3 mb-4">
             <StatCard label="Use Cases" value={allUseCases.length} icon={FileText} />
-            <StatCard label="Domains" value={results.domains?.length || domains.length} icon={Building2} />
+            <StatCard label="Domains" value={domains.length} icon={Building2} />
             <StatCard label="Subdomains" value={uniqueSubdomainCount} icon={LayoutGrid} />
             <StatCard label="Best of Best" value={starredCount} icon={Star} />
             <StatCard
@@ -1816,9 +1800,8 @@ export default function ResultsPage({
                         title={filterSubdomain !== 'all' ? `${filterDomain} › ${filterSubdomain}` : filterDomain}
                       >
                         Filter:{' '}
-                        {filterSubdomain !== 'all'
-                          ? `${filterDomain} › ${filterSubdomain}`
-                          : filterDomain}
+                        <bdi>{filterDomain}</bdi>
+                        {filterSubdomain !== 'all' && <> › <bdi>{filterSubdomain}</bdi></>}
                       </p>
                     )}
                   </div>
@@ -1856,7 +1839,7 @@ export default function ResultsPage({
                     const count = domainCounts[d] || 0;
                     const active = filterDomain === d;
                     const highPriCount = allUseCases.filter(
-                      (uc) => uc._domain === d && ['Ultra High', 'Very High', 'High'].includes(String(uc?.Priority || ''))
+                      (uc) => uc._domain === d && isHighPriority(uc)
                     ).length;
                     const subs = subdomainsByDomain[d] || {};
                     const hasSubs = Object.keys(subs).length > 0;
@@ -2036,14 +2019,15 @@ export default function ResultsPage({
               <div className="mb-4 shrink-0 bg-surface border border-border/70 rounded-xl shadow-elevated overflow-hidden">
                 <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
                   {/* Search */}
-                  <div className="relative flex-1">
+                  <div className="relative min-w-[14rem] flex-1">
                     <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
                     <input dir="auto"
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search use cases..."
-                      className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-db-red/30 focus:ring-1 focus:ring-db-red/20 transition-smooth"
+                      aria-label="Search use cases"
+                      className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:border-db-red/30 transition-smooth"
                     />
                   </div>
 
@@ -2051,6 +2035,8 @@ export default function ResultsPage({
                   <button
                     type="button"
                     onClick={() => setShowFavoritesOnly(p => !p)}
+                    aria-pressed={showFavoritesOnly}
+                    aria-label={showFavoritesOnly ? 'Show all use cases' : 'Show favorites only'}
                     className={`flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-medium border transition-smooth ${
                       showFavoritesOnly
                         ? 'bg-db-red-50 text-db-red-fg border-db-red/20'
@@ -2087,7 +2073,7 @@ export default function ResultsPage({
                     <div className="flex items-center gap-1">
                       {PRIORITY_ORDER.filter((p) => priorities.includes(p)).map((p) => {
                         const active = filterPriority === p;
-                        const cnt = allUseCases.filter((uc) => uc.Priority === p).length;
+                        const cnt = allUseCases.filter((uc) => priorityTierOf(uc) === p).length;
                         return (
                           <button
                             key={p}
@@ -2109,9 +2095,10 @@ export default function ResultsPage({
                   {/* Type filter */}
                   {types.length > 0 && (
                     <select
+                      aria-label="Type"
                       value={filterType}
                       onChange={(e) => setFilterType(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Types</option>
                       {types.map((t) => (
@@ -2123,9 +2110,10 @@ export default function ResultsPage({
                   {/* Technique filter */}
                   {techniques.length > 0 && (
                     <select
+                      aria-label="Technique"
                       value={filterTechnique}
                       onChange={(e) => setFilterTechnique(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Techniques</option>
                       {techniques.map((t) => (
@@ -2139,7 +2127,7 @@ export default function ResultsPage({
                       aria-label="Kind"
                       value={filterKind}
                       onChange={(e) => setFilterKind(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Kinds</option>
                       {kindOptions.map((family) => (
@@ -2156,9 +2144,10 @@ export default function ResultsPage({
                   {/* Quality filter */}
                   {qualities.length > 0 && (
                     <select
+                      aria-label="Quality"
                       value={filterQuality}
                       onChange={(e) => setFilterQuality(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Quality</option>
                       {qualities.map((q) => (
@@ -2169,10 +2158,11 @@ export default function ResultsPage({
 
                   {/* Genie Code instruction (has / no) */}
                   <select
+                    aria-label="Genie Code instruction"
                     value={filterHasGenie}
                     onChange={(e) => setFilterHasGenie(e.target.value)}
                     title="Filter by whether the use case has a Genie Code instruction"
-                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
+                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
                   >
                     <option value="all">Genie Code instruction: Any</option>
                     <option value="yes">Genie Code instruction: Yes</option>
@@ -2182,10 +2172,11 @@ export default function ResultsPage({
                   {qualityBarCounts.below > 0 && (
                     <select
                       data-testid="quality-bar-filter"
+                      aria-label="Quality bar"
                       value={filterQualityBar}
                       onChange={(e) => setFilterQualityBar(e.target.value)}
                       title="Filter by whether the use case meets your quality bar"
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
                     >
                       <option value="all">Quality bar: Any ({qualityBarCounts.found})</option>
                       <option value="meets">Meets your quality bar ({qualityBarCounts.meets})</option>
@@ -2198,7 +2189,7 @@ export default function ResultsPage({
                     onChange={(e) => setFilterMvp(e.target.value)}
                     aria-label="MVP"
                     title="Filter by the use case's MVP"
-                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth min-w-[9rem]"
+                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[9rem]"
                   >
                     {MVP_FILTERS.map((f) => (
                       <option key={f.id} value={f.id}>{f.label}</option>
@@ -2207,9 +2198,10 @@ export default function ResultsPage({
 
                   {/* Sort */}
                   <select
+                    aria-label="Sort"
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                   >
                     <option value="inspire">Sort: Inspire score (high → low)</option>
                     <option value="priority">Sort: Priority tier</option>
@@ -2295,6 +2287,18 @@ export default function ResultsPage({
                         <button type="button" aria-label="Clear the MVP filter" onClick={() => setFilterMvp('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}
+                    {showFavoritesOnly && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                        Favorites only
+                        <button type="button" aria-label="Show all use cases, not only favorites" onClick={() => setShowFavoritesOnly(false)} className="hover:text-db-red-fg">&times;</button>
+                      </span>
+                    )}
+                    {showBestOfBestOnly && (
+                      <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
+                        Best of Best only
+                        <button type="button" aria-label="Show all use cases, not only Best of Best" onClick={() => setShowBestOfBestOnly(false)} className="hover:text-db-red-fg">&times;</button>
+                      </span>
+                    )}
                     {searchQuery && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
                         "{searchQuery}"
@@ -2321,14 +2325,12 @@ export default function ResultsPage({
                       const favKey = favoriteKeyOf(uc);
                       const tid = trackingIdOf(uc);
                       return (
-                      <div key={tid ? `genie-uc-${tid}` : favKey || String(uc.No ?? idx)} data-use-case-no={uc.No != null ? String(uc.No) : undefined} className="scroll-mt-2">
+                      <div key={cardKeys.get(uc)} data-use-case-no={uc.No != null ? String(uc.No) : undefined} className="scroll-mt-2">
                       <UseCaseCard
                         uc={uc}
                         index={idx}
-                        expanded={expandedUseCase === (uc.No || idx)}
-                        onToggle={() =>
-                          setExpandedUseCase(expandedUseCase === (uc.No || idx) ? null : uc.No || idx)
-                        }
+                        expanded={expandedUseCase === cardKeys.get(uc)}
+                        onToggle={() => setExpandedUseCase(expandedUseCase === cardKeys.get(uc) ? null : cardKeys.get(uc))}
                         isFavorite={!!(favKey && favorites[favKey])}
                         onToggleFavorite={() => toggleFavorite(uc)}
                         v130={uc._v130}
@@ -2359,6 +2361,14 @@ export default function ResultsPage({
             </div>
           </div>
         </>
+      )}
+
+      {fileProblem && (
+        <div role="alert" data-file-problem="" className="fixed bottom-4 inset-x-4 z-50 mx-auto flex max-w-xl items-start gap-2 rounded-lg border border-error/30 bg-error-bg px-3 py-2 text-xs text-error-fg shadow-elevated">
+          <AlertTriangle size={14} className="mt-0.5 shrink-0" />
+          <div dir="auto" className="min-w-0 flex-1 break-words"><PlainMessage text={fileProblem} as="span" /></div>
+          <button type="button" aria-label="Dismiss" onClick={() => setFileProblem('')} className="shrink-0 font-bold hover:opacity-80">&times;</button>
+        </div>
       )}
 
       {implementUc && selectedSessionId && inspireDb && warehouseId && (
@@ -2409,7 +2419,7 @@ function MvpTiles({ counts, active, onPick }) {
           aria-label={`${label}: ${counts[id]}`}
           title={active === id ? 'Show every use case' : `Show only: ${label}`}
           onClick={() => onPick(id)}
-          className={`text-start rounded-xl border p-3 transition-smooth focus:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40 ${
+          className={`text-start rounded-xl border p-3 transition-smooth ${
             active === id ? 'border-db-red/40 bg-db-red-50' : 'border-border bg-surface hover:border-db-red/25'
           }`}
         >
@@ -2425,6 +2435,11 @@ function MvpTiles({ counts, active, onPick }) {
 }
 
 /* ── Stat Card ── */
+function cardKeyOf(uc, idx = '') {
+  const tid = trackingIdOf(uc);
+  return tid ? `genie-uc-${tid}` : favoriteKeyOf(uc) || String(uc?.No ?? idx);
+}
+
 function StatCard({ label, value, icon: Icon, renderValue }) {
   return (
     <GlassCard tilt className="p-4" data-stat={label}>

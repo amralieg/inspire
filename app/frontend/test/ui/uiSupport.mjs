@@ -243,9 +243,11 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 }
 
 const STEP_HOLDING = {
-  'What to build': 'Deliver', Delivery: 'Deliver', 'App placement': 'App', 'App access': 'App', 'App features': 'App', 'App look': 'App',
-  'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Summary', 'Data groups': 'Data',
+  'What to build': 'Deliver', Delivery: 'Deliver', App: 'Who uses the App', 'App placement': 'Deliver', 'App access': 'Who uses the App',
+  'App features': 'App pages and look', 'App look': 'App pages and look', 'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Summary',
 };
+const exactly = (label) => new RegExp(`^\\s*(\\d+\\.\\s*)?${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
+const isStep = (text, label) => exactly(label).test(text);
 
 export function stepHolding(part) {
   return STEP_HOLDING[part] || part;
@@ -254,7 +256,7 @@ export function stepHolding(part) {
 export async function onStep(page, part) {
   const label = stepHolding(part);
   try {
-    await page.locator('[aria-current="step"]', { hasText: label }).waitFor({ timeout: 15000 });
+    await page.locator('[aria-current="step"]', { hasText: exactly(label) }).waitFor({ timeout: 15000 });
   } catch (e) {
     const shown = await page.locator('[role="alert"] p').allTextContents();
     throw new Error(`the wizard did not reach "${label}": ${shown.join(' | ') || e.message}`);
@@ -271,8 +273,8 @@ export async function stepsAre(page, expected) {
   }
 }
 
-export async function openAdvanced(page) {
-  await page.getByRole('button', { name: 'Advanced settings' }).click();
+export async function openAdvanced(page, name = 'Advanced settings') {
+  await page.getByRole('button', { name, exact: true }).click();
 }
 
 export const BUILD_IT = 'All Good, Build it Now';
@@ -285,6 +287,11 @@ export async function toAppAccess(page) {
   await goToStep(page, 'App placement');
   await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
   await goToStep(page, 'App access');
+}
+
+export async function toSharedAccess(page) {
+  await toAppAccess(page);
+  await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Internal data/ }).check();
 }
 
 export async function toVibes(page) {
@@ -300,7 +307,7 @@ export async function goToStep(page, part) {
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
-  const target = labels.findIndex((l) => l.includes(label));
+  const target = labels.findIndex((l) => isStep(l, label));
   const now = (await current.innerText()).trim();
   const at = labels.findIndex((l) => l.trim() === now);
   if (target < 0) throw new Error(`the wizard has no "${label}" step: ${labels.join(' | ')}`);
@@ -314,7 +321,7 @@ async function nextUntil(page, part) {
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const steps = page.locator('[data-wizard-header] ol li');
-  for (let i = 0; i < (await steps.count()) && !(await current.innerText()).includes(label); i += 1) {
+  for (let i = 0; i < (await steps.count()) && !isStep(await current.innerText(), label); i += 1) {
     const from = await current.innerText();
     await page.getByRole('button', { name: 'Next' }).click({ timeout: 15000 });
     try {
@@ -530,7 +537,7 @@ export function choicesShown(page) {
       ...inside('select').map((s) => s.value),
       ...(g.hasAttribute('data-choice-value') ? [g.dataset.choiceValue] : []),
     ];
-    return { choice: g.dataset.choice, multi: g.hasAttribute('data-choice-multi'), selected, badges: inside('[data-highly-recommended]').map((b) => b.dataset.highlyRecommended) };
+    return { choice: g.dataset.choice, multi: g.hasAttribute('data-choice-multi'), selected, badges: inside('[data-recommended]').map((b) => b.dataset.recommended) };
   }));
 }
 
@@ -540,7 +547,7 @@ export async function settleChoices(page) {
 
 export function assertOneBadgeOnDefault(shown, where, { perChoice = false } = {}) {
   const sets = perChoice ? shown.map((c) => c.badges) : [shown.flatMap((c) => c.badges)];
-  for (const all of sets) assert.ok(all.length <= 1, `${where}: at most one Highly Recommended badge ${perChoice ? 'on each question' : 'on the step'}, has ${JSON.stringify(all)}`);
+  for (const all of sets) assert.ok(all.length <= 1, `${where}: at most one Recommended badge ${perChoice ? 'on each question' : 'on the step'}, has ${JSON.stringify(all)}`);
   for (const { choice, multi, selected, badges } of shown) {
     if (!badges.length) continue;
     if (multi) assert.ok(selected.includes(badges[0]), `${where}: ${choice} starts with its badged option ${badges[0]} ticked, ticked ${JSON.stringify(selected)}`);

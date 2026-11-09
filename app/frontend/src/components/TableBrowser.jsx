@@ -9,6 +9,7 @@ import {
   Filter,
   Layers,
 } from 'lucide-react';
+import { PlainMessage } from './TechnicalDetails';
 
 export default function TableBrowser({
   token,
@@ -145,9 +146,7 @@ export default function TableBrowser({
 
       {/* Error */}
       {error && (
-        <div className="mx-4 mt-2 p-2 bg-error-bg text-error-fg text-xs rounded-md">
-          {error}
-        </div>
+        <PlainMessage as="div" text={error} className="mx-4 mt-2 p-2 bg-error-bg text-error-fg text-xs rounded-md" />
       )}
 
       {/* Tree */}
