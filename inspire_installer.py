@@ -54,6 +54,8 @@ SHA256 = re.compile(r"[0-9a-f]{64}")
 SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,120}")
 VERSION = re.compile(r"v[0-9]\.[0-9]\.[0-9]")
 NOT_REACHED = "I am not able to connect to GitHub to download the Inspire code"
+CUT_SHORT = "I reached GitHub, but could not download every Inspire file"
+RUN_AGAIN = "Run this installer again first: it keeps the files it already checked and downloads only the rest."
 
 
 SECRET_HEADER_RE = re.compile(r"""(["']?)\b(authorization|proxy-authorization|cookie|set-cookie|x-forwarded-access-token|x-databricks-[a-z0-9-]+)\1"""
@@ -125,6 +127,12 @@ class InspireStarterTooOld(InspireReleaseError):
 
 class InspireIncomplete(InspireReleaseError):
     def __init__(self, message, manifest=None):
+        super().__init__(message)
+        self.manifest = manifest
+
+
+class InspireDownloadCut(InspireReleaseError):
+    def __init__(self, message, manifest):
         super().__init__(message)
         self.manifest = manifest
 
@@ -212,6 +220,8 @@ def download(url, dest, repo, size=None, sha256=None, timeout=READ_TIMEOUT_S, op
             raise InspireReleaseError(f"{name} does not match its sha256 in {MANIFEST}: it is damaged or changed, so it is refused.")
         os.replace(partial, dest)
         return dest
+    except (socket.timeout, TimeoutError):
+        raise InspireReleaseError(f"no answer for {name} in {timeout} seconds") from None
     finally:
         if os.path.exists(partial):
             os.remove(partial)
@@ -378,7 +388,10 @@ def acquire_online(base, repo, folder, opener=open_trusted):
             print(f"  {entry['name']}: ✅ downloaded before, {entry['size']} bytes, sha256 checked")
         else:
             print(f"  {entry['name']}: downloading {entry['size']} bytes from {base}")
-            download(f"{base}/{entry['name']}", target, repo, entry["size"], entry["sha256"], opener=opener)
+            try:
+                download(f"{base}/{entry['name']}", target, repo, entry["size"], entry["sha256"], opener=opener)
+            except Exception as exc:
+                raise InspireDownloadCut(describe(exc), manifest) from None
             print(f"  {entry['name']}: ✅ downloaded, sha256 checked")
         files[entry["name"]] = target
     return {"source": "online", "manifest": manifest, "files": files, "stage": stage}
@@ -413,8 +426,6 @@ def describe(exc):
         return f"HTTP {exc.code} {exc.reason}"
     if isinstance(exc, urllib.error.URLError):
         return f"no connection ({exc.reason})"
-    if isinstance(exc, (socket.timeout, TimeoutError)):
-        return f"no answer in {REACH_TIMEOUT_S} seconds"
     return str(exc)[:300]
 
 
@@ -455,7 +466,8 @@ def size_text(size):
     return f"{size / 1000000:.1f} MB ({size} bytes)"
 
 
-def offline_page(base, folder, notebook, reasons, manifest=None):
+def offline_page(base, folder, notebook, reasons, manifest=None, reached=False):
+    title = CUT_SHORT if reached else NOT_REACHED
     commands = download_commands(base)
     links = direct_links(base, manifest)
     page = release_page(base)
@@ -466,7 +478,7 @@ def offline_page(base, folder, notebook, reasons, manifest=None):
              "and the Inspire notebooks) appear next to this installer. Leave them as they are: the installer checks every file in them.",
              "To import every file whole instead, run these Databricks CLI commands from the folder that holds the download:",
              f"You already have {INSTALLER} here. Import the downloaded one in place of this notebook only when this installer says it is too old."]
-    text = [NOT_REACHED, ""] + [f"  {reason}" for reason in reasons] + ["",
+    text = [title, ""] + [f"  {reason}" for reason in reasons] + [""] + ([RUN_AGAIN, ""] if reached else []) + [
             f"1. On a computer that can reach GitHub: {step1}", ""]
     for system, lines in commands:
         text += [f"   {system}:"] + [f"     {line}" for line in lines] + [""]
@@ -480,8 +492,9 @@ def offline_page(base, folder, notebook, reasons, manifest=None):
         + esc("\n".join(lines)) + "</pre>"
     parts = [
         '<div style="font-family:sans-serif;max-width:980px;padding:18px 22px;border:1px solid #f5c26b;border-radius:12px;background:#fffaf0;color:#2b2b2b">',
-        f'<h2 style="margin:0 0 10px 0;color:#7a4b00">{esc(NOT_REACHED)}</h2>',
+        f'<h2 style="margin:0 0 10px 0;color:#7a4b00">{esc(title)}</h2>',
         "<ul>" + "".join(f"<li>{esc(reason)}</li>" for reason in reasons) + "</ul>",
+        f"<p><b>{esc(RUN_AGAIN)}</b></p>" if reached else "",
         "<h3>1. Download the release on a computer that can reach GitHub</h3>",
         f"<p>{esc(step1)}</p>",
     ]
@@ -574,16 +587,19 @@ def load_entry(release):
 def acquire(folder, notebook, settings, opener=None, exporter=None):
     opener, exporter = opener or open_trusted, exporter or workspace_exporter
     base, repo = release_source(settings)
-    reasons, known = [], None
+    reasons, known, reached = [], None, False
     print(f"Inspire installer {STARTER_VERSION}: release {base}")
     try:
         return acquire_online(base, repo, folder, opener)
     except InspireStarterTooOld as exc:
         show(*stop_page("This installer is too old for the latest Inspire", str(exc)))
         raise InspireNotInstalled(str(exc)) from None
+    except InspireDownloadCut as exc:
+        reasons.append(f"GitHub: {exc}")
+        known, reached = exc.manifest, True
     except Exception as exc:
         reasons.append(f"GitHub: {describe(exc)}")
-    print(f"  {reasons[-1]} Looking for the release files next to this installer in {folder}")
+    print(f"  {reasons[-1].rstrip('.')}. Looking for the release files next to this installer in {folder}")
     try:
         return acquire_local(folder, exporter, base)
     except InspireMixedRelease as exc:
@@ -594,11 +610,12 @@ def acquire(folder, notebook, settings, opener=None, exporter=None):
         raise InspireNotInstalled(str(exc)) from None
     except InspireIncomplete as exc:
         reasons.append(str(exc))
-        known = exc.manifest
+        known = known or exc.manifest
     except InspireReleaseError as exc:
         reasons.append(str(exc))
-    show(*offline_page(base, folder, notebook, reasons, known))
-    raise InspireNotInstalled(f"{NOT_REACHED}, and no complete release is next to this installer. The steps above show how to get it.")
+    show(*offline_page(base, folder, notebook, reasons, known, reached))
+    raise InspireNotInstalled(f"{CUT_SHORT if reached else NOT_REACHED}, and no complete release is next to this installer. "
+                              f"{RUN_AGAIN + ' ' if reached else ''}The steps above show how to get it.")
 
 
 def inspire_install_main():

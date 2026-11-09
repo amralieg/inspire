@@ -214,6 +214,24 @@ def _workspace_file_text(api, path):
     return base64.b64decode((resp.json() or {}).get("content") or "").decode("utf-8", "replace"), None
 
 
+INSPIRE_APP_MARKS = ("INSPIRE_", "Inspire AI")
+
+
+def _other_app_problem(api, app_name, current):
+    if str(current.get("description") or "").startswith(app_description("")):
+        return None
+    deployed = current.get("active_deployment") or {}
+    source = (deployed.get("deployment_artifacts") or {}).get("source_code_path") or deployed.get("source_code_path")
+    if not source:
+        return None
+    text, error = _workspace_file_text(api, f"{source}/app.yaml")
+    if text is not None and any(mark in text for mark in INSPIRE_APP_MARKS):
+        return None
+    why = f"its app.yaml could not be read ({error})" if text is None else "its app.yaml names no Inspire setting"
+    return (f"An App named {app_name} already exists and is not an Inspire App ({why}), so the installer leaves it alone. "
+            f"Its owner can delete it; then run this installer again.")
+
+
 def _put_app_yaml(api, path, text):
     resp = api("POST", "/api/2.0/workspace/import",
                {"path": _workspace_api_path(path), "format": "AUTO", "overwrite": True, "content": base64.b64encode(text.encode("utf-8")).decode("ascii")})
@@ -631,7 +649,8 @@ def build_runtime_context(env):
     all_warehouses.sort(key=_wh_sort_key)
 
     if not all_warehouses:
-        raise RuntimeError("No SQL warehouses found. Create a SQL warehouse in this workspace, then re-run.")
+        raise RuntimeError(f"You cannot use any SQL warehouse in this workspace, and the installer needs one. A workspace admin can give "
+                           f"{user_email} Can Use on a SQL warehouse, or create one; then run this installer again.")
 
     available_catalogs, own_catalogs = [], set()
     try:
@@ -640,10 +659,13 @@ def build_runtime_context(env):
                 available_catalogs.append(cat.name)
                 if str(getattr(cat, "owner", "") or "").lower() == str(user_email or "").lower():
                     own_catalogs.add(cat.name)
-    except Exception:
-        available_catalogs = ["workspace"]
+    except Exception as exc:
+        raise RuntimeError(f"The installer could not list the catalogs you can use ({_error_words(exc)}), after {len(available_catalogs)} of "
+                           "them, so it changed nothing. Run this installer again; if it fails the same way, check that you can use "
+                           "Unity Catalog in this workspace.") from None
     if not available_catalogs:
-        available_catalogs = ["workspace"]
+        raise RuntimeError(f"You cannot use any catalog in this workspace, and Inspire keeps its tables in one. A metastore admin can give "
+                           f"{user_email} USE CATALOG and CREATE SCHEMA on a catalog; then run this installer again.")
     available_catalogs = sorted(set(available_catalogs))
 
     pickers = ensure_parameter_widgets(all_warehouses, available_catalogs, own_catalogs)
@@ -1015,7 +1037,7 @@ def step_deploy_and_find_sp(ctx):
 
     if not compute_ready:
         raise RuntimeError(
-            f"App compute did not reach ACTIVE after 5 minutes (still STARTING). "
+            f"App compute did not reach ACTIVE after 5 minutes (still {state}{', after the installer asked it to start' if start_requested else ''}). "
             f"Start it manually: Compute → Apps → {app_name} → Start, then re-run."
         )
 
@@ -1751,6 +1773,10 @@ def step_preflight(ctx):
         if perm.status_code != 200:
             problems.append(f"You cannot manage the App {app_name} ({perm.status_code} {perm.text[:160]}). "
                             "Its owner can give you Can Manage on it.")
+        else:
+            other = _other_app_problem(api, app_name, found.json() or {})
+            if other:
+                problems.append(other)
     elif found.status_code == 404:
         listed = api("GET", "/api/2.0/apps?page_size=1")
         if listed.status_code != 200:

@@ -206,6 +206,55 @@ class OnlineTest(StarterCase):
         self.assertFalse((self.tmp / "stage" / "v1.3.0" / "inspire-app.zip").exists())
         self.assertEqual(loaded, [])
 
+    def test_github_reached_but_a_file_cut_short_says_so_asks_for_a_rerun_first_and_keeps_the_checked_files(self):
+        out = self.release()
+        manifest = self.manifest(out)
+
+        class Cut(support.FakeGitHub):
+            def __init__(self, failure):
+                super().__init__(LATEST, out)
+                self.failure = failure
+
+            def __call__(self, url, repo, timeout):
+                if url.endswith("/inspire-assets.tar"):
+                    if self.failure == "timeout":
+                        raise socket.timeout("The read operation timed out")
+                    if self.failure == "partial":
+                        return support.FakeResponse(self.files["inspire-assets.tar"][:1000], url)
+                    raise urllib.error.HTTPError(url, 504, "Gateway Timeout", {}, None)
+                return super().__call__(url, repo, timeout)
+
+        tar = next(entry["size"] for entry in manifest["files"] if entry["name"] == "inspire-assets.tar")
+        for failure, why in (("504", "GitHub: HTTP 504 Gateway Timeout"),
+                             ("timeout", f"GitHub: no answer for inspire-assets.tar in {self.ns['READ_TIMEOUT_S']} seconds"),
+                             ("partial", f"GitHub: inspire-assets.tar stopped at 1000 of {tar} bytes")):
+            printed = []
+            self.ns["print"] = lambda *a, **k: printed.append(" ".join(str(x) for x in a))
+            with self.assertRaises(self.ns["InspireNotInstalled"]) as caught:
+                self.acquire({}, Cut(failure))
+            page, text = self.ns["shown"][-1], printed[-1]
+            for body in (page, text, str(caught.exception)):
+                self.assertIn("I reached GitHub, but could not download every Inspire file", html.unescape(body), failure)
+                self.assertNotIn("not able to connect to GitHub", html.unescape(body), failure)
+                self.assertIn("Run this installer again first: it keeps the files it already checked and downloads only the rest.",
+                              html.unescape(body), failure)
+            self.assertIn(html.escape(why), page, failure)
+            self.assertNotIn("no answer in 10 seconds", page, failure)
+            self.assertTrue(any(line.startswith(f"  {why}") and ". Looking for the release files" in line for line in printed), failure)
+            self.assertIn(f"({tar} bytes)", page, "the sizes come from the manifest GitHub gave")
+            self.assertTrue((self.tmp / "stage" / "v1.3.0" / "inspire-app.zip").exists(), "the checked app zip is kept for the rerun")
+            again = support.FakeGitHub(LATEST, out)
+            self.assertEqual(self.acquire({}, again)["source"], "online")
+            self.assertEqual(again.requested, ["manifest.json", "inspire-assets.tar"], "the rerun downloads only what is left")
+            shutil.rmtree(self.tmp / "stage")
+
+    def test_github_not_reached_keeps_the_not_reached_page_without_a_rerun_line(self):
+        with self.assertRaises(self.ns["InspireNotInstalled"]):
+            self.acquire({}, support.FakeGitHub(LATEST, fail=urllib.error.HTTPError(LATEST, 504, "Gateway Timeout", {}, None)))
+        self.assertIn(self.ns["NOT_REACHED"], self.ns["shown"][-1])
+        self.assertNotIn("I reached GitHub", self.ns["shown"][-1])
+        self.assertNotIn("Run this installer again first", self.ns["shown"][-1])
+
     def test_online_a_stale_file_next_to_the_installer_is_not_used_and_the_release_file_is_downloaded(self):
         old = self.release("old", assets={"fonts/inter-400.ttf": b"old font"})
         new = self.release("new")
@@ -416,7 +465,7 @@ class OfflinePageTest(StarterCase):
                           *(f'databricks workspace import "{self.folder}/{name}" --file {name} --format RAW --overwrite'
                             for name in ("manifest.json", "inspire-app.zip", "inspire-assets.tar")),
                           f"{LATEST}/manifest.json", f"{LATEST}/inspire_installer.py", f"{LATEST}/inspire-app.zip", f"{LATEST}/inspire-assets.tar",
-                          "no answer in 10 seconds", "No manifest.json is next to this installer"):
+                          "no answer for manifest.json in 10 seconds", "No manifest.json is next to this installer"):
                 self.assertIn(html.escape(words) if body is page else words, body)
             for gone in ("SHA256SUMS", ".part", "partNN", "10 MB", "import-dir", "leave that folder"):
                 self.assertNotIn(gone, body)

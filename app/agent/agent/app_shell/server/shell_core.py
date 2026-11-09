@@ -2677,7 +2677,8 @@ class Shell:
         for item in items:
             setting = dict(item)
             saved = latest.get(setting["name"]) if setting.get("source") in ("widget", "alert", "app") else None
-            held = (saved.get("text_value") if setting.get("kind") == "choice" else shell_sql.as_number(saved.get("value"))) if saved else None
+            held = (saved.get("text_value") if setting.get("kind") == "choice" else "" if setting.get("optional") and saved.get("value") is None
+                    else shell_sql.as_number(saved.get("value"))) if saved else None
             if held is not None and shell_sql.setting_problem(setting, held if isinstance(held, str) else shell_sql.number_text(held)):
                 held = None
             setting["value"] = setting.get("default") or "" if held is None else (held if isinstance(held, str) else shell_sql.number_text(held))

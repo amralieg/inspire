@@ -8,6 +8,7 @@ from v144_app_ops_test import JOB, LEE, JobsWorkspace, ops_settings, ops_shell, 
 from v148_app_hub_test import ROWS, hub_page, hub_shell
 from v147_value_at_stake_test import _sqlite
 from v149_app_money_test import OWNER, SAM, MoneyWorkspace, _summary
+from v120_artifacts_support import FakeSpark
 import shell_core
 import shell_sql
 
@@ -195,6 +196,36 @@ def test_the_app_checks_settings_exactly_as_the_run_does(agent_ns):
     for values in ({"act_now_share": "0.6", "review_share": "0.5"}, {"act_now_amount": "10", "review_amount": "20"},
                    {"min_rows": "9", "max_rows": "3"}, {"act_now_share": "0.2", "review_share": "0.3"}):
         assert shell_sql.setting_set_problems(values) == agent_ns["genie_widget_set_problems"](values), values
+
+
+CAPACITY = dict(BASE, name="act_now_capacity", label="Team capacity", group="flagging", kind="integer", unit="records", low=1, whole=True,
+                optional=True, allowed="a whole number, at least 1, or empty for no cap", default="40", reason="chosen when the use case was built")
+
+
+def test_a_team_capacity_cleared_for_no_cap_reloads_as_no_cap_the_way_the_next_run_reads_it(tmp_path, fresh_ns):
+    s, ws, _made = _shell(tmp_path, declared=DECLARED + [CAPACITY])
+    status, out = _save(s, OWNER, name="act_now_capacity", value="", was="40", note="no cap this quarter")
+    assert status == 200, out
+    (sql, params), = ws.queries("INSERT INTO `main`.`pricing`.`loss_desk_out_assumptions`")
+    assert "CAST(NULL AS DOUBLE)" in sql
+    for view in (out, call(s, "GET", "settings", query={"page": "n01_u05"}, headers={"x-forwarded-email": OWNER})[1]):
+        capacity = {x["name"]: x for x in view["settings"]}["act_now_capacity"]
+        assert (capacity["value"], capacity["saved"]) == ("", True), capacity
+    assert _save(s, OWNER, name="act_now_capacity", value="", was="")[1] == {"error": "act_now_capacity is already empty"}
+    assert _save(s, OWNER, name="act_now_capacity", value="25", was="40")[0] == 409, "the shown value is no cap, not the built 40"
+    model = fresh_ns["inspire_settings_model"]({"family": "A", "decision_basis": "predicted", "act_now_capacity": 40}, [])
+    scope = {"INSPIRE_RUN": {"settings": fresh_ns["inspire_run_settings_model"](model), "act_now_capacity": 40, "settings_read": True}}
+    saved = [{"name": r[1], "value": r[2], "text_value": r[6], "changed_by": r[3], "changed_at": r[4]}
+             for r in ws.db.execute('SELECT * FROM "loss_desk_out_assumptions"').fetchall()]
+    assert [r["value"] for r in saved] == [None]
+
+    def respond(statement):
+        return saved if "ROW_NUMBER() OVER (PARTITION BY name" in statement else []
+
+    fresh_ns["inspire_apply_assumptions"](FakeSpark(responder=respond), "main.pricing.loss_desk_out", "N01-U05", scope=scope, out=lambda m: None)
+    assert fresh_ns["inspire_act_now_capacity"](scope=scope) is None, "the run reads the same saved row as no cap"
+    status, out = _save(s, OWNER, name="act_now_capacity", value="25", was="")
+    assert status == 200 and {x["name"]: x for x in out["settings"]}["act_now_capacity"]["value"] == "25"
 
 
 def test_a_page_setting_that_repeats_an_earlier_name_is_named_as_a_repeat():

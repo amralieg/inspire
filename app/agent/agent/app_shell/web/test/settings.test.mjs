@@ -150,6 +150,8 @@ test('an owner sets the team capacity on the App Settings page, checked as the r
   assert.equal(settingProblem(capacity, '2.5'), "act_now_capacity is '2.5'; allowed: a whole number, at least 1, or empty for no cap", 'a part of a record is refused (must-exclude)');
   assert.equal(settingProblem(capacity, '25'), '');
   assert.equal(valueText(capacity, '25'), '25 records');
+  assert.equal(valueText(capacity, ''), 'no cap', 'an empty capacity reads as the no cap the run uses');
+  assert.equal(valueText({ ...capacity, allowed: 'a whole number, at least 1' }, ''), 'not set');
   const seen = {};
   const r = routes(seen);
   const state = { view: { ...VIEW, settings: [...SETTINGS, capacity] } };
