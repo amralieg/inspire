@@ -12,11 +12,21 @@ function storageOf(storage) {
   }
 }
 
+const workspaceOf = (host) => String(host || (typeof window !== 'undefined' ? window.location?.host : '') || '').trim().toLowerCase().replace(/\/+$/, '');
+
 export function wizardDraftKey({ host = '', inspireDatabase = '', sessionId = '', useCaseId = '' } = {}) {
   const id = String(useCaseId || '').trim();
   if (!id) return '';
-  const workspace = String(host || (typeof window !== 'undefined' ? window.location?.host : '') || '').trim().toLowerCase().replace(/\/+$/, '');
-  return `${WIZARD_DRAFT_PREFIX}${JSON.stringify([workspace, String(inspireDatabase || '').toLowerCase(), String(sessionId ?? ''), id])}`;
+  return `${WIZARD_DRAFT_PREFIX}${JSON.stringify([workspaceOf(host), String(inspireDatabase || '').toLowerCase(), String(sessionId ?? ''), id])}`;
+}
+
+export const START_DRAFT_PREFIX = 'inspire_start_draft:';
+export const START_DRAFT_STAMP = 'start:1';
+export const START_DRAFT_STEP = 'launch';
+
+export function startDraftKey({ host = '' } = {}) {
+  const workspace = workspaceOf(host);
+  return workspace ? `${START_DRAFT_PREFIX}${JSON.stringify([workspace])}` : '';
 }
 
 function hashOf(raw) {

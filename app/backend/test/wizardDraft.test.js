@@ -1,11 +1,15 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import {
+  START_DRAFT_PREFIX,
+  START_DRAFT_STAMP,
+  START_DRAFT_STEP,
   WIZARD_DRAFT_PREFIX,
   WIZARD_DRAFT_VERSION,
   clearWizardDraft,
   draftStampOf,
   readWizardDraft,
+  startDraftKey,
   wizardDraftKey,
   writeWizardDraft,
 } from '../../frontend/src/lib/wizardDraft.js';
@@ -91,4 +95,23 @@ test('no storage or a storage that throws never breaks the wizard', () => {
   assert.equal(writeWizardDraft(key, { stamp: 's1', spec: {}, step: 'data' }, broken), false);
   assert.equal(clearWizardDraft(key, broken), false);
   assert.equal(readWizardDraft('', 's1', fakeStorage()), null);
+});
+
+test('the Start form draft is one per workspace, apart from every wizard draft, and goes through the same read, write and clear', () => {
+  const store = fakeStorage();
+  const key = startDraftKey({ host: 'Example.Cloud.Databricks.com/' });
+  assert.ok(key.startsWith(START_DRAFT_PREFIX));
+  assert.ok(!key.startsWith(WIZARD_DRAFT_PREFIX), 'a Start draft is never listed as a wizard draft (must-exclude)');
+  assert.equal(key, startDraftKey({ host: 'example.cloud.databricks.com' }));
+  assert.notEqual(key, startDraftKey({ host: 'other.cloud.databricks.com' }));
+  assert.equal(startDraftKey({ host: '' }), '', 'no workspace, no draft');
+  const form = { params: { '00_business_name': 'Acme' }, selectedCatalogs: ['main'] };
+  assert.equal(writeWizardDraft(key, { stamp: START_DRAFT_STAMP, spec: form, step: START_DRAFT_STEP }, store), true);
+  assert.deepEqual(readWizardDraft(key, START_DRAFT_STAMP, store), { spec: form, step: START_DRAFT_STEP, visited: [] });
+  assert.equal(readWizardDraft(startDraftKey({ host: 'other.cloud.databricks.com' }), START_DRAFT_STAMP, store), null, 'another workspace reads nothing');
+  assert.equal(readWizardDraft(key, 'start:0', store), null, 'a draft of an older form is dropped');
+  assert.equal(store.items.size, 0);
+  writeWizardDraft(key, { stamp: START_DRAFT_STAMP, spec: form, step: START_DRAFT_STEP }, store);
+  assert.equal(clearWizardDraft(key, store), true);
+  assert.equal(readWizardDraft(key, START_DRAFT_STAMP, store), null);
 });

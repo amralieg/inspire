@@ -44,6 +44,7 @@ import { runBusiness } from '../lib/reviewFigures';
 import OutputFolderCheck from '../components/OutputFolderCheck';
 import DiscoveryPromise from '../components/DiscoveryPromise';
 import { useOutputFolderCheck } from '../lib/outputFolderCheck';
+import { DRAFT_BACK_NOTE, DRAFT_START_OVER, START_DRAFT_STAMP, START_DRAFT_STEP, clearWizardDraft, readWizardDraft, startDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import { DEFAULT_DOCUMENT_LANGUAGE, parseDocumentLanguages, formatDocumentLanguages, launchDocLanguages, needsDocumentLanguage } from '../constants/documentLanguages';
 import { interpretUcPermissionError, parseApiErrorMessage } from '../lib/ucPermissionErrors';
 import { formatWhen, utcDate } from '../lib/formatWhen';
@@ -148,6 +149,58 @@ function prefillNoteOf(session) {
   return started ? `Prefilled from this business's last run, started ${started}.` : "Prefilled from this business's last run.";
 }
 
+const defaultParams = (inspireDatabase) => ({
+  '15_operation': 'Discover Use Cases',
+  '00_business_name': '',
+  '01_uc_metadata': '',
+  '02_inspire_database': inspireDatabase || '',
+  '03_discovery_type': DISCOVERY_RECOMMENDED,
+  '04_table_election': 'Let Inspire Decides',
+  '05_use_cases_quality': 'Good',
+  '06_business_domains': '',
+  '07_business_priorities': '',
+  '08_generation_instructions': '',
+  '09_generation_options': 'PDF Catalog',
+  '10_strategic_context': '',
+  '11_generation_path': '',
+  '12_documents_languages': 'English',
+  '13_generate_genie_code_for': '0',
+  '14_session_id': '',
+  '16_best_of_best_count': '',
+});
+const DRAFT_PARAMS = ['00_business_name', '03_discovery_type', '04_table_election', '05_use_cases_quality', '06_business_domains', '08_generation_instructions',
+  '11_generation_path', '12_documents_languages', '13_generate_genie_code_for', '15_operation', '16_best_of_best_count'];
+const FORM_DEFAULTS = {
+  genChecks: { 'PDF Catalog': true, Presentation: false }, priorityChecks: {}, customPriorities: [], strategyBase: '',
+  selectedCatalogs: [], selectedSchemas: [], selectedTables: [],
+  electionTouched: false, discoveryTouched: false, strategyTouched: false, prioritiesTouched: false,
+};
+const FLAGS = ['electionTouched', 'discoveryTouched', 'strategyTouched', 'prioritiesTouched'];
+const LISTS = ['customPriorities', 'selectedCatalogs', 'selectedSchemas', 'selectedTables'];
+
+function draftFormOf(params, form) {
+  const priorityChecks = Object.fromEntries(Object.entries(form.priorityChecks).filter(([, on]) => on === true));
+  return { ...form, priorityChecks, params: Object.fromEntries(DRAFT_PARAMS.map((key) => [key, params[key]])) };
+}
+
+const PRISTINE_FORM = JSON.stringify(draftFormOf(defaultParams(''), FORM_DEFAULTS));
+
+function restoredForm(draft) {
+  const spec = draft && draft.step === START_DRAFT_STEP ? draft.spec : null;
+  if (!spec || typeof spec !== 'object') return null;
+  const checks = (v, fallback) => (v && typeof v === 'object' && !Array.isArray(v)
+    ? Object.fromEntries(Object.entries(v).filter(([, on]) => typeof on === 'boolean')) : fallback);
+  const saved = spec.params && typeof spec.params === 'object' ? spec.params : {};
+  return {
+    params: Object.fromEntries(DRAFT_PARAMS.filter((key) => ['string', 'number'].includes(typeof saved[key])).map((key) => [key, String(saved[key])])),
+    genChecks: { ...FORM_DEFAULTS.genChecks, ...checks(spec.genChecks, {}) },
+    priorityChecks: checks(spec.priorityChecks, {}),
+    strategyBase: typeof spec.strategyBase === 'string' ? spec.strategyBase : '',
+    ...Object.fromEntries(LISTS.map((key) => [key, Array.isArray(spec[key]) ? spec[key].filter((x) => typeof x === 'string') : []])),
+    ...Object.fromEntries(FLAGS.map((key) => [key, spec[key] === true])),
+  };
+}
+
 function ucBrowseQuery(warehouseId) {
   if (!warehouseId) return '';
   return `?warehouse_id=${encodeURIComponent(warehouseId)}`;
@@ -157,33 +210,20 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const { databricksHost, token, notebookPath, warehouseId, inspireDatabase, serverEnvHasPat } = settings;
   const canUseUcApi = !!(databricksHost && (token || serverEnvHasPat));
 
+  const draftKey = useMemo(() => startDraftKey({ host: databricksHost }), [databricksHost]);
+  const [draft] = useState(() => restoredForm(readWizardDraft(draftKey, START_DRAFT_STAMP)));
+  const [draftBack, setDraftBack] = useState(Boolean(draft));
+  const start = draft || FORM_DEFAULTS;
+
   // ── Widget params (must match notebook widget names exactly) ──
-  const [params, setParams] = useState({
-    '15_operation': 'Discover Use Cases',
-    '00_business_name': '',
-    '01_uc_metadata': '',
-    '02_inspire_database': inspireDatabase || '',
-    '03_discovery_type': DISCOVERY_RECOMMENDED,
-    '04_table_election': 'Let Inspire Decides',
-    '05_use_cases_quality': 'Good',
-    '06_business_domains': '',
-    '07_business_priorities': '',
-    '08_generation_instructions': '',
-    '09_generation_options': 'PDF Catalog',
-    '10_strategic_context': '',
-    '11_generation_path': '',
-    '12_documents_languages': 'English',
-    '13_generate_genie_code_for': '0',
-    '14_session_id': '',
-    '16_best_of_best_count': '',
-  });
+  const [params, setParams] = useState(() => ({ ...defaultParams(inspireDatabase), ...(draft ? draft.params : {}) }));
 
   // ── Catalog/Schema pickers ──
   const [catalogs, setCatalogs] = useState([]);
   const [catalogsCut, setCatalogsCut] = useState(false);
   const [schemas, setSchemas] = useState([]);
-  const [selectedCatalogs, setSelectedCatalogs] = useState([]);
-  const [selectedSchemas, setSelectedSchemas] = useState([]);
+  const [selectedCatalogs, setSelectedCatalogs] = useState(start.selectedCatalogs);
+  const [selectedSchemas, setSelectedSchemas] = useState(start.selectedSchemas);
   const [loadingCatalogs, setLoadingCatalogs] = useState(false);
   const [loadingSchemas, setLoadingSchemas] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
@@ -191,7 +231,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // ── Table state ──
   const [tables, setTables] = useState([]);
-  const [selectedTables, setSelectedTables] = useState([]);
+  const [selectedTables, setSelectedTables] = useState(start.selectedTables);
   const [loadingTables, setLoadingTables] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
 
@@ -204,9 +244,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [catalogsWhy, setCatalogsWhy] = useState('');
   const [showAdvanced, setShowAdvanced] = useState(false);
   const [showStrategy, setShowStrategy] = useState(false);
-  const [discoveryTouched, setDiscoveryTouched] = useState(false);
-  const [electionTouched, setElectionTouched] = useState(false);
-  const [strategyTouched, setStrategyTouched] = useState(false);
+  const [discoveryTouched, setDiscoveryTouched] = useState(start.discoveryTouched);
+  const [electionTouched, setElectionTouched] = useState(start.electionTouched);
+  const [strategyTouched, setStrategyTouched] = useState(start.strategyTouched);
   const [prefillNote, setPrefillNote] = useState('');
 
   const [sessionsList, setSessionsList] = useState([]);
@@ -225,14 +265,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [metadataPreviewExpanded, setMetadataPreviewExpanded] = useState(false);
 
   // ── Multiselects ──
-  const [genChecks, setGenChecks] = useState({
-    'PDF Catalog': true,
-    Presentation: false,
-  });
-  const [priorityChecks, setPriorityChecks] = useState({});
-  const [customPriorities, setCustomPriorities] = useState([]);
+  const [genChecks, setGenChecks] = useState(start.genChecks);
+  const [priorityChecks, setPriorityChecks] = useState(start.priorityChecks);
+  const [customPriorities, setCustomPriorities] = useState(start.customPriorities);
   const [customPriorityDraft, setCustomPriorityDraft] = useState('');
-  const [strategyBase, setStrategyBase] = useState('');
+  const [strategyBase, setStrategyBase] = useState(start.strategyBase);
 
 
   // In Databricks App mode, the proxy injects x-forwarded-access-token automatically.
@@ -546,7 +583,36 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     strategyBaseRef.current = strategyBase;
   }, [strategyBase]);
   const [strategyEditorKey, setStrategyEditorKey] = useState(0);
-  const [prioritiesTouched, setPrioritiesTouched] = useState(false);
+  const [prioritiesTouched, setPrioritiesTouched] = useState(start.prioritiesTouched);
+
+  const draftForm = useMemo(() => draftFormOf(params, {
+    genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables,
+    electionTouched, discoveryTouched, strategyTouched, prioritiesTouched,
+  }), [params, genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables,
+    electionTouched, discoveryTouched, strategyTouched, prioritiesTouched]);
+  useEffect(() => {
+    if (JSON.stringify(draftForm) === PRISTINE_FORM) clearWizardDraft(draftKey);
+    else writeWizardDraft(draftKey, { stamp: START_DRAFT_STAMP, spec: draftForm, step: START_DRAFT_STEP });
+  }, [draftKey, draftForm]);
+
+  const startOver = () => {
+    clearWizardDraft(draftKey);
+    setDraftBack(false);
+    setParams(defaultParams(inspireDatabase));
+    setGenChecks(FORM_DEFAULTS.genChecks);
+    setPriorityChecks(FORM_DEFAULTS.priorityChecks);
+    setCustomPriorities(FORM_DEFAULTS.customPriorities);
+    setStrategyBase(FORM_DEFAULTS.strategyBase);
+    setSelectedCatalogs(FORM_DEFAULTS.selectedCatalogs);
+    setSelectedSchemas(FORM_DEFAULTS.selectedSchemas);
+    setSelectedTables(FORM_DEFAULTS.selectedTables);
+    setElectionTouched(false);
+    setDiscoveryTouched(false);
+    setStrategyTouched(false);
+    setPrioritiesTouched(false);
+    setPrefillNote('');
+    setStrategyEditorKey((k) => k + 1);
+  };
 
   const handleStrategyChange = useCallback((value) => {
     if (strategyBaseRef.current === value) return;
@@ -658,6 +724,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           warehouse_id: warehouseId,
         }),
       });
+      clearWizardDraft(draftKey);
       update('inspireDatabase', finalParams['02_inspire_database']);
       onLaunched?.(finalParams['14_session_id'], data.run_id, Array.isArray(data.warnings) ? data.warnings : [],
         Array.isArray(data.warning_details) ? data.warning_details : []);
@@ -831,6 +898,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             </p>
           </div>
         </div>
+        {draftBack && (
+          <div role="note" aria-label="Your draft" data-launch-draft="" className="mt-4 flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-[12px] text-text-primary">
+            <span>{DRAFT_BACK_NOTE}</span>
+            <button type="button" data-launch-start-over="" onClick={startOver} className="text-[12px] font-medium text-db-red-fg underline-offset-2 hover:underline glow-focus">{DRAFT_START_OVER}</button>
+          </div>
+        )}
       </div>
 
       {(token || serverEnvHasPat) && warehouseId && previewDb && (

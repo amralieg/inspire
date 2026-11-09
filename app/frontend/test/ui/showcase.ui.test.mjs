@@ -107,9 +107,23 @@ const startReadsLate = (page) => page.addInitScript((ms) => {
   window.fetch = (input, init) => {
     const at = new URL(typeof input === 'string' ? input : input.url, window.location.href);
     if (!at.pathname.startsWith('/api/')) return real(input, init);
-    return new Promise((resolve) => { setTimeout(resolve, ms); }).then(() => real(input, init));
+    window.__lateReads = (window.__lateReads || 0) + 1;
+    const read = new Promise((resolve) => { setTimeout(resolve, ms); }).then(() => real(input, init));
+    read.then(() => { window.__lateReads -= 1; }, () => { window.__lateReads -= 1; });
+    return read;
   };
 }, LATE_MS);
+
+const checkedSettle = (page, settle) => {
+  const early = [];
+  const checked = async (...args) => {
+    const done = await settle(...args);
+    const pending = await page.evaluate(() => window.__lateReads || 0);
+    if (pending) early.push(pending);
+    return done;
+  };
+  return { settle: checked, early };
+};
 
 async function recordDemo({ late = false } = {}) {
   const exchanges = [];
@@ -147,11 +161,24 @@ function assertWalkSawEverything(walk) {
 test('the recording walk waits for what a slow page draws late: with every read of the App starting 4 times the quiet window late it still sees every view, panel, card and step', async () => {
   const { ui, exchanges, blocked } = await recordDemo({ late: true });
   try {
-    const walk = await walkInspireDemo(ui.page, { settle: apiWatch(ui.page) });
+    const watched = checkedSettle(ui.page, apiWatch(ui.page));
+    const walk = await walkInspireDemo(ui.page, { settle: watched.settle });
+    assert.deepEqual(watched.early, [], 'every settle of the walk returned only once no late read was still on its way');
     assertWalkSawEverything(walk);
     assert.deepEqual(blocked, [], 'viewing the demo sends no write');
     assert.deepEqual(unrecorded(exchanges, { ...DEMO_READS, ...DEMO_READS_WHEN }), [], 'the slow walk still recorded every read the demo answers');
     assert.deepEqual(besidesRefusals(ui.pageErrors), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the late-read check fails a walk that does not wait: a settle that returns at once is caught with reads still on their way (must-fail)', async () => {
+  const { ui } = await recordDemo({ late: true });
+  try {
+    const watched = checkedSettle(ui.page, async () => true);
+    await walkInspireDemo(ui.page, { settle: watched.settle, parts: ['start'] });
+    assert.ok(watched.early.length > 0, 'a walk that never waits returns while late reads are still on their way, and the check sees it');
   } finally {
     await ui.close();
   }
