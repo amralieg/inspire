@@ -106,3 +106,18 @@ test('a failed download or preview says why in the words the workspace or the Ap
   const long = await fileProblemText('preview', 'a.csv', answer(500, { error: 'x'.repeat(300) }));
   assert.equal(long, `Inspire could not preview a.csv: ${'x'.repeat(200)}…`);
 });
+
+test('Markdown and JSON files offer Preview: JSON reads pretty printed, a broken JSON file says so, and a long file is cut at TEXT_PREVIEW_CHARS', async () => {
+  const A = await import(libUrl);
+  assert.deepEqual(['a.md', 'A.JSON', 'a.csv', 'a.log', 'a.jsonl', 'a.txt'].map((name) => A.fileActions({ name }).preview), [true, true, true, false, false, false]);
+  assert.deepEqual(A.quickAccessFiles([{ name: 'a.md', path: '/w/a.md' }, { name: 'a.json', path: '/w/a.json' }]), [], 'Quick access stays PDF, Excel and CSV (must-exclude)');
+  assert.deepEqual(A.textPreview('json', '\uFEFF{"a":[1,{"b":"c"}]}'), { type: 'json', text: '{\n  "a": [\n    1,\n    {\n      "b": "c"\n    }\n  ]\n}', totalChars: 50, cut: false });
+  assert.deepEqual(A.textPreview('json', '{"a":'), { type: 'error', message: A.JSON_UNREADABLE });
+  assert.equal(A.textPreview('json', '{"session_id":1234567890123456789,"s":"a, {b}: \\"c\\"","e":{},"l":[ ]}').text,
+    '{\n  "session_id": 1234567890123456789,\n  "s": "a, {b}: \\"c\\"",\n  "e": {},\n  "l": []\n}', 'a long id keeps its digits and text inside strings stays as written');
+  assert.deepEqual(A.textPreview('md', '# Title\n\n- one'), { type: 'markdown', text: '# Title\n\n- one', totalChars: 14, cut: false });
+  const long = A.textPreview('md', 'x'.repeat(A.TEXT_PREVIEW_CHARS + 5));
+  assert.equal(long.text.length, A.TEXT_PREVIEW_CHARS);
+  assert.equal(long.totalChars, A.TEXT_PREVIEW_CHARS + 5);
+  assert.equal(long.cut, true);
+});

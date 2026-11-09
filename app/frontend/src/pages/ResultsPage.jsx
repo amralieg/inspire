@@ -88,7 +88,7 @@ import {
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText } from '../lib/liveUseCases';
 import { saveBlob } from '../lib/download';
-import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, visibleArtifactFiles } from '../lib/artifactFiles';
+import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
@@ -903,6 +903,8 @@ export default function ResultsPage({
         }
       } else if (ext === 'xls') {
         setPreviewData({ type: 'error', message: EXCEL_OLD_FORMAT });
+      } else if (ext === 'md' || ext === 'json') {
+        setPreviewData(textPreview(ext, await resp.text()));
       }
     } catch {
       setPreviewData({ type: 'error', message: resp?.ok ? `Inspire could not preview ${fileName}: the file could not be read.` : await fileProblemText('preview', fileName, resp) });

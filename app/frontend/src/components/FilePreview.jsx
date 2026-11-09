@@ -1,5 +1,7 @@
 import { useMemo, useState } from 'react';
 import { Loader2 } from 'lucide-react';
+import ReactMarkdown from 'react-markdown';
+import remarkGfm from 'remark-gfm';
 import DataGrid from './DataGrid';
 import { PREVIEW_PAGE_ROWS, previewGrid } from '../lib/artifactFiles';
 import { PlainMessage } from './TechnicalDetails';
@@ -55,6 +57,36 @@ function SheetPreview({ name, data }) {
   );
 }
 
+const MARKDOWN_COMPONENTS = {
+  a: ({ href, children }) => <a href={href} target="_blank" rel="noopener noreferrer" className="text-info-fg underline">{children}</a>,
+  table: ({ children }) => <div className="overflow-x-auto"><table className="border-collapse text-[11px]">{children}</table></div>,
+  th: ({ children }) => <th className="border border-border px-2 py-1 text-start font-semibold bg-bg-subtle">{children}</th>,
+  td: ({ children }) => <td className="border border-border px-2 py-1 align-top">{children}</td>,
+};
+
+function TextPreview({ name, data }) {
+  return (
+    <div className="rounded-xl border border-border overflow-hidden shadow-sm" data-text-preview={data.type}>
+      <div role="document" aria-label={`Preview of ${name}`} tabIndex={0} className="max-h-[500px] overflow-auto bg-surface px-4 py-3" dir="auto">
+        {data.type === 'markdown' ? (
+          <div className="text-xs text-text-primary [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:font-semibold [&_ul]:list-disc [&_ul]:ps-5 [&_ol]:list-decimal [&_ol]:ps-5 [&_p]:my-1.5">
+            <ReactMarkdown remarkPlugins={[remarkGfm]} disallowedElements={['img']} unwrapDisallowed components={MARKDOWN_COMPONENTS}>{data.text}</ReactMarkdown>
+          </div>
+        ) : (
+          <pre className="text-[11px] font-mono text-text-primary whitespace-pre-wrap break-words" dir="ltr">{data.text}</pre>
+        )}
+      </div>
+      {data.cut && (
+        <div className="flex items-center justify-center gap-2 py-2.5 bg-bg-subtle border-t border-border text-[10px] text-text-tertiary">
+          <span>Inspire shows the first {data.text.length.toLocaleString('en-US')} of {data.totalChars.toLocaleString('en-US')} characters</span>
+          <span className="text-text-disabled">·</span>
+          <span>Download for the full file</span>
+        </div>
+      )}
+    </div>
+  );
+}
+
 export default function FilePreview({ name, loading, data, pdfClassName = 'h-[500px] rounded-lg' }) {
   return (
     <>
@@ -66,6 +98,7 @@ export default function FilePreview({ name, loading, data, pdfClassName = 'h-[50
       )}
       {data?.type === 'pdf' && <iframe src={data.url} className={`w-full border border-border ${pdfClassName}`} title="PDF Preview" />}
       {data?.type === 'csv' && <SheetPreview key={name} name={name} data={data} />}
+      {(data?.type === 'markdown' || data?.type === 'json') && <TextPreview name={name} data={data} />}
       {data?.type === 'error' && <PlainMessage as="p" text={data.message} role="alert" dir="auto" className="text-[10px] text-error-fg py-2" />}
     </>
   );
