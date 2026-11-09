@@ -153,12 +153,16 @@ test('the schema statement reads existence, the session tag, the person\'s catal
 test('the grant on a use case schema Inspire creates covers every right the build check asks of the identity Inspire builds as, a model-training use case included (must-exclude)', () => {
   const rowsFrom = (privileges) => [
     { level: 'catalog', privilege: 'OWNER', mine: false, me: 'app-sp' }, { level: 'catalog', privilege: 'USE CATALOG', mine: true, me: 'app-sp' },
+    { level: 'catalog', privilege: 'USE CATALOG', principal: 'account users', mine: true, me: 'app-sp' },
     { level: 'schema', privilege: 'OWNER', mine: false, me: 'app-sp' },
     ...privileges.map((privilege) => ({ level: 'schema', privilege, mine: true, me: 'app-sp' })),
   ];
   const granted = I.useCaseSchemaBuilderGrant('main', 's', 'app-sp').replace(/^GRANT (.*) ON SCHEMA .*$/, '$1').split(', ');
   assert.equal(I.outputAccess(rowsFrom(granted), 'main.s.n01_u01_results', { builder: true }).write.ok, true);
   assert.equal(I.modelAccess(rowsFrom(granted), 'main.s.n01_u01_results_model', { builder: true }).ok, true);
+  assert.equal(I.outputAccess(rowsFrom(granted), 'main.s.n01_u01_results', { builder: true }).app.ok, true, 'a new App can be given read access');
+  assert.match(I.outputAccess(rowsFrom(granted.filter((p) => p !== 'MANAGE')), 'main.s.n01_u01_results', { builder: true }).app.detail,
+    /needs USE SCHEMA on schema `main`\.`s`.*GRANT MANAGE ON SCHEMA `main`\.`s` TO `app-sp`/);
   const withoutModel = granted.filter((p) => p !== 'CREATE MODEL');
   assert.match(I.modelAccess(rowsFrom(withoutModel), 'main.s.n01_u01_results_model', { builder: true }).detail, /needs CREATE MODEL on main\.s/);
 });
