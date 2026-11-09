@@ -2321,7 +2321,7 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
     res.json({ session });
   } catch (err) {
     // Table might not exist yet — return null session
-    if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
+    if (isMissingTableError(err)) {
       return res.json({ session: null, message: 'Inspire is getting ready...' });
     }
     res.status(500).json({ error: err.message });
@@ -2358,7 +2358,7 @@ app.get('/api/inspire/steps', requireToken, async (req, res) => {
 
     res.json({ steps, count: steps.length });
   } catch (err) {
-    if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
+    if (isMissingTableError(err)) {
       return res.json({ steps: [], count: 0, message: 'Step table not yet created.' });
     }
     res.status(500).json({ error: err.message });
@@ -2419,7 +2419,7 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
     console.log(`   📊 step-results: ${plural(allUcs.length, 'use case')} from ${plural(steps.length, 'step')}, ${plural(domains.length, 'domain')}`);
     res.json({ results: progressiveResults, session_id });
   } catch (err) {
-    if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
+    if (isMissingTableError(err)) {
       return res.json({ results: null, message: 'Step table not yet created.' });
     }
     res.status(500).json({ error: err.message });
@@ -2506,7 +2506,7 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
     );
     res.json({ usecases: rows, count: rows.length, all_sessions: listAll });
   } catch (err) {
-    if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
+    if (isMissingTableError(err)) {
       return res.json({ usecases: [], count: 0, message: 'Usecases table not found.' });
     }
     res.status(500).json({ error: err.message });
@@ -2770,7 +2770,7 @@ app.get('/api/inspire/results', requireToken, async (req, res) => {
       completed_on: rows[0].completed_on,
     });
   } catch (err) {
-    if (err.message.includes('TABLE_OR_VIEW_NOT_FOUND') || err.message.includes('does not exist')) {
+    if (isMissingTableError(err)) {
       return res.json({ results: null, found: false, message: 'Session table not found.' });
     }
     if (isReadDenied(err.message)) return res.status(403).json({ error: err.message });
@@ -2827,7 +2827,7 @@ app.get('/api/inspire/sessions', requireToken, async (req, res) => {
     res.json({ sessions, truncated });
   } catch (err) {
     const msg = err.message || String(err);
-    if (msg.includes('TABLE_OR_VIEW_NOT_FOUND') || msg.includes('does not exist')) {
+    if (isMissingTableError(msg)) {
       return res.json({ sessions: [], message: 'Session table not found. Run Inspire once to create __inspire_session.' });
     }
     // Non-fatal: allow "New experiment" when workspace is unreachable or not yet provisioned

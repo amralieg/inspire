@@ -1,4 +1,5 @@
 import { formatClockUtc, formatWhen, utcDate } from './formatWhen.js';
+import { failureCauseOf } from './plainText.js';
 
 export const SESSION_QUIET_AFTER_MS = 30 * 60 * 1000;
 
@@ -87,4 +88,55 @@ export function mergeSteps(previous, incoming) {
     if (!held || replaces(held, step)) byId.set(id, step);
   }
   return [...byId.values()].sort((a, b) => String(a.last_updated || '').localeCompare(String(b.last_updated || '')));
+}
+
+const RUN_TERMINAL = new Set(['TERMINATED', 'INTERNAL_ERROR', 'SKIPPED']);
+
+export function runEnded(runInfo) {
+  return RUN_TERMINAL.has(String(runInfo?.life_cycle_state || ''));
+}
+
+export function runStopped(runInfo) {
+  return runEnded(runInfo) && ['CANCELED', 'CANCELLED', 'UPSTREAM_CANCELED'].includes(String(runInfo?.result_state || ''));
+}
+
+export function runEndedBadly(runInfo) {
+  return runEnded(runInfo) && !runStopped(runInfo) && String(runInfo?.result_state || '') !== 'SUCCESS';
+}
+
+export const RUN_FAILED_TEXT = 'The run failed, so open the run log to see which step stopped it.';
+const RESULT_TEXT = {
+  TIMEDOUT: 'The run went past its time limit and Databricks stopped it, so open the run log to see which step was still going.',
+  MAXIMUM_CONCURRENT_RUNS_REACHED: 'Databricks did not start the run because another run of the same job was still going, so wait for that run to end and start this one again.',
+  SKIPPED: 'Databricks skipped the run and it read nothing, so start a new run on the Start page.',
+};
+
+const PROGRAM_FAULT = /\b[A-Z]\w*(?:Error|Exception)\b|Traceback|File "/;
+
+export function runFailureText(runInfo) {
+  const failedTask = (runInfo?.tasks || []).find((t) => t.result_state && t.result_state !== 'SUCCESS') || null;
+  const raw = [failedTask?.error, failedTask?.state_message, runInfo?.state_message]
+    .map((s) => String(s || '').trim()).filter(Boolean);
+  const known = RESULT_TEXT[String(runInfo?.result_state || '')] || (runInfo?.life_cycle_state === 'SKIPPED' ? RESULT_TEXT.SKIPPED : '');
+  if (known) return { text: known, details: raw };
+  const caused = raw.find((s) => failureCauseOf(s));
+  if (caused) return { text: `The run failed: ${caused}`, details: raw.filter((s) => s !== caused) };
+  const said = raw.find((s) => !PROGRAM_FAULT.test(s));
+  if (said) return { text: said, details: raw.filter((s) => s !== said) };
+  return { text: RUN_FAILED_TEXT, details: raw };
+}
+
+export const POLL_GIVE_UP_AFTER = 15;
+export const RUN_GONE_TEXT = 'This run no longer exists in Databricks, so start a new run on the Start page.';
+
+export function pollFailure(error, failures) {
+  const message = String(error?.message || error || '').trim();
+  const cause = failureCauseOf(message);
+  const transient = error?.status === undefined || Boolean(cause?.transient) || [429, 502, 503, 504].includes(error?.status);
+  if (transient && failures < POLL_GIVE_UP_AFTER) {
+    return { stop: false, transient, text: 'Inspire cannot reach this run right now and checks again every few seconds.', details: message ? [message] : [] };
+  }
+  if (error?.status === 404) return { stop: true, transient, text: RUN_GONE_TEXT, details: message ? [message] : [] };
+  const text = transient ? `Inspire stopped checking this run after ${failures} tries: ${message}` : `Inspire cannot check this run: ${message}`;
+  return { stop: true, transient, text, details: [] };
 }

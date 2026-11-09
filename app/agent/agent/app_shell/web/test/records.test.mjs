@@ -14,7 +14,7 @@ process.env.TZ = 'Asia/Kolkata';
 const SRC = join(dirname(fileURLToPath(import.meta.url)), '..', 'src');
 
 const FRONTEND = join(SRC, '..', '..', '..', '..', '..', 'frontend', 'src');
-const SHARED = { 'kinds.js': join('lib', 'kinds.js') };
+const SHARED = { 'kinds.js': join('lib', 'kinds.js'), 'plainText.js': join('lib', 'plainText.js') };
 
 function sourcesUnder(dir, skip) {
   if (!existsSync(dir)) return '';
@@ -50,7 +50,7 @@ test('every helper the App exports has a caller in the App, and the check catche
     ['extra.js: lonely']);
   assert.deepEqual(unusedExports({ ...files, 'kinds.js': `${files['kinds.js']}export const nobodyReads = 1;\n` }, callers), ['kinds.js: nobodyReads'],
     'a shared helper still needs a caller in the App or the Inspire App, not only the line that passes it on');
-  assert.deepEqual(unusedExports(files, { 'kinds.js': callers['kinds.js'].replace(/\b(familyOf|kindForTechnique)\b/g, 'x') }).sort(),
+  assert.deepEqual(unusedExports(files, { ...callers, 'kinds.js': callers['kinds.js'].replace(/\b(familyOf|kindForTechnique)\b/g, 'x') }).sort(),
     ['kinds.js: familyOf', 'kinds.js: kindForTechnique']);
   const twin = { 'a.js': 'export const pick = (id) => id;\n', 'b.js': 'export const pick = (page) => page.id;\nconst both = (p) => pick(p);\n' };
   assert.deepEqual(unusedExports(twin), ['a.js: pick'], 'a helper of the same name in another file is not a caller');

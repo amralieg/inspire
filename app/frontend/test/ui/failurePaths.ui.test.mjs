@@ -1,0 +1,156 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { closeBrowser, openUi } from './uiSupport.mjs';
+import { RUN_GONE_TEXT } from '../../src/lib/monitorState.js';
+
+test.after(closeBrowser);
+
+const RAW = /[A-Z]{2,}_[A-Z_]{2,}|\{"|SQLSTATE|\bHTTP\b|[0-9a-f]{8}-[0-9a-f]{4}-|\b\d{10,}\b/;
+const visible = (page) => page.evaluate(() => {
+  const clone = document.querySelector('main')?.cloneNode(true) || document.body.cloneNode(true);
+  for (const d of clone.querySelectorAll('details')) d.remove();
+  return clone.innerText;
+});
+
+function monitorBackend(runAnswer) {
+  return (app) => {
+    app.get('/api/run/777', (_req, res) => runAnswer(res));
+    app.get('/api/inspire/session', (_req, res) => res.json({ session: { session_id: '42', business_name: 'Acme Retail', completed_percent: 40, processing_status: 'running' } }));
+    app.get('/api/inspire/steps', (_req, res) => res.json({ steps: [] }));
+  };
+}
+
+test('a schema list Databricks refuses says so in one sentence with the code under Details, never "No schemas found"', async () => {
+  const mount = (app) => app.get('/api/catalogs/:catalog/schemas', (_req, res) => res.status(403).json({
+    error: '{"error_code":"PERMISSION_DENIED","message":"User does not have USE CATALOG on Catalog \'main\'."}' }));
+  const ui = await openUi('launch', { catalogs: ['main'] }, '', { mount });
+  try {
+    await ui.page.locator('button[title="main"]').click();
+    const note = ui.page.locator('[data-uc-list-error="schemas"]');
+    await note.waitFor({ timeout: 20000 });
+    assert.match(await note.innerText(), /ask its owner or a workspace admin to give you access/);
+    const shown = await visible(ui.page);
+    assert.doesNotMatch(shown, RAW);
+    assert.doesNotMatch(shown, /No schemas found/);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Databricks being busy while Inspire lists catalogs is never shown as a missing permission', async () => {
+  const mount = (app) => app.get('/api/catalogs', (_req, res) => res.status(429).json({
+    error: '{"error_code":"REQUEST_LIMIT_EXCEEDED","message":"Exceeded rate limit for /api/2.1/unity-catalog/catalogs."}' }));
+  const ui = await openUi('launch', {}, '', { mount });
+  try {
+    await ui.page.getByText(/Databricks is busy right now, so wait a minute and try again/).first().waitFor({ timeout: 20000 });
+    assert.equal(await ui.page.locator('[data-uc-permission]').count(), 0);
+    const shown = await visible(ui.page);
+    assert.doesNotMatch(shown, /permission/i);
+    assert.doesNotMatch(shown, RAW);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('runs that cannot be read because the warehouse is gone are never shown as "No runs yet"', async () => {
+  const mount = (app) => {
+    const gone = (_req, res) => res.status(500).json({ error: 'SQL failed (404): {"error_code":"RESOURCE_DOES_NOT_EXIST","message":"SQL warehouse wh1 does not exist."}' });
+    app.get('/api/inspire/sessions', gone);
+    app.get('/api/inspire/usecases', gone);
+  };
+  const ui = await openUi('launch', {}, '', { mount });
+  try {
+    await ui.page.locator('[data-overview-error]').waitFor({ timeout: 20000 });
+    const shown = await visible(ui.page);
+    assert.match(shown, /pick another warehouse/);
+    assert.doesNotMatch(shown, /No runs yet/);
+    assert.doesNotMatch(shown, RAW);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a run that timed out says so in words and never stays on Initializing', async () => {
+  const mount = monitorBackend((res) => res.json({ run_id: 777, life_cycle_state: 'TERMINATED', result_state: 'TIMEDOUT', state_message: 'Run timed out after 3600 seconds' }));
+  const ui = await openUi('monitor', {}, '', { mount });
+  try {
+    await ui.page.getByText(/went past its time limit/).waitFor({ timeout: 20000 });
+    const shown = await visible(ui.page);
+    assert.doesNotMatch(shown, /Initializing/);
+    assert.doesNotMatch(shown, /TIMEDOUT|TERMINATED/);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a run someone else stopped reads as stopped with what to do next, and the state chip is words', async () => {
+  const mount = monitorBackend((res) => res.json({ run_id: 777, life_cycle_state: 'TERMINATED', result_state: 'CANCELED', state_message: 'Run cancelled by other@example.com' }));
+  const ui = await openUi('monitor', {}, '', { mount });
+  try {
+    await ui.page.getByText(/start a new run on the Start page if you need the rest/).waitFor({ timeout: 20000 });
+    const shown = await visible(ui.page);
+    assert.doesNotMatch(shown, /CANCELED|TERMINATED/);
+    assert.equal(await ui.page.getByText('Stopped', { exact: true }).count(), 1, 'the state is said once');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a run that no longer exists stops the checks at once, says what to do, and offers no retry', async () => {
+  let asks = 0;
+  const mount = monitorBackend((res) => { asks += 1; res.status(404).json({ error: 'Run 777000111222 does not exist' }); });
+  const ui = await openUi('monitor', {}, '', { mount });
+  try {
+    await ui.page.locator('[data-poll-problem="stopped"]').waitFor({ timeout: 20000 });
+    assert.match(await ui.page.locator('[data-poll-problem]').innerText(), new RegExp(RUN_GONE_TEXT.replace(/[.]/g, '\\.')));
+    assert.equal(await ui.page.getByRole('button', { name: 'Check again' }).count(), 0);
+    const before = asks;
+    await ui.page.waitForTimeout(8000);
+    assert.ok(asks - before <= 1, `no more checks after a deterministic failure: ${asks - before}`);
+    assert.doesNotMatch(await visible(ui.page), /777000111222/);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a run Databricks cannot answer for right now keeps being checked and says so, instead of a silent spinner', async () => {
+  const mount = monitorBackend((res) => res.status(503).json({ error: 'TEMPORARILY_UNAVAILABLE: The service is temporarily unavailable' }));
+  const ui = await openUi('monitor', {}, '', { mount });
+  try {
+    await ui.page.locator('[data-poll-problem="checking"]').waitFor({ timeout: 30000 });
+    assert.match(await ui.page.locator('[data-poll-problem]').innerText(), /checks again every few seconds/);
+    assert.doesNotMatch(await visible(ui.page), RAW);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Home that cannot read the runs says why once, with what to do, and never claims 0 completed', async () => {
+  const BUSY = 'SQL failed (429): {"error_code":"REQUEST_LIMIT_EXCEEDED","message":"Too many requests. Please retry after 60 seconds."}';
+  const ui = await openUi('choose', { sessionsErrors: [BUSY, BUSY, BUSY, BUSY] });
+  try {
+    await ui.page.locator('[data-runs-error]').waitFor({ timeout: 20000 });
+    const shown = await visible(ui.page);
+    assert.match(shown, /Inspire could not load your runs, and you can still start a new one: Databricks is busy right now, so wait a minute and try again\./);
+    assert.doesNotMatch(shown, /\b0 completed\b/);
+    assert.doesNotMatch(shown, RAW);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Launch says a lost connection once, not once per list', async () => {
+  const mount = (app) => {
+    const down = (_req, res) => res.status(502).json({ error: 'Cannot reach the Databricks workspace (fetch failed; ECONNREFUSED). The workspace did not answer.' });
+    app.get('/api/inspire/sessions', down);
+    app.get('/api/inspire/usecases', down);
+  };
+  const ui = await openUi('launch', {}, '', { mount });
+  try {
+    await ui.page.locator('[data-overview-error]').waitFor({ timeout: 20000 });
+    const shown = await visible(ui.page);
+    assert.equal(shown.split('Inspire lost its connection to Databricks').length - 1, 1, shown);
+  } finally {
+    await ui.close();
+  }
+});

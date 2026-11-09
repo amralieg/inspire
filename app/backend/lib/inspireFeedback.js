@@ -13,7 +13,8 @@ function badRequest(message) {
 
 function isMissingTableError(err) {
   const msg = String((err && err.message) || err || '');
-  return msg.includes('TABLE_OR_VIEW_NOT_FOUND') || msg.includes('does not exist');
+  if (/\bwarehouse\b/i.test(msg)) return false;
+  return /\b(?:TABLE_OR_VIEW_NOT_FOUND|SCHEMA_NOT_FOUND)\b/.test(msg) || /\b(?:table|view|schema|relation)\b.*?\bdoes not exist\b/i.test(msg);
 }
 
 function validateFeedbackBody(body) {

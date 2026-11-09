@@ -228,7 +228,7 @@ test('a use case counted in hours names its formula card in hours, and a card th
   await second.page.goto(`${served.base}#/n01_u05`);
   const failed = second.page.locator('.tile-err', { hasText: 'is worked out could not load' });
   await failed.waitFor();
-  assert.equal(await failed.textContent(), 'How the amount at stake is worked out could not load: the warehouse is stopped');
+  assert.equal(await failed.textContent(), 'How the amount at stake is worked out could not load: the SQL warehouse is stopped, so start it on the SQL Warehouses page or ask its owner to, then try again.');
   await second.context.close();
 });
 

@@ -27,9 +27,11 @@ test('the shell and the Inspire App split errors with one helper', () => {
   assert.deepEqual(details, ['GRANT SELECT ON TABLE main.sales.loss TO `sam@example.com`', 'INSUFFICIENT_PERMISSIONS', 'SQLSTATE: 42501']);
   assert.deepEqual(splitTechnical('Keep WEEKS_LEFT under 52'), { plain: 'Keep WEEKS_LEFT under 52', details: [] });
   assert.deepEqual(splitTechnical('Set WEEKS_LEFT'), { plain: 'Set WEEKS_LEFT', details: [] });
-  assert.deepEqual(splitTechnical('TABLE_OR_VIEW_NOT_FOUND'), { plain: CODE_ONLY_TEXT, details: ['TABLE_OR_VIEW_NOT_FOUND'] });
+  assert.deepEqual(splitTechnical('INVALID_PARAMETER_VALUE'), { plain: CODE_ONLY_TEXT, details: ['INVALID_PARAMETER_VALUE'] });
+  assert.deepEqual(splitTechnical('This chart could not load: INVALID_PARAMETER_VALUE'),
+    { plain: 'This chart could not load: only an error code came back, listed under Details', details: ['INVALID_PARAMETER_VALUE'] });
   assert.deepEqual(splitTechnical('This chart could not load: TABLE_OR_VIEW_NOT_FOUND'),
-    { plain: 'This chart could not load: only an error code came back, listed under Details', details: ['TABLE_OR_VIEW_NOT_FOUND'] });
+    { plain: 'This chart could not load: a table it needs does not exist, so check that it was not renamed or dropped, or pick another one.', details: ['TABLE_OR_VIEW_NOT_FOUND'] });
   assert.deepEqual(splitTechnical('The runs could not load: GET /api/2.2/jobs/runs/list answered HTTP 403: no access'),
     { plain: 'The runs could not load: no access', details: ['GET /api/2.2/jobs/runs/list', 'answered HTTP 403'] });
 });
@@ -51,9 +53,9 @@ test('a chart that cannot load says so in a sentence and keeps the error code an
 });
 
 test('an error without codes shows as it is, with no Details', async () => {
-  const { page, context } = await openApp(browser, served.base, appInfo(), { errors: { 'chart:pareto': 'the warehouse is stopped' } });
+  const { page, context } = await openApp(browser, served.base, appInfo(), { errors: { 'chart:pareto': 'the chart has no rows for this month' } });
   await page.locator('[data-card="pareto"] .tile-err').waitFor();
-  assert.equal(await page.locator('[data-card="pareto"] .tile-err').innerText(), 'This chart could not load: the warehouse is stopped');
+  assert.equal(await page.locator('[data-card="pareto"] .tile-err').innerText(), 'This chart could not load: the chart has no rows for this month');
   assert.equal(await page.locator('[data-card="pareto"] [data-technical-details]').count(), 0);
   await context.close();
 });

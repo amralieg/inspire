@@ -154,3 +154,60 @@ test('the run time comes from run_duration, then start to end, and counts up whi
   assert.equal(M.runElapsedMs({}, NOW), null);
   assert.equal(M.runElapsedMs(null, NOW), null);
 });
+
+test('a run that ended without success is a failure, whatever result Databricks names', async () => {
+  const M = await lib('monitorState.js');
+  const run = (life, result, message) => ({ life_cycle_state: life, result_state: result, state_message: message });
+  for (const result of ['FAILED', 'TIMEDOUT', 'INTERNAL_ERROR', 'MAXIMUM_CONCURRENT_RUNS_REACHED', 'UPSTREAM_FAILED']) {
+    assert.equal(M.runEndedBadly(run('TERMINATED', result)), true, result);
+    assert.equal(M.runEnded(run('TERMINATED', result)), true, result);
+  }
+  assert.equal(M.runEndedBadly(run('INTERNAL_ERROR', null)), true);
+  assert.equal(M.runEndedBadly(run('TERMINATED', 'SUCCESS')), false);
+  assert.equal(M.runEndedBadly(run('TERMINATED', 'CANCELED')), false);
+  assert.equal(M.runStopped(run('TERMINATED', 'CANCELED')), true);
+  assert.equal(M.runEndedBadly(run('RUNNING', null)), false);
+  assert.equal(M.runEnded(run('PENDING', null)), false);
+  assert.equal(M.runEndedBadly(null), false);
+});
+
+test('a failed run says what happened in one sentence and keeps the Python error under Details', async () => {
+  const M = await lib('monitorState.js');
+  const raw = 'Workload failed, see run output for details. Task main failed with message: ValueError: column x missing at /Workspace/Shared/inspire-ai/dbx_inspire_ai_agent';
+  const failed = M.runFailureText({ life_cycle_state: 'TERMINATED', result_state: 'FAILED', state_message: raw });
+  assert.equal(failed.text, M.RUN_FAILED_TEXT);
+  assert.ok(!/ValueError|Workspace|Task main/.test(failed.text));
+  assert.ok(failed.details.some((d) => d.includes('ValueError')));
+  const timed = M.runFailureText({ life_cycle_state: 'TERMINATED', result_state: 'TIMEDOUT', state_message: 'Run timed out after 3600 seconds' });
+  assert.ok(!/TIMEDOUT/.test(timed.text) && /time/i.test(timed.text), timed.text);
+  for (const r of [failed, timed]) assert.equal(r.text.split(/(?<=\.)\s/).length, 1, r.text);
+});
+
+test('a check that cannot reach the run keeps trying only while the cause can pass, and then stops', async () => {
+  const M = await lib('monitorState.js');
+  const httpError = (status, message) => Object.assign(new Error(message), { status });
+  const network = M.pollFailure(new TypeError('Failed to fetch'), 1);
+  assert.equal(network.stop, false);
+  assert.ok(!/Failed to fetch/.test(network.text));
+  assert.equal(M.pollFailure(httpError(429, 'REQUEST_LIMIT_EXCEEDED'), 3).stop, false);
+  assert.equal(M.pollFailure(httpError(503, 'Service Unavailable'), 3).stop, false);
+  const busyLong = M.pollFailure(httpError(429, 'REQUEST_LIMIT_EXCEEDED'), M.POLL_GIVE_UP_AFTER);
+  assert.equal(busyLong.stop, true, 'transient failures stop after the bound');
+  const gone = M.pollFailure(httpError(404, 'Run 812345678901 does not exist'), 1);
+  assert.equal(gone.stop, true, 'a deterministic failure stops at once');
+  assert.equal(gone.text, M.RUN_GONE_TEXT);
+  const { splitTechnical } = await lib('plainText.js');
+  const shown = splitTechnical(gone.text).plain;
+  assert.ok(!/812345678901/.test(shown), shown);
+  assert.ok(!/every few seconds/i.test(shown), shown);
+});
+
+test('a reason the notebook gave is shown as it is, a Python fault never is (must-exclude)', async () => {
+  const M = await lib('monitorState.js');
+  const reason = 'Validation failed with 1 error:\n\u274c Generation Path is required';
+  const told = M.runFailureText({ life_cycle_state: 'TERMINATED', result_state: 'FAILED', tasks: [{ result_state: 'FAILED', error: reason, state_message: 'Workload failed, see run output for details' }] });
+  assert.equal(told.text, reason);
+  const fault = M.runFailureText({ life_cycle_state: 'TERMINATED', result_state: 'FAILED', tasks: [{ result_state: 'FAILED', error: 'Traceback (most recent call last):\n  File "<cell>", line 3\nKeyError: \'x\'' }] });
+  assert.equal(fault.text, M.RUN_FAILED_TEXT);
+  assert.ok(fault.details[0].includes('KeyError'));
+});

@@ -42,7 +42,7 @@ test('the person who launched a running Discover run stops it after one confirm 
     await confirm.getByRole('button', { name: 'Stop the run' }).click();
     await until(() => calls.posts === 1, 'the stop request');
     await ui.page.getByText('Stopped', { exact: true }).waitFor({ timeout: 10000 });
-    assert.equal(await ui.page.getByText('The run was stopped. What it already wrote stays.').count(), 1);
+    assert.equal(await ui.page.getByText('The run was stopped before it finished and what it already wrote stays, so start a new run on the Start page if you need the rest.').count(), 1);
     assert.equal(await ui.page.getByRole('button', { name: 'Stop this run' }).count(), 0);
     assert.equal(calls.posts, 1);
     assert.deepEqual(besides403(ui.pageErrors), []);

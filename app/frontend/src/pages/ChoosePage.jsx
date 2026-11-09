@@ -10,7 +10,9 @@ import { buildFilterOf, portfolioCard, runCounts, runLabel, runFilterText, runsO
 import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
 import { SHOWCASE_BUTTON } from '../lib/showcase';
 import { compareUseCaseRank, computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf } from '../lib/useCaseFields';
-import TechnicalDetails from '../components/TechnicalDetails';
+import { PlainMessage } from '../components/TechnicalDetails';
+
+const RUNS_ERROR_TEXT = 'Inspire could not load your runs, and you can still start a new one';
 
 const STATUS_CONFIG = {
   finished: { label: 'Completed', bg: 'bg-success-bg', text: 'text-success-fg', dot: 'bg-success' },
@@ -315,12 +317,12 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         {/* ── Header ── */}
         <div className="text-center space-y-3">
-          <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-bg-subtle border border-border rounded-full">
+          {!error && <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-bg-subtle border border-border rounded-full">
             <BarChart3 size={12} className="text-db-red-fg" />
             <span className="text-[11px] font-medium text-text-secondary">
               {completedCount} completed{inProgressCount > 0 ? ` · ${inProgressCount} in progress` : ''}
             </span>
-          </div>
+          </div>}
           <h1 className="text-3xl sm:text-4xl font-bold tracking-[-0.03em]">
             Welcome back
           </h1>
@@ -663,11 +665,10 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         {error && (
           <div className="flex flex-col items-center gap-1 text-xs text-warning-fg justify-center pt-2 px-4 text-center">
-            <div className="flex items-center gap-2">
+            <div className="flex items-center gap-2" data-runs-error="">
               <AlertCircle size={13} />
-              <span>Could not load all runs. You can still start a new run.</span>
+              <PlainMessage as="span" text={`${RUNS_ERROR_TEXT}: ${typeof error === 'string' && error.trim() && error !== 'false' ? error : 'Databricks gave no reason'}`} />
             </div>
-            {typeof error === 'string' && error.trim() && error !== 'false' && <TechnicalDetails items={error} />}
           </div>
         )}
       </div>

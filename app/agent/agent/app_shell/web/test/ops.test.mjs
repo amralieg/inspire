@@ -739,7 +739,7 @@ test('the Runs tab says what could not load and still lists what it has', async 
   assert.deepEqual(await page.locator('.runs .tile-err').allInnerTexts(), [
     "The job's runs could not load, so the list shows only the runs this use case recorded: no access",
     'The runs written to the results table could not load: the result table has no change_source',
-    'The details of each run could not load, so the list shows what the job recorded: no SELECT']);
+    'The details of each run could not load, so the list shows what the job recorded: access to what it needs was refused, so ask its owner or a workspace admin to give you access.']);
   assert.equal(await mainRows(page).count(), 2);
   assert.deepEqual(seen.errors, []);
   await context.close();

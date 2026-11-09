@@ -39,6 +39,7 @@ import DocumentLanguagesMultiselect from '../components/DocumentLanguagesMultise
 import StrategyEditor from '../components/StrategyEditor';
 import { parseStrategicContext, splitPriorities, validateStrategicContextText, withPriorities } from '../lib/strategyContext';
 import UcPermissionErrorHelp from '../components/UcPermissionErrorHelp';
+import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { runBusiness } from '../lib/reviewFigures';
 import OutputFolderCheck from '../components/OutputFolderCheck';
@@ -342,6 +343,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         ]);
         if (cancelled) return;
         setSessionsList(sessionPayload.sessions || []);
+        if (sessionPayload.connection_error) setOverviewError(sessionPayload.connection_error);
         if (allUcPayload._err) setAllCreatedError(allUcPayload._err);
         else setAllCreatedUcs(allUcPayload.usecases || []);
       } catch (e) {
@@ -484,11 +486,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           return;
         } catch (err) {
           lastError = err.message || String(err);
-          if (err.status === 401) {
+          if (err.status) {
             if (!cancelled) {
               setCatalogs([]);
               setCatalogsCut(false);
-              setCatalogsWhy(lastError);
+              if (err.status === 401) setCatalogsWhy(lastError);
+              else setCatalogBrowseError(lastError);
               setLoadingCatalogs(false);
             }
             return;
@@ -923,7 +926,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               <p className="text-[11px] text-text-secondary truncate">
                 {overviewLoading
                   ? 'Loading your recent runs…'
-                  : sessionsList.length > 0
+                  : overviewError
+                    ? 'Inspire could not read your runs, see the message below'
+                    : sessionsList.length > 0
                     ? `${sessionsList.length} run${sessionsList.length === 1 ? '' : 's'} · use Quick view to see the use cases each run found`
                     : 'No runs yet. Start one to see it listed here.'}
               </p>
@@ -937,16 +942,16 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           {(overviewError || allCreatedError) && (
             <div className="space-y-2 border-b border-border bg-surface/60 px-5 py-2.5">
               {overviewError && (
-                <p className="flex items-center gap-1.5 text-xs text-error-fg">
-                  <AlertCircle size={14} className="shrink-0" />
-                  {overviewError}
-                </p>
+                <div role="alert" data-overview-error="" className="flex items-start gap-1.5 text-xs text-error-fg">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1"><PlainMessage text={overviewError} /></div>
+                </div>
               )}
-              {allCreatedError && (
-                <p className="flex items-center gap-1.5 text-xs text-warning-fg">
-                  <AlertCircle size={14} className="shrink-0" />
-                  {allCreatedError}
-                </p>
+              {allCreatedError && !overviewError && (
+                <div role="alert" className="flex items-start gap-1.5 text-xs text-warning-fg">
+                  <AlertCircle size={14} className="shrink-0 mt-0.5" />
+                  <div className="min-w-0 flex-1"><PlainMessage text={`Inspire could not count the use cases of your runs: ${allCreatedError}`} /></div>
+                </div>
               )}
             </div>
           )}
@@ -1136,7 +1141,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             <Field label="Unity Catalog Metadata" required icon={Database} hint="Pick the catalogs, schemas or tables that hold your business data">
                 {catalogBrowseGuidance && <UcPermissionErrorHelp guidance={catalogBrowseGuidance} />}
                 {pickerReadGuidance && <UcPermissionErrorHelp guidance={pickerReadGuidance} />}
-                {catalogsWhy && <p role="note" data-uc-why="" className="mb-3 text-xs text-text-secondary">{catalogsWhy}</p>}
+                {catalogsWhy && <PlainMessage text={catalogsWhy} role="note" data-uc-why="" className="mb-3 text-xs text-text-secondary" />}
                 {onNoData && (
                   <button
                     type="button"
@@ -1240,7 +1245,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                               ? 'Inspire cannot sign in to the workspace. Ask whoever installed Inspire to run inspire_installer.py again.'
                               : loadingCatalogs
                                 ? 'Loading...'
-                                : 'No catalogs found'
+                                : catalogBrowseError || catalogsWhy
+                                  ? 'Inspire could not list the catalogs. The message above says why.'
+                                  : 'No catalogs found'
                         }
                       />
                       {catalogsCut && (

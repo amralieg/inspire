@@ -25,7 +25,7 @@ import { countEntries, parseStrategicContext, treeDepth } from '../lib/strategyC
 import { formatDuration } from '../lib/formatWhen';
 import { counted } from '../lib/plural';
 import { aiSeesAggregates, discoveryTypeOf } from '../lib/discoveryType';
-import { mergeSteps, quietLine, runElapsedMs, runTitle, viewerLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
+import { mergeSteps, pollFailure, quietLine, runElapsedMs, runEndedBadly, runFailureText, runStopped, runTitle, viewerLine, sessionFailed, sessionFinished, sessionQuietSince, sessionSucceeded, stepCategory } from '../lib/monitorState';
 import { requestHeaders, responseError } from '../lib/apiClient';
 import StopRunControl from '../components/StopRunControl';
 import RunLogPanel from '../components/RunLogPanel';
@@ -65,6 +65,8 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   const [session, setSession] = useState(null);
   const [steps, setSteps] = useState([]);
   const [polling, setPolling] = useState(true);
+  const [pollProblem, setPollProblem] = useState(null);
+  const failuresRef = useRef(0);
   const [now, setNow] = useState(() => Date.now());
   const lastPollRef = useRef(null);
   const trackedSessionRef = useRef(null);
@@ -98,6 +100,19 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
     if (!polling) return;
 
     const poll = async () => {
+      const failed = [];
+      await pollOnce(failed);
+      if (!failed.length) {
+        failuresRef.current = 0;
+        setPollProblem(null);
+        return;
+      }
+      failuresRef.current += 1;
+      const problem = pollFailure(failed[0], failuresRef.current);
+      setPollProblem(problem);
+      if (problem.stop) setPolling(false);
+    };
+    const pollOnce = async (failed) => {
       let currentRunInfo = runInfo;
       let lastRead = false;
       if (runId) {
@@ -113,9 +128,10 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
           } else {
             setRunPhase(PHASE_TERMINATED);
           }
-          lastRead = lcs === 'INTERNAL_ERROR' || lcs === 'SKIPPED' || (lcs === 'TERMINATED' && (ri.result_state === 'FAILED' || ri.result_state === 'CANCELED'));
+          lastRead = runEndedBadly(ri) || runStopped(ri);
         } catch (e) {
           if (e.status === 403) { setRunReadError(e.message); lastRead = true; }
+          else failed.push(e);
         }
       }
       if (lastRead) setPolling(false);
@@ -162,7 +178,9 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
             const runDone = !runId || currentRunInfo?.life_cycle_state === 'TERMINATED' || currentRunInfo?.life_cycle_state === 'INTERNAL_ERROR';
             if (runDone && sessionFinished(sess)) setPolling(false);
           }
-        } catch { /* session table might not exist */ }
+        } catch (e) {
+          failed.push(e);
+        }
       } else if (!runId) {
         setPolling(false);
       }
@@ -185,8 +203,8 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   const isStaleSession = !sessionOnly && session?.completed_on && runPhase !== PHASE_TERMINATED;
   const percent = isStaleSession ? 0 : (session?.completed_percent || 0);
   const outcome = runOutcomeOf(session?.results_json);
-  const runFailed = runInfo?.result_state === 'FAILED' || runInfo?.life_cycle_state === 'INTERNAL_ERROR' || (!isStaleSession && sessionFailed(session));
-  const isStopped = runInfo?.life_cycle_state === 'TERMINATED' && runInfo?.result_state === 'CANCELED';
+  const runFailed = runEndedBadly(runInfo) || (!isStaleSession && sessionFailed(session));
+  const isStopped = runStopped(runInfo);
   const quietSince = sessionOnly ? sessionQuietSince(session, now) : null;
   const isQuiet = Boolean(quietSince);
   const finished = sessionOnly
@@ -205,6 +223,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
 
   let statusLabel = 'Initializing';
   let statusDetail = '';
+  let statusDetails = [];
   if (isPending && sessionOnly) { statusLabel = 'Waiting'; statusDetail = MONITOR_NO_PROGRESS; }
   else if (isPending) { statusLabel = 'Starting'; statusDetail = 'Databricks is starting the run...'; }
   else if (isRunning) { statusLabel = 'Running'; statusDetail = isStaleSession || !session ? 'Inspire is getting ready...' : `${Math.round(percent)}% complete`; }
@@ -213,22 +232,15 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
   else if (isComplete) { statusLabel = 'Completed'; statusDetail = 'Inspire finished this run.'; }
   else if (cannotRead) { statusLabel = 'Cannot read this run'; statusDetail = `Inspire cannot read this run with your sign-in: ${runReadError}`; }
   else if (isFailed) {
-    statusLabel = outcome.failed ? outcome.failureTitle : 'Failed';
-    const failedTask = runInfo?.tasks?.find((t) => t.result_state === 'FAILED');
-    statusDetail =
-      (outcome.failed && outcome.message) ||
-      failedTask?.error ||
-      failedTask?.state_message ||
-      runInfo?.state_message ||
-      (failedTask
-        ? `Task "${failedTask.task_key}" failed${failedTask.notebook_path ? ` (${failedTask.notebook_path})` : ''}.`
-        : 'The run failed.');
+    statusLabel = outcome.failed ? outcome.failureTitle : runStateText(runInfo?.life_cycle_state, runInfo?.result_state) || 'Failed';
+    if (outcome.failed && outcome.message) statusDetail = outcome.message;
+    else ({ text: statusDetail, details: statusDetails } = runFailureText(runInfo));
   }
-  else if (isStopped) { statusLabel = 'Stopped'; statusDetail = 'The run was stopped. What it already wrote stays.'; }
+  else if (isStopped) { statusLabel = 'Stopped'; statusDetail = 'The run was stopped before it finished and what it already wrote stays, so start a new run on the Start page if you need the rest.'; }
   else if (runPhase === PHASE_TERMINATED && runInfo?.result_state === 'SUCCESS' && !session?.completed_on) { statusLabel = 'Finishing'; statusDetail = 'The run ended. Inspire is saving the use cases...'; }
 
   const platformMessage = String(runInfo?.state_message || '').trim();
-  const platformDetail = isFailed && platformMessage && platformMessage !== String(statusDetail || '').trim() ? platformMessage : '';
+  const platformDetail = isFailed && platformMessage && platformMessage !== String(statusDetail || '').trim() && !statusDetails.includes(platformMessage) ? platformMessage : '';
   const elapsedMs = runElapsedMs(runInfo, now);
   const elapsed = elapsedMs ? formatDuration(elapsedMs) : null;
 
@@ -380,6 +392,17 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                 <PlainMessage className={`text-xs mt-0.5 ${
                   isWarning ? 'text-warning-fg' : isComplete ? 'text-success-fg' : isFailed ? 'text-error-fg' : 'text-text-secondary'
                 }`} text={statusDetail} {...(isFailed ? { 'data-testid': 'monitor-failure-reason' } : {})} />
+              )}
+              <TechnicalDetails items={statusDetails} className="mt-1" />
+              {pollProblem && (
+                <div role="status" data-poll-problem={pollProblem.stop ? 'stopped' : 'checking'} className="mt-1 text-xs text-warning-fg">
+                  <PlainMessage text={pollProblem.text} />
+                  <TechnicalDetails items={pollProblem.details} />
+                  {pollProblem.stop && pollProblem.transient && (
+                    <button type="button" onClick={() => { failuresRef.current = 0; setPollProblem(null); setPolling(true); }}
+                      className="mt-1 font-semibold underline">Check again</button>
+                  )}
+                </div>
               )}
               {isComplete && outcome.found > 0 && (
                 <p className="text-xs mt-0.5 text-text-secondary" data-testid="monitor-bar-counts">

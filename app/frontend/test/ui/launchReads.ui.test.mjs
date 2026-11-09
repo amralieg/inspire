@@ -16,8 +16,8 @@ test('with no sign-in the Launch page lists no catalog and shows the sign-in ref
   const { page, pageErrors, made } = ui;
   try {
     await page.locator('[data-uc-why]').getByText(NO_PERSON_TOKEN, { exact: true }).waitFor({ timeout: 20000 });
-    await page.getByText('No catalogs found', { exact: true }).waitFor();
-    assert.equal(await page.getByText('Ask your admin to grant').count(), 0);
+    await page.getByText('Inspire could not list the catalogs. The message above says why.', { exact: true }).waitFor();
+    assert.equal(await page.locator('[data-uc-permission]').count(), 0);
     assert.ok(made.catalogLists.length >= 1 && made.catalogLists.length <= 2,
       `a sign-in refusal is asked once per mount (React mounts twice in development), not retried: ${made.catalogLists.length} asks`);
     assert.deepEqual(pageErrors.filter((line) => !forbidden(line)), []);
@@ -38,7 +38,7 @@ test('a run refused for a table the person cannot read shows the reason as it ca
     assert.equal(await page.locator('[data-uc-why]').count(), 0, 'no reason while the person can list');
     await page.getByRole('button', { name: 'Get Started' }).click();
     await page.getByText(REFUSED, { exact: true }).waitFor({ timeout: 20000 });
-    assert.equal(await page.getByText('Ask your admin to grant').count(), 0, 'a refusal of the person\u2019s own reads is not a grant problem of the App');
+    assert.equal(await page.locator('[data-uc-permission]').count(), 0, 'a refusal of the person\u2019s own reads is not a grant problem of the App');
     await until(() => made.launches.length === 1, 'the launch was sent once');
     assert.equal(made.launches[0].params['01_uc_metadata'], 'main.s.salaries');
     assert.deepEqual(pageErrors.filter((line) => !forbidden(line)), []);
