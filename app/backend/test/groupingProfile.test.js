@@ -90,7 +90,8 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal('prefill' in d, false, 'the profile carries no starting SQL, since Inspire runs no typed SQL');
     assert.deepEqual([d.table, d.records, d.applies, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, true, false, null]);
     assert.equal(d.reason, 'Inspire recommends region, then country because Anomaly Detection works out what is normal inside each group, and country splits '
-      + 'main.sales.orders into 10 groups.');
+      + `main.sales.orders into 10 groups. These columns make more groups than the 500 Inspire models one by one: city, about 900 groups; sku, 501 groups; ${INJECTED}, `
+      + 'about 600 groups.');
     assert.deepEqual(d.columns, [
       { name: 'region', type: 'STRING', distinct: 5, smallest: 30, largest: 4000, nulls: 0, parent: null },
       { name: 'country', type: 'STRING', distinct: 10, smallest: 12, largest: 3000, nulls: 0, parent: 'region' },

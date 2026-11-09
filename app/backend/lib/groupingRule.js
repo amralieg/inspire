@@ -27,6 +27,7 @@ const GROUP_ID_RE = /(?:^|_)(?:id|key|uuid|guid|sk|nk|hash)$/i;
 const GROUP_TYPES = ['string', 'varchar', 'char', 'boolean'];
 const GROUP_KEY_TYPES = ['int', 'integer', 'bigint', 'smallint', 'tinyint', 'long', 'short', 'byte', 'string', 'varchar', 'char'];
 const TIME_TYPES = ['date', 'timestamp'];
+const GROUP_SEGMENT_TYPES = [...new Set([...GROUP_TYPES, ...GROUP_KEY_TYPES, ...TIME_TYPES, 'timestamp_ntz', 'decimal'])];
 const TIME_NAME_RE = /(date|time|day)|_at$|_ts$/i;
 const TEXT_NAME_TOKENS = ['text', 'comment', 'review', 'description', 'desc', 'note', 'feedback', 'transcript', 'body', 'message', 'title', 'subject',
   'content', 'reason', 'summary', 'narrative', 'remark'];
@@ -141,6 +142,7 @@ function recommendation(profiles, nests = []) {
 const baseType = (kind) => lower(kind).replace(/\(.*$/, '').trim();
 const textColumn = (name, kind) => GROUP_TYPES.some((t) => lower(kind).startsWith(t)) && !GROUP_ID_RE.test(name)
   && !TEXT_NAME_TOKENS.some((token) => lower(name).includes(token));
+const segmentColumn = (kind) => GROUP_SEGMENT_TYPES.includes(lower(kind).trim().split(/[<(\s]/)[0]);
 const keyColumn = (name, kind) => GROUP_KEY_TYPES.includes(baseType(kind)) && GROUP_ID_RE.test(name) && !TIME_NAME_RE.test(name);
 
 function useCaseWords(text) {
@@ -208,7 +210,7 @@ function groupingCandidates(columns, roles = {}, mainTable = '', { primary = [],
     const kind = column && column.data_type;
     if (!name || skip.has(name.toLowerCase()) || seen.has(name) || personalColumn(name, columnTags(tags, mainTable, name))) continue;
     seen.add(name);
-    if (name.toLowerCase() === own.segment) segment.push(name);
+    if (name.toLowerCase() === own.segment && segmentColumn(kind)) segment.push(name);
     else if (textColumn(name, kind)) texts.push(name);
     else if (keyColumn(name, kind)) keys.push(name);
   }
@@ -327,6 +329,7 @@ module.exports = {
   nullHeavy,
   recommendation,
   GROUP_KEY_TYPES,
+  GROUP_SEGMENT_TYPES,
   PERSONAL_NAME_RE,
   PERSONAL_TAG_RE,
   personalColumn,
