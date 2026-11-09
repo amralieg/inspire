@@ -566,6 +566,33 @@ test('the demo disables every control that writes in Build progress, on every ti
   }
 });
 
+test('the demo Build progress card offers no Download diagnostics, Copy diagnostics or Report issue and reads no diagnostics, on a ready and on a failed build (must-exclude)', async () => {
+  for (const history of [WARNED, [built({ status: 'failed', status_message: 'Genie stopped the build: no approved model yet', ...NOTHING_BUILT })]]) {
+    const ui = await openDemoBuild(history);
+    const reads = [];
+    ui.page.on('request', (r) => { if (r.url().includes('/implement/diagnostics')) reads.push(r.url()); });
+    try {
+      const card = ui.page.locator('[data-progress-card]');
+      await card.locator('[data-progress-show]').waitFor();
+      await card.locator('[data-progress-show]').hover();
+      await card.locator('[data-progress-show]').focus();
+      await ui.page.keyboard.press('Tab');
+      await ui.settle();
+      assert.equal(await card.locator('[data-diagnostics-download], [data-diagnostics-copy], [data-diagnostics-report], [data-diagnostics-note]').count(), 0, `no diagnostics controls on ${history[0].status}`);
+      for (const name of ['Download diagnostics', 'Copy diagnostics', 'Report issue']) {
+        assert.equal(await ui.page.getByRole(name === 'Report issue' ? 'link' : 'button', { name }).count(), 0, `the demo has no ${name}`);
+      }
+      assert.equal(await card.getByText('no private or personal data').count(), 0, 'and no privacy note');
+      assert.equal(await card.locator('[data-progress-actions] [data-progress-show]').count(), 1, 'Show progress stays in its row');
+      assert.deepEqual(reads, [], 'the demo sends no diagnostics read');
+      assert.deepEqual(ui.blocked, []);
+      assert.deepEqual(besidesRefusals(ui.pageErrors), []);
+    } finally {
+      await ui.close();
+    }
+  }
+});
+
 test('a run link that arrives during the demo leaves the demo and opens the workspace Run tab with a plain note, from the demo Run tab too', async () => {
   const blocked = [];
   const ui = await openUi('app', STATE, '', {

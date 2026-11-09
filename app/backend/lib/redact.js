@@ -24,7 +24,8 @@ const DATABRICKS_HOST_SUFFIX = /\.(?:cloud\.databricks\.com|(?:azure)?databricks
 const EMAIL_RE = /(?<![A-Za-z0-9._%+-])[A-Za-z0-9._%+-]+@[A-Za-z0-9-]{1,63}(?:\.[A-Za-z0-9-]{1,63}){0,8}\.[A-Za-z]{2,24}/;
 const URL_RE = /\b(?:https?|wss?|s3a?|abfss?|gs):\/\/[^\s"'`<>]+/gi;
 const HOST_NAME_RE = new RegExp(`\\b[A-Za-z0-9-]+(?:\\.[A-Za-z0-9-]+)*${DATABRICKS_HOST_SUFFIX.source}\\b`, 'gi');
-const PATH_RE = /(?<![\w.:/])\/(Workspace|Volumes|Users|Repos|home|dbfs|Shared|tmp|local_disk0|databricks|mnt)(?=[/\s"'`,;)\]]|$)(?:\/[^\s"'`<>,;)\]]*)?/g;
+const PATH_ROOTS = 'Workspace|Volumes|Users|Repos|home|dbfs|Shared|tmp|local_disk0|databricks|mnt';
+const PATH_RE = new RegExp(`(?<![\\w.:/])\\/(${PATH_ROOTS})(?=[/\\s"'\`,;)\\]]|$)(?:\\/[^\\s"'\`<>,;)\\]]*)?`, 'g');
 const NAME_PART = '(?:`(?:[^`\\n]|``)+`|[A-Za-z_][A-Za-z0-9_]*)';
 const NAME_CHAIN_RE = new RegExp(`(?<![\\w.\`])${NAME_PART}(?:\\.${NAME_PART})+(?![\\w\`])`, 'g');
 const QUOTED_NAME_RE = /`((?:[^`\n]|``)+)`/g;
@@ -117,6 +118,59 @@ function maskPrivate(text, { label = nameLabels(), known = {}, hosts = [] } = {}
   return out;
 }
 
+const TEXT = '<text>';
+const ALLOWED_TOKEN_RE = new RegExp([
+  '(?<![\\w.])[A-Z][A-Z0-9]*_[A-Z0-9_]*(?:\\.[A-Z0-9_]+)*(?![\\w])',
+  '(?<![\\w.])(?:catalog|schema|table|column|business|app)_\\d+(?:\\.(?:schema|table|column)_\\d+)*(?![\\w])',
+  '\\[(?:email|link|workspace|value|values|redacted)\\]',
+  `/(?:${PATH_ROOTS})/\\[path\\]`,
+].join('|'), 'g');
+const SLOT_RE = /\{(phase|n|text)\}/g;
+const SLOT_VALUE = { phase: '(.+?)', n: '(\\d+)', text: '(.+)' };
+const NO_TEMPLATES = { list: [], words: new Set() };
+
+function allowTemplates(patterns, words = []) {
+  const list = patterns.map((pattern) => {
+    const slots = [...pattern.matchAll(SLOT_RE)].map((m) => m[1]);
+    const fixed = pattern.split(SLOT_RE).filter((_p, i) => i % 2 === 0);
+    const re = new RegExp(`^${fixed.map(escapeRe).map((f, i) => (i < slots.length ? `${f}${SLOT_VALUE[slots[i]]}` : f)).join('')}$`);
+    return { fixed, slots, re };
+  });
+  return { list, words: new Set(words.map((w) => String(w).trim().toLowerCase()).filter(Boolean)) };
+}
+
+function allowedSpans(text) {
+  const gap = (part) => part.replace(/^([^\p{L}\p{N}]*)([\s\S]*?)([^\p{L}\p{N}]*)$/u, (m, lead, mid, tail) => (mid ? `${lead}${TEXT}${tail}` : m));
+  let out = '';
+  let at = 0;
+  for (const m of text.matchAll(ALLOWED_TOKEN_RE)) {
+    out += gap(text.slice(at, m.index)) + m[0];
+    at = m.index + m[0].length;
+  }
+  out += gap(text.slice(at));
+  return out.replace(new RegExp(`${TEXT}(?:\\s*${TEXT})+`, 'g'), TEXT).replace(/\s+/g, ' ').trim();
+}
+
+function allowText(text, templates = NO_TEMPLATES) {
+  const value = String(text ?? '').replace(/\s+/g, ' ').trim();
+  if (!value) return '';
+  if (templates.words.has(value.toLowerCase())) return value;
+  for (const { fixed, slots, re } of templates.list) {
+    const m = re.exec(value);
+    if (!m) continue;
+    const parts = slots.map((slot, i) => (slot === 'text' ? allowText(m[i + 1], templates) : m[i + 1]));
+    if (slots.some((slot, i) => slot === 'phase' && !templates.words.has(m[i + 1].toLowerCase()))) continue;
+    return fixed.map((f, i) => (i < parts.length ? `${f}${parts[i]}` : f)).join('');
+  }
+  const split = value.indexOf(': ');
+  if (split > 0) {
+    const head = value.slice(0, split);
+    const kept = allowText(head, templates);
+    if (kept === head) return `${head}: ${allowText(value.slice(split + 2), templates)}`;
+  }
+  return allowedSpans(value);
+}
+
 const CONSOLE_LEVELS = ['log', 'info', 'warn', 'error', 'debug', 'trace'];
 const REDACTED = Symbol.for('inspire.redacted');
 
@@ -145,5 +199,5 @@ function redactOutput(proc = process) {
 }
 
 module.exports = {
-  DATABRICKS_HOST_SUFFIX, EMAIL_RE, SECRET_HEADER_RE, SECRET_PATTERNS, maskPrivate, nameLabels, redactConsole, redactCrashes, redactOutput, redactSecrets, redactedText,
+  DATABRICKS_HOST_SUFFIX, EMAIL_RE, SECRET_HEADER_RE, SECRET_PATTERNS, allowTemplates, allowText, maskPrivate, nameLabels, redactConsole, redactCrashes, redactOutput, redactSecrets, redactedText,
 };

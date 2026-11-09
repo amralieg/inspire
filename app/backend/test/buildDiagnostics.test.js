@@ -1,8 +1,10 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const { makeApp, listen } = require('./support/implementApp');
-const { buildDiagnostics, cloudOf } = require('../lib/buildDiagnostics');
-const { maskPrivate, nameLabels } = require('../lib/redact');
+const fs = require('node:fs');
+const path = require('node:path');
+const { AGENT_TEMPLATES, buildDiagnostics, cloudOf } = require('../lib/buildDiagnostics');
+const { allowTemplates, allowText, maskPrivate, nameLabels } = require('../lib/redact');
 const { newIssueUrl } = require('../../frontend/src/lib/issues.js');
 
 const Q = 'inspire_database=main.inspire&warehouse_id=wh1&session_id=42&use_case_id=N01-U01';
@@ -98,7 +100,7 @@ test('the diagnostics file holds every build fact and none of the private text: 
       'round 2', 'Earlier versions (1)', 'state CRASHED, compute ACTIVE']) {
       assert.ok(text.includes(fact), `the file says ${fact}:\n${text}`);
     }
-    assert.match(text, /^- v1: ready, updated 2026-11-07T10:30:00.000Z: built by \[email\]$/m);
+    assert.match(text, /^- v1: ready, updated 2026-11-07T10:30:00.000Z: <text> \[email\]$/m);
   });
 });
 
@@ -112,11 +114,12 @@ test('one table or column keeps the same label everywhere in one file, and a dif
     assert.equal(tableLabels.size, 2, `customer_orders and loyalty_points: ${[...tableLabels]}`);
     assert.equal(labelOf(/catalog_\d+(?=\.schema)/g).length, 1, 'prod_cat gets one catalog label every time');
     assert.equal(labelOf(/(?<=\.)schema_\d+(?=\.table)/g).length, 1, 'sales_core gets one schema label every time');
-    assert.match(text, /column with name column_\d+ cannot be resolved/);
-    const spend = /column with name (column_\d+)/.exec(text)[1];
-    const region = /by (column_\d+)/.exec(text)[1];
-    assert.notEqual(spend, region);
-    assert.equal(/Wrote the instruction for (column_\d+) by/.exec(text)[1] !== region, true, 'churn_score and region_code differ');
+    const [, churn, region] = /message: <text> (column_\d+) <text> (column_\d+)$/m.exec(text);
+    assert.notEqual(churn, region, 'churn_score and region_code differ');
+    const spend = /Status message: .*?(column_\d+)/.exec(text)[1];
+    assert.notEqual(spend, churn, 'lifetime_spend and churn_score differ');
+    assert.notEqual(spend, region, 'lifetime_spend and region_code differ');
+    assert.equal(new Set(text.match(/column_\d+/g)).size >= 3, true, 'lifetime_spend, churn_score and region_code each get a label');
     const masked = maskPrivate(`${TABLE} then ${TABLE.toUpperCase()} then ${TABLE}`, { label: nameLabels() });
     assert.equal(masked.split(' then ')[0], masked.split(' then ')[2]);
   });
@@ -179,4 +182,68 @@ test('maskPrivate keeps error codes, versions, file names and plain words, and m
   assert.equal(mask('Inspire read inspire.x.y', { schema: ['inspire'] }), 'Inspire read catalog_1.schema_1.table_1', 'a lowercase database name never masks the product name');
   assert.equal(mask('the region column', { column: ['region'] }), 'the column_1 column');
   assert.equal(mask('[value] stays', { column: ['value'] }), '[value] stays');
+});
+
+const PROSE = 'customer Ahmed Saleh in Dubai owes 4521 AED';
+const PROSE_PARTS = ['customer', 'Ahmed', 'Saleh', 'Dubai', 'owes', '4521', 'AED'];
+const proseBuild = () => {
+  const latest = {
+    use_case_id: 'N01-U01', spec_version: 3, status: 'failed', status_message: `Genie build round 2 of up to 3: ${PROSE} [PERMISSION_DENIED]`,
+    asset_status: JSON.stringify({ dashboard: { state: 'failed', spec_version: 3, reason: PROSE } }), created_at: '2026-11-09T09:00:00.000Z', updated_at: '2026-11-09T09:10:00.000Z',
+  };
+  const row = (phase, status, message, extra = {}) => ({
+    step_name: `Inspire is working on ${phase.toLowerCase()}`, sub_step_name: `Needs attention: ${PROSE}`, status, message, last_updated: '2026-11-09T09:05:00.000Z',
+    result_json: JSON.stringify({ use_case_id: 'N01-U01', phase, spec_version: 3, ...extra }),
+  });
+  return {
+    latest, history: [latest, { ...latest, spec_version: 2, status: 'ready_with_warnings', status_message: `Dashboard vibe not done: ${PROSE}` }],
+    steps: [
+      row('Plan', 'ended_success', 'Inspire has completed plan'),
+      row('Preview run', 'ended_error', `Inspire needs attention while preview run: ${PROSE} UNRESOLVED_COLUMN`, { error: PROSE, reason: PROSE, why: PROSE, error_code: 'UNRESOLVED_COLUMN', failure: PROSE, round: 2, rounds: 3 }),
+    ],
+    feed: [{ kind: 'error', text: PROSE, phase: PROSE }, { kind: 'note', text: `relay round 2 sent ${PROSE}` }, { kind: 'run', run_id: 5, state: PROSE, result: PROSE, seconds: 9 }],
+    runs: { ok: true, runs: [{ run_id: 5, state: 'FAILED', trigger: PROSE, profile: PROSE, message: PROSE }] },
+    app_status: { ok: true, app_state: PROSE, compute_state: 'ACTIVE', deployment_state: 'SUCCEEDED', app_message: PROSE, deployment_message: PROSE },
+    stalled: { ended: true, run_id: 5, reason: PROSE },
+  };
+};
+
+test('free text is allow-listed: a data value written as plain prose in any error, warning, message, reason or state never survives, while error codes and Inspire templates stay (must-exclude)', () => {
+  const got = buildDiagnostics(proseBuild(), { host: 'https://workspace.example.com', useCaseId: 'N01-U01', stamp: { version: '1.5.0' } });
+  const all = `${got.text}\n${got.issue.title}\n${got.issue.body}`;
+  for (const part of PROSE_PARTS) assert.ok(!all.includes(part), `${part} never survives:\n${all}`);
+  for (const kept of ['PERMISSION_DENIED', 'UNRESOLVED_COLUMN', 'Genie build round 2 of up to 3: <text>', 'Inspire has completed plan', 'Inspire needs attention while preview run: <text>',
+    'Inspire is working on preview run', 'Dashboard vibe not done: <text>', 'Stalled reason: <text>', '- run 5: FAILED, trigger <text>, profile <text>: <text>', 'round 2', 'Build status: failed']) {
+    assert.ok(all.includes(kept), `the file keeps ${kept}:\n${all}`);
+  }
+  assert.match(got.issue.title, /^Build failed at Preview run in Inspire 1\.5\.0$/);
+});
+
+test('allowText keeps only error codes with an underscore, labels, placeholders and registered templates, and turns every other span into one <text> (must-exclude)', () => {
+  const allow = (s) => allowText(s);
+  assert.equal(allow(PROSE), '<text>');
+  assert.equal(allow(`[PERMISSION_DENIED] ${PROSE}`), '[PERMISSION_DENIED] <text>');
+  assert.equal(allow('A column with name column_3 cannot be resolved in catalog_1.schema_1.table_2.'), '<text> column_3 <text> catalog_1.schema_1.table_2.');
+  assert.equal(allow('sent by [email] from /Workspace/[path]'), '<text> [email] <text> /Workspace/[path]');
+  assert.equal(allow('AED 4521 TIMEOUT'), '<text>', 'a short capital word without an underscore is not an error code');
+  assert.equal(allow(''), '');
+  const templates = allowTemplates(['Inspire has completed {phase}', 'Genie build round {n} of up to {n}', '{phase}: {text}'], ['plan', 'Preview run']);
+  assert.equal(allowText('Inspire has completed plan', templates), 'Inspire has completed plan');
+  assert.equal(allowText('Inspire has completed Ahmed', templates), '<text>', 'a slot outside the vocabulary is not a template match');
+  assert.equal(allowText('Genie build round 2 of up to 3', templates), 'Genie build round 2 of up to 3');
+  assert.equal(allowText('Preview run: owes 4521 UNRESOLVED_COLUMN', templates), 'Preview run: <text> UNRESOLVED_COLUMN');
+  assert.equal(allowText('Dubai: owes 4521', templates), '<text>');
+});
+
+const notebookSource = () => JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'agent', 'agent', 'dbx_inspire_ai_agent.ipynb'), 'utf8'))
+  .cells.filter((c) => c.cell_type === 'code').map((c) => [].concat(c.source).join('')).join('\n');
+const missingTemplates = (templates, source) => templates.filter((t) => {
+  const re = new RegExp(t.split(/\{(?:phase|n|text)\}/).map((f) => f.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('\\{[^}\\n]+\\}'));
+  return !re.test(source);
+});
+
+test('every agent message template the diagnostics keep is written by the agent notebook, so the allow-list never keeps text the agent does not write (must-fail)', () => {
+  const source = notebookSource();
+  assert.deepEqual(missingTemplates(AGENT_TEMPLATES, source), []);
+  assert.deepEqual(missingTemplates(['Inspire sold {phase} to {n}', 'Genie build round {n} of up to {n}'], source), ['Inspire sold {phase} to {n}']);
 });

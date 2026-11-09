@@ -836,3 +836,14 @@ export function typingSchedule(feed, arrivals, wordsPerSecond = FEED_WORDS_PER_S
   }
   return { starts, end };
 }
+
+const NAMED_STAGES = [...MVP_BUILD_STAGES, VIBE_STAGE, FINISH_STAGE, SELF_FIX_STAGE];
+export const MVP_PHASE_WORDS = [...new Set([
+  ...NAMED_STAGES.flatMap((s) => [s.id, s.label, ...(s.phases || [])]),
+  PLAN_PHASE, VIBE_PHASE, MVP_REPAIR_PHASE, GENIE_CHANGES_PHASE, WHOLE_BUILD, ...Object.values(EARLIER_PHASES).flat(),
+  ...IMPLEMENT_OUTPUTS.flatMap((o) => [o.id, o.label]),
+])];
+export const MVP_WORKING_TEXTS = [...new Set([
+  ...NAMED_STAGES.map((s) => s.working),
+  ...[{ schedule: true, sharing: true }, { schedule: true }, { sharing: true }, {}].map(finishWords),
+])];
