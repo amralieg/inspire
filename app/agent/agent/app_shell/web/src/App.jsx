@@ -8,7 +8,6 @@ import { PlainNote, ToastProvider, useToast } from './ui.jsx';
 import Page, { SECTION_TITLES } from './Page.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
 import Performance from './Performance.jsx';
-import InboxBell from './Inbox.jsx';
 import { inboxOn } from './inbox.js';
 import Admin from './Admin.jsx';
 import { ADMIN_ROUTE } from './admin.js';
@@ -24,7 +23,7 @@ import logo from './databricks-logo.png?inline';
 import { integer } from './format.js';
 
 const THEME_KEY = 'inspire-app-theme';
-const RAIL_ICONS = { dashboard: 'grid', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', settings: 'sliders' };
+const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', settings: 'sliders' };
 
 function initials(user) {
   const source = user?.name || user?.email || '';
@@ -74,9 +73,11 @@ function useHub(pages, asked) {
 }
 
 function railOf(app, page) {
+  const inbox = inboxOn(app, page);
   const sections = pageSections(app, page);
-  const at = isQueue(page) ? 2 : 1;
-  return [...sections.slice(0, at), 'performance', ...sections.slice(at)];
+  const all = inbox ? [sections[0], 'inbox', ...sections.slice(1)] : sections;
+  const at = (isQueue(page) ? 2 : 1) + (inbox ? 1 : 0);
+  return [...all.slice(0, at), 'performance', ...all.slice(at)];
 }
 
 function SectionRail({ sections, on, onGo, open, page, counts = {} }) {
@@ -86,7 +87,7 @@ function SectionRail({ sections, on, onGo, open, page, counts = {} }) {
       aria-label={counts[s] != null ? `${SECTION_TITLES[s]} (${integer(counts[s])})` : undefined}>
       <span className="nav-ic"><Icon name={RAIL_ICONS[s]} size={15} /></span>
       <span className="nav-t"><b>{SECTION_TITLES[s]}</b></span>
-      {counts[s] != null && <small className="rail-n" data-count>{integer(counts[s])}</small>}
+      {counts[s] != null && <small className="rail-n" data-count={counts[s]}>{integer(counts[s])}</small>}
     </button>
   );
   return (
@@ -158,7 +159,8 @@ function Shell({ app }) {
   const page = pages.find((p) => p.id === route) || (admin ? pages.find((p) => p.id === prefs.last) || pages[0] : null);
   const section = admin ? '' : link.section;
   const sectionsHere = page ? railOf(app, page) : [];
-  const rail = sectionsHere.includes('runs') ? sectionsHere.filter((s) => s !== 'alerts') : sectionsHere;
+  const inboxOff = railCounts.page === page?.id && railCounts.inboxOff;
+  const rail = sectionsHere.filter((s) => !(s === 'alerts' && sectionsHere.includes('runs')) && !(s === 'inbox' && inboxOff));
   const working = !admin && section === 'work';
   const dock = working ? prefs.dock : '';
   const setDock = useCallback((next) => update((p) => ({ ...p, dock: next })), [update]);
@@ -264,7 +266,6 @@ function Shell({ app }) {
           </button>
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
-          <InboxBell page={admin ? null : page} on={inboxOn(app, page) && isQueue(page)} onOpen={openRecord} />
           <button className="genie-btn" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>
@@ -283,7 +284,7 @@ function Shell({ app }) {
               <Page key={page.id} app={app} page={page} meta={metas[page.id]} state={states[page.id]} onState={setPageState(page.id)} look={looks[page.id] || EMPTY_LOOK}
                 onLook={setPageLook(page.id)} themeKey={themeKey} onAsk={ask} onExplain={explain} genieBusy={genie.busy} hubEntry={hub?.pages?.[page.id]}
                 summary={summaries[page.id]} view={view} onView={setView} genie={genie} section={section} tab={link.tab} focus={link.focus} chrome={chrome}
-                onCounts={setRailCounts} />
+                onCounts={setRailCounts} onRecord={openRecord} />
             )}
           </main>
           {working && dock === 'genie' && <GeniePanel {...genieProps} tabs={tabs} onClose={() => setDock('')} />}

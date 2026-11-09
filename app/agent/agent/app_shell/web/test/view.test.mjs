@@ -101,7 +101,7 @@ test('a window chip hides a record outside the window while an overdue record st
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 2);
   assert.deepEqual(await labels(page), [label(3), label(1)]);
   assert.ok(!(await labels(page)).includes(label(2)), 'the record due next week is outside Today');
-  await page.locator('[data-inbox]').click();
+  await page.locator('[data-rail="inbox"]').click();
   const due = page.locator('[data-inbox-group="due"] [data-inbox-item]');
   await due.first().waitFor();
   assert.deepEqual(await due.locator('bdi').allInnerTexts(), [label(3), label(1)], 'the inbox lists the overdue record first and leaves out the one due next week');
@@ -435,15 +435,16 @@ test('a window reaches only lists that keep actions: a list that keeps none read
   const listed = (page) => page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length > 0);
   const { page, seen, context } = await openWith(appInfo(DECIDE, 2, TABLE), tracked({ records }).routes, { prefs: { window: 'today', limit: 10 } });
   await waitList(page);
-  await page.locator('[data-inbox]').waitFor();
+  await page.locator('[data-rail="inbox"]').waitFor();
   assert.deepEqual([lists(seen)[0].page, lists(seen)[0].window, lists(seen)[0].window_limit], ['n01_u05', 'today', 10],
     'a list that keeps actions gets the window and the limit on its first read');
   await page.goto(`${served.base}#/n02_u01/work`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
   await listed(page);
   assert.equal(refused.length, 1, 'the one refused read is asked again without the window');
-  await until(() => seen.records.some((b) => b.page === 'n02_u01' && b.changed));
-  assert.equal(await page.locator('[data-inbox]').count(), 0, 'a list that keeps no actions has no inbox and never asks it for your records');
+  await until(() => seen.records.some((b) => b.page === 'n02_u01' && b.mine));
+  await page.waitForFunction(() => !document.querySelector('[data-rail="inbox"]'));
+  assert.equal(await page.locator('[data-rail="inbox"]').count(), 0, 'a list that keeps no actions has no inbox and never asks it for your records');
   assert.equal(await page.locator('.card--table tbody tr').count(), 25, 'no limit applies to a list that keeps no actions');
   assert.equal(await page.locator('.tile-err').count(), 0, 'the refusal is not shown as an error');
   await until(() => !('window' in seen.records.at(-1)));

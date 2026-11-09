@@ -15,8 +15,8 @@ import { LayoutSections, TodoNow } from './Layouts.jsx';
 import { backendNotes } from './freshness.js';
 import { AskGenie } from './AskGenie.jsx';
 import {
-  NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason, plural,
-  reasonFilters, reliableText, savedTile, shortDay, totals, useCaseState, viewRows, viewWords,
+  NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, hubView, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason, plural,
+  reasonFilters, reliableText, savedTile, shortDay, totals, useCaseState, viewWords,
 } from './hub.js';
 
 export function TableCard({ table, result, error, loading, onFilter, pageId, filters, values, onColumn, onClear, sort, onSort }) {
@@ -71,13 +71,6 @@ function reasonBars(rows, page) {
   return [...by.values()].sort((a, b) => largestFirst(a.value, b.value)).map((b) => ({
     ...b, text: `${wholeMoney(b.value, b.currency, b.kind)} on ${plural(b.n, 'record')}`, formula: couldSaveFormula(rows.filter((r) => r.reason === b.key), ` the AI groups as ${b.label}`),
   }));
-}
-
-function hubView(page, current, summary, view, user) {
-  const currency = pageCurrency(page, summary);
-  const kind = pageKind(page, summary);
-  const items = current?.tracked ? current.items.map((i) => ({ ...i, page, currency, kind, model: current.money_model || null })) : [];
-  return viewRows(items, view, user);
 }
 
 function NothingToFix({ reason, latest, onRuns }) {

@@ -25,7 +25,9 @@ import { isLaidOut, isQueue, pageSections } from './Layouts.jsx';
 import { windowParams } from './prefs.js';
 import { pageDecides, statusChoices } from './records.js';
 import { GenieScope } from './AskGenie.jsx';
-import { reasonFilters, useCaseState } from './hub.js';
+import { hubView, reasonFilters, useCaseState } from './hub.js';
+import { inboxOn } from './inbox.js';
+import InboxSection, { useInbox } from './Inbox.jsx';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
 import WorkPage from './WorkPage.jsx';
 import { Skeleton } from './ui.jsx';
@@ -37,7 +39,7 @@ const Alerts = lazy(() => import('./Alerts.jsx'));
 const TrendCards = lazy(() => import('./Trends.jsx'));
 const Waiting = ({ height = 180 }) => <section className="card" role="status" aria-label="Loading"><Skeleton height={height} /></section>;
 
-export const SECTION_TITLES = { dashboard: 'Dashboard', work: 'Work', performance: 'Performance', runs: 'Runs', alerts: 'Alerts', settings: 'Settings' };
+export const SECTION_TITLES = { dashboard: 'Dashboard', inbox: 'Inbox', work: 'Work', performance: 'Performance', runs: 'Runs', alerts: 'Alerts', settings: 'Settings' };
 
 export function usePageData(pageId, state, ready, nonce = 0, sorts = null) {
   const [data, setData] = useState(null);
@@ -90,7 +92,7 @@ function radioKeys(e) {
 }
 
 export default function Page({ app, page, meta, state, onState, look = EMPTY_LOOK, onLook, themeKey, onAsk, onExplain, genieBusy, hubEntry, summary, view, onView, genie,
-  section = 'dashboard', tab = '', focus = '', chrome, onCounts }) {
+  section = 'dashboard', tab = '', focus = '', chrome, onCounts, onRecord }) {
   const ready = !!state;
   const [nonce, setNonce] = useState(0);
   const [queue, setQueue] = useState(null);
@@ -112,7 +114,9 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const laidOut = isLaidOut(page);
   const work = isQueue(page);
   const sections = pageSections(app, page);
-  const shown = sections.includes(section) ? section : 'dashboard';
+  const inboxHere = inboxOn(app, page);
+  const views = inboxHere ? [...sections, 'inbox'] : sections;
+  const shown = views.includes(section) ? section : 'dashboard';
   const hubPage = !laidOut && listed && !!(live.data?.tracked || live.data?.empty || hubEntry?.tracked || hubEntry?.empty || !live.done);
   const entry = live.data || hubEntry;
   const tabbed = work && listed && !!app.options?.decisions && pageDecides(page) && !!entry?.tracked;
@@ -134,9 +138,19 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const trends = useTrends(page.id, `${nonce}:${runNonce}`, trendsOn);
   const focused = tabbed ? focus : '';
   const counted = useRef({});
-  if (runs.data?.offset === 0) counted.current = runCounts(runs.data);
+  const firstRuns = useRef(null);
+  if (runs.data?.offset === 0) {
+    counted.current = runCounts(runs.data);
+    firstRuns.current = runs.data;
+  }
   const runTotal = counted.current.runs;
-  useEffect(() => { onCounts?.({ page: page.id, runs: runTotal }); }, [page.id, runTotal, onCounts]);
+  const [runOpen, setRunOpen] = useState('');
+  const fixCount = work && entry?.tracked ? hubView(page, entry, summary, view, app.user).fix.length : null;
+  const inboxRuns = !runsOn || runs.error ? { runs: [], can_run: false } : firstRuns.current;
+  const inbox = useInbox({ app, page, fix: fixCount, runs: inboxRuns, nonce, on: inboxHere });
+  const inboxCount = inbox?.ready && !inbox.off ? inbox.count : undefined;
+  const inboxOff = !!inbox?.off;
+  useEffect(() => { onCounts?.({ page: page.id, runs: runTotal, inbox: inboxCount, inboxOff }); }, [page.id, runTotal, inboxCount, inboxOff, onCounts]);
   const unreliable = hubPage && !!useCaseState(entry, summary).unreliable;
   const loading = !data;
   const pick = (filterId, value) => onState(toggleValue(state, filterId, value));
@@ -145,7 +159,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const runDate = meta?.filters?.find((f) => f.type === 'date_range');
   const freshness = useFreshness({ page, showThrough: !!meta && !runDate?.high, onRefreshed: () => setNonce((n) => n + 1), onRun: () => setRunNonce((n) => n + 1),
     onSeeChanged: seeWhatChanged });
-  const address = usePageAddress({ page, meta, state, onState, view: shown, onView: (to) => go(to), views: sections });
+  const address = usePageAddress({ page, meta, state, onState, view: shown, onView: (to) => go(to), views });
   const latestRun = counted.current.latest ? latestRunText(counted.current.latest) : freshness.fresh?.last_run ? `${lastRunText(freshness.fresh.last_run).text}.`
     : runs.busy ? 'Reading the latest run.' : latestRunText(null);
   const errors = data?.errors || {};
@@ -160,6 +174,14 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     const next = fixThis(page, meta?.columns?.list, state, view, opts);
     go('work', { tab: tabbed ? next.tab : '', state: next.state, sort: next.sort, focus: tabbed ? next.focus : '' });
   } : null;
+  const openInbox = (item) => {
+    if (item.kind === 'fix') fix?.({});
+    else if (item.kind === 'run') {
+      setRunOpen(item.run);
+      go('runs');
+    } else if (item.kind === 'report') go('settings');
+    else onRecord?.(page.id, item.key);
+  };
   const trendChart = page.charts.find((c) => c.x?.kind === 'time') || page.charts[0];
   const onTop = hubPage && hubChartsOnTop(hubEntry, live, summary);
   const more = onTop ? page.charts.filter((c) => c !== trendChart) : page.charts;
@@ -268,6 +290,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
             </Suspense>
           ) : null} />
       )}
+      {shown === 'inbox' && <InboxSection page={page} inbox={inbox} onOpen={openInbox} />}
       {shown === 'work' && (
         <WorkPage meta={meta} state={state} onState={onState} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
@@ -277,7 +300,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {shown === 'runs' && (
         <Suspense fallback={<Waiting />}>
           <Runs page={page} runs={runs} offset={runOffset} onOffset={setRunOffset} onExplain={hubExplain(app, onExplain, page.id)} genieBusy={genieBusy}
-            trends={trends.data} themeKey={themeKey} app={app} onRun={freshness.ask} running={freshness.busy} />
+            trends={trends.data} themeKey={themeKey} app={app} onRun={freshness.ask} running={freshness.busy} opened={runOpen} />
           {app.alerting?.on && <Alerts app={app} page={page} meta={meta} compose={false} onComposed={composed} />}
         </Suspense>
       )}

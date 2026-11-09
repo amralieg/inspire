@@ -130,8 +130,8 @@ function emptyText(page, job) {
   return page.history ? 'This use case has not recorded a run yet.' : 'This use case has no job and keeps no results table, so it has no runs to show.';
 }
 
-export default function Runs({ page, runs, offset, onOffset, onExplain, genieBusy, trends, themeKey, app, onRun, running }) {
-  const [open, setOpen] = useState(() => new Set());
+export default function Runs({ page, runs, offset, onOffset, onExplain, genieBusy, trends, themeKey, app, onRun, running, opened = '' }) {
+  const [open, setOpen] = useState(() => new Set(opened ? [opened] : []));
   const { data, error, busy } = runs;
   const list = data?.runs || [];
   const total = data?.total || 0;

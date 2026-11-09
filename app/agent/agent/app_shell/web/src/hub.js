@@ -82,6 +82,13 @@ export function viewRows(items, view, user) {
   return { owned, fix: owned.filter(isToFix), shown: sortThings(owned.filter((i) => isShown(i, view.show)), user) };
 }
 
+export function hubView(page, current, summary, view, user) {
+  const currency = pageCurrency(page, summary);
+  const kind = pageKind(page, summary);
+  const items = current?.tracked ? current.items.map((i) => ({ ...i, page, currency, kind, model: current.money_model || null })) : [];
+  return viewRows(items, view, user);
+}
+
 export const viewIsDefault = (view) => view.owner === DEFAULT_VIEW.owner && view.show === DEFAULT_VIEW.show;
 
 export function viewWords(view, reasons = [], state = null) {

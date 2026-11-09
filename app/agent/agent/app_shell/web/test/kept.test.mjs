@@ -87,7 +87,7 @@ test('the inbox tags the kept record you own and leaves the others as they are',
     return base.records(call);
   };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...base, records }, hash: '#/n01_u05/work' });
-  await page.locator('[data-inbox]').click();
+  await page.locator('[data-rail="inbox"]').click();
   const assigned = page.locator('[data-inbox-group="assigned"] [data-inbox-item]');
   await assigned.nth(1).waitFor();
   const tags = await assigned.evaluateAll((all) => all.map((b) => [b.querySelector('bdi').textContent, b.querySelector('.chg-b--missing')?.textContent || '']));
