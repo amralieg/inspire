@@ -80,7 +80,10 @@ export function useGenie(app, current, onOpen, view = null) {
   const key = about ? about.pageId : pinned || genieKey(app, current);
   const keyNow = useRef(key);
   useEffect(() => () => { alive.current = false; }, []);
-  useEffect(() => { setPinned(''); }, [current]);
+  useEffect(() => {
+    setPinned('');
+    if (subject.current && subject.current.pageId !== current) { subject.current = null; setAbout(null); }
+  }, [current]);
   useEffect(() => { opener.current = onOpen; shown.current = app; keyNow.current = key; all.current = threads; modesNow.current = modes; viewNow.current = view; });
   useEffect(() => {
     if (!key || !genieOn(app, key) || modesNow.current[key]) return;
@@ -387,7 +390,6 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
     setDraft('');
     input.current?.focus();
   }, [draft, setDraft]);
-  useEffect(() => { if (about && page && page.id !== about.pageId) clearAbout(); }, [about, page, clearAbout]);
   const info = genieOf(app, key);
   const home = key ? app.pages.find((p) => p.id === key) : null;
   const on = Boolean(home) && info.enabled;
@@ -399,7 +401,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
   const who = app.auth === 'user' ? 'with your permissions' : "with the App's permissions";
   const subject = about ? `"${about.label}"` : home ? home.title : '';
   const status = !home ? 'Each use case has its own Genie Agent'
-    : on && agent ? `Answers about this use case ${who}; asks the Genie Agent${info.title ? ` "${info.title}"` : ''} when it needs the data`
+    : on && agent ? `Answers about ${page && page.id !== home.id ? home.title : 'this use case'} ${who}; asks the Genie Agent${info.title ? ` "${info.title}"` : ''} when it needs the data`
       : on ? `Answers from the Genie Agent${info.title ? ` "${info.title}"` : ''} · ${who}` : 'Ask Genie is off for this use case';
   return (
     <aside ref={panel} className={`genie is-open ${full ? 'genie--full' : ''}`} aria-label="Ask Genie" style={full ? undefined : { '--genie-w': `${width.shown}px` }} data-genie-full={full || undefined}>
