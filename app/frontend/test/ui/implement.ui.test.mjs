@@ -921,6 +921,29 @@ test('while Genie builds, a log the agent swaps for a copy with only its newest 
   }
 });
 
+test('a Genie reconnect line reads as one plain sentence and keeps the gateway address under Details', async () => {
+  const retry = 'Reconnecting... 6/10 (stream disconnected before completion: error sending request for url (http://10.1.2.3/ai-gateway/mlflow/v1/responses))';
+  const lines = [genieLogLine(1, 'I am reading the notebook.'), genieLogLine(2, '').replace('Genie: ', `Genie error: ${retry}`)];
+  const building = built({ status: 'building_outputs', status_message: 'building outputs', implement_run_id: '5555555555555555', updated_at: new Date().toISOString() });
+  const ui = await openUi('implement', { ...STUDIO_STATE, history: [building], liveLog: logText(lines),
+    implementRun: { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } } });
+  const { page } = ui;
+  const box = page.getByRole('log', { name: "Genie's messages" });
+  try {
+    await expandBuild(page);
+    await box.getByText('Genie lost its link to the AI model and is reconnecting, try 6 of 10').waitFor({ timeout: 20000 });
+    const shown = await box.innerText();
+    assert.doesNotMatch(shown, /10\.1\.2\.3|ai-gateway|Reconnecting\.\.\./, 'the address and the raw retry line stay out of the sentence (must-exclude)');
+    const details = box.locator('[data-technical-details]');
+    assert.equal(await details.count(), 1);
+    await details.locator('summary').click();
+    assert.ok((await details.innerText()).includes('http://10.1.2.3/ai-gateway/mlflow/v1/responses'), 'the raw line is one click away');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('the Build progress box scrolls Genie\'s messages itself: the page never grows with them, it follows new ones only while the end is in view, offers Jump to latest otherwise, and never shows log lines or JSON', async () => {
   const said = (i) => `Step ${i}: I'm checking the notebook instructions and the Databricks workflow before I build the dashboard.`;
   const first = Array.from({ length: 24 }, (_, i) => genieLogLine(i, said(i)));

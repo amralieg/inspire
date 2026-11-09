@@ -343,3 +343,16 @@ test('a running Discovery fills its steps and the use cases each step found whil
     await ui.close();
   }
 });
+
+test('a run with no strategy says in plain words that Inspire uses common business goals', async () => {
+  const backend = sessionBackend({ session: () => ({ processing_status: 'done', completed_percent: 40, completed_on: null, last_updated: ago(MINUTE),
+    widget_values: { business: 'Acme Retail', discovery_type: 'Standard Discovery' } }) });
+  const ui = await openMonitor(backend);
+  try {
+    await ui.page.getByText('No strategy given, so Inspire uses common business goals').first().waitFor({ timeout: 10000 });
+    assert.doesNotMatch(await ui.page.locator('body').innerText(), /built-in goals/);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
