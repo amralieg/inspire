@@ -1,0 +1,242 @@
+name: ci
+
+on:
+  push:
+    branches: [dev, "v15/**", "wip/**"]
+  pull_request:
+    branches: [dev]
+  workflow_dispatch:
+
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.ref != 'refs/heads/dev' }}
+
+permissions:
+  contents: read
+
+env:
+  NODE_VERSION: "25"
+  PYTHON_VERSION: "3.14"
+  TZ: UTC
+  LANG: C.UTF-8
+  LC_ALL: C.UTF-8
+  PYTHONUTF8: "1"
+  FORCE_COLOR: "0"
+  PY_DEPS: >-
+    pytest==9.0.2 pytest-timeout==2.4.0 databricks-sdk==0.112.0 httpx==0.28.1 matplotlib==3.10.9
+    numpy==2.4.6 openpyxl==3.1.5 pandas==3.0.5 pillow==12.1.1 psycopg[binary]==3.3.6 pydantic==2.13.4
+    python-pptx==1.0.2 PyYAML==6.0.3 requests==2.32.5 scikit-learn==1.9.0 scipy==1.18.0 sqlglot==30.11.0
+    weasyprint==70.0
+
+jobs:
+  backend:
+    name: backend node suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            app/backend/package-lock.json
+            app/frontend/package-lock.json
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: .github/workflows/ci.yml
+      - run: python -m pip install $PY_DEPS
+      - run: npm ci --no-audit --no-fund
+        working-directory: app/backend
+      - run: npm ci --no-audit --no-fund
+        working-directory: app/frontend
+      - uses: ./.github/actions/playwright
+        with:
+          working-directory: app/frontend
+      - run: node --test --test-reporter=spec --test-reporter-destination=stdout backend/test/*.test.js
+        working-directory: app
+
+  frontend:
+    name: frontend browser suite ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: |
+            app/backend/package-lock.json
+            app/frontend/package-lock.json
+      - run: npm ci --no-audit --no-fund
+        working-directory: app/backend
+      - run: npm ci --no-audit --no-fund
+        working-directory: app/frontend
+      - uses: ./.github/actions/playwright
+        with:
+          working-directory: app/frontend
+      - run: node --test --test-concurrency=3 --test-shard=${{ matrix.shard }}/4 --test-timeout=120000 --test-global-setup=test/ui/prebundle.mjs 'test/ui/*.test.mjs'
+        working-directory: app/frontend
+
+  app-shell-web:
+    name: app_shell web suite ${{ matrix.shard }}/4
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [1, 2, 3, 4]
+    defaults:
+      run:
+        working-directory: app/agent/agent/app_shell/web
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: app/agent/agent/app_shell/web/package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - uses: ./.github/actions/playwright
+        with:
+          working-directory: app/agent/agent/app_shell/web
+      - run: npm run -s build
+      - run: node --test --test-concurrency=3 --test-shard=${{ matrix.shard }}/4 --test-timeout=120000 'test/*.test.mjs'
+
+  python-unit:
+    name: python unit ${{ matrix.shard }}/10
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        shard: [0, 1, 2, 3, 4, 5, 6, 7, 8, 9]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: .github/workflows/ci.yml
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+      - run: sudo apt-get update -qq && sudo apt-get install -y -qq libpango-1.0-0 libpangoft2-1.0-0 libharfbuzz-subset0 fonts-dejavu-core
+      - run: python -m pip install $PY_DEPS
+      - name: run shard
+        working-directory: app/agent
+        env:
+          SHARD: ${{ matrix.shard }}
+          SHARDS: "10"
+        run: |
+          mapfile -t all < <(cd tests/unit && ls -1 *_test.py | LC_ALL=C sort)
+          files=()
+          for i in "${!all[@]}"; do
+            if (( i % SHARDS == SHARD )); then files+=("tests/unit/${all[$i]}"); fi
+          done
+          echo "shard $SHARD/$SHARDS: ${#files[@]} of ${#all[@]} files"
+          python -m pytest -q -rfE -p no:cacheprovider --timeout=600 --durations=40 -o faulthandler_timeout=25 "${files[@]}"
+
+  installer:
+    name: installer suite
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+          cache: pip
+          cache-dependency-path: .github/workflows/ci.yml
+      - run: python -m pip install $PY_DEPS
+      - run: python -m pytest -q -rfE -p no:cacheprovider --timeout=900 app/installer/test
+
+  checks:
+    name: notebook, size, embed and leak checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+      - uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: npm
+          cache-dependency-path: app/agent/agent/app_shell/web/package-lock.json
+      - name: leak scan against origin/main
+        env:
+          LEAK_SCAN_PY: ${{ secrets.LEAK_SCAN_PY }}
+        run: |
+          if [ -z "$LEAK_SCAN_PY" ]; then
+            if [ "${{ github.event_name }}" = pull_request ] && [ "${{ github.event.pull_request.head.repo.full_name }}" != "${{ github.repository }}" ]; then
+              echo "::warning::leak scan skipped: repository secrets are not available to pull requests from forks"
+              exit 0
+            fi
+            echo "::error::LEAK_SCAN_PY secret is missing"
+            exit 1
+          fi
+          git fetch -q origin main
+          scan="$RUNNER_TEMP/leak_scan.py"
+          printf '%s' "$LEAK_SCAN_PY" | base64 -d > "$scan"
+          python "$scan" "$GITHUB_WORKSPACE" origin/main
+      - if: ${{ !cancelled() }}
+        name: notebook parses and both copies are identical
+        working-directory: app/agent/tests
+        run: |
+          cmp ../agent/dbx_inspire_ai_agent.ipynb ../../dbx_inspire_ai_agent.ipynb
+          python - <<'EOF'
+          import ast
+          from _nbload import AGENT_NB, code_cells
+          cells = code_cells(AGENT_NB)
+          for i, src in enumerate(cells):
+              ast.parse(src, filename=f"{AGENT_NB} code cell {i}")
+          print(f"{AGENT_NB}: {len(cells)} code cells parse")
+          EOF
+      - if: ${{ !cancelled() }}
+        name: notebook under 6,000,000 bytes
+        run: |
+          for nb in app/agent/agent/dbx_inspire_ai_agent.ipynb app/dbx_inspire_ai_agent.ipynb; do
+            size=$(stat -c %s "$nb")
+            echo "$nb: $size bytes"
+            [ "$size" -lt 6000000 ] || { echo "::error::$nb is $size bytes, limit 6000000"; exit 1; }
+          done
+      - if: ${{ !cancelled() }}
+        name: notebook bundle is current
+        working-directory: app
+        run: |
+          node scripts/bundle-agent-notebook.mjs
+          git diff --exit-code --stat -- dbx_inspire_ai_agent.ipynb backend/notebook_bundle.js
+      - if: ${{ !cancelled() }}
+        run: npm ci --no-audit --no-fund
+        working-directory: app/agent/agent/app_shell/web
+      - if: ${{ !cancelled() }}
+        name: embed check
+        working-directory: app/agent
+        run: python agent/app_shell/embed.py check --build
+      - if: ${{ !cancelled() }}
+        name: app.js bundle under 1,300,000 bytes
+        run: |
+          js=app/agent/agent/app_shell/web/dist/assets/app.js
+          size=$(stat -c %s "$js")
+          echo "$js: $size bytes"
+          [ "$size" -lt 1300000 ] || { echo "::error::$js is $size bytes, limit 1300000"; exit 1; }
+
+  gate:
+    name: release gate
+    if: always()
+    needs: [backend, frontend, app-shell-web, python-unit, installer, checks]
+    runs-on: ubuntu-latest
+    steps:
+      - run: |
+          echo '${{ toJSON(needs) }}' | python3 -c "import json,sys; n=json.load(sys.stdin); bad=[k for k,v in n.items() if v['result']!='success']; print('failed:', bad or 'none'); sys.exit(1 if bad else 0)"
