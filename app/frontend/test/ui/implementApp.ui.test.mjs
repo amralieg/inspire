@@ -703,7 +703,9 @@ test('the App is picked on Deliver under the App tile: it lists the Apps Inspire
     assert.equal(await dash.getByRole('button', { name: 'Create new' }).getAttribute('aria-pressed'), 'true', 'Create new is the default');
     await page.getByRole('checkbox', { name: /^App / }).check();
     assert.equal(await page.locator('[data-merge="app"]').count(), 0, 'Delivery no longer picks the App');
-    assert.match(await appTile(page), /You pick where it goes below\.Recommended/);
+    assert.doesNotMatch(await appTile(page), /You pick where it goes below/, 'the placement sits beside the tiles, so the tile never points below (must-exclude)');
+    assert.equal(await page.locator('[data-deliver-layout="beside"]').count(), 1);
+    assert.match(await page.locator('[data-deliver-more-item="app"]').textContent(), /^App: /, 'what each tile builds sits under one disclosure');
     const genie = page.locator('[data-merge="genie_space"]');
     await genie.getByText('Inspire has built none yet').waitFor();
     await placeStep(page).locator('[data-app-target]').first().waitFor();
@@ -944,7 +946,7 @@ async function measure(page, name) {
   return box;
 }
 
-test('every wizard step but the App steps, and Deliver once it holds where the App goes, fits a 1440x900 screen with nothing to scroll, and every step reads at 4.5:1 in light and dark', async () => {
+test('every wizard step but the App steps, Deliver with the App and where it goes included, fits a 1440x900 screen with nothing to scroll, and every step reads at 4.5:1 in light and dark', async () => {
   const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' } });
   const { page } = ui;
   const heights = {};
@@ -986,10 +988,11 @@ test('every wizard step but the App steps, and Deliver once it holds where the A
     await fits('4-deliver-joining');
     await page.getByRole('checkbox', { name: /^App / }).check();
     await placeStep(page).locator('[data-app-target]').first().waitFor();
-    await measure(page, '4-deliver-app');
+    await fits('4-deliver-app');
+    assert.equal(await page.locator('[data-deliver-layout="beside"]').count(), 1, 'the App placement sits beside the tiles');
     await readable('deliver');
     await placeStep(page).locator('[data-app-target] input[type="radio"]').first().check();
-    await measure(page, '4-deliver-app-joining');
+    await fits('4-deliver-app-joining');
     await readable('deliver app joining');
     await placeStep(page).getByRole('radio', { name: /^Create a new App/ }).check();
     await goToStep(page, 'Who uses the App');

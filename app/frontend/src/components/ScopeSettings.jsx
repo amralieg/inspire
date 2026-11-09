@@ -7,8 +7,8 @@ import {
   FIRST_RUN_GROUPS_FIND_FROM, FIRST_RUN_GROUPS_MAX_SHOWN, FIRST_RUN_GROUPS_READING, FIRST_RUN_KEEPS, FIRST_RUN_SAVE_LABEL, GROUP_ALL, GROUP_BY, GROUP_KIND_WORDS, GROUPING_COMBINE,
   GROUPING_DEEP_MARK, GROUPING_DEEP_PICKED, GROUPING_PLAIN, GROUPING_SAVE_LABEL, RUN_SCOPE, RUN_SCOPE_UNRECORDED, RUN_SCOPES, SCOPE_DAYS,
   SCOPE_GROUPS, SCOPE_LABELS, SCOPE_RECORDS, deepGrouping, firstRunChoiceOf, firstRunGroupsPick, groupingCombineNote, firstRunChoices, firstRunCoversText, groupByColumns, groupingChoices, groupingExampleText,
-  groupingGroupsOf, groupingMovesUpText, groupingProfiled, groupingReasonText, groupsPickedByRunText, isFirstRunSetting, isGroupingSetting, isScopeSetting,
-  profileHeldText, sameGrouping, scopeChanges, scopeGroupKey, scopeGroupText, scopeGroupsColumn, scopeGroupsOf, scopeGroupsValue, scopeProblems, scopeValues,
+  groupingGroupsOf, groupingMovesUpText, groupingNothingText, groupingOverLimitText, groupingProfiled, groupingReasonText, groupsPickedByRunText, isFirstRunSetting, isGroupingSetting, isScopeSetting,
+  isolated, profileHeldText, sameGrouping, scopeChanges, scopeGroupKey, scopeGroupText, scopeGroupsColumn, scopeGroupsOf, scopeGroupsValue, scopeProblems, scopeValues,
   suggestedGroups, withScopeDefaults, FIRST_RUN_LABEL, GROUPING_FIND, GROUPING_MORE, groupingCount, groupingCountText, groupingLead, topShown,
 } from '../lib/runScope';
 import { bestFirstRun, bestGrouping, isBest } from '../lib/recommended';
@@ -54,8 +54,10 @@ function GroupingPart({ values, onChange, profile, settings, editable, chosenBy 
     const next = columns.map((c) => String(c.name)).filter((n) => (n === name ? on : ticked.includes(n.toLowerCase())));
     onChange(GROUP_BY, next.length ? next.join(', ') : GROUP_ALL);
   };
-  const best = bestGrouping(profile, choices);
-  const lead = groupingLead(profile, choices);
+  const best = choices.length > 1 ? bestGrouping(profile, choices) : null;
+  const lead = groupingLead(profile, choices, current);
+  const overLimit = groupingOverLimitText(lead, profile);
+  const nothing = groupingNothingText(profile, choices);
   const [cards, setCards] = useState({ open: false, find: '' });
   const [combine, setCombine] = useState({ open: false, find: '' });
   const keepCard = (c) => !c.columns.length || pickedOf(c) || isBest(best, c.value) || Boolean(c.deep);
@@ -65,9 +67,10 @@ function GroupingPart({ values, onChange, profile, settings, editable, chosenBy 
   return (
     <fieldset aria-label={SCOPE_LABELS[GROUP_BY]} data-scope-part="grouping" className="min-w-0 space-y-2">
       <legend className="text-[12px] font-semibold text-text-primary">{SCOPE_LABELS[GROUP_BY]}</legend>
-      {lead ? (
+      {nothing ? <p data-grouping-nothing="" className="text-[12px] text-text-primary">{nothing}</p> : lead ? (
         <p data-grouping-lead="" className="text-[12px] text-text-primary">
           <strong>{lead.label}</strong> splits the data into <strong>{groupingCountText(lead.groups)}</strong>. Inspire models each group on its own.
+          {overLimit && <span role="alert" data-grouping-over-limit="" className="block text-warning-fg">{overLimit}</span>}
         </p>
       ) : reason && <p data-grouping-reason="" className="text-[12px] text-text-primary">{reason}</p>}
       <details data-grouping-more="" className={NOTE}>
@@ -173,7 +176,7 @@ function GroupsPicker({ groups, picked, many, editable, onPick }) {
         {shown.map((g) => (
           <label key={scopeGroupKey(g.parts)} data-scope-group={g.value} className="flex items-center gap-2">
             <input dir="auto" type={many ? 'checkbox' : 'radio'} name="inspire-first-run-group" disabled={!editable} checked={isPicked(g)} onChange={(e) => toggle(g, e.target.checked)} />
-            <span>{g.parts.length > 1 ? scopeGroupText(g.parts) : g.value}{GROUP_KIND_WORDS[g.kind] ? `, ${GROUP_KIND_WORDS[g.kind]}` : ''}{g.records != null ? ` · ${counted(g.records, 'record')}` : ''}</span>
+            <span>{g.parts.length > 1 ? scopeGroupText(g.parts) : isolated(g.value)}{GROUP_KIND_WORDS[g.kind] ? `, ${GROUP_KIND_WORDS[g.kind]}` : ''}{g.records != null ? ` · ${counted(g.records, 'record')}` : ''}</span>
           </label>
         ))}
       </div>
@@ -221,7 +224,7 @@ function FirstRunPart({ values, onChange, profile, groupsState, settings, editab
               <input type="radio" name="inspire-first-run" value={c.id} className="mt-0.5" checked={current === c.id} disabled={!editable || waiting(c)} onChange={() => pick(c)} />
               <span className="min-w-0">
                 <span className="font-medium">{c.label}</span>
-                {c.records != null && !c.label.startsWith(counted(c.records, 'record')) && <span data-first-run-records="" className="text-text-secondary"> · {counted(c.records, 'record')}</span>}
+                {c.records != null && !c.label.includes(counted(c.records, 'record')) && <span data-first-run-records="" className="text-text-secondary"> · {counted(c.records, 'record')}</span>}
                 {c.estimate && <span data-first-run-estimate="" className="block text-[11px] text-text-secondary">{c.estimate}</span>}
                 <span className="block"><Recommended best={best} id={c.id} /></span>
               </span>
@@ -280,7 +283,7 @@ export default function ScopeSettings({
       data-scope-settings={part} className="space-y-3">
       <ProfileNote state={profileState} error={profileError} />
       {part !== 'first_run' && <GroupingPart values={values} onChange={onChange} profile={profile} settings={settings} editable={editableOf(GROUP_BY)} chosenBy={groupingChosenBy} />}
-      {part !== 'grouping' && groups && groups.state === 'error' && (
+      {part !== 'grouping' && groups && groups.state === 'error' && !(profileState === 'error' && groups.error === profileError) && (
         <p role="alert" data-first-run-groups-error="" className="text-[11px] text-error-fg">Inspire could not read the groups of the Data groups you chose: {groups.error}</p>
       )}
       {part !== 'grouping' && (

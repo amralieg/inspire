@@ -215,6 +215,7 @@ import {
   USE_CASE_TITLE,
   builtSentence,
   DELIVERY_QUESTION,
+  DELIVER_MORE,
   BUILD_IT_LABEL,
   BACK_TO_SUMMARY,
   SUMMARY_STEP,
@@ -245,9 +246,9 @@ import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, useScopeProfiles } from '../lib/groupingProfile';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
-  FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
+  FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
-  withGroupingDefault, withScopeDefaults, GROUP_BY, FIRST_RUN_LABEL, groupingChoices, groupingCount, groupingCountText, sameGrouping, scopeText,
+  withGroupingDefault, withScopeDefaults, GROUP_BY, groupingChoices, groupingCount, groupingCountText, groupingOf, firstRunSummaryText,
 } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
@@ -1082,6 +1083,7 @@ export default function ImplementWizard({
   }, [principalQ, apiFetch, q]);
 
   const title = caseNameOf(uc) || spec.use_case_name || spec.use_case_id;
+  const placeBeside = stepId === 'delivery' && Boolean(spec.outputs.app) && shows('app_place');
   const genieOff = genieCodeOff(features);
   const unavailable = Object.keys(blocks);
   const unavailableKey = unavailable.join(',');
@@ -1160,10 +1162,10 @@ export default function ImplementWizard({
     layout: bestLook('layout', spec),
   });
   const groupingNow = spec.config.widgets?.[GROUP_BY] || scopeShown[GROUP_BY];
-  const groupingPicked = groupingChoices(scopeProfile.profile).find((c) => sameGrouping(c.value, groupingNow));
+  const groupingPicked = groupingOf(scopeProfile.profile, groupingNow);
   const summaryRows = pickedSummary(spec, sourceTables, {
     grouping: scopeSteps.grouping && groupingPicked ? `${groupingPicked.label} · ${groupingCountText(groupingCount(groupingPicked, scopeProfile.firstRun?.profile || scopeProfile.profile))}` : '',
-    firstRun: scopeSteps.firstRun ? scopeText(sentScope, scopeProfile.profile).replace(`${FIRST_RUN_LABEL}: `, '') : '',
+    firstRun: scopeSteps.firstRun ? firstRunSummaryText(scopeProfile.firstRun?.state === 'ready' ? scopeProfile.firstRun.profile : scopeProfile.profile, sentScope) : '',
     settings: settingsList.length ? counted(settingsList.length, 'setting') : '',
     dropped: dropped.filter((d) => !spec.outputs[d.id]),
   }).filter((row) => steps.some((s) => s.id === row.step));
@@ -1445,7 +1447,7 @@ export default function ImplementWizard({
         {((shows('grouping') && mode === 'mvp' && (scopeSteps.grouping || scopeProfile.state === 'loading')) || shows('first_run')) && (
           <section aria-label={shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE} data-scope-step={shows('first_run') ? 'first_run' : 'grouping'} className="space-y-3">
             <h3 className="text-sm font-semibold text-text-primary">{shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE}</h3>
-            {shows('grouping') && <p data-grouping-example-plain="" className="text-[12px] text-text-secondary">{GROUPING_EXAMPLE}</p>}
+            {shows('grouping') && <p data-grouping-example-plain="" className="text-[12px] text-text-secondary">{GROUPING_EXAMPLE}{groupingChoices(scopeProfile.profile).length > 1 ? ` ${GROUPING_PICK}` : ''}</p>}
             {shows('first_run') && <GroupingChosen values={scopeShown} profile={scopeProfile.firstRun?.profile || scopeProfile.profile} />}
             <ScopeSettings part={shows('first_run') ? 'first_run' : 'grouping'} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
               groups={shows('first_run') ? scopeProfile.firstRun : null} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
@@ -1507,7 +1509,7 @@ export default function ImplementWizard({
               <p className="text-[11px] text-text-tertiary">
                 {freshness === 'off'
                   ? 'It runs once now. Turn this on later to keep the results current.'
-                  : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first run works. Cost: ${costHint(spec)}`}
+                  : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first run works. Cost: ${costHint(spec, { scheduleSaid: true })}`}
               </p>
             </section>
 
@@ -1557,20 +1559,21 @@ export default function ImplementWizard({
 
         {stepId === 'delivery' && mode === 'mvp' && (
           <>
+            <div data-deliver-layout={placeBeside ? 'beside' : 'stacked'} className={placeBeside ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start' : 'space-y-4'}>
             <section className="space-y-2" aria-label={DELIVERY_LABEL}>
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <h3 className="text-sm font-semibold text-text-primary">{DELIVERY_QUESTION}</h3>
                 <p className="text-[11px] text-text-tertiary">Pick one or more. Genie builds each one for you.</p>
               </div>
-              <div data-choice="outputs" data-choice-multi="" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div data-output={NOTEBOOK_CARD.id} className="border rounded-lg p-3 border-db-red/50 bg-db-red-50/40">
+              <div data-choice="outputs" data-choice-multi="" className={`grid grid-cols-1 ${placeBeside ? 'gap-2' : 'sm:grid-cols-2 gap-3'}`}>
+                <div data-output={NOTEBOOK_CARD.id} className={`border rounded-lg ${placeBeside ? 'p-2' : 'p-3'} border-db-red/50 bg-db-red-50/40`}>
                   <label className="flex items-start gap-3">
                     <input type="checkbox" value={NOTEBOOK_CARD.id} className="mt-0.5" checked disabled readOnly />
                     <span className="flex-1">
                       <span className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                         {NOTEBOOK_CARD.label} <Lock size={12} className="text-text-tertiary" aria-hidden="true" />
                       </span>
-                      <span className="block text-[11px] mt-1 text-text-secondary">{NOTEBOOK_CARD.blurb}</span>
+                      {!placeBeside && <span className="block text-[11px] mt-1 text-text-secondary">{NOTEBOOK_CARD.blurb}</span>}
                     </span>
                   </label>
                 </div>
@@ -1587,7 +1590,7 @@ export default function ImplementWizard({
                   const gone = on && (context?.gone_assets || []).includes(item.id);
                   const holding = sharedHolding(item.id, shared, live);
                   return (
-                    <div key={item.id} data-output={item.id} data-blocked={cannot ? '' : undefined} className={`border rounded-lg p-3 space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'} ${cannot && !on ? 'border-dashed bg-bg cursor-not-allowed' : ''}`}>
+                    <div key={item.id} data-output={item.id} data-blocked={cannot ? '' : undefined} className={`border rounded-lg ${placeBeside ? 'p-2' : 'p-3'} space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'} ${cannot && !on ? 'border-dashed bg-bg cursor-not-allowed' : ''}`}>
                       <div className="relative">
                         <label className={`flex items-start gap-3 ${locked ? '' : 'cursor-pointer'}`}>
                           <input type="checkbox" value={item.id} className="mt-0.5" checked={on} disabled={(cannot && !on) || locked} onChange={(e) => toggleOutput(item.id, e.target.checked)} />
@@ -1596,10 +1599,12 @@ export default function ImplementWizard({
                               <Icon size={14} /> {item.label}
                               {locked && <Lock size={12} className="text-text-tertiary" aria-hidden="true" />}
                             </span>
-                            <span className="block text-[11px] mt-1 text-text-secondary">
-                              {locked ? GENIE_FOR_APP_NOTE : item.blurb}
-                              {!cannot && item.id === 'app' && ` ${APP_NEXT_NOTE}`}
-                            </span>
+                            {(locked || !placeBeside) && (
+                              <span className="block text-[11px] mt-1 text-text-secondary">
+                                {locked ? GENIE_FOR_APP_NOTE : item.blurb}
+                                {!cannot && item.id === 'app' && ` ${APP_NEXT_NOTE}`}
+                              </span>
+                            )}
                             {cannot && on && <span className="block text-[11px] mt-1 text-error-fg">It cannot be built, so turn it off.</span>}
                             <span className="block mt-1"><Recommended best={best.output} id={item.id} /></span>
                           </span>
@@ -1654,6 +1659,16 @@ export default function ImplementWizard({
                   );
                 })}
               </div>
+              {placeBeside && (
+                <details data-deliver-more="" className="text-[11px] text-text-secondary">
+                  <summary className="cursor-pointer select-none font-medium">{DELIVER_MORE}</summary>
+                  <ul className="mt-1 space-y-1">
+                    {[NOTEBOOK_CARD, ...IMPLEMENT_OUTPUTS].map((o) => (
+                      <li key={o.id} data-deliver-more-item={o.id}><span className="font-medium text-text-primary">{o.label}</span>: {o.blurb}</li>
+                    ))}
+                  </ul>
+                </details>
+              )}
             </section>
 
             {shows('app_place') && spec.outputs.app && (
@@ -1683,6 +1698,7 @@ export default function ImplementWizard({
                 best={{ target: best.appTarget, policy: best.appPolicy, held: best.heldApp }}
               />
             )}
+            </div>
 
             {['dashboard', 'genie_space', 'app', 'alert'].some((o) => spec.outputs[o]) && (
               <Advanced open={advanced.delivery} onToggle={() => toggleAdvanced('delivery')}>
@@ -1932,7 +1948,7 @@ export default function ImplementWizard({
           </p>
         )}
         {shows('vibes') && (
-          <VibesPanel spec={spec} built={built} next={(context?.latest?.spec_version ?? 0) + 1} onChange={(value) => patch('vibes', value)}
+          <VibesPanel spec={spec} built={built} next={(context?.latest?.spec_version ?? 0) + 1} blocks={blocks} onChange={(value) => patch('vibes', value)}
             onPrevious={(choice) => patch('vibe_previous', choice)} />
         )}
       </div>
@@ -2038,10 +2054,10 @@ function SegmentButton({ on, disabled = false, onClick, option, children }) {
   );
 }
 
-function VibesPanel({ spec, built, next, onChange, onPrevious }) {
+function VibesPanel({ spec, built, next, blocks, onChange, onPrevious }) {
   const asked = String(spec.vibes ?? '').trim() !== '';
   const choices = built != null && asked ? vibePreviousChoices(built, next, Boolean(spec.outputs?.alert)) : [];
-  const skipped = vibesSkippedText(spec);
+  const skipped = vibesSkippedText(spec, blocks);
   const skippedAsks = skippedAsksText(spec);
   return (
     <section aria-label="Vibes" className="space-y-3">
@@ -2218,7 +2234,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
                         <Recommended best={best?.target} id={c.target.id} />
                       </span>
                       <span className="block text-[11px] text-text-secondary">Holds {mergeTargetText(c.target)} · {ACCESS_SHORT[c.target.access]}</span>
-                      {c.reason && <span className="block text-[11px] text-text-secondary">{c.reason}</span>}
+                      {c.reason && !fresh && <span className="block text-[11px] text-text-secondary">{c.reason}</span>}
                       {c.block && <span className="block text-[11px] text-error-fg">{c.block}</span>}
                     </span>
                   </label>
@@ -2258,7 +2274,7 @@ function AppPlacementStep({ spec, targets, targetsError, heldApp, scope, warehou
                       <input type="radio" name="app-policy" value={p.id} className="mt-0.5" checked={placement === p.id} disabled={Boolean(off)}
                         onChange={() => onNew(p.id)} />
                       <span className="text-[11px] text-text-secondary">
-                        <span className="text-[12px] font-medium text-text-primary">{p.label}</span>. {p.blurb}
+                        <span className="text-[12px] font-medium text-text-primary">{p.label}</span>{placement === p.id && `. ${p.blurb}`}
                         <span className="block"><Recommended best={best?.policy} id={p.id} /></span>
                         {off && <span data-placement-off={p.id} className="block">{off}</span>}
                       </span>

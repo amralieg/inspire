@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
+import { KPI_NONE_YET } from '../../src/lib/targetKpi.js';
 import { closeBrowser, dataToResults, lowContrast, onStep, openAsset, openBuild, openUi, startMvp, until, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
@@ -92,7 +93,9 @@ test('the picker shows the KPI the built version tracks, its unit and how record
     await dataToResults(none.page);
     await goToStep(none.page, 'Measure impact');
     assert.deepEqual(await picker(none.page).locator('option').allTextContents(), ['Let Inspire pick']);
-    await none.page.getByText('This use case has no Inspire KPI yet, so Inspire evaluates the best KPIs for it from its tables when it builds. After the build you can pick one of them here.').waitFor();
+    await none.page.getByText(KPI_NONE_YET).waitFor();
+    assert.equal(await none.page.getByText('the first it can compute').count(), 1, 'the pick rule is said once');
+    assert.equal(await none.page.getByText('you can pick one of them here').count(), 0, 'never a second, different rule (must-exclude)');
     assert.deepEqual(none.pageErrors, []);
   } finally {
     await none.close();

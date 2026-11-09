@@ -1,4 +1,4 @@
-import { counted } from './plural.js';
+import { briefList, counted } from './plural.js';
 
 export const GROUP_BY = 'group_by';
 export const RUN_SCOPE = 'run_scope';
@@ -29,7 +29,8 @@ export const GROUPING_PLAIN = 'Data groups split the data the way the business l
   + 'a sales forecast for one region is not mixed with another, and what is unusual is found within its own group. Choose the whole data as one group to model it all together.';
 export const GROUPING_EXAMPLE = 'Some numbers only mean something inside a group. An average salary over all countries mixes very different pay levels '
   + 'and tells you little; the average per country, or per state, is one people can act on. Inspire works the same way: it works out each Data group '
-  + 'on its own, so one group never blurs another. Pick how to split the data below.';
+  + 'on its own, so one group never blurs another.';
+export const GROUPING_PICK = 'Pick how to split the data below.';
 export const GROUPING_COMBINE = 'Combine columns, coarse to fine';
 export function groupingCombineNote(columns) {
   const [broad, fine] = (columns || []).map((c) => text(c?.name)).filter(Boolean);
@@ -231,8 +232,21 @@ export function scopeGroupKey(group) {
   return JSON.stringify((group || []).map((p) => [text(p.column).toLowerCase(), String(p.value)]));
 }
 
+const RTL_LETTERS = /[\u0590-\u08FF\uFB1D-\uFDFF\uFE70-\uFEFF]/;
+
+export function isolated(value) {
+  const shown = text(value);
+  return RTL_LETTERS.test(shown) ? `\u2068${shown}\u2069` : shown;
+}
+
 export function scopeGroupText(group) {
-  return (group || []).map((p) => (p.column ? `${p.column} = ${p.value}` : p.value)).join(SCOPE_GROUP_AND);
+  return (group || []).map((p) => (p.column ? `${p.column} = ${isolated(p.value)}` : isolated(p.value))).join(SCOPE_GROUP_AND);
+}
+
+const byValue = (a, b) => String(a).localeCompare(String(b), 'en', { numeric: true });
+
+export function groupsInBrief(texts) {
+  return briefList([...texts].sort(byValue), { sep: '; ' });
 }
 
 export const GROUPING_DEEP_MARK = 'Suggested by discovery';
@@ -333,10 +347,24 @@ export function groupingBest(profile, choices = groupingChoices(profile)) {
   return choices.find((c) => sameGrouping(c.value, best)) || choices[0] || null;
 }
 
-export function groupingLead(profile, choices = groupingChoices(profile)) {
-  const best = groupingBest(profile, choices);
-  if (!best || !best.columns.length) return null;
-  return { label: best.label, groups: groupingCount(best, profile) };
+export function groupingOf(profile, groupBy, choices = groupingChoices(profile)) {
+  const found = choices.find((c) => sameGrouping(c.value, groupBy));
+  if (found) return found;
+  const columns = groupByColumns(groupBy).filter((c) => c.toLowerCase() !== GROUP_ALL && c.toLowerCase() !== GROUP_CUSTOM);
+  return columns.length ? { value: columns.join(', '), label: columns.join(', then '), columns } : null;
+}
+
+export function groupingLead(profile, choices = groupingChoices(profile), groupBy = '') {
+  const picked = groupBy ? groupingOf(profile, groupBy, choices) : null;
+  const lead = picked?.columns.length ? picked : groupingBest(profile, choices);
+  if (!lead || !lead.columns.length) return null;
+  return { label: lead.label, groups: groupingCount(lead, profile) };
+}
+
+export function groupingOverLimitText(lead, profile) {
+  const max = finite(profile?.group_max);
+  if (!lead || lead.groups == null || max == null || lead.groups <= max) return '';
+  return `That is more than the ${counted(max, 'group')} Inspire models one by one, so untick a column or pick a coarser one.`;
 }
 
 export function topShown(items, { keep = () => false, limit = GROUPING_SHOWN, open = false, query = '', textOf = String } = {}) {
@@ -352,14 +380,22 @@ export function groupingReasonText(profile) {
   return isMap(profile) && profile.applies === true ? text(profile.reason) : '';
 }
 
+export function groupingNothingText(profile, choices) {
+  if (!isMap(profile) || (Array.isArray(choices) ? choices : []).length > 1) return '';
+  if (profileRecords(profile) === 0) return `${text(profile.table) || 'The main table'} holds no records yet, so there is nothing to split and nothing to pick here.`;
+  const reason = groupingReasonText(profile) || 'No column splits the data into fair groups, so Inspire models the whole data as one group.';
+  return `${/[.!?]$/.test(reason) ? reason : `${reason}.`} There is nothing else to pick here.`;
+}
+
 export function groupingExampleText(profile) {
   const groups = suggestedGroups(profile);
   const column = text(profile?.example?.column) || (Array.isArray(profile?.recommended) ? text(profile.recommended[profile.recommended.length - 1]) : '');
   const big = groups.find((g) => g.kind === 'biggest') || groups[0];
   const small = groups.find((g) => g.kind === 'smallest') || groups[groups.length - 1];
   if (!column || !big || !small || big.value === small.value || big.records == null || small.records == null) return '';
-  return `${big.value} has ${counted(big.records, 'record')} and ${small.value} has ${counted(small.records, 'record')}. Grouped by ${column}, `
-    + `each ${column} is compared only with its own records, so what is normal for ${big.value} does not hide what stands out in ${small.value}.`;
+  const [bigText, smallText] = [isolated(big.value), isolated(small.value)];
+  return `${bigText} has ${counted(big.records, 'record')} and ${smallText} has ${counted(small.records, 'record')}. Grouped by ${column}, `
+    + `each ${column} is compared only with its own records, so what is normal for ${bigText} does not hide what stands out in ${smallText}.`;
 }
 
 export function groupingMovesUpText(profile) {
@@ -368,7 +404,7 @@ export function groupingMovesUpText(profile) {
   if (!small) return '';
   const into = text(example.moves_to) || GROUPING_GLOBAL_LABEL;
   const records = finite(small.records);
-  return `A group too small to compare fairly moves up a level: ${text(small.value)}${records == null ? '' : ` has ${counted(records, 'record')}, so it`} `
+  return `A group too small to compare fairly moves up a level: ${isolated(text(small.value))}${records == null ? '' : ` has ${counted(records, 'record')}, so it`} `
     + `is measured with ${into}.`;
 }
 
@@ -439,26 +475,26 @@ export function recordGroupsSaid(profile, values) {
   const picked = recordGroups(profile, values);
   const goal = whole(values?.[SCOPE_RECORDS]) ?? Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
   const about = `~${counted(goal, 'record')}`;
+  const all = profileRecords(profile);
+  if (all === 0) return { label: '0 records yet', detail: `${text(profile?.table) || 'The table'} holds no records yet, so the ${FIRST_RUN_LABEL} has nothing to read until data arrives.`, groups: [] };
+  if (all != null && all <= goal) return { label: `All ${counted(all, 'record')}`, detail: '', groups: [] };
   if (!picked && oneGroupChosen(profile, values)) return { label: about, detail: `${SPREAD_LINE}; the whole data is one group.`, groups: [] };
   if (!picked && isMap(profile) && profile.standalone !== true && !wholeColumnRead(profile, values?.[GROUP_BY])) {
-    return { label: `${about} in whole groups of ${wholeGroupColumn(values?.[GROUP_BY])}`, detail: 'No group is cut.', groups: [] };
+    return { label: `${about} in whole groups of ${groupByColumns(values?.[GROUP_BY]).filter((c) => c.toLowerCase() !== GROUP_ALL && !c.includes('.')).join(', then ')}`, detail: 'No group is cut.', groups: [] };
   }
   if (!picked) return { label: about, detail: `${SPREAD_LINE}.`, groups: [] };
   if (!picked.length) {
     return { label: about, detail: `${SPREAD_LINE}. This analysis compares records with each other and no column groups them, so a group may be cut in this ${FIRST_RUN_LABEL}.`, groups: [] };
   }
   const column = finestGroupColumn(profile);
-  const named = (g) => `${column ? `${column} = ` : ''}${g.value}`;
+  const named = (g) => `${column ? `${column} = ` : ''}${isolated(g.value)}`;
   const total = picked.reduce((sum, g) => sum + g.records, 0);
   if (picked.length === 1 && total > goal) {
     return { label: `${counted(total, 'record')} in 1 whole group`, detail: `All of ${named(picked[0])}, the smallest group, since every group holds more than ${counted(goal, 'record')}.`, groups: [] };
   }
-  const groups = picked.map((g) => `${named(g)} · ${counted(g.records, 'record')}`);
-  if (total > goal) {
-    return { label: `${counted(total, 'record')} in ${counted(picked.length, 'whole group')}`,
-      detail: `The ${FIRST_RUN_LABEL} sees more than one group and no group is cut.`, groups };
-  }
-  return { label: `${about} in ${counted(picked.length, 'whole group')}`, detail: `${counted(total, 'record')} in all, and no group is cut.`, groups };
+  const groups = picked.map((g) => `${named(g)} · ${counted(g.records, 'record')}`).sort(byValue);
+  return { label: `${counted(total, 'record')} in ${counted(picked.length, 'whole group')}`,
+    detail: total > goal ? `The ${FIRST_RUN_LABEL} sees more than one group and no group is cut.` : 'No group is cut.', groups };
 }
 
 export function recordGroupsText(profile, values) {
@@ -489,6 +525,7 @@ export function everythingEstimate(everything, total, first) {
   const size = whole(first) || Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
   if (total == null || total <= size) return '';
   const scale = Math.round(total / size);
+  if (scale < 2) return `Everything is ${counted(total, 'record')}, a little more than a ${size.toLocaleString('en-US')}-record ${FIRST_RUN_LABEL}, so it takes a little longer`;
   const lead = `Everything is ${counted(total, 'record')}, about ${scale.toLocaleString('en-US')} times a ${size.toLocaleString('en-US')}-record ${FIRST_RUN_LABEL}`;
   if (total / size > SCOPE_ESTIMATE_MAX_SCALE) return `${lead}; how long it takes is unknown until a larger run is measured`;
   return `${lead}, so it takes up to about ${scale.toLocaleString('en-US')} times as long`;
@@ -552,11 +589,12 @@ export function firstRunCoversText(profile, values, everything = '') {
     if (!picked.length) return `${FIRST_RUN_COVERS} no group yet; pick the groups it runs on.`;
     const columns = [...new Set(picked.flat().map((p) => text(p?.column)).filter(Boolean))];
     return `${FIRST_RUN_COVERS} ${counted(picked.length, 'group')}${columns.length ? ` of ${columns.join(', then ')}` : ''}: `
-      + `${picked.map(scopeGroupText).join('; ')}${size}. Every other group waits for a run on everything.`;
+      + `${groupsInBrief(picked.map(scopeGroupText))}${size}. Every other group waits for a run on everything.`;
   }
   if (found.scope === 'records') {
     const all = profileRecords(profile);
     const goal = whole(values?.[SCOPE_RECORDS]) ?? Number(SCOPE_DEFAULTS[SCOPE_RECORDS]);
+    if (all === 0) return `${FIRST_RUN_COVERS} nothing yet: ${text(profile?.table) || 'the main table'} holds no records.`;
     if (all != null && all <= goal) return `${FIRST_RUN_COVERS} all ${counted(all, 'record')} of ${text(profile?.table) || 'the main table'}, since it holds no more than ${counted(goal, 'record')}.`;
     return `${FIRST_RUN_COVERS} ${found.label}.${found.detail ? ` ${found.detail}` : ''}`;
   }
@@ -645,7 +683,9 @@ export function runScopeFacts(runs) {
 
 export function scopeStepsOf(profileState, profile, builtFirstRun = false) {
   const ready = profileState === 'ready' && isMap(profile);
-  return { grouping: ready && (profile.applies === true || deepGrouping(profile).length > 0), firstRun: builtFirstRun !== true && (ready || profileState === 'error') };
+  const reading = profileState === 'loading';
+  return { grouping: reading || (ready && (profile.applies === true || deepGrouping(profile).length > 0)),
+    firstRun: builtFirstRun !== true && (ready || reading || profileState === 'error') };
 }
 
 export function builtFirstRunOf(model) {
@@ -653,6 +693,16 @@ export function builtFirstRunOf(model) {
 }
 
 export const SCOPE_ALL_TEXT = 'All records';
+
+export function firstRunSummaryText(profile, values, everything = '') {
+  const choice = firstRunChoiceOf(values) || FIRST_RUN_DEFAULT;
+  const found = firstRunChoices(profile, values, everything).find((c) => c.id === choice);
+  if (!found) return '';
+  const size = found.records == null || found.label.includes(counted(found.records, 'record')) ? '' : ` · ${counted(found.records, 'record')}`;
+  if (found.scope !== 'groups') return `${found.label}${size}`;
+  const { picked } = pickedGroupsOf(profile, values);
+  return `${found.label}${size}${picked.length ? `: ${groupsInBrief(picked.map(scopeGroupText))}` : ''}`;
+}
 
 export function scopeText(values, profile = null) {
   const scope = text(values?.[RUN_SCOPE]) || GROUP_ALL;

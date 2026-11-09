@@ -225,11 +225,9 @@ test('the Vibes box on Summary with every output picked keeps the dialog inside 
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await toDelivery(page);
-    await page.getByRole('checkbox', { name: /^App / }).uncheck();
     for (const name of [/^Dashboard/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.getByText(`Emails ${OWNER} when`, { exact: false }).waitFor();
     await fits('vibes-wizard-tiles');
-    await page.getByRole('checkbox', { name: /^App / }).check();
     await toAppAccess(page);
     await page.getByRole('radio', { name: /^Internal data/ }).check();
     await toVibes(page);

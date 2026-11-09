@@ -146,3 +146,50 @@ test('checks of an output the person no longer builds never block the Summary or
   assert.deepEqual(w.checksFor(checks, { app: true, genie_space: true, alert: true }).map(([k]) => k), Object.keys(checks), 'a chosen output keeps all its checks (must-exclude)');
   assert.deepEqual(w.checksFor(null, {}), []);
 });
+
+test('Genie Agents turned off also blocks a new App, so Deliver unticks both and Next is never refused, and the reason never asks for a grant (must-exclude)', async () => {
+  const w = await lib('implementWizard.js');
+  const blocks = w.outputBlocks({ apps: true, genie_spaces: false, alerts: true }, null);
+  assert.deepEqual(Object.keys(blocks), ['app', 'genie_space']);
+  assert.equal(blocks.app.why, w.APP_NEEDS_GENIE);
+  const spec = { outputs: { dashboard: false, genie_space: true, app: true, alert: false, merge: {} }, removed_outputs: {} };
+  const kept = w.withoutUnavailableOutputs(spec, Object.keys(blocks), {});
+  assert.deepEqual([kept.outputs.app, kept.outputs.genie_space], [false, false]);
+  assert.equal(w.outputBlocks({ apps: true, genie_spaces: false, alerts: true }, null, { app: 'ops-desk' }).app, undefined, 'an App this use case already has keeps its own Genie Agent');
+  const problems = w.blockedOutputProblems(spec, blocks);
+  assert.ok(problems.length > 0);
+  for (const p of problems) {
+    assert.match(p, /ask a workspace admin to turn it on/);
+    assert.doesNotMatch(p, /run the grant/);
+  }
+  assert.match(w.blockedOutputProblems({ outputs: { app: true } }, { app: { why: 'Needs access.', details: 'GRANT X' } })[0], /run the grant under Details/);
+  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, genie_space: false, app: false, alert: false } }, blocks), 'Not picked in Deliver, so not built: the Alert.');
+});
+
+test('the Run it cost line does not repeat the schedule the sentence before it names', async () => {
+  const w = await lib('implementWizard.js');
+  const spec = { outputs: {}, schedule: { enabled: true, cron: '0 0 6 * * ?', timezone: 'Europe/London' } };
+  const said = w.costHint(spec, { scheduleSaid: true });
+  assert.match(said, /^one preview run now, then about \d+(\.\d)? full serverless runs a month\.$/);
+  assert.ok(w.costHint(spec).length > said.length + 5, 'without the flag the line still names the schedule');
+  assert.ok(w.costHint(spec).includes(w.cronInWords(spec.schedule.cron, spec.schedule.timezone)));
+});
+
+test('a use case with no business domain never creates or names a domain App: a new App goes to the App for all use cases, and the domain choice says why it is off', async () => {
+  const w = await lib('implementWizard.js');
+  const R = await lib('recommended.js');
+  const none = { business: 'Acme', domain: '' };
+  const spec = w.defaultSpecFromUseCase({ ...UC, business_domain: '' }, { businessName: 'Acme' });
+  assert.equal(w.newAppPlacementBlock(spec, null, none, 'domain'), w.NO_DOMAIN_APP);
+  const made = w.withNewApp(spec, 'domain', null, none);
+  assert.deepEqual([made.outputs.app_placement, made.outputs.app_name], ['business', w.hubAppName('Acme')], 'picking the domain choice never sticks (must-exclude)');
+  assert.equal(w.withAppPlacement(spec, 'domain', { app: [] }, none).outputs.app_placement, 'business');
+  assert.equal(R.bestAppPolicy(spec, null, none).id, 'business', 'the badge sits on the choice the wizard picks');
+  assert.equal(w.withNewApp(spec, 'domain', null, { business: '', domain: '' }).outputs.app_placement, 'use_case', 'no business and no domain: an App of its own');
+  const scope = { business: 'Acme', domain: 'Customer' };
+  const withDomain = w.defaultSpecFromUseCase({ ...UC, business_domain: 'Customer' }, { businessName: 'Acme' });
+  assert.equal(w.newAppPlacementBlock(withDomain, null, scope, 'domain'), '');
+  assert.deepEqual([w.withNewApp(withDomain, 'domain', null, scope).outputs.app_placement, w.withNewApp(withDomain, 'domain', null, scope).outputs.app_name],
+    ['domain', w.domainAppName('Acme', 'Customer')]);
+  assert.equal(R.bestAppPolicy(withDomain, null, scope).id, 'domain');
+});

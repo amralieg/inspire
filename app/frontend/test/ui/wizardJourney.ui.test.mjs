@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { GROUPING_EXAMPLE, GROUPING_TITLE } from '../../src/lib/runScope.js';
+import { GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE } from '../../src/lib/runScope.js';
 import { RUN_IT_TITLE, USE_CASE_TITLE, WIZARD_STEPS_MAX } from '../../src/lib/implementWizard.js';
 import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openUi, profileAt, settleChoices, shot, stepsAre } from './uiSupport.mjs';
 
@@ -68,7 +68,7 @@ test('with the App picked the wizard reads Use case, Data, Data groups, First ru
     await onStep(page, 'Data groups');
     const groups = page.getByRole('region', { name: GROUPING_TITLE, exact: true });
     await groups.waitFor({ timeout: 30000 });
-    assert.equal(await groups.locator('[data-grouping-example-plain]').innerText(), GROUPING_EXAMPLE, 'the step explains groups with the average salary example');
+    assert.equal(await groups.locator('[data-grouping-example-plain]').innerText(), `${GROUPING_EXAMPLE} ${GROUPING_PICK}`, 'the step explains groups with the average salary example');
     assert.equal(await groups.locator('[data-grouping-example-plain]').isVisible(), true, 'in view, not under Details');
     assert.equal(await page.getByRole('heading', { name: 'Source tables' }).count(), 0);
     const combineNote = await groups.locator('[data-grouping-combine-note]').innerText();

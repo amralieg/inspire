@@ -112,9 +112,15 @@ for (const [name, groups, per] of [['groups-0', 0, 40], ['groups-1', 1, 40], ['g
 }
 
 test('group values in Arabic read right to left inside the Data groups and First run steps', async () => {
-  const { seen, ui } = await scenario('groups-rtl', { profile: profileOf(31, 40, { values: (i) => `فرع ${i + 1}` }) });
+  const steps = [];
+  const keep = async (page) => { steps.push(`${await page.locator('[role="dialog"]').textContent()}\n${(await page.locator('[data-first-run-group]').allTextContents()).join('\n')}`); };
+  const { seen, ui } = await scenario('groups-rtl', { profile: profileOf(31, 40, { values: (i) => `فرع ${i + 1}` }), actions: { 'Data groups': keep, 'First run': keep } });
   try {
     noLeaks(seen, 'groups-rtl');
+    const all = `${seen.map((x) => x.text).join('\n')}\n${steps.join('\n')}`;
+    assert.equal(steps.length, 2, 'the walk passed Data groups and First run');
+    assert.match(steps[1], /store = \u2068فرع \d+\u2069/, 'each Arabic group on First run is isolated, so its count stays after it');
+    assert.doesNotMatch(all, /(?<!\u2068)فرع \d+(?![\d\u2069])/, 'never a bare right-to-left value beside a count or a comma (must-exclude)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -195,33 +201,59 @@ test('a workspace with Alerts turned off leaves the Alert unticked with the reas
   }
 });
 
-test('a workspace with Genie Agents turned off unticks the Genie Agent like the App, so Next is never refused for an option nobody picked',
-  { todo: 'wiz-genie-off-blocks-next, wizard lane 8908fa46' }, async () => {
+test('a workspace with Genie Agents turned off unticks the Genie Agent like the App, so Next is never refused for an option nobody picked', async () => {
     const { seen, ui } = await scenario('no-genie', { profile: PROFILE, extra: { ...counted(PROFILE), spacesOk: false } });
     try {
       assert.equal(seen.at(-1).step, 'Summary', seen.at(-1).text.slice(0, 300));
       assert.doesNotMatch(seen.map((s) => s.text).join('\n'), /run the grant/);
+      assert.equal(summaryOf(seen).split('Genie Agents are turned off in this workspace.').length - 1, 1, 'the Summary names why the Genie Agent is not built once');
+      assert.doesNotMatch(summaryOf(seen), /Not picked in Deliver[^\n]*(Genie Agent|the App)/, 'an output the workspace cannot build is never called not picked (must-exclude)');
     } finally {
       await ui.close();
     }
   });
 
-test('an empty table never offers a 1,000-record sample of 0 records', { todo: 'wiz-first-run-empty-table, wizard lane 8908fa46' }, async () => {
+test('an empty table never offers a 1,000-record sample of 0 records', async () => {
   const { seen, ui } = await scenario('groups-0-first-run', { profile: profileOf(0, 40) });
   try {
-    assert.doesNotMatch(seen.map((s) => s.text).join('\n'), /all 0 records|1,000 records spread across the whole table[^\n]*0 records/);
+    const text = seen.map((s) => s.text).join('\n');
+    assert.doesNotMatch(text, /all 0 records|1,000 records spread across the whole table[^\n]*0 records/);
+    assert.doesNotMatch(text, /Pick how to split the data below|No column splits the data into fair groups/, 'an empty table never asks for a pick it cannot offer (must-exclude)');
+    const groups = seen.find((s) => s.step === 'Data groups');
+    if (groups) {
+      assert.match(groups.text, /holds no records yet, so there is nothing to split and nothing to pick here\./);
+      assert.doesNotMatch(groups.text, /Recommended/);
+    }
+    assert.match(summaryOf(seen), /0 records yet/);
   } finally {
     await ui.close();
   }
 });
 
-test('the First run of 20 whole groups of 40 records says about 800 records and lists the groups briefly', { todo: 'wiz-first-run-about-1000-is-800, wizard lane 8908fa46' }, async () => {
+test('a table read that fails says so once, and the Summary First run matches the option the step showed', async () => {
+  const { seen, ui } = await scenario('profile-error', { profile: { error: 'the warehouse is stopped' }, status: 500 });
+  try {
+    const text = seen.map((s) => s.text).join('\n');
+    assert.ok(seen.some((s) => s.text.includes('the warehouse is stopped')), 'the read error is shown');
+    for (const step of seen) assert.ok(step.text.split('the warehouse is stopped').length <= 2, `${step.step} says the error more than once`);
+    assert.doesNotMatch(text, /could not read the groups of the Data groups you chose/, 'no groups were chosen, so no groups error (must-exclude)');
+    const first = seen.find((s) => s.step === 'First run');
+    const row = summaryOf(seen);
+    if (/spread across the whole table/.test(first?.text || '')) assert.doesNotMatch(row, /keeping related records together/);
+    assert.doesNotMatch(row, /about 1,000 records, keeping related records together/);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the First run of 20 whole groups of 40 records says 800 records and lists the groups briefly', async () => {
   const { seen, ui } = await scenario('groups-31-first-run', { profile: PROFILE, extra: counted(PROFILE) });
   try {
     const row = summaryOf(seen).split('\n').find((l) => /whole groups/.test(l)) || '';
     const firstRun = seen.find((s) => s.step === 'First run').text;
     assert.doesNotMatch(`${row}\n${firstRun}`, /about 1,000 records|~1,000 records in \d+ whole groups/i);
     assert.match(`${row}\n${firstRun}`, /800 records/);
+    assert.match(row, /^800 records in 20 whole groups$/);
     assert.ok(row.length < 400, `${row.length} characters`);
   } finally {
     await ui.close();
@@ -337,7 +369,7 @@ test('a build clears the draft, so the next wizard opens on the Use case with no
   }
 });
 
-test('ticking two columns whose groups multiply past 500 says so before the build', { todo: 'wiz-combine-past-500-silent, wizard lane 8908fa46' }, async () => {
+test('ticking two columns whose groups multiply past 500 says so before the build', async () => {
   const wide = { ...GROUPING_PROFILE, columns: [...GROUPING_PROFILE.columns, { name: 'store', type: 'string', distinct: 300, smallest: 40, largest: 900, nulls: 0, parent: null }] };
   const calls = [];
   const groupsOf = (by) => Array.from({ length: by.split(', ').length > 1 ? 1200 : 300 }, (_v, i) => ({ value: `g${i}`, records: 40, parts: [] }));
@@ -359,7 +391,10 @@ test('ticking two columns whose groups multiply past 500 says so before the buil
     if (DUMP) fs.writeFileSync(`${DUMP}/combine-past-500.groups.txt`, `${JSON.stringify(calls)}\n${groups}`);
     const summary = seen.find((st) => st.step === 'Summary').text;
     if (DUMP) fs.writeFileSync(`${DUMP}/combine-past-500.summary.txt`, summary);
-    assert.match(`${groups}\n${summary}`, /500/);
+    assert.match(groups, /region, then store splits the data into 1,200 groups\. Inspire models each group on its own\.\s*That is more than the 500 groups Inspire models one by one/);
+    assert.doesNotMatch(groups, /region, then country splits the data/, 'the headline is the split the person ticked, not the one Inspire suggested (must-exclude)');
+    assert.match(summary, /region, then store · 1,200 groups/, 'the Summary has the Data groups row of the combined split');
+    assert.doesNotMatch(summary, /whole groups of store(?!.)/m, 'the First run keeps every ticked column (must-exclude)');
   } finally {
     await ui.close();
   }

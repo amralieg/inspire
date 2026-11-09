@@ -71,8 +71,8 @@ const tagged = (schema, tags) => [{ kind: 'exists', schema_name: schema, value: 
 const LINEAGE = { inspire_database: 'main.inspire', inspire_use_case_id: 'N01-U01' };
 
 test('the plain name has no session digits: _inspire_<business>_<use case id>', () => {
-  assert.equal(w.useCaseSchemaName('Airline', 'N01-U01', '1234567848213'), '_inspire_airline_n01_u01');
-  assert.equal(w.useCaseSchemaName('Airline', 'N01-U01', '9223372036854775807'), '_inspire_airline_n01_u01', 'the session id never changes the name');
+  assert.equal(w.schemaNameOfUseCase('Airline', 'N01-U01', '1234567848213'), '_inspire_airline_n01_u01');
+  assert.equal(w.schemaNameOfUseCase('Airline', 'N01-U01', '9223372036854775807'), '_inspire_airline_n01_u01', 'the session id never changes the name');
   assert.equal(I.useCaseSchemaPlace({ inspireDatabase: 'main.inspire', useCaseId: 'N01-U01', sessionId: '1234567848213', businessName: 'Airline', rows: [RIGHT] }).table,
     'main._inspire_airline_n01_u01.n01_u01_results');
 });
@@ -130,12 +130,12 @@ test('the candidates are the plain name then __2 to __9, and the statement reads
 });
 
 test('a long or non-ASCII business still names a valid Unity Catalog schema', () => {
-  const long = w.useCaseSchemaName('Ünïcode Business '.repeat(40), 'N01-U01', '42', { clash: 9 });
+  const long = w.schemaNameOfUseCase('Ünïcode Business '.repeat(40), 'N01-U01', '42', { clash: 9 });
   assert.ok(long.length <= 255, String(long.length));
   assert.match(long, /^[a-z0-9_]+$/);
   assert.ok(long.endsWith('_n01_u01__9'));
-  assert.equal(w.useCaseSchemaName('شركة الطيران', 'N01-U01', '42'), '_inspire_n01_u01');
-  assert.equal(w.useCaseSchemaName('Émirates Air', 'N01-U01', '42'), '_inspire_mirates_air_n01_u01');
+  assert.equal(w.schemaNameOfUseCase('شركة الطيران', 'N01-U01', '42'), '_inspire_n01_u01');
+  assert.equal(w.schemaNameOfUseCase('Émirates Air', 'N01-U01', '42'), '_inspire_mirates_air_n01_u01');
 });
 
 test('the schema statement reads existence, the session tag, the person\'s catalog rights and who they are, parameterised', () => {
@@ -313,7 +313,7 @@ test('a missing schema Inspire does not create still fails, and its reason names
   assert.match(got.app.detail, /^a new App cannot read main\._inspire_acme_n01_u01\.n01_u01_results: schema main\._inspire_acme_n01_u01 does not exist/);
   assert.doesNotMatch(got.app.detail, /GRANT/);
   assert.equal(w.blockWhy(got.app.detail), 'The schema main._inspire_acme_n01_u01 does not exist, or Inspire cannot see it.');
-  assert.equal(w.outputBlocks({ apps: true }, null, {}, { new_app: got.app }).app.why, 'The schema main._inspire_acme_n01_u01 does not exist, or Inspire cannot see it.');
+  assert.equal(w.outputBlocks({ apps: true, genie_spaces: true }, null, {}, { new_app: got.app }).app.why, 'The schema main._inspire_acme_n01_u01 does not exist, or Inspire cannot see it.');
   assert.ok(I.accessPlan(OWN, NOT_CREATED, '').gaps.some((g) => g.level === 'schema'), 'without Inspire creating it the schema need stays a gap');
   assert.equal(I.modelAccess(NOT_CREATED, `${OWN}_model`, { builder: true }).ok, false);
   assert.equal(I.shareWarnings(OWN, NOT_CREATED, ['analysts']).length, 1);

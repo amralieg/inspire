@@ -1,7 +1,7 @@
 import { counted } from './plural.js';
 import { firstRunDefault, groupingBest, groupingCount, profileRecords } from './runScope.js';
 import {
-  APP_OWN_PLACEMENTS, IMPLEMENT_OUTPUTS, NONE_WORKS, affordable, blockOf, VIBE_PREVIOUS_DEFAULT, appBackendBlocks, appBackendDefault, appPagesOf, newAppPlacementBlock, placementTarget,
+  APP_OWN_PLACEMENTS, APP_PLACEMENT_DEFAULT, IMPLEMENT_OUTPUTS, NONE_WORKS, affordable, blockOf, VIBE_PREVIOUS_DEFAULT, appBackendBlocks, appBackendDefault, appPagesOf, newAppPlacementBlock, placementTarget, placementThatFits,
 } from './implementWizard.js';
 
 export const RECOMMENDED = 'Recommended';
@@ -71,12 +71,13 @@ export function bestFirstRun(profile, choices = []) {
   const open = (choices || []).filter((c) => c.available !== false);
   const want = firstRunDefault(profile) || 'records';
   const found = open.find((c) => c.id === want) || open.find((c) => c.scope === want) || open[0];
-  if (!found) return null;
   const records = profileRecords(profile);
+  if (!found || records === 0) return null;
   const reasons = {
     one: 'One group shows results soonest.',
     groups: 'A few groups show results sooner.',
-    records: records == null ? 'A sample shows results sooner.' : `A sample shows results sooner than all ${counted(records, 'record')}.`,
+    records: records == null ? 'A sample shows results sooner.'
+      : found.records != null && found.records >= records ? `It covers all ${counted(records, 'record')}.` : `A sample shows results sooner than all ${counted(records, 'record')}.`,
     recent: 'Recent records show results sooner.',
     all: 'It covers every record.',
   };
@@ -133,7 +134,9 @@ export function appPolicyBlocks(spec, targets, scope) {
 }
 
 export function bestAppPolicy(spec, targets, scope) {
-  return affordable(APP_OWN_PLACEMENTS.map((p) => p.id), appPolicyBlocks(spec, targets, scope), (id) => POLICY_REASONS[id](scope)).best;
+  const first = placementThatFits(spec, targets, scope, APP_PLACEMENT_DEFAULT);
+  const order = [first, ...APP_OWN_PLACEMENTS.map((p) => p.id).filter((id) => id !== first)];
+  return affordable(order, appPolicyBlocks(spec, targets, scope), (id) => POLICY_REASONS[id](scope)).best;
 }
 
 export function bestAppAccess({ inside = false, personal = '' } = {}) {

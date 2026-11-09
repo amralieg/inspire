@@ -86,7 +86,7 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
     assert.deepEqual(Object.keys(d), ['table', 'records', 'applies', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
-      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'group_count', 'column_groups', 'first_run', 'default_scope', 'read_at', 'deep_suggestion']);
+      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'group_count', 'group_max', 'column_groups', 'first_run', 'default_scope', 'read_at', 'deep_suggestion']);
     assert.equal('prefill' in d, false, 'the profile carries no starting SQL, since Inspire runs no typed SQL');
     assert.deepEqual([d.table, d.records, d.applies, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, true, false, null]);
     assert.equal(d.reason, 'Inspire recommends region, then country because Anomaly Detection works out what is normal inside each group, and country splits '
@@ -556,5 +556,6 @@ test('a nested grouping with more groups than the list holds still counts every 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.group_list.length, R.GROUP_MAX_GROUPS, 'the list stays bounded');
     assert.equal(got.data.group_count, R.GROUP_MAX_GROUPS + 40, 'the count is not cut to the list (must-exclude: the listed length)');
+    assert.equal(got.data.group_max, R.GROUP_MAX_GROUPS, 'the profile names the limit, so the wizard warns past it without a second copy of the number');
   });
 });

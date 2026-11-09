@@ -1,6 +1,6 @@
 import { compareMeetsQualityBarFirst, subtitleOfUseCase } from './useCaseFields.js';
 import { placeholderWords } from './placeholderWords.js';
-import { plural } from './plural.js';
+import { briefList, plural } from './plural.js';
 import { PERSONAL_KEY_REASON, personalColumn } from './personalColumns.js';
 import { specVibeAsks, vibeConflicts, vibeRefusalText, vibeRefusals } from './vibeLimits.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
@@ -22,6 +22,7 @@ export const NOTEBOOK_MODE_LABEL = 'I will build it myself';
 
 export const DELIVERY_LABEL = 'Deliver';
 export const DELIVERY_QUESTION = 'How will people use this use case?';
+export const DELIVER_MORE = 'What each one builds';
 export const BUILD_IT_LABEL = 'All Good, Build it Now';
 export const BACK_TO_SUMMARY = 'Back to Summary';
 export const WIZARD_LINE = 'From your data to people using it';
@@ -520,8 +521,8 @@ export function vibesPreview(text, max = 80) {
   return chars.length > max ? `${chars.slice(0, max).join('').trimEnd()}…` : chars.join('');
 }
 
-export function vibesSkippedText(spec) {
-  const off = IMPLEMENT_OUTPUTS.filter((o) => !spec?.outputs?.[o.id]).map((o) => `the ${o.label}`);
+export function vibesSkippedText(spec, blocks = {}) {
+  const off = IMPLEMENT_OUTPUTS.filter((o) => !spec?.outputs?.[o.id] && !blocks?.[o.id]).map((o) => `the ${o.label}`);
   if (!off.length) return '';
   return `Not picked in ${DELIVERY_LABEL}, so not built: ${joinWords(off)}.`;
 }
@@ -985,7 +986,7 @@ export const USE_CASE_SCHEMA_CLASH_MARK = '__';
 export const USE_CASE_SCHEMA_CLASH_LIMIT = 9;
 const UC_NAME_LIMIT = 255;
 
-export function useCaseSchemaName(businessName, useCaseId, sessionId, { clash = 0 } = {}) {
+export function schemaNameOfUseCase(businessName, useCaseId, sessionId, { clash = 0 } = {}) {
   const sid = String(sessionId ?? '').trim();
   if (!/^\d+$/.test(sid)) throw new Error('a numeric session id is needed to name the use case schema');
   const uc = slugOf(useCaseId);
@@ -1001,7 +1002,7 @@ export function defaultResultTable(inspireDatabase, useCaseId, sessionId, busine
   const catalog = String(inspireDatabase ?? '').split('.')[0].replace(/`/g, '').trim();
   const uc = slugOf(useCaseId);
   if (!catalog || !uc) return '';
-  const schema = useCaseSchemaName(businessName, useCaseId, sessionId, { clash });
+  const schema = schemaNameOfUseCase(businessName, useCaseId, sessionId, { clash });
   return `${catalog}.${schema}.${uc}_results${ofSession ? `_s${String(sessionId).trim()}` : ''}`;
 }
 
@@ -1569,7 +1570,7 @@ export const PREFLIGHT_LABELS = {
   alerts: 'Alerts',
 };
 
-export function costHint(spec) {
+export function costHint(spec, { scheduleSaid = false } = {}) {
   const preview = 'one preview run now';
   const alert = spec.outputs?.alert ? ', plus one alert check after each full run' : '';
   if (!spec.schedule?.enabled) return `${preview}; no scheduled runs until you turn the schedule on${alert}.`;
@@ -1577,7 +1578,7 @@ export function costHint(spec) {
   if (runs == null) return `${preview}; the schedule's run count is unknown until its cron is valid.`;
   const count = runs >= 10 ? Math.round(runs).toLocaleString('en-US') : String(Math.round(runs * 10) / 10);
   const years = String(spec.schedule.cron).trim().split(/\s+/)[6];
-  return `${preview}, then about ${count} full serverless runs a month (${cronInWords(spec.schedule.cron, spec.schedule.timezone)})`
+  return `${preview}, then about ${count} full serverless runs a month${scheduleSaid ? '' : ` (${cronInWords(spec.schedule.cron, spec.schedule.timezone)})`}`
     + `${years && years !== '*' ? `, only in ${years}` : ''}${alert}.`;
 }
 
@@ -1799,6 +1800,7 @@ export function withResultTable(spec, { catalog, schema, table }) {
 export const OFF_IN_WORKSPACE = { app: 'Apps are turned off in this workspace.', genie_space: 'Genie Agents are turned off in this workspace.',
   alert: 'Alerts are turned off in this workspace.' };
 export const OFF_DETAILS = 'A workspace admin turns this feature on in the workspace settings.';
+export const APP_NEEDS_GENIE = 'The App needs a Genie Agent, which this workspace cannot build.';
 const ACCESS_PLACES = [['the catalog', /\bon catalog\b/i], ['the schema', /\bon schema\b/i], ['the table', /\bon table\b/i], ['the SQL warehouse', /\bwarehouse\b/i]];
 
 export function needsAccess(detail = '') {
@@ -1841,6 +1843,7 @@ function checkBlock(check) {
 export function outputBlocks(features, outputCheck, assets = {}, preflight = null) {
   const on = features || {};
   const app = !on.apps ? blockOf(OFF_IN_WORKSPACE.app, OFF_DETAILS)
+    : !on.genie_spaces && !assets?.app ? blockOf(APP_NEEDS_GENIE, OFF_DETAILS)
     : !assets?.app && (checkBlock(outputCheck?.app) || checkBlock(preflight?.checks?.app_access) || checkBlock(preflight?.new_app));
   return Object.fromEntries([
     ['app', app],
@@ -1868,7 +1871,7 @@ export function droppedOutputs(before, after, blocks = {}) {
 export function blockedOutputProblems(spec, blocks = {}) {
   const { none } = affordable(IMPLEMENT_OUTPUTS.map((o) => o.id), blocks, () => '', (id) => IMPLEMENT_OUTPUTS.find((o) => o.id === id).label);
   return [...(none ? [none] : []), ...IMPLEMENT_OUTPUTS.filter((o) => spec?.outputs?.[o.id] && blocks[o.id])
-    .map((o) => `${o.label} cannot be built: ${blocks[o.id].why} Turn it off on ${DELIVERY_LABEL}, or ask an admin to run the grant under Details`)];
+    .map((o) => `${o.label} cannot be built: ${blocks[o.id].why} Turn it off on ${DELIVERY_LABEL}, or ${blocks[o.id].details === OFF_DETAILS ? 'ask a workspace admin to turn it on' : 'ask an admin to run the grant under Details'}`)];
 }
 
 export function withoutUnavailableOutputs(spec, unavailable, assets = {}) {
@@ -2097,7 +2100,10 @@ export function appPlacementOf(appName, scope = {}, target = null) {
   return target ? '' : 'use_case';
 }
 
+export const NO_DOMAIN_APP = 'This use case has no business domain, so there is no domain App to share it with.';
+
 export function newAppPlacementBlock(spec, targets, scope, placement) {
+  if (placement === 'domain' && !domainAppName(scope?.business, scope?.domain)) return NO_DOMAIN_APP;
   const hub = placement === 'business' ? businessHubOf(targets, scope.business) : null;
   if (!hub) return '';
   return appMergeBlock(spec, hub)
@@ -2122,8 +2128,13 @@ export function placementTarget(spec, targets, scope) {
   return older.reduce((best, t) => (!best || t.use_cases.length > best.use_cases.length ? t : best), null);
 }
 
+export function placementThatFits(spec, targets, scope, chosen) {
+  if (!newAppPlacementBlock(spec, targets, scope, chosen)) return chosen;
+  return chosen === 'domain' && hubAppName(scope?.business) && !newAppPlacementBlock(spec, targets, scope, 'business') ? 'business' : 'use_case';
+}
+
 export function withNewApp(spec, chosen, targets, scope = {}) {
-  const placement = newAppPlacementBlock(spec, targets, scope, chosen) ? 'use_case' : chosen;
+  const placement = placementThatFits(spec, targets, scope, chosen);
   const next = { ...spec, outputs: { ...spec.outputs, app_placement: placement } };
   if (placement === APP_INSIDE) {
     const user = withAppAccess(next, 'user');
@@ -2153,9 +2164,7 @@ export function withPlacementDefault(spec, targets, { held = {}, saved = '', sav
 }
 
 export function mergeTargetText(target) {
-  const held = (target?.use_cases || []).map((u) => u.name || u.use_case_id);
-  const shown = held.slice(0, 3).join(', ');
-  return held.length > 3 ? `${shown} and ${held.length - 3} more` : shown;
+  return briefList((target?.use_cases || []).map((u) => u.name || u.use_case_id));
 }
 
 export function splitList(text, separator) {
