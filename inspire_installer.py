@@ -15,14 +15,17 @@
 
 # COMMAND ----------
 
+import contextlib
 import hashlib
 import html
+import io
 import importlib.util
 import json
 import os
 import re
 import socket
 import ssl
+import sys
 import tempfile
 import urllib.error
 import urllib.parse
@@ -51,6 +54,51 @@ SHA256 = re.compile(r"[0-9a-f]{64}")
 SAFE_NAME = re.compile(r"[A-Za-z0-9][A-Za-z0-9._-]{0,120}")
 VERSION = re.compile(r"v[0-9]\.[0-9]\.[0-9]")
 NOT_REACHED = "I am not able to connect to GitHub to download the Inspire code"
+
+
+SECRET_HEADER_RE = re.compile(r"""(["']?)\b(authorization|proxy-authorization|cookie|set-cookie|x-forwarded-access-token|x-databricks-[a-z0-9-]+)\1"""
+                              r"""(\s*[:=]\s*)(?:\[[^\]\r\n]*\]|(["'`])[^\r\n"'`]*\4|[^\r\n]*)""", re.IGNORECASE)
+SECRET_PATTERNS = (
+    re.compile(r"\bBearer\s+\S+", re.IGNORECASE),
+    re.compile(r"\bdapi[0-9a-f]{16,}\b", re.IGNORECASE),
+    re.compile(r"\bdose[0-9a-f]{16,}\b", re.IGNORECASE),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}"),
+    re.compile(r"\beyJ[A-Za-z0-9_-]{20,}"),
+)
+SECRET_VALUE_RE = re.compile(r"""\b(token|secret|password|client_secret|access_token)(["']?\s*[:=]\s*["']?)[^\s"',}]+""", re.IGNORECASE)
+
+
+def redact_secrets(text):
+    out = SECRET_HEADER_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}{m.group(1)}{m.group(3)}[redacted]", str(text))
+    for pattern in SECRET_PATTERNS:
+        out = pattern.sub("[redacted]", out)
+    return SECRET_VALUE_RE.sub(lambda m: f"{m.group(1)}{m.group(2)}[redacted]", out)
+
+
+class RedactedOutput(io.TextIOBase):
+    def __init__(self, target):
+        self.target = target
+
+    def write(self, text):
+        self.target.write(redact_secrets(text))
+        return len(text)
+
+    def flush(self):
+        self.target.flush()
+
+
+def redacted_display(page_html):
+    displayHTML(redact_secrets(page_html))
+
+
+def redact_failure(exc):
+    exc.args = tuple(redact_secrets(a) if isinstance(a, str) else a for a in exc.args)
+    for name in ("msg", "reason"):
+        value = getattr(exc, name, None)
+        if isinstance(value, str):
+            with contextlib.suppress(AttributeError, TypeError):
+                setattr(exc, name, redact_secrets(value))
+    return exc
 
 
 class InspireReleaseError(RuntimeError):
@@ -460,7 +508,7 @@ def stop_page(title, message):
 def show(page_html, text):
     print(text)
     try:
-        displayHTML(page_html)
+        redacted_display(page_html)
     except NameError:
         pass
 
@@ -548,6 +596,11 @@ def acquire(folder, notebook, settings, opener=None, exporter=None):
 
 
 def inspire_install_main():
+    with contextlib.redirect_stdout(RedactedOutput(sys.stdout)):
+        return install_redacted()
+
+
+def install_redacted():
     try:
         folder, notebook = installer_folder()
         settings = read_settings(folder)
@@ -556,7 +609,7 @@ def inspire_install_main():
         run = load_entry(release)
         return run({
             "dbutils": dbutils,
-            "displayHTML": displayHTML,
+            "displayHTML": redacted_display,
             "starter_version": STARTER_VERSION,
             "manifest": release["manifest"],
             "files": release["files"],
@@ -567,7 +620,7 @@ def inspire_install_main():
             "new_apps_catalog_access": NEW_APPS_CATALOG_ACCESS,
         }), None
     except Exception as exc:
-        return None, exc
+        return None, redact_failure(exc)
 
 # COMMAND ----------
 

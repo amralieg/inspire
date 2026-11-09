@@ -88,6 +88,21 @@ for (const script of ['record-showcase.mjs', 'offline-walk.mjs']) {
   });
 }
 
+test('the server, run as the App runs it, crashes with an error that carries a bearer token, a cookie and a dapi token, and its stderr holds none of them', () => {
+  const dir = fs.mkdtempSync(path.join(os.tmpdir(), 'inspire-redact-server-'));
+  const preload = path.join(dir, 'crash.cjs');
+  fs.writeFileSync(preload, `setTimeout(() => { const err = new Error(${JSON.stringify(callLog())}); err.headers = { Authorization: ${JSON.stringify(`Bearer ${FAKE_JWT}`)}, cookie: ${JSON.stringify(FAKE_COOKIE)} }; throw err; }, 1500);`);
+  try {
+    const env = { ...process.env, PORT: '0', DATABRICKS_HOST: '', DATABRICKS_TOKEN: '', DATABRICKS_CLIENT_ID: '', DATABRICKS_CLIENT_SECRET: '' };
+    const run = spawnSync(process.execPath, ['--require', preload, path.join(__dirname, '..', 'server.js')], { cwd: path.join(__dirname, '..'), encoding: 'utf8', timeout: 60000, env });
+    assert.equal(run.status, 1, 'the crash still stops the server');
+    assert.match(run.stderr, /apiRequestContext\.fetch: read ECONNRESET/, 'the crash still says what failed');
+    assert.deepEqual(leaked(`${run.stdout}\n${run.stderr}`), []);
+  } finally {
+    fs.rmSync(dir, { recursive: true, force: true });
+  }
+});
+
 test('the hosted run keeps its own long-string rule on top of the shared one', () => {
   const { redactSecrets: hosted } = require('../lib/hostedRun');
   assert.equal(hosted(`key ${'A'.repeat(48)} end`), 'key [redacted] end');
