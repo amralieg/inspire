@@ -45,9 +45,17 @@ def test_the_email_lines_go_through_the_builder(agent_ns):
 def test_the_notebook_formats_a_link_query_in_one_place_only():
     code = _code()
     builder = re.search(r"\ndef implement_link\(.*?\n(?=\n\S)", code, re.S).group(0)
-    rest = code.replace(builder, "")
-    assert code.count(builder) == 1
-    assert "urllib.parse.quote(" in builder and "urllib.parse.quote(" not in rest
+    quoter = re.search(r"\ndef implement_url_part\(.*?\n(?=\n\S)", code, re.S).group(0)
+    rest = code.replace(builder, "").replace(quoter, "")
+    assert code.count(builder) == 1 and code.count(quoter) == 1
+    assert "implement_url_part(" in builder and "urllib.parse.quote(" in quoter and "urllib.parse.quote(" not in rest
     assert "urlencode(" not in code
     hand_built = re.findall(r"f[\"'][^\"'\n]*/\?[A-Za-z_]+=", rest) + re.findall(r"[\"']/\?[A-Za-z_]+=[\"']?", rest)
     assert hand_built == [], hand_built
+
+
+def test_one_quoter_makes_a_link_part_or_a_path_segment_with_nothing_left_to_end_it(agent_ns):
+    part = agent_ns["implement_url_part"]
+    assert part("main.s.orders") == "main.s.orders"
+    assert part("main.s.or#ders?x=1/2 %") == "main.s.or%23ders%3Fx%3D1%2F2%20%25"
+    assert part(5150) == "5150"

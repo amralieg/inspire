@@ -272,8 +272,12 @@ def test_a_stream_that_closed_for_another_reason_keeps_the_relay(agent_ns, tmp_p
 
 
 class _BrokenStderr:
-    def __iter__(self):
-        yield "first line\n"
+    def __init__(self):
+        self.lines = ["first line\n"]
+
+    def readline(self, size=-1):
+        if self.lines:
+            return self.lines.pop(0)
         raise OSError("Bad file descriptor")
 
 

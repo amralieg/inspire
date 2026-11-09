@@ -315,3 +315,13 @@ def test_a_viewer_workspace_carries_the_blocked_tables_from_the_settings():
     shell.user_factory = lambda host, token: types.SimpleNamespace(blocked=())
     ws, who = shell.workspace({"x-forwarded-access-token": "t", "x-forwarded-email": "a@b"})
     assert ws.blocked == (SUMMARY,) and who == "user:a@b"
+
+
+def test_the_abac_read_names_the_table_as_one_quoted_path_segment(agent_ns):
+    inst, _context = _gate(agent_ns, ["owner"])
+    calls = []
+    inst._implement_api = lambda method, path, body=None, query=None: calls.append((method, path, query)) or {
+        "policies": [{"name": "pii_rows", "policy_type": "POLICY_TYPE_ROW_FILTER"}]}
+    warnings = []
+    assert type(inst)._implement_abac(inst, "`main`.`s`.`or#ders`", warnings) == [{"name": "pii_rows", "kind": "row_filter"}], warnings
+    assert calls == [("GET", "/api/2.1/unity-catalog/policies/table/main.s.or%23ders", {"include_inherited": "true"})]

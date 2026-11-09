@@ -265,8 +265,8 @@ def informational_text(page: dict) -> str:
 
 
 def reviewed_text(count: int) -> str:
-    return ("1 record changed since you reviewed it and was left as it was" if count == 1 else
-            f"{shell_sql.plural(count, 'record')} changed since you reviewed them and were left as they were")
+    return shell_sql.plural(count, "record changed since you reviewed it and was left as it was",
+                            "records changed since you reviewed them and were left as they were")
 
 
 def unreadable_text(count: int) -> str:
