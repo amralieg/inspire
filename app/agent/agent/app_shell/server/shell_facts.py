@@ -44,6 +44,26 @@ MISSED = "_inspire_missed"
 FANNING_CALLS = re.compile(r"\b(?:explode|explode_outer|posexplode|posexplode_outer|inline|inline_outer)\s*\(", re.I)
 
 
+def object_shape_problems(holder, what: str, objects=(), lists=()) -> list:
+    if not isinstance(holder, dict):
+        return [f"{what} is not a JSON object"]
+    problems = [f"{what} {key} must be a JSON object" for key in objects
+                if holder.get(key) is not None and not isinstance(holder.get(key), dict)]
+    for key in lists:
+        items = holder.get(key)
+        if items is None:
+            continue
+        if not isinstance(items, list):
+            problems.append(f"{what} {key} must be a list of JSON objects")
+            continue
+        odd = [str(index + 1) for index, item in enumerate(items) if not isinstance(item, dict)]
+        if odd:
+            one = len(odd) == 1
+            problems.append(f"{what} {key} must each be a JSON object, and {'entry' if one else 'entries'} {', '.join(odd)} "
+                            f"{'is' if one else 'are'} not")
+    return problems
+
+
 def quote(name: str) -> str:
     if not IDENT.match(str(name or "")):
         raise ValueError(f"{name!r} is not a column or dataset name")
