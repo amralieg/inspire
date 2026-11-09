@@ -1,14 +1,13 @@
-import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { getApp, getDefaults, getFilters, getOverview, getSummary } from './api.js';
 import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js';
 import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
-import { NoAccessScope, PlainNote, RetryProvider, ToastProvider } from './ui.jsx';
+import { NoAccessScope, PlainNote, RetryProvider, Skeleton, ToastProvider } from './ui.jsx';
 import Page from './Page.jsx';
 import { tabLabel } from './Layouts.jsx';
 import Home, { hubToday } from './Home.jsx';
-import Impact from './Impact.jsx';
 import MyWorkPage from './MyWorkPage.jsx';
 import { MY_WORK_ROUTE } from './mywork.js';
 import Admin, { AdminLink } from './Admin.jsx';
@@ -23,6 +22,8 @@ import { MyViewProvider, useMyView } from './MyView.jsx';
 import { windowParams } from './prefs.js';
 import { DEFAULT_VIEW, hubTimes, useCaseState, visiblePages } from './hub.js';
 import logo from './databricks-logo.png?inline';
+
+const Impact = lazy(() => import('./Impact.jsx'));
 
 const THEME_KEY = 'inspire-app-theme';
 const HUB_ROUTES = ['home', 'overview', MY_WORK_ROUTE, 'impact', 'results', ADMIN_ROUTE];
@@ -267,7 +268,9 @@ function Shell({ app }) {
             {screen === 'mywork' && <GenieScope.Provider value={HUB_SCOPES.mywork}><MyWorkPage app={app} hub={hub} hubError={hubError} summaries={summaries} onRecord={openRecord} /></GenieScope.Provider>}
             {screen === 'impact' && (
               <GenieScope.Provider value={HUB_SCOPES.impact}>
-                <Impact app={app} hub={hub} hubError={hubError} summaries={summaries} onOpen={go} onExplain={explain} genieBusy={genie.busy} />
+                <Suspense fallback={<section className="card"><Skeleton height={180} /></section>}>
+                  <Impact app={app} hub={hub} hubError={hubError} summaries={summaries} onOpen={go} onExplain={explain} genieBusy={genie.busy} />
+                </Suspense>
               </GenieScope.Provider>
             )}
             {screen === 'admin' && <Admin />}

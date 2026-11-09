@@ -1677,6 +1677,8 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
   }
 });
 
+const restFailureStatus = (err) => ([401, 403, 404, 429].includes(Number(err && err.status)) ? Number(err.status) : 502);
+
 app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
   try {
     const { catalog } = req.params;
@@ -1685,10 +1687,12 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
     let raw = [];
     let restCut = false;
     let restErr = null;
+    let restStatus = 502;
     try {
       ({ items: raw, truncated: restCut } = await listSchemas(dbFetch, req.dbHost, token, catalog));
     } catch (e) {
       restErr = e.message || String(e);
+      restStatus = restFailureStatus(e);
       console.warn(`   ⚠️ UC REST schemas failed for ${catalog}: ${restErr}`);
     }
     const byKey = new Map();
@@ -1712,7 +1716,7 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
     const schemas = [...byKey.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
     console.log(`   📂 schemas ${catalog}: REST=${raw.length} merged=${schemas.length}`);
     if (raw.length === 0 && schemas.length === 0 && restErr) {
-      return res.status(502).json({ error: restErr });
+      return res.status(restStatus).json({ error: restErr });
     }
     res.json({ schemas, count: schemas.length, truncated: restCut && byKey.size === countAfterRest });
   } catch (err) {
@@ -1728,10 +1732,12 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     let raw = [];
     let restCut = false;
     let restErr = null;
+    let restStatus = 502;
     try {
       ({ items: raw, truncated: restCut } = await listTables(dbFetch, req.dbHost, token, catalog, schema));
     } catch (e) {
       restErr = e.message || String(e);
+      restStatus = restFailureStatus(e);
       console.warn(`   ⚠️ UC REST tables failed for ${catalog}.${schema}: ${restErr}`);
     }
     const mapRow = (t) => ({
@@ -1763,7 +1769,7 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     const tables = [...byKey.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
     console.log(`   📋 tables ${catalog}.${schema}: REST=${raw.length} merged=${tables.length}`);
     if (raw.length === 0 && tables.length === 0 && restErr) {
-      return res.status(502).json({ error: restErr });
+      return res.status(restStatus).json({ error: restErr });
     }
     res.json({ tables, count: tables.length, truncated: restCut && byKey.size === countAfterRest });
   } catch (err) {

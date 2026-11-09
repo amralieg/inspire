@@ -1,8 +1,12 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
+import { readFileSync } from 'node:fs';
 import { chromium } from 'playwright';
 import { appInfo, NO_JOB, openApp, said, serveDist } from './harness.mjs';
-import { CODE_ONLY_TEXT, splitTechnical } from '../src/plainText.js';
+import { FAILURE_CAUSES } from '../src/failureCauses.js';
+import { CODE_ONLY_TEXT, setFailureCauses, splitTechnical } from '../src/plainText.js';
+
+setFailureCauses(FAILURE_CAUSES);
 
 const DENIED = '[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table `main`.`sales`.`loss`. Ask the owner to run: GRANT SELECT ON TABLE main.sales.loss TO `sam@example.com` SQLSTATE: 42501';
 
@@ -80,4 +84,14 @@ test('the reason a page cannot be refreshed names no job', async () => {
   await button.waitFor();
   assert.equal(await page.locator(`#${await button.getAttribute('aria-describedby')}`).innerText(), NO_JOB.reason);
   await context.close();
+});
+
+test('the failure sentences load in their own chunk, so the main bundle carries none of them', () => {
+  const assets = new URL('../dist/assets/', import.meta.url);
+  const main = readFileSync(new URL('app.js', assets), 'utf8');
+  const lazy = readFileSync(new URL('failureCauses.js', assets), 'utf8');
+  for (const sentence of ['reached its limit of Apps', 'your Databricks sign-in has expired', 'Inspire lost its connection to Databricks']) {
+    assert.ok(!main.includes(sentence), `app.js carries: ${sentence}`);
+    assert.ok(lazy.includes(sentence), `failureCauses.js lacks: ${sentence}`);
+  }
 });

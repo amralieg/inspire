@@ -12,7 +12,7 @@ const HERE = dirname(fileURLToPath(import.meta.url));
 const ASSETS = join(HERE, '..', 'dist', 'assets');
 const KINDS = JSON.parse(readFileSync(join(HERE, '..', '..', 'kinds.json'), 'utf8'));
 const WORLD = JSON.parse(readFileSync(join(SRC, 'maps', 'world.json'), 'utf8'));
-const MAIN_BUDGET = 1_305_000;
+const MAIN_BUDGET = 1_300_000;
 const P = { ink: '#111', muted: '#666', line: '#ddd', card: '#fff', well: '#eee', font: 'Inter', series: ['#1', '#2', '#3', '#4', '#5', '#6'], tier: { 'Act now': '#c00' } };
 
 let served;

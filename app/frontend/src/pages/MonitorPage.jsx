@@ -1097,8 +1097,7 @@ function StepRow({ step, live, searchQuery }) {
               <span className="text-text-tertiary">Sub-step:</span> {step.sub_step_name}
             </p>
           )}
-          {said.plain && <p className="text-xs text-text-secondary bg-bg-subtle rounded-lg p-2.5 leading-relaxed">{said.plain}</p>}
-          <TechnicalDetails items={said.details} />
+          <PlainMessage text={step.message} className="text-xs text-text-secondary bg-bg-subtle rounded-lg p-2.5 leading-relaxed" />
           {step.result_json && Object.keys(step.result_json).length > 0 && (
             <ResultJsonDisplay resultJson={step.result_json} />
           )}

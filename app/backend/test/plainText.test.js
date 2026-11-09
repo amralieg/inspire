@@ -83,6 +83,8 @@ test('splitTechnical unwraps a raw JSON error body and moves the Databricks erro
 
 const FAILURES = [
   ['network', 'transient', 'TypeError: Failed to fetch', /connection/],
+  ['not_found', '', "Catalog 'no_such_sales' does not exist.", /^Catalog no_such_sales does not exist, so check that it was not renamed or dropped, or pick another one\.$/],
+  ['not_found', '', "SCHEMA_DOES_NOT_EXIST: Schema 'main.gone' does not exist.", /^Schema main\.gone does not exist, so check/],
   ['network', 'transient', 'Cannot reach the Databricks workspace (fetch failed; ECONNREFUSED). The workspace did not answer.', /connection/],
   ['signed_out', '', '{"error_code":"401","message":"Invalid access token."}', /reload the page/],
   ['busy', 'transient', '{"error_code":"REQUEST_LIMIT_EXCEEDED","message":"Exceeded rate limit for /api/2.1/unity-catalog/catalogs. Please try again later."}', /wait a minute/],

@@ -141,8 +141,13 @@ test('the Plan stage folds into the Job step: one Job chip first, its clock is p
   assert.deepEqual(previewing.map((s) => [s.id, s.state, s.elapsed]), [['Job', 'running', '40s'], ['Notebook', 'done', '']]);
   const broken = P.stageSteps([stage('Plan', 'error', { started: 0, ended: min, message: 'the warehouse is stopped' }), stage('Genie Code', 'not_reached'), stage('Done', 'not_reached')]);
   assert.deepEqual(broken.map((s) => [s.id, s.state]), [['Job', 'error'], ['Notebook', 'not_reached'], ['Finish', 'not_reached']]);
-  assert.equal(broken[0].message, 'the warehouse is stopped');
-  assert.equal(broken[0].title, 'Plan: the warehouse is stopped');
+  assert.equal(broken[0].message, 'The SQL warehouse is stopped, so start it on the SQL Warehouses page or ask its owner to, then try again.');
+  assert.equal(broken[0].title, 'Plan: The SQL warehouse is stopped, so start it on the SQL Warehouses page or ask its owner to, then try again.');
+  const coded = P.stageSteps([stage('Plan', 'error', { message: '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`t` cannot be found. SQLSTATE: 42P01 run 123456789012' })]);
+  assert.doesNotMatch(coded[0].title, /TABLE_OR_VIEW_NOT_FOUND|SQLSTATE|123456789012/, 'the chip tooltip names no code or id');
+  assert.match(coded[0].title, /^Plan: Table main\.s\.t does not exist/);
+  const full = P.stageSteps([stage('Plan', 'error', { message: 'App create failed: RESOURCE_EXHAUSTED: You have reached the maximum number of apps in workspace 1234567890123456' })]);
+  assert.match(full[0].title, /^Plan: App create failed: this workspace has reached its limit of Apps, so delete an App you no longer use or ask a workspace admin to raise the limit\.$/);
   assert.equal(done[0].message, '', 'a step that did not fail carries no message');
 });
 

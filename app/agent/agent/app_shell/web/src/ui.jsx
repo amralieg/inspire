@@ -1,8 +1,30 @@
 import { Children, Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './icons.jsx';
-import { COPIED_SEND_TEXT, COPY_SEND_LABEL, DETAILS_LABEL, RETRYING_LABEL, RETRY_LABEL, sendText, splitTechnical } from './plainText.js';
+import { COPIED_SEND_TEXT, COPY_SEND_LABEL, DETAILS_LABEL, RETRYING_LABEL, RETRY_LABEL, failureCausesLoaded, sendText, setFailureCauses, splitTechnical } from './plainText.js';
 import { retryable, toneOf } from './api.js';
+
+let causesLoading = null;
+const loadFailureCauses = () => {
+  causesLoading ||= import('./failureCauses.js').then((m) => setFailureCauses(m.FAILURE_CAUSES)).catch((error) => {
+    causesLoading = null;
+    throw error;
+  });
+  return causesLoading;
+};
+loadFailureCauses().catch(() => {});
+
+function useFailureCauses() {
+  const [, setLoaded] = useState(failureCausesLoaded);
+  useEffect(() => {
+    if (failureCausesLoaded()) return undefined;
+    let live = true;
+    loadFailureCauses().then(() => live && setLoaded(true), () => {});
+    return () => {
+      live = false;
+    };
+  }, []);
+}
 
 const ToastContext = createContext(() => {});
 
@@ -157,6 +179,7 @@ function CopySend({ text }) {
 export function PlainNote({ text, as: Tag = 'p', icon = null, prefix = '', onRetry = null, children, ...rest }) {
   const tables = noAccessOf(text);
   const scoped = useNoAccess(tables);
+  useFailureCauses();
   if (tables && scoped) return <NoAccessLine tables={tables} as={Tag} icon={icon} rest={rest} />;
   const { plain, details } = splitTechnical(`${prefix}${text ?? ''}`);
   if (!plain && !details.length) return null;
@@ -179,6 +202,7 @@ export function PlainNote({ text, as: Tag = 'p', icon = null, prefix = '', onRet
 export function Failure({ failure, className, as: Tag = 'p', onRetry = null, children }) {
   const tables = failure?.text ? noAccessOf(failure.text) : null;
   const scoped = useNoAccess(tables);
+  useFailureCauses();
   if (!failure?.text) return null;
   if (tables && scoped) return <NoAccessLine tables={tables} as={Tag} icon={null} rest={{ className, role: 'status' }} />;
   const calm = !!failure.calm;

@@ -31,7 +31,9 @@ async function bodyOf(response) {
 }
 
 function failed(got) {
-  return Object.assign(new Error(String(got.data.message || got.data.error || got.data.raw || `HTTP ${got.status}`)), { status: got.status });
+  const message = String(got.data.message || got.data.error || got.data.raw || `HTTP ${got.status}`);
+  const code = typeof got.data.error_code === 'string' ? got.data.error_code.trim() : '';
+  return Object.assign(new Error(code && !message.includes(code) ? `${code}: ${message}` : message), { status: got.status });
 }
 
 async function answer(dbFetch, host, token, path, options) {

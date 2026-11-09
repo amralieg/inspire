@@ -457,7 +457,7 @@ export function stageSteps(stages) {
     const state = stepState((reached.length ? reached : members).map((s) => s.state));
     const now = members.find((s) => s.state === state) || members[members.length - 1];
     const elapsed = LIVE.includes(state) ? now.elapsed : ['done', 'warning', 'error'].includes(state) ? stepSpan(members) : '';
-    const message = state === 'error' ? String(now.message || '').trim() : '';
+    const message = state === 'error' ? splitTechnical(String(now.message || '').trim()).plain : '';
     const labels = members.map((s) => s.label).join(', ');
     return { id, label: id, title: message ? `${labels}: ${message}` : labels, state, elapsed, message };
   }).filter((step) => step.state !== 'skipped');

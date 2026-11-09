@@ -109,7 +109,7 @@ test('the Launch pickers list catalogs, schemas and tables with the person\u2019
     const tables = await get(url, '/api/tables/main/s?warehouse_id=wh');
     assert.deepEqual(tables.data.tables.map((t) => t.full_name), ['main.s.orders', 'main.s.returns']);
     const hidden = await get(url, '/api/catalogs/hr/schemas');
-    assert.deepEqual([hidden.status, hidden.data.schemas], [502, undefined], 'a catalog only the App can see answers what the person\u2019s own sign-in got');
+    assert.deepEqual([hidden.status, hidden.data.schemas], [403, undefined], 'a catalog only the App can see answers the status the person\u2019s own sign-in got, never 502');
     const calls = ucCalls(workspace);
     assert.ok(calls.length >= 6, `${calls.length} reads`);
     assert.deepEqual([...new Set(calls.map((c) => c.token))], [PERSON], 'every listing read is the person\u2019s');
