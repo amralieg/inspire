@@ -19,10 +19,9 @@ function Missing({ fallback = null }) {
 
 export default function ModeView({ mode, part, fallback = null, ...props }) {
   const View = viewOf(mode, part);
-  if (!View) return fallback;
   return (
     <Suspense fallback={<div className="mode-wait" role="status" aria-label="Loading"><Skeleton height={160} /></div>}>
-      <View {...props} fallback={fallback} />
+      {View ? <View {...props} fallback={fallback} /> : fallback}
     </Suspense>
   );
 }

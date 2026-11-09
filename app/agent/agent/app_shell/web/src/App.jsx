@@ -9,7 +9,6 @@ import Page from './Page.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
 import { pageMode, sectionTitle } from './modes.js';
 import ModeView from './ModeView.jsx';
-import Performance from './Performance.jsx';
 import { inboxOn } from './inbox.js';
 import Admin from './Admin.jsx';
 import { ADMIN_ROUTE } from './admin.js';
@@ -26,6 +25,7 @@ import { integer } from './format.js';
 import { markTourSeen, tourDue, tourKey } from './tourStart.js';
 
 const Tour = lazy(() => import('./Tour.jsx'));
+const Performance = lazy(() => import('./Performance.jsx'));
 
 const THEME_KEY = 'inspire-app-theme';
 const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', settings: 'sliders' };
