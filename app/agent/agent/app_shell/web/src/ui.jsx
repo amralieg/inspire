@@ -1,7 +1,7 @@
 import { Children, Fragment, createContext, useCallback, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import { createPortal } from 'react-dom';
 import { Icon } from './icons.jsx';
-import { COPIED_SEND_TEXT, COPY_SEND_LABEL, DETAILS_LABEL, RETRYING_LABEL, RETRY_LABEL, failureCausesLoaded, sendText, setFailureCauses, splitTechnical } from './plainText.js';
+import { COPIED_SEND_TEXT, COPY_SEND_LABEL, DETAILS_LABEL, NO_ACCESS_LEAD, RETRYING_LABEL, RETRY_LABEL, SOME_DATA, failureCausesLoaded, noAccessOf, sendText, setFailureCauses, splitTechnical } from './plainText.js';
 import { retryable, toneOf } from './api.js';
 
 let causesLoading = null;
@@ -82,16 +82,7 @@ export function TechnicalDetails({ items, label = DETAILS_LABEL }) {
   return <details className="tech-details" data-technical-details=""><summary>{label}</summary><pre>{lines.join('\n')}</pre></details>;
 }
 
-export const NO_ACCESS_LEAD = 'No access to ';
-const SOME_DATA = "part of this App's data";
 const NoAccessContext = createContext(null);
-
-export function noAccessOf(text) {
-  const said = String(text ?? '').trim();
-  if (!said.startsWith(NO_ACCESS_LEAD)) return null;
-  const named = said.slice(NO_ACCESS_LEAD.length);
-  return named.startsWith(SOME_DATA) ? [] : named.split(', ').map((t) => t.trim()).filter(Boolean);
-}
 
 export function noAccessBanner(tables, owners, auth) {
   const who = [...new Set(tables.map((t) => owners?.[t]).filter(Boolean))];

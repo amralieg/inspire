@@ -1,10 +1,10 @@
 import { plural } from './hub.js';
+import { noAccessOf } from './plainText.js';
+
+export { COPIED_SEND_TEXT, COPY_SEND_LABEL, RETRY_LABEL } from './plainText.js';
 
 export const CARD_KEY = /^(?:kpi|chart|table):/;
 export const SHARED_CARD_TEXT = 'Could not load, see the message at the top of the page';
-export const RETRY_LABEL = 'Try again';
-export const COPY_SEND_LABEL = 'Copy what to send';
-export const COPIED_SEND_TEXT = 'Copied. Paste it to whoever looks after this App.';
 export const RUNS_LABEL = 'See the runs';
 export const PAGE_FAILED_LEAD = 'This page could not load: ';
 export const partsFailedLead = (n) => `${plural(n, 'part')} of this page could not load: `;
@@ -23,7 +23,7 @@ export function pageFailures(page, data, error) {
   const errors = data?.errors || {};
   const counts = new Map();
   Object.entries(errors).forEach(([key, text]) => {
-    if (CARD_KEY.test(key) && said(text)) counts.set(said(text), (counts.get(said(text)) || 0) + 1);
+    if (CARD_KEY.test(key) && said(text) && !noAccessOf(text)) counts.set(said(text), (counts.get(said(text)) || 0) + 1);
   });
   let shared = '';
   let count = 1;

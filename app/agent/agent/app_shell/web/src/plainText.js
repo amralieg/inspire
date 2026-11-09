@@ -13,6 +13,16 @@ export const DETAILS_LABEL = 'Details';
 export const CODE_ONLY_TEXT = 'Only an error code came back, listed under Details';
 export const ASK_OWNER_TEXT = 'Ask the owner to give you the access listed under Details';
 export const ASK_OWNER_APP_TEXT = 'Ask the owner to give the App the access listed under Details';
+export const NO_ACCESS_LEAD = 'No access to ';
+export const SOME_DATA = "part of this App's data";
+
+export function noAccessOf(text) {
+  const said = String(text ?? '').trim();
+  if (!said.startsWith(NO_ACCESS_LEAD)) return null;
+  const named = said.slice(NO_ACCESS_LEAD.length);
+  return named.startsWith(SOME_DATA) ? [] : named.split(', ').map((t) => t.trim()).filter(Boolean);
+}
+
 export const RETRY_LABEL = 'Try again';
 export const RETRYING_LABEL = 'Trying again…';
 export const COPY_SEND_LABEL = 'Copy what to send';

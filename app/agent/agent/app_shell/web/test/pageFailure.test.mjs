@@ -53,6 +53,14 @@ async function grouped(scheme = 'light', width = 1440) {
   return opened;
 }
 
+test('the same no-access error on several cards is left to the no-access banner, never grouped as one page failure (must-exclude)', () => {
+  const errors = { 'chart:pareto': 'No access to main.pricing.items', 'chart:by_category': 'No access to main.pricing.items', 'kpi:total_loss': 'No access to main.pricing.items' };
+  const grouped = pageFailures(EXAMPLE, { errors }, '');
+  assert.equal(grouped.shared, '');
+  assert.equal(grouped.count, 0);
+  assert.equal(pageFailures(EXAMPLE, { errors: { ...errors, 'chart:loss_trend': OTHER, 'kpi:loss_rate': OTHER } }, '').shared, OTHER, 'another shared error is still named once');
+});
+
 test('the same long error on every card shows once at the top with Try again, Copy what to send and See the runs, and each card keeps a short note', async () => {
   const { page, seen, context } = await grouped();
   await context.grantPermissions(['clipboard-read', 'clipboard-write']);
