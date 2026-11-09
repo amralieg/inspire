@@ -2,6 +2,7 @@ import { IMPLEMENT_OUTPUTS, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_DONE_STATUSES, 
 import { formatDuration, formatWhen } from './formatWhen.js';
 import { plural, shown } from './plural.js';
 import { rowImpact } from './targetKpi.js';
+import { splitTechnical } from './plainText.js';
 
 export const MVP_BUILD_STAGES = [
   { id: 'Plan', label: 'Plan', working: 'Inspire is working out what this version rebuilds' },
@@ -703,9 +704,25 @@ export function rephrasableAsks(checklist) {
   return missedAsks(checklist).filter((e) => !e.unrequested);
 }
 
+const RECONNECTING = /^\s*Reconnecting\.*\s*(\d+)\s*\/\s*(\d+)/i;
+
+function plainFeedLine(line) {
+  if (!line?.text || line.who === 'genie' && line.tone === 'plain') return line;
+  const { plain, details } = splitTechnical(line.text);
+  return details.length ? { ...line, text: plain, details } : line;
+}
+
 export function feedLine(item) {
-  const kind = String(item?.kind || '');
   const text = String(item?.text || '');
+  const retry = RECONNECTING.exec(text);
+  if (retry) {
+    return { who: 'genie', tone: 'warning', text: `Genie lost its link to the AI model and is reconnecting, try ${retry[1]} of ${retry[2]}`, details: [text.trim()] };
+  }
+  return plainFeedLine(rawFeedLine(item, text));
+}
+
+function rawFeedLine(item, text) {
+  const kind = String(item?.kind || '');
   if (kind === 'message') return { who: 'genie', tone: 'plain', text };
   if (kind === 'stopped') return { who: 'genie', tone: 'warning', text: `Stopped: ${text}` };
   if (kind === 'error') return { who: 'genie', tone: 'error', text: `Genie hit an error: ${text}` };

@@ -2,6 +2,7 @@ import { useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
 import ReactMarkdown from 'react-markdown';
 import { ArrowDown, Terminal, Info } from 'lucide-react';
 import GenieLogo from './GenieLogo';
+import TechnicalDetails from './TechnicalDetails';
 import { feedLine, feedKey, feedTypesOut, typedText, typingSchedule } from '../lib/mvpProgress';
 import { reducedMotion } from '../lib/motion';
 
@@ -121,6 +122,7 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
                       {still && <span className="ms-0.5 inline-block w-1.5 h-3.5 align-[-2px] bg-db-red-fg animate-cursor-blink" aria-hidden />}
                     </div>
                   </div>
+                  {!still && <TechnicalDetails items={entry.line.details} className="mt-1" />}
                   {time && <p className="mt-1 text-[10px] text-text-tertiary">Genie · {time}</p>}
                 </div>
               </div>
@@ -130,11 +132,14 @@ export default function GenieFeed({ feed, arrivals, active, working, scroller })
           return (
             <div key={entry.key} className="flex items-start gap-2.5 ps-1 animate-terminal-line" data-feed-kind={entry.item.kind}>
               <Icon size={13} className={`mt-0.5 shrink-0 ${entry.line.tone === 'error' ? 'text-error-fg' : 'text-text-tertiary'}`} aria-hidden />
-              <p className={`text-[12px] ${tone}`}>
-                {entry.line.who === 'inspire' && <span className="font-semibold text-text-secondary">Inspire · </span>}
-                {entry.line.text}
-                {time && <span className="text-[10px] text-text-tertiary"> · {time}</span>}
-              </p>
+              <div className="min-w-0">
+                <p className={`text-[12px] ${tone}`}>
+                  {entry.line.who === 'inspire' && <span className="font-semibold text-text-secondary">Inspire · </span>}
+                  {entry.line.text}
+                  {time && <span className="text-[10px] text-text-tertiary"> · {time}</span>}
+                </p>
+                <TechnicalDetails items={entry.line.details} />
+              </div>
             </div>
           );
         })}

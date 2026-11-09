@@ -181,6 +181,10 @@ test('each feed item reads as a sentence, never as a log line', async () => {
   assert.deepEqual(feedLine({ kind: 'stopped', text: 'History covers 0 windows' }), { who: 'genie', tone: 'warning', text: 'Stopped: History covers 0 windows' });
   assert.equal(feedLine({ kind: 'error', text: 'quota' }).text, 'Genie hit an error: quota');
   assert.equal(feedLine({ kind: 'turn_done' }).text, 'Genie finished its turn');
+  const retry = 'Reconnecting... 6/10 (stream disconnected before completion: error sending request for url (http://10.1.2.3/ai-gateway/mlflow/v1/responses))';
+  assert.deepEqual(feedLine({ kind: 'error', text: retry }), { who: 'genie', tone: 'warning', text: 'Genie lost its link to the AI model and is reconnecting, try 6 of 10', details: [retry] });
+  const ready = feedLine({ kind: 'note', text: 'Genie Code 0.2.1 is ready and uses the model m (installed at /home/spark-1/.inspire_genie/bin/genie on the x86_64 CPU)' });
+  assert.deepEqual([ready.text, ready.details], ['Genie Code 0.2.1 is ready and uses the model m', ['installed at /home/spark-1/.inspire_genie/bin/genie on the x86_64 CPU']]);
   assert.equal(feedLine({ kind: 'activity', commands: 3, failed: 1, files: ['implementation.py'] }).text, 'Ran 3 commands (1 failed) · edited implementation.py');
   assert.equal(feedLine({ kind: 'activity', commands: 1, failed: 0, files: [] }).text, 'Ran 1 command');
   assert.equal(feedLine({ kind: 'activity', commands: 0, failed: 0, files: ['a.py', 'b.py'] }).text, 'Edited a.py, b.py');
