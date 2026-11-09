@@ -155,6 +155,7 @@ for (const [name, actions] of COMBOS) {
     const { seen, ui } = await scenario(name, { profile: PROFILE, actions, extra: counted(PROFILE) });
     try {
       noLeaks(seen, name);
+      for (const s of seen) assert.deepEqual(s.overflow, [], `${name} / ${s.step} at 1440 by 900`);
       assert.deepEqual(ui.pageErrors, []);
       assert.equal(seen.at(-1).step, 'Summary', seen.at(-1).text.slice(0, 400));
     } finally {
@@ -217,6 +218,24 @@ test('the First run of 20 whole groups of 40 records says about 800 records and 
     const row = summaryOf(seen).split('\n').find((l) => /whole groups/.test(l)) || '';
     assert.doesNotMatch(row, /About 1,000 records/);
     assert.ok(row.length < 400, `${row.length} characters`);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a First run of several groups on a new schema of its own: Next creates the schema once and the Summary names the new table and the groups', async () => {
+  const own = 'main._inspire_acme_n01_u01.n01_u01_results';
+  const { seen, ui } = await scenario('own-schema-groups', { profile: PROFILE,
+    extra: { ...counted(PROFILE), forwardedToken: 'person-tok', dbToken: 'person-tok', catalogs: ['main'], schemas: { main: ['inspire'] },
+      statements: { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }] }) } },
+    actions: { 'First run': radio(/^Several groups/) } });
+  try {
+    noLeaks(seen, 'own-schema-groups');
+    const summary = summaryOf(seen);
+    assert.match(summary, new RegExp(`Result table\\n${own.replace(/\./g, '\\.')}`));
+    assert.match(summary, /Data groups\nstore · 31 groups/);
+    assert.equal(ui.made.sqlCalls.filter((c) => /^CREATE SCHEMA/.test(c.sql)).length, 1);
+    assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
