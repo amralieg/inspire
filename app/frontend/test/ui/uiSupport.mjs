@@ -117,6 +117,10 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
     ASKING.set(page, asking);
     page.on('request', (r) => asking.add(r));
     for (const done of ['requestfinished', 'requestfailed']) page.on(done, (r) => asking.delete(r));
+    page.on('framenavigated', (frame) => {
+      if (frame !== page.mainFrame()) return;
+      for (const r of asking) if (!r.isNavigationRequest()) asking.delete(r);
+    });
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
