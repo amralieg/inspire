@@ -2785,18 +2785,26 @@ function joinAnd(items) {
   return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
-function schemaAccess(rows, t) {
+function schemaNotCreated(rows) {
+  const list = Array.isArray(rows) ? rows : [];
+  const owner = (level) => list.some((r) => str(r.level).toLowerCase() === level && privilegeOf(r.privilege) === 'OWNER');
+  return owner('catalog') && !owner('schema');
+}
+
+function schemaAccess(rows, t, options = {}) {
   const list = Array.isArray(rows) ? rows : [];
   const owner = (level) => list.some((r) => r.level === level && privilegeOf(r.privilege) === 'OWNER');
   const mine = list.filter((r) => r.mine === true || str(r.mine).toLowerCase() === 'true');
   const holds = (levels, privilege) => mine.some((r) => levels.includes(r.level)
     && ['OWNER', 'ALL PRIVILEGES', privilege].includes(privilegeOf(r.privilege)));
-  const access = { list, owner, mine, holds, identity: str((list[0] || {}).me), needs: [] };
+  const access = { list, owner, mine, holds, identity: str((list[0] || {}).me), needs: [], creates: '' };
   if (!owner('catalog')) return { ...access, missing: `catalog ${t.catalog} does not exist or you have no access to it` };
-  if (!owner('schema')) {
+  const creates = !owner('schema') && options.createsSchema === true;
+  if (!owner('schema') && !creates) {
     return { ...access, missing: `schema ${t.catalog}.${t.schema} does not exist or you have no access to it; create it or pick another schema` };
   }
   if (!holds(['catalog'], 'USE CATALOG')) access.needs.push(`USE CATALOG on ${t.catalog}`);
+  if (creates) return { ...access, creates: `Inspire creates the schema ${t.catalog}.${t.schema} for this use case at the Results step` };
   if (!holds(['catalog', 'schema'], 'USE SCHEMA')) access.needs.push(`USE SCHEMA on ${t.catalog}.${t.schema}`);
   return access;
 }
@@ -2826,20 +2834,21 @@ function accessSubject(identity, builder) {
 function modelAccess(rows, modelName, options = {}) {
   const t = tableParts(modelName);
   const model = `${t.catalog}.${t.schema}.${t.table}`;
-  const access = schemaAccess(rows, t);
+  const access = schemaAccess(rows, t, options);
   if (access.missing) return { ok: false, detail: `${access.missing}, so Inspire cannot register the model ${model} there` };
   const needs = [...access.needs];
-  if (!access.holds(['catalog', 'schema'], 'CREATE MODEL')) needs.push(`CREATE MODEL on ${t.catalog}.${t.schema}`);
+  if (!access.creates && !access.holds(['catalog', 'schema'], 'CREATE MODEL')) needs.push(`CREATE MODEL on ${t.catalog}.${t.schema}`);
   const by = accessSubject(access.identity, options.builder);
+  const made = access.creates ? `${access.creates}, so ` : '';
   return needs.length
     ? { ok: false, detail: `${by.who} ${by.need} ${joinAnd(needs)} to register the model ${model}` }
-    : { ok: true, detail: `${by.who} can register the model ${model}` };
+    : { ok: true, detail: `${made}${by.who} can register the model ${model}` };
 }
 
 function outputAccess(rows, name, options = {}) {
   const t = tableParts(name);
   const table = `${t.catalog}.${t.schema}.${t.table}`;
-  const { list, owner, mine, holds, identity, missing, needs } = schemaAccess(rows, t);
+  const { list, owner, mine, holds, identity, missing, needs, creates } = schemaAccess(rows, t, options);
   const by = accessSubject(identity, options.builder);
   const exists = owner('table');
   const verb = exists ? 'write to' : 'create';
@@ -2849,10 +2858,10 @@ function outputAccess(rows, name, options = {}) {
     if (exists) {
       if (!holds(['catalog', 'schema', 'table'], 'MODIFY')) needs.push(`MODIFY on ${table}`);
       if (!holds(['catalog', 'schema', 'table'], 'SELECT')) needs.push(`SELECT on ${table}`);
-    } else if (!holds(['catalog', 'schema'], 'CREATE TABLE')) needs.push(`CREATE TABLE on ${t.catalog}.${t.schema}`);
+    } else if (!creates && !holds(['catalog', 'schema'], 'CREATE TABLE')) needs.push(`CREATE TABLE on ${t.catalog}.${t.schema}`);
     write = needs.length
       ? { ok: false, detail: `${by.who} ${by.need} ${joinAnd(needs)} to ${verb} ${table}` }
-      : { ok: true, detail: `${by.who} can ${verb} ${table}` };
+      : { ok: true, detail: `${creates ? `${creates}, so ` : ''}${by.who} can ${verb} ${table}` };
   }
   const grantable = exists
     ? mine.some((r) => ['catalog', 'schema', 'table'].includes(r.level) && ['OWNER', 'MANAGE'].includes(privilegeOf(r.privilege)))
@@ -2860,10 +2869,11 @@ function outputAccess(rows, name, options = {}) {
   const grant = grantable
     ? { ok: true, detail: exists ? `${by.who} can share ${table}` : `${by.who} will own ${table}, so ${by.it} can share it` }
     : { ok: false, detail: `${by.who} cannot share ${table}: ${by.itNeeds} to own it, its schema or its catalog, or hold MANAGE on one of them` };
-  const readable = accessPlan(name, list);
-  const app = readable.gaps.length
-    ? { ok: false, detail: appAccessMessage(table, readable.gaps, readable.me) }
-    : { ok: true, detail: `Inspire can give a new App read access to ${table}` };
+  const readable = accessPlan(name, list, '', options);
+  const app = missing ? { ok: false, detail: `a new App cannot read ${table}: ${missing}` }
+    : readable.gaps.length
+      ? { ok: false, detail: appAccessMessage(table, readable.gaps, readable.me) }
+      : { ok: true, detail: `Inspire can give a new App read access to ${table}` };
   return { table, exists, identity, write, grant, app };
 }
 
@@ -2879,7 +2889,7 @@ function grantSql(need, who) {
   return `GRANT ${need.privilege} ON ${need.level.toUpperCase()} ${need.object} TO \`${who}\``;
 }
 
-function accessPlan(name, rows, principal = '') {
+function accessPlan(name, rows, principal = '', options = {}) {
   const who = str(principal).trim();
   let t;
   try {
@@ -2905,6 +2915,7 @@ function accessPlan(name, rows, principal = '') {
   const me = str((list.find((r) => str(r.me).trim()) || {}).me).trim();
   const holders = new Set([IMPLEMENT_ALL_USERS, ...(who ? [who.toLowerCase()] : [])]);
   const tableExists = facts.some((f) => f.level === 'table' && f.privilege === 'OWNER');
+  const createsSchema = options.createsSchema === true && schemaNotCreated(list);
   const plan = { grants: [], gaps: [], me };
   for (const [privilege, level, levels] of IMPLEMENT_READ_NEEDS) {
     const owns = !!who && facts.some((f) => f.level === level && f.privilege === 'OWNER' && f.principal.toLowerCase() === who.toLowerCase());
@@ -2912,7 +2923,7 @@ function accessPlan(name, rows, principal = '') {
       && holders.has(f.principal.toLowerCase()));
     if (owns || granted) continue;
     const manages = facts.some((f) => f.mine && levels.includes(f.level) && ['OWNER', 'MANAGE'].includes(f.privilege));
-    if (manages || (level === 'table' && !tableExists)) {
+    if (manages || (level === 'table' && !tableExists) || (createsSchema && level !== 'catalog')) {
       if (who) plan.grants.push(need(privilege, level));
       continue;
     }
@@ -3073,9 +3084,9 @@ function principalNames(principals) {
     .filter(Boolean);
 }
 
-function shareWarnings(name, rows, principals) {
+function shareWarnings(name, rows, principals, options = {}) {
   return principalNames(principals)
-    .map((who) => ({ who, gaps: accessPlan(name, rows, who).gaps }))
+    .map((who) => ({ who, gaps: accessPlan(name, rows, who, options).gaps }))
     .filter((p) => p.gaps.length)
     .map((p) => accessGapMessage(p.who, p.gaps));
 }
@@ -3679,6 +3690,7 @@ module.exports = {
   resultTableNameError,
   outputAccessStatement,
   outputAccess,
+  schemaNotCreated,
   modelAccess,
   defaultModelName,
   sameSchema,

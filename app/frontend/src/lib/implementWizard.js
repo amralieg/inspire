@@ -1805,8 +1805,14 @@ export function affordable(order, blocks = {}, reasonOf = () => '', labelOf = (i
   return { open, blocks: held, best: open.length ? { id: open[0], reason: reasonOf(open[0]) } : null, none };
 }
 
+export function notFoundPlace(detail = '') {
+  const found = /\b(catalog|schema) (\S+) does not exist\b/i.exec(String(detail || ''));
+  return found ? `The ${found[1].toLowerCase()} ${found[2]} does not exist, or Inspire cannot see it.` : '';
+}
+
 export function blockWhy(detail) {
-  return /\b(grant|privilege|permission|access|use schema|use catalog|create table|manage)\b/i.test(String(detail || '')) ? needsAccess(detail) : CANNOT_HERE;
+  return notFoundPlace(detail)
+    || (/\b(grant|privilege|permission|access|use schema|use catalog|create table|manage)\b/i.test(String(detail || '')) ? needsAccess(detail) : CANNOT_HERE);
 }
 
 export function blockOf(why, details = '') {

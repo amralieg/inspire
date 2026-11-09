@@ -326,17 +326,19 @@ function registerImplementRoutes(app, deps) {
       loadResultTableHolder(req, warehouseId, catalog, schema, table),
     ]);
     const person = P.personTokenOf(req);
-    const builder = await buildsAsAnother(req);
-    const access = I.outputAccess(rows, table, { builder });
-    const model = I.trainsModel(useCase) ? I.modelAccess(elsewhere ? modelRows : rows, modelName, { builder }) : null;
+    const [builder, createsSchema] = await Promise.all([buildsAsAnother(req),
+      I.schemaNotCreated(rows) ? createsUseCaseSchema(req, warehouseId, table, useCaseId) : false]);
+    const access = I.outputAccess(rows, table, { builder, createsSchema });
+    const model = I.trainsModel(useCase)
+      ? I.modelAccess(elsewhere ? modelRows : rows, modelName, { builder, createsSchema: !elsewhere && createsSchema }) : null;
     const warehouse = await appWarehouseCheck(req, warehouseId, access.identity, options.warehouseName);
     const own = Boolean(options.appWarehouse) && options.appWarehouse !== warehouseId;
     const appWarehouse = own ? await appWarehouseCheck(req, options.appWarehouse, access.identity, '', true) : warehouse;
-    const warnings = [...I.shareWarnings(table, rows, options.principals),
+    const warnings = [...I.shareWarnings(table, rows, options.principals, { createsSchema }),
       ...I.shareWarehouseWarnings(warehouse, options.principals, options.viewed, options.warehouseName)];
     if (warnings.length) access.grant = { ...access.grant, warn: warnings.join(' ') };
     access.app = I.appAccessCheck(access.app, own ? null : warehouse);
-    const appGaps = I.accessPlan(table, rows).gaps;
+    const appGaps = I.accessPlan(table, rows, '', { createsSchema }).gaps;
     if (appGaps.length && builder) {
       const offer = I.newAppsAccessOffer(table, await accessRowsOf(req, person, warehouseId, table), appGaps);
       if (offer) access.app = { ...access.app, offer };
@@ -557,6 +559,14 @@ function registerImplementRoutes(app, deps) {
     } catch (err) {
       return { rows: null, unchecked: String((err && err.message) || err).slice(0, 200) };
     }
+  }
+
+  async function createsUseCaseSchema(req, warehouseId, table, useCaseId) {
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const sid = sessionIdOf(req);
+    const session = await loadSession(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid);
+    const place = await useCaseSchemaOf(req, warehouseId, `${catalog}.${schema}`, sid, useCaseId, session.business_name);
+    return Boolean(place && place.place === 'own' && place.create && I.sameSchema(place.table, table));
   }
 
   async function useCaseSchemaOf(req, warehouseId, inspireDatabase, sid, useCaseId, businessName) {

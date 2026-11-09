@@ -528,3 +528,21 @@ test('the profile reads the main table picked in the wizard, not the one of the 
     assert.equal(bad.status, 400, 'a table that is not catalog.schema.table is refused (must-exclude)');
   });
 });
+
+test('a technique Data groups do not apply to recommends no grouping and no example, yet keeps whole groups for its First run (must-exclude)', async () => {
+  const made = profiled({ useCase: { id: 'N01-U01', primary_table: 'main.sales.orders', tables_involved: 'main.sales.orders', analytics_technique: 'Optimization' } });
+  await withApp(made, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    const d = got.data;
+    assert.deepEqual([d.applies, d.qualifies, d.recommended, d.example], [false, false, [], null]);
+    assert.match(d.reason, /^Data groups do not apply: Optimization does not work out what is normal inside groups/);
+    assert.equal(d.group_column, 'country', 'a technique that reads records together still samples its First run in whole groups');
+    assert.ok(d.group_sizes.length > 0);
+  });
+  const grouped = profiled();
+  await withApp(grouped, async (srv) => {
+    const got = await post(srv, ASK);
+    assert.deepEqual([got.data.applies, got.data.recommended], [true, ['region', 'country']], 'a technique Data groups apply to keeps its recommendation');
+  });
+});

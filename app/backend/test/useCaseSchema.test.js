@@ -288,3 +288,75 @@ test('the ensure plan creates only a missing schema and tags only one without th
   assert.deepEqual(I.useCaseSchemaEnsure({ exists: true, session: '42' }, null), { create: false, tag: false });
   assert.deepEqual(I.useCaseSchemaEnsure(null, null), { create: true, tag: false });
 });
+
+const NOT_CREATED = [
+  { level: 'catalog', privilege: 'OWNER', principal: 'admins', mine: false, me: 'app-sp' },
+  { level: 'catalog', privilege: 'USE CATALOG', principal: 'account users', mine: true, me: 'app-sp' },
+  { level: 'catalog', privilege: 'CREATE SCHEMA', principal: 'app-sp', mine: true, me: 'app-sp' },
+];
+
+test('a use case schema Inspire creates at the Results step passes every build check before it exists: its needs are grants Inspire runs, not gaps', () => {
+  const creates = { builder: true, createsSchema: true };
+  const got = I.outputAccess(NOT_CREATED, OWN, creates);
+  assert.deepEqual([got.write.ok, got.grant.ok, got.app.ok], [true, true, true], JSON.stringify(got));
+  assert.match(got.write.detail, /^Inspire creates the schema main\._inspire_acme_n01_u01 for this use case at the Results step, so app-sp, the identity Inspire builds as, can create /);
+  assert.deepEqual(I.accessPlan(OWN, NOT_CREATED, '', creates).gaps, []);
+  assert.deepEqual(I.accessPlan(OWN, NOT_CREATED, 'app-new', creates).grants.map((g) => [g.privilege, g.level]), [['USE SCHEMA', 'schema'], ['SELECT', 'table']]);
+  assert.equal(I.modelAccess(NOT_CREATED, `${OWN}_model`, creates).ok, true);
+  assert.deepEqual(I.shareWarnings(OWN, NOT_CREATED, ['analysts'], creates), []);
+  assert.equal(I.schemaNotCreated(NOT_CREATED), true);
+});
+
+test('a missing schema Inspire does not create still fails, and its reason names the missing schema, never access Inspire lacks (must-exclude)', () => {
+  const got = I.outputAccess(NOT_CREATED, OWN, { builder: true });
+  assert.deepEqual([got.write.ok, got.app.ok], [false, false]);
+  assert.match(got.app.detail, /^a new App cannot read main\._inspire_acme_n01_u01\.n01_u01_results: schema main\._inspire_acme_n01_u01 does not exist/);
+  assert.doesNotMatch(got.app.detail, /GRANT/);
+  assert.equal(w.blockWhy(got.app.detail), 'The schema main._inspire_acme_n01_u01 does not exist, or Inspire cannot see it.');
+  assert.equal(w.outputBlocks({ apps: true }, null, {}, { new_app: got.app }).app.why, 'The schema main._inspire_acme_n01_u01 does not exist, or Inspire cannot see it.');
+  assert.ok(I.accessPlan(OWN, NOT_CREATED, '').gaps.some((g) => g.level === 'schema'), 'without Inspire creating it the schema need stays a gap');
+  assert.equal(I.modelAccess(NOT_CREATED, `${OWN}_model`, { builder: true }).ok, false);
+  assert.equal(I.shareWarnings(OWN, NOT_CREATED, ['analysts']).length, 1);
+  const noCatalog = I.outputAccess([], OWN, { builder: true, createsSchema: true });
+  assert.equal(noCatalog.app.ok, false, 'Inspire never creates a catalog, so a missing catalog is never excused');
+  assert.equal(w.blockWhy(noCatalog.app.detail), 'The catalog main does not exist, or Inspire cannot see it.');
+  assert.equal(I.schemaNotCreated([]), false);
+});
+
+test('an existing schema is never excused as one Inspire creates: a real access gap still shows with its GRANT (must-exclude)', () => {
+  const existing = [...NOT_CREATED, { level: 'schema', privilege: 'OWNER', principal: 'someone', mine: false, me: 'app-sp' },
+    { level: 'schema', privilege: 'CREATE TABLE', principal: 'app-sp', mine: true, me: 'app-sp' },
+    { level: 'schema', privilege: 'USE SCHEMA', principal: 'app-sp', mine: true, me: 'app-sp' }];
+  const got = I.outputAccess(existing, OWN, { builder: true, createsSchema: true });
+  assert.equal(got.write.ok, true);
+  assert.equal(got.app.ok, false);
+  assert.match(got.app.detail, /needs USE SCHEMA on schema `main`\.`_inspire_acme_n01_u01`.*GRANT MANAGE ON SCHEMA/);
+  assert.match(w.blockWhy(got.app.detail), /^Needs access Inspire does not have on the schema/);
+  assert.equal(I.schemaNotCreated(existing), false);
+});
+
+const outputRows = (rows) => ({ 'AS mine, current_user() AS me FROM (': { rows } });
+
+test('preflight on a first run passes the App when the person can create the use case schema, and names the missing schema when they cannot (must-exclude)', async () => {
+  const ask = `/api/inspire/implement/preflight?${Q}&result_table=${OWN}&app_name=&merge_app=&genie=1&dashboard=0`;
+  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp' },
+    warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] } };
+  await withApp({ ...app, statements: { ...schemaRows([RIGHT, ME]), ...outputRows(NOT_CREATED) } }, async (url) => {
+    const got = await call(url, ask);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.new_app.ok, true, JSON.stringify(got.data.new_app));
+    assert.equal(got.data.checks.output.ok, true, JSON.stringify(got.data.checks.output));
+    assert.deepEqual(w.outputBlocks(got.data.features, null, {}, got.data), {});
+  });
+  await withApp({ ...app, statements: { ...schemaRows([ME]), ...outputRows(NOT_CREATED) } }, async (url) => {
+    const got = await call(url, ask);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.new_app.ok, false);
+    assert.equal(w.outputBlocks(got.data.features, null, {}, got.data).app.why, 'The schema main._inspire_acme_n01_u01 does not exist, or Inspire cannot see it.');
+  });
+  await withApp({ ...app, statements: { ...schemaRows([RIGHT, ME]), ...outputRows(NOT_CREATED) } }, async (url) => {
+    const other = await call(url, `/api/inspire/implement/preflight?${Q}&result_table=main.elsewhere.n01_u01_results&app_name=&merge_app=&genie=1`);
+    assert.equal(other.status, 200, JSON.stringify(other.data));
+    assert.equal(other.data.new_app.ok, false, 'a missing schema that is not this use case\'s own schema is not one Inspire creates');
+  });
+});
