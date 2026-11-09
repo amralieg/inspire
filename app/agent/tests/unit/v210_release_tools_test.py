@@ -364,3 +364,42 @@ def test_kinds_rc_takes_the_draft_id_from_the_create_reply_not_from_a_later_list
     assert 'ID=$(gh api -X POST "repos/$REPO/releases"' in text and "-F draft=true -F prerelease=true -f make_latest=false --jq .id)" in text
     assert "gh release create \"$TAG\" --repo \"$REPO\" --draft" not in text
     assert text.count("ID=$(draft_id)") == 1
+
+
+def _verify_stage(release_tool, monkeypatch, run_result, defaults):
+    install = release_tool.load("rc_install")
+    work = install.W40 / "v0.0.1-rc.1"
+    (work / "release").mkdir(parents=True)
+    (work / "release" / "manifest.json").write_text("{}", encoding="utf-8")
+    (install.W40 / "v0.0.1-rc.1_install.json").write_text(json.dumps({"run_id": 7, "folder": "/Users/me/rc_tests/x"}),
+                                                           encoding="utf-8")
+    me = types.SimpleNamespace(user_name="me")
+    monkeypatch.setattr(install, "WorkspaceClient", lambda profile: types.SimpleNamespace(
+        current_user=types.SimpleNamespace(me=lambda: me), jobs=types.SimpleNamespace(get_run=None)), raising=False)
+    monkeypatch.setattr(install.rc_settings, "require_tools", lambda *a, **k: None)
+    state = types.SimpleNamespace(result_state=types.SimpleNamespace(value=run_result) if run_result else None)
+    monkeypatch.setattr(install, "retried", lambda call, run_id: types.SimpleNamespace(state=state, start_time=0, end_time=37000))
+    monkeypatch.setattr(install, "output_text", lambda w, run: "installer output")
+    monkeypatch.setattr(install, "verify", lambda *a: {"envSkipsSetupWizard": defaults})
+    monkeypatch.setattr(sys, "argv", ["rc_install.py", "v0.0.1-rc.1", "verify", "--app", "scratch-app"])
+    return install
+
+
+@pytest.mark.parametrize("run_result, defaults, named", [
+    ("FAILED", True, "the installer job 7 ended FAILED"),
+    (None, True, "the installer job 7 ended None"),
+    ("SUCCESS", False, "envSkipsSetupWizard False"),
+    ("SUCCESS", None, "envSkipsSetupWizard None"),
+])
+def test_an_install_that_failed_exits_non_zero_and_names_why(release_tool, monkeypatch, run_result, defaults, named):
+    install = _verify_stage(release_tool, monkeypatch, run_result, defaults)
+    with pytest.raises(SystemExit) as stop:
+        install.main()
+    assert named in str(stop.value.code)
+    assert json.loads((install.W40 / "v0.0.1-rc.1_verify.json").read_text(encoding="utf-8"))["result"] == run_result
+
+
+def test_an_install_that_worked_and_skips_the_wizard_exits_zero(release_tool, monkeypatch):
+    install = _verify_stage(release_tool, monkeypatch, "SUCCESS", True)
+    install.main()
+    assert install.install_failures({"result": "SUCCESS", "envSkipsSetupWizard": True}) == []
