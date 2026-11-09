@@ -7,7 +7,7 @@ import types
 import pytest
 
 from v120_artifacts_support import CapturingLogger, FakeSpark
-from v140_implement_test import _inspire
+from v140_implement_test import _app_shell, _inspire
 from v143_vibes_test import _locked, _run
 
 BUSY = RuntimeError("503 Service Unavailable: TEMPORARILY_UNAVAILABLE, try again")
@@ -115,8 +115,8 @@ def test_the_builder_identity_falls_back_to_the_workspace_when_spark_cannot_say(
     assert "implement_app_admin_warnings" not in agent_ns, "Refresh now belongs to each use case's owners, never to the builder alone"
 
 
-def test_a_dashboard_page_genie_writes_with_an_html_block_goes_back_to_genie(agent_ns):
-    problems = agent_ns["implement_dashboard_html_problems"]
+def test_a_dashboard_page_genie_writes_with_an_html_block_goes_back_to_genie(agent_ns, tmp_path):
+    problems = _app_shell(agent_ns, tmp_path)[1]["shell_sql"].dashboard_html_problems
     page = {"blocks": [{"id": "rain", "kind": "html", "content": "<b>Rain</b>"}, {"id": "note", "kind": "text", "content": "Note"}]}
     assert problems(page) == ["block rain is html, which a dashboard text widget cannot draw: write it as a text block in Markdown "
                               "(headings, bold, italics, lists, links and tables) or as an image block"]

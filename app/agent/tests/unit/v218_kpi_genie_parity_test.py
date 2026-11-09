@@ -135,13 +135,14 @@ def test_a_user_ask_for_charts_by_reason_wins_over_both_checks(tmp_path, capsys)
 
 def test_the_reason_ask_must_quote_the_users_words(agent_ns):
     page = dict(_queue_page("top_reasons"), reason_charts="chart the queue by its reasons")
-    fewer = agent_ns["implement_fewer_problems"]
+    fewer = shell_sql.fewer_problems
     args = ("App", "a chart grouped by reason", "group each chart by a categorical column many records share")
     assert fewer(page, "reason_charts", "please chart the queue by its reasons", *args) == []
     assert fewer(page, "reason_charts", "show the top ten records", *args)[0].startswith(
         "reason_charts quotes 'chart the queue by its reasons', which is not in the customer's asks")
-    assert ("found += implement_fewer_problems(page, shell_sql.REASON_CHARTS, vibes, label, \"a chart grouped by reason\","
-            in _notebook_source())
+    assert ('fewer_problems(page, REASON_CHARTS, vibes, label, "a chart grouped by reason",'
+            in open(shell_sql.__file__, encoding="utf-8").read())
+    assert "shell_sql.rule_problems(page, implement_page_rules(" in _notebook_source()
 
 
 def test_the_notebook_shell_and_build_prompt_carry_the_category_rule(agent_ns, tmp_path):

@@ -637,10 +637,10 @@ def test_a_deciding_layout_that_drops_its_whole_decision_list_is_sent_back_and_a
     shell_sql = _modules(agent_ns, tmp_path)[1]["shell_sql"]
     for layout in ("decision_queue", "planner", "scenario_lab"):
         page = {"layout": layout, "datasets": [{"name": "trend", "sql": "SELECT 1"}]}
-        assert agent_ns["implement_page_decision_problems"](page, shell_sql), layout
+        assert shell_sql.decision_problems(page), layout
     for layout in ("dashboard", "agent_chat"):
         page = {"layout": layout, "datasets": [{"name": "trend", "sql": "SELECT 1"}]}
-        assert agent_ns["implement_page_decision_problems"](page, shell_sql) == [], layout
+        assert shell_sql.decision_problems(page) == [], layout
 
 
 def test_the_layout_brief_names_its_sections_minimums_and_companion_tables_and_drops_the_list_only_for_a_layout_without_one(agent_ns, tmp_path):
@@ -757,7 +757,7 @@ def test_the_row_minimum_skips_itself_only_when_the_page_quotes_the_user_asking_
 ])
 def test_a_fewer_rows_quote_must_be_the_users_words_word_for_word(agent_ns, quote, vibes, needle):
     page = {} if quote is None else {"fewer_rows": quote}
-    problems = agent_ns["implement_fewer_problems"](page, "fewer_rows", vibes, "App", "fewer rows than the layout's sections show",
+    problems = shell_sql.fewer_problems(page, "fewer_rows", vibes, "App", "fewer rows than the layout's sections show",
                                                     "fill each section to its minimum rows")
     assert (problems == []) if not needle else (len(problems) == 1 and needle in problems[0]), problems
 

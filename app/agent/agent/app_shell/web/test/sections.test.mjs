@@ -197,6 +197,20 @@ test('What to do now counts the records in your window, so closed records outsid
   await context.close();
 });
 
+test('What to do now falls back to the whole list when the window is refused, so its count still shows', async () => {
+  const base = trackedRoutes();
+  const records = (ctx) => {
+    const body = ctx.route.request().postDataJSON();
+    ctx.seen.records.push(body);
+    if (body.window) return ctx.json(409, { error: 'this decision list keeps no actions, so it has no window of actions to show', code: 'no_window' });
+    return ctx.json(200, { rows: [], total: 4, offset: 0, limit: body.limit || 5, actions: false, changes: false, summary: null, errors: {} });
+  };
+  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...base, records }, ready: '[data-section]' });
+  await page.waitForSelector('[data-todo-count]', { timeout: 5000 });
+  assert.match(await page.locator('[data-todo-count]').innerText(), /waiting for you/);
+  await context.close();
+});
+
 test('the Open tab keeps your window: an overdue record ranked last shows first with the Overdue line, and All lists without a window', async () => {
   const records = ({ route, json, seen }) => {
     const body = route.request().postDataJSON();

@@ -121,14 +121,15 @@ def test_a_drivers_chart_must_name_a_dataset_and_a_drivers_tile_without_one_is_r
     assert _check(agent_ns, doc, sql) == []
     _named(_canvas(doc)[0], "driver_1")["widget"]["queries"] = []
     errors = _check(agent_ns, doc, sql)
-    assert ("widgets driver_1 name no dataset: every tile that is not text reads a dataset of the dashboard" in errors), errors
+    assert any(e.endswith("widget driver_1 names no dataset: every tile that is not text reads a dataset of the dashboard")
+               for e in errors), errors
 
 
 @pytest.mark.parametrize("change,needle", [
     (lambda page: page["layout"].remove(_named(page, "drivers_header")), "has no Drivers section"),
     (lambda page: [page["layout"].remove(i) for i in list(page["layout"]) if i["widget"]["name"].startswith("driver_")],
      "the Drivers section of page Price-loss decision desk has no tile"),
-    (lambda page: _named(page, "driver_1")["position"].update(y=0), "Drivers tile driver_1 sits above the Drivers header"),
+    (lambda page: _named(page, "driver_1")["position"].update(y=0), "tile driver_1 in the Drivers section sits above the Drivers header"),
     (lambda page: _named(page, "drivers_header")["widget"]["multilineTextboxSpec"].update(lines=["## Other\n"]), "has no Drivers section"),
 ])
 def test_the_drivers_rule_rejects_a_missing_header_an_empty_section_and_a_tile_above_it(agent_ns, tmp_path, change, needle):
@@ -274,7 +275,7 @@ def _copy(doc, name, new, y=None):
     (lambda doc: _named(_canvas(doc)[0], "chart_2")["position"].update(width=13), "widget chart_2 has no place on the 12-column grid"),
     (lambda doc: _tier(doc).pop("style"), "the decision list of page Price-loss decision desk does not color its Act now rows"),
     (lambda doc: _tier(doc)["style"]["rules"][0]["foregroundColor"].update(position=0), "does not color its Act now rows"),
-    (lambda doc: _named(_canvas(doc)[0], "kpi_1")["widget"].update(queries=[]), "widgets kpi_1 name no dataset"),
+    (lambda doc: _named(_canvas(doc)[0], "kpi_1")["widget"].update(queries=[]), "widget kpi_1 names no dataset"),
     (lambda doc: doc["datasets"][0]["queryLines"].append("-- " + "x" * (16 * 1024 * 1024)), "over the 16777216-byte Lakeview limit"),
 ])
 def test_each_adopted_semunity_rule_rejects_its_defect(agent_ns, tmp_path, change, needle):

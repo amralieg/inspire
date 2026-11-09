@@ -542,7 +542,7 @@ def test_the_dashboard_draws_text_and_image_blocks_as_text_widgets_at_their_plac
     assert named["block_note"]["position"] == {"x": 8, "y": records["position"]["y"], "width": 4, "height": records["position"]["height"]}
     assert "block_raw" not in named and named["block_outro"]["position"]["y"] == records["position"]["y"] + records["position"]["height"]
     assert "implement_html_markdown" not in agent_ns, "a dashboard page never holds html, so nothing converts it"
-    assert agent_ns["implement_dashboard_html_problems"](page) == [
+    assert shell_sql.dashboard_html_problems(page) == [
         "block raw is html, which a dashboard text widget cannot draw: write it as a text block in Markdown (headings, bold, italics, "
         "lists, links and tables) or as an image block"]
     assert "implement_dashboard_block_warnings" not in agent_ns, "the dashboard never warns about an html block"
@@ -554,7 +554,7 @@ def test_a_page_without_blocks_builds_the_same_dashboard_as_an_empty_block_list_
     empty = agent_ns["implement_dashboard_from_page"](_dash_page(agent_ns), shell_module, RESULT, {})
     assert plain == empty
     assert not any(item["widget"]["name"].startswith("block_") for item in _canvas(plain)[0]["layout"])
-    assert agent_ns["implement_dashboard_html_problems"](_page(agent_ns)) == []
+    assert shell_sql.dashboard_html_problems(_page(agent_ns)) == []
 
 
 def _app_prompt(ns, tmp_path, **outputs):
