@@ -1,3 +1,5 @@
+import { parseApiErrorMessage } from './ucPermissionErrors.js';
+
 const HIDDEN_EXTENSIONS = ['.json', '.jsonl'];
 const CATALOG_JSON_NAME = /-dbx_inspire(_[a-z]{2})?\.json$/;
 
@@ -30,21 +32,11 @@ export function fileSizeText(bytes) {
   return `${(n / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-function jsonOrNull(text) {
-  try {
-    return JSON.parse(text);
-  } catch {
-    return null;
-  }
-}
-
 export async function fileProblemText(action, name, resp) {
   let why = resp ? `the workspace answered ${resp.status}` : 'the App did not answer';
   if (resp) {
     const body = await resp.json().catch(() => null);
-    let said = String(body?.error || body?.message || '').trim();
-    const inner = said.startsWith('{') ? jsonOrNull(said) : null;
-    if (inner?.message) said = String(inner.message).trim();
+    const said = parseApiErrorMessage(String(body?.error || body?.message || '')).trim();
     if (said) why = said.length > 200 ? `${said.slice(0, 200)}…` : said;
   }
   return `Inspire could not ${action} ${name}: ${why}${/[.!?…]$/.test(why) ? '' : '.'}`;

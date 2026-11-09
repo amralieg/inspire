@@ -92,3 +92,17 @@ test('the Results page builds Quick access from quickAccessFiles and keeps no ex
   assert.equal((src.match(/<FilePreview /g) || []).length, 2);
   assert.doesNotMatch(src, /parseCsvLine/);
 });
+
+test('a failed download or preview says why in the words the workspace or the App answered with', async () => {
+  const { fileProblemText } = await import(libUrl);
+  const answer = (status, body) => ({ status, json: async () => (body === undefined ? Promise.reject(new Error('no body')) : body) });
+  assert.equal(await fileProblemText('download', 'a.pdf', null), 'Inspire could not download a.pdf: the App did not answer.');
+  assert.equal(await fileProblemText('download', 'a.pdf', answer(502)), 'Inspire could not download a.pdf: the workspace answered 502.');
+  assert.equal(await fileProblemText('open', 'a.pdf', answer(404, { error: 'File not found.' })), 'Inspire could not open a.pdf: File not found.');
+  assert.equal(await fileProblemText('open', 'a.pdf', answer(403, { error: '{"error_code":"PERMISSION_DENIED","message":"You cannot read /w/a.pdf"}' })), 'Inspire could not open a.pdf: You cannot read /w/a.pdf.');
+  assert.equal(await fileProblemText('open', 'a.pdf', answer(500, { error: '{"error":"The volume is offline"}' })), 'Inspire could not open a.pdf: The volume is offline.');
+  assert.equal(await fileProblemText('open', 'a.pdf', answer(500, { message: '{not json' })), 'Inspire could not open a.pdf: {not json.');
+  assert.equal(await fileProblemText('open', 'a.pdf', answer(500, { error: '{"error_code":"INTERNAL"}' })), 'Inspire could not open a.pdf: {"error_code":"INTERNAL"}.');
+  const long = await fileProblemText('preview', 'a.csv', answer(500, { error: 'x'.repeat(300) }));
+  assert.equal(long, `Inspire could not preview a.csv: ${'x'.repeat(200)}…`);
+});
