@@ -286,7 +286,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                   value={databricksHost}
                   onChange={(e) => update('databricksHost', normalizeDatabricksHost(e.target.value))}
                   placeholder="https://adb-xxxx.xx.azuredatabricks.net"
-                  className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-text-primary text-sm focus:border-db-red focus:ring-1 focus:ring-db-red/20 outline-none transition-all"
+                  className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-text-primary text-sm focus:border-db-red transition-all"
                 />
                 <p className="text-[10px] text-text-tertiary mt-1.5">
                   Find this in your browser address bar when logged into Databricks, or in Workspace Settings.
@@ -331,7 +331,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                         value={token}
                         onChange={(e) => update('token', e.target.value)}
                         placeholder="dapi..."
-                        className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red focus:ring-1 focus:ring-db-red/20 outline-none transition-all"
+                        className="w-full px-4 py-3 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red transition-all"
                       />
                       <p className="text-[10px] text-text-tertiary mt-1.5">
                         Generate at: Databricks &rarr; User Settings &rarr; Developer &rarr; Access Tokens &rarr; Generate New Token
@@ -342,17 +342,17 @@ export default function SetupWizard({ settings, update, onComplete }) {
                       <div>
                         <label className="text-xs font-medium text-text-secondary mb-1 block">Client ID</label>
                         <input dir="auto" type="text" value={settings.spClientId} onChange={(e) => update('spClientId', e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red outline-none" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                          className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
                       </div>
                       <div>
                         <label className="text-xs font-medium text-text-secondary mb-1 block">Client Secret</label>
                         <input dir="auto" type="password" value={settings.spClientSecret} onChange={(e) => update('spClientSecret', e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red outline-none" placeholder="dose..." />
+                          className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red" placeholder="dose..." />
                       </div>
                       <div>
                         <label className="text-xs font-medium text-text-secondary mb-1 block">Tenant ID (Azure)</label>
                         <input dir="auto" type="text" value={settings.spTenantId} onChange={(e) => update('spTenantId', e.target.value)}
-                          className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red outline-none" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
+                          className="w-full px-4 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm font-mono focus:border-db-red" placeholder="xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx" />
                       </div>
                     </div>
                   )}
@@ -415,7 +415,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                     catalogs={catalogs}
                     truncated={catalogsCut}
                     placeholder="Select catalog..."
-                    className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm focus:border-db-red outline-none"
+                    className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm focus:border-db-red"
                   />
                 </div>
                 <div>
@@ -425,7 +425,7 @@ export default function SetupWizard({ settings, update, onComplete }) {
                     value={inspireDatabase?.split('.')[1] || ''}
                     onChange={(e) => update('inspireDatabase', `${selectedCatalog}.${e.target.value}`)}
                     placeholder="inspire"
-                    className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm focus:border-db-red outline-none"
+                    className="w-full px-3 py-2.5 rounded-xl border border-border bg-surface text-text-primary text-sm focus:border-db-red"
                     list="schema-options"
                   />
                   <datalist id="schema-options">

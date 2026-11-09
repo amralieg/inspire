@@ -35,7 +35,7 @@ export default function PaneResizer({ width, onWidth, limits, label, grows = 1, 
       onPointerUp={onPointerUp}
       onPointerCancel={onPointerUp}
       onKeyDown={onKeyDown}
-      className={`group hidden md:flex w-3 shrink-0 cursor-col-resize touch-none justify-center rounded focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40 ${className}`}
+      className={`group hidden md:flex w-3 shrink-0 cursor-col-resize touch-none justify-center rounded ${className}`}
       {...rest}
     >
       <span aria-hidden className="h-full w-px bg-border transition-smooth group-hover:w-0.5 group-hover:bg-db-red/60" />

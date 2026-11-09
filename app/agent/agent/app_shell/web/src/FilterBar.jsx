@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useRef, useState } from 'react';
+import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
 import { Popover, useDebounced } from './ui.jsx';
 import { getFilterOptions } from './api.js';
@@ -66,13 +66,14 @@ export function ChoicePopover({ anchor, filter, selected, onChange, onClose, pag
 
 function MultiSelect({ filter, selected, onChange, pageId, mark }) {
   const button = useRef(null);
+  const id = useId();
   const [open, setOpen] = useState(false);
   const summary = selected.length === 0 ? 'All' : selected.length === 1 ? selected[0] : `${selected.length} selected`;
   return (
     <div className={`fld ${mark ? 'fld--ai' : ''}`}>
-      <span>{mark || <Icon name="filter" size={12} />}{filter.label}</span>
-      <button ref={button} className="msel" aria-haspopup="listbox" aria-expanded={open} onClick={() => setOpen(!open)} disabled={!!filter.error && !filter.options}>
-        <b>{summary}</b><Icon name="down" size={14} />
+      <span id={`${id}l`}>{mark || <Icon name="filter" size={12} />}{filter.label}</span>
+      <button ref={button} className="msel" aria-haspopup="listbox" aria-expanded={open} aria-labelledby={`${id}l ${id}v`} onClick={() => setOpen(!open)} disabled={!!filter.error && !filter.options}>
+        <b id={`${id}v`}>{summary}</b><Icon name="down" size={14} />
       </button>
       {filter.error && <span className="fld-err">Could not load the choices</span>}
       {open && <ChoicePopover anchor={button.current} filter={filter} selected={selected} onChange={onChange} onClose={() => setOpen(false)} pageId={pageId} />}

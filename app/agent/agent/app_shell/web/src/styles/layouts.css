@@ -8,6 +8,7 @@
 .seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
 .seg-b{border:0;background:var(--card);color:var(--muted);font-size:12px;padding:4px 9px;cursor:pointer}
 .seg-b.is-on{background:var(--brand-wash);color:var(--brand-ink);font-weight:650}
+.seg-b:focus-visible{outline-offset:-2px}
 .plan{margin:0 0 14px}
 .plan-t{width:100%;border-collapse:collapse;font-size:13px}
 .plan-t th,.plan-t td{padding:8px 12px;border-top:1px solid var(--line);text-align:start}

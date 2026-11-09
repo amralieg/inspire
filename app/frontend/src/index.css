@@ -125,6 +125,14 @@ body {
 }
 
 @layer base {
+  :focus-visible {
+    outline: 2px solid var(--color-db-red-fg);
+    outline-offset: 2px;
+  }
+  :is(.overflow-hidden, .overflow-auto, .overflow-x-auto, .overflow-y-auto, .overflow-x-hidden, .overflow-y-hidden, .overflow-clip) :focus-visible {
+    outline-color: currentColor;
+    outline-offset: -4px;
+  }
   :where(p, li, dt, dd, h1, h2, h3, h4, h5, h6, caption, figcaption, blockquote, summary, legend, textarea) {
     unicode-bidi: plaintext;
     overflow-wrap: break-word;
@@ -235,7 +243,6 @@ input[type="password"]:focus,
 select:focus {
   border-color: #FF3621;
   box-shadow: 0 0 0 3px rgba(255, 54, 33, 0.12);
-  outline: none;
 }
 
 input::placeholder,

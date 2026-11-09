@@ -216,7 +216,7 @@ test('a filter with 500 choices searches the server and keeps the picked values 
     },
   };
   const { page, seen, context } = await open(appInfo(), routes, { clock: Date.parse('2026-10-27T09:30:00Z') });
-  await page.getByRole('button', { name: /^All/ }).first().click();
+  await page.getByRole('button', { name: /All$/ }).first().click();
   const pop = page.getByRole('dialog', { name: 'Category' });
   assert.equal(await pop.locator('.msel-hint').innerText(), 'Showing the first 500 choices. Type to search all of them.');
   await page.getByRole('listbox', { name: 'Category' }).getByText('v001').click();

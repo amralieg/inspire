@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, useId } from 'react';
+import { Fragment, useState, useEffect, useCallback, useMemo, useId } from 'react';
 import { Rocket, BarChart3, Loader2, AlertCircle, Clock, CheckCircle2, ArrowRight, ChevronRight, ChevronDown, ChevronUp, Trash2, Eye, EyeOff, Target, FileText, Sparkles, X } from 'lucide-react';
 import SessionSparkline from '../components/SessionSparkline';
 import MagneticButton from '../components/MagneticButton';
@@ -69,7 +69,7 @@ function getSessionSummary(session) {
   return { total: useCases.length, high: computeHighPriorityCount(useCases), meets, below, domains: domains.size, domainNames: [...domains], useCases };
 }
 
-const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-start transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+const CHOICE = 'group flex w-full items-start gap-4 rounded-2xl border px-5 py-4 text-start transition-all';
 
 function StartChoice({ choice, icon: Icon, title, text, onClick, strong = false }) {
   const textId = useId();
@@ -353,7 +353,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
               <button
                 type="button"
                 onClick={() => setRunFilter('')}
-                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red"
+                className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50"
               >
                 <X size={11} aria-hidden /> Clear
               </button>
@@ -386,18 +386,17 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                 const rj = session.results_json;
                 if (rj && Array.isArray(rj.domains)) {
                   const domainNames = rj.domains.map(d => d.domain_name).filter(Boolean);
-                  if (domainNames.length > 0) {
-                    parts.push(domainNames.length <= 3 ? domainNames.join(', ') : `${domainNames.slice(0, 3).join(', ')} +${domainNames.length - 3} more`);
-                  }
+                  domainNames.slice(0, 3).forEach((d, i) => parts.push([i ? ', ' : '', d]));
+                  if (domainNames.length > 3) parts.push([' ', `+${domainNames.length - 3} more`]);
                 }
                 // Catalog info
                 const db = session.inspire_database_name || '';
-                if (db) parts.push(db.split('.')[0]);
+                if (db) parts.push([parts.length ? ' · ' : '', db.split('.')[0]]);
                 // Business domains from session config (fallback if no results_json)
                 if (parts.length === 0 && session.business_domains) {
-                  parts.push(session.business_domains.length > 60 ? session.business_domains.slice(0, 57) + '...' : session.business_domains);
+                  parts.push(['', session.business_domains.length > 60 ? session.business_domains.slice(0, 57) + '...' : session.business_domains]);
                 }
-                return parts.join(' · ');
+                return parts.length ? parts.map(([sep, value], i) => <Fragment key={i}>{sep}<bdi>{value}</bdi></Fragment>) : null;
               })();
 
               const isQuickOpen = String(expandedQuickView) === sidStr;
@@ -413,7 +412,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                   <button
                     type="button"
                     onClick={() => onViewResults(session.session_id, session.starting ? session.run_id : null)}
-                    className="flex min-w-0 flex-1 items-center gap-4 text-start before:absolute before:inset-0 before:rounded-xl before:content-[''] focus-visible:outline-none focus-visible:before:ring-2 focus-visible:before:ring-db-red/30"
+                    className="flex min-w-0 flex-1 items-center gap-4 text-start before:absolute before:inset-0 before:rounded-xl before:content-['']"
                   >
                     {/* Status indicator */}
                     <div className="flex-shrink-0 relative">
@@ -433,7 +432,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="flex items-center gap-2 min-w-0">
-                        <span className="text-sm font-medium text-text-primary truncate">{name}</span>
+                        <span dir="auto" className="text-sm font-medium text-text-primary truncate">{name}</span>
                         <LatestRunBadge session={session} />
                       </p>
                       {description && (

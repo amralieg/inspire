@@ -24,7 +24,7 @@ async function headerAt(page, width) {
   });
 }
 
-test('the header fits a 390 px phone with the brand on one line and every tab on screen, and names the open page to screen readers (must-exclude: no other tab is current)', async () => {
+test('the header fits a 390 px phone, 1280x800 at 200%, 150% and 125% zoom and a desk with the brand on one line and every tab on screen, and names the open page to screen readers (must-exclude: no other tab is current)', async () => {
   const ui = await openUi('header');
   const { page } = ui;
   try {
@@ -36,6 +36,12 @@ test('the header fits a 390 px phone with the brand on one line and every tab on
     assert.deepEqual(phone.tabs.map((t) => t.current), [null, null, null, 'page', null, null]);
     assert.deepEqual(phone.tabs.map((t) => t.labelShown), ['01', '02', '03', '04', '05', '06']);
     assert.equal(await page.getByRole('button', { name: '04 Review' }).getAttribute('aria-current'), 'page');
+    for (const width of [640, 768, 853, 1024, 1280]) {
+      const zoomed = await headerAt(page, width);
+      assert.ok(zoomed.scroll <= width, `at ${width} px the page scrolls sideways to ${zoomed.scroll} px`);
+      assert.deepEqual(zoomed.tabs.map((t) => t.inside), [true, true, true, true, true, true], `at ${width} px every tab is on screen`);
+      assert.ok(zoomed.tabs.every((t, i) => [TABS[i], TABS[i].slice(0, 2)].includes(t.labelShown)), `at ${width} px each tab shows its number or its full name: ${zoomed.tabs.map((t) => t.labelShown)}`);
+    }
     const desk = await headerAt(page, 1440);
     assert.ok(desk.scroll <= 1440);
     assert.deepEqual(desk.tabs.map((t) => t.labelShown), TABS);

@@ -174,7 +174,7 @@ function UseCaseLink({ entry, onOpen }) {
   if (!entry.useCase || !onOpen) return <span dir="auto" className="min-w-0 break-words text-text-primary">{entry.name}</span>;
   return (
     <button type="button" dir="auto" onClick={() => onOpen(entry.useCase)} title={`Open ${entry.name} in the list`}
-      className="min-w-0 text-start break-words text-text-primary hover:text-db-red-fg hover:underline focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/30 rounded">
+      className="min-w-0 text-start break-words text-text-primary hover:text-db-red-fg hover:underline rounded">
       {entry.name}
     </button>
   );

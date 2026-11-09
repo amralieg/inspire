@@ -1638,7 +1638,7 @@ export default function ResultsPage({
                   aria-expanded={genieQuickAccessExpanded}
                   aria-controls="genie-quick-access-list"
                   id="genie-quick-access-toggle"
-                  className="flex w-full items-center justify-between gap-3 rounded-lg text-start outline-none transition-smooth hover:bg-bg-subtle/80 focus-visible:ring-2 focus-visible:ring-db-red/25 -mx-1 px-1 py-0.5"
+                  className="flex w-full items-center justify-between gap-3 rounded-lg text-start transition-smooth hover:bg-bg-subtle/80 -mx-1 px-1 py-0.5"
                 >
                   <h3 className="text-[10px] font-bold text-text-secondary uppercase tracking-[0.18em] flex items-center gap-2 min-w-0">
                     <Sparkles size={12} className="text-db-red-fg shrink-0" aria-hidden />
@@ -1789,9 +1789,8 @@ export default function ResultsPage({
                         title={filterSubdomain !== 'all' ? `${filterDomain} › ${filterSubdomain}` : filterDomain}
                       >
                         Filter:{' '}
-                        {filterSubdomain !== 'all'
-                          ? `${filterDomain} › ${filterSubdomain}`
-                          : filterDomain}
+                        <bdi>{filterDomain}</bdi>
+                        {filterSubdomain !== 'all' && <> › <bdi>{filterSubdomain}</bdi></>}
                       </p>
                     )}
                   </div>
@@ -2017,7 +2016,7 @@ export default function ResultsPage({
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search use cases..."
                       aria-label="Search use cases"
-                      className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-db-red/30 focus:ring-1 focus:ring-db-red/20 transition-smooth"
+                      className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:border-db-red/30 transition-smooth"
                     />
                   </div>
 
@@ -2085,9 +2084,10 @@ export default function ResultsPage({
                   {/* Type filter */}
                   {types.length > 0 && (
                     <select
+                      aria-label="Type"
                       value={filterType}
                       onChange={(e) => setFilterType(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Types</option>
                       {types.map((t) => (
@@ -2099,9 +2099,10 @@ export default function ResultsPage({
                   {/* Technique filter */}
                   {techniques.length > 0 && (
                     <select
+                      aria-label="Technique"
                       value={filterTechnique}
                       onChange={(e) => setFilterTechnique(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Techniques</option>
                       {techniques.map((t) => (
@@ -2115,7 +2116,7 @@ export default function ResultsPage({
                       aria-label="Kind"
                       value={filterKind}
                       onChange={(e) => setFilterKind(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Kinds</option>
                       {kindOptions.map((family) => (
@@ -2132,9 +2133,10 @@ export default function ResultsPage({
                   {/* Quality filter */}
                   {qualities.length > 0 && (
                     <select
+                      aria-label="Quality"
                       value={filterQuality}
                       onChange={(e) => setFilterQuality(e.target.value)}
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                     >
                       <option value="all">All Quality</option>
                       {qualities.map((q) => (
@@ -2145,10 +2147,11 @@ export default function ResultsPage({
 
                   {/* Genie Code instruction (has / no) */}
                   <select
+                    aria-label="Genie Code instruction"
                     value={filterHasGenie}
                     onChange={(e) => setFilterHasGenie(e.target.value)}
                     title="Filter by whether the use case has a Genie Code instruction"
-                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
+                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
                   >
                     <option value="all">Genie Code instruction: Any</option>
                     <option value="yes">Genie Code instruction: Yes</option>
@@ -2158,10 +2161,11 @@ export default function ResultsPage({
                   {qualityBarCounts.below > 0 && (
                     <select
                       data-testid="quality-bar-filter"
+                      aria-label="Quality bar"
                       value={filterQualityBar}
                       onChange={(e) => setFilterQualityBar(e.target.value)}
                       title="Filter by whether the use case meets your quality bar"
-                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
+                      className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
                     >
                       <option value="all">Quality bar: Any ({qualityBarCounts.found})</option>
                       <option value="meets">Meets your quality bar ({qualityBarCounts.meets})</option>
@@ -2174,7 +2178,7 @@ export default function ResultsPage({
                     onChange={(e) => setFilterMvp(e.target.value)}
                     aria-label="MVP"
                     title="Filter by the use case's MVP"
-                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth min-w-[9rem]"
+                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[9rem]"
                   >
                     {MVP_FILTERS.map((f) => (
                       <option key={f.id} value={f.id}>{f.label}</option>
@@ -2183,9 +2187,10 @@ export default function ResultsPage({
 
                   {/* Sort */}
                   <select
+                    aria-label="Sort"
                     value={sortBy}
                     onChange={(e) => setSortBy(e.target.value)}
-                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:outline-none focus:border-db-red/30 transition-smooth"
+                    className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth"
                   >
                     <option value="inspire">Sort: Inspire score (high → low)</option>
                     <option value="priority">Sort: Priority tier</option>
@@ -2403,7 +2408,7 @@ function MvpTiles({ counts, active, onPick }) {
           aria-label={`${label}: ${counts[id]}`}
           title={active === id ? 'Show every use case' : `Show only: ${label}`}
           onClick={() => onPick(id)}
-          className={`text-start rounded-xl border p-3 transition-smooth focus:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40 ${
+          className={`text-start rounded-xl border p-3 transition-smooth ${
             active === id ? 'border-db-red/40 bg-db-red-50' : 'border-border bg-surface hover:border-db-red/25'
           }`}
         >

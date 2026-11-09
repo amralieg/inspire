@@ -46,7 +46,7 @@ test('the page renders KPIs, four charts, the story and the decision list', asyn
 
 test('filters change the request, chips clear them, and a record opens its drawer', async () => {
   const { page, seen, context } = await open(appInfo());
-  await page.getByRole('button', { name: /^All/ }).first().click();
+  await page.getByRole('button', { name: /All$/ }).first().click();
   await page.getByRole('listbox', { name: 'Category' }).getByText('Music').click();
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('.chip'));
@@ -86,7 +86,7 @@ test('a decision list whose rows share a key shows only the rows of the latest a
   const { page, seen, context } = await open(appInfo(), { routes });
   const labels = () => page.locator('.card--table tbody tr .cell-t').allInnerTexts();
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 25);
-  await page.getByRole('button', { name: /^All/ }).first().click();
+  await page.getByRole('button', { name: /All$/ }).first().click();
   await page.getByRole('listbox', { name: 'Category' }).getByText('Music').click();
   await page.keyboard.press('Escape');
   await page.waitForFunction(() => document.querySelector('.chip'));

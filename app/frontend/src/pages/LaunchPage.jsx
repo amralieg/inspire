@@ -1797,7 +1797,7 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, searchValue, 
         <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
         <input dir="auto"
           type="text"
-          className="w-full bg-transparent border-b border-border pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary focus:outline-none"
+          className="w-full bg-transparent border-b border-border pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary"
           placeholder={searchPlaceholder}
           value={searchValue}
           onChange={(e) => onSearch(e.target.value)}

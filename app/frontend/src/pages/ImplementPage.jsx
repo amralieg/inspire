@@ -317,7 +317,7 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
       <div className="flex flex-wrap items-center justify-between gap-2">
         <p role="status" className="min-w-0 text-[12px] font-medium text-db-red-fg">{buildFilterText(filter, sessionId)}</p>
         <button type="button" onClick={onClear}
-          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red">
+          className="inline-flex shrink-0 items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-1 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50">
           <XCircle size={11} aria-hidden /> Clear
         </button>
       </div>
@@ -327,7 +327,7 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
             const on = run.session_id === String(sessionId);
             return (
               <button key={run.session_id} type="button" data-build-run={run.session_id} aria-pressed={on} onClick={() => { if (!on) onPickRun(run.session_id); }}
-                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red ${
+                className={`inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold ${
                   on ? 'border-db-red/50 bg-surface text-db-red-fg' : 'border-border bg-surface text-text-primary hover:bg-bg-subtle'}`}>
                 {run.name} <span className="font-mono text-text-secondary">{run.count}</span>
               </button>
@@ -1594,7 +1594,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             <h2 className="truncate text-lg font-bold text-text-primary" title={item.name}>{item.name}</h2>
             <div data-use-case-meta="" className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-secondary">
               <span className="font-mono">{item.id}</span>
-              {row?.domain && <span>· {row.domain}{row.subdomain ? ` › ${row.subdomain}` : ''}</span>}
+              {row?.domain && <span>· <bdi>{row.domain}</bdi>{row.subdomain && <> › <bdi>{row.subdomain}</bdi></>}</span>}
               {latest?.spec_version != null && <span className="font-mono">· v{latest.spec_version}</span>}
               <ImplementStatusBadge state={item.state} />
             </div>

@@ -233,7 +233,7 @@ export function AssetTile({
       </span>
     </>
   );
-  const headClass = 'flex items-start gap-2 min-w-0 rounded-lg -m-1 p-1 text-start focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+  const headClass = 'flex items-start gap-2 min-w-0 rounded-lg -m-1 p-1 text-start';
   return (
     <li data-asset-tile={id} data-tile-kind={kind} data-tile-building={busy ? (busy.now ? 'now' : 'waiting') : undefined} data-tile-animated={building ? '' : undefined}
       title={reason || undefined}

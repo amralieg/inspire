@@ -88,7 +88,7 @@ export function TodoNow({ page, app, ready, nonce, shared }) {
         {list.error && <PlainNote text={list.error} icon={<Icon name="info" size={12} />} className="tile-err" />}
       </div>
       <AskGenie kind="text" title="What to do now" context={{ hint: steps.map((s) => s.text).join('\n') }} /></header>
-      {decided && all > 0 && <div className="todo-bar" role="progressbar" aria-valuemin={0} aria-valuemax={all} aria-valuenow={all - waiting}><i style={{ width: `${((all - waiting) / all) * 100}%` }} /></div>}
+      {decided && all > 0 && <div className="todo-bar" role="progressbar" aria-label="Done so far" aria-valuetext={`${integer(all - waiting)} of ${integer(all)} done`} aria-valuemin={0} aria-valuemax={all} aria-valuenow={all - waiting}><i style={{ width: `${((all - waiting) / all) * 100}%` }} /></div>}
       <ol className="todo-steps">
         {steps.map((s) => (
           <li key={s.id} data-step={s.id}>
@@ -257,7 +257,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged }) {
       {!error && <SaidNote text={said} at="all" size={14} />}
       {list.data && !rows.length && <p className="empty">No plan lines for these filters.</p>}
       {rows.length > 0 && (
-        <div className="tw"><table className="plan-t">
+        <div className="tbl-wrap"><table className="plan-t">
           <thead><tr><th scope="col">{page.records.label_title || 'Line'}</th><th scope="col">Now</th><th scope="col">Suggested</th><th scope="col">Change</th><th scope="col">Status</th>{can && <th scope="col"><span className="sr">Decide</span></th>}<th scope="col"><span className="sr">Ask Genie</span></th></tr></thead>
           <tbody>{rows.map((row) => <PlanRow key={recordKeyOf(row)} page={page} app={app} plan={plan} row={row} actions={can} onDecided={onChanged} onOpen={opened.open} />)}</tbody>
         </table></div>

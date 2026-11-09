@@ -145,7 +145,7 @@ export function ScopeNotes({ scope }) {
   );
 }
 
-const SHOW_CLASS = 'shrink-0 inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red/40';
+const SHOW_CLASS = 'shrink-0 inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle';
 
 function Heading({ title, active, tone, line, lineClass }) {
   return (

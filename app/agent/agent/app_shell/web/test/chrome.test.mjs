@@ -505,7 +505,7 @@ test('Explain on a chart sends what the chart drew with the filters in words, an
     ['Explain Loss to discounts by month', 'Explain Loss by channel over time', 'Explain How concentrated the loss is', 'Explain Where the loss sits'],
     'the Drivers chart comes last, under its heading');
   assert.deepEqual(await buttons.allInnerTexts(), ['Explain', 'Explain', 'Explain', 'Explain']);
-  await page.getByRole('button', { name: /^All/ }).first().click();
+  await page.getByRole('button', { name: /All$/ }).first().click();
   await page.getByRole('listbox', { name: 'Category' }).getByText('Music').click();
   await page.getByRole('listbox', { name: 'Category' }).getByText('Books').click();
   await page.keyboard.press('Escape');
