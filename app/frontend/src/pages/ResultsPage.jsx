@@ -218,6 +218,7 @@ export default function ResultsPage({
   const [allNotebookFiles, setAllNotebookFiles] = useState([]);
   // File preview state
   const [previewFile, setPreviewFile] = useState(null); // path of currently previewed file
+  const [previewFrom, setPreviewFrom] = useState(null);
   const [previewData, setPreviewData] = useState(null); // { type: 'pdf'|'csv', url?, rows?, headers? }
   const [previewLoading, setPreviewLoading] = useState(false);
   // Subdomain expansion state
@@ -439,6 +440,7 @@ export default function ResultsPage({
     setArtifactTree({});
     setAllNotebookFiles([]);
     setPreviewFile(null);
+    setPreviewFrom(null);
     setPreviewData(null);
     setArtifactsExpanded(false);
     setFilterStrategy('all');
@@ -887,15 +889,21 @@ export default function ResultsPage({
   }, [artifactHeaders]);
 
   // Toggle inline preview for a file
-  const togglePreview = useCallback(async (filePath, fileName) => {
+  const togglePreview = useCallback(async (filePath, fileName, from) => {
+    if (previewFile === filePath && previewFrom !== from) {
+      setPreviewFrom(from);
+      return;
+    }
     // Toggle off if same file
     if (previewFile === filePath) {
       if (previewData?.url) URL.revokeObjectURL(previewData.url);
       setPreviewFile(null);
+      setPreviewFrom(null);
       setPreviewData(null);
       return;
     }
     setPreviewFile(filePath);
+    setPreviewFrom(from);
     setPreviewData(null);
     setPreviewLoading(true);
     const headers = artifactHeaders();
@@ -923,7 +931,7 @@ export default function ResultsPage({
       setPreviewData({ type: 'error', message: 'Could not load file' });
     }
     setPreviewLoading(false);
-  }, [previewFile, previewData, artifactHeaders]);
+  }, [previewFile, previewFrom, previewData, artifactHeaders]);
 
   // Find generation path from selected session
   const selectedSession = sessions.find(s => String(s.session_id) === String(selectedSessionId));
@@ -1418,9 +1426,9 @@ export default function ResultsPage({
                                 <button
                                   type="button"
                                   className="text-[10px] text-info-fg hover:underline font-medium flex items-center gap-0.5"
-                                  onClick={(e) => { e.stopPropagation(); togglePreview(f.path, f.name); }}
+                                  onClick={(e) => { e.stopPropagation(); togglePreview(f.path, f.name, 'files'); }}
                                 >
-                                  {previewFile === f.path ? <><Eye size={10} /> Hide</> : <><Eye size={10} /> Preview</>}
+                                  {previewFile === f.path && previewFrom === 'files' ? <><Eye size={10} /> Hide</> : <><Eye size={10} /> Preview</>}
                                 </button>
                               )}
                               {(isPdf || isSpreadsheet) && (
@@ -1454,7 +1462,7 @@ export default function ResultsPage({
                         )}
                       </div>
                       {/* Inline file preview */}
-                      {!isDir && previewFile === f.path && (
+                      {!isDir && previewFile === f.path && previewFrom === 'files' && (
                         <div className="ms-6 me-2 my-2">
                           <FilePreview name={f.name} loading={previewLoading} data={previewData} />
                         </div>
@@ -1597,13 +1605,13 @@ export default function ResultsPage({
                   {previewableFiles.map((f) => {
                     const ext = fileExtension(f);
                     const style = EXT_STYLES[ext] || EXT_STYLES.csv;
-                    const isActive = previewFile === f.path;
+                    const isActive = previewFile === f.path && previewFrom === 'quick';
                     return (
                       <div key={f.path} className={`flex items-center gap-2 px-3 py-2 rounded-lg text-[11px] border transition-all shrink-0 ${isActive ? 'border-db-red/30 bg-db-red-50' : 'border-border bg-bg-subtle/50 hover:bg-bg-subtle'}`}>
                         <span className={`text-[9px] font-bold uppercase px-1.5 py-0.5 rounded ${style.bg} ${style.text}`}>{ext}</span>
                         <span className="text-text-primary font-medium truncate max-w-[200px]">{f.name}</span>
                         <div className="flex items-center gap-1.5 ms-1 border-s border-border ps-2">
-                          <button type="button" className="text-[10px] text-info-fg hover:text-info-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => togglePreview(f.path, f.name)}>
+                          <button type="button" className="text-[10px] text-info-fg hover:text-info-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => togglePreview(f.path, f.name, 'quick')}>
                             {isActive ? <><EyeOff size={9} /> Hide</> : <><Eye size={9} /> Preview</>}
                           </button>
                           <button type="button" className="text-[10px] text-success-fg font-medium flex items-center gap-0.5 hover:underline" onClick={() => openFileInTab(f.path, f.name)}>
@@ -1618,7 +1626,7 @@ export default function ResultsPage({
                   })}
                 </div>
                 {/* Inline preview */}
-                {previewFile && previewableFiles.some(f => f.path === previewFile) && (
+                {previewFile && previewFrom === 'quick' && previewableFiles.some(f => f.path === previewFile) && (
                   <div className="mt-4">
                     <FilePreview name={previewableFiles.find((f) => f.path === previewFile).name} loading={previewLoading} data={previewData}
                       pdfClassName="h-[600px] rounded-xl shadow-sm" />

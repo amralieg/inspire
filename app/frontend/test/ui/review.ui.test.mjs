@@ -426,3 +426,46 @@ test('a 300-row CSV preview and its 300-value column filter take the mouse wheel
     await ui.close();
   }
 });
+
+test('a file both in Quick access and in the file list previews once, under the list whose Preview was clicked (must-exclude: never twice)', async () => {
+  const folder = '/Workspace/Users/someone/inspire/acme';
+  const csv = 'No,Name\nN01-U01,Churn\nN01-U02,Pricing';
+  const mount = (app) => {
+    app.get('/api/workspace/list', (_req, res) => res.json({ files: [{ name: 'catalog.csv', path: `${folder}/catalog.csv`, is_directory: false, file_size: csv.length }] }));
+    app.get('/api/workspace/export', (_req, res) => res.type('text/csv').send(csv));
+  };
+  const sessions = REVIEW_STATE.sessions.map((s) => (s.session_id === '42' ? { ...s, generation_path: folder, widget_values: { ...s.widget_values, generation_path: folder } } : s));
+  const ui = await openUi('results', { ...REVIEW_STATE, sessions }, '', { mount });
+  const { page } = ui;
+  try {
+    await ready(page);
+    const quick = page.getByRole('heading', { name: /^Quick access/i }).locator('xpath=ancestor::div[.//button[normalize-space()="Preview" or normalize-space()="Hide"]][1]');
+    await quick.waitFor();
+    const quickButton = quick.locator('div', { hasText: 'catalog.csv' }).filter({ has: page.getByRole('button', { name: /Preview|Hide/ }) }).last()
+      .getByRole('button', { name: /Preview|Hide/ });
+    const tables = page.getByRole('table', { name: 'Preview of catalog.csv' });
+    const toggles = page.getByRole('button', { name: /^(Preview|Hide)$/ });
+    const listButton = async () => {
+      const all = await toggles.all();
+      for (const b of all) if (!(await quick.evaluate((q, el) => q.contains(el), await b.elementHandle()))) return b;
+      return null;
+    };
+    await quickButton.click();
+    await tables.first().waitFor({ timeout: 15000 });
+    await page.waitForTimeout(300);
+    assert.equal(await tables.count(), 1, 'one preview, not one per list');
+    assert.equal(await quick.evaluate((q, t) => q.contains(t), await tables.first().elementHandle()), true, 'the preview sits under Quick access');
+    await page.getByText('catalog.csv', { exact: true }).nth(1).waitFor({ timeout: 15000 });
+    const inList = await listButton();
+    assert.ok(inList, 'the file list shows catalog.csv with its own Preview');
+    assert.equal((await inList.innerText()).trim(), 'Preview', 'the file list does not say Hide for a preview it does not show');
+    await inList.click();
+    await page.waitForTimeout(300);
+    assert.equal(await tables.count(), 1, 'moving the preview to the file list still shows it once');
+    assert.equal(await quick.evaluate((q, t) => q.contains(t), await tables.first().elementHandle()), false, 'the preview moved to the file list');
+    assert.equal((await quickButton.innerText()).trim(), 'Preview');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
