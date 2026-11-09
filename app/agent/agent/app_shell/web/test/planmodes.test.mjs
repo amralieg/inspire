@@ -333,3 +333,38 @@ test('in the App a forecast page names its rail Review and Accuracy and opens th
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+test('the Plan and Review sections fit 1280 and 1440 with no sideways scroll, in light, dark and right to left, and their buttons show a focus ring', async () => {
+  const accuracy = { points: 4, series: 1, error: 0.2, bias: 0.1, mase: 1.3, overrides: 0, helped: 0, hurt: 0, lift: null, lift_note: '' };
+  const kinds = {
+    plan: { routes: () => ({ ...plannerRoutes([], []), ...versionRoutes('plan').routes, 'plans/performance': ({ json }) => json(200, { version: null, lines: [], missing: '' }) }),
+      ready: '[data-plan-section] [data-plan-row="K1"]', section: '[data-plan-section]' },
+    forecast: { routes: () => ({ ...forecastRoutes([]), ...reviewRoutes(null, []), 'forecast/accuracy': ({ json }) => json(200, accuracy) }),
+      ready: '[data-review-section] [data-series="S1"]', section: '[data-review-section]' },
+  };
+  for (const [which, kind] of Object.entries(kinds)) {
+    for (const [width, scheme, rtl] of [[1280, 'light', false], [1440, 'dark', false], [1280, 'dark', true], [1440, 'light', true]]) {
+      const at = `${which} ${width} ${scheme}${rtl ? ' rtl' : ''}`;
+      const { page, seen, context } = await openApp(browser, served.base, INFO[which], { width, scheme, routes: kind.routes(), hash: `#/${PAGE[which]}/work` });
+      await page.locator(kind.ready).waitFor();
+      if (rtl) await page.evaluate(() => document.documentElement.setAttribute('dir', 'rtl'));
+      const fit = await page.evaluate((sel) => {
+        const box = document.querySelector(sel);
+        const wide = [...document.querySelectorAll('.main, html'), box].map((el) => el.scrollWidth - el.clientWidth);
+        const out = [...box.querySelectorAll('*')].filter((el) => { const r = el.getBoundingClientRect(); return r.width > 0 && !el.closest('.tw') && (r.right > window.innerWidth + 1 || r.left < -1); })
+          .slice(0, 3).map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].join('.')}`);
+        return { wide, out };
+      }, kind.section);
+      assert.ok(fit.wide.every((d) => d <= 1), `${at}: no sideways scroll (${fit.wide})`);
+      assert.deepEqual(fit.out, [], `${at}: nothing outside the screen`);
+      const buttons = page.locator(`${kind.section} button:not([disabled])`);
+      assert.ok(await buttons.count() >= 2, `${at}: the section has buttons to reach`);
+      await buttons.first().focus();
+      await page.keyboard.press('Tab');
+      const ring = await page.evaluate(() => { const s = getComputedStyle(document.activeElement); return [document.activeElement.tagName, s.outlineStyle, s.outlineWidth, s.boxShadow]; });
+      assert.ok(ring[1] !== 'none' && ring[2] !== '0px' || ring[3] !== 'none', `${at}: the focused ${ring[0]} shows a focus ring (${ring.slice(1)})`);
+      assert.deepEqual(seen.errors, [], at);
+      await context.close();
+    }
+  }
+});
