@@ -93,7 +93,7 @@ test('an edit sends only the changed values with the version it read, then refre
   assert.match(await page.locator('.card--table .note').innerText(), /New runs keep your edits/);
   await page.getByRole('button', { name: 'Edit Item number 1 with a long descriptive name' }).click();
   const dialog = page.locator('dialog.dialog');
-  await dialog.locator('.fgrid').waitFor();
+  await dialog.locator('.fgrid .in').first().waitFor();
   assert.match(await dialog.locator('.dlg-meta').innerText(), /Last change by sam\.roe on Oct 20, 2026/);
   assert.equal(await dialog.locator('input[name="rank"]').getAttribute('type'), 'number');
   assert.equal(await dialog.locator('input[name="value"]').getAttribute('step'), 'any');
@@ -139,7 +139,7 @@ test('editing from the drawer opens the form over it and reloads the history aft
   const loads = calls.history.length;
   await drawer.getByRole('button', { name: 'Edit', exact: true }).click();
   const form = page.locator('dialog.dialog');
-  await form.locator('.fgrid').waitFor();
+  await form.locator('.fgrid .in').first().waitFor();
   await form.locator('input[name="rank"]').fill('2');
   await form.getByRole('button', { name: 'Save' }).click();
   await until(() => calls.writes.length === 1);
@@ -159,7 +159,7 @@ test('a stale edit shows who changed the record and reloads it on request', asyn
   const { page, seen, context } = await open(appInfo(MODIFY, 1, TABLE), routes);
   await page.getByRole('button', { name: 'Edit Item number 1 with a long descriptive name' }).click();
   const dialog = page.locator('dialog.dialog');
-  await dialog.locator('.fgrid').waitFor();
+  await dialog.locator('.fgrid .in').first().waitFor();
   await dialog.locator('input[name="entity_label"]').fill('Renamed');
   await dialog.getByRole('button', { name: 'Save' }).click();
   await dialog.locator('.hint--box').waitFor();
@@ -167,7 +167,7 @@ test('a stale edit shows who changed the record and reloads it on request', asyn
   const loads = calls.history.length;
   await dialog.getByRole('button', { name: 'Reload the record' }).click();
   await until(() => calls.history.length === loads + 1);
-  await dialog.locator('.fgrid').waitFor();
+  await dialog.locator('.fgrid .in').first().waitFor();
   assert.equal(await dialog.locator('input[name="entity_label"]').inputValue(), BASE.entity_label);
   assert.equal(await dialog.locator('.hint--box').count(), 0);
   reply = { error: 'this page names no result table, so its records keep no history' };
@@ -200,9 +200,10 @@ test('delete asks first, then sends the version it read', async () => {
 test('add needs the id, then sends the filled values', async () => {
   const { calls, routes } = recorder();
   const { page, seen, context } = await open(appInfo(MODIFY, 1, TABLE), routes);
+  await page.locator('tbody tr').first().waitFor();
   await page.getByRole('button', { name: 'Add record' }).click();
   const dialog = page.locator('dialog.dialog');
-  await dialog.locator('.fgrid').waitFor();
+  await dialog.locator('.fgrid .in').first().waitFor();
   assert.equal(await dialog.locator('.in').first().locator('span').innerText(), 'Id *');
   await dialog.getByRole('button', { name: 'Add record' }).click();
   assert.equal(await dialog.locator('.in-err').innerText(), 'A new record needs this id');
@@ -246,7 +247,7 @@ test('on a phone the views and the edit form fit without sideways scroll', async
   assert.ok(views.x >= 0 && views.x + views.width <= 391);
   await page.getByRole('button', { name: 'Add record' }).click();
   const dialog = page.locator('dialog.dialog');
-  await dialog.locator('.fgrid').waitFor();
+  await dialog.locator('.fgrid .in').first().waitFor();
   const columns = await dialog.locator('.fgrid').evaluate((el) => getComputedStyle(el).gridTemplateColumns.split(' ').length);
   assert.equal(columns, 1);
   const box = await steadyBox(page, dialog.locator('.dlg'));
@@ -261,7 +262,7 @@ test('the mouse wheel scrolls the Add record form with 40 fields to its last fie
   const { page, seen, context } = await open(appInfo(MODIFY, 1, TABLE), routes);
   await page.getByRole('button', { name: 'Add record' }).click();
   const body = page.locator('dialog.dialog .dlg-b');
-  await body.locator('.fgrid').waitFor();
+  await body.locator('.fgrid .in').first().waitFor();
   assert.deepEqual((await body.locator('.in > span').allInnerTexts()).slice(-1), ['Note 31'], 'the form lists every editable field');
   await wheelScrolls(page, body, () => body.locator('.in').last(), { name: 'Add record form' });
   assert.deepEqual(seen.errors, []);
