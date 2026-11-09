@@ -8,6 +8,7 @@ from v120_artifacts_support import FakeSpark
 from v142_genie_test import COLUMNS as GENIE_COLUMNS, _definition, _rich_space
 from v140_implement_test import (FIXTURE, OURS_APP, READS, SHELL_FILES, TRUTH, VALID, _app_flow, _app_shell, _churn_page, _contract, _dashboard,
                                  _deploy_inspire, _FileRunner, _inspire, _left_by, _NB_SPEC, _not_access_reads, _output_context,
+                                 _without_feedback,
                                  _output_inspire, _space, _spec, _without_requirements, sdk_stub)
 from v142_look_test import DEPLOYED
 
@@ -260,8 +261,8 @@ def test_a_shared_view_use_case_merged_into_a_per_user_app_keeps_the_hosts_scope
     fields = inst._implement_deploy_app(context, "sales-desk", SHELL_FILES, READS, "gA", poll_s=0)
     assert [c[0] for c in calls].count("PATCH") == 0, "the host keeps the user scopes its viewers sign in with"
     assert not any("could not remove" in w for w in fields.get("_warnings") or [])
-    assert _not_access_reads(inst.spark.statements) == [] and inst.genie_grants == [], \
-        "each viewer of the per-user host reads with their own grants, so its identity gets none"
+    assert _without_feedback(_not_access_reads(inst.spark.statements)) == [] and inst.genie_grants == [], \
+        "each viewer of the per-user host reads with their own grants, so its identity gets none beyond the feedback table"
     assert inst.tagged == [], "the host keeps its own owner tag"
 
 def test_a_sensitive_use_case_is_never_merged_into_a_service_principal_app(agent_ns, tmp_path, monkeypatch):

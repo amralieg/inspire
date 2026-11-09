@@ -3060,6 +3060,24 @@ def _not_access_reads(statements):
     return [s for s in statements if not s.startswith(("SELECT level, privilege, principal", SHARED_EXISTS, SHARED_READS))]
 
 
+FEEDBACK_SQL = "`main`.`inspire`.`churn_out_feedback`"
+
+
+def _without_feedback(statements):
+    return [s for s in statements if FEEDBACK_SQL not in s]
+
+
+def _feedback_writes(agent_ns, client="sp-1", fresh=False):
+    grants = [f"GRANT {need} ON TABLE {FEEDBACK_SQL} TO `{client}`" for need in ("SELECT", "MODIFY")]
+    if fresh:
+        grants = [f"GRANT USE CATALOG ON CATALOG `main` TO `{client}`", f"GRANT USE SCHEMA ON SCHEMA `main`.`inspire` TO `{client}`"] + grants
+    return [agent_ns["inspire_feedback_create_sql"]("main.inspire.churn_out"), f"DESCRIBE TABLE {FEEDBACK_SQL}"] + grants
+
+
+def _feedback_refused(warnings):
+    return [w for w in warnings or [] if w.startswith("App: people cannot report issues about this use case from the App")]
+
+
 def test_sharing_grants_only_missing_access_and_names_what_inspire_cannot_grant(agent_ns):
     inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS))
     inst._implement_api = lambda method, path, body=None, query=None: {}
@@ -3167,7 +3185,9 @@ def test_app_deploy_imports_the_shell_as_files_and_grants_every_table_the_page_a
     assert calls[2][2] == {"source_code_path": "/W/acme_implemented/Sales/apps/churn-desk", "mode": "SNAPSHOT"}
     assert inst.spark.statements[0].startswith("SELECT level, privilege, principal")
     statements = _not_access_reads(inst.spark.statements)
-    assert not any("CREATE TABLE" in s or "MODIFY" in s for s in statements), "the App only reads; Inspire creates no table for it"
+    feedback = [s for s in statements if "CREATE TABLE" in s or "MODIFY" in s]
+    assert feedback and all("`churn_out_feedback`" in s for s in feedback), (
+        "the App only reads its tables; the one table Inspire creates and lets it change is where people report issues")
     assert GRANT_SELECT.format("sp-1") in statements and GRANT_ORDERS.format("sp-1") in statements
     assert inst.genie_grants == [("genie", "g1", [{"type": "service_principal", "name": "sp-1"}], "CAN_RUN")]
     assert sorted(imported) == [f"/W/acme_implemented/Sales/apps/churn-desk/{name}" for name in sorted(SHELL_FILES)]
@@ -3245,7 +3265,10 @@ def test_an_existing_app_whose_service_principal_cannot_read_its_tables_is_deplo
     assert fields["app_url"] == "https://churn-desk.example", "a read Inspire cannot grant never stops the build"
     result = [GRANT_CATALOG.format("sp-2"), GRANT_SCHEMA.format("sp-2")]
     orders = [GRANT_CATALOG.format("sp-2"), "GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `sp-2`"]
-    assert fields["_warnings"] == [
+    reported = [w for w in fields["_warnings"] if w.startswith("App: people cannot report issues")]
+    assert len(reported) == 1 and reported[0].startswith("App: people cannot report issues about this use case from the App until its service principal sp-2")
+    assert reported[0].endswith(f"{GRANT_CATALOG.format('sp-2')}; {GRANT_SCHEMA.format('sp-2')}")
+    assert [w for w in fields["_warnings"] if w not in reported] == [
         "App: its service principal sp-2 cannot read main.inspire.churn_out and main.s.orders, so the tiles that query them show no data "
         "and name the grants they need, and Inspire could not grant them itself: for main.inspire.churn_out, ask amr@x to "
         f"run: {'; '.join(result)}; for main.s.orders, ask amr@x to run: {'; '.join(orders)}"]
@@ -3294,8 +3317,9 @@ def test_an_existing_app_whose_service_principal_reads_through_a_group_is_redepl
     assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps/churn-desk/deployments"),
                                       ("GET", "/api/2.0/apps/churn-desk")]
     grants = [s for s in inst.spark.statements if s.startswith("GRANT")]
-    assert grants == [GRANT_SELECT.format("sp-2"), GRANT_ORDERS.format("sp-2"), "GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out` TO `sp-2`"], (
-        "record decisions starts on, so the App may write its decisions to the result table")
+    assert grants == [GRANT_SELECT.format("sp-2"), GRANT_ORDERS.format("sp-2"), "GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out` TO `sp-2`"] + \
+        _feedback_writes(agent_ns, "sp-2")[2:], (
+        "record decisions starts on, so the App may write its decisions to the result table, and people may report issues into its feedback table")
     assert "_warnings" not in fields
     assert inst.tagged == ["churn-desk"], "a redeployed App gets its tags again, so a new spec version shows on it"
 

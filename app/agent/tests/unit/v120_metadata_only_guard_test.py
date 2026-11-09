@@ -913,7 +913,7 @@ def test_guard_reads_every_source_the_agent_compiles_at_runtime(runtime_report):
         assert runtime_sources(text) == ({}, []), f"{name} compiles a source of its own, which the guard does not read"
     assert runtime_report["checked"]["IMPLEMENT_RESULT_HISTORY_SOURCE"] >= 3, runtime_report["checked"]
     reached = {entry[-1] for entry in runtime_report["implement"]}
-    assert {"inspire_ensure_summary", "inspire_ensure_assumptions"} <= reached
+    assert {"inspire_ensure_summary", "inspire_ensure_sibling"} <= reached
     assert not {"inspire_ensure_history", "inspire_ensure_actions"} & reached, "the build migrates no result table"
 
 

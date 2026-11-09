@@ -6,7 +6,8 @@ import sys
 import pytest
 
 from v120_artifacts_support import FakeSpark
-from v140_implement_test import (CHURN_TABLES, OURS_APP, READS, SHELL_FILES, _app_flow, _deploy_inspire, _not_access_reads, _spec,  # noqa: F401
+from v140_implement_test import (CHURN_TABLES, OURS_APP, READS, SHELL_FILES, _app_flow, _deploy_inspire, _feedback_writes, _not_access_reads, _spec,
+                                  _without_feedback,  # noqa: F401
                                  sdk_stub)
 from v142_scd_test import _describe
 
@@ -92,8 +93,8 @@ def test_a_shared_app_gets_select_and_modify_on_the_assumptions_table_it_writes(
         GRANT.format("USE SCHEMA", "SCHEMA `main`.`s`"), GRANT.format("SELECT", "TABLE `main`.`s`.`orders`"),
         GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`"), "DESCRIBE TABLE `main`.`inspire`.`churn_out`", CREATE, "DESCRIBE TABLE `main`.`inspire`.`churn_out_assumptions`",
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out_assumptions`"),
-        GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out_assumptions`")], \
-        "the assumptions table is read after the result table's grants, so its catalog and schema are not granted again"
+        GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out_assumptions`")] + _feedback_writes(agent_ns), \
+        "the assumptions and feedback tables are read after the result table's grants, so their catalog and schema are not granted again"
     reading = Catalog()
     _deploy(agent_ns, reading, {"app_options": {"modify": False, "decisions": False}})
     assert not any("MODIFY" in s and "`churn_out`" in s for s in reading.statements), \
@@ -104,7 +105,9 @@ def test_a_table_without_money_at_stake_gets_no_assumptions_table(agent_ns, sdk_
     spark = Catalog(schema=[("entity_id", "string"), ("priority_tier", "string")])
     _inst, fields = _deploy(agent_ns, spark, {"app_options": {"modify": False, "decisions": False}})
     assert "_warnings" not in fields
-    assert not any(s.startswith("CREATE TABLE") or "assumptions" in s or "MODIFY" in s for s in spark.statements)
+    assert not any(s.startswith("CREATE TABLE") or "assumptions" in s or "MODIFY" in s for s in _without_feedback(spark.statements))
+    assert [s for s in spark.statements if s.startswith(("CREATE TABLE", "DESCRIBE TABLE `main`.`inspire`.`churn_out_f", "GRANT"))][-4:] == \
+        _feedback_writes(agent_ns), "every App takes reported issues, so its feedback table is built and granted even with nothing at stake"
 
 
 def test_a_per_user_app_gets_a_service_principal_grant_only_on_the_table_it_records_decisions_in(agent_ns, sdk_stub):
@@ -112,14 +115,16 @@ def test_a_per_user_app_gets_a_service_principal_grant_only_on_the_table_it_reco
     spark = Catalog()
     _inst, fields = _deploy(agent_ns, spark, {"app_access": "user", "app_options": {"decisions": False}}, answers)
     assert fields["app_url"] == "https://churn-desk.example"
-    assert not any(s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE")) for s in spark.statements), spark.statements
+    assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE"))] == _feedback_writes(agent_ns, fresh=True), \
+        "a per-user App stores reported issues as its service principal, so the feedback table is all it gets"
     spark = Catalog()
     _inst, fields = _deploy(agent_ns, spark, {"app_access": "user"}, answers)
     assert "_warnings" not in fields
     assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE"))] == [
         GRANT.format("USE CATALOG", "CATALOG `main`"), GRANT.format("USE SCHEMA", "SCHEMA `main`.`inspire`"),
-        GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out`"), GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`")], \
-        "a per-user App records decisions as its service principal, so it gets read and change on the result table and nothing else"
+        GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out`"), GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`")] + \
+        _feedback_writes(agent_ns), \
+        "a per-user App records decisions and reported issues as its service principal, so it gets the result and feedback tables only"
 
 
 @pytest.mark.parametrize("fail,reason", [
@@ -397,4 +402,4 @@ def test_a_per_user_app_never_asks_which_output_tables_exist(agent_ns, sdk_stub)
     context["spec"] = dict(context["spec"], outputs=dict(context["spec"]["outputs"], app_access="user", app_options={"decisions": False}))
     inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0, page_tables=[RESULT])
     assert not any(s.startswith("SELECT lower(table_name)") for s in spark.statements)
-    assert not any(s.startswith("GRANT") for s in spark.statements)
+    assert [s for s in spark.statements if s.startswith("GRANT")] == _feedback_writes(agent_ns, fresh=True)[2:]

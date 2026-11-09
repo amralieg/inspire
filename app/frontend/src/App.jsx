@@ -1,15 +1,9 @@
-import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Component } from 'react';
+import { useState, useEffect, useLayoutEffect, useCallback, useMemo, useRef, Component, Suspense, lazy } from 'react';
 import { ThemeProvider } from './ThemeContext';
 import Header from './components/Header';
 import LandingPage from './pages/LandingPage';
 import SetupWizard from './pages/SetupWizard';
-import LaunchPage from './pages/LaunchPage';
-import GenerateDataPage from './pages/GenerateDataPage';
-import MonitorPage from './pages/MonitorPage';
-import ResultsPage from './pages/ResultsPage';
 import ChoosePage from './pages/ChoosePage';
-import ImplementPage from './pages/ImplementPage';
-import RunPage from './pages/RunPage';
 import {
   BUILD_TAB, HOME_PAGE, INSPIRE_ENTRY, MONITOR_TAB, REVIEW_LEFT_DEMO, REVIEW_TAB, RUN_LEFT_DEMO, RUN_TAB, demoRunPages, hashLink, pageHash, queryLink,
 } from './lib/runPages';
@@ -20,6 +14,36 @@ import { RESULTS_FRAME } from './lib/layout';
 import { showcaseSettings, showcasesFrom, staysInShowcase } from './lib/showcase';
 
 const noop = () => {};
+
+const LATER_PAGES = {
+  launch: () => import('./pages/LaunchPage'),
+  generate: () => import('./pages/GenerateDataPage'),
+  monitor: () => import('./pages/MonitorPage'),
+  results: () => import('./pages/ResultsPage'),
+  implement: () => import('./pages/ImplementPage'),
+  run: () => import('./pages/RunPage'),
+};
+const LaunchPage = lazy(LATER_PAGES.launch);
+const GenerateDataPage = lazy(LATER_PAGES.generate);
+const MonitorPage = lazy(LATER_PAGES.monitor);
+const ResultsPage = lazy(LATER_PAGES.results);
+const ImplementPage = lazy(LATER_PAGES.implement);
+const RunPage = lazy(LATER_PAGES.run);
+
+function preloadLaterPages() {
+  Object.values(LATER_PAGES).forEach((load) => load().catch(noop));
+}
+
+function PageSpinner({ text }) {
+  return (
+    <div className="min-h-screen flex items-center justify-center">
+      <div className="text-center space-y-4">
+        <div className="w-10 h-10 border-2 border-db-red border-t-transparent rounded-full animate-spin mx-auto" />
+        <p className="text-sm text-text-secondary">{text}</p>
+      </div>
+    </div>
+  );
+}
 
 /** Legacy Configure default pointed at a user folder that often does not exist; use shared publish path. */
 const WORKSPACE_NOTEBOOK_SHARED = '/Shared/inspire-ai/dbx_inspire_ai_agent';
@@ -102,6 +126,13 @@ export default function App() {
   const [reviewSid, setReviewSid] = useState(null);
   const showcasesLoaded = useRef(null);
   const loadingHash = useRef(null);
+  const preloaded = useRef(false);
+
+  useEffect(() => {
+    if (page === 'loading' || preloaded.current) return;
+    preloaded.current = true;
+    preloadLaterPages();
+  }, [page]);
 
   useEffect(() => {
     let cancelled = false;
@@ -478,14 +509,9 @@ export default function App() {
       )}
 
       <main className={transitioning ? 'page-exit' : 'page-enter'} key={page}>
-        {page === 'loading' && (
-          <div className="min-h-screen flex items-center justify-center">
-            <div className="text-center space-y-4">
-              <div className="w-10 h-10 border-2 border-db-red border-t-transparent rounded-full animate-spin mx-auto" />
-              <p className="text-sm text-text-secondary">Connecting to workspace...</p>
-            </div>
-          </div>
-        )}
+        <ErrorBoundary key={page}>
+        <Suspense fallback={<PageSpinner text="Opening the page..." />}>
+        {page === 'loading' && <PageSpinner text="Connecting to workspace..." />}
 
         {page === 'setup' && (
           <SetupWizard settings={settings} update={update} onComplete={finishSetup} />
@@ -614,6 +640,8 @@ export default function App() {
             />
           </ErrorBoundary>
         )}
+        </Suspense>
+        </ErrorBoundary>
       </main>
 
       {!bare && page !== 'landing' && page !== 'setup' && <ScrollProgressRing />}

@@ -336,16 +336,17 @@ test('the resize grip shows at rest and turns the brand color on hover and focus
       line: solid(getComputedStyle(document.querySelector('.g-resize'), '::before').backgroundColor),
       behind: [getComputedStyle(document.querySelector('.stage')).backgroundColor, getComputedStyle(document.querySelector('.g-log')).backgroundColor] };
   });
-  const settle = (edge, line) => page.waitForFunction(([e, l]) => {
+  const settle = (edge, line, fill) => page.waitForFunction(([e, l, f]) => {
     const solid = (c) => c.replace(/^rgba\((\d+), (\d+), (\d+), 1\)$/, 'rgb($1, $2, $3)');
-    return solid(getComputedStyle(document.querySelector('.g-grip')).borderTopColor) === e
+    const grip = getComputedStyle(document.querySelector('.g-grip'));
+    return solid(grip.borderTopColor) === e && solid(grip.backgroundColor) === f
       && solid(getComputedStyle(document.querySelector('.g-resize'), '::before').backgroundColor) === l;
-  }, [edge, line]);
+  }, [edge, line, fill]);
   for (const theme of ['light', 'dark']) {
     if (theme === 'dark') await darkTheme(page);
     await page.mouse.move(20, 600);
     await handle.evaluate((el) => el.blur());
-    await settle(rgbOf(theme, 'faint'), 'rgba(0, 0, 0, 0)');
+    await settle(rgbOf(theme, 'faint'), 'rgba(0, 0, 0, 0)', rgbOf(theme, 'card'));
     const rest = await look();
     assert.deepEqual([rest.edge, rest.fill, rest.dots, rest.line], [rgbOf(theme, 'faint'), rgbOf(theme, 'card'), rgbOf(theme, 'muted'), 'rgba(0, 0, 0, 0)'], theme);
     for (const bg of rest.behind) assert.ok(ratio(hexOf(rest.edge), hexOf(bg)) >= 3, `${theme}: the grip edge ${rest.edge} on ${bg}`);
@@ -357,7 +358,7 @@ test('the resize grip shows at rest and turns the brand color on hover and focus
         await page.keyboard.press('Shift');
         await handle.focus();
       }
-      await settle(rgbOf(theme, 'btn-bg'), rgbOf(theme, 'brand'));
+      await settle(rgbOf(theme, 'btn-bg'), rgbOf(theme, 'brand'), rgbOf(theme, 'btn-bg'));
       const on = await look();
       assert.deepEqual([on.edge, on.fill, on.dots, on.line], [rgbOf(theme, 'btn-bg'), rgbOf(theme, 'btn-bg'), rgbOf(theme, 'btn-fg'), rgbOf(theme, 'brand')], `${theme} ${how}`);
       for (const bg of on.behind) {
