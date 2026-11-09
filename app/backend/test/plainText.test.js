@@ -87,7 +87,7 @@ const FAILURES = [
   ['signed_out', '', '{"error_code":"401","message":"Invalid access token."}', /reload the page/],
   ['busy', 'transient', '{"error_code":"REQUEST_LIMIT_EXCEEDED","message":"Exceeded rate limit for /api/2.1/unity-catalog/catalogs. Please try again later."}', /wait a minute/],
   ['busy', 'transient', 'The request failed (HTTP 429)', /wait a minute/],
-  ['app_limit', '', 'Could not create the App: {"message":"Maximum number of apps (300) reached for workspace 7405617889454112.","error_code":"RESOURCE_EXHAUSTED"}', /delete an App/],
+  ['app_limit', '', 'Could not create the App: {"message":"Maximum number of apps (300) reached for workspace 1234123412341234.","error_code":"RESOURCE_EXHAUSTED"}', /delete an App/],
   ['warehouse_gone', '', 'SQL failed (404): {"error_code":"RESOURCE_DOES_NOT_EXIST","message":"SQL warehouse wh1 does not exist."}', /pick another warehouse/],
   ['warehouse_stopped', '', 'Warehouse 4b9b953939869799 is not running. Statement execution is not possible on a stopped warehouse.', /start it/],
   ['not_found', '', '[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`t` cannot be found. SQLSTATE: 42P01', /does not exist/],

@@ -145,8 +145,9 @@ test('the progress line says the step, the rows and the time left only from what
 
 test('an act says how many records it wrote and how many it left as they were, and Undo says what came back', () => {
   const most = actOutcome({ written: 28, conflicts_count: 2, conflicts: [{ record_key: 'R4' }, { record_key: 'R9' }], batch_id: 'b-1' });
-  assert.deepEqual(most, { written: 28, conflicts: 2, sample: [{ record_key: 'R4' }, { record_key: 'R9' }], batch: 'b-1', matched: null, leftOut: 0 });
-  assert.deepEqual(actOutcome({ written: ['R1', 'R2'], conflicts: [] }), { written: 2, conflicts: 0, sample: [], batch: '', matched: null, leftOut: 0 });
+  assert.deepEqual(most, { written: 28, conflicts: 2, sample: [{ record_key: 'R4' }, { record_key: 'R9' }], batch: 'b-1', matched: null, leftOut: 0, changed: [] });
+  assert.deepEqual(actOutcome({ written: ['R1', 'R2'], conflicts: [] }), { written: 2, conflicts: 0, sample: [], batch: '', matched: null, leftOut: 0, changed: [] });
+  assert.deepEqual(actOutcome({ written: 1, changed: ['R7', 9] }).changed, ['R7', '9']);
   const hidden = actOutcome({ written: 5, conflicts: [], left_out: 3 });
   assert.equal(hidden.leftOut, 3);
   assert.equal(actedText(hidden, { action_status: 'Done' }), '5 records marked done. 3 records you cannot read were left out.');
