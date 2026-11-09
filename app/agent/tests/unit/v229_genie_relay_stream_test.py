@@ -294,7 +294,7 @@ def test_genie_code_error_output_that_stops_being_readable_is_logged(agent_ns, t
     runner.relay_factory = lambda host, logger, loopback: None
     runner._run_once("build it", str(tmp_path / "w"), label="build")
     said = [line for _level, line in runner.logger.records if "reading Genie Code's error output stopped" in line]
-    assert len(said) == 1 and "OSError" in said[0] and "after 1 lines" in said[0]
+    assert len(said) == 1 and "OSError" in said[0] and "after 1 line:" in said[0]
 
 
 def test_a_final_live_log_flush_that_fails_is_logged(agent_ns, tmp_path):
