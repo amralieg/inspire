@@ -8,6 +8,7 @@ import { canonicalHash, fixThis, parseHash, restoreFilters, sectionHash, staleSe
 import { FIX_TIERS, isToFix, shownTiers, switcherMatches } from '../src/hub.js';
 import { MY_KEY } from '../src/prefs.js';
 import { evaluated } from './exampleRoutes.mjs';
+import { reviewRoutes, versionRoutes } from './planRoutes.mjs';
 import { hasWork, pageMode } from '../src/modes.js';
 
 let served;
@@ -420,7 +421,8 @@ async function openKind(kind, hash) {
   const id = info.pages[0].id;
   const routes = trackedRoutes({ overview: ({ json }) => json(200, { ...HUB, pages: { [id]: TRACKED } }),
     'scenario/evaluate': ({ route, json }) => json(200, evaluated(route.request().postDataJSON().values || {})),
-    'scenario/saved': ({ json }) => json(200, { scenarios: [], decisions: [], mine: 0, note: '' }) });
+    'scenario/saved': ({ json }) => json(200, { scenarios: [], decisions: [], mine: 0, note: '' }),
+    ...versionRoutes(kind.contract).routes, ...reviewRoutes(null, []) });
   return { id, ...(await openApp(browser, served.base, info, { hash: hash(id), routes, ready: '[data-rail]', watch: prefsFirst(MY_KEY, PERSON, {}) })) };
 }
 
