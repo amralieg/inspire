@@ -1,7 +1,8 @@
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { getUsage } from './api.js';
 import { Icon } from './icons.jsx';
 import DataTable from './DataTable.jsx';
+import { PlainNote } from './ui.jsx';
 import { ADMIN_ROUTE, NO_PEOPLE, USAGE_RECORDED, USAGE_UNRECORDED, usageView } from './admin.js';
 
 const REFUSED = [401, 403];
@@ -49,20 +50,17 @@ export function AdminLink({ on }) {
 
 export default function Admin() {
   const [state, setState] = useState({ data: null, error: null });
-  useEffect(() => {
-    getUsage().then((data) => setState({ data, error: null })).catch((error) => setState({ data: null, error }));
-  }, []);
+  const load = useCallback(() => getUsage().then((data) => setState({ data, error: null })).catch((error) => setState({ data: null, error })), []);
+  useEffect(() => { load(); }, [load]);
   const refused = REFUSED.includes(state.error?.status);
   const view = state.data ? usageView(state.data) : null;
   return (
     <div className="page admin">
       <div className="pg-h"><div><h1>Admin</h1><p>{view ? `${view.title}. ${view.since}` : 'How people use this App. Only its owners can open this page.'}</p></div></div>
       {!state.data && !state.error && <p className="more" role="status">Loading the usage…</p>}
-      {state.error && (
-        <p className={refused ? 'refused' : 'tile-err'} role="alert">
-          <Icon name={refused ? 'lock' : 'info'} size={14} />{refused ? state.error.message : `The usage could not load: ${state.error.message}`}
-        </p>
-      )}
+      {state.error && (refused
+        ? <PlainNote text={state.error.message} icon={<Icon name="lock" size={14} />} className="refused" role="alert" />
+        : <PlainNote text={state.error.message} prefix="The usage could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={load} />)}
       {view && <Usage view={view} />}
     </div>
   );

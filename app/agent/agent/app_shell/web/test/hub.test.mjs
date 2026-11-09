@@ -245,6 +245,35 @@ test("Genie's answer table shows each zip code as written and each count in full
   await context.close();
 });
 
+test("an answer whose table could not load says so in plain words with the code under Details, and Try again reads the answer again", async () => {
+  const routes = pageGenie();
+  let reads = 0;
+  routes['genie/message'] = ({ json }) => {
+    reads += 1;
+    const base = { state: 'done', text: 'The top zip is 10001.', sql: 'SELECT 1', truncated: false };
+    return json(200, reads === 1
+      ? { ...base, columns: [], rows: [], result_error: 'PERMISSION_DENIED: User does not have SELECT on table main.trips.raw' }
+      : { ...base, columns: [{ name: 'PICKUP_ZIP', type: 'INT' }], rows: [{ PICKUP_ZIP: 10001 }] });
+  };
+  const { page, seen, context } = await openApp(browser, served.base, withJoined(), { width: 1440, routes });
+  await page.goto(`${served.base}#/n01_u05`);
+  await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk');
+  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+  await page.getByLabel('Your question').fill('Which pickup zip has the most trips?');
+  await page.getByRole('button', { name: 'Send' }).click();
+  const box = page.locator('aside.genie [data-result-error]');
+  await box.waitFor({ timeout: 15000 });
+  const shown = await box.innerText();
+  assert.match(shown, /^The answer's table could not load: /);
+  assert.doesNotMatch(shown, /PERMISSION_DENIED/, 'the code stays under Details (must-exclude)');
+  assert.equal(await box.getByRole('button', { name: 'Copy what to send' }).count(), 1);
+  await box.getByRole('button', { name: 'Try again' }).click();
+  await page.locator('aside.genie .msg-t table').waitFor({ timeout: 15000 });
+  assert.equal(await page.locator('aside.genie [data-result-error]').count(), 0);
+  assert.equal(seen.asks.length, 1, 'Try again reads the same answer, it never asks Genie again');
+  await context.close();
+});
+
 test('each use case keeps its own Genie chat with its own Genie Agent, and a page that joined the hub earlier has Ask Genie off with the reason', async () => {
   const { page, seen, context } = await openApp(browser, served.base, withJoined(), { width: 1440, routes: pageGenie() });
   await page.goto(`${served.base}#/n01_u05`);

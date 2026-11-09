@@ -95,7 +95,7 @@ function plainCause(raw) {
   const at = raw.search(cause.test);
   const colon = raw.indexOf(': ');
   const head = colon > 0 && colon < at ? raw.slice(0, colon).trim() : '';
-  const prefix = head && head.length <= 160 && !causes.some((c) => c.test.test(head)) && !/[A-Z][A-Z0-9]*_[A-Z0-9_]+|[{}[\]]|\(\d{3}\)|\b(?:SQL|HTTP|API|REST)\b/.test(head) ? head : '';
+  const prefix = head && head.length <= 160 && !causes.some((c) => c.test.test(head)) && !/[A-Z][A-Z0-9]*_[A-Z0-9_]+|[{}[\]]|\(\d{3}\)|^(?:SQL|HTTP|API|REST)\b/.test(head) ? head : '';
   const rest = (prefix ? raw.slice(colon + 2) : raw).trim();
   const clause = cause.text(rest);
   return { plain: prefix ? `${prefix}: ${clause}.` : `${capital(clause)}.`, details: [rest], kind: cause.kind };
