@@ -206,7 +206,7 @@ function Shell({ app }) {
   const impactItem = <NavItem on={screen === 'impact'} icon="trend" title="Impact" small={single ? 'What the use case delivered' : 'What the use cases delivered'} hue="green" onClick={() => go('impact')} />;
   const workTab = <button className={`tab ${screen === 'mywork' ? 'is-on' : ''}`} onClick={() => go(MY_WORK_ROUTE)} aria-current={screen === 'mywork' ? 'page' : undefined}><Icon name="check" size={14} />My work</button>;
   const workItem = <NavItem on={screen === 'mywork'} icon="check" title="My work" small="What you did, and when" hue="teal" onClick={() => go(MY_WORK_ROUTE)} />;
-  const crumb = page ? [[page.domain, page.subdomain].filter(Boolean).join(' › '), page.use_case_id].filter(Boolean).join(' · ') : '';
+  const crumb = page ? [page.domain, page.subdomain].filter(Boolean).join(' › ') : '';
   const darkNext = theme === 'dark' ? 'light' : 'dark';
   const moreItems = [
     { label: 'Change the colors', icon: <Icon name="palette" size={14} />, sub: () => ({ label: 'Colors', items: paletteItems(palette, app.palette, theme, choosePalette) }) },
@@ -253,7 +253,7 @@ function Shell({ app }) {
             {!single && <NavItem on={screen === 'overview'} icon="home" title="Overview" small="All use cases" hue="slate" onClick={() => go('overview')} />}
             {shown.map((p) => (
               <NavItem key={p.id} on={page?.id === p.id} icon={p.icon} title={p.title} hue={p.hue || 'blue'} onClick={() => go(p.id)}
-                small={state(p).text || [tabLabel(p, ''), p.use_case_id, p.domain].filter(Boolean).join(' · ')} tone={TONES[state(p).kind]} />
+                small={state(p).text || [tabLabel(p, ''), p.domain].filter(Boolean).join(' · ')} tone={TONES[state(p).kind]} />
             ))}
           </nav>
           {navOpen && <div className="scrim" onClick={() => setNavOpen(false)} />}

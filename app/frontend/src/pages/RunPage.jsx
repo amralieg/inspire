@@ -19,8 +19,8 @@ const PRIMARY_CLASS = `${LINK_CLASS} text-white bg-db-red-solid hover:opacity-90
 const SECONDARY_CLASS = `${LINK_CLASS} border border-border bg-surface text-text-primary hover:border-border-strong`;
 
 function pageDetail(page) {
-  if (page.kind === RUN_DEMO_KIND) return `${page.use_case_id} · MVP App`;
-  return `${page.use_case_id} · v${page.version} · ${page.kind === APP_INSIDE ? APP_INSIDE_PLACEMENT.label : page.app_name}`;
+  if (page.kind === RUN_DEMO_KIND) return 'MVP App';
+  return `v${page.version} · ${page.kind === APP_INSIDE ? APP_INSIDE_PLACEMENT.label : page.app_name}`;
 }
 
 function frameTitle(page) {

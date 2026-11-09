@@ -1608,7 +1608,7 @@ function registerImplementRoutes(app, deps) {
       table = profiledTable(useCase, data, req.body?.table ?? req.query.table);
       const main = G.groupingMainTable(table);
       if (!main || !/^[^`]+\.[^`]+\.[^`]+$/.test(table)) {
-        throw I.badRequest(`Use case ${useCaseId} names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.`);
+        throw I.badRequest(`${String(useCase.use_case ?? '').trim() || 'This use case'} names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.`);
       }
       const options = (rowLimit) => ({ rowLimit, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s', signal: stop.signal });
       const rows = async (sql, parameters, rowLimit) => sqlResultToObjects(await executeSql(req.dbHost, token, warehouseId, sql, parameters, options(rowLimit)));

@@ -110,6 +110,27 @@ test('Run lists every deployed use case by domain, opens an Inside Inspire page 
   }
 });
 
+test('Run names each page by its use case and never shows a use case id (must-exclude)', async () => {
+  const ui = await openRun({ registry: REGISTRY, useCaseScope: SCOPE, hostedRun: hostedFake({ state: 'ready' }) },
+    { 'x-forwarded-access-token': 'user-token', 'x-forwarded-email': OWNER });
+  const { page } = ui;
+  try {
+    await page.locator('[data-run-banner]').waitFor({ timeout: 15000 });
+    const shown = await page.locator('body').innerText();
+    assert.match(shown, /Predict churn/);
+    assert.doesNotMatch(shown, /\bN\d\d-U\d\d\b/, shown);
+    await page.locator('[data-run-open="n01-u01-a"]').click();
+    await onFull(page, 'n01-u01-a');
+    await page.locator('[aria-controls="run-control-menu"]').click();
+    const menu = page.locator('#run-control-menu');
+    await menu.waitFor();
+    assert.doesNotMatch(`${await menu.getAttribute('aria-label')} ${await menu.innerText()}`, /\bN\d\d-U\d\d\b/);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('the chosen page panel is as tall as what it shows, never stretched to a long list beside it (must-exclude: the list keeps its own height)', async () => {
   const many = Array.from({ length: 14 }, (_, i) => registryRow(String(50 + i), `N03-U${String(i + 1).padStart(2, '0')}`, 1,
     { app: { state: 'ready' }, appName: `hub-${i}`, appUrl: `https://hub-${i}.example.com`, name: `Use case ${i + 1}` }));

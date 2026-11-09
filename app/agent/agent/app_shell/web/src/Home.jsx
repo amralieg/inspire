@@ -40,7 +40,7 @@ export function ReviewLink({ page, app }) {
   return (
     <a className="btn review top-ic" data-more="tight" href={page.review} target={inside ? '_top' : '_blank'} rel={inside ? undefined : 'noopener noreferrer'} data-review={page.id}
       aria-label={REVIEW_LABEL}
-      title={`Opens ${page.use_case_id} on Inspire's Review page${inside ? '' : ' in a new tab'}`}>
+      title={`Opens ${page.title} on Inspire's Review page${inside ? '' : ' in a new tab'}`}>
       <Icon name="external" size={15} /><span>{REVIEW_LABEL}</span>
     </a>
   );

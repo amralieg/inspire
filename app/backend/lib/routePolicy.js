@@ -28,6 +28,7 @@ function aclReadOutcome(acl) {
   return { readable: false, unreadable: said };
 }
 const norm = (v) => str(v).toLowerCase();
+const caseName = ({ id, row }) => (row && row.spec_json && typeof row.spec_json === 'object' ? str(row.spec_json.use_case_name) : '') || id;
 const oneLine = (text) => str(text).replace(/\s+/g, ' ').replace(/[.\s]+$/, '');
 
 function field(req, key) {
@@ -373,7 +374,8 @@ function createRoutePolicy(deps) {
     return {
       owner: !notOwned,
       unbuilt: rows.every(({ row }) => !row),
-      why: notOwned ? `use case ${notOwned.id} ${notOwned.row ? `is owned by ${implementOwners(notOwned.row).join(', ') || 'nobody'}` : unbuiltWhy}` : '',
+      name: rows.length === 1 ? caseName(rows[0]) : '',
+      why: notOwned ? `${caseName(notOwned)} ${notOwned.row ? `is owned by ${implementOwners(notOwned.row).join(', ') || 'nobody'}` : unbuiltWhy}` : '',
     };
   }
 
@@ -427,7 +429,7 @@ function createRoutePolicy(deps) {
       if (owned.owner || (entry.firstBuildOpen && owned.unbuilt)) return { allowed: true };
       const verdict = await managerVerdict(req, person);
       if (verdict.manager) return { allowed: true };
-      const named = target.useCaseIds.length === 1 ? `use case ${target.useCaseIds[0]}` : 'these use cases';
+      const named = target.useCaseIds.length === 1 ? owned.name || 'this use case' : 'these use cases';
       const extra = verdict.unreadable ? `; Inspire also could not read who manages the App (${verdict.unreadable})` : '';
       return { allowed: false, rule, message: `Only an owner of ${named}, or an App manager, can ${action}: ${owned.why}${extra}.` };
     }

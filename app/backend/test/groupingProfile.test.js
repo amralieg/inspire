@@ -300,11 +300,11 @@ test('a built use case is profiled on the table its build swapped in, and bad in
       assert.deepEqual(made.sqlCalls, []);
     });
   }
-  const none = profiled({ useCase: { id: 'N01-U01', primary_table: 'orders', analytics_technique: 'Anomaly Detection' } });
+  const none = profiled({ useCase: { id: 'N01-U01', use_case: 'Spot odd orders', primary_table: 'orders', analytics_technique: 'Anomaly Detection' } });
   await withApp(none, async (srv) => {
     const got = await post(srv, ASK);
     assert.equal(got.status, 400);
-    assert.equal(got.data.error, 'Use case N01-U01 names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.');
+    assert.equal(got.data.error, 'Spot odd orders names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.');
     assert.deepEqual(tableReads(none.sqlCalls), []);
   });
 });

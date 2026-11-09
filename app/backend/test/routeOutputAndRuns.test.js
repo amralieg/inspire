@@ -11,7 +11,7 @@ test.after(() => S.stopServer());
 
 const tokensTo = (prefix) => [...new Set(S.state.calls.filter((c) => c.path.startsWith(prefix)).map((c) => c.token))];
 const list = (path) => S.request('GET', `/api/workspace/list?path=${encodeURIComponent(path)}`, { person: NONOWNER });
-const built = (uc, by) => ({ session_id: '1001', use_case_id: uc, spec_version: 1, status: 'ready', created_by: by });
+const built = (uc, by) => ({ session_id: '1001', use_case_id: uc, spec_version: 1, status: 'ready', created_by: by, spec_json: { use_case_name: 'Payroll leak desk' } });
 const launched = (sid, folder, checked = 'passed', db = S.APP_DB) => ({ run_id: `9${sid}`, inspire_database: db, session_id: sid, output_folder: folder, output_checked: checked });
 const CHECKED = {
   sessionRows: { [S.APP_DB]: [{ session_id: '1001', generation_path: OUT }, { session_id: '1002', generation_path: './../demos/' }, { session_id: '1004', generation_path: '/' }] },
@@ -78,7 +78,8 @@ test('preflight and output-check are refused to a person who may not build the u
     const got = await S.request('GET', `${route}?${q}`, { person: NONOWNER });
     assert.equal(got.status, 403, `${route}: ${got.text}`);
     assert.equal(got.data.policy.rule, 'owners');
-    assert.match(got.data.error, /^Only an owner of use case N01-U01, or an App manager, can check/);
+    assert.match(got.data.error, /^Only an owner of Payroll leak desk, or an App manager, can check/);
+    assert.doesNotMatch(got.data.error, /N01-U01/, 'the refusal names the use case, never its id');
     assert.deepEqual(S.state.calls.filter((c) => c.category === 'action'), [], `${route} read nothing before the refusal`);
   }
 });

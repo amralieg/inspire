@@ -94,7 +94,7 @@ for (const width of [1280, 1024]) {
       assert.deepEqual(facts.clipped, [], 'no button clips its label');
       assert.equal(facts.toolbars, 0, 'the page body has no second toolbar or tab row');
       for (const name of ['Runs (3)', 'Views', 'Refresh now', 'Ask Genie']) assert.ok(facts.names.includes(name), `${name} is in the row: ${facts.names.join(' | ')}`);
-      assert.equal(await page.locator('.mark-t small').innerText(), 'Pricing › Markdown control · N01-U05');
+      assert.equal(await page.locator('.mark-t small').innerText(), 'Pricing › Markdown control');
       assert.equal(await page.locator('.ph h1').innerText(), await page.locator('.page .ph h1').innerText());
       if (SHOTS) {
         mkdirSync(SHOTS, { recursive: true });

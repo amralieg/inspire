@@ -391,19 +391,25 @@ export const ASK_GROUPS = {
   text: '.story, .blk--text, .blk--html, .sum',
   controls: '.fbar',
   row: '.main tbody tr, .main .choice-row',
+  group: '.main .rec-entity',
 };
 
 export function askAudit(groups) {
   const shown = (el) => el.checkVisibility({ opacityProperty: true, visibilityProperty: true }) && el.getBoundingClientRect().width > 0
     && el.getBoundingClientRect().height > 0;
   const own = (el) => (el.matches(groups.card) ? el.querySelector(':scope > :is(header, .money-h) .ask-genie') : el.querySelector('.ask-genie, .row-ask'));
-  const out = { counts: {}, missing: [], hidden: [] };
+  const all = Object.values(groups).join(', ');
+  const asks = (el) => [...el.querySelectorAll('.ask-genie, .row-ask, button')]
+    .filter((b) => (b.matches('.ask-genie, .row-ask') || /^Ask Genie\b/.test(b.textContent.trim())) && !b.parentElement.closest('.ask-genie, .row-ask'))
+    .filter((b) => b.closest(all) === el && shown(b));
+  const out = { counts: {}, missing: [], hidden: [], doubled: [] };
   Object.entries(groups).forEach(([group, selector]) => {
     const items = [...document.querySelectorAll(selector)].filter((el) => shown(el) && !(el.matches('tr') && el.querySelectorAll('td').length < 2));
     out.counts[group] = items.length;
     items.forEach((el) => {
       const name = el.getAttribute('aria-label') || el.dataset.card || el.dataset.bars || el.className;
       const ask = own(el);
+      if (asks(el).length > 1) out.doubled.push(`${group}: ${name}`);
       if (!ask) out.missing.push(`${group}: ${name}`);
       else if (!shown(ask)) out.hidden.push(`${group}: ${name}`);
     });

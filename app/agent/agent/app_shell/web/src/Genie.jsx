@@ -421,7 +421,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose })
             <p>{info.note}</p>
             {answering.length > 0 && (
               <div className="g-pick-list" aria-label="Use cases with a Genie Agent">
-                {answering.map((p) => <button key={p.id} type="button" className="sugg" onClick={() => onPick?.(p.id)}>{p.use_case_id ? `${p.use_case_id} · ` : ''}{p.title}</button>)}
+                {answering.map((p) => <button key={p.id} type="button" className="sugg" onClick={() => onPick?.(p.id)} title={p.use_case_id || undefined}>{p.title}</button>)}
               </div>
             )}
           </div>

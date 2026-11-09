@@ -413,7 +413,7 @@ test('the dashboard is read only: What to do now, a So what line and Ask Genie o
   const widgets = info.pages[0].charts.length + info.pages[0].tables.length;
   assert.equal(await page.locator('[data-section="charts"] [data-so-what], [data-section="tables"] [data-so-what]').count(), widgets);
   assert.equal(await page.locator('[data-section="charts"] [data-ask], [data-section="tables"] [data-ask="table"]').count(), widgets);
-  assert.deepEqual(await page.locator('[data-section="todo"] [data-step]').evaluateAll((n) => n.map((s) => s.dataset.step)), ['read', 'so_what', 'filters', 'genie']);
+  assert.deepEqual(await page.locator('[data-section="todo"] [data-step]').evaluateAll((n) => n.map((s) => s.dataset.step)), ['read', 'so_what', 'filters']);
   assert.equal(await page.locator('[data-todo-count]').count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Accept' }).count(), 0);
   assert.equal(info.pages[0].layout.informational, true);
@@ -440,7 +440,7 @@ test('the decision queue page opens with What to do now and adds no layout label
   assert.equal(info.pages[0].layout.id, 'decision_queue');
   const { page, seen, context } = await openApp(browser, base, info);
   await page.locator('[data-section="todo"] [data-step="first"]').waitFor();
-  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], info.pages[0].use_case_id, 'the default layout keeps Things to fix as its view and names no layout on the item (must-exclude)');
+  assert.equal((await page.locator('nav.side .nav-i.is-on small').innerText()).split(' · ')[0], info.pages[0].domain, 'the default layout keeps Things to fix as its view and names no layout on the item (must-exclude)');
   assert.match(await page.locator('[data-step="first"]').innerText(), /Start with Item number 1/);
   assert.equal(await page.locator('[data-step="accept"]').count(), 0, 'an App that keeps no decisions offers no accept');
   assert.equal(await page.locator('[data-accept]').count(), 0);

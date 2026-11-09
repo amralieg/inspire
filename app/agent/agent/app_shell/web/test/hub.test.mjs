@@ -313,7 +313,7 @@ test('on the Overview Ask Genie lists only the use cases that answer and that th
   assert.equal(await panel.locator('.g-h small').innerText(), 'Each use case has its own Genie Agent');
   assert.equal(await panel.locator('.g-pick p').innerText(), HUB_NOTE);
   const shownTitles = await page.locator('.side .nav-t b').allInnerTexts();
-  const expected = info.pages.filter((p) => p.genie.enabled && shownTitles.includes(p.title)).map((p) => `${p.use_case_id} · ${p.title}`);
+  const expected = info.pages.filter((p) => p.genie.enabled && shownTitles.includes(p.title)).map((p) => p.title);
   assert.deepEqual(await panel.locator('.g-pick-list .sugg').allInnerTexts(), expected);
   assert.ok(!expected.some((t) => t.endsWith('Second desk 2')), 'a page with Ask Genie off is not offered');
   assert.ok(!expected.some((t) => t.endsWith('Second desk 4')), 'a use case the viewer may not read is not offered');
@@ -427,7 +427,8 @@ test('a use case page leads with its area, title, Notify me, AI summary, four ti
   const { page, seen, context } = await openApp(browser, served.base, INFO(), { width: 1440, routes: hubRoutes() });
   await page.goto(`${served.base}#/n01_u05`);
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Price-loss decision desk' && document.querySelectorAll('.kpi-v').length === 4);
-  assert.equal(await page.locator('.top .mark-t small').innerText(), 'Pricing › Markdown control · N01-U05');
+  assert.equal(await page.locator('.top .mark-t small').innerText(), 'Pricing › Markdown control');
+  assert.doesNotMatch(await page.locator('body').innerText(), /\bN\d\d-U\d\d\b/, 'no use case id shows on the page');
   const notify = page.getByRole('link', { name: 'Notify me' });
   assert.equal(await notify.getAttribute('href'), 'https://example.com/sql/alerts');
   assert.equal(await notify.getAttribute('target'), '_blank');
