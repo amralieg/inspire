@@ -11,7 +11,8 @@ CLOSED_SUFFIX = "_closed"
 CLOSES_SUFFIX = "_closes"
 CHANGES_SUFFIX = "_run_changes"
 FEEDBACK_SUFFIX = "_feedback"
-COMPANION_SUFFIXES = ("_summary", "_assumptions", RUN_LOG_SUFFIX, ACTED_SUFFIX, CLOSED_SUFFIX, CHANGES_SUFFIX, CLOSES_SUFFIX, "_plans",
+PLANS_SUFFIX = "_plans"
+COMPANION_SUFFIXES = ("_summary", "_assumptions", RUN_LOG_SUFFIX, ACTED_SUFFIX, CLOSED_SUFFIX, CHANGES_SUFFIX, CLOSES_SUFFIX, PLANS_SUFFIX,
                       "_scenarios", FEEDBACK_SUFFIX)
 FLAGGED_TIERS = ("Act now", "Review")
 NEW = "New"

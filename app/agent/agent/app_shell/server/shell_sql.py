@@ -4442,8 +4442,12 @@ def assumption_order(alias: str = "") -> str:
     return f"{prefix}`changed_at` DESC, {prefix}`value` DESC"
 
 
+def sibling_table(page: dict, suffix: str) -> str:
+    return table_name(str(page["result_table"]).strip() + suffix)
+
+
 def assumptions_table(page: dict) -> str:
-    return table_name(str(page["result_table"]).strip() + ASSUMPTIONS_SUFFIX)
+    return sibling_table(page, ASSUMPTIONS_SUFFIX)
 
 
 def usage_query(page: dict, since: str) -> tuple:
@@ -4483,7 +4487,7 @@ FEEDBACK_COLUMNS = ("feedback_id", "section", "record_key", "text", "filters", "
 
 
 def feedback_table(page: dict) -> str:
-    return table_name(str(page["result_table"]).strip() + FEEDBACK_SUFFIX)
+    return sibling_table(page, FEEDBACK_SUFFIX)
 
 
 def feedback_write(page: dict, feedback_id: str, section: str, record_key: str, text: str, reporter: str, filters: str) -> tuple:
@@ -4501,8 +4505,242 @@ def feedback_query(page: dict, reporter=None, limit: int = 50) -> tuple:
             f"{params.add(str(page.get('use_case_id') or ''))}{mine} ORDER BY `reported_at` DESC LIMIT {int(limit)}", params.items)
 
 
+PLANS_SUFFIX = shell_facts.PLANS_SUFFIX
+PLAN_STATES = ("Draft", "In review", "Approved", "Published")
+PLAN_EDITABLE = PLAN_STATES[:2]
+PLAN_MOVES = {"submit": (("Draft",), "In review"), "reopen": (("In review", "Approved"), "Draft"),
+              "approve": (("Draft", "In review"), "Approved"), "publish": (("Approved",), "Published")}
+PLAN_REASONED = ("reopen", "approve", "publish")
+PLAN_OWNED = ("approve", "publish")
+PLAN_NEW = "new"
+PLAN_CONTRACTS = ("plan", "forecast")
+PLAN_ID = re.compile(r"^[0-9a-f]{32}$")
+PLAN_LINE_STATES = ("accept", "override")
+PLAN_COLUMNS = ("plan_id", "entry", "line_key", "period", "status", "value", "recommended", "reason", "changed_by", "changed_at")
+PLAN_KEY_CHARS = 512
+PLAN_PERIOD_CHARS = 64
+PLAN_TOLERANCE = 0.01
+PLAN_VALUE_COLUMN = "objective_contribution"
+PLAN_CAPS = {"rows": 5000, "versions": 50, "series": 200, "lines": 2000, "constraints": 200, "shown_lines": 50}
+
+
+def plans_table(page: dict) -> str:
+    return sibling_table(page, PLANS_SUFFIX)
+
+
+def plan_contract(page: dict):
+    contract = (layouts().get(page_layout(page)) or {}).get("contract")
+    return contract if contract in PLAN_CONTRACTS else None
+
+
+def plan_reason(reason, required: bool, what: str) -> str:
+    if reason is not None and not isinstance(reason, str):
+        raise ValueError("the reason is text")
+    said = " ".join(str(reason or "").split())
+    if len(said) > CAPS["note_chars"]:
+        raise ValueError(f"the reason takes at most {CAPS['note_chars']} characters")
+    if required and not said:
+        raise ValueError(f"say why: {what} needs a reason")
+    return said
+
+
+def plan_next_status(current: str, action: str) -> str:
+    if action not in PLAN_MOVES:
+        raise ValueError(f"action is {PLAN_NEW}, {', '.join(PLAN_MOVES)}, not {action!r}")
+    allowed, target = PLAN_MOVES[action]
+    if current not in allowed:
+        raise ValueError(f"a plan version that is {current} cannot {action}; it can when it is {' or '.join(allowed)}")
+    return target
+
+
+def plans_query(page: dict, limit: int = PLAN_CAPS["rows"]) -> tuple:
+    params = _Params()
+    columns = ", ".join(f"`{c}`" for c in PLAN_COLUMNS)
+    return (f"SELECT {columns} FROM {plans_table(page)} WHERE `use_case_id` = {params.add(str(page.get('use_case_id') or ''))} "
+            f"ORDER BY `changed_at` DESC LIMIT {int(limit)}", params.items)
+
+
+def plan_entry_write(page: dict, plan_id: str, entry: str, status: str, editor: str, reason: str, line_key=None, period=None,
+                     value=None, recommended=None) -> tuple:
+    if not PLAN_ID.match(str(plan_id or "")):
+        raise ValueError("plan_id is 32 lowercase hex characters")
+    if entry not in ("status", "line"):
+        raise ValueError(f"entry is status or line, not {entry!r}")
+    params = _Params()
+
+    def number(x):
+        return "CAST(NULL AS DOUBLE)" if x is None else params.add(repr(float(x)), "DOUBLE")
+
+    def text(x):
+        return "CAST(NULL AS STRING)" if x is None else params.add(str(x))
+
+    cells = [params.add(str(page.get("use_case_id") or "")), params.add(plan_id), params.add(entry), text(line_key), text(period),
+             params.add(status), number(value), number(recommended), params.add(reason or ""), params.add(editor), "current_timestamp()"]
+    return (f"INSERT INTO {plans_table(page)} (`use_case_id`, {', '.join(f'`{c}`' for c in PLAN_COLUMNS)}) VALUES ({', '.join(cells)})",
+            params.items)
+
+
+def _plan_at(value) -> str:
+    return str(value or "")
+
+
+def plan_versions(rows) -> list:
+    versions, order = {}, []
+    for row in sorted(rows or [], key=lambda r: _plan_at(r.get("changed_at"))):
+        ident = str(row.get("plan_id") or "")
+        if not PLAN_ID.match(ident):
+            continue
+        version = versions.get(ident)
+        if version is None:
+            version = versions[ident] = {"plan_id": ident, "status": PLAN_STATES[0], "created_by": str(row.get("changed_by") or ""),
+                                         "created_at": _plan_at(row.get("changed_at")), "history": [], "lines": {}}
+            order.append(ident)
+        at, by = _plan_at(row.get("changed_at")), str(row.get("changed_by") or "")
+        if row.get("entry") == "status" and row.get("status") in PLAN_STATES:
+            version["status"] = row["status"]
+            version["history"].append({"status": row["status"], "reason": str(row.get("reason") or ""), "by": by, "at": at})
+        elif row.get("entry") == "line" and row.get("line_key") not in (None, "") and row.get("status") in PLAN_LINE_STATES:
+            version["lines"][str(row["line_key"])] = {"decision": row["status"], "value": as_number(row.get("value")),
+                                                      "recommended": as_number(row.get("recommended")), "period": row.get("period"),
+                                                      "reason": str(row.get("reason") or ""), "by": by, "at": at}
+        version["changed_at"], version["changed_by"] = at, by
+    out = []
+    for number, ident in enumerate(order, 1):
+        version = versions[ident]
+        lines = version.pop("lines")
+        out.append(dict(version, number=number, label=f"Version {number}", editable=version["status"] in PLAN_EDITABLE,
+                        overrides=[dict(line, line_key=key) for key, line in sorted(lines.items()) if line["decision"] == "override"],
+                        lines_decided=len(lines), lines=lines))
+    return list(reversed(out))[:PLAN_CAPS["versions"]]
+
+
+def plan_version(versions: list, plan_id) -> dict:
+    found = next((v for v in versions if v["plan_id"] == str(plan_id or "")), None)
+    if found is None:
+        raise KeyError(f"this use case has no plan version {plan_id!r}")
+    return found
+
+
+def constraints_query(page: dict) -> tuple:
+    return (f"SELECT CAST(`name` AS STRING) AS `name`, `limit`, `used`, `slack`, `shadow_price` FROM {sibling_table(page, '__constraints')} "
+            f"LIMIT {PLAN_CAPS['constraints']}", [])
+
+
+def plan_lines_query(page: dict) -> tuple:
+    return f"SELECT * FROM ({_dataset(page, RECORDS_DATASET)}) AS d LIMIT {PLAN_CAPS['lines']}", []
+
+
+def _on_plan(planned, actual) -> bool:
+    return abs(actual - planned) <= max(abs(planned) * PLAN_TOLERANCE, 1e-9)
+
+
+def plan_performance(plan: dict, version, rows, label: str = None) -> dict:
+    if version is None:
+        return {"version": None, "lines": [], "counted": 0, "on_plan": 0, "off_plan": 0, "unknown": 0, "value_planned": None,
+                "value_realized": None, "has_value": False, "truncated": False}
+    chosen = version.get("lines") or {}
+    lines, on, off, unknown, planned_value, realized, has_value = [], 0, 0, 0, 0.0, 0.0, False
+    for row in rows or []:
+        key = str(row.get("record_key") if row.get("record_key") is not None else row.get("_inspire_key") or "")
+        if not key:
+            continue
+        line = chosen.get(key) or {}
+        planned = line.get("value") if line.get("decision") == "override" else as_number(row.get(plan.get("recommended")))
+        actual = as_number(row.get(plan.get("current")))
+        value = as_number(row.get(PLAN_VALUE_COLUMN))
+        if value is not None:
+            has_value = True
+            planned_value += value
+        if planned is None or actual is None:
+            unknown += 1
+            state = "unknown"
+        elif _on_plan(planned, actual):
+            on += 1
+            state = "on"
+            realized += value or 0.0
+        else:
+            off += 1
+            state = "off"
+        lines.append({"line_key": key, "label": str(row.get(label) if label and row.get(label) is not None else key), "planned": planned, "actual": actual, "gap": None if planned is None or actual is None else actual - planned,
+                      "state": state, "overridden": line.get("decision") == "override", "reason": line.get("reason") or "", "value": value})
+    lines.sort(key=lambda l: (l["state"] != "off", -abs(l["gap"] or 0.0), l["line_key"]))
+    return {"version": {k: version.get(k) for k in ("plan_id", "label", "status", "changed_at", "changed_by")},
+            "lines": lines[:PLAN_CAPS["shown_lines"]], "counted": len(lines), "on_plan": on, "off_plan": off, "unknown": unknown,
+            "value_planned": planned_value if has_value else None, "value_realized": realized if has_value else None, "has_value": has_value,
+            "truncated": len(rows or []) >= PLAN_CAPS["lines"]}
+
+
+def series_text(column: str, alias: str = "s") -> str:
+    return f"CAST({alias}.`{column}` AS STRING)"
+
+
+def forecast_review_query(page: dict) -> tuple:
+    series = sibling_table(page, "__series")
+    grouped = (f"SELECT {series_text('series_id')} AS `series_id`, MAX(s.`backtest_mase`) AS `mase`, "
+               f"MIN(CASE WHEN s.`is_future` THEN {series_text('period')} END) AS `next_period` FROM {series} AS s GROUP BY s.`series_id`")
+    return (f"WITH g AS ({grouped}) SELECT g.`series_id`, g.`mase`, g.`next_period`, f.`forecast`, f.`lower`, f.`upper` FROM g LEFT JOIN "
+            f"{series} AS f ON {series_text('series_id', 'f')} = g.`series_id` AND {series_text('period', 'f')} = g.`next_period` "
+            f"ORDER BY g.`mase` DESC NULLS LAST, g.`series_id` LIMIT {PLAN_CAPS['series']}", [])
+
+
+def forecast_point_query(page: dict, series_id: str, period: str) -> tuple:
+    params = _Params()
+    return (f"SELECT s.`forecast` FROM {sibling_table(page, '__series')} AS s WHERE {series_text('series_id')} = {params.add(series_id)} "
+            f"AND {series_text('period')} = {params.add(period)} AND s.`is_future` LIMIT 2", params.items)
+
+
+def forecast_accuracy_query(page: dict) -> tuple:
+    return (f"SELECT COUNT(*) AS `n`, SUM(ABS(s.`forecast` - s.`actual`)) AS `abs_error`, SUM(ABS(s.`actual`)) AS `abs_actual`, "
+            f"SUM(s.`forecast` - s.`actual`) AS `signed_error`, AVG(s.`backtest_mase`) AS `mase`, COUNT(DISTINCT s.`series_id`) AS `series` "
+            f"FROM {sibling_table(page, '__series')} AS s WHERE NOT COALESCE(s.`is_future`, false) AND s.`actual` IS NOT NULL "
+            f"AND s.`forecast` IS NOT NULL", [])
+
+
+def override_lift_query(page: dict) -> tuple:
+    params = _Params()
+    latest = (f"SELECT `line_key`, `period`, `value`, `recommended`, ROW_NUMBER() OVER (PARTITION BY `line_key`, `period` ORDER BY "
+              f"`changed_at` DESC) AS `nth` FROM {plans_table(page)} WHERE `use_case_id` = {params.add(str(page.get('use_case_id') or ''))} "
+              f"AND `entry` = 'line' AND `status` = 'override' AND `value` IS NOT NULL AND `recommended` IS NOT NULL")
+    model, people = "ABS(o.`recommended` - s.`actual`)", "ABS(o.`value` - s.`actual`)"
+    return (f"WITH o AS ({latest}) SELECT COUNT(*) AS `n`, SUM({model}) AS `model_error`, SUM({people}) AS `people_error`, "
+            f"SUM(CASE WHEN {people} < {model} THEN 1 ELSE 0 END) AS `helped`, SUM(CASE WHEN {people} > {model} THEN 1 ELSE 0 END) AS `hurt` "
+            f"FROM o JOIN {sibling_table(page, '__series')} AS s ON {series_text('series_id')} = o.`line_key` AND "
+            f"{series_text('period')} = o.`period` WHERE o.`nth` = 1 AND s.`actual` IS NOT NULL", params.items)
+
+
+def _share(part, whole):
+    part, whole = as_number(part), as_number(whole)
+    return None if part is None or not whole else part / whole
+
+
+def forecast_accuracy(row, lift) -> dict:
+    row, lift = row or {}, lift or {}
+    n, overrides = int(as_number(row.get("n")) or 0), int(as_number(lift.get("n")) or 0)
+    model_error, people_error = as_number(lift.get("model_error")), as_number(lift.get("people_error"))
+    gain = None if not overrides or not model_error else (model_error - (people_error or 0.0)) / model_error
+    return {"points": n, "series": int(as_number(row.get("series")) or 0), "error": _share(row.get("abs_error"), row.get("abs_actual")),
+            "bias": _share(row.get("signed_error"), row.get("abs_actual")), "mase": as_number(row.get("mase")),
+            "overrides": overrides, "helped": int(as_number(lift.get("helped")) or 0), "hurt": int(as_number(lift.get("hurt")) or 0),
+            "lift": gain}
+
+
+def forecast_queue(rows, version) -> list:
+    chosen = (version or {}).get("lines") or {}
+    out = []
+    for row in rows or []:
+        key = str(row.get("series_id") or "")
+        if not key:
+            continue
+        mase = as_number(row.get("mase"))
+        line = chosen.get(key) if chosen.get(key, {}).get("period") == row.get("next_period") else None
+        out.append({"series_id": key, "mase": mase, "at_risk": mase is not None and mase > 1, "next_period": row.get("next_period"),
+                    "forecast": as_number(row.get("forecast")), "lower": as_number(row.get("lower")), "upper": as_number(row.get("upper")),
+                    "override": None if line is None else {k: line.get(k) for k in ("value", "reason", "by", "at")}})
+    return out
+
+
 def scenarios_table(page: dict) -> str:
-    return table_name(str(page["result_table"]).strip() + SCENARIOS_SUFFIX)
+    return sibling_table(page, SCENARIOS_SUFFIX)
 
 
 def scenario_events_query(page: dict, limit: int = CAPS["scenario_events"]) -> tuple:

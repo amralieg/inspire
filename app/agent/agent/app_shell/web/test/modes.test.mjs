@@ -55,7 +55,7 @@ test('a layout is read by its id first and its contract second, and anything unk
   assert.equal(layoutMode({ id: '__proto__', contract: 'constructor' }), DEFAULT_MODE);
 });
 
-test('every mode other than the queue has a view to load, and the plan and forecast ones are placeholders another lane fills', () => {
+test('every mode other than the queue has a view to load', () => {
   assert.deepEqual(Object.keys(MODE_VIEWS).sort(), ['ask', 'explore', 'forecast', 'plan', 'scenarios']);
   assert.equal(MODE_VIEWS.queue, undefined);
   assert.ok(Object.isFrozen(MODE_VIEWS));

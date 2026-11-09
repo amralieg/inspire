@@ -1,7 +1,4 @@
-import { ModePending } from './ModeParts.jsx';
+import Work from './PlanSection.jsx';
+import Performance from './PlanPerformance.jsx';
 
-function Work(props) {
-  return <ModePending mode="plan" {...props} />;
-}
-
-export default { Work };
+export default { Work, Performance };
