@@ -1665,6 +1665,77 @@ def kind_problems(page: dict, kinds, skipped=()) -> tuple:
              for k in missing if k not in skipped], [k for k in missing if k in skipped])
 
 
+def decision_problems(page: dict) -> list:
+    if layout_decides(page_layout(page)) and not any(isinstance(d, dict) and d.get("name") == RECORDS_DATASET
+                                                     for d in page.get("datasets") or []):
+        return [f"the page has no dataset named {RECORDS_DATASET}: it is the decision list, every row of the latest run, with a "
+                "records section that names its columns"]
+    return []
+
+
+def _plain_words(text) -> str:
+    return " ".join(str(text or "").split()).lower()
+
+
+def fewer_problems(page: dict, field: str, vibes: str, label: str, asks_for: str, otherwise: str) -> list:
+    quote = page.get(field)
+    if quote is None or (isinstance(quote, str) and not quote.strip()):
+        return []
+    if not isinstance(quote, str):
+        return [f"{field} must be text: the words of the customer's asks for this {label} that ask for {asks_for}, word for word"]
+    if not _plain_words(vibes):
+        return [f"{field} quotes {quote.strip()[:200]!r}, but the customer gave no asks for this {label}: {otherwise} and leave "
+                f"{field} out"]
+    if _plain_words(quote) not in _plain_words(vibes):
+        return [f"{field} quotes {quote.strip()[:200]!r}, which is not in the customer's asks for this {label} word for word: "
+                f"quote the words that ask for {asks_for}, or {otherwise} and leave {field} out"]
+    return []
+
+
+def _page_key(text) -> str:
+    return re.sub(r"[^a-z0-9]+", "", str(text or "").lower())
+
+
+def request_problems(page: dict, requested) -> list:
+    covered = set()
+    for f in page.get("filters") or []:
+        if isinstance(f, dict):
+            covered |= {_page_key(f.get("id")), _page_key(f.get("label"))}
+            columns = f.get("columns")
+            covered |= {_page_key(column) for column in (columns.values() if isinstance(columns, dict) else ())}
+    return [f"the user asked the dashboard to filter on {name}, which no filter of the page covers: add a filter on it"
+            for name in requested or [] if _page_key(name) not in covered]
+
+
+def dashboard_html_problems(page: dict) -> list:
+    return [f"block {b.get('id')} is html, which a dashboard text widget cannot draw: write it as a text block in Markdown (headings, "
+            "bold, italics, lists, links and tables) or as an image block"
+            for b in (page or {}).get("blocks") or [] if isinstance(b, dict) and b.get("kind") == "html"]
+
+
+def chart_kind_problems(page: dict, kinds, not_drawn) -> tuple:
+    problems, skipped = kind_problems(page, kinds, set(not_drawn))
+    return problems, [f"App: no {CHART_KIND_LABELS[k].lower()} chart, which you picked: {not_drawn[k]}. Pick another kind of chart in "
+                      "App look" for k in skipped]
+
+
+def rule_problems(page: dict, rules: dict) -> tuple:
+    vibes, label = rules.get("vibes") or "", rules.get("label") or "App"
+    least = layout_chart_least(page_layout(page))
+    fewer = fewer_problems(page, "fewer_charts", vibes, label, f"fewer than {least} charts",
+                           f"write at least {least} charts") if layout_takes_charts(page) else []
+    kinds, told = ([], []) if page.get("fewer_charts") and not fewer else chart_kind_problems(page, rules.get("kinds") or (),
+                                                                                              rules.get("not_drawn") or {})
+    found = fewer + kinds
+    found += fewer_problems(page, "fewer_rows", vibes, label, "fewer rows than the layout's sections show",
+                            "fill each section to its minimum rows")
+    found += fewer_problems(page, REASON_CHARTS, vibes, label, "a chart grouped by reason",
+                            "group each chart by a categorical column many records share")
+    found += request_problems(page, rules.get("requested"))
+    found += dashboard_html_problems(page) if rules.get("dashboard") else []
+    return found, told
+
+
 def kind_homes_text(page: dict, types) -> str:
     homes = native_homes(page, "charts", types)
     if not homes:

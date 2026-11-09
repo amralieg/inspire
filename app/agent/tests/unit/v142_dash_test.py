@@ -214,7 +214,7 @@ def test_a_page_spec_without_the_user_filter_goes_back_to_genie_then_publishes(a
     assert "the user asked the dashboard to filter on loyalty_tier, which no filter of the page covers" in runner.prompts[1]
     assert [c[:2] for c in seen["calls"]] == [("POST", "/api/2.0/lakeview/dashboards"),
                                               ("POST", "/api/2.0/lakeview/dashboards/d9/published")]
-    assert agent_ns["implement_page_request_problems"](fixed, ["Loyalty Tier", "loyalty-tier"]) == []
+    assert _shell(agent_ns, tmp_path).request_problems(fixed, ["Loyalty Tier", "loyalty-tier"]) == []
 
 
 def test_a_failing_dataset_query_blocks_publish_and_goes_back_to_genie(agent_ns, tmp_path):

@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { decidePlan, getRecords } from './api.js';
 import { entityName, formatValue, integer, numberOf } from './format.js';
-import { canDecide, choiceLabel, noDecisionText, pageDecides, recordKeyOf, statusChoices } from './records.js';
+import { CODES, canDecide, choiceLabel, noDecisionText, pageDecides, recordKeyOf, statusChoices, withoutWindow } from './records.js';
 import { Icon } from './icons.jsx';
 import { SaidNote, Skeleton, useToast, PlainNote, useRetry } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
@@ -34,7 +34,13 @@ export function useList(pageId, filters, ready, nonce, limit, on = true, view = 
   useEffect(() => {
     if (!ready || !on) return undefined;
     let live = true;
-    getRecords({ ...(view || {}), page: pageId, filters: filters || {}, offset: 0, limit })
+    const body = { ...(view || {}), page: pageId, filters: filters || {}, offset: 0, limit };
+    const plain = body.window ? withoutWindow(body) : null;
+    getRecords(body)
+      .catch((e) => {
+        if (!plain || e.code !== CODES.noWindow) throw e;
+        return getRecords(plain).then((data) => { if (data?.actions) throw e; return data; });
+      })
       .then((data) => live && setState({ data, error: '' }))
       .catch((e) => live && setState({ data: null, error: e.message }));
     return () => { live = false; };
