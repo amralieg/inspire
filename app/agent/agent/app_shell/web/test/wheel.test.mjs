@@ -58,7 +58,7 @@ test('the mouse wheel scrolls the Work list, the record drawer, and the side rai
 test('the mouse wheel scrolls the Performance, Runs and Settings sections to their end at 1280x800 and 1024x700', async () => {
   const { page, seen, context } = await open('#/n01_u05/performance', {});
   const perf = page.locator('[data-performance]');
-  await perf.locator('.imp-page').waitFor({ timeout: 15000 });
+  await perf.locator('[data-promised-delivered]').waitFor({ timeout: 15000 });
   await wheelScrolls(page, html(page), () => perf.locator('[data-wheel-copy]').last(), { name: 'Performance', over: () => perf, ...copies(perf, ':scope > *', 3) });
 
   await goRail(page, 'runs');
