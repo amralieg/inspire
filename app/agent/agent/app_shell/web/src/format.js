@@ -211,8 +211,6 @@ export function isCountable(...names) {
 
 export const wholeFormat = (format, ...names) => ((!format || format === 'number') && isCountable(...names) ? 'integer' : format);
 
-export const leftOutLine = (data) => (data?.left_out?.text ? String(data.left_out.text) : '');
-
 export const kpiHasValue = (data) => data?.now != null || (data?.by_currency?.length > 0);
 
 export function kpiText(kpi, data) {

@@ -1,4 +1,5 @@
-import { change, changeParts, changeText, kpiText, leftOutLine, storyPieces } from './format.js';
+import { change, changeParts, changeText, kpiText, storyPieces } from './format.js';
+import { moneyNoteLine } from './moneyRule.js';
 import { HUES } from './theme.js';
 import { Icon } from './icons.jsx';
 import { Skeleton, useRetry } from './ui.jsx';
@@ -68,7 +69,7 @@ export default function Kpis({ page, data, errors, loading, plan, scope, label =
               <>
                 <div className="kpi-v">{kpiValue(kpi, data?.[kpi.id])}</div>
                 <Delta kpi={kpi} data={data?.[kpi.id]} scope={scope} />
-                {leftOutLine(data?.[kpi.id]) && <div className="kpi-s">{leftOutLine(data?.[kpi.id])}</div>}
+                {moneyNoteLine(data?.[kpi.id]) && <div className="kpi-s">{moneyNoteLine(data?.[kpi.id])}</div>}
               </>
             )}
             {!loading && !sharedBy(shared, error) && <AskGenie kind="kpi" title={kpi.label} context={kpiContext(kpi, data?.[kpi.id], error, scope)} />}

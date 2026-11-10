@@ -58,19 +58,25 @@ export function MoneyRule({ pageId }) {
       <p data-money-sentence>{ruleSentence(shown)} {view.saved ? 'Saved by an owner.' : 'Set by the App design; no owner has saved a change.'}</p>
       <fieldset>
         <label><input type="radio" name="money-mode" value="per_currency" checked={draft.mode === 'per_currency'} onChange={() => set({ mode: 'per_currency' })} data-money-mode="per_currency" /> Per currency: one total for each currency</label>
-        <label><input type="radio" name="money-mode" value="convert" checked={draft.mode === 'convert'} onChange={() => set({ mode: 'convert', rates: draft.rates.length ? draft.rates : [{ code: '', rate: '' }] })} data-money-mode="convert" /> Convert to one currency at rates I type in</label>
+        <label><input type="radio" name="money-mode" value="convert" checked={draft.mode === 'convert'} onChange={() => set({ mode: 'convert', rates: draft.rates.length ? draft.rates : [{ code: '', rate: '' }] })} data-money-mode="convert" /> Convert to one currency</label>
       </fieldset>
+      <label>Closed periods to total (empty for every closed period) <input value={draft.window} onChange={(e) => set({ window: e.target.value })} data-money-window /></label>
       {draft.mode === 'convert' && (
         <div data-money-convert>
           <label>Base currency <input value={draft.base} onChange={(e) => set({ base: e.target.value })} data-money-base /></label>
-          {draft.rates.map((row, i) => (
+          <fieldset>
+            <label><input type="radio" name="money-rate-source" value="typed" checked={draft.rateSource === 'typed'} onChange={() => set({ rateSource: 'typed' })} data-money-rate-source="typed" /> Rates I type in</label>
+            <label><input type="radio" name="money-rate-source" value="column" checked={draft.rateSource === 'column'} onChange={() => set({ rateSource: 'column' })} data-money-rate-source="column" /> A column with one rate per row</label>
+          </fieldset>
+          {draft.rateSource === 'column' && <label>Rate column <input value={draft.rateColumn} onChange={(e) => set({ rateColumn: e.target.value })} data-money-rate-column /></label>}
+          {draft.rateSource === 'typed' && draft.rates.map((row, i) => (
             <div key={i} className="money-rate-row">
               <input aria-label="Currency code" value={row.code} onChange={(e) => setRate(i, { code: e.target.value })} data-money-rate-code />
               <input aria-label="Rate in base currency" value={row.rate} onChange={(e) => setRate(i, { rate: e.target.value })} data-money-rate />
               <button type="button" className="lnk" onClick={() => set({ rates: draft.rates.filter((_, at) => at !== i) })}>Remove</button>
             </div>
           ))}
-          <button type="button" className="lnk" onClick={() => set({ rates: [...draft.rates, { code: '', rate: '' }] })} data-money-add-rate>Add a rate</button>
+          {draft.rateSource === 'typed' && <button type="button" className="lnk" onClick={() => set({ rates: [...draft.rates, { code: '', rate: '' }] })} data-money-add-rate>Add a rate</button>}
         </div>
       )}
       <p className="muted">{LEFT_OUT}</p>

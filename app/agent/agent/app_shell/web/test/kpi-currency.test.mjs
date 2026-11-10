@@ -1,6 +1,7 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { kpiHasValue, kpiText, leftOutLine, storyPieces } from '../src/format.js';
+import { kpiHasValue, kpiText, storyPieces } from '../src/format.js';
+import { moneyNoteLine } from '../src/moneyRule.js';
 
 const EXPOSURE = { id: 'exposure', label: 'Revenue at stake', format: 'currency', currency: 'USD' };
 const MIXED = { now: null, before: null, by_currency: [{ currency: 'AED', now: 135, before: null }, { currency: 'USD', now: 50, before: null }] };
@@ -31,6 +32,7 @@ test('the story sentence names each currency total instead of dropping the sente
 
 test('a money KPI shows the one line of rows it left out, and a KPI without a count shows nothing', () => {
   const left = { undated: 1, running: 2, text: '1 rows without a date and 2 rows from the running month were left out' };
-  assert.equal(leftOutLine({ now: 5, left_out: left }), left.text);
-  assert.equal(leftOutLine({ now: 5 }), '');
+  assert.equal(moneyNoteLine({ now: 5, left_out: left }), left.text);
+  assert.equal(moneyNoteLine({ now: 5 }), '');
+  assert.equal(moneyNoteLine({ now: 5, basis: 'converted to USD at the rates typed in', left_out: left }), `converted to USD at the rates typed in. ${left.text}`);
 });
