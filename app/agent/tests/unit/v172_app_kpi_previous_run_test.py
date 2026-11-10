@@ -191,7 +191,7 @@ def test_the_app_compares_each_compared_kpi_with_the_previous_run_and_leaves_the
     status, data = call(_shell(tmp_path, ws), "POST", "page", body={"page": "n01_u05", "filters": {"category": ["Books"]}})
     assert status == 200 and data["errors"] == {}
     assert data["kpis"]["items"] == {"now": 120.0, "before": 100.0} and data["kpis"]["listed_value"] == {"now": 120.0, "before": 100.0}
-    assert data["kpis"]["total_loss"] == {"now": 120.0, "before": None}, "a KPI without compare has no earlier value"
+    assert {k: v for k, v in data["kpis"]["total_loss"].items() if k != "left_out"} == {"now": 120.0, "before": None}, "a KPI without compare has no earlier value"
     kpis = {sql for sql, _p, _l in ws.sql if "'now' AS period" in sql}
     previous = shell_sql.previous_rows(_page(), "records", COLUMNS)
     assert sum(previous in sql for sql in kpis) == 2 and all("BETWEEN" not in sql for sql in kpis)
@@ -202,7 +202,7 @@ def test_a_result_table_that_cannot_be_read_never_shows_a_made_up_change(tmp_pat
     ws = SchemaWorkspace(fail="PERMISSION_DENIED on churn_out")
     status, data = call(_shell(tmp_path, ws), "POST", "page", body={"page": "n01_u05"})
     assert status == 200 and data["errors"]["kpi:items"] == "PERMISSION_DENIED on churn_out" and "items" not in data["kpis"]
-    assert data["kpis"]["total_loss"] == {"now": 120.0, "before": None}, "only the compared tiles depend on the result table"
+    assert {k: v for k, v in data["kpis"]["total_loss"].items() if k != "left_out"} == {"now": 120.0, "before": None}, "only the compared tiles depend on the result table"
 
 
 def _previous_backend():

@@ -2540,6 +2540,19 @@ def money_source(page: dict, dataset: str, sql: str) -> str:
         closed += f" AND {column} >= {lookback}"
     return f"SELECT * FROM ({inner}) AS m WHERE {column} IS NOT NULL AND {closed}"
 
+def date_column(page: dict, dataset: str) -> str:
+    return next((column for f in page.get("filters") or [] if f.get("type") == "date_range"
+                 for column in [(f.get("columns") or {}).get(dataset)] if column), "")
+
+
+def future_source(page: dict, dataset: str, sql: str) -> str:
+    """Rows a KPI or chart may read: rows dated after today are left out, undated rows stay (a money total also drops them)."""
+    column = date_column(page, dataset)
+    if not column or column not in sql:
+        return sql
+    return f"SELECT * FROM ({sql}) AS f WHERE {quote(column)} IS NULL OR {quote(column)} <= current_date"
+
+
 def money_expression(page: dict, dataset: str, expression: str) -> str:
     """A money expression reads the converted amount when the rule converts, and the stake amount otherwise."""
     scope = money_scope(page, dataset)
@@ -2552,7 +2565,8 @@ def money_left_out(page: dict, kpi: dict, values: dict):
     under the active filters."""
     dataset = kpi["dataset"]
     scope = money_scope(page, dataset)
-    if not scope["period"] and not (scope["rates"] or scope["rate_column"] or scope["rate_table"]):
+    dated = date_column(page, dataset)
+    if not scope["period"] and not (scope["rates"] or scope["rate_column"] or scope["rate_table"]) and not dated:
         return None
     params = _Params()
     where = _where(page, dataset, values, params)
@@ -2562,6 +2576,8 @@ def money_left_out(page: dict, kpi: dict, values: dict):
         column = quote(scope["period"])
         cells += [f"SUM(CASE WHEN {column} IS NULL THEN 1 ELSE 0 END) AS undated",
                   f"SUM(CASE WHEN {column} >= date_trunc('{scope['grain']}', current_date()) THEN 1 ELSE 0 END) AS running"]
+    if dated:
+        cells.append(f"SUM(CASE WHEN {quote(dated)} > current_date() THEN 1 ELSE 0 END) AS future")
     if scope["rates"] or scope["rate_column"] or scope["rate_table"]:
         cells.append(f"SUM(CASE WHEN {CONVERTED} IS NULL THEN 1 ELSE 0 END) AS unrated")
     if scope["rate_table"]:
@@ -2576,18 +2592,33 @@ def counted(n: int, noun: str) -> str:
     return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
 
 
+def kpi_left_out(page: dict, kpi: dict, rows) -> dict:
+    """The left-out line a KPI shows: every money total, and any KPI that dropped rows dated after today."""
+    text = left_out_text(rows)
+    scope = money_scope(page, kpi["dataset"])
+    if kpi.get("format") == "currency" and (scope["period"] or scope["rates"] or scope["rate_column"] or scope["rate_table"]):
+        return text
+    future = text["future"]
+    if not future:
+        return None
+    return {"undated": 0, "running": 0, "unrated": 0, "future": future,
+            "text": f"{counted(future, 'row')} dated after today {'is' if future == 1 else 'are'} left out"}
+
+
 def left_out_text(rows) -> dict:
     """The one line every money total shows: how many rows it left out, and why."""
     row = (rows or [{}])[0]
-    undated, running, unrated = (int(row.get(k) or 0) for k in ("undated", "running", "unrated"))
+    undated, running, unrated, future = (int(row.get(k) or 0) for k in ("undated", "running", "unrated", "future"))
     duplicated = int(row.get("duplicated") or 0)
     line = (f"{counted(undated, 'row')} without a date and {counted(running, 'row')} from the running month "
             f"{'was' if undated + running == 1 else 'were'} left out")
+    if future:
+        line += f"; {counted(future, 'row')} dated after today {'is' if future == 1 else 'are'} left out"
     if "unrated" in row:
         line += f"; {counted(unrated, 'row')} {'has' if unrated == 1 else 'have'} no rate"
     if duplicated:
         line += f"; {counted(duplicated, 'date')} {'has' if duplicated == 1 else 'have'} more than one rate, and the latest loaded was used"
-    return {"undated": undated, "running": running, "unrated": unrated, "duplicated": duplicated, "text": line}
+    return {"undated": undated, "running": running, "unrated": unrated, "duplicated": duplicated, "future": future, "text": line}
 
 
 MONEY_RULE_NAME = "money_rule"
@@ -2725,7 +2756,7 @@ def kpi_query(page: dict, ident: str, values: dict, previous: str = None) -> tup
     kpi = _item(page, "kpis", ident)
     money = kpi.get("format") == "currency"
     dataset = _dataset(page, kpi["dataset"])
-    sql, params = (money_source(page, kpi["dataset"], dataset) if money else dataset), _Params()
+    sql, params = (money_source(page, kpi["dataset"], dataset) if money else future_source(page, kpi["dataset"], dataset)), _Params()
     expression = money_expression(page, kpi["dataset"], kpi["expression"]) if money else kpi["expression"]
     where = _where(page, kpi["dataset"], values, params)
     by = money_currency_column(page, kpi)
@@ -2733,7 +2764,7 @@ def kpi_query(page: dict, ident: str, values: dict, previous: str = None) -> tup
     group = f" GROUP BY {quote(by)}" if by else ""
     text = f"SELECT 'now' AS period{split}, {expression} AS value FROM ({sql}) AS d{where}{group}"
     if kpi.get("compare") and previous:
-        previous_sql = money_source(page, kpi["dataset"], previous) if money else previous
+        previous_sql = money_source(page, kpi["dataset"], previous) if money else future_source(page, kpi["dataset"], previous)
         text += (f" UNION ALL SELECT 'before' AS period{split}, {previous_value(expression)} AS value FROM ({previous_sql}) AS d{where}"
                  f"{group}")
     return f"{text} LIMIT {CAPS['kpi_rows']}", params.items
@@ -2792,7 +2823,7 @@ def chart_query(page: dict, ident: str, values: dict) -> tuple:
     chart = _item(page, "charts", ident)
     money = any(y.get("format") == "currency" for y in chart["y"])
     dataset = _dataset(page, chart["dataset"])
-    sql, params = (money_source(page, chart["dataset"], dataset) if money else dataset), _Params()
+    sql, params = (money_source(page, chart["dataset"], dataset) if money else future_source(page, chart["dataset"], dataset)), _Params()
     where = _where(page, chart["dataset"], values, params)
     ys = ", ".join(f"{money_expression(page, chart['dataset'], y['expression']) if money else y['expression']} AS y{i}"
                    for i, y in enumerate(chart["y"]))

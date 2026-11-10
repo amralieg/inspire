@@ -633,8 +633,8 @@ def test_check_runs_every_query_at_the_default_filters(tmp_path):
     assert problems == []
     page_sql = [(sql, params) for sql, params, _ in ws.sql
                 if "low_0 AS low" not in sql and not sql.startswith("SELECT v FROM") and not sql.endswith("LIMIT 0")]
-    left = sum(1 for k in PAGE.get("kpis") or [] if k.get("format") == "currency" and shell_sql.money_left_out(PAGE, k, {}))
-    assert len(page_sql) == len(shell_sql.page_queries(PAGE, {})) + 3 + left, "the list rows, its count and its key count run too, and each money KPI counts what it leaves out"
+    left = sum(1 for k in PAGE.get("kpis") or [] if shell_sql.money_left_out(PAGE, k, {}))
+    assert len(page_sql) == len(shell_sql.page_queries(PAGE, {})) + 3 + left, "the list rows, its count and its key count run too, and each KPI counts what it leaves out"
     assert all("2025-11-01" in json.dumps(params) and "2026-10-15" in json.dumps(params) for _sql, params in page_sql)
 
 

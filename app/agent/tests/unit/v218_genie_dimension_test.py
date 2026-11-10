@@ -134,7 +134,7 @@ def test_kpi_split_query_reads_the_kpi_dataset_grouped_by_the_filter_column_with
     values = {"region": ["North"], "run_date": {"from": "2026-01-01", "to": "2026-12-31"}}
     sql, params = shell_sql.kpi_split_query(PAGE, "failed", "district", values, 30)
     kpi_sql, kpi_params = shell_sql.kpi_query(PAGE, "failed", values)
-    assert sql.startswith("SELECT `district` AS x, SUM(CASE WHEN value > 0 THEN 1 ELSE 0 END) AS y0 FROM (" + RECORDS_SQL + ") AS d WHERE ")
+    assert sql.startswith("SELECT `district` AS x, SUM(CASE WHEN value > 0 THEN 1 ELSE 0 END) AS y0 FROM (" + shell_sql.future_source(PAGE, "records", RECORDS_SQL) + ") AS d WHERE ")
     assert "GROUP BY `district` ORDER BY 2 DESC NULLS LAST LIMIT 30" in sql
     assert sql.split(") AS d", 1)[1].split(" GROUP BY")[0] == kpi_sql.split(") AS d", 1)[1].split(" LIMIT")[0]
     assert params == kpi_params
@@ -184,8 +184,10 @@ def test_the_agent_splits_a_kpi_from_the_page_data_at_the_persons_filters_not_fr
     assert [step["text"] for step in turn["steps"]] == ["Split Loss to discounts by Region"]
     result = json.loads([m for m in llm.main_calls()[-1]["messages"] if m["role"] == "tool"][0]["content"].split("<data>\n", 1)[1]
                         .rsplit("\n</data>", 1)[0])
+    left_out = result.pop("left_out", None)
     assert result == {"kpi": "Loss to discounts", "filter": "Region", "total": 100.0, "truncated": False,
                       "rows": [{"value": "East", "kpi_value": 75.0, "share": 0.75}, {"value": "West", "kpi_value": 25.0, "share": 0.25}]}
+    assert left_out is None or left_out["text"].endswith("were left out"), "the money line, when the total has one, says what it left out"
     split_sql = [(sql, params) for sql, params, _limit in ws.sql if "GROUP BY `region`" in sql]
     assert split_sql and "FROM (SELECT as_of_date, month, category, channel, region, loss" in split_sql[0][0]
     assert "Web" in json.dumps(split_sql[0][1]), "the split is read at the person's filters, as the page reads its KPI"
