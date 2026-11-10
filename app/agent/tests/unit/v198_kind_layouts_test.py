@@ -545,7 +545,7 @@ def test_the_notebook_ships_the_kind_registry_with_the_app_its_modules_and_the_p
     ({"use_case_kind": "anomaly"}, "", "monitor_triage"),
     ({"Analytics Technique": "Anomaly Detection"}, "", "monitor_triage"),
     ({"use_case_kind": "variance_to_plan"}, "", "performance_explainer"),
-    ({"use_case_kind": "driver_breakdown"}, "", "dashboard"),
+    ({"use_case_kind": "driver_breakdown"}, "", "performance_explainer"),
     ({"use_case_kind": "anomaly"}, "Use the dashboard layout, we only read it", "dashboard"),
     ({"use_case_kind": "anomaly"}, "also build a dashboard for the billing team", "monitor_triage"),
     ({"Analytics Technique": "Forecasting"}, "Use the planner layout for the buyers", "planner"),

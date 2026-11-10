@@ -3,6 +3,8 @@
 .pick-i.is-on{background:var(--brand-wash);border-color:var(--brand-bd);color:var(--brand-ink)}
 .note--flat{margin:0}
 .row-acts{display:inline-flex;gap:2px}
+.row-next{white-space:normal}
+.row-next-acts{display:flex;flex-wrap:wrap;gap:4px;max-width:200px}
 .tbl .nowrap{white-space:nowrap}
 .dlg--form{width:min(640px,94vw);max-height:min(88vh,860px)}
 .dlg-b{display:flex;flex-direction:column;gap:12px;overflow-y:auto;min-height:0;margin:0 -4px;padding:2px 4px}
