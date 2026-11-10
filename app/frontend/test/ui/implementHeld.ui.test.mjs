@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { BUILD_IT, closeAsset, closeBrowser, expandBuild, lowContrast, openAsset, openSettings, openUi, toSummary, until } from './uiSupport.mjs';
+import { BUILD_IT, closeAsset, closeBrowser, expandBuild, goToStep, lowContrast, openAsset, openSettings, openUi, toSummary, until } from './uiSupport.mjs';
 
 const SELF_FIX = createRequire(import.meta.url)('../../../backend/test/fixtures/implement_self_fix_cases.json');
 const HELD_CASES = createRequire(import.meta.url)('../../../backend/test/fixtures/implement_held_cases.json');
@@ -121,7 +121,8 @@ test('a version with unmet asks is published with warnings: the rail lists it un
     await expandBuild(page);
     await checklistOf(page).waitFor({ timeout: 15000 });
     const said = await progressLine(page);
-    assert.equal(times(said, 'Answer in euros'), 1, said);
+    assert.ok(times(said, 'is published with 1 unmet ask') >= 1, `the sentence shows in the progress panel: ${said}`);
+    assert.ok(times(said, 'Answer in euros') >= 1, said);
     for (const phrase of ['Publish anyway', 'Rephrase', 'Try again to check']) assert.equal(times(said, phrase), 0, `${phrase} is not offered for a missed ask: ${said}`);
     assert.equal(await page.getByRole('button', { name: 'Publish anyway', exact: true }).count(), 0);
     assert.deepEqual(ui.pageErrors, []);
@@ -182,8 +183,9 @@ test('a version with a missed ask and one Inspire could not check lists both, an
   try {
     assert.deepEqual(await rowsOf(page).evaluateAll((rows) => rows.map((r) => r.dataset.requirement)), ['met', 'not_met', 'unchecked']);
     const said = await progressLine(page);
-    assert.equal(times(said, 'Answer in euros'), 1, said);
-    assert.equal(times(said, 'Count returns by week'), 1, said);
+    assert.ok(times(said, 'Answer in euros') >= 1, said);
+    assert.ok(times(said, 'Count returns by week') >= 1, said);
+    assert.ok(times(said, 'is published with 2 unmet asks (not met or could not be checked)') >= 1, `the sentence shows in the progress panel: ${said}`);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -226,7 +228,7 @@ test('a published version offers no Publish anyway, Rephrase or Try again, and t
   }
 });
 
-test('Open all settings on a version with unmet asks starts the wizard from its spec as stored, and with nothing changed Build it Now stays off', async () => {
+test('Open all settings on a version with unmet asks: with nothing changed Build it Now stays off, and a changed leaf is the one thing sent', async () => {
   const ui = await openPublished(mvpState([ENTRIES.met, ENTRIES.missed]));
   const { page, made } = ui;
   const sent = bodiesTo(page, '/api/inspire/implement/submit');
@@ -237,7 +239,16 @@ test('Open all settings on a version with unmet asks starts the wizard from its 
     await build.waitFor({ timeout: 15000 });
     assert.equal(await build.isDisabled(), true, 'the spec is the one already built, so there is nothing to build');
     assert.deepEqual([sent.length, made.jobs.length], [0, 0], 'nothing is sent or started');
-    assert.deepEqual(leafDiff(STORED, STORED), [], 'the stored spec is what the wizard opens from');
+    await goToStep(page, 'Vibes');
+    const vibe = page.getByRole('region', { name: 'Vibes', exact: true }).getByRole('textbox', { name: 'Vibes for the MVP', exact: true });
+    await vibe.fill(`${VIBE}\nAnswer in euros\nCount returns by week\nKeep the list to ten rows`, { timeout: 15000 });
+    await toSummary(page);
+    await page.getByRole('button', { name: BUILD_IT, exact: true }).click({ timeout: 15000 });
+    await until(() => made.jobs.length === 1, 'the changed run');
+    assert.equal(sent.length, 1);
+    const diff = leafDiff(STORED, sent[0].spec).filter((key) => !['based_on_version', 'confirm_notebook_overwrite', 'retry_outputs'].includes(key));
+    assert.deepEqual(diff, ['vibes'], `only the changed leaf is sent, the one-version keys are the wizard's: ${JSON.stringify(diff)}`);
+    assert.match(sent[0].spec.vibes ?? sent[0].spec.outputs?.vibes ?? '', /Keep the list to ten rows/, 'the new vibe line is what was sent');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
