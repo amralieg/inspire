@@ -1,0 +1,28 @@
+name: playwright chromium
+description: Install the Playwright chromium build the package pins, cached per version
+inputs:
+  working-directory:
+    description: folder whose node_modules holds playwright
+    required: true
+runs:
+  using: composite
+  steps:
+    - id: pw
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: echo "version=$(node -p "require('playwright/package.json').version")" >> "$GITHUB_OUTPUT"
+    - uses: actions/cache@v4
+      id: cache
+      with:
+        path: ~/.cache/ms-playwright
+        key: playwright-${{ runner.os }}-${{ steps.pw.outputs.version }}-chromium
+    - if: steps.cache.outputs.cache-hit != 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npx playwright install --with-deps chromium
+    - if: steps.cache.outputs.cache-hit == 'true'
+      shell: bash
+      working-directory: ${{ inputs.working-directory }}
+      run: npx playwright install-deps chromium
+    - shell: bash
+      run: sudo apt-get install -y -qq --no-install-recommends fonts-noto-core
