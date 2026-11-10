@@ -247,3 +247,13 @@ test('a recorded App read grant is only ever a table-level SELECT or READ METADA
   assert.equal(appReadGrantFor(`GRANT READ METADATA ON SCHEMA \`main\`.\`s\` TO \`${app}\``, app), false);
   assert.equal(appReadGrantFor(`GRANT MODIFY ON TABLE \`main\`.\`s\`.\`orders\` TO \`${app}\``, app), false);
 });
+
+test('an internal email never reaches the build card: a table owner that is a person shows as your data owner, a group keeps its name (must-exclude)', () => {
+  const { appReadsRecord, ownerLabel } = require('../lib/inspireImplement');
+  assert.equal(ownerLabel('person.name@example.com'), 'your data owner');
+  assert.equal(ownerLabel('data-eng'), 'data-eng');
+  assert.equal(ownerLabel(''), 'your data owner');
+  const record = appReadsRecord([{ status: 'ready', asset_status: { app: { unread: { app: SP, tables: [{ table: 'main.s.orders', owner: 'person.name@example.com', grants: [SELECT] }] } } } }]);
+  assert.equal(record.tables[0].owner, 'your data owner');
+  assert.deepEqual(record.tables[0].grants, [SELECT], 'the GRANT stays on the record for copy under Details');
+});

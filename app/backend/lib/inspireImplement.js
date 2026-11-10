@@ -3088,7 +3088,7 @@ function appReadsRecord(history) {
   const id = str(unread && unread.app).trim();
   if (!id || id.includes('`') || !Array.isArray(unread.tables)) return null;
   const tables = unread.tables.filter((t) => isPlainObject(t) && !resultTableNameError(str(t.table)))
-    .map((t) => ({ table: str(t.table), owner: str(t.owner), grants: (Array.isArray(t.grants) ? t.grants : []).map(str).filter((g) => appReadGrantFor(g, id)) }));
+    .map((t) => ({ table: str(t.table), owner: ownerLabel(t.owner), grants: (Array.isArray(t.grants) ? t.grants : []).map(str).filter((g) => appReadGrantFor(g, id)) }));
   return tables.length ? { row, app: id, app_name: str(row.app_name), tables } : null;
 }
 
@@ -3097,13 +3097,18 @@ function appReadGrantFor(sql, appId) {
   return Boolean(m) && APP_READ_LEVELS[m[1]] === m[2] && m[4] === str(appId) && m[3].split('.').length === ['CATALOG', 'SCHEMA', 'TABLE'].indexOf(m[2]) + 1;
 }
 
+function ownerLabel(owner) {
+  const name = str(owner).trim();
+  return !name || name.includes('@') ? 'your data owner' : name;
+}
+
 function appReadsLeft(record, plans) {
   return record.tables.map((t, i) => {
     const plan = plans[i] || { grants: [], gaps: [] };
     const order = (g) => IMPLEMENT_SOURCE_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
     const recorded = new Set(t.grants);
     const needed = [...plan.grants, ...plan.gaps].sort((a, b) => order(a) - order(b)).map((g) => grantSql(g, record.app)).filter((g) => recorded.has(g));
-    const owner = joinAnd([...new Set(plan.gaps.map((g) => g.owner).filter(Boolean))]) || t.owner;
+    const owner = joinAnd([...new Set(plan.gaps.map((g) => ownerLabel(g.owner)).filter(Boolean))]) || ownerLabel(t.owner);
     return { table: t.table, owner, grants: needed.filter((g) => appReadGrantFor(g, record.app)) };
   }).filter((t) => t.grants.length);
 }
@@ -3665,6 +3670,7 @@ module.exports = {
   IMPLEMENT_SOURCE_NEEDS,
   builtInSampleTable,
   builtInSampleMessage,
+  ownerLabel,
   IMPLEMENT_TRAVERSE_PRIVILEGES,
   IMPLEMENT_NOTEBOOK_TASK_KEY,
   IMPLEMENT_USE_CASE_PARAM,
