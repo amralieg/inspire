@@ -1,4 +1,4 @@
-import { useEffect, useId, useMemo, useRef, useState } from 'react';
+import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
 import { Popover, useDebounced } from './ui.jsx';
 import { getFilterOptions } from './api.js';
@@ -66,7 +66,7 @@ export function ChoicePopover({ anchor, filter, selected, onChange, onClose, pag
   );
 }
 
-function MultiSelect({ filter, selected, onChange, pageId, mark }) {
+export function MultiSelect({ filter, selected, onChange, pageId, mark }) {
   const button = useRef(null);
   const id = useId();
   const [open, setOpen] = useState(false);
@@ -131,6 +131,8 @@ function controlFields(filters, now, reasons, view) {
   return fields;
 }
 
+const MoreGroups = lazy(() => import('./MoreGroups.jsx'));
+
 export default function FilterBar({ meta, columns, state, onState, pageId, reasons = [], view, onView }) {
   const [moreOpen, setMoreOpen] = useState(false);
   if (!meta && !view) return null;
@@ -167,9 +169,7 @@ export default function FilterBar({ meta, columns, state, onState, pageId, reaso
             {moreOpen ? 'Fewer filters' : `More filters (${more.length})`}
           </button>
         )}
-        {moreOpen && more.map((g) => (
-          <MultiSelect key={g.key} filter={g.filter} selected={groupValues(now, g)} pageId={pageId} onChange={(values) => onState(setGroupValues(now, g, values))} />
-        ))}
+        {moreOpen && <Suspense fallback={null}><MoreGroups groups={more} now={now} pageId={pageId} onState={onState} /></Suspense>}
         {view && (
           <>
             <Choice label="Owner" value={view.owner} choices={OWNER_CHOICES} onChange={(owner) => onView({ ...view, owner })} />
@@ -179,7 +179,7 @@ export default function FilterBar({ meta, columns, state, onState, pageId, reaso
         <span className="sp" />
         {dirty && <button className="link" onClick={clear}>Clear filters</button>}
         <AskGenie kind="controls" title="Filters" context={{ fields: controlFields(filters, now, reasons, view) }} />
-        <SectionHelp title="Filters" steps={[{ title: 'Filters', text: helpLine('Pick a date range or a group to narrow every chart and table on this page.', 'Each group shows the values it holds; a chip shows what you picked, and Clear filters brings every row back.') }]} />
+        <SectionHelp title="Filters" steps={[{ title: 'Filters', text: helpLine('Pick a date range or a group to narrow every chart, table and list on this page.') }]} />
       </section>
       {chips.length > 0 && (
         <div className="chips">

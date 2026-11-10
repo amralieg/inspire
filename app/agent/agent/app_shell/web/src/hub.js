@@ -217,3 +217,5 @@ export function switcherMatches(pages, text) {
     return words.every((w) => said.includes(w));
   });
 }
+
+export const CASE_TONES = { stale: 'bad', error: 'bad', wait: 'warn' };

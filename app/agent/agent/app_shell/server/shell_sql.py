@@ -6769,3 +6769,25 @@ def kind_chart_problems(page: dict) -> list:
     if problems:
         print(f"[KIND-CHART FIRED] page={page.get('id')} problems={len(problems)}", flush=True)
     return problems
+
+
+SIBLINGS_LIMIT = 200
+
+
+def siblings_query(implement_table: str) -> str:
+    return ("SELECT CAST(`use_case_id` AS STRING) AS use_case_id, CAST(`app_name` AS STRING) AS app_name, "
+            f"CAST(`app_url` AS STRING) AS app_url FROM {table_name(implement_table)} WHERE `status` = 'ready' AND `app_url` IS NOT NULL")
+
+
+def sibling_items(rows, own) -> list:
+    mine = {str(item) for item in own or ()}
+    out, seen = [], set()
+    for row in rows or ():
+        if not isinstance(row, dict):
+            continue
+        other, url = str(row.get("use_case_id") or "").strip(), str(row.get("app_url") or "").strip()
+        if not other or other in mine or other in seen or not url.startswith("https://"):
+            continue
+        seen.add(other)
+        out.append({"use_case_id": other, "name": " ".join(str(row.get("app_name") or other).split())[:80], "url": url[:500]})
+    return sorted(out, key=lambda item: item["use_case_id"])[:SIBLINGS_LIMIT]

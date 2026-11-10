@@ -534,6 +534,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const size = prefs.rows;
   const setSize = (rows) => update((p) => ({ ...p, rows }));
   const [ownMine, setMine] = useState(false);
+  const [clearing, setClearing] = useState(false);
+  const clearAnchor = useRef(null);
   const choices = pageChoices(app, pageId);
   const tabPick = tab ? tabChoice(choices, tab) : null;
   const tabOpen = tab === OPEN_TAB;
@@ -674,6 +676,15 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const clearPicks = () => setPicks({ scope, keys: NONE, all: null });
   const openCount = noActions ? null : (data?.status_counts?.open ?? null);
   const openOnly = (body) => ({ ...body, column_filters: { ...(body.column_filters || {}), action_status: OPEN_STATUSES } });
+  const clearMyQueue = async () => {
+    const asOf = listAsOf(data);
+    if (!asOf) {
+      toast(NO_AS_OF, 'error', { actions: [{ label: 'Reload the list', run: () => setRefresh((n) => n + 1) }] });
+      return;
+    }
+    const out = await acts.act({ match: matchOf(openOnly({ ...asked, mine: true }), asOf) }, { action_status: DONE }, { said: 'Your open records are done', key: 'clear-queue' }).catch(() => null);
+    if (out) setClearing(false);
+  };
   const selectAll = () => {
     const asOf = listAsOf(data);
     if (!asOf) {
@@ -967,6 +978,11 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         <div className="list-tools">
           {tracker && tableRows.length > 0 && !everything && <button className="btn btn--pri" onClick={startWork} data-start-work data-tour="actions"><Icon name="right" size={14} />Start working</button>}
           {tracker && !tab && <WindowChips />}
+          {tracker && !matching && person && (data?.status_counts?.mine ?? 0) > 0 && (
+            <button className="pick-i" ref={clearAnchor} onClick={() => setClearing(!clearing)} aria-expanded={clearing} data-clear-queue>
+              Clear my queue · {integer(data.status_counts.mine)}
+            </button>
+          )}
           {tracker && (openCount ?? shownTotal) > 0 && !matching && (
             <button className="pick-i" onClick={selectAll} data-act-all data-tour="bulk">
               {mine ? `Clear my queue: ${capped ? 'more than ' : ''}${integer(openCount ?? shownTotal)} open` : `Act on all ${capped ? 'more than ' : ''}${integer(openCount ?? shownTotal)} matching`}
@@ -988,6 +1004,14 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       )}
       {impact && <p className="impact"><Icon name="check" size={14} />{impact}</p>}
       {acts.saidAt('all')}
+      {clearing && (
+        <Popover anchor={clearAnchor.current} onClose={() => setClearing(false)} label="Clear my queue" width={300}>
+          <div className="bulk-pop">
+            <p>Mark your open assigned records as done? Closed records stay as they are.</p>
+            <button type="button" className="btn btn--pri" data-clear-confirm onClick={() => clearMyQueue()}>Mark my open records done</button>
+          </div>
+        </Popover>
+      )}
       {canModify && (
         <p className="note"><Icon name="info" size={14} />
           {app.options.replace_edits

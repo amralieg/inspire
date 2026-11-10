@@ -1,8 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AGENT_CHANGED, EMPTY_LOOK, lookChart } from './agentView.js';
 import { WAITING_FOR_ACCESS_CODE, getOverview, getPage } from './api.js';
-import { MoneyRule } from './MoneyRule.jsx';
-import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
+import { apiTables, apiValues, clearColumnValues, clearColumnValuesIn, clearSelections, columnValuesIn, groupAliases, setColumnValueIn, toggleValue } from './filters.js';
 import { dayLabel } from './format.js';
 import { filterWords } from './explain.js';
 import { hueVars } from './theme.js';
@@ -43,6 +42,7 @@ import { KPI_TARGET, MEASURES, kpiGap, kpiGapText, promisedView, valueLine } fro
 const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
 const InboxSection = lazy(() => import('./InboxSection.jsx'));
+const MoneyRule = lazy(() => import('./MoneyRule.jsx').then((m) => ({ default: m.MoneyRule })));
 const Runs = lazy(() => import('./Runs.jsx'));
 const Alerts = lazy(() => import('./Alerts.jsx'));
 const TrendCards = lazy(() => import('./Trends.jsx'));
@@ -228,10 +228,11 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     return entries.map((e, i) => (e.block ? <Block key={e.key} block={e.block} tile wide={spans[i] === 2} />
       : e.node || chartCard(e.item, spans[i] === 2)));
   };
+  const aliases = groupAliases(meta);
   const tableCard = (table) => (
     <TableCard key={table.id} table={table} result={data?.tables?.[table.id]} error={errors[`table:${table.id}`]} loading={loading} onFilter={pick}
-      pageId={page.id} filters={meta?.columns?.tables?.[table.id]} values={columnValues(state, table.id)}
-      onColumn={(column, value) => onState(setColumnValue(state, table.id, column, value))} onClear={() => onState(clearColumnValues(state, table.id))}
+      pageId={page.id} filters={meta?.columns?.tables?.[table.id]} values={columnValuesIn(state, table.id, aliases)}
+      onColumn={(column, value) => onState(setColumnValueIn(state, table.id, column, value, aliases))} onClear={() => onState(clearColumnValuesIn(state, table.id, aliases))}
       sort={sorts[table.id]} onSort={sortBy(table.id)} />
   );
   const kpisOf = (kpis, main = true, label) => <Kpis page={{ ...page, kpis }} data={data?.kpis} errors={errors} loading={loading} plan={main ? plan : null} scope={data?.scope} label={label} />;
@@ -240,8 +241,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       similarBy={page.similar_by} keepsActions={hubEntry ? !!(hubEntry.tracked && hubEntry.actions) : undefined}
       onChanged={() => setNonce((n) => n + 1)} onExplain={explain} genieBusy={genieBusy} ai={state?.ai} openKey={parseHash(window.location.hash).rec}
       sort={look.sorts?.records || null} onSort={sortBy('records')}
-      columnMeta={meta?.columns?.list} columnValues={columnValues(state, null)}
-      onColumn={(column, value) => onState(setColumnValue(state, null, column, value))} onClearColumns={() => onState(clearColumnValues(state, null))}
+      columnMeta={meta?.columns?.list} columnValues={columnValuesIn(state, null, aliases)}
+      onColumn={(column, value) => onState(setColumnValueIn(state, null, column, value, aliases))} onClearColumns={() => onState(clearColumnValuesIn(state, null, aliases))}
       onClearFilters={() => onState(clearColumnValues({ ...clearSelections(state), ai: {} }, null))} seeChanged={seeChanged} onShowRuns={showRuns}
       onOpen={setOpened} {...extra} />
   ) : null);
@@ -371,7 +372,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
             {promised?.estimate && <p data-measure-estimate>{promised.estimate}</p>}
             {promised?.value && <p>{promised.value}</p>}
             {promised?.benefits.length > 0 && <ul>{promised.benefits.map((b) => <li key={b}>{b}</li>)}</ul>}
-            <MoneyRule pageId={page.id} />
+            <Suspense fallback={null}><MoneyRule pageId={page.id} /></Suspense>
             {app.screens?.impact !== false && <dl className="measure-formulas">{MEASURES.map((m) => <div key={m.label}><dt>{m.label}</dt><dd>{m.formula}</dd></div>)}</dl>}
           </SettingGroup>
           {onTour && (

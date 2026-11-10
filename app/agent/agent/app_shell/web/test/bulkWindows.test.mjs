@@ -71,3 +71,20 @@ test('with My actions on, the same control reads Clear my queue and covers only 
   assert.deepEqual(writes[0].match.view.column_filters, { action_status: OPEN_STATUSES });
   await context.close();
 });
+
+test('Clear my queue is a visible button in the list header that confirms, writes only the open records assigned to the person, and offers Undo', async () => {
+  const writes = [];
+  const { page, context } = await openEverything(writes);
+  const clear = page.locator('[data-clear-queue]');
+  await clear.waitFor();
+  assert.equal((await clear.innerText()).trim(), 'Clear my queue · 1');
+  await clear.click();
+  assert.equal(writes.length, 0, 'opening the button writes nothing');
+  await page.locator('[data-clear-confirm]').click();
+  await until(() => writes.length === 1);
+  assert.equal(writes[0].match.view.mine, true, 'only the records assigned to the person');
+  assert.deepEqual(writes[0].match.view.column_filters, { action_status: OPEN_STATUSES });
+  assert.deepEqual(writes[0].values, { action_status: 'Done' });
+  await page.locator('.toast button', { hasText: 'Undo' }).waitFor();
+  await context.close();
+});

@@ -110,6 +110,7 @@ test('on a phone the sections sit behind the menu and the switcher lists every u
   await page.waitForTimeout(300);
   assert.equal(await sideOpen(page), false, 'Escape closes the menu');
   await page.locator('[data-switcher]').click();
+  await page.locator('[data-case]').first().waitFor();
   assert.equal(await page.locator('[data-case]').count(), 6);
   await page.locator('[data-case]', { hasText: 'Second desk 3' }).click();
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 3');

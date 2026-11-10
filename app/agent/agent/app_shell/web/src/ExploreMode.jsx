@@ -8,7 +8,7 @@ import { ModeEmpty } from './ModeParts.jsx';
 import { PlainNote } from './ui.jsx';
 import { USAGE_UNRECORDED } from './admin.js';
 
-export const NO_LIST = 'This page only shows results. It has no list to act on, so it has no row or bulk actions. Its tables are below.';
+export const NO_LIST = 'This page shows results only, so it has no row or bulk actions. Its tables are below.';
 
 function browserStorage() {
   try { return window.localStorage; } catch { return null; }

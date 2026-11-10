@@ -2344,6 +2344,18 @@ class Shell:
             gaps.add("runs")
         return frozenset(gaps)
 
+    def siblings(self, headers: dict) -> list:
+        fallback = [dict(item) for item in self.settings.get("siblings") or [] if isinstance(item, dict)]
+        table = str(self.settings.get("siblings_table") or "")
+        if not table:
+            return fallback
+        try:
+            ws, who = self.session(headers)
+            rows = self.run(ws, who, shell_sql.siblings_query(table), [], shell_sql.SIBLINGS_LIMIT, OPTIONS_TTL_S, queued=True).get("rows") or []
+        except Exception:
+            return fallback
+        return shell_sql.sibling_items(rows, [p.get("use_case_id") for p in self.pages])
+
     def app_info(self, headers: dict) -> dict:
         s = self.settings
         host = self.host()
@@ -2361,7 +2373,7 @@ class Shell:
             "is_owner": self.is_owner(headers), "pages": pages, "built_at": s.get("built_at") or "", "backend": self.backend_status(),
             "alerts": {k: v for k, v in (s.get("alerts") or {}).items() if k in self.by_id},
             "alerts_home": f"{host}{ALERTS_HOME}" if host else "", "alerting": self.alerts.status(), "held_meaning": shell_sql.HELD_MEANING,
-            "siblings": [dict(item) for item in s.get("siblings") or [] if isinstance(item, dict) and str(item.get("url") or "").startswith("https://")],
+            "siblings": self.siblings(headers),
             "no_access": {table: owner for table, owner in (s.get("unread_owners") or {}).items() if table in (s.get("unread") or {})},
         }
 

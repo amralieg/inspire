@@ -184,3 +184,36 @@ export function clearGroups(state) {
 }
 
 export const groupsOn = (state, groups) => groups.some((g) => groupValues(state, g).length > 0);
+
+export function groupAliases(meta) {
+  const pages = new Map((meta?.filters || []).filter((f) => f.type === 'multi_select').map((f) => [String(f.label).trim().toLowerCase(), f.id]));
+  const out = {};
+  (meta?.columns?.list || []).filter((f) => f.type === 'multi_select' && !f.action).forEach((f) => {
+    const id = pages.get(String(f.label).trim().toLowerCase());
+    if (id) out[`|${f.column}`] = id;
+  });
+  return out;
+}
+
+export function columnValuesIn(state, table, aliases) {
+  const own = { ...columnValues(state, table) };
+  Object.entries(aliases || {}).forEach(([key, id]) => {
+    const [t, column] = key.split('|');
+    if (t === String(table ?? '')) own[column] = state?.sel?.[id] || [];
+  });
+  return own;
+}
+
+export function setColumnValueIn(state, table, column, value, aliases) {
+  const id = (aliases || {})[`${table ?? ''}|${column}`];
+  if (id) return setSelection(state, id, Array.isArray(value) ? value : []);
+  return setColumnValue(state, table, column, value);
+}
+
+export function clearColumnValuesIn(state, table, aliases) {
+  const cleared = Object.entries(aliases || {}).reduce((next, [key, id]) => {
+    const [t] = key.split('|');
+    return t === String(table ?? '') && next.sel?.[id] ? setSelection(next, id, []) : next;
+  }, state);
+  return clearColumnValues(cleared, table);
+}

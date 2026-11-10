@@ -735,7 +735,7 @@ test('Explain on the reasons chart sends the page filters, the Owner and Show fi
 
 test('a hub whose Impact screen is off shows no Impact on Performance and its old link opens Performance', async () => {
   const info = appInfo({ business: 'Contoso Retail', screens: { impact: false } }, 5, TABLE);
-  assert.deepEqual(info.screens, { runs: true, impact: false });
+  assert.deepEqual(info.screens, { runs: true, impact: false, performance: true }, 'the Performance screen is removable, and only Impact is off here');
   const { page, seen, context } = await open(info);
   await page.goto(`${served.base}#/impact`);
   await page.waitForFunction(() => location.hash === '#/n01_u05/performance');

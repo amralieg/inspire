@@ -17,7 +17,7 @@ test('the filter bar has its own ? that opens a one-step tour of the filters', a
   await page.waitForSelector('.tour-pop');
   assert.equal(await page.locator('#tour-t').textContent(), 'Filters');
   assert.equal(await page.locator('.tour-step').textContent(), '1 / 1');
-  assert.match(await page.locator('.tour-pop').textContent(), /narrow every chart and table/);
+  assert.match(await page.locator('.tour-pop').textContent(), /narrow every chart, table and list/);
   await page.keyboard.press('Escape');
   await page.waitForSelector('.tour', { state: 'detached' });
   assert.deepEqual(seen.errors, []);

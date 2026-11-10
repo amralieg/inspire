@@ -26,6 +26,7 @@ test('the Use cases dropdown sits next to the user and says so when the App hold
   assert.equal(order, true, 'the Use cases button comes right before the user avatar');
   assert.equal((await page.locator('[data-use-cases]').innerText()).trim(), 'Use cases');
   await page.locator('[data-use-cases]').click();
+  await page.locator('[data-no-cases], [data-case], [data-sibling]').first().waitFor();
   assert.equal((await page.locator('[data-no-cases]').innerText()).trim(), 'No other use cases yet');
   assert.equal(await page.locator('[data-case]').count(), 0, 'the current use case is not listed as another one');
   await page.keyboard.press('Escape');
@@ -40,6 +41,7 @@ test('the Use cases dropdown lists the other use cases of the App and opens the 
   const current = info.pages[0];
   await go(page, current.id, 'dashboard');
   await page.locator('[data-use-cases]').click();
+  await page.locator('[data-no-cases], [data-case], [data-sibling]').first().waitFor();
   const listed = await page.locator('[data-case]').evaluateAll((all) => all.map((el) => el.dataset.case));
   assert.deepEqual(listed, info.pages.slice(1).map((p) => p.id), 'the other two use cases, not the one open');
   assert.equal(await page.locator('[data-no-cases]').count(), 0);
@@ -69,6 +71,7 @@ test('the Use cases dropdown lists the other Apps Inspire delivered for the busi
   const { page, seen, context } = await openApp(browser, served.base, info);
   await page.locator('[data-use-cases]').waitFor();
   await page.locator('[data-use-cases]').click();
+  await page.locator('[data-no-cases], [data-case], [data-sibling]').first().waitFor();
   assert.equal(await page.locator('[data-no-cases]').count(), 0, 'the empty message is not shown when other Apps exist');
   const links = await page.locator('[data-siblings] a[data-sibling]').evaluateAll((all) => all.map((a) => [a.dataset.sibling, a.getAttribute('href')]));
   assert.deepEqual(links, [['N05-U02', 'https://second-desk.example.com/'], ['N06-U01', 'https://third-desk.example.com/']]);

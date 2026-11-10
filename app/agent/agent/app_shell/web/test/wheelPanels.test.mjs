@@ -48,6 +48,7 @@ test('Ask Genie follows a streaming answer only while the person is at the botto
 test('the mouse wheel scrolls a filter with 500 choices to the last of the 200 it shows at 1280x800 and 1024x700', async () => {
   const many = { filters: FILTERS.filters.map((f) => (f.id === 'category' ? { ...f, options: Array.from({ length: 500 }, (_, i) => `v${String(i).padStart(3, '0')}`), searchable: true } : f)) };
   const { page, seen, context } = await openApp(browser, served.base, appInfo(), { width: 1280, height: 800, routes: tracked({ filters: ({ json }) => json(200, many) }).routes });
+  await page.getByRole('button', { name: /More filters/ }).click();
   await page.locator('.fld', { hasText: 'Category' }).locator('button.msel').click();
   const pop = page.locator('.msel-pop');
   await page.getByRole('listbox', { name: 'Category' }).getByText('v199', { exact: true }).waitFor({ state: 'attached' });
