@@ -84,7 +84,7 @@ test('Data & results, Run it and App show the business settings and keep the tec
   }
 });
 
-test('Summary is the last step, lists every pick with a Change link that jumps to its step and comes back, and builds with Build with these choices', async () => {
+test('Summary is the last step, lists every pick with a Change link that jumps to its step and comes back, and builds with All Good, Build it Now', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {

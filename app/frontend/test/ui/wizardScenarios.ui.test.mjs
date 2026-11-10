@@ -301,7 +301,7 @@ test('ticking the Alert emails the owner by default, and the Summary and the bui
     assert.equal(seen.at(-1).step, 'Review & build', seen.at(-1).text.slice(0, 300));
     assert.match(summaryOf(seen), /Alert\nEmails ops@example\.com, شريك@example\.com when /);
     const { page, made } = ui;
-    await page.getByRole('button', { name: 'Build with these choices' }).click();
+    await page.getByRole('button', { name: 'All Good, Build it Now' }).click();
     await settle(page);
     const insert = made.sqlCalls.find((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'));
     assert.ok(insert, 'the build was not submitted');
@@ -357,7 +357,7 @@ test('a build clears the draft, so the next wizard opens on the Use case with no
   const { ui } = await scenario('draft-after-build', { profile: PROFILE, extra: counted(PROFILE), actions: { [RUN_IT]: press('Weekly') } });
   try {
     const { page, made } = ui;
-    await page.getByRole('button', { name: 'Build with these choices' }).click();
+    await page.getByRole('button', { name: 'All Good, Build it Now' }).click();
     await settle(page);
     assert.equal(made.jobs.length, 1);
     await page.reload();
@@ -404,7 +404,7 @@ const RUN_IT = 'Run it';
 
 async function summaryText(page) {
   await settle(page);
-  await page.getByRole('button', { name: 'Build with these choices' }).waitFor({ timeout: 5000 });
+  await page.getByRole('button', { name: 'All Good, Build it Now' }).waitFor({ timeout: 5000 });
   return page.locator('[role="dialog"]').innerText();
 }
 

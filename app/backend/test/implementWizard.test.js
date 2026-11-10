@@ -1947,7 +1947,7 @@ test('a fresh Full MVP lists every step and the wizard offers no shortcut that h
     ['What to deliver', 'Data & results', 'Data groups', 'First run', 'Measure', 'Where it lives', 'Who uses the App', 'App look', 'Run it', 'Review & build']);
   assert.deepEqual(w.wizardSteps('mvp', { outputs: { app: false, dashboard: true } }, { grouping: true, firstRun: true }).map((s) => s.label),
     ['What to deliver', 'Data & results', 'Data groups', 'First run', 'Measure', 'Run it', 'Review & build'], 'with Apps unticked both App steps are hidden');
-  assert.equal(w.BUILD_IT_LABEL, 'Build with these choices');
+  assert.equal(w.BUILD_IT_LABEL, 'All Good, Build it Now');
   for (const gone of ['shownSteps', 'quickSteps', 'customizeFromFocus', 'hiddenStepGaps', 'START_STEP', 'QUICK_PATH_NOTE', 'CUSTOMIZE_LABEL', 'quickSummary']) {
     assert.equal(w[gone], undefined, gone);
   }

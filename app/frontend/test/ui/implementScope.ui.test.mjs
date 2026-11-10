@@ -120,8 +120,8 @@ test('a first build asks Data groups on their own step with the reason and the c
     await firstRun.locator('[data-first-run-choice="groups"] input[type="radio"]').check();
     await firstRun.locator('[data-scope-group="AMER / USA"] input').check();
     await toStep(page, 'Review & build');
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Build with these choices' && !b.disabled), null, { timeout: 30000 });
-    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
     const [sent] = insertsOf(made);
     assert.deepEqual([sent.config.widgets.group_by, sent.config.widgets.run_scope, JSON.parse(sent.config.widgets.scope_groups)], ['region, country', 'groups',
@@ -154,8 +154,8 @@ test('the First run saved is exactly the one the person picked: a group picked l
     await page.getByRole('button', { name: 'Back to Summary' }).click();
     await onStep(page, 'Review & build');
     assert.equal(await firstRunRow(), 'One group · 40 records: region = EMEA and country = Malta', 'the Summary names the group that is sent, as the step words it');
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Build with these choices' && !b.disabled), null, { timeout: 30000 });
-    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
     const [sent] = insertsOf(made);
     const { group_by: groupBy, run_scope: runScope, scope_groups: groups, ...rest } = sent.config.widgets;
@@ -250,8 +250,8 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
     await onStep(page, 'Data groups');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'the person picked the whole data, so going back never puts the Deep grouping back');
     await toStep(page, 'Review & build');
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Build with these choices' && !b.disabled), null, { timeout: 30000 });
-    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
     const [sent] = insertsOf(made);
     assert.equal(sent.config.widgets.group_by, 'all');
@@ -304,8 +304,8 @@ test('the Data groups picked by discovery are the ones First run highlights and 
     await firstRun.locator('[data-scope-group="North"] input').check();
     await firstRun.locator('[data-scope-group="South"] input').uncheck();
     await toStep(page, 'Review & build');
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Build with these choices' && !b.disabled), null, { timeout: 30000 });
-    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
     const [sent] = insertsOf(made);
     assert.deepEqual([sent.config.widgets.run_scope, JSON.parse(sent.config.widgets.scope_groups)], ['groups', [[{ column: 'stores.region', value: 'North', join }]]]);
@@ -324,8 +324,8 @@ test('a Deep discovery grouping left as picked is never sent as the person\'s ch
     await toStep(page, 'Data groups');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['store_id']);
     await toStep(page, 'Review & build');
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Build with these choices' && !b.disabled), null, { timeout: 30000 });
-    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
     const [sent] = insertsOf(made);
     assert.deepEqual([sent.config.widgets.group_by ?? '', sent.config.widgets.run_scope, sent.config.widgets.scope_groups || ''], ['', 'records', ''],
@@ -381,8 +381,8 @@ test('confirming the Deep discovery grouping makes it the person\'s choice, and 
     await grouping.locator('[data-grouping-chosen-by]').waitFor({ state: 'detached' });
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['store_id']);
     await toStep(page, 'Review & build');
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Build with these choices' && !b.disabled), null, { timeout: 30000 });
-    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
     const [sent] = insertsOf(made);
     assert.equal(sent.config.widgets.group_by, 'store_id');
@@ -640,10 +640,10 @@ for (const [name, profile] of [['the data qualifies for Data groups', PROFILE], 
         await toSummary(page);
         assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|First run/.test(t)), [], 'no First run problem');
         const keep = page.getByRole('radio', { name: /^Keep v\d+ live/ });
-        await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+        await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
         if (await keep.count()) {
           await keep.check();
-          await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+          await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
         }
         await until(() => made.jobs.length === 1, 'the build', 30000);
         const [sent] = insertsOf(made);
@@ -684,10 +684,10 @@ test('all settings on an old spec whose First run is a number, when the table re
     assert.deepEqual((await page.locator('[role="alert"] p').allTextContents()).filter((t) => /run_scope|First run/.test(t)), [], 'no First run problem');
     const keep = page.getByRole('radio', { name: /^Keep v\d+ live/ });
     await toSummary(page);
-    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     if (await keep.count()) {
       await keep.check();
-      await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+      await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     }
     await until(() => made.jobs.length === 1, 'the build', 30000);
     const [sent] = insertsOf(made);

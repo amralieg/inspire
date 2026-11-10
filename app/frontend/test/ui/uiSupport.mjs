@@ -284,7 +284,7 @@ export async function openAdvanced(page, what = 'data settings') {
   await page.getByRole('button', { name: `Change ${what}`, exact: true }).click();
 }
 
-export const BUILD_IT = 'Build with these choices';
+export const BUILD_IT = 'All Good, Build it Now';
 
 export async function dataToResults(page) {
   await nextUntil(page, 'Results');

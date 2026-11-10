@@ -517,7 +517,7 @@ test('a notebook ask the notes hold is removed in Vibe/Add/Remove Features and b
       + 'The alert is changed in place.', { exact: true }).waitFor();
     assert.equal(await choice.getByRole('radio', { name: /^Keep v3 live/ }).isChecked(), true, 'keep live is the choice until another is made');
     await toSummary(page);
-    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the notebook build');
     const [built] = insertsOf(made);
     assert.deepEqual([built.spec.data.notes, built.spec.vibes, built.spec.vibe_previous],

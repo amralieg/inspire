@@ -321,8 +321,8 @@ test('a use case with its own App can move its page Inside Inspire: the wizard s
     await toSummary(page);
     await page.locator('[data-plan-move-note]').waitFor({ timeout: 15000 });
     assert.equal(await page.locator('[data-plan-move-note]').textContent(), MOVE_NOTE, 'the wizard says it again right before Start MVP');
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Build with these choices' && !b.disabled), null, { timeout: 15000 });
-    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 15000 });
+    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build');
     const [sent] = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
       .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));

@@ -25,14 +25,14 @@ export const WHERE_LABEL = 'Where it lives';
 export const DATA_RESULTS_LABEL = 'Data & results';
 export const MEASURE_LABEL = 'Measure';
 export const DELIVERY_QUESTION = 'How will people use this use case?';
-export const BUILD_IT_LABEL = 'Build with these choices';
+export const BUILD_IT_LABEL = 'All Good, Build it Now';
 export const BACK_TO_SUMMARY = 'Back to Summary';
 export const WIZARD_LINE = 'From your data to people using it';
 export const NOTEBOOK_CARD = { id: 'notebook', label: 'Notebook', blurb: 'The notebook that reads your data and fills the result table. Always built.' };
 export const RUN_IT_TITLE = 'How often should it run?';
 export const APP_ACCESS_QUESTION = 'Who sees which rows?';
 export const USE_CASE_DETAILS_LABEL = 'Details';
-export const BUILD_NOW_LABEL = BUILD_IT_LABEL;
+export const BUILD_NOW_LABEL = 'Build with these choices';
 export const CHANGE_LABEL = 'Change';
 
 const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery'] };

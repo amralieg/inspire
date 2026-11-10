@@ -70,7 +70,7 @@ function submittedSpec(made) {
   return JSON.parse(inserts[0].parameters.find((p) => p.name === 'spec').value);
 }
 
-test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and Build with these choices launches one run', async () => {
+test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
   const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. App look', '8. Run it', '9. Review & build'];
@@ -562,7 +562,7 @@ test('an App name another App already uses is changed to the next free name, and
     await throughApp(page);
     await toSummary(page);
     await page.locator('[role="alert"] p', { hasText: "App name: 'inspire-hub-acme' is used by another App in this workspace; pick another name" }).waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Build with these choices', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).isDisabled(), true);
     const here = page.locator('[data-last-app-name]');
     await here.getByRole('button', { name: 'Use inspire-hub-acme-2' }).click();
     await here.getByText("'inspire-hub-acme-2' is free").waitFor();
@@ -1669,7 +1669,7 @@ test('Edit of a version whose swapped primary table and own table are both gone 
     const named = 'the preview cannot run because these source tables are missing or not readable: main.s.orders_old (the primary table, not found). '
       + 'Open Edit, Data step, to swap main.s.orders_old for a table with the same role, because the primary table can be swapped, not removed';
     await page.waitForFunction((text) => [...document.querySelectorAll('[role="alert"] p')].some((p) => p.textContent.includes(text)), named, { timeout: 15000 });
-    assert.equal(await page.getByRole('button', { name: 'Build with these choices', exact: true }).isDisabled(), true);
+    assert.equal(await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).isDisabled(), true);
     assert.equal(made.jobs.length, 0);
     assert.equal(made.sqlCalls.some((c) => /INSERT INTO/.test(String(c.sql))), false);
   } finally {
@@ -1691,8 +1691,8 @@ test('Edit of a version whose swapped secondary table and own table are both gon
     await toAppAccess(page);
     await goToStep(page, 'App look');
     await toSummary(page);
-    const start = page.getByRole('button', { name: 'Build with these choices', exact: true });
-    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'Build with these choices' && !b.disabled), null, { timeout: 15000 });
+    const start = page.getByRole('button', { name: 'All Good, Build it Now', exact: true });
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 15000 });
     assert.equal(await start.isDisabled(), false, 'a lost secondary table never blocks the build (must-exclude)');
     assert.equal(await page.getByText('the preview cannot run because', { exact: false }).count(), 0);
   } finally {
@@ -1847,7 +1847,7 @@ test('Edit after notebook edits asks on Summary whether to overwrite them, and o
     const note = fresh.page.getByRole('note', { name: 'Nothing to build' });
     await note.waitFor();
     assert.match(await note.innerText(), /Nothing changed since version 1, so there is nothing new to build\. Change a choice in any step to build version 2/);
-    assert.equal(await fresh.page.getByRole('button', { name: 'Build with these choices', exact: true }).isDisabled(), true, 'an edit with no change cannot submit');
+    assert.equal(await fresh.page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).isDisabled(), true, 'an edit with no change cannot submit');
     assert.equal(await fresh.page.getByRole('alert').count(), 0, 'an unchanged edit is a note, never an error');
     assert.equal(await fresh.page.getByText(/^\d{3}:/).count(), 0, 'no HTTP status code reaches the screen');
     const lookStep = async () => {
@@ -1858,7 +1858,7 @@ test('Edit after notebook edits asks on Summary whether to overwrite them, and o
     await (await lookStep()).getByRole('button', { name: 'Dark' }).click();
     await toSummary(fresh.page);
     await fresh.page.waitForFunction(() => {
-      const start = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'Build with these choices');
+      const start = [...document.querySelectorAll('button')].find((b) => b.textContent.trim() === 'All Good, Build it Now');
       return start && !start.disabled;
     });
     assert.equal(await note.count(), 0, 'a changed look is something to build');
