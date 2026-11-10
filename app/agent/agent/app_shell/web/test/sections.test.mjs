@@ -162,7 +162,7 @@ test('the top bar holds only the logo, the switcher, Ask Genie and the avatar, a
   assert.deepEqual(await railOf(page), [['dashboard', 'page'], ['work', ''], ['performance', ''], ['runs', ''], ['settings', '']]);
   await page.locator('[data-rail="runs"]').click();
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
-  assert.equal(await page.locator('[data-rail="runs"]').getAttribute('aria-current'), 'page');
+  await page.locator('[data-rail="runs"][aria-current="page"]').waitFor();
   assert.equal(await page.locator('.ph-sec').innerText(), 'RUNS');
   await page.locator('[data-switcher]').click();
   const find = page.getByRole('combobox', { name: 'Find a use case' });
@@ -174,7 +174,7 @@ test('the top bar holds only the logo, the switcher, Ask Genie and the avatar, a
   await find.press('ArrowDown');
   await find.press('Enter');
   await page.waitForFunction(() => window.location.hash === '#/n02_u01/dashboard');
-  assert.equal(await page.locator('[data-switcher] .switch-t b').innerText(), await page.locator('.ph h1').innerText());
+  await page.waitForFunction(() => { const h = document.querySelector('.ph h1')?.textContent; return !!h && h === document.querySelector('[data-switcher] .switch-t b')?.textContent; });
   await page.waitForFunction((key) => Object.values(JSON.parse(localStorage.getItem(key) || '{}'))[0]?.last === 'n02_u01', MY_KEY);
   await page.goto(`${served.base}#/`);
   await page.waitForFunction(() => window.location.hash === '#/n02_u01/dashboard');

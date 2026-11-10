@@ -725,6 +725,7 @@ test('a use case whose Runs screen is off shows only Things to fix and never ask
   page.on('request', (r) => { if (new URL(r.url()).pathname === '/api/runs') asked.push(r.url()); });
   await page.goto(`${served.base}#/n01_u05?v=runs`);
   await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
+  await page.locator('[data-page-section="dashboard"]').waitFor();
   assert.equal(await page.locator('[role="tab"]').count(), 0);
   assert.equal(await page.locator('[data-rail="runs"]').count(), 0, 'no Runs section when the Runs screen is off');
   assert.equal(await page.locator('section.runs').count(), 0);

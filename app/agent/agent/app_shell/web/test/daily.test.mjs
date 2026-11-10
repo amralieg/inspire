@@ -163,6 +163,7 @@ test('old links work under every layout setting, and #/home opens the dashboard 
   }
   const { page, seen, context } = await openAt('#/home', appInfo({ layout: 'home' }, 2));
   await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
+  await page.locator('[data-page-section="dashboard"]').waitFor();
   assert.equal(await page.locator('.toast').count(), 0);
   await pickCase(page, 'Second desk 1');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
@@ -188,6 +189,7 @@ test('a new link pasted into the open page applies, and Back returns to the filt
   assert.deepEqual(seen.pages.at(-1).filters, { run_date: { from: '2026-05-01', to: '2026-10-15' }, region: ['North'] });
   await page.evaluate(() => { location.hash = '#/n01_u05'; });
   await page.waitForFunction((h) => location.hash === h, `#/n01_u05/dashboard?f=${f}`);
+  await page.locator('[data-page-section="dashboard"]').waitFor();
   assert.equal(await page.locator('.chip').count(), 1, 'a bare link to the open page keeps its filters');
   await pickCase(page, 'Second desk 1');
   await page.waitForFunction(() => document.querySelector('.ph h1')?.textContent === 'Second desk 1');
