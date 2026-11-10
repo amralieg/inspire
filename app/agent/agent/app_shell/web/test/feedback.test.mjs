@@ -44,6 +44,7 @@ test('Report an issue on Work sends the section, the filters and the open record
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { hash: '#/n01_u05/work', ready: '.cell-t', routes: { ...feedbackRoutes(sent), 'records/history': ({ json }) => json(200, HISTORY) } });
   await page.locator('.cell-t').first().click();
   await page.locator('[data-dock="record"] dialog.drawer').waitFor();
+  await page.locator('[data-head-more] > summary').click();
   await page.locator('[data-feedback-open]').click();
   const form = page.locator('.pop [data-feedback-form]');
   await form.waitFor();
@@ -95,7 +96,7 @@ test('the Dashboard offers Report an issue and Runs does not, and a page with no
   assert.equal(await bare.page.locator('[data-feedback-open]').count(), 0);
   await bare.context.close();
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), {});
-  await page.locator('[data-feedback-open]').waitFor();
+  await page.locator('[data-head-more]').waitFor({ state: 'attached' });
   await page.locator('[data-rail="runs"]').click();
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
   await page.locator('[data-section-title]', { hasText: 'Runs' }).waitFor();

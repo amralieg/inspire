@@ -80,7 +80,7 @@ function kindsOf(spec) {
   const tables = spec.tables?.length || 0;
   const held = Object.values(spec.layout?.holds || {}).reduce((sum, hold) => sum + (HOLD_CARDS[hold] || 0), 0);
   return { card: (spec.charts?.length || 0) + tables + held, kpi: spec.kpis?.length || 0, controls: spec.filters?.length ? 1 : 0,
-    row: spec.records || tables ? 1 : 0, text: spec.story ? 1 : 0 };
+    row: spec.records || tables ? 1 : 0 };
 }
 
 async function auditEvery(page, at, least) {
@@ -102,7 +102,7 @@ test('every card, key number, row, text block and the filter bar on the example 
     const { page, seen, context } = await open(appInfo(settings, 1, CHANGES), { routes });
     await ready(page);
     const at = settings.genie === null ? 'Genie off' : 'Genie on';
-    await auditEvery(page, `${at} dashboard`, { card: 5, kpi: 3, text: 2, controls: 1, row: 2 });
+    await auditEvery(page, `${at} dashboard`, { card: 5, kpi: 3, controls: 1, row: 2 });
     assert.equal(await page.locator('.kpi').count(), 3);
     await resizeTo(page, 1440);
     await readyWork(page);
@@ -391,9 +391,7 @@ test('each element kind opens a small box and sends Genie its own data, the page
   assert.deepEqual([controls.context.fields.Category, controls.context.fields.Channel, controls.context.fields.Region], ['All', 'All', 'All']);
   assert.ok(controls.context.fields['Run date']);
 
-  const story = await ask(page, calls, 'Page summary', 'What does this mean for us?');
-  assert.equal(story.kind, 'text');
-  assert.equal(story.context.hint, await page.locator('.story').evaluate((p) => [...p.childNodes].filter((n) => !n.matches?.('.ask-genie')).map((n) => n.textContent).join('')));
+  assert.equal(await page.locator('.story .ask-genie, .story button:has-text("Ask Genie")').count(), 0, 'the header summary carries no second Ask Genie');
 
   const note = await ask(page, calls, 'How to read this page', 'Where do I start?');
   assert.deepEqual([note.kind, note.context.hint], ['text', 'How to read this page Start with the biggest loss.']);
@@ -407,7 +405,7 @@ test('each element kind opens a small box and sends Genie its own data, the page
   assert.deepEqual([record.context.fields.Item, record.context.fields.Category, record.context.fields.Loss, record.context.fields.Channel, record.context.fields.Region],
     [listed.entity_label, listed.category, listed.value, listed.channel, listed.region]);
 
-  assert.deepEqual(calls.explain.map((c) => c.kind), ['kpi', 'kpi', 'chart', 'table', 'record', 'controls', 'text', 'text', 'record']);
+  assert.deepEqual(calls.explain.map((c) => c.kind), ['kpi', 'kpi', 'chart', 'table', 'record', 'controls', 'text', 'record']);
   assert.ok(calls.explain.every((c) => c.page === 'n01_u05' && JSON.stringify(c.context).length <= 12000));
   assert.deepEqual(seen.asks, [], 'nothing goes through the plain ask route');
   assert.deepEqual(seen.errors, []);

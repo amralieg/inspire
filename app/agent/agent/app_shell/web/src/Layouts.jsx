@@ -67,7 +67,6 @@ export function todoSteps(page, list, { modify = false, accept = false, plan = f
     steps.push({ id: 'sql', text: 'Open the SQL under each answer to check what Genie read before you use a number.', action: null });
     steps.push({ id: 'rate', text: 'Mark each answer helpful or not, so the Genie Agent learns what a good answer is.', action: null });
   } else if (!decides(page)) {
-    steps.push({ id: 'read', text: page.question || page.title, action: null });
     steps.push({ id: 'so_what', text: 'Read the “So what” line under each chart: it says what to do with it.', action: null });
     if (page.filters?.length) steps.push({ id: 'filters', text: 'Use the filters at the top to narrow every chart to the part you own.', action: null });
   } else if (first) {

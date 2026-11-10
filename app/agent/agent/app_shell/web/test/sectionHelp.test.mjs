@@ -39,7 +39,7 @@ test('the top bar carries the guided tour icon, and it opens the page tour from 
   const { page, context, seen } = await openApp(browser, base, info, { watch: STILL });
   const icon = page.locator('[data-tour-top]');
   await icon.waitFor({ state: 'visible' });
-  assert.equal(await icon.getAttribute('aria-label'), 'Take the guided tour');
+  assert.equal(await icon.getAttribute('aria-label'), 'Take the guided tour again');
   await icon.click();
   await page.waitForSelector('.tour-pop');
   assert.equal(await page.locator('#tour-t').textContent(), 'What this App is for');
