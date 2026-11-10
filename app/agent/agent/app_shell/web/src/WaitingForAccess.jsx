@@ -5,10 +5,11 @@ export const WAITING_OWNER = 'your data owner';
 
 export default function WaitingForAccess({ waiting, onCheck }) {
   const tables = waiting?.tables || [];
+  const owner = waiting?.owners?.length ? waiting.owners.join(' or ') : WAITING_OWNER;
   return (
     <section className="card waiting-access" role="status" aria-label={WAITING_FOR_ACCESS_TITLE} data-waiting-for-access="">
       <h2>{WAITING_FOR_ACCESS_TITLE}</h2>
-      <p>{WAITING_REASON} Ask {WAITING_OWNER} to grant it.</p>
+      <p>{WAITING_REASON} Ask {owner} to grant it.</p>
       {tables.length > 0 && (
         <details data-waiting-details="">
           <summary>Details</summary>

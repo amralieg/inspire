@@ -1,11 +1,12 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { getApp, getDefaults, getFilters, getOverview, getSummary } from './api.js';
+import { WAITING_FOR_ACCESS_CODE, getApp, getDefaults, getFilters, getOverview, getSummary } from './api.js';
 import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js';
 import { apiValues, initialFilterState } from './filters.js';
 import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
 import { NoAccessScope, PlainNote, RetryProvider, ToastProvider, useToast } from './ui.jsx';
 import Page from './Page.jsx';
+import WaitingForAccess from './WaitingForAccess.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
 import { pageMode, performanceOn, sectionTitle } from './modes.js';
 import ModeView from './ModeView.jsx';
@@ -68,7 +69,7 @@ function useHub(pages, asked) {
   const load = useCallback(() => {
     const mine = ++seq.current;
     getOverview(JSON.parse(asked)).then((data) => { if (mine === seq.current) { setHub(data); setError(''); } })
-      .catch((e) => { if (mine === seq.current) setError(e.message); });
+      .catch((e) => { if (mine === seq.current) setError(e); });
   }, [asked]);
   const summarize = useCallback((id) => getSummary(id).then((s) => setSummaries((x) => ({ ...x, [id]: s })))
     .catch((e) => setSummaries((x) => ({ ...x, [id]: { run: null, categories: {}, error: e.message } }))), []);
@@ -180,7 +181,8 @@ function Shell({ app }) {
   const openGenie = () => (fullChat ? null : working ? setDock('genie') : setGenieOpen(true));
   const genie = useGenie(app, page ? page.id : '', openGenie, agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
-  const { hub, summaries, load: loadHub, summarize } = useHub(pages, JSON.stringify(windowParams(prefs)));
+  const { hub, error: hubError, summaries, load: loadHub, summarize } = useHub(pages, JSON.stringify(windowParams(prefs)));
+  const hubWaiting = hubError && hubError.code === WAITING_FOR_ACCESS_CODE ? hubError : null;
   const shown = visiblePages(pages, hub);
   const toast = useToast();
 
@@ -315,6 +317,7 @@ function Shell({ app }) {
             <NoAccessScope key={page ? `page:${page.id}` : admin ? 'admin' : 'home'} app={app}>
             <RetryProvider value={loadHub}>
             {admin && <Admin />}
+            {!admin && !page && hubWaiting && <WaitingForAccess waiting={hubWaiting.detail} onCheck={loadHub} />}
             {!admin && page && section === 'performance' && (
               <GenieScope.Provider value={perfScope}>
                 <ModeView key={page.id} mode={mode.id} part="Performance" app={app} page={page} genie={genie}
@@ -357,7 +360,7 @@ export default function App() {
   useLayoutEffect(() => { if (!app) applyTheme('default', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', 'a'); }, [app]);
   return (
     <ToastProvider>
-      {error ? <Fatal error={error} onRetry={boot} /> : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} /></MyViewProvider>
+      {error ? (error.code === WAITING_FOR_ACCESS_CODE ? <WaitingForAccess waiting={error.detail} onCheck={boot} /> : <Fatal error={error} onRetry={boot} />) : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} /></MyViewProvider>
         : <div className="boot" role="status"><span className="ring" /><span>Opening the App…</span></div>}
     </ToastProvider>
   );

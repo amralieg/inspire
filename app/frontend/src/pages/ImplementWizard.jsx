@@ -866,6 +866,7 @@ export default function ImplementWizard({
       if (cancelled) return;
       setPreflight(pre.status === 'fulfilled' ? pre.value : null);
       setPreflightError(pre.status === 'fulfilled' ? '' : pre.reason.message);
+      if (pre.status === 'fulfilled') setAppUnreadable(pre.value.app_unreadable || null);
       setPlan(planned.status === 'fulfilled' ? planned.value : null);
       setPlanError(planned.status === 'fulfilled' ? '' : planned.reason.message);
       if (planned.status === 'rejected' && planned.reason.body?.app_unreadable) setAppUnreadable(planned.reason.body.app_unreadable);
@@ -1192,7 +1193,16 @@ export default function ImplementWizard({
     ...(stepId === 'data' ? Object.values(columnsErrors) : []),
     ...(buildStep ? [lastStep ? planError : '', preflightError, ...deliveryChecks, ...earlierGaps] : []),
   ].filter(Boolean))];
-  const checkAgain = () => setGrantRound((n) => n + 1);
+  const checkAgain = async () => {
+    try {
+      const data = await apiFetch(`/api/inspire/implement/context?${contextQ}`);
+      setContext(data);
+      setAppUnreadable(data.app_unreadable || null);
+    } catch (e) {
+      setErrors([e.message]);
+    }
+    setGrantRound((n) => n + 1);
+  };
   const footerRetry = new Map([
     ...Object.entries(columnsErrors).map(([table, e]) => [e, () => loadColumns(table)]),
     [planError, checkAgain],
@@ -2018,7 +2028,7 @@ export default function ImplementWizard({
             {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceRefused && (
               <p data-source-refused="" className="text-[11px] text-warning-fg">The App cannot read its sources yet, so the build cannot start. Grant access first, then build.</p>
             )}
-            {mode === 'mvp' && stepIndex > 0 && !lastStep && (
+            {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceRefused && (
               <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-db-red-fg border border-db-red/50 disabled:opacity-50">
                 {BUILD_NOW_LABEL}
@@ -3017,19 +3027,20 @@ function GrantList({ label, items }) {
 function AppReadAccess({ offer, result, busy, onGrant }) {
   return (
     <section aria-label="App read access" data-app-read="" className="space-y-1.5 text-[11px] bg-bg border border-border rounded-md px-3 py-2">
-      {offer && <p className="text-text-secondary">{offer.text}</p>}
-      {offer && <GrantList label="Grants the App needs" items={offer.grants} />}
+      {offer && <PlainMessage text={offer.text} className="text-text-secondary" />}
       {offer?.can_grant && (
         <button type="button" disabled={busy} onClick={onGrant}
           className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70">
           {busy ? 'Granting with your sign-in' : APP_READ_ACTION}
         </button>
       )}
+      {offer?.grants?.length > 0 && <TechnicalDetails items={offer.grants} />}
       {result && (
         <div role="status" aria-label="Grant result" className="space-y-1">
           {result.error ? <PlainMessage text={`Your grant was refused: ${result.error}`} onRetry={offer?.can_grant ? onGrant : null} copy className="text-text-secondary" /> : <p className="text-text-secondary">{result.text}</p>}
-          <GrantList label="Grants Inspire ran" items={result.ran} />
-          <GrantList label="Grants that failed" items={result.failed} />
+          {(result.ran?.length > 0 || result.failed?.length > 0) && (
+            <TechnicalDetails items={[...(result.ran || []).map((sql) => `Ran: ${sql}`), ...(result.failed || []).map((sql) => `Failed: ${sql}`)]} />
+          )}
         </div>
       )}
     </section>

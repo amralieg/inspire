@@ -876,9 +876,12 @@ function registerImplementRoutes(app, deps) {
         loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
       ]);
       const sourced = await sourceVerdict(req, warehouseId, useCaseNow, historyNow[0] || null, resultTable);
+      const blocking = I.blockingMissingTables(sourced.missing, (historyNow[0] && historyNow[0].spec_json) || {}, useCaseNow);
       checks.sources = sourced.app_unreadable
         ? { ok: false, detail: sourced.app_unreadable.text }
-        : { ok: true, detail: 'the App can read every source of this use case' };
+        : blocking.length
+          ? { ok: false, detail: I.missingTablesMessage(blocking) }
+          : { ok: true, detail: 'the App can read every source of this use case' };
       if (shares) checks.result_grant = I.shareCheck(output ? output.grant : null);
       if (appName) {
         const name = I.appNameCheck(appName, existingApp && existingApp.ok ? existingApp.data : null, { useCaseId, sessionId: sid });
@@ -911,6 +914,7 @@ function registerImplementRoutes(app, deps) {
         ...(appName || mergeApp ? {} : { new_app: output ? output.app : unchecked }),
         features,
         ...(moved ? { result_table_moved: moved } : {}),
+        app_unreadable: sourced.app_unreadable || null,
       });
     } catch (err) {
       sendError(res, err);
