@@ -30,6 +30,7 @@ THEMES = ("light", "dark")
 PALETTES = ("default", "muted", "vivid", "ocean", "sunset", "earth", "jewel", "nordic", "berry", "pop", "neon", "solid", "mono")
 OPTIONS = ("modify", "replace_edits", "decisions", "alerts")
 SCREENS = ("runs", "impact")
+REMOVED_SCREENS = ("performance",)
 USER_OFF = ("alerts",)
 OFF_WHEN_UNSET = ("alerts",)
 USER_OFF_PROBLEMS = {"alerts": "an App where each viewer sees only their own data cannot send alerts"}
@@ -433,8 +434,8 @@ def settings_problems(settings: dict, pages: list) -> list:
     if host == INSIDE and isinstance(settings.get("backend"), dict) and settings["backend"].get("kind") == shell_pg.LAKEBASE:
         problems.append("a page inside Inspire reads Delta tables, so its backend must be delta")
     screens = settings.get("screens")
-    if screens is not None and not (isinstance(screens, dict) and all(k in SCREENS and isinstance(v, bool) for k, v in screens.items())):
-        problems.append(f"the App screens must set {', '.join(SCREENS)} to true or false, the screens the App shows")
+    if screens is not None and not (isinstance(screens, dict) and all(k in SCREENS + REMOVED_SCREENS and isinstance(v, bool) for k, v in screens.items())):
+        problems.append(f"the App screens must set {', '.join(SCREENS + REMOVED_SCREENS)} to true or false, the screens the App shows")
     problems += shell_alerts.folder_problems(settings)
     problems += shell_agent.configured_problems(settings)
     if isinstance(options, dict) and options.get("modify") is True:
@@ -1809,7 +1810,7 @@ class Shell:
         return informational_text(page)
 
     def screen(self, key: str) -> bool:
-        return key in SCREENS and (self.settings.get("screens") or {}).get(key) is not False
+        return key in SCREENS + REMOVED_SCREENS and (self.settings.get("screens") or {}).get(key) is not False
 
     def workspace(self, headers: dict) -> tuple:
         if self.settings["auth"] == "user":
@@ -2330,7 +2331,7 @@ class Shell:
         return {
             "title": hub_title(s), "subtitle": s.get("subtitle") or "", "style": s["style"], "palette": s["palette"],
             "theme": s["theme"], "layout": s["layout"], "auth": s["auth"],
-            "options": {k: self.option(k) for k in OPTIONS}, "screens": {k: self.screen(k) for k in SCREENS},
+            "options": {k: self.option(k) for k in OPTIONS}, "screens": {k: self.screen(k) for k in SCREENS + REMOVED_SCREENS},
             "image_export": s["auth"] == "sp", "genie": genie, "inside": self.inside,
             "user": {"email": headers.get("x-forwarded-email") or "", "name": headers.get("x-forwarded-preferred-username") or ""},
             "is_owner": self.is_owner(headers), "pages": pages, "built_at": s.get("built_at") or "", "backend": self.backend_status(),

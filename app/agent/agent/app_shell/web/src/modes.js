@@ -16,6 +16,7 @@ export const MODES = Object.freeze({
   ask: Object.freeze({ id: 'ask', work: 'Ask', performance: 'Answer quality', queue: false }),
 });
 export const DEFAULT_MODE = 'queue';
+export const performanceOn = (app) => app?.screens?.performance !== false;
 
 const LAYOUT_MODES = { dashboard: 'explore', agent_chat: 'ask' };
 const CONTRACT_MODES = { plan: 'plan', forecast: 'forecast', scenario: 'scenarios' };

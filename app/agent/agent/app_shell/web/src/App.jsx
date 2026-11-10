@@ -7,7 +7,7 @@ import { GenieMark, Icon } from './icons.jsx';
 import { NoAccessScope, PlainNote, RetryProvider, ToastProvider, useToast } from './ui.jsx';
 import Page from './Page.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
-import { pageMode, sectionTitle } from './modes.js';
+import { pageMode, performanceOn, sectionTitle } from './modes.js';
 import ModeView from './ModeView.jsx';
 import { inboxOn } from './inbox.js';
 import Admin from './Admin.jsx';
@@ -83,7 +83,7 @@ function railOf(app, page) {
   const sections = pageSections(app, page);
   const all = inbox ? [sections[0], 'inbox', ...sections.slice(1)] : sections;
   const at = (sections.includes('work') ? 2 : 1) + (inbox ? 1 : 0);
-  return [...all.slice(0, at), 'performance', ...all.slice(at)];
+  return [...all.slice(0, at), ...(performanceOn(app) ? ['performance'] : []), ...all.slice(at)];
 }
 
 function SectionRail({ sections, on, onGo, open, page, counts = {}, alerting }) {
@@ -168,7 +168,7 @@ function Shell({ app }) {
   const [helping, setHelping] = useState(null);
   const admin = route === ADMIN_ROUTE;
   const page = pages.find((p) => p.id === route) || (admin ? pages.find((p) => p.id === prefs.last) || pages[0] : null);
-  const section = admin ? '' : link.section;
+  const section = admin ? '' : (link.section === 'performance' && !performanceOn(app) ? 'dashboard' : link.section);
   const sectionsHere = page ? railOf(app, page) : [];
   const inboxOff = railCounts.page === page?.id && railCounts.inboxOff;
   const rail = sectionsHere.filter((s) => !(s === 'alerts' && sectionsHere.includes('runs')) && !(s === 'inbox' && inboxOff));

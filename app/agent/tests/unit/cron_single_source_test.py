@@ -41,3 +41,11 @@ def test_the_job_launch_paths_read_the_same_function_and_no_stale_fallback(agent
     assert 'bool(implement_schedule_cron(spec["schedule"], spec_nb["schedule_cron"]))' in src
     assert 'spec["schedule"]["cron"] or spec_nb["schedule_cron"]' not in src
     assert '_implement_write_notebook' in src and 'use_case["_implement_schedule"] = dict(spec.get("schedule") or {})' in src
+
+
+def test_a_wizard_weekly_schedule_reaches_the_baked_run_and_the_job_launch(agent_ns):
+    from v130_genie_run_controls_test import _notebook, _text
+    wizard = {"enabled": True, "cron": "0 0 6 ? * MON", "timezone": "UTC", "failure_emails": []}
+    _inst, _uc, nb = _notebook(agent_ns, "Classification", _implement_schedule=wizard)
+    assert "'schedule_cron': '0 0 6 ? * MON'" in _text(nb["cells"][-1]), "the baked run carries the wizard's cron"
+    assert agent_ns["implement_schedule_cron"](wizard, "0 0 6 1 1,4,7,10 ?") == "0 0 6 ? * MON", "the job launch reads the same value"
