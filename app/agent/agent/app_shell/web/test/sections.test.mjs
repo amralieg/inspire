@@ -483,7 +483,7 @@ test('the Work dock switches between the record and Genie, and remembers the cho
 
 test('every example layout renders its dashboard, rail and settings with no error', async () => {
   const examples = readdirSync(join(HERE, '..', '..', 'examples')).filter((f) => f.endsWith('.json')).sort();
-  assert.equal(examples.length, 13);
+  assert.equal(examples.length, 14);
   const worked = [];
   for (const file of examples) {
     const info = appInfo(DECIDE, 1, {}, `examples/${file}`);
@@ -501,7 +501,7 @@ test('every example layout renders its dashboard, rail and settings with no erro
     assert.deepEqual(seen.errors, [], `${file}: no error`);
     await context.close();
   }
-  assert.deepEqual(worked, ['agent_chat.json:ask', 'dashboard.json:explore', 'forecast_cockpit.json:forecast', 'lift_readout.json:queue', 'location_view.json:queue',
+  assert.deepEqual(worked, ['agent_chat.json:ask', 'dashboard.json:explore', 'entity_matching.json:queue', 'forecast_cockpit.json:forecast', 'lift_readout.json:queue', 'location_view.json:queue',
     'monitor_triage.json:queue', 'network_explorer.json:queue', 'performance_explainer.json:queue', 'planner.json:plan', 'process_flow.json:queue',
     'recommendation_desk.json:queue', 'scenario_lab.json:scenarios', 'segment_explorer.json:queue'], 'every mode with work of its own and every queue the registry gives work has a work section');
 });
