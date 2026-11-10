@@ -997,7 +997,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       )}
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
       {(picked.size > 0 || matching) && (
-        <BulkBar choices={choices} picked={picked} matching={matching} total={shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} tomorrow={tomorrow}
+        <BulkBar choices={choices} picked={picked} matching={matching} total={openCount ?? shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} tomorrow={tomorrow}
           canMatch onAct={actOn} onAll={selectAll} onClear={clearPicks} onAccept={meta.action && !matching ? acceptPicked : null}
           onSimilar={similarBy?.length ? () => acts.findSimilar([...picked.keys()], { label: `the ${recordsText(picked.size)} you selected` }) : null}
           onDraft={() => setDrafted([...picked.keys()])} />

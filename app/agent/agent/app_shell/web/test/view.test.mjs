@@ -639,7 +639,7 @@ test('in Everything the keys and the selection skip closed records and say how m
   await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
   await page.waitForFunction((text) => document.querySelector('.toast.is-on .toast-t')?.textContent === text, SKIPPED(2));
   assert.equal(await page.locator('.bulk b').innerText(), '1 selected:');
-  assert.equal(await page.locator('.bulk').getByRole('button', { name: /^Select all/ }).count(), 0, 'Everything never selects every match, closed ones among them');
+  assert.equal(await page.locator('.bulk').getByRole('button', { name: /^Select all \d+ matching/ }).count(), 1, 'Everything offers Select all of the open matches only, never the closed ones');
   await page.locator('.bulk').getByRole('button', { name: 'Mark done…' }).click();
   await page.getByRole('button', { name: 'Mark 1 record done' }).click();
   await until(() => made.acts.length === 1);
