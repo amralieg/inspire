@@ -35,6 +35,7 @@ import {
   Boxes,
   AlertTriangle,
   XCircle,
+  Archive,
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import DomainSunburst from '../components/DomainSunburst';
@@ -95,6 +96,8 @@ import ImplementWizard from './ImplementWizard';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
+import { cardAssetLinks } from '../lib/implementControl';
+import { ARCHIVE_VIEWS, archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../lib/useCaseArchive';
 import QualityGateDrops from '../components/QualityGateDrops';
 import { makeApiFetch, makeApiPostJson, requestHeaders } from '../lib/apiClient';
 import { RESULTS_PENDING_TEXT, noResultsText, reviewLinkText } from '../lib/runPages';
@@ -205,6 +208,11 @@ export default function ResultsPage({
       return next;
     });
   }, []);
+
+  // Archive: browser localStorage, keyed by run and use case id; archived use cases leave the Active list
+  const [archiveView, setArchiveView] = useState('active');
+  const [archived, setArchived] = useState(loadArchiveMap);
+  const toggleArchive = useCallback((key) => setArchived((prev) => toggledArchive(prev, key)), []);
 
   const [feedbackState, setFeedbackState] = useState({ available: null, latest: [], message: '' });
   const [feedbackRefresh, setFeedbackRefresh] = useState(0);
@@ -577,6 +585,11 @@ export default function ResultsPage({
   }
   const starredCount = allUseCases.filter((uc) => uc?._v130?.bestOfBest).length;
 
+  const isArchivedUc = (uc) => Boolean(archived[archiveKeyOf(selectedSessionId, uc)]);
+  const archivedCount = allUseCases.filter(isArchivedUc).length;
+  const archiveCounts = { active: allUseCases.length - archivedCount, archived: archivedCount };
+  filteredUseCases = filteredUseCases.filter((uc) => inArchiveView(archiveView, isArchivedUc(uc)));
+
   // Apply favorites filter
   if (showFavoritesOnly) {
     filteredUseCases = filteredUseCases.filter((uc) => {
@@ -737,6 +750,7 @@ export default function ResultsPage({
     const no = String(uc?.No ?? '').trim();
     if (!no) return;
     clearAllFilters();
+    setArchiveView(isArchivedUc(uc) ? 'archived' : 'active');
     setShowFavoritesOnly(false);
     setExpandedUseCase(cardKeyOf(uc));
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1779,6 +1793,25 @@ export default function ResultsPage({
                   : 'top-20 max-h-[calc(100dvh-5rem)]'
               }`}
             >
+              <div role="group" aria-label="Show active or archived use cases" data-archive-views="" className="flex shrink-0 gap-1 rounded-xl border border-border bg-surface p-1 shadow-sm">
+                {ARCHIVE_VIEWS.map((view) => (
+                  <button
+                    key={view.id}
+                    type="button"
+                    onClick={() => setArchiveView(view.id)}
+                    aria-pressed={archiveView === view.id}
+                    data-archive-view={view.id}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-smooth ${
+                      archiveView === view.id ? 'bg-db-red-50 text-db-red-fg border border-db-red/20' : 'text-text-secondary border border-transparent hover:bg-bg-subtle'
+                    }`}
+                  >
+                    {view.id === 'archived' && <Archive size={12} />}
+                    {view.label}
+                    <span className="text-[10px] font-medium">{archiveCounts[view.id]}</span>
+                  </button>
+                ))}
+              </div>
+
               <div className="flex shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
                 <button
                   type="button"
@@ -2340,11 +2373,24 @@ export default function ResultsPage({
                         onImplement={canImplement ? () => startImplement(uc) : undefined}
                         onOpenMvp={onOpenImplement && tid && selectedSessionId ? () => onOpenImplement(String(selectedSessionId), tid) : undefined}
                         notebookUrl={workspaceNotebookUrl(databricksHost, uc.notebook_path || '')}
+                        assetLinks={tid ? cardAssetLinks(implementLatestById[tid] || null) : []}
+                        isArchived={isArchivedUc(uc)}
+                        onToggleArchive={selectedSessionId && archiveKeyOf(selectedSessionId, uc) ? () => toggleArchive(archiveKeyOf(selectedSessionId, uc)) : undefined}
                         {...detailPropsFor(uc)}
                       />
                       </div>
                       );
                     })}
+                  </div>
+                ) : allUseCases.length > 0 && archiveCounts[archiveView] === 0 ? (
+                  <div data-archive-empty={archiveView} className="bg-surface border border-border/70 rounded-xl p-10 text-center shadow-elevated">
+                    <Archive size={20} className="text-text-tertiary mx-auto mb-3" />
+                    <p className="text-sm text-text-secondary">
+                      {archiveView === 'archived' ? 'No archived use cases. Archive one from its card to move it here.' : 'Every use case of this run is archived.'}
+                    </p>
+                    <button type="button" onClick={() => setArchiveView(archiveView === 'archived' ? 'active' : 'archived')} className="text-xs text-db-red-fg hover:underline mt-2 font-medium">
+                      {archiveView === 'archived' ? 'Show active use cases' : 'Show archived use cases'}
+                    </button>
                   </div>
                 ) : allUseCases.length > 0 ? (
                   <div className="bg-surface border border-border/70 rounded-xl p-10 text-center shadow-elevated">
