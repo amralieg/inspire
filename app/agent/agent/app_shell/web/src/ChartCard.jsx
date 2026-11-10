@@ -8,6 +8,8 @@ import { Menu, Skeleton, SoWhat, useToast, useRetry } from './ui.jsx';
 import { saveBlob, saveDataUrl } from './api.js';
 import { barsContext, chartContext, chartItems, chartKind } from './explain.js';
 import { ExplainButton } from './Genie.jsx';
+import { SectionHelp } from './SectionHelp.jsx';
+import { helpLine } from './help.js';
 import { CardFailure, useShared } from './PageFailure.jsx';
 import { AskGenie } from './AskGenie.jsx';
 import { genieOn } from './genieAsk.js';
@@ -91,6 +93,7 @@ export function BarsCard({ id, title, hint, action, bars, vertical = false, hue 
     <article className={`card ${fold.folded ? 'card--folded' : ''}`} data-bars={id}>
       <header className="card-h">
         <div><h2>{title}</h2>{fold.folded ? top && <p data-fold-sum>{`Largest: ${top.label}, ${top.text}`}</p> : said && <p>{said}</p>}</div>
+        <SectionHelp title={title} steps={[{ title, text: helpLine(hint, onPick ? 'Click a bar to filter the page.' : '', action && `So what: ${action}`, explain ? 'Explain asks Genie to walk through this in plain words.' : '') }]} />
         {!fold.folded && explain && <ExplainButton title={title} busy={genieBusy} onClick={explain} />}
         <AskGenie kind="chart" title={title} context={drawn || { hint: said, filters }} />
         <FoldButton fold={fold} title={title} />
@@ -172,6 +175,7 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
             ))}
           </div>
         )}
+        <SectionHelp title={chart.title} steps={[{ title: chart.title, text: helpLine(chart.hint, clickHint(chart).trim(), chart.so_what && `So what: ${chart.so_what}`, explain ? 'Explain asks Genie to walk through this in plain words.' : '') }]} />
         {explain && <ExplainButton title={chart.title} busy={genieBusy} onClick={explain} />}
         {!shared && <AskGenie kind={chartKind(chart)} title={chart.title} context={drawn} items={!loading && !error ? chartItems(chart, result) : []} />}
         {items.length > 0 && (

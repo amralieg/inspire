@@ -80,13 +80,14 @@ export function FoldButton({ fold, title }) {
   );
 }
 
-export function FoldStrip({ fold, title, summary, children }) {
+export function FoldStrip({ fold, title, summary, help = null, children }) {
   if (!fold.on) return children;
   return (
     <div className={`fold-s ${fold.folded ? 'is-folded' : ''}`}>
       <div className="fold-h">
         <span className="fold-t">{title}</span>
         {fold.folded && summary && <span className="fold-sum">{summary}</span>}
+        {help}
         <FoldButton fold={fold} title={title} />
       </div>
       {!fold.folded && children}

@@ -635,8 +635,9 @@ def tour_template(anchor: str, language: str, page: dict) -> dict:
     base = (words.get("steps") or {}).get(anchor) or {}
     plain = words.get("plain") or {}
     labels = [str(k.get("label") or "").strip() for k in _tour_kpis(page)][:3]
+    filters = [str(f.get("label") or "").strip() for f in page.get("filters") or [] if isinstance(f, dict)]
     fills = {"use_case": str(page.get("title") or "").strip(), "kpis": (words.get("sep") or ", ").join(l for l in labels if l),
-             "record": _record_noun(page)}
+             "record": _record_noun(page), "filters": (words.get("sep") or ", ").join(l for l in filters if l)}
     text = str(base.get("text") or "")
     for name in reg.get("fill") or []:
         token = "{" + name + "}"

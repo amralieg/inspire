@@ -1,0 +1,8 @@
+.help-q{flex:none;display:inline-grid;place-items:center;width:22px;height:22px;padding:0;border-radius:50%;border:1px solid var(--line-strong);background:var(--card);color:var(--muted);font:inherit;font-size:12px;font-weight:700;line-height:1;cursor:pointer;align-self:flex-start;margin-top:2px}
+.help-q:hover{border-color:var(--brand);color:var(--brand-ink)}
+.help-q:focus-visible{outline:2px solid var(--brand);outline-offset:2px}
+@media (max-width:600px){.help-q{width:40px;height:40px;font-size:14px}}
+.measure-formulas{display:grid;gap:8px;margin:12px 0 0}
+.measure-formulas div{display:grid;grid-template-columns:minmax(90px,max-content) 1fr;gap:12px;font-size:12.5px;line-height:1.5}
+.measure-formulas dt{font-weight:650;color:var(--ink)}
+.measure-formulas dd{margin:0;color:var(--muted)}

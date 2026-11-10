@@ -19,10 +19,10 @@ function inView(rect, view) {
   return rect.top >= 0 && rect.bottom <= view.height && rect.left >= 0 && rect.right <= view.width;
 }
 
-export default function Tour({ tour, facts, queue, section, onSection, onEnd }) {
+export default function Tour({ tour, help = null, facts, queue, section, onSection, onEnd }) {
   const language = useMemo(() => pickTourLanguage(tour?.languages, navigator.languages || [navigator.language]), [tour]);
-  const steps = useMemo(() => (language?.steps || []).map((s) => ({ ...s, text: fillTourText(s.text, facts) })).filter((s) => s.title),
-    [language, facts]);
+  const steps = useMemo(() => (help ? help.steps : (language?.steps || []).map((s) => ({ ...s, text: fillTourText(s.text, facts) }))).filter((s) => s.title),
+    [help, language, facts]);
   const [at, setAt] = useState(0);
   const [way, setWay] = useState(1);
   const [target, setTarget] = useState(null);
@@ -63,7 +63,7 @@ export default function Tour({ tour, facts, queue, section, onSection, onEnd }) 
   const step = steps[at];
   useEffect(() => {
     if (!step) return undefined;
-    const wanted = tourSection(step.anchor, tour, queue);
+    const wanted = step.el ? null : tourSection(step.anchor, tour, queue);
     if (wanted && wanted !== section) {
       onSection(wanted);
       return undefined;
@@ -72,7 +72,7 @@ export default function Tour({ tour, facts, queue, section, onSection, onEnd }) 
     const began = Date.now();
     const look = () => {
       if (stop) return;
-      const el = step.text ? shownAnchor(step.anchor) : null;
+      const el = step.el ? (step.el.isConnected ? step.el : null) : step.text ? shownAnchor(step.anchor) : null;
       if (el) {
         const view = viewport();
         if (!inView(el.getBoundingClientRect(), view)) el.scrollIntoView({ block: 'center', inline: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });

@@ -8,6 +8,7 @@ import { genieOn } from './genieAsk.js';
 import { ChartsReady, RowPanel, SECTION_PARTS, TAKE_ALL, TakeAll, decidedText, isClosed, useOpenRow } from './KindParts.jsx';
 import { SaveButton, runWrite } from './saving.jsx';
 import { AskGenie } from './AskGenie.jsx';
+import { SectionHelp } from './SectionHelp.jsx';
 import { RowGenie } from './DataTable.jsx';
 import { tableContext } from './explain.js';
 import { KIND_PARTS, KindReady } from './KindLayouts.jsx';
@@ -101,6 +102,7 @@ export function TodoNow({ page, app, ready, nonce, shared, onRecords, filters = 
         {decided && !list.data && !list.error && <Skeleton height={14} width="40%" />}
         {list.error && <PlainNote text={list.error} icon={<Icon name="info" size={12} />} className="tile-err" onRetry={retry} />}
       </div>
+      <SectionHelp title="What to do now" steps={steps.map((s) => ({ title: 'What to do now', text: s.value ? s.value.join('') : s.text }))} />
       <AskGenie kind="text" title="What to do now" context={{ hint: steps.map((s) => s.text).join('\n') }} /></header>
       {decided && waiting != null && all > 0 && <div className="todo-bar" role="progressbar" aria-label="Done so far" aria-valuetext={`${integer(all - waiting)} of ${integer(all)} done`} aria-valuemin={0} aria-valuemax={all} aria-valuenow={all - waiting}><i style={{ width: `${((all - waiting) / all) * 100}%` }} /></div>}
       <ol className="todo-steps">

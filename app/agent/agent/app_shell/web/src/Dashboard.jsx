@@ -14,6 +14,8 @@ import MoneyCard from './Money.jsx';
 import { LayoutSections, TodoNow } from './Layouts.jsx';
 import { backendNotes } from './freshness.js';
 import { AskGenie } from './AskGenie.jsx';
+import { SectionHelp } from './SectionHelp.jsx';
+import { helpLine } from './help.js';
 import { CardFailure, PageFailure, useShared } from './PageFailure.jsx';
 import {
   FIX_TIERS, NOT_MEASURED, capacityText, couldSaveFormula, couldSaveText, hubView, isMine, moneyText, nothingReason, nothingText, pageCurrency, pageKind, pickReason, plural,
@@ -33,6 +35,7 @@ export function TableCard({ table, result, error, loading, onFilter, pageId, fil
       <header className="card-h">
         <div><h2>{table.title}</h2>{table.hint && <p>{table.hint}</p>}<SoWhat text={table.so_what} /></div>
         {filters?.length > 0 && <div className="tbar"><ColumnFilterStatus filters={filters} values={values} onClear={onClear} /></div>}
+        <SectionHelp title={table.title} steps={[{ title: table.title, text: helpLine(table.hint, table.so_what && `So what: ${table.so_what}`, 'Click a row to open its details beside the table.') }]} />
         {!shared && <AskGenie kind="table" title={table.title} context={tableContext(table.hint || '', result?.rows || [], (row) => fieldsOf(row, columns))} />}
       </header>
       {loading && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}

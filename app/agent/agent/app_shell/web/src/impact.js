@@ -104,13 +104,30 @@ export function heldShare(entry) {
   return `${plural(current.held, 'record')} of ${grouped(current.records)} (${percentOf(current.held, current.records)}%) ${current.held === 1 ? 'is' : 'are'} held back now`;
 }
 
+const COLUMN_ID = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
+
+export const plainColumns = (text) => String(text || '').replace(COLUMN_ID, (id) => id.replaceAll('_', ' '));
+
 export function promisedView(page) {
   const promised = page?.promised || {};
-  const value = placeholderWords(promised.value || '').trim();
-  const benefits = (promised.benefits || []).map((b) => placeholderWords(b).trim()).filter(Boolean);
-  const estimate = String(promised.estimate || '').trim();
+  const value = plainColumns(placeholderWords(promised.value || '')).trim();
+  const benefits = (promised.benefits || []).map((b) => plainColumns(placeholderWords(b)).trim()).filter(Boolean);
+  const estimate = plainColumns(promised.estimate || '').trim();
   if (!value && !benefits.length && !estimate) return null;
   return estimate ? { value, benefits, estimate } : { value, benefits };
+}
+
+export const MEASURES = [
+  { label: 'Estimated', formula: 'Money at stake on the open records flagged Act now or Review, added up.' },
+  { label: 'Reported', formula: 'The amounts people entered when they marked records fixed, added up.' },
+  { label: 'Measured', formula: 'For each fix a later run confirmed: money at stake when fixed, less what that run still finds, added up.' },
+  { label: 'Said wrong', formula: 'Closed records marked not an issue, divided by all closed records, times 100.' },
+];
+
+export function valueLine(estimate) {
+  const text = String(estimate || '').trim();
+  const head = (text.includes(':') ? text.slice(0, text.indexOf(':')) : text.split(/(?<=[.!?])\s/)[0]).trim();
+  return head && /[.!?]$/.test(head) ? head : head ? `${head}.` : '';
 }
 
 export function measuredText(record, currency, kind = '') {

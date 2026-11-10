@@ -37,6 +37,7 @@ import { RetryProvider, Skeleton } from './ui.jsx';
 import ModeView from './ModeView.jsx';
 import { pageMode, sectionTitle } from './modes.js';
 import { tourFacts } from './tourStart.js';
+import { MEASURES, promisedView, valueLine } from './impact.js';
 
 const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
@@ -254,6 +255,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       </a>
     ) : null;
   const colors = paletteItems(chrome?.palette, chrome?.built, chrome?.theme, chrome?.onPalette || (() => {}));
+  const promised = promisedView(page);
   const reporting = !!page.history;
   const report = { section: shown, filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
   const head = (
@@ -269,7 +271,9 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       </div>
       {shown !== 'dashboard' && <p className="ph-sec" data-section-title>{sectionTitle(page, shown)}</p>}
       {shown === 'dashboard' && !hubPage && <p className="ph-q">{page.question}</p>}
-      {shown === 'dashboard' && !hubPage && page.promised?.estimate && <p className="ph-value" data-value-estimate="">{page.promised.estimate}</p>}
+      {shown === 'dashboard' && !hubPage && page.promised?.estimate && (
+        <p className="ph-value" data-value-estimate="">{valueLine(page.promised.estimate)} <button type="button" className="link" onClick={() => go('settings')}>How it is measured in Settings</button></p>
+      )}
       {shown === 'dashboard' && !hubPage && data && <Story page={page} data={data.kpis} />}
       {shown === 'dashboard' && app.style === 'c' && genieOn(app, page.id) && (
         <form className="ask" onSubmit={(e) => { e.preventDefault(); if (question.trim()) { onAsk(question); setQuestion(''); } }}>
@@ -357,6 +361,12 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
                 <Icon name={chrome.theme === 'dark' ? 'sun' : 'moon'} size={15} />Switch to {chrome.theme === 'dark' ? 'light' : 'dark'} theme
               </button>
             )}
+          </SettingGroup>
+          <SettingGroup id="measurement" title="Measurement" why="How the value of this use case is measured, the target it should reach and how each number is worked out.">
+            {promised?.estimate && <p data-measure-estimate>{promised.estimate}</p>}
+            {promised?.value && <p>{promised.value}</p>}
+            {promised?.benefits.length > 0 && <ul>{promised.benefits.map((b) => <li key={b}>{b}</li>)}</ul>}
+            {app.screens?.impact !== false && <dl className="measure-formulas">{MEASURES.map((m) => <div key={m.label}><dt>{m.label}</dt><dd>{m.formula}</dd></div>)}</dl>}
           </SettingGroup>
           {onTour && (
             <SettingGroup id="help" title="Help" why="A short walk through this page: what it helps you decide, its numbers, where to start and how to act.">

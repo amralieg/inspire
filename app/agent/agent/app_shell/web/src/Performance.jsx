@@ -6,6 +6,7 @@ import { Icon } from './icons.jsx';
 import { Tiles } from './Kpis.jsx';
 import { BarsCard } from './ChartCard.jsx';
 import { Failure, PlainNote } from './ui.jsx';
+import { sectionHash } from './links.js';
 import Fx from './Fx.jsx';
 import DataTable from './DataTable.jsx';
 import { RowGenie } from './DataTable.jsx';
@@ -167,17 +168,11 @@ function Activity({ app, data, onMore, onRecord }) {
 }
 
 function Promised({ page }) {
-  const promised = promisedView(page);
   return (
     <div className="imp-side imp-promised">
       <h3>Promised</h3>
-      {promised ? (
-        <>
-          {promised.estimate && <p className="imp-estimate" data-value-estimate="">{promised.estimate}</p>}
-          {promised.value && <p>{promised.value}</p>}
-          {promised.benefits.length > 0 && <ul>{promised.benefits.map((b) => <li key={b}>{b}</li>)}</ul>}
-        </>
-      ) : <p className="faint">The Inspire catalog gave no business value for this use case.</p>}
+      <p>{promisedView(page) ? 'What this use case promised, and how its value is measured, is in Settings.' : 'No business value is set for this use case.'}</p>
+      <a className="link" href={sectionHash(page.id, 'settings')}>Open Measurement in Settings</a>
     </div>
   );
 }

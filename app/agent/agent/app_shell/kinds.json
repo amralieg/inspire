@@ -5218,7 +5218,8 @@
   "fill": [
    "use_case",
    "kpis",
-   "record"
+   "record",
+   "filters"
   ],
   "pad": [
    "decision",
@@ -5436,12 +5437,13 @@
     "plain": {
      "use_case": "this use case",
      "kpis": "the numbers at the top",
-     "record": "record"
+     "record": "record",
+     "filters": "the filters"
     },
     "steps": {
      "decision": {
       "title": "What this App is for",
-      "text": "This App is about: {use_case}. Everything on this page helps you decide what to do next and where to start."
+      "text": "This App is about: {use_case}. Everything on this page helps you decide what to do next and where to start. Click ? on any section title for a short walk through it."
      },
      "kpis": {
       "title": "The key numbers",
@@ -5453,7 +5455,7 @@
      },
      "filters": {
       "title": "Narrow it down",
-      "text": "Use the filters to see only your part. Every number, chart and list on the page follows them."
+      "text": "Use {filters} to see only your part. Every number, chart and list on the page follows them."
      },
      "records": {
       "title": "Your list",

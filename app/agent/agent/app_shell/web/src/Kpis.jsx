@@ -9,6 +9,8 @@ import { Block } from './Blocks.jsx';
 import { withBlocks } from './blocks.js';
 import { FoldStrip, useFold } from './MyView.jsx';
 import { AskGenie } from './AskGenie.jsx';
+import { SectionHelp } from './SectionHelp.jsx';
+import { helpLine } from './help.js';
 
 export const kpiValue = (kpi, data) => formatValue(data?.now, wholeFormat(kpi.format, kpi.label, kpi.unit, kpi.id), kpi.currency);
 
@@ -98,7 +100,8 @@ function Tile({ t, loading }) {
 export function Tiles({ tiles, loading, label = 'Key numbers', fold: foldId = 'kpis' }) {
   const fold = useFold(foldId);
   return (
-    <FoldStrip fold={fold} title={label} summary={loading ? '' : tiles.map((t) => `${t.label} ${t.value}`).join(' · ')}>
+    <FoldStrip fold={fold} title={label} summary={loading ? '' : tiles.map((t) => `${t.label} ${t.value}`).join(' · ')}
+      help={<SectionHelp title={label} steps={[{ title: label, text: helpLine(`These numbers show where things stand now: ${tiles.map((t) => t.label).join(', ')}.`, 'Each one compares with the last run when there is one.') }]} />}>
       <section className="kpis" aria-label={label} data-n={tiles.length}>
         {tiles.map((t) => <Tile key={t.id} t={t} loading={loading} />)}
       </section>

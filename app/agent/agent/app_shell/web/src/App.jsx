@@ -23,6 +23,7 @@ import { DEFAULT_VIEW, visiblePages } from './hub.js';
 import logo from './databricks-logo.png?inline';
 import { integer } from './format.js';
 import { markTourSeen, tourDue, tourKey } from './tourStart.js';
+import { HelpContext } from './SectionHelp.jsx';
 
 const Tour = lazy(() => import('./Tour.jsx'));
 const Performance = lazy(() => import('./Performance.jsx'));
@@ -164,6 +165,7 @@ function Shell({ app }) {
   const [view, setView] = useState(DEFAULT_VIEW);
   const [touring, setTouring] = useState('');
   const [tourFacts, setTourFacts] = useState({});
+  const [helping, setHelping] = useState(null);
   const admin = route === ADMIN_ROUTE;
   const page = pages.find((p) => p.id === route) || (admin ? pages.find((p) => p.id === prefs.last) || pages[0] : null);
   const section = admin ? '' : link.section;
@@ -205,7 +207,8 @@ function Shell({ app }) {
     markTourSeen(tourAt);
     setTouring(page.id);
   }, [tourAt]);
-  const takeTour = useCallback(() => { if (tourAt) { markTourSeen(tourAt); setTouring(page.id); } }, [tourAt, page?.id]);
+  const takeTour = useCallback(() => { if (tourAt) { markTourSeen(tourAt); setHelping(null); setTouring(page.id); } }, [tourAt, page?.id]);
+  const startHelp = useCallback((help) => { setTouring(''); setHelping(help); }, []);
   const keepFacts = useCallback((id, facts) => setTourFacts((x) => (JSON.stringify(x[id]) === JSON.stringify(facts) ? x : { ...x, [id]: facts })), []);
   useEffect(() => {
     document.title = admin ? `Admin · ${app.title}` : page ? `${page.title} · ${app.title}` : app.title;
@@ -288,6 +291,7 @@ function Shell({ app }) {
   return (
     <GenieState.Provider value={genieState}>
     <DockContext.Provider value={dockValue}>
+    <HelpContext.Provider value={startHelp}>
     <div className="stage">
       <div className="app" data-layout={app.layout} data-density={prefs.density}>
         <header className="top">
@@ -300,6 +304,7 @@ function Shell({ app }) {
           <span className="sp" />
           <button className="genie-btn" data-tour="genie" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
           <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
+          {page && !admin && page.tour && <button type="button" className="ibtn tour-top" onClick={takeTour} data-tour-top aria-label="Take the guided tour" title="Take the guided tour"><Icon name="info" size={16} /></button>}
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>
         <div className="body">
@@ -330,14 +335,15 @@ function Shell({ app }) {
           {working && dock === 'record' && <RecordDock tabs={tabs} onSlot={setDockSlot} onClose={() => setDock('')} empty={!showing} />}
           {!working && !fullChat && genieOpen && <GeniePanel {...genieProps} onClose={() => setGenieOpen(false)} />}
         </div>
-        {page && touring === page.id && page.tour && (
+        {page && (helping || touring === page.id) && page.tour && (
           <Suspense fallback={null}>
-            <Tour key={`${page.id}:${page.tour.version}`} tour={page.tour} facts={tourFacts[page.id]} queue={isQueue(page)} section={section}
-              onSection={goSection} onEnd={() => setTouring('')} />
+            <Tour key={`${page.id}:${page.tour.version}:${helping ? 'help' : 'tour'}`} tour={page.tour} help={helping} facts={tourFacts[page.id]} queue={isQueue(page)}
+              section={section} onSection={goSection} onEnd={() => { setTouring(''); setHelping(null); }} />
           </Suspense>
         )}
       </div>
     </div>
+    </HelpContext.Provider>
     </DockContext.Provider>
     </GenieState.Provider>
   );

@@ -80,7 +80,7 @@ test('an owner changes a cutoff with a live preview and a note, and starts a run
   await goRail(page, 'settings');
   await page.waitForSelector('[data-settings] [data-group="impact"]');
   assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)),
-    ['my_view', 'look', 'help', 'share', 'access', 'impact', 'flagging', 'scope', 'alerts', 'feedback']);
+    ['my_view', 'look', 'measurement', 'help', 'share', 'access', 'impact', 'flagging', 'scope', 'alerts', 'feedback']);
   assert.match(await page.locator('[data-setting="alert_threshold"]').innerText(), /Change it on the Build page of the Inspire App/);
   await page.click('[data-setting="act_now_amount"] button');
   const input = page.locator('input[name="setting_act_now_amount"]');
@@ -114,7 +114,7 @@ test('a viewer who is not an owner gets Settings with only their own My view, an
   assert.equal(await page.locator('[data-settings]').count(), 0, 'Settings shows only on its own section');
   await goRail(page, 'settings');
   await page.waitForSelector('[data-settings] [data-group="access"]');
-  assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)), ['my_view', 'look', 'help', 'share', 'access', 'feedback']);
+  assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)), ['my_view', 'look', 'measurement', 'help', 'share', 'access', 'feedback']);
   assert.equal(await page.locator('[data-settings] [data-setting]').count(), 0);
   assert.equal(await page.locator('[data-run-now]').count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Views', exact: true }).count(), 1, 'Settings has one Views control, in Share and follow');

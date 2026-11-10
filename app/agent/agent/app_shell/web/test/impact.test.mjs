@@ -144,7 +144,8 @@ test('Performance shows estimated, reported and measured apart, promised against
   const { page, seen, context } = await openApp(browser, served.base, info, { width: 1440, routes, hash: '#/n01_u05/performance', ready: '.imp .imp-verdict' });
   assert.deepEqual(asked, ['n01_u05'], 'Performance reads the impact of its own use case only');
   const card = page.locator('.imp[data-page="n01_u05"]');
-  assert.equal(await card.locator('.imp-promised p').innerText(), PROMISED.value);
+  assert.equal(await card.locator('.imp-promised p').innerText(), 'What this use case promised, and how its value is measured, is in Settings.', 'the promised text moved to Settings');
+  assert.match(await card.locator('.imp-promised a').getAttribute('href'), /n01_u05\/settings/, 'a link opens Measurement in Settings');
   assert.deepEqual(await card.locator('.imp-figs > div').evaluateAll((all) => all.map((d) => [d.dataset.figure, d.querySelector('b').innerText])),
     [['estimated', '$15,000'], ['reported', '$2,500'], ['measured', '$1,800'], ['wrong', '25%']]);
   assert.equal(await card.locator('.imp-verdict').innerText(), 'Records shown to people left the list 25 points more often than records held back');
