@@ -567,7 +567,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const listed = { page: pageId, filters, ai: aiPicks, search, mine, changed, ...(Object.keys(narrowed).length ? { column_filters: narrowed } : {}), ...(tabPick ? { choice: tabPick.id } : {}), ...inWindow,
     ...(tab ? { status_counts: true } : {}), ...(only ? { focus: only } : {}) };
   const room = cap ? Math.max(1, Math.min(size, cap - offset)) : size;
-  const asked = { ...listed, ...(cap ? { window_limit: cap } : {}), ...(sort ? { sort } : {}), offset, limit: room, ...(cursor ? { cursor } : {}) };
+  const asked = { ...listed, ...(cap ? { window_limit: cap } : {}), ...(sort ? { sort } : {}), ...(!sort && !noActions ? { due_first: true } : {}), offset, limit: room, ...(cursor ? { cursor } : {}) };
   const list = useList(asked, ready, `${nonce}:${refresh}`, windowed.window ? { ...withoutWindow(asked), limit: size } : null);
   useEffect(() => { onList?.(list); }, [list]);
   useEffect(() => {
