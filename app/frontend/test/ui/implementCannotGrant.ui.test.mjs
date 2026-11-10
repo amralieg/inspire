@@ -42,8 +42,12 @@ test('a person who cannot grant sees one plain sentence naming the owner, the GR
     await card.waitFor({ timeout: 15000 });
     const text = await card.innerText();
     assert.match(text, /The App cannot read part of its data/);
-    assert.match(text, /data-eng/, 'the owner is named');
+    assert.match(text, /admins and data-eng|data-eng/, 'the owner is named');
     assert.doesNotMatch(text, /@/, 'no internal email on the build card');
+    assert.doesNotMatch(text, /GRANT /, 'GRANT lines are not visible outside Details');
+    assert.doesNotMatch(text, /PERMISSION_DENIED/, 'the raw error is not visible outside Details');
+    assert.equal(await card.locator('[data-app-reads-details] summary').count() > 0, true, 'the GRANT list sits under Details');
+    assert.match(text, /cannot grant|can grant it|data owner/i, 'one plain sentence names who can grant it');
     assert.ok(live.grants.every(([, token]) => token === PERSON), 'the refused grants ran with the person sign-in only');
     await card.getByRole('button', { name: /Copy the grant SQL to send to admins and data-eng/ }).click();
     await page.locator('[data-app-reads-result="copy"]').waitFor({ timeout: 15000 }).catch(() => null);

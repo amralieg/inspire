@@ -3139,7 +3139,8 @@ function appReadsText(left, app, refused = []) {
   const owners = joinAnd([...new Set(left.map((t) => t.owner).filter(Boolean))]);
   const head = `The App ${app ? `${app} ` : ''}cannot read ${tables}, so its pages show no data from ${left.length === 1 ? 'it' : 'them'}`;
   const ask = owners ? `${owners} can grant it` : 'the owner of each table can grant it';
-  return refused.length ? `${head}. Your grant was refused: ${refused.join('; ')}. ${ask[0].toUpperCase()}${ask.slice(1)}` : `${head}. ${ask[0].toUpperCase()}${ask.slice(1)}`;
+  const plain = `${head}. ${ask[0].toUpperCase()}${ask.slice(1)}`;
+  return refused.length ? `${plain}. Your grant was refused; the statements and the error are under Details` : plain;
 }
 
 function newAppReadsGaps(tables, plans) {

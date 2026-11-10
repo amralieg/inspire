@@ -1368,16 +1368,26 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <p className="text-[13px] font-semibold">{readsLeft.tables.length ? APP_READS_HEADING : 'The App can read all its data now'}</p>
           {readsLeft.tables.length > 0 && <p>{appReadsText(readsLeft, latest?.app_name || '')}</p>}
           {readsLeft.tables.length > 0 && (
-            <ul aria-label="Grants the App needs" className="space-y-0.5">
-              {[...new Set(readsLeft.tables.flatMap((t) => t.grants))].map((g) => <li key={g} className="font-mono text-[11px] text-text-primary break-all">{g}</li>)}
-            </ul>
+            <details data-app-reads-details="" className="text-[11px]">
+              <summary className="cursor-pointer">Details</summary>
+              <ul aria-label="Grants the App needs" className="space-y-0.5 mt-1">
+                {[...new Set(readsLeft.tables.flatMap((t) => t.grants))].map((g) => <li key={g} className="font-mono text-[11px] text-text-primary break-all">{g}</li>)}
+              </ul>
+            </details>
           )}
         </div>
       </div>
       {readsResult && readsResult.version === latest?.spec_version && (
         <div role="status" data-app-reads-result={readsResult.refused || readsResult.error ? 'refused' : readsResult.action} className="space-y-0.5 text-text-primary">
-          {readsResult.error && <PlainMessage text={readsResult.action === 'grant' ? `Your grant was refused: ${readsResult.error}` : readsResult.error} />}
+          {readsResult.error && <p>Your grant could not be made. The error is under Details.</p>}
+          {readsResult.error && <details data-app-reads-error="" className="text-[11px]"><summary className="cursor-pointer">Details</summary><PlainMessage text={readsResult.error} /></details>}
           {!readsResult.error && readsResult.action !== 'copy' && <p>{readsResult.text}</p>}
+          {!readsResult.error && readsResult.failed?.length > 0 && (
+            <details data-app-reads-failed="" className="text-[11px]">
+              <summary className="cursor-pointer">Details</summary>
+              <ul className="space-y-0.5 mt-1">{readsResult.failed.map((line) => <li key={line} className="font-mono break-all">{line}</li>)}</ul>
+            </details>
+          )}
           {readsResult.copied && <p>The grant SQL is copied. Send it to {readsLeft.tables.map((t) => t.owner).filter(Boolean)[0] || 'the table owner'}.</p>}
           {readsResult.copyError && <PlainMessage text={`The grant SQL could not be copied: ${readsResult.copyError}`} after="Select it above and copy it." />}
         </div>

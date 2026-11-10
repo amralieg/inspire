@@ -92,8 +92,9 @@ test('Grant access with my permissions runs exactly the recorded grants still mi
     assert.deepEqual(assets.app.unread.tables, [{ table: 'main.s.orders', owner: 'admins', grants: [CATALOG] }], 'what the person could not grant stays recorded');
     assert.equal(assets.notebook.state, 'ready', 'the rest of the record is kept');
     assert.equal(got.data.state, 'unreadable');
-    assert.match(got.data.text, /^The App riverside-assets cannot read main\.s\.orders, so its pages show no data from it\. Your grant was refused: GRANT USE CATALOG/);
-    assert.match(got.data.text, /\. Admins can grant it$/);
+    assert.match(got.data.text, /^The App riverside-assets cannot read main\.s\.orders, so its pages show no data from it\. Admins can grant it\. Your grant was refused; the statements and the error are under Details$/);
+    assert.doesNotMatch(got.data.text, /GRANT|PERMISSION_DENIED/, 'the card sentence carries no GRANT and no raw error');
+    assert.ok(got.data.failed.length > 0, 'the statements and errors travel in failed, for Details');
   });
 });
 
