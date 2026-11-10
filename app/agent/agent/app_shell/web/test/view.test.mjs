@@ -71,6 +71,7 @@ test('My view is in Settings for everyone, the window chips follow it, it surviv
   await until(() => lists(seen).at(-1).window === 'week');
   assert.equal(lists(seen).at(-1).time_zone, 'Asia/Dubai', 'the list says which week it means, here in Dubai time');
   const chips = page.getByRole('group', { name: 'Your window' });
+  await chips.waitFor();
   assert.deepEqual(await chips.locator('button').allInnerTexts(), ['This hour', 'Today', 'This week', 'This month', 'All open', 'Everything']);
   assert.equal(await chips.getByRole('button', { name: 'This week' }).getAttribute('aria-pressed'), 'true');
   assert.equal((await mine(page)).window, 'week');

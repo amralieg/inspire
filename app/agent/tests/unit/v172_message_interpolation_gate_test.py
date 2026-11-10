@@ -198,7 +198,6 @@ REVIEWED = {
         ('python', 'where'),
         ('_implement_genie_own_rebuild', 'first'),
         ('_implement_one_locked', "[swap['chosen'] for swap in plan['retable']]"),
-        ('_implement_retable_notebook', "[s['chosen'] for s in swaps]"),
         ('_align_batch', 'batch_label'),
         ('_assign_batch', 'batch_label'),
         ('_call_ai_query_impl', "_smallest.get('name')"),
