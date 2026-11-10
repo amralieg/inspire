@@ -1551,7 +1551,7 @@ export default function ImplementWizard({
                 </Field>
               </SettingRow>
               {trainsModel && (
-                <SettingRow label="Retrain" value={`every ${spec.config.profiles?.retrain?.every_runs ?? 'few'} runs`} changeLabel="retrain">
+                <SettingRow label="Retrain" value={spec.config.profiles?.retrain?.every_runs ? `every ${spec.config.profiles.retrain.every_runs} runs` : 'Inspire sets it'} changeLabel="retrain">
                   <div className="grid grid-cols-2 gap-2">
                     <ProfileInput spec={spec} path="retrain.every_runs" onChange={setProfile} />
                     <ProfileInput spec={spec} path="retrain.drift_threshold" onChange={setProfile} />
