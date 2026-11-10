@@ -4,7 +4,7 @@ const REBUILD = 'Changing this needs a rebuild';
 export function MoneyRuleFields({ draft, set, setRate, locked = [] }) {
   const lock = (field) => locked.includes(field);
   const note = (field) => (lock(field) ? <span className="rebuild-note" data-money-rebuild={field}>{REBUILD}</span> : null);
-  const input = (field, props) => <input disabled={lock(field)} {...props} />;
+  const input = (field, props) => <input dir="auto" disabled={lock(field)} {...props} />;
   return (
     <div data-money-fields>
       <label className="check"><input type="checkbox" checked={draft.off} onChange={(e) => set({ off: e.target.checked })} data-money-off /> Off: show no money total, chart or Genie money answer</label>
@@ -46,8 +46,8 @@ export function MoneyRuleFields({ draft, set, setRate, locked = [] }) {
           )}
           {draft.rateSource === 'typed' && draft.rates.map((row, i) => (
             <div key={i} className="money-rate-row">
-              <input aria-label="Currency code"  value={row.code} onChange={(e) => setRate(i, { code: e.target.value })} data-money-rate-code />
-              <input aria-label="Rate in base currency"  value={row.rate} onChange={(e) => setRate(i, { rate: e.target.value })} data-money-rate />
+              <input dir="auto" aria-label="Currency code"  value={row.code} onChange={(e) => setRate(i, { code: e.target.value })} data-money-rate-code />
+              <input dir="auto" aria-label="Rate in base currency"  value={row.rate} onChange={(e) => setRate(i, { rate: e.target.value })} data-money-rate />
               <button type="button" className="lnk" onClick={() => set({ rates: draft.rates.filter((_, at) => at !== i) })}>Remove</button>
             </div>
           ))}
