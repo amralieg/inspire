@@ -86,9 +86,12 @@ def test_merge_source_has_one_row_per_session_and_use_case(agent_ns):
 def test_merge_failure_is_raised_and_the_view_is_still_dropped(agent_ns):
     spark = FakeSpark(fail_on="MERGE INTO")
     inst = _tracking_inst(agent_ns, spark)
+    waits = []
+    inst._write_conflict_sleep = waits.append
     with pytest.raises(RuntimeError, match="CONCURRENT"):
         inst._merge_regenerated_ucs_into_tracking([dict(make_uc(), _source_session_id=7, genie_instruction="x" * 200)])
     assert spark.dropped == ["_inspire_genie_regen_4242_1"]
+    assert len(waits) == agent_ns["inspire_write_conflict_attempts"]() - 1 and all(w > 0 for w in waits)
 
 
 def test_regeneration_flags_reset_in_the_same_statement_not_a_second_update():

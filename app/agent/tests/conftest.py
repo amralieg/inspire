@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import sys
+import tempfile
 import types
 
 import pytest
@@ -9,6 +10,12 @@ import pytest
 HERE = os.path.dirname(os.path.abspath(__file__))
 if HERE not in sys.path:
     sys.path.insert(0, HERE)
+
+for _name in [name for name in os.environ if name.startswith(("DATABRICKS_", "ARM_", "AZURE_", "GOOGLE_CREDENTIALS"))]:
+    del os.environ[_name]
+ISOLATED_DATABRICKS_CONFIG = os.path.join(tempfile.mkdtemp(prefix="inspire-tests-"), "databrickscfg")
+open(ISOLATED_DATABRICKS_CONFIG, "w").close()
+os.environ["DATABRICKS_CONFIG_FILE"] = ISOLATED_DATABRICKS_CONFIG
 
 import _agentload  # noqa: E402
 
