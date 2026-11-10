@@ -1,5 +1,7 @@
 """A money KPI over rows in several currencies is never one summed number: the App reads each currency's total, offline."""
 import os
+import datetime
+import re
 import sqlite3
 import sys
 
@@ -12,18 +14,27 @@ if SERVER not in sys.path:
 
 import shell_sql  # noqa: E402
 
+CLOSED = "2025-01-01"
 ROWS = [
-    {"value_at_stake": 100.0, "currency_code": "AED", "channel": "web"},
-    {"value_at_stake": 25.0, "currency_code": "AED", "channel": "web"},
-    {"value_at_stake": 50.0, "currency_code": "USD", "channel": "web"},
-    {"value_at_stake": 10.0, "currency_code": "AED", "channel": "agent"},
+    {"value_at_stake": 100.0, "currency_code": "AED", "channel": "web", "event_month": CLOSED},
+    {"value_at_stake": 25.0, "currency_code": "AED", "channel": "web", "event_month": CLOSED},
+    {"value_at_stake": 50.0, "currency_code": "USD", "channel": "web", "event_month": CLOSED},
+    {"value_at_stake": 10.0, "currency_code": "AED", "channel": "agent", "event_month": CLOSED},
 ]
 
 PAGE = {
     "id": "n04_u05",
-    "datasets": [{"name": "rows", "sql": "SELECT value_at_stake, currency_code, channel FROM stake_rows"}],
+    "datasets": [{"name": "rows", "sql": "SELECT value_at_stake, currency_code, channel, event_month FROM stake_rows"}],
     "filters": [{"id": "currency", "label": "Currency", "type": "multi_select", "columns": {"rows": "currency_code"}},
-                {"id": "channel", "label": "Sales channel", "type": "multi_select", "columns": {"rows": "channel"}}],
+                {"id": "channel", "label": "Sales channel", "type": "multi_select", "columns": {"rows": "channel"}},
+                {"id": "ticket_month", "label": "Ticket month", "type": "date_range", "grain": "month", "default": "12m",
+                 "columns": {"rows": "event_month"}}],
+    "charts": [
+        {"id": "monthly", "dataset": "rows", "type": "line", "x": {"column": "event_month", "kind": "time"},
+         "y": [{"expression": "SUM(value_at_stake)", "format": "currency", "currency": "USD"}]},
+        {"id": "by_channel", "dataset": "rows", "type": "horizontal_bar", "x": {"column": "channel", "kind": "category"},
+         "y": [{"expression": "SUM(value_at_stake)", "format": "currency", "currency": "USD"}]},
+    ],
     "kpis": [
         {"id": "exposure", "label": "Revenue at stake", "dataset": "rows", "expression": "SUM(value_at_stake)",
          "format": "currency", "currency": "USD", "good": "down"},
@@ -34,9 +45,13 @@ PAGE = {
 
 def _run(sql):
     db = sqlite3.connect(":memory:")
-    db.execute("CREATE TABLE stake_rows (value_at_stake REAL, currency_code TEXT, channel TEXT)")
-    db.executemany("INSERT INTO stake_rows VALUES (?, ?, ?)", [(r["value_at_stake"], r["currency_code"], r["channel"]) for r in ROWS])
-    cursor = db.execute(sqlglot.transpile(sql, read="databricks", write="sqlite")[0])
+    db.execute("CREATE TABLE stake_rows (value_at_stake REAL, currency_code TEXT, channel TEXT, event_month TEXT)")
+    db.executemany("INSERT INTO stake_rows VALUES (?, ?, ?, ?)",
+                   [(r["value_at_stake"], r["currency_code"], r["channel"], r["event_month"]) for r in ROWS])
+    text = sqlglot.transpile(sql, read="databricks", write="sqlite")[0]
+    text = re.sub(r"(TIMESTAMP_TRUNC|DATE_TRUNC)\(\s*(CURRENT_DATE\s*,\s*MONTH|'?MONTH'?\s*,\s*CURRENT_DATE)\s*\)",
+                  "date('now', 'start of month')", text, flags=re.I)
+    cursor = db.execute(text)
     names = [c[0] for c in cursor.description]
     return [dict(zip(names, row)) for row in cursor.fetchall()]
 
@@ -84,3 +99,62 @@ def test_genie_is_told_never_to_add_amounts_in_different_currencies(agent_ns):
     rule = agent_ns["genie_value_at_stake_rule"]("predicted")
     assert "Amounts in different currencies are never added together" in rule
     assert "no total is given across currencies unless every row shares one currency" in rule
+
+
+def _with_rows(extra):
+    global ROWS
+    saved = list(ROWS)
+    ROWS = saved + extra
+    try:
+        return _run
+    finally:
+        ROWS = saved
+
+
+def test_a_row_without_a_date_is_left_out_of_every_money_total():
+    rows = [{"value_at_stake": 1000.0, "currency_code": "AED", "channel": "web", "event_month": None}]
+    saved = list(ROWS)
+    ROWS[:] = saved + rows
+    try:
+        got = _run(shell_sql.kpi_query(PAGE, "exposure", {})[0])
+    finally:
+        ROWS[:] = saved
+    assert {(r["currency"], r["value"]) for r in got} == {("AED", 135.0), ("USD", 50.0)}
+
+
+def test_the_running_period_is_not_compared_as_a_full_month_and_future_rows_never_count():
+    this_month = datetime.date.today().replace(day=1).isoformat()
+    saved = list(ROWS)
+    ROWS[:] = saved + [
+        {"value_at_stake": 700.0, "currency_code": "AED", "channel": "web", "event_month": this_month},
+        {"value_at_stake": 800.0, "currency_code": "AED", "channel": "web", "event_month": "2099-01-01"},
+    ]
+    try:
+        got = _run(shell_sql.kpi_query(PAGE, "exposure", {})[0])
+    finally:
+        ROWS[:] = saved
+    assert {(r["currency"], r["value"]) for r in got} == {("AED", 135.0), ("USD", 50.0)}
+
+
+def test_a_money_line_chart_draws_one_series_per_currency():
+    got = _run(shell_sql.chart_query(PAGE, "monthly", {})[0])
+    assert {(r["x"], r["s"], r["y0"]) for r in got} == {(CLOSED, "AED", 135.0), (CLOSED, "USD", 50.0)}
+
+
+def test_a_money_bar_chart_names_each_currency_in_its_bars_label():
+    got = _run(shell_sql.chart_query(PAGE, "by_channel", {})[0])
+    assert {(r["x"], r["y0"]) for r in got} == {("web · AED", 125.0), ("web · USD", 50.0), ("agent · AED", 10.0)}
+
+
+def test_genie_answers_within_the_page_window_and_says_which_window_it_used(agent_ns):
+    rule = agent_ns["genie_value_at_stake_rule"]("predicted")
+    assert "Answer within the page's default window, the closed periods of the last 12 months" in rule
+    assert "give all-time totals only when the question asks for them, saying so" in rule
+
+
+def test_the_page_writer_is_told_money_never_adds_currencies_and_windows_skip_undated_rows():
+    notebook = os.path.join(ROOT, "agent", "dbx_inspire_ai_agent.ipynb")
+    with open(notebook, encoding="utf-8") as handle:
+        text = handle.read()
+    assert "a currency KPI or chart never adds amounts of different currencies" in text
+    assert "so filter `<date> IS NOT NULL` inside the dataset first" in text

@@ -2397,28 +2397,50 @@ def _item(page: dict, key: str, ident: str) -> dict:
 
 
 CURRENCY_FILTER = "currency"
+PERIOD_GRAINS = ("week", "month", "quarter", "year")
+MONEY_SERIES_CHARTS = ("line", "area", "stacked_area", "stacked_bar", "band", "control", "heatmap")
+
+
+def money_scope(page: dict, dataset: str) -> dict:
+    """The one rule every money total follows: the currency column, and the event period the rows are kept to."""
+    currency = next((column for f in page.get("filters") or [] if f.get("id") == CURRENCY_FILTER
+                     for column in [(f.get("columns") or {}).get(dataset)] if column), "")
+    period, grain = "", ""
+    for f in page.get("filters") or []:
+        column = (f.get("columns") or {}).get(dataset)
+        if column and f.get("type") == "date_range" and f.get("grain") in PERIOD_GRAINS:
+            period, grain = column, f["grain"]
+            break
+    return {"currency": currency, "period": period, "grain": grain}
+
+
+def money_source(page: dict, dataset: str, sql: str) -> str:
+    """Rows a money total may add: a dated row in a period that has closed. Rows without a date and the period still running are left out."""
+    scope = money_scope(page, dataset)
+    if not scope["period"]:
+        return sql
+    column = quote(scope["period"])
+    return (f"SELECT * FROM ({sql}) AS m WHERE {column} IS NOT NULL "
+            f"AND {column} < date_trunc('{scope['grain']}', current_date())")
 
 
 def money_currency_column(page: dict, kpi: dict) -> str:
-    if kpi.get("format") != "currency":
-        return ""
-    for f in page.get("filters") or []:
-        column = (f.get("columns") or {}).get(kpi["dataset"])
-        if f.get("id") == CURRENCY_FILTER and column:
-            return column
-    return ""
+    return money_scope(page, kpi["dataset"])["currency"] if kpi.get("format") == "currency" else ""
 
 
 def kpi_query(page: dict, ident: str, values: dict, previous: str = None) -> tuple:
     kpi = _item(page, "kpis", ident)
-    sql, params = _dataset(page, kpi["dataset"]), _Params()
+    money = kpi.get("format") == "currency"
+    dataset = _dataset(page, kpi["dataset"])
+    sql, params = (money_source(page, kpi["dataset"], dataset) if money else dataset), _Params()
     where = _where(page, kpi["dataset"], values, params)
     by = money_currency_column(page, kpi)
     split = f", {quote(by)} AS currency" if by else ""
     group = f" GROUP BY {quote(by)}" if by else ""
     text = f"SELECT 'now' AS period{split}, {kpi['expression']} AS value FROM ({sql}) AS d{where}{group}"
     if kpi.get("compare") and previous:
-        text += (f" UNION ALL SELECT 'before' AS period{split}, {previous_value(kpi['expression'])} AS value FROM ({previous}) AS d{where}"
+        previous_sql = money_source(page, kpi["dataset"], previous) if money else previous
+        text += (f" UNION ALL SELECT 'before' AS period{split}, {previous_value(kpi['expression'])} AS value FROM ({previous_sql}) AS d{where}"
                  f"{group}")
     return f"{text} LIMIT {CAPS['kpi_rows']}", params.items
 
@@ -2466,17 +2488,17 @@ def kpi_split_query(page: dict, ident: str, filter_ident: str, values: dict, lim
     split = split_filter_named(page, kpi["dataset"], filter_ident)
     if split is None:
         raise ValueError(split_choices_text(page, kpi["dataset"]))
-    chart = {"id": "split", "dataset": kpi["dataset"], "type": "bar", "limit": limit,
-             "x": {"column": split["columns"][kpi["dataset"]], "kind": "category"}, "y": [{"expression": kpi["expression"]}]}
-    by = money_currency_column(page, kpi)
-    if by:
-        chart["series"] = {"column": by}
+    chart = {"id": "split", "dataset": kpi["dataset"], "type": "stacked_bar", "limit": limit,
+             "x": {"column": split["columns"][kpi["dataset"]], "kind": "category"},
+             "y": [{"expression": kpi["expression"], "format": kpi.get("format")}]}
     return chart_query(dict(page, charts=[chart]), "split", values)
 
 
 def chart_query(page: dict, ident: str, values: dict) -> tuple:
     chart = _item(page, "charts", ident)
-    sql, params = _dataset(page, chart["dataset"]), _Params()
+    money = any(y.get("format") == "currency" for y in chart["y"])
+    dataset = _dataset(page, chart["dataset"])
+    sql, params = (money_source(page, chart["dataset"], dataset) if money else dataset), _Params()
     where = _where(page, chart["dataset"], values, params)
     ys = ", ".join(f"{y['expression']} AS y{i}" for i, y in enumerate(chart["y"]))
     if chart["type"] == "scatter":
@@ -2485,9 +2507,19 @@ def chart_query(page: dict, ident: str, values: dict) -> tuple:
                 f"GROUP BY {group} LIMIT {int(chart.get('limit', 200))}")
         return text, params.items
     x = quote(chart["x"]["column"])
-    series = chart.get("series")
-    keys = f"{x} AS x" + (f", CAST({quote(series['column'])} AS STRING) AS s" if series else "")
-    group = x + (f", {quote(series['column'])}" if series else "")
+    series = quote(chart["series"]["column"]) if chart.get("series") else None
+    by = money_scope(page, chart["dataset"])["currency"] if money else ""
+    if by:
+        cur = quote(by)
+        if series is None:
+            if chart["type"] in MONEY_SERIES_CHARTS or chart["x"].get("kind") == "time":
+                series = cur
+            else:
+                x = f"concat_ws(' · ', CAST({x} AS STRING), CAST({cur} AS STRING))"
+        elif series != cur:
+            series = f"concat_ws(' · ', CAST({series} AS STRING), CAST({cur} AS STRING))"
+    keys = f"{x} AS x" + (f", CAST({series} AS STRING) AS s" if series else "")
+    group = x + (f", {series}" if series else "")
     if chart["type"] == "pareto":
         text = (f"SELECT x, y0, SUM(y0) OVER () AS total FROM (SELECT {keys}, {ys} FROM ({sql}) AS d{where} GROUP BY {group}) AS g "
                 f"ORDER BY y0 DESC NULLS LAST LIMIT {int(chart.get('limit', 25))}")
