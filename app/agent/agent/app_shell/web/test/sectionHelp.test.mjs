@@ -137,6 +137,7 @@ test('the target sits under Measurement in the shared settings row: Change, Save
   await goRail(page, 'settings');
   const row = page.locator('[data-setting="kpi_target_value"]');
   await row.waitFor({ state: 'visible' });
+  assert.equal(await page.locator('[data-group="impact"] [data-setting="kpi_target_value"]').count(), 0, 'the target is not under How the impact is worked out');
   assert.match(await page.locator('[data-kpi-gap]').textContent(), /10 hours to go/);
   await row.getByRole('button', { name: 'Change Target for the KPI' }).click();
   await page.locator('input[name="setting_kpi_target_value"]').fill('80');
