@@ -226,14 +226,14 @@ def test_the_leak_scan_reads_a_compressed_json_payload_as_its_strings_not_its_es
     release = release_tool.load("rc_release")
     noise = random.Random(1).randbytes(8000).hex()
     image = base64.b64encode(b"\x89PNG\x00\x00leaky-word" + bytes(range(256)) * 40).decode("ascii")
-    payload = {"files": {"server.py": "app = App()\n\n@app.get(\"/\")\ndef index():\n    return 1\n", "noise.txt": noise},
+    payload = {"files": {"server.py": "app = App()\n\n" + "@app.get(\"/\")\ndef index():\n    return 1\n", "noise.txt": noise},
                "binary": {"static/logo.png": image}}
     clean = zlib.compress(json.dumps(payload).encode("utf-8"), 9)
     assert release.leak_scan(_release(release_tool.root / "work" / "j" / "release", _blob(clean)), "notes") == []
-    payload["files"]["notes.txt"] = "write to someone@leaky.example"
+    payload["files"]["notes.txt"] = "write to someone@example.com"
     leaky = zlib.compress(json.dumps(payload).encode("utf-8"), 9)
     hits = release.leak_scan(_release(release_tool.root / "work" / "k" / "release", _blob(leaky)), "notes")
-    assert len(hits) == 1 and "someone@leaky.example" in hits[0]
+    assert len(hits) == 1 and "someone@example.com" in hits[0]
 
 
 @pytest.mark.parametrize("argv, message", [

@@ -136,13 +136,23 @@ jobs:
           SHARD: ${{ matrix.shard }}
           SHARDS: "10"
         run: |
-          mapfile -t all < <(cd tests/unit && ls -1 *_test.py | LC_ALL=C sort)
-          files=()
-          for i in "${!all[@]}"; do
-            if (( i % SHARDS == SHARD )); then files+=("tests/unit/${all[$i]}"); fi
-          done
-          echo "shard $SHARD/$SHARDS: ${#files[@]} of ${#all[@]} files"
-          python -m pytest -q -rfE -p no:cacheprovider --timeout=600 --durations=15 -o faulthandler_timeout=25 "${files[@]}"
+          mapfile -t files < <(python - <<'PY'
+          import json, os, statistics, sys
+          seconds = json.load(open(os.path.join(os.environ["GITHUB_WORKSPACE"], ".github", "python-unit-seconds.json")))
+          names = sorted(n for n in os.listdir("tests/unit") if n.endswith("_test.py"))
+          default = statistics.median(seconds.values())
+          bins = [[0.0, i, []] for i in range(int(os.environ["SHARDS"]))]
+          for name in sorted(names, key=lambda n: (-seconds.get(n, default), n)):
+              low = min(bins, key=lambda b: (b[0], b[1]))
+              low[0] += seconds.get(name, default)
+              low[2].append(name)
+          shard = bins[int(os.environ["SHARD"])]
+          print(f"shard {os.environ['SHARD']}: {len(shard[2])} of {len(names)} files, {shard[0]:.0f} s measured", file=sys.stderr)
+          print("\n".join(f"tests/unit/{n}" for n in sorted(shard[2])))
+          PY
+          )
+          (( ${#files[@]} )) || { echo "::error::no test files for shard $SHARD"; exit 1; }
+          python -m pytest -q -rfE -p no:cacheprovider --timeout=600 --durations=0 --durations-min=0.05 -o faulthandler_timeout=25 "${files[@]}"
 
   installer:
     name: installer suite

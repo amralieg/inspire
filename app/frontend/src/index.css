@@ -125,11 +125,15 @@ body {
 }
 
 @layer base {
-  :focus-visible {
-    outline: 2px solid var(--color-db-red-fg);
+  * {
+    outline-width: 2px;
+    outline-color: var(--color-db-red-fg);
     outline-offset: 2px;
   }
-  :is(.overflow-hidden, .overflow-auto, .overflow-x-auto, .overflow-y-auto, .overflow-x-hidden, .overflow-y-hidden, .overflow-clip) :focus-visible:not([type=checkbox], [type=radio]) {
+  :focus-visible {
+    outline-style: solid;
+  }
+  :is(.overflow-hidden, .overflow-auto, .overflow-x-auto, .overflow-y-auto, .overflow-x-hidden, .overflow-y-hidden, .overflow-clip) :not([type=checkbox], [type=radio]) {
     outline-color: currentColor;
     outline-offset: -4px;
   }

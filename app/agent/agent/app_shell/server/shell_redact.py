@@ -2,6 +2,7 @@ import re as _redact_re
 import types as _redact_types
 import dis as _redact_dis
 import datetime as _redact_datetime
+import functools as _redact_functools
 
 INSPIRE_SECRET_TOKEN_RE = _redact_re.compile(r"\bdapi[0-9a-f]{16,}\b|\beyJ[\w-]{8,}\.[\w-]{8,}\.[\w-]+|(?<=Bearer )[\w.~+/=-]{8,}", _redact_re.IGNORECASE)
 INSPIRE_SECRET_HOST_RE = _redact_re.compile(r"(https?://)[^\s/'\"<>]*[^\s/'\"<>.,;:!?)]", _redact_re.IGNORECASE)
@@ -23,7 +24,7 @@ def inspire_redact_secrets(text, secrets=(), keep=(), marks=("<redacted>", "<hos
 
 
 _REDACT_DENIAL_RE = _redact_re.compile(
-    r"(?:(?:Principal|User)\s+(?:'(?P<who>[^']+)'\s+)?)?does not have\s+(?:permission\s+)?(?P<what>[A-Z][A-Z_ ]*?)\s+(?:privilege\s+)?on\s+"
+    r"(?:(?:Principal|User)\s+(?:'(?P<who>[^']+)'\s+)?)?does not have\s+(?:permission\s+)?(?P<what>[A-Z][A-Z_ ]{0,80}?)\s+(?:privilege\s+)?on\s+"
     r"(?P<kind>\w+)\s+(?:'(?P<quoted>[^']+)'|(?P<ticked>`[^`]+`(?:\.`[^`]+`)*)|(?P<plain>[\w.]+))", _redact_re.IGNORECASE)
 
 
@@ -131,8 +132,46 @@ def _redact_spark_value_re(fragment: str):
 _REDACT_SPARK_VALUE_RES = tuple(_redact_spark_value_re(fragment) for _classes, fragment in INSPIRE_SPARK_VALUE_TEMPLATES)
 
 
-def _redact_in_text(value: str, text: str) -> bool:
-    return bool(_redact_re.search(rf"(?<!\w){_redact_re.escape(value)}(?!\w)", text))
+def _redact_word_at(text: str, index: int) -> bool:
+    return 0 <= index < len(text) and (text[index].isalnum() or text[index] == "_")
+
+
+_REDACT_WORD_RUN_RE = _redact_re.compile(r"\w+")
+
+
+def _redact_word_positions(text: str) -> dict:
+    index = {}
+    for found in _REDACT_WORD_RUN_RE.finditer(text):
+        index.setdefault(found.group(0), []).append(found.start())
+    return index
+
+
+@_redact_functools.lru_cache(maxsize=8)
+def _redact_word_index(text: str) -> dict:
+    return _redact_word_positions(text)
+
+
+def _redact_in_text(value: str, text: str, index=None) -> bool:
+    if not value:
+        return bool(_redact_re.search(r"(?<!\w)(?!\w)", text))
+    lead = _REDACT_WORD_RUN_RE.match(value)
+    if lead is not None and index is not None:
+        starts = index.get(lead.group(0), ())
+        if lead.end() == len(value):
+            return bool(starts)
+        return any(text.startswith(value, start) and not _redact_word_at(text, start + len(value)) for start in starts)
+    start = text.find(value)
+    while start >= 0:
+        if not _redact_word_at(text, start - 1) and not _redact_word_at(text, start + len(value)):
+            return True
+        start = text.find(value, start + 1)
+    return False
+
+
+def _redact_known(value: str, known: str, segments) -> bool:
+    if "\n" in value:
+        return _redact_in_text(value, known)
+    return any(_redact_in_text(value, part, index) for part, index in segments)
 
 
 _REDACT_CODE_WORDS = {}
@@ -214,10 +253,13 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
     positioned = [name for found in _REDACT_NAME_POSITION_RE.finditer(text) for part in found.groups() if part
                   for name in (_redact_re.findall(r"'([^'\n]*)'", part) if part.startswith("'") else [part])
                   if _REDACT_NAME_SHAPE_RE.fullmatch(name)]
-    known = "\n".join([str(known or ""), *named, *positioned,
-                       *(part for pattern in (_REDACT_FRAME_RE, _REDACT_NUMBERED_FRAME_RE, _REDACT_AT_FRAME_RE, _REDACT_PY_NAME_RE, _REDACT_SPARK_NAME_RE)
-                         for found in pattern.finditer(text) for part in found.groups() if part),
-                       *(found.group(1) for found in _REDACT_KEY_ERROR_RE.finditer(text) if found.group(1) in _redact_code_words())])
+    base = str(known or "")
+    found_here = "\n".join([*named, *positioned,
+                            *(part for pattern in (_REDACT_FRAME_RE, _REDACT_NUMBERED_FRAME_RE, _REDACT_AT_FRAME_RE, _REDACT_PY_NAME_RE, _REDACT_SPARK_NAME_RE)
+                              for found in pattern.finditer(text) for part in found.groups() if part),
+                            *(found.group(1) for found in _REDACT_KEY_ERROR_RE.finditer(text) if found.group(1) in _redact_code_words())])
+    known = "\n".join([base, found_here]) if found_here else base
+    segments = ((base, _redact_word_index(base)), (found_here, _redact_word_positions(found_here)))
 
     def spark(match):
         out, last = [], match.start()
@@ -226,7 +268,7 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
             value = match.group(group)
             mark = value[0] if len(value) > 1 and value[0] == value[-1] and value[0] in "'\"" else ""
             bare = value.strip("'\"`")
-            out += [match.string[last:start], value if _redact_in_text(bare, known) or _redact_code_value(bare)
+            out += [match.string[last:start], value if _redact_known(bare, known, segments) or _redact_code_value(bare)
                     else f"{mark}{INSPIRE_REDACTED_VALUE}{mark}"]
             last = end
         return "".join(out) + match.string[last:match.end()]
@@ -238,7 +280,7 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
         mark, inner = match.group(0)[0], match.group(1)
         if mark == '"' and _REDACT_SINGLE_QUOTED_RE.search(inner) and _REDACT_EXCEPTION_LEAD_RE.search(match.string[max(0, match.start() - 80):match.start()]):
             return match.group(0)
-        if not inner.strip() or _redact_in_text(inner, known) or (mark == '"' and (
+        if not inner.strip() or _redact_known(inner, known, segments) or (mark == '"' and (
                 _REDACT_SQL_TYPE_RE.fullmatch(inner.strip()) or _REDACT_SPARK_SETTING_RE.fullmatch(inner.strip())
                 or any(start <= match.start() < end for start, end in messages))) or _redact_code_value(inner):
             return match.group(0)
@@ -247,7 +289,7 @@ def inspire_redact_text(text, seen, known: str, secrets=()) -> str:
     text = _REDACT_SINGLE_QUOTED_RE.sub(quoted, text)
     messages = [found.span() for found in _REDACT_SPARK_MESSAGE_RE.finditer(text)]
     text = _REDACT_DOUBLE_QUOTED_RE.sub(quoted, text)
-    hidden = [v for v in set(seen) if v in text and not _redact_in_text(v, known) and not _redact_in_text(v, INSPIRE_REDACTED_VALUE)
+    hidden = [v for v in set(seen) if v in text and not _redact_known(v, known, segments) and not _redact_in_text(v, INSPIRE_REDACTED_VALUE)
               and not _redact_code_value(v)]
     for value in sorted(hidden, key=len, reverse=True):
         if len(value) >= 4 or (len(value) >= 2 and not value.replace(".", "").replace("-", "").isdigit()):
