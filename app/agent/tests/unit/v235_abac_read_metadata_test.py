@@ -50,8 +50,9 @@ def test_a_service_principal_denied_the_abac_read_is_refused_with_its_name_and_t
     with pytest.raises(agent_ns["ImplementStopped"]) as stop:
         inst._implement_protection_gate(context, [])
     reason = str(stop.value)
-    assert reason.startswith(f"Inspire did not publish. The App's service principal {APP} cannot read the access policies of {SOURCE}")
-    assert f"owner@example.com or a manager of {SOURCE} can run the GRANT shown under Details" in reason
+    assert reason.startswith(f"Inspire did not publish. The App's service principal {APP} cannot read the access policies of the source table")
+    assert "The table owner or a manager can run the GRANT shown under Details" in reason
+    assert SOURCE not in reason and "owner@example.com" not in reason, "the sentence names no table id or owner email; the GRANT sits under Details"
     assert "`" not in reason and GRANT not in reason
     assert context["asset_status"]["protection"]["sql"] == [f"{GRANT};"]
     assert "would show rows" not in reason
@@ -150,4 +151,5 @@ def test_a_samples_catalog_denial_says_it_is_built_in_and_to_copy_the_table(agen
     sample = "samples.bakehouse.sales_transactions"
     text = agent_ns["implement_abac_denied_sentence"]({"table": sample, "principal": APP, "statement": "", "owner": "System user"})
     assert "built-in sample catalog that Databricks owns" in text and "CREATE TABLE ... AS SELECT" in text
+    assert sample not in text, "the sentence names no table id"
     assert "`" not in text and "GRANT" not in text
