@@ -364,7 +364,7 @@ test('create-schema runs one CREATE with the person token, refuses a bad name or
   });
 });
 
-test('Let Inspire read these tables grants READ METADATA on a source only when the person can manage it, and names the owner otherwise (349060d3)', async () => {
+test('Let Inspire read these tables grants every App read grant on a source only when the person can manage it, and names the owner otherwise (349060d3)', async () => {
   const grants = [];
   const { live, overrides } = split(PERSON_READS, { onGrant: (sql, token) => grants.push([sql, token]) });
   live.appReads = true;
@@ -374,6 +374,7 @@ test('Let Inspire read these tables grants READ METADATA on a source only when t
     assert.deepEqual(grants, [], 'a person who cannot manage the table grants nothing');
     assert.equal(got.data.granted, 0);
     assert.deepEqual(got.data.abac_gaps, [{ table: 'main.s.orders', owner: 'data-eng',
-      grants: ['GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`'] }]);
+      grants: ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`',
+        'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`'] }]);
   });
 });

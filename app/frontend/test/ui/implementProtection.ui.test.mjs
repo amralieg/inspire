@@ -11,6 +11,9 @@ const PERSON = 'person-tok';
 const SOURCE = 'main.s.orders';
 const REASON = `The App's service principal inspire-manual cannot read the access policies of ${SOURCE}, so Inspire cannot tell whether the results keep them`;
 const RAW = "Principal 'app-sp-id' does not have READ METADATA on Table main.s.orders";
+const CATALOG = 'GRANT USE CATALOG ON CATALOG `main` TO `app-sp-id`';
+const SCHEMA = 'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`';
+const SELECT = 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`';
 const METADATA = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`';
 const row = (level, privilege, principal, mine) => ({ level, privilege, principal, mine: String(mine), me: OWNER });
 const OWNS = [row('catalog', 'OWNER', OWNER, true), row('schema', 'OWNER', 'data-eng', false), row('table', 'OWNER', 'data-eng', false)];
@@ -54,8 +57,8 @@ test('a build stopped by a denied policy read shows the reason, Details with the
     assert.equal(await details.count(), 1, 'the raw error sits under Details');
     assert.equal(await details.locator('p').textContent(), RAW);
     await banner.getByRole('button', { name: APP_READ_ACTION, exact: true }).click();
-    await page.locator('[data-protection-copy]').getByText('Inspire granted 1 grant with your sign-in', { exact: false }).waitFor({ timeout: 15000 });
-    assert.deepEqual(live.grants, [[METADATA, PERSON]], 'only the person token grants, and only READ METADATA on the source');
+    await page.locator('[data-protection-copy]').getByText('Inspire granted 4 grants with your sign-in', { exact: false }).waitFor({ timeout: 15000 });
+    assert.deepEqual(live.grants, [[CATALOG, PERSON], [SCHEMA, PERSON], [SELECT, PERSON], [METADATA, PERSON]], 'only the person token grants what the App needs on the source');
     // The build resubmitted after the grant answers 400 on the harness fixture; it is not a page error of the grant flow.
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 400/.test(e)), []);
   } finally {

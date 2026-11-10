@@ -129,3 +129,13 @@ def test_the_refusal_names_the_unread_table_without_claiming_rows_are_hidden(age
         "grant": []}
     reason = agent_ns["implement_protection_refusal"](plan)
     assert "would show rows" not in reason and "Press Check again" in reason
+
+
+def test_a_denied_source_is_refused_in_the_preflight_before_any_preview_or_publish_work(agent_ns):
+    rows = _rows("owner@example.com", "OWNER", False)
+    inst, context = _gate(agent_ns, api=_denies_source, rows=rows)
+    with pytest.raises(agent_ns["ImplementStopped"]) as stop:
+        inst._implement_source_protection(context["key"], context["spec"], context["use_case"], context["asset_status"], [])
+    assert str(stop.value).startswith("Inspire did not publish. The App's service principal")
+    record = context["asset_status"]["protection"]
+    assert record["tables"] == [SOURCE] and record["check"] is True

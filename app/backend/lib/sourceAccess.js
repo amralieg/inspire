@@ -62,7 +62,8 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     const who = await appIdentity(req, await appTokenOf(req));
     if (!tables.length || !who.id) return { grants: [], gaps: [] };
     const rows = await Promise.all(tables.map((t) => accessRowsOf(req, token, warehouseId, t)));
-    const plans = tables.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs: I.IMPLEMENT_ABAC_READ_NEEDS }));
+    const needs = [...I.IMPLEMENT_READ_NEEDS, ...I.IMPLEMENT_ABAC_READ_NEEDS];
+    const plans = tables.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs }));
     return {
       grants: [...new Set(plans.flatMap((p) => p.grants.map((g) => I.grantSql(g, who.id))))],
       gaps: tables.flatMap((table, i) => (plans[i].gaps.length
