@@ -1,6 +1,6 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AGENT_CHANGED, EMPTY_LOOK, lookChart } from './agentView.js';
-import { getOverview, getPage } from './api.js';
+import { WAITING_FOR_ACCESS_CODE, getOverview, getPage } from './api.js';
 import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
 import { dayLabel } from './format.js';
 import { filterWords } from './explain.js';
@@ -31,6 +31,7 @@ import { FIX_TIERS, hubView, reasonFilters, useCaseState } from './hub.js';
 import { inboxOn } from './inbox.js';
 import { useInbox } from './Inbox.jsx';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
+import WaitingForAccess from './WaitingForAccess.jsx';
 import WorkPage from './WorkPage.jsx';
 import { RetryProvider, Skeleton } from './ui.jsx';
 import ModeView from './ModeView.jsx';
@@ -49,6 +50,7 @@ export function usePageData(pageId, state, ready, nonce = 0, sorts = null) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
+  const [waiting, setWaiting] = useState(null);
   const seq = useRef(0);
   const key = JSON.stringify({ filters: apiValues(state), tables: apiTables(state), sorts: sorts || {} });
   useEffect(() => {
@@ -58,13 +60,17 @@ export function usePageData(pageId, state, ready, nonce = 0, sorts = null) {
     const timer = setTimeout(() => {
       const asked = JSON.parse(key);
       getPage(pageId, asked.filters, asked.tables, asked.sorts)
-        .then((d) => { if (mine === seq.current) { setData(d); setError(''); } })
-        .catch((e) => { if (mine === seq.current) setError(e.message); })
+        .then((d) => { if (mine === seq.current) { setData(d); setError(''); setWaiting(null); } })
+        .catch((e) => {
+          if (mine !== seq.current) return;
+          if (e.code === WAITING_FOR_ACCESS_CODE) setWaiting(e.detail || { message: e.message, tables: [] });
+          else setError(e.message);
+        })
         .finally(() => { if (mine === seq.current) setBusy(false); });
     }, 120);
     return () => clearTimeout(timer);
   }, [pageId, key, ready, nonce]);
-  return { data, busy, error };
+  return { data, busy, error, waiting, recheck: () => setWaiting(null) };
 }
 
 function usePageHub(pageId, state, ready, nonce, on) {
@@ -114,7 +120,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     window.addEventListener(AGENT_CHANGED, changed);
     return () => window.removeEventListener(AGENT_CHANGED, changed);
   }, [page.id]);
-  const { data, busy, error } = usePageData(page.id, state, ready, nonce, sorts);
+  const { data, busy, error, waiting: waitingFor, recheck } = usePageData(page.id, state, ready, nonce, sorts);
   useEffect(() => { onTourFacts?.(page.id, tourFacts(page, data?.kpis, queue?.data)); }, [page, data?.kpis, queue?.data]);
   const live = usePageHub(page.id, state, ready, nonce, listed);
   const laidOut = isLaidOut(page);
@@ -287,6 +293,9 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       <p className="print-only print-filters">Filters: {describeFilters(state, meta?.filters, meta?.columns)}</p>
     </header>
   );
+  if (waitingFor) {
+    return <WaitingForAccess waiting={waitingFor} onCheck={() => { recheck(); setNonce((n) => n + 1); }} />;
+  }
   const body = (
     <div className={`page ${busy && data ? 'is-busy' : ''}`} style={hueVars(page.hue || 'blue')} aria-busy={busy} data-page-section={shown}>
       {head}

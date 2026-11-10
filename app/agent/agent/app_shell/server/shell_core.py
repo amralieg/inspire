@@ -2136,6 +2136,20 @@ class Shell:
         return result, at
 
     def handle(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
+        status, answer = self.dispatch(method, path, query, headers, body)
+        name = path.strip("/")
+        if status != 200 or not isinstance(answer, dict) or is_write_route(method, name) or answer.get("state") == "waiting_for_access":
+            return status, answer
+        errors = answer.get("errors") if isinstance(answer.get("errors"), dict) else {}
+        listed = [item.get("error") for item in answer.get("filters") or [] if isinstance(item, dict)]
+        refused = [text for text in list(errors.values()) + listed + ([answer["error"]] if isinstance(answer.get("error"), str) else [])
+                   if isinstance(text, str) and text]
+        if refused and all(NO_ACCESS.search(text) or text.startswith("No access to ") for text in refused) \
+                and not any(answer.get(k) for k in ("kpis", "charts", "rows", "runs")):
+            return 200, waiting_for_access_body("; ".join(refused))
+        return status, answer
+
+    def dispatch(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
         status, answer = self.answer(method, path, query, headers, body)
         return status, shell_sql.plain_answer(answer)
 

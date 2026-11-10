@@ -68,7 +68,7 @@ def test_every_read_route_answers_the_waiting_state_under_a_refusal_never_a_502(
         assert status != 502, (method, name, answer)
         if status == 200 and isinstance(answer, dict) and answer.get("state") == "waiting_for_access":
             waiting.append((method, name))
-    assert {n for _m, n in waiting} >= {"overview", "summary", "trends", "money", "impact", "records/fields", "records/batches"}, waiting
+    assert {n for _m, n in waiting} >= {"overview", "summary", "trends", "money", "impact", "records/fields", "records/batches", "page", "defaults", "runs", "filters"}, waiting
 
 
 def test_writes_keep_their_current_refusal_and_non_permission_errors_stay_502(tmp_path):

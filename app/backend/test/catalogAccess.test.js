@@ -404,3 +404,25 @@ test('a built-in sample catalog the App cannot read is named as not shareable an
     assert.deepEqual(grants, [], 'nothing is granted on a system catalog');
   });
 });
+
+test('context and preflight give the same source verdict for a readable table, an unreadable policy read, and a built-in sample (one shared function)', async () => {
+  const verdict = async (overrides) => {
+    let out = null;
+    await withApp(overrides, async (url) => {
+      const context = await call(url, `/api/inspire/implement/context?${Q}`);
+      const preflight = await call(url, `/api/inspire/implement/preflight?${Q}&result_table=main.inspire.churn_out`);
+      out = { context: !context.data.app_unreadable, preflight: preflight.data.checks && preflight.data.checks.sources ? preflight.data.checks.sources.ok : null };
+    });
+    return out;
+  };
+  const readable = split(PERSON_OWNS);
+  readable.live.appReads = true;
+  assert.deepEqual(await verdict(readable.overrides), { context: true, preflight: true }, 'a readable table passes both');
+  const unreadable = split(PERSON_OWNS);
+  unreadable.live.appReads = true;
+  assert.deepEqual(await verdict({ ...unreadable.overrides, abacUnreadable: true }), { context: false, preflight: false }, 'an unreadable policy read refuses both');
+  const sample = split(PERSON_OWNS);
+  sample.live.appReads = true;
+  const samples = { ...sample.overrides, abacUnreadable: true, useCase: { ...sample.overrides.useCase, primary_table: 'samples.bakehouse.sales_transactions', tables_involved: 'samples.bakehouse.sales_transactions' } };
+  assert.deepEqual(await verdict(samples), { context: false, preflight: false }, 'a built-in sample refuses both, so the build button cannot pass where context refuses');
+});

@@ -521,8 +521,7 @@ function registerImplementRoutes(app, deps) {
       if (!useCase) return res.status(404).json({ error: `No use case ${useCaseId} in this session.` });
       const latest = history[0] || null;
       const ownSchema = latest ? null : await useCaseSchemaOf(req, warehouseId, `${catalog}.${schema}`, sid, useCaseId, session.business_name);
-      const { missing, app_unreadable: appUnreadable } = await sourceAccess(req, warehouseId,
-        I.checkedSourceTables(latest && latest.spec_json, I.useCaseTables(useCase)));
+      const { missing, app_unreadable: appUnreadable } = await sourceVerdict(req, warehouseId, useCase, latest);
       const widgets = I.implementWidgets(history, useCase.genie_instruction || useCase.generate_genie_code_instruction || '');
       const assets = I.carriedAssets(history);
       const goneAssets = await goneMergeAssets(req, assets);
@@ -818,6 +817,10 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  async function sourceVerdict(req, warehouseId, useCase, latest) {
+    return sourceAccess(req, warehouseId, I.checkedSourceTables(latest && latest.spec_json, I.useCaseTables(useCase || {})));
+  }
+
   app.get('/api/inspire/implement/preflight', requireToken, async (req, res) => {
     try {
       const sid = sessionIdOf(req);
@@ -866,6 +869,14 @@ function registerImplementRoutes(app, deps) {
           : unchecked,
       };
       if (output && output.model) checks.model = output.model;
+      const [useCaseNow, historyNow] = await Promise.all([
+        loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
+        loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
+      ]);
+      const sourced = await sourceVerdict(req, warehouseId, useCaseNow, historyNow[0] || null);
+      checks.sources = sourced.app_unreadable
+        ? { ok: false, detail: sourced.app_unreadable.text }
+        : { ok: true, detail: 'the App can read every source of this use case' };
       if (shares) checks.result_grant = I.shareCheck(output ? output.grant : null);
       if (appName) {
         const name = I.appNameCheck(appName, existingApp && existingApp.ok ? existingApp.data : null, { useCaseId, sessionId: sid });

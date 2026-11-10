@@ -52,8 +52,9 @@ async function send(method, path, body, again = readsOnly(method, path)) {
 }
 
 export const WAITING_FOR_ACCESS_CODE = 'waiting_for_access';
+export const WAITING_FOR_ACCESS_TITLE = 'This App is waiting for access to its data';
 export const waitingError = (data) => {
-  const error = new Error(data.message || 'This App is waiting for access to its data.');
+  const error = new Error(data.message || WAITING_FOR_ACCESS_TITLE);
   error.status = 200;
   error.calm = true;
   error.code = WAITING_FOR_ACCESS_CODE;
