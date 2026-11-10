@@ -56,7 +56,7 @@ export function MoneyRule({ pageId }) {
   return (
     <section className="money-rule" data-money-rule>
       <h3>How each total is counted</h3>
-      <p data-money-sentence>{ruleSentence(shown)} {view.saved ? 'Saved by an owner.' : 'Set by the App design; no owner has saved a change.'}</p>
+      <p className="sentence" data-money-sentence>{ruleSentence(shown)} {view.saved ? 'Saved by an owner.' : 'Set by the App design; no owner has saved a change.'}</p>
       <MoneyRuleFields draft={draft} set={set} setRate={setRate} locked={BUILD_FIELDS} />
       <p className="muted">{LEFT_OUT}</p>
       {error && <PlainNote text={error} role="alert" data-money-error />}

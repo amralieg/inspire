@@ -100,3 +100,21 @@ test('a converted rule with a bad base is refused in words and nothing is saved,
   await page.screenshot({ path: `${SHOTS}/measurement-editor-refused-1280x800.png` });
   await context.close();
 });
+
+test('the build-level money fields are locked with the rebuild note, Off and the window stay editable, at 1280x800', async () => {
+  const info = appInfo({ use_case_owners: { 'n01_u05': ['owner@example.com'] } }, 1, { ...TABLE }, 'example_page.json');
+  const money = { rule: { currency: 'convert', base: 'USD', rate_table: { table: 'main.fx.rates', currency_column: 'from_code', base_column: 'to_code', date_column: 'rate_date', rate_column: 'rate' }, statuses: ['used'], rule: 'net', per: 'group', group_column: 'channel' }, saved: false, name: 'money_rule' };
+  const record = { saved: null };
+  const { page, context } = await openApp(browser, served.base, info, {
+    width: 1280, height: 800, routes: { settings: settingsRoute(record, { money }), 'money/rule': settingsRoute(record) },
+    hash: '#/n01_u05/settings', ready: 'body',
+  });
+  await page.waitForSelector('[data-money-rule]', { timeout: 15000 });
+  assert.equal(await page.locator('[data-money-rebuild]').count() >= 3, true, 'statuses, the rule and the group carry the rebuild note');
+  assert.equal(await page.locator('[data-money-statuses]').isDisabled(), true);
+  assert.equal(await page.locator('[data-money-window]').isDisabled(), false, 'the window is the owner\'s to change');
+  assert.equal(await page.locator('[data-money-off]').isEnabled(), true, 'Off is the owner\'s to change');
+  await page.locator('[data-money-rule]').scrollIntoViewIfNeeded();
+  await page.screenshot({ path: `${SHOTS}/measurement-build-fields-locked-1280x800.png` });
+  await context.close();
+});
