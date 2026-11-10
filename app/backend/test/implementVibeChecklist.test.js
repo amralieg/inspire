@@ -150,14 +150,6 @@ test('the next spec takes a rephrased ask out of the part and the held vibe, dro
   assert.deepEqual(['vibes' in untouched.spec, untouched.spec.outputs.dashboard_vibes, untouched.removed], [false, '', 1], 'a Remove on a built version works as before');
 });
 
-test('Publish anyway shows only when the App says the person may publish this held version', async () => {
-  const C = await lib('implementControl.js');
-  assert.equal(C.canPublishHeld({ can_publish_held: true }), true);
-  for (const status of [{ can_publish_held: false }, { can_publish_held: 'true' }, { can_publish_held: 1 }, {}, null, undefined]) {
-    assert.equal(C.canPublishHeld(status), false, JSON.stringify(status));
-  }
-});
-
 test('while a version is held, each tab shows the cards of the live version before it, with its asks, never the held version\'s', async () => {
   const C = await lib('implementControl.js');
   const live = {

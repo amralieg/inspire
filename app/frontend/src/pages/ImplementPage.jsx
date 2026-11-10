@@ -37,7 +37,7 @@ import { Counter, CounterDivider, IconChip, PANEL_CLASS, SectionTitle } from '..
 import { catalogRow } from '../lib/useCaseFacets';
 import { fieldOf } from '../lib/useCaseFields';
 import {
-  ASSET_TILES, CONTROL_REFRESH_MS, REBUILD_NOTHING, appUpdateChanges, assetFilterCounts, assetGroups, assetUninstall, buildSummary, canPublishHeld, checksSummary, collectAsk,
+  ASSET_TILES, CONTROL_REFRESH_MS, REBUILD_NOTHING, appUpdateChanges, assetFilterCounts, assetGroups, assetUninstall, buildSummary, checksSummary, collectAsk,
   collectRemoval, collectedScope, controlRows, controlTiles, deliveredOutputs, dropCollected, filterByAsset, filterByMvp, heldVersion, keptVersions,
   loadCollectedVibes, missingAsks, rebuildSpec, rebuildingText, rephraseOf, rephrasedAsk, removeChanges, removeKeptChanges, rollbackChanges, rollingBackText,
   saveCollectedVibes, statusWarnings, tryAgainChanges, uninstallChanges, vibeCards, vibeFeaturesLabel,
@@ -1014,7 +1014,6 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     spec: next,
   });
   const submitNext = (changes) => submitSpec(nextSpecFrom(latest, changes));
-  const publishHeld = () => submitSpec(specFromHeld(latest, { publish: true }), `/api/inspire/implement/publish?use_case_id=${encodeURIComponent(useCaseId)}`);
 
   const toggleSchedule = () => submitNext({ schedule: { ...(spec.schedule || {}), enabled: !spec.schedule?.enabled } });
   const retryOutput = (name) => submitNext({ retry_outputs: [name] });
@@ -1072,7 +1071,6 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   };
   const rephraseHeld = () => openFeatures(rephraseOf(checklist, latest));
   const tryHeldAgain = heldAction('retry', () => submitChecked(specFromHeld(latest)));
-  const publishHeldAnyway = heldAction('publish', publishHeld);
   const alertAsset = latest?.asset_status?.alert || {};
   const notebookState = uninstalled ? item.notebook || null : item.notebook || (vibeTargets.some((c) => c.id === 'notebook') ? notebookStatus({ has_genie_code: 'Y' }, null) : null);
   const notebook = notebookState && {
@@ -1719,8 +1717,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
       )}
       {held && (
-        <HeldVersion held={held} checklist={checklist} canPublish={canPublishHeld(status)} readOnly={readOnly} locked={locked} lockedReason={lockedReason}
-          busy={heldBusy} onRephrase={rephraseHeld} onTryAgain={tryHeldAgain} onPublish={publishHeldAnyway} />
+        <HeldVersion held={held} checklist={checklist} readOnly={readOnly} locked={locked} lockedReason={lockedReason}
+          busy={heldBusy} onRephrase={rephraseHeld} onTryAgain={tryHeldAgain} />
       )}
     </>
   );

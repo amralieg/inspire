@@ -310,38 +310,6 @@ def test_sharing_a_page_inside_inspire_gives_its_viewers_its_warehouse_and_no_ap
     assert not [w for w in warnings if w.startswith(("Sharing App", "Sharing the SQL warehouse"))], warnings
 
 
-def test_a_held_version_keeps_the_live_page_publish_anyway_moves_it_and_the_restore_leaves_it(agent_ns, tmp_path, monkeypatch):
-    inst, previous = _hosted_locked(agent_ns, tmp_path, monkeypatch)
-    _verdicts(inst, [ASK], status="missing", evidence="the list is sorted by name")
-    sent = dict(previous, outputs={**previous["outputs"], "app_vibes": ASK})
-    assert _run(inst, sent) == agent_ns["IMPLEMENT_HELD_STATUS"]
-    final = inst.updates[-1]
-    assert final["asset_status"]["app"]["hosted"] == LIVE_HOSTED, "the page inside Inspire stays v2 while v3 is held"
-    assert final["asset_status"]["held"]["candidates"] == ["app"]
-    written = _written(inst.calls)
-    assert written and all(path.startswith(f"{FOLDER}/v3/") for path in written)
-    assert not any(c[:2] == ("POST", "/api/2.0/workspace/delete") for c in inst.calls), "the restore deletes nothing and redeploys nothing"
-    assert _app_calls(inst.calls) == [] and _grants(inst.spark) == []
-    candidate = json.loads(next(u for u in inst.updates if "asset_snapshots" in u)["asset_snapshots"])["app"]
-
-    published, _ = _hosted_locked(agent_ns, tmp_path / "publish", monkeypatch)
-    held = {"spec_version": 3, "status": "vibe_not_met", "created_by": "owner@example.com", "notebook_path": None, "job_id": None,
-            "spec_json": {"outputs": {"app_owners": []}},
-            "asset_status": {"app": json.loads(json.dumps(LIVE_RECORD)), "held": {"parts": ["app"], "candidates": ["app"], "notebook": "",
-                                                                                 "reason": "held", "unmet": []}}}
-    published._implement_select = lambda where, args, order=None: [dict(held)] if args.get("v", 0) > 3 else []
-    published._implement_snapshot = lambda key, name, version: json.loads(json.dumps(candidate))
-    published._implement_vibes_llm = lambda *args: pytest.fail("Publish anyway judges nothing again")
-    target = {"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 4, "created_by": "owner@example.com",
-              "spec_json": dict(sent, publish_held=3)}
-    assert published._implement_one_locked(target, (5150, "N01-U01", 4)) == "ready_with_warnings"
-    record = published.updates[-1]["asset_status"]["app"]
-    assert (record["placement"], record["hosted"]["source"], record["hosted"]["version"]) == ("inspire", f"{FOLDER}/v4", 4)
-    assert (record["app_name"], record["app_url"], record["state"], record["spec_version"]) == ("", "", "ready", 4)
-    assert all(u.get("app_name", "") == "" for u in published.updates if "app_name" in u), "the row names no App"
-    assert _app_calls(published.calls) == []
-
-
 def _hosted_locked(ns, tmp_path, monkeypatch):
     inst, previous = _locked(ns, previous_outputs=HOSTED)
     del inst._implement_app

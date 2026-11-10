@@ -200,7 +200,6 @@ test('Vibe/Add/Remove Features, Try again and Publish anyway keep the target KPI
     spec_json: stored, asset_status: { held: { parts: ['dashboard'], reason: '1 of 2 vibe requirements met after 3 rounds' } } };
   const built = { ...held, spec_version: 1, status: 'ready', spec_json: clean(), asset_status: { dashboard: { state: 'ready', spec_version: 1 } } };
   assert.equal(W.specFromHeld(held).kpi.target, 'Hours saved', 'Try again');
-  assert.equal(W.specFromHeld(held, { publish: true }).kpi.target, 'Hours saved', 'Publish anyway');
   const fallback = W.defaultSpecFromUseCase({ id: 'N01-U01', primary_table: 'main.s.orders', tables_involved: 'main.s.orders' }, { warehouseId: 'wh1', inspireDatabase: 'main.inspire' });
   assert.equal(Object.hasOwn(fallback, 'kpi'), false, 'a new MVP starts on Let Inspire pick');
   const edit = W.specFromLatest(held, fallback);
@@ -210,7 +209,7 @@ test('Vibe/Add/Remove Features, Try again and Publish anyway keep the target KPI
   assert.equal(Object.hasOwn(W.sentSpec(K.withKpiTarget(edit, ''), null, 1), 'kpi'), false, 'Let Inspire pick sends no target');
   assert.deepEqual(K.withKpiTarget(edit, 'Churn rate').kpi, { target: 'Churn rate' });
   const history = [held, built].map((r) => ({ ...r, spec_json: JSON.stringify(r.spec_json), asset_status: JSON.stringify(r.asset_status) }));
-  for (const [route, spec] of [['/api/inspire/implement/submit', W.specFromHeld(held)], ['/api/inspire/implement/publish?use_case_id=N01-U01', W.specFromHeld(held, { publish: true })]]) {
+  for (const [route, spec] of [['/api/inspire/implement/submit', W.specFromHeld(held)]]) {
     await withApp({ history }, async (url, made) => {
       const got = await post(url, route, { ...DB, spec });
       assert.equal(got.status, 200, `${route}: ${JSON.stringify(got.data)}`);

@@ -1,11 +1,9 @@
-import { useEffect, useRef, useState } from 'react';
 import { AlertTriangle, ListChecks, Loader2, PenLine, Pencil, RotateCcw, Send, Upload } from 'lucide-react';
 import {
   checklistHeadline, checklistPlace, checklistState, checklistStatusText, missedAsks, notMetAsks, publishedAnywayText, rephrasableAsks,
 } from '../lib/mvpProgress';
-import { heldPartsText, publishHeldText } from '../lib/implementControl';
+import { heldPartsText } from '../lib/implementControl';
 import { VIBE_FEATURES_LABEL, heldNoReasonText } from '../lib/implementWizard';
-import { reducedMotion } from '../lib/motion';
 
 const OUTLINE_BUTTON = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const PRIMARY_BUTTON = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20 disabled:opacity-50';
@@ -118,20 +116,12 @@ export default function VibeChecklist({ checklist, assets = {}, compact = false,
   );
 }
 
-export function HeldVersion({ held, checklist, canPublish, readOnly, locked, lockedReason = '', busy = '', onRephrase, onTryAgain, onPublish }) {
-  const [confirming, setConfirming] = useState(false);
-  const confirmRef = useRef(null);
-  useEffect(() => {
-    if (confirming) confirmRef.current?.scrollIntoView?.({ block: 'nearest', behavior: reducedMotion() ? 'auto' : 'smooth' });
-  }, [confirming]);
+export function HeldVersion({ held, checklist, readOnly, locked, lockedReason = '', busy = '', onRephrase, onTryAgain }) {
   const open = notMetAsks(checklist);
   const missed = missedAsks(checklist);
   const rephrasable = rephrasableAsks(checklist);
   const unchecked = open.length - missed.length;
   const parts = heldPartsText(held);
-  const publish = async () => {
-    if (await onPublish()) setConfirming(false);
-  };
   return (
     <section aria-label={`v${held.version} is held`} data-held-version={held.version} className="rounded-lg border border-warning/40 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
       <div className="flex items-start gap-2.5">
@@ -154,33 +144,8 @@ export function HeldVersion({ held, checklist, canPublish, readOnly, locked, loc
             <button type="button" disabled={locked} title={lockedReason || undefined} onClick={onTryAgain} className={PRIMARY_BUTTON}>
               {busy === 'retry' ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Try again
             </button>
-            {canPublish && (
-              <button type="button" disabled={locked || confirming} title={lockedReason || undefined} onClick={() => setConfirming(true)} className={OUTLINE_BUTTON}>
-                <Upload size={12} /> Publish anyway
-              </button>
-            )}
           </div>
         </>
-      )}
-      {!readOnly && canPublish && confirming && (
-        <div ref={confirmRef} role="group" aria-label={`Confirm publishing v${held.version} anyway`}
-          className="rounded-lg border border-border-strong bg-surface px-3 py-2 space-y-2 motion-safe:animate-terminal-line">
-          <p className="font-semibold text-text-primary">
-            Publish v{held.version} anyway?{open.length ? ` ${open.length === 1 ? 'This ask is' : `These ${open.length} asks are`} not met${unchecked ? ' or could not be checked' : ''}:` : ''}
-          </p>
-          {open.length > 0 && (
-            <ul aria-label="Asks not met" className="list-disc ps-5 text-text-primary">
-              {open.map((entry, i) => <li key={`${i}-${entry.n}`}>{asked(entry)}{entry.unchecked ? ' (Inspire could not check it)' : ''}</li>)}
-            </ul>
-          )}
-          <p data-publish-held-text="" className="text-text-secondary">{publishHeldText(held)}</p>
-          <div className="flex flex-wrap gap-2">
-            <button type="button" disabled={locked} onClick={publish} className={PRIMARY_BUTTON}>
-              {busy === 'publish' ? <Loader2 size={12} className="animate-spin" /> : <Upload size={12} />} Publish anyway
-            </button>
-            <button type="button" onClick={() => setConfirming(false)} className={OUTLINE_BUTTON}>Cancel</button>
-          </div>
-        </div>
       )}
     </section>
   );

@@ -82,18 +82,6 @@ test('an owners-only change refuses when only the service principal is known, ev
   });
 });
 
-test('Publish anyway is not offered when only the service principal is known, even for a version recorded as the service principal\u2019s', async () => {
-  const held = builtRow(SP.userName, { spec_version: 2, status: 'vibe_not_met', asset_status: JSON.stringify({ held: { parts: ['dashboard'], reason: 'r' } }) });
-  await withApp({ history: [held, builtRow(OWNER)] }, async (url) => {
-    const got = await call(url, `/api/inspire/implement/status?${Q}`);
-    assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.equal(got.data.can_publish_held, false);
-  });
-  await withApp({ history: [{ ...held, created_by: PERSON }, builtRow(OWNER)] }, async (url) => {
-    const got = await call(url, `/api/inspire/implement/status?${Q}`, { headers: { 'x-forwarded-preferred-username': PERSON } });
-    assert.equal(got.data.can_publish_held, true, 'the person who asked for it, named by the forwarded headers');
-  });
-});
 
 test('the permission checks still name the identity that ran them, the service principal, and never the person', async () => {
   await withApp({ accessError: 'PERMISSION_DENIED: You do not have CAN_USE on warehouse wh1' }, async (url) => {

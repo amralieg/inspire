@@ -195,7 +195,7 @@ test('the demo refuses each named change in plain words: alerts, settings, launc
       ['POST', '/api/inspire/implement/settings/run'], ['POST', '/api/inspire/implement/table-change']],
     'launch a run or a build': [['POST', '/api/run'], ['POST', '/api/demo-data/start'], ['POST', '/api/inspire/implement/submit'],
       ['POST', '/api/inspire/implement/rerun'], ['POST', '/api/run/5/cancel']],
-    publish: [['POST', '/api/inspire/implement/publish'], ['POST', '/api/publish']],
+    publish: [['POST', '/api/publish']],
     delete: [['DELETE', '/api/inspire/session?session_id=1001']],
     'feedback and acknowledgement': [['POST', '/api/inspire/feedback'], ['POST', '/api/inspire/ack']],
     'Genie actions': [['POST', '/api/inspire/generate-genie'], ['POST', '/api/inspire/sync-genie-flags'], ['POST', '/api/inspire/implement/control']],

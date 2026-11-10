@@ -148,13 +148,13 @@ def test_each_case_is_a_real_render_and_changes_when_the_source_does(agent_ns):
     assert cases["stop_message"].count("Build the notebook again with Vibe/Add/Remove Features on the Build page") == 1
 
 
-def test_the_held_reason_is_the_rows_facts_joined_plus_the_one_action(agent_ns):
+def test_the_published_sentence_is_the_rows_facts_joined_and_names_the_action_once(agent_ns):
     final = held_unchecked_run(agent_ns, ASKS[:2])
     entries = final["asset_status"]["checklist"]
     assert all(e["evidence"] == e["fact"] + ": press Try again to check it again" for e in entries)
     listed = "; ".join(f"Dashboard: {e['requirement']}: {e['fact']}" for e in entries)
-    assert final["asset_status"]["held"]["reason"] == (f"2 asks could not be checked, so nothing of v3 is published and v2 stays live: {listed}. "
-                                                       "Press Try again to check them again, or press Publish anyway")
+    assert final["status_message"] == (f"v3 is published with 2 unmet asks (not met or could not be checked), the rest of the vibe is in "
+                                       f"place: {listed}. Press Try again to check the unchecked asks again")
 
 
 def test_every_checklist_writer_gives_the_fact_beside_the_evidence(agent_ns):

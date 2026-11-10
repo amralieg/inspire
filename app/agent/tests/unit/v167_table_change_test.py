@@ -316,8 +316,6 @@ def test_a_settings_swap_plans_to_re_point_each_output_that_names_the_table_and_
         assert (rebuilt["refill"], rebuilt["retable"], rebuilt["retable_outputs"]) == (True, [], {})
         assert sorted(rebuilt["refresh"]) == ["app", "dashboard", "genie_space"], "a rebuilt notebook refreshes every output with Genie"
     assert plan(before, before, assets, has_built_notebook=True, built=BUILT, table_change=change)["retable_outputs"] == {}
-    held = {"spec_version": 2, "asset_status": {"held": {"candidates": ["genie_space"]}}}
-    assert agent_ns["implement_publish_plan"](out, held)["retable_outputs"] == {}
 
 
 def test_the_outputs_to_re_point_come_from_the_copy_saved_when_each_was_built(agent_ns):

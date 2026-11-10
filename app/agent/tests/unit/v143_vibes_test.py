@@ -415,17 +415,15 @@ def test_a_version_whose_judge_gives_no_usable_answer_is_held_as_unchecked_and_s
     inst._implement_dashboard = lambda context, runner: pytest.fail("only the alert's vibes changed")
     seen = _verdicts(inst, ["Add a map of the regions"], status="impossible", evidence="no table holds a location")
     status = _run(inst, dict(previous, outputs={**previous["outputs"], "alert_vibes": VIBES}))
-    assert status == "vibe_not_met" and len(runner.prompts) == 1, \
-        "a judge that gives no usable answer leaves the ask unchecked, so it never goes back to Genie and the version holds"
+    assert status == "ready_with_warnings" and len(runner.prompts) == 1, \
+        "a judge that gives no usable answer leaves the ask unchecked, so it never goes back to Genie; the alert still publishes"
     assert seen.count("judge") == 2, "an unusable verdict is asked again once, past the cache, before the ask is unchecked"
     assert "Inspire split them into these asks and checks each one in what you write:\n1. Add a map of the regions\n" in runner.prompts[0]
     final, missed = inst.updates[-1], agent_ns["IMPLEMENT_VIBES_NO_ANSWER"]
-    assert final["status"] == "vibe_not_met" and final["asset_status"]["held"]["parts"] == ["alert"]
-    assert final["asset_status"]["held"]["reason"].startswith("1 ask could not be checked, so nothing of v3 is published and v2 stays live")
-    assert f"Alert: Add a map of the regions: {missed}" in final["asset_status"]["held"]["reason"], \
-        "the held reason names the ask and says the check could not run"
-    assert "snapshot" not in final["asset_status"]["alert"] and "warnings" not in final["asset_status"]["alert"], \
-        "a held alert is not deployed, so its live record gains no snapshot and no warnings of this version"
+    assert final["status"] == "ready_with_warnings" and "held" not in final["asset_status"]
+    assert final["status_message"].startswith("v3 is published with 1 unmet ask (not met or could not be checked)")
+    assert f"Alert: Add a map of the regions: {missed}" in final["status_message"], \
+        "the published sentence names the ask and says the check could not run"
     tried = [f"round 1: {missed}"]
     assert final["asset_status"]["alert"]["vibes_checks"] == [{"ask": "Add a map of the regions", "status": "missing",
                                                                "evidence": missed, "rounds": 1, "tried": tried}]
@@ -439,11 +437,11 @@ def test_a_version_whose_judge_gives_no_usable_answer_is_held_as_unchecked_and_s
     saved = next(u for u in inst.updates if "asset_snapshots" in u)
     snapshots = json.loads(saved["asset_snapshots"])
     artifact = snapshots["alert"].pop("artifact")
-    assert "alert_id" not in saved and snapshots == {"alert": {"vibes": VIBES, "spec_version": 3, "merged_into": "", "held": True}}
+    assert "alert_id" in saved and snapshots == {"alert": {"vibes": VIBES, "spec_version": 3, "merged_into": ""}}
     assert (artifact["condition_text"], artifact["condition_sql"], artifact["recipients"]) == ("", swapped, ["owner@example.com"])
     assert {"name", "trigger", "schedule", "destinations"} <= set(artifact), "the next version compares what a person saw in this one"
-    assert _calls_to(calls, "PATCH", "/api/2.0/alerts/al-1") == [] and _calls_to(calls, "POST", "/api/2.0/alerts") == [], \
-        "a held version saves no alert: the live one stays as it was"
+    assert _calls_to(calls, "POST", "/api/2.0/alerts") != [] or _calls_to(calls, "PATCH", "/api/2.0/alerts/al-1") != [], \
+        "the met part, the alert, is saved"
 
 
 def test_only_outputs_that_deployed_save_a_snapshot_and_a_version_with_none_writes_no_column(agent_ns):
@@ -461,8 +459,8 @@ def test_only_outputs_that_deployed_save_a_snapshot_and_a_version_with_none_writ
     inst._implement_genie_space, inst._implement_dashboard = space, dashboard
     _verdicts(inst, ["Answer in plain words"])
     status = _run(inst, dict(previous, outputs={**ALL, "genie_space_vibes": VIBES, "dashboard_vibes": "Put the top 10 first"}))
-    assert status == "vibe_not_met", "the dashboard that did not build leaves its ask unmet, so the version is held"
-    assert "Dashboard: Answer in plain words: the Dashboard was not built" in inst.updates[-1]["asset_status"]["held"]["reason"]
+    assert status == "ready_with_warnings", "the dashboard that did not build leaves its ask unmet; the genie space still publishes"
+    assert "Dashboard: Answer in plain words: the Dashboard was not built" in inst.updates[-1]["status_message"]
     [saved] = [u for u in inst.updates if "asset_snapshots" in u]
     assert set(saved) == {"genie_space_id", "genie_space_url", "asset_snapshots"}
     assert json.loads(saved["asset_snapshots"]) == {"genie_space": {"artifact": {"title": "t", "serialized_space": {"version": 2}},
@@ -483,10 +481,10 @@ def test_only_outputs_that_deployed_save_a_snapshot_and_a_version_with_none_writ
     plain._implement_runner = lambda uc: "genie"
     plain._implement_dashboard = lambda context, runner: {"dashboard_id": "d1", "dashboard_url": "https://h/d"}
     _verdicts(plain, ["Answer in plain words"])
-    assert _run(plain, dict(previous, outputs={**ALL, "dashboard_vibes": VIBES})) == "vibe_not_met", \
+    assert _run(plain, dict(previous, outputs={**ALL, "dashboard_vibes": VIBES})) == "ready_with_warnings", \
         "a build that leaves nothing to check its asks against is never a silent ready"
     assert ("Dashboard: Answer in plain words: Inspire has nothing built for the Dashboard to check"
-            in plain.updates[-1]["asset_status"]["held"]["reason"])
+            in plain.updates[-1]["status_message"])
     assert not any("asset_snapshots" in u for u in plain.updates)
     assert "snapshot" not in plain.updates[-1]["asset_status"]["dashboard"]
 

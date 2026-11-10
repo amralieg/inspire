@@ -361,4 +361,4 @@ def test_an_unrequested_change_records_the_genie_rounds_its_output_really_ran_no
     assert context["untargeted"]["app"]["rounds"] == 6
     [held] = [e for e in inst._implement_vibe_checklist(context) if e.get("kind") == "unrequested_change"]
     assert held["status"] == "not_met" and held["rounds"] == 6 and "round" not in held["evidence"].lower()
-    assert "Genie could not do it in 6 build rounds: " in agent_ns["implement_held_reason"]([held], 3, 2)
+    assert "Genie could not do it in 6 build rounds: " in agent_ns["implement_unmet_published_text"]([held], 3)

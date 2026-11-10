@@ -1373,20 +1373,6 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
-  app.post('/api/inspire/implement/publish', requireToken, async (req, res) => {
-    try {
-      res.json(await oneBuildAtATime(req, async () => {
-        const prepared = await prepareSubmission(req);
-        const named = q(req, 'use_case_id');
-        if (named && named !== prepared.useCaseId) throw I.badRequest(`the spec is for use case ${prepared.useCaseId}, not ${named}`);
-        if (prepared.spec.publish_held == null) throw I.badRequest('Publish anyway sends the held spec with publish_held set to the held version');
-        return startVersion(req, prepared);
-      }));
-    } catch (err) {
-      sendError(res, err);
-    }
-  });
-
   async function loadStatus(req) {
     const sid = sessionIdOf(req);
     const warehouseId = warehouseOf(req);
@@ -1450,7 +1436,6 @@ function registerImplementRoutes(app, deps) {
       rerun_widgets: I.rerunWidgets(history),
       app_status: I.appStatusFrom(appInfo, { useCaseId, sessionId: sid, history }),
       runs: I.jobRunsFrom(runInfo, jobInfo),
-      can_publish_held: held != null && !I.publishHeldRefusal(history, { publish_held: held }, person.username),
     };
     return { body, context: { host: req.dbHost, catalog, schema, business: session?.business_name || '', useCaseId } };
   }

@@ -155,13 +155,6 @@ test('a re-run and Publish anyway are refused the same way, before run-now or a 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.ok(made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
   });
-  const held = { ...BUILT, spec_version: 2, status: 'vibe_not_met' };
-  await withApp({ history: [held, BUILT], readableTables: { [PERSON_TOKEN]: ['main.s.returns_v2'] } }, async (url, made) => {
-    const spec = { ...SPEC, publish_held: 2, based_on_version: 2 };
-    const got = await call(url, '/api/inspire/implement/publish?use_case_id=N01-U01', { method: 'POST', body: { ...DB, spec } });
-    assert.deepEqual([got.status, got.data.unreadable], [403, ['main.s.orders']], JSON.stringify(got.data));
-    ruleOut(made);
-  });
 });
 
 test('a Genie Code notebook run checks only the chosen use cases\u2019 tables, not the whole Discover scope, before any flag is written (must-exclude)', async () => {

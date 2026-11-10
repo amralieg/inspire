@@ -655,10 +655,6 @@ export function publishHeldText(held) {
   return `Inspire puts ${what} live${place}, with no Genie round, and marks each ask above as published anyway by you.`;
 }
 
-export function canPublishHeld(status) {
-  return status?.can_publish_held === true;
-}
-
 export const COLLECTED_VIBES_KEY = 'inspire.collected_vibes.v1';
 
 export function collectedScope(host, database, sessionId, useCaseId) {

@@ -85,8 +85,6 @@ def test_a_person_who_is_not_an_owner_is_refused_and_nothing_is_applied(agent_ns
     assert record["steps"] == [("N01-U01", agent_ns["IMPLEMENT_CHECKLIST_STEP"], f"0 of 1 settings change applied: {REFUSED}", "ended_error",
                                 dict({"spec_version": 2, "checklist": [entry]}, **summary))]
     assert agent_ns["implement_unmet_asks"](kept["asset_status"]) == [], "a refused setting is never an unmet vibe ask"
-    assert agent_ns["implement_mark_published_anyway"](kept["asset_status"], OTHER, "2026-10-31T12:00:00Z") == 0
-    assert kept["asset_status"]["checklist"][0]["published_anyway"] is None
 
 
 @pytest.mark.parametrize("requester", [None, "", "   "])

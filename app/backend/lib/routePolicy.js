@@ -164,7 +164,6 @@ const ROUTE_POLICY = {
   'GET /api/inspire/implement/destinations': anyone('list notification destinations', 'lists the notification destinations every workspace user can pick for an alert'),
   'POST /api/inspire/implement/plan': tracked('preview a build plan'),
   'POST /api/inspire/implement/submit': builders('build a new version of it', { managersWhen: asksUninstall, managersAction: 'uninstall an MVP' }),
-  'POST /api/inspire/implement/publish': owners('publish its held version anyway'),
   'POST /api/inspire/implement/control': owners('stop, start, publish or cancel what Inspire built for it'),
   'POST /api/inspire/implement/rerun': owners('re-run its build'),
   'POST /api/inspire/implement/settings/preview': tracked('preview a settings change'),

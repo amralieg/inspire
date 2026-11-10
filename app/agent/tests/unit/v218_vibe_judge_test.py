@@ -210,8 +210,8 @@ def test_an_ask_that_could_not_be_checked_holds_the_version_and_says_the_check_c
     [entry] = inst._implement_vibe_checklist(context)
     assert entry["status"] == "not_met" and entry["unchecked"] is True
     unmet = agent_ns["implement_unmet_asks"](context["asset_status"])
-    reason = agent_ns["implement_held_reason"](unmet, 2, 1)
-    assert reason.startswith("1 ask could not be checked, so nothing of v2 is published and v1 stays live")
+    reason = agent_ns["implement_unmet_published_text"](unmet, 2)
+    assert reason.startswith("v2 is published with 1 unmet ask (not met or could not be checked)")
     assert "gave no usable answer" in reason
 
 

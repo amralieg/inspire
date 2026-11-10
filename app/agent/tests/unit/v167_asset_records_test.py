@@ -7,7 +7,7 @@ from v140_implement_test import VALID, _inspire, _left_by
 from v143_vibes_test import LIVE, _run
 from v152_mvp_vibe_test import _llm
 from v162_one_vibe_box_test import APP_ASK, CARRIED, _rebuild, _vibe_step
-from v163_hold_gate_test import CHART, _held_row, _publishing
+from v163_hold_gate_test import CHART, _held_row
 
 REGION = "Show the region on every row"
 PAGE = "app:page:n01_u01"
@@ -146,35 +146,6 @@ def test_the_repair_attempt_takes_the_use_case_records_of_its_own_row_and_none_o
     _carried, status = inst._implement_carried({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 4}, through_own=True)
     assert status["grants"] == GRANTS and status["app"]["spec_version"] == 4
     assert set(ONE_VERSION).isdisjoint(status)
-
-
-def test_publish_anyway_copies_the_held_version_s_checklist_and_never_an_older_built_one(agent_ns):
-    held = _held_row()
-    built = dict(_held_row(version=2, status="ready"), **CARRIED)
-    built["asset_status"] = _left_by(2, {**_copy(LIVE), "checklist": [dict(CHECKLIST[0], requirement="An older ask")],
-                                         "checklist_summary": SUMMARY, "vibe": dict(VIBE, spec_version=2)})
-    inst, target, deployed, _snapshots = _publishing(agent_ns, held, rows=[held, built])
-    del inst._implement_carried
-    assert inst._implement_one_locked(target, (5150, "N01-U01", 4)) == "ready_with_warnings"
-    assert deployed == [CHART]
-    final = inst.updates[-1]["asset_status"]
-    assert [entry["requirement"] for entry in final["checklist"]] == [held["asset_status"]["checklist"][0]["requirement"]]
-    assert final["checklist_summary"] == {"met": 0, "total": 1} and "vibe" not in final, "only the held version's checklist is copied"
-
-
-def test_publish_anyway_copies_only_dict_parts_of_the_held_candidates(agent_ns):
-    held = _held_row()
-    held["asset_status"].update({"dashboard:by_region": {"state": "ready", "spec_version": 3}, "dashboard:odd": ["not", "an", "entry"],
-                                 "app:page:n01_u01": {"state": "ready", "spec_version": 3}})
-    inst, target, _deployed, _snapshots = _publishing(agent_ns, held)
-    _copying_updates(inst)
-    assert inst._implement_one_locked(target, (5150, "N01-U01", 4)) == "ready_with_warnings"
-    start = next(update for update in inst.updates if update.get("status") == "filling")["asset_status"]
-    assert start["dashboard:by_region"] == {"state": "ready", "spec_version": 3}, "a dict part of a held output is copied"
-    assert "dashboard:odd" not in start, "a part that is not a dict is never copied as an asset"
-    assert "app:page:n01_u01" not in start, "a part whose output was not held is not copied"
-    assert [entry["requirement"] for entry in start["checklist"]] == [held["asset_status"]["checklist"][0]["requirement"]]
-    assert "held" not in start and "vibe" not in start
 
 
 def test_the_holder_check_reads_a_holder_whose_newest_version_has_a_checklist(agent_ns):

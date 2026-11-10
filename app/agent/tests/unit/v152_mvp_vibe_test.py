@@ -310,10 +310,10 @@ def test_a_kept_part_whose_new_build_fails_stays_live_and_is_not_listed_as_kept(
 
     inst._implement_dashboard = dashboard
     _llm(inst, {"dashboard": RISKY})
-    assert _run(inst, _vibe(previous, RISKY)) == "vibe_not_met", "the ask of a part that did not build is not met"
+    assert _run(inst, _vibe(previous, RISKY)) == "ready_with_warnings", "the ask of a part that did not build is not met; the other parts still publish"
     final = _final(inst)
-    assert ("Dashboard: v2 stays live, because the new one of v3 did not build; Dashboard: Inspire tried 3 times and could not build it: "
-            "the warehouse is stopped") in final["status_message"]
+    assert ("Dashboard: v2 stays live, because the new one of v3 did not build; ") in final["status_message"]
+    assert "v3 is published with 1 unmet ask (not met or could not be checked)" in final["status_message"]
     assert "kept" not in final["asset_status"]
     assert not any(u.get("dashboard_id", "d1") != "d1" for u in inst.updates), "the row keeps pointing at the live dashboard"
 

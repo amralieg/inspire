@@ -199,9 +199,6 @@
  "POST /api/inspire/implement/plan": [
   "C01"
  ],
- "POST /api/inspire/implement/publish": [
-  "O09"
- ],
  "POST /api/inspire/implement/readiness": [
   "C11"
  ],

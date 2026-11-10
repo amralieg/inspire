@@ -339,7 +339,6 @@ REVIEWED = {
         ('_implement_genie_own_rebuild', "'; '.join(problems)"),
         ('_implement_genie_own_rebuild', 'implement_genie_unknown_part(unknown, shown)'),
         ('_implement_genie_own_rebuild', 'shown'),
-        ('_implement_held_row', 'problem'),
         ('_implement_holders_checked', 'refused'),
         ('_implement_deploy_app', 'refused'),
         ('_implement_source_protection', 'refused'),

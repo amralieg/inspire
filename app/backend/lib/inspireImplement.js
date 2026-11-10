@@ -2019,29 +2019,6 @@ function implementOwners(row) {
   return [...new Set(named)];
 }
 
-function publishHeldRefusal(history, spec, requester) {
-  const version = spec && spec.publish_held;
-  if (version == null) return null;
-  const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
-  const held = rows.find((r) => r.spec_version === version);
-  if (!held) return { status: 404, message: `there is no v${version} to publish` };
-  if (held.status !== IMPLEMENT_VIBE_NOT_MET) {
-    return { status: 409, message: `v${version} is ${str(held.status).replace(/_/g, ' ') || 'not built'}, not held for vibes that were not met, so there is nothing to publish anyway` };
-  }
-  if (rows[0].spec_version !== version) {
-    return { status: 409, message: `v${version} is no longer the latest version (v${rows[0].spec_version} is), so it cannot be published anyway` };
-  }
-  const who = personKey(requester);
-  if (!who) return { status: 403, message: 'Inspire could not tell who you are, so it cannot check that you own this MVP' };
-  if (!implementOwners(held).includes(who)) {
-    return { status: 403, message: `only the owners of this MVP can publish v${version} anyway: the person who asked for v${version} and the App owners it names` };
-  }
-  return null;
-}
-
-const PUBLISH_KEYS = ['publish_held', 'based_on_version'];
-const withoutPublishKeys = (spec) => Object.fromEntries(Object.entries(spec || {}).filter(([key]) => !PUBLISH_KEYS.includes(key)));
-
 function publishHeldDifference(history, spec, legacyAccess = '') {
   const version = spec && spec.publish_held;
   if (version == null) return '';
@@ -2094,7 +2071,7 @@ function planSubmission(history, spec, stalled = null, { requester = null, table
   if (latest && IMPLEMENT_ACTIVE_STATUSES.includes(latest.status) && !stalled) {
     throw badRequest(`spec v${latest.spec_version} is still ${latest.status}; your edit applies after the current run`, 409);
   }
-  const refused = publishHeldRefusal(rows, spec, requester) || appShellUpdateRefusal(rows, spec, requester);
+  const refused = appShellUpdateRefusal(rows, spec, requester);
   if (refused) throw badRequest(refused.message, refused.status);
   const unsafe = vibeRefusals(specVibeAsks(spec));
   if (unsafe.length) throw badRequest(`Inspire did not build this version: ${vibeRefusalText(unsafe)}`);
@@ -3742,7 +3719,6 @@ module.exports = {
   planSubmission,
   implementOwners,
   implementSettingsOwnerRefusal,
-  publishHeldRefusal,
   publishHeldDifference,
   refuseUnchanged,
   implementJobParams,

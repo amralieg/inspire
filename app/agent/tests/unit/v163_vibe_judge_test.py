@@ -240,16 +240,15 @@ def test_the_live_case_ends_the_version_with_vibe_not_done(agent_ns, tmp_path):
     inst._implement_runner = lambda uc: "genie"
     inst._implement_app = _built("app", V2)
     _judge(inst, {VIBE: SPLIT}, [{"status": "done", "evidence": "Priority tier", "where": "filters"}])
-    assert _run(inst, _vibed(previous, [PAGE], **{f"{PAGE}_vibes": VIBE})) == "vibe_not_met", "missed asks hold the version"
+    assert _run(inst, _vibed(previous, [PAGE], **{f"{PAGE}_vibes": VIBE})) == "ready_with_warnings", "missed asks never hold the version"
     final = inst.updates[-1]
-    assert final["asset_status"]["held"]["reason"].startswith("2 asks are not met, so nothing of v3 is "
-                                                              "published and v2 stays live: App (page n01_u01"), \
+    assert final["status_message"].startswith("v3 is published with 2 unmet asks (not met or could not be checked), the rest of the vibe is in place: App (page n01_u01"), \
         "the held list is the checklist's, which names the output and the page on it"
     page = final["asset_status"][PAGE]
     assert [c["status"] for c in page["vibes_checks"]] == ["missing", "missing"] and page["state"] == "ready_with_warnings"
     missed = (f"{ALL_COLUMNS}: no table on the built App page n01_u01 has a column filter on all; "
               "the Fix plan table has no column filter on rank, entity_label, priority_tier, channel, value_at_stake")
-    assert missed in final["asset_status"]["held"]["reason"] and final["status_message"].count(missed) == 1, \
+    assert missed in final["status_message"] and final["status_message"].count(missed) == 1, \
         "the held message names each unmet ask once, in the reason, and never again as a vibe warning"
     assert "vibe not done" not in final["status_message"] and page["warnings"][0].startswith(ALL_COLUMNS), \
         "the page record keeps its own warning for the App"

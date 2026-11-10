@@ -29,8 +29,6 @@ const SAMPLES = [
     body: { inspire_database: DB, warehouse_id: WH, session_id: '1001', use_case_ids: ['N01-U01'] } },
   { key: 'POST /api/inspire/generate_genie', rule: 'owners', method: 'POST', path: '/api/inspire/generate_genie',
     body: { inspire_database: DB, warehouse_id: WH, session_id: '1001', use_case_ids: ['N01-U01'] } },
-  { key: 'POST /api/inspire/implement/publish', rule: 'owners', method: 'POST', path: `/api/inspire/implement/publish?${qs(UC)}`,
-    body: { spec: { use_case_id: 'N01-U01', publish_held: 2 } } },
   { key: 'POST /api/inspire/implement/control', rule: 'owners', name: 'stop App', method: 'POST',
     path: `/api/inspire/implement/control?${qs({ ...UC, asset: 'app', action: 'stop' })}`, body: {} },
   { key: 'POST /api/inspire/implement/control', rule: 'owners', name: 'cancel build', method: 'POST',
