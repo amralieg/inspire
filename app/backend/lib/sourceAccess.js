@@ -115,7 +115,7 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
 
   async function appReadsLeftOf(req, token, warehouseId, record) {
     const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, token, warehouseId, t.table)));
-    return I.appReadsLeft(record, record.tables.map((t, i) => I.accessPlan(t.table, rows[i], record.app)));
+    return I.appReadsLeft(record, record.tables.map((t, i) => I.accessPlan(t.table, rows[i], record.app, { needs: I.IMPLEMENT_SOURCE_NEEDS })));
   }
 
   async function appReads(req, warehouseId, record, grant) {

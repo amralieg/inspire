@@ -3101,7 +3101,8 @@ function appReadsLeft(record, plans) {
   return record.tables.map((t, i) => {
     const plan = plans[i] || { grants: [], gaps: [] };
     const order = (g) => IMPLEMENT_SOURCE_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
-    const needed = [...plan.grants, ...plan.gaps].sort((a, b) => order(a) - order(b)).map((g) => grantSql(g, record.app));
+    const recorded = new Set(t.grants);
+    const needed = [...plan.grants, ...plan.gaps].sort((a, b) => order(a) - order(b)).map((g) => grantSql(g, record.app)).filter((g) => recorded.has(g));
     const owner = joinAnd([...new Set(plan.gaps.map((g) => g.owner).filter(Boolean))]) || t.owner;
     return { table: t.table, owner, grants: needed.filter((g) => appReadGrantFor(g, record.app)) };
   }).filter((t) => t.grants.length);

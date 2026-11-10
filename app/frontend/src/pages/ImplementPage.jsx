@@ -1352,6 +1352,14 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       setReadsResult((was) => ({ ...(was && !was.error ? was : { tables: readsLeft.tables }), version: latest?.spec_version, action: 'copy', copyError: e.message }));
     }
   };
+  const autoReads = useRef({});
+  useEffect(() => {
+    if (!reads || readOnly || !latest) return;
+    const key = `${latest.session_id ?? ''}:${latest.spec_version}`;
+    if (autoReads.current[key]) return;
+    autoReads.current[key] = true;
+    runReads('grant');
+  }, [reads, readOnly, latest?.session_id, latest?.spec_version]);
   const readsCard = reads && (
     <section aria-label={APP_READS_HEADING} data-app-reads="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
       <div className="flex items-start gap-2.5">

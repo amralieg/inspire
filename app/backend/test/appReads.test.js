@@ -32,7 +32,7 @@ function workspace({ catalogMine = false, schemaManage = true, history = [built(
     { level: 'table', privilege: 'OWNER', principal: 'data-eng', mine: 'false', me: 'amr@x' },
     ...(schemaManage ? [{ level: 'schema', privilege: 'MANAGE', principal: 'amr@x', mine: 'true', me: 'amr@x' }] : []),
     ...[...held].map((sql) => {
-      const [, privilege, level] = /^GRANT (USE CATALOG|USE SCHEMA|SELECT) ON (\w+)/.exec(sql);
+      const [, privilege, level] = /^GRANT (USE CATALOG|USE SCHEMA|SELECT|READ METADATA) ON (\w+)/.exec(sql);
       return { level: level.toLowerCase(), privilege, principal: SP, mine: 'false', me: 'amr@x' };
     }),
   ];
@@ -234,4 +234,16 @@ test('a done build with unread tables reads as action needed, and its finish sta
   assert.equal(choices[1].sql, RECORDED.map((g) => `${g};`).join('\n'));
   assert.match(W.appReadsText(W.appReadsOf(held), 'riverside-assets'), /App riverside-assets cannot read main\.s\.orders \(owner data-eng\)/);
   assert.doesNotMatch(W.appReadsText(W.appReadsOf(held)), /build (it )?again|rebuild/i);
+});
+
+test('a recorded App read grant is only ever a table-level SELECT or READ METADATA, a parent USE, and never a schema or catalog SELECT (must-exclude)', () => {
+  const app = 'app-sp-id';
+  const { appReadGrantFor } = require('../lib/inspireImplement');
+  assert.equal(appReadGrantFor(`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${app}\``, app), true);
+  assert.equal(appReadGrantFor(`GRANT READ METADATA ON TABLE \`main\`.\`s\`.\`orders\` TO \`${app}\``, app), true);
+  assert.equal(appReadGrantFor(`GRANT USE SCHEMA ON SCHEMA \`main\`.\`s\` TO \`${app}\``, app), true);
+  assert.equal(appReadGrantFor(`GRANT SELECT ON SCHEMA \`main\`.\`s\` TO \`${app}\``, app), false);
+  assert.equal(appReadGrantFor(`GRANT SELECT ON CATALOG \`main\` TO \`${app}\``, app), false);
+  assert.equal(appReadGrantFor(`GRANT READ METADATA ON SCHEMA \`main\`.\`s\` TO \`${app}\``, app), false);
+  assert.equal(appReadGrantFor(`GRANT MODIFY ON TABLE \`main\`.\`s\`.\`orders\` TO \`${app}\``, app), false);
 });
