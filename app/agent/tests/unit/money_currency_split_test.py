@@ -235,7 +235,7 @@ def test_the_saved_money_rule_is_read_once_per_request_and_overrides_the_spec(tm
     pages = [_money_page()]
     s = shell_harness.shell_core.Shell(shell_harness.app_dir(tmp_path, pages=pages), env={"DATABRICKS_WAREHOUSE_ID": "wh1"},
                                        sp_factory=lambda: ws, user_factory=lambda h, t: ws)
-    token = shell_harness.shell_core.REQUEST.set({"headers": {}, "rules": {}})
+    token = shell_harness.shell_core.REQUEST.set({"headers": {}, "rules": {}, "money": True})
     try:
         first = s.page("n01_u05")
         second = s.page("n01_u05")
@@ -251,7 +251,7 @@ def test_without_a_request_or_a_saved_rule_the_spec_rule_stands(tmp_path):
     s = shell_harness.shell_core.Shell(shell_harness.app_dir(tmp_path, pages=[_money_page()]), env={"DATABRICKS_WAREHOUSE_ID": "wh1"},
                                        sp_factory=lambda: ws, user_factory=lambda h, t: ws)
     assert "money" not in s.page("n01_u05")
-    token = shell_harness.shell_core.REQUEST.set({"headers": {}, "rules": {}})
+    token = shell_harness.shell_core.REQUEST.set({"headers": {}, "rules": {}, "money": True})
     try:
         assert "money" not in s.page("n01_u05")
     finally:

@@ -184,6 +184,9 @@ MY_WORK_FIXED_ROWS = (2 * len(shell_sql.MY_WORK_CLOSES) + 4 + shell_sql.CAPS["my
                       + shell_sql.CAPS["my_work_overdue"] + 4)
 NO_ACTIONS = "this use case keeps no actions, so it has no work of yours to show"
 REQUEST = contextvars.ContextVar("inspire_request", default=None)
+# The routes that compute a money total or show a money rule: only these read the owner's saved money rule.
+MONEY_ROUTES = {("GET", "app"), ("POST", "page"), ("GET", "money"), ("POST", "money/assumption"),
+                ("GET", "settings"), ("POST", "money/preview"), ("POST", "money/rule")}
 MINUTES_SETTING = {"name": shell_sql.MY_WORK_MINUTES, "kind": "number", "group": "impact", "source": "app", "applies": "app",
                    "label": "Minutes a person spends per record without Inspire", "unit": "minutes", "low": 0.0, "high": 1440.0,
                    "low_open": True, "high_open": False, "whole": False, "optional": True, "choices": [], "many": False, "default": "",
@@ -1897,10 +1900,16 @@ class Shell:
             raise HttpError(404, f"the App has no page {ident!r}")
         return self.with_saved_money(page)
 
+    def saved_money_page(self, page: dict, ws, who) -> dict:
+        """The page with the owner's saved money rule, read now: for a money answer computed outside a request that carries the flag."""
+        if not page.get("result_table") or not shell_sql.page_has_money(page):
+            return page
+        return shell_sql.page_with_money(page, shell_sql.saved_money_rule(self.assumption_rows(ws, who, page)))
+
     def with_saved_money(self, page: dict) -> dict:
         """The one injection point: a page with money reads the owner's saved money rule, loaded once per request."""
         request = REQUEST.get()
-        if request is None or not page.get("result_table") or not shell_sql.page_has_money(page):
+        if request is None or not request.get("money") or not page.get("result_table") or not shell_sql.page_has_money(page):
             return shell_sql.page_with_money(page, None)
         key = str(page.get("id"))
         if key not in request["rules"]:
@@ -2204,7 +2213,8 @@ class Shell:
         return status, shell_sql.plain_answer(answer)
 
     def answer(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
-        token = REQUEST.set({"headers": headers, "rules": {}})
+        money = (method, path.strip("/")) in MONEY_ROUTES
+        token = REQUEST.set({"headers": headers, "rules": {}, "money": money})
         try:
             return self.answer_request(method, path, query, headers, body)
         finally:
