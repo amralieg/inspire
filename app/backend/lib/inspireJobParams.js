@@ -1,7 +1,7 @@
 const { parseExactJson } = require('./exactJson');
 const { parseStrategicContext, validateStrategy } = require('../../frontend/src/lib/strategyContext.js');
 
-const INSPIRE_AGENT_VERSION = 'v1.5.0';
+const INSPIRE_AGENT_VERSION = 'v1.5.1';
 const INSPIRE_ENVIRONMENT_KEY = 'Default';
 const INSPIRE_ENVIRONMENT_VERSION = '4';
 
