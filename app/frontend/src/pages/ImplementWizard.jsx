@@ -361,8 +361,8 @@ function Advanced({ open, onToggle, children, summary = '', what = 'settings' })
   );
 }
 
-function SettingRow({ label, value, children, changeLabel = label, help = '' }) {
-  const [open, setOpen] = useState(false);
+function SettingRow({ label, value, children, changeLabel = label, help = '', defaultOpen = false }) {
+  const [open, setOpen] = useState(defaultOpen);
   return (
     <div data-setting={label} className="border-t border-border pt-2 space-y-2">
       <div className="flex items-start justify-between gap-3">
@@ -1848,8 +1848,6 @@ export default function ImplementWizard({
             onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
             onBackend={(backend) => setSpec((prev) => withAppBackend(prev, backend))}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
-            warehouseOpen={advanced.app}
-            onWarehouseToggle={() => toggleAdvanced('app')}
             best={{ access: best.appAccess, backend: best.appBackend }}
           />
         )}
@@ -2651,7 +2649,7 @@ function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, onWare
   );
 }
 
-function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onAccess, onBackend, onWarehouse, warehouseOpen = false, onWarehouseToggle, best = {} }) {
+function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onAccess, onBackend, onWarehouse, best = {} }) {
   const access = spec.outputs.app_access;
   const inside = insideInspire(spec);
   return (
@@ -2689,10 +2687,10 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehous
             Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on Deliver.
           </p>
         ) : (
-          <Advanced open={warehouseOpen || warehouseCheck?.ok === false} onToggle={onWarehouseToggle} what="App SQL warehouse" summary={`SQL warehouse: ${spec.outputs.app_warehouse_id || 'not picked'}`}>
+          <SettingRow label="SQL warehouse" value={spec.outputs.app_warehouse_id || 'not picked'} changeLabel="App SQL warehouse" defaultOpen={warehouseCheck?.ok === false}>
             <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry} check={warehouseCheck}
               onWarehouse={onWarehouse} />
-          </Advanced>
+          </SettingRow>
         )}
       </AppBackendChoice>
     </section>
