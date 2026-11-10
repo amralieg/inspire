@@ -736,6 +736,7 @@ def spec_problems(page: dict, stored=None) -> list:
     problems += _text_problem("the page", page.get("question"), "question")
     problems += _text_problem("the page", page.get("sponsor"), "sponsor", required=False)
     problems += _promised_problems(page.get("promised"))
+    problems += money_rule_problems(page.get("money"))
     owned = inspire_part_problems(page)
     problems += owned
     if page.get("icon") not in ICONS:
@@ -2401,8 +2402,33 @@ PERIOD_GRAINS = ("week", "month", "quarter", "year")
 MONEY_SERIES_CHARTS = ("line", "area", "stacked_area", "stacked_bar", "band", "control", "heatmap")
 
 
+CONVERTED = "_inspire_converted"
+MONEY_RULE_MODES = ("per_currency", "convert")
+
+
+def money_rule_problems(money) -> list:
+    """The page's saved money definition: per currency (the default) or converted at the rates the owner typed in."""
+    if money is None:
+        return []
+    if not isinstance(money, dict):
+        return ["the money rule is an object: currency mode and, when it converts, base and rates"]
+    mode = money.get("currency", "per_currency")
+    if mode not in MONEY_RULE_MODES:
+        return [f"the money currency mode is one of {', '.join(MONEY_RULE_MODES)}"]
+    if mode == "per_currency":
+        return []
+    base, rates = str(money.get("base") or ""), money.get("rates")
+    problems = [] if base in MONEY_CODES else [f"the money base currency is an ISO 4217 code such as USD, not {base or 'nothing'}"]
+    if not isinstance(rates, dict) or not rates:
+        return problems + ["converting money needs at least one rate, typed in as currency: units of the base currency"]
+    for code, rate in rates.items():
+        if code not in MONEY_CODES or isinstance(rate, bool) or not isinstance(rate, (int, float)) or not 0 < rate < 1e9:
+            problems.append(f"the rate for {code!r} must be an ISO 4217 code with a positive number")
+    return problems
+
+
 def money_scope(page: dict, dataset: str) -> dict:
-    """The one rule every money total follows: the currency column, and the event period the rows are kept to."""
+    """The one rule every money total follows: the currency column, the event period the rows are kept to, and any conversion."""
     currency = next((column for f in page.get("filters") or [] if f.get("id") == CURRENCY_FILTER
                      for column in [(f.get("columns") or {}).get(dataset)] if column), "")
     period, grain = "", ""
@@ -2411,17 +2437,32 @@ def money_scope(page: dict, dataset: str) -> dict:
         if column and f.get("type") == "date_range" and f.get("grain") in PERIOD_GRAINS:
             period, grain = column, f["grain"]
             break
-    return {"currency": currency, "period": period, "grain": grain}
+    money = page.get("money") if isinstance(page.get("money"), dict) else {}
+    rates = money.get("rates") if money.get("currency") == "convert" and not money_rule_problems(money) else None
+    return {"currency": "" if rates else currency, "currency_column": currency, "period": period, "grain": grain,
+            "rates": rates or {}, "base": str(money.get("base") or "") if rates else ""}
 
 
 def money_source(page: dict, dataset: str, sql: str) -> str:
-    """Rows a money total may add: a dated row in a period that has closed. Rows without a date and the period still running are left out."""
+    """Rows a money total may add: a dated row in a period that has closed, converted when the owner chose a rate."""
     scope = money_scope(page, dataset)
+    inner = sql
+    if scope["rates"]:
+        cases = " ".join(f"WHEN {sql_text(code)} THEN {float(rate)!r}" for code, rate in sorted(scope["rates"].items()))
+        inner = (f"SELECT *, CAST(value_at_stake AS DOUBLE) * CASE {quote(scope['currency_column'])} {cases} ELSE NULL END AS {CONVERTED} "
+                 f"FROM ({sql}) AS c")
     if not scope["period"]:
-        return sql
+        return inner
     column = quote(scope["period"])
-    return (f"SELECT * FROM ({sql}) AS m WHERE {column} IS NOT NULL "
+    return (f"SELECT * FROM ({inner}) AS m WHERE {column} IS NOT NULL "
             f"AND {column} < date_trunc('{scope['grain']}', current_date())")
+
+
+def money_expression(page: dict, dataset: str, expression: str) -> str:
+    """A money expression reads the converted amount when the owner chose a rate, and the stake amount otherwise."""
+    if not money_scope(page, dataset)["rates"]:
+        return expression
+    return re.sub(r"\bvalue_at_stake\b", CONVERTED, expression)
 
 
 def money_currency_column(page: dict, kpi: dict) -> str:
@@ -2433,14 +2474,15 @@ def kpi_query(page: dict, ident: str, values: dict, previous: str = None) -> tup
     money = kpi.get("format") == "currency"
     dataset = _dataset(page, kpi["dataset"])
     sql, params = (money_source(page, kpi["dataset"], dataset) if money else dataset), _Params()
+    expression = money_expression(page, kpi["dataset"], kpi["expression"]) if money else kpi["expression"]
     where = _where(page, kpi["dataset"], values, params)
     by = money_currency_column(page, kpi)
     split = f", {quote(by)} AS currency" if by else ""
     group = f" GROUP BY {quote(by)}" if by else ""
-    text = f"SELECT 'now' AS period{split}, {kpi['expression']} AS value FROM ({sql}) AS d{where}{group}"
+    text = f"SELECT 'now' AS period{split}, {expression} AS value FROM ({sql}) AS d{where}{group}"
     if kpi.get("compare") and previous:
         previous_sql = money_source(page, kpi["dataset"], previous) if money else previous
-        text += (f" UNION ALL SELECT 'before' AS period{split}, {previous_value(kpi['expression'])} AS value FROM ({previous_sql}) AS d{where}"
+        text += (f" UNION ALL SELECT 'before' AS period{split}, {previous_value(expression)} AS value FROM ({previous_sql}) AS d{where}"
                  f"{group}")
     return f"{text} LIMIT {CAPS['kpi_rows']}", params.items
 
@@ -2500,7 +2542,8 @@ def chart_query(page: dict, ident: str, values: dict) -> tuple:
     dataset = _dataset(page, chart["dataset"])
     sql, params = (money_source(page, chart["dataset"], dataset) if money else dataset), _Params()
     where = _where(page, chart["dataset"], values, params)
-    ys = ", ".join(f"{y['expression']} AS y{i}" for i, y in enumerate(chart["y"]))
+    ys = ", ".join(f"{money_expression(page, chart['dataset'], y['expression']) if money else y['expression']} AS y{i}"
+                   for i, y in enumerate(chart["y"]))
     if chart["type"] == "scatter":
         group = quote(chart["group"])
         text = (f"SELECT CAST({group} AS STRING) AS x_label, {chart['x']['expression']} AS x, {ys} FROM ({sql}) AS d{where} "

@@ -158,3 +158,29 @@ def test_the_page_writer_is_told_money_never_adds_currencies_and_windows_skip_un
         text = handle.read()
     assert "a currency KPI or chart never adds amounts of different currencies" in text
     assert "so filter `<date> IS NOT NULL` inside the dataset first" in text
+
+
+CONVERTED_PAGE = dict(PAGE, money={"currency": "convert", "base": "USD", "rates": {"AED": 0.5, "USD": 1.0}})
+
+
+def test_a_saved_money_rule_is_validated_and_per_currency_is_the_default():
+    assert shell_sql.money_rule_problems(None) == []
+    assert shell_sql.money_rule_problems({"currency": "per_currency"}) == []
+    assert shell_sql.money_rule_problems({"currency": "convert", "base": "USD", "rates": {"AED": 0.27}}) == []
+    assert shell_sql.money_rule_problems({"currency": "convert", "base": "NOPE", "rates": {"AED": 0.27}})
+    assert shell_sql.money_rule_problems({"currency": "convert", "base": "USD", "rates": {}})
+    assert shell_sql.money_rule_problems({"currency": "convert", "base": "USD", "rates": {"AED": -1}})
+    assert shell_sql.money_rule_problems({"currency": "convert", "base": "USD", "rates": {"AED": True}})
+    assert shell_sql.money_rule_problems({"currency": "sum_everything"})
+
+
+def test_a_converted_money_kpi_is_one_total_in_the_base_currency_at_the_typed_rates():
+    rows = _run(shell_sql.kpi_query(CONVERTED_PAGE, "exposure", {})[0])
+    shown = shell_sql.kpi_values(rows)
+    assert "by_currency" not in shown, "a converted total is one number"
+    assert shown["now"] == 117.5, "AED 135 at 0.5 plus USD 50 at 1"
+
+
+def test_the_saved_rule_changes_the_totals_only_for_the_page_that_saved_it():
+    assert "CASE" not in shell_sql.kpi_query(PAGE, "exposure", {})[0]
+    assert "_inspire_converted" in shell_sql.kpi_query(CONVERTED_PAGE, "exposure", {})[0]
