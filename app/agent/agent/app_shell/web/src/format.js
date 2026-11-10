@@ -256,7 +256,7 @@ export function plainChart(chart) {
 
 const NAME_ENDINGS = ['name', 'label', 'title', 'description', 'desc'];
 
-export function entityName(row, column) {
+export function entityName(row, column, { sentence = false } = {}) {
   const v = row?.[column];
   if (v == null || v === '') return '';
   if (!isKeyColumn(column) || /[A-Za-z]/.test(String(v))) return plainText(v);
@@ -267,6 +267,7 @@ export function entityName(row, column) {
     .sort((a, b) => wanted.indexOf(norm(a)) - wanted.indexOf(norm(b)))
     .find((k) => /[A-Za-z]/.test(String(row[k] ?? '')));
   if (named) return plainText(row[named]);
+  if (sentence) return '';
   return `${cap(stem.replace(/_/g, ' ') || 'item')} ${plainText(v)}`;
 }
 

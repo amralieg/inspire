@@ -607,3 +607,4 @@ export function explainContext(meta, data, row, unit = '', kind = '') {
 }
 
 export const recordName = (row, meta) => entityName(row, meta?.label);
+export const recordSentenceName = (row, meta) => entityName(row, meta?.label, { sentence: true }) || 'This record';

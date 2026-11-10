@@ -3385,7 +3385,8 @@ def window_order(stake: str, due: str, today: str, tie: str) -> str:
 
 
 def due_first_order(stake: str, due: str, today: str, tie: str) -> str:
-    return (f"CASE WHEN {due} < {today} THEN 0 ELSE 1 END ASC, {stake} DESC NULLS LAST, {due} ASC NULLS LAST"
+    return (f"CASE WHEN {due} < {today} THEN 0 ELSE 1 END ASC, CASE WHEN {due} < {today} THEN {due} END ASC NULLS LAST, "
+            f"{stake} DESC NULLS LAST, {due} ASC NULLS LAST"
             + (f", {tie} ASC" if tie else ""))
 
 

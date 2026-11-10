@@ -7,7 +7,7 @@ import { chartPalette, reducedMotion } from './theme.js';
 import { Icon } from './icons.jsx';
 import { categoryLabels } from './layout.js';
 import { Skeleton, useDebounced, useToast, PlainNote } from './ui.jsx';
-import { SaveButton, runWrite } from './saving.jsx';
+import { SaveButton, missingWhy, runWrite } from './saving.jsx';
 import { AskGenie } from './AskGenie.jsx';
 
 const STEPS = 100;
@@ -85,8 +85,8 @@ function SaveScenario({ page, app, result, onSaved }) {
   return (
     <form className="scenario-save" onSubmit={submit} data-save>
       <label>Name this scenario<input dir="auto" required maxLength={80} value={name} onChange={(e) => setName(e.target.value)} /></label>
-      <SaveButton write="scenario:save" className="btn btn--sm btn--pri" type="submit" disabled={!result || !name.trim()}>Save the scenario</SaveButton>
-      {(!result || !name.trim()) && <p className="text-[12px] text-text-secondary" data-save-missing>{`Add ${[!result && 'a result', !name.trim() && 'a name'].filter(Boolean).join(' and ')} to save.`}</p>}
+      <SaveButton write="scenario:save" className="btn btn--sm btn--pri" type="submit" disabled={!result || !name.trim()}
+        why={missingWhy([!result && 'a result', !name.trim() && 'a name'])}>Save the scenario</SaveButton>
       {error && <PlainNote text={error} icon={<Icon name="info" size={12} />} className="tile-err" role="alert" />}
     </form>
   );

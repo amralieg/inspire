@@ -16,7 +16,7 @@ import { hueVars, reducedMotion } from './theme.js';
 import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast, PlainNote, toastFailure } from './ui.jsx';
 import { failureOf, getRecords } from './api.js';
 import { HistoryList, useHistory } from './History.jsx';
-import { SaveButton, savingLabel, useWrite } from './saving.jsx';
+import { SaveButton, missingWhy, savingLabel, useWrite } from './saving.jsx';
 import RecordForm, { DeleteDialog } from './RecordForm.jsx';
 import { moneyOf } from './money.js';
 import { apiColumns } from './filters.js';
@@ -25,7 +25,7 @@ import { useCopyLink } from './PageLink.jsx';
 import { WindowChips, useFocusList, useMyView } from './MyView.jsx';
 import { EVERYTHING, listLimit, listWindow, localDay, markVisit, narrowWindow, nextDay, visitedAt, windowLabel } from './prefs.js';
 import { BatchesDialog, BulkBar, CaughtUp, ChoiceSelect, ConflictNote, HelpDialog, NoteField, SimilarDialog, isTyping, useActs } from './Work.jsx';
-import { recordName,
+import { recordName, recordSentenceName,
   DRAFT_LABEL, ACT_LIMIT, CHOICE_COLUMN, CLOSED_STATUSES, DONE, HELD, NOTE_CHARS, PAGE_SIZES, REASON_CHARS, UNEXPLAINED, actionForm, actionProblem, actionValues, pageChoices, pickChoice, statusKind, OPEN_STATUSES, isOpenStatus, choiceLabel, closingChoices, isDefaultChoice, QUICK_CLOSE,
   aiValue, askQuestions, changeBadge, doneText, dueText, explainContext, heldBack, heldText, impactText, initials, isOverdue, keptText, leftText, matchOf,
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
@@ -142,7 +142,7 @@ function AddNote({ action }) {
       <h3><Icon name="edit" size={13} />Add a note</h3>
       <form className="note-f" onSubmit={submit}>
         <NoteField name="record_note" value={note} onChange={setNote} label="Note for the history" />
-        <SaveButton write={NOTE_WRITE} type="submit" disabled={!note.trim()}>Add note</SaveButton>
+        <SaveButton write={NOTE_WRITE} type="submit" disabled={!note.trim()} why={missingWhy(['a note'])}>Add note</SaveButton>
       </form>
     </section>
   );
@@ -182,7 +182,7 @@ function SnoozeButton({ action, tomorrow }) {
         <Popover anchor={anchor.current} onClose={close} label="Snooze this record" width={260}>
           <form className="bulk-pop" onSubmit={submit}>
             <label className="in"><span>Snooze until</span><input type="date" name="record_snooze" autoFocus min={tomorrow} value={until} onChange={(e) => setUntil(e.target.value)} required /></label>
-            <SaveButton write={SNOOZE_WRITE} type="submit" className="btn btn--pri" disabled={!until || until < tomorrow}>Snooze until {until ? dayLabel(until) : 'the date'}</SaveButton>
+            <SaveButton write={SNOOZE_WRITE} type="submit" className="btn btn--pri" disabled={!until || until < tomorrow} why={until ? 'Pick a date after today to snooze.' : missingWhy(['a date'])}>Snooze until {until ? dayLabel(until) : 'the date'}</SaveButton>
           </form>
         </Popover>
       )}
@@ -228,7 +228,7 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
         )}
         <div className="act-btns in--wide">
           <span className="sp" />
-          <SaveButton write={SAVE_WRITE} type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />Save action</SaveButton>
+          <SaveButton write={SAVE_WRITE} type="submit" className="btn btn--pri" disabled={!!problem} why={problem || ''}><Icon name="check" size={14} />Save action</SaveButton>
         </div>
         </fieldset>
       </form>
@@ -615,7 +615,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const quiet = quietList(rows, meta, aliases);
   const labelOf = (c) => {
     const row = rows.find((r) => keyOf(r) === String(c.record_key));
-    return row ? recordName(row, meta) : plainText(c.label ?? c.record_key ?? '');
+    return row ? recordSentenceName(row, meta) : plainText(c.label ?? '') || 'This record';
   };
   const isNew = (r) => {
     const at = Number(r?._inspire_version) / 1000;
@@ -723,7 +723,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     if (key == null || !row._inspire_version) return;
     try {
       await acts.act({ record_keys: [String(key)], seen: { [String(key)]: String(row._inspire_version) } }, values,
-        { said, about: { record_key: String(key), label: recordName(row, meta) || String(key) }, key: write });
+        { said, about: { record_key: String(key), label: recordSentenceName(row, meta) }, key: write });
     } catch (err) {
       toastFailure(toast, err, () => quick(row, values, said, write));
     }
@@ -919,7 +919,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           <span className="row-acts row-next-acts">
             {closingChoices(choices).filter((c) => c.id !== now).map((c) => {
               const label = isDefaultChoice(c) ? QUICK_CLOSE[statusKind(c.status)]?.[0] || c.label : c.label;
-              const name = recordName(r, meta);
+              const name = recordSentenceName(r, meta);
               if (statusKind(c.status) === 'dismissed') {
                 return <button key={c.id} type="button" className="btn btn--sm" data-row-choice={c.id} onClick={stop(() => setOpen(r))} aria-label={`${label} ${name}: give the reason in the record`}>{label}</button>;
               }
@@ -1040,8 +1040,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
             sort={shownSort ? { key: shownSort.key, dir: shownSort.dir === 'desc' ? -1 : 1 } : null} onSort={(s) => setSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' })}
             rowClass={(r) => [picked.has(String(recordKeyOf(r))) || matching ? 'is-picked' : '', keyOf(r) === cursorKey ? 'is-cursor' : '', gate.holds(keyOf(r)) || (matching && gate.busy) ? 'is-saving' : '',
               isOverdue(r._inspire_due, r._inspire_status, today) ? 'is-late' : ''].filter(Boolean).join(' ')}
-            askAbout={genieOn(app, pageId) && history ? (r) => ({ pageId, recordKey: keyOf(r), label: recordName(r, meta) || keyOf(r) }) : undefined}
-            askRow={(r) => ({ title: recordName(r, meta) || keyOf(r), context: { hint: meta.hint || '', fields: shownFields(r) } })} />
+            askAbout={genieOn(app, pageId) && history ? (r) => ({ pageId, recordKey: keyOf(r), label: recordSentenceName(r, meta) }) : undefined}
+            askRow={(r) => ({ title: recordSentenceName(r, meta), context: { hint: meta.hint || '', fields: shownFields(r) } })} />
           {cap > 0 && beyond > 0 && (
             <p className="more" data-limit>{`Your limit shows the top ${integer(cap)} of ${integer(addCounts([cap, beyond]))}. ${integer(beyond)} more are not shown; change the limit in Settings.`}</p>
           )}

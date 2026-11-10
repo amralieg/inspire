@@ -90,7 +90,7 @@ function Outcomes({ entry, onExplain, genieBusy }) {
   );
 }
 
-const overdueFields = (item, today) => ({ Record: item.label || item.key, Due: shortDay(item.due), Late: dueText(item.due, today).text });
+const overdueFields = (item, today) => ({ Record: item.label || 'This record', Due: shortDay(item.due), Late: dueText(item.due, today).text });
 
 function Overdue({ app, entry, today, onRecord, pageId }) {
   const items = entry.overdue?.items || [];
