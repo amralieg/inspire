@@ -561,7 +561,9 @@ def test_access_plan_without_access_rows_grants_blind_and_rejects_unsafe_input(a
     assert plan(ACCESS_TABLE, None, "planners") == {
         "grants": [NEED_CATALOG, NEED_SCHEMA, NEED_SELECT], "gaps": [], "me": ""}
     assert plan(ACCESS_TABLE, None, "") == {"grants": [], "gaps": [], "me": ""}
-    assert plan(ACCESS_TABLE, LIVE_ACCESS, "x`; DROP TABLE t; --") == {"grants": [], "gaps": [], "me": ""}
+    hostile = plan(ACCESS_TABLE, LIVE_ACCESS, "x`; DROP TABLE t; --")
+    assert hostile["grants"] and all(agent_ns["implement_grant_sql"](need, "x`; DROP TABLE t; --").endswith(" TO `x``; DROP TABLE t; --`")
+                                     for need in hostile["grants"])
     assert plan("not_a_table", LIVE_ACCESS, "bob@x") == {"grants": [], "gaps": [], "me": ""}
     assert plan("`main`.`inspire`.`churn_out`", LIVE_ACCESS, "amr@x")["grants"] == [NEED_SELECT]
 
@@ -3132,7 +3134,7 @@ def test_sharing_with_an_owner_who_already_has_access_ends_without_warnings(agen
     inst._implement_emit = lambda *a, **k: None
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}]})
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
-    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x")]
+    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_SELECT.format("bad``name")]
 
 
 def test_sharing_when_access_cannot_be_read_grants_blind_and_says_so(agent_ns):
@@ -3382,12 +3384,12 @@ def test_sharing_lets_each_principal_read_the_reasons_view_and_says_when_it_cann
     inst._implement_emit = lambda *a, **k: None
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}, {"type": "group", "name": "bad`name"}]})
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
-    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_REASONS.format("amr@x")]
+    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_REASONS.format("amr@x"), GRANT_SELECT.format("bad``name"), GRANT_REASONS.format("bad``name")]
     inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS))
     inst._implement_api = lambda method, path, body=None, query=None: {}
     inst._implement_emit = lambda *a, **k: None
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
-    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x")], "no view, no grant on it"
+    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_SELECT.format("bad``name")], "no view, no grant on it"
 
     def respond(statement):
         if statement == GRANT_REASONS.format("amr@x"):
@@ -3461,7 +3463,7 @@ def test_sharing_lets_each_principal_read_the_run_summary_the_app_shows(agent_ns
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}, {"type": "group", "name": "bad`name"}]})
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
     assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_SUMMARY.format("amr@x"),
-                                                         GRANT_REASONS.format("amr@x")]
+                                                         GRANT_REASONS.format("amr@x"), GRANT_SELECT.format("bad``name"), GRANT_SUMMARY.format("bad``name"), GRANT_REASONS.format("bad``name")]
 
 
 def test_the_apps_service_principal_may_read_the_run_summary(agent_ns, sdk_stub):
