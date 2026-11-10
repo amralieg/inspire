@@ -57,7 +57,7 @@ async function walk(page, name, actions = {}) {
     seen.push({ step, text, overflow: await overflowing(page) });
     if (DUMP) await page.screenshot({ path: `${DUMP}/${name}-${i + 1}.png` });
     const next = page.getByRole('button', { name: 'Next', exact: true });
-    if (!(await next.count()) || step === 'Summary') break;
+    if (!(await next.count()) || step === 'Review & build') break;
     if (await next.isDisabled()) {
       seen.push({ step, text: `NEXT DISABLED: ${(await page.locator('[role="alert"]').allInnerTexts()).join(' | ')}`, overflow: [] });
       break;
@@ -104,7 +104,7 @@ for (const [name, groups, per] of [['groups-0', 0, 40], ['groups-1', 1, 40], ['g
     try {
       noLeaks(seen, name);
       assert.deepEqual(ui.pageErrors, []);
-      assert.equal(seen.at(-1).step, 'Summary', seen.at(-1).text.slice(0, 300));
+      assert.equal(seen.at(-1).step, 'Review & build', seen.at(-1).text.slice(0, 300));
     } finally {
       await ui.close();
     }
@@ -166,7 +166,7 @@ for (const [name, actions] of COMBOS) {
       noLeaks(seen, name);
       for (const s of seen) assert.deepEqual(s.overflow, [], `${name} / ${s.step} at 1440 by 900`);
       assert.deepEqual(ui.pageErrors, []);
-      assert.equal(seen.at(-1).step, 'Summary', seen.at(-1).text.slice(0, 400));
+      assert.equal(seen.at(-1).step, 'Review & build', seen.at(-1).text.slice(0, 400));
     } finally {
       await ui.close();
     }
@@ -174,7 +174,7 @@ for (const [name, actions] of COMBOS) {
 }
 
 const deliverOf = (seen) => seen.find((s) => s.step === 'Deliver').text;
-const summaryOf = (seen) => seen.find((s) => s.step === 'Summary').text;
+const summaryOf = (seen) => seen.find((s) => s.step === 'Review & build').text;
 
 test('a workspace with Apps turned off dims the App on Deliver with the reason, drops the App steps and still reaches the Summary', async () => {
   const { seen, ui } = await scenario('no-apps', { profile: PROFILE, extra: { ...counted(PROFILE), appsOk: false } });
@@ -195,7 +195,7 @@ test('a workspace with Alerts turned off leaves the Alert unticked with the reas
   try {
     noLeaks(seen, 'no-alerts');
     assert.match(deliverOf(seen), /Alerts are turned off in this workspace\./);
-    assert.equal(seen.at(-1).step, 'Summary');
+    assert.equal(seen.at(-1).step, 'Review & build');
   } finally {
     await ui.close();
   }
@@ -204,7 +204,7 @@ test('a workspace with Alerts turned off leaves the Alert unticked with the reas
 test('a workspace with Genie Agents turned off unticks the Genie Agent like the App, so Next is never refused for an option nobody picked', async () => {
     const { seen, ui } = await scenario('no-genie', { profile: PROFILE, extra: { ...counted(PROFILE), spacesOk: false } });
     try {
-      assert.equal(seen.at(-1).step, 'Summary', seen.at(-1).text.slice(0, 300));
+      assert.equal(seen.at(-1).step, 'Review & build', seen.at(-1).text.slice(0, 300));
       assert.doesNotMatch(seen.map((s) => s.text).join('\n'), /run the grant/);
       assert.equal(summaryOf(seen).split('Genie Agents are turned off in this workspace.').length - 1, 1, 'the Summary names why the Genie Agent is not built once');
       assert.doesNotMatch(summaryOf(seen), /Not picked in Deliver[^\n]*(Genie Agent|the App)/, 'an output the workspace cannot build is never called not picked (must-exclude)');
@@ -280,7 +280,7 @@ test('a First run of several groups on a new schema of its own: Next creates the
 });
 
 async function recipients(page, text) {
-  await page.getByRole('button', { name: 'Advanced settings' }).click();
+  await page.getByRole('button', { name: 'Change delivery settings' }).click();
   const box = page.getByLabel('Email recipients (comma separated)');
   await box.fill(text);
   await settle(page);
@@ -299,7 +299,7 @@ test('ticking the Alert emails the owner by default, and the Summary and the bui
     } } });
   try {
     noLeaks(seen, 'alert-recipients');
-    assert.equal(seen.at(-1).step, 'Summary', seen.at(-1).text.slice(0, 300));
+    assert.equal(seen.at(-1).step, 'Review & build', seen.at(-1).text.slice(0, 300));
     assert.match(summaryOf(seen), /Alert\nEmails ops@example\.com, شريك@example\.com when /);
     const { page, made } = ui;
     await page.getByRole('button', { name: 'All Good, Build it Now' }).click();
@@ -323,7 +323,7 @@ for (const [name, typed, refusal] of [
       const stop = seen.at(-1);
       assert.equal(stop.step, 'Deliver');
       assert.match(stop.text, refusal);
-      if (!typed) assert.equal(await alertLine(ui.page), 'Nobody gets it yet: add an email under Advanced settings.');
+      if (!typed) assert.equal(await alertLine(ui.page), 'Nobody gets it yet: add an email under Change delivery settings.');
       assert.equal(ui.made.jobs.length, 0);
     } finally {
       await ui.close();
@@ -390,7 +390,7 @@ test('ticking two columns whose groups multiply past 500 says so before the buil
   try {
     const groups = seen.find((s) => s.step === 'Data groups').text;
     if (DUMP) fs.writeFileSync(`${DUMP}/combine-past-500.groups.txt`, `${JSON.stringify(calls)}\n${groups}`);
-    const summary = seen.find((st) => st.step === 'Summary').text;
+    const summary = seen.find((st) => st.step === 'Review & build').text;
     if (DUMP) fs.writeFileSync(`${DUMP}/combine-past-500.summary.txt`, summary);
     assert.match(groups, /region, then store splits the data into 1,200 groups\. Inspire models each group on its own\.\s*That is more than the 500 groups Inspire models one by one/);
     assert.doesNotMatch(groups, /region, then country splits the data/, 'the headline is the split the person ticked, not the one Inspire suggested (must-exclude)');
@@ -410,7 +410,7 @@ async function summaryText(page) {
 }
 
 async function toSummary(page) {
-  for (let i = 0; i < 12 && (await current(page)) !== 'Summary'; i += 1) {
+  for (let i = 0; i < 12 && (await current(page)) !== 'Review & build'; i += 1) {
     await settle(page);
     const was = await current(page);
     await page.getByRole('button', { name: /^(Next|Back to Summary)$/ }).click();
@@ -423,7 +423,7 @@ test('Change on a Summary row opens that step, keeps every earlier answer and Ba
   const { ui } = await scenario('change-from-summary', { profile: PROFILE, extra: counted(PROFILE), actions: { [RUN_IT]: press('Weekly') } });
   try {
     const { page } = ui;
-    assert.equal(await current(page), 'Summary');
+    assert.equal(await current(page), 'Review & build');
     assert.match(await page.locator('[role="dialog"]').innerText(), /Keep it fresh\nWeekly/);
     await page.getByRole('button', { name: 'Change Keep it fresh' }).click();
     await settle(page);
@@ -432,7 +432,7 @@ test('Change on a Summary row opens that step, keeps every earlier answer and Ba
     await press('Off')(page);
     await page.getByRole('button', { name: 'Back to Summary' }).click();
     await settle(page);
-    assert.equal(await current(page), 'Summary');
+    assert.equal(await current(page), 'Review & build');
     const text = await page.locator('[role="dialog"]').innerText();
     assert.match(text, /Keep it fresh\nOff/);
     assert.match(text, /Data groups\nstore · 31 groups/);
@@ -449,7 +449,7 @@ test('Back from the Summary walks every step in order to the Use case and Next w
     const forward = seen.map((s) => s.step);
     const summary = await summaryText(page);
     const back = [await current(page)];
-    while ((await current(page)) !== 'Use case' && back.length < 12) {
+    while ((await current(page)) !== 'Data' && back.length < 12) {
       const was = await current(page);
       await page.getByRole('button', { name: 'Back', exact: true }).click();
       await settle(page);
@@ -471,12 +471,12 @@ test('reloading the page in the middle of the wizard opens it again cleanly on t
     const { page } = ui;
     await page.reload();
     await settle(page);
-    await onStep(page, 'Summary');
+    await onStep(page, 'Review & build');
     await page.locator('[data-wizard-draft]').waitFor();
     await page.locator('[data-wizard-start-over]').click();
     await onStep(page, 'Use case');
     await toSummary(page);
-    noLeaks([{ step: 'Summary', text: await page.locator('[role="dialog"]').innerText() }], 'reload');
+    noLeaks([{ step: 'Review & build', text: await page.locator('[role="dialog"]').innerText() }], 'reload');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -489,7 +489,7 @@ for (const [name, opts] of [['slow-profile', { delay: 12000 }], ['profile-error'
     const { seen, ui } = await scenario(name, { profile: body, ...opts, extra: counted(PROFILE) });
     try {
       noLeaks(seen, name);
-      assert.equal(seen.at(-1).step, 'Summary', seen.at(-1).text.slice(0, 400));
+      assert.equal(seen.at(-1).step, 'Review & build', seen.at(-1).text.slice(0, 400));
     } finally {
       await ui.close();
     }

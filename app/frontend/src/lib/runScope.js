@@ -376,6 +376,12 @@ export function topShown(items, { keep = () => false, limit = GROUPING_SHOWN, op
   return list.filter((item) => kept.includes(item) || extra.includes(item));
 }
 
+export const GROUPING_NAMED_DEFAULT = 'Inspire picked this default because the use case names it.';
+
+export function groupingDefaultNote(profile) {
+  return isMap(profile) && profile.recommended_by === 'use_case' ? GROUPING_NAMED_DEFAULT : '';
+}
+
 export function groupingReasonText(profile) {
   return isMap(profile) && profile.applies === true ? text(profile.reason) : '';
 }

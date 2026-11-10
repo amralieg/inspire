@@ -253,8 +253,12 @@ function overLimitText(over) {
   return ` These columns make more groups than ${limit}: ${over.map((c) => `${c.name}, ${size(c)}`).join('; ')}.`;
 }
 
-function reasonOf({ technique, qualifies, standalone, recommended, table, groups, records, over }) {
+function reasonOf({ technique, qualifies, standalone, recommended, table, groups, records, over, bySubject = false }) {
   const named = str(technique).trim() || 'this use case';
+  if (qualifies && bySubject) {
+    return `Inspire recommends ${recommended.join(', then ')} because the use case names ${recommended[recommended.length - 1]}, and that column splits `
+      + `${table} into ${groups} groups.${overLimitText(over)}`;
+  }
   if (qualifies) {
     return `Inspire recommends ${recommended.join(', then ')} because ${named} works out what is normal inside each group, and ${recommended[recommended.length - 1]} `
       + `splits ${table} into ${groups} groups.${overLimitText(over)}`;
@@ -267,6 +271,13 @@ function reasonOf({ technique, qualifies, standalone, recommended, table, groups
   if (records === 0) return `Inspire recommends the whole data as one group because ${table} holds no records yet, so no column can split it into groups.`;
   return `Inspire recommends the whole data as one group because no column of ${table} or of a table it joins splits it into ${R.GROUP_MIN_GROUPS} to `
     + `${R.GROUP_MAX_GROUPS} groups with ${R.GROUP_MIN_RECORDS} records each on average.${overLimitText(over)}`;
+}
+
+function namedIn(subject, column) {
+  const said = str(subject).toLowerCase();
+  const name = str(column).trim().toLowerCase();
+  if (!name) return false;
+  return [name, name.replace(/_/g, ' ')].some((word) => new RegExp(`(^|[^a-z0-9])${word.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}([^a-z0-9]|$)`).test(said));
 }
 
 function joinOf(candidate) {
@@ -283,7 +294,7 @@ function bySize(list) {
   return list.sort((a, b) => b.records - a.records || (a.value < b.value ? -1 : a.value > b.value ? 1 : 0));
 }
 
-function profileView({ table, technique, columns, candidates, stats, sample, values, paths, time, days, joined = [], deep = [], groupBy = [], readAt }) {
+function profileView({ table, technique, columns, candidates, stats, sample, values, paths, time, days, joined = [], deep = [], groupBy = [], readAt, subject = '' }) {
   const records = num(stats.records);
   const standalone = R.standaloneRecords(technique);
   const picked = profiledColumns(stats, candidates);
@@ -294,7 +305,10 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
   const keptNames = kept.map((p) => p.name);
   const { profiles, nests } = sampleProfile(sample, candidates);
   const heavy = new Set(kept.filter((p) => R.nullHeavy({ records, nulls: p.nulls })).map((p) => p.name));
-  const recommended = keptColumns(deep, keptNames, heavy) || R.recommendation(profiles.filter((p) => keptNames.includes(p.column) && !heavy.has(p.column)), nests);
+  const named = keptNames.filter((n) => !heavy.has(n) && namedIn(subject, n));
+  const discovered = keptColumns(deep, keptNames, heavy);
+  const bySubject = !discovered && named.length > 0;
+  const recommended = discovered || (bySubject ? [named[0]] : R.recommendation(profiles.filter((p) => keptNames.includes(p.column) && !heavy.has(p.column)), nests));
   const grouped = keptColumns(groupBy, keptNames) || recommended;
   const shown = kept.map((p) => {
     const sizes = [...groups.get(p.name).values()].map((g) => g.records);
@@ -333,7 +347,8 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
     records,
     applies,
     qualifies,
-    reason: reasonOf({ technique, qualifies, standalone, recommended, table, groups: recommendedGroups, records, over: overLimitOf(candidates, stats, groups) }),
+    reason: reasonOf({ technique, qualifies, standalone, recommended, table, groups: recommendedGroups, records, over: overLimitOf(candidates, stats, groups), bySubject: bySubject && qualifies }),
+    recommended_by: qualifies ? (discovered ? 'discovery' : bySubject ? 'use_case' : 'statistics') : '',
     standalone,
     columns: shown,
     recommended: applies ? recommended : [],

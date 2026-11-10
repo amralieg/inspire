@@ -2,14 +2,14 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE } from '../../src/lib/runScope.js';
-import { RUN_IT_TITLE, USE_CASE_TITLE, WIZARD_STEPS_MAX } from '../../src/lib/implementWizard.js';
+import { RUN_IT_TITLE, WIZARD_STEPS_MAX } from '../../src/lib/implementWizard.js';
 import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openUi, profileAt, settleChoices, shot, stepsAre } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const WITH_APP = ['1. Use case', '2. Data', '3. Data groups', '4. First run', '5. Results', '6. Deliver', '7. Who uses the App', '8. App pages and look', '9. Run it', '10. Summary'];
-const NO_APP = ['1. Use case', '2. Data', '3. First run', '4. Results', '5. Deliver', '6. Run it', '7. Summary'];
+const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Review & build'];
+const NO_APP = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Run it', '6. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const builtLine = (page) => page.locator('[data-built-sentence]').innerText();
 
@@ -52,13 +52,11 @@ test('with the App picked the wizard reads Use case, Data, Data groups, First ru
     await onStep(page, 'Use case');
     await stepsAre(page, WITH_APP);
     await noOldSteps(page);
-    await page.getByRole('region', { name: 'Executive summary' }).waitFor();
-    assert.equal(await page.locator('[data-use-case-title] h3').innerText(), USE_CASE_TITLE);
-    assert.equal(await page.getByRole('heading', { name: 'Source tables' }).count(), 0, 'the tables wait for Data (must-exclude)');
-    assert.equal(await page.getByLabel('Decision owner').isVisible(), false, 'the goal and decision owner sit under Advanced');
+    await page.locator('[data-wizard-header]').waitFor();
+    assert.equal(await page.locator('[data-use-case-details-open]').count(), 1, 'the use case is a strip with Details, not a step of its own');
+    assert.equal(await page.getByLabel('Decision owner').isVisible(), false, 'the goal and decision owner sit in the Details drawer, not on the step');
     await onePerQuestion(page, 'Use case');
     await shot(page, '01-use-case', false);
-    await next(page);
     await onStep(page, 'Data');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
     assert.equal(await page.getByRole('region', { name: GROUPING_TITLE, exact: true }).count(), 0, 'the groups are their own step, not on Data (must-exclude)');
@@ -139,7 +137,7 @@ test('with the App picked the wizard reads Use case, Data, Data groups, First ru
     await onePerQuestion(page, 'Run it');
     await shot(page, '09-run-it', false);
     await next(page);
-    await onStep(page, 'Summary');
+    await onStep(page, 'Review & build');
     assert.match(await builtLine(page), /^The MVP: .*App.*, the result table and the notebook that fills it\.$/);
     await page.getByRole('region', { name: 'Vibes' }).waitFor();
     await summaryHasNoCapacity(page);
@@ -168,7 +166,7 @@ test('a notebook-only build is Deliver with only Notebook ticked: no App step, a
     await stepsAre(page, NO_APP);
     await noOldSteps(page);
     await shot(page, 'notebook-only-05-deliver', false);
-    await goToStep(page, 'Summary');
+    await goToStep(page, 'Review & build');
     assert.equal(await builtLine(page), 'The MVP: the result table and the notebook that fills it.');
     await summaryHasNoCapacity(page);
     await shot(page, 'notebook-only-07-summary', false);
@@ -201,7 +199,7 @@ test('an App Inspire cannot afford is dimmed on Deliver with one plain reason an
     await stepsAre(page, NO_APP);
     await noOldSteps(page);
     await shot(page, 'app-unaffordable-05-deliver', false);
-    await goToStep(page, 'Summary');
+    await goToStep(page, 'Review & build');
     assert.doesNotMatch(await builtLine(page), /\bApp\b/);
     assert.match(await page.locator('[data-picked-row="dropped"] [data-picked-value]').innerText(), /^App: \S/, 'Summary says the App is not built and why');
     await summaryHasNoCapacity(page);

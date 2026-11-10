@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, V
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
+import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, openDetails, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
 import { wheelReads } from './wheelScroll.mjs';
 
 const gone = (table) => `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${table} cannot be found. Verify the spelling. SQLSTATE: 42P01`;
@@ -59,7 +59,7 @@ async function throughApp(page, access = /^Internal data/) {
   await page.getByRole('radio', { name: access }).check();
   await goToStep(page, 'App look');
 }
-const advanced = (page) => page.getByRole('button', { name: 'Advanced settings' });
+const advanced = (page, what = 'data settings') => page.getByRole('button', { name: new RegExp(`^(Change|Close) ${what}$`) });
 const footerErrors = (page) => page.locator('[role="alert"] p').allTextContents();
 
 const implementWhenReady = startMvp;
@@ -73,13 +73,14 @@ function submittedSpec(made) {
 test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
-  const withApp = ['1. Use case', '2. Data', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Summary'];
+  const withApp = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Who uses the App', '6. App pages and look', '7. Run it', '8. Review & build'];
   try {
     await onStep(page, 'Use case');
     await stepsAre(page, withApp);
-    const summary = page.getByRole('region', { name: 'Executive summary' });
-    await summary.getByText('Cut churn in the top segment').waitFor();
-    await summary.getByText('Head of Retention').waitFor();
+    const drawer = await openDetails(page);
+    await drawer.locator('p', { hasText: 'Cut churn in the top segment' }).waitFor();
+    await drawer.getByText('Head of Retention').waitFor();
+    await drawer.getByRole('button', { name: 'Close details' }).click();
     assert.equal(await page.locator('input[name="implement-mode"]').count(), 0, 'no MVP or notebook choice (must-exclude)');
     await goToStep(page, 'What to build');
     assert.equal(await page.getByText('(default)', { exact: false }).count(), 0);
@@ -92,7 +93,7 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       1, 'exactly one tile is Recommended');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    await stepsAre(page, ['1. Use case', '2. Data', '3. First run', '4. Results', '5. Deliver', '6. Run it', '7. Summary']);
+    await stepsAre(page, ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Run it', '6. Review & build']);
     await page.getByRole('checkbox', { name: /^App / }).check();
     await stepsAre(page, withApp);
     await page.getByRole('region', { name: 'App placement' }).waitFor();
@@ -100,14 +101,14 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     await page.getByRole('checkbox', { name: /^Dashboard/ }).check();
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     await page.getByText(`Emails ${OWNER} when Act now rows in the latest run are at least 1.`).waitFor();
-    await openAdvanced(page);
+    await openAdvanced(page, 'delivery settings');
     const comparison = page.locator('select:has(option[value=">="])');
     assert.deepEqual(await comparison.locator('option').allInnerTexts(), ['at least', 'more than', 'equal to', 'not equal to', 'less than', 'at most'],
       'the alert comparison reads in words, never a symbol');
     await goToStep(page, 'Data');
     assert.deepEqual(await page.locator('[data-table]').evaluateAll((rows) => rows.map((r) => r.dataset.table)), ['main.s.orders', 'main.s.returns']);
     assert.equal(await advanced(page).getAttribute('aria-expanded'), 'false');
-    assert.equal(await page.getByLabel('Goal sentence').count(), 0, 'every other setting waits under Advanced settings');
+    assert.equal(await page.getByLabel('Goal sentence').count(), 0, 'every other setting waits behind its Change line');
     await dataToResults(page);
     await goToStep(page, 'Keep it fresh');
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
@@ -159,9 +160,10 @@ test('the wizard names the use case as the card the person clicked, while the da
   const { page, made } = ui;
   try {
     await onStep(page, 'Use case');
-    const summary = page.getByRole('region', { name: 'Executive summary' });
-    await summary.getByText('Keep the top segment buying').waitFor();
-    assert.equal(await summary.locator('h3').innerText(), HARNESS_USE_CASE.Name);
+    const drawer = await openDetails(page);
+    await drawer.locator('p', { hasText: 'Keep the top segment buying' }).waitFor();
+    assert.equal(await drawer.locator('h2').innerText(), HARNESS_USE_CASE.Name);
+    await drawer.getByRole('button', { name: 'Close details' }).click();
     assert.equal(await page.getByRole('dialog').getByText('Keep customers who would leave').count(), 0, 'one name for the use case, the one on its card');
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
@@ -229,7 +231,7 @@ test('the wizard covers the screen from any scroll position, above the App heade
     assert.ok(dialog.y >= 0 && dialog.y + dialog.height <= 1000, JSON.stringify(dialog));
     const button = await page.getByRole('button', { name: 'Next' }).boundingBox();
     assert.ok(button.y >= 0 && button.y + button.height <= 1000, 'Next is on screen without scrolling the page');
-    await page.getByRole('region', { name: 'Executive summary' }).waitFor();
+    await page.locator('[data-wizard-header]').waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -241,10 +243,12 @@ test('the signed-in person is the decision owner and is shared with by default, 
   const { page, made } = ui;
   try {
     await onStep(page, 'Use case');
-    await advanced(page).click();
-    assert.equal(await page.getByLabel('Decision owner').inputValue(), OWNER);
+    const details = await openDetails(page);
+    const shownOwner = await details.getByLabel('Decision owner').inputValue();
+    await details.getByRole('button', { name: 'Close details' }).click();
+    assert.equal(shownOwner, OWNER);
     await toDelivery(page);
-    await advanced(page).click();
+    await advanced(page, 'delivery settings').click();
     const chip = page.getByRole('button', { name: `${OWNER} ×` });
     await chip.waitFor();
     await chip.click();
@@ -364,7 +368,7 @@ test('every column role starts as Inspire\'s choice, a picked column is type-che
     await page.locator('[role="alert"]').waitFor();
     assert.ok((await footerErrors(page)).some((e) => e.includes('event date main.s.orders.order_id: pick a DATE or TIMESTAMP column')),
       (await footerErrors(page)).join(' | '));
-    assert.equal(await page.locator('[aria-current="step"]').innerText(), '2. Data', 'a wrong type keeps the wizard on Data');
+    assert.equal(await page.locator('[aria-current="step"]').innerText(), '1. Data', 'a wrong type keeps the wizard on Data');
     await role('event date').selectOption('main.s.orders.order_date');
     await role('entity id').selectOption('main.s.orders.order_id');
     await role('event date').selectOption('');
@@ -400,7 +404,7 @@ test('roles an older wizard guessed come back with the version, and one click se
     await page.locator('[role="alert"]').waitFor();
     const shown = await footerErrors(page);
     assert.ok(shown.some((e) => e.startsWith('entity id main.s.orders.order_date:')), shown.join(' | '));
-    assert.ok(shown.includes("Reset roles to Inspire's choice, under Advanced settings, sets every role back at once"), shown.join(' | '));
+    assert.ok(shown.includes("Reset roles to Inspire's choice, under Change data settings, sets every role back at once"), shown.join(' | '));
     await reset.click();
     for (const name of ['entity id', 'event date', 'measure', 'label', 'segment']) {
       assert.equal(await role(name).inputValue(), '', `${name} is back to Inspire's choice`);
@@ -431,7 +435,7 @@ test('Next warns, without stopping, when the data to work with has no rows and s
     await page.getByLabel('Window end').fill('2026-10-28');
     await goToStep(page, 'First run');
     assert.equal(await page.locator('[data-empty-table-warning]').innerText(),
-      'Warning: main.s.orders has no rows inside the date window you picked. You can go on, or widen or clear it under Advanced settings on Data.');
+      'Warning: main.s.orders has no rows inside the date window you picked. You can go on, or widen or clear it under Change data settings on Data.');
     assert.deepEqual(await footerErrors(page), [], 'an empty table no longer stops the wizard (must-exclude)');
     assert.doesNotMatch(await page.locator('body').innerText(), /No rows to work with|Change it to a table with rows/);
     const counted = made.sqlCalls.filter((c) => String(c.sql).startsWith('SELECT COUNT(*) AS row_count'));
@@ -509,20 +513,21 @@ test('what blocks a step shows in the footer, opens Advanced on the field to fix
     await next(page);
     await page.locator('[role="alert"]').waitFor();
     assert.deepEqual(await footerErrors(page), ['write the goal sentence', 'name the decision owner']);
-    assert.equal(await page.locator('[aria-current="step"]').innerText(), '1. Use case', 'the goal and decision owner keep the wizard on Use case');
-    assert.equal(await advanced(page).getAttribute('aria-expanded'), 'true');
+    assert.equal(await page.locator('[aria-current="step"]').innerText(), '1. Data', 'the goal and decision owner keep the wizard on Data');
+    assert.equal(await page.locator('[data-use-case-drawer]').count(), 1, 'the goal and decision owner open in Details, where they are typed');
     await page.getByLabel('Goal sentence').fill('Cut churn in the top segment');
     await page.waitForFunction(() => [...document.querySelectorAll('[role="alert"] p')].length === 1);
     assert.deepEqual(await footerErrors(page), ['name the decision owner']);
     await page.getByLabel('Decision owner').fill('Head of Retention');
+    await page.getByRole('button', { name: 'Close details' }).click();
     await toDelivery(page);
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
-    await page.getByText('Nobody gets it yet: add an email under Advanced settings.').waitFor();
-    assert.equal(await advanced(page).getAttribute('aria-expanded'), 'false');
+    await page.getByText('Nobody gets it yet: add an email under Change delivery settings.').waitFor();
+    assert.equal(await advanced(page, 'delivery settings').getAttribute('aria-expanded'), 'false');
     await next(page);
     await page.locator('[role="alert"]').waitFor();
     assert.deepEqual(await footerErrors(page), ['an alert needs at least one recipient email or notification destination']);
-    assert.equal(await advanced(page).getAttribute('aria-expanded'), 'true');
+    assert.equal(await advanced(page, 'delivery settings').getAttribute('aria-expanded'), 'true');
     assert.equal(made.jobs.length, 0);
     await page.getByLabel('Email recipients (comma separated)').fill(OWNER);
     await page.locator('[role="alert"]').waitFor({ state: 'detached' });
@@ -559,7 +564,7 @@ test('an App name another App already uses is changed to the next free name, and
     const here = page.locator('[data-last-app-name]');
     await here.getByRole('button', { name: 'Use inspire-hub-acme-2' }).click();
     await here.getByText("'inspire-hub-acme-2' is free").waitFor();
-    await onStep(page, 'Summary');
+    await onStep(page, 'Review & build');
     await implementWhenReady(page);
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     assert.equal(submittedSpec(made).outputs.app_name, 'inspire-hub-acme-2');
@@ -1732,11 +1737,11 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     assert.equal(await never.page.locator('[data-mvp-progress]').count(), 0, 'no build to follow before an MVP exists');
     assert.equal(never.made.sqlCalls.some((c) => /^SELECT \* FROM `main`\.`inspire`\.`n01_u01_s42_out`/.test(String(c.sql))), false, 'no result table read');
     await never.page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
-    await onStep(never.page, 'Use case');
-    assert.equal(await never.page.getByRole('region', { name: 'Executive summary' }).locator('h3').innerText(), HARNESS_USE_CASE.Name);
+    await onStep(never.page, 'Data');
+    assert.equal(await never.page.locator('[data-wizard-header] h2').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
-    for (const label of ['Use case', 'Data', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it']) {
-      if (label !== 'Use case') {
+    for (const label of ['Data', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it']) {
+      if (label !== 'Data') {
         await next(never.page);
         await onStep(never.page, label);
       }
@@ -1889,7 +1894,7 @@ test('with a Genie Code route, the wizard walks the MVP steps and no note shows'
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
     await goToStep(ui.page, 'Data');
-    await stepsAre(ui.page, ['1. Use case', '2. Data', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Summary']);
+    await stepsAre(ui.page, ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Who uses the App', '6. App pages and look', '7. Run it', '8. Review & build']);
     assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
   } finally {
     await ui.close();
@@ -2040,7 +2045,7 @@ test('the Implement page groups every use case by its state, searches by name, i
     assert.equal(await page.locator('[data-asset-tiles]').count(), 0);
     await page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
     await onStep(page, 'Use case');
-    assert.equal(await page.getByRole('region', { name: 'Executive summary' }).locator('h3').innerText(), 'Forecast demand');
+    assert.equal(await page.locator('[data-wizard-header] h2').innerText(), 'Forecast demand');
     await page.getByRole('button', { name: 'Close' }).click();
     await page.locator('[data-implement-overlay]').waitFor({ state: 'detached' });
 

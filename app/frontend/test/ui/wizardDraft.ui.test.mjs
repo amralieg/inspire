@@ -8,7 +8,7 @@ test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
 const STATE = { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } };
-const WITH_APP = ['1. Use case', '2. Data', '3. Data groups', '4. First run', '5. Results', '6. Deliver', '7. Who uses the App', '8. App pages and look', '9. Run it', '10. Summary'];
+const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const drafts = (page) => page.evaluate((prefix) => Object.keys(localStorage).filter((k) => k.startsWith(prefix)), WIZARD_DRAFT_PREFIX);
 const draftNote = (page) => page.locator('[data-wizard-draft]');
@@ -48,7 +48,7 @@ const PICKS = {
     pick: async (page) => { await page.locator('[data-choice="freshness"] [data-option="weekly"]').click(); return 'weekly'; },
     read: (page) => pressed(page, 'freshness'),
   },
-  Summary: {
+  'Review & build': {
     pick: async (page) => { await page.getByRole('region', { name: 'Vibes' }).locator('textarea').first().fill('keep the draft words'); return 'keep the draft words'; },
     read: async (page) => [await page.getByRole('region', { name: 'Vibes' }).locator('textarea').first().inputValue()],
   },
@@ -64,24 +64,24 @@ test('a person\u2019s own picks on every step survive a reload, the wizard reope
   const ui = await openUi('wizard', STATE, '', { init: profileAt([], GROUPING_PROFILE) });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Use case');
+    await onStep(page, 'Data');
     await stepsAre(page, WITH_APP);
     assert.deepEqual(await drafts(page), [], 'nothing is kept before the person does anything (must-exclude)');
-    await reloadOn(page, 'Use case');
+    await reloadOn(page, 'Data');
     assert.equal(await draftNote(page).count(), 0, 'no draft note without a draft (must-exclude)');
     const kept = {};
     for (const step of WITH_APP.map((s) => s.replace(/^\d+\.\s*/, ''))) {
       await onStep(page, step);
       await settleChoices(page);
       if (PICKS[step]) kept[step] = await PICKS[step].pick(page);
-      if (step !== 'Use case') {
+      if (step !== 'Data') {
         await reloadOn(page, step);
         assert.equal(await draftNote(page).locator('span').first().innerText(), DRAFT_BACK_NOTE, `${step}: the wizard says the picks are back`);
         await stepsAre(page, WITH_APP);
         if (PICKS[step]) assert.deepEqual(await PICKS[step].read(page), [kept[step]], `${step}: the pick survives the reload`);
         assert.equal((await drafts(page)).length, 1, 'one draft for this use case');
       }
-      if (step !== 'Summary') await next(page);
+      if (step !== 'Review & build') await next(page);
     }
     await page.getByRole('button', { name: BUILD_IT, exact: true }).click();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
@@ -94,7 +94,7 @@ test('a person\u2019s own picks on every step survive a reload, the wizard reope
     assert.equal(spec.schedule.cron, '0 0 6 ? * MON', 'and the restored Weekly');
     assert.match(JSON.stringify(spec), /keep the draft words/, 'and the restored Vibes words');
     assert.deepEqual(await drafts(page), [], 'starting the build clears the draft');
-    await reloadOn(page, 'Use case');
+    await reloadOn(page, 'Data');
     assert.equal(await draftNote(page).count(), 0, 'and the reopened wizard starts fresh (must-exclude)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -106,29 +106,29 @@ test('Close and Start over drop the draft, and a draft from before the use case 
   const ui = await openUi('wizard', STATE, '', { init: profileAt([], GROUPING_PROFILE) });
   const { page } = ui;
   try {
-    await onStep(page, 'Use case');
-    await next(page);
     await onStep(page, 'Data');
     await next(page);
     await onStep(page, 'Data groups');
-    await reloadOn(page, 'Data groups');
+    await next(page);
+    await onStep(page, 'First run');
+    await reloadOn(page, 'First run');
     await draftNote(page).waitFor();
     await page.locator('[data-wizard-start-over]').click();
-    await onStep(page, 'Use case');
+    await onStep(page, 'Data');
     assert.equal(await draftNote(page).count(), 0);
     assert.deepEqual(await drafts(page), [], 'Start over clears the draft');
     await next(page);
-    await onStep(page, 'Data');
+    await onStep(page, 'Data groups');
     assert.equal((await drafts(page)).length, 1);
     await page.getByRole('button', { name: 'Close', exact: true }).first().click();
     assert.deepEqual(await drafts(page), [], 'Close clears the draft');
-    await reloadOn(page, 'Use case');
+    await reloadOn(page, 'Data');
     assert.equal(await draftNote(page).count(), 0, 'a closed wizard reopens fresh (must-exclude)');
     await next(page);
-    await onStep(page, 'Data');
+    await onStep(page, 'Data groups');
     const [key] = await drafts(page);
     await page.evaluate((k) => { const d = JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify({ ...d, stamp: 'an-older-use-case' })); }, key);
-    await reloadOn(page, 'Use case');
+    await reloadOn(page, 'Data');
     assert.equal(await draftNote(page).count(), 0, 'a draft of the use case as it was before is ignored');
     assert.deepEqual(await drafts(page), [], 'and dropped');
     assert.deepEqual(ui.pageErrors, []);

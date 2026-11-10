@@ -123,7 +123,7 @@ const BIG_PROFILE = {
 };
 const INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
   + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Data groups |\n| `run_scope` | text | all | | First run |\n';
-const STEPS = ['Use case', 'Data', 'Data groups', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it', 'Summary'];
+const STEPS = ['Data', 'Data groups', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it', 'Review & build'];
 
 const OPEN_ALL = {
   'Data groups': async (page) => {

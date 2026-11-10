@@ -13,7 +13,7 @@ test.after(closeBrowser);
 
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const footerErrors = (page) => page.locator('[role="alert"] p').allTextContents();
-const advanced = (page) => page.getByRole('button', { name: 'Advanced settings' });
+const advanced = (page, what = 'delivery settings') => page.getByRole('button', { name: new RegExp(`^(Change|Close) ${what}$`) });
 
 async function toResults(page) {
   await goToStep(page, 'Data');
@@ -68,7 +68,7 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     await box.uncheck();
     assert.equal(await impact.getByRole('spinbutton').count(), 0, 'no share to type while it is off');
     await box.check();
-    await openAdvanced(page);
+    await openAdvanced(page, 'run settings');
     const share = page.getByRole('spinbutton', { name: 'Share of records held back, in percent' });
     assert.equal(await share.inputValue(), '10');
     await page.getByText('picked at random and kept the same on every run', { exact: false }).waitFor();
@@ -77,7 +77,7 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     await impact.getByText(SHARE_PROBLEM, { exact: true }).waitFor();
     await next(page);
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '8. Run it', 'a share above half the records keeps the person on Measure impact');
+    assert.equal(await page.locator('[aria-current="step"]').textContent(), '7. Run it', 'a share above half the records keeps the person on Measure impact');
     await share.fill('');
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
     await box.uncheck();
@@ -108,7 +108,7 @@ test('every list field keeps the comma or new line a person types, and sends eac
     };
     await toResults(page);
     await goToStep(page, 'Keep it fresh');
-    await advanced(page).click();
+    await advanced(page, 'run settings').click();
     await keeps([[page.getByLabel('Failure emails (comma separated; default: the decision owner)'), `${OWNER}, ${OPS}`]]);
     await goToStep(page, 'What to build');
     for (const name of [/^Dashboard/, /^App /, /^Alert/]) await page.getByRole('checkbox', { name }).check();
@@ -171,7 +171,7 @@ test('App owners are typed under Advanced settings like alert recipients, checke
     assert.equal(await owners.inputValue(), `${PAT}, nope`);
     await next(page);
     await page.locator('[role="alert"] p', { hasText: 'App owners must be email addresses: nope' }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '5. Deliver');
+    assert.equal(await page.locator('[aria-current="step"]').textContent(), '4. Deliver');
     await owners.fill(`${PAT}, ${PAT.toUpperCase()}, ${LEE}`);
     await throughApp(page);
     await startWhenReady(page);

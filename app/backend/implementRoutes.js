@@ -1830,7 +1830,7 @@ function registerImplementRoutes(app, deps) {
         const values = picked.length ? await rows(GP.valuesSql(main, picked, profiledJoined), null, GP.PROFILE_VALUE_ROWS) : [];
         const deep = GP.deepSuggestionOf(useCase);
         const draft = (paths) => GP.profileView({ table, technique: useCase.analytics_technique, columns, candidates, stats, sample, values, paths,
-          time, days, joined: profiledJoined, deep: deep ? deep.columns : [], groupBy, readAt: new Date().toISOString() });
+          time, days, joined: profiledJoined, deep: deep ? deep.columns : [], groupBy, readAt: new Date().toISOString(), subject: text });
         const first = draft(null);
         const grouped = GR.groupByColumns(first.groups_for);
         if (grouped.length < 2) return first;

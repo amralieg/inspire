@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2, NotebookPen, X, ChevronLeft, ChevronRight, ChevronDown, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
+import { Check, Loader2, NotebookPen, X, ChevronLeft, ChevronRight, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
 import BodyPortal from '../components/BodyPortal';
 import VibesEditor, { VibePrevious } from '../components/VibesEditor';
 import SourceTables from '../components/SourceTables';
@@ -211,8 +211,9 @@ import {
   DELIVERY_LABEL,
   NOTEBOOK_CARD,
   RUN_IT_TITLE,
-  USE_CASE_NOTE,
-  USE_CASE_TITLE,
+  USE_CASE_DETAILS_LABEL,
+  BUILD_NOW_LABEL,
+  CHANGE_LABEL,
   builtSentence,
   DELIVERY_QUESTION,
   DELIVER_MORE,
@@ -344,13 +345,17 @@ function WidgetInput({ widget, value, endpoints, onChange }) {
   );
 }
 
-function Advanced({ open, onToggle, children, label = 'Advanced settings' }) {
+function Advanced({ open, onToggle, children, summary = '', what = 'settings' }) {
   return (
-    <div className="border-t border-border pt-3">
-      <button type="button" aria-expanded={open} onClick={onToggle} className="inline-flex items-center gap-1 text-xs font-medium text-text-secondary hover:text-text-primary">
-        <ChevronDown size={14} className={open ? 'rotate-180' : ''} /> {label}
-      </button>
-      {open && <div className="mt-3 space-y-4">{children}</div>}
+    <div className="border-t border-border pt-3 space-y-3">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[12px] text-text-secondary min-w-0">{summary}</p>
+        <button type="button" aria-expanded={open} aria-label={`${open ? 'Close' : CHANGE_LABEL} ${what}`} onClick={onToggle}
+          className="shrink-0 text-xs font-medium text-db-red-fg hover:underline glow-focus">
+          {open ? 'Close' : CHANGE_LABEL}
+        </button>
+      </div>
+      {open && <div className="space-y-4">{children}</div>}
     </div>
   );
 }
@@ -389,7 +394,8 @@ export default function ImplementWizard({
   const [errors, setErrors] = useState([]);
   const [attempted, setAttempted] = useState({ data: false, delivery: false });
   const [checking, setChecking] = useState('');
-  const [advanced, setAdvanced] = useState({ use_case: false, data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false });
+  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false });
+  const [details, setDetails] = useState(false);
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
   const [columnsByTable, setColumnsByTable] = useState({});
   const [tagNotes, setTagNotes] = useState({});
@@ -449,6 +455,7 @@ export default function ImplementWizard({
     return rest;
   });
   const [ownSchema, setOwnSchema] = useState(null);
+  const [schemaJob, setSchemaJob] = useState(null);
   const [placeNote, setPlaceNote] = useState('');
   const bodyRef = useRef(null);
   const groupingDefaulted = useRef(false);
@@ -661,6 +668,9 @@ export default function ImplementWizard({
     lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps: stepScope, scopeProfile: scopeProfile.profile, outputBlocks: blocks };
   const chartDates = appInputDates(columnsByTable, sourceTables);
   const ownErrors = stepErrors(stepId, spec, extras, mode);
+  const reach = steps.map((s, i) => i <= stepIndex || steps.slice(0, i).every((p) => !stepErrors(p.id, spec, extras, mode).length));
+  const done = steps.map((s, i) => i < stepIndex && !stepErrors(s.id, spec, extras, mode).length);
+  const goTo = (id) => { setErrors([]); setStep(id); };
 
   const eventRef = spec.data.column_roles.event_date || '';
   const estimate = (windowDays, more = {}) => profileEstimate({
@@ -687,6 +697,7 @@ export default function ImplementWizard({
     setAttempted((prev) => ({ ...prev, [id]: true }));
     if (!stepErrors(id, spec, extras, mode).length) return false;
     if (advancedErrors(id, spec, extras, mode).length) setAdvanced((prev) => ({ ...prev, [id]: true }));
+    if (id === 'data' && (!String(spec.use_case.goal || '').trim() || !String(spec.use_case.decision_owner || '').trim())) setDetails(true);
     if (id === SUMMARY_STEP.id) {
       const where = vibesProblem('mvp', spec.vibes, 'MVP') ? '[data-vibes="mvp"] textarea' : vibePreviousProblem(spec, built) ? '[data-vibe-previous] input' : '';
       if (where) bodyRef.current?.querySelector(where)?.focus();
@@ -743,23 +754,25 @@ export default function ImplementWizard({
         }
       }
       if (stepId === 'results' && resultPlace === 'own') {
-        setChecking('Creating the use case schema');
         const own = resultTableParts(ownTable);
-        try {
-          const made = await apiPostJson(`/api/inspire/implement/create-schema?${q}`, {
-            catalog: own.catalog, schema: own.schema, tags: schemaTagsOf({ sessionId, useCaseId: spec.use_case_id, businessName: context?.business_name, inspireDatabase }),
-          });
+        setSchemaJob({ state: 'running', text: `Creating the use case schema ${own.catalog}.${own.schema} in the background. You can keep going; Build waits for it.` });
+        apiPostJson(`/api/inspire/implement/create-schema?${q}`, {
+          catalog: own.catalog, schema: own.schema, tags: schemaTagsOf({ sessionId, useCaseId: spec.use_case_id, businessName: context?.business_name, inspireDatabase }),
+        }).then(async (made) => {
           setOwnSchema((prev) => ({ ...(prev || {}), own_table: ownTable, table: ownTable, place: 'own', create: false }));
           setPlaceNote((made.warnings || []).join(' '));
-        } catch (e) {
+          const check = await apiFetch(outputCheckPath()).catch((e) => (checkCallRefused(e) ? { ok: false, detail: e.message } : { ok: true, unchecked: outputUncheckedText(spec.config.result_table, e) }));
+          setOutputCheck(check.unchecked ? null : check);
+          const failed = [check.write, check.safety, check.model].find((c) => c && !c.ok);
+          setSchemaJob(failed ? { state: 'failed', text: failed.detail } : { state: 'done', text: '' });
+        }).catch((e) => {
           setSpec((prev) => withResultTable(prev, resultTableParts(inspireTable)));
           setOwnSchema((prev) => ({ ...(prev || {}), place: 'inspire', create: false }));
           setPlaceNote(`${ownSchemaFallbackNote(own.catalog, context?.me?.username)} (${e.message})`);
           setOutputCheck(null);
-          return;
-        }
-      }
-      if (stepId === 'results') {
+          setSchemaJob({ state: 'failed', text: `${ownSchemaFallbackNote(own.catalog, context?.me?.username)} (${e.message})` });
+        });
+      } else if (stepId === 'results') {
         setChecking('Checking you can write the result table');
         const check = await apiFetch(outputCheckPath()).catch((e) => {
           if (checkCallRefused(e)) throw e;
@@ -798,7 +811,7 @@ export default function ImplementWizard({
   const sentScope = withGroupingDefault(scopeValues((name) => runs?.[name]), scopeProfile.profile, runs?.[GROUP_BY]);
   const specKey = JSON.stringify(sent);
   const ownErrorsKey = ownErrors.join('|');
-  const buildStep = BUILD_STEP_IDS.includes(stepId);
+  const buildStep = mode === 'mvp' && stepIndex > 0;
   const appBlocked = Boolean(appUnreadable);
   const planReady = steps.filter((s) => BUILD_STEP_IDS.includes(s.id)).every((s) => !stepErrors(s.id, spec, extras, mode).length);
   useEffect(() => {
@@ -1127,6 +1140,12 @@ export default function ImplementWizard({
     );
   }
 
+  const dataSummary = [
+    spec.data.window?.start || spec.data.window?.end ? `Window ${spec.data.window.start || 'open'} to ${spec.data.window.end || 'open'}` : 'No date window',
+    spec.data.column_roles && Object.values(spec.data.column_roles).some(Boolean) ? 'Column roles set by you' : "Column roles chosen by Inspire",
+    spec.config.warehouse_id ? `SQL warehouse ${spec.config.warehouse_id}` : 'No SQL warehouse picked',
+  ].join(' · ');
+  const runSummary = `${spec.schedule.enabled ? 'Keep it fresh is on' : 'Keep it fresh is off'} · ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`;
   const chosenDestinations = spec.outputs.alert_destinations || [];
   const checkEntries = checksFor(preflight?.checks, spec.outputs);
   const generalChecks = checkEntries.filter(([k]) => !TILE_CHECK_KEYS.includes(k));
@@ -1158,7 +1177,7 @@ export default function ImplementWizard({
     [preflightError, checkAgain],
   ].filter(([e]) => e));
   const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
-  const implementBlocked = busy || checksBusy || !placeSettled || Boolean(plan?.unchanged)
+  const implementBlocked = busy || checksBusy || !placeSettled || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || Boolean(plan?.unchanged)
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || !plan || Boolean(planError)));
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
   const best = oneBestPerStep({
@@ -1197,7 +1216,9 @@ export default function ImplementWizard({
   const toggleOutput = (id, checked) => setSpec((prev) => withOutput(prev, id, checked, context?.assets));
 
   return (
-    <Overlay title={title} uc={uc} steps={steps} step={stepIndex} onClose={cancel} onTouch={markTouched}>
+    <Overlay title={title} uc={uc} steps={steps} step={stepIndex} reach={reach} done={done} onGo={goTo} onDetails={() => setDetails(true)}
+      onClose={cancel} onTouch={markTouched}>
+      {details && <UseCaseDrawer title={title} ucRow={ucRow} spec={spec} patch={patch} onOwner={(owner) => setSpec((prev) => withDecisionOwner(prev, owner))} onClose={() => setDetails(false)} />}
       <div ref={bodyRef} data-wizard-body="" className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
         {draftBack && (
           <div role="note" aria-label="Your draft" data-wizard-draft="" className="flex flex-wrap items-center gap-x-3 gap-y-1 rounded-lg border border-info/20 bg-info-bg px-3 py-2 text-[12px] text-text-primary">
@@ -1207,53 +1228,6 @@ export default function ImplementWizard({
         )}
         {stepIndex === 0 && (
           <>
-            {stepId === 'use_case' && (
-              <div data-use-case-title="" className="space-y-0.5">
-                <h3 className="text-sm font-semibold text-text-primary">{USE_CASE_TITLE}</h3>
-                <p className="text-[12px] text-text-secondary">{USE_CASE_NOTE}</p>
-              </div>
-            )}
-            <section className="bg-bg border border-border rounded-lg px-4 py-2.5 space-y-1" aria-label="Executive summary">
-              <div className="flex flex-wrap items-baseline gap-x-3 gap-y-0.5">
-                <h3 className="text-sm font-semibold text-text-primary">{title}</h3>
-                {(ucRow.statement || ucRow.Statement) && <p className="text-[12px] text-text-secondary">{placeholderWords(ucRow.statement || ucRow.Statement)}</p>}
-              </div>
-              <dl className="flex flex-wrap gap-x-5 gap-y-0.5 text-[11px]">
-                {[
-                  ['Who it helps', ucRow.beneficiary || ucRow.Beneficiary],
-                  ['Sponsor', ucRow.sponsor || ucRow.Sponsor],
-                  ['Business value', placeholderWords(ucRow.business_value || ucRow['Business Value'])],
-                ].filter(([, val]) => val).map(([label, val]) => (
-                  <div key={label} className="flex min-w-0 gap-1">
-                    <dt className="shrink-0 font-semibold text-text-tertiary">{label}:</dt>
-                    <dd className="text-text-secondary line-clamp-2">{val}</dd>
-                  </div>
-                ))}
-              </dl>
-            </section>
-            {stepId === 'use_case' && (
-              <Advanced open={advanced.use_case} onToggle={() => toggleAdvanced('use_case')}>
-                <Field label="Goal sentence">
-                  <textarea dir="auto" className={inputCls} rows={3} value={spec.use_case.goal} onChange={(e) => patch('use_case.goal', e.target.value)} />
-                </Field>
-                <Field label="Decision owner">
-                  <input dir="auto" className={inputCls} value={spec.use_case.decision_owner} onChange={(e) => { const owner = e.target.value; setSpec((prev) => withDecisionOwner(prev, owner)); }} />
-                </Field>
-                {[0, 1, 2].map((i) => (
-                  <Field key={i} label={i === 0 ? 'Success measures' : `Measure ${i + 1} (optional)`}>
-                    <input dir="auto"
-                      className={inputCls}
-                      value={spec.use_case.success_measures[i] || ''}
-                      onChange={(e) => {
-                        const next = [...spec.use_case.success_measures];
-                        next[i] = e.target.value;
-                        patch('use_case.success_measures', next.filter((m, idx) => m || idx < i));
-                      }}
-                    />
-                  </Field>
-                ))}
-              </Advanced>
-            )}
             {genieOff && (
               <div role="note" aria-label={GENIE_CODE_OFF_TITLE} className="rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-[12px] space-y-1">
                 <p className="font-semibold text-text-primary">{GENIE_CODE_OFF_TITLE}</p>
@@ -1333,7 +1307,7 @@ export default function ImplementWizard({
             </section>
 
 
-            <Advanced open={advanced.data} onToggle={() => toggleAdvanced('data')}>
+            <Advanced open={advanced.data} onToggle={() => toggleAdvanced('data')} what="data settings" summary={dataSummary}>
               <RowSubjectCheck
                 check={grainCheck(spec, ucRow, columnsByTable, sourceTables)}
                 options={entityKeyOptions(columnsByTable, sourceTables)}
@@ -1545,7 +1519,7 @@ export default function ImplementWizard({
                 onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
               />
             </HoldoutSetting>
-            <Advanced open={advanced.run} onToggle={() => toggleAdvanced('run')}>
+            <Advanced open={advanced.run} onToggle={() => toggleAdvanced('run')} what="run settings" summary={runSummary}>
               <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
               <div className="space-y-2">
                 <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Schedule</h4>
@@ -1658,7 +1632,7 @@ export default function ImplementWizard({
                         <p className="ps-7 text-[11px] text-text-secondary">
                           {(spec.outputs.alert_recipients || []).length
                             ? `Emails ${spec.outputs.alert_recipients.join(', ')} when ${alertTriggerText(spec.outputs)}.`
-                            : 'Nobody gets it yet: add an email under Advanced settings.'}
+                            : 'Nobody gets it yet: add an email under Change delivery settings.'}
                         </p>
                       )}
                       {on && item.id === 'alert' && <DigestChoice outputs={spec.outputs} onChange={(checked) => setSpec((prev) => withDigest(prev, checked))} />}
@@ -1718,7 +1692,7 @@ export default function ImplementWizard({
             </div>
 
             {['dashboard', 'genie_space', 'app', 'alert'].some((o) => spec.outputs[o]) && (
-              <Advanced open={advanced.delivery} onToggle={() => toggleAdvanced('delivery')}>
+              <Advanced open={advanced.delivery} onToggle={() => toggleAdvanced('delivery')} what="delivery settings" summary="Dashboard name and filters, Genie Agent, App and alert recipients">
                 {spec.outputs.dashboard && (
                   <div className="space-y-2">
                     <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Dashboard</h4>
@@ -1935,7 +1909,7 @@ export default function ImplementWizard({
               </section>
             )}
 
-            <Advanced open={advanced.summary} onToggle={() => toggleAdvanced('summary')}>
+            <Advanced open={advanced.summary} onToggle={() => toggleAdvanced('summary')} what="checks and plan" summary="Version plan, permission checks and cost hint">
               {plan && (
                 <div className="space-y-1">
                   <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
@@ -2001,6 +1975,9 @@ export default function ImplementWizard({
           <p role="note" aria-label="Rows to work with" data-empty-table-warning=""
             className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{readiness.warning}</p>
         )}
+        {schemaJob?.text && stepIndex > steps.findIndex((x) => x.id === 'results') && (
+          <p role="status" data-schema-job={schemaJob.state} className="bg-bg-subtle border border-border rounded-md px-3 py-2 text-xs text-text-secondary">{schemaJob.text}</p>
+        )}
         {Object.values(checkNotes).filter(Boolean).map((note) => (
           <p key={note} role="note" data-check-note="" className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs text-warning-fg">{note}</p>
         ))}
@@ -2018,36 +1995,44 @@ export default function ImplementWizard({
           >
             <ChevronLeft size={14} /> Back
           </button>
-          {stepId !== 'notebook' && !lastStep ? (
-            <button
-              type="button"
-              disabled={Boolean(checking)}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70"
-              onClick={goNext}
-            >
-              {checking ? <><Loader2 size={14} className="animate-spin" /> {checking}…</> : <>{nextIsSummary ? BACK_TO_SUMMARY : 'Next'} <ChevronRight size={14} /></>}
-            </button>
-          ) : stepId === 'notebook' ? (
-            <button
-              type="button"
-              disabled={busy}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50"
-              onClick={generateNotebook}
-            >
-              {busy && <Loader2 size={14} className="animate-spin" />}
-              {busy ? 'Starting…' : 'Generate notebook'}
-            </button>
-          ) : (
-            <button
-              type="button"
-              disabled={implementBlocked}
-              className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50"
-              onClick={submit}
-            >
-              {(busy || checksBusy || !placeSettled) && <Loader2 size={14} className="animate-spin" />}
-              {busy ? 'Starting…' : !placeSettled ? 'Listing the Apps…' : checksBusy ? 'Checking access…' : BUILD_IT_LABEL}
-            </button>
-          )}
+          <div className="flex items-center gap-2">
+            {mode === 'mvp' && stepIndex > 0 && !lastStep && (
+              <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-db-red-fg border border-db-red/50 disabled:opacity-50">
+                {BUILD_NOW_LABEL}
+              </button>
+            )}
+            {stepId !== 'notebook' && !lastStep ? (
+              <button
+                type="button"
+                disabled={Boolean(checking)}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70"
+                onClick={goNext}
+              >
+                {checking ? <><Loader2 size={14} className="animate-spin" /> {checking}…</> : <>{nextIsSummary ? BACK_TO_SUMMARY : 'Next'} <ChevronRight size={14} /></>}
+              </button>
+            ) : stepId === 'notebook' ? (
+              <button
+                type="button"
+                disabled={busy}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50"
+                onClick={generateNotebook}
+              >
+                {busy && <Loader2 size={14} className="animate-spin" />}
+                {busy ? 'Starting…' : 'Generate notebook'}
+              </button>
+            ) : (
+              <button
+                type="button"
+                disabled={implementBlocked}
+                className="inline-flex items-center gap-1.5 px-4 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50"
+                onClick={submit}
+              >
+                {(busy || checksBusy || !placeSettled) && <Loader2 size={14} className="animate-spin" />}
+                {busy ? 'Starting…' : !placeSettled ? 'Listing the Apps…' : checksBusy ? 'Checking access…' : BUILD_IT_LABEL}
+              </button>
+            )}
+          </div>
         </div>
       </footer>
     </Overlay>
@@ -2164,7 +2149,7 @@ function InsideInspireCard({ spec, on, lakebase, warehouses, warehousesError, on
       {on && (
         <div className="ps-7 space-y-1">
           {missing && <p data-inside-warehouse-missing="" className="text-[11px] text-error-fg">{INSIDE_WAREHOUSE_PROBLEM}</p>}
-          <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle} label={INSIDE_WAREHOUSE_TOGGLE}>
+          <Advanced open={warehouseOpen || missing} onToggle={onWarehouseToggle} what={INSIDE_WAREHOUSE_TOGGLE} summary={`SQL warehouse: ${spec.outputs.app_warehouse_id || 'not picked'}`}>
             <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry} check={warehouseCheck}
               label={INSIDE_WAREHOUSE_LABEL} onWarehouse={onWarehouse} />
           </Advanced>
@@ -2675,7 +2660,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehous
             Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on Deliver.
           </p>
         ) : (
-          <Advanced open={warehouseOpen || warehouseCheck?.ok === false} onToggle={onWarehouseToggle}>
+          <Advanced open={warehouseOpen || warehouseCheck?.ok === false} onToggle={onWarehouseToggle} what="App SQL warehouse" summary={`SQL warehouse: ${spec.outputs.app_warehouse_id || 'not picked'}`}>
             <AppWarehouseField spec={spec} lakebase={lakebase} warehouses={warehouses} warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry} check={warehouseCheck}
               onWarehouse={onWarehouse} />
           </Advanced>
@@ -3049,7 +3034,64 @@ function ValuePicker({ label, values, selected, onLoad, onChange }) {
   );
 }
 
-function Overlay({ title, uc, steps, step, onClose, onTouch = undefined, children }) {
+function UseCaseDrawer({ title, ucRow, spec, patch, onOwner, onClose }) {
+  const facts = [
+    ['Who it helps', ucRow.beneficiary || ucRow.Beneficiary],
+    ['Sponsor', ucRow.sponsor || ucRow.Sponsor],
+    ['Business value', placeholderWords(ucRow.business_value || ucRow['Business Value'])],
+  ].filter(([, val]) => val);
+  const statement = ucRow.statement || ucRow.Statement;
+  return (
+    <BodyPortal>
+      <div className="fixed inset-0 z-[60] bg-black/30 flex justify-end" data-use-case-drawer="">
+        <div role="dialog" aria-modal="true" aria-label={`Use case details: ${title}`} className="bg-surface border-s border-border shadow-elevated w-full max-w-md h-full flex flex-col">
+          <div className="px-5 pt-4 pb-3 border-b border-border flex items-start justify-between gap-3">
+            <div className="min-w-0 space-y-1">
+              <h2 className="text-base font-semibold text-text-primary break-words">{title}</h2>
+              {statement && <p className="text-[12px] text-text-secondary">{placeholderWords(statement)}</p>}
+            </div>
+            <button type="button" onClick={onClose} className="shrink-0 text-text-tertiary hover:text-text-primary" aria-label="Close details">
+              <X size={16} />
+            </button>
+          </div>
+          <div className="flex-1 min-h-0 overflow-y-auto px-5 py-4 space-y-4">
+            {facts.length > 0 && (
+              <dl className="space-y-1 text-[12px]">
+                {facts.map(([label, val]) => (
+                  <div key={label} className="flex min-w-0 gap-1.5">
+                    <dt className="shrink-0 font-semibold text-text-tertiary">{label}:</dt>
+                    <dd className="text-text-secondary">{val}</dd>
+                  </div>
+                ))}
+              </dl>
+            )}
+            <Field label="Goal sentence">
+              <textarea dir="auto" className={inputCls} rows={3} value={spec.use_case.goal} onChange={(e) => patch('use_case.goal', e.target.value)} />
+            </Field>
+            <Field label="Decision owner">
+              <input dir="auto" className={inputCls} value={spec.use_case.decision_owner} onChange={(e) => onOwner(e.target.value)} />
+            </Field>
+            {[0, 1, 2].map((i) => (
+              <Field key={i} label={i === 0 ? 'Success measures' : `Measure ${i + 1} (optional)`}>
+                <input dir="auto"
+                  className={inputCls}
+                  value={spec.use_case.success_measures[i] || ''}
+                  onChange={(e) => {
+                    const next = [...spec.use_case.success_measures];
+                    next[i] = e.target.value;
+                    patch('use_case.success_measures', next.filter((m, idx) => m || idx < i));
+                  }}
+                />
+              </Field>
+            ))}
+          </div>
+        </div>
+      </div>
+    </BodyPortal>
+  );
+}
+
+function Overlay({ title, uc, steps, step, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
   const stepsRef = useRef(null);
   useEffect(() => {
     const list = stepsRef.current;
@@ -3070,6 +3112,9 @@ function Overlay({ title, uc, steps, step, onClose, onTouch = undefined, childre
                 <p className="text-[11px] font-semibold uppercase tracking-wide text-db-red-fg">{START_MVP_LABEL}</p>
                 <div className="mt-1 flex flex-wrap items-center gap-x-3 gap-y-1">
                   <h2 className="text-lg font-semibold leading-snug text-text-primary break-words">{title}</h2>
+                  {onDetails && (
+                    <button type="button" data-use-case-details-open="" onClick={onDetails} className="text-[12px] font-medium text-db-red-fg hover:underline glow-focus">{USE_CASE_DETAILS_LABEL}</button>
+                  )}
                   {facts.length > 0 && (
                     <ul aria-label="About this use case" className="flex flex-wrap gap-1.5">
                       {facts.map(([label, value]) => (
@@ -3085,16 +3130,23 @@ function Overlay({ title, uc, steps, step, onClose, onTouch = undefined, childre
                 <X size={16} />
               </button>
             </div>
-            <ol ref={stepsRef} className="flex flex-nowrap items-center gap-0.5 overflow-x-auto text-[11px] [scrollbar-width:none]">
-              {steps.map((item, i) => (
-                <li
-                  key={item.id}
-                  aria-current={i === step ? 'step' : undefined}
-                  className={`shrink-0 whitespace-nowrap px-1 py-1 rounded-full ${i === step ? 'bg-db-red-50 text-db-red-fg font-semibold' : i < step ? 'text-text-primary' : 'text-text-tertiary'}`}
-                >
-                  {i + 1}. {item.label}
-                </li>
-              ))}
+            <ol ref={stepsRef} aria-label="Steps" className="flex flex-nowrap items-center gap-0.5 overflow-x-auto text-[11px] [scrollbar-width:none]">
+              {steps.map((item, i) => {
+                const label = <>{done[i] && <Check size={11} className="text-success-fg" aria-hidden="true" />}{i + 1}. {item.label}</>;
+                return (
+                  <li
+                    key={item.id}
+                    aria-current={i === step ? 'step' : undefined}
+                    className={`shrink-0 whitespace-nowrap rounded-full ${i === step ? 'bg-db-red-50 text-db-red-fg font-semibold' : i < step ? 'text-text-primary' : 'text-text-tertiary'}`}
+                  >
+                    {onGo && i !== step && reach[i] ? (
+                      <button type="button" data-step-go={item.id} onClick={() => onGo(item.id)} className="inline-flex items-center gap-1 px-1 py-1 rounded-full hover:underline glow-focus">{label}</button>
+                    ) : (
+                      <span className="inline-flex items-center gap-1 px-1 py-1" aria-disabled={i === step ? undefined : 'true'}>{label}</span>
+                    )}
+                  </li>
+                );
+              })}
             </ol>
             <span className="sr-only">Step {step + 1} of {steps.length}</span>
           </header>

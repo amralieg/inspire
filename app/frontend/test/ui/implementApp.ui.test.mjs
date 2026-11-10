@@ -682,7 +682,7 @@ const JOIN_NOTE = 'The App this use case joins';
 const appTile = (page) => page.locator('[data-output="app"] label').first().textContent();
 const stepLabels = (page) => page.locator('ol li').allTextContents();
 const ownersShown = async (page) => {
-  const toggle = page.getByRole('button', { name: 'Advanced settings' });
+  const toggle = page.getByRole('button', { name: 'Change App SQL warehouse' });
   if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
   return page.getByLabel('App owners (comma separated)').count();
 };
@@ -931,7 +931,7 @@ test('with the App list still loading the wizard opened on Summary keeps Start M
   });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Summary');
+    await onStep(page, 'Review & build');
     await until(() => list.asked.length > 0, 'the App list is asked');
     const waiting = page.getByRole('button', { name: 'Listing the Apps…', exact: true });
     await waiting.waitFor();
@@ -1030,7 +1030,7 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
     await fits('6-run-it');
     await readable('run it');
-    await goToStep(page, 'Summary');
+    await goToStep(page, 'Review & build');
     await page.locator('[data-picked-summary]').waitFor();
     await measure(page, '7-summary');
     await readable('summary');
@@ -1186,7 +1186,7 @@ test('the App reads and saves with the SQL warehouse picked on App access, label
     await toSharedAccess(page);
     const access = page.getByRole('region', { name: 'App access' });
     await access.getByRole('group', { name: 'How fast do the App\'s pages open?' }).getByRole('status').waitFor({ state: 'detached' });
-    await openAdvanced(page);
+    await openAdvanced(page, 'App SQL warehouse');
     const field = access.locator('[data-app-warehouse="pick"]');
     const select = field.locator('select');
     await select.locator('option[value="wh3"]').waitFor({ state: 'attached' });

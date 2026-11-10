@@ -247,8 +247,8 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 }
 
 const STEP_HOLDING = {
-  'What to build': 'Deliver', Delivery: 'Deliver', App: 'Who uses the App', 'App placement': 'Deliver', 'App access': 'Who uses the App',
-  'App features': 'App pages and look', 'App look': 'App pages and look', 'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Summary',
+  'Use case': 'Data', Summary: 'Review & build', 'What to build': 'Deliver', Delivery: 'Deliver', App: 'Who uses the App', 'App placement': 'Deliver', 'App access': 'Who uses the App',
+  'App features': 'App pages and look', 'App look': 'App pages and look', 'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Review & build',
 };
 const exactly = (label) => new RegExp(`^\\s*(\\d+\\.\\s*)?${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
 const isStep = (text, label) => exactly(label).test(text);
@@ -277,8 +277,8 @@ export async function stepsAre(page, expected) {
   }
 }
 
-export async function openAdvanced(page, name = 'Advanced settings') {
-  await page.getByRole('button', { name, exact: true }).click();
+export async function openAdvanced(page, what = 'data settings') {
+  await page.getByRole('button', { name: `Change ${what}`, exact: true }).click();
 }
 
 export const BUILD_IT = 'All Good, Build it Now';
@@ -303,7 +303,7 @@ export async function toVibes(page) {
 }
 
 export async function toSummary(page) {
-  await nextUntil(page, 'Summary');
+  await nextUntil(page, 'Review & build');
 }
 
 export async function goToStep(page, part) {
@@ -566,3 +566,8 @@ export const profileAt = (calls, answer, { status = 200, after = 0 } = {}) => as
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(answer) });
   });
 };
+
+export async function openDetails(page) {
+  await page.locator('[data-use-case-details-open]').click();
+  return page.getByRole('dialog', { name: /^Use case details: / });
+}

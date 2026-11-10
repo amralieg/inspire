@@ -51,7 +51,7 @@ test('the wizard groups the rows by the use case\'s subject, asks no team capaci
     const digest = page.getByRole('checkbox', { name: /^Send a weekly value email to the alert recipients/ });
     assert.equal(await digest.isChecked(), true, 'the email is on once the alert has a recipient');
     await digest.uncheck();
-    const toggle = page.getByRole('button', { name: 'Advanced settings' });
+    const toggle = page.getByRole('button', { name: /^(Change|Close) delivery settings$/ });
     if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
     const clears = page.getByRole('checkbox', { name: /^Email again when it clears/ });
     assert.equal(await clears.isChecked(), true, 'the email when it clears is on once the alert has a recipient');
@@ -103,7 +103,7 @@ test('removing an App another use case shares offers to take this use case\'s pa
     assert.equal(await tile.getByRole('radio', { name: 'Delete it' }).count(), 0);
     const plan = async () => {
       await toSummary(page);
-      const toggle = page.getByRole('button', { name: 'Advanced settings' });
+      const toggle = page.getByRole('button', { name: /^(Change|Close) checks and plan$/ });
       if (await toggle.getAttribute('aria-expanded') !== 'true') await toggle.click();
     };
     await plan();

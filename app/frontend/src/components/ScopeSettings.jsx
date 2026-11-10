@@ -9,7 +9,7 @@ import {
   SCOPE_GROUPS, SCOPE_LABELS, SCOPE_RECORDS, deepGrouping, firstRunChoiceOf, firstRunGroupsPick, groupingCombineNote, firstRunChoices, firstRunCoversText, groupByColumns, groupingChoices, groupingExampleText,
   groupingGroupsOf, groupingMovesUpText, groupingNothingText, groupingOverLimitText, groupingProfiled, groupingReasonText, groupsPickedByRunText, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   isolated, profileHeldText, sameGrouping, scopeChanges, scopeGroupKey, scopeGroupText, scopeGroupsColumn, scopeGroupsOf, scopeGroupsValue, scopeProblems, scopeValues,
-  suggestedGroups, withScopeDefaults, FIRST_RUN_LABEL, GROUPING_FIND, GROUPING_MORE, groupingCount, groupingCountText, groupingLead, topShown,
+  suggestedGroups, withScopeDefaults, FIRST_RUN_LABEL, GROUPING_FIND, GROUPING_MORE, groupingCount, groupingCountText, groupingLead, topShown, groupingDefaultNote,
 } from '../lib/runScope';
 import { bestFirstRun, bestGrouping, isBest } from '../lib/recommended';
 import Recommended from './Recommended';
@@ -73,6 +73,7 @@ function GroupingPart({ values, onChange, profile, read = null, settings, editab
           {overLimit && <span role="alert" data-grouping-over-limit="" className="block text-warning-fg">{overLimit}</span>}
         </p>
       ) : reason && <p data-grouping-reason="" className="text-[12px] text-text-primary">{reason}</p>}
+      {groupingDefaultNote(profile) && <p data-grouping-default-note="" className={NOTE}>{groupingDefaultNote(profile)}</p>}
       <details data-grouping-more="" className={NOTE}>
         <summary className="cursor-pointer select-none font-medium text-text-secondary">{GROUPING_MORE}</summary>
         <div className="mt-1 space-y-1">

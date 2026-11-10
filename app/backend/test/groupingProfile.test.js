@@ -85,7 +85,7 @@ test('the profile reads the main table with the person token only, bounded, and 
     const got = await post(srv, ASK);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
-    assert.deepEqual(Object.keys(d), ['table', 'records', 'applies', 'qualifies', 'reason', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
+    assert.deepEqual(Object.keys(d), ['table', 'records', 'applies', 'qualifies', 'reason', 'recommended_by', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
       'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'group_count', 'group_max', 'column_groups', 'first_run', 'default_scope', 'read_at', 'deep_suggestion']);
     assert.equal('prefill' in d, false, 'the profile carries no starting SQL, since Inspire runs no typed SQL');
     assert.deepEqual([d.table, d.records, d.applies, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, true, false, null]);
@@ -559,3 +559,20 @@ test('a nested grouping with more groups than the list holds still counts every 
     assert.equal(got.data.group_max, R.GROUP_MAX_GROUPS, 'the profile names the limit, so the wizard warns past it without a second copy of the number');
   });
 });
+
+test('the default grouping is the column the use case names when the statistics would pick another, and the reason says so (must-exclude: a column it does not name)', () => {
+  const values = [{ col: '0', value: 'true', records: '4500' }, { col: '0', value: 'false', records: '4500' },
+    { col: '1', value: 'east', records: '3000' }, { col: '1', value: 'west', records: '3000' }, { col: '1', value: 'north', records: '3000' }];
+  const base = { table: 'main.sales.invoices', technique: 'Predictive Modeling', candidates: ['autopay_enrolled', 'district'], paths: null, time: null, days: 30,
+    columns: [{ column_name: 'autopay_enrolled', data_type: 'BOOLEAN' }, { column_name: 'district', data_type: 'STRING' }], keys: { primary: [], joins: [] }, joins: [],
+    readAt: 'now', sample: [{ kind: 'size', coarse: '0', fine: '-1', groups: '2', records: '9000' }], values, stats: { records: '9000', d0: '2', n0: '0', d1: '3', n1: '0' } };
+  const unnamed = GP.profileView({ ...base, subject: 'Forecast billed revenue' });
+  assert.deepEqual([unnamed.recommended, unnamed.recommended_by], [['autopay_enrolled'], 'statistics'], 'with no name in the use case the statistics decide, as before');
+  const named = GP.profileView({ ...base, subject: 'Forecast billed revenue by district' });
+  assert.deepEqual([named.recommended, named.group_column, named.recommended_by], [['district'], 'district', 'use_case']);
+  assert.equal(named.reason, 'Inspire recommends district because the use case names district, and that column splits main.sales.invoices into 3 groups.');
+  const discovered = GP.profileView({ ...base, subject: 'Forecast billed revenue by district', deep: ['autopay_enrolled'] });
+  assert.deepEqual([discovered.recommended, discovered.recommended_by], [['autopay_enrolled'], 'discovery'], 'a Discovery grouping still wins over the name');
+  assert.equal(GP.profileView({ ...base, subject: 'Forecast billed revenue by districts' }).recommended_by, 'statistics', 'a name must match a whole word (must-exclude: plural)');
+});
+

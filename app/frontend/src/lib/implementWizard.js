@@ -28,24 +28,24 @@ export const BACK_TO_SUMMARY = 'Back to Summary';
 export const WIZARD_LINE = 'From your data to people using it';
 export const NOTEBOOK_CARD = { id: 'notebook', label: 'Notebook', blurb: 'The notebook that reads your data and fills the result table. Always built.' };
 export const RUN_IT_TITLE = 'How it keeps running, and how you know it works';
-export const USE_CASE_TITLE = 'Is this the use case you want to build?';
-export const USE_CASE_NOTE = 'Check what it is for and who it helps. The goal, the decision owner and how success is measured sit under Advanced settings.';
+export const USE_CASE_DETAILS_LABEL = 'Details';
+export const BUILD_NOW_LABEL = 'Build with these choices';
+export const CHANGE_LABEL = 'Change';
 
 const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_place', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery', 'app_place'] };
-const USE_CASE_STEP = { id: 'use_case', label: 'Use case', sections: ['use_case'], advanced: ['use_case'], panels: ['use_case'] };
-const DATA_STEP = { id: 'data', label: 'Data', sections: ['data', 'configure'], advanced: ['data', 'configure'], panels: ['data'] };
+const DATA_STEP = { id: 'data', label: 'Data', sections: ['use_case', 'data', 'configure'], advanced: ['data', 'configure'], panels: ['data'] };
 export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
 const RESULTS_STEP = { id: 'results', label: 'Results', sections: ['results'], advanced: [], panels: ['results'] };
 export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule', 'kpi', 'holdout'], advanced: ['schedule', 'holdout'], panels: ['fresh', 'measure'] };
 
-export const IMPLEMENT_STEPS = [USE_CASE_STEP, DATA_STEP, RESULTS_STEP, DELIVERY_STEP, RUN_STEP];
+export const IMPLEMENT_STEPS = [DATA_STEP, RESULTS_STEP, DELIVERY_STEP, RUN_STEP];
 
 export const APP_PANELS = ['app_place', 'app_access', 'app_features', 'app_look'];
 export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_access'], advanced: [], panels: ['app_access'] };
 export const APP_PAGES_STEP = { id: 'app_pages', label: 'App pages and look', sections: ['app_features', 'app_look'], advanced: [], panels: ['app_features', 'app_look'] };
 export const WIZARD_STEPS_MAX = 10;
 
-export const SUMMARY_STEP = { id: 'summary', label: 'Summary', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
+export const SUMMARY_STEP = { id: 'summary', label: 'Review & build', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
 
 export const FIRST_RUN_STEP = { id: 'first_run', label: 'First run', sections: ['first_run'], advanced: [], panels: ['first_run'] };
 
@@ -57,7 +57,7 @@ export const NOTEBOOK_STEPS = [
 ];
 
 const STEP_ALIASES = {
-  choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: RUN_STEP.id, fresh: RUN_STEP.id, vibes: SUMMARY_STEP.id,
+  use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: RUN_STEP.id, fresh: RUN_STEP.id, vibes: SUMMARY_STEP.id,
   settings: SUMMARY_STEP.id, app_place: DELIVERY_STEP.id, app_access: APP_STEP.id, app_features: APP_PAGES_STEP.id, app_look: APP_PAGES_STEP.id,
 };
 const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [APP_PAGES_STEP.id]: APP_STEP.id, [APP_STEP.id]: DELIVERY_STEP.id };
@@ -81,7 +81,7 @@ export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   if (mode === 'mvp') {
     const app = Boolean(spec?.outputs?.app);
     const appSteps = app && !joinsApp(spec) ? [APP_STEP, APP_PAGES_STEP] : [];
-    return [USE_CASE_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), RESULTS_STEP, DELIVERY_STEP,
+    return [DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), RESULTS_STEP, DELIVERY_STEP,
       ...appSteps, RUN_STEP, SUMMARY_STEP];
   }
   if (mode === 'notebook') return NOTEBOOK_STEPS;
@@ -911,7 +911,7 @@ export function emptyScopeWarning(scope, allEmpty = []) {
     filters: 'that pass the filters you picked',
     'window,filters': 'inside the date window that pass the filters you picked',
   }[parts.join(',')];
-  return `Warning: ${scope.table} has no rows ${where}. You can go on, or widen or clear ${parts.join() === 'window' ? 'it' : 'them'} under Advanced settings on Data.`;
+  return `Warning: ${scope.table} has no rows ${where}. You can go on, or widen or clear ${parts.join() === 'window' ? 'it' : 'them'} under Change data settings on Data.`;
 }
 
 export function resultTableMoveNote(summary) {
@@ -1687,7 +1687,7 @@ export function sectionErrors(section, spec, extras = {}) {
   if (section === 'data') {
     const roleProblems = columnRoleProblems(spec.data.column_roles, extras.columnsByTable, { trainsModel: extras.trainsModel !== false });
     errors.push(...roleProblems);
-    if (roleProblems.length) errors.push(`${RESET_ROLES_LABEL}, under Advanced settings, sets every role back at once`);
+    if (roleProblems.length) errors.push(`${RESET_ROLES_LABEL}, under Change data settings, sets every role back at once`);
     const { start, end } = spec.data.window || {};
     if (start && end && start > end) errors.push('the window starts after it ends');
     for (const kept of (spec.data.filters || []).filter((f) => f.op === 'in')) {

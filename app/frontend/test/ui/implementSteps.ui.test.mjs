@@ -7,7 +7,7 @@ test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['Use case', 'Data', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it', 'Summary'];
+const FULL_MVP_STEPS = ['Data', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it', 'Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));
@@ -42,18 +42,18 @@ test('a fresh MVP shows every step in the step bar, with no shortcut that hides 
   }
 });
 
-test('Data, Results, Run it and App show the business settings and keep the technical ones under Advanced settings until it is opened', async () => {
+test('Data, Results, Run it and App show the business settings and keep the technical ones behind their Change line until it is opened', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   const field = (label) => page.getByLabel(new RegExp(`^${label.replace(/[()]/g, '\\$&')}`));
-  const hidden = async (label) => assert.equal(await field(label).count(), 0, `${label} shows before Advanced settings is opened`);
+  const hidden = async (label) => assert.equal(await field(label).count(), 0, `${label} shows before its Change line is opened`);
   const shown = (label) => field(label).first().waitFor();
-  const open = () => openAdvanced(page);
+  const open = (what) => openAdvanced(page, what);
   try {
     await goToStep(page, 'Data');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await hidden(label);
-    await open();
+    await open('data settings');
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await shown(label);
     for (const step of ['First run', 'Results']) {
       await next(page);
@@ -65,7 +65,7 @@ test('Data, Results, Run it and App show the business settings and keep the tech
     await goToStep(page, 'Run it');
     await page.getByRole('checkbox', { name: /^Hold back/ }).check();
     for (const label of ['Share of records held back', 'Cron (Quartz)', 'Timezone']) await hidden(label);
-    await open();
+    await open('run settings');
     for (const label of ['Share of records held back', 'Cron (Quartz)', 'Timezone']) await shown(label);
     await hidden('Rows the team can act on each run');
     const picker = page.locator('[data-app-warehouse="pick"]');
@@ -74,7 +74,7 @@ test('Data, Results, Run it and App show the business settings and keep the tech
     await page.locator('[data-app-place="inspire"] input[type="radio"]').check();
     await page.locator('[data-app-place="inspire"] [data-placement-blurb]').waitFor();
     assert.equal(await picker.count(), 0, 'the App SQL warehouse waits under its own settings on Deliver');
-    assert.equal(await page.getByRole('button', { name: 'Advanced settings', exact: true }).count(), 1, 'one Advanced settings on the step (must-exclude: two of the same name)');
+    assert.equal(await page.getByRole('button', { name: /^(Change|Close) SQL warehouse settings$/ }).count(), 1, 'one SQL warehouse Change line on the step (must-exclude: two of the same name)');
     await openAdvanced(page, INSIDE_WAREHOUSE_TOGGLE);
     await picker.waitFor();
     await page.locator(`input[name="app-place"][value="${placed}"]`).check();
@@ -102,11 +102,11 @@ test('Summary is the last step, lists every pick with a Change link that jumps t
     await summary(page).getByRole('button', { name: 'Change Result table' }).click();
     await onStep(page, 'Results');
     await page.getByRole('button', { name: 'Back to Summary' }).click();
-    await onStep(page, 'Summary');
+    await onStep(page, 'Review & build');
     await summary(page).getByRole('button', { name: 'Change What it builds' }).click();
     await goToStep(page, 'What to build');
     await page.getByRole('button', { name: 'Back to Summary' }).click();
-    await onStep(page, 'Summary');
+    await onStep(page, 'Review & build');
     await startOn(page);
     await startButton(page).click();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
@@ -185,7 +185,7 @@ test('an App name that is still refused is named on the last step with the step 
     assert.equal(await startButton(page).isDisabled(), true);
     await field.locator('input').fill('quality-desk');
     await startOn(page);
-    await onStep(page, 'Summary');
+    await onStep(page, 'Review & build');
     assert.match(await field.innerText(), /'quality-desk' is free/);
     await startButton(page).click();
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();

@@ -53,7 +53,7 @@ test('a first build asks Data groups on their own step with the reason and the c
   const { page, made } = ui;
   try {
     await toStep(page, 'Data groups');
-    assert.deepEqual(await stepBar(page), ['1. Use case', '2. Data', '3. Data groups', '4. First run', '5. Results', '6. Deliver', '7. Who uses the App', '8. App pages and look', '9. Run it', '10. Summary']);
+    assert.deepEqual(await stepBar(page), ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Review & build']);
     await page.setViewportSize({ width: 1440, height: 900 });
     assert.deepEqual(await page.locator('[data-wizard-header] ol').evaluate((ol) => ({ overflow: ol.scrollWidth > ol.clientWidth + 1,
       rows: new Set([...ol.children].map((li) => Math.round(li.getBoundingClientRect().top))).size })), { overflow: false, rows: 1 },
@@ -119,7 +119,7 @@ test('a first build asks Data groups on their own step with the reason and the c
     await atWidths(page, 'first_run', firstRun, { whole: true });
     await firstRun.locator('[data-first-run-choice="groups"] input[type="radio"]').check();
     await firstRun.locator('[data-scope-group="AMER / USA"] input').check();
-    await toStep(page, 'Summary');
+    await toStep(page, 'Review & build');
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
     await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
@@ -144,7 +144,7 @@ test('the First run saved is exactly the one the person picked: a group picked l
     await firstRun.locator('[data-scope-group="EMEA / Malta"] input').check();
     await firstRun.locator('[data-first-run-choice="recent"] input[type="radio"]').check();
     await firstRun.getByLabel('Days to run on').fill('14');
-    await toStep(page, 'Summary');
+    await toStep(page, 'Review & build');
     assert.equal(await firstRunRow(), 'The last 14 days of order_date · 3,120 records', 'the Summary names the recent period the person picked last, as the step words it');
     await page.locator('[data-picked-change="first_run"]').click();
     await onStep(page, 'First run');
@@ -152,7 +152,7 @@ test('the First run saved is exactly the one the person picked: a group picked l
     assert.deepEqual(await firstRun.locator('[data-scope-group] input').evaluateAll((boxes) => boxes.filter((b) => b.checked).map((b) => b.closest('[data-scope-group]').dataset.scopeGroup)),
       ['EMEA / Malta'], 'switching back keeps the group the person picked');
     await page.getByRole('button', { name: 'Back to Summary' }).click();
-    await onStep(page, 'Summary');
+    await onStep(page, 'Review & build');
     assert.equal(await firstRunRow(), 'One group · 40 records: region = EMEA and country = Malta', 'the Summary names the group that is sent, as the step words it');
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
     await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
@@ -203,14 +203,14 @@ test('Next on Data waits for a slow read and then opens the Data groups step wit
   const { page } = ui;
   try {
     await goToStep(page, 'Data');
-    assert.deepEqual(await stepBar(page), ['1. Use case', '2. Data', '3. Data groups', '4. First run', '5. Results', '6. Deliver', '7. Who uses the App', '8. App pages and look', '9. Run it', '10. Summary'],
+    assert.deepEqual(await stepBar(page), ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Review & build'],
       'while the table is read the steps it may need already show, so the count never grows under the person');
     await next(page);
     await page.getByRole('button', { name: /Reading the table/ }).waitFor({ timeout: 8000 });
     await page.getByRole('button', { name: /Reading the table/ }).waitFor({ state: 'detached', timeout: 30000 });
     await onStep(page, 'Data groups');
-    assert.equal(await page.locator('[aria-current="step"]').innerText(), '3. Data groups', 'Next lands on the Data groups step once the table is read');
-    assert.deepEqual(await stepBar(page), ['1. Use case', '2. Data', '3. Data groups', '4. First run', '5. Results', '6. Deliver', '7. Who uses the App', '8. App pages and look', '9. Run it', '10. Summary']);
+    assert.equal(await page.locator('[aria-current="step"]').innerText(), '2. Data groups', 'Next lands on the Data groups step once the table is read');
+    assert.deepEqual(await stepBar(page), ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Review & build']);
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['region, country']);
     await goToStep(page, 'First run');
     await page.locator('[data-first-run-choice="all"] input').check();
@@ -249,7 +249,7 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Data groups');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'the person picked the whole data, so going back never puts the Deep grouping back');
-    await toStep(page, 'Summary');
+    await toStep(page, 'Review & build');
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
     await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
@@ -303,7 +303,7 @@ test('the Data groups picked by discovery are the ones First run highlights and 
     await highlighted();
     await firstRun.locator('[data-scope-group="North"] input').check();
     await firstRun.locator('[data-scope-group="South"] input').uncheck();
-    await toStep(page, 'Summary');
+    await toStep(page, 'Review & build');
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
     await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
@@ -323,7 +323,7 @@ test('a Deep discovery grouping left as picked is never sent as the person\'s ch
   try {
     await toStep(page, 'Data groups');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['store_id']);
-    await toStep(page, 'Summary');
+    await toStep(page, 'Review & build');
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
     await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
@@ -380,7 +380,7 @@ test('confirming the Deep discovery grouping makes it the person\'s choice, and 
     await grouping.locator('[data-grouping-choice="store_id"] input').click();
     await grouping.locator('[data-grouping-chosen-by]').waitFor({ state: 'detached' });
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['store_id']);
-    await toStep(page, 'Summary');
+    await toStep(page, 'Review & build');
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 30000 });
     await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the build', 30000);
@@ -399,7 +399,7 @@ test('a technique Data groups do not apply to asks only for the first run, and a
   const { page } = ui;
   try {
     await toStep(page, 'First run');
-    assert.deepEqual(await stepBar(page), ['1. Use case', '2. Data', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Summary'], 'no Data groups step when groups do not apply (must-exclude)');
+    assert.deepEqual(await stepBar(page), ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Who uses the App', '6. App pages and look', '7. Run it', '8. Review & build'], 'no Data groups step when groups do not apply (must-exclude)');
     assert.equal(await page.locator('[data-first-run-held]').textContent(), 'main.sales.orders holds 800 records, so the First run covers all of it.');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'a profile that still says all is never the default');
     assert.equal(await page.locator('[data-first-run-covers]').textContent(), 'The First run covers all 800 records of main.sales.orders, since it holds no more than 1,000 records.');
@@ -410,7 +410,7 @@ test('a technique Data groups do not apply to asks only for the first run, and a
     await page.locator('[data-scope-problem]').getByText("Records to run on is '0'; allowed: a whole number, at least 1", { exact: true }).waitFor();
     await next(page);
     await page.getByRole('alert').getByText("Records to run on is '0'; allowed: a whole number, at least 1").waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').innerText(), '3. First run', 'a refused value keeps the person on First run');
+    assert.equal(await page.locator('[aria-current="step"]').innerText(), '2. First run', 'a refused value keeps the person on First run');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -423,7 +423,7 @@ test('when Inspire cannot read the table, First run says why and still lets the 
   const { page } = ui;
   try {
     await toStep(page, 'First run');
-    assert.deepEqual((await stepBar(page)).slice(0, 4), ['1. Use case', '2. Data', '3. First run', '4. Results']);
+    assert.deepEqual((await stepBar(page)).slice(0, 3), ['1. Data', '2. First run', '3. Results']);
     const refusal = await page.locator('[data-scope-profile="error"]').textContent();
     assert.match(refusal, /^Inspire could not read the table for its suggestions: .*You cannot read main\.sales\.orders/);
     assert.deepEqual(await page.locator('[data-first-run-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.firstRunChoice)), ['one', 'groups', 'records', 'recent', 'all']);
@@ -634,7 +634,7 @@ for (const [name, profile] of [['the data qualifies for Data groups', PROFILE], 
         await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
         const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
         const groups = profile === PROFILE ? ['Data groups'] : [];
-        assert.deepEqual(steps, ['Use case', 'Data', ...groups, 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it', 'Summary'],
+        assert.deepEqual(steps, ['Data', ...groups, 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it', 'Review & build'],
           'no First run step on a rebuild, and Data groups only when the data qualifies');
         assert.equal(await page.locator('[data-first-run-choice]').count(), 0, 'no First run choice anywhere');
         await toSummary(page);
@@ -674,7 +674,7 @@ test('all settings on an old spec whose First run is a number, when the table re
     const back = page.getByRole('button', { name: 'Back', exact: true });
     for (let i = 0; i < steps.length && !(await page.locator('[aria-current="step"]').innerText()).includes(steps[0]); i += 1) {
       assert.equal(await page.locator('[data-first-run-unrecorded]').count(),
-        (await page.locator('[aria-current="step"]').innerText()).includes('Summary') ? 1 : 0, 'the note is on Summary only');
+        (await page.locator('[aria-current="step"]').innerText()).includes('Review & build') ? 1 : 0, 'the note is on Summary only');
       await back.click();
     }
     assert.equal(await page.locator('[data-first-run-unrecorded]').count(), 0, 'the note is on Summary only');
@@ -801,7 +801,7 @@ test('a forecast on a star fact table with no column to group by still asks Data
   const { page } = ui;
   try {
     await toStep(page, 'Data groups');
-    assert.deepEqual((await stepBar(page)).slice(0, 4), ['1. Use case', '2. Data', '3. Data groups', '4. First run'], 'Data groups follow Data and First run comes right after them');
+    assert.deepEqual((await stepBar(page)).slice(0, 3), ['1. Data', '2. Data groups', '3. First run'], 'Data groups follow Data and First run comes right after them');
     const grouping = page.getByRole('region', { name: 'How is the data split into groups?', exact: true });
     assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)), ['all'],
       'only the whole data when no column qualifies, never a custom SQL choice');
