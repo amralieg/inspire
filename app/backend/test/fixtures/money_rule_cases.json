@@ -1,0 +1,20 @@
+{
+  "cases": [
+    {"name": "default", "rule": null, "valid": true, "clean": {"currency": "per_currency"}},
+    {"name": "per currency", "rule": {"currency": "per_currency"}, "valid": true, "clean": {"currency": "per_currency"}},
+    {"name": "typed rates", "rule": {"currency": "convert", "base": "USD", "rates": {"AED": 0.27, "EUR": 1.08}}, "valid": true,
+     "clean": {"currency": "convert", "base": "USD", "rates": {"AED": 0.27, "EUR": 1.08}}},
+    {"name": "rate column", "rule": {"currency": "convert", "base": "USD", "rate_column": "fx_rate"}, "valid": true,
+     "clean": {"currency": "convert", "base": "USD", "rate_column": "fx_rate"}},
+    {"name": "window of 12 closed periods", "rule": {"currency": "per_currency", "window": {"periods": 12}}, "valid": true,
+     "clean": {"currency": "per_currency", "window": {"periods": 12}}},
+    {"name": "bad base", "rule": {"currency": "convert", "base": "NOPE", "rates": {"AED": 0.27}}, "valid": false},
+    {"name": "no rates and no column", "rule": {"currency": "convert", "base": "USD", "rates": {}}, "valid": false},
+    {"name": "rates and column together", "rule": {"currency": "convert", "base": "USD", "rates": {"AED": 0.27}, "rate_column": "fx_rate"}, "valid": false},
+    {"name": "negative rate", "rule": {"currency": "convert", "base": "USD", "rates": {"AED": -1}}, "valid": false},
+    {"name": "boolean rate", "rule": {"currency": "convert", "base": "USD", "rates": {"AED": true}}, "valid": false},
+    {"name": "bad column name", "rule": {"currency": "convert", "base": "USD", "rate_column": "fx rate; drop"}, "valid": false},
+    {"name": "window out of range", "rule": {"currency": "per_currency", "window": {"periods": 0}}, "valid": false},
+    {"name": "unknown mode", "rule": {"currency": "sum_everything"}, "valid": false}
+  ]
+}

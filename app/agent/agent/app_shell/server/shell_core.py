@@ -2566,6 +2566,10 @@ class Shell:
                 out[f"{kind}s"][item_id] = result
         out["errors"] = {f"{kind}:{item_id}": unread_hint(message, sqls.get((kind, item_id)), self.settings.get("unread"))
                          for (kind, item_id), message in errors.items()}
+        basis = shell_sql.money_basis(page)
+        for kpi in page.get("kpis") or []:
+            if basis and kpi.get("format") == "currency":
+                out["kpis"].setdefault(kpi["id"], {})["basis"] = basis
         return out
 
     def previous_datasets(self, ws, who, page: dict) -> dict:

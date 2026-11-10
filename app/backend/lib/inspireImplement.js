@@ -1,6 +1,7 @@
 const { appShellCatalog } = require('./appShell');
 const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, resourceTagKey, resourceTagValue, withInspireInstallParams } = require('./inspireJobParams');
 const { parseExactJson } = require('./exactJson');
+const { moneyRuleProblems, moneyRuleClean } = require('./moneyRule');
 const { int64Id } = require('./int64Id');
 const { plural } = require('./plural');
 const { USE_CASE_ID_SHAPE } = require('./sqlInputs');
@@ -521,6 +522,11 @@ function validateImplementSpec(input, { shell = null, legacyAccess = '', impact 
   if (spec.holdout != null) out.holdout = holdoutSetting(spec.holdout, errors);
   if (spec.kpi != null) out.kpi = { target: clip(textField(objectField(spec.kpi, 'kpi', errors).target, 'kpi.target', errors), IMPLEMENT_KPI_TARGET_MAX) };
   if (spec.capacity != null) out.capacity = capacitySetting(spec.capacity, errors);
+  if (spec.money != null) {
+    const moneyErrors = moneyRuleProblems(spec.money);
+    errors.push(...moneyErrors.map((problem) => `money: ${problem}`));
+    if (!moneyErrors.length) out.money = moneyRuleClean(spec.money);
+  }
 
   const outputs = objectField(spec.outputs, 'outputs', errors);
   const chosen = {};

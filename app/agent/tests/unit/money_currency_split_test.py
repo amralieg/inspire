@@ -24,7 +24,7 @@ ROWS = [
 
 PAGE = {
     "id": "n04_u05",
-    "datasets": [{"name": "rows", "sql": "SELECT value_at_stake, currency_code, channel, event_month FROM stake_rows"}],
+    "datasets": [{"name": "rows", "sql": "SELECT value_at_stake, currency_code, channel, event_month, fx_rate FROM stake_rows"}],
     "filters": [{"id": "currency", "label": "Currency", "type": "multi_select", "columns": {"rows": "currency_code"}},
                 {"id": "channel", "label": "Sales channel", "type": "multi_select", "columns": {"rows": "channel"}},
                 {"id": "ticket_month", "label": "Ticket month", "type": "date_range", "grain": "month", "default": "12m",
@@ -45,9 +45,16 @@ PAGE = {
 
 def _run(sql):
     db = sqlite3.connect(":memory:")
-    db.execute("CREATE TABLE stake_rows (value_at_stake REAL, currency_code TEXT, channel TEXT, event_month TEXT)")
-    db.executemany("INSERT INTO stake_rows VALUES (?, ?, ?, ?)",
-                   [(r["value_at_stake"], r["currency_code"], r["channel"], r["event_month"]) for r in ROWS])
+
+    def add_months(value, months):
+        year, month = (int(part) for part in str(value)[:7].split("-"))
+        total = year * 12 + (month - 1) + int(months)
+        return f"{total // 12:04d}-{total % 12 + 1:02d}-01"
+
+    db.create_function("ADD_MONTHS", 2, add_months)
+    db.execute("CREATE TABLE stake_rows (value_at_stake REAL, currency_code TEXT, channel TEXT, event_month TEXT, fx_rate REAL)")
+    db.executemany("INSERT INTO stake_rows VALUES (?, ?, ?, ?, ?)",
+                   [(r["value_at_stake"], r["currency_code"], r["channel"], r["event_month"], r.get("fx_rate")) for r in ROWS])
     text = sqlglot.transpile(sql, read="databricks", write="sqlite")[0]
     text = re.sub(r"(TIMESTAMP_TRUNC|DATE_TRUNC)\(\s*(CURRENT_DATE\s*,\s*MONTH|'?MONTH'?\s*,\s*CURRENT_DATE)\s*\)",
                   "date('now', 'start of month')", text, flags=re.I)
@@ -323,3 +330,73 @@ def test_the_preview_top_rows_are_per_currency_amounts_when_no_rate_is_chosen():
 def test_genie_says_the_same_left_out_line_the_app_shows(agent_ns):
     rule = agent_ns["genie_value_at_stake_rule"]("predicted")
     assert "say the one line the App gives under the total" in rule
+
+
+FIXTURE = os.path.join(ROOT, "..", "backend", "test", "fixtures", "money_rule_cases.json")
+
+
+def _cases():
+    import json
+    with open(FIXTURE, encoding="utf-8") as handle:
+        return json.load(handle)["cases"]
+
+
+def test_the_money_rule_cases_agree_with_the_inspire_backend():
+    for case in _cases():
+        problems = shell_sql.money_rule_problems(case["rule"])
+        assert (not problems) == case["valid"], f"{case['name']}: {problems}"
+        if case["valid"]:
+            assert shell_sql.money_rule_clean(case["rule"] or {}) == case["clean"], case["name"]
+
+
+def test_a_rate_column_converts_each_row_at_its_own_rate():
+    global ROWS
+    saved = list(ROWS)
+    rate_page = dict(PAGE, money={"currency": "convert", "base": "USD", "rate_column": "fx_rate"})
+    ROWS = [dict(r, fx_rate=2.0) for r in saved]
+    try:
+        db_rows = _run(shell_sql.kpi_query(rate_page, "exposure", {})[0])
+    finally:
+        ROWS = saved
+    assert shell_sql.kpi_values(db_rows)["now"] == 2.0 * 185.0, "each row times its own rate, summed once"
+
+
+def test_the_basis_says_at_which_rates_a_converted_total_was_worked_out():
+    assert shell_sql.money_basis(PAGE) == ""
+    assert shell_sql.money_basis(dict(PAGE, money={"currency": "convert", "base": "USD", "rates": {"AED": 0.5}})) == \
+        "converted to USD at the rates typed in"
+    assert shell_sql.money_basis(dict(PAGE, money={"currency": "convert", "base": "USD", "rate_column": "fx_rate"})) == \
+        "converted to USD at the rate in fx_rate"
+
+
+def test_a_window_totals_only_the_last_closed_periods():
+    import datetime as dt
+    today = dt.date.today()
+    first = today.replace(day=1)
+    def month_back(n):
+        y, m = first.year, first.month - n
+        while m <= 0:
+            m += 12
+            y -= 1
+        return dt.date(y, m, 1).isoformat()
+    saved = list(ROWS)
+    windowed = dict(PAGE, money={"currency": "per_currency", "window": {"periods": 2}})
+    ROWS[:] = saved + [
+        {"value_at_stake": 1000.0, "currency_code": "AED", "channel": "web", "event_month": month_back(3)},
+        {"value_at_stake": 7.0, "currency_code": "AED", "channel": "web", "event_month": month_back(2)},
+    ]
+    try:
+        sql, _ = shell_sql.kpi_query(windowed, "exposure", {})
+        got = _run(sql)
+    finally:
+        ROWS[:] = saved
+    assert {(r["currency"], r["value"]) for r in got} == {("AED", 7.0)}, \
+        "the 2025 rows and the row three periods back are out; the row two periods back is in"
+
+
+def test_the_build_writes_the_spec_money_rule_into_the_page_as_its_default():
+    notebook = os.path.join(ROOT, "agent", "dbx_inspire_ai_agent.ipynb")
+    with open(notebook, encoding="utf-8") as handle:
+        text = handle.read()
+    assert 'if (context.get(\\"spec\\") or {}).get(\\"money\\"):' in text
+    assert 'page[\\"money\\"] = dict(context[\\"spec\\"][\\"money\\"])' in text
