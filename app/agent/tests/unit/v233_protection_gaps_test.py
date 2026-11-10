@@ -99,11 +99,11 @@ def test_a_view_whose_tables_cannot_be_read_or_that_reads_itself_counts_as_prote
 def test_the_plan_refuses_a_source_or_result_whose_protection_could_not_be_read(agent_ns):
     unread = agent_ns["implement_protection_unread"]("PERMISSION_DENIED")
     plan = _plan(agent_ns)({SOURCE: unread}, {RESULT: _protection(agent_ns, ["owner"])})
-    assert plan["refuse"] == [f"Inspire could not read the row filters, column masks and ABAC policies of {SOURCE} (PERMISSION_DENIED), "
-                              "so it cannot tell that the results keep them"]
+    assert plan["unread"] == [f"Inspire could not read the row filters, column masks and ABAC policies of {SOURCE} (PERMISSION_DENIED), "
+                              "so it cannot tell that the results keep them"] and plan["refuse"] == []
     plan = _plan(agent_ns)(_source(agent_ns), {RESULT: unread})
-    assert plan["refuse"] == [f"Inspire could not read the row filters and column masks of {RESULT} (PERMISSION_DENIED), so it cannot "
-                              "tell that it keeps those of its sources"] and plan["apply"] == []
+    assert plan["unread"] == [f"Inspire could not read the row filters and column masks of {RESULT} (PERMISSION_DENIED), so it cannot "
+                              "tell that it keeps those of its sources"] and plan["apply"] == [] and plan["refuse"] == []
 
 
 def test_the_gate_refuses_when_a_result_cannot_be_read_again_after_binding(agent_ns):

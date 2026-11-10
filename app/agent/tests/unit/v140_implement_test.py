@@ -861,7 +861,7 @@ def _inspire(ns, spark, **attrs):
     inst._implement_params = {}
     inst.emitted = []
     inst._emit_pipeline_status = lambda **kw: inst.emitted.append(kw) or kw.get("step_id") or len(inst.emitted)
-    inst._implement_abac = lambda table, warnings: []
+    inst._implement_abac = lambda table, warnings, denied=None: []
     return inst
 
 
@@ -3199,6 +3199,7 @@ SHELL_FILES = {"app.py": "from shell_core import Shell\n", "app.yaml": "command:
                "pages/n01_u01.json": json.dumps({"id": "n01_u01", "result_table": "main.inspire.churn_out", "records": {"key": "entity_id"}})}
 READS = ["main.inspire.churn_out", "main.s.orders"]
 GRANT_ORDERS = "GRANT SELECT ON TABLE `main`.`s`.`orders` TO `{}`"
+GRANT_ORDERS_METADATA = "GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `{}`"
 
 
 def test_app_deploy_imports_the_shell_as_files_and_grants_every_table_the_page_and_genie_read(agent_ns, sdk_stub):
@@ -3356,8 +3357,8 @@ def test_an_existing_app_whose_service_principal_reads_through_a_group_is_redepl
     assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps/churn-desk/deployments"),
                                       ("GET", "/api/2.0/apps/churn-desk")]
     grants = [s for s in inst.spark.statements if s.startswith("GRANT")]
-    assert grants == [GRANT_SELECT.format("sp-2"), GRANT_ORDERS.format("sp-2"), "GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out` TO `sp-2`"] + \
-        _feedback_writes(agent_ns, "sp-2")[2:], (
+    assert grants == [GRANT_SELECT.format("sp-2"), GRANT_ORDERS.format("sp-2"), GRANT_ORDERS_METADATA.format("sp-2"),
+                      "GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out` TO `sp-2`"] + _feedback_writes(agent_ns, "sp-2")[2:], (
         "record decisions starts on, so the App may write its decisions to the result table, and people may report issues into its feedback table")
     assert "_warnings" not in fields
     assert "unread" not in fields["_asset"], "an App that reads every table records nothing to grant (must-exclude)"

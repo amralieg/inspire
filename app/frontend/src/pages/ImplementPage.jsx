@@ -1236,6 +1236,12 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <p className="text-[13px] font-semibold">{stopped ? 'The build stopped' : 'The build failed'}</p>
           {failedStage && <p>Step: <span className="font-semibold">{failedStage.label}</span></p>}
           {reason && <PlainMessage text={reason} />}
+          {protection?.details && (
+            <details data-protection-details="" className="text-[11px] text-error-fg">
+              <summary className="cursor-pointer">Details</summary>
+              <p className="mt-1 font-mono break-all">{protection.details}</p>
+            </details>
+          )}
         </div>
       </div>
       <StageNotes stages={[{ id: 'Notebook', notes: genieChanges }]} label={GENIE_CHANGES_HEADING} heading={GENIE_CHANGES_HEADING} />

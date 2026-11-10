@@ -21,6 +21,14 @@ test('a protection stop of this version offers Copy SQL and Check again', async 
   for (const c of choices) assert.doesNotMatch(c.detail, /\u2014|\u2013/);
 });
 
+test('a protection stop carries the raw error under Details when the record has one', async () => {
+  const w = await load();
+  const raw = "Principal 'app-x1y2z3 sample-app' does not have READ METADATA on Table main.s.orders_v2";
+  const stop = w.protectionStopOf(latest({ state: 'failed', spec_version: 3, reason: 'The App\'s service principal cannot read', sql: [SQL], check: true, details: raw }));
+  assert.equal(stop.details, raw);
+  assert.equal(w.protectionStopOf(latest({ state: 'failed', spec_version: 3, reason: REASON, sql: [], check: true })).details, undefined);
+});
+
 test('a protection stop with no SQL offers only Check again', async () => {
   const w = await load();
   const stop = w.protectionStopOf(latest({ state: 'failed', spec_version: 3, reason: REASON, sql: [], check: true }));

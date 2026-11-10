@@ -77,9 +77,9 @@ def test_a_result_that_lacks_the_filter_column_is_refused_so_every_viewer_does_n
 
 def test_a_traceable_result_gets_the_same_filter_and_mask_bound_to_its_own_columns(agent_ns):
     plan = _plan(agent_ns)(_source(agent_ns), {RESULT: _protection(agent_ns, ["Owner", "ssn", "region", "value"])})
-    assert plan == {"apply": [BOUND_FILTER.replace("`owner`", "`Owner`"), BOUND_MASK], "refuse": [], "blocked": []}
+    assert plan == {"apply": [BOUND_FILTER.replace("`owner`", "`Owner`"), BOUND_MASK], "refuse": [], "blocked": [], "unread": [], "grant": [], "detail": []}
     kept = _protection(agent_ns, ["owner", "ssn", "region"], filters=[(OWN, "owner")], masks=[("ssn", MASK, "region")])
-    assert _plan(agent_ns)(_source(agent_ns), {RESULT: kept}) == {"apply": [], "refuse": [], "blocked": []}
+    assert _plan(agent_ns)(_source(agent_ns), {RESULT: kept}) == {"apply": [], "refuse": [], "blocked": [], "unread": [], "grant": [], "detail": []}
 
 
 @pytest.mark.parametrize("table", [SOURCE, "main.other.churn_out", "`main`.`s`.`orders_v2`"])
@@ -105,7 +105,7 @@ def test_the_gate_never_alters_a_source_table_the_use_case_also_writes(agent_ns)
 
 def test_a_view_over_the_source_is_left_alone_because_it_keeps_the_source_filters(agent_ns):
     plan = _plan(agent_ns)(_source(agent_ns), {RESULT: _protection(agent_ns, ["value"], view=True)})
-    assert plan == {"apply": [], "refuse": [], "blocked": []}
+    assert plan == {"apply": [], "refuse": [], "blocked": [], "unread": [], "grant": [], "detail": []}
 
 
 @pytest.mark.parametrize("result,fragment", [
@@ -145,7 +145,7 @@ def test_totals_over_a_row_filtered_source_are_blocked_but_totals_over_masked_on
     assert _plan(agent_ns)(_source(agent_ns), results, [SUMMARY])["blocked"] == [SUMMARY]
     masked = {SOURCE: _protection(agent_ns, ["ssn"], masks=[("ssn", MASK, None)])}
     assert _plan(agent_ns)(masked, {SUMMARY: _protection(agent_ns, ["tier", "n"])}, [SUMMARY]) == {
-        "apply": [], "refuse": [], "blocked": []}
+        "apply": [], "refuse": [], "blocked": [], "unread": [], "grant": [], "detail": []}
     abac = {SOURCE: _protection(agent_ns, ["a"], policies=[{"name": "eu_only", "kind": "row_filter"}])}
     assert _plan(agent_ns)(abac, {SUMMARY: _protection(agent_ns, ["n"])}, [SUMMARY])["blocked"] == [SUMMARY]
 
@@ -162,7 +162,7 @@ def test_an_abac_policy_that_does_not_cover_the_result_is_refused(agent_ns):
 def test_unprotected_sources_need_nothing(agent_ns):
     sources = {SOURCE: _protection(agent_ns, ["owner"])}
     assert _plan(agent_ns)(sources, {RESULT: _protection(agent_ns, ["v"])}, [SUMMARY]) == {
-        "apply": [], "refuse": [], "blocked": []}
+        "apply": [], "refuse": [], "blocked": [], "unread": [], "grant": [], "detail": []}
     assert agent_ns["implement_protected_tables"](sources) == {}
 
 

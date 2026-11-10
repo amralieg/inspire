@@ -2641,8 +2641,9 @@ export function protectionStopOf(latest) {
   const record = latest?.asset_status?.protection;
   if (String(latest?.status || '') !== 'failed' || !record || typeof record !== 'object' || record.state !== 'failed'
     || String(record.spec_version ?? '') !== String(latest?.spec_version ?? '')) return null;
+  const details = String(record.details || '').trim();
   return { reason: String(record.reason || '').trim(), sql: Array.isArray(record.sql) ? record.sql.map(String).filter((s) => s.trim()) : [],
-    check: record.check !== false };
+    check: record.check !== false, ...(details ? { details } : {}) };
 }
 
 export function protectionChoices(stop) {

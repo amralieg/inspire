@@ -91,7 +91,7 @@ def test_a_shared_app_gets_select_and_modify_on_the_assumptions_table_it_writes(
         GRANT.format("USE CATALOG", "CATALOG `main`"), GRANT.format("USE SCHEMA", "SCHEMA `main`.`inspire`"),
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out`"), GRANT.format("USE CATALOG", "CATALOG `main`"),
         GRANT.format("USE SCHEMA", "SCHEMA `main`.`s`"), GRANT.format("SELECT", "TABLE `main`.`s`.`orders`"),
-        GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`"), "DESCRIBE TABLE `main`.`inspire`.`churn_out`", CREATE, "DESCRIBE TABLE `main`.`inspire`.`churn_out_assumptions`",
+        GRANT.format("READ METADATA", "TABLE `main`.`s`.`orders`"), GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`"), "DESCRIBE TABLE `main`.`inspire`.`churn_out`", CREATE, "DESCRIBE TABLE `main`.`inspire`.`churn_out_assumptions`",
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out_assumptions`"),
         GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out_assumptions`")] + _feedback_writes(agent_ns), \
         "the assumptions and feedback tables are read after the result table's grants, so their catalog and schema are not granted again"
