@@ -53,7 +53,8 @@ test('a build stopped by a denied policy read shows the reason, Details with the
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await expandBuild(page);
     const banner = page.getByRole('region', { name: 'Build failed', exact: true });
-    await banner.getByText('cannot read main.s.orders', { exact: false }).first().waitFor({ timeout: 15000 });
+    await banner.getByText('cannot read 2 source tables', { exact: false }).first().waitFor({ timeout: 15000 });
+    assert.doesNotMatch(await banner.getByText('cannot read 2 source tables', { exact: false }).first().innerText(), /main\.s\.orders/, 'the sentence names no catalog.schema id; the ids sit under Details');
     const details = banner.locator('[data-protection-details]');
     assert.equal(await details.count(), 1, 'the raw error sits under Details');
     assert.match(await details.locator('p').textContent(), new RegExp(RAW.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'the raw error is under Details');

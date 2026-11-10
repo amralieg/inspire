@@ -87,9 +87,10 @@ test('Discover warns clearly, grants nothing and still starts when neither the A
   assert.equal(got.status, 200, JSON.stringify(got.data));
   assert.deepEqual(got.live.grants, []);
   assert.equal(got.data.run_id, '99');
-  const access = got.data.warnings.filter((w) => w.includes('main.s.orders'));
+  const access = got.data.warnings.filter((w) => w.includes('cannot read a source table'));
   assert.equal(access.length, 1, JSON.stringify(got.data.warnings));
-  assert.match(access[0], /^Discover cannot read main\.s\.orders: Discover runs as the App service principal inspire-app \(application id sp-app-id\)/);
+  assert.match(access[0], /^Discover cannot read a source table: Discover runs as the App service principal inspire-app \(application id sp-app-id\)/);
+  assert.doesNotMatch(access[0].split('Ask the owner')[0], /main\.s\.orders/, 'the ids sit under Details, not in the sentence');
   assert.match(access[0], /Ask the owner to run: GRANT .*TO `sp-app-id`/);
   assert.match(access[0], /no use case is checked against that table's data$/);
 });

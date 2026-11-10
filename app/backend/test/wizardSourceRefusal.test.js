@@ -13,3 +13,17 @@ test('the wizard disables the build button while the source check refuses, with 
   assert.match(WIZARD, /data-source-refused=""/, 'a plain reason sits beside the build button');
   assert.doesNotMatch(WIZARD, /data-source-refused=""[^>]*>[^<]*(PERMISSION_DENIED|GRANT )/, 'the reason carries no raw error or GRANT');
 });
+
+test('the wizard drops the previous preflight verdict when a new check starts, so no verdict shows before its check finishes (no flicker)', () => {
+  const start = WIZARD.indexOf('setChecksBusy(true);');
+  assert.ok(start > 0, 'the preflight effect starts a check');
+  const body = WIZARD.slice(start, WIZARD.indexOf('const timer = setTimeout', start));
+  assert.match(body, /setPreflight\(null\);/, 'the stale verdict is cleared before the new check runs');
+});
+
+test('the wizard names the build output table on every context call, so the context verdict never probes it as a source', () => {
+  assert.match(WIZARD, /const contextQ = `\$\{q\}&result_table=\$\{encodeURIComponent\(spec\.config\?\.result_table \|\| ''\)\}`;/);
+  const calls = WIZARD.match(/implement\/context\?\$\{[a-zA-Z]+\}/g) || [];
+  assert.ok(calls.length >= 2, 'the context is fetched on load and on Grant');
+  assert.deepEqual(calls.filter((c) => !c.endsWith('contextQ}')), [], 'every context call carries the output table');
+});

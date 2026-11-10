@@ -527,6 +527,9 @@ export default function ImplementWizard({
     return p.toString();
   }, [inspireDatabase, warehouseId, sessionId, spec.use_case_id]);
 
+  // The result table is the build's own output: the context verdict must skip it, so the wizard names it.
+  const contextQ = `${q}&result_table=${encodeURIComponent(spec.config?.result_table || '')}`;
+
   const patch = (path, value) => {
     setSpec((prev) => {
       const next = { ...prev };
@@ -557,7 +560,7 @@ export default function ImplementWizard({
     let cancelled = false;
     (async () => {
       try {
-        const data = await apiFetch(`/api/inspire/implement/context?${q}`);
+        const data = await apiFetch(`/api/inspire/implement/context?${contextQ}`);
         if (cancelled) return;
         setContext(data);
         if (genieCodeOff(data.features)) setMode('notebook');
@@ -836,6 +839,9 @@ export default function ImplementWizard({
     if (!buildStep) return undefined;
     let cancelled = false;
     setChecksBusy(true);
+    // The verdict of the previous spec is dropped now, so no check result shows while this one runs.
+    setPreflight(null);
+    setPreflightError('');
     const timer = setTimeout(async () => {
       const planNow = !ownErrorsKey && planReady && !appBlocked;
       const mergeApp = spec.outputs.app ? spec.outputs.merge.app : '';
@@ -891,7 +897,7 @@ export default function ImplementWizard({
     setGranting(true);
     try {
       const got = await apiPostJson(`/api/inspire/implement/grant-access?${q}&kind=source_tables`, { tables: appUnreadable.tables });
-      const data = await apiFetch(`/api/inspire/implement/context?${q}`);
+      const data = await apiFetch(`/api/inspire/implement/context?${contextQ}`);
       setContext(data);
       setAppGrant({ ...got, text: appGrantText(got) });
       setAppUnreadable(data.app_unreadable || got.app_unreadable || null);

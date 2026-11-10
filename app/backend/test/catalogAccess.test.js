@@ -146,7 +146,8 @@ test('a rerun the App cannot read refuses with the named App reason, never the s
   await withApp({ ...overrides, history: [BUILT] }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
     assert.equal(got.status, 409, JSON.stringify(got.data));
-    assert.match(got.data.error, /the build cannot read main\.s\.orders: builds run as the App service principal inspire-manual/);
+    assert.match(got.data.error, /the build cannot read a source table: builds run as the App service principal inspire-manual/);
+    assert.doesNotMatch(got.data.error.split('. Ask the owner')[0], /main\.s\.orders/);
     assert.match(got.data.error, /Ask the owner to run: GRANT USE SCHEMA ON SCHEMA `main`\.`s` TO `app-sp-id`; GRANT SELECT ON TABLE `main`\.`s`\.`orders` TO `app-sp-id`; GRANT READ METADATA ON TABLE `main`\.`s`\.`orders` TO `app-sp-id`$/);
     assert.doesNotMatch(got.data.error, /swap/i);
     assert.deepEqual(got.data.missing_tables, []);
@@ -165,7 +166,7 @@ test('plan and submit refuse a build the App cannot read with the named App reas
       await withApp(overrides, async (url, made) => {
         const got = await call(url, `/api/inspire/implement/${route}`, { method: 'POST', body });
         assert.equal(got.status, 409, `${route}: ${JSON.stringify(got.data)}`);
-        assert.match(got.data.error, /^the build cannot read main\.s\.orders: builds run as the App service principal inspire-manual \(application id app-sp-id\)/);
+        assert.match(got.data.error, /^the build cannot read a source table: builds run as the App service principal inspire-manual \(application id app-sp-id\)/);
         assert.match(got.data.error, canGrant ? /Use Let Inspire read these tables to run: GRANT USE SCHEMA/ : /Ask the owner to run: GRANT USE SCHEMA/);
         assert.doesNotMatch(got.data.error, /swap/i);
         assert.deepEqual(got.data.missing_tables, []);
@@ -216,7 +217,7 @@ test('on a route that runs as the person, Let Inspire read these tables probes a
 
 test('Discover names its own job when the App cannot read a table', () => {
   const offer = I.appReadGrantsOffer(['main.s.orders'], [I.accessPlan('main.s.orders', PERSON_READS, 'app-sp-id')], { name: 'inspire', id: 'app-sp-id' });
-  assert.match(I.appUnreadableMessage(offer, 'discover'), /^Discover cannot read main\.s\.orders: Discover runs as the App service principal inspire/);
+  assert.match(I.appUnreadableMessage(offer, 'discover'), /^Discover cannot read a source table: Discover runs as the App service principal inspire/);
   assert.match(I.appUnreadableMessage(offer), /^the build cannot read/);
 });
 
@@ -425,4 +426,41 @@ test('context and preflight give the same source verdict for a readable table, a
   sample.live.appReads = true;
   const samples = { ...sample.overrides, abacUnreadable: true, useCase: { ...sample.overrides.useCase, primary_table: 'samples.bakehouse.sales_transactions', tables_involved: 'samples.bakehouse.sales_transactions' } };
   assert.deepEqual(await verdict(samples), { context: false, preflight: false }, 'a built-in sample refuses both, so the build button cannot pass where context refuses');
+});
+
+const OUT_TABLE = 'main.inspire.churn_out';
+const outputVerdictOverrides = (unreadable) => {
+  const { live, overrides } = split(PERSON_OWNS);
+  const statements = {
+    ...overrides.statements,
+    'LIMIT 0': (sql, _p, token) => {
+      const denied = unreadable.find((t) => sql.includes(`\`${t.split('.')[2]}\``));
+      if (token === APP_TOKEN && denied) throw new Error(DENIED.replace('main.s.orders', denied));
+      return { rows: [] };
+    },
+  };
+  return { overrides: { ...overrides, statements, useCase: { ...overrides.useCase, tables_involved: `main.s.orders, ${OUT_TABLE}` } }, live };
+};
+
+test('a build output table is never checked as a source: the preflight names no result table even when the App cannot read it, and the sentence names no catalog.schema id', async () => {
+  const { overrides } = outputVerdictOverrides(['main.s.orders', OUT_TABLE]);
+  await withApp(overrides, async (url) => {
+    const preflight = await call(url, `/api/inspire/implement/preflight?${Q}&result_table=${OUT_TABLE}`);
+    assert.equal(preflight.status, 200, JSON.stringify(preflight.data));
+    assert.doesNotMatch(JSON.stringify(preflight.data.checks.sources), /churn_out/, 'the output table is not a source');
+    assert.equal(preflight.data.checks.sources.ok, false, 'the real source the App cannot read still refuses');
+    assert.match(preflight.data.checks.sources.detail, /^the build cannot read a source table: /);
+    assert.doesNotMatch(preflight.data.checks.sources.detail.split('Ask the owner')[0], /main\.s\.orders/);
+  });
+});
+
+test('an output table the App cannot read blocks nothing when every real source is readable', async () => {
+  const { overrides } = outputVerdictOverrides([OUT_TABLE]);
+  await withApp(overrides, async (url) => {
+    const context = await call(url, `/api/inspire/implement/context?${Q}&result_table=${OUT_TABLE}`);
+    assert.equal(context.data.app_unreadable, null, 'context names no unreadable output');
+    const preflight = await call(url, `/api/inspire/implement/preflight?${Q}&result_table=${OUT_TABLE}`);
+    assert.equal(preflight.data.checks.sources.ok, true);
+    assert.doesNotMatch(preflight.data.checks.sources.detail, /churn_out/);
+  });
 });

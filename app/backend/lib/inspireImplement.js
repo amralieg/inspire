@@ -2286,12 +2286,22 @@ function rerunParams(widgetNames, overrides) {
   return withInspireInstallParams(params);
 }
 
+// Tables the build writes next to its result table. They are outputs, never sources, so no read check names them.
+const OUTPUT_TABLE_SUFFIXES = ['_summary', '_run_log', '_assumptions', '_scenarios', '_feedback', '_plans'];
+
+function outputTablesOf(resultTable) {
+  const base = plainTable(resultTable).toLowerCase();
+  if (!base) return new Set();
+  return new Set([base, ...OUTPUT_TABLE_SUFFIXES.map((suffix) => `${base}${suffix}`)]);
+}
+
 function sourcePicks(spec, involved) {
   const data = (spec && spec.data) || {};
   const swaps = Object.fromEntries(Object.entries(isPlainObject(data.tables) ? data.tables : {})
     .map(([original, chosen]) => [plainTable(original).toLowerCase(), plainTable(chosen)]));
   const gone = new Set((Array.isArray(data.removed_tables) ? data.removed_tables : []).map((t) => plainTable(t).toLowerCase()));
-  return (involved || []).filter((table) => !gone.has(plainTable(table).toLowerCase()))
+  const outputs = outputTablesOf(spec && isPlainObject(spec.config) ? spec.config.result_table : '');
+  return (involved || []).filter((table) => !gone.has(plainTable(table).toLowerCase()) && !outputs.has(plainTable(table).toLowerCase()))
     .map((table) => ({ original: plainTable(table), chosen: swaps[plainTable(table).toLowerCase()] || plainTable(table) }));
 }
 
@@ -3010,7 +3020,7 @@ function builtInSampleTable(name) {
 
 function builtInSampleMessage(tables) {
   const one = tables.length === 1;
-  return `${joinAnd(tables)} ${one ? 'is' : 'are'} in a built-in sample catalog that Databricks owns (System user), so nobody can grant `
+  return `${one ? 'A source table is' : `${tables.length} source tables are`} in a built-in sample catalog that Databricks owns (System user), so nobody can grant `
     + `the App read metadata on ${one ? 'it' : 'them'}. Copy ${one ? 'the table' : 'each table'} into a catalog you own, `
     + `with CREATE TABLE ... AS SELECT, and use the copy`;
 }
@@ -3048,7 +3058,8 @@ function appUnreadableMessage(offer, job = 'build') {
   const words = APP_READ_JOBS[job] || APP_READ_JOBS.build;
   const one = offer.tables.length === 1;
   const app = offer.app.name && offer.app.name !== offer.app.id ? `${offer.app.name} (application id ${offer.app.id})` : `with application id ${offer.app.id}`;
-  const head = `${words.who} cannot read ${joinAnd(offer.tables)}: ${words.runs} as the App service principal ${app}, and you can read `
+  const count = one ? 'a source table' : `${offer.tables.length} source tables`;
+  const head = `${words.who} cannot read ${count}: ${words.runs} as the App service principal ${app}, and you can read `
     + `${one ? 'this table' : 'these tables'} but the App cannot`;
   if (!offer.grants.length) return `${head}, and Inspire finds no missing grant to name: ask the table owner why the App cannot read ${one ? 'it' : 'them'}`;
   return `${head}. ${offer.can_grant ? words.grant : 'Ask the owner to run'}: ${offer.grants.join('; ')}`;
