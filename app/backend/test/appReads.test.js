@@ -257,3 +257,17 @@ test('an internal email never reaches the build card: a table owner that is a pe
   assert.equal(record.tables[0].owner, 'your data owner');
   assert.deepEqual(record.tables[0].grants, [SELECT], 'the GRANT stays on the record for copy under Details');
 });
+
+test('a person who cannot grant leaves the build needs-access: the App is kept, the owner is named in one sentence, and the GRANT stays copyable', async () => {
+  const w = workspace({ schemaManage: false });
+  await withApp(w.overrides, async (url) => {
+    const got = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.refused, true);
+    assert.equal(got.data.state, 'unreadable');
+    assert.equal(got.data.app, SP);
+    assert.deepEqual(got.data.tables[0].grants, RECORDED, 'the GRANTs stay listed, so the build view can copy them under Details');
+    assert.equal(got.data.tables[0].owner, 'admins and data-eng', 'the owners are named');
+    assert.doesNotMatch(JSON.stringify(got.data), /amr@x|@databricks/, 'no internal email in the answer');
+  });
+});

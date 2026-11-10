@@ -51,7 +51,20 @@ async function send(method, path, body, again = readsOnly(method, path)) {
   return response;
 }
 
-const json = async (method, path, body) => (await send(method, path, body)).json();
+export const WAITING_FOR_ACCESS_CODE = 'waiting_for_access';
+export const waitingError = (data) => {
+  const error = new Error(data.message || 'This App is waiting for access to its data.');
+  error.status = 200;
+  error.calm = true;
+  error.code = WAITING_FOR_ACCESS_CODE;
+  error.detail = data;
+  return error;
+};
+const json = async (method, path, body) => {
+  const data = await (await send(method, path, body)).json();
+  if (data && data.state === WAITING_FOR_ACCESS_CODE) throw waitingError(data);
+  return data;
+};
 
 export const getApp = () => json('GET', 'app');
 export const getFilters = (page) => json('GET', `filters?page=${encodeURIComponent(page)}`);
