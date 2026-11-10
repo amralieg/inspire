@@ -44,11 +44,12 @@ const CHECKLIST = [
     rounds: 3, tried: ['round 1: Looked for a part to send it to', 'round 2: Asked the router again', 'round 3: Checked the outputs ticked'], checks: [], published_anyway: null },
 ];
 
+const HELD_SENTENCE = 'v5 is published with 2 unmet asks (not met or could not be checked), the rest of the vibe is in place: genie_space: Answer in euros: Genie could not do it in 3 build rounds: The answers are in dollars; app: Add a map by region: Inspire could not check this ask';
 const HELD = versionRow(5, {
-  status: 'vibe_not_met', change_classes: 'vibe', updated_at: '2026-10-30T04:00:00Z',
+  status: 'ready_with_warnings', status_message: HELD_SENTENCE, change_classes: 'vibe', updated_at: '2026-10-30T04:00:00Z',
   outputs: { genie_space_vibes: 'Answer in euros', [`${PAGE}_vibes`]: 'Put the riskiest customers first' },
   top: { vibes: HELD_VIBES, vibe_previous: 'keep', retry_outputs: [PAGE], data: { ...builtSpec().data, notes: 'Count returns by week' } },
-  assets: { ...ASSETS(4), checklist: CHECKLIST, checklist_summary: { met: 2, total: 4 }, held: { parts: ['genie_space', PAGE], reason: 'Two asks were not met after 3 rounds' } },
+  assets: { ...ASSETS(4), checklist: CHECKLIST, checklist_summary: { met: 2, total: 4 } },
 });
 const LIVE = versionRow(4, { outputs: { dashboard_vibes: 'Weekly bars' }, assets: { ...ASSETS(4), checklist: [
   { n: 1, requirement: 'Weekly bars', part: 'dashboard', where: '', status: 'met', evidence: 'The trend is weekly', rounds: 1, tried: [], checks: [], published_anyway: null }] } });
@@ -117,6 +118,40 @@ test('the live Vibe checklist step fills the panel while the version builds, bef
     assert.deepEqual(await rowsOf(panel).evaluateAll((li) => li.map((x) => x.querySelector('p').textContent)),
       ['Met: “Put the riskiest customers first”', 'Not met: “Answer in euros”'], 'the step of v4 is not in the checklist of v5');
     assert.equal(await heldBox(page).count(), 0, 'nothing is held while it builds');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the live version says which asks were not done in vN, and its checklist shows every entry with the words, part, place, met or not, evidence, rounds and what was tried, as does each version in History', async () => {
+  const ui = await openBuild();
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    const progress = page.locator('[data-mvp-progress]');
+    await progress.getByText(HELD_SENTENCE, { exact: true }).waitFor({ timeout: 15000 });
+    assert.equal(await page.getByRole('region', { name: 'Build failed' }).count(), 0, 'a published version with unmet asks is never shown as failed');
+    assert.equal(await page.locator('[aria-label="v5 is held"]').count(), 0, 'there is no held panel');
+
+    const panel = checklistOf(page, 5);
+    assert.equal(await panel.locator('[data-checklist-headline]').textContent(), '2 of 4 vibe requirements met');
+    assert.match(await panel.locator('[data-checklist-headline]').getAttribute('class'), /text-error-fg/);
+    const rows = rowsOf(panel);
+    assert.deepEqual(await rows.evaluateAll((li) => li.map((x) => x.dataset.requirement)), ['met', 'not_met', 'met', 'not_met'], 'every entry renders, in order');
+    assert.equal(await rows.nth(0).getByRole('list', { name: 'What Genie tried' }).count(), 0, 'a met entry lists nothing tried');
+    assert.equal(await rows.nth(1).getByRole('list', { name: 'What Genie tried' }).getByRole('listitem').count(), 3);
+
+    const history = (await openAsset(page, 'job')).getByRole('region', { name: 'History', exact: true });
+    await history.getByRole('button', { expanded: false }).click();
+    const inHistory = (version) => history.locator(`[data-history-version="${version}"]`);
+    assert.equal(await rowsOf(checklistOf(inHistory(5), 5)).count(), 4, 'v5 in History shows all four entries');
+    assert.deepEqual(await history.locator('[data-not-done-line]').allTextContents(), [
+      'Not done in v5: Answer in euros, The answers are in dollars',
+      'Not done in v5: Add a map by region, It names the Alert, which this MVP does not build; tick the Alert in Delivery',
+    ], 'each version lists its own unmet asks as history, with the reason');
+    assert.equal(await checklistOf(inHistory(4), 4).locator('[data-checklist-headline]').textContent(), '1 of 1 vibe requirement met');
+    assert.equal(await inHistory(4).locator('[data-not-done-line]').count(), 0, 'a version with no unmet ask lists none');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
