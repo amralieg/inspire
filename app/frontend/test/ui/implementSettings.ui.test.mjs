@@ -68,7 +68,7 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     await box.uncheck();
     assert.equal(await impact.getByRole('spinbutton').count(), 0, 'no share to type while it is off');
     await box.check();
-    await openAdvanced(page, 'run settings');
+    await page.getByRole('button', { name: 'Change hold back share', exact: true }).click();
     const share = page.getByRole('spinbutton', { name: 'Share of records held back, in percent' });
     assert.equal(await share.inputValue(), '10');
     await page.getByText('picked at random and kept the same on every run', { exact: false }).waitFor();
@@ -107,8 +107,8 @@ test('every list field keeps the comma or new line a person types, and sends eac
       }
     };
     await toResults(page);
-    await goToStep(page, 'Keep it fresh');
-    await advanced(page, 'run settings').click();
+    await goToStep(page, 'Review & build');
+    await page.getByRole('button', { name: 'Change failure emails', exact: true }).click();
     await keeps([[page.getByLabel('Failure emails (comma separated; default: the decision owner)'), `${OWNER}, ${OPS}`]]);
     await goToStep(page, 'What to build');
     for (const name of [/^Dashboard/, /^App /, /^Alert/]) await page.getByRole('checkbox', { name }).check();
