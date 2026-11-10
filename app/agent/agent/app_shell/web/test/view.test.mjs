@@ -590,7 +590,7 @@ test('in Everything a closed record is read-only: its closure line, its history 
   const { routes, calls: made } = everything(calls);
   const { page, seen, context } = await openWith(appInfo(EDIT_TOO, 1, TABLE), routes, { prefs: { window: 'everything' } });
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 3);
-  const rowActs = page.locator('.card--table tbody .row-acts');
+  const rowActs = page.locator('.card--table tbody .row-acts:not(.row-next-acts)');
   assert.deepEqual(await Promise.all([0, 1, 2].map((i) => rowActs.nth(i).locator('button').count())), [3, 1, 1], 'a closed row keeps only its history');
   const drawer = page.locator('dialog.drawer');
   await page.locator('.cell-t').nth(1).click();
