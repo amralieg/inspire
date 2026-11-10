@@ -5,6 +5,8 @@ import { getFilterOptions } from './api.js';
 import { CHOICES_SHOWN, choicesHint, choosePreset, clearSelections, hasSelections, matching, searchHint, setRangeEdge, setSelection } from './filters.js';
 import { DEFAULT_VIEW, OWNER_CHOICES, SHOW_CHOICES, hasReasons, setReason, viewIsDefault } from './hub.js';
 import { AskGenie } from './AskGenie.jsx';
+import { SectionHelp } from './SectionHelp.jsx';
+import { helpLine } from './help.js';
 
 function useOptionSearch(pageId, filter, query) {
   const q = useDebounced(query.trim(), 250);
@@ -165,6 +167,7 @@ export default function FilterBar({ meta, state, onState, pageId, reasons = [], 
         <span className="sp" />
         {dirty && <button className="link" onClick={clear}>Clear filters</button>}
         <AskGenie kind="controls" title="Filters" context={{ fields: controlFields(filters, now, reasons, view) }} />
+        <SectionHelp title="Filters" steps={[{ title: 'Filters', text: helpLine('Pick a date range or a group to narrow every chart and table on this page.', 'Each group shows the values it holds; a chip shows what you picked, and Clear filters brings every row back.') }]} />
       </section>
       {chips.length > 0 && (
         <div className="chips">
