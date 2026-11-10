@@ -2,6 +2,8 @@ import importlib.util
 import os
 import random
 import re
+import subprocess
+import sys
 import time
 
 import pytest
@@ -25,16 +27,24 @@ def _old_in_text(value, text):
     return bool(re.search(rf"(?<!\w){re.escape(value)}(?!\w)", text))
 
 
-def test_no_test_can_read_a_real_databricks_config_or_credentials():
-    from databricks.sdk import WorkspaceClient
-
+@pytest.mark.parametrize("arguments,refusal", [("", "cannot configure default credentials"), ("profile='DEFAULT'", "has no DEFAULT profile")])
+def test_no_test_can_read_a_real_databricks_config_or_credentials(arguments, refusal):
     path = os.environ["DATABRICKS_CONFIG_FILE"]
     assert path != os.path.expanduser("~/.databrickscfg") and os.path.getsize(path) == 0
     assert [name for name in os.environ if name.startswith("DATABRICKS_")] == ["DATABRICKS_CONFIG_FILE"]
-    with pytest.raises(ValueError, match="cannot configure default credentials"):
-        WorkspaceClient()
-    with pytest.raises(ValueError, match="has no DEFAULT profile"):
-        WorkspaceClient(profile="DEFAULT")
+    made = subprocess.run([sys.executable, "-c", f"from databricks.sdk import WorkspaceClient\nWorkspaceClient({arguments})"],
+                          env=dict(os.environ), capture_output=True, text=True, timeout=120)
+    assert made.returncode != 0 and refusal in made.stderr, made.stderr[-2000:]
+
+
+def test_many_redactions_against_the_same_large_known_text_index_it_once():
+    redact = _redact()
+    known = "\n".join(f"word{i} 'phrase {i}' text" for i in range(150000))
+    redact.inspire_redact_text("warm", set(), known)
+    began = time.perf_counter()
+    for i in range(200):
+        redact.inspire_redact_text(f"Traceback: File \"x{i}.py\", line 1\nValueError: 'value {i}' and 'word{i}'", set(), known)
+    assert time.perf_counter() - began < LIMIT_SECONDS
 
 
 def test_the_redaction_the_agent_runs_is_the_one_the_app_shell_runs():
