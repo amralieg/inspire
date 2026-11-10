@@ -89,13 +89,21 @@ CONFIDENCE_LEVELS = ("High", "Medium", "Low")
 LEVEL_ASK = "Give the reason for that level from the facts, and never give another level or a number for it."
 RECORD_STAKE = "value_at_stake"
 NO_ACCESS = re.compile(r"INSUFFICIENT_PERMISSIONS|PERMISSION_DENIED|permission denied|TABLE_OR_VIEW_NOT_FOUND|answered HTTP 403", re.I)
-WAITING_FOR_ACCESS_ROUTES = {("GET", "trends"), ("GET", "settings"), ("GET", "records"), ("POST", "overview")}
+WRITE_ROUTE_NAMES = {"records", "records/act", "records/undo", "records/draft", "settings/save", "settings/run", "plan/decide",
+                     "money/assumption", "scenario/save", "scenario/share", "scenario/choose", "plans/version", "feedback",
+                     "agent/feedback", "genie/feedback", "forecast/override", "refresh"}
+
+
+def is_write_route(method: str, name: str) -> bool:
+    return method != "GET" and (name in WRITE_ROUTE_NAMES or name in WRITE_SOURCES or name in ALERT_ROUTES or name.startswith("scenario/"))
+
+
 WAITING_FOR_ACCESS = "This App is waiting for access to its data. Your data owner needs to grant the App access; the exact grant is under Details."
 
 
 def waiting_for_access_body(error) -> dict:
     tables = list(dict.fromkeys(m.replace("`", "").strip("'") for m in shell_sql.ACCESS_ON.findall(str(error))))
-    return {"state": "waiting_for_access", "message": WAITING_FOR_ACCESS, "tables": tables, "detail": shell_sql.error_text(error)}
+    return {"state": "waiting_for_access", "message": WAITING_FOR_ACCESS, "tables": tables, "detail": str(error)}
 VERSION_US = re.compile(r"^\d{1,19}$")
 RECORD_KEY_CHARS = 512
 MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "time_zone", "exclude", "choice", "focus")
@@ -2253,9 +2261,11 @@ class Shell:
                 return 200, getattr(self.alerts, ALERT_ROUTES[route[1]])(headers, data)
             raise HttpError(404, f"no API route {method} /api/{path.strip('/')}")
         except HttpError as error:
+            if error.status == 502 and NO_ACCESS.search(str(error.message)) and not is_write_route(method, route[1]):
+                return 200, waiting_for_access_body(str(error.message))
             return error.status, error_body(error.message, error.code, error.extra)
         except QueryError as error:
-            if route in WAITING_FOR_ACCESS_ROUTES and NO_ACCESS.search(str(error)):
+            if NO_ACCESS.search(str(error)) and not is_write_route(method, route[1]):
                 return 200, waiting_for_access_body(error)
             return 502, {"error": shell_sql.error_text(error)}
         except (ValueError, KeyError) as error:
