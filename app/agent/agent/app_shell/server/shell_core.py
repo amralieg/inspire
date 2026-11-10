@@ -128,6 +128,7 @@ RUN_SUMMARY_FIELDS = ("summary", "nothing_to_act", "act_now_records", "review_re
                       "kpi_reason", "kpi_measured_at")
 NO_TABLE = re.compile(r"TABLE_OR_VIEW_NOT_FOUND", re.I)
 NOT_ALLOWED = re.compile(r"PERMISSION_DENIED|INSUFFICIENT_PRIVILEGES|INSUFFICIENT_PERMISSIONS", re.I)
+WRITE_REFUSED = re.compile(NOT_ALLOWED.pattern + r"|read-only session mode|read-only transaction", re.I)
 NO_SUMMARY = "no run of this use case has written its summary yet"
 NO_RESULTS = "no run of this use case has written its results yet"
 NO_LIST = "this page names no result table, so it has nothing to fix"
@@ -1843,6 +1844,18 @@ class Shell:
             raise HttpError(403, INSIDE_DECISIONS)
         return self.service()
 
+    def write_saved(self, ws, table: str, sql: str, params: list) -> None:
+        try:
+            writer = self.decision_writer(ws)
+        except HttpError:
+            writer = ws
+        try:
+            self.execute(writer, sql, params, 1, delta=True)
+        except QueryError as error:
+            if WRITE_REFUSED.search(str(error)):
+                raise self.write_refused(table, error, as_app=writer is not ws) from error
+            raise
+
     def readable_versions(self, ws, page: dict, keys: list) -> dict:
         try:
             return self.current_versions(ws, page, keys)
@@ -3181,8 +3194,8 @@ class Shell:
             raise HttpError(400, f"keep the note to {NOTE_CHARS} characters")
         ws, _who = self.workspace(headers)
         editor = self.editor(headers)
-        self.execute(ws, *shell_sql.assumption_write(page, shell_sql.MONEY_RULE_NAME, None, editor, note.strip(),
-                                                     json.dumps(shell_sql.money_rule_clean(rule), sort_keys=True)), 1, delta=True)
+        self.write_saved(ws, shell_sql.assumptions_table(page), *shell_sql.assumption_write(
+            page, shell_sql.MONEY_RULE_NAME, None, editor, note.strip(), json.dumps(shell_sql.money_rule_clean(rule), sort_keys=True)))
         return self.settings_view(headers, page["id"])
 
     def setting_change(self, headers: dict, data: dict) -> tuple:
@@ -3278,13 +3291,8 @@ class Shell:
             raise HttpError(400, f"{setting['name']} is already {setting['value'] or 'empty'}")
         editor = self.editor(headers)
         choice = setting.get("kind") == "choice"
-        try:
-            self.execute(ws, *shell_sql.assumption_write(page, setting["name"], None if choice or not text else float(text), editor, note.strip(),
-                                                         text if choice else None), 1, delta=True)
-        except QueryError as error:
-            if NOT_ALLOWED.search(str(error)):
-                raise self.write_refused(shell_sql.assumptions_table(page), error) from error
-            raise
+        self.write_saved(ws, shell_sql.assumptions_table(page), *shell_sql.assumption_write(
+            page, setting["name"], None if choice or not text else float(text), editor, note.strip(), text if choice else None))
         self.forget()
         return self.settings_view(headers, page["id"])
 
@@ -3406,12 +3414,7 @@ class Shell:
                                  f"{' (' + held['changed_by'] + ')' if held['changed_by'] else ''}; check it and save again")
         if abs(float(value) - held["value"]) <= 1e-12:
             raise HttpError(400, f"{name} is already {shell_sql.number_text(held['value'])}")
-        try:
-            self.execute(ws, *shell_sql.assumption_write(page, name, float(value), editor, note.strip()), 1, delta=True)
-        except QueryError as error:
-            if NOT_ALLOWED.search(str(error)):
-                raise self.write_refused(shell_sql.assumptions_table(page), error) from error
-            raise
+        self.write_saved(ws, shell_sql.assumptions_table(page), *shell_sql.assumption_write(page, name, float(value), editor, note.strip()))
         self.forget()
         return self.money(headers, page["id"])
 
@@ -4374,12 +4377,7 @@ class Shell:
         return dict(shell_sql.scenario_library(rows, str(headers.get("x-forwarded-email") or "")), note=missing)
 
     def scenario_write(self, ws, page: dict, event: dict) -> None:
-        try:
-            self.execute(ws, *shell_sql.scenario_event_write(page, dict(event, event_id=uuid.uuid4().hex)), 1, delta=True)
-        except QueryError as error:
-            if NOT_ALLOWED.search(str(error)):
-                raise self.write_refused(shell_sql.scenarios_table(page), error) from error
-            raise
+        self.write_saved(ws, shell_sql.scenarios_table(page), *shell_sql.scenario_event_write(page, dict(event, event_id=uuid.uuid4().hex)))
 
     def scenario_library_for(self, ws, page: dict, editor: str) -> dict:
         rows, missing = self.scenario_rows(ws, page)
