@@ -3,7 +3,7 @@ import { getForecastReview, overrideForecast } from './api.js';
 import { usePlans } from './PlanSection.jsx';
 import { CYCLE_WORDS, REASON_MAX, VersionBar, statusWord, versionName } from './PlanVersions.jsx';
 import { Icon } from './icons.jsx';
-import { SaidNote, Skeleton, useToast } from './ui.jsx';
+import { PlainNote, SaidNote, Skeleton, useToast } from './ui.jsx';
 import { formatValue, integer } from './format.js';
 import './styles/plan.css';
 
@@ -58,7 +58,7 @@ function SeriesRow({ page, row, cycle, can, look, onSaved }) {
           </form>
         </td></tr>
       )}
-      {error && <tr><td colSpan={cols}><p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p></td></tr>}
+      {error && <tr><td colSpan={cols}><PlainNote text={error} icon={<Icon name="info" size={12} />} className="tile-err" role="alert" /></td></tr>}
     </>
   );
 }
@@ -81,7 +81,7 @@ export default function ReviewSection({ page }) {
     : !cycle.editable ? `${versionName(cycle, CYCLE_WORDS)} is ${statusWord(cycle.status, CYCLE_WORDS).toLowerCase()}. Start the next cycle to override again.` : '';
   return (
     <section className="plan-sec" aria-label="Review" data-review-section>
-      {review.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The forecast review could not load: {review.error}</p>}
+      {review.error && <PlainNote text={review.error} prefix="The forecast review could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={review.reload} />}
       {!d && !review.error && <section className="card"><Skeleton height={60} /></section>}
       {d?.missing && <p className="tile-err" data-plans-missing><Icon name="info" size={14} />{d.missing}</p>}
       {d && !d.missing && <VersionBar page={page} versions={versions} access={d} words={CYCLE_WORDS} onMoved={() => review.reload()} />}

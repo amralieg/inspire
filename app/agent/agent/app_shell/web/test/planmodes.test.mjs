@@ -252,6 +252,29 @@ test('Accuracy shows forecast error, bias, error against naive and the lift of o
   await bare.context.close();
 });
 
+test('forecast accuracy and plan results that could not load read one plain sentence with the code under Details, and Try again loads them', async () => {
+  const accuracy = { points: 40, series: 4, error: 0.1, bias: -0.05, mase: 0.9, overrides: 0, helped: 0, hurt: 0, lift: null, lift_note: '' };
+  const refused = { error: 'PERMISSION_DENIED: User does not have SELECT on table main.app.forecast_plans' };
+  const cases = [
+    ['forecast', 'forecast/accuracy', accuracy, '[data-accuracy] .tile-err', /^The forecast accuracy could not load: /, '[data-stat="lift"]'],
+    ['plan', 'plans/performance', { version: null, lines: [], missing: '' }, '[data-plan-performance] .tile-err', /^The plan results could not load: /, '[data-no-plan]'],
+  ];
+  for (const [which, route, body, err, lead, loaded] of cases) {
+    let failing = true;
+    const { page, context } = await open(which, 'perf', { [route]: ({ json }) => (failing ? json(403, refused) : json(200, body)) });
+    const box = page.locator(err);
+    await box.waitFor();
+    const shown = await box.innerText();
+    assert.match(shown, lead);
+    assert.doesNotMatch(shown, /PERMISSION_DENIED/, 'the code stays under Details (must-exclude)');
+    failing = false;
+    await box.getByRole('button', { name: 'Try again' }).click();
+    await page.locator(loaded).waitFor();
+    assert.equal(await page.locator(err).count(), 0);
+    await context.close();
+  }
+});
+
 const railText = (page) => page.locator('nav.rail [data-rail]').evaluateAll((els) => els.map((e) => [e.dataset.rail, e.textContent.trim()]));
 
 test('in the App a planner page names its rail Plan and Performance and opens the plan versions, its lines and the plan against actuals', async () => {

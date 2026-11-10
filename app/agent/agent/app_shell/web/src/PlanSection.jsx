@@ -3,7 +3,7 @@ import { getPlans } from './api.js';
 import { PlanTable, Resolve, acceptOpenLines, planDecides, planOpen } from './Layouts.jsx';
 import { PLAN_WORDS, VersionBar, statusWord, versionName } from './PlanVersions.jsx';
 import { Icon } from './icons.jsx';
-import { Skeleton } from './ui.jsx';
+import { PlainNote, Skeleton } from './ui.jsx';
 import { formatValue, integer, numberOf } from './format.js';
 import './styles/plan.css';
 
@@ -20,8 +20,8 @@ export function usePlans(pageId, load = getPlans) {
   return { ...state, reload, take };
 }
 
-export function ConstraintBars({ rows, error }) {
-  if (error) return <p className="tile-err" data-constraints-error><Icon name="info" size={12} />The limits could not load: {error}</p>;
+export function ConstraintBars({ rows, error, onRetry = null }) {
+  if (error) return <PlainNote text={error} prefix="The limits could not load: " icon={<Icon name="info" size={12} />} className="tile-err" data-constraints-error="" onRetry={onRetry} />;
   if (!rows?.length) return null;
   return (
     <section className="card plan-limits" aria-label="Limits the plan uses" data-constraints>
@@ -72,14 +72,14 @@ export default function PlanSection({ app, page, onRun, running }) {
   };
   return (
     <section className="plan-sec" aria-label="Plan" data-plan-section>
-      {plans.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The plan versions could not load: {plans.error}</p>}
+      {plans.error && <PlainNote text={plans.error} prefix="The plan versions could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={plans.reload} />}
       {!plans.data && !plans.error && <section className="card"><Skeleton height={60} /></section>}
       {plans.data && (
         <>
           {plans.data.missing && <p className="tile-err" data-plans-missing><Icon name="info" size={14} />{plans.data.missing}</p>}
           {!plans.data.missing && <VersionBar page={page} versions={versions} access={plans.data} words={PLAN_WORDS} onMoved={(got) => { plans.take(got); setNonce((n) => n + 1); }} beforeMove={beforeMove} />}
           {onRun && <div className="plan-tools"><Resolve onRun={onRun} running={running} /></div>}
-          <ConstraintBars rows={plans.data.constraints} error={plans.data.constraints_error} />
+          <ConstraintBars rows={plans.data.constraints} error={plans.data.constraints_error} onRetry={plans.reload} />
         </>
       )}
       {page.plan && <PlanTable page={page} app={app} filters={{}} ready nonce={nonce} onChanged={changed} planId={current?.plan_id || null} locked={locked}

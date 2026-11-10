@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { movePlan } from './api.js';
 import { Icon } from './icons.jsx';
-import { SaidNote, useToast } from './ui.jsx';
+import { PlainNote, SaidNote, useToast } from './ui.jsx';
 import './styles/plan.css';
 
 export const REASON_MAX = 500;
@@ -107,7 +107,7 @@ export function VersionBar({ page, versions, access, words, onMoved, beforeMove 
       )}
       {can && asking && <ReasonForm key={`${asking.action}-${asking.target?.plan_id}`} name={asking.action} ask={`${words.asks[asking.action]}${asking.target !== latest ? ` (${versionName(asking.target, words)})` : ''}`}
         required={REASONED.includes(asking.action)} busy={busy} submit={words.actions[asking.action]} onSubmit={(reason) => move(asking.action, reason, asking.target)} onCancel={() => setAsking(null)} />}
-      {error && <p className="tile-err" role="alert"><Icon name="info" size={12} />{error}</p>}
+      {error && <PlainNote text={error} icon={<Icon name="info" size={12} />} className="tile-err" role="alert" />}
       {!error && <SaidNote text={said} at="version" />}
     </section>
   );

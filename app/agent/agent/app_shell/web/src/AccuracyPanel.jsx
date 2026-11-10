@@ -1,8 +1,8 @@
-import { useEffect, useState } from 'react';
 import { getForecastAccuracy } from './api.js';
 import { Stat } from './PlanPerformance.jsx';
 import { Icon } from './icons.jsx';
-import { Skeleton } from './ui.jsx';
+import { usePlans } from './PlanSection.jsx';
+import { PlainNote, Skeleton } from './ui.jsx';
 import { NOT_RECORDED, formatValue, integer, percent } from './format.js';
 import './styles/plan.css';
 
@@ -22,16 +22,11 @@ export function liftWords(d) {
 }
 
 export default function AccuracyPanel({ page }) {
-  const [state, setState] = useState({ data: null, error: '' });
-  useEffect(() => {
-    let live = true;
-    getForecastAccuracy(page.id).then((data) => live && setState({ data, error: '' })).catch((e) => live && setState({ data: null, error: e.message }));
-    return () => { live = false; };
-  }, [page.id]);
+  const state = usePlans(page.id, getForecastAccuracy);
   const d = state.data;
   return (
     <section className="plan-perf" aria-label="Accuracy" data-accuracy>
-      {state.error && <p className="tile-err" role="alert"><Icon name="info" size={14} />The forecast accuracy could not load: {state.error}</p>}
+      {state.error && <PlainNote text={state.error} prefix="The forecast accuracy could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={state.reload} />}
       {!d && !state.error && <section className="card"><Skeleton height={80} /></section>}
       {d && (
         <>
