@@ -2292,6 +2292,8 @@ class Shell:
                 return 200, self.agent.turn(headers, query)
             if route == ("POST", "agent/feedback"):
                 return 200, self.agent.feedback(headers, data)
+            if route == ("POST", "agent/prepare"):
+                return 200, self.agent.prepare(headers, data)
             if route == ("GET", "genie/message"):
                 return 200, self.genie_message(headers, query)
             if route == ("POST", "genie/feedback"):

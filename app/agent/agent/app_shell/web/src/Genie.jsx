@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { agentAsk, agentFeedback, agentStatus, agentTurn, askGenie, explainGenie, retryable, undoRecords, writeRecord } from './api.js';
+import { agentAsk, agentFeedback, agentPrepare, agentStatus, agentTurn, askGenie, explainGenie, retryable, undoRecords, writeRecord } from './api.js';
 import { reducedMotion } from './theme.js';
 import { answerLabel, cellText, integer, isKeyColumn } from './format.js';
 import DataTable from './DataTable.jsx';
@@ -141,7 +141,7 @@ export function useGenie(app, current, onOpen, view = null) {
       if (turn.state === 'failed') throw new Error(turn.error || 'Genie could not answer this question.');
       if (turn.conversation_id) conversations.current[k] = turn.conversation_id;
       const undo = turn.actions?.length ? viewNow.current?.apply(k, turn.actions) || null : null;
-      update(k, n, { state: 'done', turn_id: turn.turn_id, steps: turn.steps, actions: turn.actions, refused: turn.refused, undo,
+      update(k, n, { state: 'done', turn_id: turn.turn_id, steps: turn.steps, actions: turn.actions, refused: turn.refused, undo, offers: turn.offers, next: turn.next || [],
         confirm: turn.confirm ? { ...turn.confirm, state: 'ask' } : null, answer: agentAnswer(turn),
         ids: turn.genie ? { conversation_id: turn.genie.conversation_id, message_id: turn.genie.message_id } : null, shown: reducedMotion() ? Infinity : 0 });
     } catch (error) {
@@ -200,6 +200,23 @@ export function useGenie(app, current, onOpen, view = null) {
         update(k, n, (m) => ({ confirm: { ...m.confirm, error: error.message } }));
       }
     });
+  }, []);
+  const offer = useCallback(async (k, n, action, recordKey, values) => {
+    try {
+      const { confirm } = await agentPrepare({ page: k, action, record_keys: [recordKey], ...values });
+      update(k, n, { confirm: { ...confirm, state: 'ask' }, offerError: '' });
+    } catch (error) {
+      update(k, n, { offerError: error.message });
+    }
+  }, []);
+  const step = useCallback((k, n, index) => {
+    const next = (find(k, n)?.next || [])[index];
+    if (!next) return;
+    const undo = viewNow.current?.apply(k, next.actions) || null;
+    update(k, n, { undo, stepped: next.text });
+  }, []);
+  const openRecord = useCallback((k, recordKey) => {
+    viewNow.current?.apply(k, [{ type: 'open_record', page: k, record_key: recordKey }]);
   }, []);
   const undoView = useCallback((k, n) => {
     const m = find(k, n);
@@ -263,7 +280,8 @@ export function useGenie(app, current, onOpen, view = null) {
   const busy = thread.some((m) => m.state === 'running');
   useEffect(() => { running.current = busy; }, [busy]);
   const mode = modes[key] || { mode: 'genie', note: '' };
-  return { key, thread, ask, explain, reset, setThread, busy, about, clearAbout, draft, setDraft, mode, confirm, cancel, undoSaved, undoView, rate, retry, canRetry, reload };
+  return { key, thread, ask, explain, reset, setThread, busy, about, clearAbout, draft, setDraft, mode, confirm, cancel, undoSaved, undoView, rate, retry, canRetry, reload,
+    offer, step, openRecord };
 }
 
 export function ExplainButton({ title, busy, onClick }) {
@@ -393,7 +411,7 @@ function YouSent({ message }) {
   );
 }
 
-export default function GeniePanel({ app, genie, page, pages, onPick, onClose, tabs = null, full = false }) {
+export default function GeniePanel({ app, genie, page, pages, onPick, onClose, tabs = null, full = false, fact = '' }) {
   const log = useRef(null);
   const input = useRef(null);
   const panel = useRef(null);
@@ -455,7 +473,8 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
         {on && !thread.length && (
           <div className="g-empty"><GenieMark size={28} /><p>{agent
             ? `Ask about ${subject}. Genie reads what the page shows, asks the Genie Agent when it needs the data, can change the view, and asks before it changes a record.`
-            : `Ask a question about ${subject}. Genie writes the SQL, runs it ${app.auth === 'user' ? 'as you' : 'as the App'}, and shows its work.`}</p></div>
+            : `Ask a question about ${subject}. Genie writes the SQL, runs it ${app.auth === 'user' ? 'as you' : 'as the App'}, and shows its work.`}</p>
+            {agent && fact && <p className="g-fact" data-fact>{fact}</p>}</div>
         )}
         {home && thread.map((m) => (m.who === 'you' ? (
           <div key={m.n} className="msg msg--you">
@@ -485,7 +504,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
         </div>
       )}
       {on && !about && questions.length > 0 && (thread.length === 0 || (thread.at(-1)?.state === 'failed' && thread.at(-1)?.calm)) && (
-        <div className="g-sugg">{questions.slice(0, 4).map((q) => <button key={q} className="sugg" onClick={() => ask(q)} disabled={busy}>{q}</button>)}</div>
+        <div className="g-sugg">{questions.slice(0, agent ? 3 : 4).map((q) => <button key={q} className="sugg" onClick={() => ask(q)} disabled={busy}>{q}</button>)}</div>
       )}
       <form className="g-in" onSubmit={submit}>
         <input dir="auto" ref={input} value={text} onChange={(e) => setText(e.target.value)} placeholder={!home ? 'Pick a use case first' : !on ? 'Ask Genie is off' : about ? `Ask about ${about.label}` : 'Ask about the data in this use case'} aria-label="Your question" autoComplete="off" disabled={!on} maxLength={1000} />

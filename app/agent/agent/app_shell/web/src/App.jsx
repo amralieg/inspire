@@ -2,7 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRe
 import { getApp, getDefaults, getFilters, getOverview, getSummary } from './api.js';
 import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js';
 import { apiValues, initialFilterState } from './filters.js';
-import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
+import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf, topFact } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
 import { NoAccessScope, PlainNote, RetryProvider, ToastProvider, useToast } from './ui.jsx';
 import Page from './Page.jsx';
@@ -286,7 +286,7 @@ function Shell({ app }) {
       setGenieOpen(true);
     }
   }, [working]);
-  const genieProps = { app, genie, page, pages: shown, onPick: go };
+  const genieProps = { app, genie, page, pages: shown, onPick: go, fact: page ? topFact(page, tourFacts[page.id]) : '' };
 
   return (
     <GenieState.Provider value={genieState}>

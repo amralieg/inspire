@@ -241,7 +241,7 @@ button,input,select,textarea{font:inherit;color:inherit}
 .msg-t .tbl-wrap{margin:0}
 .msg-t .pager,.msg-t .tbl-tools{padding:4px 8px}
 .msg-t table{width:100%;border-collapse:collapse;font-size:12px}
-.msg-t th{text-align:start;font-weight:700;padding:6px 8px;background:var(--well);color:var(--muted)}
+.msg-t th{text-align:start;font-weight:700;padding:6px 8px;background:var(--well);color:var(--muted);text-transform:none}
 .msg-t td{padding:6px 8px;border-top:1px solid var(--line);white-space:nowrap}
 .msg-sql{margin-top:8px;font-size:12px}
 .msg-sql summary{cursor:pointer;color:var(--muted);font-weight:600;display:flex;gap:5px;align-items:center}
