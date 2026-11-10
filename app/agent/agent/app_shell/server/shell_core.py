@@ -3678,6 +3678,14 @@ class Shell:
                 design([f"{where}: {slicing} segment filters offer 2 or more values; {', '.join(single)} offer one, so they "
                         f"slice nothing. Filter on columns with 2 or more values so at least "
                         f"{shell_sql.SEGMENT_FILTERS_MIN} can slice"])
+            for label, sql in shell_sql.money_check_queries(page):
+                try:
+                    bad = int((self.run(probe.ws, None, sql, [], 1).get("rows") or [{}])[0].get("bad") or 0)
+                except (HttpError, QueryError, ValueError) as error:
+                    failed([f"{where}: the money check of {label} failed: {shell_sql.error_text(error)}"])
+                    continue
+                if bad:
+                    failed([f"{where}: {shell_sql.shown_number(bad)} rows of {label} break the money rule: the statuses or the losses-only rule are not applied in the dataset"])
             defaults = shell_sql.default_values(page, bounds)
             data = self.page_data(headers, page["id"], defaults, probe)
             errors = data["errors"]

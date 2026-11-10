@@ -28,3 +28,23 @@ test('the preview shows each total, the largest rows and the left-out line in pl
   assert.deepEqual(lines.top, ['USD 50']);
   assert.equal(lines.leftOut, '2 rows without a date were left out');
 });
+
+import { formulaLine, workedExample } from '../src/moneyRule.js';
+
+test('the worked example runs each sample row through the rule, in plain words', () => {
+  const rule = { currency: 'convert', base: 'USD', rates: { AED: 0.27 }, statuses: ['used'], status_column: 'status' };
+  const sample = { amount: 'total_amount', currency: 'currency_code', status: 'ticket_status', rows: [
+    { total_amount: 100, currency_code: 'AED', ticket_status: 'used' },
+    { total_amount: 50, currency_code: 'AED', ticket_status: 'void' },
+    { total_amount: 20, currency_code: 'GBP', ticket_status: 'used' }] };
+  const lines = workedExample(rule, sample);
+  assert.equal(lines[0], 'AED 100 × 0.27 = 27 USD.');
+  assert.equal(lines[1], 'AED 50 with status void is not counted.');
+  assert.match(lines[2], /^GBP 20: its rate is read from the rate source/);
+});
+
+test('the formula line says what is counted and how each amount becomes a stake', () => {
+  assert.equal(formulaLine({ currency: 'per_currency' }), 'Stake = the loss on each row in its own currency, for every row.');
+  assert.match(formulaLine({ currency: 'convert', base: 'USD', rate_table: { table: 'main.fx.rates' }, rule: 'net', statuses: ['used'], status_column: 'status' }),
+    /Stake = the signed amount × the rate for its currency, USD and date, for only rows whose status is used\./);
+});

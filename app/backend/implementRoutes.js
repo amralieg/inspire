@@ -1840,11 +1840,14 @@ function registerImplementRoutes(app, deps) {
         const deep = GP.deepSuggestionOf(useCase);
         const draft = (paths) => GP.profileView({ table, technique: useCase.analytics_technique, columns, candidates, stats, sample, values, paths,
           time, days, joined: profiledJoined, deep: deep ? deep.columns : [], groupBy, readAt: new Date().toISOString(), subject: text });
+        const pick = GP.moneySampleColumns(columns);
+        const example = pick ? await rows(GP.moneySampleSql(main, pick), null, GP.MONEY_SAMPLE_ROWS) : [];
+        const withExample = (view) => ({ ...view, money_sample: pick ? { ...pick, rows: example } : null });
         const first = draft(null);
         const grouped = GR.groupByColumns(first.groups_for);
-        if (grouped.length < 2) return first;
+        if (grouped.length < 2) return withExample(first);
         const paths = await rows(GP.pathsSql(main, grouped, profiledJoined), null, GP.PROFILE_PATH_ROWS);
-        return draft(paths);
+        return withExample(draft(paths));
       }, GP.PROFILE_MS);
       return res.json({ ...view, deep_suggestion: GP.deepSuggestionOf(useCase) });
     } catch (err) {

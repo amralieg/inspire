@@ -23,7 +23,7 @@ const RULES = ['losses', 'net'];
 const PER = ['row', 'group'];
 const MAX_PERIODS = 60;
 const MAX_STATUSES = 20;
-const RATE_TABLE_KEYS = ['table', 'currency_column', 'base_column', 'date_column', 'rate_column'];
+const RATE_TABLE_KEYS = ['table', 'currency_column', 'base_column', 'date_column', 'rate_column', 'load_column'];
 
 const isPlain = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
@@ -79,6 +79,7 @@ function moneyRuleProblems(rule) {
   const mode = rule.currency === undefined ? 'per_currency' : rule.currency;
   if (!MODES.includes(mode)) return [`the money currency mode is one of ${MODES.join(', ')}`];
   let problems = windowProblems(rule.window).concat(statusProblems(rule.statuses));
+  if (rule.statuses !== undefined && (typeof rule.status_column !== 'string' || !COLUMN.test(rule.status_column))) problems.push('statuses need status_column, the plain column name that holds each row status');
   if (rule.rule !== undefined && !RULES.includes(rule.rule)) problems.push(`the money rule is one of ${RULES.join(', ')}`);
   if (rule.off !== undefined && typeof rule.off !== 'boolean') problems.push('off is true or false');
   const per = rule.per === undefined ? 'row' : rule.per;
@@ -100,6 +101,7 @@ function moneyRuleClean(rule) {
   if (rule.window) out.window = { periods: rule.window.periods };
   if (rule.statuses !== undefined) out.statuses = [...rule.statuses];
   if (rule.rule !== undefined && rule.rule !== 'losses') out.rule = rule.rule;
+  if (rule.statuses !== undefined) out.status_column = rule.status_column;
   if (rule.off === true) out.off = true;
   if (rule.per === 'group') { out.per = 'group'; out.group_column = rule.group_column; }
   return out;

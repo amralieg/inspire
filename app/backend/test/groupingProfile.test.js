@@ -86,7 +86,7 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
     assert.deepEqual(Object.keys(d), ['table', 'records', 'applies', 'qualifies', 'reason', 'recommended_by', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
-      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'group_count', 'group_max', 'column_groups', 'first_run', 'default_scope', 'read_at', 'deep_suggestion']);
+      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'group_count', 'group_max', 'column_groups', 'first_run', 'default_scope', 'read_at', 'money_sample', 'deep_suggestion']);
     assert.equal('prefill' in d, false, 'the profile carries no starting SQL, since Inspire runs no typed SQL');
     assert.deepEqual([d.table, d.records, d.applies, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, true, false, null]);
     assert.equal(d.reason, 'Inspire recommends region, then country because Anomaly Detection works out what is normal inside each group, and country splits '
@@ -118,7 +118,8 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.ok(d.column_groups.ragged.every((g) => g.value != null), 'an empty value is no group to pick');
     assert.ok(!Number.isNaN(Date.parse(d.read_at)));
     const reads = tableReads(made.sqlCalls);
-    assert.equal(reads.length, 8, reads.map((c) => c.sql.slice(0, 60)).join('\n'));
+    assert.equal(reads.length, 9, reads.map((c) => c.sql.slice(0, 60)).join('\n'));
+    assert.ok(reads.some((c) => /LIMIT 3$/.test(c.sql)), 'the worked example reads three rows of the main table, bounded');
     assert.ok(reads.every((c) => c.token === PERSON), 'every read of the use case table is the person token');
     assert.ok(reads.every((c) => c.options.signal && c.options.byteLimit === GP.PROFILE_BYTE_LIMIT && c.options.rowLimit > 0 && c.options.waitTimeout === '10s'));
     assert.ok(made.sqlCalls.filter((c) => c.sql.includes('__inspire_usecases')).every((c) => c.token === 'tok'), 'the use case record is read with the App token');

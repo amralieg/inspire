@@ -134,9 +134,9 @@ export function promisedView(page) {
 }
 
 export const MEASURES = [
-  { label: 'Estimated', formula: 'Money at stake on the open records flagged Act now or Review, added up.' },
+  { label: 'Estimated', formula: 'Money on the open records flagged Act now or Review, added up.' },
   { label: 'Reported', formula: 'The amounts people entered when they marked records fixed, added up.' },
-  { label: 'Measured', formula: 'For each fix a later run confirmed: money at stake when fixed, less what that run still finds, added up.' },
+  { label: 'Measured', formula: 'For each fix a later run confirmed: the money each fix had when fixed, less what that run still finds, added up.' },
   { label: 'Said wrong', formula: 'Closed records marked not an issue, divided by all closed records, times 100.' },
 ];
 

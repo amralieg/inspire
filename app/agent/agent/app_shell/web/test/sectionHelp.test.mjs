@@ -87,7 +87,7 @@ test('the dashboard keeps one line about the value and sends how it is measured 
   await group.waitFor({ state: 'visible' });
   assert.match(await group.locator('[data-measure-estimate]').textContent(), /total amount, distribution channel/);
   assert.ok(!(await group.textContent()).includes('total_amount'), 'no raw column id in the measurement text');
-  assert.match(await group.textContent(), /Money at stake on the open records flagged Act now or Review/);
+  assert.match(await group.textContent(), /Money on the open records flagged Act now or Review/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

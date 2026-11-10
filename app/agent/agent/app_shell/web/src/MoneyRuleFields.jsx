@@ -1,3 +1,4 @@
+import './styles/moneyRule.css';
 export const BUILD_FIELDS = ['statuses', 'rule', 'per', 'groupColumn', 'rateTable'];
 const REBUILD = 'Changing this needs a rebuild';
 
@@ -16,6 +17,7 @@ export function MoneyRuleFields({ draft, set, setRate, locked = [] }) {
         {input('window', { value: draft.window, onChange: (e) => set({ window: e.target.value }), 'data-money-window': true })}</label>
       <label>Statuses that count (comma-separated, empty for all)
         {input('statuses', { value: draft.statuses, onChange: (e) => set({ statuses: e.target.value }), 'data-money-statuses': true })}{note('statuses')}</label>
+      {draft.statuses.trim() && <label>Status column {input('statuses', { value: draft.statusColumn, onChange: (e) => set({ statusColumn: e.target.value }), 'data-money-status-column': true })}</label>}
       <fieldset disabled={lock('rule')}>
         <label className="radio"><input type="radio" name="money-rule" checked={draft.rule === 'losses'} onChange={() => set({ rule: 'losses' })} data-money-rule-kind="losses" /> Losses only: each loss counts, gains count zero</label>
         <label className="radio"><input type="radio" name="money-rule" checked={draft.rule === 'net'} onChange={() => set({ rule: 'net' })} data-money-rule-kind="net" /> Net: gains and losses netted</label>
@@ -39,7 +41,7 @@ export function MoneyRuleFields({ draft, set, setRate, locked = [] }) {
           {draft.rateSource === 'column' && <label>Rate column {input('rateColumn', { value: draft.rateColumn, onChange: (e) => set({ rateColumn: e.target.value }), 'data-money-rate-column': true })}</label>}
           {draft.rateSource === 'table' && (
             <div data-money-rate-table>
-              {['table', 'currency_column', 'base_column', 'date_column', 'rate_column'].map((key) => (
+              {['table', 'currency_column', 'base_column', 'date_column', 'rate_column', 'load_column'].map((key) => (
                 <label key={key} className="block">{key.replace('_', ' ')} {input('rateTable', { value: draft.rateTable[key], onChange: (e) => set({ rateTable: { ...draft.rateTable, [key]: e.target.value } }), [`data-money-table-${key}`]: true })}</label>
               ))}
             </div>

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { getSettings, previewMoneyRule, saveMoneyRule } from './api.js';
-import { draftOf, previewLines, ruleOf, ruleSentence } from './moneyRule.js';
+import { draftOf, formulaLine, previewLines, ruleOf, ruleSentence, workedExample } from './moneyRule.js';
 import { PlainNote } from './ui.jsx';
 import { BUILD_FIELDS, MoneyRuleFields } from './MoneyRuleFields.jsx';
 
@@ -58,15 +58,18 @@ export function MoneyRule({ pageId }) {
       <h3>How each total is counted</h3>
       <p className="sentence" data-money-sentence>{ruleSentence(shown)} {view.saved ? 'Saved by an owner.' : 'Set by the App design; no owner has saved a change.'}</p>
       <MoneyRuleFields draft={draft} set={set} setRate={setRate} locked={BUILD_FIELDS} />
+      <p className="muted" data-money-formula>{formulaLine(shown)}</p>
       <p className="muted">{LEFT_OUT}</p>
       {error && <PlainNote text={error} role="alert" data-money-error />}
       <button type="button" className="lnk" onClick={look} data-money-preview-button>Preview this rule</button>
       {preview && (() => {
         const lines = previewLines(preview);
+        const example = workedExample(shown, { amount: 'raw', currency: 'currency', rows: preview.top || [] });
         return (
           <div data-money-preview>
             <p>Totals: {lines.totals.join(' · ') || 'no rows'}</p>
-            {lines.top.length > 0 && <ol>{lines.top.map((t) => <li key={t}>{t}</li>)}</ol>}
+            {example.length > 0 && <p className="muted" data-money-example-title>Worked example, top rows</p>}
+            {example.length > 0 && <ol data-money-example>{example.map((t) => <li key={t}>{t}</li>)}</ol>}
             {lines.leftOut && <p className="muted">{lines.leftOut}</p>}
           </div>
         );

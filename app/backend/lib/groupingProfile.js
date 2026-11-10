@@ -83,6 +83,27 @@ function statsSql(main, columns, time, days, joined = []) {
     + `SELECT ${parts.join(', ')} FROM ${src.from} CROSS JOIN kc LEFT JOIN k ON m.${t} = k.inspire_key`;
 }
 
+const MONEY_AMOUNT = /amount|value|total|revenue|price|cost|sales|fare|loss|spend/i;
+const NUMERIC_TYPE = /^(DECIMAL|DOUBLE|FLOAT|INT|BIGINT|SMALLINT|TINYINT|LONG|REAL|NUMERIC)/i;
+const CURRENCY_NAME = /currency/i;
+const STATUS_NAME = /status/i;
+const MONEY_SAMPLE_ROWS = 3;
+
+// The three example rows the wizard's Measure step works through: the first amount-like numeric column, then its currency and status.
+function moneySampleColumns(columns) {
+  const named = (columns || []).map((c) => ({ name: str(c.column_name), type: str(c.data_type) })).filter((c) => c.name);
+  const amount = named.find((c) => NUMERIC_TYPE.test(c.type) && MONEY_AMOUNT.test(c.name));
+  if (!amount) return null;
+  const currency = named.find((c) => CURRENCY_NAME.test(c.name));
+  const status = named.find((c) => STATUS_NAME.test(c.name));
+  return { amount: amount.name, currency: currency ? currency.name : '', status: status ? status.name : '' };
+}
+
+function moneySampleSql(main, pick) {
+  const cols = [pick.amount, pick.currency, pick.status].filter(Boolean).map((c) => q(c));
+  return `SELECT ${cols.join(', ')} FROM ${main.sql} LIMIT ${MONEY_SAMPLE_ROWS}`;
+}
+
 function sampleSql(main, columns, joined = []) {
   const src = sourceOf(main, columns, joined);
   const c = columns.map((_name, i) => `c${i}`);
@@ -372,6 +393,9 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
 }
 
 module.exports = {
+  moneySampleColumns,
+  moneySampleSql,
+  MONEY_SAMPLE_ROWS,
   PROFILE_MS,
   PROFILE_DAYS_MAX,
   PROFILE_APPROX_MAX,

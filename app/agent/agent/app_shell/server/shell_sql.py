@@ -2437,6 +2437,8 @@ def money_rule_problems(money) -> list:
         else:
             problems += [f"the status {s!r} is a plain word such as used" for s in statuses
                          if not isinstance(s, str) or not MONEY_STATUS_RE.match(s)]
+    if "statuses" in money and not (isinstance(money.get("status_column"), str) and IDENT_RE.match(money["status_column"])):
+        problems.append("statuses need status_column, the plain column name that holds each row status")
     if "rule" in money and money["rule"] not in MONEY_RULES:
         problems.append(f"the money rule is one of {', '.join(MONEY_RULES)}")
     if "off" in money and not isinstance(money["off"], bool):
@@ -2455,9 +2457,9 @@ def money_rule_problems(money) -> list:
     problems += [] if base in MONEY_CODES else [f"the money base currency is an ISO 4217 code such as USD, not {base or 'nothing'}"]
     if "rate_table" in money:
         table = money["rate_table"]
-        keys = ("table", "currency_column", "base_column", "date_column", "rate_column")
+        keys = ("table", "currency_column", "base_column", "date_column", "rate_column", "load_column")
         if not isinstance(table, dict) or not all(isinstance(table.get(k), str) for k in keys):
-            return problems + ["the rate table names its table and its columns: table, currency_column, base_column, date_column, rate_column"]
+            return problems + ["the rate table names its table and its columns: table, currency_column, base_column, date_column, rate_column, load_column"]
         if not MONEY_TABLE_RE.match(table["table"]):
             problems.append("the rate table is a table name such as main.fx.rates")
         problems += [f"the rate table {k} is a plain column name" for k in keys[1:] if not IDENT_RE.match(table[k])]
@@ -2507,9 +2509,12 @@ def money_joined(page: dict, dataset: str, sql: str) -> str:
                 f"FROM ({sql}) AS c")
     if scope["rate_table"] and scope["period"]:
         table = scope["rate_table"]
-        rates = (f"SELECT {quote(table['currency_column'])} AS from_code, {quote(table['base_column'])} AS to_code, "
-                 f"CAST({quote(table['date_column'])} AS DATE) AS rate_date, MAX(CAST({quote(table['rate_column'])} AS DOUBLE)) AS rate "
-                 f"FROM {table_name(table['table'])} GROUP BY 1, 2, 3")
+        key = f"{quote(table['currency_column'])}, {quote(table['base_column'])}, CAST({quote(table['date_column'])} AS DATE)"
+        rates = (f"SELECT from_code, to_code, rate_date, rate FROM (SELECT {quote(table['currency_column'])} AS from_code, "
+                 f"{quote(table['base_column'])} AS to_code, CAST({quote(table['date_column'])} AS DATE) AS rate_date, "
+                 f"CAST({quote(table['rate_column'])} AS DOUBLE) AS rate, ROW_NUMBER() OVER (PARTITION BY {key} "
+                 f"ORDER BY {quote(table['load_column'])} DESC) AS _latest FROM {table_name(table['table'])}) AS ranked "
+                 f"WHERE _latest = 1")
         return (f"SELECT c.*, CAST(c.value_at_stake AS DOUBLE) * r.rate AS {CONVERTED} FROM ({sql}) AS c LEFT JOIN ({rates}) AS r "
                 f"ON c.{quote(scope['currency_column'])} = r.from_code AND r.to_code = {sql_text(scope['base'])} "
                 f"AND CAST(c.{quote(scope['period'])} AS DATE) = r.rate_date")
@@ -2559,6 +2564,11 @@ def money_left_out(page: dict, kpi: dict, values: dict):
                   f"SUM(CASE WHEN {column} >= date_trunc('{scope['grain']}', current_date()) THEN 1 ELSE 0 END) AS running"]
     if scope["rates"] or scope["rate_column"] or scope["rate_table"]:
         cells.append(f"SUM(CASE WHEN {CONVERTED} IS NULL THEN 1 ELSE 0 END) AS unrated")
+    if scope["rate_table"]:
+        table = scope["rate_table"]
+        cells.append(f"(SELECT COUNT(*) FROM (SELECT {quote(table['currency_column'])}, {quote(table['base_column'])}, "
+                     f"{quote(table['date_column'])} FROM {table_name(table['table'])} GROUP BY 1, 2, 3 HAVING COUNT(*) > 1) AS dup) "
+                     f"AS duplicated")
     text = f"SELECT {', '.join(cells)} FROM ({source}) AS d{where}"
     return f"{text} LIMIT 1", params.items
 
@@ -2570,11 +2580,14 @@ def left_out_text(rows) -> dict:
     """The one line every money total shows: how many rows it left out, and why."""
     row = (rows or [{}])[0]
     undated, running, unrated = (int(row.get(k) or 0) for k in ("undated", "running", "unrated"))
+    duplicated = int(row.get("duplicated") or 0)
     line = (f"{counted(undated, 'row')} without a date and {counted(running, 'row')} from the running month "
             f"{'was' if undated + running == 1 else 'were'} left out")
     if "unrated" in row:
         line += f"; {counted(unrated, 'row')} {'has' if unrated == 1 else 'have'} no rate"
-    return {"undated": undated, "running": running, "unrated": unrated, "text": line}
+    if duplicated:
+        line += f"; {counted(duplicated, 'date')} {'has' if duplicated == 1 else 'have'} more than one rate, and the latest loaded was used"
+    return {"undated": undated, "running": running, "unrated": unrated, "duplicated": duplicated, "text": line}
 
 
 MONEY_RULE_NAME = "money_rule"
@@ -2608,6 +2621,7 @@ def money_rule_clean(rule: dict) -> dict:
         out["window"] = {"periods": int(rule["window"]["periods"])}
     if "statuses" in rule:
         out["statuses"] = list(rule["statuses"])
+        out["status_column"] = rule["status_column"]
     if rule.get("rule", "losses") != "losses":
         out["rule"] = rule["rule"]
     if rule.get("off") is True:
@@ -2625,12 +2639,11 @@ def money_rule_of(page: dict) -> dict:
 
 def page_with_money(page: dict, rule) -> dict:
     """The page as this request reads it: the owner's saved money rule when one is saved, the spec's rule otherwise. Off, the money
-    totals read no amount at all."""
+    KPIs and money charts are removed from the page."""
     out = dict(page, money=rule) if rule else page
     if money_off(out):
-        out = dict(out, kpis=[dict(k, expression="NULL") if k.get("format") == "currency" else k for k in out.get("kpis") or []],
-                   charts=[dict(c, y=[dict(y, expression="NULL") if y.get("format") == "currency" else y for y in c.get("y") or []])
-                           for c in out.get("charts") or []])
+        out = dict(out, kpis=[k for k in out.get("kpis") or [] if k.get("format") != "currency"],
+                   charts=[c for c in out.get("charts") or [] if not any(y.get("format") == "currency" for y in c.get("y") or [])])
     return out
 
 
@@ -2645,7 +2658,7 @@ def money_top_query(page: dict, kpi: dict, limit: int = 5) -> tuple:
     currency = money_scope(page, kpi["dataset"])["currency_column"]
     source = money_source(page, kpi["dataset"], _dataset(page, kpi["dataset"]))
     cur = f", {quote(currency)} AS currency" if currency else ""
-    return f"SELECT {money} AS amount{cur} FROM ({source}) AS t ORDER BY amount DESC NULLS LAST LIMIT {int(limit)}", []
+    return f"SELECT {money} AS amount, {quote(MONEY_COLUMN)} AS raw{cur} FROM ({source}) AS t ORDER BY amount DESC NULLS LAST LIMIT {int(limit)}", []
 
 
 def money_off(page: dict) -> bool:
@@ -2672,6 +2685,26 @@ def money_page_problems(page: dict) -> list:
         if money.get("rule", "losses") == "losses" and "greatest(" not in sql.lower():
             problems.append(f"the {name} dataset does not count losses only; its SQL must net each loss at zero, as GREATEST(-effect, 0)")
     return problems
+
+
+def money_check_queries(page: dict) -> list:
+    """Queries the App's build check runs on the warehouse: a dataset keeps only the statuses the rule names, and a losses rule
+    never yields a negative amount. Each returns the count of rows that break its rule, which must be 0."""
+    money = page.get("money") if isinstance(page.get("money"), dict) else {}
+    if money_off(page) or not money or money_rule_problems(money):
+        return []
+    datasets = {k.get("dataset") for k in page.get("kpis") or [] if k.get("format") == "currency"} | {
+        c.get("dataset") for c in page.get("charts") or [] if any(y.get("format") == "currency" for y in c.get("y") or [])}
+    out = []
+    for name in sorted(d for d in datasets if d):
+        sql = _dataset(page, name)
+        if money.get("statuses"):
+            names = ", ".join(sql_text(status) for status in money["statuses"])
+            column = quote(money["status_column"])
+            out.append((f"statuses of {name}", f"SELECT COUNT(*) AS bad FROM ({sql}) AS d WHERE {column} IS NULL OR {column} NOT IN ({names})"))
+        if money.get("rule", "losses") == "losses":
+            out.append((f"losses of {name}", f"SELECT COUNT(*) AS bad FROM ({sql}) AS d WHERE value_at_stake < 0"))
+    return out
 
 
 def money_basis(page: dict) -> str:
