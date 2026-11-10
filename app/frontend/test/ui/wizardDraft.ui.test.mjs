@@ -129,6 +129,7 @@ test('Close and Start over drop the draft, and a draft from before the use case 
     const [key] = await drafts(page);
     await page.evaluate((k) => { const d = JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify({ ...d, stamp: 'an-older-use-case' })); }, key);
     await reloadOn(page, 'Data');
+    await page.waitForLoadState('networkidle');
     assert.equal(await draftNote(page).count(), 0, 'a draft of the use case as it was before is ignored');
     assert.deepEqual(await drafts(page), [], 'and dropped');
     assert.deepEqual(ui.pageErrors, []);

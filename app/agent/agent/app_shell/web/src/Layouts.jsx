@@ -125,7 +125,7 @@ export function planDelta(plan, row) {
   return numberOf(row[plan.recommended]) - numberOf(row[plan.current]);
 }
 
-const lineName = (page, row) => String(row[page.records.label] ?? recordKeyOf(row));
+const lineName = (page, row) => String(row[page.records.label] || (row.rank != null ? `Item ${row.rank}` : 'Unnamed item'));
 
 function planFields(page, plan, row) {
   return { [page.records.label_title || 'Line']: lineName(page, row), Now: row[plan.current], Suggested: row[plan.recommended], Change: planDelta(plan, row),
@@ -210,6 +210,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen, first, plan
             <label>Your value<input type="number" step="any" required value={value} onChange={(e) => setValue(e.target.value)} /></label>
             <label className="grow">Why you override it<input dir="auto" required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
             <SaveButton write={`plan:${key}:override`} className="btn btn--sm btn--pri" type="submit" disabled={!value || !reason.trim()}>Save override</SaveButton>
+            {(!value || !reason.trim()) && <p className="text-[12px] text-text-secondary" data-save-missing>{`Add ${[!value && 'your value', !reason.trim() && 'why you override it'].filter(Boolean).join(' and ')} to save.`}</p>}
           </form>
         </td></tr>
       )}

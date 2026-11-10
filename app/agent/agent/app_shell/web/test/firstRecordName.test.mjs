@@ -30,3 +30,17 @@ test('the first-record step never names a record by its raw key when the record 
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+test('a plan line with no label names itself by its rank, never by its raw key', async () => {
+  const ex = EXAMPLES['planner.json'];
+  const info = appInfo(ex.settings, 1, {}, 'examples/planner.json');
+  const base = ex.routes();
+  const routes = { ...base, records: (arg) => base.records({ ...arg, json: (status, data) => arg.json(status, { ...data, rows: data.rows.map(({ entity_label: _label, ...row }) => row) }) }) };
+  const { page, context, seen } = await openApp(browser, served.base, info, { routes });
+  await ex.ready(page);
+  const plan = await page.locator('[data-section="plan_table"]').innerText();
+  assert.doesNotMatch(plan, /\bK\d+\b/, `a plan line shows its raw key: ${plan.replace(/\n+/g, ' | ').slice(0, 200)}`);
+  assert.match(plan, /Item 1\b/);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
