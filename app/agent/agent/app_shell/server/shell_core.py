@@ -2521,6 +2521,10 @@ class Shell:
             if (kind, item_id) not in failed:
                 limit = shell_sql.CAPS["kpi_rows" if kind == "kpi" else "table_rows" if kind == "table" else "chart_rows"]
                 jobs[(kind, item_id)] = (lambda s=sql, p=params, n=limit: self.run(ws, who, s, p, n))
+        for kpi in page.get("kpis") or []:
+            left = shell_sql.money_left_out(page, kpi, values or {}) if kpi.get("format") == "currency" else None
+            if left and ("kpi", kpi["id"]) not in failed:
+                jobs[("left", kpi["id"])] = (lambda s=left[0], p=left[1]: self.run(ws, who, s, p, 1))
         if page.get(shell_sql.RUN_SCOPES) and page.get("result_table"):
             jobs[("scope", "runs")] = lambda: self.summary_rows(ws, who, shell_sql.summary_query(page, 2), 2)
         done, errors = self._parallel(jobs, probe)
@@ -2532,6 +2536,8 @@ class Shell:
         for (kind, item_id), result in done.items():
             if kind == "kpi":
                 out["kpis"][item_id] = shell_sql.kpi_values(result["rows"])
+            elif kind == "left":
+                out["kpis"].setdefault(item_id, {})["left_out"] = shell_sql.left_out_text(result["rows"])
             else:
                 out[f"{kind}s"][item_id] = result
         out["errors"] = {f"{kind}:{item_id}": unread_hint(message, sqls.get((kind, item_id)), self.settings.get("unread"))

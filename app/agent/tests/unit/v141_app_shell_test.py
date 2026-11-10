@@ -491,7 +491,9 @@ def test_filters_and_page_data(tmp_path):
     values = {"run_date": {"from": "2026-01-01", "to": "2026-06-30"}, "category": ["Books"]}
     status, data = call(s, "POST", "page", body={"page": "n01_u05", "filters": values})
     assert status == 200 and data["errors"] == {}
-    assert data["kpis"]["total_loss"] == {"now": 120.0, "before": None}, "no period before: only a compared KPI has an earlier value"
+    assert {k: v for k, v in data["kpis"]["total_loss"].items() if k != "left_out"} == {"now": 120.0, "before": None}, \
+        "no period before: only a compared KPI has an earlier value"
+    assert data["kpis"]["total_loss"]["left_out"]["text"].endswith("were left out"), "a money KPI always says what it left out"
     assert data["kpis"]["items"] == {"now": 120.0, "before": None}, "a page with no result table has no previous run"
     assert data["charts"]["by_category"]["rows"] == [{"x": "Books", "y0": 5.0}, {"x": "Music", "y0": 3.0}]
     assert "records" not in data, "the decision list pages through POST /api/records, not the page data"
@@ -631,7 +633,8 @@ def test_check_runs_every_query_at_the_default_filters(tmp_path):
     assert problems == []
     page_sql = [(sql, params) for sql, params, _ in ws.sql
                 if "low_0 AS low" not in sql and not sql.startswith("SELECT v FROM") and not sql.endswith("LIMIT 0")]
-    assert len(page_sql) == len(shell_sql.page_queries(PAGE, {})) + 3, "the list rows, its count and its key count run too"
+    left = sum(1 for k in PAGE.get("kpis") or [] if k.get("format") == "currency" and shell_sql.money_left_out(PAGE, k, {}))
+    assert len(page_sql) == len(shell_sql.page_queries(PAGE, {})) + 3 + left, "the list rows, its count and its key count run too, and each money KPI counts what it leaves out"
     assert all("2025-11-01" in json.dumps(params) and "2026-10-15" in json.dumps(params) for _sql, params in page_sql)
 
 

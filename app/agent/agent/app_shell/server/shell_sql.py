@@ -2465,6 +2465,27 @@ def money_expression(page: dict, dataset: str, expression: str) -> str:
     return re.sub(r"\bvalue_at_stake\b", CONVERTED, expression)
 
 
+def money_left_out(page: dict, kpi: dict, values: dict):
+    """The query that counts the rows a money total leaves out: undated rows and rows of the period still running, under the active filters."""
+    scope = money_scope(page, kpi["dataset"])
+    if not scope["period"]:
+        return None
+    column, params = quote(scope["period"]), _Params()
+    where = _where(page, kpi["dataset"], values, params)
+    text = (f"SELECT SUM(CASE WHEN {column} IS NULL THEN 1 ELSE 0 END) AS undated, "
+            f"SUM(CASE WHEN {column} >= date_trunc('{scope['grain']}', current_date()) THEN 1 ELSE 0 END) AS running "
+            f"FROM ({_dataset(page, kpi['dataset'])}) AS d{where}")
+    return f"{text} LIMIT 1", params.items
+
+
+def left_out_text(rows) -> dict:
+    """The one line every money total shows: how many rows it left out, and why."""
+    row = (rows or [{}])[0]
+    undated, running = int(row.get("undated") or 0), int(row.get("running") or 0)
+    return {"undated": undated, "running": running,
+            "text": f"{undated} rows without a date and {running} rows from the running month were left out"}
+
+
 def money_currency_column(page: dict, kpi: dict) -> str:
     return money_scope(page, kpi["dataset"])["currency"] if kpi.get("format") == "currency" else ""
 

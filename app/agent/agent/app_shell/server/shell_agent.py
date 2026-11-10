@@ -1339,6 +1339,9 @@ class Agent:
                 item["value"] = shown["now"]
                 if shown.get("by_currency"):
                     item["by_currency"] = shown["by_currency"]
+                left = shell_sql.money_left_out(page, kpi, values)
+                if left:
+                    item["left_out"] = shell_sql.left_out_text(self.shell.run(ws, who, *left, 1)["rows"])
             except (HttpError, QueryError, ValueError, KeyError) as error:
                 item["error"] = getattr(error, "message", None) or shell_sql.error_text(error)
             out.append(item)
@@ -1500,6 +1503,9 @@ class Agent:
                "truncated": len(rows) >= SPLIT_ROWS}
         if shown.get("by_currency"):
             out["by_currency"] = shown["by_currency"]
+        left = shell_sql.money_left_out(page, kpi, values)
+        if left:
+            out["left_out"] = shell_sql.left_out_text(self.shell.run(ws, turn.who, *left, 1)["rows"])
         return out
 
     def tool_change_view(self, turn: Turn, job: dict, args: dict) -> dict:

@@ -184,3 +184,23 @@ def test_a_converted_money_kpi_is_one_total_in_the_base_currency_at_the_typed_ra
 def test_the_saved_rule_changes_the_totals_only_for_the_page_that_saved_it():
     assert "CASE" not in shell_sql.kpi_query(PAGE, "exposure", {})[0]
     assert "_inspire_converted" in shell_sql.kpi_query(CONVERTED_PAGE, "exposure", {})[0]
+
+
+def test_the_left_out_line_counts_undated_rows_and_the_running_period_under_the_filters():
+    this_month = datetime.date.today().replace(day=1).isoformat()
+    saved = list(ROWS)
+    ROWS[:] = saved + [
+        {"value_at_stake": 1.0, "currency_code": "AED", "channel": "web", "event_month": None},
+        {"value_at_stake": 2.0, "currency_code": "AED", "channel": "web", "event_month": this_month},
+    ]
+    try:
+        sql, _ = shell_sql.money_left_out(PAGE, PAGE["kpis"][0], {})
+        shown = shell_sql.left_out_text(_run(sql))
+    finally:
+        ROWS[:] = saved
+    assert (shown["undated"], shown["running"]) == (1, 1)
+    assert shown["text"] == "1 rows without a date and 1 rows from the running month were left out"
+
+
+def test_a_page_without_a_period_filter_has_no_left_out_count():
+    assert shell_sql.money_left_out(dict(PAGE, filters=[]), PAGE["kpis"][0], {}) is None
