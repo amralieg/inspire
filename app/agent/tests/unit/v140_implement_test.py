@@ -86,6 +86,12 @@ def test_spec_without_outputs_defaults_to_the_dashboard_which_needs_the_inspire_
     assert spec["outputs"]["dashboard"] is True and not spec["outputs"]["genie_space"] and not spec["outputs"]["app"]
 
 
+def test_a_principal_with_a_backtick_is_accepted_and_quoted_in_its_grant(agent_ns):
+    _spec_out, errors = _spec(agent_ns, sharing={"principals": [{"type": "group", "name": "a`b"}]})
+    assert errors == [], errors
+    assert agent_ns["inspire_quote_principal"]("a`b") == "`a``b`"
+
+
 @pytest.mark.parametrize("changes,needle", [
     ({"use_case_id": ""}, "use_case_id is required"),
     ({"outputs": {"app": True, "app_name": "Churn_App"}}, "app_name"),
@@ -99,7 +105,7 @@ def test_spec_without_outputs_defaults_to_the_dashboard_which_needs_the_inspire_
     ({"data": {"tables": {"main.s.orders": "orders_v2"}}}, "table swap"),
     ({"data": {"run_profile": "huge"}}, "run_profile"),
     ({"config": {"warehouse_id": "w", "widgets": {"bad name": "1"}}}, "widget name"),
-    ({"sharing": {"principals": [{"type": "group", "name": "a`b"}]}}, "principal"),
+    ({"sharing": {"principals": [{"type": "group", "name": ""}]}}, "principal"),
     ({"sharing": {"principals": [{"type": "robot", "name": "x"}]}}, "principal"),
 ])
 def test_invalid_specs_are_rejected(agent_ns, changes, needle):
@@ -518,6 +524,7 @@ def _row(level, privilege, principal, mine=False):
 LIVE_ACCESS = [_row("catalog", "OWNER", "amr@x"), _row("schema", "OWNER", "amr@x"), _row("table", "OWNER", "inspire-sp", True),
                _row("catalog", "USE_CATALOG", "inspire-sp", True), _row("catalog", "BROWSE", "account users", True),
                _row("schema", "USE_SCHEMA", "inspire-sp", True), _row("schema", "SELECT", "inspire-sp", True)]
+LIVE_ACCESS_WITH_GROUP = LIVE_ACCESS + [_row("catalog", "USE_CATALOG", "bad`name"), _row("schema", "USE_SCHEMA", "bad`name")]
 GRANT_CATALOG = "GRANT USE CATALOG ON CATALOG `main` TO `{}`"
 GRANT_SCHEMA = "GRANT USE SCHEMA ON SCHEMA `main`.`inspire` TO `{}`"
 GRANT_SELECT = "GRANT SELECT ON TABLE `main`.`inspire`.`churn_out` TO `{}`"
@@ -3134,7 +3141,7 @@ def test_sharing_with_an_owner_who_already_has_access_ends_without_warnings(agen
     inst._implement_emit = lambda *a, **k: None
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}]})
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
-    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_SELECT.format("bad``name")]
+    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x")]
 
 
 def test_sharing_when_access_cannot_be_read_grants_blind_and_says_so(agent_ns):
@@ -3379,13 +3386,13 @@ def test_an_app_may_read_the_reasons_view_only_when_it_was_created(agent_ns, sdk
 
 
 def test_sharing_lets_each_principal_read_the_reasons_view_and_says_when_it_cannot(agent_ns):
-    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS, present=[{"t": "churn_out_reasons"}]))
+    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS_WITH_GROUP, present=[{"t": "churn_out_reasons"}]))
     inst._implement_api = lambda method, path, body=None, query=None: {}
     inst._implement_emit = lambda *a, **k: None
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}, {"type": "group", "name": "bad`name"}]})
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
     assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_REASONS.format("amr@x"), GRANT_SELECT.format("bad``name"), GRANT_REASONS.format("bad``name")]
-    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS))
+    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS_WITH_GROUP))
     inst._implement_api = lambda method, path, body=None, query=None: {}
     inst._implement_emit = lambda *a, **k: None
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
@@ -3396,7 +3403,7 @@ def test_sharing_lets_each_principal_read_the_reasons_view_and_says_when_it_cann
             raise RuntimeError("PERMISSION_DENIED: not the owner of churn_out_reasons")
         if statement.startswith(SHARED_EXISTS):
             return [{"t": "churn_out_reasons"}]
-        return LIVE_ACCESS if statement.startswith("SELECT level, privilege, principal") else None
+        return LIVE_ACCESS_WITH_GROUP if statement.startswith("SELECT level, privilege, principal") else None
 
     inst = _inspire(agent_ns, FakeSpark(responder=respond))
     inst._implement_api = lambda method, path, body=None, query=None: {}
@@ -3457,7 +3464,7 @@ def test_a_summary_table_that_cannot_be_created_is_a_warning_and_nothing_is_gran
 
 
 def test_sharing_lets_each_principal_read_the_run_summary_the_app_shows(agent_ns):
-    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS, present=[{"t": "churn_out_reasons"}, {"t": "churn_out_summary"}]))
+    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS_WITH_GROUP, present=[{"t": "churn_out_reasons"}, {"t": "churn_out_summary"}]))
     inst._implement_api = lambda method, path, body=None, query=None: {}
     inst._implement_emit = lambda *a, **k: None
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}, {"type": "group", "name": "bad`name"}]})

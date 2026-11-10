@@ -1,7 +1,7 @@
 import pytest
 
 from v120_artifacts_support import FakeSpark
-from v140_implement_test import (ACCESS_TABLE, GRANT_REASONS, GRANT_SELECT, GRANT_SUMMARY, LIVE_ACCESS, VALID, _access_spark, _inspire,
+from v140_implement_test import (ACCESS_TABLE, GRANT_REASONS, GRANT_SELECT, GRANT_SUMMARY, LIVE_ACCESS, LIVE_ACCESS_WITH_GROUP, VALID, _access_spark, _inspire,
                                  _not_access_reads, _probe_inspire, _spec)
 
 ASSUMPTIONS_DESCRIBE = "DESCRIBE TABLE `main`.`inspire`.`churn_out_assumptions`"
@@ -137,7 +137,7 @@ def test_a_version_that_shares_hands_sharing_the_result_table_whose_read_list_ho
 
 
 def test_sharing_lets_each_principal_read_the_money_assumptions(agent_ns):
-    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS, present=[{"t": "churn_out_reasons"}, {"t": "churn_out_summary"},
+    inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS_WITH_GROUP, present=[{"t": "churn_out_reasons"}, {"t": "churn_out_summary"},
                                                                   {"t": "churn_out_assumptions"}]))
     inst._implement_api = lambda method, path, body=None, query=None: {}
     inst._implement_emit = lambda *a, **k: None
@@ -149,6 +149,7 @@ def test_sharing_lets_each_principal_read_the_money_assumptions(agent_ns):
 
 def test_the_helper_grants_a_name_with_a_backtick_quoted_and_skips_empty_ones(agent_ns):
     inst = _inspire(agent_ns, FakeSpark(responder=lambda s: [{"t": "churn_out_assumptions"}] if s.startswith(EXISTS) else None))
-    assert inst._implement_share_reads(ACCESS_TABLE, ["bad`name", ""]) == [] and inst.spark.statements == [GRANT_ASSUMPTIONS.format("bad``name")]
+    assert inst._implement_share_reads(ACCESS_TABLE, ["bad`name", ""]) == []
+    assert [x for x in inst.spark.statements if x.startswith("GRANT ")] == [GRANT_ASSUMPTIONS.format("bad``name")]
     assert inst._implement_share_reads(ACCESS_TABLE, ["amr@x"]) == []
     assert [x for x in inst.spark.statements if x.startswith("GRANT ")] == [GRANT_ASSUMPTIONS.format("bad``name"), GRANT_ASSUMPTIONS.format("amr@x")]
