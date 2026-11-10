@@ -69,6 +69,15 @@ test('the storage guide says why fast pages are recommended for Apps and when St
   assert.equal(w.appBackendOf(shared, { state: 'absent' }), 'delta', 'no Lakebase here means Delta');
 });
 
+test('a per-user App never claims fast pages are recommended: it says why Lakebase is not possible and pre-selects Delta', async () => {
+  const w = await load();
+  assert.equal(w.LAKEBASE_PER_USER_REASON, 'Fast pages need a shared App. Each person signs in as themselves here, so pages read your tables directly.');
+  assert.equal(w.PER_USER_GUIDE, 'Each person signs in as themselves, so pages read your tables directly. Pick Standard pages (Delta) here.');
+  const perUser = { outputs: { app: true, app_access: 'user' } };
+  assert.equal(w.appBackendOf(perUser, { state: 'available' }), 'delta', 'the pre-selected choice is Delta');
+  assert.equal(w.bestAppBackend ? w.bestAppBackend(perUser, { state: 'available' }) : null, null, 'no Recommended badge on a per-user App');
+});
+
 test('a new spec has the Genie Agent and App on and the dashboard and alert off, signs each viewer in as themselves, and validates as made', async () => {
   const { w, spec } = await appSpec();
   const fresh = w.defaultSpecFromUseCase(UC, {});
@@ -127,8 +136,8 @@ test('ticking the App ticks the Genie Agent and locks it, and the lock refuses a
   assert.deepEqual([off.outputs.app, off.outputs.genie_space], [false, true], 'unticking the App leaves the Genie Agent as it is');
   assert.equal(w.withOutput(off, 'genie_space', false).outputs.genie_space, false);
   assert.deepEqual(w.withOutput(spec, 'alert', true).outputs.alert_recipients, w.defaultAlertRecipients(spec));
-  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['data', 'results', 'delivery', 'where', 'app', 'app_pages', 'app_look', 'run', 'summary']);
-  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['data', 'results', 'delivery', 'run', 'summary'], 'with Apps unticked no App step shows');
+  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['delivery', 'data', 'stake', 'where', 'app', 'app_look', 'run', 'summary']);
+  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['delivery', 'data', 'stake', 'run', 'summary'], 'with Apps unticked no App step shows');
   assert.deepEqual(w.stepErrors('delivery', { ...ticked, outputs: { ...ticked.outputs, genie_space: false } }), [w.GENIE_FOR_APP_NOTE]);
 });
 
@@ -170,8 +179,8 @@ test('a use case that joins an existing App skips App access and App look, shows
   assert.equal(w.wizardSteps('mvp', joined).find((s) => s.id === 'app'), undefined, 'the existing App keeps its sign-in, data source and look');
   assert.deepEqual(w.wizardSteps('mvp', joined).find((s) => s.id === 'where').panels, ['app_place'], 'where it goes is still picked on Where it lives');
   assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app').panels, ['app_access']);
-  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app_pages').panels, ['app_features']);
-  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => id !== 'app' && id !== 'app_pages' && id !== 'app_look'),
+  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'where').panels, ['app_place', 'app_features']);
+  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => id !== 'app' && id !== 'app_look'),
     'a joined App keeps its own pages, look and sign-in, so it has no App steps (must-exclude)');
   assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'no hidden App owner blocks Next');
   assert.deepEqual(w.advancedErrors('delivery', joined, { mergeTargets: targets }), []);
@@ -249,7 +258,7 @@ test('an Edit of a version saved before result tables carried the session keeps 
   const edited = w.specFromLatest(older, fallback);
   assert.equal(fallback.config.result_table, 'main._inspire_n01_u01.n01_u01_results');
   assert.equal(edited.config.result_table, 'main.inspire.n01_u01_out');
-  assert.deepEqual(w.stepErrors('results', edited), []);
+  assert.deepEqual(w.sectionErrors('results', edited), []);
   const fresh = w.specFromLatest(null, fallback);
   assert.equal(fresh.config.result_table, 'main._inspire_n01_u01.n01_u01_results');
 });
@@ -270,10 +279,10 @@ test('the result table is picked as catalog, schema and name, defaults to its ow
   assert.deepEqual(w.resultTableParts(''), { catalog: '', schema: '', table: '' });
   const moved = w.withResultTable(spec, { catalog: 'sales', schema: 'mvp', table: ' churn_out ' });
   assert.equal(moved.config.result_table, 'sales.mvp.churn_out');
-  assert.deepEqual(w.stepErrors('results', moved), []);
-  assert.deepEqual(w.stepErrors('results', w.withResultTable(spec, { catalog: 'sales', schema: '', table: 'x' })),
+  assert.deepEqual(w.sectionErrors('results', moved), []);
+  assert.deepEqual(w.sectionErrors('results', w.withResultTable(spec, { catalog: 'sales', schema: '', table: 'x' })),
     ['pick a catalog and a schema, and name the result table']);
-  assert.deepEqual(w.stepErrors('results', w.withResultTable(spec, { catalog: 'sales', schema: 'mvp', table: 'churn out' })),
+  assert.deepEqual(w.sectionErrors('results', w.withResultTable(spec, { catalog: 'sales', schema: 'mvp', table: 'churn out' })),
     ['the result table can only use catalog, schema and table names of letters, digits, _ and -']);
   assert.equal(w.withResultTable(spec, { catalog: '', schema: '', table: '' }).config.result_table, '');
   assert.match(w.RESULT_TABLE_MOVE_NOTE, /copies its history to the new table and keeps the old one/);

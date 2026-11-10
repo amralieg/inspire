@@ -7,7 +7,7 @@ test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['Data', 'First run', 'Results', 'What to deliver', 'Where it lives', 'Who uses the App', 'App pages', 'App look', 'Run it', 'Review & build'];
+const FULL_MVP_STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Who uses the App', 'App look', 'Run it', 'Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));
@@ -42,7 +42,7 @@ test('a fresh MVP shows every step in the step bar, with no shortcut that hides 
   }
 });
 
-test('Data, Results, Run it and App show the business settings and keep the technical ones behind their Change line until it is opened', async () => {
+test('Data & results, Run it and App show the business settings and keep the technical ones behind their Change line until it is opened', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   const field = (label) => page.getByLabel(new RegExp(`^${label.replace(/[()]/g, '\\$&')}`));
@@ -55,11 +55,9 @@ test('Data, Results, Run it and App show the business settings and keep the tech
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await hidden(label);
     await open('data settings');
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await shown(label);
-    for (const step of ['First run', 'Results']) {
-      await next(page);
-      await onStep(page, step);
-    }
     for (const label of ['Table name', 'Catalog', 'Schema']) await shown(label);
+    await next(page);
+    await onStep(page, 'First run');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Results holds only where the result table lives');
     assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Results holds only where the result table lives');
     await goToStep(page, 'Run it');
@@ -86,7 +84,7 @@ test('Data, Results, Run it and App show the business settings and keep the tech
   }
 });
 
-test('Summary is the last step, lists every pick with a Change link that jumps to its step and comes back, and builds with All Good, Build it Now', async () => {
+test('Summary is the last step, lists every pick with a Change link that jumps to its step and comes back, and builds with Build with these choices', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
