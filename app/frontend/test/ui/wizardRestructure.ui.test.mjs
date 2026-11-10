@@ -97,3 +97,31 @@ test('What to deliver is the first step, Data and results is one page, and Where
     await ui.close();
   }
 });
+
+test('Rebuild as is: an unchanged version is refused until the person picks Rebuild as is, and the build then sends it', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await page.route('**/api/inspire/implement/plan**', async (route) => {
+      const response = await route.fetch();
+      const json = await response.json();
+      await route.fulfill({ response, json: { ...json, unchanged: true, based_on_version: 1, spec_version: 2 } });
+    });
+    await goToStep(page, 'Review & build');
+    const footer = page.getByRole('button', { name: 'All Good, Build it Now', exact: true });
+    const choice = page.locator('[data-rebuild-as-is]');
+    await choice.waitFor();
+    assert.equal(await choice.isChecked(), false, 'Rebuild as is starts off');
+    assert.equal(await footer.isDisabled(), true, 'an unchanged version cannot be built until the person asks for a rebuild');
+    await page.getByText('Rebuild as is: build the current choices again', { exact: false }).click();
+    assert.equal(await choice.isChecked(), true);
+    assert.equal(await footer.isDisabled(), false, 'Rebuild as is enables the build');
+    const submit = page.waitForRequest((r) => r.url().includes('/api/inspire/implement/submit') && r.method() === 'POST');
+    await footer.click();
+    const body = JSON.parse((await submit).postData() || '{}');
+    assert.equal(body.rebuild_as_is, true, 'the build sends rebuild_as_is');
+    assert.deepEqual(ui.pageErrors.filter((e) => !/409|Conflict/.test(e)), []);
+  } finally {
+    await ui.close();
+  }
+});
