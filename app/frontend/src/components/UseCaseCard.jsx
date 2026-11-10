@@ -14,6 +14,7 @@ import {
   priorityPillClass,
 } from '../lib/useCaseFields';
 import ValueEstimateLine from './ValueEstimateLine';
+import UseCaseNameEditor from './UseCaseNameEditor';
 
 const s = (v) => (v == null ? '' : String(v));
 
@@ -30,6 +31,7 @@ export default function UseCaseCard({
   notebookUrl = '',
   assetLinks = [],
   isArchived = false,
+  onRename,
   onToggleArchive,
   v130 = null,
   feedbackCurrent,
@@ -164,6 +166,9 @@ export default function UseCaseCard({
 
       <ImplementCardActions status={implementStatus} onImplement={onImplement} onOpen={onOpenMvp} notebookUrl={notebookUrl} links={assetLinks} />
 
+      {expanded && typeof onRename === 'function' && (
+        <UseCaseNameEditor name={s(u.Name)} originalName={s(u.original_name)} onSave={onRename} />
+      )}
       {expanded && (
         <UseCaseDetailBody
           uc={u}

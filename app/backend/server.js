@@ -32,6 +32,7 @@ const {
 } = require('./lib/inspireJobParams');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
+const { normalizeUseCaseName, renameStatement } = require('./lib/useCaseName');
 const { createExecuteSql, runWithRequestDeadline } = require('./lib/sqlStatements');
 const { plural } = require('./lib/plural');
 const { jsonOf, registerImplementRoutes } = require('./implementRoutes');
@@ -2525,8 +2526,9 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
     // Normalize tracking table snake_case → frontend Title Case
     for (const row of rows) {
       row.No = row.id || '';
-      row.Name = row.use_case || row.Name || '';
-      row.short_name = row.short_name || row.use_case || '';
+      row.original_name = row.use_case || row.Name || '';
+      row.Name = row.user_use_case_name || row.original_name;
+      row.short_name = row.user_use_case_name || row.short_name || row.use_case || '';
       row['Business Domain'] = row.business_domain || '';
       row.Subdomain = row.subdomain || '';
       row.Statement = row.statement || row.description || '';
@@ -2574,6 +2576,31 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
     if (isMissingTableError(err)) {
       return res.json({ usecases: [], count: 0, message: 'Usecases table not found.' });
     }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/inspire/usecase-name', requireToken, async (req, res) => {
+  try {
+    const { inspire_database, warehouse_id, session_id, use_case_id, name: rawName } = req.body || {};
+    if (!inspire_database || !warehouse_id) {
+      return res.status(400).json({ error: 'inspire_database and warehouse_id are required.' });
+    }
+    const sidStr = int64Id(session_id);
+    if (!sidStr) return res.status(400).json({ error: 'session_id must be a numeric Inspire session id.' });
+    const id = String(use_case_id ?? '').trim();
+    if (!/^[a-zA-Z0-9_.\-]+$/.test(id)) return res.status(400).json({ error: USE_CASE_ID_SHAPE });
+    const parsedDb = splitInspireDatabase(inspire_database);
+    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    const { name, error } = normalizeUseCaseName(rawName);
+    if (error) return res.status(400).json({ error });
+    const table = `\`${parsedDb.catalog}\`.\`${parsedDb.schema}\`.\`__inspire_usecases\``;
+    await ensureTableColumns(req.dbHost, req.dbToken, warehouse_id, table, [['user_use_case_name', 'STRING']]);
+    const stmt = renameStatement(table, sidStr, id, name);
+    await executeSql(req.dbHost, req.dbToken, warehouse_id, stmt.sql, stmt.parameters);
+    console.log(`   ✏️ use case name: session=${sidStr}, use_case=${id}, ${name ? 'renamed' : 'cleared'}`);
+    res.json({ success: true, session_id: sidStr, use_case_id: id, name });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

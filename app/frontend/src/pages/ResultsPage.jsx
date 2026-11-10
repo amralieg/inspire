@@ -329,6 +329,20 @@ export default function ResultsPage({
     [apiFetch, inspireDb, warehouseId]
   );
 
+  const renameUseCase = useCallback(
+    async (uc, name) => {
+      await apiPostJson('/api/inspire/usecase-name', {
+        inspire_database: inspireDb,
+        warehouse_id: warehouseId,
+        session_id: String(selectedSessionId),
+        use_case_id: String(uc?.No ?? ''),
+        name,
+      });
+      await refreshUsecasesForSession(selectedSessionId);
+    },
+    [apiPostJson, inspireDb, warehouseId, selectedSessionId, refreshUsecasesForSession]
+  );
+
   const refreshResultsJsonForSession = useCallback(
     async (sid) => {
       if (!sid || !inspireDb || !warehouseId) return;
@@ -2367,6 +2381,7 @@ export default function ResultsPage({
                         onToggle={() => setExpandedUseCase(expandedUseCase === cardKeys.get(uc) ? null : cardKeys.get(uc))}
                         isFavorite={!!(favKey && favorites[favKey])}
                         onToggleFavorite={() => toggleFavorite(uc)}
+                        onRename={inspireDb && warehouseId && selectedSessionId ? (name) => renameUseCase(uc, name) : undefined}
                         v130={uc._v130}
                         feedbackCurrent={feedbackCurrentFor(uc)}
                         implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}
