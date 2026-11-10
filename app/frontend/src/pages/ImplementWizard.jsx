@@ -1194,7 +1194,8 @@ export default function ImplementWizard({
     [preflightError, checkAgain],
   ].filter(([e]) => e));
   const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
-  const implementBlocked = busy || checksBusy || !placeSettled || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || Boolean(plan?.unchanged)
+  const sourceRefused = Boolean(appUnreadable) || (preflight?.checks?.sources && preflight.checks.sources.ok === false);
+  const implementBlocked = busy || checksBusy || !placeSettled || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || Boolean(plan?.unchanged) || sourceRefused
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || !plan || Boolean(planError)));
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
   const best = oneBestPerStep({
@@ -2023,6 +2024,9 @@ export default function ImplementWizard({
             <ChevronLeft size={14} /> Back
           </button>
           <div className="flex items-center gap-2">
+            {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceRefused && (
+              <p data-source-refused="" className="text-[11px] text-warning-fg">The App cannot read its sources yet, so the build cannot start. Grant access first, then build.</p>
+            )}
             {mode === 'mvp' && stepIndex > 0 && !lastStep && (
               <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-db-red-fg border border-db-red/50 disabled:opacity-50">

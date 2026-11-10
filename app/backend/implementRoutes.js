@@ -1147,6 +1147,13 @@ function registerImplementRoutes(app, deps) {
     if (!useCase) throw I.badRequest(`No use case ${useCaseId} in this session.`, 404);
     const problems = I.removedTableProblems(chosen, I.useCaseTables(useCase), I.primaryTableOf(useCase));
     if (problems.length) throw I.badRequest(problems.join('; '));
+    const rebuildsSources = ['genie_space', 'app', 'alert'].some((name) => chosen.outputs?.[name] === true);
+    const sourced = rebuildsSources ? await sourceVerdict(req, warehouseId, useCase, { spec_json: chosen }) : { app_unreadable: null, missing: [] };
+    if (sourced.app_unreadable) {
+      const err = I.badRequest(sourced.app_unreadable.text, 409);
+      err.details = { missing_tables: sourced.missing, app_unreadable: sourced.app_unreadable };
+      throw err;
+    }
     const { spec, warnings: readWarnings } = await dropPersonUnreadable(req, chosen, useCase);
     const kpiIssues = I.implementKpiTargetProblems(raw, I.implementKpiOptions(useCase, history), history);
     if (kpiIssues.length) throw I.badRequest(kpiIssues.join('; '));

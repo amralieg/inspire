@@ -101,3 +101,15 @@ test('the permission checks still name the identity that ran them, the service p
     assert.equal(got.data.identity, SP.userName);
   });
 });
+
+test('the submit refuses with 409 and the same plain sentence as the preflight when the App cannot read a source policy, so a doomed build never starts', async () => {
+  const useCase = { id: 'N01-U01', use_case: 'Predict churn', primary_table: 'main.s.orders', tables_involved: 'main.s.orders' };
+  await withApp({ abacUnreadable: true, useCase, forwardedToken: 'person-tok' }, async (url, made) => {
+    const context = await call(url, `/api/inspire/implement/context?${Q}`);
+    assert.ok(context.data.app_unreadable, 'the context names the unreadable source');
+    const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: BASE } });
+    assert.equal(got.status, 409, JSON.stringify(got.data));
+    assert.equal(got.data.error, context.data.app_unreadable.text, 'the same message as the context refusal');
+    assert.deepEqual(insertedBy(made), [], 'no build row is written');
+  });
+});
