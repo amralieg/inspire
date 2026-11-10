@@ -318,3 +318,8 @@ def test_the_preview_top_rows_are_converted_at_the_rate_the_owner_typed():
 
 def test_the_preview_top_rows_are_per_currency_amounts_when_no_rate_is_chosen():
     assert _top(PAGE) == [100.0, 50.0, 25.0]
+
+
+def test_genie_says_the_same_left_out_line_the_app_shows(agent_ns):
+    rule = agent_ns["genie_value_at_stake_rule"]("predicted")
+    assert "say the one line the App gives under the total" in rule
