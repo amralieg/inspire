@@ -8,7 +8,7 @@ test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
 const STATE = { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } };
-const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages', '8. App look', '9. Run it', '10. Review & build'];
+const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. What to deliver', '6. Where it lives', '7. Who uses the App', '8. App pages', '9. App look', '10. Run it', '11. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const drafts = (page) => page.evaluate((prefix) => Object.keys(localStorage).filter((k) => k.startsWith(prefix)), WIZARD_DRAFT_PREFIX);
 const draftNote = (page) => page.locator('[data-wizard-draft]');
@@ -32,7 +32,7 @@ const PICKS = {
     pick: async (page) => { await page.locator('[data-first-run-choice="all"] input[type="radio"]').check(); return 'all'; },
     read: (page) => checked(page, 'input[type="radio"][name="inspire-first-run"]'),
   },
-  Deliver: {
+  'What to deliver': {
     pick: async (page) => { await page.locator('[data-output="dashboard"] input').setChecked(false); return 'off'; },
     read: async (page) => [(await page.locator('[data-output="dashboard"] input').isChecked()) ? 'on' : 'off'],
   },

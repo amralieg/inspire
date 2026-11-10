@@ -163,7 +163,7 @@ test('Genie Agents turned off also blocks a new App, so Deliver unticks both and
     assert.doesNotMatch(p, /run the grant/);
   }
   assert.match(w.blockedOutputProblems({ outputs: { app: true } }, { app: { why: 'Needs access.', details: 'GRANT X' } })[0], /run the grant under Details/);
-  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, genie_space: false, app: false, alert: false } }, blocks), 'Not picked in Deliver, so not built: the Alert.');
+  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, genie_space: false, app: false, alert: false } }, blocks), 'Not picked in What to deliver, so not built: the Alert.');
 });
 
 test('the Run it cost line does not repeat the schedule the sentence before it names', async () => {

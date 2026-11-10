@@ -8,8 +8,8 @@ import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages', '8. App look', '9. Run it', '10. Review & build'];
-const NO_APP = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Run it', '6. Review & build'];
+const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. What to deliver', '6. Where it lives', '7. Who uses the App', '8. App pages', '9. App look', '10. Run it', '11. Review & build'];
+const NO_APP = ['1. Data', '2. First run', '3. Results', '4. What to deliver', '5. Run it', '6. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const builtLine = (page) => page.locator('[data-built-sentence]').innerText();
 
@@ -44,7 +44,7 @@ async function summaryHasNoCapacity(page) {
   assert.equal(await page.getByText(/team capacity/i).count(), 0);
 }
 
-test('with the App picked the wizard reads Data, Data groups, First run, Results, Deliver, Who uses the App, App pages, App look, Run it, Review and build, one decision a screen', async () => {
+test('with the App picked the wizard reads Data, Data groups, First run, Results, What to deliver, Where it lives, Who uses the App, App pages, App look, Run it, Review and build, one decision a screen', async () => {
   const ui = await openUi('wizard', { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } }, '', { init: profileAt([], GROUPING_PROFILE) });
   const { page, made } = ui;
   try {
@@ -99,32 +99,38 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     await onePerQuestion(page, 'Results');
     await shot(page, '05-results', false);
     await next(page);
-    await onStep(page, 'Deliver');
+    await onStep(page, 'What to deliver');
     const notebook = page.locator('[data-output="notebook"] input');
     assert.deepEqual([await notebook.isChecked(), await notebook.isDisabled()], [true, true], 'the notebook is always built');
     assert.equal(await page.getByRole('checkbox', { name: /^App / }).isChecked(), true);
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
-      1, 'one Recommended on Deliver');
+      1, 'one Recommended on What to deliver');
+    assert.equal(await page.getByRole('region', { name: 'App placement' }).count(), 0, 'where the App goes waits for Where it lives (must-exclude)');
+    await onePerQuestion(page, 'What to deliver');
+    await shot(page, '06-deliver', false);
+    await next(page);
+    await onStep(page, 'Where it lives');
     await page.getByRole('region', { name: 'App placement' }).waitFor();
     await page.locator('input[name="app-place"]').first().waitFor();
     await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'who sees which rows waits for its own step (must-exclude)');
-    await onePerQuestion(page, 'Deliver');
-    await shot(page, '06-deliver', false);
+    await onePerQuestion(page, 'Where it lives');
+    await shot(page, '06-where', false);
     await next(page);
     await onStep(page, 'Who uses the App');
     await page.getByRole('region', { name: 'App access' }).waitFor();
-    assert.equal(await page.locator('input[name="app-place"]').count(), 0, 'where the App goes was picked on Deliver (must-exclude)');
+    assert.equal(await page.locator('input[name="app-place"]').count(), 0, 'where the App goes was picked on Where it lives (must-exclude)');
     assert.equal(await page.getByLabel('App name').count(), 0, 'and so was its name (must-exclude)');
     await onePerQuestion(page, 'Who uses the App');
     assert.equal(await page.getByRole('region', { name: 'App features' }).count(), 0, 'the pages and look wait for their own step (must-exclude)');
-    assert.doesNotMatch(await page.locator('[role="dialog"]').innerText(), /service principal|Lakebase/i, 'no internals in view');
+    const dialogWords = await page.locator('[role="dialog"]').evaluate((el) => { const copy = el.cloneNode(true); copy.querySelectorAll('[data-app-speed]').forEach((n) => n.remove()); return copy.textContent; });
+    assert.doesNotMatch(dialogWords, /service principal|Lakebase/i, 'no internals in view outside the storage choice');
     assert.ok((await page.locator('[role="dialog"]').innerText()).split(/could not check/i).length <= 2, 'one sentence says what Inspire could not check');
     await shot(page, '07-who-uses-the-app', false);
     await next(page);
     await onStep(page, 'App pages');
     await page.getByRole('region', { name: 'App features' }).waitFor();
-    assert.equal(await page.locator('input[name="app-place"]').count(), 0, 'placement stays on Deliver (must-exclude)');
+    assert.equal(await page.locator('input[name="app-place"]').count(), 0, 'placement stays on Where it lives (must-exclude)');
     assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'and access on Who uses the App (must-exclude)');
     await onePerQuestion(page, 'App pages');
     await shot(page, '08-app-pages', false);
@@ -161,7 +167,7 @@ test('a notebook-only build is Deliver with only Notebook ticked: no App step, a
   const { page, made } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await goToStep(page, 'Deliver');
+    await goToStep(page, 'What to deliver');
     for (const name of [/^App /, /^Genie Agent/, /^Dashboard/, /^Alert/]) {
       const box = page.getByRole('checkbox', { name });
       if (await box.isChecked()) await box.uncheck();
@@ -191,7 +197,7 @@ test('an App Inspire cannot afford is dimmed on Deliver with one plain reason an
   const { page, made } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await goToStep(page, 'Deliver');
+    await goToStep(page, 'What to deliver');
     const appBox = page.getByRole('checkbox', { name: /^App / });
     await page.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
     assert.deepEqual([await appBox.isDisabled(), await appBox.isChecked()], [true, false]);

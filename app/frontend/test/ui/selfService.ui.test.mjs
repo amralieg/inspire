@@ -244,7 +244,7 @@ test('a wizard step check that could not run offers Try again and Copy what to s
   const ui = await openUi('wizard', ME, '', { init: flaky.init });
   const { page } = ui;
   try {
-    await goToStep(page, 'Deliver');
+    await goToStep(page, 'What to deliver');
     const box = page.getByRole('alert').filter({ hasText: 'The SQL warehouse did not answer in time' });
     await box.waitFor({ timeout: 15000 });
     await box.getByRole('button', { name: 'Copy what to send' }).click();

@@ -144,12 +144,12 @@ const press = (name) => async (page) => page.getByRole('button', { name, exact: 
 const both = (...fns) => async (page) => { for (const fn of fns) await fn(page); };
 
 const COMBOS = [
-  ['app-off', { Deliver: uncheck(/^App /) }],
-  ['app-off-alert-dashboard', { Deliver: both(uncheck(/^App /), check(/^Dashboard/), check(/^Alert/)) }],
+  ['app-off', { 'What to deliver': uncheck(/^App /) }],
+  ['app-off-alert-dashboard', { 'What to deliver': both(uncheck(/^App /), check(/^Dashboard/), check(/^Alert/)) }],
   ['per-user', { 'Who uses the App': radio(/^Sensitive data/) }],
   ['per-user-edit', { 'Who uses the App': radio(/^Sensitive data/), 'App pages': check(/^Let people edit data/) }],
-  ['one-app-per-use-case', { Deliver: radio(/^One App per use case/) }],
-  ['inside-inspire', { Deliver: radio(/^Inside Inspire/) }],
+  ['one-app-per-use-case', { 'Where it lives': radio(/^One App per use case/) }],
+  ['inside-inspire', { 'Where it lives': radio(/^Inside Inspire/) }],
   ['schedule-off-holdout-off', { 'Run it': both(press('Off'), uncheck(/^Hold back/)) }],
   ['schedule-weekly', { 'Run it': press('Weekly') }],
   ['first-run-everything', { 'First run': radio(/^Everything/) }],
@@ -173,7 +173,7 @@ for (const [name, actions] of COMBOS) {
   });
 }
 
-const deliverOf = (seen) => seen.find((s) => s.step === 'Deliver').text;
+const deliverOf = (seen) => seen.find((s) => s.step === 'What to deliver').text;
 const summaryOf = (seen) => seen.find((s) => s.step === 'Review & build').text;
 
 test('a workspace with Apps turned off dims the App on Deliver with the reason, drops the App steps and still reaches the Summary', async () => {
@@ -191,7 +191,7 @@ test('a workspace with Apps turned off dims the App on Deliver with the reason, 
 
 test('a workspace with Alerts turned off leaves the Alert unticked with the reason and reaches the Summary', async () => {
   const { seen, ui } = await scenario('no-alerts', { profile: PROFILE, extra: { ...counted(PROFILE), alertsOk: false },
-    actions: { Deliver: async (page) => assert.equal(await page.getByRole('checkbox', { name: /^Alert/ }).first().isChecked(), false) } });
+    actions: { 'What to deliver': async (page) => assert.equal(await page.getByRole('checkbox', { name: /^Alert/ }).first().isChecked(), false) } });
   try {
     noLeaks(seen, 'no-alerts');
     assert.match(deliverOf(seen), /Alerts are turned off in this workspace\./);
@@ -207,7 +207,7 @@ test('a workspace with Genie Agents turned off unticks the Genie Agent like the 
       assert.equal(seen.at(-1).step, 'Review & build', seen.at(-1).text.slice(0, 300));
       assert.doesNotMatch(seen.map((s) => s.text).join('\n'), /run the grant/);
       assert.equal(summaryOf(seen).split('Genie Agents are turned off in this workspace.').length - 1, 1, 'the Summary names why the Genie Agent is not built once');
-      assert.doesNotMatch(summaryOf(seen), /Not picked in Deliver[^\n]*(Genie Agent|the App)/, 'an output the workspace cannot build is never called not picked (must-exclude)');
+      assert.doesNotMatch(summaryOf(seen), /Not picked in What to deliver[^\n]*(Genie Agent|the App)/, 'an output the workspace cannot build is never called not picked (must-exclude)');
     } finally {
       await ui.close();
     }
@@ -290,7 +290,7 @@ const alertLine = async (page) => (await page.locator('[role="dialog"]').innerTe
 
 test('ticking the Alert emails the owner by default, and the Summary and the build carry the recipients the person typed', async () => {
   const { seen, ui } = await scenario('alert-recipients', { profile: PROFILE, extra: counted(PROFILE),
-    actions: { Deliver: async (page) => {
+    actions: { 'What to deliver': async (page) => {
       await check(/^Alert/)(page);
       await settle(page);
       assert.match(await alertLine(page), new RegExp(`^Emails ${OWNER.replace(/\./g, '\\.')} when `));
@@ -318,10 +318,10 @@ for (const [name, typed, refusal] of [
 ]) {
   test(`an Alert with ${name === 'alert-nobody' ? 'no recipient' : 'a recipient that is not an email'} is stopped on Deliver with the reason, never at the build`, async () => {
     const { seen, ui } = await scenario(name, { profile: PROFILE, extra: counted(PROFILE),
-      actions: { Deliver: async (page) => { await check(/^Alert/)(page); await settle(page); await recipients(page, typed); } } });
+      actions: { 'What to deliver': async (page) => { await check(/^Alert/)(page); await settle(page); await recipients(page, typed); } } });
     try {
       const stop = seen.at(-1);
-      assert.equal(stop.step, 'Deliver');
+      assert.equal(stop.step, 'What to deliver');
       assert.match(stop.text, refusal);
       if (!typed) assert.equal(await alertLine(ui.page), 'Nobody gets it yet: add an email under Change delivery settings.');
       assert.equal(ui.made.jobs.length, 0);
@@ -344,7 +344,7 @@ test('the First run names the chosen Data groups in a plain note, never in the r
 test('every question in the wizard shows at most one Recommended choice', async () => {
   const counts = [];
   const tally = async (page) => counts.push([await current(page), await page.locator('[role="radiogroup"]').evaluateAll((groups) => groups.map((g) => g.querySelectorAll('[data-recommended]').length))]);
-  const steps = ['Data groups', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages', 'App look', RUN_IT];
+  const steps = ['Data groups', 'First run', 'Results', 'What to deliver', 'Where it lives', 'Who uses the App', 'App pages', 'App look', RUN_IT];
   const { ui } = await scenario('one-recommended', { profile: PROFILE, extra: counted(PROFILE), actions: Object.fromEntries(steps.map((s) => [s, tally])) });
   try {
     assert.ok(counts.length >= 5, JSON.stringify(counts));

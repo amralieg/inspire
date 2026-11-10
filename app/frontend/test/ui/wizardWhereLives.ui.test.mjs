@@ -1,0 +1,54 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { APP_BACKEND_GUIDE } from '../../src/lib/implementWizard.js';
+import { closeBrowser, goToStep, openUi, shot } from './uiSupport.mjs';
+
+test.after(closeBrowser);
+
+const OWNER = ['owner', 'example.com'].join('@');
+const ME = { me: { userName: OWNER, displayName: 'Owner' } };
+const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, '').trim());
+const storage = (page) => page.getByRole('group', { name: 'How fast do the App\'s pages open?' });
+
+test('What to deliver only picks what gets built, Where it lives places the App on its own step, and the storage choice explains itself', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await goToStep(page, 'What to deliver');
+    await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await shot(page, 'what-to-deliver-1280x800', false);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await shot(page, 'what-to-deliver-1440x900', false);
+    assert.equal(await page.getByRole('radio', { name: /^One App per use case/ }).count(), 0, 'placement is not on What to deliver (must-exclude)');
+
+    const labels = await stepLabels(page);
+    const at = (label) => labels.indexOf(label);
+    assert.ok(at('What to deliver') >= 0 && at('Where it lives') === at('What to deliver') + 1 && at('Who uses the App') === at('Where it lives') + 1,
+      `What to deliver, then Where it lives, then Who uses the App: ${labels.join(' | ')}`);
+
+    await goToStep(page, 'Where it lives');
+    await page.getByRole('radio', { name: /^One App per use case/ }).waitFor();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await shot(page, 'where-it-lives-1280x800', false);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await shot(page, 'where-it-lives-1440x900', false);
+
+    await goToStep(page, 'What to deliver');
+    await page.getByRole('checkbox', { name: /^App / }).uncheck();
+    assert.deepEqual(await stepLabels(page), labels.filter((l) => l !== 'Where it lives' && !/App/.test(l)), 'with the App unticked, Where it lives is skipped too');
+    await page.getByRole('checkbox', { name: /^App / }).check();
+
+    await goToStep(page, 'Who uses the App');
+    const group = storage(page);
+    await group.getByRole('status').waitFor({ state: 'detached' });
+    await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
+    await group.getByText('Standard pages (Delta)', { exact: true }).waitFor();
+    for (const line of APP_BACKEND_GUIDE) await group.getByText(line, { exact: true }).waitFor();
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await shot(page, 'storage-choice-1280x800', false);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

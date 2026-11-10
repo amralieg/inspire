@@ -282,9 +282,9 @@ test('the Vibes step says its one box is optional with gray example text, and na
   const all = { outputs: { dashboard: true, genie_space: true, app: true, alert: true } };
   assert.equal(w.vibesSkippedText(all), '', 'every output picked, nothing to name');
   assert.equal(w.vibesSkippedText({ outputs: { ...all.outputs, alert: false } }),
-    'Not picked in Deliver, so not built: the Alert.');
-  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, alert: false } }), 'Not picked in Deliver, so not built: the Genie Agent, the App and the Alert.');
-  assert.equal(w.vibesSkippedText(null), 'Not picked in Deliver, so not built: the Dashboard, the Genie Agent, the App and the Alert.');
+    'Not picked in What to deliver, so not built: the Alert.');
+  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, alert: false } }), 'Not picked in What to deliver, so not built: the Genie Agent, the App and the Alert.');
+  assert.equal(w.vibesSkippedText(null), 'Not picked in What to deliver, so not built: the Dashboard, the Genie Agent, the App and the Alert.');
   for (const text of [w.VIBES_STEP_TITLE, w.VIBES_STEP_NOTE, w.vibesSkippedText(null)]) assert.doesNotMatch(text, /[\u2013\u2014]|\bgrey\b/, text);
 });
 

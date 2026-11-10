@@ -217,7 +217,7 @@ import {
   CHANGE_LABEL,
   builtSentence,
   DELIVERY_QUESTION,
-  DELIVER_MORE,
+  APP_BACKEND_GUIDE,
   BUILD_IT_LABEL,
   BACK_TO_SUMMARY,
   SUMMARY_STEP,
@@ -955,7 +955,7 @@ export default function ImplementWizard({
   }, [columnsByTable, spec]);
 
   useEffect(() => {
-    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'app'));
+    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where' || stepId === 'app'));
     if (!wanted || warehouses !== null || warehousesError) return undefined;
     let cancelled = false;
     apiFetch('/api/warehouses')
@@ -1123,7 +1123,6 @@ export default function ImplementWizard({
   }, [principalQ, apiFetch, q]);
 
   const title = caseNameOf(uc) || spec.use_case_name || spec.use_case_id;
-  const placeBeside = stepId === 'delivery' && Boolean(spec.outputs.app) && shows('app_place');
   const genieOff = genieCodeOff(features);
   const unavailable = Object.keys(blocks);
   const unavailableKey = unavailable.join(',');
@@ -1168,8 +1167,8 @@ export default function ImplementWizard({
   const generalChecks = checkEntries.filter(([k]) => !TILE_CHECK_KEYS.includes(k));
   const freshness = freshnessOf(spec.schedule);
   const checkStepOf = (k) => {
-    if (PLACE_CHECKS.includes(k)) return 'delivery';
-    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'delivery' : 'app';
+    if (PLACE_CHECKS.includes(k)) return 'where';
+    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'where' : 'app';
     return CHOOSE_CHECKS.includes(k) || TILE_CHECK_KEYS.includes(k) ? 'delivery' : SUMMARY_STEP.id;
   };
   const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || SUMMARY_STEP.label;
@@ -1323,7 +1322,6 @@ export default function ImplementWizard({
                 onRestore={(original) => { setSpec((prev) => restoreTable(prev, original)); setNotice(''); }}
               />
             </section>
-
 
             <Advanced open={advanced.data} onToggle={() => toggleAdvanced('data')} what="data settings" summary={dataSummary}>
               <RowSubjectCheck
@@ -1565,21 +1563,20 @@ export default function ImplementWizard({
 
         {stepId === 'delivery' && mode === 'mvp' && (
           <>
-            <div data-deliver-layout={placeBeside ? 'beside' : 'stacked'} className={placeBeside ? 'grid grid-cols-1 lg:grid-cols-2 gap-4 items-start' : 'space-y-4'}>
             <section className="space-y-2" aria-label={DELIVERY_LABEL}>
               <div className="flex flex-wrap items-baseline gap-x-2">
                 <h3 className="text-sm font-semibold text-text-primary">{DELIVERY_QUESTION}</h3>
                 <p className="text-[11px] text-text-tertiary">Pick one or more. Genie builds each one for you.</p>
               </div>
-              <div data-choice="outputs" data-choice-multi="" className={`grid grid-cols-1 ${placeBeside ? 'gap-2' : 'sm:grid-cols-2 gap-3'}`}>
-                <div data-output={NOTEBOOK_CARD.id} className={`border rounded-lg ${placeBeside ? 'p-2' : 'p-3'} border-db-red/50 bg-db-red-50/40`}>
+              <div data-choice="outputs" data-choice-multi="" className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div data-output={NOTEBOOK_CARD.id} className="border rounded-lg p-3 border-db-red/50 bg-db-red-50/40">
                   <label className="flex items-start gap-3">
                     <input type="checkbox" value={NOTEBOOK_CARD.id} className="mt-0.5" checked disabled readOnly />
                     <span className="flex-1">
                       <span className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                         {NOTEBOOK_CARD.label} <Lock size={12} className="text-text-tertiary" aria-hidden="true" />
                       </span>
-                      {!placeBeside && <span className="block text-[11px] mt-1 text-text-secondary">{NOTEBOOK_CARD.blurb}</span>}
+                      <span className="block text-[11px] mt-1 text-text-secondary">{NOTEBOOK_CARD.blurb}</span>
                     </span>
                   </label>
                 </div>
@@ -1596,7 +1593,7 @@ export default function ImplementWizard({
                   const gone = on && (context?.gone_assets || []).includes(item.id);
                   const holding = sharedHolding(item.id, shared, live);
                   return (
-                    <div key={item.id} data-output={item.id} data-blocked={cannot ? '' : undefined} className={`border rounded-lg ${placeBeside ? 'p-2' : 'p-3'} space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'} ${cannot && !on ? 'border-dashed bg-bg cursor-not-allowed' : ''}`}>
+                    <div key={item.id} data-output={item.id} data-blocked={cannot ? '' : undefined} className={`border rounded-lg p-3 space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'} ${cannot && !on ? 'border-dashed bg-bg cursor-not-allowed' : ''}`}>
                       <div className="relative">
                         <label className={`flex items-start gap-3 ${locked ? '' : 'cursor-pointer'}`}>
                           <input type="checkbox" value={item.id} className="mt-0.5" checked={on} disabled={(cannot && !on) || locked} onChange={(e) => toggleOutput(item.id, e.target.checked)} />
@@ -1605,12 +1602,10 @@ export default function ImplementWizard({
                               <Icon size={14} /> {item.label}
                               {locked && <Lock size={12} className="text-text-tertiary" aria-hidden="true" />}
                             </span>
-                            {(locked || !placeBeside) && (
-                              <span className="block text-[11px] mt-1 text-text-secondary">
-                                {locked ? GENIE_FOR_APP_NOTE : item.blurb}
-                                {!cannot && item.id === 'app' && ` ${APP_NEXT_NOTE}`}
-                              </span>
-                            )}
+                            <span className="block text-[11px] mt-1 text-text-secondary">
+                              {locked ? GENIE_FOR_APP_NOTE : item.blurb}
+                              {!cannot && item.id === 'app' && ` ${APP_NEXT_NOTE}`}
+                            </span>
                             {cannot && on && <span className="block text-[11px] mt-1 text-error-fg">It cannot be built, so turn it off.</span>}
                             <span className="block mt-1"><Recommended best={best.output} id={item.id} /></span>
                           </span>
@@ -1665,46 +1660,8 @@ export default function ImplementWizard({
                   );
                 })}
               </div>
-              {placeBeside && (
-                <details data-deliver-more="" className="text-[11px] text-text-secondary">
-                  <summary className="cursor-pointer select-none font-medium">{DELIVER_MORE}</summary>
-                  <ul className="mt-1 space-y-1">
-                    {[NOTEBOOK_CARD, ...IMPLEMENT_OUTPUTS].map((o) => (
-                      <li key={o.id} data-deliver-more-item={o.id}><span className="font-medium text-text-primary">{o.label}</span>: {o.blurb}</li>
-                    ))}
-                  </ul>
-                </details>
-              )}
             </section>
 
-            {shows('app_place') && spec.outputs.app && (
-              <AppPlacementStep
-                spec={spec}
-                targets={targets}
-                targetsError={targetsError} onTargetsRetry={onTargetsRetry}
-                heldApp={held.app || ''}
-                scope={placeScope}
-                warehouses={warehouses}
-                warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
-                warehouseCheck={preflight?.checks?.app_warehouse || null}
-                lakebase={lakebase}
-                nameCheck={preflight?.checks?.app_name || null}
-                placeSet={placeSet}
-                onJoin={(target) => { setPlaceSet('person'); setSpec((prev) => withMergeTarget(prev, 'app', target)); }}
-                onNew={(placement) => {
-                  setPlaceSet(targets === null && placement !== APP_INSIDE ? 'waiting' : 'person');
-                  setSpec((prev) => withNewApp(prev, placement, targets, placeScope));
-                }}
-                onName={nameApp}
-                onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
-                warehouseOpen={advanced.app}
-                onWarehouseToggle={() => toggleAdvanced('app')}
-                moveNote={moveNote}
-                onKeep={() => { setPlaceSet('person'); setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
-                best={{ target: best.appTarget, policy: best.appPolicy, held: best.heldApp }}
-              />
-            )}
-            </div>
 
             {['dashboard', 'genie_space', 'app', 'alert'].some((o) => spec.outputs[o]) && (
               <Advanced open={advanced.delivery} onToggle={() => toggleAdvanced('delivery')} what="delivery settings" summary="Dashboard name and filters, Genie Agent, App and alert recipients">
@@ -1837,6 +1794,34 @@ export default function ImplementWizard({
               </Advanced>
             )}
           </>
+        )}
+
+        {shows('app_place') && spec.outputs.app && (
+          <AppPlacementStep
+            spec={spec}
+            targets={targets}
+            targetsError={targetsError} onTargetsRetry={onTargetsRetry}
+            heldApp={held.app || ''}
+            scope={placeScope}
+            warehouses={warehouses}
+            warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
+            warehouseCheck={preflight?.checks?.app_warehouse || null}
+            lakebase={lakebase}
+            nameCheck={preflight?.checks?.app_name || null}
+            placeSet={placeSet}
+            onJoin={(target) => { setPlaceSet('person'); setSpec((prev) => withMergeTarget(prev, 'app', target)); }}
+            onNew={(placement) => {
+              setPlaceSet(targets === null && placement !== APP_INSIDE ? 'waiting' : 'person');
+              setSpec((prev) => withNewApp(prev, placement, targets, placeScope));
+            }}
+            onName={nameApp}
+            onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
+            warehouseOpen={advanced.app}
+            onWarehouseToggle={() => toggleAdvanced('app')}
+            moveNote={moveNote}
+            onKeep={() => { setPlaceSet('person'); setSpec((prev) => withHeldApp(prev, savedOutputs)); }}
+            best={{ target: best.appTarget, policy: best.appPolicy, held: best.heldApp }}
+          />
         )}
 
         {shows('app_access') && (
@@ -2582,6 +2567,7 @@ function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = n
               );
             })}
           </div>
+          {APP_BACKEND_GUIDE.map((line) => <p key={line} className="text-[11px] text-text-secondary">{line}</p>)}
           {chosen?.blurb && <p className="text-[12px] text-text-secondary">{chosen.blurb}</p>}
           {!loading && best?.reason && lakebase?.state !== 'unknown' && <p data-recommended-why="" className="text-[11px] text-text-secondary">{best.reason}</p>}
           {loading && <p className="text-[11px] text-text-tertiary" role="status">{LAKEBASE_CHECKING}…</p>}
@@ -2688,7 +2674,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehous
       <AppBackendChoice spec={spec} lakebase={lakebase} onBackend={onBackend} best={best.backend}>
         {inside ? (
           <p data-inside-warehouse="" className="text-[11px] text-text-secondary">
-            Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on Deliver.
+            Each viewer reads with {warehouseText(warehouses, appWarehouseOf(spec))}, picked on Where it lives.
           </p>
         ) : (
           <SettingRow label="SQL warehouse" value={spec.outputs.app_warehouse_id || 'not picked'} changeLabel="App SQL warehouse" defaultOpen={warehouseCheck?.ok === false}>

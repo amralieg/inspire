@@ -7,7 +7,7 @@ test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['Data', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages', 'App look', 'Run it', 'Review & build'];
+const FULL_MVP_STEPS = ['Data', 'First run', 'Results', 'What to deliver', 'Where it lives', 'Who uses the App', 'App pages', 'App look', 'Run it', 'Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));
@@ -28,11 +28,11 @@ test('a fresh MVP shows every step in the step bar, with no shortcut that hides 
   try {
     await goToStep(page, 'Data');
     assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS);
-    await goToStep(page, 'Deliver');
+    await goToStep(page, 'What to deliver');
     assert.equal(await page.getByRole('button', { name: 'Customize' }).count(), 0);
     await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
     await page.getByRole('checkbox', { name: /^App/ }).first().uncheck();
-    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS.filter((l) => !/App/.test(l)), 'with Apps unticked both App steps are hidden');
+    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS.filter((l) => !/App|Where it lives/.test(l)), 'with Apps unticked both App steps are hidden');
     await page.getByRole('checkbox', { name: /^App/ }).first().check();
     assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS);
     await goToStep(page, 'Data');
@@ -183,7 +183,7 @@ test('an App name that is still refused is named on the last step with the step 
     const field = page.locator('[data-last-app-name]');
     await field.waitFor({ timeout: 15000 });
     assert.match(await field.innerText(), new RegExp(`'${taken}' is used by another App in this workspace; pick another name`));
-    await page.locator('[role="alert"] p', { hasText: '(fix it on Deliver)' }).waitFor();
+    await page.locator('[role="alert"] p', { hasText: '(fix it on Where it lives)' }).waitFor();
     assert.equal(await startButton(page).isDisabled(), true);
     await field.locator('input').fill('quality-desk');
     await startOn(page);

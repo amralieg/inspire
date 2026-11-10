@@ -46,7 +46,7 @@ async function readable(page, selectors, name) {
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
 }
 
-const STEPS_WITH_APP = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Who uses the App', '6. App pages', '7. App look', '8. Run it', '9. Review & build'];
+const STEPS_WITH_APP = ['1. Data', '2. First run', '3. Results', '4. What to deliver', '5. Where it lives', '6. Who uses the App', '7. App pages', '8. App look', '9. Run it', '10. Review & build'];
 const boxLabels = (panel) => panel.locator('textarea').evaluateAll((boxes) => boxes.map((b) => b.getAttribute('aria-label')));
 
 async function grayExamples(page, panel) {
@@ -75,7 +75,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await page.getByRole('textbox', { name: /vibes/i }).count(), 0, 'Delivery has no vibes box');
     assert.equal(await page.getByRole('region', { name: 'Vibes' }).count(), 0);
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Run it', '6. Review & build'], 'Summary stays last without an App');
+    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Data', '2. First run', '3. Results', '4. What to deliver', '5. Run it', '6. Review & build'], 'Summary stays last without an App');
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
     await panel.getByRole('heading', { name: 'Anything else Genie should build in?' }).waitFor();
@@ -87,7 +87,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await panel.getByRole('group', { name: /^What happens to v/ }).count(), 0, 'a first build has no version before to keep or remove');
     await wizardBox(page).fill('');
     assert.equal(await panel.locator('[data-vibes-skipped]').textContent(),
-      'Not picked in Deliver, so not built: the Dashboard, the App and the Alert.');
+      'Not picked in What to deliver, so not built: the Dashboard, the App and the Alert.');
     assert.equal(await page.evaluate(() => document.activeElement?.getAttribute('aria-label')), ONE_BOX, 'the box has the focus');
     for (const dark of [false, true]) {
       await page.evaluate((on) => document.documentElement.classList.toggle('dark', on), dark);

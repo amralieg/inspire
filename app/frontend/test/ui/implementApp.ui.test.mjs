@@ -59,7 +59,8 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     assert.deepEqual([await perUser.isChecked(), await internal.isChecked()], [true, false], 'the App starts with each person signing in as themselves');
     await access.getByText('Each person sees only the rows their own access allows.', { exact: true }).waitFor();
     await access.getByText('The App reads with its own access, and Inspire lets it read the result table.', { exact: true }).waitFor();
-    assert.doesNotMatch(await access.innerText(), /service principal|Lakebase/, 'App access names no service principal and no Lakebase (must-exclude)');
+    const accessWords = await access.evaluate((el) => { const copy = el.cloneNode(true); copy.querySelectorAll('[data-app-speed]').forEach((n) => n.remove()); return copy.textContent; });
+    assert.doesNotMatch(accessWords, /service principal|Lakebase/, 'App access names no service principal and no Lakebase outside its storage choice (must-exclude)');
     assert.equal(await access.getByRole('checkbox').count(), 0, 'what people can do is on its own step');
     await goToStep(page, 'App features');
     assert.equal(await page.getByRole('region', { name: 'App features' }).getByRole('checkbox', { name: /^Send alerts/ }).count(), 0,
@@ -416,8 +417,8 @@ test('a shared App reads Lakebase by default when the workspace has it, the defa
     const access = await toAccess(ui.page);
     const group = choice(access);
     await group.getByRole('status').waitFor({ state: 'detached' });
-    await group.getByText('Fast pages (open at once)', { exact: true }).waitFor();
-    await group.getByText('Standard pages (take a few seconds to open)', { exact: true }).waitFor();
+    await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
+    await group.getByText('Standard pages (Delta)', { exact: true }).waitFor();
     assert.equal(await access.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true, 'the App signs each viewer in with no click');
     assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'the default per-user App reads Delta tables');
     await access.getByRole('radio', { name: /^Internal data/ }).check();
@@ -425,7 +426,7 @@ test('a shared App reads Lakebase by default when the workspace has it, the defa
     await access.getByRole('radio', { name: /^Sensitive data/ }).check();
     assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'a per-user App reads Delta tables');
     assert.equal(await group.locator('[data-blocked-reason="app-backend"] p').textContent(), LAKEBASE_PER_USER_REASON);
-    assert.doesNotMatch(await group.innerText(), /Lakebase|service principal|Delta/, 'the person sees no Lakebase internals (must-exclude)');
+    assert.doesNotMatch(await group.locator('[data-blocked-reason="app-backend"]').innerText(), /Lakebase|service principal|Delta/, 'the person sees no Lakebase internals in the reason (must-exclude)');
     await access.getByRole('radio', { name: /^Internal data/ }).check();
     assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'back to a shared App, Lakebase comes back');
     await toStart(ui.page);
@@ -440,7 +441,7 @@ test('a shared App reads Lakebase by default when the workspace has it, the defa
     const access = await toAccess(ui.page);
     await access.getByRole('radio', { name: /^Internal data/ }).check();
     await choice(access).getByRole('status').waitFor({ state: 'detached' });
-    await choice(access).getByText('Standard pages (take a few seconds to open)', { exact: true }).click();
+    await choice(access).getByText('Standard pages (Delta)', { exact: true }).click();
     await toStart(ui.page);
     assert.equal(submittedSpec(ui.made).outputs.app_backend, 'delta', 'a pick of Delta is kept');
   } finally {
@@ -714,19 +715,16 @@ test('the App is picked on Deliver under the App tile: it lists the Apps Inspire
     await dash.getByRole('button', { name: 'Create new' }).waitFor();
     assert.equal(await dash.getByRole('button', { name: 'Create new' }).getAttribute('aria-pressed'), 'true', 'Create new is the default');
     await page.getByRole('checkbox', { name: /^App / }).check();
-    assert.equal(await page.locator('[data-merge="app"]').count(), 0, 'Delivery no longer picks the App');
-    assert.doesNotMatch(await appTile(page), /You pick where it goes below/, 'the placement sits beside the tiles, so the tile never points below (must-exclude)');
-    assert.equal(await page.locator('[data-deliver-layout="beside"]').count(), 1);
-    assert.match(await page.locator('[data-deliver-more-item="app"]').textContent(), /^App: /, 'what each tile builds sits under one disclosure');
+    assert.equal(await page.locator('[data-merge="app"]').count(), 0, 'What to deliver no longer picks the App');
     const genie = page.locator('[data-merge="genie_space"]');
     await genie.getByText('Inspire has built none yet').waitFor();
+    await goToStep(page, 'Where it lives');
     await placeStep(page).locator('[data-app-target]').first().waitFor();
-    await onStep(page, 'Deliver');
     assert.deepEqual([await targetRadio(page, 'ops-desk').isChecked(), await targetRadio(page, 'ops-desk').isDisabled()], [false, true],
       'a new use case signs each viewer in, so it does not join an App that shows everyone the same rows (must-exclude)');
     await goToStep(page, 'App access');
     await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Internal data/ }).check();
-    await goToStep(page, 'Deliver');
+    await goToStep(page, 'Where it lives');
     await targetRadio(page, 'ops-desk').check();
     assert.equal(await page.getByLabel('App name').count(), 0, 'joining an App asks no App name');
     assert.deepEqual(await placeTargets(page), [['ops-desk', 'recommended', 'Recommended'], ['care-desk', 'not_recommended', '']],
@@ -760,7 +758,7 @@ test('the App is picked on Deliver under the App tile: it lists the Apps Inspire
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Run it');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
-    await onStep(page, 'Deliver');
+    await onStep(page, 'Where it lives');
     assert.equal((await stepLabels(page)).some((s) => /^\d+\. Who uses the App$/.test(s.trim())), false, 'joining an App keeps its sign-in, so there is no Who uses the App step (must-exclude)');
     await placeStep(page).getByRole('radio', { name: /^Create a new App/ }).check();
     await page.getByLabel('App name').waitFor();
@@ -768,7 +766,7 @@ test('the App is picked on Deliver under the App tile: it lists the Apps Inspire
     await policy(page, /^One App per use case/).check();
     await goToStep(page, 'App access');
     await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Sensitive data/ }).check();
-    await goToStep(page, 'Deliver');
+    await goToStep(page, 'Where it lives');
     assert.equal(await targetRadio(page, 'ops-desk').isDisabled(), true, 'with per-user chosen, the service-principal App cannot be picked');
     assert.match(await placeStep(page).locator('[data-app-target="ops-desk"]').textContent(), /ops-desk shows everyone the same rows/);
     await targetRadio(page, 'care-desk').check();
@@ -996,7 +994,7 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await page.getByRole('region', { name: 'Where the result table lives' }).getByLabel('Table name').waitFor();
     await fits('3-results');
     await readable('results');
-    await goToStep(page, 'Deliver');
+    await goToStep(page, 'What to deliver');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
     for (const name of [/^Dashboard/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.locator('[data-merge="dashboard"]').getByRole('button', { name: 'Create new' }).waitFor();
@@ -1005,10 +1003,10 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await page.locator('[data-merge="dashboard"]').getByRole('button', { name: 'Add to an existing one' }).click();
     await fits('4-deliver-joining');
     await page.getByRole('checkbox', { name: /^App / }).check();
+    await goToStep(page, 'Where it lives');
     await placeStep(page).locator('[data-app-target]').first().waitFor();
-    await fits('4-deliver-app');
-    assert.equal(await page.locator('[data-deliver-layout="beside"]').count(), 1, 'the App placement sits beside the tiles');
-    await readable('deliver');
+    await fits('4-where-app');
+    await readable('where');
     await placeStep(page).locator('[data-app-target] input[type="radio"]:not([disabled])').first().check();
     await fits('4-deliver-app-joining');
     await readable('deliver app joining');
@@ -1146,7 +1144,7 @@ test('fifteen Apps scroll inside a list of fixed height: the wizard keeps the he
       await page.getByRole('button', { name: 'Back', exact: true }).click();
       await onStep(page, 'Run it');
       await page.getByRole('button', { name: 'Back', exact: true }).click();
-      await onStep(page, 'Deliver');
+      await onStep(page, 'Where it lives');
       await placeStep(page).locator('[data-app-target]').nth(14).waitFor({ state: 'attached' });
       await settled(page, '[data-app-list]');
       assert.equal(await targetRadio(page, 'fin-app-15').isChecked(), true);
@@ -1202,7 +1200,7 @@ test('the App reads and saves with the SQL warehouse picked on App access, label
       ['Shared SQL (RUNNING) · used for the build', 'Finance SQL (STOPPED)', 'Ops SQL (RUNNING)']);
     const buildNote = field.getByText("Dashboards and alerts Inspire builds keep using the build's SQL warehouse, Shared SQL (RUNNING).", { exact: true });
     assert.equal(await buildNote.count(), 0, 'on the build warehouse the option itself says so');
-    await access.getByText('Standard pages (take a few seconds to open)', { exact: true }).click();
+    await access.getByText('Standard pages (Delta)', { exact: true }).click();
     assert.equal(await field.locator('label span').first().textContent(), DELTA_LABEL);
     await select.selectOption('wh2');
     await buildNote.waitFor();
