@@ -2466,24 +2466,33 @@ def money_expression(page: dict, dataset: str, expression: str) -> str:
 
 
 def money_left_out(page: dict, kpi: dict, values: dict):
-    """The query that counts the rows a money total leaves out: undated rows and rows of the period still running, under the active filters."""
+    """The query that counts the rows a money total leaves out: undated rows, the running period, and rows with no rate, under the active filters."""
     scope = money_scope(page, kpi["dataset"])
-    if not scope["period"]:
+    if not scope["period"] and not scope["rates"]:
         return None
-    column, params = quote(scope["period"]), _Params()
+    params = _Params()
     where = _where(page, kpi["dataset"], values, params)
-    text = (f"SELECT SUM(CASE WHEN {column} IS NULL THEN 1 ELSE 0 END) AS undated, "
-            f"SUM(CASE WHEN {column} >= date_trunc('{scope['grain']}', current_date()) THEN 1 ELSE 0 END) AS running "
-            f"FROM ({_dataset(page, kpi['dataset'])}) AS d{where}")
+    cells = []
+    if scope["period"]:
+        column = quote(scope["period"])
+        cells += [f"SUM(CASE WHEN {column} IS NULL THEN 1 ELSE 0 END) AS undated",
+                  f"SUM(CASE WHEN {column} >= date_trunc('{scope['grain']}', current_date()) THEN 1 ELSE 0 END) AS running"]
+    if scope["rates"]:
+        codes = ", ".join(sql_text(code) for code in sorted(scope["rates"]))
+        currency = quote(scope["currency_column"])
+        cells.append(f"SUM(CASE WHEN {currency} IS NULL OR {currency} NOT IN ({codes}) THEN 1 ELSE 0 END) AS unrated")
+    text = f"SELECT {', '.join(cells)} FROM ({_dataset(page, kpi['dataset'])}) AS d{where}"
     return f"{text} LIMIT 1", params.items
 
 
 def left_out_text(rows) -> dict:
     """The one line every money total shows: how many rows it left out, and why."""
     row = (rows or [{}])[0]
-    undated, running = int(row.get("undated") or 0), int(row.get("running") or 0)
-    return {"undated": undated, "running": running,
-            "text": f"{undated} rows without a date and {running} rows from the running month were left out"}
+    undated, running, unrated = (int(row.get(k) or 0) for k in ("undated", "running", "unrated"))
+    line = f"{undated} rows without a date and {running} rows from the running month were left out"
+    if "unrated" in row:
+        line += f"; {unrated} rows have no rate"
+    return {"undated": undated, "running": running, "unrated": unrated, "text": line}
 
 
 MONEY_RULE_NAME = "money_rule"

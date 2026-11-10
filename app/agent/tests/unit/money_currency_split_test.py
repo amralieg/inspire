@@ -291,3 +291,16 @@ def test_a_bad_money_rule_is_refused_before_anything_is_written(tmp_path):
                                      body={"page": "n01_u05", "rule": {"currency": "convert", "base": "NOPE", "rates": {}}})
     assert status == 400 and "base currency" in out["error"]
     assert writes == []
+
+
+def test_rows_with_no_rate_are_counted_in_the_left_out_line():
+    rate_page = dict(PAGE, money={"currency": "convert", "base": "USD", "rates": {"AED": 0.5, "USD": 1.0}})
+    saved = list(ROWS)
+    ROWS[:] = saved + [{"value_at_stake": 9.0, "currency_code": "EUR", "channel": "web", "event_month": CLOSED}]
+    try:
+        sql, _ = shell_sql.money_left_out(rate_page, rate_page["kpis"][0], {})
+        shown = shell_sql.left_out_text(_run(sql))
+    finally:
+        ROWS[:] = saved
+    assert shown["unrated"] == 1 and shown["text"].endswith("; 1 rows have no rate")
+    assert shell_sql.left_out_text(_run(shell_sql.money_left_out(PAGE, PAGE["kpis"][0], {})[0]))["text"].endswith("were left out")
