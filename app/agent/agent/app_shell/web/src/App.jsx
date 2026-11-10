@@ -303,7 +303,7 @@ function Shell({ app }) {
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
           <button className="genie-btn" data-tour="genie" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
-          <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
+          <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} siblings={app.siblings || []} />
           {page && !admin && page.tour && <button type="button" className="ibtn tour-top" onClick={takeTour} data-tour-top aria-label="Take the guided tour" title="Take the guided tour"><Icon name="info" size={16} /></button>}
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>

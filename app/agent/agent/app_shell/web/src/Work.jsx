@@ -154,7 +154,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
   const close = useCallback(() => setOpen(''), []);
   const n = matching ? matching.total : picked.size;
   const over = matching?.capped ? 'more than ' : '';
-  const what = `${over}${recordsText(n)}`;
+  const what = matching ? `${over}${integer(n)} open ${n === 1 ? 'record' : 'records'}` : `${over}${recordsText(n)}`;
   const problem = actionProblem({ status, reason });
   const why = actionProblem({ status: DISMISSED, reason });
   const submit = (name, values) => async (e) => {
@@ -167,9 +167,9 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
   const note500 = <NoteField name="bulk_note" value={note} onChange={setNote} />;
   return (
     <div className="bulk" role="region" aria-label="Selected records">
-      {matching ? <b>All {over}{integer(matching.total)} matching records selected</b> : <b>{n} selected:</b>}
+      {matching ? <b>All {over}{integer(matching.total)} open records selected{matching.closed ? `. ${integer(matching.closed)} closed stay as they are` : ''}</b> : <b>{n} selected:</b>}
       {onAccept && <SaveButton write="bulk:accept" className="btn btn--pri" onClick={onAccept} data-accept-picked><Icon name="check" size={14} />Accept the suggestions</SaveButton>}
-      {closes('done') && <SaveButton write="bulk:done" ref={anchors.done} onClick={toggle('done')} aria-expanded={open === 'done'} data-bulk="done"><Icon name="check" size={14} />{matching ? 'Mark all done…' : 'Mark done…'}</SaveButton>}
+      {closes('done') && <SaveButton write="bulk:done" ref={anchors.done} onClick={toggle('done')} aria-expanded={open === 'done'} data-bulk="done"><Icon name="check" size={14} />{matching ? 'Mark all as done…' : 'Mark done…'}</SaveButton>}
       {closes('dismissed') && <SaveButton write="bulk:dismiss" ref={anchors.dismiss} onClick={toggle('dismiss')} aria-expanded={open === 'dismiss'} data-bulk="dismiss">{matching ? 'Not an issue for all…' : 'Not an issue…'}</SaveButton>}
       <SaveButton write="bulk:assign" ref={anchors.assign} onClick={toggle('assign')} aria-expanded={open === 'assign'}>Assign to…</SaveButton>
       <SaveButton write="bulk:status" ref={anchors.status} onClick={toggle('status')} aria-expanded={open === 'status'}>Set status…</SaveButton>
@@ -189,7 +189,8 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
         <Popover anchor={anchors.done.current} onClose={close} label="Mark the selected records done" width={300}>
           <form className="bulk-pop" onSubmit={submit('done', { action_status: DONE })}>
             {note500}
-            <SaveButton write="bulk:done" type="submit" className="btn btn--pri"><Icon name="check" size={14} />Mark {what} done</SaveButton>
+            {matching?.closed > 0 && <small className="faint" data-closed-note>{integer(matching.closed)} closed {matching.closed === 1 ? 'record stays' : 'records stay'} as {matching.closed === 1 ? 'it is' : 'they are'}.</small>}
+            <SaveButton write="bulk:done" type="submit" className="btn btn--pri"><Icon name="check" size={14} />{matching ? `Mark ${what} as done?` : `Mark ${what} done`}</SaveButton>
           </form>
         </Popover>
       )}

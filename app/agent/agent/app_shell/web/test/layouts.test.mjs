@@ -474,7 +474,7 @@ test('the dashboard is read only: What to do now, a So what line and Ask Genie o
   const detail = page.locator('[data-row-detail]');
   await detail.waitFor();
   assert.match(await detail.innerText(), /Oat bar/);
-  const ACTIONS = /^(Mark done|Mark done…|Mark all done…|Not an issue|Not an issue…|Snooze…|Snooze all…|Ask Genie to fix|Could not fix)$/;
+  const ACTIONS = /^(Mark done|Mark done…|Mark all as done…|Not an issue|Not an issue…|Snooze…|Snooze all…|Ask Genie to fix|Could not fix)$/;
   assert.equal(await page.getByRole('button', { name: ACTIONS }).count(), 0, 'an informational page offers no record action anywhere');
   assert.equal(await page.locator('[data-act], [data-bulk], [data-act-all], .bulk, [data-start-work]').count(), 0);
   assert.equal(await page.getByRole('checkbox').count(), 0, 'an informational page selects no rows to act on');

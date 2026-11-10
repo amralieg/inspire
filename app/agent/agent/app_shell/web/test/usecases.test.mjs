@@ -61,3 +61,17 @@ test('the Explore Work view of a page with no list says it has no row or bulk ac
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+test('the Use cases dropdown lists the other Apps Inspire delivered for the business, each one a link to that App', async () => {
+  const base = appInfo(DECIDE, 1);
+  const siblings = [{ use_case_id: 'N05-U02', name: 'Second desk', url: 'https://second-desk.example.com/' }, { use_case_id: 'N06-U01', name: 'Third desk', url: 'https://third-desk.example.com/' }];
+  const info = { ...base, siblings };
+  const { page, seen, context } = await openApp(browser, served.base, info);
+  await page.locator('[data-use-cases]').waitFor();
+  await page.locator('[data-use-cases]').click();
+  assert.equal(await page.locator('[data-no-cases]').count(), 0, 'the empty message is not shown when other Apps exist');
+  const links = await page.locator('[data-siblings] a[data-sibling]').evaluateAll((all) => all.map((a) => [a.dataset.sibling, a.getAttribute('href')]));
+  assert.deepEqual(links, [['N05-U02', 'https://second-desk.example.com/'], ['N06-U01', 'https://third-desk.example.com/']]);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});

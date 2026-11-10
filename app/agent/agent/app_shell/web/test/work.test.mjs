@@ -1,6 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
+import { OPEN_STATUSES } from '../src/records.js';
 import { actBody, appInfo, CURRENT, DECIDE, HISTORY, LABEL, lister, moved, openApp, OTHER, resizeTo, ROWS, sent, serveDist, SUMMARY, TABLE, tracked, until } from './harness.mjs';
 
 let served;
@@ -54,20 +55,21 @@ test('Select all matching acts on every matching record with the load time and t
   await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
   assert.equal(await page.locator('.bulk b').innerText(), '25 selected:');
   await page.getByRole('button', { name: 'Select all 30 matching' }).click();
-  assert.equal(await page.locator('.bulk b').innerText(), 'All 30 matching records selected');
+  assert.equal(await page.locator('.bulk b').innerText(), 'All 30 open records selected');
   assert.equal(await page.locator('.bulk-asof').innerText(), 'As of Oct 27, 2026, 09:29 AM UTC. A record that changes after that is left as it is.');
   const loaded = seen.records.at(-1);
-  await page.getByRole('button', { name: 'Mark all done…' }).click();
+  await page.getByRole('button', { name: 'Mark all as done…' }).click();
   assert.equal(await page.locator('textarea[name="bulk_note"]').getAttribute('maxlength'), '500');
   await page.locator('textarea[name="bulk_note"]').fill('Closed the promo for all of them');
-  await page.getByRole('button', { name: 'Mark 30 records done' }).click();
+  await page.getByRole('button', { name: 'Mark 30 open records as done?' }).click();
   await until(() => seen.acts?.length === 1);
   const act = seen.acts[0];
   assert.deepEqual(Object.keys(act).sort(), ['match', 'page', 'values'], 'a select-all act names no record_keys and no seen versions');
   assert.equal('record_keys' in act || 'seen' in act, false);
   assert.deepEqual(act.values, { action_status: 'Done', note: 'Closed the promo for all of them' });
   assert.deepEqual(act.match.filters, loaded.filters);
-  assert.deepEqual(act.match.view, { ai: {}, search: '', mine: false, changed: false, window: 'all', time_zone: 'Asia/Dubai' }, 'the match carries the All open window the list read');
+  assert.deepEqual(act.match.view, { ai: {}, search: '', mine: false, changed: false, window: 'all', time_zone: 'Asia/Dubai', column_filters: { action_status: OPEN_STATUSES } },
+    'the match carries the All open window the list read, and only open records');
   assert.equal(act.match.as_of_us, AS_OF, 'the match is as of the moment the server read the list, never the browser clock');
   await page.waitForFunction(() => document.querySelector('.toast.is-on .toast-t'));
   assert.equal(await toastText(page), '28 records marked done. 2 records changed since you loaded them and were left as they are.');

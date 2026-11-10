@@ -2,7 +2,7 @@ import { useEffect, useId, useMemo, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
 import { Popover, useDebounced } from './ui.jsx';
 import { getFilterOptions } from './api.js';
-import { CHOICES_SHOWN, choicesHint, choosePreset, clearSelections, hasSelections, matching, searchHint, setRangeEdge, setSelection } from './filters.js';
+import { CHOICES_SHOWN, choicesHint, choosePreset, clearGroups, groupValues, groupsOf, groupsOn, setGroupValues, hasSelections, matching, searchHint, setRangeEdge, setSelection } from './filters.js';
 import { DEFAULT_VIEW, OWNER_CHOICES, SHOW_CHOICES, hasReasons, setReason, viewIsDefault } from './hub.js';
 import { AskGenie } from './AskGenie.jsx';
 import { SectionHelp } from './SectionHelp.jsx';
@@ -131,20 +131,24 @@ function controlFields(filters, now, reasons, view) {
   return fields;
 }
 
-export default function FilterBar({ meta, state, onState, pageId, reasons = [], view, onView }) {
+export default function FilterBar({ meta, columns, state, onState, pageId, reasons = [], view, onView }) {
+  const [moreOpen, setMoreOpen] = useState(false);
   if (!meta && !view) return null;
   const filters = meta || [];
   const now = state || { range: {}, sel: {} };
   const ai = now.ai || {};
+  const groups = groupsOf({ filters, columns });
+  const shared = groups.filter((g) => !g.high);
+  const more = groups.filter((g) => g.high);
   const chips = [
     ...reasons.flatMap((r) => (ai[r.name] || []).map((v) => ({ id: r.name, label: r.label, v, drop: () => onState(setReason(now, r.name, ai[r.name].filter((x) => x !== v))) }))),
-    ...filters.filter((f) => f.type === 'multi_select').flatMap((f) => (now.sel[f.id] || []).map((v) => ({
-      id: f.id, label: f.label, v, drop: () => onState(setSelection(now, f.id, (now.sel[f.id] || []).filter((x) => x !== v))),
+    ...groups.flatMap((g) => groupValues(now, g).map((v) => ({
+      id: g.key, label: g.label, v, drop: () => onState(setGroupValues(now, g, groupValues(now, g).filter((x) => x !== v))),
     }))),
   ];
-  const dirty = hasSelections(now) || hasReasons(now) || (view && !viewIsDefault(view));
+  const dirty = hasSelections(now) || groupsOn(now, groups) || hasReasons(now) || (view && !viewIsDefault(view));
   const clear = () => {
-    if (hasSelections(now) || hasReasons(now)) onState({ ...clearSelections(now), ai: {} });
+    if (hasSelections(now) || groupsOn(now, groups) || hasReasons(now)) onState({ ...clearGroups(now), ai: {} });
     if (view) onView(DEFAULT_VIEW);
   };
   return (
@@ -155,8 +159,16 @@ export default function FilterBar({ meta, state, onState, pageId, reasons = [], 
             mark={<GenieMark size={12} />} onChange={(values) => onState(setReason(now, r.name, values))} />
         ))}
         {filters.filter((f) => f.type === 'date_range').map((f) => <DateRange key={f.id} filter={f} value={now.range[f.id]} state={now} onState={onState} />)}
-        {filters.filter((f) => f.type === 'multi_select').map((f) => (
-          <MultiSelect key={f.id} filter={f} selected={now.sel[f.id] || []} pageId={pageId} onChange={(values) => onState(setSelection(now, f.id, values))} />
+        {shared.map((g) => (
+          <MultiSelect key={g.key} filter={g.filter} selected={groupValues(now, g)} pageId={pageId} onChange={(values) => onState(setGroupValues(now, g, values))} />
+        ))}
+        {more.length > 0 && (
+          <button type="button" className="link" aria-expanded={moreOpen} onClick={() => setMoreOpen(!moreOpen)} data-more-filters>
+            {moreOpen ? 'Fewer filters' : `More filters (${more.length})`}
+          </button>
+        )}
+        {moreOpen && more.map((g) => (
+          <MultiSelect key={g.key} filter={g.filter} selected={groupValues(now, g)} pageId={pageId} onChange={(values) => onState(setGroupValues(now, g, values))} />
         ))}
         {view && (
           <>

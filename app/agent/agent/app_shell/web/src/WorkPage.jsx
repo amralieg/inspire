@@ -25,7 +25,7 @@ export default function WorkPage({ meta, state, onState, onRetryMeta = null, pag
   return (
     <section className="work-sec" aria-label="Work" data-work>
       {!meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
-      <FilterBar meta={meta?.filters} state={state || { range: {}, sel: {} }} onState={onState} pageId={pageId} reasons={reasons} />
+      <FilterBar meta={meta?.filters} columns={meta?.columns} state={state || { range: {}, sel: {} }} onState={onState} pageId={pageId} reasons={reasons} />
       {meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the list shows all its records: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={onRetryMeta} />}
       {focus && FOCUSES[focus] && (
         <p className="work-focus" role="status" data-focus={focus}>

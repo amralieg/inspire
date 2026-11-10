@@ -2336,6 +2336,7 @@ class Shell:
             "is_owner": self.is_owner(headers), "pages": pages, "built_at": s.get("built_at") or "", "backend": self.backend_status(),
             "alerts": {k: v for k, v in (s.get("alerts") or {}).items() if k in self.by_id},
             "alerts_home": f"{host}{ALERTS_HOME}" if host else "", "alerting": self.alerts.status(), "held_meaning": shell_sql.HELD_MEANING,
+            "siblings": [dict(item) for item in s.get("siblings") or [] if isinstance(item, dict) and str(item.get("url") or "").startswith("https://")],
             "no_access": {table: owner for table, owner in (s.get("unread_owners") or {}).items() if table in (s.get("unread") or {})},
         }
 

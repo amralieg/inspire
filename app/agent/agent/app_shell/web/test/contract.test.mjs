@@ -127,16 +127,16 @@ test('Select all matching under a limit acts on what the limit shows: the match 
   await waitList(page);
   const markAll = async () => {
     if (await page.locator('textarea[name="bulk_note"]').count()) {
-      assert.equal(await page.locator('.bulk b').innerText(), 'All 50 matching records selected', 'a refused act keeps the selection');
+      assert.equal(await page.locator('.bulk b').innerText(), 'All 50 open records selected', 'a refused act keeps the selection');
       assert.equal(await page.locator('textarea[name="bulk_note"]').inputValue(), C.act_match.request.body.values.note, 'a refused act keeps the note');
     } else {
       await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
       await page.getByRole('button', { name: 'Select all 50 matching' }).click();
-      assert.equal(await page.locator('.bulk b').innerText(), 'All 50 matching records selected', 'the count is what the limit shows, not the 60 that match');
-      await page.getByRole('button', { name: 'Mark all done…' }).click();
+      assert.equal(await page.locator('.bulk b').innerText(), 'All 50 open records selected', 'the count is what the limit shows, not the 60 that match');
+      await page.getByRole('button', { name: 'Mark all as done…' }).click();
       await page.locator('textarea[name="bulk_note"]').fill(C.act_match.request.body.values.note);
     }
-    await page.getByRole('button', { name: 'Mark 50 records done' }).click();
+    await page.getByRole('button', { name: 'Mark 50 open records as done?' }).click();
   };
   await markAll();
   await until(() => asked.acts.length === 1);

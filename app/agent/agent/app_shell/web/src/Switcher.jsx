@@ -11,7 +11,7 @@ function caseNote(page, state) {
   return state.text || [tabLabel(page, ''), page.domain].filter(Boolean).join(' · ');
 }
 
-function CaseMenu({ anchor, pages, page, hub, summaries, onPick, onOpen, onClose, label, empty = '' }) {
+function CaseMenu({ anchor, pages, page, hub, summaries, onPick, onOpen, onClose, label, empty = '', siblings = [] }) {
   const input = useRef(null);
   const [text, setText] = useState('');
   const [at, setAt] = useState(0);
@@ -37,7 +37,7 @@ function CaseMenu({ anchor, pages, page, hub, summaries, onPick, onOpen, onClose
       pick(shown[at]);
     }
   };
-  if (!pages.length && empty) {
+  if (!pages.length && !siblings.length && empty) {
     return (
       <Popover anchor={anchor} onClose={onClose} label={label} width={360}>
         <div className="switch-pop"><p className="empty" data-no-cases>{empty}</p></div>
@@ -63,8 +63,17 @@ function CaseMenu({ anchor, pages, page, hub, summaries, onPick, onOpen, onClose
               </button>
             );
           })}
-          {!shown.length && <p className="empty">No use case matches “{text.trim()}”.</p>}
+          {!shown.length && pages.length > 0 && <p className="empty">No use case matches “{text.trim()}”.</p>}
         </div>
+        {siblings.length > 0 && (
+          <div className="switch-list" aria-label="Other Apps from this business" data-siblings>
+            {siblings.map((item) => (
+              <a key={item.use_case_id} className="switch-i" href={item.url} data-sibling={item.use_case_id}>
+                <span className="switch-t"><b>{item.name}</b><small>{item.use_case_id}</small></span>
+              </a>
+            ))}
+          </div>
+        )}
       </div>
     </Popover>
   );
@@ -89,7 +98,7 @@ export default function Switcher({ pages, page, hub, summaries, onPick, onOpen }
   );
 }
 
-export function UseCases({ pages, page, hub, summaries, onPick, onOpen }) {
+export function UseCases({ pages, page, hub, summaries, onPick, onOpen, siblings = [] }) {
   const anchor = useRef(null);
   const [open, setOpen] = useState(false);
   const others = pages.filter((p) => p.id !== page?.id);
@@ -99,7 +108,7 @@ export function UseCases({ pages, page, hub, summaries, onPick, onOpen }) {
         <span>Use cases</span><Icon name="down" size={13} />
       </button>
       {open && <CaseMenu anchor={anchor.current} pages={others} page={page} hub={hub} summaries={summaries} onPick={onPick} onOpen={onOpen}
-        onClose={() => setOpen(false)} label="Use cases" empty="No other use cases yet" />}
+        onClose={() => setOpen(false)} label="Use cases" empty="No other use cases yet" siblings={siblings} />}
     </>
   );
 }

@@ -153,3 +153,34 @@ export function rangeLabel(filter, r) {
   if (r.preset === 'custom') return `${r.from} to ${r.to}`;
   return ((filter?.presets || []).find((p) => p.id === r.preset)?.label || 'All time').toLowerCase();
 }
+
+export const HIGH_CARDINALITY = 8;
+
+export function groupsOf(meta) {
+  const page = (meta?.filters || []).filter((f) => f.type === 'multi_select')
+    .map((f) => ({ key: `page:${f.id}`, id: f.id, label: f.label, filter: f, table: null, column: null, page: true }));
+  const columns = [...(meta?.columns?.list || []).map((f) => ({ ...f, table: null })),
+    ...Object.entries(meta?.columns?.tables || {}).flatMap(([table, list]) => (list || []).map((f) => ({ ...f, table })))]
+    .filter((f) => f.type === 'multi_select' && !f.action)
+    .map((f) => ({ key: `col:${f.table ?? ''}:${f.column}`, id: f.column, label: f.label, filter: { ...f, id: f.column, which: f.table == null ? { column: f.column } : { table: f.table, column: f.column } },
+      table: f.table ?? null, column: f.column, page: false }));
+  const named = new Set(page.map((g) => String(g.label).trim().toLowerCase()));
+  const all = [...page, ...columns.filter((g) => !named.has(String(g.label).trim().toLowerCase()))];
+  return all.map((g) => ({ ...g, high: !!g.filter.searchable || !!g.filter.lazy || (g.filter.options || []).length > HIGH_CARDINALITY }))
+    .sort((a, b) => Number(a.high) - Number(b.high));
+}
+
+export function groupValues(state, group) {
+  return group.page ? state?.sel?.[group.id] || [] : columnValues(state, group.table)[group.column] || [];
+}
+
+export function setGroupValues(state, group, values) {
+  if (group.page) return setSelection(state, group.id, values);
+  return setColumnValue(state, group.table, group.column, values);
+}
+
+export function clearGroups(state) {
+  return { ...clearSelections(state), columns: { list: {}, tables: {} } };
+}
+
+export const groupsOn = (state, groups) => groups.some((g) => groupValues(state, g).length > 0);

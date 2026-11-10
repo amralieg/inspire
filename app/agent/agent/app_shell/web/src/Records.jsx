@@ -565,7 +565,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const matching = picks.scope === scope ? picks.all : null;
   const inWindow = windowed.window ? { window: windowed.window, ...(windowed.time_zone ? { time_zone: windowed.time_zone } : {}) } : {};
   const listed = { page: pageId, filters, ai: aiPicks, search, mine, changed, ...(Object.keys(narrowed).length ? { column_filters: narrowed } : {}), ...(tabPick ? { choice: tabPick.id } : {}), ...inWindow,
-    ...(tab ? { status_counts: true } : {}), ...(only ? { focus: only } : {}) };
+    ...(tab || !noActions ? { status_counts: true } : {}), ...(only ? { focus: only } : {}) };
   const room = cap ? Math.max(1, Math.min(size, cap - offset)) : size;
   const asked = { ...listed, ...(cap ? { window_limit: cap } : {}), ...(sort ? { sort } : {}), ...(!sort && !noActions ? { due_first: true } : {}), offset, limit: room, ...(cursor ? { cursor } : {}) };
   const list = useList(asked, ready, `${nonce}:${refresh}`, windowed.window ? { ...withoutWindow(asked), limit: size } : null);
@@ -672,17 +672,20 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     if (skipped && !full) toast(skippedText(skipped));
   };
   const clearPicks = () => setPicks({ scope, keys: NONE, all: null });
+  const openCount = noActions ? null : (data?.status_counts?.open ?? null);
+  const openOnly = (body) => ({ ...body, column_filters: { ...(body.column_filters || {}), action_status: OPEN_STATUSES } });
   const selectAll = () => {
     const asOf = listAsOf(data);
     if (!asOf) {
       toast(NO_AS_OF, 'error', { actions: [{ label: 'Reload the list', run: () => setRefresh((n) => n + 1) }] });
       return;
     }
-    setPicks({ scope, keys: picked, all: { total: shownTotal, capped, as_of_us: asOf } });
+    const open = openCount ?? shownTotal;
+    setPicks({ scope, keys: picked, all: { total: open, closed: Math.max(0, shownTotal - open), capped, as_of_us: asOf } });
   };
   const actOn = async (values, { said, body = null, key } = {}) => {
     try {
-      const out = await acts.act(body || (matching ? { match: matchOf(asked, matching.as_of_us) } : { record_keys: [...picked.keys()], seen: Object.fromEntries(picked) }), values,
+      const out = await acts.act(body || (matching ? { match: matchOf(openOnly(asked), matching.as_of_us) } : { record_keys: [...picked.keys()], seen: Object.fromEntries(picked) }), values,
         { said, key });
       if (out) clearPicks();
       return out;
@@ -964,8 +967,10 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         <div className="list-tools">
           {tracker && tableRows.length > 0 && !everything && <button className="btn btn--pri" onClick={startWork} data-start-work data-tour="actions"><Icon name="right" size={14} />Start working</button>}
           {tracker && !tab && <WindowChips />}
-          {tracker && shownTotal > 0 && !everything && !matching && (
-            <button className="pick-i" onClick={selectAll} data-act-all data-tour="bulk">Act on all {capped ? 'more than ' : ''}{integer(shownTotal)} matching</button>
+          {tracker && (openCount ?? shownTotal) > 0 && !matching && (
+            <button className="pick-i" onClick={selectAll} data-act-all data-tour="bulk">
+              {mine ? `Clear my queue: ${capped ? 'more than ' : ''}${integer(openCount ?? shownTotal)} open` : `Act on all ${capped ? 'more than ' : ''}${integer(openCount ?? shownTotal)} matching`}
+            </button>
           )}
           {(freshCount > 0 || fresh) && (
             <button className={`pick-i pick-i--you ${fresh ? 'is-on' : ''}`} aria-pressed={fresh} onClick={() => setFresh(!fresh)} data-fresh>
@@ -993,7 +998,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
       {(picked.size > 0 || matching) && (
         <BulkBar choices={choices} picked={picked} matching={matching} total={shownTotal} capped={capped} allOnPage={allPicked} owners={owners} person={person} tomorrow={tomorrow}
-          canMatch={!everything} onAct={actOn} onAll={selectAll} onClear={clearPicks} onAccept={meta.action && !matching ? acceptPicked : null}
+          canMatch onAct={actOn} onAll={selectAll} onClear={clearPicks} onAccept={meta.action && !matching ? acceptPicked : null}
           onSimilar={similarBy?.length ? () => acts.findSimilar([...picked.keys()], { label: `the ${recordsText(picked.size)} you selected` }) : null}
           onDraft={() => setDrafted([...picked.keys()])} />
       )}
