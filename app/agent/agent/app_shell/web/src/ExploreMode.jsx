@@ -8,6 +8,8 @@ import { ModeEmpty } from './ModeParts.jsx';
 import { PlainNote } from './ui.jsx';
 import { USAGE_UNRECORDED } from './admin.js';
 
+export const NO_LIST = 'This page only shows results. It has no list to act on, so it has no row or bulk actions. Its tables are below.';
+
 function browserStorage() {
   try { return window.localStorage; } catch { return null; }
 }
@@ -21,6 +23,7 @@ function Work({ page, meta, state, onState, tableCard, views, notify }) {
         {views}
         {notify}
       </div>
+      {!page.records && <p className="note" data-no-list><Icon name="info" size={14} />{NO_LIST}</p>}
       {tables.length ? tables.map((t) => tableCard(t)) : <ModeEmpty>This use case shows no tables. Its charts and figures are on the Dashboard.</ModeEmpty>}
     </div>
   );

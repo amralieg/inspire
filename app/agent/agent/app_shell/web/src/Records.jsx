@@ -32,7 +32,7 @@ import {
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
   statusLabel, actError, withoutWindow, NO_AS_OF, listAsOf,
   CODES, isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
-  CLOSED_PICK, ACCEPTED, acceptable, acceptedText, quietList, claimTarget, claimText, pageDecides, recordLine, recordDetails,
+  CLOSED_PICK, ACCEPTED, acceptable, acceptedText, quietList, claimTarget, claimText, pageDecides, recordLine, recordDetails, choiceValues, rowChoice,
 } from './records.js';
 
 const tierClass = (t) => `tier tier--${String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
@@ -897,6 +897,28 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
         ) : ''),
       }] : []),
     ] : []),
+    ...(tracker ? [{
+      key: '_next', label: 'Next step', hideLabel: true, fixed: true, className: 'nowrap row-next',
+      render: (r) => {
+        if (isClosed(r)) return '';
+        const now = rowChoice(choices, r)?.id;
+        return (
+          <span className="row-acts row-next-acts">
+            {closingChoices(choices).filter((c) => c.id !== now).map((c) => {
+              const label = isDefaultChoice(c) ? QUICK_CLOSE[statusKind(c.status)]?.[0] || c.label : c.label;
+              const name = recordName(r, meta);
+              if (statusKind(c.status) === 'dismissed') {
+                return <button key={c.id} type="button" className="btn btn--sm" data-row-choice={c.id} onClick={stop(() => setOpen(r))} aria-label={`${label} ${name}: give the reason in the record`}>{label}</button>;
+              }
+              return (
+                <SaveButton key={c.id} write={`choice:${keyOf(r)}:${c.id}`} className="btn btn--sm" data-row-choice={c.id}
+                  onClick={stop(() => quick(r, choiceValues(c, '', choices), c.label, `choice:${keyOf(r)}:${c.id}`))} aria-label={`${label} ${name}`}>{label}</SaveButton>
+              );
+            })}
+          </span>
+        );
+      },
+    }] : []),
     ...(canModify ? [{
       key: '_actions', label: 'Actions', hideLabel: true, fixed: true, className: 'act',
       render: (r) => {

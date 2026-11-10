@@ -269,7 +269,7 @@ test('the top bar holds only the logo, the switcher, Ask Genie and the avatar, a
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 3), {});
   assert.equal(await hashOf(page), '#/n01_u05/dashboard');
   assert.deepEqual(await page.locator('header.top > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]).filter((c) => c !== 'avatar')),
-    ['ibtn', 'mark', 'switch', 'sp', 'genie-btn'], 'no other tool sits in the top bar');
+    ['ibtn', 'mark', 'switch', 'sp', 'genie-btn', 'btn'], 'the only tool added to the top bar is the Use cases dropdown, next to the avatar');
   assert.deepEqual(await railOf(page), [['dashboard', 'page'], ['work', ''], ['performance', ''], ['runs', ''], ['settings', '']]);
   await page.locator('[data-rail="runs"]').click();
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');

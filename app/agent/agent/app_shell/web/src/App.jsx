@@ -15,7 +15,7 @@ import { ADMIN_ROUTE } from './admin.js';
 import GeniePanel, { useGenie } from './Genie.jsx';
 import { GenieScope, GenieState } from './AskGenie.jsx';
 import { DockContext, DockTabs, RecordDock } from './Dock.jsx';
-import Switcher from './Switcher.jsx';
+import Switcher, { UseCases } from './Switcher.jsx';
 import { LINK_STALE, UNKNOWN_PAGE, canonicalHash, parseHash, sectionHash, staleSection, unknownRoute, withRecord, workRecordHash } from './links.js';
 import { MyViewProvider, useMyView } from './MyView.jsx';
 import { windowParams } from './prefs.js';
@@ -299,6 +299,7 @@ function Shell({ app }) {
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
           <button className="genie-btn" data-tour="genie" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
+          <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>
         <div className="body">
