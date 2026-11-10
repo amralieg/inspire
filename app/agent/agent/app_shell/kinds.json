@@ -5209,7 +5209,7 @@
   "title_chars": 60,
   "text_chars": 220,
   "least": 5,
-  "most": 8,
+  "most": 12,
   "live": [
    "open_count",
    "top_record",
@@ -5219,9 +5219,12 @@
    "use_case",
    "kpis",
    "record",
-   "filters"
+   "filters",
+   "choices"
   ],
   "pad": [
+   "runs",
+   "settings",
    "decision",
    "kpis",
    "records",
@@ -5245,12 +5248,16 @@
    "bulk": "the button that applies one action to many records at once",
    "genie": "the Ask Genie button, to ask questions about the data in plain words",
    "alerts": "the alerts entry, to get an email when a new run finds something",
-   "performance": "the performance entry, which shows what was promised and what the actions delivered"
+   "performance": "the performance entry, which shows what was promised and what the actions delivered",
+  "runs": "the runs entry, the history of each refresh of this use case and what it found",
+  "settings": "the settings entry, where the target, the measurement and the flagging rules are set"
   },
   "rail": [
    "genie",
    "alerts",
-   "performance"
+   "performance",
+   "runs",
+   "settings"
   ],
   "records": [
    "records",
@@ -5270,7 +5277,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "monitor_triage": [
     "decision",
@@ -5283,7 +5292,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "scenario_lab": [
     "decision",
@@ -5296,7 +5307,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "performance_explainer": [
     "decision",
@@ -5309,7 +5322,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "forecast_cockpit": [
     "decision",
@@ -5321,7 +5336,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "planner": [
     "decision",
@@ -5333,7 +5350,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "segment_explorer": [
     "decision",
@@ -5344,7 +5363,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "recommendation_desk": [
     "decision",
@@ -5355,7 +5376,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "lift_readout": [
     "decision",
@@ -5366,7 +5389,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "process_flow": [
     "decision",
@@ -5377,7 +5402,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "location_view": [
     "decision",
@@ -5388,7 +5415,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "network_explorer": [
     "decision",
@@ -5399,7 +5428,9 @@
     "bulk",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "agent_chat": [
     "decision",
@@ -5408,7 +5439,9 @@
     "filters",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "runs",
+    "settings"
    ],
    "dashboard": [
     "decision",
@@ -5438,7 +5471,9 @@
      "use_case": "this use case",
      "kpis": "the numbers at the top",
      "record": "record",
-     "filters": "the filters"
+     "filters": "the filters",
+     "choices": "the choices on the list",
+     "choice": {"done": "counts as fixed", "dismissed": "counts as not an issue", "open": "stays on the list"}
     },
     "steps": {
      "decision": {
@@ -5467,7 +5502,7 @@
      },
      "actions": {
       "title": "Act on it",
-      "text": "Open a {record} to mark it done, dismiss it with a reason, give it to someone or snooze it. Each choice is kept in its history."
+      "text": "Open a {record} to see it in the side panel and pick a choice: {choices}. Each choice is kept in the record's history."
      },
      "bulk": {
       "title": "Act on many at once",
@@ -5484,6 +5519,14 @@
      "performance": {
       "title": "See what it delivered",
       "text": "Performance shows what this use case promised and what the actions taken on it delivered so far."
+     },
+     "runs": {
+      "title": "Each run",
+      "text": "Every refresh of this use case is a run. Open Runs to see what each one found, when it ran and whether it finished."
+     },
+     "settings": {
+      "title": "Settings",
+      "text": "Settings hold the target, how the value is measured and the rules that flag records. Each change is kept with its note."
      }
     }
    },

@@ -37,7 +37,7 @@ import { RetryProvider, Skeleton } from './ui.jsx';
 import ModeView from './ModeView.jsx';
 import { pageMode, sectionTitle } from './modes.js';
 import { tourFacts } from './tourStart.js';
-import { MEASURES, promisedView, valueLine } from './impact.js';
+import { KPI_TARGET, MEASURES, kpiGap, kpiGapText, promisedView, valueLine } from './impact.js';
 
 const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
@@ -256,6 +256,9 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     ) : null;
   const colors = paletteItems(chrome?.palette, chrome?.built, chrome?.theme, chrome?.onPalette || (() => {}));
   const promised = promisedView(page);
+  const kpiRun = summary?.run;
+  const kpiTarget = settings?.settings?.find((s) => s.name === KPI_TARGET)?.value ?? '';
+  const kpiGapLine = kpiRun?.kpi_name ? `${kpiRun.kpi_name}: ${kpiGapText(kpiGap({ latest: kpiRun.kpi_latest, target: kpiTarget, direction: kpiRun.kpi_direction }), kpiRun.kpi_unit)}` : '';
   const reporting = !!page.history;
   const report = { section: shown, filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
   const head = (
@@ -363,6 +366,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
             )}
           </SettingGroup>
           <SettingGroup id="measurement" title="Measurement" why="How the value of this use case is measured, the target it should reach and how each number is worked out.">
+            {kpiGapLine && <p data-kpi-gap>{kpiGapLine}. The target is set in How the impact is worked out.</p>}
             {promised?.estimate && <p data-measure-estimate>{promised.estimate}</p>}
             {promised?.value && <p>{promised.value}</p>}
             {promised?.benefits.length > 0 && <ul>{promised.benefits.map((b) => <li key={b}>{b}</li>)}</ul>}

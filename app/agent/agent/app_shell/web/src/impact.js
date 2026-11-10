@@ -59,6 +59,22 @@ export function figuresOf(entry, currency, kind = '') {
 
 const KPI_DIRECTIONS = { increase: '\u25b2 Increase', decrease: '\u25bc Decrease', maintain: '\u25a0 Maintain' };
 
+export const KPI_TARGET = 'kpi_target_value';
+
+export function kpiGap({ latest, target, direction }) {
+  const now = Number(latest);
+  const goal = Number(target);
+  if (latest == null || latest === '' || target == null || target === '' || !Number.isFinite(now) || !Number.isFinite(goal)) return null;
+  const toGo = direction === 'decrease' ? now - goal : direction === 'maintain' ? Math.abs(goal - now) : goal - now;
+  return { amount: Math.max(toGo, 0), reached: toGo <= 0 };
+}
+
+export function kpiGapText(gap, unit = '') {
+  if (!gap) return 'Set a target to see the gap';
+  if (gap.reached) return 'Target reached';
+  return `${grouped(gap.amount, { maximumFractionDigits: 2 })}${unit === '%' ? '%' : unit ? ` ${unit}` : ''} to go`;
+}
+
 export function targetKpiView(run) {
   const name = String(run?.kpi_name ?? '').trim();
   if (!name) return null;

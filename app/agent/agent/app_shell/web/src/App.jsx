@@ -88,7 +88,7 @@ function railOf(app, page) {
 
 function SectionRail({ sections, on, onGo, open, page, counts = {}, alerting }) {
   const top = sections.filter((s) => s !== 'settings');
-  const toured = (s) => (s === 'performance' || s === 'alerts' ? s : s === 'runs' && alerting && !sections.includes('alerts') ? 'alerts' : undefined);
+  const toured = (s) => (s === 'runs' && alerting && !sections.includes('alerts') ? 'alerts' : ['performance', 'alerts', 'runs', 'settings'].includes(s) ? s : undefined);
   const item = (s) => (
     <button key={s} type="button" className={`nav-i rail-i ${on === s ? 'is-on' : ''}`} onClick={() => onGo(s)} aria-current={on === s ? 'page' : undefined} data-rail={s}
       data-tour={toured(s)}

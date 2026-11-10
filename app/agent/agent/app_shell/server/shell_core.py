@@ -186,6 +186,12 @@ MINUTES_SETTING = {"name": shell_sql.MY_WORK_MINUTES, "kind": "number", "group":
                    "allowed": "more than 0 and at most 1,440 minutes, or empty", "reason": "not set until an owner sets it",
                    "help": "My work multiplies the records each person worked by this to estimate the hours Inspire saved them. Leave it "
                            "empty and My work shows no hours saved."}
+KPI_TARGET_SETTING = "kpi_target_value"
+TARGET_SETTING = {"name": KPI_TARGET_SETTING, "kind": "number", "group": "impact", "source": "app", "applies": "app",
+                  "label": "Target for the KPI", "unit": "", "low": None, "high": None, "low_open": False, "high_open": False,
+                  "whole": False, "optional": True, "choices": [], "many": False, "default": "",
+                  "allowed": "a number, or empty for no target", "reason": "not set until an owner sets it",
+                  "help": "The Measurement section shows the gap between this target and the KPI's latest measured value. Leave it empty for no gap."}
 APP_SETTING_AT_ONCE = "My work uses this value at once; it changes no record and no run."
 HELD_TEXT = f"{shell_sql.HELD_MEANING} The App records no action on this one."
 ALERTS_HOME = "/sql/alerts"
@@ -630,14 +636,23 @@ def _record_noun(page: dict) -> str:
     return title if title.isupper() else title[0].lower() + title[1:]
 
 
+def _choice_words(choice: dict, meaning: dict) -> str:
+    label, status = str(choice.get("label") or "").strip(), str(choice.get("status") or "")
+    kind = "done" if status == shell_sql.DONE else "dismissed" if status == shell_sql.DISMISSED else "open"
+    return f"{label} ({meaning[kind]})" if meaning.get(kind) else label
+
+
 def tour_template(anchor: str, language: str, page: dict) -> dict:
     reg, words = tour_registry(), tour_language(language)
-    base = (words.get("steps") or {}).get(anchor) or {}
+    base = (words.get("steps") or {}).get(anchor) or (tour_language(TOUR_FALLBACK).get("steps") or {}).get(anchor) or {}
     plain = words.get("plain") or {}
     labels = [str(k.get("label") or "").strip() for k in _tour_kpis(page)][:3]
     filters = [str(f.get("label") or "").strip() for f in page.get("filters") or [] if isinstance(f, dict)]
+    meaning = words.get("plain", {}).get("choice") or (tour_language(TOUR_FALLBACK).get("plain") or {}).get("choice") or {}
+    choices = [_choice_words(c, meaning) for c in page.get("statuses") or [] if isinstance(c, dict) and str(c.get("label") or "").strip()]
     fills = {"use_case": str(page.get("title") or "").strip(), "kpis": (words.get("sep") or ", ").join(l for l in labels if l),
-             "record": _record_noun(page), "filters": (words.get("sep") or ", ").join(l for l in filters if l)}
+             "record": _record_noun(page), "filters": (words.get("sep") or ", ").join(l for l in filters if l),
+             "choices": (words.get("sep") or ", ").join(choices)}
     text = str(base.get("text") or "")
     for name in reg.get("fill") or []:
         token = "{" + name + "}"
@@ -2300,6 +2315,8 @@ class Shell:
         gaps = set() if self.alerts.status()["on"] else {"alerts"}
         if not (self.decides(page) and page.get("result_table")):
             gaps |= {"actions", "bulk"}
+        if not self.screen("runs"):
+            gaps.add("runs")
         return frozenset(gaps)
 
     def app_info(self, headers: dict) -> dict:
@@ -3032,7 +3049,8 @@ class Shell:
         fields = self.table_fields(ws, who, page)
         names = {f["name"] for f in fields or []}
         model = self.money_model(ws, who, page, fields)
-        items = [*(page.get("settings") or []), *([MINUTES_SETTING] if self.keeps_actions(ws, who, page, fields) else [])]
+        items = [*(page.get("settings") or []), *([MINUTES_SETTING] if self.keeps_actions(ws, who, page, fields) else []),
+                 *([TARGET_SETTING] if page.get("kpis") else [])]
         rows = self.assumption_rows(ws, who, page) if items or (model and model.get("recomputes")) else []
         latest = {}
         for row in rows:

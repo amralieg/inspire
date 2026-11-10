@@ -99,3 +99,14 @@ test('the filter step names this use case filters in its own words', async () =>
   assert.ok(filters, 'the filters step is in the tour');
   assert.equal(filters.text, 'Use Run date, Category, Channel, Region to see only your part. Every number, chart and list on the page follows them.');
 });
+
+test('a saved target changes the gap to go, in the direction the KPI should move', async () => {
+  const { kpiGap, kpiGapText } = await import('../src/impact.js');
+  const latest = 80;
+  assert.equal(kpiGapText(kpiGap({ latest, target: 100, direction: 'increase' }), '%'), '20% to go');
+  assert.equal(kpiGapText(kpiGap({ latest, target: 90, direction: 'increase' }), '%'), '10% to go', 'a saved target of 90 changes the gap');
+  assert.equal(kpiGapText(kpiGap({ latest, target: 70, direction: 'decrease' }), ''), '10 to go');
+  assert.equal(kpiGapText(kpiGap({ latest, target: 80, direction: 'increase' })), 'Target reached');
+  assert.equal(kpiGapText(kpiGap({ latest, target: '', direction: 'increase' })), 'Set a target to see the gap', 'an empty target gives no gap');
+  assert.equal(kpiGap({ latest: null, target: 90, direction: 'increase' }), null, 'a KPI with no measured value gives no gap');
+});
