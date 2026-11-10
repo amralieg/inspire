@@ -71,3 +71,24 @@ test('Report an issue sits in the More menu, closed until opened', async () => {
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+test('the records list, the runs and the settings groups each show a visible ? that says what to do there', async () => {
+  const { page, context, seen } = await openApp(browser, base, MONITOR(), { watch: STILL });
+  const records = page.locator('section.card--list [data-section-help]').first();
+  await records.waitFor({ state: 'visible' });
+  await goRail(page, 'runs');
+  const runs = page.locator('section.runs [data-section-help]');
+  await runs.waitFor({ state: 'visible' });
+  await runs.click();
+  await page.waitForSelector('.tour-pop');
+  assert.equal(await page.locator('#tour-t').textContent(), 'Each refresh of this use case');
+  await page.keyboard.press('Escape');
+  await page.waitForSelector('.tour', { state: 'detached' });
+  await goRail(page, 'settings');
+  for (const group of ['measurement', 'help']) {
+    const help = page.locator(`[data-group="${group}"] [data-section-help]`);
+    await help.waitFor({ state: 'visible' });
+  }
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});

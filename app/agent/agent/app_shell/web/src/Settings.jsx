@@ -6,6 +6,7 @@ import { Failure, useToast, PlainNote, useRetry } from './ui.jsx';
 import { SaveButton, runWrite, useWrite } from './saving.jsx';
 import { groupsOf, historyLines, inputText, ownerSettings, savedText, settingProblem, storedText, valueText } from './settings.js';
 import { MyViewGroup } from './MyView.jsx';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const NOTE_CHARS = 300;
 const PREVIEW_MS = 400;
@@ -165,6 +166,7 @@ export function SettingGroup({ id, title, why, children }) {
   return (
     <div className="tbl-wrap set-group" data-group={id}>
       <h3>{title}</h3>
+      {why && <SectionHelp title={title} steps={[{ title, text: why }]} />}
       {why && <p className="why">{why}</p>}
       <div className="set-items">{children}</div>
     </div>

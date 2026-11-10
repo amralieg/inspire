@@ -34,6 +34,7 @@ import {
   CODES, isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
   CLOSED_PICK, ACCEPTED, acceptable, acceptedText, quietList, claimTarget, claimText, pageDecides, recordLine, recordDetails, choiceValues, rowChoice,
 } from './records.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const tierClass = (t) => `tier tier--${String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 const CHANGE_TAGS = { edit: 'Edited', add: 'Added' };
@@ -965,6 +966,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           {countText && <p>{countText}</p>}
           {left && <p className="left-n"><Icon name="trend" size={13} />{left}</p>}
         </div>
+        <SectionHelp title={meta.title} steps={[{ title: meta.title, text: 'Each row is one record that needs a decision. Use the filters to narrow the list, open a row to act on it, or select several to act on them together.' }]} />
         <div className="tbar">
           <ColumnFilterStatus filters={metas} values={columnValues} onClear={onClearColumns} />
           <label className="search"><Icon name="search" size={14} /><input dir="auto" ref={searchBox} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the list" aria-label="Search the list" maxLength={200} /></label>
