@@ -1526,7 +1526,7 @@
    ],
    "contract": "plan",
    "value_lever": "revenue",
-   "value_formula": "gain from the recommended split over the current one: objective_contribution summed, from {signal_columns}; current estimate {value_at_stake}",
+   "value_formula": "gain from the recommended split over the current one: the summed objective contribution, from {signal_columns}; current estimate {value_at_stake}",
    "serving_template": "A planner for {owner} that sets the recommended {objects} each {cadence} within the limits, with accept and override per line: app, dashboard, Genie room, alert.",
    "method_plain": {
     "Optimization": "Optimization: a solver picks the values for {objects} that give the best {kpi} within the limits in {signal_columns}."
