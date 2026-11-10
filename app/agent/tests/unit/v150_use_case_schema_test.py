@@ -72,12 +72,19 @@ def test_the_app_gets_schema_level_use_select_and_modify_on_its_own_schema_when_
     table = "main._inspire_acme_n01_u01_48213.n01_u01_results"
     owned = [{"level": "schema", "privilege": "OWNER", "principal": "builder@x", "mine": "true", "me": "builder@x"}]
     got = plan(table, owned, "app-sp", agent_ns["IMPLEMENT_OWN_SCHEMA_NEEDS"])
+    obj_table = "`main`.`_inspire_acme_n01_u01_48213`.`n01_u01_results`"
     assert [(g["privilege"], g["level"], g["object"]) for g in got["grants"]] == [
-        (p, "schema", "`main`.`_inspire_acme_n01_u01_48213`") for p in ("USE SCHEMA", "SELECT", "MODIFY")]
+        ("USE SCHEMA", "schema", "`main`.`_inspire_acme_n01_u01_48213`"), ("SELECT", "table", obj_table), ("MODIFY", "table", obj_table)]
     assert got["gaps"] == []
     other = [{"level": "schema", "privilege": "OWNER", "principal": "someone@x", "mine": "false", "me": "builder@x"}]
     refused = plan(table, other, "app-sp", agent_ns["IMPLEMENT_OWN_SCHEMA_NEEDS"])
-    assert refused["grants"] == [] and len(refused["gaps"]) == 3, "a schema the builder does not manage is a gap, never a silent grant"
+    assert [g["privilege"] for g in refused["gaps"]] == ["USE SCHEMA"], "a schema the builder does not manage is a gap, never a silent grant"
+    assert all(g["level"] == "table" for g in refused["grants"]), "SELECT and MODIFY are only ever planned on the table"
+
+
+def test_the_own_schema_never_plans_select_or_modify_on_the_schema(agent_ns):
+    needs = agent_ns["IMPLEMENT_OWN_SCHEMA_NEEDS"]
+    assert [(p, lvl) for p, lvl, _ in needs if p in ("SELECT", "MODIFY")] == [("SELECT", "table"), ("MODIFY", "table")]
 
 
 def test_the_build_grants_the_own_schema_through_the_existing_app_write_path():

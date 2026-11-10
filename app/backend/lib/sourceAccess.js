@@ -24,6 +24,15 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
 
   const appTokenOf = async (req) => (await appToken()) || req.dbToken;
 
+  async function abacUnreadable(req, app, table) {
+    try {
+      const resp = await dbFetch(req.dbHost, app, `/api/2.1/unity-catalog/policies/table/${encodeURIComponent(table)}`);
+      return !resp.ok && resp.status !== 404;
+    } catch {
+      return true;
+    }
+  }
+
   async function sourceAccess(req, warehouseId, tables, job = 'build') {
     const app = await appTokenOf(req);
     const probes = await Promise.all(tables.map((table) => sqlRows(req.dbHost, app, warehouseId, I.tableProbeStatement(table))
@@ -34,14 +43,26 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
       })));
     const lost = probes.filter(Boolean);
     const person = P.personTokenOf(req);
-    if (!lost.length || !person || person === app) return { missing: lost, app_unreadable: null };
+    const policyLost = (await Promise.all(tables
+      .filter((t) => lost.every((m) => m.table !== t))
+      .map(async (t) => ((await abacUnreadable(req, app, t)) ? t : null)))).filter(Boolean);
+    if ((!lost.length && !policyLost.length) || !person || person === app) return { missing: lost, app_unreadable: null };
     const readable = await Promise.all(lost.map((m) => sqlRows(req.dbHost, person, warehouseId, I.tableProbeStatement(m.table))
       .then(() => true).catch(() => false)));
-    const appOnly = lost.filter((_m, i) => readable[i]).map((m) => m.table);
+    const appOnly = [...lost.filter((_m, i) => readable[i]).map((m) => m.table), ...policyLost];
     if (!appOnly.length) return { missing: lost, app_unreadable: null };
-    const [who, rows] = await Promise.all([appIdentity(req, app), Promise.all(appOnly.map((t) => accessRowsOf(req, person, warehouseId, t)))]);
-    const offer = I.appReadGrantsOffer(appOnly, appOnly.map((t, i) => I.accessPlan(t, rows[i], who.id)), who);
-    return { missing: lost.filter((m) => !appOnly.includes(m.table)), app_unreadable: { ...offer, text: I.appUnreadableMessage(offer, job) } };
+    const who = await appIdentity(req, app);
+    const builtIn = appOnly.filter((t) => I.builtInSampleTable(t));
+    const grantable = appOnly.filter((t) => !builtIn.includes(t));
+    const missing = lost.filter((m) => !appOnly.includes(m.table));
+    if (!grantable.length) {
+      return { missing, app_unreadable: { tables: builtIn, app: { name: who.name, id: who.id }, grants: [], can_grant: false,
+        builtin: builtIn, text: I.builtInSampleMessage(builtIn) } };
+    }
+    const rows = await Promise.all(grantable.map((t) => accessRowsOf(req, person, warehouseId, t)));
+    const offer = I.appReadGrantsOffer(grantable, grantable.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs: I.IMPLEMENT_SOURCE_NEEDS })), who);
+    const text = I.appUnreadableMessage(offer, job) + (builtIn.length ? `. ${I.builtInSampleMessage(builtIn)}` : '');
+    return { missing, app_unreadable: { ...offer, builtin: builtIn, text } };
   }
 
   async function runPersonGrants(req, token, warehouseId, statements) {
@@ -60,13 +81,14 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
 
   async function abacGrantsOf(req, token, warehouseId, tables) {
     const who = await appIdentity(req, await appTokenOf(req));
-    if (!tables.length || !who.id) return { grants: [], gaps: [] };
-    const rows = await Promise.all(tables.map((t) => accessRowsOf(req, token, warehouseId, t)));
+    const shareable = tables.filter((t) => !I.builtInSampleTable(t));
+    if (!shareable.length || !who.id) return { grants: [], gaps: [] };
+    const rows = await Promise.all(shareable.map((t) => accessRowsOf(req, token, warehouseId, t)));
     const needs = [...I.IMPLEMENT_READ_NEEDS, ...I.IMPLEMENT_ABAC_READ_NEEDS];
-    const plans = tables.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs }));
+    const plans = shareable.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs }));
     return {
       grants: [...new Set(plans.flatMap((p) => p.grants.map((g) => I.grantSql(g, who.id))))],
-      gaps: tables.flatMap((table, i) => (plans[i].gaps.length
+      gaps: shareable.flatMap((table, i) => (plans[i].gaps.length
         ? [{ table, owner: plans[i].gaps[0].owner || '', grants: plans[i].gaps.map((g) => I.grantSql(g, who.id)) }] : [])),
     };
   }

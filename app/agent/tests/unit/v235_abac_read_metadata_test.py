@@ -51,7 +51,9 @@ def test_a_service_principal_denied_the_abac_read_is_refused_with_its_name_and_t
         inst._implement_protection_gate(context, [])
     reason = str(stop.value)
     assert reason.startswith(f"Inspire did not publish. The App's service principal {APP} cannot read the access policies of {SOURCE}")
-    assert f"owner@example.com or a manager of {SOURCE} runs `{GRANT}`" in reason
+    assert f"owner@example.com or a manager of {SOURCE} can run the GRANT shown under Details" in reason
+    assert "`" not in reason and GRANT not in reason
+    assert context["asset_status"]["protection"]["sql"] == [f"{GRANT};"]
     assert "would show rows" not in reason
     assert context["asset_status"]["protection"]["check"] is True
     assert "does not have READ METADATA" in context["asset_status"]["protection"]["details"]
@@ -123,12 +125,15 @@ def test_the_app_read_grants_include_read_metadata_on_the_source_tables(agent_ns
     assert any(r["privilege"] == "READ METADATA" and r["table"] == SOURCE for r in ran)
 
 
+UNREAD_SENTENCE_TAIL = f"The App's service principal {APP} cannot read the access policies of {SOURCE}, so Inspire cannot tell whether the results keep them."
+
+
 def test_the_refusal_names_the_unread_table_without_claiming_rows_are_hidden(agent_ns):
     plan = {"apply": [], "refuse": [], "blocked": [], "unread": [
         f"The App's service principal {APP} cannot read the access policies of {SOURCE}, so Inspire cannot tell whether the results keep them"],
         "grant": []}
     reason = agent_ns["implement_protection_refusal"](plan)
-    assert "would show rows" not in reason and "Press Check again" in reason
+    assert "would show rows" not in reason and "Press Check again" not in reason and reason == "Inspire did not publish. " + UNREAD_SENTENCE_TAIL
 
 
 def test_a_denied_source_is_refused_in_the_preflight_before_any_preview_or_publish_work(agent_ns):
@@ -139,3 +144,10 @@ def test_a_denied_source_is_refused_in_the_preflight_before_any_preview_or_publi
     assert str(stop.value).startswith("Inspire did not publish. The App's service principal")
     record = context["asset_status"]["protection"]
     assert record["tables"] == [SOURCE] and record["check"] is True
+
+
+def test_a_samples_catalog_denial_says_it_is_built_in_and_to_copy_the_table(agent_ns):
+    sample = "samples.bakehouse.sales_transactions"
+    text = agent_ns["implement_abac_denied_sentence"]({"table": sample, "principal": APP, "statement": "", "owner": "System user"})
+    assert "built-in sample catalog that Databricks owns" in text and "CREATE TABLE ... AS SELECT" in text
+    assert "`" not in text and "GRANT" not in text

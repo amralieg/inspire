@@ -121,7 +121,7 @@ test('context splits a table only the App cannot read from a missing table and n
     const offer = got.data.app_unreadable;
     assert.deepEqual(offer.tables, ['main.s.orders']);
     assert.deepEqual(offer.app, { name: 'inspire-manual', id: 'app-sp-id' });
-    assert.deepEqual(offer.grants, ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`']);
+    assert.deepEqual(offer.grants, ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`']);
     assert.equal(offer.can_grant, true);
     assert.match(offer.text, /builds run as the App service principal inspire-manual \(application id app-sp-id\)/);
     assert.doesNotMatch(offer.text, /swap/i);
@@ -147,7 +147,7 @@ test('a rerun the App cannot read refuses with the named App reason, never the s
     const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
     assert.equal(got.status, 409, JSON.stringify(got.data));
     assert.match(got.data.error, /the build cannot read main\.s\.orders: builds run as the App service principal inspire-manual/);
-    assert.match(got.data.error, /Ask the owner to run: GRANT USE SCHEMA ON SCHEMA `main`\.`s` TO `app-sp-id`; GRANT SELECT ON TABLE `main`\.`s`\.`orders` TO `app-sp-id`$/);
+    assert.match(got.data.error, /Ask the owner to run: GRANT USE SCHEMA ON SCHEMA `main`\.`s` TO `app-sp-id`; GRANT SELECT ON TABLE `main`\.`s`\.`orders` TO `app-sp-id`; GRANT READ METADATA ON TABLE `main`\.`s`\.`orders` TO `app-sp-id`$/);
     assert.doesNotMatch(got.data.error, /swap/i);
     assert.deepEqual(got.data.missing_tables, []);
     assert.equal(got.data.app_unreadable.can_grant, false);
@@ -376,5 +376,31 @@ test('Let Inspire read these tables grants every App read grant on a source only
     assert.deepEqual(got.data.abac_gaps, [{ table: 'main.s.orders', owner: 'data-eng',
       grants: ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`',
         'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`'] }]);
+  });
+});
+
+test('the preflight context offers the App read grants when only the policy read is denied, with READ METADATA and no SELECT gap', async () => {
+  const { live, overrides } = split(PERSON_OWNS);
+  live.appReads = true;
+  await withApp({ ...overrides, abacUnreadable: true }, async (url) => {
+    const before = await call(url, `/api/inspire/implement/context?${Q}`);
+    assert.deepEqual(before.data.app_unreadable.tables, ['main.s.orders']);
+    assert.equal(before.data.app_unreadable.can_grant, true);
+    assert.deepEqual(before.data.app_unreadable.grants, ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`',
+      'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`']);
+  });
+});
+
+test('a built-in sample catalog the App cannot read is named as not shareable and offers no grant (copy the table instead)', async () => {
+  const grants = [];
+  const { live, overrides } = split(PERSON_OWNS, { onGrant: (sql, token) => grants.push([sql, token]) });
+  live.appReads = true;
+  await withApp({ ...overrides, abacUnreadable: true }, async (url) => {
+    const got = await call(url, `/api/inspire/implement/grant-access?${Q}&kind=source_tables`, { method: 'POST',
+      body: { tables: ['samples.bakehouse.sales_transactions'] } });
+    assert.equal(got.status, 403, JSON.stringify(got.data));
+    assert.match(got.data.error, /built-in sample catalog that Databricks owns/);
+    assert.match(got.data.error, /CREATE TABLE \.\.\. AS SELECT/);
+    assert.deepEqual(grants, [], 'nothing is granted on a system catalog');
   });
 });

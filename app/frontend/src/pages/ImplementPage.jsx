@@ -1214,15 +1214,26 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       setWritingNotebook(false);
     }
   };
+  const recheckSources = async (before = '') => {
+    setProtectionFailed([]);
+    try {
+      const data = await apiFetch(`/api/inspire/implement/context?${qBase}`);
+      const now = data.app_unreadable?.text
+        || 'Inspire checked the sources again: the App can read them. Start the build once more to continue.';
+      setProtectionCopy([before, now].filter(Boolean).join('. '));
+    } catch (e) {
+      setProtectionCopy([before, `Inspire could not check the sources again: ${e.message}`].filter(Boolean).join('. '));
+    }
+    return undefined;
+  };
   const grantSourceRead = async () => {
     setGrantingAccess(true);
     setProtectionCopy('');
     setProtectionFailed([]);
     try {
       const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables: protection.tables });
-      setProtectionCopy(abacGrantText(got));
       setProtectionFailed(got.failed || []);
-      if (!got.abac_gaps?.length && !got.failed?.length) return sendAgain();
+      return recheckSources(abacGrantText(got));
     } catch (e) {
       setProtectionCopy(`Your grant was refused: ${e.message}`);
     } finally {
@@ -1240,7 +1251,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       }
       return undefined;
     }
-    if (protection && choice.id === 'check') return sendAgain();
+    if (protection && choice.id === 'check') return recheckSources();
     if (protection && choice.id === 'grant') return grantSourceRead();
     if (protection && choice.id === 'access') return onEdit?.({ step: 'app_access' }, live);
     if (choice.changes) return submitChecked(nextSpecFrom(latest, { ...buildAgainChanges(latest), ...choice.changes }));
@@ -1255,10 +1266,15 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <p className="text-[13px] font-semibold">{stopped ? 'The build stopped' : 'The build failed'}</p>
           {failedStage && <p>Step: <span className="font-semibold">{failedStage.label}</span></p>}
           {(protection?.reason || reason) && <PlainMessage text={protection?.reason || reason} />}
-          {protection?.details && (
+          {(protection?.details || protection?.sql.length > 0) && (
             <details data-protection-details="" className="text-[11px] text-error-fg">
               <summary className="cursor-pointer">Details</summary>
-              <p className="mt-1 font-mono break-all">{protection.details}</p>
+              {protection.details && <p className="mt-1 font-mono break-all">{protection.details}</p>}
+              {protection.sql.length > 0 && (
+                <pre aria-label="SQL to run" data-protection-sql="" className="mt-1 p-2 rounded bg-bg font-mono text-[11px] text-text-primary whitespace-pre-wrap break-all">
+                  {protection.sql.join('\n')}
+                </pre>
+              )}
             </details>
           )}
         </div>
@@ -1276,11 +1292,6 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             ))}
           </ol>
         </div>
-      )}
-      {protection?.sql.length > 0 && (
-        <ul aria-label="SQL to run" data-protection-sql="" className="space-y-0.5">
-          {protection.sql.map((line) => <li key={line} className="font-mono text-[11px] text-text-primary break-all">{line}</li>)}
-        </ul>
       )}
       {protectionCopy && <PlainMessage text={protectionCopy} role="status" data-protection-copy="" className="text-text-primary" />}
       {protectionFailed.length > 0 && (

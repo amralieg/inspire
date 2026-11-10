@@ -72,7 +72,8 @@ async function launchWith(personRows) {
 test('Discover checks the App can read the picked tables and grants with the person sign-in when the person can', async () => {
   const got = await launchWith(OWNS);
   assert.equal(got.status, 200, JSON.stringify(got.data));
-  assert.deepEqual(got.live.grants.map(([, token]) => token), [PERSON, PERSON], 'every grant runs with the person sign-in, never the App');
+  assert.deepEqual(got.live.grants.map(([, token]) => token), [PERSON, PERSON, PERSON], 'every grant runs with the person sign-in, never the App');
+  assert.ok(got.live.grants.some(([sql]) => sql === 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `sp-app-id`'));
   assert.ok(got.live.grants.some(([sql]) => sql === 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `sp-app-id`'), JSON.stringify(got.live.grants));
   assert.equal(got.live.appReads, true);
   const access = got.data.warnings.filter((w) => w.includes('main.s.orders'));

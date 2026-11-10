@@ -150,6 +150,10 @@ function makeApp(overrides = {}, { mount } = {}) {
         const got = await state.workspace({ token, path, method: String(opts.method || 'GET').toUpperCase(), body: opts.body ? JSON.parse(opts.body) : null });
         if (got !== undefined) return json(got[0], got[1] || 200);
       }
+      if (/^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)) {
+        return state.abacUnreadable ? json({ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403)
+          : json({ policies: [] });
+      }
       const ucTable = /^\/api\/2\.1\/unity-catalog\/tables\/([^/?]+)$/.exec(path);
       if (ucTable) {
         const name = decodeURIComponent(ucTable[1]).toLowerCase();

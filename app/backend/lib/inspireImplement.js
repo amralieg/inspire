@@ -2887,6 +2887,8 @@ const IMPLEMENT_READ_NEEDS = [
 const IMPLEMENT_TRAVERSE_PRIVILEGES = IMPLEMENT_READ_NEEDS.filter(([, level]) => level !== 'table').map(([privilege]) => privilege);
 const IMPLEMENT_ABAC_READ_NEEDS = [['READ METADATA', 'table', ['catalog', 'schema', 'table']]];
 const IMPLEMENT_PRIVILEGE_COVERS = { 'READ METADATA': ['MANAGE'] };
+const IMPLEMENT_SOURCE_NEEDS = [...IMPLEMENT_READ_NEEDS, ...IMPLEMENT_ABAC_READ_NEEDS];
+const BUILT_IN_SAMPLE_CATALOGS = ['samples'];
 
 function grantSql(need, who) {
   return `GRANT ${need.privilege} ON ${need.level.toUpperCase()} ${need.object} TO \`${who}\``;
@@ -3021,11 +3023,26 @@ function newAppsAccessText(catalog, decision, real) {
   return `you cannot grant on ${catalog}: you need to own it or hold MANAGE on it`;
 }
 
+function builtInSampleTable(name) {
+  try {
+    return BUILT_IN_SAMPLE_CATALOGS.includes(tableParts(name).catalog);
+  } catch {
+    return false;
+  }
+}
+
+function builtInSampleMessage(tables) {
+  const one = tables.length === 1;
+  return `${joinAnd(tables)} ${one ? 'is' : 'are'} in a built-in sample catalog that Databricks owns (System user), so nobody can grant `
+    + `the App read metadata on ${one ? 'it' : 'them'}. Copy ${one ? 'the table' : 'each table'} into a catalog you own, `
+    + `with CREATE TABLE ... AS SELECT, and use the copy`;
+}
+
 function appReadGrantsOffer(tables, plans, app) {
   const list = (tables || []).map((table, i) => ({ table, plan: plans[i] || { grants: [], gaps: [] } }));
   const gaps = list.flatMap((t) => t.plan.gaps);
   const who = str(app && app.id);
-  const order = (g) => IMPLEMENT_READ_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
+  const order = (g) => IMPLEMENT_SOURCE_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
   const statements = who ? list.flatMap((t) => [...t.plan.grants, ...t.plan.gaps].sort((a, b) => order(a) - order(b))).map((g) => grantSql(g, who)) : [];
   return {
     tables: list.map((t) => t.table),
@@ -3083,7 +3100,7 @@ function appReadGrantFor(sql, appId) {
 function appReadsLeft(record, plans) {
   return record.tables.map((t, i) => {
     const plan = plans[i] || { grants: [], gaps: [] };
-    const order = (g) => IMPLEMENT_READ_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
+    const order = (g) => IMPLEMENT_SOURCE_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
     const needed = [...plan.grants, ...plan.gaps].sort((a, b) => order(a) - order(b)).map((g) => grantSql(g, record.app));
     const owner = joinAnd([...new Set(plan.gaps.map((g) => g.owner).filter(Boolean))]) || t.owner;
     return { table: t.table, owner, grants: needed.filter((g) => appReadGrantFor(g, record.app)) };
@@ -3644,6 +3661,9 @@ module.exports = {
   IMPLEMENT_TABLE_NAME_RE,
   IMPLEMENT_READ_NEEDS,
   IMPLEMENT_ABAC_READ_NEEDS,
+  IMPLEMENT_SOURCE_NEEDS,
+  builtInSampleTable,
+  builtInSampleMessage,
   IMPLEMENT_TRAVERSE_PRIVILEGES,
   IMPLEMENT_NOTEBOOK_TASK_KEY,
   IMPLEMENT_USE_CASE_PARAM,

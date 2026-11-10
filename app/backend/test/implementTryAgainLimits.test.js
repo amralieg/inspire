@@ -37,7 +37,7 @@ test('every Try again and every Rebuild on the Build page goes through the one c
     'a terminal failure is never sent again unchanged');
   assert.match(page, /if \(choice\.changes\) return submitChecked\(nextSpecFrom\(latest, \{ \.\.\.buildAgainChanges\(latest\), \.\.\.choice\.changes \}\)\);/,
     'a failure choice goes through the checked submit');
-  assert.equal((page.match(/sendAgain\(\)/g) || []).length, 5, 'the banner, the drawer, the progress card, Check again and Let Inspire read these tables on a protection stop all send again through it');
+  assert.equal((page.match(/sendAgain\(\)/g) || []).length, 3, 'the banner, the drawer and the progress card send again through it; Check again re-runs the preflight and never submits');
   assert.match(page, /if \(!\(await submitChecked\(rebuildSpec\(latest, vibes, builtOn, previous\)\)\)\) \{\n\s+keepCollected\(sent\);/);
   assert.match(page, /heldAction\('retry', \(\) => submitChecked\(specFromHeld\(latest\)\)\)/, 'Try again on a held version is checked too');
   assert.equal((page.match(/submitSpec\(next\)/g) || []).length, 1, 'only the checked submit sends a rebuild spec');

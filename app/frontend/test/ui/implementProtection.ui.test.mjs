@@ -20,7 +20,7 @@ const OWNS = [row('catalog', 'OWNER', OWNER, true), row('schema', 'OWNER', 'data
 
 function protectionFailure(rights) {
   const live = { grants: [] };
-  const record = { state: 'failed', spec_version: 1, reason: `Inspire did not publish. ${REASON}`, sql: [], check: true, details: RAW, tables: [SOURCE] };
+  const record = { state: 'failed', spec_version: 1, reason: `Inspire did not publish. ${REASON}`, sql: [`${METADATA};`], check: true, details: RAW, tables: [SOURCE] };
   return {
     live,
     state: {
@@ -56,6 +56,8 @@ test('a build stopped by a denied policy read shows the reason, Details with the
     const details = banner.locator('[data-protection-details]');
     assert.equal(await details.count(), 1, 'the raw error sits under Details');
     assert.equal(await details.locator('p').textContent(), RAW);
+    assert.equal(await details.locator('pre[data-protection-sql]').textContent(), `${METADATA};`, 'the GRANT is a code block under Details, not inline text');
+    assert.doesNotMatch(await banner.getByText(REASON, { exact: false }).first().innerText(), /`/, 'no backticks in the reason sentence');
     await banner.getByRole('button', { name: APP_READ_ACTION, exact: true }).click();
     await page.locator('[data-protection-copy]').getByText('Inspire granted 4 grants with your sign-in', { exact: false }).waitFor({ timeout: 15000 });
     assert.deepEqual(live.grants, [[CATALOG, PERSON], [SCHEMA, PERSON], [SELECT, PERSON], [METADATA, PERSON]], 'only the person token grants what the App needs on the source');
