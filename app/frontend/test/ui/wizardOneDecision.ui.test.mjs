@@ -220,3 +220,25 @@ test('Timezone and failure emails are editable rows on Review & build with their
   }
 });
 
+test('the stepper, its numbers and its Step count agree: one step bar, unique labels numbered 1 to N, and no duplicate step while the Data groups profile loads (must-exclude: duplicated labels)', async () => {
+  const ui = await openUi('wizard', ME, '', { init: profileAt([], GROUPING_PROFILE, { after: 2000 }) });
+  const { page } = ui;
+  try {
+    await onStep(page, 'Data');
+    const check = async () => {
+      const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
+      assert.equal(await page.locator('[data-wizard-header] ol').count(), 1, 'one step bar');
+      assert.deepEqual(labels.map((l) => l.replace(/^\d+\.\s*/, '')), [...new Set(labels.map((l) => l.replace(/^\d+\.\s*/, '')))], labels.join(' | '));
+      labels.forEach((l, i) => assert.ok(l.startsWith(`${i + 1}. `), `step ${i + 1} is numbered ${i + 1}: ${l}`));
+      const count = await page.locator('[data-wizard-header] .sr-only').innerText();
+      assert.equal(count, `Step 1 of ${labels.length}`, 'the Step count matches the labels');
+    };
+    await check();
+    await page.waitForTimeout(3000);
+    await check();
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
