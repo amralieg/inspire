@@ -263,6 +263,7 @@ test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample p
     await tab('Pages').click();
     await shown({ 'app-sample': 'genie' });
 
+    await goToStep(page, 'App pages');
     const features = page.getByRole('region', { name: 'App features' });
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
     await features.getByRole('checkbox', { name: /^Send alerts/ }).check();
@@ -1014,7 +1015,7 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await access.getByRole('radio', { name: /^Sensitive data/ }).check();
     await readable('app access per user');
     await access.getByRole('radio', { name: /^Internal data/ }).check();
-    await goToStep(page, 'App pages and look');
+    await goToStep(page, 'App look');
     await measure(page, '5-app-pages');
     await readable('app pages');
     await page.getByRole('region', { name: 'App features' }).getByRole('checkbox', { name: /^Let people edit data/ }).check();

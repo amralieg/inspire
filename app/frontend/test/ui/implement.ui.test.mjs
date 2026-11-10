@@ -73,7 +73,7 @@ function submittedSpec(made) {
 test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
-  const withApp = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Who uses the App', '6. App pages and look', '7. Run it', '8. Review & build'];
+  const withApp = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Who uses the App', '6. App pages', '7. App look', '8. Run it', '9. Review & build'];
   try {
     await onStep(page, 'Use case');
     await stepsAre(page, withApp);
@@ -1740,7 +1740,7 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     await onStep(never.page, 'Data');
     assert.equal(await never.page.locator('[data-wizard-header] h2').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
-    for (const label of ['Data', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it']) {
+    for (const label of ['Data', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages', 'App look', 'Run it']) {
       if (label !== 'Data') {
         await next(never.page);
         await onStep(never.page, label);
@@ -1894,7 +1894,7 @@ test('with a Genie Code route, the wizard walks the MVP steps and no note shows'
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
     await goToStep(ui.page, 'Data');
-    await stepsAre(ui.page, ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Who uses the App', '6. App pages and look', '7. Run it', '8. Review & build']);
+    await stepsAre(ui.page, ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Who uses the App', '6. App pages', '7. App look', '8. Run it', '9. Review & build']);
     assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
   } finally {
     await ui.close();

@@ -8,7 +8,7 @@ test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
 const STATE = { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } };
-const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Review & build'];
+const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages', '8. App look', '9. Run it', '10. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const drafts = (page) => page.evaluate((prefix) => Object.keys(localStorage).filter((k) => k.startsWith(prefix)), WIZARD_DRAFT_PREFIX);
 const draftNote = (page) => page.locator('[data-wizard-draft]');
@@ -40,7 +40,7 @@ const PICKS = {
     pick: (page) => pickOther(page, 'app-access'),
     read: (page) => checked(page, 'input[type="radio"][name="app-access"]'),
   },
-  'App pages and look': {
+  'App look': {
     pick: (page) => pickOther(page, 'app-style'),
     read: (page) => checked(page, 'input[type="radio"][name="app-style"]'),
   },
@@ -89,7 +89,7 @@ test('a person\u2019s own picks on every step survive a reload, the wizard reope
     const spec = JSON.parse(inserts.at(-1).parameters.find((p) => p.name === 'spec').value);
     assert.equal(spec.outputs.dashboard, false, 'the build sends the restored Deliver pick');
     assert.equal(spec.outputs.app_access, kept['Who uses the App']);
-    assert.equal(spec.outputs.app_look.style, kept['App pages and look']);
+    assert.equal(spec.outputs.app_look.style, kept['App look']);
     assert.deepEqual([spec.config.widgets.group_by, spec.config.widgets.run_scope], [kept['Data groups'], 'all'], 'and the restored Data groups and First run picks');
     assert.equal(spec.schedule.cron, '0 0 6 ? * MON', 'and the restored Weekly');
     assert.match(JSON.stringify(spec), /keep the draft words/, 'and the restored Vibes words');

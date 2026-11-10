@@ -8,7 +8,7 @@ import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages and look', '8. Run it', '9. Review & build'];
+const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. Deliver', '6. Who uses the App', '7. App pages', '8. App look', '9. Run it', '10. Review & build'];
 const NO_APP = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Run it', '6. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const builtLine = (page) => page.locator('[data-built-sentence]').innerText();
@@ -44,7 +44,7 @@ async function summaryHasNoCapacity(page) {
   assert.equal(await page.getByText(/team capacity/i).count(), 0);
 }
 
-test('with the App picked the wizard reads Use case, Data, Data groups, First run, Results, Deliver, Who uses the App, App pages and look, Run it, Summary, one decision a screen', async () => {
+test('with the App picked the wizard reads Data, Data groups, First run, Results, Deliver, Who uses the App, App pages, App look, Run it, Review and build, one decision a screen', async () => {
   const ui = await openUi('wizard', { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } }, '', { init: profileAt([], GROUPING_PROFILE) });
   const { page, made } = ui;
   try {
@@ -122,12 +122,15 @@ test('with the App picked the wizard reads Use case, Data, Data groups, First ru
     assert.ok((await page.locator('[role="dialog"]').innerText()).split(/could not check/i).length <= 2, 'one sentence says what Inspire could not check');
     await shot(page, '07-who-uses-the-app', false);
     await next(page);
-    await onStep(page, 'App pages and look');
+    await onStep(page, 'App pages');
     await page.getByRole('region', { name: 'App features' }).waitFor();
     assert.equal(await page.locator('input[name="app-place"]').count(), 0, 'placement stays on Deliver (must-exclude)');
     assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'and access on Who uses the App (must-exclude)');
-    await onePerQuestion(page, 'App pages and look');
-    await shot(page, '08-app-pages-and-look', false);
+    await onePerQuestion(page, 'App pages');
+    await shot(page, '08-app-pages', false);
+    await next(page);
+    await onStep(page, 'App look');
+    await onePerQuestion(page, 'App look');
     await next(page);
     await onStep(page, 'Run it');
     assert.equal(await page.locator('[data-run-it]').innerText(), RUN_IT_TITLE);

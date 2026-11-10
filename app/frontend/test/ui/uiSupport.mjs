@@ -248,7 +248,7 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 
 const STEP_HOLDING = {
   'Use case': 'Data', Summary: 'Review & build', 'What to build': 'Deliver', Delivery: 'Deliver', App: 'Who uses the App', 'App placement': 'Deliver', 'App access': 'Who uses the App',
-  'App features': 'App pages and look', 'App look': 'App pages and look', 'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Review & build',
+  'App features': 'App pages', 'App look': 'App look', 'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Review & build',
 };
 const exactly = (label) => new RegExp(`^\\s*(\\d+\\.\\s*)?${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
 const isStep = (text, label) => exactly(label).test(text);

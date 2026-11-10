@@ -46,7 +46,7 @@ async function readable(page, selectors, name) {
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
 }
 
-const STEPS_WITH_APP = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Who uses the App', '6. App pages and look', '7. Run it', '8. Review & build'];
+const STEPS_WITH_APP = ['1. Data', '2. First run', '3. Results', '4. Deliver', '5. Who uses the App', '6. App pages', '7. App look', '8. Run it', '9. Review & build'];
 const boxLabels = (panel) => panel.locator('textarea').evaluateAll((boxes) => boxes.map((b) => b.getAttribute('aria-label')));
 
 async function grayExamples(page, panel) {
@@ -144,7 +144,7 @@ test('the one box on the Vibes step takes the full width, is 8 lines tall and gr
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Run it');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
-    await onStep(page, 'App pages and look');
+    await onStep(page, 'App look');
     await toVibes(page);
     assert.equal(await wizardBox(page).inputValue(), 'Make the trend weekly\nAnswer in euros', 'coming back keeps the asks');
     assert.deepEqual(ui.pageErrors, []);

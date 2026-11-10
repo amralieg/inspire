@@ -147,7 +147,7 @@ const COMBOS = [
   ['app-off', { Deliver: uncheck(/^App /) }],
   ['app-off-alert-dashboard', { Deliver: both(uncheck(/^App /), check(/^Dashboard/), check(/^Alert/)) }],
   ['per-user', { 'Who uses the App': radio(/^Sensitive data/) }],
-  ['per-user-edit', { 'Who uses the App': radio(/^Sensitive data/), 'App pages and look': check(/^Let people edit data/) }],
+  ['per-user-edit', { 'Who uses the App': radio(/^Sensitive data/), 'App pages': check(/^Let people edit data/) }],
   ['one-app-per-use-case', { Deliver: radio(/^One App per use case/) }],
   ['inside-inspire', { Deliver: radio(/^Inside Inspire/) }],
   ['schedule-off-holdout-off', { 'Run it': both(press('Off'), uncheck(/^Hold back/)) }],
@@ -344,7 +344,7 @@ test('the First run names the chosen Data groups in a plain note, never in the r
 test('every question in the wizard shows at most one Recommended choice', async () => {
   const counts = [];
   const tally = async (page) => counts.push([await current(page), await page.locator('[role="radiogroup"]').evaluateAll((groups) => groups.map((g) => g.querySelectorAll('[data-recommended]').length))]);
-  const steps = ['Data groups', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', RUN_IT];
+  const steps = ['Data groups', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages', 'App look', RUN_IT];
   const { ui } = await scenario('one-recommended', { profile: PROFILE, extra: counted(PROFILE), actions: Object.fromEntries(steps.map((s) => [s, tally])) });
   try {
     assert.ok(counts.length >= 5, JSON.stringify(counts));
