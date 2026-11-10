@@ -53,10 +53,15 @@ def release_tool(tmp_path, monkeypatch):
 
     write()
     monkeypatch.setenv("INSPIRE_RC_SETTINGS", str(path))
-    for name in ("databricks", "databricks.sdk", "databricks.sdk.service", "databricks.sdk.service.jobs",
+    for name in ("databricks", "databricks.sdk", "databricks.sdk.config", "databricks.sdk.service", "databricks.sdk.service.jobs",
                  "databricks.sdk.service.workspace", "databricks.sdk.service.sql"):
         monkeypatch.setitem(sys.modules, name, types.ModuleType(name))
-    sys.modules["databricks.sdk"].WorkspaceClient = object
+    class SdkStub:
+        def __init__(self, **kwargs):
+            self.kwargs = kwargs
+
+    sys.modules["databricks.sdk"].WorkspaceClient = SdkStub
+    sys.modules["databricks.sdk.config"].Config = SdkStub
     for name in ("jobs", "workspace", "sql"):
         setattr(sys.modules["databricks.sdk.service"], name, sys.modules[f"databricks.sdk.service.{name}"])
 
