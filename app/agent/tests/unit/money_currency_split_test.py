@@ -598,3 +598,15 @@ def test_the_app_reads_the_money_rate_table_so_the_access_plan_grants_it(agent_n
                                                                        "date_column": "c", "rate_column": "d", "load_column": "e"}}
     assert agent_ns["implement_money_rate_tables"]({"money": rate_table}) == ["main.fx.rates"]
     assert agent_ns["implement_money_rate_tables"]({"money": dict(rate_table, off=True)}) == []
+
+
+def test_off_removes_the_money_cards_from_what_the_app_lists(tmp_path):
+    import v141_app_shell_test as shell_harness
+    ws = shell_harness.ShapedWorkspace(lambda sql: None)
+    page = dict(shell_harness.PAGE, money={"currency": "per_currency", "off": True})
+    s = shell_harness.shell_core.Shell(shell_harness.app_dir(tmp_path, pages=[page]), env={"DATABRICKS_WAREHOUSE_ID": "wh1"},
+                                       sp_factory=lambda: ws, user_factory=lambda h, t: ws)
+    status, out = shell_harness.call(s, "GET", "app")
+    assert status == 200
+    listed = [k["id"] for p in out["pages"] for k in p.get("kpis") or []]
+    assert listed and not any(k["format"] == "currency" for p in out["pages"] for k in p.get("kpis") or []), listed

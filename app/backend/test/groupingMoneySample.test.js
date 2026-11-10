@@ -25,3 +25,18 @@ test('the profile route returns the example with the profile', () => {
   const route = fs.readFileSync(path.join(__dirname, '..', 'implementRoutes.js'), 'utf8');
   assert.match(route, /money_sample: pick \? \{ \.\.\.pick, rows: example \} : null/);
 });
+
+test('the rate sample route is wired and asks for the person sign-in', () => {
+  const route = fs.readFileSync(path.join(__dirname, '..', 'implementRoutes.js'), 'utf8');
+  assert.match(route, /app\.post\('\/api\/money\/rate-sample', requireToken/);
+  const policy = fs.readFileSync(path.join(__dirname, '..', 'lib', 'routePolicy.js'), 'utf8');
+  assert.match(policy, /'POST \/api\/money\/rate-sample'/);
+});
+
+test('the rate sample statement refuses a table name, a column or a base that is not plain', () => {
+  const ok = { table: 'main.fx.rates', currency_column: 'from_code', base_column: 'to_code', date_column: 'rate_date', rate_column: 'rate', load_column: 'loaded_at' };
+  assert.ok(GP.rateSampleSql(ok, 'USD').includes('LIMIT 3'));
+  assert.equal(GP.rateSampleSql({ ...ok, table: 'main.fx;drop' }, 'USD'), null);
+  assert.equal(GP.rateSampleSql({ ...ok, rate_column: 'rate; drop' }, 'USD'), null);
+  assert.equal(GP.rateSampleSql(ok, 'usd'), null);
+});

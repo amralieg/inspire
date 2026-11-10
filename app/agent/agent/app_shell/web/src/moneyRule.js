@@ -149,8 +149,10 @@ export function workedExample(rule, sample) {
     const shownAmount = `${currency} ${Math.round(amount * 100) / 100}`.trim();
     if (rule?.statuses && status && !rule.statuses.includes(status)) return `${shownAmount} with status ${status} is not counted.`;
     if (rule?.currency !== 'convert') return `${shownAmount} is counted as ${shownAmount}, in its own currency.`;
-    const rate = rule.rates ? rule.rates[currency] : undefined;
-    if (rate === undefined) return `${shownAmount}: its rate is read from ${rule.rate_column || rule.rate_table?.table || 'the rate source'} when the App is built.`;
+    const typed = rule.rates ? rule.rates[currency] : undefined;
+    const listed = (sample.rates || []).find((r) => r.currency === currency);
+    const rate = typed !== undefined ? typed : listed ? listed.rate : undefined;
+    if (rate === undefined) return `${shownAmount}: no rate for ${currency} in ${rule.rate_column || rule.rate_table?.table || 'the rate source'} yet, so the App shows no amount for it.`;
     const stake = Math.round(amount * rate * 100) / 100;
     return `${shownAmount} × ${rate} = ${stake} ${rule.base}.`;
   });

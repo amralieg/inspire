@@ -1762,6 +1762,20 @@ function registerImplementRoutes(app, deps) {
     return swapped === undefined ? primary : String(swaps[swapped] || primary).trim();
   }
 
+  // The three latest rates of a money rule's rate table, into its base currency, read with the person's own sign-in.
+  app.post('/api/money/rate-sample', requireToken, async (req, res) => {
+    const token = P.personTokenOf(req);
+    if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
+    try {
+      const sql = GP.rateSampleSql(req.body?.rate_table, req.body?.base);
+      if (!sql) throw I.badRequest('Name the rate table, its currency, base, date, rate and load columns, and a three-letter base currency, to read its rates.');
+      const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.RATE_SAMPLE_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
+      return res.json({ rates: sqlResultToObjects(found).map((r) => ({ currency: String(r.currency ?? ''), rate: Number(r.rate) })) });
+    } catch (err) {
+      return sendError(res, sqlFailure(err, profileFailures(String(req.body?.rate_table?.table || 'the rate table'))));
+    }
+  });
+
   app.post('/api/grouping/profile', requireToken, async (req, res) => {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));

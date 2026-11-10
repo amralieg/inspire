@@ -40,11 +40,19 @@ test('the worked example runs each sample row through the rule, in plain words',
   const lines = workedExample(rule, sample);
   assert.equal(lines[0], 'AED 100 × 0.27 = 27 USD.');
   assert.equal(lines[1], 'AED 50 with status void is not counted.');
-  assert.match(lines[2], /^GBP 20: its rate is read from the rate source/);
+  assert.match(lines[2], /^GBP 20: no rate for GBP in the rate source yet/);
 });
 
 test('the formula line says what is counted and how each amount becomes a stake', () => {
   assert.equal(formulaLine({ currency: 'per_currency' }), 'Stake = the loss on each row in its own currency, for every row.');
   assert.match(formulaLine({ currency: 'convert', base: 'USD', rate_table: { table: 'main.fx.rates' }, rule: 'net', statuses: ['used'], status_column: 'status' }),
     /Stake = the signed amount × the rate for its currency, USD and date, for only rows whose status is used\./);
+});
+
+test('the worked example takes a rate from the rate table sample when the owner typed none', () => {
+  const rule = { currency: 'convert', base: 'USD', rate_table: { table: 'main.fx.rates' } };
+  const lines = workedExample(rule, { amount: 'total_amount', currency: 'currency_code', rows: [{ total_amount: 100, currency_code: 'AED' }, { total_amount: 20, currency_code: 'EUR' }],
+    rates: [{ currency: 'AED', rate: 0.27 }] });
+  assert.equal(lines[0], 'AED 100 × 0.27 = 27 USD.');
+  assert.match(lines[1], /^EUR 20: no rate for EUR in main\.fx\.rates yet/);
 });

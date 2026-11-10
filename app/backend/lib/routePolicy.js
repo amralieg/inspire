@@ -176,6 +176,8 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/table-change': owners('change its tables'),
   'POST /api/inspire/implement/feedback/status': owners('change the status of an issue reported in its App'),
   'POST /api/inspire/implement/feedback/vibe': owners('draft a vibe from an issue reported in its App'),
+  'POST /api/money/rate-sample': tracked('read the rates of the rate table a money rule names',
+    'reads the rate table with your own sign-in'),
   'POST /api/grouping/profile': tracked('read the main table of a use case for its Data groups',
     'reads the use case record from the Inspire tracking tables in the App database, and reads the use case table only with your own sign-in'),
 };

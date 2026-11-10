@@ -1901,7 +1901,7 @@ class Shell:
         """The one injection point: a page with money reads the owner's saved money rule, loaded once per request."""
         request = REQUEST.get()
         if request is None or not page.get("result_table") or not shell_sql.page_has_money(page):
-            return page
+            return shell_sql.page_with_money(page, None)
         key = str(page.get("id"))
         if key not in request["rules"]:
             ws, who = self.workspace(request["headers"])
@@ -2380,7 +2380,7 @@ class Shell:
         s = self.settings
         host = self.host()
         pages = [dict(public_page(p, self.tour_gaps(p)), genie=self.genie_info(p, host), is_owner=bool(self.signed_in(headers) & self.page_editors(p)))
-                 for p in self.pages]
+                 for p in (self.with_saved_money(page) for page in self.pages)]
         answering = any(p["genie"]["enabled"] for p in pages)
         genie = (pages[0]["genie"] if len(pages) == 1 else
                  {"enabled": answering, "title": "", "url": "", "note": HUB_GENIE_NOTE if answering else HUB_GENIE_OFF})
