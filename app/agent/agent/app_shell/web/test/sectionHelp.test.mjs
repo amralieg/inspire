@@ -68,6 +68,7 @@ test('each chart card has a ? that walks only that card and says what to do in i
   assert.ok(inside, 'the spotlight covers the card it explains');
   await page.keyboard.press('Escape');
   await page.waitForSelector('.tour', { state: 'detached' });
+  await page.waitForFunction(() => document.activeElement?.hasAttribute('data-section-help'), null, { timeout: 4000 }).catch(() => {});
   assert.ok(await page.evaluate(() => document.activeElement?.hasAttribute('data-section-help')), 'focus returns to the ? that opened it');
   assert.deepEqual(seen.errors, []);
   await context.close();

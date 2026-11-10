@@ -67,9 +67,10 @@ export async function wheelToEnd(page, region, last, name, over = null) {
   assert.ok(at.seen >= 40, `${name}: the region shows ${at.seen} px on screen, too little to scroll ${JSON.stringify(at)}`);
   assert.ok(at.hit, `${name}: something covers the region where the pointer sits (${at.cover}) ${JSON.stringify(at)}`);
   await page.mouse.move(at.x, at.y);
-  for (let i = 0; i < 400 && (await region.evaluate((el) => el.scrollTop)) > 0; i += 1) {
+  const topBy = Date.now() + 4000;
+  while (Date.now() < topBy && (await region.evaluate((el) => el.scrollTop)) > 0) {
     await page.mouse.wheel(0, -1000);
-    await frames(page);
+    await new Promise((done) => setTimeout(done, 50));
   }
   const start = await region.evaluate((el) => el.scrollTop);
   assert.equal(start, 0, `${name}: the wheel up does not bring the region back to its top`);
