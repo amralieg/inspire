@@ -282,7 +282,8 @@ test('a new App that could not get access is disabled up front with the reason, 
     assert.equal(await blocked.locator('p').textContent(), 'Needs access Inspire does not have on the catalog, the schema and the SQL warehouse.', 'one short plain line says why, naming the place');
     await blocked.getByText('Details', { exact: true }).click();
     const reason = await blocked.locator('[data-technical-details] pre').textContent();
-    assert.ok(reason.includes(`a new App could not read ${RESULT_TABLE}: its service principal needs USE CATALOG on catalog \`main\` (owner admins)`), reason);
+    assert.ok(reason.includes('a new App could not read the result table: its service principal needs '), reason);
+    assert.ok(reason.includes('Ask the owner to run: GRANT MANAGE ON'), reason);
     assert.ok(reason.includes('Inspire cannot manage'), reason);
     assert.equal(await page.locator('[data-output="app"] [data-recommended]').count(), 0, 'the blocked App carries no badge');
     assert.equal(await page.getByRole('checkbox', { name: /^Genie Agent/ }).isDisabled(), false);

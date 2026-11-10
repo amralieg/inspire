@@ -26,7 +26,7 @@ const SETTINGS = 'The next run reads main.s.orders_v2. Nothing is rebuilt.';
 const REBUILD = 'Inspire rebuilds this use case with Genie as version 2 and shows the checklist. Missing on main.s.orders_lite: amount.';
 const OWNERS_ONLY = 'Only the owners of this use case can change its settings: the person who asked for v1 and the App owners it names';
 const DROPPED = 'Inspire rebuilds this use case with Genie as version 2 and shows the checklist.';
-const UNREAD = 'Inspire could not compare the tables: Inspire cannot read the columns of main.s.orders_v2 with your sign-in: the table does not exist or you '
+const UNREAD = 'Inspire could not compare the tables: Inspire cannot read the columns of this table with your sign-in: the table does not exist or you '
   + 'cannot read it';
 const NO_SIGN_IN = 'Inspire looks for similar tables with your own sign-in, and this request carries none, so it suggests none';
 const SECRET = { table_schema: 'hr', table_name: 'salaries', matched: '4', total: '4' };
