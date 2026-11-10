@@ -193,7 +193,7 @@ def test_the_page_build_loads_the_parser_reads_the_columns_and_sends_the_sum_bac
     with pytest.raises(RuntimeError) as raised:
         inst._implement_page_file(context, "app", str(work), shell_sql, False)
     assert _fanned(agent_ns, _page(agent_ns))[0] in str(raised.value)
-    assert loaded == [("sqlglot", "The page's check of sums over many-row joins")] and read == [[RESULT], [REASONS]]
+    assert loaded == [] and read == [[RESULT], [REASONS]]
     assert inst._implement_page_columns(RESULT, [REASONS], {}) == {}
 
 

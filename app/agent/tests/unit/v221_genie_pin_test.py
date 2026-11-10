@@ -1,4 +1,4 @@
-import importlib.metadata
+import importlib
 import os
 import re
 import sys
@@ -9,33 +9,38 @@ import pytest
 from v177_assets_support import make_assets, wheel
 
 
-def _installed(monkeypatch, version: str):
-    def installed(name):
-        if name == "sqlglot":
-            return version
-        raise importlib.metadata.PackageNotFoundError(name)
-    monkeypatch.setattr(importlib.metadata, "version", installed)
+@pytest.fixture(autouse=True)
+def _restore_sqlglot_and_path():
+    saved_path = list(sys.path)
+    saved = {n: m for n, m in sys.modules.items() if n == "sqlglot" or n.startswith("sqlglot.")}
+    yield
+    for n in [n for n in sys.modules if n == "sqlglot" or n.startswith("sqlglot.")]:
+        del sys.modules[n]
+    sys.modules.update(saved)
+    sys.path[:] = saved_path
 
 
-def test_sqlglot_already_loaded_at_the_pinned_version_does_not_block_the_genie_check(fresh_ns, tmp_path, monkeypatch):
+def _pinned_assets(fresh_ns, tmp_path):
     version = fresh_ns["INSPIRE_ASSET_WHEELS"]["sqlglot"]
-    _installed(monkeypatch, version)
-    assets = make_assets(fresh_ns, tmp_path / "assets",
-                         [{"kind": "python", "name": "sqlglot", "version": version, "data": wheel({"sqlglot/__init__.py": "X = 1\n"})}])
-    monkeypatch.setitem(sys.modules, "sqlglot", types.SimpleNamespace(__file__="/usr/lib/python3/sqlglot/__init__.py"))
+    return version, make_assets(fresh_ns, tmp_path / "assets",
+                                [{"kind": "python", "name": "sqlglot", "version": version,
+                                  "data": wheel({"sqlglot/__init__.py": "X = 1\n", "sqlglot/errors.py": "\n"})}])
+
+
+def _preload_other_sqlglot(monkeypatch):
+    preloaded = types.SimpleNamespace(__file__="/local_disk0/env/site-packages/sqlglot/__init__.py", __version__="29.0.0")
+    monkeypatch.setitem(sys.modules, "sqlglot", preloaded)
+    monkeypatch.setitem(sys.modules, "sqlglot.expressions", types.SimpleNamespace(__file__="/local_disk0/env/sqlglot/expressions.py"))
+
+
+def test_a_different_sqlglot_preloaded_in_the_process_is_replaced_by_the_pinned_copy(fresh_ns, tmp_path, monkeypatch):
+    version, assets = _pinned_assets(fresh_ns, tmp_path)
+    _preload_other_sqlglot(monkeypatch)
     site = assets.python("sqlglot")
-    assert os.path.exists(os.path.join(site, "sqlglot", "__init__.py")), "the pinned copy is still unpacked and put on the path"
-    assert sys.modules["sqlglot"].__file__ == "/usr/lib/python3/sqlglot/__init__.py", "the module already loaded is kept"
-
-
-def test_sqlglot_already_loaded_at_another_version_is_still_refused(fresh_ns, tmp_path, monkeypatch):
-    version = fresh_ns["INSPIRE_ASSET_WHEELS"]["sqlglot"]
-    _installed(monkeypatch, "29.0.0")
-    assets = make_assets(fresh_ns, tmp_path / "assets",
-                         [{"kind": "python", "name": "sqlglot", "version": version, "data": wheel({"sqlglot/__init__.py": "X = 1\n"})}])
-    monkeypatch.setitem(sys.modules, "sqlglot", types.SimpleNamespace(__file__="/usr/lib/python3/sqlglot/__init__.py"))
-    with pytest.raises(fresh_ns["InspireAssetError"], match=r"sqlglot is already loaded in this Python process"):
-        assets.python("sqlglot")
+    loaded = importlib.import_module("sqlglot")
+    assert loaded.X == 1, "the pinned copy is the one the SQL checks use"
+    assert os.path.realpath(loaded.__file__).startswith(os.path.realpath(site) + os.sep)
+    assert "sqlglot.expressions" not in sys.modules, "submodules of the preloaded copy are dropped with it"
 
 
 def test_a_business_reason_has_no_paths_or_ids(fresh_ns):
