@@ -530,10 +530,10 @@ test('the Runs tab lists each run: when, how it ended, who started it, what it c
   assert.equal(await mainRows(page).nth(0).locator('.run-st--bad').innerText(), 'Failed');
   assert.match(await mainRows(page).nth(1).innerText(), /^\s*Oct 25, 06:00 AM UTC\s+3 min\s+Done\s+Scheduled\s+Category: Books, Music\s+40\s+5\s+\$1\.2K\s+Ask Genie\s*$/);
   assert.equal(await mainRows(page).nth(1).locator('.run-st--ok').innerText(), 'Done');
-  const saving = mainRows(page).nth(1).locator('td.money [data-fx]');
+  const saving = mainRows(page).nth(1).locator('td.could-save [data-fx]');
   assert.equal(await page.locator(`[id="${await saving.getAttribute('aria-describedby')}"]`).textContent(),
     'Money at stake on its 5 things to fix in Act now and Review, added up when the run ended = $1.2K', 'every money cell shows its formula');
-  assert.equal(await mainRows(page).nth(2).locator('td.money [data-fx]').count(), 0, 'a run with no money has no formula');
+  assert.equal(await mainRows(page).nth(2).locator('td.could-save [data-fx]').count(), 0, 'a run with no money has no formula');
   assert.match(await mainRows(page).nth(2).innerText(), /^\s*Oct 4, 06:00 AM UTC\s+Done\s+Not recorded\s+Not recorded\s+10\s+10\s+none\s+Ask Genie\s*$/);
   assert.equal(await page.locator('.runs .pager').count(), 0, 'three runs fit on one page');
   assert.equal(await page.locator('.fbar').count(), 0, 'the filters do not apply to the runs');
