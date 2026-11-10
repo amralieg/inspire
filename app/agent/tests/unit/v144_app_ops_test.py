@@ -895,3 +895,14 @@ def test_freshness_shows_a_non_owner_no_other_peoples_failed_run_as_the_last_run
     assert out["last_run"]["run_id"] == "102", "the failed run of someone else is not the last run a non-owner sees"
     assert "Table not found" not in repr(out) and f"{JOB_URL}/runs/103" not in repr(out)
     assert out["last_success"]["run_id"] == "102"
+
+
+def test_the_overview_flags_a_failed_last_run_to_a_non_owner_only_when_the_viewer_may_see_it(tmp_path):
+    runs = [job_run(103, "2026-10-27T08:00:00Z", "2026-10-27T08:02:00Z", result="FAILED", trigger="ONE_TIME", by=SAM, message="Table not found")]
+    s, sp, _now = ops_shell(tmp_path, JobsWorkspace(job_runs=runs, runs=WEEKLY))
+    status, out = call(s, "POST", "overview", body={"page": "n01_u05"}, headers=signed(LEE))
+    assert status == 200, out
+    assert out["pages"]["n01_u05"]["runs"]["failed"] is False, "a non-owner gets no flag about another person's failed run"
+    status, out = call(s, "POST", "overview", body={"page": "n01_u05"}, headers=signed(DANA))
+    assert status == 200, out
+    assert out["pages"]["n01_u05"]["runs"]["failed"] is True, "an owner still sees the failed run"

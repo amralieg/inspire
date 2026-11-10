@@ -92,7 +92,7 @@ function runColumns(isOpen, toggle) {
     { key: 'records', label: 'Records', num: true, render: (run) => (run.records ? integer(run.records) : <None />) },
     { key: 'to_fix', label: 'To fix', num: true, render: (run) => count(run.to_fix) },
     {
-      key: 'could_save', label: 'Could save', num: true, className: 'money',
+      key: 'could_save', label: 'Could save', num: true, className: 'could-save',
       render: (run) => (run.could_save == null ? <None />
         : <Fx formula={couldSaveRunFormula(run)}>{formatValue(run.could_save, unitOf(run) ? 'currency' : 'number', unitOf(run), undefined, kindOf(run))}</Fx>),
     },

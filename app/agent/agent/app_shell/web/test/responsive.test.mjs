@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, chartsDrawn, framed, moved, openApp, resizeTo, serveDist } from './harness.mjs';
+import { appInfo, chartsDrawn, framed, idle, moved, openApp, resizeTo, serveDist } from './harness.mjs';
 
 const WIDTHS = [1600, 1280, 768, 375];
 const SCROLLERS = '.tbl-wrap, .msg-t, .tabs';
@@ -54,6 +54,9 @@ async function openPage(info, width) {
 
 async function resize(page, width) {
   await resizeTo(page, width);
+  await idle(page);
+  await framed(page);
+  await page.waitForFunction(() => document.getAnimations().every((a) => a.playState !== 'running'), null, { timeout: 10000 });
   await page.waitForFunction(chartsDrawn, 4);
 }
 

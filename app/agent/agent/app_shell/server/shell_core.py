@@ -2728,6 +2728,7 @@ class Shell:
         day = shell_sql.window_bounds("today", now, zone=zone)
         ws, who = self.workspace(headers)
         editor = str(headers.get("x-forwarded-email") or "").strip()
+        viewers = frozenset(self.signed_in(headers))
         for page in pages:
             self.warm_state(ws, who, page)
             self.warm_money(ws, who, page)
@@ -2738,9 +2739,9 @@ class Shell:
                "time_zone": {"name": zone_name, "sent": zoned},
                "window": {"window": window["window"], "limit": window.get("limit"), "today": window["today"]} if window else None}
         if ident is not None:
-            out["pages"][ident] = self.overview_page(ws, who, pages[0], values, ai, today, quarter, since, window, editor, between)
+            out["pages"][ident] = self.overview_page(ws, who, pages[0], values, ai, today, quarter, since, window, editor, between, viewers)
             return out
-        jobs = {p["id"]: (lambda p=p: self.overview_page(ws, who, p, {}, None, today, quarter, since, window, editor, between)) for p in pages}
+        jobs = {p["id"]: (lambda p=p: self.overview_page(ws, who, p, {}, None, today, quarter, since, window, editor, between, viewers)) for p in pages}
         out["pages"], out["errors"] = self._parallel(jobs, pool=self.hub_pool)
         return out
 
@@ -2761,9 +2762,9 @@ class Shell:
             self.stamp_pool.submit(job)
 
     def overview_page(self, ws, who, page: dict, values: dict, ai, today: datetime.date, quarter: datetime.date,
-                      since: datetime.date, window=None, editor: str = "", between: tuple = ()) -> dict:
+                      since: datetime.date, window=None, editor: str = "", between: tuple = (), viewers: frozenset = frozenset()) -> dict:
         if page.get("records") and page.get("result_table"):
-            self.prefetch(lambda: self.list_columns(ws, who, page), lambda: self.last_run_failed(page))
+            self.prefetch(lambda: self.list_columns(ws, who, page), lambda: self.last_run_failed(page, viewers))
         fields, untracked = self.tracked_fields(ws, who, page)
         if untracked:
             return untracked
@@ -2786,7 +2787,7 @@ class Shell:
         view = overview_view(result["rows"] + fact_runs(context["facts"]), today, since, money, editor)
         if floor:
             view.update(truncated=True, total_more=True)
-        view["runs"]["failed"] = self.last_run_failed(page)
+        view["runs"]["failed"] = self.last_run_failed(page, viewers)
         view["runs"]["active"] = self.run_progress(ws, who, page)
         return dict(view, visible=True, tracked=True, money=money, categories=context["categories"],
                     served=result.get("served"), money_model=shell_sql.public_money(model))
@@ -3346,7 +3347,7 @@ class Shell:
             return None
         return facts
 
-    def last_run_failed(self, page: dict) -> bool:
+    def last_run_failed(self, page: dict, viewers: frozenset = frozenset()) -> bool:
         job_id = self.job_of(page)
         if not job_id:
             return False
@@ -3354,7 +3355,7 @@ class Shell:
             views, _more = self.job_views(job_id, False, JOB_RUNS_RECENT)
         except (QueryError, ValueError, HttpError):
             return False
-        done = finished(views)
+        done = [v for v in finished(views) if not self.hidden_for(viewers, page, v)]
         return bool(done) and done[0]["result"] == "failed"
 
     def summary_rows(self, ws, who, query: tuple, limit: int, ttl: int = CACHE_TTL_S):
@@ -4612,7 +4613,9 @@ class Shell:
         return person, 0, ""
 
     def hidden_from_viewer(self, headers: dict, page: dict, job: dict) -> bool:
-        viewers = self.signed_in(headers)
+        return self.hidden_for(self.signed_in(headers), page, job)
+
+    def hidden_for(self, viewers: set, page: dict, job: dict) -> bool:
         return not viewers & self.page_editors(page) and stopped_by_someone_else(job, viewers)
 
     def runs(self, headers: dict, ident, offset=None) -> dict:

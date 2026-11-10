@@ -1,3 +1,4 @@
+import { versionRoutes } from './planRoutes.mjs';
 import { actBody, DECIDE } from './harness.mjs';
 
 const WEEKS = Array.from({ length: 20 }, (_, i) => new Date(Date.UTC(2026, 6, 6 + i * 7)).toISOString().slice(0, 10));
@@ -27,7 +28,9 @@ const CLOSED = ['Done', 'Dismissed', 'Could not fix'];
 const isOpen = (r) => !CLOSED.includes(r._inspire_status);
 
 export function decisionList(lines, body, extra = {}) {
-  const shown = body.window ? lines.filter(isOpen) : lines;
+  const words = String(body.search || '').trim().toLowerCase();
+  const matches = (r) => !words || [r.entity_label, r.record_key, r.entity_id].some((v) => String(v ?? '').toLowerCase().includes(words));
+  const shown = (body.window ? lines.filter(isOpen) : lines).filter(matches);
   const acted = lines.filter((r) => r._inspire_status);
   const done = acted.filter((r) => r._inspire_status === 'Done').length;
   return { rows: shown.slice(0, body.limit || 25), total: shown.length, offset: 0, limit: body.limit || 25, actions: true, changes: false,
@@ -35,11 +38,22 @@ export function decisionList(lines, body, extra = {}) {
     window: body.window ? { window: body.window, limit: body.window_limit || null, shown: shown.length, more: 0, today: '2026-10-27' } : null, ...extra };
 }
 
+export function applyAct(lines) {
+  return ({ route, json }) => {
+    const body = route.request().postDataJSON();
+    const keys = body.record_keys || [];
+    const hit = lines.filter((r) => keys.includes(r.record_key));
+    hit.forEach((r) => Object.assign(r, { _inspire_status: body.values?.action_status || r._inspire_status, _inspire_version: String(Number(r._inspire_version) + 100) }));
+    return json(200, { written: hit.map((r) => r.record_key), conflicts: [], batch_id: 'b1' });
+  };
+}
+
 export function forecastRoutes(decided, { keep = false } = {}) {
   const lines = ROWS.map((r) => ({ ...r }));
   return {
     page: ({ json }) => json(200, forecastData()),
     records: ({ route, json }) => json(200, decisionList(lines, route.request().postDataJSON())),
+    'records/act': applyAct(lines),
     'plan/decide': ({ route, json }) => {
       const body = route.request().postDataJSON();
       decided.push(body);
@@ -59,6 +73,8 @@ const planNote = (body) => (body.decision === 'accept' ? `Accepted the recommend
 export function plannerRoutes(decided, solved, { keep = false, actions = true } = {}) {
   const lines = PLAN_ROWS.map((r) => ({ ...r }));
   return {
+    ...versionRoutes('plan', { versions: [] }).routes,
+    'plans/performance': ({ json }) => json(200, { plans: [], total: 0, errors: {} }),
     page: ({ json }) => json(200, {
       kpis: { objective: { now: 11000 }, changed: { now: 3 }, binding: { now: 1 } },
       charts: {
@@ -69,6 +85,7 @@ export function plannerRoutes(decided, solved, { keep = false, actions = true } 
       tables: {}, errors: {},
     }),
     records: ({ route, json }) => json(200, decisionList(lines, route.request().postDataJSON(), { actions })),
+    'records/act': applyAct(lines),
     'plan/decide': ({ route, json }) => {
       const body = route.request().postDataJSON();
       decided.push(body);
@@ -242,6 +259,7 @@ const TRIAGE = Array.from({ length: 24 }, (_, i) => ({
 }));
 
 export function monitorRoutes() {
+  const lines = TRIAGE.map((r) => ({ ...r }));
   return {
     page: ({ json }) => json(200, {
       kpis: { open_n: { now: 24 }, exposure: { now: 310000 }, anomalies: { now: 9 }, old_n: { now: 15 } },
@@ -252,7 +270,8 @@ export function monitorRoutes() {
       },
       tables: {}, errors: {},
     }),
-    records: ({ route, json }) => json(200, decisionList(TRIAGE, route.request().postDataJSON())),
+    records: ({ route, json }) => json(200, decisionList(lines, route.request().postDataJSON())),
+    'records/act': applyAct(lines),
   };
 }
 
