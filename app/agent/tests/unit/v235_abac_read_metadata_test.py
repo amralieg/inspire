@@ -55,6 +55,7 @@ def test_a_service_principal_denied_the_abac_read_is_refused_with_its_name_and_t
     assert "would show rows" not in reason
     assert context["asset_status"]["protection"]["check"] is True
     assert "does not have READ METADATA" in context["asset_status"]["protection"]["details"]
+    assert context["asset_status"]["protection"]["tables"] == [SOURCE]
     assert not any(s.startswith("GRANT") for s in inst.spark.statements)
 
 

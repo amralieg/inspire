@@ -2642,8 +2642,9 @@ export function protectionStopOf(latest) {
   if (String(latest?.status || '') !== 'failed' || !record || typeof record !== 'object' || record.state !== 'failed'
     || String(record.spec_version ?? '') !== String(latest?.spec_version ?? '')) return null;
   const details = String(record.details || '').trim();
+  const tables = Array.isArray(record.tables) ? record.tables.map(String).filter((t) => t.trim()) : [];
   return { reason: String(record.reason || '').trim(), sql: Array.isArray(record.sql) ? record.sql.map(String).filter((s) => s.trim()) : [],
-    check: record.check !== false, ...(details ? { details } : {}) };
+    check: record.check !== false, ...(details ? { details } : {}), ...(tables.length ? { tables } : {}) };
 }
 
 export function protectionChoices(stop) {
@@ -2652,6 +2653,7 @@ export function protectionChoices(stop) {
     return [{ id: 'access', label: PROTECTION_ACCESS_LABEL, detail: 'Pick that each person signs in as themselves, then build again.' }];
   }
   return [
+    ...(stop.tables?.length ? [{ id: 'grant', label: APP_READ_ACTION, detail: 'Grants the App read metadata on its source tables with your sign-in, then checks again.' }] : []),
     ...(stop.sql.length ? [{ id: 'copy', label: PROTECTION_SQL_LABEL, sql: stop.sql.join('\n'),
       detail: 'The owner of the result tables runs it in the SQL editor, then you press Check again.' }] : []),
     { id: 'check', label: APP_READS_CHECK, detail: 'Inspire reads the row filters, column masks and access policies again, and publishes once the results keep them.' },
@@ -2659,6 +2661,25 @@ export function protectionChoices(stop) {
 }
 
 export const APP_READ_ACTION = 'Let Inspire read these tables';
+
+export function abacGrantText(got) {
+  const gaps = got?.abac_gaps || [];
+  if (gaps.length) {
+    const owners = [...new Set(gaps.map((g) => g.owner).filter(Boolean))];
+    const who = owners.length ? joinOwners(owners) : 'the owner of each table';
+    return `Inspire cannot grant READ METADATA on ${joinOwners(gaps.map((g) => g.table))} with your sign-in, because you cannot manage it. `
+      + `Ask ${who} to run: ${gaps.flatMap((g) => g.grants).join('; ')}`;
+  }
+  const failed = got?.failed || [];
+  if (failed.length) return `${plural(failed.length, 'grant')} failed, so the App still cannot read every table`;
+  const ran = got?.ran || [];
+  return ran.length ? `Inspire granted ${plural(ran.length, 'grant')} with your sign-in, and the checks run again` : 'Inspire ran no grant: the App can already read these tables';
+}
+
+function joinOwners(items) {
+  const list = [...items];
+  return list.length <= 1 ? (list[0] || '') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
+}
 export const NEW_APPS_ACCESS_ACTION = 'Let new Apps use this catalog';
 
 export function appGrantText(got) {

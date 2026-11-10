@@ -9,7 +9,7 @@ import {
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices, abacGrantText,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -902,6 +902,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const [readsResult, setReadsResult] = useState(null);
   const [readsBusy, setReadsBusy] = useState('');
   const [protectionCopy, setProtectionCopy] = useState('');
+  const [protectionFailed, setProtectionFailed] = useState([]);
+  const [grantingAccess, setGrantingAccess] = useState(false);
   const tracked = trackedKpiOf(status?.history, latest);
   const kpiView = targetKpiView(tracked?.record, money?.run, liveImpact(money?.run, tracked?.impact || rowImpact(latest)));
   const spec = latest?.spec_json || {};
@@ -1212,6 +1214,22 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       setWritingNotebook(false);
     }
   };
+  const grantSourceRead = async () => {
+    setGrantingAccess(true);
+    setProtectionCopy('');
+    setProtectionFailed([]);
+    try {
+      const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables: protection.tables });
+      setProtectionCopy(abacGrantText(got));
+      setProtectionFailed(got.failed || []);
+      if (!got.abac_gaps?.length && !got.failed?.length) return sendAgain();
+    } catch (e) {
+      setProtectionCopy(`Your grant was refused: ${e.message}`);
+    } finally {
+      setGrantingAccess(false);
+    }
+    return undefined;
+  };
   const pickChoice = async (choice) => {
     if (choice.id === 'copy' && choice.sql) {
       try {
@@ -1223,6 +1241,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       return undefined;
     }
     if (protection && choice.id === 'check') return sendAgain();
+    if (protection && choice.id === 'grant') return grantSourceRead();
     if (protection && choice.id === 'access') return onEdit?.({ step: 'app_access' }, live);
     if (choice.changes) return submitChecked(nextSpecFrom(latest, { ...buildAgainChanges(latest), ...choice.changes }));
     if (choice.seed) return openFeatures(choice.seed.text ? choice.seed : null);
@@ -1235,7 +1254,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         <div className="min-w-0 space-y-0.5 text-error-fg">
           <p className="text-[13px] font-semibold">{stopped ? 'The build stopped' : 'The build failed'}</p>
           {failedStage && <p>Step: <span className="font-semibold">{failedStage.label}</span></p>}
-          {reason && <PlainMessage text={reason} />}
+          {(protection?.reason || reason) && <PlainMessage text={protection?.reason || reason} />}
           {protection?.details && (
             <details data-protection-details="" className="text-[11px] text-error-fg">
               <summary className="cursor-pointer">Details</summary>
@@ -1259,11 +1278,17 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
       )}
       {protection?.sql.length > 0 && (
-        <ul aria-label="SQL that keeps the filters and masks" data-protection-sql="" className="space-y-0.5">
+        <ul aria-label="SQL to run" data-protection-sql="" className="space-y-0.5">
           {protection.sql.map((line) => <li key={line} className="font-mono text-[11px] text-text-primary break-all">{line}</li>)}
         </ul>
       )}
       {protectionCopy && <PlainMessage text={protectionCopy} role="status" data-protection-copy="" className="text-text-primary" />}
+      {protectionFailed.length > 0 && (
+        <details data-protection-failed="" className="text-[11px] text-error-fg">
+          <summary className="cursor-pointer">Details</summary>
+          <ul className="mt-1 space-y-0.5">{protectionFailed.map((line) => <li key={line} className="font-mono break-all">{line}</li>)}</ul>
+        </details>
+      )}
       {buildAgain && !protection && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : terminal ? TERMINAL_STOP_HINT : buildAgainHint(latest)}</p>}
       <ChoiceList heading={FAILURE_CHOICES_HEADING} choices={choicesNow} mark="data-failure-choice" tone="text-error-fg" disabled={locked || writingNotebook}
         title={lockedReason} busy={writingNotebook ? 'notebook' : ''} onPick={pickChoice} />

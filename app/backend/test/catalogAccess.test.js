@@ -183,9 +183,11 @@ test('Let Inspire read these tables grants with the person token only, re-probes
   await withApp(overrides, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/grant-access?${Q}&kind=source_tables`, { method: 'POST', body: { tables: ['main.s.orders'] } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(grants, [['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', PERSON_TOKEN], ['GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', PERSON_TOKEN]]);
-    assert.equal(got.data.granted, 2);
-    assert.deepEqual(got.data.ran, ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`']);
+    const metadata = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`';
+    assert.deepEqual(grants, [['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', PERSON_TOKEN], ['GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', PERSON_TOKEN], [metadata, PERSON_TOKEN]]);
+    assert.equal(got.data.granted, 3);
+    assert.deepEqual(got.data.ran, ['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', metadata]);
+    assert.deepEqual(got.data.abac_gaps, []);
     assert.deepEqual(got.data.failed, []);
     assert.equal(got.data.app_unreadable, null);
     assert.deepEqual(got.data.missing_tables, []);
@@ -200,8 +202,8 @@ test('on a route that runs as the person, Let Inspire read these tables probes a
   await withApp(asPerson, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/grant-access?${Q}&kind=source_tables`, { method: 'POST', body: { tables: ['main.s.orders'] } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(grants, [['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', PERSON_TOKEN], ['GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', PERSON_TOKEN]]);
-    assert.equal(got.data.granted, 2);
+    assert.deepEqual(grants, [['GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`', PERSON_TOKEN], ['GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`', PERSON_TOKEN], ['GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`', PERSON_TOKEN]]);
+    assert.equal(got.data.granted, 3);
     assert.equal(got.data.app_unreadable, null);
     assert.ok(made.sqlCalls.some((c) => c.sql.includes('LIMIT 0') && c.token === APP_TOKEN), 'the read probe runs as the App');
     const SPEC = { use_case_id: 'N01-U01', use_case_name: 'Predict churn', config: { warehouse_id: 'wh1', result_table: 'main.inspire.churn_out' },
@@ -359,5 +361,19 @@ test('create-schema runs one CREATE with the person token, refuses a bad name or
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });
     assert.ok(got.status >= 400, JSON.stringify(got.data));
     assert.match(got.data.error, /CREATE SCHEMA/);
+  });
+});
+
+test('Let Inspire read these tables grants READ METADATA on a source only when the person can manage it, and names the owner otherwise (349060d3)', async () => {
+  const grants = [];
+  const { live, overrides } = split(PERSON_READS, { onGrant: (sql, token) => grants.push([sql, token]) });
+  live.appReads = true;
+  await withApp(overrides, async (url) => {
+    const got = await call(url, `/api/inspire/implement/grant-access?${Q}&kind=source_tables`, { method: 'POST', body: { tables: ['main.s.orders'] } });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(grants, [], 'a person who cannot manage the table grants nothing');
+    assert.equal(got.data.granted, 0);
+    assert.deepEqual(got.data.abac_gaps, [{ table: 'main.s.orders', owner: 'data-eng',
+      grants: ['GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`'] }]);
   });
 });

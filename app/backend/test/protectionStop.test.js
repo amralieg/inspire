@@ -29,6 +29,23 @@ test('a protection stop carries the raw error under Details when the record has 
   assert.equal(w.protectionStopOf(latest({ state: 'failed', spec_version: 3, reason: REASON, sql: [], check: true })).details, undefined);
 });
 
+test('a denied policy read offers Let Inspire read these tables first, then Check again, and names the source tables', async () => {
+  const w = await load();
+  const stop = w.protectionStopOf(latest({ state: 'failed', spec_version: 3, reason: REASON, sql: [], check: true, tables: ['main.s.orders'] }));
+  assert.deepEqual(stop.tables, ['main.s.orders']);
+  assert.deepEqual(w.protectionChoices(stop).map((c) => [c.id, c.label]), [['grant', w.APP_READ_ACTION], ['check', w.APP_READS_CHECK]]);
+  assert.equal(w.protectionStopOf(latest({ state: 'failed', spec_version: 3, reason: REASON, sql: [], check: true })).tables, undefined);
+});
+
+test('the grant result says what ran, names the owner and the statement when a table is not managed, and never says SQL keeps filters', async () => {
+  const w = await load();
+  const metadata = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`';
+  assert.equal(w.abacGrantText({ ran: [metadata], failed: [], abac_gaps: [] }), 'Inspire granted 1 grant with your sign-in, and the checks run again');
+  const gap = w.abacGrantText({ ran: [], failed: [], abac_gaps: [{ table: 'main.s.orders', owner: 'data-eng', grants: [metadata] }] });
+  assert.equal(gap, `Inspire cannot grant READ METADATA on main.s.orders with your sign-in, because you cannot manage it. Ask data-eng to run: ${metadata}`);
+  assert.match(w.abacGrantText({ ran: [], failed: ['x: boom'], abac_gaps: [] }), /1 grant failed/);
+});
+
 test('a protection stop with no SQL offers only Check again', async () => {
   const w = await load();
   const stop = w.protectionStopOf(latest({ state: 'failed', spec_version: 3, reason: REASON, sql: [], check: true }));

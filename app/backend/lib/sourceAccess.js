@@ -58,18 +58,36 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     return { ran, failed };
   }
 
+  async function abacGrantsOf(req, token, warehouseId, tables) {
+    const who = await appIdentity(req, await appTokenOf(req));
+    if (!tables.length || !who.id) return { grants: [], gaps: [] };
+    const rows = await Promise.all(tables.map((t) => accessRowsOf(req, token, warehouseId, t)));
+    const plans = tables.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs: I.IMPLEMENT_ABAC_READ_NEEDS }));
+    return {
+      grants: [...new Set(plans.flatMap((p) => p.grants.map((g) => I.grantSql(g, who.id))))],
+      gaps: tables.flatMap((table, i) => (plans[i].gaps.length
+        ? [{ table, owner: plans[i].gaps[0].owner || '', grants: plans[i].gaps.map((g) => I.grantSql(g, who.id)) }] : [])),
+    };
+  }
+
   async function grantSourceAccess(req, token, warehouseId, tables, job = 'build') {
     const before = await sourceAccess(req, warehouseId, tables, job);
     const offer = before.app_unreadable;
-    if (!offer) return { granted: 0, ran: [], failed: [], missing_tables: before.missing, app_unreadable: null };
-    if (!offer.can_grant) {
-      const err = I.badRequest(offer.text, 403);
-      err.details = { app_unreadable: offer };
-      throw err;
+    const abac = await abacGrantsOf(req, token, warehouseId, tables);
+    const readGrants = offer && offer.can_grant ? offer.grants : [];
+    const statements = [...new Set([...readGrants, ...abac.grants])];
+    if (!statements.length) {
+      if (offer && !offer.can_grant) {
+        const err = I.badRequest(offer.text, 403);
+        err.details = { app_unreadable: offer };
+        throw err;
+      }
+      return { granted: 0, ran: [], failed: [], missing_tables: before.missing, app_unreadable: offer || null, abac_gaps: abac.gaps };
     }
-    const { ran, failed } = await runPersonGrants(req, token, warehouseId, offer.grants);
+    const { ran, failed } = await runPersonGrants(req, token, warehouseId, statements);
     const after = await sourceAccess(req, warehouseId, tables, job);
-    return { granted: ran.length, ran, failed, missing_tables: after.missing, app_unreadable: after.app_unreadable };
+    const left = await abacGrantsOf(req, token, warehouseId, tables);
+    return { granted: ran.length, ran, failed, missing_tables: after.missing, app_unreadable: after.app_unreadable, abac_gaps: left.gaps };
   }
 
   async function appReadsLeftOf(req, token, warehouseId, record) {

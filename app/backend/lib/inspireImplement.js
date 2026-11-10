@@ -2885,6 +2885,8 @@ const IMPLEMENT_READ_NEEDS = [
   ['SELECT', 'table', ['catalog', 'schema', 'table']],
 ];
 const IMPLEMENT_TRAVERSE_PRIVILEGES = IMPLEMENT_READ_NEEDS.filter(([, level]) => level !== 'table').map(([privilege]) => privilege);
+const IMPLEMENT_ABAC_READ_NEEDS = [['READ METADATA', 'table', ['catalog', 'schema', 'table']]];
+const IMPLEMENT_PRIVILEGE_COVERS = { 'READ METADATA': ['MANAGE'] };
 
 function grantSql(need, who) {
   return `GRANT ${need.privilege} ON ${need.level.toUpperCase()} ${need.object} TO \`${who}\``;
@@ -2892,6 +2894,7 @@ function grantSql(need, who) {
 
 function accessPlan(name, rows, principal = '', options = {}) {
   const who = str(principal).trim();
+  const needs = options.needs || IMPLEMENT_READ_NEEDS;
   let t;
   try {
     t = tableParts(name);
@@ -2905,7 +2908,7 @@ function accessPlan(name, rows, principal = '', options = {}) {
     table: `\`${t.catalog}\`.\`${t.schema}\`.\`${t.table}\``,
   };
   const need = (privilege, level) => ({ privilege, level, object: objects[level] });
-  if (rows == null) return { grants: who ? IMPLEMENT_READ_NEEDS.map(([p, level]) => need(p, level)) : [], gaps: [], me: '' };
+  if (rows == null) return { grants: who ? needs.map(([p, level]) => need(p, level)) : [], gaps: [], me: '' };
   const list = Array.isArray(rows) ? rows : [];
   const facts = list.map((r) => ({
     level: str(r.level).toLowerCase(),
@@ -2918,9 +2921,10 @@ function accessPlan(name, rows, principal = '', options = {}) {
   const tableExists = facts.some((f) => f.level === 'table' && f.privilege === 'OWNER');
   const createsSchema = options.createsSchema === true && schemaNotCreated(list);
   const plan = { grants: [], gaps: [], me };
-  for (const [privilege, level, levels] of IMPLEMENT_READ_NEEDS) {
+  for (const [privilege, level, levels] of needs) {
     const owns = !!who && facts.some((f) => f.level === level && f.privilege === 'OWNER' && f.principal.toLowerCase() === who.toLowerCase());
-    const granted = facts.some((f) => levels.includes(f.level) && [privilege, 'ALL PRIVILEGES'].includes(f.privilege)
+    const covers = [privilege, 'ALL PRIVILEGES', ...(IMPLEMENT_PRIVILEGE_COVERS[privilege] || [])];
+    const granted = facts.some((f) => levels.includes(f.level) && covers.includes(f.privilege)
       && holders.has(f.principal.toLowerCase()));
     if (owns || granted) continue;
     const manages = facts.some((f) => f.mine && levels.includes(f.level) && ['OWNER', 'MANAGE'].includes(f.privilege));
@@ -3056,8 +3060,8 @@ function appUnreadableMessage(offer, job = 'build') {
   return `${head}. ${offer.can_grant ? words.grant : 'Ask the owner to run'}: ${offer.grants.join('; ')}`;
 }
 
-const APP_READ_GRANT = /^GRANT (USE CATALOG|USE SCHEMA|SELECT) ON (CATALOG|SCHEMA|TABLE) (`[^`]+`(?:\.`[^`]+`){0,2}) TO `([^`]+)`$/;
-const APP_READ_LEVELS = { 'USE CATALOG': 'CATALOG', 'USE SCHEMA': 'SCHEMA', SELECT: 'TABLE' };
+const APP_READ_GRANT = /^GRANT (USE CATALOG|USE SCHEMA|SELECT|READ METADATA) ON (CATALOG|SCHEMA|TABLE) (`[^`]+`(?:\.`[^`]+`){0,2}) TO `([^`]+)`$/;
+const APP_READ_LEVELS = { 'USE CATALOG': 'CATALOG', 'USE SCHEMA': 'SCHEMA', SELECT: 'TABLE', 'READ METADATA': 'TABLE' };
 
 function appReadsRecord(history) {
   const row = (history || [])[0];
@@ -3639,6 +3643,7 @@ module.exports = {
   IMPLEMENT_WIDGET_NAME_RE,
   IMPLEMENT_TABLE_NAME_RE,
   IMPLEMENT_READ_NEEDS,
+  IMPLEMENT_ABAC_READ_NEEDS,
   IMPLEMENT_TRAVERSE_PRIVILEGES,
   IMPLEMENT_NOTEBOOK_TASK_KEY,
   IMPLEMENT_USE_CASE_PARAM,
