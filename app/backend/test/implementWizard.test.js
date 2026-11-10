@@ -1969,3 +1969,13 @@ test('Summary lists every chosen option with the step that changes it, holds no 
   assert.equal(w.nextStepAfter(list, 'summary'), 'summary');
   assert.equal(w.appRenamedText('churn-desk', 'churn-desk-2'), "'churn-desk' is used by another App in this workspace, so Inspire named this App 'churn-desk-2'.");
 });
+
+test('each step heading is one short question of at most 8 words, and the access question is named (must-exclude: long headings)', async () => {
+  const w = await load();
+  for (const heading of [w.RUN_IT_TITLE, w.APP_ACCESS_QUESTION, w.DELIVERY_QUESTION]) {
+    assert.match(heading, /\?$/, heading);
+    assert.ok(heading.split(' ').length <= 8, `${heading} has ${heading.split(' ').length} words`);
+  }
+  assert.equal(w.RUN_IT_TITLE, 'How often should it run?');
+  assert.equal(w.APP_ACCESS_QUESTION, 'Who sees which rows?');
+});

@@ -211,6 +211,7 @@ import {
   DELIVERY_LABEL,
   NOTEBOOK_CARD,
   RUN_IT_TITLE,
+  APP_ACCESS_QUESTION,
   USE_CASE_DETAILS_LABEL,
   BUILD_NOW_LABEL,
   CHANGE_LABEL,
@@ -396,6 +397,7 @@ export default function ImplementWizard({
   const [checking, setChecking] = useState('');
   const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false });
   const [details, setDetails] = useState(false);
+  const [lookView, setLookView] = useState({ tab: 'style', page: 'fix' });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
   const [columnsByTable, setColumnsByTable] = useState({});
   const [tagNotes, setTagNotes] = useState({});
@@ -1863,6 +1865,8 @@ export default function ImplementWizard({
             onInspireCharts={() => setSpec((prev) => withInspireCharts(prev))}
             onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))}
             best={{ layout: best.layout }}
+            view={lookView}
+            onView={setLookView}
           />
         )}
 
@@ -2628,7 +2632,7 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehous
   return (
     <section className="space-y-4" aria-label="App access">
       <fieldset data-choice="app-access" className="space-y-2">
-        <legend className="text-sm font-semibold text-text-primary">Who uses the App, and which rows do they see?</legend>
+        <legend className="text-sm font-semibold text-text-primary">{APP_ACCESS_QUESTION}</legend>
         <p className="text-[11px] text-text-tertiary" {...(inside ? { role: 'note', 'aria-label': 'Why each person signs in as themselves' } : {})}>
           {inside ? `${INSIDE_ACCESS_REASON}.` : APP_ACCESS_NOTE}
         </p>
@@ -2824,11 +2828,13 @@ function LookCard({ name, value, checked, onChange, label, best = null, blurb = 
   );
 }
 
-function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake, dates = null, onLook, onChart, onInspireCharts, onPage, best = {} }) {
+function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake, dates = null, onLook, onChart, onInspireCharts, onPage, best = {}, view: lookView, onView }) {
   const chosen = spec.outputs.app_look;
   const palettes = look?.palette_colors || [];
-  const [tab, setTab] = useState('style');
-  const [pageId, setPageId] = useState('fix');
+  const tab = lookView.tab;
+  const setTab = (next) => onView({ ...lookView, tab: next });
+  const pageId = lookView.page;
+  const setPageId = (next) => onView({ ...lookView, page: next });
   const pages = appPagesOf(spec);
   const shownPage = pages.some((p) => p.id === pageId && p.on) ? pageId : 'fix';
   const charts = appChartsOf(spec, look, dates);
