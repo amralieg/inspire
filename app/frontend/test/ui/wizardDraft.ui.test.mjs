@@ -2,13 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { DRAFT_BACK_NOTE, WIZARD_DRAFT_PREFIX } from '../../src/lib/wizardDraft.js';
-import { BUILD_IT, closeBrowser, onStep, openUi, profileAt, settleChoices, stepsAre } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, goToStep, onStep, openUi, profileAt, settleChoices, stepsAre } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
 const STATE = { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } };
-const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. What to deliver', '6. Where it lives', '7. Who uses the App', '8. App pages', '9. App look', '10. Run it', '11. Review & build'];
+const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. App look', '9. Run it', '10. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const drafts = (page) => page.evaluate((prefix) => Object.keys(localStorage).filter((k) => k.startsWith(prefix)), WIZARD_DRAFT_PREFIX);
 const draftNote = (page) => page.locator('[data-wizard-draft]');
@@ -33,7 +33,7 @@ const PICKS = {
     read: (page) => checked(page, 'input[type="radio"][name="inspire-first-run"]'),
   },
   'What to deliver': {
-    pick: async (page) => { await page.locator('[data-output="dashboard"] input').setChecked(false); return 'off'; },
+    pick: async (page) => { await page.locator('[data-output="dashboard"] input').setChecked(true); return 'on'; },
     read: async (page) => [(await page.locator('[data-output="dashboard"] input').isChecked()) ? 'on' : 'off'],
   },
   'Who uses the App': {
@@ -64,17 +64,20 @@ test('a person\u2019s own picks on every step survive a reload, the wizard reope
   const ui = await openUi('wizard', STATE, '', { init: profileAt([], GROUPING_PROFILE) });
   const { page, made } = ui;
   try {
-    await onStep(page, 'Data');
-    await stepsAre(page, WITH_APP);
     assert.deepEqual(await drafts(page), [], 'nothing is kept before the person does anything (must-exclude)');
-    await reloadOn(page, 'Data');
-    assert.equal(await draftNote(page).count(), 0, 'no draft note without a draft (must-exclude)');
+    await goToStep(page, 'Data');
+    await stepsAre(page, WITH_APP);
+    await page.reload();
+    await onStep(page, 'What to deliver');
+    assert.equal(await draftNote(page).count(), 0, 'no draft note without unsaved changes (moving between steps is not a change)');
+    await goToStep(page, 'Data');
     const kept = {};
+    await goToStep(page, 'What to deliver');
     for (const step of WITH_APP.map((s) => s.replace(/^\d+\.\s*/, ''))) {
       await onStep(page, step);
       await settleChoices(page);
       if (PICKS[step]) kept[step] = await PICKS[step].pick(page);
-      if (step !== 'Data') {
+      if (PICKS[step]) {
         await reloadOn(page, step);
         assert.equal(await draftNote(page).locator('span').first().innerText(), DRAFT_BACK_NOTE, `${step}: the wizard says the picks are back`);
         await stepsAre(page, WITH_APP);
@@ -87,14 +90,14 @@ test('a person\u2019s own picks on every step survive a reload, the wizard reope
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     const inserts = made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'));
     const spec = JSON.parse(inserts.at(-1).parameters.find((p) => p.name === 'spec').value);
-    assert.equal(spec.outputs.dashboard, false, 'the build sends the restored Deliver pick');
+    assert.equal(spec.outputs.dashboard, true, 'the build sends the restored Deliver pick');
     assert.equal(spec.outputs.app_access, kept['Who uses the App']);
     assert.equal(spec.outputs.app_look.style, kept['App look']);
     assert.deepEqual([spec.config.widgets.group_by, spec.config.widgets.run_scope], [kept['Data groups'], 'all'], 'and the restored Data groups and First run picks');
     assert.equal(spec.schedule.cron, '0 0 6 ? * MON', 'and the restored Weekly');
     assert.match(JSON.stringify(spec), /keep the draft words/, 'and the restored Vibes words');
     assert.deepEqual(await drafts(page), [], 'starting the build clears the draft');
-    await reloadOn(page, 'Data');
+    await reloadOn(page, 'What to deliver');
     assert.equal(await draftNote(page).count(), 0, 'and the reopened wizard starts fresh (must-exclude)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -106,29 +109,32 @@ test('Close and Start over drop the draft, and a draft from before the use case 
   const ui = await openUi('wizard', STATE, '', { init: profileAt([], GROUPING_PROFILE) });
   const { page } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     await next(page);
     await onStep(page, 'Data groups');
-    await next(page);
-    await onStep(page, 'First run');
+    await goToStep(page, 'Review & build');
+    await page.getByRole('region', { name: 'Vibes' }).locator('textarea').first().fill('draft words');
+    await goToStep(page, 'First run');
     await reloadOn(page, 'First run');
     await draftNote(page).waitFor();
     await page.locator('[data-wizard-start-over]').click();
-    await onStep(page, 'Data');
+    await onStep(page, 'What to deliver');
     assert.equal(await draftNote(page).count(), 0);
     assert.deepEqual(await drafts(page), [], 'Start over clears the draft');
+    await goToStep(page, 'Data');
     await next(page);
     await onStep(page, 'Data groups');
-    assert.equal((await drafts(page)).length, 1);
+    assert.equal((await drafts(page)).length, 0, 'moving between steps with no change keeps no draft');
     await page.getByRole('button', { name: 'Close', exact: true }).first().click();
     assert.deepEqual(await drafts(page), [], 'Close clears the draft');
-    await reloadOn(page, 'Data');
+    await reloadOn(page, 'What to deliver');
     assert.equal(await draftNote(page).count(), 0, 'a closed wizard reopens fresh (must-exclude)');
+    await goToStep(page, 'Data');
     await next(page);
     await onStep(page, 'Data groups');
     const [key] = await drafts(page);
     await page.evaluate((k) => { const d = JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify({ ...d, stamp: 'an-older-use-case' })); }, key);
-    await reloadOn(page, 'Data');
+    await reloadOn(page, 'What to deliver');
     await page.waitForLoadState('networkidle');
     await draftNote(page).first().waitFor({ state: 'detached', timeout: 15000 }).catch(() => null);
     assert.equal(await draftNote(page).count(), 0, 'a draft of the use case as it was before is ignored');

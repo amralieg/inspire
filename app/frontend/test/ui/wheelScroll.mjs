@@ -75,6 +75,7 @@ export async function wheelToEnd(page, region, last, name, over = null) {
   const start = await region.evaluate((el) => el.scrollTop);
   assert.equal(start, 0, `${name}: the wheel up does not bring the region back to its top`);
   let before = -1;
+  let absorbed = 0;
   for (let i = 0; i < 400; i += 1) {
     await page.mouse.wheel(0, 300);
     await frames(page);
@@ -82,16 +83,17 @@ export async function wheelToEnd(page, region, last, name, over = null) {
     const end = await region.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop <= 2);
     if (end) break;
     if (now === before) {
-      const moved = await region.evaluate((el, was) => new Promise((done) => {
+      absorbed += 1;
+      if (absorbed > 12) break;
+      await region.evaluate((el, was) => new Promise((done) => {
         const started = performance.now();
         const tick = () => {
-          if (el.scrollTop !== was || performance.now() - started > 4000) done(el.scrollTop !== was);
+          if (el.scrollTop !== was || performance.now() - started > 150) done();
           else requestAnimationFrame(tick);
         };
         tick();
       }), now);
-      if (!moved) break;
-    }
+    } else absorbed = 0;
     before = now;
   }
   const after = await where(region, over);
