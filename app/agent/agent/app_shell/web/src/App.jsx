@@ -10,7 +10,7 @@ import { isQueue, pageSections } from './Layouts.jsx';
 import { pageMode, performanceOn, sectionTitle } from './modes.js';
 import ModeView from './ModeView.jsx';
 import { inboxOn } from './inbox.js';
-import Admin from './Admin.jsx';
+const Admin = lazy(() => import('./Admin.jsx'));
 import { ADMIN_ROUTE } from './admin.js';
 import GeniePanel, { useGenie } from './Genie.jsx';
 import { GenieScope, GenieState } from './AskGenie.jsx';
@@ -314,7 +314,7 @@ function Shell({ app }) {
           <main className="main" tabIndex={-1}>
             <NoAccessScope key={page ? `page:${page.id}` : admin ? 'admin' : 'home'} app={app}>
             <RetryProvider value={loadHub}>
-            {admin && <Admin />}
+            {admin && <Suspense fallback={null}><Admin /></Suspense>}
             {!admin && page && section === 'performance' && (
               <GenieScope.Provider value={perfScope}>
                 <ModeView key={page.id} mode={mode.id} part="Performance" app={app} page={page} genie={genie}
