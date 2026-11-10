@@ -361,6 +361,22 @@ function Advanced({ open, onToggle, children, summary = '', what = 'settings' })
   );
 }
 
+function SettingRow({ label, value, children, changeLabel = label, help = '' }) {
+  const [open, setOpen] = useState(false);
+  return (
+    <div data-setting={label} className="border-t border-border pt-2 space-y-2">
+      <div className="flex items-start justify-between gap-3">
+        <p className="text-[12px] text-text-secondary min-w-0"><span className="text-text-tertiary">{label}:</span> <span className="text-text-primary">{value}</span>{help && <span className="block text-[11px] text-text-tertiary">{help}</span>}</p>
+        <button type="button" aria-expanded={open} aria-label={`${open ? 'Close' : CHANGE_LABEL} ${changeLabel}`} onClick={() => setOpen((v) => !v)}
+          className="shrink-0 text-xs font-medium text-db-red-fg hover:underline glow-focus">
+          {open ? 'Close' : CHANGE_LABEL}
+        </button>
+      </div>
+      {open && <div className="space-y-2">{children}</div>}
+    </div>
+  );
+}
+
 function CheckLine({ check, label }) {
   return (
     <p className={`text-[11px] ${check.ok ? 'text-success-fg' : 'text-error-fg'}`}>
@@ -1147,7 +1163,6 @@ export default function ImplementWizard({
     spec.data.column_roles && Object.values(spec.data.column_roles).some(Boolean) ? 'Column roles set by you' : "Column roles chosen by Inspire",
     spec.config.warehouse_id ? `SQL warehouse ${spec.config.warehouse_id}` : 'No SQL warehouse picked',
   ].join(' · ');
-  const runSummary = `${spec.schedule.enabled ? 'Keep it fresh is on' : 'Keep it fresh is off'} · ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`;
   const chosenDestinations = spec.outputs.alert_destinations || [];
   const checkEntries = checksFor(preflight?.checks, spec.outputs);
   const generalChecks = checkEntries.filter(([k]) => !TILE_CHECK_KEYS.includes(k));
@@ -1521,10 +1536,11 @@ export default function ImplementWizard({
                 onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
               />
             </HoldoutSetting>
-            <Advanced open={advanced.run} onToggle={() => toggleAdvanced('run')} what="run settings" summary={runSummary}>
-              <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
-              <div className="space-y-2">
-                <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Schedule</h4>
+            <div className="space-y-3">
+              <SettingRow label="Hold back" value={holdoutOf(spec).enabled ? `${holdoutPercentText(spec) || '10'}% of records` : 'off'} changeLabel="hold back share">
+                <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
+              </SettingRow>
+              <SettingRow label="Schedule (Quartz cron)" value={cronInWords(spec.schedule.cron, spec.schedule.timezone)} changeLabel="schedule">
                 <Field label="Cron (Quartz)">
                   <input dir="auto" className={inputCls} value={spec.schedule.cron} onChange={(e) => patch('schedule.cron', e.target.value)} />
                   {String(spec.schedule.cron || '').trim() && cronProblem(spec.schedule.cron) ? (
@@ -1533,20 +1549,16 @@ export default function ImplementWizard({
                     <p className="text-[11px] text-text-tertiary">Runs {cronInWords(spec.schedule.cron, spec.schedule.timezone)}{spec.schedule.enabled ? '' : ' once Keep it fresh is on'}</p>
                   )}
                 </Field>
-                <Field label="Timezone">
-                  <input dir="auto" className={inputCls} value={spec.schedule.timezone} onChange={(e) => patch('schedule.timezone', e.target.value)} />
-                </Field>
-                <Field label="Failure emails (comma separated; default: the decision owner)">
-                  <ListInput className={inputCls} separator="," value={spec.schedule.failure_emails} onChange={(list) => patch('schedule.failure_emails', list)} />
-                </Field>
-                {trainsModel && (
+              </SettingRow>
+              {trainsModel && (
+                <SettingRow label="Retrain" value={`every ${spec.config.profiles?.retrain?.every_runs ?? 'few'} runs`} changeLabel="retrain">
                   <div className="grid grid-cols-2 gap-2">
                     <ProfileInput spec={spec} path="retrain.every_runs" onChange={setProfile} />
                     <ProfileInput spec={spec} path="retrain.drift_threshold" onChange={setProfile} />
                   </div>
-                )}
-              </div>
-            </Advanced>
+                </SettingRow>
+              )}
+            </div>
           </>
         )}
 
@@ -1889,6 +1901,19 @@ export default function ImplementWizard({
                   </div>
                 ))}
               </dl>
+            </section>
+            <section className="space-y-2" aria-label="Settings you rarely change">
+              <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Rarely changed</h4>
+              <SettingRow label="Timezone" value={spec.schedule.timezone || 'UTC'} changeLabel="timezone">
+                <Field label="Timezone">
+                  <input dir="auto" className={inputCls} value={spec.schedule.timezone} onChange={(e) => patch('schedule.timezone', e.target.value)} />
+                </Field>
+              </SettingRow>
+              <SettingRow label="Failure emails" value={(spec.schedule.failure_emails || []).join(', ') || 'the decision owner'} changeLabel="failure emails">
+                <Field label="Failure emails (comma separated; default: the decision owner)">
+                  <ListInput className={inputCls} separator="," value={spec.schedule.failure_emails} onChange={(list) => patch('schedule.failure_emails', list)} />
+                </Field>
+              </SettingRow>
             </section>
             {notebookEdit && (
               <label className="flex items-start gap-2 text-[12px] border border-warning/40 rounded-lg p-3">

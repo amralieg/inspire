@@ -89,8 +89,8 @@ test('every setting that used to sit under Advanced settings opens from its own 
     await openAdvanced(page, 'data settings');
     for (const label of ['Window start', 'Window end']) await page.getByLabel(label, { exact: true }).first().waitFor();
     await goToStep(page, 'Run it');
-    await openAdvanced(page, 'run settings');
-    for (const label of [/^Cron \(Quartz\)/, /^Timezone/]) await page.getByLabel(label).first().waitFor();
+    await page.getByRole('button', { name: 'Change schedule', exact: true }).click();
+    await page.getByLabel(/^Cron \(Quartz\)/).first().waitFor();
     assert.equal(await page.getByRole('button', { name: /^(Change|Close) / }).count() >= 1, true);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -176,6 +176,44 @@ test('App pages and App look are two steps: the pages step holds no look picker 
     await goToStep(page, 'App look');
     await page.getByText('How should the App look?', { exact: true }).waitFor();
     assert.equal(await page.getByText('What people can do in the App', { exact: false }).count(), 0, 'the pages are not on the look step (must-exclude)');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Run it shows one line per setting with its own Change link, and opens only that setting (must-exclude: one shared Change for the block)', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Run it');
+    const cron = page.locator('[data-setting="Schedule (Quartz cron)"]');
+    await cron.waitFor();
+    assert.equal(await page.getByLabel('Cron (Quartz)', { exact: false }).count(), 0, 'the cron field waits behind its own Change link');
+    await page.getByRole('button', { name: 'Change schedule', exact: true }).click();
+    await page.getByLabel(/^Cron \(Quartz\)/).first().waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Change hold back share', exact: true }).getAttribute('aria-expanded'), 'false', 'opening one setting leaves the others closed');
+    assert.equal(await page.getByRole('button', { name: 'Close schedule', exact: true }).count(), 1);
+    assert.equal(await page.getByRole('button', { name: /^Change Advanced|^Change run settings/ }).count(), 0, 'no block-wide Change line (must-exclude)');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Timezone and failure emails are editable rows on Review & build with their own Edit link, and are not on Run it (must-exclude)', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Run it');
+    assert.equal(await page.getByLabel('Timezone', { exact: true }).count(), 0, 'Timezone is not on Run it (must-exclude)');
+    await goToStep(page, 'Review & build');
+    const rare = page.getByRole('region', { name: 'Settings you rarely change' });
+    await rare.locator('[data-setting="Timezone"]').waitFor();
+    assert.equal(await rare.locator('[data-setting="Failure emails"]').count(), 1);
+    await page.getByRole('button', { name: 'Change timezone', exact: true }).click();
+    await page.getByLabel('Timezone', { exact: true }).fill('Asia/Dubai');
+    assert.equal(await page.getByLabel('Timezone', { exact: true }).inputValue(), 'Asia/Dubai');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

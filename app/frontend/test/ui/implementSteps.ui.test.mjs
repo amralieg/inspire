@@ -64,9 +64,11 @@ test('Data, Results, Run it and App show the business settings and keep the tech
     assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Results holds only where the result table lives');
     await goToStep(page, 'Run it');
     await page.getByRole('checkbox', { name: /^Hold back/ }).check();
-    for (const label of ['Share of records held back', 'Cron (Quartz)', 'Timezone']) await hidden(label);
-    await open('run settings');
-    for (const label of ['Share of records held back', 'Cron (Quartz)', 'Timezone']) await shown(label);
+    for (const label of ['Share of records held back', 'Cron (Quartz)']) await hidden(label);
+    await page.getByRole('button', { name: 'Change hold back share', exact: true }).click();
+    await shown('Share of records held back');
+    await page.getByRole('button', { name: 'Change schedule', exact: true }).click();
+    await shown('Cron (Quartz)');
     await hidden('Rows the team can act on each run');
     const picker = page.locator('[data-app-warehouse="pick"]');
     await goToStep(page, 'App placement');
