@@ -40,3 +40,10 @@ test('the rate sample statement refuses a table name, a column or a base that is
   assert.equal(GP.rateSampleSql({ ...ok, rate_column: 'rate; drop' }, 'USD'), null);
   assert.equal(GP.rateSampleSql(ok, 'usd'), null);
 });
+
+test('the rate column sample reads three rates of the use case table, and refuses names that are not plain', () => {
+  const sql = GP.rateColumnSampleSql('main.sales.orders', 'currency_code', 'fx_rate');
+  assert.equal(sql, 'SELECT `currency_code` AS currency, CAST(`fx_rate` AS DOUBLE) AS rate FROM `main`.`sales`.`orders` WHERE `fx_rate` IS NOT NULL LIMIT 3');
+  assert.equal(GP.rateColumnSampleSql('main.sales.orders', 'currency_code', 'fx; drop'), null);
+  assert.equal(GP.rateColumnSampleSql('main.sales;drop', 'currency_code', 'fx_rate'), null);
+});

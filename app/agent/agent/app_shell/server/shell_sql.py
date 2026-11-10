@@ -2673,6 +2673,10 @@ def page_with_money(page: dict, rule) -> dict:
     KPIs and money charts are removed from the page."""
     out = dict(page, money=rule) if rule else page
     if money_off(out):
+        removed = {k["id"] for k in out.get("kpis") or [] if k.get("format") == "currency"}
+        story = out.get("story")
+        if isinstance(story, str) and any("{" + ident + "" in story or "{" + ident + ":" in story for ident in removed):
+            out = dict(out, story="")
         out = dict(out, kpis=[k for k in out.get("kpis") or [] if k.get("format") != "currency"],
                    charts=[c for c in out.get("charts") or [] if not any(y.get("format") == "currency" for y in c.get("y") or [])])
     return out

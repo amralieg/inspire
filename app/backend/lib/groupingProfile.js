@@ -119,6 +119,15 @@ function rateSampleSql(rateTable, base) {
     + `FROM ${G.groupingMainTable(t.table).sql} WHERE ${q(t.base_column)} = '${String(base)}') AS ranked WHERE latest = 1 LIMIT ${RATE_SAMPLE_ROWS}`;
 }
 
+// The three latest rates from a rate column of the use case table: the example reads real numbers for a rate column too.
+function rateColumnSampleSql(table, currencyColumn, rateColumn) {
+  if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(currencyColumn || ''))
+    || !RATE_COLUMN_PATTERN.test(String(rateColumn || ''))) return null;
+  const main = G.groupingMainTable(table).sql;
+  return `SELECT ${q(currencyColumn)} AS currency, CAST(${q(rateColumn)} AS DOUBLE) AS rate FROM ${main} `
+    + `WHERE ${q(rateColumn)} IS NOT NULL LIMIT ${RATE_SAMPLE_ROWS}`;
+}
+
 function sampleSql(main, columns, joined = []) {
   const src = sourceOf(main, columns, joined);
   const c = columns.map((_name, i) => `c${i}`);
@@ -408,6 +417,7 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
 }
 
 module.exports = {
+  rateColumnSampleSql,
   rateSampleSql,
   RATE_SAMPLE_ROWS,
   moneySampleColumns,

@@ -1767,8 +1767,10 @@ function registerImplementRoutes(app, deps) {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
     try {
-      const sql = GP.rateSampleSql(req.body?.rate_table, req.body?.base);
-      if (!sql) throw I.badRequest('Name the rate table, its currency, base, date, rate and load columns, and a three-letter base currency, to read its rates.');
+      const column = req.body?.rate_column;
+      const sql = column ? GP.rateColumnSampleSql(req.body?.table, req.body?.currency_column, column)
+        : GP.rateSampleSql(req.body?.rate_table, req.body?.base);
+      if (!sql) throw I.badRequest('Name the rate table and its columns, or the use case table, its currency column and its rate column, to read the rates.');
       const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.RATE_SAMPLE_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
       return res.json({ rates: sqlResultToObjects(found).map((r) => ({ currency: String(r.currency ?? ''), rate: Number(r.rate) })) });
     } catch (err) {
