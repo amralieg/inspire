@@ -516,7 +516,7 @@ def choice_options(item: dict, result) -> None:
     item["searchable"] = len(item["options"]) >= shell_sql.CAPS["options"]
 
 
-def public_page(page: dict) -> dict:
+def public_page(page: dict, gaps=frozenset()) -> dict:
     by_column = click_filters(page)
     out = {k: page.get(k) for k in ("id", "use_case_id", "title", "question", "sponsor", "domain", "subdomain", "icon", "hue",
                                     "story", "questions", "promised")}
@@ -551,7 +551,7 @@ def public_page(page: dict) -> dict:
     out["history"] = bool(page.get("result_table"))
     out["similar_by"] = [{"filter": f["id"], "label": f.get("label")} for f in shell_sql.similar_filters(page)]
     out[shell_sql.BLOCKS] = shell_sql.public_blocks(page)
-    out[TOUR] = public_tour(page)
+    out[TOUR] = public_tour(page, gaps)
     return out
 
 
@@ -633,11 +633,11 @@ def tour_template(anchor: str, language: str, page: dict) -> dict:
     return {"anchor": anchor, "title": str(base.get("title") or ""), "text": text}
 
 
-def fit_tour(page: dict, languages=None) -> tuple:
+def fit_tour(page: dict, languages=None, gaps=frozenset()) -> tuple:
     reg = tour_registry()
     if not reg:
         return None, []
-    anchors = tour_anchors(page)
+    anchors = [a for a in tour_anchors(page) if a not in gaps]
     kpi_ids = {str(k["id"]) for k in _tour_kpis(page)}
     given = page.get(TOUR) if isinstance(page.get(TOUR), dict) else {}
     steps_by = given.get("steps") if isinstance(given.get("steps"), dict) else {}
@@ -684,8 +684,8 @@ def fit_tour(page: dict, languages=None) -> tuple:
     return {"languages": wanted, "steps": out}, notes
 
 
-def public_tour(page: dict):
-    tour, _ = fit_tour(page)
+def public_tour(page: dict, gaps=frozenset()):
+    tour, _ = fit_tour(page, gaps=gaps)
     if not tour:
         return None
     reg = tour_registry()
@@ -2262,10 +2262,16 @@ class Shell:
         named = " ".join(str(self.pages[0].get("title") or "").split()) if len(self.pages) == 1 else ""
         return f"{named} · {hub}" if named and hub else named or hub
 
+    def tour_gaps(self, page: dict) -> frozenset:
+        gaps = set() if self.alerts.status()["on"] else {"alerts"}
+        if not (self.decides(page) and page.get("result_table")):
+            gaps |= {"actions", "bulk"}
+        return frozenset(gaps)
+
     def app_info(self, headers: dict) -> dict:
         s = self.settings
         host = self.host()
-        pages = [dict(public_page(p), genie=self.genie_info(p, host), is_owner=bool(self.signed_in(headers) & self.page_editors(p)))
+        pages = [dict(public_page(p, self.tour_gaps(p)), genie=self.genie_info(p, host), is_owner=bool(self.signed_in(headers) & self.page_editors(p)))
                  for p in self.pages]
         answering = any(p["genie"]["enabled"] for p in pages)
         genie = (pages[0]["genie"] if len(pages) == 1 else
