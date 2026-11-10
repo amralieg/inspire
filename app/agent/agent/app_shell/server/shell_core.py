@@ -3188,6 +3188,11 @@ class Shell:
         problems = shell_sql.money_rule_problems(rule)
         if problems:
             raise HttpError(400, "; ".join(problems))
+        spec_money = (self.by_id.get(str(page.get("id"))) or {}).get("money") or {}
+        changed = [key for key in shell_sql.MONEY_BUILD_KEYS if key in rule and rule[key] != spec_money.get(key)]
+        if changed:
+            raise HttpError(409, f"Changing {', '.join(changed)} needs a rebuild of the use case; the App keeps the built value until then")
+        rule = dict(rule, **{key: spec_money[key] for key in shell_sql.MONEY_BUILD_KEYS if key in spec_money})
         note = data.get("note") or ""
         if not isinstance(note, str) or len(note.strip()) > NOTE_CHARS:
             raise HttpError(400, f"keep the note to {NOTE_CHARS} characters")

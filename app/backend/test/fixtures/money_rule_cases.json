@@ -1,20 +1,324 @@
 {
-  "cases": [
-    {"name": "default", "rule": null, "valid": true, "clean": {"currency": "per_currency"}},
-    {"name": "per currency", "rule": {"currency": "per_currency"}, "valid": true, "clean": {"currency": "per_currency"}},
-    {"name": "typed rates", "rule": {"currency": "convert", "base": "USD", "rates": {"AED": 0.27, "EUR": 1.08}}, "valid": true,
-     "clean": {"currency": "convert", "base": "USD", "rates": {"AED": 0.27, "EUR": 1.08}}},
-    {"name": "rate column", "rule": {"currency": "convert", "base": "USD", "rate_column": "fx_rate"}, "valid": true,
-     "clean": {"currency": "convert", "base": "USD", "rate_column": "fx_rate"}},
-    {"name": "window of 12 closed periods", "rule": {"currency": "per_currency", "window": {"periods": 12}}, "valid": true,
-     "clean": {"currency": "per_currency", "window": {"periods": 12}}},
-    {"name": "bad base", "rule": {"currency": "convert", "base": "NOPE", "rates": {"AED": 0.27}}, "valid": false},
-    {"name": "no rates and no column", "rule": {"currency": "convert", "base": "USD", "rates": {}}, "valid": false},
-    {"name": "rates and column together", "rule": {"currency": "convert", "base": "USD", "rates": {"AED": 0.27}, "rate_column": "fx_rate"}, "valid": false},
-    {"name": "negative rate", "rule": {"currency": "convert", "base": "USD", "rates": {"AED": -1}}, "valid": false},
-    {"name": "boolean rate", "rule": {"currency": "convert", "base": "USD", "rates": {"AED": true}}, "valid": false},
-    {"name": "bad column name", "rule": {"currency": "convert", "base": "USD", "rate_column": "fx rate; drop"}, "valid": false},
-    {"name": "window out of range", "rule": {"currency": "per_currency", "window": {"periods": 0}}, "valid": false},
-    {"name": "unknown mode", "rule": {"currency": "sum_everything"}, "valid": false}
-  ]
+ "cases": [
+  {
+   "name": "default",
+   "rule": null,
+   "valid": true,
+   "clean": {
+    "currency": "per_currency"
+   }
+  },
+  {
+   "name": "per currency",
+   "rule": {
+    "currency": "per_currency"
+   },
+   "valid": true,
+   "clean": {
+    "currency": "per_currency"
+   }
+  },
+  {
+   "name": "typed rates",
+   "rule": {
+    "currency": "convert",
+    "base": "USD",
+    "rates": {
+     "AED": 0.27,
+     "EUR": 1.08
+    }
+   },
+   "valid": true,
+   "clean": {
+    "currency": "convert",
+    "base": "USD",
+    "rates": {
+     "AED": 0.27,
+     "EUR": 1.08
+    }
+   }
+  },
+  {
+   "name": "rate column",
+   "rule": {
+    "currency": "convert",
+    "base": "USD",
+    "rate_column": "fx_rate"
+   },
+   "valid": true,
+   "clean": {
+    "currency": "convert",
+    "base": "USD",
+    "rate_column": "fx_rate"
+   }
+  },
+  {
+   "name": "window of 12 closed periods",
+   "rule": {
+    "currency": "per_currency",
+    "window": {
+     "periods": 12
+    }
+   },
+   "valid": true,
+   "clean": {
+    "currency": "per_currency",
+    "window": {
+     "periods": 12
+    }
+   }
+  },
+  {
+   "name": "bad base",
+   "rule": {
+    "currency": "convert",
+    "base": "NOPE",
+    "rates": {
+     "AED": 0.27
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "no rates and no column",
+   "rule": {
+    "currency": "convert",
+    "base": "USD",
+    "rates": {}
+   },
+   "valid": false
+  },
+  {
+   "name": "rates and column together",
+   "rule": {
+    "currency": "convert",
+    "base": "USD",
+    "rates": {
+     "AED": 0.27
+    },
+    "rate_column": "fx_rate"
+   },
+   "valid": false
+  },
+  {
+   "name": "negative rate",
+   "rule": {
+    "currency": "convert",
+    "base": "USD",
+    "rates": {
+     "AED": -1
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "boolean rate",
+   "rule": {
+    "currency": "convert",
+    "base": "USD",
+    "rates": {
+     "AED": true
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "bad column name",
+   "rule": {
+    "currency": "convert",
+    "base": "USD",
+    "rate_column": "fx rate; drop"
+   },
+   "valid": false
+  },
+  {
+   "name": "window out of range",
+   "rule": {
+    "currency": "per_currency",
+    "window": {
+     "periods": 0
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "unknown mode",
+   "rule": {
+    "currency": "sum_everything"
+   },
+   "valid": false
+  },
+  {
+   "name": "off",
+   "rule": {
+    "currency": "per_currency",
+    "off": true
+   },
+   "valid": true,
+   "clean": {
+    "currency": "per_currency",
+    "off": true
+   }
+  },
+  {
+   "name": "statuses and net",
+   "rule": {
+    "currency": "per_currency",
+    "statuses": [
+     "used",
+     "exchanged"
+    ],
+    "rule": "net"
+   },
+   "valid": true,
+   "clean": {
+    "currency": "per_currency",
+    "statuses": [
+     "used",
+     "exchanged"
+    ],
+    "rule": "net"
+   }
+  },
+  {
+   "name": "per group by a column",
+   "rule": {
+    "currency": "per_currency",
+    "per": "group",
+    "group_column": "entity_id"
+   },
+   "valid": true,
+   "clean": {
+    "currency": "per_currency",
+    "per": "group",
+    "group_column": "entity_id"
+   }
+  },
+  {
+   "name": "per group without a column",
+   "rule": {
+    "currency": "per_currency",
+    "per": "group"
+   },
+   "valid": false
+  },
+  {
+   "name": "unknown rule",
+   "rule": {
+    "currency": "per_currency",
+    "rule": "gross"
+   },
+   "valid": false
+  },
+  {
+   "name": "too many statuses",
+   "rule": {
+    "currency": "per_currency",
+    "statuses": [
+     "0",
+     "1",
+     "2",
+     "3",
+     "4",
+     "5",
+     "6",
+     "7",
+     "8",
+     "9",
+     "10",
+     "11",
+     "12",
+     "13",
+     "14",
+     "15",
+     "16",
+     "17",
+     "18",
+     "19",
+     "20"
+    ]
+   },
+   "valid": false
+  },
+  {
+   "name": "status with quotes",
+   "rule": {
+    "currency": "per_currency",
+    "statuses": [
+     "used'; drop"
+    ]
+   },
+   "valid": false
+  },
+  {
+   "name": "rate table",
+   "rule": {
+    "currency": "convert",
+    "base": "USD",
+    "rate_table": {
+     "table": "main.fx.rates",
+     "currency_column": "from_code",
+     "base_column": "to_code",
+     "date_column": "rate_date",
+     "rate_column": "rate"
+    }
+   },
+   "valid": true,
+   "clean": {
+    "currency": "convert",
+    "base": "USD",
+    "rate_table": {
+     "table": "main.fx.rates",
+     "currency_column": "from_code",
+     "base_column": "to_code",
+     "date_column": "rate_date",
+     "rate_column": "rate"
+    }
+   }
+  },
+  {
+   "name": "rate table with a bad name",
+   "rule": {
+    "currency": "convert",
+    "base": "USD",
+    "rate_table": {
+     "table": "main.fx; drop",
+     "currency_column": "from_code",
+     "base_column": "to_code",
+     "date_column": "rate_date",
+     "rate_column": "rate"
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "rate table and typed rates",
+   "rule": {
+    "currency": "convert",
+    "base": "USD",
+    "rates": {
+     "AED": 0.27
+    },
+    "rate_table": {
+     "table": "main.fx.rates",
+     "currency_column": "a",
+     "base_column": "b",
+     "date_column": "c",
+     "rate_column": "d"
+    }
+   },
+   "valid": false
+  },
+  {
+   "name": "three letters that are no currency",
+   "rule": {
+    "currency": "convert",
+    "base": "XYZ",
+    "rates": {
+     "AED": 0.27
+    }
+   },
+   "valid": false
+  }
+ ]
 }

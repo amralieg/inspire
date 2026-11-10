@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { getSettings, previewMoneyRule, saveMoneyRule } from './api.js';
 import { draftOf, previewLines, ruleOf, ruleSentence } from './moneyRule.js';
 import { PlainNote } from './ui.jsx';
+import { BUILD_FIELDS, MoneyRuleFields } from './MoneyRuleFields.jsx';
 
 const LEFT_OUT = 'Rows without a date and rows from the running month are left out of every money total, and each total says how many.';
 
@@ -54,31 +55,9 @@ export function MoneyRule({ pageId }) {
 
   return (
     <section className="money-rule" data-money-rule>
-      <h3>How money at stake is totalled</h3>
+      <h3>How each total is counted</h3>
       <p data-money-sentence>{ruleSentence(shown)} {view.saved ? 'Saved by an owner.' : 'Set by the App design; no owner has saved a change.'}</p>
-      <fieldset>
-        <label><input type="radio" name="money-mode" value="per_currency" checked={draft.mode === 'per_currency'} onChange={() => set({ mode: 'per_currency' })} data-money-mode="per_currency" /> Per currency: one total for each currency</label>
-        <label><input type="radio" name="money-mode" value="convert" checked={draft.mode === 'convert'} onChange={() => set({ mode: 'convert', rates: draft.rates.length ? draft.rates : [{ code: '', rate: '' }] })} data-money-mode="convert" /> Convert to one currency</label>
-      </fieldset>
-      <label>Closed periods to total (empty for every closed period) <input dir="auto" value={draft.window} onChange={(e) => set({ window: e.target.value })} data-money-window /></label>
-      {draft.mode === 'convert' && (
-        <div data-money-convert>
-          <label>Base currency <input dir="auto" value={draft.base} onChange={(e) => set({ base: e.target.value })} data-money-base /></label>
-          <fieldset>
-            <label><input type="radio" name="money-rate-source" value="typed" checked={draft.rateSource === 'typed'} onChange={() => set({ rateSource: 'typed' })} data-money-rate-source="typed" /> Rates I type in</label>
-            <label><input type="radio" name="money-rate-source" value="column" checked={draft.rateSource === 'column'} onChange={() => set({ rateSource: 'column' })} data-money-rate-source="column" /> A column with one rate per row</label>
-          </fieldset>
-          {draft.rateSource === 'column' && <label>Rate column <input dir="auto" value={draft.rateColumn} onChange={(e) => set({ rateColumn: e.target.value })} data-money-rate-column /></label>}
-          {draft.rateSource === 'typed' && draft.rates.map((row, i) => (
-            <div key={i} className="money-rate-row">
-              <input dir="auto" aria-label="Currency code" value={row.code} onChange={(e) => setRate(i, { code: e.target.value })} data-money-rate-code />
-              <input dir="auto" aria-label="Rate in base currency" value={row.rate} onChange={(e) => setRate(i, { rate: e.target.value })} data-money-rate />
-              <button type="button" className="lnk" onClick={() => set({ rates: draft.rates.filter((_, at) => at !== i) })}>Remove</button>
-            </div>
-          ))}
-          {draft.rateSource === 'typed' && <button type="button" className="lnk" onClick={() => set({ rates: [...draft.rates, { code: '', rate: '' }] })} data-money-add-rate>Add a rate</button>}
-        </div>
-      )}
+      <MoneyRuleFields draft={draft} set={set} setRate={setRate} locked={BUILD_FIELDS} />
       <p className="muted">{LEFT_OUT}</p>
       {error && <PlainNote text={error} role="alert" data-money-error />}
       <button type="button" className="lnk" onClick={look} data-money-preview-button>Preview this rule</button>

@@ -400,3 +400,115 @@ def test_the_build_writes_the_spec_money_rule_into_the_page_as_its_default():
         text = handle.read()
     assert 'if (context.get(\\"spec\\") or {}).get(\\"money\\"):' in text
     assert 'page[\\"money\\"] = dict(context[\\"spec\\"][\\"money\\"])' in text
+
+
+def test_a_rate_table_converts_each_row_at_the_rate_for_its_currency_base_and_date():
+    global ROWS
+    saved = list(ROWS)
+    rate_page = dict(PAGE, money={"currency": "convert", "base": "USD", "rate_table": {
+        "table": "main.fx.fx_rates", "currency_column": "from_code", "base_column": "to_code", "date_column": "rate_date", "rate_column": "rate"}})
+    ROWS = [dict(r, event_month=CLOSED) for r in saved]
+    rates_sql = ("CREATE TABLE fx_rates (from_code TEXT, to_code TEXT, rate_date TEXT, rate REAL);"
+                 "INSERT INTO fx_rates VALUES ('AED','USD','2025-01-01',0.5),('USD','USD','2025-01-01',1.0)")
+    try:
+        db_rows = _run_with(rate_page, rates_sql)
+    finally:
+        ROWS = saved
+    assert shell_sql.kpi_values(db_rows)["now"] == 0.5 * 135.0 + 1.0 * 50.0
+
+
+def test_a_row_with_no_rate_is_left_out_of_the_total_and_counted_in_the_line():
+    rate_page = dict(PAGE, money={"currency": "convert", "base": "USD", "rate_table": {
+        "table": "main.fx.fx_rates", "currency_column": "from_code", "base_column": "to_code", "date_column": "rate_date", "rate_column": "rate"}})
+    rates_sql = "CREATE TABLE fx_rates (from_code TEXT, to_code TEXT, rate_date TEXT, rate REAL);INSERT INTO fx_rates VALUES ('AED','USD','2025-01-01',0.5)"
+    sql, _ = shell_sql.money_left_out(rate_page, rate_page["kpis"][0], {})
+    shown = shell_sql.left_out_text(_run_with(rate_page, rates_sql, sql))
+    assert shown["unrated"] == 1 and shown["text"].endswith("; 1 row has no rate"), shown
+
+
+def test_per_group_counts_each_group_once_with_its_largest_row():
+    grouped = dict(PAGE, money={"currency": "per_currency", "per": "group", "group_column": "channel"})
+    got = _run(shell_sql.kpi_query(grouped, "exposure", {})[0])
+    assert {(r["currency"], r["value"]) for r in got} == {("AED", 110.0)}, "web counts its largest row (AED 100) once, agent its one row (AED 10)"
+
+
+def test_off_reads_no_amount_for_the_money_totals():
+    off = dict(PAGE, money={"currency": "per_currency", "off": True})
+    shown = shell_sql.page_with_money(off, off["money"])
+    assert all(k["expression"] == "NULL" for k in shown["kpis"] if k["format"] == "currency")
+
+
+def test_a_dataset_that_ignores_a_status_or_the_losses_rule_fails_the_page_check():
+    ignores = dict(PAGE, money={"currency": "per_currency", "statuses": ["used"], "rule": "losses"})
+    problems = shell_sql.money_page_problems(ignores)
+    assert any("ignores the status 'used'" in p for p in problems)
+    assert any("does not count losses only" in p for p in problems)
+    kept = dict(PAGE, money={"currency": "per_currency", "statuses": ["used"]},
+                datasets=[{"name": "rows", "sql": "SELECT value_at_stake, currency_code, channel, event_month, fx_rate FROM stake_rows "
+                                                  "WHERE status = 'used' AND GREATEST(-value_at_stake, 0) >= 0"}])
+    assert shell_sql.money_page_problems(kept) == []
+    off = dict(PAGE, money={"currency": "per_currency", "off": True, "statuses": ["used"]})
+    assert shell_sql.money_page_problems(off) == []
+
+
+def _run_with(page, setup, sql=None):
+    db = sqlite3.connect(":memory:")
+    db.execute("CREATE TABLE stake_rows (value_at_stake REAL, currency_code TEXT, channel TEXT, event_month TEXT, fx_rate REAL)")
+    db.executemany("INSERT INTO stake_rows VALUES (?, ?, ?, ?, ?)",
+                   [(r["value_at_stake"], r["currency_code"], r["channel"], r["event_month"], r.get("fx_rate")) for r in ROWS])
+    for statement in [part for part in setup.split(";") if part.strip()]:
+        db.execute(statement)
+    if sql is None:
+        sql, _ = shell_sql.kpi_query(page, "exposure", {})
+    tree = sqlglot.parse_one(sql, read="databricks")
+    for table in tree.find_all(sqlglot.exp.Table):
+        table.set("catalog", None)
+        table.set("db", None)
+    text = re.sub(r"(TIMESTAMP_TRUNC|DATE_TRUNC)\(\s*(CURRENT_DATE\s*,\s*MONTH|'?MONTH'?\s*,\s*CURRENT_DATE)\s*\)",
+                   "date('now', 'start of month')", tree.sql(dialect="sqlite"), flags=re.I)
+    cursor = db.execute(text)
+    names = [c[0] for c in cursor.description]
+    return [dict(zip(names, row)) for row in cursor.fetchall()]
+
+
+def test_the_genie_dataset_brief_states_the_statuses_the_losses_rule_and_the_rate_table(agent_ns):
+    brief = agent_ns["implement_money_brief"]
+    text = brief({"currency": "per_currency", "statuses": ["used", "exchanged"], "rule": "losses"})
+    assert "'used', 'exchanged'" in text and "GREATEST(-effect, 0)" in text
+    assert "net: the signed effect" in brief({"currency": "per_currency", "rule": "net"})
+    assert "each group (channel) counts once" in brief({"currency": "per_currency", "per": "group", "group_column": "channel"})
+    assert "rate table" in brief({"currency": "convert", "base": "USD", "rate_table": {}})
+    assert brief({"currency": "per_currency", "off": True}) == "- money is off for this use case: write no money amount, KPI or chart.\n"
+    assert brief(None) == ""
+
+
+def test_off_gives_the_genie_split_no_money_answer_and_the_totals_no_amount(agent_ns):
+    off = dict(PAGE, money={"currency": "per_currency", "off": True})
+    assert all(k["expression"] == "NULL" for k in shell_sql.page_with_money(off, off["money"])["kpis"] if k["format"] == "currency")
+
+
+def test_a_save_cannot_change_a_build_level_money_field_and_keeps_the_built_ones(tmp_path):
+    import v141_app_shell_test as shell_harness
+    spec_money = {"currency": "per_currency", "rule": "net", "per": "group", "group_column": "channel"}
+    writes = []
+
+    class Capturing(shell_harness.ShapedWorkspace):
+        def run_sql(self, warehouse, sql, params, limit=5000):
+            if sql.lstrip().upper().startswith("INSERT INTO") and "_assumptions" in sql:
+                writes.append([p.get("value") for p in params])
+            return super().run_sql(warehouse, sql, params, limit)
+
+    ws = Capturing(lambda sql: None)
+    s = shell_harness.shell_core.Shell(shell_harness.app_dir(tmp_path, settings=_owned(), pages=[dict(_money_page(), money=spec_money)]),
+                                       env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws, user_factory=lambda h, t: ws)
+    headers = {"x-forwarded-email": "owner@example.com", "x-forwarded-access-token": "t"}
+    status, out = shell_harness.call(s, "POST", "money/rule", headers=headers,
+                                     body={"page": "n01_u05", "rule": {"currency": "per_currency", "statuses": ["open"]}})
+    assert status == 409 and "statuses needs a rebuild" in out["error"], out
+    assert writes == []
+    status, out = shell_harness.call(s, "POST", "money/rule", headers=headers,
+                                     body={"page": "n01_u05", "rule": {"currency": "convert", "base": "USD", "rates": {"AED": 0.5}}})
+    assert status == 200, out
+    import json as _json
+    saved = _json.loads(writes[0][-1])
+    assert (saved["per"], saved["group_column"], saved["rule"]) == ("group", "channel", "net"), "the built fields ride along with the owner's change"

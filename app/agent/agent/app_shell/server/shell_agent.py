@@ -1486,6 +1486,8 @@ class Agent:
         kpi = next((k for k in page.get("kpis") or [] if asked in (str(k.get("id") or "").casefold(), str(k.get("label") or "").casefold())), None)
         if kpi is None:
             raise ValueError(f"the page has no KPI {cut(args.get('kpi'), 80)}; its KPIs are {', '.join(str(k.get('label') or k.get('id')) for k in page.get('kpis') or [])}")
+        if shell_sql.money_off(page) and kpi.get("format") == "currency":
+            return {"unsupported": "money is off for this App, so it has no money answer"}
         values = self.view_values(page, job["view"])
         split = shell_sql.split_filter_named(page, kpi["dataset"], args.get("filter"))
         if split is None:

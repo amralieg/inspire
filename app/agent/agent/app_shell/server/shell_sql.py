@@ -737,6 +737,7 @@ def spec_problems(page: dict, stored=None) -> list:
     problems += _text_problem("the page", page.get("sponsor"), "sponsor", required=False)
     problems += _promised_problems(page.get("promised"))
     problems += money_rule_problems(page.get("money"))
+    problems += money_page_problems(page) if not money_rule_problems(page.get("money")) else []
     owned = inspire_part_problems(page)
     problems += owned
     if page.get("icon") not in ICONS:
@@ -2407,11 +2408,15 @@ MONEY_RULE_MODES = ("per_currency", "convert")
 MONEY_MAX_PERIODS = 60
 MONTHS_PER_PERIOD = {"month": 1, "quarter": 3, "year": 12}
 IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
+MONEY_TABLE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}$")
+MONEY_STATUS_RE = re.compile(r"^[A-Za-z0-9_ -]{1,40}$")
+MONEY_RULES = ("losses", "net")
+MONEY_PER = ("row", "group")
+MONEY_MAX_STATUSES = 20
 
 
 def money_rule_problems(money) -> list:
-    """The page's money rule, the same rules as the Inspire backend (app/backend/lib/moneyRule.js): per currency or converted,
-    converted at typed rates or one rate column, optionally over the last closed periods."""
+    """The money rule, the same rules as the Inspire backend (app/backend/lib/moneyRule.js), checked against one fixture."""
     if money is None:
         return []
     if not isinstance(money, dict):
@@ -2425,15 +2430,42 @@ def money_rule_problems(money) -> list:
         periods = window.get("periods") if isinstance(window, dict) else None
         if not isinstance(periods, int) or isinstance(periods, bool) or not 1 <= periods <= MONEY_MAX_PERIODS:
             problems.append(f"the money window counts 1 to {MONEY_MAX_PERIODS} closed periods")
+    if "statuses" in money:
+        statuses = money["statuses"]
+        if not isinstance(statuses, list) or not 1 <= len(statuses) <= MONEY_MAX_STATUSES:
+            problems.append(f"the statuses are a list of 1 to {MONEY_MAX_STATUSES} status values")
+        else:
+            problems += [f"the status {s!r} is a plain word such as used" for s in statuses
+                         if not isinstance(s, str) or not MONEY_STATUS_RE.match(s)]
+    if "rule" in money and money["rule"] not in MONEY_RULES:
+        problems.append(f"the money rule is one of {', '.join(MONEY_RULES)}")
+    if "off" in money and not isinstance(money["off"], bool):
+        problems.append("off is true or false")
+    per = money.get("per", "row")
+    if per not in MONEY_PER:
+        problems.append(f"per is one of {', '.join(MONEY_PER)}")
+    if per == "group" and not (isinstance(money.get("group_column"), str) and IDENT_RE.match(money["group_column"])):
+        problems.append("per group needs group_column, the plain column name that identifies each group")
     if mode == "per_currency":
         return problems
-    if "rate_column" in money and "rates" in money:
-        return problems + ["converting money takes typed rates or one rate column, not both"]
+    rate_keys = [k for k in ("rates", "rate_column", "rate_table") if k in money]
+    if len(rate_keys) > 1:
+        return problems + ["converting money takes typed rates, one rate column, or a rate table, not more than one"]
+    base = str(money.get("base") or "")
+    problems += [] if base in MONEY_CODES else [f"the money base currency is an ISO 4217 code such as USD, not {base or 'nothing'}"]
+    if "rate_table" in money:
+        table = money["rate_table"]
+        keys = ("table", "currency_column", "base_column", "date_column", "rate_column")
+        if not isinstance(table, dict) or not all(isinstance(table.get(k), str) for k in keys):
+            return problems + ["the rate table names its table and its columns: table, currency_column, base_column, date_column, rate_column"]
+        if not MONEY_TABLE_RE.match(table["table"]):
+            problems.append("the rate table is a table name such as main.fx.rates")
+        problems += [f"the rate table {k} is a plain column name" for k in keys[1:] if not IDENT_RE.match(table[k])]
+        return problems
     if "rate_column" in money:
         column = money.get("rate_column")
         return problems + ([] if isinstance(column, str) and IDENT_RE.match(column) else ["the rate column is a plain column name"])
-    base, rates = str(money.get("base") or ""), money.get("rates")
-    problems += [] if base in MONEY_CODES else [f"the money base currency is an ISO 4217 code such as USD, not {base or 'nothing'}"]
+    rates = money.get("rates")
     if not isinstance(rates, dict) or not rates:
         return problems + ["converting money needs at least one rate, typed in as currency: units of the base currency"]
     for code, rate in rates.items():
@@ -2442,7 +2474,8 @@ def money_rule_problems(money) -> list:
     return problems
 
 def money_scope(page: dict, dataset: str) -> dict:
-    """The one rule every money total follows: the currency column, the event period the rows are kept to, the window and any conversion."""
+    """The one rule every money total follows: the currency column, the period the rows are kept to, the window, the conversion,
+    and how each group is counted."""
     currency = next((column for f in page.get("filters") or [] if f.get("id") == CURRENCY_FILTER
                      for column in [(f.get("columns") or {}).get(dataset)] if column), "")
     period, grain = "", ""
@@ -2455,22 +2488,43 @@ def money_scope(page: dict, dataset: str) -> dict:
     convert = money.get("currency") == "convert"
     rates = money.get("rates") if convert and "rates" in money else None
     rate_column = money.get("rate_column") if convert and "rate_column" in money else None
+    rate_table = money.get("rate_table") if convert and "rate_table" in money else None
     window = (money.get("window") or {}).get("periods", 0)
-    return {"currency": "" if (rates or rate_column) else currency, "currency_column": currency, "period": period, "grain": grain,
-            "rates": rates or {}, "rate_column": rate_column or "", "base": str(money.get("base") or "") if convert else "",
-            "window": window if period else 0}
+    return {"currency": "" if (rates or rate_column or rate_table) else currency, "currency_column": currency, "period": period,
+            "grain": grain, "rates": rates or {}, "rate_column": rate_column or "", "rate_table": rate_table or {},
+            "base": str(money.get("base") or "") if convert else "", "window": window if period else 0,
+            "per_group": money.get("group_column") if money.get("per") == "group" else ""}
 
-def money_source(page: dict, dataset: str, sql: str) -> str:
-    """Rows a money total may add: a dated row in a period that has closed, in the window the rule sets, converted when the rule converts."""
+def money_joined(page: dict, dataset: str, sql: str) -> str:
+    """Every row of the dataset, with its converted amount in CONVERTED: no row is dropped here, so a row with no rate shows as NULL."""
     scope = money_scope(page, dataset)
-    inner = sql
     if scope["rates"]:
         cases = " ".join(f"WHEN {sql_text(code)} THEN {float(rate)!r}" for code, rate in sorted(scope["rates"].items()))
-        inner = (f"SELECT *, CAST(value_at_stake AS DOUBLE) * CASE {quote(scope['currency_column'])} {cases} ELSE NULL END AS {CONVERTED} "
-                 f"FROM ({sql}) AS c")
-    elif scope["rate_column"]:
-        inner = (f"SELECT *, CAST(value_at_stake AS DOUBLE) * CAST({quote(scope['rate_column'])} AS DOUBLE) AS {CONVERTED} "
-                 f"FROM ({sql}) AS c")
+        return (f"SELECT *, CAST(value_at_stake AS DOUBLE) * CASE {quote(scope['currency_column'])} {cases} ELSE NULL END AS {CONVERTED} "
+                f"FROM ({sql}) AS c")
+    if scope["rate_column"]:
+        return (f"SELECT *, CAST(value_at_stake AS DOUBLE) * CAST({quote(scope['rate_column'])} AS DOUBLE) AS {CONVERTED} "
+                f"FROM ({sql}) AS c")
+    if scope["rate_table"] and scope["period"]:
+        table = scope["rate_table"]
+        rates = (f"SELECT {quote(table['currency_column'])} AS from_code, {quote(table['base_column'])} AS to_code, "
+                 f"CAST({quote(table['date_column'])} AS DATE) AS rate_date, MAX(CAST({quote(table['rate_column'])} AS DOUBLE)) AS rate "
+                 f"FROM {table_name(table['table'])} GROUP BY 1, 2, 3")
+        return (f"SELECT c.*, CAST(c.value_at_stake AS DOUBLE) * r.rate AS {CONVERTED} FROM ({sql}) AS c LEFT JOIN ({rates}) AS r "
+                f"ON c.{quote(scope['currency_column'])} = r.from_code AND r.to_code = {sql_text(scope['base'])} "
+                f"AND CAST(c.{quote(scope['period'])} AS DATE) = r.rate_date")
+    return sql
+
+
+def money_source(page: dict, dataset: str, sql: str) -> str:
+    """Rows a money total may add: a dated row in a period that has closed, in the window the rule sets, converted when the rule converts,
+    and one row per group when the rule counts each group once."""
+    scope = money_scope(page, dataset)
+    inner = money_joined(page, dataset, sql) if (scope["rates"] or scope["rate_column"] or scope["rate_table"]) else sql
+    if scope["per_group"]:
+        amount = money_expression(page, dataset, MONEY_COLUMN)
+        inner = (f"SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY {quote(scope['per_group'])} "
+                 f"ORDER BY {amount} DESC NULLS LAST) AS _inspire_rank FROM ({inner}) AS g) AS ranked WHERE _inspire_rank = 1")
     if not scope["period"]:
         return inner
     column, grain = quote(scope["period"]), scope["grain"]
@@ -2482,34 +2536,31 @@ def money_source(page: dict, dataset: str, sql: str) -> str:
     return f"SELECT * FROM ({inner}) AS m WHERE {column} IS NOT NULL AND {closed}"
 
 def money_expression(page: dict, dataset: str, expression: str) -> str:
-    """A money expression reads the converted amount when the owner chose a rate, and the stake amount otherwise."""
+    """A money expression reads the converted amount when the rule converts, and the stake amount otherwise."""
     scope = money_scope(page, dataset)
-    if not (scope["rates"] or scope["rate_column"]):
+    if not (scope["rates"] or scope["rate_column"] or scope["rate_table"]):
         return expression
     return re.sub(r"\bvalue_at_stake\b", CONVERTED, expression)
 
-
 def money_left_out(page: dict, kpi: dict, values: dict):
-    """The query that counts the rows a money total leaves out: undated rows, the running period, and rows with no rate, under the active filters."""
-    scope = money_scope(page, kpi["dataset"])
-    if not scope["period"] and not scope["rates"]:
+    """The query that counts the rows a money total leaves out: undated rows, the running period, and rows with no rate,
+    under the active filters."""
+    dataset = kpi["dataset"]
+    scope = money_scope(page, dataset)
+    if not scope["period"] and not (scope["rates"] or scope["rate_column"] or scope["rate_table"]):
         return None
     params = _Params()
-    where = _where(page, kpi["dataset"], values, params)
+    where = _where(page, dataset, values, params)
+    source = money_joined(page, dataset, _dataset(page, dataset))
     cells = []
     if scope["period"]:
         column = quote(scope["period"])
         cells += [f"SUM(CASE WHEN {column} IS NULL THEN 1 ELSE 0 END) AS undated",
                   f"SUM(CASE WHEN {column} >= date_trunc('{scope['grain']}', current_date()) THEN 1 ELSE 0 END) AS running"]
-    if scope["rates"]:
-        codes = ", ".join(sql_text(code) for code in sorted(scope["rates"]))
-        currency = quote(scope["currency_column"])
-        cells.append(f"SUM(CASE WHEN {currency} IS NULL OR {currency} NOT IN ({codes}) THEN 1 ELSE 0 END) AS unrated")
-    elif scope["rate_column"]:
-        cells.append(f"SUM(CASE WHEN {quote(scope['rate_column'])} IS NULL THEN 1 ELSE 0 END) AS unrated")
-    text = f"SELECT {', '.join(cells)} FROM ({_dataset(page, kpi['dataset'])}) AS d{where}"
+    if scope["rates"] or scope["rate_column"] or scope["rate_table"]:
+        cells.append(f"SUM(CASE WHEN {CONVERTED} IS NULL THEN 1 ELSE 0 END) AS unrated")
+    text = f"SELECT {', '.join(cells)} FROM ({source}) AS d{where}"
     return f"{text} LIMIT 1", params.items
-
 
 def counted(n: int, noun: str) -> str:
     return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
@@ -2527,6 +2578,7 @@ def left_out_text(rows) -> dict:
 
 
 MONEY_RULE_NAME = "money_rule"
+MONEY_BUILD_KEYS = ("statuses", "rule", "rate_table", "per", "group_column")
 
 
 def saved_money_rule(rows) -> dict:
@@ -2543,16 +2595,27 @@ def saved_money_rule(rows) -> dict:
 
 
 def money_rule_clean(rule: dict) -> dict:
-    if (rule.get("currency") or "per_currency") == "per_currency":
-        clean = {"currency": "per_currency"}
-    elif "rate_column" in rule:
-        clean = {"currency": "convert", "base": str(rule.get("base") or ""), "rate_column": rule["rate_column"]}
-    else:
-        clean = {"currency": "convert", "base": str(rule.get("base") or ""),
-                 "rates": {str(code): float(value) for code, value in sorted(rule["rates"].items())}}
+    out = {"currency": rule.get("currency") or "per_currency"}
+    if out["currency"] == "convert":
+        out["base"] = str(rule.get("base") or "")
+        if "rate_table" in rule:
+            out["rate_table"] = dict(rule["rate_table"])
+        elif "rate_column" in rule:
+            out["rate_column"] = rule["rate_column"]
+        else:
+            out["rates"] = {str(code): float(value) for code, value in sorted(rule["rates"].items())}
     if rule.get("window"):
-        clean["window"] = {"periods": int(rule["window"]["periods"])}
-    return clean
+        out["window"] = {"periods": int(rule["window"]["periods"])}
+    if "statuses" in rule:
+        out["statuses"] = list(rule["statuses"])
+    if rule.get("rule", "losses") != "losses":
+        out["rule"] = rule["rule"]
+    if rule.get("off") is True:
+        out["off"] = True
+    if rule.get("per") == "group":
+        out["per"] = "group"
+        out["group_column"] = rule["group_column"]
+    return out
 
 def money_rule_of(page: dict) -> dict:
     """The rule a page's money totals use now: the owner's or the spec's, per currency when none is set."""
@@ -2561,8 +2624,14 @@ def money_rule_of(page: dict) -> dict:
 
 
 def page_with_money(page: dict, rule) -> dict:
-    """The page as this request reads it: the owner's saved money rule when one is saved, the spec's rule otherwise."""
-    return dict(page, money=rule) if rule else page
+    """The page as this request reads it: the owner's saved money rule when one is saved, the spec's rule otherwise. Off, the money
+    totals read no amount at all."""
+    out = dict(page, money=rule) if rule else page
+    if money_off(out):
+        out = dict(out, kpis=[dict(k, expression="NULL") if k.get("format") == "currency" else k for k in out.get("kpis") or []],
+                   charts=[dict(c, y=[dict(y, expression="NULL") if y.get("format") == "currency" else y for y in c.get("y") or []])
+                           for c in out.get("charts") or []])
+    return out
 
 
 def page_has_money(page: dict) -> bool:
@@ -2577,6 +2646,32 @@ def money_top_query(page: dict, kpi: dict, limit: int = 5) -> tuple:
     source = money_source(page, kpi["dataset"], _dataset(page, kpi["dataset"]))
     cur = f", {quote(currency)} AS currency" if currency else ""
     return f"SELECT {money} AS amount{cur} FROM ({source}) AS t ORDER BY amount DESC NULLS LAST LIMIT {int(limit)}", []
+
+
+def money_off(page: dict) -> bool:
+    money = page.get("money") if isinstance(page.get("money"), dict) else {}
+    return money.get("off") is True
+
+
+def money_page_problems(page: dict) -> list:
+    """The money rule against the page's own datasets: a rate table needs a dated dataset, and the statuses and the
+    losses rule must reach the dataset SQL, not be ignored."""
+    problems = []
+    if not isinstance(page.get("money"), dict) or money_off(page):
+        return problems
+    money = page["money"]
+    datasets = {k.get("dataset") for k in page.get("kpis") or [] if k.get("format") == "currency"} | {
+        c.get("dataset") for c in page.get("charts") or [] if any(y.get("format") == "currency" for y in c.get("y") or [])}
+    for name in sorted(d for d in datasets if d):
+        sql = _dataset(page, name)
+        if "rate_table" in money and not money_scope(page, name)["period"]:
+            problems.append(f"the money rate table joins on a date, so the {name} dataset needs a date filter by month or day")
+        for status in money.get("statuses") or []:
+            if f"'{status}'" not in sql:
+                problems.append(f"the {name} dataset ignores the status {status!r}; its SQL must keep rows whose status is {status!r}")
+        if money.get("rule", "losses") == "losses" and "greatest(" not in sql.lower():
+            problems.append(f"the {name} dataset does not count losses only; its SQL must net each loss at zero, as GREATEST(-effect, 0)")
+    return problems
 
 
 def money_basis(page: dict) -> str:
