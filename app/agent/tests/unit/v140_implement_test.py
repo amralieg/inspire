@@ -1080,7 +1080,7 @@ def test_a_build_cut_off_by_the_time_limit_is_sent_back_as_no_result_not_as_miss
 LIVE_DENIAL = ("RestException: PERMISSION_DENIED: Principal 'app-x inspire-ai-implement' does not have CREATE MODEL on Schema "
                "'main.inspire'.")
 LIVE_GRANT = ("app-x inspire-ai-implement does not have CREATE MODEL on schema main.inspire, and no change to the notebook can grant "
-              "it: grant CREATE MODEL on schema main.inspire to app-x inspire-ai-implement, then build again")
+              "it: grant CREATE MODEL on schema main.inspire to app-x inspire-ai-implement, then start the build once more")
 
 
 def test_a_preview_denied_a_privilege_on_what_the_use_case_owns_stops_with_the_grant_and_is_not_sent_back(agent_ns):
@@ -1120,7 +1120,7 @@ def test_a_privilege_denial_names_the_grant_only_for_what_the_use_case_owns(agen
     assert denial(LIVE_DENIAL, owned) == LIVE_GRANT
     assert denial("PERMISSION_DENIED: User does not have USE CATALOG on Catalog 'samples'.", owned) == (
         "the run identity does not have USE CATALOG on catalog samples, and no change to the notebook can grant it: grant USE CATALOG "
-        "on catalog samples to the run identity, then build again")
+        "on catalog samples to the run identity, then start the build once more")
     assert denial("[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have permission SELECT on table "
                   "`main`.`s`.`orders_v2`.", owned).startswith("the run identity does not have SELECT on table main.s.orders_v2, ")
     assert denial("PERMISSION_DENIED: does not have MODIFY on Table 'MAIN.Inspire.churn_out'", owned).startswith(
@@ -3302,36 +3302,22 @@ def test_a_new_app_that_could_not_read_its_table_is_refused_before_anything_is_c
     assert _not_access_reads(inst.spark.statements) == []
 
 
-def test_an_existing_app_whose_service_principal_cannot_read_its_tables_is_deployed_and_names_every_grant(agent_ns, sdk_stub):
+def test_an_app_whose_service_principal_cannot_read_its_tables_is_not_published_and_names_every_grant(agent_ns, sdk_stub):
     inst, context, calls, imported = _deploy_inspire(agent_ns, [
         {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2"},
         {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}], LIVE_ACCESS)
-    fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
-    assert fields["app_url"] == "https://churn-desk.example", "a read Inspire cannot grant never stops the build"
-    result = [GRANT_CATALOG.format("sp-2"), GRANT_SCHEMA.format("sp-2")]
-    orders = [GRANT_CATALOG.format("sp-2"), "GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `sp-2`"]
-    reported = [w for w in fields["_warnings"] if w.startswith("App: people cannot report issues")]
-    assert len(reported) == 1 and reported[0].startswith("App: people cannot report issues about this use case from the App until its service principal sp-2")
-    assert reported[0].endswith(f"{GRANT_CATALOG.format('sp-2')}; {GRANT_SCHEMA.format('sp-2')}")
-    assert [w for w in fields["_warnings"] if w not in reported] == [
-        "App: its service principal sp-2 cannot read main.inspire.churn_out and main.s.orders, so the tiles that query them show no data "
-        "and name the grants they need, and Inspire could not grant them itself: for main.inspire.churn_out, ask amr@x to "
-        f"run: {'; '.join(result)}; for main.s.orders, ask amr@x to run: {'; '.join(orders)}"]
-    settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
-    assert settings["unread"] == {ACCESS_TABLE: result, "main.s.orders": orders}, "the App's tiles name the exact grants"
-    assert settings["unread_owners"] == {ACCESS_TABLE: "amr@x", "main.s.orders": "amr@x"}, "the App's banner names who can grant"
-    assert fields["_asset"]["unread"] == {"app": "sp-2", "tables": [{"table": ACCESS_TABLE, "owner": "amr@x", "grants": result},
-                                                                     {"table": "main.s.orders", "owner": "amr@x", "grants": orders}]}, \
-        "the build records what the App cannot read, so the Build page asks for the grant instead of saying Done"
-    assert ("POST", "/api/2.0/apps/churn-desk/deployments") in [c[:2] for c in calls]
-    assert inst.tagged == ["churn-desk"]
-
-
-def test_a_read_grant_the_platform_refuses_is_a_warning_with_the_exact_grant_and_the_app_still_ships(agent_ns, sdk_stub):
+    with pytest.raises(agent_ns["ImplementBlocked"]) as blocked:
+        inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
+    message = str(blocked.value)
+    assert message.startswith("the App was not published, because its service principal sp-2 cannot read main.inspire.churn_out and main.s.orders")
+    assert f"for main.s.orders, ask amr@x to run: {'; '.join([GRANT_CATALOG.format('sp-2'), 'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `sp-2`'])}" in message
+    assert not any(c[:2] == ("POST", "/api/2.0/apps/churn-desk/deployments") for c in calls), "nothing is deployed when a source is unreadable"
+def test_a_read_grant_the_platform_refuses_stops_the_publish_and_names_the_exact_grant(agent_ns, sdk_stub):
     inst, context, calls, imported = _deploy_inspire(agent_ns, [
         RuntimeError("RESOURCE_DOES_NOT_EXIST: app churn-desk"),
         {"compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-1"},
-        {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}])
+        {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"},
+        {"compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-1"}, {}, {}, {}, {}])
     context["spec"]["outputs"]["app_options"]["decisions"] = False
 
     def respond(statement):
@@ -3342,19 +3328,14 @@ def test_a_read_grant_the_platform_refuses_is_a_warning_with_the_exact_grant_and
         return None
 
     inst.spark = FakeSpark(responder=respond)
-    fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
-    assert fields["app_url"] == "https://churn-desk.example"
-    [warning] = fields["_warnings"]
-    assert warning.startswith("App: its service principal sp-1 cannot read main.s.orders, so the tiles that query it show no data")
-    assert (f"for main.s.orders ({GRANT_ORDERS.format('sp-1')} failed: PERMISSION_DENIED: User does not have MANAGE on Table "
-            f"'main.s.orders'), ask inspire-sp to run: {GRANT_ORDERS.format('sp-1')}") in warning
-    assert "main.inspire.churn_out" not in warning, "a table whose grant ran is not named (must-exclude)"
-    settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
-    assert settings == {"unread": {"main.s.orders": [GRANT_ORDERS.format("sp-1")]}, "unread_owners": {"main.s.orders": "inspire-sp"}}
-    assert fields["_asset"]["unread"]["tables"] == [{"table": "main.s.orders", "owner": "inspire-sp", "grants": [GRANT_ORDERS.format("sp-1")]}]
-    assert GRANT_SELECT.format("sp-1") in inst.spark.statements
-
-
+    with pytest.raises(agent_ns["ImplementBlocked"]) as blocked:
+        inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
+    message = str(blocked.value)
+    assert message.startswith("the App was not published, because its service principal sp-1 cannot read main.s.orders")
+    assert f"for main.s.orders ({GRANT_ORDERS.format('sp-1')} failed: PERMISSION_DENIED" in message
+    assert f"ask inspire-sp to run: {GRANT_ORDERS.format('sp-1')}" in message
+    assert "main.inspire.churn_out" not in message, "a table whose grant ran is not named (must-exclude)"
+    assert ("POST", "/api/2.0/apps/churn-desk/deployments") not in [c[:2] for c in calls], "a App that cannot read its sources is never deployed"
 def test_an_existing_app_whose_service_principal_reads_through_a_group_is_redeployed(agent_ns, sdk_stub):
     inst, context, calls, imported = _deploy_inspire(agent_ns, [
         {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2"},
