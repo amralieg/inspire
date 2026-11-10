@@ -77,11 +77,8 @@ test('an unrequested change holds the version with the agent reason, never goes 
   assert.deepEqual(P.notMetAsks(list).map((e) => e.requirement), MIXED.unmet.map((e) => e.requirement), 'what holds the version is what the agent holds it for');
   assert.deepEqual(P.missedAsks(list).map((e) => e.requirement), MIXED.unmet.map((e) => e.requirement));
   assert.deepEqual(P.rephrasableAsks(list), []);
-  assert.deepEqual(C.rephraseOf(list, latest), { text: '', replaces: [] });
   const held = C.heldVersion(latest, [{ spec_version: 3, status: 'ready' }, latest]);
   assert.deepEqual([held.version, held.before, held.reason], [4, 3, MIXED.held_reason]);
-  const asked = { ...list, entries: [...list.entries, { ...list.entries[1], unrequested: false, requirement: 'Make the tier chart blue' }] };
-  assert.equal(C.rephraseOf(asked, latest).text, 'Make the tier chart blue', 'an ask that was not met still goes back in the vibe box');
 });
 
 const PLAN = {

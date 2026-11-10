@@ -99,36 +99,14 @@ test('a held version names the live version before it, or that nothing is live y
   const held = C.heldVersion(row, [row, built(4), built(3, 'failed')]);
   assert.deepEqual(held, { version: 5, before: 4, parts: ['Genie Agent', 'Decisions page'], reason: 'Genie could not answer in euros' });
   assert.equal(P.checklistHeadline(P.vibeChecklist(null, row)), '1 of 5 vibe requirements met');
-  assert.equal(C.heldPartsText(held), 'Held: the Genie Agent and the Decisions page.');
-  assert.equal(C.publishHeldText(held), 'Inspire puts the Genie Agent and Decisions page of v5 live in place of v4, with no Genie round, and marks each ask above as published anyway by you.');
   const first = C.heldVersion({ ...row, spec_version: 1, asset_status: {} }, [{ ...row, spec_version: 1 }]);
   assert.deepEqual(first, { version: 1, before: null, parts: [], reason: '' });
-  assert.equal(C.heldPartsText(first), '');
-  assert.equal(C.publishHeldText(first), 'Inspire puts v1 live for the first time, with no Genie round, and marks each ask above as published anyway by you.');
   assert.equal(C.heldVersion(row, [row, built(4, 'uninstalled'), built(3)]).before, null, 'after Uninstall all nothing is live');
   for (const status of ['ready', 'ready_with_warnings', 'failed', 'queued', 'uninstalled', '']) {
     assert.equal(C.heldVersion({ ...row, status }, [row]), null, `${status || 'no status'} is not held`);
   }
 });
 
-test('Rephrase carries exactly the not met asks, and takes each out of the part or the vibe that held it only when new words replace it', async () => {
-  const C = await lib('implementControl.js');
-  const P = await lib('mvpProgress.js');
-  const row = heldRow();
-  const list = P.vibeChecklist(null, row);
-  const out = C.rephraseOf(list, row);
-  assert.equal(out.text, 'Answer in euros\nA map by region\nCount returns by week', 'the met ask and the entry with no words are left out');
-  assert.deepEqual(out.replaces, [
-    { id: 'genie_space', label: 'Genie Agent', text: 'Answer in euros' },
-    { id: C.MVP_VIBES_ID, label: 'vibe of v5', text: 'A map by region' },
-  ], 'an ask a part holds is taken out of the part, one only the vibe holds out of the vibe, and one nothing holds needs no taking out');
-  assert.deepEqual(C.rephrasedAsk('Answer in euros, rounded\nA map by region', out.replaces), [out.replaces[0]], 'words kept as they were are not taken out');
-  const twice = P.vibeChecklist(null, { ...row, asset_status: { checklist: [...ENTRIES.slice(1, 2), { ...ENTRIES[1], n: 7, part: 'dashboard' }] } });
-  assert.equal(C.rephraseOf(twice, row).text, 'Answer in euros', 'the same words on two parts are one line');
-  const anyway = P.vibeChecklist(null, { ...row, asset_status: { checklist: [{ ...ENTRIES[1], published_anyway: { by: WHO, at: '' } }] } });
-  assert.deepEqual(C.rephraseOf(anyway, row), { text: '', replaces: [] }, 'an ask published anyway is not rephrased');
-  assert.deepEqual(C.rephraseOf(null, row), { text: '', replaces: [] });
-});
 
 test('the next spec takes a rephrased ask out of the part and the held vibe, drops an emptied vibe, and reports an ask nothing holds', async () => {
   const W = await lib('implementWizard.js');

@@ -2,7 +2,6 @@ import { AlertTriangle, ListChecks, Loader2, PenLine, Pencil, RotateCcw, Send, U
 import {
   checklistHeadline, checklistPlace, checklistState, checklistStatusText, missedAsks, notMetAsks, publishedAnywayText, rephrasableAsks,
 } from '../lib/mvpProgress';
-import { heldPartsText } from '../lib/implementControl';
 import { VIBE_FEATURES_LABEL, heldNoReasonText } from '../lib/implementWizard';
 
 const OUTLINE_BUTTON = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
@@ -116,37 +115,3 @@ export default function VibeChecklist({ checklist, assets = {}, compact = false,
   );
 }
 
-export function HeldVersion({ held, checklist, readOnly, locked, lockedReason = '', busy = '', onRephrase, onTryAgain }) {
-  const open = notMetAsks(checklist);
-  const missed = missedAsks(checklist);
-  const rephrasable = rephrasableAsks(checklist);
-  const unchecked = open.length - missed.length;
-  const parts = heldPartsText(held);
-  return (
-    <section aria-label={`v${held.version} is held`} data-held-version={held.version} className="rounded-lg border border-warning/40 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
-      <div className="flex items-start gap-2.5">
-        <AlertTriangle size={16} className="mt-px shrink-0 text-warning-fg" aria-hidden />
-        <div className="min-w-0 space-y-0.5 text-warning-fg">
-          <p className="text-[13px] font-semibold">v{held.version} is held</p>
-          {held.reason ? <p data-held-reason="">{sentence(held.reason)}</p>
-            : <p role="alert" data-held-error="" className="font-semibold text-error-fg">{sentence(heldNoReasonText(held.version))}</p>}
-          {parts && <p data-held-parts="">{parts}</p>}
-        </div>
-      </div>
-      {!readOnly && (
-        <>
-          <div className="flex flex-wrap gap-2">
-            {rephrasable.some((entry) => entry.requirement) && (
-              <button type="button" onClick={onRephrase} className={OUTLINE_BUTTON}>
-                <PenLine size={12} /> Rephrase
-              </button>
-            )}
-            <button type="button" disabled={locked} title={lockedReason || undefined} onClick={onTryAgain} className={PRIMARY_BUTTON}>
-              {busy === 'retry' ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Try again
-            </button>
-          </div>
-        </>
-      )}
-    </section>
-  );
-}

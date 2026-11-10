@@ -39,7 +39,6 @@ test('a version whose asks were not decided is no held version and has nothing t
   const P = await lib('mvpProgress.js');
   for (const c of FIXTURE.cases) {
     assert.equal(C.heldVersion(row(c), []), null);
-    assert.deepEqual(C.rephraseOf(P.vibeChecklist(null, row(c)), row(c)), { text: '', replaces: [] });
   }
   const mixed = P.vibeChecklist(null, { spec_version: 3, asset_status: { checklist: [...FIXTURE.cases[2].entries, { n: 2, requirement: 'Weekly bars', status: 'not_met', evidence: 'daily bars' }] } });
   assert.deepEqual([mixed.total, mixed.missed, mixed.notDecided], [1, 1, 1], 'an ask Genie missed still counts and is still missed beside one not decided');

@@ -1175,12 +1175,9 @@ function withStoredLeaves(base, stored) {
   return Object.fromEntries([...new Set([...Object.keys(base), ...Object.keys(stored)])].map((key) => [key, withStoredLeaves(base[key], stored[key])]));
 }
 
-export function specFromHeld(held, { publish = false } = {}) {
+export function specFromHeld(held) {
   if (held?.status !== IMPLEMENT_VIBE_NOT_MET || !isSpecMap(held.spec_json)) return null;
-  const stored = structuredClone(held.spec_json);
-  if (!publish) return stored;
-  const version = Number(held.spec_version);
-  return { ...stored, publish_held: version, based_on_version: version };
+  return structuredClone(held.spec_json);
 }
 
 function idAppNameOf(id) {

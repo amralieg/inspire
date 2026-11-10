@@ -580,23 +580,3 @@ test('an ask the agent sent to another part than the one it names says on that p
   }
 });
 
-test('a held version the agent recorded with no reason shows that as an error the person can act on, and fills nothing in for it', async () => {
-  const held = versionRow(2, { status: 'vibe_not_met', assets: { ...LIVE_ASSETS, dashboard: ready(1), app: ready(1), held: { parts: ['dashboard'] } } });
-  const ui = await openVibes({ ...STATE, history: [held, HISTORY[2]] });
-  const { page } = ui;
-  try {
-    const box = page.getByRole('region', { name: 'v2 is held', exact: true });
-    await box.waitFor({ timeout: 15000 });
-    const error = box.locator('[data-held-error]');
-    const words = 'Inspire held v2 but wrote no reason, so this page cannot say what was not met or what stays live: press Try again to build it again';
-    assert.deepEqual([await error.getAttribute('role'), await error.textContent()], ['alert', `${words}.`]);
-    assert.deepEqual(await Promise.all(['[data-held-reason]', '[data-held-text]', '[data-held-next]'].map((s) => box.locator(s).count())), [0, 0, 0],
-      'no App words stand in for the reason');
-    assert.equal(await box.getByRole('button', { name: 'Try again', exact: true }).count(), 1, 'the action the error names is there');
-    const progress = await page.locator('[data-mvp-progress]').textContent();
-    assert.ok(progress.includes(words) && !progress.includes('Vibes not met, not published'), progress);
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});

@@ -49,7 +49,6 @@ test('a refused settings change is its own kind on the checklist: never a vibe a
         assert.deepEqual([P.checklistState(entry), P.checklistStatusText(entry), entry.evidence], ['refused', 'Settings change refused', row.refusal], where);
       }
       assert.deepEqual([P.missedAsks(checklist), P.notMetAsks(checklist)], [[], []], `${where}: nothing to rephrase or publish anyway`);
-      assert.deepEqual(C.rephraseOf(checklist, latest), { text: '', replaces: [] }, where);
     }
   }
 });

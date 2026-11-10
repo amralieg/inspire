@@ -6,7 +6,7 @@ import {
 import {
   statusChip, statusReason, statusDetails, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
   runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
-  vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
+  vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
   unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices, abacGrantText, liveSourceNow, liveProtection, liveReads,
@@ -31,7 +31,7 @@ import GenieLogo from '../components/GenieLogo';
 import DrawerShell from '../components/DrawerShell';
 import VibeFeatures from '../components/VibeFeatures';
 import ReportedIssues, { useReportedIssues } from '../components/ReportedIssues';
-import VibeChecklist, { HeldVersion } from '../components/VibeChecklist';
+import VibeChecklist from '../components/VibeChecklist';
 import TabStrip, { tabPanel } from '../components/TabStrip';
 import { Counter, CounterDivider, IconChip, PANEL_CLASS, SectionTitle } from '../components/BuildUi';
 import { catalogRow } from '../lib/useCaseFacets';
@@ -39,7 +39,7 @@ import { fieldOf } from '../lib/useCaseFields';
 import {
   ASSET_TILES, CONTROL_REFRESH_MS, REBUILD_NOTHING, appUpdateChanges, assetFilterCounts, assetGroups, assetUninstall, buildSummary, checksSummary, collectAsk,
   collectRemoval, collectedScope, controlRows, controlTiles, deliveredOutputs, dropCollected, filterByAsset, filterByMvp, heldVersion, keptVersions,
-  loadCollectedVibes, missingAsks, rebuildSpec, rebuildingText, rephraseOf, rephrasedAsk, removeChanges, removeKeptChanges, rollbackChanges, rollingBackText,
+  loadCollectedVibes, missingAsks, notDoneLines, rebuildSpec, rebuildingText, rephrasedAsk, removeChanges, removeKeptChanges, rollbackChanges, rollingBackText,
   saveCollectedVibes, statusWarnings, tryAgainChanges, uninstallChanges, vibeCards, vibeFeaturesLabel,
 } from '../lib/implementControl';
 import {
@@ -807,8 +807,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   if (collected.at !== refreshKey) setCollected({ at: refreshKey, entries: loadCollectedVibes(collectedKey) });
   const vibes = collected.entries;
   const [collectError, setCollectError] = useState('');
-  const [heldBusy, setHeldBusy] = useState('');
-  const lastStatus = useRef(null);
+    const lastStatus = useRef(null);
 
   const [arrivals, setArrivals] = useState(null);
 
@@ -1066,14 +1065,6 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const checklist = useMemo(() => vibeChecklist(status?.steps, latest), [status?.steps, latest]);
   const held = heldVersion(latest, status?.history ?? null);
   const progressView = useProgressView(useCaseId, Boolean(held) || Boolean(checklist?.notDecided));
-  const heldAction = (kind, run) => async () => {
-    setHeldBusy(kind);
-    const ok = await run();
-    setHeldBusy('');
-    return ok;
-  };
-  const rephraseHeld = () => openFeatures(rephraseOf(checklist, latest));
-  const tryHeldAgain = heldAction('retry', () => submitChecked(specFromHeld(latest)));
   const alertAsset = latest?.asset_status?.alert || {};
   const notebookState = uninstalled ? item.notebook || null : item.notebook || (vibeTargets.some((c) => c.id === 'notebook') ? notebookStatus({ has_genie_code: 'Y' }, null) : null);
   const notebook = notebookState && {
@@ -1549,6 +1540,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
               <div>v{entry.spec_version} · {historyStatus(entry, latest, stalled)} · {isAppUpdate(history, entry) ? APP_UPDATED_TEXT : entry.change_classes || 'initial'}</div>
               <div className="text-text-secondary">{entry.created_by} · {entry.updated_at}</div>
               <VibeChecklist compact checklist={vibeChecklist(null, entry)} assets={entry.asset_status} />
+              {notDoneLines(entry).map((line) => <p key={line} data-not-done-line="" className="text-error-fg">{line}</p>)}
             </div>
           ))}
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary pt-2">Job runs</div>
@@ -1718,10 +1710,6 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
             {submitBusy ? <Loader2 size={12} className="animate-spin" /> : <RotateCcw size={12} />} Rebuild and overwrite the edits
           </button>
         </div>
-      )}
-      {held && (
-        <HeldVersion held={held} checklist={checklist} readOnly={readOnly} locked={locked} lockedReason={lockedReason}
-          busy={heldBusy} onRephrase={rephraseHeld} onTryAgain={tryHeldAgain} />
       )}
     </>
   );

@@ -622,37 +622,16 @@ export function heldVersion(latest, history) {
   };
 }
 
-export function heldPartsText(held) {
-  return held.parts.length ? `Held: ${joinWords(held.parts.map((label) => `the ${label}`))}.` : '';
-}
-
-export function rephraseOf(checklist, latest) {
-  const spec = latest?.spec_json || {};
-  const assets = isMap(latest?.asset_status) ? latest.asset_status : {};
-  const lines = [];
-  const replaces = [];
-  const holds = (text, words) => heldAsks(text).some((ask) => sameText(ask, words));
-  for (const entry of rephrasableAsks(checklist)) {
-    const words = entry.requirement;
-    if (!words) continue;
-    if (!lines.some((line) => sameText(line, words))) lines.push(words);
-    const inPart = entry.part && partAsks(spec, entry.part).some((ask) => sameText(ask, words));
-    const out = inPart ? { id: entry.part, label: partLabel(entry.part, assetName(assets, entry.part), rowImpact(latest)) }
-      : holds(spec.vibes, words) ? { id: MVP_VIBES_ID, label: `vibe of v${latest.spec_version}` } : null;
-    if (out && !replaces.some((r) => r.id === out.id && sameText(r.text, words))) replaces.push({ ...out, text: words });
-  }
-  return { text: lines.join('\n'), replaces };
+export function notDoneLines(entry) {
+  const checklist = Array.isArray(entry?.asset_status?.checklist) ? entry.asset_status.checklist : [];
+  return checklist
+    .filter((item) => item && item.status === 'not_met')
+    .map((item) => `Not done in v${entry.spec_version}: ${item.requirement || `Requirement ${item.n}`}, ${item.fact || item.evidence || 'no reason was recorded'}`);
 }
 
 export function rephrasedAsk(text, replaces) {
   const kept = heldAsks(text);
   return (replaces || []).filter((r) => !kept.some((line) => sameText(line, r.text)));
-}
-
-export function publishHeldText(held) {
-  const what = held.parts.length ? `the ${joinWords(held.parts)} of v${held.version}` : `v${held.version}`;
-  const place = held.before === undefined ? '' : held.before ? ` in place of v${held.before}` : ' for the first time';
-  return `Inspire puts ${what} live${place}, with no Genie round, and marks each ask above as published anyway by you.`;
 }
 
 export const COLLECTED_VIBES_KEY = 'inspire.collected_vibes.v1';
