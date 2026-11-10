@@ -11,7 +11,7 @@ QUARTERLY = "0 0 6 1 1,4,7,10 ?"
 
 @pytest.mark.parametrize("schedule, cadence, expected", [
     ({"cron": DAILY}, QUARTERLY, DAILY),
-    ({"cron": DAILY, "enabled": False}, QUARTERLY, DAILY),
+    ({"cron": DAILY, "enabled": False}, QUARTERLY, ""),
     ({}, QUARTERLY, QUARTERLY),
     (None, QUARTERLY, QUARTERLY),
     ({"cron": ""}, "", ""),
@@ -49,3 +49,11 @@ def test_a_wizard_weekly_schedule_reaches_the_baked_run_and_the_job_launch(agent
     _inst, _uc, nb = _notebook(agent_ns, "Classification", _implement_schedule=wizard)
     assert "'schedule_cron': '0 0 6 ? * MON'" in _text(nb["cells"][-1]), "the baked run carries the wizard's cron"
     assert agent_ns["implement_schedule_cron"](wizard, "0 0 6 1 1,4,7,10 ?") == "0 0 6 ? * MON", "the job launch reads the same value"
+
+
+def test_a_schedule_the_user_turned_off_bakes_no_cron_so_no_later_run_can_re_enable_it(agent_ns):
+    from v130_genie_run_controls_test import _notebook, _text
+    off = {"enabled": False, "cron": DAILY, "timezone": "UTC", "failure_emails": []}
+    _inst, _uc, nb = _notebook(agent_ns, "Classification", _implement_schedule=off)
+    assert "'schedule_cron': ''" in _text(nb["cells"][-1])
+    assert agent_ns["implement_schedule_cron"](off, QUARTERLY) == ""
