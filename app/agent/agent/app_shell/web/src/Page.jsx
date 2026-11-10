@@ -17,7 +17,7 @@ import { genieOn } from './genieAsk.js';
 import PageLink, { usePageAddress } from './PageLink.jsx';
 import { FreshBar, FreshDetail, runCounts, useFreshness, useRuns, useTrends } from './Freshness.jsx';
 import { backendText, dataThroughText, lastRunText, latestRunText } from './freshness.js';
-import SettingsPanel, { SettingGroup, useSettings } from './Settings.jsx';
+import SettingsPanel, { SettingGroup, TargetRow, useSettings } from './Settings.jsx';
 import { paletteItems } from './Palette.jsx';
 import { AdminLink } from './Admin.jsx';
 import { FoldScope, useMyView } from './MyView.jsx';
@@ -259,7 +259,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const colors = paletteItems(chrome?.palette, chrome?.built, chrome?.theme, chrome?.onPalette || (() => {}));
   const promised = promisedView(page);
   const kpiRun = summary?.run;
-  const kpiTarget = settings?.settings?.find((s) => s.name === KPI_TARGET)?.value ?? '';
+  const kpiTargetSetting = settings?.settings?.find((s) => s.name === KPI_TARGET);
+  const kpiTarget = kpiTargetSetting?.value ?? '';
   const kpiGapLine = kpiRun?.kpi_name ? `${kpiRun.kpi_name}: ${kpiGapText(kpiGap({ latest: kpiRun.kpi_latest, target: kpiTarget, direction: kpiRun.kpi_direction }), kpiRun.kpi_unit)}` : '';
   const reporting = !!page.history;
   const report = { section: shown, filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
@@ -368,7 +369,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
             )}
           </SettingGroup>
           <SettingGroup id="measurement" title="Measurement" why="How the value of this use case is measured, the target it should reach and how each number is worked out.">
-            {kpiGapLine && <p data-kpi-gap>{kpiGapLine}. The target is set in How the impact is worked out.</p>}
+            {kpiGapLine && <p data-kpi-gap>{kpiGapLine}.</p>}
+            <TargetRow pageId={page.id} setting={kpiTargetSetting} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} />
             {promised?.estimate && <p data-measure-estimate>{promised.estimate}</p>}
             {promised?.value && <p>{promised.value}</p>}
             {promised?.benefits.length > 0 && <ul>{promised.benefits.map((b) => <li key={b}>{b}</li>)}</ul>}

@@ -197,7 +197,8 @@ export function Failure({ failure, className, as: Tag = 'p', onRetry = null, chi
   if (!failure?.text) return null;
   if (tables && scoped) return <NoAccessLine tables={tables} as={Tag} icon={null} rest={{ className, role: 'status' }} />;
   const calm = !!failure.calm;
-  const { plain, details } = splitTechnical(failure.text);
+  const { plain, details: found } = splitTechnical(failure.text);
+  const details = failure.technical ? [...found, failure.technical] : found;
   const shown = Children.map(children, (child) => (child === failure.text ? plain : child));
   const again = calm ? null : onRetry;
   return (

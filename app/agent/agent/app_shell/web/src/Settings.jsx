@@ -46,6 +46,28 @@ function Choice({ setting, text, onText }) {
   );
 }
 
+export function TargetRow({ pageId, setting, onData, onChanged }) {
+  const [editing, setEditing] = useState(false);
+  const toast = useToast();
+  if (!setting) return null;
+  const saved = (next, value) => {
+    onData(next);
+    setEditing(false);
+    onChanged?.();
+    toast(savedText(setting, value));
+  };
+  return (
+    <div className="measure-target" data-target-row={setting.name}>
+      <p><b>{setting.label}</b> <span className="num">{valueText(setting, setting.value)}</span> <small>{setting.help}</small></p>
+      {editing
+        ? <Editor pageId={pageId} setting={setting} onSaved={saved} onCancel={() => setEditing(false)} />
+        : setting.editable
+          ? <button type="button" className="btn" onClick={() => setEditing(true)} aria-label={`Change ${setting.label}`}><Icon name="edit" size={14} />Change</button>
+          : <p className="why" data-target-why>{setting.reason || 'This setting cannot be changed from here.'}</p>}
+    </div>
+  );
+}
+
 function Editor({ pageId, setting, onSaved, onCancel }) {
   const [text, setText] = useState(inputText(setting, setting.value));
   const [note, setNote] = useState('');

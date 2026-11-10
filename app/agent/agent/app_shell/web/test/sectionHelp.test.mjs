@@ -110,3 +110,10 @@ test('a saved target changes the gap to go, in the direction the KPI should move
   assert.equal(kpiGapText(kpiGap({ latest, target: '', direction: 'increase' })), 'Set a target to see the gap', 'an empty target gives no gap');
   assert.equal(kpiGap({ latest: null, target: 90, direction: 'increase' }), null, 'a KPI with no measured value gives no gap');
 });
+
+test('the target is not listed under How the impact is worked out, and a refused save keeps the raw error for Details', async () => {
+  const { groupsOf } = await import('../src/settings.js');
+  const { failureOf } = await import('../src/api.js');
+  assert.deepEqual(groupsOf([{ name: 'kpi_target_value', group: 'measurement', value: '90' }]), []);
+  assert.equal(failureOf({ message: 'Nothing was saved: plain', detail: { details: 'ModifyTable is not supported' } }).technical, 'ModifyTable is not supported');
+});

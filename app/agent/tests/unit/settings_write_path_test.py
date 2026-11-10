@@ -17,7 +17,7 @@ import shell_sql  # noqa: E402
 READ_ONLY = "ModifyTable is not supported in read-only session mode"
 
 
-def _shell(tmp_path):
+def _shell(tmp_path, host=""):
     with open(os.path.join(APP_SHELL, "example_page.json"), encoding="utf-8") as handle:
         page = json.load(handle)
     page["result_table"] = "main.pricing.loss_desk_out"
@@ -27,6 +27,8 @@ def _shell(tmp_path):
         "genie": {"space_id": "01f0aa11bb22cc33", "title": "Pricing desk"}, "built_at": "2026-10-26T10:00:00Z",
         "admin": "owner@example.com", "jobs": {},
     }
+    if host:
+        settings["host"] = host
     os.mkdir(os.path.join(tmp_path, shell_core.PAGES_DIR))
     settings["pages"] = [page["id"]]
     with open(os.path.join(tmp_path, shell_core.PAGES_DIR, page["id"] + ".json"), "w", encoding="utf-8") as handle:
@@ -43,6 +45,11 @@ def _shell(tmp_path):
 @pytest.fixture
 def shell_env(tmp_path):
     return _shell(str(tmp_path))
+
+
+@pytest.fixture
+def inside_env(tmp_path):
+    return _shell(str(tmp_path), host="inspire")
 
 
 def _spy(shell, failure=None):
@@ -82,7 +89,8 @@ def test_a_read_only_session_refusal_is_a_plain_403_not_a_502(shell_env):
     with pytest.raises(shell_core.HttpError) as caught:
         shell.save_setting({}, {"page": page["id"], "name": "kpi_target_value", "value": "90", "was": "", "note": ""})
     assert caught.value.status == 403
-    assert str(caught.value.message).startswith("Nothing was saved")
+    assert caught.value.message == shell_core.REFUSED_WRITE, "the sentence carries no raw Databricks error"
+    assert READ_ONLY in caught.value.extra["details"], "the raw error goes under details"
 
 
 def test_every_settings_write_helper_writes_as_the_app_and_keeps_the_viewer_read_only(shell_env):
@@ -91,3 +99,18 @@ def test_every_settings_write_helper_writes_as_the_app_and_keeps_the_viewer_read
     calls = _spy(shell)
     shell.write_saved(user_ws, shell_sql.assumptions_table(page), "insert into t values (1)", [])
     assert calls == [sp]
+
+
+def test_a_page_inside_inspire_refuses_the_settings_write_plainly_and_never_uses_the_viewer_session(inside_env):
+    shell, sp, user_ws = inside_env
+    page = shell.pages[0]
+    calls = _spy(shell)
+    with pytest.raises(shell_core.HttpError) as caught:
+        shell.write_saved(user_ws, shell_sql.assumptions_table(page), "insert into t values (1)", [])
+    assert caught.value.status == 403
+    assert caught.value.message == shell_core.INSIDE_SETTINGS
+    assert calls == [], "no settings write reaches Databricks from a page inside Inspire"
+
+
+def test_the_target_belongs_to_measurement_not_the_impact_group():
+    assert shell_core.TARGET_SETTING["group"] == "measurement"

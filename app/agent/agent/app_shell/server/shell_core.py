@@ -191,7 +191,7 @@ MINUTES_SETTING = {"name": shell_sql.MY_WORK_MINUTES, "kind": "number", "group":
                    "help": "My work multiplies the records each person worked by this to estimate the hours Inspire saved them. Leave it "
                            "empty and My work shows no hours saved."}
 KPI_TARGET_SETTING = "kpi_target_value"
-TARGET_SETTING = {"name": KPI_TARGET_SETTING, "kind": "number", "group": "impact", "source": "app", "applies": "app",
+TARGET_SETTING = {"name": KPI_TARGET_SETTING, "kind": "number", "group": "measurement", "source": "app", "applies": "app",
                   "label": "Target for the KPI", "unit": "", "low": None, "high": None, "low_open": False, "high_open": False,
                   "whole": False, "optional": True, "choices": [], "many": False, "default": "",
                   "allowed": "a number, or empty for no target", "reason": "not set until an owner sets it",
@@ -214,6 +214,9 @@ INSIDE = "inspire"
 USER_JOBS = ("This page runs inside Inspire with no service principal of its own, so it never reads or starts the use case's job: it "
              "shows the runs the use case recorded, and Refresh now is off; the job's schedule still refreshes it")
 INSIDE_SP = "A page inside Inspire has no service principal, so it reads and acts only as the person signed in"
+REFUSED_WRITE = "Nothing was saved: this App cannot write this change. Ask the App owner to check its access."
+INSIDE_SETTINGS = ("Nothing was saved: settings cannot be changed from this page inside Inspire. "
+                   "Open the App from its own link to change them.")
 INSIDE_DECISIONS = ("A page inside Inspire records decisions through Inspire, and the Inspire App serving this page cannot record them; "
                     "update the Inspire App, then open the page again from the Run tab")
 CLI_VERSION = 1
@@ -1844,11 +1847,16 @@ class Shell:
             raise HttpError(403, INSIDE_DECISIONS)
         return self.service()
 
+    def settings_blocked(self) -> str:
+        if self.settings["auth"] != "user" or self.settings.get("protected") or self.writer_factory is not None or not self.inside:
+            return ""
+        return INSIDE_SETTINGS
+
     def write_saved(self, ws, table: str, sql: str, params: list) -> None:
-        try:
-            writer = self.decision_writer(ws)
-        except HttpError:
-            writer = ws
+        blocked = self.settings_blocked()
+        if blocked:
+            raise HttpError(403, blocked)
+        writer = self.decision_writer(ws)
         try:
             self.execute(writer, sql, params, 1, delta=True)
         except QueryError as error:
@@ -3004,15 +3012,7 @@ class Shell:
         return model
 
     def write_refused(self, table: str, error, as_app: bool = False) -> HttpError:
-        if self.settings["auth"] == "user" and (not as_app or self.settings.get("protected")):
-            return HttpError(403, f"Nothing was saved: you may not change {table} in Unity Catalog ({error}). Ask the owner of that "
-                                  "table for SELECT and MODIFY on it")
-        if as_app and self.inside:
-            return HttpError(403, f"Nothing was saved: Inspire's service principal records the decisions of this page and may not change "
-                                  f"{table} in Unity Catalog ({error}). Ask the owner of that table to grant Inspire's service principal "
-                                  "SELECT and MODIFY on it")
-        return HttpError(403, f"Nothing was saved: this App's service principal may not change {table} in Unity Catalog ({error}). "
-                              "Ask the owner of that table to grant the App's service principal SELECT and MODIFY on it")
+        return HttpError(403, REFUSED_WRITE, extra={"details": f"{table}: {error}"})
 
     def page_editors(self, page: dict) -> set:
         listed = self.settings.get("use_case_owners")
@@ -3147,7 +3147,10 @@ class Shell:
             return {"settings": [], "history": [], "editable": False, "why": refusal, "can_run": False}
         ws, who = self.workspace(headers)
         settings, history, _model, _names = self.settings_model(ws, who, page)
-        why = "" if settings else NO_SETTINGS
+        blocked = self.settings_blocked()
+        if blocked:
+            settings = [dict(s, editable=False) for s in settings]
+        why = blocked or ("" if settings else NO_SETTINGS)
         return {"settings": settings, "history": history, "editable": not why, "why": why,
                 "can_run": not why and self.may_run(headers, page), "job": bool(self.job_of(page)),
                 "money": self.money_view(page) if shell_sql.page_has_money(page) else None}
@@ -3203,6 +3206,8 @@ class Shell:
         refusal = self.owner_refusal(headers, page, SETTING_WORDS)
         if refusal:
             raise HttpError(403, refusal)
+        if self.settings_blocked():
+            raise HttpError(403, self.settings_blocked())
         ws, who = self.workspace(headers)
         settings, _history, model, names = self.settings_model(ws, who, page)
         name = str(data.get("name") or "")

@@ -1,7 +1,7 @@
 import { CLOSED_STATUSES } from './records.js';
 export const DEMO_NOTE = 'This is a demo, so it is read-only: nothing you do here changes any data.';
 export const toneOf = (err) => (err?.calm ? 'info' : 'error');
-export const failureOf = (err, text) => ({ text: text ?? (err?.message || ''), calm: !!err?.calm });
+export const failureOf = (err, text) => ({ text: text ?? (err?.message || ''), calm: !!err?.calm, technical: text == null ? String(err?.detail?.details || '') : '' });
 export const retryable = (err) => !err?.calm && !(err?.status >= 400 && err.status < 500 && err.status !== 429);
 
 export const UNREACHABLE_TEXT = 'The App could not be reached. Check your connection, then try again';
