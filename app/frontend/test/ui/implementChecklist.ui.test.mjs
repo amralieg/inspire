@@ -130,7 +130,7 @@ test('the live version says which asks were not done in vN, and its checklist sh
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     const progress = page.locator('[data-mvp-progress]');
-    await progress.getByText(HELD_SENTENCE, { exact: true }).waitFor({ timeout: 15000 });
+    await progress.getByText(HELD_SENTENCE, { exact: true }).first().waitFor({ timeout: 15000 });
     assert.equal(await page.getByRole('region', { name: 'Build failed' }).count(), 0, 'a published version with unmet asks is never shown as failed');
     assert.equal(await page.locator('[aria-label="v5 is held"]').count(), 0, 'there is no held panel');
 

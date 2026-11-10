@@ -2568,7 +2568,8 @@ export function statusReason(latest, stalled = null) {
 
 export function statusDetails(latest) {
   const s = String(latest?.status || '');
-  return ['ready', 'ready_with_warnings'].includes(s) && undeliveredOutputs(latest).length ? String(latest?.status_message || '').trim() : '';
+  const unmet = s === 'ready_with_warnings' && openVibeAsks(latest).length > 0;
+  return (['ready', 'ready_with_warnings'].includes(s) && undeliveredOutputs(latest).length) || unmet ? String(latest?.status_message || '').trim() : '';
 }
 
 const NOT_ASK_KINDS = ['self_fix', 'settings_refused', 'not_decided', 'unrequested_change'];
