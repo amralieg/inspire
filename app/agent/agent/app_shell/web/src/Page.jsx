@@ -5,7 +5,7 @@ import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues,
 import { dayLabel } from './format.js';
 import { filterWords } from './explain.js';
 import { hueVars } from './theme.js';
-import { DEFAULT_TAB, buildHash, describeFilters, fixThis, parseHash, workTabs } from './links.js';
+import { DEFAULT_TAB, buildHash, describeFilters, fixThis, parseHash, sectionHash, workTabs } from './links.js';
 import { Block } from './Blocks.jsx';
 import { blockPlan, gridSpans, slotsOf, withBlocks } from './blocks.js';
 import { GenieMark, Icon } from './icons.jsx';
@@ -129,6 +129,12 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const tabbed = work && listed && !!app.options?.decisions && pageDecides(page) && !!entry?.tracked;
   const choices = statusChoices(page);
   const tabNow = tabbed ? (workTabs(choices).some(([id]) => id === tab) ? tab : DEFAULT_TAB) : '';
+  useEffect(() => {
+    if (!tabbed || !tab || tabNow === tab || shown !== 'work') return;
+    const query = new URLSearchParams(window.location.hash.split('?')[1] || '');
+    query.set('tab', tabNow);
+    window.history.replaceState(window.history.state, '', sectionHash(page.id, 'work', query));
+  }, [tabbed, tab, tabNow, shown, page.id]);
   const [question, setQuestion] = useState('');
   const [opened, setOpened] = useState(() => parseHash(window.location.hash).rec || '');
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
@@ -250,7 +256,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <h1>{page.title}</h1>
         <div className="ph-tools" data-section-tools>
           <FreshBar freshness={freshness}>
-            <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />
+            {shown !== 'settings' && <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />}
             {reporting && (shown === 'dashboard' || shown === 'work') && <Suspense fallback={null}><FeedbackButton pageId={page.id} context={report} sections={sections} /></Suspense>}
           </FreshBar>
         </div>

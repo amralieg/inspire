@@ -37,7 +37,7 @@ function feedbackTable(resultTable) {
 
 function feedbackListStatement(resultTable, useCaseId) {
   return {
-    sql: `SELECT ${FEEDBACK_COLUMNS.join(', ')} FROM ${feedbackTable(resultTable)} WHERE use_case_id = :uc ORDER BY reported_at DESC LIMIT ${FEEDBACK_ROWS}`,
+    sql: `SELECT ${FEEDBACK_COLUMNS.join(', ')} FROM ${feedbackTable(resultTable)} WHERE use_case_id = :uc ORDER BY CASE status WHEN 'new' THEN 0 WHEN 'vibe' THEN 1 ELSE 2 END, reported_at DESC LIMIT ${FEEDBACK_ROWS}`,
     parameters: [{ name: 'uc', value: String(useCaseId), type: 'STRING' }],
   };
 }

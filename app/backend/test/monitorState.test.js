@@ -213,3 +213,13 @@ test('a reason the notebook gave is shown as it is, a Python fault never is (mus
   assert.equal(fault.text, M.RUN_FAILED_TEXT);
   assert.ok(fault.details[0].includes('KeyError'));
 });
+
+test('the Start header counts every run: completed, in progress and no news, so it matches the run count', async () => {
+  const M = await lib('monitorState.js');
+  const done = { completed_percent: 100, completed_on: at(40 * MINUTE), processing_status: 'ready', last_updated: at(40 * MINUTE) };
+  const live = { completed_percent: 1, processing_status: 'done', last_updated: at(MINUTE) };
+  const quiet = { completed_percent: 62, processing_status: 'ready', last_updated: at(40 * MINUTE) };
+  assert.equal(M.sessionCountsLine([done, done, live, quiet], NOW), '2 completed · 1 in progress · 1 with no news');
+  assert.equal(M.sessionCountsLine([done], NOW), '1 completed');
+  assert.equal(M.sessionCountsLine([], NOW), '0 completed');
+});

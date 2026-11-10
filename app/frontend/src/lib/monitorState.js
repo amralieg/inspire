@@ -34,6 +34,14 @@ export function sessionStatus(session, now) {
   return sessionQuietSince(session, now) ? 'quiet' : 'running';
 }
 
+export function sessionCountsLine(sessions, now) {
+  const list = Array.isArray(sessions) ? sessions : [];
+  const done = list.filter(sessionSucceeded).length;
+  const running = list.filter((s) => sessionStatus(s, now) === 'running').length;
+  const quiet = list.filter((s) => sessionStatus(s, now) === 'quiet').length;
+  return [`${done} completed`, running && `${running} in progress`, quiet && `${quiet} with no news`].filter(Boolean).join(' · ');
+}
+
 export function quietLine(since, now) {
   return `No news from this run since ${formatClockUtc(since, now)}.`;
 }

@@ -7,7 +7,7 @@ import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runCounts, runLabel, runFilterText, runsOfCard } from '../lib/reviewFigures';
-import { sessionStatus, sessionSucceeded } from '../lib/monitorState';
+import { sessionCountsLine, sessionStatus } from '../lib/monitorState';
 import { SHOWCASE_BUTTON } from '../lib/showcase';
 import { compareUseCaseRank, computeHighPriorityCount, nameOfUseCase, qualityBarCountsOf } from '../lib/useCaseFields';
 import { PlainMessage } from '../components/TechnicalDetails';
@@ -294,8 +294,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
     );
   }
 
-  const completedCount = sessions.filter(sessionSucceeded).length;
-  const inProgressCount = sessions.filter((s) => sessionStatus(s, loadedAt) === 'running').length;
   const filtered = runFilter ? runsOfCard(runFilter, sessions, portfolio) : sessions;
   const listed = runFilter || showAll ? filtered : filtered.slice(0, 5);
   const openCard = (key) => {
@@ -320,7 +318,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
           {!error && <div className="inline-flex items-center gap-2 px-3 py-1.5 bg-bg-subtle border border-border rounded-full">
             <BarChart3 size={12} className="text-db-red-fg" />
             <span className="text-[11px] font-medium text-text-secondary">
-              {completedCount} completed{inProgressCount > 0 ? ` · ${inProgressCount} in progress` : ''}
+              {sessionCountsLine(sessions, loadedAt)}
             </span>
           </div>}
           <h1 className="text-3xl sm:text-4xl font-bold tracking-[-0.03em]">

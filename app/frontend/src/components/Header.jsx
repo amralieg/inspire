@@ -1,7 +1,7 @@
 import { Sun, Moon } from 'lucide-react';
 import DatabricksLogo from './DatabricksLogo';
 import { useTheme } from '../ThemeContext';
-import { NAV_TABS } from '../lib/tabs';
+import { NAV_TABS, tabTitle } from '../lib/tabs';
 
 const NAV = NAV_TABS.map((tab, i) => ({ ...tab, step: i + 1 }));
 
@@ -50,7 +50,7 @@ export default function Header({
                   onClick={() => can && setPage(item.id)}
                   disabled={!can}
                   aria-current={active ? 'page' : undefined}
-                  title={item.label}
+                  title={tabTitle(item, can)}
                   className={`
                     relative shrink-0 whitespace-nowrap px-1.5 lg:px-4 py-2 text-sm font-medium rounded-md transition-smooth
                     ${active

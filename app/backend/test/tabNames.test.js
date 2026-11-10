@@ -32,7 +32,7 @@ test('the top tabs read Home, Start, Monitor, Review, Build and Run, in that ord
   assert.deepEqual(HOME_TAB, { id: 'landing', label: 'Home' });
   assert.deepEqual(NAV_TABS, [HOME_TAB, ...APP_TABS], 'Home comes first, and the pipeline tabs follow it unchanged');
   const header = fs.readFileSync(path.join(APP, 'frontend', 'src', 'components', 'Header.jsx'), 'utf8');
-  assert.match(header, /import \{ NAV_TABS \} from '\.\.\/lib\/tabs'/);
+  assert.match(header, /import \{ NAV_TABS, tabTitle \} from '\.\.\/lib\/tabs'/);
   assert.doesNotMatch(header, /label: '/, 'the header keeps no tab names of its own');
 });
 

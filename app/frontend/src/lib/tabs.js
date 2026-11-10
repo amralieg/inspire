@@ -11,3 +11,10 @@ export const APP_TABS = [
 export const NAV_TABS = [HOME_TAB, ...APP_TABS];
 
 export const REMOVED_TAB_LABELS = ['Get Started', 'Results'];
+
+export const TAB_LOCKED_REASON = {
+  monitor: 'Start a run or open one from Start to see it here',
+  implement: 'Open a run in Review first, then build its use cases here',
+};
+
+export const tabTitle = (tab, can) => (can || !TAB_LOCKED_REASON[tab.id] ? tab.label : `${tab.label}: ${TAB_LOCKED_REASON[tab.id]}`);

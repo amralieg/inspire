@@ -272,6 +272,17 @@ function Shell({ app }) {
   const toggleGenie = () => (fullChat ? document.querySelector('[data-genie-full] .g-in input')?.focus() : working ? setDock(dock === 'genie' ? '' : 'genie') : setGenieOpen(!genieOpen));
   const dockValue = useMemo(() => (working ? { slot: dockSlot, tab: dock, onTab: setDock, onShowing: setShowing } : null), [working, dockSlot, dock, setDock]);
   const tabs = working ? <DockTabs tab={dock} onTab={setDock} /> : null;
+  const wasWorking = useRef(working);
+  useEffect(() => {
+    if (wasWorking.current === working) return;
+    wasWorking.current = working;
+    if (working && genieOpen) {
+      setDock('genie');
+      setGenieOpen(false);
+    } else if (!working && prefs.dock === 'genie') {
+      setGenieOpen(true);
+    }
+  }, [working]);
   const genieProps = { app, genie, page, pages: shown, onPick: go };
 
   return (

@@ -64,9 +64,16 @@ async function call(base, url, { method = 'GET', body, who = OWNER } = {}) {
   return { status: resp.status, data: await resp.json() };
 }
 
+test('the list puts open issues first, so 200 newer closed issues cannot push a new one off the list', () => {
+  const { sql } = FB.feedbackListStatement('main.inspire.churn_out', 'N01-U01');
+  const order = sql.slice(sql.indexOf('ORDER BY'));
+  assert.equal(order, "ORDER BY CASE status WHEN 'new' THEN 0 WHEN 'vibe' THEN 1 ELSE 2 END, reported_at DESC LIMIT 200");
+  assert.ok(FB.FEEDBACK_STATUSES.includes('new') && FB.FEEDBACK_STATUSES.includes('closed'));
+});
+
 test('the statements read and change only the feedback table of the result table, with every value bound', () => {
   const list = FB.feedbackListStatement('main.inspire.churn_out', "N01'; DROP");
-  assert.match(list.sql, /^SELECT feedback_id, .* FROM `main`.`inspire`.`churn_out_feedback` WHERE use_case_id = :uc ORDER BY reported_at DESC LIMIT 200$/);
+  assert.match(list.sql, /^SELECT feedback_id, .* FROM `main`.`inspire`.`churn_out_feedback` WHERE use_case_id = :uc ORDER BY CASE status WHEN 'new' THEN 0 WHEN 'vibe' THEN 1 ELSE 2 END, reported_at DESC LIMIT 200$/);
   assert.deepEqual(list.parameters, [{ name: 'uc', value: "N01'; DROP", type: 'STRING' }]);
   const change = FB.feedbackStatusChange({ feedback_id: 'a1b2', status: 'vibe', vibe_text: "Label it 'late'); -- now" });
   const update = FB.feedbackStatusStatement('main.inspire.churn_out', 'N01-U01', change, OWNER);

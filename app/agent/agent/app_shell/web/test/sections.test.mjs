@@ -463,3 +463,11 @@ test('the 15 plan, forecast, scenario, explore and ask kinds never show the queu
   assert.deepEqual([...new Set(own)].sort(), ['ASK', 'EXPLORE', 'PLAN', 'REVIEW', 'SCENARIOS'], 'each of the five modes names its own work section');
   assert.equal(own.length, others.length, 'every one of these kinds has work of its own');
 });
+
+test('a Work address with a tab this page does not have is rewritten to the Open tab, so the address matches what the page shows', async () => {
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/work?tab=xyz', routes: trackedRoutes(), ready: '[data-tab]' });
+  await page.waitForFunction(() => document.querySelector('[data-tab="open"]')?.getAttribute('aria-selected') === 'true');
+  assert.equal(await hashOf(page), '#/n01_u05/work?tab=open', 'the unknown tab is replaced by the Open tab in the address');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
