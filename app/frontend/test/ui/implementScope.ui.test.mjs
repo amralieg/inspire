@@ -231,7 +231,7 @@ test('a Deep discovery grouping is picked and marked on a first build, the perso
   const { page, made } = ui;
   try {
     await toStep(page, 'Data groups');
-    const grouping = page.getByRole('region', { name: 'How is the data split into groups?', exact: true });
+    const grouping = page.getByRole('region', { name: 'How do you split the data into groups?', exact: true });
     await grouping.locator('[data-grouping-choice]').first().waitFor();
     assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)),
       ['all', 'stores.region, store_id', 'region, country', 'region', 'country']);
@@ -343,7 +343,7 @@ test('a Deep discovery grouping the profile could not size shows no example, cou
   const { page } = ui;
   try {
     await toStep(page, 'Data groups');
-    const grouping = page.getByRole('region', { name: 'How is the data split into groups?', exact: true });
+    const grouping = page.getByRole('region', { name: 'How do you split the data into groups?', exact: true });
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['store_id']);
     assert.equal(await grouping.locator('[data-grouping-why]').textContent(), GROUPING_PLAIN);
     assert.equal(await grouping.locator('[data-grouping-example]').count(), 0, 'no example of country for a store_id grouping (must-exclude)');
@@ -375,7 +375,7 @@ test('confirming the Deep discovery grouping makes it the person\'s choice, and 
   const { page, made } = ui;
   try {
     await toStep(page, 'Data groups');
-    const grouping = page.getByRole('region', { name: 'How is the data split into groups?', exact: true });
+    const grouping = page.getByRole('region', { name: 'How do you split the data into groups?', exact: true });
     assert.equal(await grouping.locator('[data-grouping-chosen-by="deep"]').count(), 1);
     await grouping.locator('[data-grouping-choice="store_id"] input').click();
     await grouping.locator('[data-grouping-chosen-by]').waitFor({ state: 'detached' });
@@ -802,7 +802,7 @@ test('a forecast on a star fact table with no column to group by still asks Data
   try {
     await toStep(page, 'Data groups');
     assert.deepEqual((await stepBar(page)).slice(0, 3), ['1. Data', '2. Data groups', '3. First run'], 'Data groups follow Data and First run comes right after them');
-    const grouping = page.getByRole('region', { name: 'How is the data split into groups?', exact: true });
+    const grouping = page.getByRole('region', { name: 'How do you split the data into groups?', exact: true });
     assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)), ['all'],
       'only the whole data when no column qualifies, never a custom SQL choice');
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['all'], 'the whole data as one group is pre-picked');
@@ -829,7 +829,7 @@ test('a forecast on a star fact table recommends the store and the item category
   const { page } = ui;
   try {
     await toStep(page, 'Data groups');
-    const grouping = page.getByRole('region', { name: 'How is the data split into groups?', exact: true });
+    const grouping = page.getByRole('region', { name: 'How do you split the data into groups?', exact: true });
     assert.deepEqual(await grouping.locator('[data-grouping-choice]').evaluateAll((rows) => rows.map((r) => r.dataset.groupingChoice)),
       ['all', 'ss_store_sk, item.i_category', 'ss_store_sk', 'item.i_category']);
     assert.deepEqual(await checkedChoice(page, 'data-grouping-choice'), ['ss_store_sk, item.i_category'],

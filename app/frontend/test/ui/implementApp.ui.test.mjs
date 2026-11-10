@@ -267,6 +267,7 @@ test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample p
     const features = page.getByRole('region', { name: 'App features' });
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
     await features.getByRole('checkbox', { name: /^Send alerts/ }).check();
+    await goToStep(page, 'App look');
     await tab('Pages').click();
     assert.deepEqual(await pageNames(), ['Things to fix', 'Runs', 'Alerts', 'Impact', 'Ask Genie']);
     assert.equal(await pages.getByRole('button', { name: /^Ask Genie/ }).getAttribute('aria-pressed'), 'true', 'the page picked stays picked while App features change');
@@ -296,9 +297,11 @@ async function withEveryAppLookOption(check) {
     await toDelivery(page);
     await toSharedAccess(page);
     await goToStep(page, 'App features');
+    await goToStep(page, 'App pages');
     const features = page.getByRole('region', { name: 'App features' });
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
     await features.getByRole('checkbox', { name: /^Send alerts/ }).check();
+    await goToStep(page, 'App look');
     const look = page.getByRole('region', { name: 'App look' });
     const tabs = look.getByRole('tablist', { name: 'App look sections' });
     const tab = (name) => tabs.getByRole('tab', { name, exact: true });
@@ -1018,7 +1021,9 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await goToStep(page, 'App look');
     await measure(page, '5-app-pages');
     await readable('app pages');
+    await goToStep(page, 'App pages');
     await page.getByRole('region', { name: 'App features' }).getByRole('checkbox', { name: /^Let people edit data/ }).check();
+    await goToStep(page, 'App look');
     await page.locator('[data-swatch="mono"]').waitFor({ state: 'attached' });
     const lookTabs = page.getByRole('tablist', { name: 'App look sections' });
     for (const name of ['Palette', 'Layout', 'Charts', 'Pages']) {
