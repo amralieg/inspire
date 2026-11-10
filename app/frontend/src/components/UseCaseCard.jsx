@@ -1,4 +1,4 @@
-import { Heart, Star } from 'lucide-react';
+import { Archive, ArchiveRestore, Heart, Star } from 'lucide-react';
 import ImplementCardActions from './ImplementCardActions';
 import InspireScoreBadge from './InspireScoreBadge';
 import UseCaseDetailBody from './UseCaseDetailBody';
@@ -28,6 +28,9 @@ export default function UseCaseCard({
   onImplement,
   onOpenMvp,
   notebookUrl = '',
+  assetLinks = [],
+  isArchived = false,
+  onToggleArchive,
   v130 = null,
   feedbackCurrent,
   ...detailProps
@@ -145,9 +148,21 @@ export default function UseCaseCard({
             </div>
           </div>
         </div>
+        {typeof onToggleArchive === 'function' && (
+          <button
+            type="button"
+            onClick={(e) => { e.stopPropagation(); onToggleArchive(); }}
+            className="pe-3 ps-1 py-4 shrink-0 text-text-tertiary hover:text-text-primary transition-smooth"
+            aria-label={isArchived ? 'Unarchive use case' : 'Archive use case'}
+            title={isArchived ? 'Unarchive: move it back to Active' : 'Archive: hide it from the Active list'}
+            data-card-archive={isArchived ? 'archived' : 'active'}
+          >
+            {isArchived ? <ArchiveRestore size={16} /> : <Archive size={16} />}
+          </button>
+        )}
       </div>
 
-      <ImplementCardActions status={implementStatus} onImplement={onImplement} onOpen={onOpenMvp} notebookUrl={notebookUrl} />
+      <ImplementCardActions status={implementStatus} onImplement={onImplement} onOpen={onOpenMvp} notebookUrl={notebookUrl} links={assetLinks} />
 
       {expanded && (
         <UseCaseDetailBody

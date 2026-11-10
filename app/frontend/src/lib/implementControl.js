@@ -199,6 +199,17 @@ export function deliveredOutputs(latest) {
     .map((output) => output.id);
 }
 
+const CARD_LINK_LABELS = { app: 'Open App', dashboard: 'Open Dashboard', genie_space: 'Open Genie Agent', alert: 'Open alert' };
+const CARD_LINK_ORDER = ['app', 'dashboard', 'genie_space', 'alert'];
+
+export function cardAssetLinks(latest) {
+  if (!latest || typeof latest !== 'object') return [];
+  const delivered = new Set(deliveredOutputs(latest));
+  return CARD_LINK_ORDER
+    .map((id) => ({ id, label: CARD_LINK_LABELS[id], url: String(latest[OUTPUT_URLS[id]] || '').trim() }))
+    .filter((link) => delivered.has(link.id) && /^https:\/\//i.test(link.url));
+}
+
 export function buildSummary(items) {
   const list = Array.isArray(items) ? items : [];
   const mvps = list.filter((item) => item.state?.kind === 'mvp');
