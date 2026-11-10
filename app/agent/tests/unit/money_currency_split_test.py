@@ -204,3 +204,90 @@ def test_the_left_out_line_counts_undated_rows_and_the_running_period_under_the_
 
 def test_a_page_without_a_period_filter_has_no_left_out_count():
     assert shell_sql.money_left_out(dict(PAGE, filters=[]), PAGE["kpis"][0], {}) is None
+
+
+def _money_page(result_table="inspire_kinds._inspire_x.run_results"):
+    import v141_app_shell_test as shell_harness
+    kpis = [dict(k, compare=False) for k in shell_harness.PAGE["kpis"]]
+    return dict(shell_harness.PAGE, id="n01_u05", result_table=result_table, use_case_id="N01-U01", kpis=kpis)
+
+
+def test_the_saved_money_rule_is_read_once_per_request_and_overrides_the_spec(tmp_path):
+    import json as _json
+    import v141_app_shell_test as shell_harness
+    saved = {"name": "money_rule", "text_value": _json.dumps({"currency": "convert", "base": "USD", "rates": {"AED": 0.5, "USD": 1.0}})}
+    seen = []
+
+    def shape(sql):
+        if "_assumptions" in sql:
+            seen.append(sql)
+            return [saved]
+        return None
+
+    ws = shell_harness.ShapedWorkspace(shape)
+    pages = [_money_page()]
+    s = shell_harness.shell_core.Shell(shell_harness.app_dir(tmp_path, pages=pages), env={"DATABRICKS_WAREHOUSE_ID": "wh1"},
+                                       sp_factory=lambda: ws, user_factory=lambda h, t: ws)
+    token = shell_harness.shell_core.REQUEST.set({"headers": {}, "rules": {}})
+    try:
+        first = s.page("n01_u05")
+        second = s.page("n01_u05")
+    finally:
+        shell_harness.shell_core.REQUEST.reset(token)
+    assert first["money"] == second["money"] == {"currency": "convert", "base": "USD", "rates": {"AED": 0.5, "USD": 1.0}}
+    assert len(seen) == 1, "the request reads the saved rule once"
+
+
+def test_without_a_request_or_a_saved_rule_the_spec_rule_stands(tmp_path):
+    import v141_app_shell_test as shell_harness
+    ws = shell_harness.ShapedWorkspace(lambda sql: None)
+    s = shell_harness.shell_core.Shell(shell_harness.app_dir(tmp_path, pages=[_money_page()]), env={"DATABRICKS_WAREHOUSE_ID": "wh1"},
+                                       sp_factory=lambda: ws, user_factory=lambda h, t: ws)
+    assert "money" not in s.page("n01_u05")
+    token = shell_harness.shell_core.REQUEST.set({"headers": {}, "rules": {}})
+    try:
+        assert "money" not in s.page("n01_u05")
+    finally:
+        shell_harness.shell_core.REQUEST.reset(token)
+
+
+def _owned():
+    import v141_app_shell_test as shell_harness
+    return dict(shell_harness.SETTINGS, use_case_owners={"n01_u05": ["owner@example.com"]})
+
+
+def test_the_owner_saves_a_money_rule_as_one_assumption_row_and_the_view_shows_it(tmp_path):
+    import json as _json
+    import v141_app_shell_test as shell_harness
+    writes = []
+
+    class Capturing(shell_harness.ShapedWorkspace):
+        def run_sql(self, warehouse, sql, params, limit=5000):
+            if sql.lstrip().upper().startswith("INSERT INTO") and "_assumptions" in sql:
+                writes.append([p.get("value") for p in params])
+            return super().run_sql(warehouse, sql, params, limit)
+
+    ws = Capturing(lambda sql: None)
+    s = shell_harness.shell_core.Shell(shell_harness.app_dir(tmp_path, settings=_owned(), pages=[_money_page()]),
+                                       env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws, user_factory=lambda h, t: ws)
+    headers = {"x-forwarded-email": "owner@example.com", "x-forwarded-access-token": "t"}
+    status, out = shell_harness.call(s, "POST", "money/rule", headers=headers,
+                                     body={"page": "n01_u05", "rule": {"currency": "convert", "base": "USD", "rates": {"AED": 0.5}}})
+    assert status == 200, out
+    assert len(writes) == 1 and "money_rule" in writes[0], "one assumption row names the rule"
+    assert _json.loads(writes[0][-1]) == {"currency": "convert", "base": "USD", "rates": {"AED": 0.5}}, "the rule travels as its text"
+    assert out["money"]["name"] == "money_rule", "the view names the saved rule"
+    assert out["money"]["rule"] == {"currency": "per_currency"}, "the mock returns no saved row, so the view shows the spec rule"
+
+
+def test_a_bad_money_rule_is_refused_before_anything_is_written(tmp_path):
+    import v141_app_shell_test as shell_harness
+    writes = []
+    ws = shell_harness.ShapedWorkspace(lambda sql: writes.append(sql) if sql.lstrip().upper().startswith("INSERT") else None)
+    s = shell_harness.shell_core.Shell(shell_harness.app_dir(tmp_path, settings=_owned(), pages=[_money_page()]),
+                                       env={"DATABRICKS_WAREHOUSE_ID": "wh1"}, sp_factory=lambda: ws, user_factory=lambda h, t: ws)
+    headers = {"x-forwarded-email": "owner@example.com", "x-forwarded-access-token": "t"}
+    status, out = shell_harness.call(s, "POST", "money/rule", headers=headers,
+                                     body={"page": "n01_u05", "rule": {"currency": "convert", "base": "NOPE", "rates": {}}})
+    assert status == 400 and "base currency" in out["error"]
+    assert writes == []

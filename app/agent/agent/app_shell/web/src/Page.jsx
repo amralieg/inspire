@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AGENT_CHANGED, EMPTY_LOOK, lookChart } from './agentView.js';
 import { WAITING_FOR_ACCESS_CODE, getOverview, getPage } from './api.js';
+import { MoneyRule } from './MoneyRule.jsx';
 import { apiTables, apiValues, clearColumnValues, clearSelections, columnValues, setColumnValue, toggleValue } from './filters.js';
 import { dayLabel } from './format.js';
 import { filterWords } from './explain.js';
@@ -370,6 +371,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
             {promised?.estimate && <p data-measure-estimate>{promised.estimate}</p>}
             {promised?.value && <p>{promised.value}</p>}
             {promised?.benefits.length > 0 && <ul>{promised.benefits.map((b) => <li key={b}>{b}</li>)}</ul>}
+            <MoneyRule pageId={page.id} />
             {app.screens?.impact !== false && <dl className="measure-formulas">{MEASURES.map((m) => <div key={m.label}><dt>{m.label}</dt><dd>{m.formula}</dd></div>)}</dl>}
           </SettingGroup>
           {onTour && (

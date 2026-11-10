@@ -2486,6 +2486,45 @@ def left_out_text(rows) -> dict:
             "text": f"{undated} rows without a date and {running} rows from the running month were left out"}
 
 
+MONEY_RULE_NAME = "money_rule"
+
+
+def saved_money_rule(rows) -> dict:
+    """The owner's latest saved money rule, read from the assumptions rows (newest first), or None when none is saved."""
+    for row in rows or []:
+        if str(row.get("name") or "") != MONEY_RULE_NAME:
+            continue
+        try:
+            rule = json.loads(str(row.get("text_value") or ""))
+        except ValueError:
+            return None
+        return rule if isinstance(rule, dict) and not money_rule_problems(rule) else None
+    return None
+
+
+def money_rule_clean(rule: dict) -> dict:
+    if rule.get("currency", "per_currency") == "per_currency":
+        return {"currency": "per_currency"}
+    return {"currency": "convert", "base": str(rule.get("base") or ""),
+            "rates": {str(code): float(value) for code, value in sorted(rule["rates"].items())}}
+
+
+def money_rule_of(page: dict) -> dict:
+    """The rule a page's money totals use now: the owner's or the spec's, per currency when none is set."""
+    rule = page.get("money")
+    return money_rule_clean(rule) if isinstance(rule, dict) and not money_rule_problems(rule) else {"currency": "per_currency"}
+
+
+def page_with_money(page: dict, rule) -> dict:
+    """The page as this request reads it: the owner's saved money rule when one is saved, the spec's rule otherwise."""
+    return dict(page, money=rule) if rule else page
+
+
+def page_has_money(page: dict) -> bool:
+    return any(k.get("format") == "currency" for k in page.get("kpis") or []) or any(
+        y.get("format") == "currency" for c in page.get("charts") or [] for y in c.get("y") or [])
+
+
 def money_currency_column(page: dict, kpi: dict) -> str:
     return money_scope(page, kpi["dataset"])["currency"] if kpi.get("format") == "currency" else ""
 

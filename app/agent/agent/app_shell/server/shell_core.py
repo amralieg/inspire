@@ -1,6 +1,7 @@
 import collections
 import datetime
 import hashlib
+import contextvars
 import json
 import math
 import os
@@ -90,7 +91,7 @@ CONFIDENCE_LEVELS = ("High", "Medium", "Low")
 LEVEL_ASK = "Give the reason for that level from the facts, and never give another level or a number for it."
 RECORD_STAKE = "value_at_stake"
 NO_ACCESS = re.compile(r"INSUFFICIENT_PERMISSIONS|PERMISSION_DENIED|permission denied|TABLE_OR_VIEW_NOT_FOUND|answered HTTP 403", re.I)
-WRITE_ROUTE_NAMES = {"records", "records/act", "records/undo", "records/draft", "settings/save", "settings/run", "plan/decide",
+WRITE_ROUTE_NAMES = {"records", "records/act", "records/undo", "records/draft", "settings/save", "settings/run", "plan/decide", "money/rule",
                      "money/assumption", "scenario/save", "scenario/share", "scenario/choose", "plans/version", "feedback",
                      "agent/feedback", "genie/feedback", "forecast/override", "refresh"}
 
@@ -181,6 +182,7 @@ MY_WORK_NO_EXPORT = "the App offers no download of your work, so send no export"
 MY_WORK_FIXED_ROWS = (2 * len(shell_sql.MY_WORK_CLOSES) + 4 + shell_sql.CAPS["my_work_weeks"] + len(shell_sql.GONE_STATES) + 2
                       + shell_sql.CAPS["my_work_overdue"] + 4)
 NO_ACTIONS = "this use case keeps no actions, so it has no work of yours to show"
+REQUEST = contextvars.ContextVar("inspire_request", default=None)
 MINUTES_SETTING = {"name": shell_sql.MY_WORK_MINUTES, "kind": "number", "group": "impact", "source": "app", "applies": "app",
                    "label": "Minutes a person spends per record without Inspire", "unit": "minutes", "low": 0.0, "high": 1440.0,
                    "low_open": True, "high_open": False, "whole": False, "optional": True, "choices": [], "many": False, "default": "",
@@ -1873,7 +1875,18 @@ class Shell:
         page = self.by_id.get(str(ident or ""))
         if page is None:
             raise HttpError(404, f"the App has no page {ident!r}")
-        return page
+        return self.with_saved_money(page)
+
+    def with_saved_money(self, page: dict) -> dict:
+        """The one injection point: a page with money reads the owner's saved money rule, loaded once per request."""
+        request = REQUEST.get()
+        if request is None or not page.get("result_table") or not shell_sql.page_has_money(page):
+            return page
+        key = str(page.get("id"))
+        if key not in request["rules"]:
+            ws, who = self.workspace(request["headers"])
+            request["rules"][key] = shell_sql.saved_money_rule(self.assumption_rows(ws, who, page))
+        return shell_sql.page_with_money(page, request["rules"][key])
 
     def execute(self, ws, sql: str, params: list, limit: int, delta: bool = False, queued: bool = False) -> dict:
         if self.lakebase is not None and not delta:
@@ -2171,6 +2184,13 @@ class Shell:
         return status, shell_sql.plain_answer(answer)
 
     def answer(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
+        token = REQUEST.set({"headers": headers, "rules": {}})
+        try:
+            return self.answer_request(method, path, query, headers, body)
+        finally:
+            REQUEST.reset(token)
+
+    def answer_request(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
         try:
             if len(body or b"") > MAX_BODY:
                 raise HttpError(413, "the request is too large")
@@ -2274,6 +2294,8 @@ class Shell:
                 return 200, self.settings_view(headers, query.get("page"))
             if route == ("POST", "settings/preview"):
                 return 200, self.preview_setting(headers, data)
+            if route == ("POST", "money/rule"):
+                return 200, self.money_rule_save(headers, data)
             if route == ("POST", "settings/save"):
                 return 200, self.save_setting(headers, data)
             if route == ("POST", "settings/run"):
@@ -3096,7 +3118,34 @@ class Shell:
         settings, history, _model, _names = self.settings_model(ws, who, page)
         why = "" if settings else NO_SETTINGS
         return {"settings": settings, "history": history, "editable": not why, "why": why,
-                "can_run": not why and self.may_run(headers, page), "job": bool(self.job_of(page))}
+                "can_run": not why and self.may_run(headers, page), "job": bool(self.job_of(page)),
+                "money": self.money_view(page) if shell_sql.page_has_money(page) else None}
+
+    def money_view(self, page: dict) -> dict:
+        """The money rule the page uses now, and whether the owner saved it or the spec sets it."""
+        spec = self.by_id.get(str(page.get("id"))) or {}
+        return {"rule": shell_sql.money_rule_of(page), "saved": page.get("money") != spec.get("money"),
+                "name": shell_sql.MONEY_RULE_NAME}
+
+    def money_rule_save(self, headers: dict, data: dict) -> dict:
+        page = self.page(data.get("page"))
+        refusal = self.owner_refusal(headers, page, SETTING_WORDS)
+        if refusal:
+            raise HttpError(403, refusal)
+        rule = data.get("rule")
+        if not isinstance(rule, dict):
+            raise HttpError(400, "send rule, the money currency rule as an object")
+        problems = shell_sql.money_rule_problems(rule)
+        if problems:
+            raise HttpError(400, "; ".join(problems))
+        note = data.get("note") or ""
+        if not isinstance(note, str) or len(note.strip()) > NOTE_CHARS:
+            raise HttpError(400, f"keep the note to {NOTE_CHARS} characters")
+        ws, _who = self.workspace(headers)
+        editor = self.editor(headers)
+        self.execute(ws, *shell_sql.assumption_write(page, shell_sql.MONEY_RULE_NAME, None, editor, note.strip(),
+                                                     json.dumps(shell_sql.money_rule_clean(rule), sort_keys=True)), 1, delta=True)
+        return self.settings_view(headers, page["id"])
 
     def setting_change(self, headers: dict, data: dict) -> tuple:
         page = self.page(data.get("page"))

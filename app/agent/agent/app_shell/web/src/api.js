@@ -152,6 +152,7 @@ export const changeAssumption = (body) => json('POST', 'money/assumption', body)
 export const getSettings = (page) => json('GET', `settings?page=${encodeURIComponent(page)}`);
 export const previewSetting = (body) => json('POST', 'settings/preview', body);
 export const saveSetting = (body) => json('POST', 'settings/save', body);
+export const saveMoneyRule = (body) => json('POST', 'money/rule', body);
 export const getImpact = (page) => json('GET', `impact?page=${encodeURIComponent(page)}`);
 export const getTrends = (page) => json('GET', `trends?page=${encodeURIComponent(page)}`);
 export const getFeedback = (page) => json('GET', `feedback?page=${encodeURIComponent(page)}`);
