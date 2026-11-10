@@ -643,13 +643,6 @@ function validateImplementSpec(input, { shell = null, legacyAccess = '', impact 
         + 'in the same version');
     }
   }
-  if (spec.publish_held != null && spec.publish_held !== '') {
-    const held = wholeNumber(spec.publish_held);
-    if (held == null || held < 1) errors.push(`publish_held ${shownValue(spec.publish_held)} must be a version number, 1 or more`);
-    else if (out.uninstall) errors.push('Publish anyway puts a held version live, so it cannot run with Uninstall All in the same version');
-    else out.publish_held = held;
-  }
-
   const sharing = objectField(spec.sharing, 'sharing', errors);
   const principals = [];
   const seen = new Set();
@@ -2023,17 +2016,6 @@ function implementOwners(row) {
   const outputs = isPlainObject(spec.outputs) ? spec.outputs : {};
   const named = [row && row.created_by, ...(Array.isArray(outputs.app_owners) ? outputs.app_owners : [])].map(personKey).filter(Boolean);
   return [...new Set(named)];
-}
-
-function publishHeldDifference(history, spec, legacyAccess = '') {
-  const version = spec && spec.publish_held;
-  if (version == null) return '';
-  const rows = [...(history || [])].sort((a, b) => (b.spec_version || 0) - (a.spec_version || 0));
-  const held = rows.find((r) => r.spec_version === version);
-  if (!held || held.status !== IMPLEMENT_VIBE_NOT_MET || rows[0].spec_version !== version) return '';
-  const stored = validateImplementSpec(withInspireUrl(held.spec_json, spec.outputs.inspire_url), { legacyAccess }).spec;
-  if (sortedJson(withoutPublishKeys(stored)) === sortedJson(withoutPublishKeys(spec))) return '';
-  return `the spec sent to publish v${version} anyway is not v${version} as it was held; reload the page and press Publish anyway again`;
 }
 
 function rollbackSpec(history, spec) {
@@ -3736,7 +3718,6 @@ module.exports = {
   planSubmission,
   implementOwners,
   implementSettingsOwnerRefusal,
-  publishHeldDifference,
   refuseUnchanged,
   implementJobParams,
   widgetsFromInstruction,

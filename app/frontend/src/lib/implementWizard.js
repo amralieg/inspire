@@ -1162,8 +1162,7 @@ export function defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessi
   };
 }
 
-const ONE_VERSION_KEYS = ['retry_outputs', 'retry_asks', 'rollback_outputs', 'confirm_notebook_overwrite', 'vibes', 'vibe_previous', 'remove_kept', 'uninstall',
-  'publish_held'];
+const ONE_VERSION_KEYS = ['retry_outputs', 'retry_asks', 'rollback_outputs', 'confirm_notebook_overwrite', 'vibes', 'vibe_previous', 'remove_kept', 'uninstall'];
 function withoutOneVersionKeys(spec) {
   return Object.fromEntries(Object.entries(spec || {}).filter(([key]) => !ONE_VERSION_KEYS.includes(key)));
 }
@@ -2451,7 +2450,7 @@ export function canBuildAgain(latest, { edited = null, missing = [] } = {}) {
 
 export function buildAgainChanges(latest) {
   const spec = specOf(latest);
-  return Object.fromEntries(ONE_VERSION_KEYS.filter((key) => key !== 'publish_held' && Object.prototype.hasOwnProperty.call(spec, key)).map((key) => [key, spec[key]]));
+  return Object.fromEntries(ONE_VERSION_KEYS.filter((key) => Object.prototype.hasOwnProperty.call(spec, key)).map((key) => [key, spec[key]]));
 }
 
 export function buildAgainHint(latest) {

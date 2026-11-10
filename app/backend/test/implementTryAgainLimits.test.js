@@ -39,6 +39,6 @@ test('every Try again and every Rebuild on the Build page goes through the one c
     'a failure choice goes through the checked submit');
   assert.equal((page.match(/sendAgain\(\)/g) || []).length, 3, 'the banner, the drawer and the progress card send again through it; Check again re-runs the preflight and never submits');
   assert.match(page, /if \(!\(await submitChecked\(rebuildSpec\(latest, vibes, builtOn, previous\)\)\)\) \{\n\s+keepCollected\(sent\);/);
-  assert.match(page, /heldAction\('retry', \(\) => submitChecked\(specFromHeld\(latest\)\)\)/, 'Try again on a held version is checked too');
+  assert.equal(page.includes("heldAction('retry'"), false, 'a held version has no Try again: a build with unmet asks is published, not held');
   assert.equal((page.match(/submitSpec\(next\)/g) || []).length, 1, 'only the checked submit sends a rebuild spec');
 });

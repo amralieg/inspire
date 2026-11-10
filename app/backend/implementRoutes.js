@@ -1132,8 +1132,6 @@ function registerImplementRoutes(app, deps) {
 
   async function prepareSubmission(req) {
     const { sid, warehouseId, inspire_database, catalog, schema, raw, history, legacyAccess, asked } = await askedSpec(req);
-    const changed = I.publishHeldDifference(history, asked, legacyAccess);
-    if (changed) throw I.badRequest(changed, 409);
     const scopeIssues = I.firstRunScopeIssues(history, asked);
     if (scopeIssues.refused.length) throw I.badRequest(scopeIssues.refused.join('; '));
     const { spec: kept, warning: asksWarning } = withoutSkippedVibes(I.rollbackSpec(history, asked));
