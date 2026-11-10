@@ -67,7 +67,7 @@ export function reasonsOf(value) {
 }
 
 function useList(body, ready, nonce, plain = null) {
-  const [state, setState] = useState({ data: null, error: '', busy: true, at: 0, unwindowed: false });
+  const [state, setState] = useState({ data: null, error: '', busy: true, at: 0, unwindowed: false, key: '' });
   const seq = useRef(0);
   const key = JSON.stringify(body);
   const plainKey = plain ? JSON.stringify(plain) : '';
@@ -80,8 +80,13 @@ function useList(body, ready, nonce, plain = null) {
       .catch((e) => (plainKey && e.code === CODES.noWindow
         ? getRecords(JSON.parse(plainKey)).then((data) => { if (data?.actions) throw e; return { data, unwindowed: true }; })
         : Promise.reject(e)))
-      .then(({ data, unwindowed }) => { if (mine === seq.current) setState({ data, error: '', busy: false, at: Date.now(), unwindowed }); })
-      .catch((e) => { if (mine === seq.current) setState({ data: null, error: e.message, busy: false, at: 0, unwindowed: false }); });
+      .then(({ data, unwindowed }) => { if (mine === seq.current) setState({ data, error: '', busy: false, at: Date.now(), unwindowed, key }); })
+      .catch((e) => {
+        if (mine !== seq.current) return;
+        setState((s) => (s.key === key
+          ? { ...s, error: e.message, busy: false }
+          : { data: null, error: e.message, busy: false, at: 0, unwindowed: false, key }));
+      });
   }, [key, plainKey, ready, nonce]);
   return state;
 }

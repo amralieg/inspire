@@ -235,7 +235,7 @@ def page_tables(page: dict, backend: dict, derived=None) -> set:
         out |= {uc_key(v) for v in ((backend.get("previous") or {}).get(page.get("id")) or {}).values()}
     if page.get("result_table"):
         out.add(uc_key(page["result_table"]))
-        out |= {current_copy(backend, page["result_table"])} - {""}
+        out |= {current_copy(backend, page["result_table"]), changes_copy(backend, page["result_table"])} - {""}
     return out
 
 

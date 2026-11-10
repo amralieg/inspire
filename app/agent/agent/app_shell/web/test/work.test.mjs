@@ -471,3 +471,40 @@ test('the keyboard moves through the list, opens, marks done, snoozes, selects a
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+const rowChecks = (page) => page.locator('.card--table tbody input[type="checkbox"]').count();
+
+test('a refresh that fails after an act keeps the rows and their actions on screen, with the load error', async () => {
+  let failing = false;
+  const { routes } = routesFor({}, {
+    records: (ctx) => (failing ? ctx.json(502, { error: 'Insufficient privileges on the changes log' })
+      : lister(ROWS, { actions: true, changes: true, summary: SUMMARY, as_of_us: AS_OF })(ctx)),
+    'records/act': ({ route, json }) => {
+      failing = true;
+      return json(200, { written: route.request().postDataJSON().record_keys || [], conflicts: [], batch_id: 'b-9' });
+    },
+  });
+  const { page } = await openList(routes);
+  const before = await rowChecks(page);
+  assert.ok(before > 0, 'the list shows records that can be acted on');
+  await page.getByRole('checkbox', { name: 'Select every record on this page' }).check();
+  await page.getByRole('button', { name: 'Mark done…' }).click();
+  await page.locator('textarea[name="bulk_note"]').fill('Merged into the surviving record');
+  await page.getByRole('button', { name: /^Mark \d+ records? done$/ }).click();
+  await page.getByText('The list could not load:').waitFor();
+  assert.equal(await rowChecks(page), before, 'the rows and their actions stay after the refresh fails');
+});
+
+test('a list whose new search fails shows none of the records of the old list', async () => {
+  const { routes } = routesFor({}, {
+    records: (ctx) => {
+      if (ctx.route.request().postDataJSON().search) return ctx.json(502, { error: 'The warehouse did not answer' });
+      return lister(ROWS, { actions: true, changes: true, summary: SUMMARY, as_of_us: AS_OF })(ctx);
+    },
+  });
+  const { page } = await openList(routes);
+  assert.ok(await rowChecks(page) > 0);
+  await page.getByLabel('Search the list').fill('Item');
+  await page.getByText('The list could not load:').waitFor();
+  assert.equal(await rowChecks(page), 0, 'a list of another search never shows the old records with their actions');
+});

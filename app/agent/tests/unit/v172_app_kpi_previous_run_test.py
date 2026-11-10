@@ -242,6 +242,18 @@ def test_the_lakebase_backend_checks_each_previous_copy_and_a_write_never_holds_
         "a write after the previous run ended never changes what it left"
 
 
+CHANGES_VIEW = "main.inspire_lb.n01_u05__lb_changes"
+
+
+def test_the_grant_covers_the_changes_copy_the_fallback_reads_so_a_write_never_fails_the_list():
+    page = dict(PAGE, result_table=RESULT)
+    held = dict(backend(True), changes={shell_pg.uc_key(RESULT): CHANGES_VIEW})
+    granted = shell_pg.page_tables(page, held)
+    assert shell_pg.uc_key(CHANGES_VIEW) in granted, \
+        "the App's SQL names the changes copy when Lakebase cannot serve a query and falls back to Delta; without a grant that read fails"
+    assert shell_pg.uc_key(CHANGES_VIEW) not in shell_pg.page_tables(page, backend(True)), "a page with no changes copy is granted none"
+
+
 def _notebook_page(ns, **changes):
     from v140_implement_test import _churn_page
     return ns["implement_app_page"](_churn_page(ns, **changes), "N01-U01", {}, RESULT)
