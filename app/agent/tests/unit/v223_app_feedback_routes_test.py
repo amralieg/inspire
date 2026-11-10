@@ -160,7 +160,7 @@ def test_a_service_principal_without_modify_says_who_must_grant_it(tmp_path):
     ws.fail["INSERT INTO `main`.`pricing`.`loss_desk_out_feedback`"] = shell_db.QueryError("[INSUFFICIENT_PERMISSIONS] no MODIFY")
     status, out = _report(s)
     assert status == 403 and out["error"] == shell_core.REFUSED_WRITE
-    assert "main.pricing.loss_desk_out_feedback" in out["details"] and "[INSUFFICIENT_PERMISSIONS]" in out["details"]
+    assert "`main`.`pricing`.`loss_desk_out_feedback`" in out["details"] and "[INSUFFICIENT_PERMISSIONS]" in out["details"]
 
 
 def test_the_feedback_queries_bind_every_value():
