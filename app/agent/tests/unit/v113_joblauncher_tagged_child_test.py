@@ -216,12 +216,12 @@ def test_L_inspire_main_launch_gate_makes_the_same_sdk_calls_as_v113(ns, fake_sd
     kinds = [c[0] for c in fake_sdk["jobs"].calls]
     assert kinds == ["list", "create", "run_now"]
     create = fake_sdk["jobs"].calls[1][1]
-    assert set(create) == {"name", "tags", "tasks"} and create["tasks"][0].notebook_task.base_parameters == {"00_business_name": "acme", "14_session_id": "77"}
+    assert set(create) == {"name", "tags", "tasks", "timeout_seconds"} and create["tasks"][0].notebook_task.base_parameters == {"00_business_name": "acme", "14_session_id": "77"}
     assert fake_sdk["jobs"].calls[2][1] == {"job_id": 501}
     fake_sdk["jobs"] = _Jobs(existing=12)
     ns["JobLauncher"]("/Users/a/agent", {"00_business_name": "acme"}, {}).launch(job_name="dbx_inspire_ai_acme", run_name="dbx_inspire_ai_acme")
     update = next(c for c in fake_sdk["jobs"].calls if c[0] == "update")[1]
-    assert set(update["settings"]) == {"name", "tags", "tasks"} and update["job_id"] == 12
+    assert set(update["settings"]) == {"name", "tags", "tasks", "timeout_seconds"} and update["job_id"] == 12
     main_src = agent_source()[agent_source().index("def main():"):]
     assert "_launcher = JobLauncher(_nb_path, _job_widgets, _job_tags)" in main_src
     assert ('_launcher.launch(job_name=_job_name, run_name=_job_name, '
