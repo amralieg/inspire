@@ -3427,7 +3427,30 @@
      }
     ]
    },
-   "demo_signal": "names and addresses with 5% near-duplicates that differ in spelling"
+   "demo_signal": "names and addresses with 5% near-duplicates that differ in spelling",
+   "choices": [
+    {
+     "id": "merge",
+     "label": "Merge",
+     "status": "Done"
+    },
+    {
+     "id": "review_later",
+     "label": "Review later",
+     "status": "In progress"
+    },
+    {
+     "id": "not_duplicate",
+     "label": "Not a duplicate",
+     "status": "Dismissed",
+     "reasons": [
+      "Different company",
+      "Parent and subsidiary, keep both",
+      "Data error",
+      "Different location"
+     ]
+    }
+   ]
   },
   {
    "id": "journey_path",
@@ -3913,7 +3936,29 @@
      }
     ]
    },
-   "demo_signal": "edges between entities with 2 hubs carrying 40% of the flow"
+   "demo_signal": "edges between entities with 2 hubs carrying 40% of the flow",
+   "choices": [
+    {
+     "id": "add_backup",
+     "label": "Add a backup",
+     "status": "In progress"
+    },
+    {
+     "id": "mitigated",
+     "label": "Mitigated",
+     "status": "Done"
+    },
+    {
+     "id": "accept_risk",
+     "label": "Accept the risk",
+     "status": "Dismissed",
+     "reasons": [
+      "Low impact if it fails",
+      "A backup already exists",
+      "Planned change"
+     ]
+    }
+   ]
   },
   {
    "id": "reason_codes",
