@@ -209,7 +209,7 @@ test('Rephrase puts exactly the asks that were not met in the one vibe box, and 
       'Put the riskiest customers first\nCount returns by week\nAnswer in euros, rounded to cents\nShow the regions as a bar chart on the dashboard', 'the old words of the asks not met are gone');
     await wizard.getByRole('group', { name: 'What happens to v4?' }).getByRole('radio', { name: /^Keep v4 live/ }).check();
     await toSummary(page);
-    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
+    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the rephrased build');
     const [built] = insertsOf(made);
     assert.equal(built.spec.vibes, 'Put the riskiest customers first\nCount returns by week\nAnswer in euros, rounded to cents\nShow the regions as a bar chart on the dashboard');

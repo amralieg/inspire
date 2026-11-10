@@ -8,8 +8,8 @@ import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. What to deliver', '6. Where it lives', '7. Who uses the App', '8. App pages', '9. App look', '10. Run it', '11. Review & build'];
-const NO_APP = ['1. Data', '2. First run', '3. Results', '4. What to deliver', '5. Run it', '6. Review & build'];
+const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. App look', '9. Run it', '10. Review & build'];
+const NO_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Run it', '6. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const builtLine = (page) => page.locator('[data-built-sentence]').innerText();
 
@@ -49,7 +49,7 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
   const { page, made } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await onStep(page, 'Use case');
+    await goToStep(page, 'Data');
     await stepsAre(page, WITH_APP);
     await noOldSteps(page);
     await page.locator('[data-wizard-header]').waitFor();
