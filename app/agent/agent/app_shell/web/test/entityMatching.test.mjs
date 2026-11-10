@@ -148,3 +148,62 @@ test('entity matching: a long list pages in order and searches by account name',
   await context.close();
   assert.deepEqual(seen.errors.filter((e) => !/Failed to load resource/.test(e)), []);
 });
+
+const DUP_NAMES = ['Northwind Trading', 'Northwind Trading Ltd', 'N. Wind Trading', 'Blue Harbor Foods', 'Blue Harbour Foods', 'Aster Logistics',
+  'Aster Logistics LLC', 'Cobalt Labs', 'Cobalt Labs Inc', 'Evergreen Supply', 'Evergreen Supply Co', 'Fjord Pharma'];
+const DUP_ROWS = DUP_NAMES.map((name, i) => ({ record_key: `D${String(i + 1).padStart(2, '0')}`, _inspire_key: `D${String(i + 1).padStart(2, '0')}`,
+  _inspire_version: String(300 + i), entity_id: `D${String(i + 1).padStart(2, '0')}`, entity_label: name, community: `Cluster ${Math.floor(i / 2) + 1}`,
+  centrality: 0.95 - i * 0.02, metric: 12000 - i * 500, node: name, recommended_action: i % 3 === 2 ? 'Needs review by a steward' : 'Merge into the lead record',
+  top_reasons: ['same tax number'], priority_tier: 'Act now', rank: i + 1, as_of_date: '2026-10-15' }));
+
+function dupListing(state, { failAfterAct = false } = {}) {
+  const h = listing(state, { failAfterAct });
+  return h;
+}
+
+const DUP_PAGE = 'entity_matching.json';
+
+test('entity matching group: Take all suggestions merges every suggested pair, keeps every row and its decision buttons', async () => {
+  const state = { rows: DUP_ROWS.map((r) => ({ ...r })) };
+  const h = dupListing(state);
+  const info = appInfo(DECIDE, 1, {}, `examples/${DUP_PAGE}`);
+  const base = kindRoutes(CASE.data(), state.rows, [], JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', DUP_PAGE), 'utf8')));
+  const { page, context, seen } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act } });
+  await page.locator('[data-choice-row]').first().waitFor();
+  await idle(page);
+  const before = await rowCount(page);
+  assert.equal(before, DUP_ROWS.length, 'every duplicate pair is listed');
+  const takeAll = page.locator('[data-take-all]');
+  assert.equal(await takeAll.count(), 1, 'the group action is offered');
+  await takeAll.click();
+  await idle(page);
+  await page.waitForTimeout(300);
+  const statusOf = Object.fromEntries(h.acts.flatMap((a) => a.record_keys.map((k) => [k, a.values.action_status])));
+  const merged = DUP_ROWS.filter((r) => r.recommended_action.startsWith('Merge')).map((r) => r.record_key);
+  const review = DUP_ROWS.filter((r) => !r.recommended_action.startsWith('Merge')).map((r) => r.record_key);
+  assert.deepEqual(Object.keys(statusOf).sort(), DUP_ROWS.map((r) => r.record_key).sort(), 'every suggested pair was written once');
+  assert.ok(merged.every((k) => statusOf[k] === 'Done'), 'merge suggestions write Done');
+  assert.ok(review.every((k) => statusOf[k] === 'In progress'), 'steward-review suggestions write In progress');
+  assert.equal(await rowCount(page), before, 'no row disappears after the group action');
+  assert.equal(await page.locator('[data-choice-row] [data-decided]').count(), merged.length, 'every merged pair shows its outcome');
+  assert.ok(await page.locator(`[data-choice-row="${review[0]}"] [data-choice]`).count() > 0, 'a pair left for review keeps its buttons');
+  await context.close();
+  assert.deepEqual(seen.errors.filter((e) => !/Failed to load resource/.test(e)), []);
+});
+
+test('entity matching group: a group action whose refresh fails keeps every row and its decision buttons', async () => {
+  const state = { rows: DUP_ROWS.map((r) => ({ ...r })) };
+  const h = dupListing(state, { failAfterAct: true });
+  const info = appInfo(DECIDE, 1, {}, `examples/${DUP_PAGE}`);
+  const base = kindRoutes(CASE.data(), state.rows, [], JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', DUP_PAGE), 'utf8')));
+  const { page, context } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act } });
+  await page.locator('[data-choice-row]').first().waitFor();
+  await idle(page);
+  await page.locator('[data-take-all]').click();
+  await idle(page);
+  await page.waitForTimeout(300);
+  assert.ok(h.acts.length >= 1, 'the group action was written');
+  assert.equal(await rowCount(page), DUP_ROWS.length, 'rows survive the failed refresh');
+  assert.ok(await page.locator('[data-choice-row] [data-choice]').count() > 0, 'decision buttons survive the failed refresh');
+  await context.close();
+});

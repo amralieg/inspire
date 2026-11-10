@@ -149,18 +149,19 @@ export function FreshDetail({ freshness }) {
 }
 
 export function useRuns(pageId, offset, nonce, on = true) {
-  const [out, setOut] = useState({ data: null, error: '', busy: on });
+  const [out, setOut] = useState({ data: null, error: '', busy: on, scope: '' });
   const seq = useRef(0);
+  const scope = `${pageId}\n${offset}`;
   useEffect(() => {
     const mine = ++seq.current;
     if (!on) {
-      setOut({ data: null, error: '', busy: false });
+      setOut({ data: null, error: '', busy: false, scope: '' });
       return;
     }
     setOut((o) => ({ ...o, busy: true }));
     getRuns(pageId, offset)
-      .then((data) => { if (mine === seq.current) setOut({ data, error: '', busy: false }); })
-      .catch((e) => { if (mine === seq.current) setOut({ data: null, error: e.message, busy: false }); });
+      .then((data) => { if (mine === seq.current) setOut({ data, error: '', busy: false, scope }); })
+      .catch((e) => { if (mine === seq.current) setOut((o) => ({ data: o.scope === scope ? o.data : null, error: e.message, busy: false, scope })); });
   }, [pageId, offset, nonce, on]);
   return out;
 }
@@ -171,23 +172,27 @@ export function runCounts(data) {
 }
 
 export function useTrends(pageId, nonce, on) {
-  const [out, setOut] = useState({ data: null, impact: null, error: '' });
+  const [out, setOut] = useState({ data: null, impact: null, error: '', scope: '' });
   const seq = useRef(0);
   useEffect(() => {
     const mine = ++seq.current;
     if (!on) {
-      setOut({ data: null, impact: null, error: '' });
+      setOut({ data: null, impact: null, error: '', scope: '' });
       return;
     }
     getTrends(pageId)
       .then((data) => {
         if (mine !== seq.current) return;
-        setOut({ data, impact: null, error: '' });
+        setOut({ data, impact: null, error: '', scope: pageId });
         if (data?.actions && data.holds) {
           getImpact(pageId).then((impact) => { if (mine === seq.current) setOut((o) => ({ ...o, impact })); }).catch(() => {});
         }
       })
-      .catch((e) => { if (mine === seq.current) setOut({ data: null, impact: null, error: e.message }); });
+      .catch((e) => {
+        if (mine === seq.current) setOut((o) => (o.scope === pageId
+          ? { ...o, error: e.message }
+          : { data: null, impact: null, error: e.message, scope: pageId }));
+      });
   }, [pageId, nonce, on]);
   return out;
 }
