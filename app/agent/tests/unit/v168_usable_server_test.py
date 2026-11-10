@@ -414,7 +414,7 @@ def test_the_notebook_marks_each_step_once_on_the_summary_table_and_a_failed_mar
 def test_the_run_cell_marks_the_settings_and_use_case_steps_and_the_helpers_mark_the_rest(agent_ns):
     template = agent_ns["GENIE_RUN_CONTROLS_TEMPLATE"]
     order = [template.index(t) for t in ("inspire_run_stage(INSPIRE_RUN_STAGES[0]", "inspire_apply_assumptions(",
-                                         "inspire_run_stage(INSPIRE_RUN_STAGES[1]", "outcome = use_case()")]
+                                         "inspire_run_stage(INSPIRE_RUN_STAGES[1]", "outcome = inspire_run_use_case(use_case,")]
     assert order == sorted(order)
     source = agent_ns["IMPLEMENT_RESULT_HISTORY_SOURCE"]
     for name, index in (("inspire_merge_run", 2), ("inspire_ai_explain", 3), ("inspire_write_summary", 4)):
