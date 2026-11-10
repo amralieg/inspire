@@ -185,14 +185,15 @@ function Work({ app, page, ready }) {
 function Performance({ page }) {
   const library = useLibrary(page.id);
   const counts = decisionCounts(library.data);
+  const loaded = !!library.data;
   return (
     <section className="card" data-mode-performance="scenarios" aria-label="Decisions taken">
       <header className="card-h"><div><h2>Decisions taken</h2><p>The scenarios saved on {page.title} and the ones chosen.</p></div></header>
       {library.error && <PlainNote text={library.error.message} prefix="The saved scenarios could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={library.load} />}
       <div className="mode-stats">
-        <div className="mode-stat" data-stat="yours"><small>Saved by you</small><b>{integer(counts.mine)}</b></div>
-        <div className="mode-stat" data-stat="shared"><small>Shared</small><b>{integer(counts.shared)}</b></div>
-        <div className="mode-stat" data-stat="decisions"><small>Decisions</small><b>{integer(counts.decisions)}</b></div>
+        <div className="mode-stat" data-stat="yours"><small>Saved by you</small><b>{loaded ? integer(counts.mine) : '…'}</b></div>
+        <div className="mode-stat" data-stat="shared"><small>Shared</small><b>{loaded ? integer(counts.shared) : '…'}</b></div>
+        <div className="mode-stat" data-stat="decisions"><small>Decisions</small><b>{loaded ? integer(counts.decisions) : '…'}</b></div>
       </div>
       <Decisions decisions={library.data?.decisions || []} />
     </section>

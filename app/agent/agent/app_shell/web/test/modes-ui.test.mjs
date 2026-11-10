@@ -151,6 +151,7 @@ test('Scenarios saves, compares, shares and records the choice in the decision l
   await noQueue(page);
   await go(page, id, 'performance');
   await page.locator('[data-mode-performance="scenarios"]').waitFor();
+  await page.waitForFunction(() => document.querySelector('[data-stat="yours"] b')?.textContent === '2');
   assert.equal(await page.locator('[data-stat="yours"] b').textContent(), '2');
   assert.equal(await page.locator('[data-stat="decisions"] b').textContent(), '1');
   assert.deepEqual(seen.errors, []);

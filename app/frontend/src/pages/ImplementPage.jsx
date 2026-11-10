@@ -125,7 +125,7 @@ function SummaryBanner({ summary }) {
   if (building.length) {
     mark = { icon: Rocket, tone: 'red', live: true };
     title = `${plural(building.length, 'MVP')} building now`;
-    line = building.map((item) => `${item.id}${shownStatusMessage(item.latest) ? `: ${shownStatusMessage(item.latest)}` : ''}`).join(' · ');
+    line = building.map((item) => `${item.name}${shownStatusMessage(item.latest) ? `: ${shownStatusMessage(item.latest)}` : ''}`).join(' · ');
   } else if (summary.mvps) {
     mark = summary.failed || summary.held || summary.unmet ? { icon: AlertTriangle, tone: 'warning' } : { icon: CheckCircle2, tone: 'success' };
     title = `${shown(summary.ready)} of ${plural(summary.mvps, 'MVP')} ready`;
@@ -295,7 +295,6 @@ function Rail({ groups, listLoading, query, asset, mvp = '', assetLabel, shownId
                     <div className={`text-[12.5px] font-semibold leading-snug line-clamp-2 ${on ? 'text-db-red-fg' : 'text-text-primary'}`}>{item.name}</div>
                     <div className="mt-1.5 flex items-center justify-between gap-2">
                       <span className="flex flex-wrap items-center gap-1.5 min-w-0">
-                        <span className="font-mono text-[10px] text-text-secondary">{item.id}</span>
                         <ImplementStatusBadge state={item.state} />
                         <QualityBarChip uc={item.uc} />
                       </span>
@@ -1706,8 +1705,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-lg font-bold text-text-primary" title={item.name}>{item.name}</h2>
             <div data-use-case-meta="" className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-secondary">
-              <span className="font-mono">{item.id}</span>
-              {row?.domain && <span>· <bdi>{row.domain}</bdi>{row.subdomain && <> › <bdi>{row.subdomain}</bdi></>}</span>}
+              {row?.domain && <span><bdi>{row.domain}</bdi>{row.subdomain && <> › <bdi>{row.subdomain}</bdi></>}</span>}
               {latest?.spec_version != null && <span className="font-mono">· v{latest.spec_version}</span>}
               <ImplementStatusBadge state={item.state} />
             </div>
