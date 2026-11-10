@@ -140,8 +140,7 @@ export const APP_ACCESS_CHOICES = [
 ];
 export const APP_ACCESS_DEFAULT = 'user';
 export const REMOVED_OUTPUT_DEFAULT = 'keep';
-export const APP_ACCESS_NOTE = 'Inspire starts with each person signing in as themselves, so they see only the rows and values their own access allows. '
-  + 'Pick everyone sees the same rows only when no table has row filters, column masks or access policies; those pages open at once.';
+export const APP_ACCESS_NOTE = 'Each person signs in as themselves and sees only the rows their access allows.';
 
 export const APP_BACKENDS = ['lakebase', 'delta'];
 export const APP_BACKEND_CHOICES = [
@@ -413,8 +412,7 @@ export const RESULT_TABLE_MOVE_NOTE = 'Moving the table later copies its history
 export const MERGE_OUTPUTS = ['dashboard', 'genie_space', 'app'];
 
 export const FRESH_DEFAULT = 'daily';
-export const FRESH_HELP = `Runs the MVP again each day or week, so the results stay current. Only the ${FIRST_RUN_LABEL} covers part of the data; `
-  + 'every later run covers all your Data groups.';
+export const FRESH_HELP = 'Runs the MVP again each day or week, so the results stay current.';
 
 export const FRESHNESS_OPTIONS = [
   { id: 'off', label: 'Off' },
