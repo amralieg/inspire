@@ -288,7 +288,7 @@ test('Start lists a run with no news for longer than the bound as No news, not I
     assert.equal(await row('71').getByText('In Progress', { exact: true }).count(), 1);
     assert.equal(await row('72').getByText('In Progress', { exact: true }).count(), 0, 'a quiet run is not in progress');
     assert.equal(await row('72').getByText('No news', { exact: true }).count(), 1);
-    assert.equal(await ui.page.getByText('1 completed · 1 in progress', { exact: true }).count(), 1);
+    assert.equal(await ui.page.getByText('1 completed · 1 in progress · 1 with no news', { exact: true }).count(), 1);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

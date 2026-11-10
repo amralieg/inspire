@@ -15,6 +15,7 @@ and probe source tables with zero-row reads (LIMIT 0); nowhere else.
 import ast
 import base64
 import json
+import os
 import re
 import zlib
 
@@ -364,9 +365,23 @@ def add_global_builders(index, source):
                 index.functions.setdefault(node.name, []).append(node)
 
 
+SHELL_SQL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "agent", "app_shell", "server", "shell_sql.py")
+SHELL_SQL_BUILDERS = ("siblings_query",)
+
+
+def add_shell_builders(index):
+    """The notebook calls these shell_sql builders through modules["shell_sql"]; the guard reads them from the shipped module."""
+    with open(SHELL_SQL_PATH, encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name in SHELL_SQL_BUILDERS:
+            index.functions.setdefault(node.name, []).append(node)
+
+
 def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None):
     index = SqlIndex(ast.parse(source))
     add_global_builders(index, source)
+    add_shell_builders(index)
     runs = (lambda lineno: True) if scope is None else (lambda lineno: scope(lineno)[0])
     implement = (lambda lineno: None) if scope is None else (lambda lineno: scope(lineno)[1])
     executed, unresolved, owned = [], [], []
