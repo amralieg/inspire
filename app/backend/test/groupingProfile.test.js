@@ -228,13 +228,13 @@ test('a person who cannot read the table gets a 403 that says so plainly, and no
   const hidden = profiled({}, { 'information_schema.columns': [] });
   await withApp(hidden, async (srv) => {
     const got = await post(srv, ASK);
-    assert.deepEqual([got.status, got.data.error], [403, `${U.runUnreadableText(['main.sales.orders'])}.`]);
+    assert.deepEqual([got.status, got.data.error], [403, `${U.runUnreadableTablesText(['main.sales.orders'])}.`]);
     assert.ok(!tableReads(hidden.sqlCalls).some((c) => c.sql.includes('approx_count_distinct')));
   });
   const denied = profiled({}, { approx_count_distinct: () => { throw new Error('[INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table main.sales.orders.'); } });
   await withApp(denied, async (srv) => {
     const got = await post(srv, ASK);
-    assert.deepEqual([got.status, got.data.error], [403, `${U.runUnreadableText(['main.sales.orders'])}.`]);
+    assert.deepEqual([got.status, got.data.error], [403, `${U.runUnreadableTablesText(['main.sales.orders'])}.`]);
     assert.doesNotMatch(got.data.error, /INSUFFICIENT|\n/);
     assert.ok(!tableReads(denied.sqlCalls).some((c) => c.sql.includes('AS col, left(')));
   });

@@ -249,6 +249,12 @@ function runUnreadableText(names) {
   return `You can't read ${shownNames(names)}. Pick tables and files you can read, or ask their owner for access`;
 }
 
+// Table reads name no id in the sentence; the tables themselves are returned as `unreadable` for Details.
+function runUnreadableTablesText(names) {
+  return `You can't read ${names.length === 1 ? 'this source table' : `${names.length} source tables`}. `
+    + 'Pick tables you can read, or ask their owner for access';
+}
+
 function skippedTablesText(names) {
   return `Skipped ${names.length} ${names.length === 1 ? 'table' : 'tables'} you can't read: ${shownNames(names)}.`;
 }
@@ -268,7 +274,7 @@ async function runReadPlan(dbFetch, req, reads) {
   const warnings = plan.unchecked.length ? [uncheckedText(plan.unchecked)] : [];
   if (plan.files.length) return { ...none, refusal: { status: 403, message: runUnreadableText(plan.files), unreadable: plan.files } };
   if (plan.unreadable.length && !plan.entries.length) {
-    return { ...none, refusal: { status: 403, message: runUnreadableText(plan.unreadable), unreadable: plan.unreadable } };
+    return { ...none, refusal: { status: 403, message: runUnreadableTablesText(plan.unreadable), unreadable: plan.unreadable } };
   }
   if (!plan.unreadable.length) return { ...none, unchecked: plan.unchecked, warnings, uncheckedWarnings: warnings };
   return {
@@ -284,7 +290,7 @@ async function runReadPlan(dbFetch, req, reads) {
 async function runReadRefusal(dbFetch, req, reads) {
   const plan = await runReadPlan(dbFetch, req, reads);
   if (plan.refusal) return plan.refusal;
-  return plan.skipped.length ? { status: 403, message: runUnreadableText(plan.skipped), unreadable: plan.skipped } : null;
+  return plan.skipped.length ? { status: 403, message: runUnreadableTablesText(plan.skipped), unreadable: plan.skipped } : null;
 }
 
 const scopeMissing = (got) => SCOPE_RE.test(String(got.data.message || got.data.error || ''));
@@ -578,6 +584,7 @@ module.exports = {
   discoverReads,
   unreadableReads,
   runUnreadableText,
+  runUnreadableTablesText,
   skippedTablesText,
   runReadPlan,
   runReadRefusal,

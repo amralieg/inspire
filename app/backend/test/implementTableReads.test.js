@@ -96,7 +96,8 @@ test('the swap lookup keeps its own no-sign-in reason', () => {
 });
 
 const { RUN_NO_SIGN_IN } = require('../lib/ucReads');
-const cannotRead = (names) => `You can't read ${names}. Pick tables and files you can read, or ask their owner for access`;
+const cannotRead = (names) => `You can't read ${names}. Pick tables and files you can read, or ask their owner for access`; // file paths
+const tableCannotRead = () => "You can't read this source table. Pick tables you can read, or ask their owner for access";
 const insertedSpec = (made) => JSON.parse(made.sqlCalls.find((c) => /^INSERT/.test(String(c.sql)) && String(c.sql).includes('__inspire_implement'))
   .parameters.find((p) => p.name === 'spec').value);
 const DB = { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42' };
@@ -126,7 +127,7 @@ test('an MVP build drops a secondary table the person cannot read, says so, and 
   await withApp({ history: [], readableTables: { [PERSON_TOKEN]: ['main.s.returns_v2'] } }, async (url, made) => {
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
     assert.deepEqual([got.status, got.data.unreadable], [403, ['main.s.orders']]);
-    assert.equal(got.data.error, `${cannotRead('main.s.orders')}. It is the primary table, so Inspire cannot build without it.`);
+    assert.equal(got.data.error, `${tableCannotRead()}. It is the primary table, so Inspire cannot build without it.`);
     ruleOut(made);
   });
   await withApp({ history: [], readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'MAIN.S.RETURNS_V2'] } }, async (url, made) => {
@@ -146,7 +147,7 @@ test('a re-run and Publish anyway are refused the same way, before run-now or a 
   const built = { ...BUILT, job_id: 77, genie_widgets: JSON.stringify([{ name: 'top_k', type: 'text', default: '25', allowed: 'whole number, at least 1' }]) };
   await withApp({ history: [built], readableTables: { [PERSON_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
-    assert.deepEqual([got.status, got.data.error, got.data.unreadable], [403, cannotRead('main.s.returns_v2'), ['main.s.returns_v2']],
+    assert.deepEqual([got.status, got.data.error, got.data.unreadable], [403, tableCannotRead(), ['main.s.returns_v2']],
       'a re-run runs the built job as it is, so it cannot leave a table out');
     assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
   });
@@ -168,7 +169,7 @@ test('a Genie Code notebook run checks only the chosen use cases\u2019 tables, n
   });
   await withApp({ ucMetadata: 'main.s.orders', readableTables: { [PERSON_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
     const got = await generate(url);
-    assert.deepEqual([got.status, got.data], [403, { error: cannotRead('main.s.returns'), unreadable: ['main.s.returns'] }]);
+    assert.deepEqual([got.status, got.data], [403, { error: tableCannotRead(), unreadable: ['main.s.returns'] }]);
     assert.deepEqual([made.flagged, made.jobs], [[], []]);
   });
   await withApp({ ucMetadata: 'main.s.orders', ...APP_ONLY }, async (url, made) => {

@@ -1216,7 +1216,7 @@ function registerImplementRoutes(app, deps) {
     const picks = I.sourcePicks(spec, involved).filter((p) => gone.has(p.chosen.toLowerCase()));
     const primary = I.primaryTableOf(useCase).toLowerCase();
     const main = picks.find((p) => p.original.toLowerCase() === primary);
-    if (main) throw unreadableRefusal(`${U.runUnreadableText([main.chosen])}. It is the primary table, so Inspire cannot build without it.`, 403, [main.chosen]);
+    if (main) throw unreadableRefusal(`${U.runUnreadableTablesText([main.chosen])}. It is the primary table, so Inspire cannot build without it.`, 403, [main.chosen]);
     let next = spec;
     const notes = [];
     for (const pick of picks) {
@@ -1737,9 +1737,9 @@ function registerImplementRoutes(app, deps) {
     deadline: () => [504, `Inspire read ${table} for Data groups for ${GP.PROFILE_MS / 1000} seconds with no answer, so it stopped; `
       + 'try again once the warehouse is running.'],
     sign_in: (m) => [401, `Databricks did not accept your sign-in to read ${table} for Data groups: ${m}`],
-    denied: () => [403, `${U.runUnreadableText([table])}.`],
+    denied: () => [403, `${U.runUnreadableTablesText([table])}.`],
     submitted: (m) => [502, `Databricks could not read the table for Data groups: ${m}`],
-    missing: () => [403, `${U.runUnreadableText([table])}.`],
+    missing: () => [403, `${U.runUnreadableTablesText([table])}.`],
     failed: (m) => [400, `Inspire could not read the table for Data groups: ${m}`],
   });
 
@@ -1795,7 +1795,7 @@ function registerImplementRoutes(app, deps) {
             console.warn(`grouping profile: the declared keys of ${table} could not be read, so Data groups use no declared key: ${err.message}`);
             return [];
           })]);
-        if (!columns.length) throw I.badRequest(`${U.runUnreadableText([table])}.`, 403);
+        if (!columns.length) throw I.badRequest(`${U.runUnreadableTablesText([table])}.`, 403);
         const roles = data.column_roles && typeof data.column_roles === 'object' ? data.column_roles : {};
         const keys = GP.declaredKeys(keyRows);
         const saved = GP.savedJoins(useCase.table_joins, table);
