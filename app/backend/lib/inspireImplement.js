@@ -2469,7 +2469,7 @@ function implementUsedColumns(evidence, original, readColumns) {
 
 function implementTablesUnreadable(tables) {
   const one = tables.length === 1;
-  return `Inspire cannot read the columns of ${joinAnd(tables)} with your sign-in: ${one ? 'the table does' : 'the tables do'} not exist or you cannot read ${one ? 'it' : 'them'}`;
+  return `Inspire cannot read the columns of ${one ? 'this table' : `${tables.length} tables`} with your sign-in: ${one ? 'the table does' : 'the tables do'} not exist or you cannot read ${one ? 'it' : 'them'}`;
 }
 
 function tableProbeStatement(name) {
@@ -2864,7 +2864,7 @@ function outputAccess(rows, name, options = {}) {
     ? { ok: true, detail: exists ? `${by.who} can share ${table}` : `${by.who} will own ${table}, so ${by.it} can share it` }
     : { ok: false, detail: `${by.who} cannot share ${table}: ${by.itNeeds} to own it, its schema or its catalog, or hold MANAGE on one of them` };
   const readable = accessPlan(name, list, '', options);
-  const app = missing ? { ok: false, detail: `a new App cannot read ${table}: ${missing}` }
+  const app = missing ? { ok: false, detail: `a new App cannot read the table: ${missing}` }
     : readable.gaps.length
       ? { ok: false, detail: appAccessMessage(table, readable.gaps, readable.me) }
       : { ok: true, detail: `Inspire can give a new App read access to ${table}` };
@@ -3131,8 +3131,8 @@ function appReadsText(left, app, refused = []) {
   if (!left.length) return 'The App can read all its data now';
   const tables = joinAnd(left.map((t) => t.table));
   const owners = joinAnd([...new Set(left.map((t) => t.owner).filter(Boolean))]);
-  const head = `The App ${app ? `${app} ` : ''}cannot read ${tables}, so its pages show no data from ${left.length === 1 ? 'it' : 'them'}`;
-  const ask = owners ? `${owners} can grant it` : 'the owner of each table can grant it';
+  const head = `The App ${app ? `${app} ` : ''}cannot read ${left.length === 1 ? 'this table' : `${left.length} tables`}, so its pages show no data from ${left.length === 1 ? 'it' : 'them'}`;
+  const ask = owners ? 'the table owner can grant it' : 'the owner of each table can grant it';
   const plain = `${head}. ${ask[0].toUpperCase()}${ask.slice(1)}`;
   return refused.length ? `${plain}. Your grant was refused; the statements and the error are under Details` : plain;
 }
@@ -3158,7 +3158,7 @@ function gapList(gaps) {
 function accessGapMessage(who, gaps) {
   const it = gaps.length === 1 ? 'it' : 'them';
   const statements = gaps.map((g) => grantSql(g, who)).join('; ');
-  return `${who} may not be able to read the result table: Inspire cannot grant ${gapList(gaps)}, because it `
+  return `${who} may not be able to read the result table: Inspire cannot grant ${gaps.length === 1 ? 'this access' : 'these accesses'}, because it `
     + `neither owns nor holds MANAGE on ${it}. If ${who} does not have ${it} yet, ask the owner to run: ${statements}`;
 }
 
@@ -3169,7 +3169,7 @@ function appAccessMessage(table, gaps, me = '') {
   const shared = gaps.length && gaps.every((g) => IMPLEMENT_TRAVERSE_PRIVILEGES.includes(g.privilege))
     ? `, or ${gaps.map((g) => grantSql(g, IMPLEMENT_ALL_USERS)).join('; ')}, which ${one ? 'opens' : 'open'} no data by ${one ? 'itself' : 'themselves'}`
     : '';
-  return `a new App could not read ${table}: its service principal needs ${gapList(gaps)}, which not all `
+  return `a new App could not read the result table: its service principal needs ${gaps.length === 1 ? 'this access' : 'these accesses'}, which not all `
     + `account users have, and Inspire can grant ${one ? 'it' : 'them'} only with MANAGE or ownership. `
     + `Ask the owner to run: ${statements}${shared}; or choose a result table in a catalog and schema Inspire manages`;
 }

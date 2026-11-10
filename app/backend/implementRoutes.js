@@ -1738,9 +1738,9 @@ function registerImplementRoutes(app, deps) {
       + 'try again once the warehouse is running.'],
     sign_in: (m) => [401, `Databricks did not accept your sign-in to read ${table} for Data groups: ${m}`],
     denied: () => [403, `${U.runUnreadableText([table])}.`],
-    submitted: (m) => [502, `Databricks could not read ${table} for Data groups: ${m}`],
+    submitted: (m) => [502, `Databricks could not read the table for Data groups: ${m}`],
     missing: () => [403, `${U.runUnreadableText([table])}.`],
-    failed: (m) => [400, `Inspire could not read ${table} for Data groups: ${m}`],
+    failed: (m) => [400, `Inspire could not read the table for Data groups: ${m}`],
   });
 
   function builtData(history) {

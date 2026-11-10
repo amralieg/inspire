@@ -2625,8 +2625,9 @@ export function appReadsSql(reads) {
 }
 
 export function appReadsText(reads, appName = '') {
-  const tables = joinWords((reads?.tables || []).map((t) => (t.owner ? `${t.table} (owner ${t.owner})` : t.table)));
-  return `The build finished, but the App${appName ? ` ${appName}` : ''} cannot read ${tables}, so its pages show no data from them yet. `
+  const count = (reads?.tables || []).length;
+  const tables = count === 1 ? 'this table' : `${count} tables`;
+  return `The build finished, but the App${appName ? ` ${appName}` : ''} cannot read ${tables}, so its pages show no data from ${count === 1 ? 'it' : 'them'} yet. `
     + 'Inspire could not grant the access itself, because it does not own that data.';
 }
 

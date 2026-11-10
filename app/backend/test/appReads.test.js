@@ -92,7 +92,7 @@ test('Grant access with my permissions runs exactly the recorded grants still mi
     assert.deepEqual(assets.app.unread.tables, [{ table: 'main.s.orders', owner: 'admins', grants: [CATALOG] }], 'what the person could not grant stays recorded');
     assert.equal(assets.notebook.state, 'ready', 'the rest of the record is kept');
     assert.equal(got.data.state, 'unreadable');
-    assert.match(got.data.text, /^The App riverside-assets cannot read main\.s\.orders, so its pages show no data from it\. Admins can grant it\. Your grant was refused; the statements and the error are under Details$/);
+    assert.match(got.data.text, /^The App riverside-assets cannot read this table, so its pages show no data from it\. The table owner can grant it\. Your grant was refused; the statements and the error are under Details$/);
     assert.doesNotMatch(got.data.text, /GRANT|PERMISSION_DENIED/, 'the card sentence carries no GRANT and no raw error');
     assert.ok(got.data.failed.length > 0, 'the statements and errors travel in failed, for Details');
   });
@@ -233,7 +233,7 @@ test('a done build with unread tables reads as action needed, and its finish sta
   assert.deepEqual(choices.map((c) => c.id), ['grant', 'copy', 'check']);
   assert.equal(choices[1].label, 'Copy the grant SQL to send to data-eng');
   assert.equal(choices[1].sql, RECORDED.map((g) => `${g};`).join('\n'));
-  assert.match(W.appReadsText(W.appReadsOf(held), 'riverside-assets'), /App riverside-assets cannot read main\.s\.orders \(owner data-eng\)/);
+  assert.match(W.appReadsText(W.appReadsOf(held), 'riverside-assets'), /App riverside-assets cannot read this table, so its pages show no data from it/);
   assert.doesNotMatch(W.appReadsText(W.appReadsOf(held)), /build (it )?again|rebuild/i);
 });
 

@@ -40,11 +40,11 @@ def test_a_failed_protection_read_counts_as_protected_so_a_service_principal_app
     warnings = []
     read = inst._implement_protections([SOURCE], warnings)
     assert read[SOURCE]["unread"].startswith("PERMISSION_DENIED") and agent_ns["implement_is_protected"](read[SOURCE])
-    assert warnings[0].startswith(f"Sharing: Inspire could not read the row filters and column masks of {SOURCE}")
+    assert warnings[0].startswith("Sharing: Inspire could not read the row filters and column masks of a table")
     with pytest.raises(agent_ns["ImplementStopped"]) as stop:
         inst._implement_source_protection(context["key"], context["spec"], context["use_case"], context["asset_status"], [])
     assert "cannot read through its service principal" in str(stop.value)
-    assert "row filters, column masks or ABAC policies Inspire could not read" in str(stop.value)
+    assert "The App reads 1 protected source table" in str(stop.value)
 
 
 def test_an_unreadable_abac_policy_list_counts_as_protected_but_a_workspace_without_abac_does_not(agent_ns):
@@ -90,7 +90,7 @@ def test_a_view_whose_tables_cannot_be_read_or_that_reads_itself_counts_as_prote
     inst._implement_api = _view_api({VIEW: RuntimeError("PERMISSION_DENIED")})
     warnings = []
     read = inst._implement_protections([VIEW], warnings)[VIEW]
-    assert read["unread"] == f"the tables the view {VIEW} reads could not be read" and warnings
+    assert read["unread"] == "the tables the view reads could not be read" and warnings
     inst._implement_api = _view_api({VIEW: [VIEW]})
     looped = inst._implement_protections([VIEW], [])[VIEW]
     assert "reads views more than 4 deep or reads itself" in looped["unread"]
@@ -99,10 +99,10 @@ def test_a_view_whose_tables_cannot_be_read_or_that_reads_itself_counts_as_prote
 def test_the_plan_refuses_a_source_or_result_whose_protection_could_not_be_read(agent_ns):
     unread = agent_ns["implement_protection_unread"]("PERMISSION_DENIED")
     plan = _plan(agent_ns)({SOURCE: unread}, {RESULT: _protection(agent_ns, ["owner"])})
-    assert plan["unread"] == [f"Inspire could not read the row filters, column masks and ABAC policies of {SOURCE} (PERMISSION_DENIED), "
+    assert plan["unread"] == ["Inspire could not read the row filters, column masks and ABAC policies of a source table (PERMISSION_DENIED), "
                               "so it cannot tell that the results keep them"] and plan["refuse"] == []
     plan = _plan(agent_ns)(_source(agent_ns), {RESULT: unread})
-    assert plan["unread"] == [f"Inspire could not read the row filters and column masks of {RESULT} (PERMISSION_DENIED), so it cannot "
+    assert plan["unread"] == ["Inspire could not read the row filters and column masks of a result table (PERMISSION_DENIED), so it cannot "
                               "tell that it keeps those of its sources"] and plan["apply"] == [] and plan["refuse"] == []
 
 
@@ -118,7 +118,7 @@ def test_the_gate_refuses_when_a_result_cannot_be_read_again_after_binding(agent
     inst.spark.sql = sql
     with pytest.raises(agent_ns["ImplementStopped"]) as stop:
         inst._implement_protection_gate(context, [])
-    assert f"could not read the row filters and column masks of {RESULT}" in str(stop.value)
+    assert "could not read the row filters and column masks of a result table" in str(stop.value)
 
 
 def test_a_passed_gate_keeps_a_record_of_the_blocked_totals_and_every_protection(agent_ns):

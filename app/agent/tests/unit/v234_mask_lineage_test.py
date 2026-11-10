@@ -64,8 +64,8 @@ def test_unknown_lineage_over_a_masked_column_refuses_the_publish(agent_ns):
 def test_a_traced_column_already_masked_differently_is_refused_and_one_without_masked_lineage_is_left_alone(agent_ns):
     cells = ["df = src.select(F.col('email').alias('contact'), F.col('owner').alias('who'))"]
     other = _plan(agent_ns, ["who", "contact"], cells, masks=[("contact", "main.sec.other_mask", None)])
-    assert other["refuse"] == ["main.inspire.churn_out.contact already has the mask main.sec.other_mask, not main.sec.hide_email of "
-                               "main.s.orders_v2, so it does not hide the value the way its source does"]
+    assert other["refuse"] == ["The result column contact already has the mask main.sec.other_mask, not main.sec.hide_email of a source table, "
+                               "so it does not hide the value the way its source does"]
     kept = _plan(agent_ns, ["who", "contact"], cells, masks=[("contact", HIDE, None)])
     assert kept["apply"] == [] and kept["refuse"] == []
     lineage, _unknown = agent_ns["implement_column_lineage"](cells, ["email"])

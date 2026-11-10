@@ -76,7 +76,7 @@ def test_a_feedback_table_inspire_cannot_create_warns_and_names_what_people_lose
     inst = _inspire(agent_ns, spark)
     warnings = inst._implement_app_write_grants(TABLE, "sp-7", {}, [], [], feedback=True)
     assert len(warnings) == 1 and warnings[0].startswith("App: people cannot report issues about this use case from the App until its service "
-                                                         "principal sp-7 can read and change main.inspire.churn_out_feedback.")
+                                                         "principal sp-7 can read and change the result table.")
     assert "PERMISSION_DENIED" in warnings[0] and not _grants(spark)
 
 

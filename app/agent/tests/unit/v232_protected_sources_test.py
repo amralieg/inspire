@@ -68,8 +68,9 @@ def test_the_protection_read_parses_filters_masks_views_and_abac_policies(agent_
 def test_a_result_that_lacks_the_filter_column_is_refused_so_every_viewer_does_not_see_all_rows(agent_ns):
     plan = _plan(agent_ns)(_source(agent_ns), {RESULT: _protection(agent_ns, ["entity_id", "value"])})
     assert plan["apply"] == []
-    assert plan["refuse"] == [f"{RESULT} has no column owner, so it cannot keep the row filter {OWN} of {SOURCE}, and every viewer "
+    assert plan["refuse"] == ["The result table has no column owner, so it cannot keep the row filter " + OWN + " of a source table, and every viewer "
                               "would see all its rows"]
+    assert all(RESULT not in r and SOURCE not in r for r in plan["refuse"]), "the sentence names no table id"
     reason = agent_ns["implement_protection_refusal"](plan)
     assert reason.startswith("Inspire did not publish, because the results would show rows or values their sources hide: ")
     assert reason.endswith("then build again") and reason.count(". ") == 1
@@ -86,8 +87,9 @@ def test_a_traceable_result_gets_the_same_filter_and_mask_bound_to_its_own_colum
 def test_a_source_table_or_a_table_outside_the_output_schema_is_refused_and_never_altered(agent_ns, table):
     plan = _plan(agent_ns)(_source(agent_ns), {table: _protection(agent_ns, ["owner", "ssn", "region", "value"])})
     assert plan["apply"] == []
-    assert plan["refuse"] == [f"{table} is not a table Inspire wrote in the output schema main.inspire, so Inspire will not "
+    assert plan["refuse"] == ["The result table is not a table Inspire wrote in its output schema, so Inspire will not "
                               "set row filters or column masks on it"]
+    assert table not in plan["refuse"][0] and "main.inspire" not in plan["refuse"][0], "the sentence names no table or schema id"
 
 
 def test_the_plan_needs_the_output_schema_to_alter_a_table(agent_ns):
@@ -120,7 +122,7 @@ def test_a_result_with_a_different_filter_or_mask_is_refused(agent_ns, result, f
 def test_a_mask_whose_using_column_is_missing_is_refused(agent_ns):
     plan = _plan(agent_ns)(_source(agent_ns), {RESULT: _protection(agent_ns, ["owner", "ssn"])})
     assert plan["apply"] == [BOUND_FILTER]
-    assert plan["refuse"] == [f"{RESULT} has no column region, which the mask {MASK} of {SOURCE}.ssn reads, so it cannot keep that "
+    assert plan["refuse"] == ["The result table has no column region, which the mask " + MASK + " of a source column reads, so it cannot keep that "
                               "mask on ssn"]
 
 
@@ -153,7 +155,7 @@ def test_totals_over_a_row_filtered_source_are_blocked_but_totals_over_masked_on
 def test_an_abac_policy_that_does_not_cover_the_result_is_refused(agent_ns):
     sources = {SOURCE: _protection(agent_ns, ["a"], policies=[{"name": "pii_hide", "kind": "column_mask"}])}
     refused = _plan(agent_ns)(sources, {RESULT: _protection(agent_ns, ["a"])})["refuse"]
-    assert refused == [f"{SOURCE} is guarded by the ABAC policy pii_hide, which does not cover {RESULT}, so every viewer would see what "
+    assert refused == ["A source table is guarded by the ABAC policy pii_hide, which does not cover the result table, so every viewer would see what "
                        "that policy hides"]
     covered = {RESULT: _protection(agent_ns, ["a"], policies=[{"name": "PII_HIDE", "kind": "column_mask"}])}
     assert _plan(agent_ns)(sources, covered)["refuse"] == []
@@ -174,7 +176,8 @@ def test_service_principal_or_lakebase_apps_over_protected_tables_are_refused(ag
     protected = agent_ns["implement_protected_tables"](_source(agent_ns))
     assert protected == {SOURCE: "a row filter and a column mask on ssn"}
     refused = agent_ns["implement_protected_access_refusal"](protected, outputs)
-    assert refused.startswith(f"The App reads {SOURCE} (a row filter and a column mask on ssn)") and fragment in refused
+    assert refused.startswith("The App reads 1 protected source table") and fragment in refused
+    assert SOURCE not in refused and "ssn" not in refused.split(".")[0], "the sentence names no table id"
     assert agent_ns["implement_known_repair"](agent_ns["ImplementStopped"](refused), refused)["kind"] == "stop"
 
 
@@ -281,7 +284,7 @@ def test_a_failed_protection_read_is_named_and_counts_as_protected(agent_ns):
     warnings = []
     read = inst._implement_protections([SOURCE], warnings)
     assert read[SOURCE]["unread"].startswith("TABLE_OR_VIEW_NOT_FOUND") and agent_ns["implement_is_protected"](read[SOURCE])
-    assert warnings and warnings[0].startswith(f"Sharing: Inspire could not read the row filters and column masks of {SOURCE}")
+    assert warnings and warnings[0].startswith("Sharing: Inspire could not read the row filters and column masks of a table")
 
 
 def test_the_deploy_refuses_a_service_principal_app_over_protected_tables_before_any_call(agent_ns):

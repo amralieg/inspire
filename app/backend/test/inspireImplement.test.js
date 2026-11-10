@@ -734,16 +734,14 @@ test('a grant statement renders one need for one principal, as the agent does', 
 
 test('access gap messages match the agent word for word', () => {
   assert.equal(I.accessGapMessage('bob@x', [GAP_CATALOG]),
-    'bob@x may not be able to read the result table: Inspire cannot grant USE CATALOG on catalog `main` (owner amr@x), because it '
+    'bob@x may not be able to read the result table: Inspire cannot grant this access, because it '
     + 'neither owns nor holds MANAGE on it. If bob@x does not have it yet, ask the owner to run: '
     + 'GRANT USE CATALOG ON CATALOG `main` TO `bob@x`');
   assert.equal(I.accessGapMessage('bob@x', [GAP_CATALOG, { ...GAP_SCHEMA, owner: '' }]),
-    'bob@x may not be able to read the result table: Inspire cannot grant USE CATALOG on catalog `main` (owner amr@x) and '
-    + 'USE SCHEMA on schema `main`.`inspire`, because it neither owns nor holds MANAGE on them. If bob@x does not have them yet, '
+    'bob@x may not be able to read the result table: Inspire cannot grant these accesses, because it neither owns nor holds MANAGE on them. If bob@x does not have them yet, '
     + 'ask the owner to run: GRANT USE CATALOG ON CATALOG `main` TO `bob@x`; GRANT USE SCHEMA ON SCHEMA `main`.`inspire` TO `bob@x`');
   assert.equal(I.appAccessMessage(ACCESS_TABLE, [GAP_CATALOG, GAP_SCHEMA], 'inspire-sp'),
-    'a new App could not read main.inspire.churn_out: its service principal needs USE CATALOG on catalog `main` (owner amr@x) '
-    + 'and USE SCHEMA on schema `main`.`inspire` (owner amr@x), which not all account users have, and Inspire can grant them only '
+    'a new App could not read the result table: its service principal needs these accesses, which not all account users have, and Inspire can grant them only '
     + 'with MANAGE or ownership. Ask the owner to run: GRANT MANAGE ON CATALOG `main` TO `inspire-sp`; GRANT MANAGE ON SCHEMA '
     + '`main`.`inspire` TO `inspire-sp`, or GRANT USE CATALOG ON CATALOG `main` TO `account users`; GRANT USE SCHEMA ON SCHEMA '
     + '`main`.`inspire` TO `account users`, which open no data by themselves; or choose a result table in a catalog and schema '

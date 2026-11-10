@@ -605,16 +605,16 @@ def test_grant_sql_renders_one_need_for_one_principal(agent_ns):
 
 def test_access_gap_messages_name_the_privilege_the_owner_and_the_statement(agent_ns):
     assert agent_ns["implement_access_gap_message"]("bob@x", [GAP_CATALOG]) == (
-        "bob@x may not be able to read the result table: Inspire cannot grant USE CATALOG on catalog `main` (owner amr@x), because it "
+        "bob@x may not be able to read the result table: Inspire cannot grant this access, because it "
         "neither owns nor holds MANAGE on it. If bob@x does not have it yet, ask the owner to run: "
         "GRANT USE CATALOG ON CATALOG `main` TO `bob@x`")
     assert agent_ns["implement_access_gap_message"]("bob@x", [GAP_CATALOG, dict(GAP_SCHEMA, owner="")]) == (
-        "bob@x may not be able to read the result table: Inspire cannot grant USE CATALOG on catalog `main` (owner amr@x) and "
-        "USE SCHEMA on schema `main`.`inspire`, because it neither owns nor holds MANAGE on them. If bob@x does not have them yet, "
+        "bob@x may not be able to read the result table: Inspire cannot grant these accesses, because it "
+        "neither owns nor holds MANAGE on them. If bob@x does not have them yet, "
         "ask the owner to run: GRANT USE CATALOG ON CATALOG `main` TO `bob@x`; GRANT USE SCHEMA ON SCHEMA `main`.`inspire` TO `bob@x`")
     assert agent_ns["implement_app_access_message"](ACCESS_TABLE, [GAP_CATALOG, GAP_SCHEMA], "inspire-sp") == (
-        "a new App could not read main.inspire.churn_out: its service principal needs USE CATALOG on catalog `main` (owner amr@x) "
-        "and USE SCHEMA on schema `main`.`inspire` (owner amr@x), which not all account users have, and Inspire can grant them only "
+        "a new App could not read the result table: its service principal needs these accesses, which not all account users have, "
+        "and Inspire can grant them only "
         "with MANAGE or ownership. Ask the owner to run: GRANT MANAGE ON CATALOG `main` TO `inspire-sp`; GRANT MANAGE ON SCHEMA "
         "`main`.`inspire` TO `inspire-sp`, or GRANT USE CATALOG ON CATALOG `main` TO `account users`; GRANT USE SCHEMA ON SCHEMA "
         "`main`.`inspire` TO `account users`, which open no data by themselves; or choose a result table in a catalog and schema "
@@ -3316,9 +3316,9 @@ def test_an_existing_app_whose_service_principal_cannot_read_its_tables_is_deplo
     assert len(reported) == 1 and reported[0].startswith("App: people cannot report issues about this use case from the App until its service principal sp-2")
     assert reported[0].endswith(f"{GRANT_CATALOG.format('sp-2')}; {GRANT_SCHEMA.format('sp-2')}")
     assert [w for w in fields["_warnings"] if w not in reported] == [
-        "App: its service principal sp-2 cannot read main.inspire.churn_out and main.s.orders, so the tiles that query them show no data "
-        "and name the grants they need, and Inspire could not grant them itself: for main.inspire.churn_out, ask your data owner to "
-        f"run: {'; '.join(result)}; for main.s.orders, ask your data owner to run: {'; '.join(orders)}"]
+        "App: its service principal sp-2 cannot read 2 source tables, so the tiles that query them show no data "
+        "and name the grants they need, and Inspire could not grant them itself: for source table 1, ask your data owner to "
+        f"run: {'; '.join(result)}; for source table 2, ask your data owner to run: {'; '.join(orders)}"]
     settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
     assert settings["unread"] == {ACCESS_TABLE: result, "main.s.orders": orders}, "the App's tiles name the exact grants"
     assert settings["unread_owners"] == {ACCESS_TABLE: "your data owner", "main.s.orders": "your data owner"}, "the App's banner names who can grant"
@@ -3347,8 +3347,8 @@ def test_a_read_grant_the_platform_refuses_is_a_warning_with_the_exact_grant_and
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
     assert fields["app_url"] == "https://churn-desk.example"
     [warning] = fields["_warnings"]
-    assert warning.startswith("App: its service principal sp-1 cannot read main.s.orders, so the tiles that query it show no data")
-    assert (f"for main.s.orders ({GRANT_ORDERS.format('sp-1')} failed: PERMISSION_DENIED: User does not have MANAGE on Table "
+    assert warning.startswith("App: its service principal sp-1 cannot read this source table, so the tiles that query it show no data")
+    assert (f"for source table 1 ({GRANT_ORDERS.format('sp-1')} failed: PERMISSION_DENIED: User does not have MANAGE on Table "
             f"'main.s.orders'), ask inspire-sp to run: {GRANT_ORDERS.format('sp-1')}") in warning
     assert "main.inspire.churn_out" not in warning, "a table whose grant ran is not named (must-exclude)"
     settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
@@ -4131,9 +4131,9 @@ def test_a_probe_error_counts_as_a_lost_table_only_when_it_says_so_and_names_tha
 def test_the_lost_table_message_names_every_table_and_its_reason(agent_ns):
     assert agent_ns["implement_missing_tables_message"]([{"table": "main.s.a", "reason": "not found"},
                                                          {"table": "main.s.b", "reason": "no read access"}], "runner@example.com") == (
-        "the preview cannot run because this source table is missing: main.s.a, so open Edit, Data step, and swap it for a table with "
-        "the same role or remove it, and this run reads source tables as runner@example.com, which cannot read main.s.b. Ask the "
-        "owner of that table to run: GRANT USE CATALOG ON CATALOG `main` TO `runner@example.com`; GRANT USE SCHEMA ON SCHEMA "
+        "the preview cannot run because this source table is missing, so open Edit, Data step, and swap it for a table with "
+        "the same role or remove it, and this run reads source tables as runner@example.com, which cannot read this source table. "
+        "Ask the owner of that table to run: GRANT USE CATALOG ON CATALOG `main` TO `runner@example.com`; GRANT USE SCHEMA ON SCHEMA "
         "`main`.`s` TO `runner@example.com`; GRANT SELECT ON TABLE `main`.`s`.`b` TO `runner@example.com`")
 
 
@@ -4156,10 +4156,10 @@ def _probe_inspire(ns, responder, carried_status):
 
 @pytest.mark.parametrize("error,reason,said", [
     ("[TABLE_OR_VIEW_NOT_FOUND] The table or view `main`.`s`.`returns` cannot be found. SQLSTATE: 42P01", "not found",
-     "the preview cannot run because this source table is missing: main.s.returns, so open Edit, Data step, and swap it for a table "
+     "the preview cannot run because this source table is missing, so open Edit, Data step, and swap it for a table "
      "with the same role or remove it"),
     ("[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have SELECT on Table 'main.s.returns'.", "no read access",
-     "the preview cannot run because this run reads source tables as runner@example.com, which cannot read main.s.returns. Ask the "
+     "the preview cannot run because this run reads source tables as runner@example.com, which cannot read this source table. Ask the "
      "owner of that table to run: GRANT USE CATALOG ON CATALOG `main` TO `runner@example.com`; GRANT USE SCHEMA ON SCHEMA `main`.`s` "
      "TO `runner@example.com`; GRANT SELECT ON TABLE `main`.`s`.`returns` TO `runner@example.com`"),
 ])

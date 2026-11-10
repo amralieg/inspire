@@ -15,17 +15,17 @@ DENIED = "[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have
 def test_a_gone_table_asks_for_a_swap_in_the_singular_and_the_plural(agent_ns):
     message = agent_ns["implement_missing_tables_message"]
     assert message([{"table": "main.s.a", "reason": "not found"}]) == (
-        "the preview cannot run because this source table is missing: main.s.a, so open Edit, Data step, and swap it for a "
+        "the preview cannot run because this source table is missing, so open Edit, Data step, and swap it for a "
         "table with the same role or remove it")
     assert message([{"table": "main.s.a", "reason": "not found"}, {"table": "main.s.c", "reason": "not found"}]) == (
-        "the preview cannot run because these source tables are missing: main.s.a, main.s.c, so open Edit, Data step, and swap "
+        "the preview cannot run because 2 source tables are missing, so open Edit, Data step, and swap "
         "each for a table with the same role or remove it")
 
 
 def test_an_unreadable_table_names_the_service_principal_and_its_grants_and_never_asks_for_a_swap(agent_ns):
     text = agent_ns["implement_missing_tables_message"]([{"table": "main.s.b", "reason": "no read access"}], APP_ID, "inspire-app")
     assert text == ("the preview cannot run because this run reads source tables as the service principal inspire-app "
-                    f"(application id {APP_ID}), which cannot read main.s.b. Ask the owner of that table to run: {GRANTS_B}")
+                    f"(application id {APP_ID}), which cannot read this source table. Ask the owner of that table to run: {GRANTS_B}")
     assert "swap" not in text and "missing" not in text
 
 
@@ -33,9 +33,9 @@ def test_gone_and_unreadable_tables_each_get_their_own_reason(agent_ns):
     text = agent_ns["implement_missing_tables_message"]([{"table": "main.s.a", "reason": "not found"},
                                                          {"table": "main.s.b", "reason": "no read access"},
                                                          {"table": "main.s.d", "reason": "no read access"}], APP_ID, "inspire-app")
-    assert text.startswith("the preview cannot run because this source table is missing: main.s.a, so open Edit, Data step, "
+    assert text.startswith("the preview cannot run because this source table is missing, so open Edit, Data step, "
                            "and swap it for a table with the same role or remove it, and this run reads source tables as the "
-                           f"service principal inspire-app (application id {APP_ID}), which cannot read main.s.b, main.s.d. "
+                           f"service principal inspire-app (application id {APP_ID}), which cannot read 2 source tables. "
                            "Ask the owner of those tables to run: ")
     assert text.endswith(f"GRANT SELECT ON TABLE `main`.`s`.`b` TO `{APP_ID}`; GRANT SELECT ON TABLE `main`.`s`.`d` TO `{APP_ID}`")
     assert text.count("GRANT USE CATALOG") == 1 and text.count("GRANT USE SCHEMA") == 1, "a shared catalog and schema are granted once"
@@ -50,12 +50,12 @@ def test_gone_and_unreadable_tables_each_get_their_own_reason(agent_ns):
 ])
 def test_the_identity_is_named_the_way_it_runs(agent_ns, who, label, named):
     assert agent_ns["inspire_identity_text"](who, label) == named
-    assert f"as {named}, which cannot read main.s.b." in agent_ns["inspire_unreadable_text"](["main.s.b"], who, label)
+    assert f"as {named}, which cannot read this source table." in agent_ns["inspire_unreadable_text"](["main.s.b"], who, label)
 
 
 def test_without_a_known_identity_the_reason_still_names_the_grants_needed_and_no_statement(agent_ns):
     text = agent_ns["inspire_unreadable_text"](["main.s.b"], "", "")
-    assert text == ("this run reads source tables as an identity Inspire could not read, which cannot read main.s.b. Ask the owner of "
+    assert text == ("this run reads source tables as an identity Inspire could not read, which cannot read this source table. Ask the owner of "
                     "that table to grant USE CATALOG, USE SCHEMA and SELECT on it to that identity")
     assert "GRANT " not in text
     assert agent_ns["inspire_read_grants"](["main.s.b"], "") == []
@@ -81,7 +81,7 @@ def test_the_preview_stops_on_an_unreadable_table_naming_the_run_identity_and_ke
         inst._implement_source_checks((5150, "N01-U01", 3), {}, {}, status)
     assert str(raised.value) == agent_ns["implement_missing_tables_message"](
         [{"table": "main.s.a", "reason": "not found"}, {"table": "main.s.b", "reason": "no read access"}], APP_ID, "inspire-app")
-    assert f"the service principal inspire-app (application id {APP_ID}), which cannot read main.s.b" in str(raised.value)
+    assert f"the service principal inspire-app (application id {APP_ID}), which cannot read this source table" in str(raised.value)
     assert [(m["table"], m["reason"]) for m in status["data"]["missing_tables"]] == [("main.s.a", "not found"),
                                                                                     ("main.s.b", "no read access")]
 
@@ -103,8 +103,8 @@ def test_a_gone_primary_table_asks_only_for_a_swap_because_the_data_step_cannot_
     with pytest.raises(agent_ns["ImplementBlocked"]) as raised:
         inst._implement_source_checks((5150, "N01-U01", 1), spec, {"primary_table": "main.s.pax"}, status)
     assert str(raised.value) == (
-        "the preview cannot run because the primary table main.s.pax_gone is missing, so open Edit, Data step, and swap it for a table "
-        "with the same role; the primary table can be swapped, not removed, and this source table is missing: main.s.c, so open Edit, "
+        "the preview cannot run because the primary table is missing, so open Edit, Data step, and swap it for a table "
+        "with the same role; the primary table can be swapped, not removed, and this source table is missing, so open Edit, "
         "Data step, and swap it for a table with the same role or remove it")
     assert [(m["table"], m.get("primary", False)) for m in status["data"]["missing_tables"]] == [("main.s.pax_gone", True), ("main.s.c", False)]
     alone = agent_ns["implement_missing_tables_message"]([{"table": "main.s.pax_gone", "reason": "not found", "primary": True}])
@@ -125,7 +125,7 @@ def test_discover_names_who_cannot_read_a_table_and_keeps_going_for_the_readable
     grants = (f"GRANT USE CATALOG ON CATALOG `main` TO `{APP_ID}`; GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `{APP_ID}`; "
               f"GRANT SELECT ON TABLE `main`.`s`.`customers` TO `{APP_ID}`")
     reason = (f"Discover reads source tables as the service principal inspire-app (application id {APP_ID}), which cannot read "
-              f"main.s.customers. Ask the owner of that table to run: {grants}")
+              f"this source table. Ask the owner of that table to run: {grants}")
     access = evidence["data_access"]
     assert access["tables_skipped"] == {"main.s.customers": "denied"}
     assert access["tables_unreadable"] == ["main.s.customers"] and access["unreadable_reason"] == reason

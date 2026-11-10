@@ -140,7 +140,7 @@ def test_an_assumptions_grant_that_fails_is_a_plain_warning_and_the_app_still_sh
     assert fields["app_url"] == "https://churn-desk.example"
     assert fields["_warnings"] == [
         f"App: the owners of this use case cannot change its money at stake assumptions in the App until its service principal sp-1 "
-        f"can read and change {ASSUMPTIONS}. {reason}"]
+        f"can read and change the result table. {reason}"]
 
 
 def test_an_assumptions_table_inspire_cannot_manage_names_the_grants_to_ask_for(agent_ns, sdk_stub):
@@ -160,8 +160,7 @@ def test_an_assumptions_table_inspire_cannot_manage_names_the_grants_to_ask_for(
     owners_warning = [w for w in fields["_warnings"] if "money at stake assumptions" in w]
     assert owners_warning == [
         f"App: the owners of this use case cannot change its money at stake assumptions in the App until its service principal sp-1 "
-        f"can read and change {ASSUMPTIONS}. Inspire cannot grant SELECT on table `main`.`inspire`.`churn_out_assumptions` (owner data-eng) and "
-        "MODIFY on table `main`.`inspire`.`churn_out_assumptions` (owner data-eng), because it neither owns nor holds MANAGE on them. "
+        "can read and change the result table. Inspire cannot grant these accesses, because it neither owns nor holds MANAGE on them. "
         "If sp-1 does not have them yet, ask the owner to run: GRANT SELECT ON TABLE `main`.`inspire`.`churn_out_assumptions` TO "
         "`sp-1`; GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out_assumptions` TO `sp-1`"]
     assert not any(s.startswith("GRANT") and "assumptions" in s for s in spark.statements)
@@ -177,7 +176,7 @@ def test_an_app_that_writes_its_records_gets_modify_on_the_result_table(agent_ns
                       fail={"GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out`": RuntimeError("PERMISSION_DENIED: no MANAGE")})
     _inst, fields = _deploy(agent_ns, failing, {"app_options": dict({"modify": False, "decisions": False}, **options)})
     assert fields["_warnings"] == [
-        f"App: people cannot {what} in this App until its service principal sp-1 can read and change {RESULT}. Inspire could not "
+        f"App: people cannot {what} in this App until its service principal sp-1 can read and change the result table. Inspire could not "
         "grant it: GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out` TO `sp-1` failed: PERMISSION_DENIED: no MANAGE"]
 
 

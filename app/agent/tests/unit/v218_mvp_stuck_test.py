@@ -326,8 +326,8 @@ def test_sharing_grants_the_source_tables_the_dashboard_reads_and_names_the_gran
     assert "GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `planners`" in spark.statements
     assert not any("customers" in s for s in spark.statements)
     assert warnings == [
-        "Sharing: planners may not be able to read main.s.customers, which the dashboard and the Genie Agent read with the "
-        "credentials of each viewer: Inspire cannot grant SELECT on table `main`.`s`.`customers` (owner data-team), because it "
+        "Sharing: planners may not be able to read the result table, which the dashboard and the Genie Agent read with the "
+        "credentials of each viewer: Inspire cannot grant this access, because it "
         "neither owns nor holds MANAGE on it. If planners does not have it yet, ask the owner to run: GRANT SELECT ON TABLE "
         "`main`.`s`.`customers` TO `planners`"]
     assert inst.looked.count(RESULT) == 1, "the result table is planned once"

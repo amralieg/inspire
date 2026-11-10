@@ -162,7 +162,7 @@ test('the grant on a use case schema Inspire creates covers every right the buil
   assert.equal(I.modelAccess(rowsFrom(granted), 'main.s.n01_u01_results_model', { builder: true }).ok, true);
   assert.equal(I.outputAccess(rowsFrom(granted), 'main.s.n01_u01_results', { builder: true }).app.ok, true, 'a new App can be given read access');
   assert.match(I.outputAccess(rowsFrom(granted.filter((p) => p !== 'MANAGE')), 'main.s.n01_u01_results', { builder: true }).app.detail,
-    /needs USE SCHEMA on schema `main`\.`s`.*GRANT MANAGE ON SCHEMA `main`\.`s` TO `app-sp`/);
+    /needs this access.*GRANT MANAGE ON SCHEMA `main`\.`s` TO `app-sp`/);
   const withoutModel = granted.filter((p) => p !== 'CREATE MODEL');
   assert.match(I.modelAccess(rowsFrom(withoutModel), 'main.s.n01_u01_results_model', { builder: true }).detail, /needs CREATE MODEL on main\.s/);
 });
@@ -310,7 +310,7 @@ test('a use case schema Inspire creates at the Results step passes every build c
 test('a missing schema Inspire does not create still fails, and its reason names the missing schema, never access Inspire lacks (must-exclude)', () => {
   const got = I.outputAccess(NOT_CREATED, OWN, { builder: true });
   assert.deepEqual([got.write.ok, got.app.ok], [false, false]);
-  assert.match(got.app.detail, /^a new App cannot read main\._inspire_acme_n01_u01\.n01_u01_results: schema main\._inspire_acme_n01_u01 does not exist/);
+  assert.match(got.app.detail, /^a new App cannot read the table: schema main\._inspire_acme_n01_u01 does not exist/);
   assert.doesNotMatch(got.app.detail, /GRANT/);
   assert.equal(w.blockWhy(got.app.detail), 'The schema main._inspire_acme_n01_u01 does not exist, or Inspire cannot see it.');
   assert.equal(w.outputBlocks({ apps: true, genie_spaces: true }, null, {}, { new_app: got.app }).app.why, 'The schema main._inspire_acme_n01_u01 does not exist, or Inspire cannot see it.');
@@ -330,7 +330,7 @@ test('an existing schema is never excused as one Inspire creates: a real access 
   const got = I.outputAccess(existing, OWN, { builder: true, createsSchema: true });
   assert.equal(got.write.ok, true);
   assert.equal(got.app.ok, false);
-  assert.match(got.app.detail, /needs USE SCHEMA on schema `main`\.`_inspire_acme_n01_u01`.*GRANT MANAGE ON SCHEMA/);
+  assert.match(got.app.detail, /needs this access.*GRANT MANAGE ON SCHEMA/);
   assert.match(w.blockWhy(got.app.detail), /^Needs access Inspire does not have on the schema/);
   assert.equal(I.schemaNotCreated(existing), false);
 });

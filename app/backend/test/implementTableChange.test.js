@@ -151,7 +151,7 @@ test('a table change is refused to anyone but an owner, without a sign-in, and f
     assert.deepEqual([other.status, other.data.error], [403, OWNERS_ONLY]);
     assert.equal(columnReads(made).length, 0, 'nothing is read for a person who may not change it');
     const hidden = await call(url, `/api/inspire/implement/table-change?${Q}`, { method: 'POST', body: { ...DB, spec: swapped({ 'main.s.orders': 'main.s.secret' }) } });
-    assert.deepEqual([hidden.status, hidden.data.error], [409, 'Inspire cannot read the columns of main.s.secret with your sign-in: the table does not exist or you cannot read it']);
+    assert.deepEqual([hidden.status, hidden.data.error], [409, 'Inspire cannot read the columns of this table with your sign-in: the table does not exist or you cannot read it']);
   });
   await withApp({ me: SP, tokenKind: 'app', forwardedToken: '' }, async (url) => {
     const nobody = await call(url, `/api/inspire/implement/table-change?${Q}`, { method: 'POST', body, who: '' });
