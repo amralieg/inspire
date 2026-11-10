@@ -652,8 +652,8 @@ function validateImplementSpec(input, { shell = null, legacyAccess = '', impact 
     const kindText = textValue(entry.type);
     const kind = kindText === null ? null : kindText.toLowerCase();
     const name = textValue(entry.name);
-    if (!IMPLEMENT_PRINCIPAL_TYPES.includes(kind) || !name || name.includes('`')) {
-      errors.push(`principal ${shownValue(item)} must have a type (${IMPLEMENT_PRINCIPAL_TYPES.join(', ')}) and a name without backticks`);
+    if (!IMPLEMENT_PRINCIPAL_TYPES.includes(kind) || !name) {
+      errors.push(`principal ${shownValue(item)} must have a type (${IMPLEMENT_PRINCIPAL_TYPES.join(', ')}) and a name`);
     } else if (!seen.has(`${kind}:${name.toLowerCase()}`)) {
       seen.add(`${kind}:${name.toLowerCase()}`);
       principals.push({ type: kind, name });

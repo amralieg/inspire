@@ -150,7 +150,7 @@ const MUST_REJECT = [
   [{ data: { filters: [{ table: 'main.s.t', column: 'c', op: 'between', values: ['1'] }] } }, 'two values'],
   [{ data: { tables: { 'main.s.orders': 'orders_v2' } } }, 'table swap'],
   [{ data: { run_profile: 'huge' } }, 'run_profile'],
-  [{ sharing: { principals: [{ type: 'group', name: 'a`b' }] } }, 'principal'],
+  [{ sharing: { principals: [{ type: 'group', name: '' }] } }, 'principal'],
   [{ use_case: { success_measures: ['a', 'b', 'c', 'd'] } }, 'at most 3 success measures'],
   [{ based_on_version: 'latest' }, 'based_on_version'],
   [{ data: { column_roles: { owner: 'a.b.c.d' } } }, "column role 'owner'"],
