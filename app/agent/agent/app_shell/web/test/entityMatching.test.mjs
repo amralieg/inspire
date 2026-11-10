@@ -166,8 +166,8 @@ const DUP_PAGE = 'entity_matching.json';
 test('entity matching group: Take all suggestions merges every suggested pair, keeps every row and its decision buttons', async () => {
   const state = { rows: DUP_ROWS.map((r) => ({ ...r })) };
   const h = dupListing(state);
-  const info = appInfo(DECIDE, 1, {}, `examples/${DUP_PAGE}`);
-  const base = kindRoutes(CASE.data(), state.rows, [], JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', DUP_PAGE), 'utf8')));
+  const info = appInfo(DECIDE, 1, {}, `../../tests/fixtures/${DUP_PAGE}`);
+  const base = kindRoutes(CASE.data(), state.rows, [], JSON.parse(readFileSync(join(HERE, '..', '..', '..', '..', 'tests', 'fixtures', DUP_PAGE), 'utf8')));
   const { page, context, seen } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act } });
   await page.locator('[data-choice-row]').first().waitFor();
   await idle(page);
@@ -194,8 +194,8 @@ test('entity matching group: Take all suggestions merges every suggested pair, k
 test('entity matching group: a group action whose refresh fails keeps every row and its decision buttons', async () => {
   const state = { rows: DUP_ROWS.map((r) => ({ ...r })) };
   const h = dupListing(state, { failAfterAct: true });
-  const info = appInfo(DECIDE, 1, {}, `examples/${DUP_PAGE}`);
-  const base = kindRoutes(CASE.data(), state.rows, [], JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', DUP_PAGE), 'utf8')));
+  const info = appInfo(DECIDE, 1, {}, `../../tests/fixtures/${DUP_PAGE}`);
+  const base = kindRoutes(CASE.data(), state.rows, [], JSON.parse(readFileSync(join(HERE, '..', '..', '..', '..', 'tests', 'fixtures', DUP_PAGE), 'utf8')));
   const { page, context } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act } });
   await page.locator('[data-choice-row]').first().waitFor();
   await idle(page);

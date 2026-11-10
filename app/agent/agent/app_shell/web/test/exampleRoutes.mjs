@@ -370,8 +370,6 @@ export const LAYOUT_B_CASES = {
 };
 
 export const EXAMPLES = {
-  'entity_matching.json': { settings: DECIDE, routes: () => kindRoutes(LAYOUT_B_CASES.network_explorer.data(), LAYOUT_B_CASES.network_explorer.rows, []),
-    ready: (page) => page.waitForFunction(() => document.querySelector('[data-choice-row]')) },
   'forecast_cockpit.json': { settings: DECIDE, routes: () => forecastRoutes([]),
     ready: (page) => page.waitForFunction(() => document.querySelectorAll('[data-section] canvas').length >= 3 && document.querySelector('[data-plan-row="K1"]')) },
   'planner.json': { settings: DECIDE, routes: () => plannerRoutes([], []),

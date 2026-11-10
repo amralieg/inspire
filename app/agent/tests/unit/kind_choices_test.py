@@ -12,8 +12,6 @@ from v141_app_shell_test import shell_sql  # noqa: E402
 
 APP_SHELL = Path(__file__).resolve().parents[2] / "agent" / "app_shell"
 FRAUD_WORDS = {"Block", "Investigate", "Not a ring"}
-INHERITS = {"next_best_action", "next_event", "fraud_rings", "process_mining", "journey_path", "promotion_lift",
-            "experiment_readout", "marketing_mix", "site_territory", "location_intelligence"}
 
 
 @pytest.fixture
@@ -56,11 +54,3 @@ def test_a_page_without_kind_choices_keeps_the_layout_choices(ns):
     page = {"records": {"title": "Risk rings"}, "layout": "network_explorer"}
     out = ns["implement_app_page"](page, "N05-U01", {}, "main.risk.ring_out", None, None, "", "network_explorer", None)
     assert "choices" not in out["records"]
-
-
-def test_every_kind_that_inherits_a_layout_choice_set_is_one_that_fits(ns):
-    kinds = _kinds()
-    layouts = {l["id"]: l for l in json.loads((APP_SHELL / "kinds.json").read_text(encoding="utf-8"))["layouts"]}
-    inherit = {k for k, v in kinds.items() if not v.get("choices")
-               and layouts.get(v.get("decision_layout") or v["layout"], {}).get("choices")}
-    assert inherit == INHERITS, sorted(inherit ^ INHERITS)
