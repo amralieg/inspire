@@ -7,7 +7,7 @@ test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['Data', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages and look', 'Run it', 'Review & build'];
+const FULL_MVP_STEPS = ['Data', 'First run', 'Results', 'Deliver', 'Who uses the App', 'App pages', 'App look', 'Run it', 'Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));

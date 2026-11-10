@@ -42,7 +42,8 @@ export const IMPLEMENT_STEPS = [DATA_STEP, RESULTS_STEP, DELIVERY_STEP, RUN_STEP
 
 export const APP_PANELS = ['app_place', 'app_access', 'app_features', 'app_look'];
 export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_access'], advanced: [], panels: ['app_access'] };
-export const APP_PAGES_STEP = { id: 'app_pages', label: 'App pages and look', sections: ['app_features', 'app_look'], advanced: [], panels: ['app_features', 'app_look'] };
+export const APP_PAGES_STEP = { id: 'app_pages', label: 'App pages', sections: ['app_features'], advanced: [], panels: ['app_features'] };
+export const APP_LOOK_STEP = { id: 'app_look', label: 'App look', sections: ['app_look'], advanced: [], panels: ['app_look'] };
 export const WIZARD_STEPS_MAX = 10;
 
 export const SUMMARY_STEP = { id: 'summary', label: 'Review & build', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
@@ -58,9 +59,9 @@ export const NOTEBOOK_STEPS = [
 
 const STEP_ALIASES = {
   use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: RUN_STEP.id, fresh: RUN_STEP.id, vibes: SUMMARY_STEP.id,
-  settings: SUMMARY_STEP.id, app_place: DELIVERY_STEP.id, app_access: APP_STEP.id, app_features: APP_PAGES_STEP.id, app_look: APP_PAGES_STEP.id,
+  settings: SUMMARY_STEP.id, app_place: DELIVERY_STEP.id, app_access: APP_STEP.id, app_features: APP_PAGES_STEP.id, app_look: APP_LOOK_STEP.id,
 };
-const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [APP_PAGES_STEP.id]: APP_STEP.id, [APP_STEP.id]: DELIVERY_STEP.id };
+const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [APP_LOOK_STEP.id]: APP_PAGES_STEP.id, [APP_PAGES_STEP.id]: APP_STEP.id, [APP_STEP.id]: DELIVERY_STEP.id };
 
 function heldStepOf(steps, id) {
   let want = id;
@@ -80,7 +81,7 @@ export function contextSettings(context, spec) {
 export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   if (mode === 'mvp') {
     const app = Boolean(spec?.outputs?.app);
-    const appSteps = app && !joinsApp(spec) ? [APP_STEP, APP_PAGES_STEP] : [];
+    const appSteps = app && !joinsApp(spec) ? [APP_STEP, APP_PAGES_STEP, APP_LOOK_STEP] : [];
     return [DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), RESULTS_STEP, DELIVERY_STEP,
       ...appSteps, RUN_STEP, SUMMARY_STEP];
   }
@@ -88,7 +89,7 @@ export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   throw new Error(`unknown implement mode '${mode}'`);
 }
 
-export const BUILD_STEP_IDS = [DELIVERY_STEP.id, APP_STEP.id, APP_PAGES_STEP.id, SUMMARY_STEP.id];
+export const BUILD_STEP_IDS = [DELIVERY_STEP.id, APP_STEP.id, APP_PAGES_STEP.id, APP_LOOK_STEP.id, SUMMARY_STEP.id];
 
 export const APP_PLACEMENTS = [
   { id: 'domain', label: 'One App per business domain', blurb: 'Use cases of the same domain share one App, so the people of that domain find them in one place.' },
@@ -2421,7 +2422,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
     ...(app && !joined ? [
       row('app_access', 'app', 'App access', APP_ACCESS_CHOICES.find((c) => c.id === outputs.app_access)?.label || 'not picked yet'),
       row('app_features', 'app_pages', 'App features', APP_OPTIONS.filter((o) => outputs.app_options?.[o.id] && appOptionShown(spec, o.id)).map((o) => o.label).join(', ') || 'none'),
-      row('app_look', 'app_pages', 'App look', lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
+      row('app_look', 'app_look', 'App look', lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
     ] : []),
   ];
 }

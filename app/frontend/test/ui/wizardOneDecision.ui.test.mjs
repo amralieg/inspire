@@ -163,3 +163,22 @@ test('Next on Results does not wait for the own schema to be created: the step m
     await ui.close();
   }
 });
+
+test('App pages and App look are two steps: the pages step holds no look picker and the look step holds no pages', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await goToStep(page, 'App pages');
+    const labels = await stepLabels(page);
+    assert.ok(labels.includes('App pages') && labels.includes('App look'), labels.join(' | '));
+    assert.equal(labels.includes('App pages and look'), false, 'no combined step (must-exclude)');
+    assert.equal(await page.getByRole('tab', { name: 'Palette', exact: true }).count(), 0, 'the look is not on the pages step (must-exclude)');
+    await goToStep(page, 'App look');
+    await page.getByText('How should the App look?', { exact: true }).waitFor();
+    assert.equal(await page.getByText('What people can do in the App', { exact: false }).count(), 0, 'the pages are not on the look step (must-exclude)');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+

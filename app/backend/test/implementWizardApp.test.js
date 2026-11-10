@@ -114,7 +114,7 @@ test('ticking the App ticks the Genie Agent and locks it, and the lock refuses a
   assert.deepEqual([off.outputs.app, off.outputs.genie_space], [false, true], 'unticking the App leaves the Genie Agent as it is');
   assert.equal(w.withOutput(off, 'genie_space', false).outputs.genie_space, false);
   assert.deepEqual(w.withOutput(spec, 'alert', true).outputs.alert_recipients, w.defaultAlertRecipients(spec));
-  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['data', 'results', 'delivery', 'app', 'app_pages', 'run', 'summary']);
+  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['data', 'results', 'delivery', 'app', 'app_pages', 'app_look', 'run', 'summary']);
   assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['data', 'results', 'delivery', 'run', 'summary'], 'with Apps unticked no App step shows');
   assert.deepEqual(w.stepErrors('delivery', { ...ticked, outputs: { ...ticked.outputs, genie_space: false } }), [w.GENIE_FOR_APP_NOTE]);
 });
@@ -157,8 +157,8 @@ test('a use case that joins an existing App skips App access and App look, shows
   assert.equal(w.wizardSteps('mvp', joined).find((s) => s.id === 'app'), undefined, 'the existing App keeps its sign-in, data source and look');
   assert.deepEqual(w.wizardSteps('mvp', joined).find((s) => s.id === 'delivery').panels, ['delivery', 'app_place'], 'where it goes is still picked on Deliver');
   assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app').panels, ['app_access']);
-  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app_pages').panels, ['app_features', 'app_look']);
-  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => id !== 'app' && id !== 'app_pages'),
+  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app_pages').panels, ['app_features']);
+  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => id !== 'app' && id !== 'app_pages' && id !== 'app_look'),
     'a joined App keeps its own pages, look and sign-in, so it has no App steps (must-exclude)');
   assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'no hidden App owner blocks Next');
   assert.deepEqual(w.advancedErrors('delivery', joined, { mergeTargets: targets }), []);
