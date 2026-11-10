@@ -915,7 +915,7 @@ def view_action(page: dict, pages: list, raw) -> dict:
     if kind == "chart":
         chart = next((c for c in page.get("charts") or [] if c.get("id") == raw.get("chart")), None)
         if chart is None:
-            raise ValueError(f"chart is one of {', '.join(str(c.get('id')) for c in page.get('charts') or [])}")
+            raise ValueError(f"chart is one of {', '.join(str(c.get('title') or c.get('id')) for c in page.get('charts') or [])}")
         out = {"type": kind, "chart": chart["id"], "title": chart.get("title") or chart["id"]}
         if raw.get("chart_type") is not None:
             allowed = chart_types(chart)
@@ -1034,6 +1034,8 @@ def tool_specs(names) -> list:
 
 
 def tool_step(name: str, args: dict, result: dict) -> str:
+    if result.get("unsupported"):
+        return result["unsupported"]
     if result.get("error"):
         return f"{STEP_WORDS.get(name, 'Tried a step')}: {result['error']}"
     if name == "ask_genie":
@@ -1461,15 +1463,18 @@ class Agent:
         page, ws, asked = job["page"], job["ws"], str(args.get("kpi") or "").strip().casefold()
         kpi = next((k for k in page.get("kpis") or [] if asked in (str(k.get("id") or "").casefold(), str(k.get("label") or "").casefold())), None)
         if kpi is None:
-            raise ValueError(f"the page has no KPI {cut(args.get('kpi'), 80)}; its KPIs are {', '.join(str(k.get('id')) for k in page.get('kpis') or [])}")
-        values, by = self.view_values(page, job["view"]), str(args.get("filter") or "").strip()
+            raise ValueError(f"the page has no KPI {cut(args.get('kpi'), 80)}; its KPIs are {', '.join(str(k.get('label') or k.get('id')) for k in page.get('kpis') or [])}")
+        values = self.view_values(page, job["view"])
+        split = shell_sql.split_filter_named(page, kpi["dataset"], args.get("filter"))
+        if split is None:
+            return {"unsupported": shell_sql.split_choices_text(page, kpi["dataset"])}
+        by = split["id"]
         sql, params = shell_sql.kpi_split_query(page, kpi["id"], by, values, SPLIT_ROWS)
         rows = self.shell.run(ws, turn.who, sql, params, SPLIT_ROWS)["rows"]
         sql, params = shell_sql.kpi_query(page, kpi["id"], values)
         total = next((r.get("value") for r in self.shell.run(ws, turn.who, sql, params, shell_sql.CAPS["kpi_rows"])["rows"]
                       if r.get("period") == "now"), None)
         shares = shell_sql.is_additive(kpi["expression"]) and isinstance(total, (int, float)) and total != 0
-        split = next(f for f in page.get("filters") or [] if f.get("id") == by)
         return {"kpi": kpi.get("label") or kpi["id"], "filter": split.get("label") or split["id"], "total": total,
                 "rows": [dict({"value": cut(r.get("x")), "kpi_value": r.get("y0")},
                               **({"share": r["y0"] / total} if shares and isinstance(r.get("y0"), (int, float)) else {})) for r in rows],

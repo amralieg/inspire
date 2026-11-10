@@ -16,7 +16,7 @@ import { ReviewLink, hubExplain, reviewItem } from './Home.jsx';
 import { genieOn } from './genieAsk.js';
 import PageLink, { usePageAddress } from './PageLink.jsx';
 import { FreshBar, FreshDetail, runCounts, useFreshness, useRuns, useTrends } from './Freshness.jsx';
-import { backendText, lastRunText, latestRunText } from './freshness.js';
+import { backendText, dataThroughText, lastRunText, latestRunText } from './freshness.js';
 import SettingsPanel, { SettingGroup, useSettings } from './Settings.jsx';
 import { paletteItems } from './Palette.jsx';
 import { AdminLink } from './Admin.jsx';
@@ -289,7 +289,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <div className="ph-meta">
           <Icon name="calendar" size={13} />
           <span>
-            {[runDate?.high ? `Data through ${dayLabel(runDate.high)}` : meta ? '' : 'Reading the data range',
+            {[runDate?.high ? dataThroughText(runDate.high, new Date().toISOString().slice(0, 10)) : meta ? '' : 'Reading the data range',
               page.sponsor ? `sponsor ${page.sponsor}` : '', app.built_at ? `built ${dayLabel(app.built_at.slice(0, 10))}` : '',
               backendText(app.backend)]
               .filter(Boolean).join(' · ')}

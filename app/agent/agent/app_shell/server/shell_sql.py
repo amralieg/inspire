@@ -2410,12 +2410,27 @@ def split_filters(page: dict, dataset: str) -> list:
     return [f for f in page.get("filters") or [] if f.get("type") not in RANGE_EDGES and (f.get("columns") or {}).get(dataset)]
 
 
+def split_filter_named(page: dict, dataset: str, text) -> dict:
+    wanted = " ".join(str(text or "").split()).casefold()
+    if not wanted:
+        return None
+    return next((f for f in split_filters(page, dataset) if wanted in (str(f.get("id") or "").casefold(), str(f.get("label") or "").casefold())), None)
+
+
+def split_choices_text(page: dict, dataset: str) -> str:
+    labels = [str(f.get("label") or f.get("id")).casefold() for f in split_filters(page, dataset)]
+    if not labels:
+        return "This chart cannot be split by any filter on this page."
+    if len(labels) == 1:
+        return f"This chart can be split by {labels[0]}."
+    return f"This chart can be split by {', '.join(labels[:-1])} or {labels[-1]}."
+
+
 def kpi_split_query(page: dict, ident: str, filter_ident: str, values: dict, limit: int) -> tuple:
     kpi = _item(page, "kpis", ident)
-    splits = split_filters(page, kpi["dataset"])
-    split = next((f for f in splits if f.get("id") == filter_ident), None)
+    split = split_filter_named(page, kpi["dataset"], filter_ident)
     if split is None:
-        raise ValueError(f"KPI {ident} splits by {', '.join(str(f.get('id')) for f in splits) or 'no filter'} only, not {filter_ident}")
+        raise ValueError(split_choices_text(page, kpi["dataset"]))
     chart = {"id": "split", "dataset": kpi["dataset"], "type": "bar", "limit": limit,
              "x": {"column": split["columns"][kpi["dataset"]], "kind": "category"}, "y": [{"expression": kpi["expression"]}]}
     return chart_query(dict(page, charts=[chart]), "split", values)

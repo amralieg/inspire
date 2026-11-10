@@ -141,14 +141,20 @@ def test_kpi_split_query_reads_the_kpi_dataset_grouped_by_the_filter_column_with
 
 
 @pytest.mark.parametrize("by", ["run_date", "score", "nope"])
-def test_kpi_split_query_refuses_a_range_or_unknown_filter(by):
-    with pytest.raises(ValueError, match="KPI failed splits by district, region only, not " + by):
+def test_kpi_split_query_refuses_a_range_or_unknown_filter_in_plain_words(by):
+    with pytest.raises(ValueError, match="^This chart can be split by district or region\\.$"):
         shell_sql.kpi_split_query(PAGE, "failed", by, {}, 30)
 
 
-def test_kpi_split_query_refuses_a_filter_that_does_not_narrow_the_kpi_dataset():
-    with pytest.raises(ValueError, match="KPI runs splits by no filter only, not district"):
+def test_kpi_split_query_refuses_a_filter_that_does_not_narrow_the_kpi_dataset_in_plain_words():
+    with pytest.raises(ValueError, match="^This chart cannot be split by any filter on this page\\.$"):
         shell_sql.kpi_split_query(PAGE, "runs", "district", {}, 30)
+
+
+@pytest.mark.parametrize("asked", ["District", "district", "  REGION "])
+def test_a_split_names_the_filter_by_its_label_in_any_case(asked):
+    assert shell_sql.split_filter_named(PAGE, "records", asked)["id"] in ("district", "region")
+    assert shell_sql.split_filter_named(PAGE, "records", asked)["label"].casefold() == asked.strip().casefold()
 
 
 def _split_ws(llm, rows, total):
@@ -200,8 +206,9 @@ def test_a_split_by_a_date_filter_or_an_unknown_kpi_says_why(tmp_path):
                    tool_call("split_kpi", {"kpi": "no such", "filter": "region"}, "t2"), said("Cannot.")], related=topic_of)
     s, _ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
     turn = ask(s, "Split the loss by run date")
-    assert turn["steps"][0]["text"] == "Could not split the KPI: KPI total_loss splits by category, channel, region only, not run_date"
-    assert turn["steps"][1]["text"].startswith("Could not split the KPI: the page has no KPI no such; its KPIs are total_loss, loss_rate, items")
+    assert turn["steps"][0]["text"] == "This chart can be split by category, channel or region."
+    assert turn["steps"][1]["text"] == "Could not split the KPI: the page has no KPI no such; its KPIs are Loss to discounts, Loss rate, Items on the list"
+    
 
 
 def test_the_agent_is_told_to_split_with_split_kpi_and_to_name_the_kpi_for_genie(tmp_path):
@@ -435,3 +442,12 @@ def test_one_shared_word_never_drops_a_measure_by_its_name(agent_ns, capsys):
     room = _room([stake, cost])
     space, changed, out = _sync_room(agent_ns, room, capsys)
     assert "COLLISION" not in out and space["instructions"]["sql_snippets"]["measures"] == room["instructions"]["sql_snippets"]["measures"]
+
+
+def test_a_split_asked_in_other_case_succeeds_and_an_unsplittable_ask_gets_one_plain_sentence(tmp_path):
+    llm = FakeLLM([tool_call("split_kpi", {"kpi": "Loss to discounts", "filter": "REGION"}),
+                   tool_call("split_kpi", {"kpi": "Loss to discounts", "filter": "run_date"}, "t2"), said("Done.")], related=topic_of)
+    ws = _split_ws(llm, [{"x": "East", "y0": 75.0}, {"x": "West", "y0": 25.0}], 100.0)
+    s, ws, _made = agent_shell(tmp_path, ws=ws)
+    turn = ask(s, "Split the loss by REGION, and by run date")
+    assert [step["text"] for step in turn["steps"]] == ["Split Loss to discounts by Region", "This chart can be split by category, channel or region."]

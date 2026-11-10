@@ -158,7 +158,7 @@ test('the header says when the use case was last updated, with Refresh now besid
   const { page, seen, context } = await open(routes);
   await banner(page).waitFor();
   assert.equal(await banner(page).locator('.fresh-t').innerText(), 'Updated Oct 27, 07:30 AM UTC');
-  assert.match(await page.locator('.ph-meta').innerText(), /^Data through Oct 15, 2026 · /);
+  assert.match(await page.locator('.ph-meta').innerText(), /^Data through Oct 15, 2026(: the source has no newer rows)? · /);
   assert.equal(await throughs(page), 1);
   const button = page.getByRole('button', { name: 'Refresh now' });
   assert.equal(await button.isEnabled(), true);

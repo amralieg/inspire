@@ -242,3 +242,15 @@ export function backendNotes(backend, data) {
 }
 
 //END
+
+export const DATA_STALE_DAYS = 7;
+
+export function dataThroughText(high, today) {
+  const through = asDate(high);
+  const now = asDate(today);
+  if (!through) return '';
+  if (now && through.getTime() > now.getTime()) return `Data dated ${dayLabel(high)} is after today (${dayLabel(today)}): check the dates in the source`;
+  const days = now ? Math.round((now.getTime() - through.getTime()) / 86400000) : 0;
+  if (days > DATA_STALE_DAYS) return `Data through ${dayLabel(high)}: the source has no newer rows`;
+  return `Data through ${dayLabel(high)}`;
+}
