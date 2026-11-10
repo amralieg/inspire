@@ -24,7 +24,7 @@ def _pinned_assets(fresh_ns, tmp_path):
     version = fresh_ns["INSPIRE_ASSET_WHEELS"]["sqlglot"]
     return version, make_assets(fresh_ns, tmp_path / "assets",
                                 [{"kind": "python", "name": "sqlglot", "version": version,
-                                  "data": wheel({"sqlglot/__init__.py": "X = 1\n", "sqlglot/errors.py": "\n"})}])
+                                  "data": wheel({"sqlglot/__init__.py": "X = 1\n", "sqlglot/expressions.py": "VALUE = 2\n"})}])
 
 
 def _preload_other_sqlglot(monkeypatch):
@@ -40,7 +40,7 @@ def test_a_different_sqlglot_preloaded_in_the_process_is_replaced_by_the_pinned_
     loaded = importlib.import_module("sqlglot")
     assert loaded.X == 1, "the pinned copy is the one the SQL checks use"
     assert os.path.realpath(loaded.__file__).startswith(os.path.realpath(site) + os.sep)
-    assert "sqlglot.expressions" not in sys.modules, "submodules of the preloaded copy are dropped with it"
+    assert importlib.import_module("sqlglot.expressions").VALUE == 2, "an importer after the swap gets the pinned submodule"
 
 
 def test_a_business_reason_has_no_paths_or_ids(fresh_ns):

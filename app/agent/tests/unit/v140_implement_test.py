@@ -678,7 +678,8 @@ def test_genie_env_carries_only_host_and_token_auth(agent_ns, tmp_path, monkeypa
     assert env["DATABRICKS_HOST"] == "https://workspace.example.com" and env["DATABRICKS_TOKEN"] == "tok-123"
     assert "DATABRICKS_CONFIG_PROFILE" not in env and "DATABRICKS_CLIENT_SECRET" not in env
     assert env["SHELL"] == "/bin/bash" and env["GENIE_HOME"].startswith(str(tmp_path))
-    assert env["PATH"].startswith(str(tmp_path / "cli") + ":")
+    assert env["PATH"].startswith(str(tmp_path / "no-install") + ":" + str(tmp_path / "cli") + ":")
+    assert env["PIP_NO_INDEX"] == "1" and env["UV_NO_INDEX"] == "1"
 
 
 class _FakeProc:
@@ -714,7 +715,8 @@ def test_genie_run_streams_events_and_parses_the_final_json(agent_ns, tmp_path):
     assert result["errors"] == ["Genie error: transient"] and result["timed_out"] is False
     command, kw = commands[0]
     assert command[:2] == ["/bin/genie", "exec"] and "--output-schema" in command
-    assert command[-1] == "build it" + agent_ns["GENIE_CLI_AUTH_NOTE"] + agent_ns["GENIE_CLI_WRITE_NOTE"] and kw["start_new_session"] is True
+    assert command[-1] == ("build it" + agent_ns["GENIE_CLI_AUTH_NOTE"] + agent_ns["GENIE_CLI_WRITE_NOTE"]
+                           + agent_ns["GENIE_CLI_PACKAGES_NOTE"]) and kw["start_new_session"] is True
     assert "jq is not installed here: read the CLI's JSON output with python instead." in command[-1]
     assert "--profile" not in command and kw["env"]["DATABRICKS_TOKEN"] == "tok-123"
     assert json.load(open(work / "genie_output_schema.json")) == {"type": "object"}
