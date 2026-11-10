@@ -1,5 +1,5 @@
 import { kpiValue } from './Kpis.jsx';
-import { recordName } from './Records.jsx';
+import { recordName } from './records.js';
 import { integer } from './format.js';
 
 export const TOUR_PARAM = 'tour';

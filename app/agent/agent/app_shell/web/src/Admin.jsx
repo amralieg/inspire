@@ -40,14 +40,6 @@ function Usage({ view }) {
   );
 }
 
-export function AdminLink({ on }) {
-  return (
-    <a className={`admin-link top-ic ${on ? 'is-on' : ''}`} data-more="tight" href={`#/${ADMIN_ROUTE}`} aria-current={on ? 'page' : undefined} aria-label="Admin" title="Admin">
-      <Icon name="lock" size={13} /><span>Admin</span>
-    </a>
-  );
-}
-
 export default function Admin() {
   const [state, setState] = useState({ data: null, error: null });
   const load = useCallback(() => getUsage().then((data) => setState({ data, error: null })).catch((error) => setState({ data: null, error })), []);
