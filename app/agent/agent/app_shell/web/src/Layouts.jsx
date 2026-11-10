@@ -29,14 +29,15 @@ const TODO_ROWS = 5;
 const scrollTo = (section) => document.querySelector(`[data-section="${section}"]`)?.scrollIntoView({ behavior: reducedMotion() ? 'auto' : 'smooth', block: 'start' });
 
 export function useList(pageId, filters, ready, nonce, limit, on = true, view = null) {
-  const [state, setState] = useState({ data: null, error: '' });
+  const [state, setState] = useState({ data: null, error: '', scope: '' });
   const key = JSON.stringify([filters || {}, view || {}]);
+  const scope = `${pageId}\n${key}`;
   useEffect(() => {
     if (!ready || !on) return undefined;
     let live = true;
     getRecords({ ...(view || {}), page: pageId, filters: filters || {}, offset: 0, limit })
-      .then((data) => live && setState({ data, error: '' }))
-      .catch((e) => live && setState({ data: null, error: e.message }));
+      .then((data) => live && setState({ data, error: '', scope }))
+      .catch((e) => live && setState((s) => (s.scope === scope ? { ...s, error: e.message } : { data: null, error: e.message, scope })));
     return () => { live = false; };
   }, [pageId, key, ready, nonce, limit, on]);
   return state;

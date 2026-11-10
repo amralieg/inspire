@@ -347,3 +347,29 @@ test('the Plan and Review sections fit 1280 and 1440 with no sideways scroll, in
     }
   }
 });
+
+test('a review that cannot reload after a version move keeps its series rows and names the failure', async () => {
+  const sent = [];
+  const base = reviewRoutes(null, sent);
+  let broken = false;
+  const routes = {
+    ...forecastRoutes([]),
+    ...base,
+    'forecast/review': (ctx) => (broken ? ctx.json(502, { error: 'INSUFFICIENT_PERMISSIONS: the review view is not granted' }) : base['forecast/review'](ctx)),
+    'plans/version': (ctx) => {
+      const out = base['plans/version'](ctx);
+      broken = true;
+      return out;
+    },
+  };
+  const { page, context, errors } = await open('forecast', 'work', routes);
+  await page.locator('[data-series="S1"]').waitFor();
+  assert.equal(await page.locator('[data-series]').count(), 1, 'the at-risk series show before the move');
+  await page.locator('[data-move="new"]').click();
+  await page.waitForFunction(() => document.querySelector('.tile-err') !== null);
+  assert.equal(await page.locator('[data-series]').count(), 1, 'the series rows survive the failed reload');
+  assert.match(await page.locator('.tile-err').first().innerText(), /could not load/);
+  assert.equal(sent.length, 1, 'the version move was written once');
+  await context.close();
+  assert.deepEqual(errors.filter((e) => !/Failed to load resource/.test(e)), []);
+});

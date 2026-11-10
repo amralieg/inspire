@@ -8,16 +8,17 @@ import { formatValue, integer, numberOf } from './format.js';
 import './styles/plan.css';
 
 export function usePlans(pageId, load = getPlans) {
-  const [state, setState] = useState({ data: null, error: '' });
+  const [state, setState] = useState({ data: null, error: '', scope: '' });
   const [nonce, setNonce] = useState(0);
   useEffect(() => {
     let live = true;
-    load(pageId).then((data) => live && setState({ data, error: '' })).catch((e) => live && setState({ data: null, error: e.message }));
+    load(pageId).then((data) => live && setState({ data, error: '', scope: pageId }))
+      .catch((e) => live && setState((s) => ({ data: s.scope === pageId ? s.data : null, error: e.message, scope: pageId })));
     return () => { live = false; };
   }, [pageId, nonce, load]);
   const reload = useCallback(() => setNonce((n) => n + 1), []);
-  const take = useCallback((data) => setState({ data, error: '' }), []);
-  return { ...state, reload, take };
+  const take = useCallback((data) => setState((s) => ({ ...s, data, error: '' })), []);
+  return { data: state.data, error: state.error, reload, take };
 }
 
 export function ConstraintBars({ rows, error, onRetry = null }) {
