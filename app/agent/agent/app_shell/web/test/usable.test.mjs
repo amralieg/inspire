@@ -277,7 +277,7 @@ test('a change the read-only demo refuses is a calm note, and every other failur
     const demo = await actRecords({ page: 'n01_u05' }).catch((e) => e);
     assert.equal(DEMO_NOTE, 'This is a demo, so it is read-only: nothing you do here changes any data.');
     assert.deepEqual([demo.calm, demo.message, demo.status, toneOf(demo)], [true, DEMO_NOTE, 403, 'info']);
-    assert.deepEqual(failureOf(demo), { text: DEMO_NOTE, calm: true });
+    assert.deepEqual(failureOf(demo), { text: DEMO_NOTE, calm: true, technical: '' });
     for (const [status, note] of [[404, 'The demo has no saved answer for this view.'], [409, DEMO_NOTE], [400, DEMO_NOTE]]) {
       answer(status, { error: 'The demo has no saved answer for this view.', showcase: true });
       const refused = await actRecords({ page: 'n01_u05' }).catch((e) => e);
@@ -288,9 +288,9 @@ test('a change the read-only demo refuses is a calm note, and every other failur
       answer(status, body);
       const err = await actRecords({ page: 'n01_u05' }).catch((e) => e);
       assert.deepEqual([err.calm, err.message, toneOf(err)], [false, body.error, 'error'], `${status} ${JSON.stringify(body)}`);
-      assert.deepEqual(failureOf(err), { text: body.error, calm: false });
+      assert.deepEqual(failureOf(err), { text: body.error, calm: false, technical: '' });
     }
-    assert.deepEqual(failureOf(new Error('plain'), 'Shown instead'), { text: 'Shown instead', calm: false });
+    assert.deepEqual(failureOf(new Error('plain'), 'Shown instead'), { text: 'Shown instead', calm: false, technical: '' });
   } finally {
     globalThis.fetch = real;
   }
