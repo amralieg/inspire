@@ -46,28 +46,6 @@ function Choice({ setting, text, onText }) {
   );
 }
 
-export function TargetRow({ pageId, setting, onData, onChanged }) {
-  const [editing, setEditing] = useState(false);
-  const toast = useToast();
-  if (!setting) return null;
-  const saved = (next, value) => {
-    onData(next);
-    setEditing(false);
-    onChanged?.();
-    toast(savedText(setting, value));
-  };
-  return (
-    <div className="measure-target" data-target-row={setting.name}>
-      <p><b>{setting.label}</b> <span className="num">{valueText(setting, setting.value)}</span> <small>{setting.help}</small></p>
-      {editing
-        ? <Editor pageId={pageId} setting={setting} onSaved={saved} onCancel={() => setEditing(false)} />
-        : setting.editable
-          ? <button type="button" className="btn" onClick={() => setEditing(true)} aria-label={`Change ${setting.label}`}><Icon name="edit" size={14} />Change</button>
-          : <p className="why" data-target-why>{setting.reason || 'This setting cannot be changed from here.'}</p>}
-    </div>
-  );
-}
-
 function Editor({ pageId, setting, onSaved, onCancel }) {
   const [text, setText] = useState(inputText(setting, setting.value));
   const [note, setNote] = useState('');
@@ -121,6 +99,31 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
   );
 }
 
+export function SettingsGroupTable({ id, title, list, pageId, last, editing, setEditing, saved }) {
+  return (
+    <div className="tbl-wrap" data-group={id}>
+      {title && <h3>{title}</h3>}
+      <table>
+        <thead><tr><th>Setting</th><th>Value</th><th>Last change</th><th><span className="sr">Change</span></th></tr></thead>
+        <tbody>
+          {list.map((s) => (
+            <tr key={s.name} data-setting={s.name}>
+              <td><b>{s.label}</b><br /><small>{s.help}{s.allowed ? ` Allowed: ${s.allowed}.` : ''}</small></td>
+              <td className="num">{editing === s.name
+                ? <Editor pageId={pageId} setting={s} onSaved={saved} onCancel={() => setEditing('')} />
+                : valueText(s, s.value)}</td>
+              <td>{last[s.name] ? `${last[s.name].changed_by || 'someone'}${last[s.name].changed_at ? `, ${dayLabel(String(last[s.name].changed_at).slice(0, 10))}` : ''}` : s.reason}</td>
+              <td>{s.editable
+                ? editing !== s.name && <button type="button" className="btn" onClick={() => setEditing(s.name)} aria-label={`Change ${s.label}`}><Icon name="edit" size={14} />Change</button>
+                : <small>Change it on the Build page of the Inspire App</small>}</td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+    </div>
+  );
+}
+
 export default function SettingsPanel({ pageId, data, error = '', onData, onChanged, onRun, running, onClose, children, footer = null }) {
   const [editing, setEditing] = useState('');
   const toast = useToast();
@@ -136,6 +139,7 @@ export default function SettingsPanel({ pageId, data, error = '', onData, onChan
   };
   const lines = owned ? historyLines(data.history, data.settings) : [];
   const last = Object.fromEntries([...(data?.history || [])].reverse().map((h) => [h.name, h]));
+  const targetRows = (data?.settings || []).filter((s) => s.group === 'measurement');
   return (
     <section className="money settings" aria-label="Settings" data-settings>
       <div className="set-head">
@@ -146,28 +150,10 @@ export default function SettingsPanel({ pageId, data, error = '', onData, onChan
       <MyViewGroup />
       {error && <PlainNote text={error} prefix="The settings of this use case could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
       {children}
+      {owned && targetRows.length > 0 && <SettingsGroupTable title={null} list={targetRows} pageId={pageId} last={last} editing={editing} setEditing={setEditing} saved={saved} />}
       {owned && <p className="why">A saved value applies at the next run of this use case. Every change keeps its note and who made it.</p>}
       {owned && groupsOf(data.settings).map(([group, title, list]) => (
-        <div key={group} className="tbl-wrap" data-group={group}>
-          <h3>{title}</h3>
-          <table>
-            <thead><tr><th>Setting</th><th>Value</th><th>Last change</th><th><span className="sr">Change</span></th></tr></thead>
-            <tbody>
-              {list.map((s) => (
-                <tr key={s.name} data-setting={s.name}>
-                  <td><b>{s.label}</b><br /><small>{s.help}{s.allowed ? ` Allowed: ${s.allowed}.` : ''}</small></td>
-                  <td className="num">{editing === s.name
-                    ? <Editor pageId={pageId} setting={s} onSaved={saved} onCancel={() => setEditing('')} />
-                    : valueText(s, s.value)}</td>
-                  <td>{last[s.name] ? `${last[s.name].changed_by || 'someone'}${last[s.name].changed_at ? `, ${dayLabel(String(last[s.name].changed_at).slice(0, 10))}` : ''}` : s.reason}</td>
-                  <td>{s.editable
-                    ? editing !== s.name && <button type="button" className="btn" onClick={() => setEditing(s.name)} aria-label={`Change ${s.label}`}><Icon name="edit" size={14} />Change</button>
-                    : <small>Change it on the Build page of the Inspire App</small>}</td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
+        <SettingsGroupTable key={group} id={group} title={title} list={list} pageId={pageId} last={last} editing={editing} setEditing={setEditing} saved={saved} />
       ))}
       {lines.length > 0 && <div className="hist"><b>Changes</b><ul>{lines.map((l, i) => <li key={i}>{l}</li>)}</ul></div>}
       {footer}

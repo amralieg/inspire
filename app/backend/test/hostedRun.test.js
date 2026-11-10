@@ -581,6 +581,25 @@ test('the alerts of a page are answered by Inspire from the raw request before a
   }
 });
 
+test('a settings save on a page Inside Inspire runs as a step with Inspire\'s own writer, so inside pages save like the standalone App', async () => {
+  const rec = record('n01-u01-settings');
+  const answers = { 'settings/save': { status: 200, body: { settings: [], saved: true } } };
+  const s = await setup({ folders: folderOf(rec), step: (request) => JSON.stringify(answers[request.route]) });
+  s.hosted.useDecisions(async () => ({ result_table: 'main.inspire.churn_out', writer: { token: 'inspire-own-token', warehouse: 'wh1' } }));
+  try {
+    s.hosted.setListed([{ ...entry(rec), session_id: '42', use_case_id: 'N01-U01' }], { key: 'db' });
+    const json = { ...TOKEN, 'content-type': 'application/json', 'x-forwarded-preferred-username': 'Owner', cookie: 'never=sent' };
+    const body = { page: 'n01_u01', name: 'kpi_target_value', value: '80', was: '90', note: '' };
+    const saved = await call(s.base, `/run/${rec.id}/api/settings/save`, { method: 'POST', headers: json, body: JSON.stringify(body) });
+    assert.deepEqual([saved.status, JSON.parse(saved.text)], [200, { settings: [], saved: true }]);
+    assert.equal(s.spawned.length, 0, 'the page process never starts to save a setting');
+    assert.equal(s.steps[0].request.route, 'settings/save');
+    assert.deepEqual(s.steps[0].request.writer, { token: 'inspire-own-token', warehouse: 'wh1' });
+  } finally {
+    await s.close();
+  }
+});
+
 test('a decision on a page Inside Inspire runs the page\'s own shell as a step with Inspire\'s writer and the viewer\'s headers, never through the page process', async () => {
   const rec = record('n01-u01-decide');
   const answers = { 'records/act': { status: 200, body: { written: ['k1'], left_out: 1 } }, 'records/undo': { status: 403, body: { error: 'you cannot read it' } } };

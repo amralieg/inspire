@@ -17,7 +17,7 @@ import shell_sql  # noqa: E402
 READ_ONLY = "ModifyTable is not supported in read-only session mode"
 
 
-def _shell(tmp_path, host=""):
+def _shell(tmp_path, host="", writer_factory=None):
     with open(os.path.join(APP_SHELL, "example_page.json"), encoding="utf-8") as handle:
         page = json.load(handle)
     page["result_table"] = "main.pricing.loss_desk_out"
@@ -38,7 +38,7 @@ def _shell(tmp_path, host=""):
     sp = object()
     user_ws = object()
     shell = shell_core.Shell(str(tmp_path), env={"DATABRICKS_HOST": "https://example.com", "DATABRICKS_WAREHOUSE_ID": "w1"},
-                             sp_factory=lambda: sp, user_factory=lambda host, token: user_ws)
+                             sp_factory=lambda: sp, user_factory=lambda host, token: user_ws, writer_factory=writer_factory)
     return shell, sp, user_ws
 
 
@@ -50,6 +50,13 @@ def shell_env(tmp_path):
 @pytest.fixture
 def inside_env(tmp_path):
     return _shell(str(tmp_path), host="inspire")
+
+
+@pytest.fixture
+def inside_with_writer(tmp_path):
+    writer = object()
+    shell, sp, user_ws = _shell(str(tmp_path), host="inspire", writer_factory=lambda: writer)
+    return shell, writer, user_ws
 
 
 def _spy(shell, failure=None):
@@ -114,3 +121,15 @@ def test_a_page_inside_inspire_refuses_the_settings_write_plainly_and_never_uses
 
 def test_the_target_belongs_to_measurement_not_the_impact_group():
     assert shell_core.TARGET_SETTING["group"] == "measurement"
+
+
+def test_a_page_inside_inspire_saves_its_settings_with_the_inspire_app_writer(inside_with_writer):
+    shell, writer, user_ws = inside_with_writer
+    page = shell.pages[0]
+    calls = _spy(shell)
+    shell.write_saved(user_ws, shell_sql.assumptions_table(page), "insert into t values (1)", [])
+    assert calls == [writer], "inside pages save with the Inspire App's own identity, like the standalone App"
+
+
+def test_the_inside_settings_save_is_routed_through_the_inspire_writer():
+    assert {"settings/save", "money/assumption", "money/rule"} <= set(shell_core.CLI_ROUTES)

@@ -36,7 +36,10 @@ const HOSTED_ALERT_ROUTES = {
   'POST /api/alerts/delete': 'delete',
 };
 const HOSTED_ALERT_BODY_BYTES = 1024 * 1024;
-const HOSTED_DECISION_ROUTES = { 'POST /api/records/act': 'records/act', 'POST /api/records/undo': 'records/undo' };
+const HOSTED_DECISION_ROUTES = {
+  'POST /api/records/act': 'records/act', 'POST /api/records/undo': 'records/undo',
+  'POST /api/settings/save': 'settings/save', 'POST /api/money/assumption': 'money/assumption', 'POST /api/money/rule': 'money/rule',
+};
 const HOSTED_DECISION_SCRIPT = ['import json, sys', 'sys.path.insert(0, sys.argv[1])', 'import shell_core',
   'if hasattr(shell_core, "cli"):', '    sys.exit(shell_core.cli())', 'print(json.dumps({"status": 409, "body": {"error": sys.argv[2]}}))'].join('\n');
 const HOSTED_DECISION_VERSION = 1;

@@ -220,7 +220,7 @@ INSIDE_SETTINGS = ("Nothing was saved: settings cannot be changed from this page
 INSIDE_DECISIONS = ("A page inside Inspire records decisions through Inspire, and the Inspire App serving this page cannot record them; "
                     "update the Inspire App, then open the page again from the Run tab")
 CLI_VERSION = 1
-CLI_ROUTES = ("records/act", "records/undo")
+CLI_ROUTES = ("records/act", "records/undo", "settings/save", "money/assumption", "money/rule")
 JOB_RUNS_RECENT = 25
 STAGE_RUNS = 10
 RUN_TIMEOUT_S = 14400
@@ -1853,10 +1853,9 @@ class Shell:
         return INSIDE_SETTINGS
 
     def write_saved(self, ws, table: str, sql: str, params: list) -> None:
-        blocked = self.settings_blocked()
-        if blocked:
-            raise HttpError(403, blocked)
-        writer = self.decision_writer(ws)
+        writer = self.decision_writer(ws) if not self.settings_blocked() else None
+        if writer is None:
+            raise HttpError(403, INSIDE_SETTINGS)
         try:
             self.execute(writer, sql, params, 1, delta=True)
         except QueryError as error:
@@ -3147,10 +3146,7 @@ class Shell:
             return {"settings": [], "history": [], "editable": False, "why": refusal, "can_run": False}
         ws, who = self.workspace(headers)
         settings, history, _model, _names = self.settings_model(ws, who, page)
-        blocked = self.settings_blocked()
-        if blocked:
-            settings = [dict(s, editable=False) for s in settings]
-        why = blocked or ("" if settings else NO_SETTINGS)
+        why = "" if settings else NO_SETTINGS
         return {"settings": settings, "history": history, "editable": not why, "why": why,
                 "can_run": not why and self.may_run(headers, page), "job": bool(self.job_of(page)),
                 "money": self.money_view(page) if shell_sql.page_has_money(page) else None}
@@ -3206,8 +3202,7 @@ class Shell:
         refusal = self.owner_refusal(headers, page, SETTING_WORDS)
         if refusal:
             raise HttpError(403, refusal)
-        if self.settings_blocked():
-            raise HttpError(403, self.settings_blocked())
+
         ws, who = self.workspace(headers)
         settings, _history, model, names = self.settings_model(ws, who, page)
         name = str(data.get("name") or "")

@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, openApp, serveDist } from './harness.mjs';
+import { appInfo, goRail, openApp, serveDist } from './harness.mjs';
 import { helpLine } from '../src/help.js';
 import { plainColumns, valueLine } from '../src/impact.js';
 
@@ -116,4 +116,48 @@ test('the target is not listed under How the impact is worked out, and a refused
   const { failureOf } = await import('../src/api.js');
   assert.deepEqual(groupsOf([{ name: 'kpi_target_value', group: 'measurement', value: '90' }]), []);
   assert.equal(failureOf({ message: 'Nothing was saved: plain', detail: { details: 'ModifyTable is not supported' } }).technical, 'ModifyTable is not supported');
+});
+
+const TARGET = { name: 'kpi_target_value', label: 'Target for the KPI', kind: 'number', group: 'measurement', source: 'app', applies: 'app',
+  unit: 'hours', low: null, high: null, low_open: false, high_open: false, whole: false, optional: true, choices: [], many: false, default: '',
+  allowed: 'a number, or empty for no target', reason: 'not set until an owner sets it', help: 'The gap is the target minus the latest value.' };
+const KPI_RUN = { kpi_name: 'Analyst hours', kpi_unit: 'hours', kpi_direction: 'decrease', kpi_status: 'measured', kpi_latest: 100,
+  kpi_baseline: 120, kpi_baseline_on: '2026-10-01', kpi_source: 'inspire', kpi_target: null, kpi_target_text: '', kpi_measured_at: '2026-10-20' };
+const targetView = (value, editable = true) => ({ settings: [{ ...TARGET, value, editable }], history: [], editable: true, why: '', can_run: false });
+
+test('the target sits under Measurement in the shared settings row: Change, Save, the gap updates, and a locked target says why', async () => {
+  let value = '90';
+  const info = appInfo({}, 1, { result_table: 'main.pricing.loss_desk_out' });
+  const routes = {
+    settings: ({ json }) => json(200, targetView(value)),
+    summary: ({ json }) => json(200, { run: KPI_RUN, categories: {}, note: '' }),
+    'settings/save': ({ route, json }) => { value = String(route.request().postDataJSON().value); json(200, targetView(value)); },
+  };
+  const { page, context, seen } = await openApp(browser, base, info, { watch: STILL, routes });
+  await goRail(page, 'settings');
+  const row = page.locator('[data-setting="kpi_target_value"]');
+  await row.waitFor({ state: 'visible' });
+  assert.match(await page.locator('[data-kpi-gap]').textContent(), /10 hours to go/);
+  await row.getByRole('button', { name: 'Change Target for the KPI' }).click();
+  await page.locator('input[name="setting_kpi_target_value"]').fill('80');
+  await page.getByRole('button', { name: 'Save' }).first().click();
+  await page.waitForFunction(() => /80/.test(document.querySelector('[data-setting="kpi_target_value"]')?.textContent || ''));
+  await page.waitForFunction(() => /20 hours to go/.test(document.querySelector('[data-kpi-gap]')?.textContent || ''));
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('a target the person may not change shows the reason in its row and no Change button', async () => {
+  const info = appInfo({}, 1, { result_table: 'main.pricing.loss_desk_out' });
+  const routes = {
+    settings: ({ json }) => json(200, targetView('90', false)),
+    summary: ({ json }) => json(200, { run: KPI_RUN, categories: {}, note: '' }),
+  };
+  const { page, context } = await openApp(browser, base, info, { watch: STILL, routes });
+  await goRail(page, 'settings');
+  const row = page.locator('[data-setting="kpi_target_value"]');
+  await row.waitFor({ state: 'visible' });
+  assert.equal(await row.getByRole('button', { name: 'Change Target for the KPI' }).count(), 0);
+  assert.match(await row.textContent(), /Change it on the Build page of the Inspire App/);
+  await context.close();
 });
