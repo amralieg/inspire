@@ -1,5 +1,6 @@
 const { parseExactJson } = require('./exactJson');
 const { parseStrategicContext, validateStrategy } = require('../../frontend/src/lib/strategyContext.js');
+const { scopesFromObject, serializeTableScopes, scopeKeyOf } = require('../../frontend/src/lib/tableScope.js');
 
 const INSPIRE_AGENT_VERSION = 'v1.5.1';
 const INSPIRE_ENVIRONMENT_KEY = 'Default';
@@ -23,6 +24,7 @@ const INSPIRE_NOTEBOOK_WIDGET_KEYS = [
   '12_documents_languages',
   '13_generate_genie_code_for',
   '14_session_id',
+  '17_table_scope',
   '16_best_of_best_count',
   'inspire_implement_use_case',
   'inspire_implement_spec_version',
@@ -140,6 +142,37 @@ function validateBestOfBestCountParams(params) {
   return params;
 }
 
+function parseTableScopeText(text) {
+  const source = String(text ?? '').trim();
+  if (!source) return { scopes: {}, problems: [] };
+  let parsed;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    return { scopes: {}, problems: ['The table scope is not valid JSON.'] };
+  }
+  return scopesFromObject(parsed);
+}
+
+function validateTableScopeParams(params) {
+  const { scopes, problems } = parseTableScopeText(params['17_table_scope']);
+  if (problems.length) throw paramError(`Table scope: ${problems.join(' ')}`);
+  const uncovered = Object.keys(scopes).filter((table) => !tableIsPicked(table, params['01_uc_metadata']));
+  if (uncovered.length) {
+    throw paramError(`Table scope names ${uncovered.join(', ')}, which ${uncovered.length === 1 ? 'is' : 'are'} not picked under Unity Catalog Metadata.`);
+  }
+  const text = serializeTableScopes(scopes, Object.keys(scopes));
+  if (text) params['17_table_scope'] = text;
+  else delete params['17_table_scope'];
+  return params;
+}
+
+function tableIsPicked(table, metadata) {
+  const picked = new Set(String(metadata || '').split(',').map(scopeKeyOf).filter(Boolean));
+  const parts = scopeKeyOf(table).split('.');
+  return [parts.join('.'), parts.slice(0, 2).join('.'), parts[0]].some((name) => picked.has(name));
+}
+
 function normalizeGenerationOptionsParams(params) {
   const allowed = new Set(['PDF Catalog', 'Presentation']);
   const normalized = String(params['09_generation_options'] || '')
@@ -158,6 +191,7 @@ function sanitizeInspireNotebookJobParams(params) {
   normalizeDiscoveryTypeParams(params);
   validateStrategicContextParams(params);
   validateBestOfBestCountParams(params);
+  validateTableScopeParams(params);
   const out = {};
   for (const k of [...INSPIRE_NOTEBOOK_WIDGET_KEYS, ...INSPIRE_JOB_ONLY_PARAM_KEYS]) {
     if (!Object.prototype.hasOwnProperty.call(params, k)) continue;
@@ -449,6 +483,7 @@ module.exports = {
   normalizeDiscoveryTypeParams,
   validateStrategicContextParams,
   validateBestOfBestCountParams,
+  validateTableScopeParams,
   parseMaybeJson,
   belowBarLabelFromUseCase,
   V130_JSON_FIELDS,
