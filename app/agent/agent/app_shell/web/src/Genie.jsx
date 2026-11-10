@@ -371,7 +371,7 @@ export function Answer({ message, url, onTick, genie, rating = true }) {
           onRetry={genie?.reload && !message.agent && message.ids?.message_id ? () => genie.reload(genie.key, message.n) : null} />
       )}
       {done && a.sql && (
-        <details className="msg-sql"><summary><Icon name="code" size={13} />The SQL Genie ran</summary><pre>{a.sql}</pre></details>
+        <details className="msg-sql"><summary><Icon name="code" size={13} />How Genie got this</summary><pre>{a.sql}</pre></details>
       )}
       {done && genie && <AgentExtras message={message} genie={genie} rating={rating} />}
       {done && (!message.agent || message.ids) && (
