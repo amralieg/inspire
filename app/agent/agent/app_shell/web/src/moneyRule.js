@@ -30,3 +30,11 @@ export function ruleSentence(rule) {
   const rates = Object.entries(rule.rates || {}).map(([code, rate]) => `1 ${code} = ${rate} ${rule.base}`).join(', ');
   return `Every amount is converted to ${rule.base} at the rates you typed in (${rates}), then added up.`;
 }
+
+const shown = (value) => (value == null ? 'no rows' : Math.round(Number(value)).toLocaleString('en-US'));
+
+export function previewLines(preview) {
+  const totals = (preview?.totals || []).map((t) => `${t.currency || ''} ${shown(t.now)}`.trim());
+  const top = (preview?.top || []).map((row) => `${row.currency || preview?.rule?.base || ''} ${shown(row.amount)}`.trim());
+  return { totals, top, leftOut: preview?.left_out?.text || '' };
+}

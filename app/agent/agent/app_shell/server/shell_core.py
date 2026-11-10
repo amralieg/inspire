@@ -2294,6 +2294,8 @@ class Shell:
                 return 200, self.settings_view(headers, query.get("page"))
             if route == ("POST", "settings/preview"):
                 return 200, self.preview_setting(headers, data)
+            if route == ("POST", "money/preview"):
+                return 200, self.money_rule_preview(headers, data)
             if route == ("POST", "money/rule"):
                 return 200, self.money_rule_save(headers, data)
             if route == ("POST", "settings/save"):
@@ -3126,6 +3128,26 @@ class Shell:
         spec = self.by_id.get(str(page.get("id"))) or {}
         return {"rule": shell_sql.money_rule_of(page), "saved": page.get("money") != spec.get("money"),
                 "name": shell_sql.MONEY_RULE_NAME}
+
+    def money_rule_preview(self, headers: dict, data: dict) -> dict:
+        """What a draft money rule would show now: the totals and the largest rows, the rule is not saved."""
+        page = self.page(data.get("page"))
+        rule = data.get("rule")
+        if not isinstance(rule, dict) or shell_sql.money_rule_problems(rule):
+            raise HttpError(400, "; ".join(shell_sql.money_rule_problems(rule)) if isinstance(rule, dict) else "send rule, the money currency rule")
+        draft = shell_sql.page_with_money(page, shell_sql.money_rule_clean(rule))
+        kpi = next((k for k in draft.get("kpis") or [] if k.get("format") == "currency"), None)
+        if kpi is None:
+            raise HttpError(409, "this use case has no money total to preview")
+        ws, who = self.workspace(headers)
+        sql, params = shell_sql.kpi_query(draft, kpi["id"], {})
+        shown = shell_sql.kpi_values(self.run(ws, who, sql, params, shell_sql.CAPS["kpi_rows"])["rows"])
+        sql, params = shell_sql.money_top_query(draft, kpi)
+        top = self.run(ws, who, sql, params, 5)["rows"]
+        left = shell_sql.money_left_out(draft, kpi, {})
+        return {"totals": shown.get("by_currency") or [{"currency": shell_sql.money_rule_clean(rule).get("base") or "", "now": shown["now"]}],
+                "top": top, "left_out": shell_sql.left_out_text(self.run(ws, who, *left, 1)["rows"]) if left else None,
+                "rule": shell_sql.money_rule_clean(rule)}
 
     def money_rule_save(self, headers: dict, data: dict) -> dict:
         page = self.page(data.get("page"))

@@ -2534,6 +2534,15 @@ def page_has_money(page: dict) -> bool:
         y.get("format") == "currency" for c in page.get("charts") or [] for y in c.get("y") or [])
 
 
+def money_top_query(page: dict, kpi: dict, limit: int = 5) -> tuple:
+    """The largest money rows under the page's rule: the amount as the rule states it, and its currency."""
+    money = money_expression(page, kpi["dataset"], MONEY_COLUMN)
+    currency = money_scope(page, kpi["dataset"])["currency_column"]
+    source = money_source(page, kpi["dataset"], _dataset(page, kpi["dataset"]))
+    cur = f", {quote(currency)} AS currency" if currency else ""
+    return f"SELECT {money} AS amount{cur} FROM ({source}) AS t ORDER BY amount DESC NULLS LAST LIMIT {int(limit)}", []
+
+
 def money_currency_column(page: dict, kpi: dict) -> str:
     return money_scope(page, kpi["dataset"])["currency"] if kpi.get("format") == "currency" else ""
 

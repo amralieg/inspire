@@ -304,3 +304,17 @@ def test_rows_with_no_rate_are_counted_in_the_left_out_line():
         ROWS[:] = saved
     assert shown["unrated"] == 1 and shown["text"].endswith("; 1 rows have no rate")
     assert shell_sql.left_out_text(_run(shell_sql.money_left_out(PAGE, PAGE["kpis"][0], {})[0]))["text"].endswith("were left out")
+
+
+def _top(page, limit=3):
+    sql, _ = shell_sql.money_top_query(page, page["kpis"][0], limit)
+    return sorted((round(r["amount"], 2) for r in _run(sql)), reverse=True)
+
+
+def test_the_preview_top_rows_are_converted_at_the_rate_the_owner_typed():
+    converted = dict(PAGE, money={"currency": "convert", "base": "USD", "rates": {"AED": 0.5, "USD": 1.0}})
+    assert _top(converted) == [50.0, 50.0, 12.5], "AED 100 at 0.5, USD 50 at 1, AED 25 at 0.5"
+
+
+def test_the_preview_top_rows_are_per_currency_amounts_when_no_rate_is_chosen():
+    assert _top(PAGE) == [100.0, 50.0, 25.0]

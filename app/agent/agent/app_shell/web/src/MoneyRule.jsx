@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
-import { getSettings, saveMoneyRule } from './api.js';
-import { draftOf, ruleOf, ruleSentence } from './moneyRule.js';
+import { getSettings, previewMoneyRule, saveMoneyRule } from './api.js';
+import { draftOf, previewLines, ruleOf, ruleSentence } from './moneyRule.js';
 import { PlainNote } from './ui.jsx';
 
 const LEFT_OUT = 'Rows without a date and rows from the running month are left out of every money total, and each total says how many.';
@@ -10,6 +10,7 @@ export function MoneyRule({ pageId }) {
   const [draft, setDraft] = useState(null);
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
+  const [preview, setPreview] = useState(null);
 
   useEffect(() => {
     let live = true;
@@ -23,6 +24,17 @@ export function MoneyRule({ pageId }) {
   const shown = ruleOf(draft).rule;
   const set = (patch) => setDraft({ ...draft, ...patch });
   const setRate = (i, patch) => set({ rates: draft.rates.map((row, at) => (at === i ? { ...row, ...patch } : row)) });
+
+  const look = async () => {
+    const { rule, problems } = ruleOf(draft);
+    if (problems.length) { setError(problems.join(' ')); return; }
+    setError('');
+    try {
+      setPreview(await previewMoneyRule({ page: pageId, rule }));
+    } catch (err) {
+      setError(err.message);
+    }
+  };
 
   const save = async () => {
     const { rule, problems } = ruleOf(draft);
@@ -63,6 +75,17 @@ export function MoneyRule({ pageId }) {
       )}
       <p className="muted">{LEFT_OUT}</p>
       {error && <PlainNote text={error} role="alert" data-money-error />}
+      <button type="button" className="lnk" onClick={look} data-money-preview-button>Preview this rule</button>
+      {preview && (() => {
+        const lines = previewLines(preview);
+        return (
+          <div data-money-preview>
+            <p>Totals: {lines.totals.join(' · ') || 'no rows'}</p>
+            {lines.top.length > 0 && <ol>{lines.top.map((t) => <li key={t}>{t}</li>)}</ol>}
+            {lines.leftOut && <p className="muted">{lines.leftOut}</p>}
+          </div>
+        );
+      })()}
       <button type="button" className="btn" onClick={save} disabled={busy} data-money-save>Save the money rule</button>
     </section>
   );
