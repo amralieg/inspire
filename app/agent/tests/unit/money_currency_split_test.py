@@ -206,7 +206,7 @@ def test_the_left_out_line_counts_undated_rows_and_the_running_period_under_the_
     finally:
         ROWS[:] = saved
     assert (shown["undated"], shown["running"]) == (1, 1)
-    assert shown["text"] == "1 rows without a date and 1 rows from the running month were left out"
+    assert shown["text"] == "1 row without a date and 1 row from the running month were left out"
 
 
 def test_a_page_without_a_period_filter_has_no_left_out_count():
@@ -309,7 +309,7 @@ def test_rows_with_no_rate_are_counted_in_the_left_out_line():
         shown = shell_sql.left_out_text(_run(sql))
     finally:
         ROWS[:] = saved
-    assert shown["unrated"] == 1 and shown["text"].endswith("; 1 rows have no rate")
+    assert shown["unrated"] == 1 and shown["text"].endswith("; 1 row has no rate")
     assert shell_sql.left_out_text(_run(shell_sql.money_left_out(PAGE, PAGE["kpis"][0], {})[0]))["text"].endswith("were left out")
 
 

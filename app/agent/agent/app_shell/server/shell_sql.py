@@ -2511,13 +2511,18 @@ def money_left_out(page: dict, kpi: dict, values: dict):
     return f"{text} LIMIT 1", params.items
 
 
+def counted(n: int, noun: str) -> str:
+    return f"{n} {noun}" if n == 1 else f"{n} {noun}s"
+
+
 def left_out_text(rows) -> dict:
     """The one line every money total shows: how many rows it left out, and why."""
     row = (rows or [{}])[0]
     undated, running, unrated = (int(row.get(k) or 0) for k in ("undated", "running", "unrated"))
-    line = f"{undated} rows without a date and {running} rows from the running month were left out"
+    line = (f"{counted(undated, 'row')} without a date and {counted(running, 'row')} from the running month "
+            f"{'was' if undated + running == 1 else 'were'} left out")
     if "unrated" in row:
-        line += f"; {unrated} rows have no rate"
+        line += f"; {counted(unrated, 'row')} {'has' if unrated == 1 else 'have'} no rate"
     return {"undated": undated, "running": running, "unrated": unrated, "text": line}
 
 
