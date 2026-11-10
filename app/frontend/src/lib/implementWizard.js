@@ -2666,8 +2666,8 @@ export function abacGrantText(got) {
   const gaps = got?.abac_gaps || [];
   if (gaps.length) {
     const owners = [...new Set(gaps.map((g) => g.owner).filter(Boolean))];
-    const who = owners.length ? joinOwners(owners) : 'the owner of each table';
-    return `Inspire cannot grant READ METADATA on ${joinOwners(gaps.map((g) => g.table))} with your sign-in, because you cannot manage it. `
+    const who = owners.length ? joinWords(owners) : 'the owner of each table';
+    return `Inspire cannot grant READ METADATA on ${joinWords(gaps.map((g) => g.table))} with your sign-in, because you cannot manage it. `
       + `Ask ${who} to run: ${gaps.flatMap((g) => g.grants).join('; ')}`;
   }
   const failed = got?.failed || [];
@@ -2676,10 +2676,6 @@ export function abacGrantText(got) {
   return ran.length ? `Inspire granted ${plural(ran.length, 'grant')} with your sign-in, and the checks run again` : 'Inspire ran no grant: the App can already read these tables';
 }
 
-function joinOwners(items) {
-  const list = [...items];
-  return list.length <= 1 ? (list[0] || '') : `${list.slice(0, -1).join(', ')} and ${list[list.length - 1]}`;
-}
 export const NEW_APPS_ACCESS_ACTION = 'Let new Apps use this catalog';
 
 export function appGrantText(got) {

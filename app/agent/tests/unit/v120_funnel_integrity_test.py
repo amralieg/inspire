@@ -22,6 +22,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from _agentload import agent_source, method_node  # noqa: E402
+from v120_artifacts_support import unprotected_reads  # noqa: E402
 
 
 class FakeStorage:
@@ -80,6 +81,7 @@ def make_inspire(ns, responder=None, **attrs):
     cls = ns["DatabricksInspire"]
     obj = cls.__new__(cls)
     obj.logger = logging.getLogger("v120_core")
+    obj._implement_protections = unprotected_reads(ns)
     obj.storage_manager = FakeStorage()
     obj.ai_agent = FakeAgent(responder or (lambda *a: ""))
     obj.atomic_writer = FakeWriter()

@@ -211,6 +211,10 @@ class TestEnvironmentAssets:
         raise self.ns["InspireAssetError"](f"The Inspire assets file /tests/manifest.json lists no {name}. Install step: none in tests.")
 
 
+def unprotected_reads(ns):
+    return lambda tables, warnings, *args: {t: ns["implement_protection"]([{"kind": "table", "function_name": "MANAGED"}]) for t in tables}
+
+
 def make_inspire(ns, **attrs):
     cls = ns["DatabricksInspire"]
     obj = cls.__new__(cls)
@@ -223,6 +227,7 @@ def make_inspire(ns, **attrs):
     obj.generate_choices = ["PDF Catalog", "Presentation"]
     obj.docs_output_dir = "/Workspace/out/docs"
     obj.notebook_output_dir = "/Workspace/out/notebooks"
+    obj._implement_protections = unprotected_reads(ns)
     obj._implement_root_dir = "/Workspace/Shared/inspire-ai"
     obj.w_client = types.SimpleNamespace(workspace=FakeWorkspaceApi(), config=types.SimpleNamespace(host=""))
     obj._notebook_object_ids = {}

@@ -18,6 +18,7 @@ import pytest
 
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from _agentload import method_node  # noqa: E402
+from v120_artifacts_support import unprotected_reads  # noqa: E402
 
 INVENTED = ("Maximize operational efficiency", "Improve customer satisfaction", "Reduce operational costs",
             "Drive revenue growth", "Ensure compliance and risk management", "Digital transformation",
@@ -70,6 +71,7 @@ def make_obj(ns, responder=None, **attrs):
     DI = ns["DatabricksInspire"]
     obj = DI.__new__(DI)
     obj.logger = logging.getLogger("v120_modes_context")
+    obj._implement_protections = unprotected_reads(ns)
     obj.storage_manager = FakeStorage()
     obj.ai_agent = FakeAgent(responder or (lambda *a: ""))
     obj.atomic_writer = None
