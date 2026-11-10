@@ -69,7 +69,8 @@ test('a new spec has the Genie Agent and App on and the dashboard and alert off,
   assert.equal(w.appBackendOf(fresh, { state: 'absent' }), 'delta');
   assert.deepEqual(Object.keys(w.appBackendBlocks(fresh, { state: 'available' })), ['lakebase'], 'per-user keeps Lakebase off');
   assert.deepEqual(w.appBackendBlocks(shared, { state: 'available' }), {});
-  assert.match(w.APP_ACCESS_NOTE, /^Inspire starts with each person signing in as themselves, so they see only the rows and values their own access allows\. Pick everyone sees the same rows only when no table has row filters, column masks or access policies/);
+  assert.match(w.APP_ACCESS_NOTE, /^Each person signs in as themselves and sees only the rows their access allows\.$/);
+  for (const note of [w.APP_ACCESS_NOTE, w.FRESH_HELP]) assert.ok(note.split(' ').length <= 15, `${note} is over 15 words (must-fail on the long copy)`);
   assert.match(w.APP_ACCESS_CHOICES.find((c) => c.id === 'sp').blurb, /^The App reads with its own access/);
   assert.deepEqual(fresh.outputs.app_look, { style: 'a', layout: 'sidebar', palette: 'default', theme: 'light' });
   assert.deepEqual(fresh.outputs.app_options, { modify: false, replace_edits: false, decisions: true, alerts: false }, 'record decisions start on, alerts start off');

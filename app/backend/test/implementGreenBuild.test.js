@@ -97,10 +97,10 @@ test('the wizard turns off a trend chart when the input tables carry no date, an
   assert.deepEqual(w.appChartsOf(spec, null, true), ['trend', 'bars', 'pareto']);
   assert.equal(w.withAppChart(spec, 'trend', true, null, false), spec, 'a trend cannot be picked with no date');
   const picked = { ...spec, outputs: { ...spec.outputs, app_charts: ['trend', 'bars', 'split'] } };
-  assert.deepEqual(w.stepErrors('app_pages', picked, { columnsByTable: undated, sourceTables: tables }),
+  assert.deepEqual(w.stepErrors('app_look', picked, { columnsByTable: undated, sourceTables: tables }),
     [`${w.APP_TREND_NO_DATE} Pick another kind of chart`]);
-  assert.deepEqual(w.stepErrors('app_pages', picked, { columnsByTable: dated, sourceTables: tables }), []);
-  assert.deepEqual(w.stepErrors('app_pages', picked, {}), [], 'with no profiles the wizard leaves the pick alone');
+  assert.deepEqual(w.stepErrors('app_look', picked, { columnsByTable: dated, sourceTables: tables }), []);
+  assert.deepEqual(w.stepErrors('app_look', picked, {}), [], 'with no profiles the wizard leaves the pick alone');
   assert.deepEqual(w.withAppChart(picked, 'pareto', true, null, false).outputs.app_charts, ['bars', 'split', 'pareto']);
   assert.equal(w.appChartPickText(null, false), "Inspire's pick: bars by segment and biggest first.");
   assert.equal(w.appChartPickText(null, true), "Inspire's pick: trend over time, bars by segment and biggest first.");
