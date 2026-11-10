@@ -249,7 +249,7 @@ def test_every_built_output_and_part_gets_its_own_record_and_only_a_missed_ask_w
     seen = _llm(inst)
     spec = _vibed(previous, ["dashboard:by_region", "app:page:n01_u01"], **{"dashboard:by_region_vibes": WIDGET_VIBES,
                                                                             "app:page:n01_u01_vibes": PAGE_VIBES})
-    assert _run(inst, spec) == "vibe_not_met"
+    assert _run(inst, spec) == "ready_with_warnings"
     status_of = inst.updates[-1]["asset_status"]
     chart = status_of["dashboard:by_region"]
     assert chart["vibes_checks"] == [
@@ -268,8 +268,9 @@ def test_every_built_output_and_part_gets_its_own_record_and_only_a_missed_ask_w
     assert (status_of["dashboard"]["state"], status_of["app"]["state"]) == ("ready", "ready"), "a part's miss never flags its parent"
     assert status_of["dashboard"]["title"] == "N01-U01 Predict churn" and status_of["app"]["title"] == "churn-desk"
     assert ("Dashboard (widget by_region): Make it a horizontal bar chart: the built Customers by region bar chart on the dashboard chart "
-            "by_region has no horizontal_bar chart") in status_of["held"]["reason"], \
-        "the held list is the checklist's, which names the output and the widget on it"
+            "by_region has no horizontal_bar chart") in inst.updates[-1]["status_message"] or any(
+        "by_region has no horizontal_bar chart" in str(e.get("evidence")) for e in status_of["checklist"]), \
+        "the unmet ask is listed in the checklist and the published sentence, with its output and widget"
     assert [k for k, _p in seen] == ["split", "split", "judge"]
     whole, previous = _locked(agent_ns)
     whole.local_log_output_dir = str(tmp_path)
@@ -278,7 +279,7 @@ def test_every_built_output_and_part_gets_its_own_record_and_only_a_missed_ask_w
     whole._implement_dashboard = _built("dashboard", PAGE)
     _llm(whole, splits={VIBES: [{"ask": "Always show the region", "check": {"kind": "column", "value": "region"}},
                                 {"ask": "Show a map", "check": {"kind": "chart_type", "value": "heatmap"}}]})
-    assert _run(whole, _vibed(previous, dashboard_vibes=VIBES)) == "vibe_not_met"
+    assert _run(whole, _vibed(previous, dashboard_vibes=VIBES)) == "ready_with_warnings"
     board = whole.updates[-1]["asset_status"]["dashboard"]
     assert board["state"] == "ready_with_warnings" and [c["status"] for c in board["vibes_checks"]] == ["done", "missing"]
     assert whole.updates[-1]["asset_status"]["dashboard:by_region"]["state"] == "ready", "the whole output's miss never flags its parts"
@@ -303,7 +304,7 @@ def test_the_version_reads_checking_while_it_checks_the_asks_and_building_again_
     statuses = [u["status"] for u in inst.updates if "status" in u]
     assert order == [("check", "checking"), ("check", "checking")]
     assert statuses[statuses.index("checking") + 1] == "building_outputs", "the next output builds after the check"
-    assert statuses[-1] == "vibe_not_met" and "checking" in agent_ns["IMPLEMENT_STATUSES"]
+    assert statuses[-1] == "ready_with_warnings" and "checking" in agent_ns["IMPLEMENT_STATUSES"]
     plain, previous = _locked(agent_ns)
     plain._implement_dashboard = _built("dashboard", PAGE)
     plain._implement_runner = lambda uc: "genie"
@@ -322,9 +323,9 @@ def test_a_failed_build_says_why_for_each_ask_and_fails_only_its_own_part(agent_
 
     inst._implement_app = denied
     _llm(inst)
-    assert _run(inst, _vibed(previous, ["app:page:n01_u01"], **{"app:page:n01_u01_vibes": PAGE_VIBES})) == "vibe_not_met"
+    assert _run(inst, _vibed(previous, ["app:page:n01_u01"], **{"app:page:n01_u01_vibes": PAGE_VIBES})) == "ready_with_warnings"
     final = inst.updates[-1]
-    assert "App: PERMISSION_DENIED: User does not have CAN MANAGE on app churn-desk" in final["status_message"]
+    assert "App not published: PERMISSION_DENIED: User does not have CAN MANAGE on app churn-desk" in final["status_message"]
     page = final["asset_status"]["app:page:n01_u01"]
     assert page["state"] == "failed" and [c["evidence"] for c in page["vibes_checks"]] == [
         "the App page n01_u01 was not built: PERMISSION_DENIED: User does not have CAN MANAGE on app churn-desk"] * 2
@@ -342,11 +343,11 @@ def test_a_look_only_change_keeps_the_checks_of_the_page_it_did_not_rebuild(agen
     inst._implement_runner = lambda uc: asked.append(uc) or "genie"
     inst._implement_app = lambda context, runner: {"app_name": "churn-desk", "app_url": "https://a"}
     _llm(inst)
-    assert _run(inst, dict(previous, outputs={**previous["outputs"], "app_look": {"palette": "ocean"}})) == "vibe_not_met", \
-        "a look-only change whose App still has an unmet ask is held"
+    assert _run(inst, dict(previous, outputs={**previous["outputs"], "app_look": {"palette": "ocean"}})) == "ready_with_warnings", \
+        "a look-only change whose App still has an unmet ask publishes with a warning"
     assert asked == ["N01-U01"], "the App's unmet ask gets a Genie round instead of a restyle with no round"
     final = inst.updates[-1]
-    assert final["asset_status"]["held"]["parts"] == [] and "App: Show a map" in final["asset_status"]["held"]["reason"]
+    assert "App: Show a map" in final["status_message"], "the unmet ask is named in the published sentence"
 
 
 def test_a_split_or_a_judge_that_fails_checks_the_vibes_as_one_ask_and_warns(agent_ns):
@@ -359,7 +360,7 @@ def test_a_split_or_a_judge_that_fails_checks_the_vibes_as_one_ask_and_warns(age
         raise RuntimeError("[REQUEST_LIMIT_EXCEEDED] the endpoint is busy")
 
     inst._implement_vibes_llm = broken
-    assert _run(inst, _vibed(previous, ["app:page:n01_u01"], **{"app:page:n01_u01_vibes": PAGE_VIBES})) == "vibe_not_met", \
+    assert _run(inst, _vibed(previous, ["app:page:n01_u01"], **{"app:page:n01_u01_vibes": PAGE_VIBES})) == "ready_with_warnings", \
         "an ask Inspire could not check is not shown as met"
     assert inst.updates[-1]["asset_status"]["app:page:n01_u01"]["vibes_checks"] == [
         {"ask": " ".join(PAGE_VIBES.split()), "status": "missing",

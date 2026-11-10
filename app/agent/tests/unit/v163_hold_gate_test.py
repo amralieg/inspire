@@ -399,20 +399,20 @@ def _restorer(agent_ns, rows, imported=None):
     return inst, pointed
 
 
-def test_the_next_version_diffs_against_the_live_one_and_never_carries_a_held_row(agent_ns):
+def test_the_next_version_diffs_against_the_latest_published_one_and_a_published_version_with_warnings_counts_as_built(agent_ns):
     inst = _inspire(agent_ns, FakeSpark())
-    rows = [{"spec_version": 3, "status": "vibe_not_met", "notebook_path": "/W/v3/nb", "dashboard_id": "d-held",
+    rows = [{"spec_version": 3, "status": "ready_with_warnings", "notebook_path": "/W/v3/nb", "dashboard_id": "d-published",
              "asset_status": {"dashboard": {"state": "ready", "spec_version": 3}}},
             {"spec_version": 2, "status": "ready", "notebook_path": "/W/v2/nb", "dashboard_id": "d1",
              "asset_status": {"dashboard": {"state": "ready", "spec_version": 2}}}]
     seen = []
     inst._implement_select = lambda where, args, order=None: seen.append(where) or [dict(r) for r in rows]
     carried, status = inst._implement_carried({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 4})
-    assert (carried["notebook_path"], carried["dashboard_id"], status["dashboard"]["spec_version"]) == ("/W/v2/nb", "d1", 2)
+    assert (carried["notebook_path"], carried["dashboard_id"], status["dashboard"]["spec_version"]) == ("/W/v3/nb", "d-published", 3)
     own, own_status = inst._implement_carried({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 3}, through_own=True)
-    assert own["dashboard_id"] == "d-held", "the held version's own run still reads its own row"
+    assert own["dashboard_id"] == "d-published", "the version's own run still reads its own row"
     inst._implement_previous({"session_id": 5150, "use_case_id": "N01-U01", "spec_version": 4})
-    assert "status IN ('ready', 'ready_with_warnings', :gone)" in seen[-1], "a held spec is never the version the next one diffs against"
+    assert "status IN ('ready', 'ready_with_warnings', :gone)" in seen[-1], "the next version diffs against the latest published one"
 
 
 WEEKDAYS = "Only check on weekdays"

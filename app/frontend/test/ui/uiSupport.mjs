@@ -125,7 +125,7 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
     page.on('pageerror', (e) => pageErrors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
     if (init) await init(page, origin);
-    const firstData = open === 'implement' ? page.waitForResponse((r) => r.url().includes('/api/inspire/implement/status'), { timeout: 60000 }).catch(() => null) : null;
+    const firstData = open === 'implement' ? page.waitForResponse((r) => r.url().includes('/api/inspire/implement/status'), { timeout: 20000 }).catch(() => null) : null;
     await page.goto(`${origin}/test/ui/implement.html?open=${open}${query}`);
     await firstData;
     return { made, page, pageErrors, origin, close };
