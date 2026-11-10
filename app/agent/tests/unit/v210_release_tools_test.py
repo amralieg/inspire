@@ -160,6 +160,25 @@ def test_a_network_error_waits_through_the_net_wait_setting_and_other_errors_do_
     assert marker.read_text() == "x"
 
 
+def test_the_install_client_waits_for_the_upload_of_the_assets_tar(release_tool, monkeypatch):
+    install = release_tool.load("rc_install")
+    seen = {}
+    monkeypatch.setattr(install, "Config", lambda **kw: seen.setdefault("config", kw))
+    monkeypatch.setattr(install, "WorkspaceClient", lambda **kw: seen.setdefault("client", kw))
+    install.client()
+    assert install.UPLOAD_TIMEOUT_SECONDS == 1800
+    assert seen["config"] == {"profile": install.PROFILE, "http_timeout_seconds": 1800}
+    assert seen["client"] == {"config": seen["config"]}
+
+
+def test_the_install_tools_build_their_client_with_the_long_timeout_not_the_default():
+    release = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "release")
+    for name in ("rc_install.py", "kinds_rc.sh"):
+        with open(os.path.join(release, name), encoding="utf-8") as handle:
+            text = handle.read()
+        assert "WorkspaceClient(profile=" not in text, name
+
+
 def test_a_release_candidate_tag_needs_single_digits(release_tool):
     install = release_tool.load("rc_install")
     assert install.default_app("v1.4.0-rc.7") == "scratch-app"
@@ -412,7 +431,7 @@ def _verify_stage(release_tool, monkeypatch, run_result, defaults):
     (install.W40 / "v0.0.1-rc.1_install.json").write_text(json.dumps({"run_id": 7, "folder": "/Users/<user>/rc_tests/x"}),
                                                            encoding="utf-8")
     me = types.SimpleNamespace(user_name="me")
-    monkeypatch.setattr(install, "WorkspaceClient", lambda profile: types.SimpleNamespace(
+    monkeypatch.setattr(install, "WorkspaceClient", lambda config: types.SimpleNamespace(
         current_user=types.SimpleNamespace(me=lambda: me), jobs=types.SimpleNamespace(get_run=None)), raising=False)
     monkeypatch.setattr(install.rc_settings, "require_tools", lambda *a, **k: None)
     state = types.SimpleNamespace(result_state=types.SimpleNamespace(value=run_result) if run_result else None)

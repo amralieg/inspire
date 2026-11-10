@@ -230,8 +230,7 @@ BUSY_RC=0
 import sys
 sys.path.insert(0, sys.argv[2])
 import rc_install
-from databricks.sdk import WorkspaceClient
-w = WorkspaceClient(profile=rc_install.PROFILE)
+w = rc_install.client()
 try:
     app = w.apps.get(sys.argv[1])
     print(f"    App {app.name}: {app.url}, compute {app.compute_status.state if app.compute_status else None}, sp {app.service_principal_client_id}")

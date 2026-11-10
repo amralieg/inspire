@@ -13,6 +13,7 @@ import urllib.parse
 import urllib.request
 
 from databricks.sdk import WorkspaceClient
+from databricks.sdk.config import Config
 from databricks.sdk.service import jobs, workspace
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
@@ -29,6 +30,7 @@ PROTECTED_APPS = set(rc_settings.need(S, "protected_apps"))
 SCRATCH_APP = rc_settings.need(S, "scratch_app")
 WATCHED_SPS = set(rc_settings.need(S, "watched_service_principals"))
 WORKSPACE_FOLDER = rc_settings.need(S, "workspace_folder")
+UPLOAD_TIMEOUT_SECONDS = 1800
 
 
 def say(text):
@@ -45,6 +47,10 @@ def retried(fn, *a, **k):
                 raise
             say(f"network error ({text[:160]}); waiting for the network, attempt {attempt}")
             rc_settings.wait_for_network(S)
+
+
+def client():
+    return WorkspaceClient(config=Config(profile=PROFILE, http_timeout_seconds=UPLOAD_TIMEOUT_SECONDS))
 
 
 def default_app(tag):
@@ -333,7 +339,7 @@ def main():
     if app_name in PROTECTED_APPS or app_name != SCRATCH_APP:
         raise SystemExit(f"{app_name} is not a scratch App name of this lane")
     key = f"{args.tag}-{args.label}" if args.label else args.tag
-    w = WorkspaceClient(profile=PROFILE)
+    w = client()
     me = w.current_user.me().user_name
     folder = f"/Users/{me}/{WORKSPACE_FOLDER}/{key}"
     state_path = W40 / f"{key}_install.json"
