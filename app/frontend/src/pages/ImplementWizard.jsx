@@ -853,7 +853,7 @@ export default function ImplementWizard({
     setPreflight(null);
     setPreflightError('');
     const timer = setTimeout(async () => {
-      const planNow = !ownErrorsKey && planReady && !appBlocked;
+      const planNow = lastStep && !ownErrorsKey && planReady && !appBlocked;
       const mergeApp = spec.outputs.app ? spec.outputs.merge.app : '';
       const checks = new URLSearchParams({
         result_table: spec.config.result_table,
@@ -883,7 +883,7 @@ export default function ImplementWizard({
       setChecksBusy(false);
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [buildStep, specKey, ownErrorsKey, planReady, q, grantRound, appBlocked]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [buildStep, specKey, ownErrorsKey, planReady, q, grantRound, appBlocked, lastStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nameApp = (value) => {
     appNameTyped.current = true;
