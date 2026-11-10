@@ -102,8 +102,9 @@ test('a person who cannot grant sees the named reason and the statements with no
     later.rows = READS;
     await action.click();
     const result = panel.getByRole('status', { name: 'Grant result' });
-    await result.getByText(/^the build cannot read main\.s\.orders: builds run as the App service principal inspire-manual/).waitFor({ timeout: 15000 });
-    assert.match(await result.locator('p').textContent(), /Ask the owner to run/);
+    await result.getByText(/^Your grant was refused: the build cannot read main\.s\.orders: builds run as the App service principal inspire-manual/).waitFor({ timeout: 15000 });
+    assert.match(await result.locator('p').textContent(), /Ask the owner to give the App the access listed under Details$/);
+    assert.equal(await result.locator('[data-technical-details] pre').textContent(), `${SCHEMA_GRANT}\n${TABLE_GRANT}`);
     await until(async () => await panel.getByRole('button', { name: APP_READ_ACTION }).count() === 0, 'the action goes once the person cannot grant');
     assert.deepEqual(second.live.grants, [], 'a 403 runs no grant');
     assert.deepEqual(ui2.pageErrors.filter((e) => !/403/.test(e)), []);

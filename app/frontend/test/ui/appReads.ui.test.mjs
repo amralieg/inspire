@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_READS_LABEL } from '../../src/lib/implementWizard.js';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { BUILD_IT, closeBrowser, expandBuild, openUi, toSummary } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, expandBuild, openUi, toSharedAccess, toSummary } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -131,9 +131,11 @@ test('the wizard warns on Summary when Inspire cannot share a picked table with 
     { level: 'table', privilege: 'OWNER', principal: 'data-eng', mine: 'false', me: 'inspire-sp' },
     { level: 'table', privilege: 'SELECT', principal: 'inspire-sp', mine: 'true', me: 'inspire-sp' },
   ];
-  for (const [rows, warned] of [[readsOnly, true], [[{ ...readsOnly[0], principal: 'inspire-sp', mine: 'true' }, ...readsOnly.slice(1, 3)], false]]) {
+  const manages = [{ ...readsOnly[0], principal: 'inspire-sp', mine: 'true' }, ...readsOnly.slice(1, 3)];
+  for (const [rows, shared, warned] of [[readsOnly, true, true], [manages, true, false], [readsOnly, false, false]]) {
     const ui = await openUi('wizard', { accessBySchema: { s: rows } });
     try {
+      if (shared) await toSharedAccess(ui.page);
       await toSummary(ui.page);
       await ui.page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled), BUILD_IT, { timeout: 30000 });
       const note = ui.page.getByRole('note', { name: 'Data the new App cannot read' });
@@ -144,7 +146,7 @@ test('the wizard warns on Summary when Inspire cannot share a picked table with 
         assert.match(said, /the Build page offers Grant access with my permissions/);
       } else {
         await ui.page.waitForTimeout(1500);
-        assert.equal(await note.count(), 0, 'no warning when Inspire manages the data (must-exclude)');
+        assert.equal(await note.count(), 0, shared ? 'no warning when Inspire manages the data (must-exclude)' : 'no warning for a per-user App, which reads as each viewer (must-exclude)');
       }
       assert.deepEqual(ui.pageErrors, []);
     } finally {
