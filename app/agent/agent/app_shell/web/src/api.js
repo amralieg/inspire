@@ -1,4 +1,4 @@
-import { CLOSED_STATUSES } from './records.js';
+import { CLOSED_STATUSES, CODES } from './records.js';
 export const DEMO_NOTE = 'This is a demo, so it is read-only: nothing you do here changes any data.';
 export const toneOf = (err) => (err?.calm ? 'info' : 'error');
 export const failureOf = (err, text) => ({ text: text ?? (err?.message || ''), calm: !!err?.calm, technical: text == null ? String(err?.detail?.details || '') : '' });
@@ -109,6 +109,10 @@ export const withDemoDecisions = (page, list, filters = {}) => {
   return { ...list, ...(summary ? { summary } : {}), demo_moved: moved, rows: list.rows.map((r) => (decided[String(r.record_key)] ? { ...r, ...decided[String(r.record_key)] } : r)) };
 };
 export const getRecords = async (body) => withDemoDecisions(body?.page, await json('POST', 'records', body), body?.filters);
+export const getListed = (body, plain = null) => getRecords(body).then((data) => ({ data, unwindowed: false }))
+  .catch((e) => (plain && e.code === CODES.noWindow
+    ? getRecords(plain).then((data) => { if (data?.actions) throw e; return { data, unwindowed: true }; })
+    : Promise.reject(e)));
 export const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 export const actRecords = async (body) => {
   const sent = { request_id: requestId(), ...body };

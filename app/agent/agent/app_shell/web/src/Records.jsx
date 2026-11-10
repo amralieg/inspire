@@ -14,7 +14,7 @@ import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, intege
 
 import { hueVars, reducedMotion } from './theme.js';
 import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast, PlainNote, toastFailure } from './ui.jsx';
-import { failureOf, getRecords } from './api.js';
+import { failureOf, getListed } from './api.js';
 import { HistoryList, useHistory } from './History.jsx';
 import { SaveButton, missingWhy, savingLabel, useWrite } from './saving.jsx';
 import RecordForm, { DeleteDialog } from './RecordForm.jsx';
@@ -30,7 +30,7 @@ import { recordName, recordSentenceName,
   aiValue, askQuestions, changeBadge, doneText, dueText, explainContext, heldBack, heldText, impactText, initials, isOverdue, keptText, leftText, matchOf,
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
   statusLabel, actError, withoutWindow, NO_AS_OF, listAsOf,
-  CODES, isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
+  isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
   CLOSED_PICK, ACCEPTED, acceptable, acceptedText, quietList, claimTarget, claimText, pageDecides, recordLine, recordDetails, choiceValues, rowChoice,
 } from './records.js';
 import { SectionHelp } from './SectionHelp.jsx';
@@ -75,11 +75,7 @@ function useList(body, ready, nonce, plain = null) {
     if (!ready) return;
     const mine = ++seq.current;
     setState((s) => ({ ...s, busy: true }));
-    getRecords(JSON.parse(key))
-      .then((data) => ({ data, unwindowed: false }))
-      .catch((e) => (plainKey && e.code === CODES.noWindow
-        ? getRecords(JSON.parse(plainKey)).then((data) => { if (data?.actions) throw e; return { data, unwindowed: true }; })
-        : Promise.reject(e)))
+    getListed(JSON.parse(key), plainKey ? JSON.parse(plainKey) : null)
       .then(({ data, unwindowed }) => { if (mine === seq.current) setState({ data, error: '', busy: false, at: Date.now(), unwindowed, key }); })
       .catch((e) => {
         if (mine !== seq.current) return;
