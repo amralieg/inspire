@@ -451,3 +451,24 @@ def test_a_split_asked_in_other_case_succeeds_and_an_unsplittable_ask_gets_one_p
     s, ws, _made = agent_shell(tmp_path, ws=ws)
     turn = ask(s, "Split the loss by REGION, and by run date")
     assert [step["text"] for step in turn["steps"]] == ["Split Loss to discounts by Region", "This chart can be split by category, channel or region."]
+
+
+class _DatedWorkspace(AgentWorkspace):
+    def run_sql(self, warehouse, sql, params, limit=5000):
+        if "high_0 AS high" in sql:
+            self.sql.append((sql, params, limit))
+            return {"columns": [], "rows": [{"low": "2024-01-05", "high": "2026-10-26"}], "truncated": False}
+        return super().run_sql(warehouse, sql, params, limit)
+
+
+def test_the_context_gives_the_latest_data_date_apart_from_the_run_date_and_says_when_it_is_old(tmp_path):
+    import datetime as dt
+    llm = FakeLLM([said("Data through Oct 26: the source has no newer rows.")], related=topic_of)
+    s, _ws, _made = agent_shell(tmp_path, ws=_DatedWorkspace(llm=llm))
+    s.now = lambda: dt.datetime(2026, 11, 10, tzinfo=dt.timezone.utc)
+    turn = ask(s, "How current is this data?", view={"filters": {}}, visible=[])
+    assert turn["state"] == "done"
+    context = llm.main_calls()[0]["messages"][1]["content"]
+    assert '"data_through":{"date":"2026-10-26","today":"2026-11-10","days_old":15,"stale":true,"ahead":false}' in context
+    assert '"date":"2026-10-26"' in context and context.count('"data_through"') == 1
+    assert "not the run date" in shell_agent.SYSTEM

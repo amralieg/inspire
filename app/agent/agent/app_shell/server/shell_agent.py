@@ -1,3 +1,4 @@
+import datetime
 import json
 import math
 import re
@@ -67,6 +68,7 @@ TURNS_KEPT = 200
 WORKERS = 4
 TURN_ID = re.compile(r"^[0-9a-f]{32}$")
 DATE = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+DATA_STALE_DAYS = 7
 
 OFF_TOPIC = "This is not related to this use case."
 NO_MODEL = ("Genie answers with SQL from its Genie Agent only: this workspace serves no chat model the App can use, so Genie cannot "
@@ -96,7 +98,7 @@ SYSTEM = """You are Genie, the assistant inside the App "{app}", on the page of 
 Scope: answer only about this use case, its data, its page, its charts and its records. The App already checked that this question belongs to this use case, and every table and column the use case reads, its source data included, is in scope: answer it, or say which data you would need and do not have. Never answer that the question is not related to this use case.
 Within this use case, the person's explicit instructions win over your own preferences.
 {data_note}
-Use the context first: when it already answers the question, answer from it without a tool. Call ask_genie only when the answer needs numbers the context does not hold. The context's key_numbers are the page's KPIs at the person's filters, the numbers the page shows: answer a question about one of them with its value, and when a Genie answer disagrees with one, give the page's value and say what Genie counted instead. When you ask Genie, keep every word of the person's question that narrows it, such as failed, open, current, a tier or a time window; never widen the question. To split a KPI by one of the page's filters, such as which district has the most of it or each district's share of it, call split_kpi: it reads the page's own data at the person's filters, so the parts add up to the KPI the page shows; never ask Genie for that split. A question about the records or the amount a KPI counts, in other words such as exceptions for failing records, is about that KPI; when you ask Genie about it, name the KPI by its label. Use change_view to change what the page shows. Use find_records, read_record and similar_records to look at records and their peers.
+The context's data_through is the latest date in the data, not the run date: say "data through <date>" and never call it a run date; when stale is true, say the source has no newer rows; when ahead is true, say the source has rows dated after today. Use the context first: when it already answers the question, answer from it without a tool. Call ask_genie only when the answer needs numbers the context does not hold. The context's key_numbers are the page's KPIs at the person's filters, the numbers the page shows: answer a question about one of them with its value, and when a Genie answer disagrees with one, give the page's value and say what Genie counted instead. When you ask Genie, keep every word of the person's question that narrows it, such as failed, open, current, a tier or a time window; never widen the question. To split a KPI by one of the page's filters, such as which district has the most of it or each district's share of it, call split_kpi: it reads the page's own data at the person's filters, so the parts add up to the KPI the page shows; never ask Genie for that split. A question about the records or the amount a KPI counts, in other words such as exceptions for failing records, is about that KPI; when you ask Genie about it, name the KPI by its label. Use change_view to change what the page shows. Use find_records, read_record and similar_records to look at records and their peers.
 To mark records done, not an issue, snoozed, assigned or reopened, call propose_action: it never changes anything by itself, it shows the person a confirmation card that lists every affected record, and only their click saves it. Never say a change is saved.
 A change_view change lasts until the page reloads: never say it stays, is remembered or becomes the default. When the person wants to keep it, tell them to choose Save this view under Saved views.
 A record marked not an issue needs the person's reason; ask for it when they gave none. A snooze needs a date.
@@ -1297,6 +1299,7 @@ class Agent:
                "brief": cut(self.shell.use_case_brief(headers, page), shell_sql.CAPS["field_chars"]), "outline": page_outline(page),
                "key_numbers": self.key_numbers(ws, who, page, job["view"]),
                "view": job["view"], "visible_records": job["visible"], "today": self.shell.now().date().isoformat(),
+               "data_through": self.data_through(ws, who, page),
                "other_pages": [{"id": p["id"], "title": p.get("title")} for p in self.shell.pages if p["id"] != page["id"]]}
         if job["selected"]:
             try:
@@ -1304,6 +1307,19 @@ class Agent:
             except (HttpError, QueryError) as error:
                 out["selected_record"] = {"record_key": job["selected"], "error": getattr(error, "message", None) or shell_sql.error_text(error)}
         return out
+
+    def data_through(self, ws, who: str, page: dict):
+        dated = next((f["id"] for f in page.get("filters") or [] if f.get("type") == "date_range"), None)
+        if dated is None:
+            return None
+        done, _errors = self.shell.bounds(ws, who, page)
+        rows = (done.get(("filter", dated)) or {}).get("rows") or []
+        high = str((rows[0] if rows else {}).get("high") or "")[:10]
+        if not DATE.match(high):
+            return None
+        today = self.shell.now().date()
+        days = (today - datetime.date.fromisoformat(high)).days
+        return {"date": high, "today": today.isoformat(), "days_old": days, "stale": days > DATA_STALE_DAYS, "ahead": days < 0}
 
     def view_values(self, page: dict, view: dict) -> dict:
         values = (view or {}).get("filters")
