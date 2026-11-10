@@ -27,6 +27,7 @@ function protectionFailure(rights) {
       me: { userName: OWNER, displayName: 'Owner' },
       tokenKind: 'app',
       forwardedToken: PERSON,
+      abacUnreadable: true,
       ...STUDIO_STATE,
       history: [{ session_id: '42', use_case_id: 'N01-U01', spec_version: 1, status: 'failed', change_classes: 'initial', created_by: OWNER,
         updated_at: '2026-10-25T04:00:00Z', spec_json: JSON.stringify(builtSpec()), asset_status: JSON.stringify({ protection: record }) }],
@@ -52,15 +53,16 @@ test('a build stopped by a denied policy read shows the reason, Details with the
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await expandBuild(page);
     const banner = page.getByRole('region', { name: 'Build failed', exact: true });
-    await banner.getByText(REASON, { exact: false }).waitFor({ timeout: 15000 });
+    await banner.getByText('cannot read main.s.orders', { exact: false }).first().waitFor({ timeout: 15000 });
     const details = banner.locator('[data-protection-details]');
     assert.equal(await details.count(), 1, 'the raw error sits under Details');
-    assert.equal(await details.locator('p').textContent(), RAW);
-    assert.equal(await details.locator('pre[data-protection-sql]').textContent(), `${METADATA};`, 'the GRANT is a code block under Details, not inline text');
+    assert.match(await details.locator('p').textContent(), new RegExp(RAW.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'the raw error is under Details');
+    assert.match(await details.locator('pre[data-protection-sql]').textContent(), new RegExp(METADATA.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')), 'the GRANT is a code block under Details, not inline text');
     assert.doesNotMatch(await banner.getByText(REASON, { exact: false }).first().innerText(), /`/, 'no backticks in the reason sentence');
     await banner.getByRole('button', { name: APP_READ_ACTION, exact: true }).click();
-    await page.locator('[data-protection-copy]').getByText('Inspire granted 4 grants with your sign-in', { exact: false }).waitFor({ timeout: 15000 });
-    assert.deepEqual(live.grants, [[CATALOG, PERSON], [SCHEMA, PERSON], [SELECT, PERSON], [METADATA, PERSON]], 'only the person token grants what the App needs on the source');
+    await page.locator('[data-protection-copy]').getByText('Inspire granted 6 grants with your sign-in', { exact: false }).waitFor({ timeout: 15000 });
+    assert.deepEqual(live.grants.slice(0, 4), [[CATALOG, PERSON], [SCHEMA, PERSON], [SELECT, PERSON], [METADATA, PERSON]], 'only the person token grants what the App needs on the source');
+    assert.ok(live.grants.every(([, token]) => token === PERSON), 'every grant runs with the person sign-in');
     // The build resubmitted after the grant answers 400 on the harness fixture; it is not a page error of the grant flow.
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 400/.test(e)), []);
   } finally {

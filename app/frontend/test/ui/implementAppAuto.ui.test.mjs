@@ -7,6 +7,7 @@ test.after(closeBrowser);
 
 const APP_TOKEN = 'tok';
 const PERSON = 'person-tok';
+const CATALOG = 'GRANT USE CATALOG ON CATALOG `main` TO `app-sp-id`';
 const SCHEMA = 'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-id`';
 const SELECT = 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-id`';
 const METADATA = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`';
@@ -42,13 +43,14 @@ function freshApp(rights) {
 
 test('a fresh App whose service principal cannot read its sources is granted automatically by the person who can grant, with no click', async () => {
   const { live, state } = freshApp({ rows: OWNS });
+  state.abacUnreadable = true;
   const ui = await openUi('implement', state);
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await expandBuild(page);
     await page.locator('[data-app-reads-result]').first().waitFor({ timeout: 15000 });
-    assert.deepEqual(live.grants.map(([sql]) => sql), [SCHEMA, SELECT, METADATA], 'the recorded grants run automatically on the build view');
+    assert.deepEqual(live.grants.map(([sql]) => sql), [CATALOG, SCHEMA, SELECT, METADATA, 'GRANT SELECT ON TABLE `main`.`s`.`returns` TO `app-sp-id`', 'GRANT READ METADATA ON TABLE `main`.`s`.`returns` TO `app-sp-id`'], 'the live grants run automatically on the build view');
     assert.ok(live.grants.every(([, token]) => token === PERSON), 'every grant runs with the person sign-in, never the App');
     assert.deepEqual(ui.pageErrors, []);
   } finally {

@@ -21,6 +21,7 @@ test('a person who cannot grant sees one plain sentence naming the owner, the GR
     me: { userName: OWNER, displayName: 'Owner' },
     tokenKind: 'app',
     forwardedToken: PERSON,
+    abacUnreadable: true,
     history: [{ session_id: '42', use_case_id: 'N01-U01', spec_version: 1, status: 'ready', change_classes: 'initial', created_by: OWNER,
       updated_at: '2026-10-25T04:00:00Z', spec_json: JSON.stringify(builtSpec()), app_name: 'churn-desk', asset_status: JSON.stringify({ app: { unread } }) }],
     workspace: ({ token, path }) => (path.includes('/scim/v2/Me')
@@ -42,14 +43,14 @@ test('a person who cannot grant sees one plain sentence naming the owner, the GR
     await card.waitFor({ timeout: 15000 });
     const text = await card.innerText();
     assert.match(text, /The App cannot read part of its data/);
-    assert.match(text, /admins and data-eng|data-eng/, 'the owner is named');
+    assert.match(text, /your data owner/, 'the owner is named as your data owner');
     assert.doesNotMatch(text, /@/, 'no internal email on the build card');
     assert.doesNotMatch(text, /GRANT /, 'GRANT lines are not visible outside Details');
     assert.doesNotMatch(text, /PERMISSION_DENIED/, 'the raw error is not visible outside Details');
     assert.equal(await card.locator('[data-app-reads-details] summary').count() > 0, true, 'the GRANT list sits under Details');
     assert.match(text, /cannot grant|can grant it|data owner/i, 'one plain sentence names who can grant it');
     assert.ok(live.grants.every(([, token]) => token === PERSON), 'the refused grants ran with the person sign-in only');
-    await card.getByRole('button', { name: /Copy the grant SQL to send to admins and data-eng/ }).click();
+    await card.getByRole('button', { name: /Copy the grant SQL/ }).click();
     await page.locator('[data-app-reads-result="copy"]').waitFor({ timeout: 15000 }).catch(() => null);
     assert.equal(await card.locator('[data-app-reads-result]').count() > 0, true, 'the copy outcome is shown on the card');
     assert.deepEqual(ui.pageErrors, []);

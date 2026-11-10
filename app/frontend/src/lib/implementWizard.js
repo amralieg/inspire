@@ -2612,7 +2612,7 @@ export function appReadsOf(latest) {
 }
 
 export function appReadsOwners(reads) {
-  return joinWords([...new Set((reads?.tables || []).map((t) => t.owner).filter(Boolean))]) || 'the table owner';
+  return joinWords([...new Set((reads?.tables || []).map((t) => t.owner).filter(Boolean))]) || 'your data owner';
 }
 
 export function appReadsSql(reads) {
@@ -2647,13 +2647,32 @@ export function protectionStopOf(latest) {
     check: record.check !== false, ...(details ? { details } : {}), ...(tables.length ? { tables } : {}) };
 }
 
+export function liveSourceNow(context) {
+  const unread = context?.app_unreadable || null;
+  return { loaded: true, unreadable: unread && unread.text ? unread : null, canGrant: Boolean(unread && unread.can_grant === true) };
+}
+
+export function liveProtection(now, stored) {
+  if (!now?.loaded || !now.unreadable) return null;
+  const history = stored?.reason ? `Earlier build stopped with: ${stored.reason}` : '';
+  const details = [history, stored?.details].filter(Boolean).join('. ');
+  return { reason: now.unreadable.text, sql: (now.unreadable.grants || []).map((g) => `${g};`), check: true, details, tables: now.unreadable.tables || [], canGrant: now.canGrant };
+}
+
+export function liveReads(now) {
+  if (!now?.loaded || !now.unreadable) return null;
+  const grants = now.unreadable.grants || [];
+  const tables = (now.unreadable.tables || []).map((table) => ({ table, owner: '', grants }));
+  return tables.length && grants.length ? { app: String(now.unreadable.app?.name || ''), tables, canGrant: now.canGrant } : null;
+}
+
 export function protectionChoices(stop) {
   if (!stop) return [];
   if (!stop.check) {
     return [{ id: 'access', label: PROTECTION_ACCESS_LABEL, detail: 'Pick that each person signs in as themselves, then build again.' }];
   }
   return [
-    ...(stop.tables?.length ? [{ id: 'grant', label: APP_READ_ACTION, detail: 'Grants the App read metadata on its source tables with your sign-in, then checks again.' }] : []),
+    ...(stop.tables?.length && stop.canGrant !== false ? [{ id: 'grant', label: APP_READ_ACTION, detail: 'Grants the App read metadata on its source tables with your sign-in, then checks again.' }] : []),
     ...(stop.sql.length ? [{ id: 'copy', label: PROTECTION_SQL_LABEL, sql: stop.sql.join('\n'),
       detail: 'The owner of the result tables runs it in the SQL editor, then you press Check again.' }] : []),
     { id: 'check', label: APP_READS_CHECK, detail: 'Inspire reads the row filters, column masks and access policies again, and publishes once the results keep them.' },

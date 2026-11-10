@@ -9,7 +9,7 @@ import {
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, specFromHeld, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices, abacGrantText,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices, abacGrantText, liveSourceNow, liveProtection, liveReads,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -1194,7 +1194,14 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const buildRunUrl = stalled?.run_url || status?.build_run_url || '';
   const dataStop = !readOnly && dataStopped(latest);
   const genieChanges = genieChangesOf(status?.steps, latest);
-  const protection = readOnly ? null : protectionStopOf(latest);
+  const [sourceNow, setSourceNow] = useState({ loaded: false, unreadable: null, canGrant: false });
+  useEffect(() => {
+    if (readOnly || !latest) return undefined;
+    let live = true;
+    apiFetch(`/api/inspire/implement/context?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`).then((data) => { if (live) setSourceNow(liveSourceNow(data)); }).catch((e) => { if (live) setSourceNow({ loaded: false, unreadable: null, canGrant: false, error: e.message }); });
+    return () => { live = false; };
+  }, [qBase, latest?.session_id, latest?.spec_version, readOnly]);
+  const protection = readOnly ? null : liveProtection(sourceNow, protectionStopOf(latest));
   const choicesNow = protection ? protectionChoices(protection)
     : buildAgain && !dataStop && !stopped && latest?.status === 'failed' ? failureChoices(latest, {
       technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '',
@@ -1216,7 +1223,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const recheckSources = async (before = '') => {
     setProtectionFailed([]);
     try {
-      const data = await apiFetch(`/api/inspire/implement/context?${qBase}`);
+      const data = await apiFetch(`/api/inspire/implement/context?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`);
+      setSourceNow(liveSourceNow(data));
       const now = data.app_unreadable?.text
         || 'Inspire checked the sources again: the App can read them. Start the build once more to continue.';
       setProtectionCopy([before, now].filter(Boolean).join('. '));
@@ -1329,12 +1337,21 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     </section>
   );
 
-  const reads = readOnly ? null : appReadsOf(latest);
+  const reads = readOnly ? null : liveReads(sourceNow);
   const readsShown = readsResult && !readsResult.error && readsResult.version === latest?.spec_version ? readsResult : null;
-  const readsLeft = readsShown ? { app: reads?.app || '', tables: readsShown.tables || [] } : reads;
+  const readsLeft = readsShown ? { app: reads?.app || '', tables: readsShown.tables || [], canGrant: reads?.canGrant } : reads;
   const runReads = async (action) => {
     setReadsBusy(action);
     try {
+      if (action === 'grant' && sourceNow.loaded) {
+        const tables = (sourceNow.unreadable?.tables || []);
+        const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables });
+        const failed = [...(got.failed || []), ...(got.abac_gaps || []).flatMap((g) => g.grants.map((sql) => `${sql}: not yours to grant`))];
+        setReadsResult({ text: abacGrantText(got), failed, refused: failed.length > 0, version: latest?.spec_version, action });
+        const fresh = await apiFetch(`/api/inspire/implement/context?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`);
+        setSourceNow(liveSourceNow(fresh));
+        return;
+      }
       const got = await apiPostJson(`/api/inspire/implement/app-reads?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, { action });
       setReadsResult({ ...got, version: latest?.spec_version, action });
     } catch (e) {
@@ -1354,7 +1371,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   };
   const autoReads = useRef({});
   useEffect(() => {
-    if (!reads || readOnly || !latest) return;
+    if (!reads || readOnly || !latest || !reads.canGrant) return;
     const key = `${latest.session_id ?? ''}:${latest.spec_version}`;
     if (autoReads.current[key]) return;
     autoReads.current[key] = true;
@@ -1393,7 +1410,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
       )}
       {readsLeft.tables.length > 0 && (
-        <ChoiceList heading={FAILURE_CHOICES_HEADING} choices={appReadsChoices(readsLeft)} mark="data-app-reads-choice" tone="text-warning-fg"
+        <ChoiceList heading={FAILURE_CHOICES_HEADING} choices={appReadsChoices(readsLeft).filter((c) => c.id !== 'grant' || readsLeft.canGrant === true)} mark="data-app-reads-choice" tone="text-warning-fg"
           disabled={readsBusy !== ''} busy={readsBusy} onPick={pickReads} />
       )}
     </section>
