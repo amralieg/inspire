@@ -30,7 +30,6 @@ import { FIX_TIERS, hubView, reasonFilters, useCaseState } from './hub.js';
 import { inboxOn } from './inbox.js';
 import { useInbox } from './Inbox.jsx';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
-import WorkPage from './WorkPage.jsx';
 import { RetryProvider, Skeleton } from './ui.jsx';
 import ModeView from './ModeView.jsx';
 import { pageMode, sectionTitle } from './modes.js';
@@ -41,6 +40,7 @@ const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ defaul
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
 const InboxSection = lazy(() => import('./InboxSection.jsx'));
 const WaitingForAccess = lazy(() => import('./WaitingForAccess.jsx'));
+const WorkPage = lazy(() => import('./WorkPage.jsx'));
 const Records = lazy(() => import('./Records.jsx'));
 const MoneyRule = lazy(() => import('./MoneyRule.jsx').then((m) => ({ default: m.MoneyRule })));
 const Runs = lazy(() => import('./Runs.jsx'));
@@ -331,10 +331,10 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           onRun={freshness.ask} running={freshness.busy} />
       )}
       {shown === 'work' && mode.queue && (
-        <WorkPage meta={meta} state={state} onState={onState} onRetryMeta={onRetryMeta} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
+        <Suspense fallback={<Waiting />}>        <WorkPage meta={meta} state={state} onState={onState} onRetryMeta={onRetryMeta} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
           {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, docked: true, section: 'records' })}
-        </WorkPage>
+        </WorkPage></Suspense>
       )}
       {shown === 'runs' && (
         <Suspense fallback={<Waiting />}>
