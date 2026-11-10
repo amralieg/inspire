@@ -293,7 +293,7 @@ function Shell({ app }) {
     <DockContext.Provider value={dockValue}>
     <HelpContext.Provider value={startHelp}>
     <div className="stage">
-      <div className="app" data-layout={app.layout} data-density={prefs.density}>
+      <div className="app" data-ready="" data-layout={app.layout} data-density={prefs.density}>
         <header className="top">
           <button className="ibtn menu-btn" onClick={() => setNavOpen(!navOpen)} aria-label="Open the sections" aria-expanded={navOpen}><Icon name="menu" size={18} /></button>
           <button className="mark" onClick={() => go('')} aria-label={`${app.title}, home`} title={crumb ? `${app.title}\n${crumb}` : app.title}>

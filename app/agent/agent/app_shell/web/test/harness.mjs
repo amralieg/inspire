@@ -388,7 +388,8 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
   });
   if (clock) await page.clock.install({ time: clock });
   await page.goto(`${base}${hash}`);
-  await page.waitForSelector(ready);
+  await page.locator('[data-ready], .fatal').first().waitFor({ state: 'attached', timeout: 60000 });
+  await page.waitForSelector(ready, { timeout: 60000 });
   return { page, seen, context };
 }
 

@@ -81,8 +81,15 @@ export async function wheelToEnd(page, region, last, name, over = null) {
     const end = await region.evaluate((el) => el.scrollHeight - el.clientHeight - el.scrollTop <= 2);
     if (end) break;
     if (now === before) {
-      await page.waitForTimeout(500);
-      if ((await region.evaluate((el) => el.scrollTop)) === now) break;
+      const moved = await region.evaluate((el, was) => new Promise((done) => {
+        const started = performance.now();
+        const tick = () => {
+          if (el.scrollTop !== was || performance.now() - started > 4000) done(el.scrollTop !== was);
+          else requestAnimationFrame(tick);
+        };
+        tick();
+      }), now);
+      if (!moved) break;
     }
     before = now;
   }
