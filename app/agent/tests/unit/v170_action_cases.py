@@ -17,8 +17,8 @@ def action_once_cases(ns) -> dict:
     stop = {"status": "stopped", "stop_reason": "row_count 10 below 1000", "stopped_by": "genie",
             "not_a_stop": "the run stopped with no model that passed acceptance", "sent_back": False}
     return {
-        "held_reason_two_unchecked_asks": ns["implement_held_reason"]([dict(_row(ns, ask), n=n) for n, ask in enumerate(ASKS, 1)], 3, 2),
-        "held_reason_one_ask": ns["implement_held_reason"]([_row(ns, ASKS[0])], 3, 2),
+        "held_reason_two_unchecked_asks": ns["implement_unmet_published_text"]([dict(_row(ns, ask), n=n) for n, ask in enumerate(ASKS, 1)], 3),
+        "held_reason_one_ask": ns["implement_unmet_published_text"]([_row(ns, ASKS[0])], 3),
         "checklist_row_could_not_check": {key: _row(ns, ASKS[0])[key] for key in ("evidence", "fact")},
         "problems_with_edit_mvp_action": unfixed("the run wrote no rows for the last week", 0),
         "run_controls_warning": ns["implement_run_controls_warning"]("/Workspace/Shared/inspire/churn_notebook",

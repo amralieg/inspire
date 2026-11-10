@@ -31,14 +31,14 @@ def _count_words(rounds):
 @pytest.mark.parametrize("tried", [True, False], ids=["tried_set", "tried_not_set"])
 @pytest.mark.parametrize("rounds", [0, 1, 3])
 @pytest.mark.parametrize("kind", ["vibe_ask", "unrequested_change"])
-def test_the_held_reason_states_the_round_count_once_in_one_sentence_with_a_real_plural(agent_ns, kind, rounds, tried):
+def test_the_unmet_sentence_states_the_round_count_once_in_one_sentence_with_a_real_plural(agent_ns, kind, rounds, tried):
     entry = _ask_entry(rounds, tried) if kind == "vibe_ask" else _unrequested_entry(agent_ns, rounds, tried)
     assert "round" not in entry["evidence"].lower(), "the entry's evidence never carries the round count; its rounds field does"
-    reason = agent_ns["implement_held_reason"]([entry], 3, 2)
-    assert reason.startswith("1 ask is not met, so nothing of v3 is published and v2 stays live: Dashboard"
+    reason = agent_ns["implement_unmet_published_text"]([entry], 3)
+    assert reason.startswith("v3 is published without 1 ask it did not meet, the rest of the vibe is in place: Dashboard"
                              + (": " if kind == "vibe_ask" else " (the Churn chart): "))
-    assert reason.endswith(". Rephrase the ask or press Try again, or press Publish anyway")
     assert "(s)" not in reason and "not even after" not in reason and "after the last Genie round" not in reason
+    assert "Try again" not in reason and "Publish anyway" not in reason and "Rephrase" not in reason
     assert not any(line in reason for line in TRIED), "what Genie tried per round is the checklist's list, never the reason"
     if rounds:
         sentence = f"Genie could not do it in {_count_words(rounds)}: {entry['evidence']}"
@@ -47,22 +47,16 @@ def test_the_held_reason_states_the_round_count_once_in_one_sentence_with_a_real
         assert "round" not in reason.lower() and f"{entry['requirement']}: {entry['evidence']}" in reason
 
 
-def test_a_reason_for_several_asks_uses_plurals_and_states_each_count_once(agent_ns):
+def test_a_sentence_for_several_asks_uses_plurals_and_states_each_count_once(agent_ns):
     one, three = _ask_entry(1, True), dict(_ask_entry(3, False), n=2, requirement="Show the region", part="app")
     unchecked = dict(_ask_entry(3, False), n=3, requirement="Name the owner", unchecked=True,
                      evidence=f"{agent_ns['IMPLEMENT_VIBES_UNCHECKED']}: the judge did not answer")
-    held = agent_ns["implement_held_reason"]
-    both = held([one, three], 4, 3)
-    assert both.startswith("2 asks are not met, so nothing of v4 is published and v3 stays live: ")
+    text = agent_ns["implement_unmet_published_text"]
+    both = text([one, three], 4)
+    assert both.startswith("v4 is published without 2 asks it did not meet, the rest of the vibe is in place: ")
     assert both.count("Genie could not do it in 1 build round: ") == 1 and both.count("Genie could not do it in 3 build rounds: ") == 1
-    assert both.lower().count("round") == 2 and both.endswith("Rephrase the asks or press Try again, or press Publish anyway")
-    mixed = held([one, unchecked], 4, None)
-    assert mixed.startswith("2 asks are not met or could not be checked, so nothing of v4 is published and nothing is live yet: ")
-    assert mixed.lower().count("round") == 1, "an ask Inspire could not check gets no round count: Genie was never told it was missed"
-    assert held([unchecked], 4, 3).startswith("1 ask could not be checked, so") and held([unchecked], 4, 3).endswith(
-        "Press Try again to check it again, or press Publish anyway")
-    assert held([unchecked, dict(unchecked, n=4)], 4, 3).startswith("2 asks could not be checked, so")
-    assert "check them again" in held([unchecked, dict(unchecked, n=4)], 4, 3)
+    assert both.lower().count("round") == 2
+    assert text([unchecked], 4).startswith("v4 is published without 1 ask it did not meet")
 
 
 @pytest.mark.parametrize("rounds,words", [(0, ""), (1, "Genie could not do it in 1 build round: "),
@@ -121,15 +115,12 @@ def test_an_alert_genie_could_not_build_holds_with_each_round_count_said_once(ag
     inst._implement_dashboard = lambda context, runner: pytest.fail("only the alert's vibes changed")
     _verdicts(inst, [MAP_ASK], status="missing", evidence="no table holds a location")
     status = _run(inst, dict(previous, outputs={**previous["outputs"], "alert_vibes": MAP_ASK}))
-    assert status == "vibe_not_met" and len(runner.prompts) == 3
+    assert status == "ready_with_warnings" and len(runner.prompts) == 3
     final = inst.updates[-1]
     [entry] = final["asset_status"]["checklist"]
     assert entry["status"] == "not_met" and entry["rounds"] == 3 and "round" not in entry["evidence"].lower()
-    reason = final["asset_status"]["held"]["reason"]
-    assert reason.startswith("1 ask is not met, so nothing of v3 is published and v2 stays live: Alert: Add a map of the regions: "
-                             "Genie could not do it in 3 build rounds: the Alert was not built: the warehouse is stopped. ")
-    assert reason.lower().count("round") == 1 and "(s)" not in reason
     message = final["status_message"]
-    assert message.startswith(reason) and "vibe not done" not in message, \
-        "the held message lists each unmet ask once, in the reason, and never again as a vibe warning"
+    sentence = ("v3 is published without 1 ask it did not meet, the rest of the vibe is in place: Alert: Add a map of the regions: "
+                "Genie could not do it in 3 build rounds: the Alert was not built: the warehouse is stopped.")
+    assert message.count(sentence[:60]) == 1 and message.lower().count("build round") == 1, message
     assert json.dumps(final["asset_status"]["alert"]).count("3 Genie rounds") == 1, "the alert's own error states its rounds once"

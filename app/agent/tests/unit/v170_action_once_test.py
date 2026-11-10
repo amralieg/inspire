@@ -28,15 +28,14 @@ def _missed(n):
 
 @pytest.mark.parametrize("n", [1, 2, 3])
 @pytest.mark.parametrize("kind", ["unchecked", "missed", "mixed"])
-def test_the_held_reason_names_each_action_once_at_one_two_and_three_entries(agent_ns, kind, n):
+def test_the_published_sentence_names_each_entry_once_and_no_action(agent_ns, kind, n):
     entries = (_unchecked(agent_ns, n) if kind == "unchecked" else _missed(n) if kind == "missed" else
                _unchecked(agent_ns, 1) + [dict(e, n=e["n"] + 1) for e in _missed(n)])
-    reason = agent_ns["implement_held_reason"](entries, 3, 2)
-    _once(reason)
-    assert reason.count("Publish anyway") == 1
-    assert reason.count("Try again") == 1 and reason.count("Rephrase") == (0 if kind == "unchecked" else 1)
-    assert reason.count("Nothing shows the ask was missed") == (n if kind == "unchecked" else 1 if kind == "mixed" else 0), \
-        "each entry keeps its fact; only the action moves to the composer"
+    text = agent_ns["implement_unmet_published_text"](entries, 3)
+    _once(text)
+    assert text.startswith(f"v3 is published without {n + (1 if kind == 'mixed' else 0)} ask")
+    assert "Publish anyway" not in text and "Try again" not in text and "Rephrase" not in text
+    assert text.count("Nothing shows the ask was missed") == (n if kind == "unchecked" else 1 if kind == "mixed" else 0)
 
 
 @pytest.mark.parametrize("n", [1, 2, 3])
@@ -64,7 +63,7 @@ def test_a_single_standalone_entry_still_carries_its_action(agent_ns):
     assert entry["evidence"].endswith(": press Try again to check it again"), "a checklist row shown alone says what to do"
     assert agent_ns["implement_unfixed_text"]("x", 0) == "x; build the notebook again with Vibe/Add/Remove Features on the Build page"
     assert agent_ns["implement_not_decided_text"]("the router failed", 3).endswith("send the vibe again from the vibe box on the Build page")
-    assert agent_ns["implement_held_reason"]([entry], 3, 2).count("Try again") == 1
+    assert agent_ns["implement_unmet_published_text"]([entry], 3).count("Try again") == 1
     assert agent_ns["implement_compose"](["Notebook: x; build the notebook again with Vibe/Add/Remove Features on the Build page"]) == \
         "Notebook: x; build the notebook again with Vibe/Add/Remove Features on the Build page"
     assert agent_ns["implement_compose"](["Plain fact"]) == "Plain fact"
