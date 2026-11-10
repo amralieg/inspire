@@ -61,7 +61,7 @@ test('the wizard offers exactly the App choices the backend and the App shell ac
 test('the storage guide says why fast pages are recommended for Apps and when Standard pages (Delta) fit, and the default follows who signs in', async () => {
   const w = await load();
   assert.equal(w.APP_BACKEND_GUIDE.length, 2);
-  assert.match(w.APP_BACKEND_GUIDE[0], /^Fast pages are recommended for Apps: each page opens at once, because the App reads a Postgres copy that Lakebase keeps in sync, so pages do not wait for a SQL warehouse on each page view\.$/);
+  assert.equal(w.APP_BACKEND_GUIDE[0], 'Fast pages are recommended for Apps: pages read a Postgres copy that is synced from your tables, so most pages open without waiting for a SQL warehouse. Pages are as fresh as the last sync.');
   assert.equal(w.APP_BACKEND_GUIDE[1], 'Pick Standard pages (Delta) when Lakebase is not available here, the tables are very large, or instant pages do not matter.');
   const shared = { outputs: { app: true, app_access: 'sp' } };
   assert.equal(w.appBackendDefault(shared, { state: 'available' }), 'lakebase', 'a shared App reads the fast copy by default');

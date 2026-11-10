@@ -150,7 +150,7 @@ export const APP_BACKEND_CHOICES = [
   { id: 'delta', label: 'Standard pages (Delta)' },
 ];
 export const APP_BACKEND_GUIDE = [
-  'Fast pages are recommended for Apps: each page opens at once, because the App reads a Postgres copy that Lakebase keeps in sync, so pages do not wait for a SQL warehouse on each page view.',
+  'Fast pages are recommended for Apps: pages read a Postgres copy that is synced from your tables, so most pages open without waiting for a SQL warehouse. Pages are as fresh as the last sync.',
   'Pick Standard pages (Delta) when Lakebase is not available here, the tables are very large, or instant pages do not matter.',
 ];
 export const LAKEBASE_PER_USER_REASON = 'Each person signs in as themselves, and the fast copy cannot keep each person to their own rows, '
