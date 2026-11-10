@@ -72,7 +72,7 @@ def test_a_result_that_lacks_the_filter_column_is_refused_so_every_viewer_does_n
                               "would see all its rows"]
     reason = agent_ns["implement_protection_refusal"](plan)
     assert reason.startswith("Inspire did not publish, because the results would show rows or values their sources hide: ")
-    assert reason.endswith("then start the build once more") and reason.count(". ") == 1
+    assert reason.endswith("then build again") and reason.count(". ") == 1
 
 
 def test_a_traceable_result_gets_the_same_filter_and_mask_bound_to_its_own_columns(agent_ns):

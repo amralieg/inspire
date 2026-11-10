@@ -1082,7 +1082,7 @@ def test_a_build_cut_off_by_the_time_limit_is_sent_back_as_no_result_not_as_miss
 LIVE_DENIAL = ("RestException: PERMISSION_DENIED: Principal 'app-x inspire-ai-implement' does not have CREATE MODEL on Schema "
                "'main.inspire'.")
 LIVE_GRANT = ("app-x inspire-ai-implement does not have CREATE MODEL on schema main.inspire, and no change to the notebook can grant "
-              "it: grant CREATE MODEL on schema main.inspire to app-x inspire-ai-implement, then start the build once more")
+              "it: grant CREATE MODEL on schema main.inspire to app-x inspire-ai-implement, then build again")
 
 
 def test_a_preview_denied_a_privilege_on_what_the_use_case_owns_stops_with_the_grant_and_is_not_sent_back(agent_ns):
@@ -1122,7 +1122,7 @@ def test_a_privilege_denial_names_the_grant_only_for_what_the_use_case_owns(agen
     assert denial(LIVE_DENIAL, owned) == LIVE_GRANT
     assert denial("PERMISSION_DENIED: User does not have USE CATALOG on Catalog 'samples'.", owned) == (
         "the run identity does not have USE CATALOG on catalog samples, and no change to the notebook can grant it: grant USE CATALOG "
-        "on catalog samples to the run identity, then start the build once more")
+        "on catalog samples to the run identity, then build again")
     assert denial("[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have permission SELECT on table "
                   "`main`.`s`.`orders_v2`.", owned).startswith("the run identity does not have SELECT on table main.s.orders_v2, ")
     assert denial("PERMISSION_DENIED: does not have MODIFY on Table 'MAIN.Inspire.churn_out'", owned).startswith(
