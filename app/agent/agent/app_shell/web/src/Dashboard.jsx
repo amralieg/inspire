@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { Suspense, lazy, useState } from 'react';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { addCounts, cap, integer, largestFirst, savedVerb, wholeMoney } from './format.js';
 import { ITEM_KINDS, fieldsOf, rowTitle, tableContext } from './explain.js';
@@ -10,7 +10,7 @@ import { Tiles } from './Kpis.jsx';
 import { BarsCard } from './ChartCard.jsx';
 import DataTable, { RowDetails, columnOf } from './DataTable.jsx';
 import { PlainNote, Skeleton, SoWhat, useRetry } from './ui.jsx';
-import MoneyCard from './Money.jsx';
+const MoneyCard = lazy(() => import('./Money.jsx'));
 import { LayoutSections, TodoNow } from './Layouts.jsx';
 import { backendNotes } from './freshness.js';
 import { AskGenie } from './AskGenie.jsx';
@@ -155,7 +155,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
       {!waiting && (
         <Placed slots={slotsOf(plan, 'kpis')}><Tiles tiles={hubTiles(page, current, summary, fix, app.user, status.kind === 'stale', onFix)} loading={loading} /></Placed>
       )}
-      {!waiting && current?.money && <MoneyCard pageId={pageId} nonce={nonce} onChanged={onChanged} />}
+      {!waiting && current?.money && <Suspense fallback={null}><MoneyCard pageId={pageId} nonce={nonce} onChanged={onChanged} /></Suspense>}
       {!waiting && current?.truncated && <p className="more">These numbers count the {integer(current.items.length)} biggest of {current.total_more ? 'at least ' : ''}{integer(current.total)} open records.</p>}
       {!meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
       <Placed slots={slotsOf(plan, 'filters')}>
