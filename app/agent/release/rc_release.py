@@ -13,6 +13,7 @@ import sys
 import tarfile
 import time
 import zipfile
+import zlib
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parent))
 import rc_settings
@@ -57,6 +58,42 @@ def leak_rules():
     return ns
 
 
+BLOB = re.compile(r"[A-Za-z0-9+/=]{10000,}")
+
+
+def json_texts(value):
+    if isinstance(value, dict):
+        for key, item in value.items():
+            yield from json_texts(key)
+            yield from json_texts(item)
+    elif isinstance(value, list):
+        for item in value:
+            yield from json_texts(item)
+    elif isinstance(value, str) and BLOB.fullmatch(value):
+        yield from blob_texts(value)
+    elif value is not None:
+        yield str(value)
+
+
+def blob_texts(text):
+    for blob in BLOB.findall(text):
+        try:
+            data = base64.b64decode(blob)
+        except ValueError:
+            continue
+        try:
+            data = zlib.decompress(data)
+        except zlib.error:
+            pass
+        if b"\0" in data[:8192]:
+            continue
+        decoded = data.decode("utf-8", "replace")
+        try:
+            yield "\n".join(json_texts(json.loads(decoded)))
+        except ValueError:
+            yield decoded
+
+
 def texts_of(release):
     for name in ("inspire_installer.py", "manifest.json"):
         yield name, (release / name).read_text(encoding="utf-8")
@@ -69,11 +106,8 @@ def texts_of(release):
                 continue
             text = data.decode("utf-8", "replace")
             yield f"inspire-app.zip:{info.filename}", text
-            for blob in re.findall(r"[A-Za-z0-9+/=]{10000,}", text):
-                try:
-                    yield f"inspire-app.zip:{info.filename} (decoded)", base64.b64decode(blob).decode("utf-8", "replace")
-                except ValueError:
-                    pass
+            for decoded in blob_texts(text):
+                yield f"inspire-app.zip:{info.filename} (decoded)", decoded
     with tarfile.open(release / "inspire-assets.tar") as tar:
         for member in tar.getmembers():
             if member.isfile() and (member.name.endswith((".json", ".txt", ".md")) or member.name.startswith("licenses/")):

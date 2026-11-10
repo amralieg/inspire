@@ -179,6 +179,7 @@ REVIEWED = {
         ('resolve_technical_exclusion_strategy', 'text'),
     },
     'name': {
+        ('_implement_alert', 'named'),
         ('_verify_file', 'file'),
         ('notebook_file', "pin['file']"),
         ('inspire_repo_asset', 'path'),
