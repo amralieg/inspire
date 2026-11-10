@@ -61,7 +61,7 @@ test('Let Inspire read these tables runs the exact grants with the person sign-i
     const reason = await panel.locator('p').first().textContent();
     assert.match(reason, /^the build cannot read main\.s\.orders: builds run as the App service principal inspire-manual \(application id app-sp-id\)/);
     assert.doesNotMatch(reason, /swap/i);
-    assert.deepEqual(await listOf(panel, 'Grants the App needs'), [SCHEMA_GRANT, TABLE_GRANT]);
+    assert.deepEqual(await listOf(panel, 'Grants the App needs'), [SCHEMA_GRANT, TABLE_GRANT, METADATA_GRANT]);
     await panel.getByRole('button', { name: APP_READ_ACTION, exact: true }).click();
     const result = panel.getByRole('status', { name: 'Grant result' });
     await result.getByText('Inspire ran 3 grants with your sign-in, and the App can now read these tables', { exact: true }).waitFor({ timeout: 15000 });
@@ -86,8 +86,8 @@ test('a person who cannot grant sees the named reason and the statements with no
     const panel = panelOf(page);
     await panel.waitFor({ timeout: 15000 });
     const reason = await panel.locator('p').first().textContent();
-    assert.ok(reason.endsWith(`Ask the owner to run: ${SCHEMA_GRANT}; ${TABLE_GRANT}`), reason);
-    assert.deepEqual(await listOf(panel, 'Grants the App needs'), [SCHEMA_GRANT, TABLE_GRANT]);
+    assert.ok(reason.endsWith(`Ask the owner to run: ${SCHEMA_GRANT}; ${TABLE_GRANT}; ${METADATA_GRANT}`), reason);
+    assert.deepEqual(await listOf(panel, 'Grants the App needs'), [SCHEMA_GRANT, TABLE_GRANT, METADATA_GRANT]);
     assert.equal(await panel.getByRole('button', { name: APP_READ_ACTION }).count(), 0);
     assert.deepEqual(live.grants, []);
   } finally {
@@ -105,7 +105,7 @@ test('a person who cannot grant sees the named reason and the statements with no
     const result = panel.getByRole('status', { name: 'Grant result' });
     await result.getByText(/^Your grant was refused: the build cannot read main\.s\.orders: builds run as the App service principal inspire-manual/).waitFor({ timeout: 15000 });
     assert.match(await result.locator('p').first().textContent(), /Ask the owner to give the App the access listed under Details$/);
-    assert.equal(await result.locator('[data-technical-details] pre').textContent(), `${SCHEMA_GRANT}\n${TABLE_GRANT}`);
+    assert.equal(await result.locator('[data-technical-details] pre').textContent(), `${SCHEMA_GRANT}\n${TABLE_GRANT}\n${METADATA_GRANT}`);
     await until(async () => await panel.getByRole('button', { name: APP_READ_ACTION }).count() === 0, 'the action goes once the person cannot grant');
     assert.deepEqual(second.live.grants, [], 'a 403 runs no grant');
     assert.deepEqual(ui2.pageErrors.filter((e) => !/403/.test(e)), []);
@@ -176,7 +176,7 @@ test('a partial grant shows the grants that ran, the ones that failed, and keeps
     const failed = await listOf(panel, 'Grants that failed');
     assert.equal(failed.length, 1);
     assert.ok(failed[0].startsWith(`${TABLE_GRANT}: `) && failed[0].includes('PERMISSION_DENIED'), failed[0]);
-    assert.deepEqual(await listOf(panel, 'Grants the App needs'), [SCHEMA_GRANT, TABLE_GRANT], 'the reason stays while the App still cannot read');
+    assert.deepEqual(await listOf(panel, 'Grants the App needs'), [SCHEMA_GRANT, TABLE_GRANT, METADATA_GRANT], 'the reason stays while the App still cannot read');
     assert.deepEqual(live.grants.map(([, token]) => token), [PERSON, PERSON, PERSON]);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
