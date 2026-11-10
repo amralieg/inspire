@@ -373,6 +373,7 @@ REVIEWED = {
         ('_implement_page_file', "'; '.join(problems)"),
         ('_implement_page_file', "'; '.join(owned)"),
         ('_implement_page_file', "'; '.join(shape)"),
+        ('_implement_page_file', "', '.join(reappeared)"),
         ('_require_use_cases', 'step'),
         ('_require_use_cases', 'language'),
         ('_require_use_cases', 'step'),

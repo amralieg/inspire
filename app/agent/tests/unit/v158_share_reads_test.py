@@ -144,12 +144,13 @@ def test_sharing_lets_each_principal_read_the_money_assumptions(agent_ns):
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}, {"type": "group", "name": "bad`name"}]})
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
     assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_SUMMARY.format("amr@x"),
-                                                         GRANT_REASONS.format("amr@x"), GRANT_ASSUMPTIONS.format("amr@x"), GRANT_SELECT.format("bad``name"), GRANT_SUMMARY.format("bad``name"), GRANT_REASONS.format("bad``name"), GRANT_ASSUMPTIONS.format("bad``name")]
+                                                         GRANT_REASONS.format("amr@x"), GRANT_ASSUMPTIONS.format("amr@x")]
+    assert not [x for x in inst.spark.statements if "bad" in x], "a principal with a backtick never reaches a GRANT"
 
 
-def test_the_helper_grants_a_name_with_a_backtick_quoted_and_skips_empty_ones(agent_ns):
+def test_the_helper_never_grants_a_name_with_a_backtick_and_skips_empty_ones(agent_ns):
     inst = _inspire(agent_ns, FakeSpark(responder=lambda s: [{"t": "churn_out_assumptions"}] if s.startswith(EXISTS) else None))
     assert inst._implement_share_reads(ACCESS_TABLE, ["bad`name", ""]) == []
-    assert [x for x in inst.spark.statements if x.startswith("GRANT ")] == [GRANT_ASSUMPTIONS.format("bad``name")]
+    assert [x for x in inst.spark.statements if x.startswith("GRANT ")] == []
     assert inst._implement_share_reads(ACCESS_TABLE, ["amr@x"]) == []
-    assert [x for x in inst.spark.statements if x.startswith("GRANT ")] == [GRANT_ASSUMPTIONS.format("bad``name"), GRANT_ASSUMPTIONS.format("amr@x")]
+    assert [x for x in inst.spark.statements if x.startswith("GRANT ")] == [GRANT_ASSUMPTIONS.format("amr@x")]

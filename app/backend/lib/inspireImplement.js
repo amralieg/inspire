@@ -27,7 +27,7 @@ const IMPLEMENT_UNINSTALLED = 'uninstalled';
 const FIRST_RUN_CARRIED = 'The version before this one already saved this, so Inspire builds on its First run choice: ';
 const IMPLEMENT_VIBE_NOT_MET = 'vibe_not_met';
 const IMPLEMENT_STATUSES = ['queued', 'filling', 'previewing', 'building_outputs', 'checking', 'ready', 'ready_with_warnings', 'failed',
-  IMPLEMENT_VIBE_NOT_MET, IMPLEMENT_UNINSTALLED];
+  IMPLEMENT_UNINSTALLED];
 const IMPLEMENT_ACTIVE_STATUSES = ['queued', 'filling', 'previewing', 'building_outputs', 'checking'];
 const IMPLEMENT_DONE_STATUSES = ['ready', 'ready_with_warnings'];
 const IMPLEMENT_OUTPUTS = ['dashboard', 'genie_space', 'app', 'alert'];
