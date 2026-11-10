@@ -204,4 +204,5 @@ def test_the_shell_writes_decisions_as_the_viewer_when_the_app_reads_protected_t
     shell.settings = {"auth": "user", "protected": {SOURCE: "a row filter"}}
     assert shell.decision_writer("viewer") == "viewer"
     refused = shell.write_refused("main.inspire.churn_out", "PERMISSION_DENIED", as_app=True)
-    assert "you may not change main.inspire.churn_out" in refused.message and "service principal" not in refused.message
+    assert refused.message == shell_core.REFUSED_WRITE and "service principal" not in refused.message
+    assert refused.extra["details"].startswith("main.inspire.churn_out: ")

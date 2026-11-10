@@ -12,6 +12,7 @@ SERVER = os.path.join(ROOT, "agent", "app_shell", "server")
 if SERVER not in sys.path:
     sys.path.insert(0, SERVER)
 
+import shell_core  # noqa: E402
 import shell_db  # noqa: E402
 import shell_sql  # noqa: E402
 from v141_app_shell_test import PAGE, SETTINGS, call  # noqa: E402
@@ -196,7 +197,8 @@ def test_a_missing_scenarios_table_reads_as_a_rebuild_note_and_a_save_says_nothi
 def test_a_refused_write_names_the_scenarios_table_and_the_grant(tmp_path):
     s, _ws = started(tmp_path, refuse=True)
     status, out = call(s, "POST", "scenario/save", headers=EDITOR, body={"page": PAGE_ID, "name": "Plan", "values": {}})
-    assert status == 403 and "margin_out_scenarios" in out["error"] and "MODIFY" in out["error"]
+    assert status == 403 and out["error"] == shell_core.REFUSED_WRITE
+    assert "margin_out_scenarios" in out["details"] and "MODIFY" in out["details"]
 
 
 def test_a_page_without_a_scenario_has_no_library(tmp_path):

@@ -334,10 +334,8 @@ def test_an_owner_whose_app_may_not_write_the_assumptions_gets_a_plain_refusal(t
     s, ws, _made = _shell(tmp_path, Denied())
     status, out = call(s, "POST", "money/assumption", headers={"x-forwarded-email": OWNER},
                        body={"page": "n01_u05", "name": "PRICE", "value": 24, "was": 20})
-    assert status == 403 and out["error"] == (
-        "Nothing was saved: this App's service principal may not change `main`.`pricing`.`loss_desk_out_assumptions` in Unity "
-        "Catalog (PERMISSION_DENIED: User does not have MODIFY on Table 'main.pricing.loss_desk_out_assumptions'). Ask the owner "
-        "of that table to grant the App's service principal SELECT and MODIFY on it")
+    assert status == 403 and out["error"] == shell_core.REFUSED_WRITE
+    assert "main.pricing.loss_desk_out_assumptions" in out["details"]
     assert "again" not in out["error"], "a permission error never sends people to rebuild the App"
 
     class Broken(MoneyWorkspace):
@@ -357,10 +355,10 @@ def test_a_refused_write_names_who_lacks_the_privilege():
     shell = shell_core.Shell.__new__(shell_core.Shell)
     shell.settings = {"auth": "user"}
     error = shell.write_refused("`main`.`s`.`t`", "PERMISSION_DENIED: no MODIFY")
-    assert (error.status, error.message) == (403, "Nothing was saved: you may not change `main`.`s`.`t` in Unity Catalog "
-                                                  "(PERMISSION_DENIED: no MODIFY). Ask the owner of that table for SELECT and MODIFY on it")
+    assert (error.status, error.message) == (403, shell_core.REFUSED_WRITE)
+    assert error.extra["details"] == "`main`.`s`.`t`: PERMISSION_DENIED: no MODIFY"
     shell.settings = {"auth": "sp"}
-    assert shell.write_refused("`main`.`s`.`t`", "x").message.startswith("Nothing was saved: this App's service principal may not")
+    assert shell.write_refused("`main`.`s`.`t`", "x").message == shell_core.REFUSED_WRITE
 
 
 class OutputsCatalog(Catalog):

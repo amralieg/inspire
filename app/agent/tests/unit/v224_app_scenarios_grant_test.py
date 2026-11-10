@@ -109,6 +109,7 @@ def test_a_scenarios_table_that_cannot_be_created_is_a_warning_naming_it_and_gra
     inst = _inspire(agent_ns, spark)
     ran = []
     warnings = inst._implement_app_sibling_access("main.inspire.lab_out", agent_ns["INSPIRE_SCENARIOS_SUFFIX"], agent_ns["INSPIRE_SCENARIO_COLUMNS"], agent_ns["IMPLEMENT_SCENARIOS_REFUSED"], "sp-7", ran)
-    assert len(warnings) == 1 and "main.inspire.lab_out_scenarios" in warnings[0] and "save, share or choose scenarios" in warnings[0]
+    assert len(warnings) == 1 and "save, share or choose scenarios" in warnings[0]
+    assert "lab_out_scenarios" not in warnings[0].split("Inspire could not")[0], "no table id in the main sentence"
     assert "could not create it" in warnings[0] and ran == []
     assert not [s for s in spark.statements if s.startswith("GRANT")]

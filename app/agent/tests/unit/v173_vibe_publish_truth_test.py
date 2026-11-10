@@ -114,7 +114,7 @@ def test_an_ask_whose_part_failed_to_publish_is_not_met_with_the_plain_reason(ag
     assert status["genie_space"]["vibes_checks"][0]["status"] == "done", "another part's published ask stays met"
     spec = {"outputs": {"app": True, f"{PART}_vibes": HOUR_ASK, "genie_space": True}}
     unmet = agent_ns["implement_live_unmet"](status, spec)
-    assert unmet.get(PART) == [HOUR_ASK], "the ask stays waiting for the next build"
+    assert PART not in unmet, "an unmet ask is listed on its check and never carried to the next build"
     assert "genie_space" not in unmet
 
 
