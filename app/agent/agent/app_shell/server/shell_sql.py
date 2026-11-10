@@ -2969,6 +2969,11 @@ def window_order(stake: str, due: str, today: str, tie: str) -> str:
             + (f", {tie} ASC" if tie else ""))
 
 
+def due_first_order(stake: str, due: str, today: str, tie: str) -> str:
+    return (f"CASE WHEN {due} < {today} THEN 0 ELSE 1 END ASC, {stake} DESC NULLS LAST, {due} ASC NULLS LAST"
+            + (f", {tie} ASC" if tie else ""))
+
+
 def list_request(page: dict, data: dict, context: dict, now: datetime.datetime = None) -> dict:
     sort = data.get("sort") or {}
     if not isinstance(sort, dict):
@@ -2990,9 +2995,11 @@ def list_request(page: dict, data: dict, context: dict, now: datetime.datetime =
     if within is not None and (not window or not _whole(within, 0, CAPS["due_within_days"])):
         raise ValueError(f"due_within goes with a window and takes a whole number of days from 0 to {CAPS['due_within_days']}")
     allowed = list_columns(page) + (list(ACTION_SORTS) if context["actions"] else [])
-    ranked = bool(window) and not sort
-    return dict(_list_request(page, data, context, allowed), window=window, ranked=ranked, exclude=list(dict.fromkeys(exclude)),
-                unowned=unowned, due_within=within, focus=focus_request(data, context, now or datetime.datetime.now(datetime.timezone.utc)))
+    due_first = bool(data.get("due_first")) and bool(context["actions"])
+    now = now or datetime.datetime.now(datetime.timezone.utc)
+    ranked = not sort and (bool(window) or due_first)
+    return dict(_list_request(page, data, context, allowed), window=window, ranked=ranked, due_first=due_first, today=now.date().isoformat(),
+                exclude=list(dict.fromkeys(exclude)), unowned=unowned, due_within=within, focus=focus_request(data, context, now))
 
 
 def focus_request(data: dict, context: dict, now: datetime.datetime):
@@ -3932,7 +3939,7 @@ def list_queries(page: dict, values: dict, request: dict, context: dict, editor:
     fields = dict(fields, keyset=False) if request.get("ranked") else fields
     sort = quote(fields["sort"])
     if request.get("ranked"):
-        order = window_order(_stake(context), "`_inspire_due`", plan["today"], quote(context["tie"]))
+        order = (window_order if request.get("window") else due_first_order)(_stake(context), "`_inspire_due`", plan["today"], quote(context["tie"]))
     else:
         order = f"{sort} {request['dir'].upper()} NULLS LAST" + (f", {quote(context['tie'])} ASC" if context["tie"] != request["sort"] else "")
     counted_params = list(params.items)
@@ -4007,7 +4014,8 @@ def status_counts_of(rows, choices=None) -> dict:
 def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: str, params, current: bool = False) -> dict:
     records = page.get("records") or {}
     window = request.get("window")
-    context = dict(context, windowed=bool(window))
+    due_first = bool(request.get("due_first"))
+    context = dict(context, windowed=bool(window) or due_first)
     listed, money = _listed(page, values, request.get("columns"), context, params)
     ctes = {"d": listed}
     conditions = list(money) + ([_floored(context["floor"], "d")] if (context.get("floor") or {}).get("on") == "d" else [])
@@ -4016,11 +4024,13 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
         searched = list(dict.fromkeys(c for c in (records.get("label"), records.get("key"), records.get("sublabel")) if c))
         conditions.append("(" + " OR ".join(f"CAST(d.{quote(c)} AS STRING) ILIKE {holder} ESCAPE '{LIKE_ESCAPE}'" for c in searched) + ")")
     early, today = set(), ""
-    if current or window or request.get("exclude"):
+    if current or window or due_first or request.get("exclude"):
         early.add("c")
     if window:
         today = params.add(window["today"], "DATE")
         conditions += window_conditions(window, params, context["held"], today)
+    elif due_first:
+        today = params.add(request["today"], "DATE")
     focus = request.get("focus")
     if focus:
         early.add("c")
@@ -4060,7 +4070,7 @@ def _list_plan(page: dict, values: dict, request: dict, context: dict, editor: s
     if context["join"]:
         held = context.get("floor")
         ctes["c"] = _current_cte(dict(context, floor=held if held and (held["on"] == "c" or "c" not in early) else None),
-                                 _window_extra(context) if window or focus else ())
+                                 _window_extra(context) if window or focus or request.get("due_first") else ())
     picked, joins = ["d.*"], ""
     if "c" in early:
         join, columns = _current_join(context, "d")

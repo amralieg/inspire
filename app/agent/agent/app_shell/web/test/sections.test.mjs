@@ -582,3 +582,98 @@ test('a Work address with a tab this page does not have is rewritten to the Open
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+test('the Work list asks the server for its due-first order, and a list the user sorted does not', async () => {
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/work', routes: trackedRoutes(), ready: '[data-tab]' });
+  await page.waitForFunction(() => document.querySelector('[data-tab="open"]')?.getAttribute('aria-selected') === 'true');
+  await page.waitForTimeout(300);
+  const asked = seen.records.at(-1);
+  assert.equal(asked?.due_first, true, 'the Work list, with no window and no sort, asks for the due-first order');
+  assert.equal(asked?.sort, undefined, 'it sends no sort of its own');
+  await context.close();
+});
+
+const SHOTS = '/tmp/cc_inspire/live/shell/proof';
+const LAZY_TIERS = { ...TIER_FILTERS, columns: { list: [{ column: 'priority_tier', label: 'Priority', type: 'multi_select', options: [], searchable: true, lazy: true }] } };
+
+test('proof: Fix this on the dashboard narrows Work to the tiers it counted when the tier choices load only on search', async () => {
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(SHOTS, { recursive: true });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/dashboard', routes: trackedRoutes({ filters: ({ json }) => json(200, LAZY_TIERS) }), ready: '[data-section="todo"]' });
+  await page.getByRole('button', { name: 'Fix this' }).first().click();
+  await page.waitForFunction(() => location.hash.includes('/work'));
+  await page.waitForTimeout(800);
+  await page.screenshot({ path: `${SHOTS}/fix_this_lazy_1440.png` });
+  const asked = seen.records.at(-1);
+  assert.deepEqual(asked?.column_filters?.priority_tier, ['Act now'], 'Fix this sends the counted tier to Work');
+  await context.close();
+});
+
+test('proof: What to do now counts only the records in its window, against the same window', async () => {
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(SHOTS, { recursive: true });
+  const windowed = ({ route, json, seen }) => {
+    const body = route.request().postDataJSON();
+    seen.records.push(body);
+    const total = body.window ? 16 : 48;
+    return json(200, { rows: [], total, offset: 0, limit: body.limit || 25, actions: true, changes: false, errors: {},
+      summary: { open: 16, done: 8, resolved: 0, left: 16, owners: [] }, window: body.window ? { window: body.window, limit: null, shown: 16, more: 0, today: '2026-10-24' } : null });
+  };
+  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/dashboard', routes: trackedRoutes({ records: windowed }), ready: '[data-section="todo"]' });
+  await page.waitForFunction(() => document.querySelector('[data-todo-count]')?.textContent?.includes('waiting for you'));
+  const text = await page.locator('[data-todo-count]').textContent();
+  await page.screenshot({ path: `${SHOTS}/todo_count_1440.png` });
+  assert.equal(text, '16 of 24 waiting for you');
+  await context.close();
+});
+
+test('proof: the run timeline draws each run of the App on the Runs page', async () => {
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(SHOTS, { recursive: true });
+  const run = (run_id, started, status = 'done') => ({ run_id, job_run_id: null, url: '', started, ended: null, duration_s: 60, status, trigger: 'schedule', by: '',
+    segments: [], tables: null, records: 50, to_fix: 10, could_save: null, currency: '', summary: '', nothing_to_act: '', error: '' });
+  const runs = ({ json }) => json(200, { runs: [run('81', '2026-10-17T06:00:00Z'), run('80', '2026-10-10T06:00:00Z', 'failed'), run('79', '2026-10-03T06:00:00Z')],
+    total: 3, offset: 0, limit: 20, job: null, errors: {} });
+  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/runs', routes: trackedRoutes({ runs }), ready: '[data-rail="runs"]' });
+  await page.locator('[data-card="run_timeline"] canvas').waitFor({ timeout: 15000 });
+  await page.screenshot({ path: `${SHOTS}/runs_timeline_1440.png` });
+  assert.equal(await page.locator('[data-card="run_timeline"] canvas').count(), 1);
+  await context.close();
+});
+
+test('proof: at 1280 with the record dock open, every Work tab stays on screen and none sits under the dock', async () => {
+  const { mkdirSync } = await import('node:fs');
+  mkdirSync(SHOTS, { recursive: true });
+  const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { width: 1280, hash: '#/n01_u05/work', routes: trackedRoutes(), ready: '[data-tab]' });
+  await page.locator('tbody tr').first().click();
+  await page.waitForTimeout(800);
+  const geometry = await page.evaluate(() => {
+    const dockBox = document.querySelector('.dock-b, .dock')?.getBoundingClientRect();
+    const dock = dockBox ? { left: dockBox.left, right: dockBox.right } : null;
+    const tabs = [...document.querySelectorAll('.work-t')].map((t) => t.getBoundingClientRect());
+    return { dockLeft: dock ? Math.round(dock.left) : null, dockRight: dock ? Math.round(dock.right) : null, width: innerWidth, tabs: tabs.map((r) => [Math.round(r.left), Math.round(r.right)]) };
+  });
+  await page.screenshot({ path: `${SHOTS}/work_tabs_dock_1280.png` });
+  for (const [left, right] of geometry.tabs) {
+    assert.ok(right <= geometry.width, `tab ends at ${right} past the ${geometry.width}px screen`);
+    if (geometry.dockLeft !== null) assert.ok(right <= geometry.dockLeft || left >= geometry.dockRight, `tab ${left}-${right} runs under the dock ${geometry.dockLeft}-${geometry.dockRight}`);
+  }
+  await context.close();
+});
+
+for (const width of [1280, 1440]) {
+  test(`proof: a reason bar's Fix this sits inside its card at ${width}`, async () => {
+    const { mkdirSync } = await import('node:fs');
+    mkdirSync(SHOTS, { recursive: true });
+    const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { width, hash: '#/n01_u05/dashboard', routes: trackedRoutes(), ready: '[data-section="todo"]' });
+    await page.waitForFunction(() => document.querySelectorAll('.hb-fix').length > 0, null, { timeout: 15000 });
+    const edges = await page.evaluate(() => [...document.querySelectorAll('.hb-fix')].map((b) => {
+      const card = b.closest('article.card');
+      return Math.round(card.getBoundingClientRect().right - b.getBoundingClientRect().right);
+    }));
+    await page.screenshot({ path: `${SHOTS}/fix_flush_${width}.png` });
+    assert.ok(edges.length > 0);
+    for (const gap of edges) assert.ok(gap >= 8, `Fix this ends ${gap}px from its card edge (need 8)`);
+    await context.close();
+  });
+}
