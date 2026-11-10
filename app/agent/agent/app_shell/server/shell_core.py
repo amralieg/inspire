@@ -1188,6 +1188,11 @@ def merge_runs(table_runs: list, job_views: list, now: datetime.datetime) -> lis
     return sorted(out, key=lambda r: stamp_of((r["job"] or {}).get("started") or seen_at(r)) or earliest, reverse=True)
 
 
+def stopped_by_someone_else(job: dict, viewers: set) -> bool:
+    by = str(job.get("by") or "").strip().lower()
+    return job.get("result") in STOPPED and by not in ("", BY_SCHEDULE, BY_BUILD.lower()) and by not in viewers
+
+
 def run_timeline(table_runs: list, summary_rows: list, job_views: list, now: datetime.datetime) -> list:
     runs = {r["run_id"]: dict(r) for r in table_runs}
     for row in summary_rows:
@@ -4600,6 +4605,10 @@ class Shell:
             return person, 403 if person else 401, refusal
         return person, 0, ""
 
+    def hidden_from_viewer(self, headers: dict, page: dict, job: dict) -> bool:
+        viewers = self.signed_in(headers)
+        return not viewers & self.page_editors(page) and stopped_by_someone_else(job, viewers)
+
     def runs(self, headers: dict, ident, offset=None) -> dict:
         page = self.page(ident)
         at = run_offset(offset)
@@ -4616,6 +4625,7 @@ class Shell:
         health = shell_sql.run_health(done.get("table") or [], now.date())
         views, _more = done.get("job") or ([], False)
         merged = run_timeline(health["runs"], done.get("summary") or [], views, now)
+        merged = [r for r in merged if not self.hidden_from_viewer(headers, page, r.get("job") or {})]
         shown = merged[at:at + RUNS_PAGE]
         ids = [r["run_id"] for r in shown if r.get("run_id")]
         details = {}
@@ -4724,7 +4734,7 @@ class Shell:
             except (QueryError, ValueError) as error:
                 out["reason"] = f"The App cannot read this page's job, so it cannot refresh it: {shell_sql.error_text(error)}"
             else:
-                done = finished(recent)
+                done = [v for v in finished(recent) if not self.hidden_from_viewer(headers, page, v)]
                 successes = [v for v in done if v["result"] == "succeeded"]
                 active = shown_active(actives)
                 if active is None:

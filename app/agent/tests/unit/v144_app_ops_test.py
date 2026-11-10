@@ -868,3 +868,30 @@ def test_a_run_shows_only_a_real_amount_it_could_save():
     assert [saved(v) for v in (1250.5, 0, 7)] == [1250.5, 0, 7]
     for odd in (float("nan"), float("inf"), float("-inf"), True, "1250", None):
         assert saved(odd) is None, odd
+
+
+def test_a_non_owner_sees_no_other_peoples_failed_or_canceled_runs_but_keeps_the_schedule_and_their_own(tmp_path):
+    table = WEEKLY + [table_run("u0", "2026-10-04", "2026-10-04T06:00:00Z")]
+    s, sp, _now = ops_shell(tmp_path, JobsWorkspace(job_runs=JOB_HISTORY, runs=table))
+    status, out = call(s, "GET", "runs", query={"page": "n01_u05"}, headers=signed(LEE))
+    assert status == 200, out
+    shown = [r["job_run_id"] for r in out["runs"]]
+    assert "408" not in shown and "406" not in shown, "a failed or canceled run that someone else started is for the owners only"
+    assert {"407", "405", "404", "403"} <= set(shown), "the schedule's runs and a run that did not fail stay visible to a viewer"
+    assert all(r["error"] == "" for r in out["runs"] if r["by"] not in ("", SAM, DANA)), "no other person's failure text reaches a viewer"
+    status, owner = call(s, "GET", "runs", query={"page": "n01_u05"}, headers=signed(DANA))
+    assert status == 200, owner
+    assert {"408", "406"} <= {r["job_run_id"] for r in owner["runs"]}, "an owner still sees every failed run"
+    assert out["total"] == owner["total"] - 2, "the total counts only the runs this viewer is shown"
+
+
+def test_freshness_shows_a_non_owner_no_other_peoples_failed_run_as_the_last_run(tmp_path):
+    runs = [job_run(103, "2026-10-27T08:00:00Z", "2026-10-27T08:02:00Z", result="FAILED", trigger="ONE_TIME", by=SAM, message="Table not found"),
+            job_run(102, "2026-10-27T07:20:00Z", "2026-10-27T07:25:00Z", trigger="ONE_TIME", by=DANA),
+            job_run(101, "2026-10-25T06:00:00Z", "2026-10-25T06:05:00Z")]
+    s, sp, _now = ops_shell(tmp_path, JobsWorkspace(job_runs=runs, runs=WEEKLY))
+    status, out = call(s, "GET", "freshness", query={"page": "n01_u05"}, headers=signed(LEE))
+    assert status == 200, out
+    assert out["last_run"]["run_id"] == "102", "the failed run of someone else is not the last run a non-owner sees"
+    assert "Table not found" not in repr(out) and f"{JOB_URL}/runs/103" not in repr(out)
+    assert out["last_success"]["run_id"] == "102"
