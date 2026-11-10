@@ -20,7 +20,6 @@ const footerErrors = (page) => page.locator('[role="alert"] p').allTextContents(
 
 async function toDelivery(page) {
   await goToStep(page, 'Data');
-  await dataToResults(page);
   await goToStep(page, 'What to build');
 }
 
@@ -74,6 +73,7 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     await features.locator('label', { hasText: 'Record decisions' })
       .getByText('They own, track and dismiss each flagged record (the action tracker).', { exact: false }).waitFor();
     assert.equal(await features.locator('label', { hasText: 'Let people edit data' }).getByText('action tracker', { exact: false }).count(), 0);
+    await features.locator('summary', { hasText: 'What every App offers' }).click();
     const offers = features.getByRole('note', { name: 'What every App offers' });
     await offers.getByText('Refresh now: only the owners of this use case can run it now, the person who asks for this version and the App owners it names. '
       + 'One refresh runs at a time.', { exact: true }).waitFor();
@@ -84,8 +84,9 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     await goToStep(page, 'App features');
     assert.equal(await features.getByRole('checkbox', { name: /^Record decisions/ }).isChecked(), true, 'per-user keeps record decisions');
     assert.equal(await features.getByRole('checkbox', { name: /^Send alerts/ }).count(), 0, 'per-user hides alerts');
+    await features.locator('details').evaluate((d) => { d.open = true; });
     const hidden = features.getByRole('note', { name: 'Why some options are hidden' });
-    await hidden.getByText(/people record decisions only on the records they can read, and the App sends no alerts and offers no chart image export\.$/).waitFor();
+    await hidden.getByText(/people record decisions only on the records they can read, and the App sends no alerts and offers no chart image export\./).waitFor();
     assert.doesNotMatch(await hidden.textContent(), /download/i);
     await offers.getByText('The App offers no data downloads.', { exact: true }).waitFor();
     const replace = features.getByRole('radiogroup', { name: 'Should a new run replace edited records?' });
@@ -982,7 +983,7 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
   };
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await onStep(page, 'Use case');
+    await onStep(page, 'What to deliver');
     await fits('0-use-case');
     await readable('use case');
     await goToStep(page, 'Data');
@@ -1006,6 +1007,9 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await goToStep(page, 'Where it lives');
     await placeStep(page).locator('[data-app-target]').first().waitFor();
     await fits('4-where-app');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await fits('4-where-app-1280x800');
+    await page.setViewportSize({ width: 1440, height: 900 });
     await readable('where');
     await placeStep(page).locator('[data-app-target] input[type="radio"]:not([disabled])').first().check();
     await fits('4-deliver-app-joining');

@@ -1288,8 +1288,8 @@ function registerImplementRoutes(app, deps) {
     };
   }
 
-  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [] }) {
-    I.refuseUnchanged(plan);
+  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [], rebuildAsIs = false }) {
+    if (!rebuildAsIs) I.refuseUnchanged(plan);
     const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
     const warnings = [...noted, ...outputWarnings];
     const params = I.implementJobParams(notebookParamsFromSessionForGenerateRun(session, sid), useCaseId, plan.nextVersion);
@@ -1372,7 +1372,7 @@ function registerImplementRoutes(app, deps) {
       res.json(await oneBuildAtATime(req, async () => {
         const prepared = await prepareSubmission(req);
         if (GC.needsGenieCode(prepared.spec)) await requireGenieCode(req);
-        return startVersion(req, prepared);
+        return startVersion(req, { ...prepared, rebuildAsIs: req.body?.rebuild_as_is === true });
       }));
     } catch (err) {
       sendError(res, err);

@@ -46,7 +46,7 @@ async function readable(page, selectors, name) {
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
 }
 
-const STEPS_WITH_APP = ['1. Data', '2. First run', '3. Results', '4. What to deliver', '5. Where it lives', '6. Who uses the App', '7. App pages', '8. App look', '9. Run it', '10. Review & build'];
+const STEPS_WITH_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. App look', '8. Run it', '9. Review & build'];
 const boxLabels = (panel) => panel.locator('textarea').evaluateAll((boxes) => boxes.map((b) => b.getAttribute('aria-label')));
 
 async function grayExamples(page, panel) {
@@ -75,7 +75,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await page.getByRole('textbox', { name: /vibes/i }).count(), 0, 'Delivery has no vibes box');
     assert.equal(await page.getByRole('region', { name: 'Vibes' }).count(), 0);
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. Data', '2. First run', '3. Results', '4. What to deliver', '5. Run it', '6. Review & build'], 'Summary stays last without an App');
+    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Run it', '6. Review & build'], 'Summary stays last without an App');
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
     await panel.getByRole('heading', { name: 'Anything else Genie should build in?' }).waitFor();
@@ -517,7 +517,7 @@ test('a notebook ask the notes hold is removed in Vibe/Add/Remove Features and b
       + 'The alert is changed in place.', { exact: true }).waitFor();
     assert.equal(await choice.getByRole('radio', { name: /^Keep v3 live/ }).isChecked(), true, 'keep live is the choice until another is made');
     await toSummary(page);
-    await page.getByRole('button', { name: 'All Good, Build it Now', exact: true }).click();
+    await page.getByRole('button', { name: 'Build with these choices', exact: true }).click();
     await until(() => made.jobs.length === 1, 'the notebook build');
     const [built] = insertsOf(made);
     assert.deepEqual([built.spec.data.notes, built.spec.vibes, built.spec.vibe_previous],

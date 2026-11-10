@@ -247,10 +247,13 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 }
 
 const STEP_HOLDING = {
-  'Use case': 'Data', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Who uses the App', 'App placement': 'Where it lives', 'App access': 'Who uses the App',
-  'App features': 'App pages', 'App look': 'App look', 'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Review & build',
+  'Use case': 'Data & results', Data: 'Data & results', Results: 'Data & results', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Who uses the App', 'App placement': 'Where it lives', 'App access': 'Who uses the App',
+  'App features': 'Where it lives', 'App pages': 'Where it lives', 'App look': 'App look', Measure: 'Measure', 'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Review & build',
 };
-const exactly = (label) => new RegExp(`^\\s*(\\d+\\.\\s*)?${label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}\\s*$`);
+const exactly = (label) => {
+  const body = label === 'Data & results' ? 'Data(?: & results)?' : label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+  return new RegExp(`^\\s*(\\d+\\.\\s*)?${body}\\s*$`);
+};
 const isStep = (text, label) => exactly(label).test(text);
 
 export function stepHolding(part) {
@@ -281,7 +284,7 @@ export async function openAdvanced(page, what = 'data settings') {
   await page.getByRole('button', { name: `Change ${what}`, exact: true }).click();
 }
 
-export const BUILD_IT = 'All Good, Build it Now';
+export const BUILD_IT = 'Build with these choices';
 
 export async function dataToResults(page) {
   await nextUntil(page, 'Results');

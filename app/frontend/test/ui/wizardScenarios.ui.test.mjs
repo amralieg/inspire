@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { closeBrowser, idle, onStep, openUi, profileAt } from './uiSupport.mjs';
+import { closeBrowser, goToStep, idle, onStep, openUi, profileAt } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -89,7 +89,6 @@ async function scenario(name, { profile, useCase = {}, viewport = { width: 1440,
   try {
     await ui.page.setViewportSize(viewport);
     await settle(ui.page);
-    await onStep(ui.page, 'Use case');
     const got = await walk(ui.page, name, actions);
     return { ...got, ui };
   } catch (e) {
@@ -302,7 +301,7 @@ test('ticking the Alert emails the owner by default, and the Summary and the bui
     assert.equal(seen.at(-1).step, 'Review & build', seen.at(-1).text.slice(0, 300));
     assert.match(summaryOf(seen), /Alert\nEmails ops@example\.com, شريك@example\.com when /);
     const { page, made } = ui;
-    await page.getByRole('button', { name: 'All Good, Build it Now' }).click();
+    await page.getByRole('button', { name: 'Build with these choices' }).click();
     await settle(page);
     const insert = made.sqlCalls.find((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'));
     assert.ok(insert, 'the build was not submitted');
@@ -358,7 +357,7 @@ test('a build clears the draft, so the next wizard opens on the Use case with no
   const { ui } = await scenario('draft-after-build', { profile: PROFILE, extra: counted(PROFILE), actions: { [RUN_IT]: press('Weekly') } });
   try {
     const { page, made } = ui;
-    await page.getByRole('button', { name: 'All Good, Build it Now' }).click();
+    await page.getByRole('button', { name: 'Build with these choices' }).click();
     await settle(page);
     assert.equal(made.jobs.length, 1);
     await page.reload();
@@ -405,7 +404,7 @@ const RUN_IT = 'Run it';
 
 async function summaryText(page) {
   await settle(page);
-  await page.getByRole('button', { name: 'All Good, Build it Now' }).waitFor({ timeout: 5000 });
+  await page.getByRole('button', { name: 'Build with these choices' }).waitFor({ timeout: 5000 });
   return page.locator('[role="dialog"]').innerText();
 }
 
@@ -442,14 +441,14 @@ test('Change on a Summary row opens that step, keeps every earlier answer and Ba
   }
 });
 
-test('Back from the Summary walks every step in order to the Use case and Next walks forward again to the same Summary', async () => {
+test('Back from the Summary walks every step in order to What to deliver and Next walks forward again to the same Summary', async () => {
   const { seen, ui } = await scenario('back-and-forth', { profile: PROFILE, extra: counted(PROFILE) });
   try {
     const { page } = ui;
     const forward = seen.map((s) => s.step);
     const summary = await summaryText(page);
     const back = [await current(page)];
-    while ((await current(page)) !== 'Data' && back.length < 12) {
+    while ((await current(page)) !== 'What to deliver' && back.length < 12) {
       const was = await current(page);
       await page.getByRole('button', { name: 'Back', exact: true }).click();
       await settle(page);
@@ -465,16 +464,15 @@ test('Back from the Summary walks every step in order to the Use case and Next w
   }
 });
 
-test('reloading the page in the middle of the wizard opens it again cleanly on the step it was on, with no page error, and Start over goes back to Use case', async () => {
+test('reloading after only moving between steps opens the wizard again cleanly on What to deliver with no draft notice, and Start over goes back there too', async () => {
   const { ui } = await scenario('reload', { profile: PROFILE, extra: counted(PROFILE) });
   try {
     const { page } = ui;
     await page.reload();
     await settle(page);
-    await onStep(page, 'Review & build');
-    await page.locator('[data-wizard-draft]').waitFor();
-    await page.locator('[data-wizard-start-over]').click();
-    await onStep(page, 'Use case');
+    await onStep(page, 'What to deliver');
+    assert.equal(await page.locator('[data-wizard-draft]').count(), 0, 'moving between steps is not a change, so no draft notice');
+    await goToStep(page, 'Data');
     await toSummary(page);
     noLeaks([{ step: 'Review & build', text: await page.locator('[role="dialog"]').innerText() }], 'reload');
     assert.deepEqual(ui.pageErrors, []);
