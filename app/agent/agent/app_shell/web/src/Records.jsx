@@ -550,8 +550,9 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const [kept, setKept] = useState(() => KEPT.get(pageId));
   const decides = !!app?.options?.decisions && pageDecides((app.pages || []).find((p) => p.id === pageId) || { records: meta });
   const noActions = !history || !decides || keepsActions === false || kept === false;
-  const cap = noActions || tab ? 0 : listLimit(prefs);
-  const windowed = noActions || tab ? {} : listWindow(prefs);
+  const listsOpen = !tab || tabOpen || !!(tabPick && isOpenStatus(tabPick.status));
+  const cap = noActions || !listsOpen ? 0 : listLimit(prefs);
+  const windowed = noActions || !listsOpen ? {} : listWindow(prefs);
   const aiPicks = ai || NO_PICKS;
   const narrowed = tabOpen ? { ...apiColumns(columnValues), action_status: OPEN_STATUSES } : apiColumns(columnValues);
   const scope = JSON.stringify({ filters, ai: aiPicks, search, mine, changed, columns: narrowed, choice: tabPick?.id || '', focus: only || '', ...windowed });
@@ -605,7 +606,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   }, [pageId]);
   const aliases = data?.ai?.columns || NO_ALIASES;
   const tracker = !!(history && decides && data?.actions);
-  const everything = tab ? !(tabOpen || (tabPick && isOpenStatus(tabPick.status))) : prefs.window === EVERYTHING;
+  const everything = tab ? !listsOpen : prefs.window === EVERYTHING;
   const owners = data?.summary?.owners || [];
   const person = app.user?.email || '';
   const canModify = !!(history && app.options.modify);
@@ -915,7 +916,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const impact = tracker ? impactText(data?.summary) : '';
   const narrowedAny = Object.keys(apiColumns(columnValues)).length > 0 || Object.values(filters || {}).some((v) => Array.isArray(v) && v.length)
     || Object.values(aiPicks).some((v) => v?.length);
-  const workText = work && !work.ended ? `${integer(work.seen.size + 1)} of ${integer(compareValues(work.n, work.seen.size + 1) > 0 ? work.n : work.seen.size + 1)} ${!tab && narrowWindow(prefs) ? 'in your window' : 'on this list'}` : '';
+  const workText = work && !work.ended ? `${integer(work.seen.size + 1)} of ${integer(compareValues(work.n, work.seen.size + 1) > 0 ? work.n : work.seen.size + 1)} ${listsOpen && narrowWindow(prefs) ? 'in your window' : 'on this list'}` : '';
   const beyond = data?.window?.more ?? (compareValues(total, cap) > 0 ? addCounts([total, -cap]) : 0);
   const shownSort = sort || data?.sort || null;
   const countText = !data ? (list.error ? meta.hint || '' : 'Loading the list…')
@@ -983,7 +984,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           {quiet && <div className="quiet-n" role="status" data-quiet-list><Icon name="info" size={13} /><div><b>{quiet.title}</b>{quiet.why && <p>{quiet.why}</p>}<p>{quiet.raise}</p></div></div>}
           {late.late > 0 && <p className="late-n" data-overdue><Icon name="calendar" size={13} />Overdue: {recordsText(late.late)} on this page, shown first.</p>}
           <DataTable label={meta.title} columns={columns} rows={tableRows} rowKey={keyOf} onRow={setOpen} paged={false} filtering="server" grid={`page:${pageId}:records`}
-            empty={emptyState({ search, mine, changed, fresh, windowed: !tab && narrowWindow(prefs) ? windowLabel(prefs.window) : '', narrowedAny, status: tabPick ? tabPick.label : tabOpen ? 'Open' : '',
+            empty={emptyState({ search, mine, changed, fresh, windowed: listsOpen && narrowWindow(prefs) ? windowLabel(prefs.window) : '', narrowedAny, status: tabPick ? tabPick.label : tabOpen ? 'Open' : '',
               ranged: Object.values(filters || {}).some((v) => v && typeof v === 'object' && !Array.isArray(v)), onClear: clearAll,
               onWide: () => update((p) => ({ ...p, window: 'all' })) })}
             sort={shownSort ? { key: shownSort.key, dir: shownSort.dir === 'desc' ? -1 : 1 } : null} onSort={(s) => setSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' })}

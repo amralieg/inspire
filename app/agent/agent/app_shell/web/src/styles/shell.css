@@ -83,9 +83,9 @@ button,input,select,textarea{font:inherit;color:inherit}
 .work-t small{font-size:11px;font-weight:700;padding:0 7px;border-radius:999px;background:var(--well);color:var(--muted);font-variant-numeric:tabular-nums}
 .work-t.is-on small{background:var(--brand-wash);color:var(--brand-ink)}
 .kpi-fix{margin-top:6px;font-size:12.5px}
-.hb-row{display:flex;align-items:center;gap:4px}
+.hb-row{display:flex;align-items:center;gap:4px;padding-inline-end:12px}
 .hb-row>.hb{flex:1;min-width:0}
-.hb-fix{flex:none;font-size:12px;padding:4px 12px 4px 4px;white-space:nowrap}
+.hb-fix{flex:none;font-size:12px;padding:4px;white-space:nowrap}
 .set-group{margin-top:14px;padding:14px 16px;border:1px solid var(--line);border-radius:12px;background:var(--card)}
 .set-group h3{margin:0;font-size:15px}
 .set-group .why{margin:2px 0 10px;font-size:13px;color:var(--muted)}

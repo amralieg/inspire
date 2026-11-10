@@ -117,6 +117,8 @@ test('a viewer who is not an owner gets Settings with only their own My view, an
   assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)), ['my_view', 'look', 'help', 'share', 'access', 'feedback']);
   assert.equal(await page.locator('[data-settings] [data-setting]').count(), 0);
   assert.equal(await page.locator('[data-run-now]').count(), 0);
+  assert.equal(await page.getByRole('button', { name: 'Views', exact: true }).count(), 1, 'Settings has one Views control, in Share and follow');
+  assert.equal(await page.locator('[data-group="share"]').getByRole('button', { name: 'Views', exact: true }).count(), 1);
   assert.deepEqual(app.errors, []);
   await context.close();
 });

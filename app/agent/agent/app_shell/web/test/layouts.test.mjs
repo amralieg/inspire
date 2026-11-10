@@ -136,6 +136,9 @@ test('the planner opens with What to do now, draws the plan, its limits and what
   assert.equal(await itemsIn(page, 'sensitivity_tornado'), 2);
   assert.match(await page.locator('[data-section="objective_kpi"]').innerText(), /Plan margin/);
   assert.doesNotMatch(await page.locator('[data-section="kpis"]').innerText(), /Plan margin/);
+  const regions = await page.locator('section[aria-label]').evaluateAll((els) => els.map((el) => el.getAttribute('aria-label')));
+  assert.deepEqual(regions.filter((name, i) => regions.indexOf(name) !== i), [], `region names repeat: ${regions.join(', ')}`);
+  assert.equal(await page.locator('[data-section="objective_kpi"] section[aria-label="Objective"]').count(), 1);
   assert.match(await page.locator('[data-plan-row="K1"]').innerText(), /Oat bar\s+100\s+★ 90\s+[−-]10/);
   await page.locator('[data-plan-row="K2"]').getByRole('button', { name: 'Accept' }).click();
   await page.waitForFunction(() => document.querySelector('.toast .toast-t')?.textContent === 'Accepted the suggested line');

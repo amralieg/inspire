@@ -291,7 +291,7 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kp
     if (hold === 'kpis') return <div key="kpis" data-section="kpis">{kpisOf(page.kpis.filter((k) => !holds[k.section]))}</div>;
     if (hold === 'objective') {
       const hero = page.kpis.filter((k) => k.section === section);
-      return hero.length ? <div key={section} className="objective" data-section={section}>{kpisOf(hero, false)}</div> : null;
+      return hero.length ? <div key={section} className="objective" data-section={section}>{kpisOf(hero, false, 'Objective')}</div> : null;
     }
     const Part = SECTION_PARTS[section] || KIND_PARTS[section];
     if (Part) return <div key={section} data-section={section} data-tour={toured(section)}><Part page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} data={data} records={records} onPick={onPick} genie={genie} section={section} /></div>;

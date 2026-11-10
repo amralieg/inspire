@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { readFileSync, readdirSync } from 'node:fs';
 import { join } from 'node:path';
 import { chromium } from 'playwright';
-import { DECIDE, FILTERS, HISTORY, LABEL, OWN_STATUSES, PERSON, TABLE, appInfo, openApp, prefsFirst, serveDist, toastSays, until } from './harness.mjs';
+import { DECIDE, FILTERS, HISTORY, LABEL, OWN_STATUSES, PERSON, TABLE, appInfo, openApp, prefsFirst, serveDist, toastSays, tracked, until } from './harness.mjs';
 import { canonicalHash, fixThis, parseHash, restoreFilters, sectionHash, staleSection, tabCount } from '../src/links.js';
 import { FIX_TIERS, isToFix, shownTiers, switcherMatches } from '../src/hub.js';
 import { MY_KEY } from '../src/prefs.js';
@@ -72,6 +72,12 @@ test('old links and unknown sections settle on one canonical section address', (
   assert.equal(canon('#/a/nope'), '#/a/dashboard');
   assert.equal(canon('#/b/work'), '#/b/dashboard', 'only a queue has Work');
   assert.equal(canon('#/a/dashboard?tab=done'), '#/a/dashboard', 'a tab only belongs to Work');
+  assert.equal(canon('#/a/work?tab=xyz'), '#/a/work?tab=open', 'a tab the use case does not have is rewritten to the Open tab');
+  assert.equal(canon('#/a/work?tab=xyz&rec=R1'), '#/a/work?tab=open&rec=R1');
+  const own = [{ id: 'a', queue: true, statuses: [{ id: 'keep', label: 'Keep', status: 'Done' }] }];
+  assert.equal(canon('#/a/work?tab=keep', { pages: own }), null, 'a tab of the use case\u2019s own statuses stays');
+  assert.equal(canon('#/a/work?tab=done', { pages: own }), '#/a/work?tab=open', 'a default tab the use case replaced with its own statuses is rewritten to the Open tab');
+  assert.equal(canon('#/a/work?tab=mine', { pages: own }), null);
   assert.equal(canon('#/a/performance', { sectionsOf: withoutPerformance }), '#/a/dashboard');
   assert.equal(canon('#/b/alerts'), '#/b/dashboard', 'a section the use case does not have opens its dashboard');
   assert.equal(canon('#/b?v=alerts'), '#/b/dashboard');
@@ -115,6 +121,13 @@ test('Fix this narrows Work to the shown tiers and the reason, sorts by money wh
   assert.equal(untiered.sort, null, 'no money column means no money sort');
   const unlisted = fixThis(page, [{ column: 'priority_tier', type: 'text' }], state, {}, { tiers: FIX_TIERS });
   assert.deepEqual(unlisted.state, state, 'a tier column without a pick list is not filtered');
+  for (const [what, filter] of [['loads its choices on search', { options: [], searchable: true, lazy: true }],
+    ['shows only its first choices', { options: ['Monitor'], searchable: true }]]) {
+    const out = fixThis(page, [{ column: 'priority_tier', type: 'multi_select', ...filter }], state, { show: 'fix' }, { tiers: FIX_TIERS });
+    assert.deepEqual(out.state.columns?.list?.priority_tier, ['Act now'], `a tier list that ${what} still narrows to Act now`);
+  }
+  const absent = fixThis(page, [{ column: 'priority_tier', type: 'multi_select', options: ['Review', 'Monitor'] }], state, { show: 'fix' }, {});
+  assert.equal(absent.state.columns?.list?.priority_tier, undefined, 'a full tier list without Act now is not narrowed to it');
 });
 
 test('Fix this narrows Work to exactly the tiers its card counted, also when the tier choices load only on search', () => {
@@ -138,6 +151,90 @@ test('Fix this narrows Work to exactly the tiers its card counted, also when the
   assert.equal(restored.dropped, false, 'a Fix this address with a lazy tier filter opens with the filter kept');
   assert.deepEqual(restored.state.columns.list.priority_tier, ['Act now']);
 });
+
+for (const width of [1280, 1440]) {
+  test(`at ${width} px each Fix this on a reason bar sits at least 8 px inside its card`, async () => {
+    const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { width, routes: trackedRoutes(), ready: '[data-fix-reason]' });
+    const gaps = await page.locator('[data-fix-reason]').evaluateAll((links) => links.map((a) => {
+      const card = a.closest('.card, .hcard, section').getBoundingClientRect();
+      return Math.round(card.right - a.getBoundingClientRect().right);
+    }));
+    assert.ok(gaps.length > 0);
+    assert.ok(gaps.every((g) => g >= 8), `gaps to the card edge: ${gaps.join(', ')}`);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  });
+}
+
+test('at 1280 px with a record docked open every Work tab shows, none cut off', async () => {
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, OWN_STATUSES),
+    { width: 1280, height: 800, hash: '#/n01_u05/work', routes: { ...trackedRoutes(), ...tracked().routes, records: trackedRoutes().records }, ready: '.cell-t' });
+  await page.locator('.cell-t').first().click();
+  await page.locator('[data-dock="record"] dialog.drawer').waitFor();
+  assert.ok(await page.locator('[data-tab]').count() >= 7);
+  const cut = await page.locator('[data-tab]').evaluateAll((tabs) => {
+    const strip = tabs[0].parentElement.getBoundingClientRect();
+    return tabs.filter((t) => { const r = t.getBoundingClientRect(); return r.right > strip.right + 0.5 || r.left < strip.left - 0.5 || r.right > window.innerWidth; })
+      .map((t) => t.dataset.tab);
+  });
+  assert.deepEqual(cut, []);
+  assert.ok(await page.locator('[data-tab="all"]').isVisible());
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('What to do now counts the records in your window, so closed records outside it are not in the total', async () => {
+  const records = ({ route, json, seen }) => {
+    const body = route.request().postDataJSON();
+    seen.records.push(body);
+    const summary = body.window ? { open: 16, done: 8, resolved: 0, left: 0, owners: [] } : { open: 16, done: 32, resolved: 0, left: 0, owners: [] };
+    return json(200, { rows: [], total: 16, offset: 0, limit: body.limit || 25, actions: true, changes: false, summary, errors: {}, ...(body.window ? { window: { window: body.window.window } } : {}) });
+  };
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...trackedRoutes(), records }, ready: '[data-todo-count]' });
+  assert.equal(await page.locator('[data-todo-count]').innerText(), '16 of 24 waiting for you');
+  assert.ok(seen.records.filter((r) => !r.changed).every((r) => r.window), 'every list the Dashboard asks for carries your window, except the changed-since-visit list the Inbox asks for');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('the Open tab keeps your window: an overdue record ranked last shows first with the Overdue line, and All lists without a window', async () => {
+  const records = ({ route, json, seen }) => {
+    const body = route.request().postDataJSON();
+    seen.records.push(body);
+    const rows = [1, 2, 3].map((i) => ({ entity_id: `R00${i}`, record_key: `R00${i}`, _inspire_key: `R00${i}`, _inspire_version: String(100 + i),
+      entity_label: `Item number ${i}`, priority_tier: 'Act now', rank: i, _inspire_status: 'New',
+      ...(body.window ? { _inspire_due: i === 3 ? '2020-01-02' : '2999-01-01' } : {}) }));
+    return json(200, { rows, total: 3, offset: 0, limit: body.limit || 25, actions: true, changes: false, summary: null, errors: {},
+      ...(body.status_counts ? { status_counts: COUNTS } : {}) });
+  };
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE),
+    { hash: '#/n01_u05/work?tab=open', routes: { ...trackedRoutes(), records }, ready: '[data-overdue]' });
+  assert.equal(seen.records.at(-1).window, 'all');
+  assert.match(await page.locator('[data-overdue]').innerText(), /Overdue: 1 record on this page, shown first/);
+  assert.match(await page.locator('.cell-t').first().innerText(), /Item number 3/);
+  await page.locator('[data-tab="all"]').click();
+  await until(() => seen.records.at(-1)?.window === undefined && !seen.records.at(-1)?.choice && seen.records.at(-1)?.mine === false);
+  await page.locator('[data-tab="done"]').click();
+  await until(() => seen.records.at(-1)?.choice === 'done');
+  assert.equal(seen.records.at(-1).window, undefined, 'a closed status tab lists without a window');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+for (const [what, tier] of [['loads its choices on search', { options: [], searchable: true, lazy: true }],
+  ['shows only its first choices', { options: ['Monitor'], searchable: true }]]) {
+  test(`Fix this on a tier list that ${what} asks Work for Act now only`, async () => {
+    const filters = { ...FILTERS, columns: { list: [{ column: 'priority_tier', label: 'Priority', type: 'multi_select', ...tier }] } };
+    const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE),
+      { routes: { ...trackedRoutes(), filters: ({ json }) => json(200, filters) }, ready: '[data-fix]' });
+    await page.locator('[data-fix="fix"]').click();
+    await page.waitForFunction(() => window.location.hash.startsWith('#/n01_u05/work'));
+    await until(() => seen.records.some((r) => r.column_filters?.priority_tier));
+    assert.deepEqual(seen.records.at(-1).column_filters.priority_tier, ['Act now']);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  });
+}
 
 test('the switcher finds a use case by any of its words, and tab counts read the server totals', () => {
   const pages = [{ id: 'p1', title: 'Price loss', use_case_id: 'N01-U05', domain: 'Pricing' }, { id: 'p2', title: 'Duplicate invoices', domain: 'Finance' }];

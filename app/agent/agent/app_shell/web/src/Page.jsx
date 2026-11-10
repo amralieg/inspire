@@ -226,7 +226,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       onColumn={(column, value) => onState(setColumnValue(state, table.id, column, value))} onClear={() => onState(clearColumnValues(state, table.id))}
       sort={sorts[table.id]} onSort={sortBy(table.id)} />
   );
-  const kpisOf = (kpis, main = true) => <Kpis page={{ ...page, kpis }} data={data?.kpis} errors={errors} loading={loading} plan={main ? plan : null} scope={data?.scope} />;
+  const kpisOf = (kpis, main = true, label) => <Kpis page={{ ...page, kpis }} data={data?.kpis} errors={errors} loading={loading} plan={main ? plan : null} scope={data?.scope} label={label} />;
   const records = (extra = {}) => (page.records && !unreliable ? (
     <Records meta={page.records} app={app} pageId={page.id} filters={filters} ready={ready} nonce={nonce} onFilter={pick} history={!!page.history} onList={setQueue}
       similarBy={page.similar_by} keepsActions={hubEntry ? !!(hubEntry.tracked && hubEntry.actions) : undefined}

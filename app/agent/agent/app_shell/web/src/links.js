@@ -2,6 +2,7 @@ import { RANGE_EDGES, columnFilterOn, columnFilterText, columnValues, initialFil
 import { MONEY_COLUMN, setReason } from './hub.js';
 import { ADMIN_ROUTE } from './admin.js';
 import { MY_WORK_ROUTE } from './mywork.js';
+import { statusChoices } from './records.js';
 
 export const VIEWS_KEY = 'inspire-app-views';
 export const VIEW_NAME_MAX = 60;
@@ -92,10 +93,9 @@ export function canonicalHash(hash, { pages = [], last = '', sectionsOf = () => 
   const has = sectionsOf(page);
   const asked = link.section || legacy || ((link.rec || link.changed) && has.includes('work') && queueOf(page) ? 'work' : DEFAULT_SECTION);
   const section = has.includes(asked) ? asked : DEFAULT_SECTION;
-  if (section !== 'work') {
-    query.delete('tab');
-    query.delete('focus');
-  }
+  if (section !== 'work') query.delete('tab');
+  else if (query.has('tab') && !workTabs(statusChoices(page)).some(([id]) => id === query.get('tab'))) query.set('tab', OPEN_TAB);
+  if (section !== 'work') query.delete('focus');
   const next = sectionHash(page.id, section, query);
   return next === hash ? null : next;
 }
@@ -287,7 +287,7 @@ function rangeFrom(filter, value) {
 function valuesFrom(filter, value) {
   if (!Array.isArray(value)) return null;
   const known = knownChoices(filter);
-  const keep = (v) => typeof v === 'string' && (known ? known.has(v) : !!(filter.error || filter.lazy));
+  const keep = (v) => typeof v === 'string' && (known ? known.has(v) : !!(filter.error || filter.lazy || filter.searchable));
   return [...new Set(value.filter(keep))];
 }
 

@@ -120,6 +120,17 @@ test('a valid link is not flagged, duplicates collapse, and a filter whose choic
   assert.deepEqual(restoreFilters({ r: { run_date: ['2001-01-01', '2002-01-01'] } }, [{ id: 'run_date', type: 'date_range', label: 'Run date' }]).dropped, false);
 });
 
+test('a link keeps a value past the first choices of a searchable filter and a value of a filter that loads its choices on search', () => {
+  const capped = [{ id: 'region', type: 'multi_select', label: 'Region', options: ['North'], searchable: true }];
+  assert.deepEqual(restoreFilters({ s: { region: ['East'] } }, capped), { state: { range: {}, sel: { region: ['East'] } }, dropped: false });
+  const full = [{ id: 'region', type: 'multi_select', label: 'Region', options: ['North'] }];
+  assert.equal(restoreFilters({ s: { region: ['East'] } }, full).dropped, true, 'a full list still drops a value it does not hold');
+  const columns = { list: [{ column: 'priority_tier', type: 'multi_select', options: [], searchable: true, lazy: true }], tables: {} };
+  const out = restoreFilters({ c: { l: { priority_tier: ['Act now'] } } }, [], columns);
+  assert.equal(out.dropped, false);
+  assert.deepEqual(out.state.columns.list, { priority_tier: ['Act now'] });
+});
+
 test('a link that is not an object or names an unknown view falls back to the defaults', () => {
   assert.deepEqual(restoreFilters(null, META), { state: initialFilterState(META), dropped: true });
   assert.deepEqual(restoreFilters([1], META), { state: initialFilterState(META), dropped: true });
