@@ -21,7 +21,7 @@ import ImplementStatusBadge from '../components/ImplementStatusBadge';
 import ImplementWizard from './ImplementWizard';
 import { ACTION_ROW, AssetPanel, AssetTile, BuildControls, ConfirmDialog, NotebookPanel } from '../components/ImplementControlTower';
 import UseCaseDrawer from '../components/UseCaseDrawer';
-import { PlainMessage } from '../components/TechnicalDetails';
+import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 import QualityBarChip from '../components/QualityBarChip';
 import UseCaseDetailBody from '../components/UseCaseDetailBody';
 import InspireScoreBadge from '../components/InspireScoreBadge';
@@ -351,6 +351,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
   const [listLoading, setListLoading] = useState(true);
   const [listError, setListError] = useState('');
   const [buildNotes, setBuildNotes] = useState([]);
+  const [buildDetails, setBuildDetails] = useState([]);
   const [rail, setRail] = useState(NO_RAIL);
   const [railError, setRailError] = useState('');
   const [query, setQuery] = useState('');
@@ -467,6 +468,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
 
   const onImplemented = (data) => {
     setBuildNotes(Array.isArray(data?.warnings) ? data.warnings : []);
+    setBuildDetails(Array.isArray(data?.warning_details) ? data.warning_details : []);
     if (wizard?.focus?.collected?.length && data?.use_case_id) saveCollectedVibes(scopeOf(data.use_case_id), []);
     setWizard(null);
     if (data?.use_case_id) select(data.use_case_id);
@@ -487,6 +489,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
           {buildNotes.map((note) => <li key={note}>{note}</li>)}
         </ul>
       )}
+      {buildNotes.length > 0 && buildDetails.length > 0 && <TechnicalDetails items={buildDetails} />}
       {railError && <PlainMessage text={railError} className={ERROR_BOX} onRetry={() => loadRail().catch((e) => setRailError(e.message))} copy />}
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}

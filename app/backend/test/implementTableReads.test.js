@@ -113,10 +113,11 @@ test('an MVP build drops a secondary table the person cannot read, says so, and 
   await withApp({ history: [], ...mine }, async (url, made) => {
     const plan = await call(url, '/api/inspire/implement/plan', { method: 'POST', body: { ...DB, spec: SPEC } });
     assert.equal(plan.status, 200, JSON.stringify(plan.data));
-    assert.deepEqual(plan.data.warnings, ["Building without a table you can't read: main.s.returns_v2."]);
+    assert.deepEqual(plan.data.warnings, ["Building without a table you can't read."]);
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(got.data.warnings, ["Building without a table you can't read: main.s.returns_v2."]);
+    assert.deepEqual(got.data.warnings, ["Building without a table you can't read."]);
+    assert.deepEqual(got.data.warning_details, ["Tables you can't read: main.s.returns_v2"], 'the ids sit under Details');
     assert.equal(made.jobs.length, 1);
     const sent = insertedSpec(made);
     assert.deepEqual(sent.data.removed_tables, ['main.s.returns'], 'the original name of the swapped table is what the build leaves out');

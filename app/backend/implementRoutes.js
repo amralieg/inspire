@@ -1156,7 +1156,7 @@ function registerImplementRoutes(app, deps) {
       err.details = { missing_tables: sourced.missing, app_unreadable: sourced.app_unreadable };
       throw err;
     }
-    const { spec, warnings: readWarnings } = await dropPersonUnreadable(req, chosen, useCase);
+    const { spec, warnings: readWarnings, details: readDetails } = await dropPersonUnreadable(req, chosen, useCase);
     const kpiIssues = I.implementKpiTargetProblems(raw, I.implementKpiOptions(useCase, history), history);
     if (kpiIssues.length) throw I.badRequest(kpiIssues.join('; '));
     const keyRef = I.resultKeyRef(spec, useCase);
@@ -1185,8 +1185,9 @@ function registerImplementRoutes(app, deps) {
     if (plan.summary.refill || (tables.change && tables.change.class === 'settings')) await refuseMissingSources(req, warehouseId, spec, useCase);
     const appReadsWarning = I.newAppReadsWarning(unshared);
     const warnings = [asksWarning, ...readWarnings, empty, appReadsWarning, ...scopeIssues.carried.map((p) => `${I.FIRST_RUN_CARRIED}${p}.`)].filter(Boolean);
+    const warningDetails = readDetails || [];
     if (unshared.length) plan.summary.app_reads = { tables: unshared.map(({ table, owner }) => ({ table, owner })), text: appReadsWarning };
-    return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings };
+    return { sid, warehouseId, inspire_database, catalog, schema, spec: plan.spec, useCaseId, useCase, session, history, plan, person, warnings, warningDetails };
   }
 
   function withoutSkippedVibes(spec) {
@@ -1211,7 +1212,7 @@ function registerImplementRoutes(app, deps) {
     const involved = I.useCaseTables(useCase);
     const reads = await U.runReadPlan(dbFetch, req, { tables: I.sourceTables(spec, involved) });
     if (reads.refusal) throw unreadableRefusal(reads.refusal.message, reads.refusal.status, reads.refusal.unreadable);
-    if (!reads.skipped.length) return { spec, warnings: reads.uncheckedWarnings };
+    if (!reads.skipped.length) return { spec, warnings: reads.uncheckedWarnings, details: [] };
     const gone = new Set(reads.skipped.map((t) => t.toLowerCase()));
     const picks = I.sourcePicks(spec, involved).filter((p) => gone.has(p.chosen.toLowerCase()));
     const primary = I.primaryTableOf(useCase).toLowerCase();
@@ -1225,7 +1226,11 @@ function registerImplementRoutes(app, deps) {
       const what = clearedText(removed.cleared);
       notes.push(what ? `${pick.chosen} (cleared ${what})` : pick.chosen);
     }
-    return { spec: next, warnings: [`Building without ${notes.length === 1 ? 'a table' : `${notes.length} tables`} you can't read: ${I.joinAnd(notes)}.`, ...reads.uncheckedWarnings] };
+    return {
+      spec: next,
+      warnings: [`Building without ${notes.length === 1 ? 'a table' : `${notes.length} tables`} you can't read.`, ...reads.uncheckedWarnings],
+      details: [`Tables you can't read: ${I.joinAnd(notes)}`],
+    };
   }
 
   async function newAppReads(req, warehouseId, spec, useCase) {
@@ -1256,7 +1261,7 @@ function registerImplementRoutes(app, deps) {
 
   app.post('/api/inspire/implement/plan', requireToken, async (req, res) => {
     try {
-      const { sid, warehouseId, catalog, schema, useCaseId, plan, warnings } = await prepareSubmission(req);
+      const { sid, warehouseId, catalog, schema, useCaseId, plan, warnings, warningDetails } = await prepareSubmission(req);
       const sharing = plan.summary.delete.some((name) => I.IMPLEMENT_MERGE_OUTPUTS.includes(name))
         ? await sharedOf(req, { sid, warehouseId, catalog, schema, useCaseId }) : {};
       res.json({ use_case_id: useCaseId, spec_version: plan.nextVersion, based_on_version: plan.built ? plan.built.spec_version : null,
@@ -1285,7 +1290,7 @@ function registerImplementRoutes(app, deps) {
     };
   }
 
-  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [] }) {
+  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [] }) {
     I.refuseUnchanged(plan);
     const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
     const warnings = [...noted, ...outputWarnings];
@@ -1346,6 +1351,7 @@ function registerImplementRoutes(app, deps) {
       summary: plan.summary,
       ...out,
       warnings: [...warnings, ...(out.warnings || [])],
+      ...(warningDetails.length || out.warning_details ? { warning_details: [...warningDetails, ...(out.warning_details || [])] } : {}),
     };
   }
 

@@ -39,7 +39,8 @@ const {
   APP_TOKEN, FROM_FORWARDED_TOKEN, FROM_HEADERS, FROM_REQUEST_TOKEN, PERSON_TOKEN, SCIM_ME_PATH, forwardedTokenOf, meResponse, personTokenOf, requestPerson,
 } = require('./lib/requestPerson');
 const {
-  discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, outputPlan, runReadPlan, scopeTables, ucMetadataParts, writeRefusalBody,
+  discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, outputPlan, runReadPlan, scopeTables, skippedTablesDetail, ucMetadataParts,
+  writeRefusalBody,
 } = require('./lib/ucReads');
 const { createSourceAccess } = require('./lib/sourceAccess');
 const { withBusyRetry } = require('./lib/busyRetry');
@@ -2142,7 +2143,8 @@ async function launchDiscover(req, res, { params, notebook_path, cluster_id }) {
       asker: req,
     });
     const warnings = [...reads.warnings, ...access, ...(out.warnings || [])];
-    res.json({ ...out, ...(warnings.length ? { warnings } : {}), ...(reads.skipped.length ? { skipped_tables: reads.skipped } : {}) });
+    const details = [...(reads.skipped.length ? [skippedTablesDetail(reads.skipped)] : []), ...(out.warning_details || [])];
+    res.json({ ...out, ...(warnings.length ? { warnings } : {}), ...(details.length ? { warning_details: details } : {}), ...(reads.skipped.length ? { skipped_tables: reads.skipped } : {}) });
   } catch (err) {
     if (err.writeRefusal) return res.status(err.writeRefusal.status).json(writeRefusalBody(req.policyKey, err.writeRefusal));
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;

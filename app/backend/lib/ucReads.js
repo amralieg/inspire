@@ -256,7 +256,12 @@ function runUnreadableTablesText(names) {
 }
 
 function skippedTablesText(names) {
-  return `Skipped ${names.length} ${names.length === 1 ? 'table' : 'tables'} you can't read: ${shownNames(names)}.`;
+  return `Skipped ${names.length} ${names.length === 1 ? 'table' : 'tables'} you can't read.`;
+}
+
+// The names of skipped tables, shown under Details next to the warning.
+function skippedTablesDetail(names) {
+  return `Tables you can't read: ${shownNames(names)}`;
 }
 
 function uncheckedText(items) {
@@ -585,6 +590,7 @@ module.exports = {
   unreadableReads,
   runUnreadableText,
   runUnreadableTablesText,
+  skippedTablesDetail,
   skippedTablesText,
   runReadPlan,
   runReadRefusal,

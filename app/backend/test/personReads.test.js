@@ -132,7 +132,8 @@ test('a run skips a chosen table the person cannot read and says so, is refused 
   await withInspire(async (url, workspace) => {
     const skipped = await launch(url, { '01_uc_metadata': 'main.s.orders,hr.p.salaries' });
     assert.equal(skipped.status, 200, JSON.stringify(skipped.data));
-    assert.deepEqual(skipped.data.warnings, ["Skipped 1 table you can't read: hr.p.salaries."]);
+    assert.deepEqual(skipped.data.warnings, ["Skipped 1 table you can't read."]);
+    assert.deepEqual(skipped.data.warning_details, ["Tables you can't read: hr.p.salaries"], 'the ids sit under Details');
     assert.deepEqual(skipped.data.skipped_tables, ['hr.p.salaries']);
     assert.equal(scopeOf(workspace), 'main.s.orders', 'the run reads only what the person can read');
   });
@@ -161,7 +162,8 @@ test('a whole schema or catalog runs on the tables the person can read, names th
   await withInspire(async (url, workspace) => {
     const schema = await launch(url, { '01_uc_metadata': 'main.s' });
     assert.equal(schema.status, 200, JSON.stringify(schema.data));
-    assert.deepEqual(schema.data.warnings, ["Skipped 1 table you can't read: main.s.salaries_view."]);
+    assert.deepEqual(schema.data.warnings, ["Skipped 1 table you can't read."]);
+    assert.deepEqual(schema.data.warning_details, ["Tables you can't read: main.s.salaries_view"]);
     assert.equal(scopeOf(workspace), 'main.s.orders,main.s.returns', 'a browse-only table is left out of the run');
     const listed = workspace.calls.filter((c) => c.path.startsWith('/api/2.1/unity-catalog/tables?'));
     assert.deepEqual(listed.map((c) => [c.token, new URL(`http://x${c.path}`).searchParams.get('include_browse')]), [[SP_TOKEN, 'true'], [PERSON, null]],
@@ -170,7 +172,8 @@ test('a whole schema or catalog runs on the tables the person can read, names th
   await withInspire(async (url, workspace) => {
     const catalog = await launch(url, { '01_uc_metadata': 'main' });
     assert.equal(catalog.status, 200, JSON.stringify(catalog.data));
-    assert.deepEqual(catalog.data.warnings, ["Skipped 2 tables you can't read: main.s.salaries_view and main.secret.ledger."]);
+    assert.deepEqual(catalog.data.warnings, ["Skipped 2 tables you can't read."]);
+    assert.deepEqual(catalog.data.warning_details, ["Tables you can't read: main.s.salaries_view and main.secret.ledger"]);
     assert.equal(scopeOf(workspace), 'main.s.orders,main.s.returns');
     assert.ok(!workspace.calls.some((c) => c.path.includes('schema_name=information_schema')), 'the catalog\u2019s information_schema is not a table the run reads');
   });
@@ -233,7 +236,8 @@ test('the run reads are parsed as the agent parses UC Metadata and the strategic
   const many = Array.from({ length: 13 }, (_, i) => `main.s.t${i}`);
   assert.equal(U.runUnreadableText(many), cannotRead(`${many.slice(0, 10).join(', ')} and 3 more`));
   assert.equal(U.runUnreadableText(['a.b.c']), cannotRead('a.b.c'));
-  assert.equal(U.skippedTablesText(many), `Skipped 13 tables you can't read: ${many.slice(0, 10).join(', ')} and 3 more.`);
+  assert.equal(U.skippedTablesText(many), "Skipped 13 tables you can't read.");
+  assert.equal(U.skippedTablesDetail(many), `Tables you can't read: ${many.slice(0, 10).join(', ')} and 3 more`);
   for (const text of [U.RUN_NO_SIGN_IN, U.WRITE_NO_SIGN_IN, U.runUnreadableText(['a.b.c'])]) {
     assert.ok(text.split(/\s+/).length <= 20, `${text} is at most 20 words`);
   }
