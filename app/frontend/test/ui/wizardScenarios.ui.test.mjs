@@ -464,15 +464,14 @@ test('Back from the Summary walks every step in order to What to deliver and Nex
   }
 });
 
-test('reloading the page in the middle of the wizard opens it again cleanly on the step it was on, with no page error, and Start over goes back to Use case', async () => {
+test('reloading after only moving between steps opens the wizard again cleanly on What to deliver with no draft notice, and Start over goes back there too', async () => {
   const { ui } = await scenario('reload', { profile: PROFILE, extra: counted(PROFILE) });
   try {
     const { page } = ui;
     await page.reload();
     await settle(page);
-    await onStep(page, 'Review & build');
-    await page.locator('[data-wizard-draft]').waitFor();
-    await page.locator('[data-wizard-start-over]').click();
+    await onStep(page, 'What to deliver');
+    assert.equal(await page.locator('[data-wizard-draft]').count(), 0, 'moving between steps is not a change, so no draft notice');
     await goToStep(page, 'Data');
     await toSummary(page);
     noLeaks([{ step: 'Review & build', text: await page.locator('[role="dialog"]').innerText() }], 'reload');

@@ -742,6 +742,7 @@ export default function ImplementWizard({
     try {
       const got = await apiPostJson(`/api/inspire/implement/grant-access?${q}&${new URLSearchParams({ kind: 'new_apps', table: spec.config.result_table }).toString()}`, {});
       setOutputCheck(await apiFetch(outputCheckPath()));
+      setGrantRound((n) => n + 1);
       setNewAppsGrant({ text: got.detail, ran: got.ran || [] });
     } catch (e) {
       setNewAppsGrant({ text: e.message, ran: [] });
@@ -2256,7 +2257,7 @@ function AppPlacementStep({ spec, targets, targetsError, onTargetsRetry, heldApp
         <h3 className="text-sm font-semibold text-text-primary">Where does the App of this use case go?</h3>
         <p className="text-[11px] text-text-tertiary">Add it to an App Inspire built, or create a new one.{memory && ` ${memory}`}</p>
       </div>
-      <div role="radiogroup" aria-label="Where the App goes" aria-busy={listing} data-choice="app-place" className="space-y-3">
+      <div role="radiogroup" aria-label="Where the App goes" aria-busy={listing} data-choice="app-place" className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
         {(joined || choices.length > 0 || targets === null || targetsError) && <div data-app-place="join" className={placeCard(Boolean(joined))}>
           <label className="flex items-start gap-2.5 cursor-pointer">
             <input type="radio" name="app-place" value="join" className="mt-0.5" checked={Boolean(joined)} disabled={!joined && !open.length}

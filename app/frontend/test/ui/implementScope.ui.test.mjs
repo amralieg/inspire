@@ -816,7 +816,7 @@ test('a forecast on a star fact table with no column to group by still asks Data
     assert.match(await page.locator('[data-first-run-choice="all"] [data-first-run-estimate]').textContent(), /^Everything is 2,880,404 records, about 2,880 times/);
     await page.locator('[data-first-run-choice="all"] input').check();
     await next(page);
-    await page.locator('[aria-current="step"]', { hasText: 'Data & results' }).waitFor();
+    await page.locator('[aria-current="step"]', { hasText: 'Measure' }).waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

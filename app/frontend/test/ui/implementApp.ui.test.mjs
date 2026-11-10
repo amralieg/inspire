@@ -20,7 +20,6 @@ const footerErrors = (page) => page.locator('[role="alert"] p').allTextContents(
 
 async function toDelivery(page) {
   await goToStep(page, 'Data');
-  await dataToResults(page);
   await goToStep(page, 'What to build');
 }
 
@@ -1008,6 +1007,9 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await goToStep(page, 'Where it lives');
     await placeStep(page).locator('[data-app-target]').first().waitFor();
     await fits('4-where-app');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await fits('4-where-app-1280x800');
+    await page.setViewportSize({ width: 1440, height: 900 });
     await readable('where');
     await placeStep(page).locator('[data-app-target] input[type="radio"]:not([disabled])').first().check();
     await fits('4-deliver-app-joining');
