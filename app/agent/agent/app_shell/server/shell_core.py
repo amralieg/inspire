@@ -2531,8 +2531,7 @@ class Shell:
                "scope": shell_sql.scope_view(scoped) if scoped is not None else None}
         for (kind, item_id), result in done.items():
             if kind == "kpi":
-                by = {r.get("period"): r.get("value") for r in result["rows"]}
-                out["kpis"][item_id] = {"now": by.get("now"), "before": by.get("before")}
+                out["kpis"][item_id] = shell_sql.kpi_values(result["rows"])
             else:
                 out[f"{kind}s"][item_id] = result
         out["errors"] = {f"{kind}:{item_id}": unread_hint(message, sqls.get((kind, item_id)), self.settings.get("unread"))
@@ -3583,7 +3582,8 @@ class Shell:
             errors = data["errors"]
             failed([f"{where}: {tile} failed: {message}" for tile, message in sorted(errors.items())])
             for kpi in page.get("kpis") or []:
-                if f"kpi:{kpi['id']}" not in errors and (data["kpis"].get(kpi["id"]) or {}).get("now") is None:
+                if f"kpi:{kpi['id']}" not in errors and (data["kpis"].get(kpi["id"]) or {}).get("now") is None \
+                        and not (data["kpis"].get(kpi["id"]) or {}).get("by_currency"):
                     failed([f"{where}: KPI {kpi['id']} has no value at the default filters"])
             counts = {}
             for kind in ("chart", "table"):

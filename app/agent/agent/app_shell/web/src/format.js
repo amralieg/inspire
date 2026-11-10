@@ -211,6 +211,14 @@ export function isCountable(...names) {
 
 export const wholeFormat = (format, ...names) => ((!format || format === 'number') && isCountable(...names) ? 'integer' : format);
 
+export const kpiHasValue = (data) => data?.now != null || (data?.by_currency?.length > 0);
+
+export function kpiText(kpi, data) {
+  const format = wholeFormat(kpi.format, kpi.label, kpi.unit, kpi.id);
+  if (data?.by_currency?.length) return data.by_currency.map((c) => formatValue(c.now, format, c.currency)).join(' · ');
+  return formatValue(data?.now, format, kpi.currency);
+}
+
 const JARGON = [
   [/\berror\s*\(\s*mase\s*\)|\bmase\b/gi, 'forecast error vs a simple guess'],
   [/\bs?mape\b/gi, 'forecast error %'],
@@ -314,7 +322,7 @@ export function storyPieces(story, kpis, data) {
   const byId = Object.fromEntries((kpis || []).map((k) => [k.id, k]));
   const parts = String(story ?? '').split(STORY_TOKEN);
   const used = parts.map((p) => /^\{([A-Za-z_][A-Za-z0-9_]*)(?::change)?\}$/.exec(p)?.[1]).filter((id) => byId[id]);
-  if (used.some((id) => data?.[id]?.now == null || data[id].now === '')) return [];
+  if (used.some((id) => !kpiHasValue(data?.[id]) || data[id].now === '')) return [];
   const out = [];
   let noneSaid = false;
   for (let i = 0; i < parts.length; i += 1) {
@@ -326,7 +334,7 @@ export function storyPieces(story, kpis, data) {
     }
     const value = data?.[kpi.id];
     if (!m[2]) {
-      out.push({ text: formatValue(value?.now, wholeFormat(kpi.format, kpi.label, kpi.unit, kpi.id), kpi.currency), strong: true });
+      out.push({ text: kpiText(kpi, value), strong: true });
       continue;
     }
     const d = change(value?.now, value?.before);

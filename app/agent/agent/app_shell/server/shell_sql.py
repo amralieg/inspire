@@ -2396,14 +2396,49 @@ def _item(page: dict, key: str, ident: str) -> dict:
     raise KeyError(f"the page has no {key[:-1]} {ident}")
 
 
+CURRENCY_FILTER = "currency"
+
+
+def money_currency_column(page: dict, kpi: dict) -> str:
+    if kpi.get("format") != "currency":
+        return ""
+    for f in page.get("filters") or []:
+        column = (f.get("columns") or {}).get(kpi["dataset"])
+        if f.get("id") == CURRENCY_FILTER and column:
+            return column
+    return ""
+
+
 def kpi_query(page: dict, ident: str, values: dict, previous: str = None) -> tuple:
     kpi = _item(page, "kpis", ident)
     sql, params = _dataset(page, kpi["dataset"]), _Params()
     where = _where(page, kpi["dataset"], values, params)
-    text = f"SELECT 'now' AS period, {kpi['expression']} AS value FROM ({sql}) AS d{where}"
+    by = money_currency_column(page, kpi)
+    split = f", {quote(by)} AS currency" if by else ""
+    group = f" GROUP BY {quote(by)}" if by else ""
+    text = f"SELECT 'now' AS period{split}, {kpi['expression']} AS value FROM ({sql}) AS d{where}{group}"
     if kpi.get("compare") and previous:
-        text += f" UNION ALL SELECT 'before' AS period, {previous_value(kpi['expression'])} AS value FROM ({previous}) AS d{where}"
+        text += (f" UNION ALL SELECT 'before' AS period{split}, {previous_value(kpi['expression'])} AS value FROM ({previous}) AS d{where}"
+                 f"{group}")
     return f"{text} LIMIT {CAPS['kpi_rows']}", params.items
+
+
+def kpi_values(rows) -> dict:
+    """One KPI's shown values: a single total, or a total per currency that is never added across currencies."""
+    rows = rows or []
+    if not any("currency" in r for r in rows):
+        by = {r.get("period"): r.get("value") for r in rows}
+        return {"now": by.get("now"), "before": by.get("before")}
+    per = {}
+    for r in rows:
+        if "currency" not in r:
+            continue
+        entry = per.setdefault(r.get("currency") or "", {"currency": r.get("currency") or "", "now": None, "before": None})
+        if r.get("period") in ("now", "before"):
+            entry[r["period"]] = r.get("value")
+    by_currency = [per[c] for c in sorted(per)]
+    single = by_currency[0] if len(by_currency) == 1 else None
+    return {"now": single["now"] if single else None, "before": single["before"] if single else None, "by_currency": by_currency}
 
 
 def split_filters(page: dict, dataset: str) -> list:
@@ -2433,6 +2468,9 @@ def kpi_split_query(page: dict, ident: str, filter_ident: str, values: dict, lim
         raise ValueError(split_choices_text(page, kpi["dataset"]))
     chart = {"id": "split", "dataset": kpi["dataset"], "type": "bar", "limit": limit,
              "x": {"column": split["columns"][kpi["dataset"]], "kind": "category"}, "y": [{"expression": kpi["expression"]}]}
+    by = money_currency_column(page, kpi)
+    if by:
+        chart["series"] = {"column": by}
     return chart_query(dict(page, charts=[chart]), "split", values)
 
 

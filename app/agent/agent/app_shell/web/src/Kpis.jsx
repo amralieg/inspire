@@ -1,4 +1,4 @@
-import { change, changeParts, changeText, formatValue, storyPieces, wholeFormat } from './format.js';
+import { change, changeParts, changeText, kpiText, storyPieces } from './format.js';
 import { HUES } from './theme.js';
 import { Icon } from './icons.jsx';
 import { Skeleton, useRetry } from './ui.jsx';
@@ -12,7 +12,7 @@ import { AskGenie } from './AskGenie.jsx';
 import { SectionHelp } from './SectionHelp.jsx';
 import { helpLine } from './help.js';
 
-export const kpiValue = (kpi, data) => formatValue(data?.now, wholeFormat(kpi.format, kpi.label, kpi.unit, kpi.id), kpi.currency);
+export const kpiValue = (kpi, data) => kpiText(kpi, data);
 
 function kpiContext(kpi, data, error, scope) {
   if (error) return { hint: kpi.caption || '', fields: { Error: error } };

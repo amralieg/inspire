@@ -1335,7 +1335,10 @@ class Agent:
                 sql, params = shell_sql.kpi_query(page, kpi["id"], values)
                 item["counts"] = run_scope(sql)
                 rows = self.shell.run(ws, who, sql, params, shell_sql.CAPS["kpi_rows"])["rows"]
-                item["value"] = next((r.get("value") for r in rows if r.get("period") == "now"), None)
+                shown = shell_sql.kpi_values(rows)
+                item["value"] = shown["now"]
+                if shown.get("by_currency"):
+                    item["by_currency"] = shown["by_currency"]
             except (HttpError, QueryError, ValueError, KeyError) as error:
                 item["error"] = getattr(error, "message", None) or shell_sql.error_text(error)
             out.append(item)
@@ -1488,13 +1491,16 @@ class Agent:
         sql, params = shell_sql.kpi_split_query(page, kpi["id"], by, values, SPLIT_ROWS)
         rows = self.shell.run(ws, turn.who, sql, params, SPLIT_ROWS)["rows"]
         sql, params = shell_sql.kpi_query(page, kpi["id"], values)
-        total = next((r.get("value") for r in self.shell.run(ws, turn.who, sql, params, shell_sql.CAPS["kpi_rows"])["rows"]
-                      if r.get("period") == "now"), None)
+        shown = shell_sql.kpi_values(self.shell.run(ws, turn.who, sql, params, shell_sql.CAPS["kpi_rows"])["rows"])
+        total = shown["now"]
         shares = shell_sql.is_additive(kpi["expression"]) and isinstance(total, (int, float)) and total != 0
-        return {"kpi": kpi.get("label") or kpi["id"], "filter": split.get("label") or split["id"], "total": total,
-                "rows": [dict({"value": cut(r.get("x")), "kpi_value": r.get("y0")},
-                              **({"share": r["y0"] / total} if shares and isinstance(r.get("y0"), (int, float)) else {})) for r in rows],
-                "truncated": len(rows) >= SPLIT_ROWS}
+        out = {"kpi": kpi.get("label") or kpi["id"], "filter": split.get("label") or split["id"], "total": total,
+               "rows": [dict({"value": cut(r.get("x")), "kpi_value": r.get("y0")}, **({"currency": r["s"]} if "s" in r else {}),
+                             **({"share": r["y0"] / total} if shares and isinstance(r.get("y0"), (int, float)) else {})) for r in rows],
+               "truncated": len(rows) >= SPLIT_ROWS}
+        if shown.get("by_currency"):
+            out["by_currency"] = shown["by_currency"]
+        return out
 
     def tool_change_view(self, turn: Turn, job: dict, args: dict) -> dict:
         raw = args.get("actions")
