@@ -110,7 +110,8 @@ def test_the_dashboard_is_built_from_the_page_spec_and_the_app_reuses_it_without
     assert never.prompts == [], "the App reuses the dashboard's page spec; Genie is not asked again"
     name, files, reads, _space = seen["deployed"][0]
     deployed = json.loads(files["pages/n01_u01.json"])
-    assert {k: v for k, v in deployed.items() if k not in ("genie", "genie_note")} == page and name == "churn-desk"
+    assert {k: v for k, v in deployed.items() if k not in ("genie", "genie_note", "tour")} == page and name == "churn-desk"
+    assert deployed["tour"]["steps"] and set(deployed["tour"]["steps"]) == {"English"}, "the App writes its own tour, the dashboard spec has none"
     assert "genie" not in page and "genie_note" not in page, "the dashboard's page spec never carries the App's Genie Agent"
     assert deployed["genie"] is None
     assert deployed["genie_note"] == "Ask Genie is off because this use case's Genie Agent is not ready: it was not built", \

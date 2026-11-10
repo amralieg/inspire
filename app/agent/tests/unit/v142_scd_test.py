@@ -911,12 +911,12 @@ def test_the_first_run_reads_a_source_table_only_for_group_counts_newest_dates_a
 
 def test_the_share_step_only_grants_select_on_the_tables_its_plan_lists(history_source):
     assert _history_problems(history_source) == []
-    granted = 'f"GRANT SELECT ON TABLE {inspire_table_name(name)} TO `{p}`"'
+    granted = 'f"GRANT SELECT ON TABLE {inspire_table_name(name)} TO {inspire_quote_principal(p)}"'
     assert granted in history_source
     share = next(node for node in ast.walk(ast.parse(history_source)) if isinstance(node, ast.FunctionDef) and node.name == SHARE_GRANT[0])
     loop = next(node.lineno for node in ast.walk(share) if isinstance(node, ast.Call) and ast.unparse(node) == SHARE_GRANT[1])
     assert any(line == loop and sql.startswith(SHARE_GRANT[2]) for line, sql in guard.audit(history_source)[0])
-    for bad, verb in (('f"GRANT MODIFY ON TABLE {inspire_table_name(name)} TO `{p}`"', "GRANT MODIFY ON TABLE"),
+    for bad, verb in (('f"GRANT MODIFY ON TABLE {inspire_table_name(name)} TO {inspire_quote_principal(p)}"', "GRANT MODIFY ON TABLE"),
                       ('f"DROP TABLE {inspire_table_name(name)}"', "DROP TABLE"), ('f"SELECT * FROM {inspire_table_name(name)}"', "SELECT * FROM")):
         assert any(problem.startswith(f"{SHARE_GRANT[0]} runs {verb}") for problem in _history_problems(history_source.replace(granted, bad))), bad
     rebound = history_source.replace("    plan = inspire_share_plan(table, existing, grants, reads)\n", "    plan = list(names)\n")

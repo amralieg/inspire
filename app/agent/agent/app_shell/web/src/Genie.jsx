@@ -2,7 +2,7 @@ import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react
 import { GenieMark, Icon } from './icons.jsx';
 import { agentAsk, agentFeedback, agentStatus, agentTurn, askGenie, explainGenie, retryable, undoRecords, writeRecord } from './api.js';
 import { reducedMotion } from './theme.js';
-import { cellText, integer, isKeyColumn, plainWords } from './format.js';
+import { answerLabel, cellText, integer, isKeyColumn } from './format.js';
 import DataTable from './DataTable.jsx';
 import Markdown from './Markdown.jsx';
 import { BUSY_TITLE, explainBody } from './explain.js';
@@ -23,7 +23,7 @@ function answerColumns(answer) {
   const rows = answer.rows || [];
   return (answer.columns || []).map((c) => {
     const num = !isKeyColumn(c.name, c.type) && rows.some((r) => typeof r[c.name] === 'number') && rows.every((r) => r[c.name] == null || typeof r[c.name] === 'number');
-    return { key: c.name, label: plainWords(c.name), num, render: (r) => (r[c.name] == null ? '' : cellText(r[c.name], c)) };
+    return { key: c.name, label: answerLabel(c.name), num, render: (r) => (r[c.name] == null ? '' : cellText(r[c.name], c)) };
   });
 }
 

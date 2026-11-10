@@ -72,7 +72,7 @@ test('axis labels keep one decimal so 1.2K and 1.4K do not both read 1K', () => 
 
 test('the first step and every record title name the entity, not its id', () => {
   const layouts = src('Layouts.jsx');
-  assert.match(layouts, /const name = entityName\(first, label\) \|\| recordKeyOf\(first\);\n\s*const value = \['Start with ', name, ': it is first in the list because it matters most\.'\];/);
+  assert.match(layouts, /const name = entityName\(first, label\);\n\s*const value = name \? \['Start with ', name, ': it is first in the list because it matters most\.'\]\n\s*: \['Start with the first record on the list: it is first in the list because it matters most\.'\];/);
   assert.match(layouts, /<bdi>\{s\.value\[1\]\}<\/bdi>/);
   const records = src('Records.jsx');
   assert.match(records, /export const recordName = \(row, meta\) => entityName\(row, meta\?\.label\);/);
@@ -91,7 +91,7 @@ test('a Genie answer that is still running says how long it has taken and how lo
   assert.equal(paceText(95), '95 s: longer than usual, Genie keeps working for up to 3 minutes');
   assert.equal(paceText(181), '181 s: Genie stops at 3 minutes');
   assert.match(src('Genie.jsx'), /<Pace since=\{m\.n\} \/>/);
-  assert.match(src('Genie.jsx'), /label: plainWords\(c\.name\)/);
+  assert.match(src('Genie.jsx'), /label: answerLabel\(c\.name\)/);
 });
 
 test('a list where every row is low confidence says so once, with why and what would raise it', async () => {

@@ -232,6 +232,15 @@ export function plainWords(text) {
   return out ? out.charAt(0).toUpperCase() + out.slice(1) : raw;
 }
 
+const AGGREGATE_WORDS = { sum: 'Total', avg: 'Average', count: 'Count', min: 'Lowest', max: 'Highest' };
+
+export function answerLabel(name) {
+  const call = /^(\w+)\((.*)\)$/.exec(String(name ?? '').trim());
+  const word = call && AGGREGATE_WORDS[call[1].toLowerCase()];
+  if (!word) return plainWords(name);
+  return `${word} ${String(plainWords(call[2]) ?? '').toLowerCase()}`;
+}
+
 export function plainChart(chart) {
   const y = Array.isArray(chart?.y) ? chart.y.map((s) => ({ ...s, label: plainWords(s.label), format: wholeFormat(s.format, s.label) })) : chart?.y;
   return { ...chart, y, ...(chart?.x ? { x: { ...chart.x, label: plainWords(chart.x.label) } } : {}) };

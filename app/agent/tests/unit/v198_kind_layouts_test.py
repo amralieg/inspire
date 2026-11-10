@@ -71,14 +71,15 @@ def test_the_kinds_registry_lists_every_layout_with_sections_minimum_items_and_a
 def test_the_layout_examples_pass_the_spec_and_quality_checks_and_each_names_an_enabled_layout():
     folder = os.path.join(SHELL, "examples")
     names = sorted(n[:-5] for n in os.listdir(folder) if n.endswith(".json"))
+    layouts = {l["id"] for l in KINDS["layouts"]}
     assert names and "decision_queue" not in names
     for name in names:
         with open(os.path.join(folder, f"{name}.json"), encoding="utf-8") as handle:
             page = json.load(handle)
-        assert page["layout"] == name and page["version"] == shell_sql.SPEC_VERSION
+        assert page["version"] == shell_sql.SPEC_VERSION and page["layout"] in shell_sql.enabled_layouts(), name
+        assert name not in layouts or page["layout"] == name, f"{name} is a layout's example and must name that layout"
         assert problems(page) == [], name
-        assert layout(name)["enabled"] is True, name
-    assert set(names) <= set(shell_sql.enabled_layouts())
+        assert layout(page["layout"])["enabled"] is True, name
 
 
 def test_a_version_1_page_loads_as_a_decision_queue_and_a_version_2_page_must_name_its_layout():

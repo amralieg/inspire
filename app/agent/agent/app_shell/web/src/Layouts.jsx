@@ -64,8 +64,9 @@ export function todoSteps(page, list, { modify = false, accept = false, plan = f
     steps.push({ id: 'so_what', text: 'Read the “So what” line under each chart: it says what to do with it.', action: null });
     if (page.filters?.length) steps.push({ id: 'filters', text: 'Use the filters at the top to narrow every chart to the part you own.', action: null });
   } else if (first) {
-    const name = entityName(first, label) || recordKeyOf(first);
-    const value = ['Start with ', name, ': it is first in the list because it matters most.'];
+    const name = entityName(first, label);
+    const value = name ? ['Start with ', name, ': it is first in the list because it matters most.']
+      : ['Start with the first record on the list: it is first in the list because it matters most.'];
     steps.push({ id: 'first', text: value.join(''), value, action: 'Show me', to });
     if (page.plan && plan) steps.push({ id: 'plan', text: 'Take the ★ suggested line in the plan, or override it with a reason.', action: 'Open the plan', to });
     else if (page.plan) steps.push({ id: 'plan_read', text: 'Read each line of the plan next to its ★ suggested value, largest change first.', action: 'Open the plan', to });

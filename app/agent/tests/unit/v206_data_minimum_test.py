@@ -192,6 +192,7 @@ def test_build_checks_the_minimum_before_genie_on_every_notebook_build(agent_ns)
     inst, _agent, _spark = builder(agent_ns, "Deep")
     inst._implement_missing_tables = lambda tables: []
     inst._implement_role_problems = lambda spec, use_case: []
+    inst._implement_source_protection = lambda key, spec, use_case, status, warnings: {}
     order = []
     inst._implement_data_minimum = lambda key, spec, use_case, status, adapt=True: order.append((key, use_case["No"], adapt))
     inst._implement_source_checks(KEY, {}, churn(), {})
