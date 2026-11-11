@@ -51,7 +51,11 @@ test('backend widget allowlist matches the notebook contract', () => {
 test('the generation widget offers PDF, Presentation and Excel, and defaults to no documents (REQ-077)', () => {
   assert.match(source, /dbutils\.widgets\.multiselect\(\s*"09_generation_options"/);
   assert.match(source, /generation_options = \[[\s\S]{0,200}"Excel"/);
-  assert.match(source, /dbutils\.widgets\.multiselect\(\s*"09_generation_options",\s*\n\s*"",/);
+  const widget = source.match(/dbutils\.widgets\.multiselect\(\s*"09_generation_options",\s*\n\s*"([^"]*)",/);
+  const choices = [...source.match(/generation_options = \[([^\]]*)\]/)[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(widget, 'the generation widget has a default');
+  assert.ok(choices.includes(widget[1]), `the widget default "${widget[1]}" must be one of its choices ${JSON.stringify(choices)}`);
+  assert.ok(choices.includes('Excel'));
   assert.doesNotMatch(source, /dbutils\.widgets\.multiselect\(\s*"09_generation_options"[\s\S]{0,400}Genie Code Instructions/);
 });
 
