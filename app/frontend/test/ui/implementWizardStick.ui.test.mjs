@@ -96,11 +96,11 @@ test('removing an App another use case shares offers to take this use case\'s pa
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
     const tile = page.locator('[data-output="app"]');
     await tile.getByText('This use case already has an App. What should happen to it?').waitFor();
-    await tile.getByRole('radio', { name: 'Delete it' }).check();
     const takeOut = tile.getByRole('radio', { name: TAKE_OUT });
     await takeOut.waitFor();
-    assert.equal(await takeOut.isChecked(), true, 'the choice the person made stays, only its words change');
-    assert.equal(await tile.getByRole('radio', { name: 'Delete it' }).count(), 0);
+    assert.equal(await tile.getByRole('radio', { name: 'Delete it' }).count(), 0, 'a shared App is never offered as Delete it');
+    await takeOut.check();
+    assert.equal(await takeOut.isChecked(), true, 'the take-out choice is the one the person made');
     const plan = async () => {
       await toSummary(page);
       const toggle = page.getByRole('button', { name: /^(Change|Close) checks and plan$/ });
