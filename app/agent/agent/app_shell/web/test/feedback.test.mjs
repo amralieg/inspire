@@ -88,19 +88,21 @@ test('the Settings section holds App Feedback, picks the section it is about, li
   await limited.context.close();
 });
 
-test('the Dashboard offers Report an issue and Runs does not, and a page with no result table offers neither', async () => {
+test('Report an issue is offered on every page type, with or without a result table, and it opens the form', async () => {
   const bare = await openApp(browser, served.base, appInfo(), { hash: '#/n01_u05/settings', ready: '[data-group="look"]' });
-  assert.equal(await bare.page.locator('[data-group="feedback"]').count(), 0);
+  await bare.page.locator('[data-group="feedback"]').waitFor();
   await bare.page.locator('[data-rail="dashboard"]').click();
   await bare.page.locator('.ph h1').waitFor();
-  assert.equal(await bare.page.locator('[data-feedback-open]').count(), 0);
+  await bare.page.locator('[data-feedback-open]').click();
+  await bare.page.locator('[data-feedback-form]').waitFor();
   await bare.context.close();
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), {});
   await page.locator('[data-head-more]').waitFor({ state: 'attached' });
   await page.locator('[data-rail="runs"]').click();
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
   await page.locator('[data-section-title]', { hasText: 'Runs' }).waitFor();
-  assert.equal(await page.locator('[data-feedback-open]').count(), 0);
+  await page.locator('[data-feedback-open]').click();
+  await page.locator('[data-feedback-form]').waitFor();
   assert.deepEqual(seen.errors, []);
   await context.close();
 });

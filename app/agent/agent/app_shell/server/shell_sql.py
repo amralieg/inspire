@@ -1101,15 +1101,32 @@ def column_filters(entries, shown: dict, types=None) -> list:
     return out
 
 
+def page_grouping(page: dict, named) -> dict:
+    records = page.get("records") if isinstance(page.get("records"), dict) else {}
+    shown = {column.lower(): label for column, (label, _kind) in list_shown(records).items()}
+    group_by = [{"column": str(name), "label": shown.get(str(name).lower()) or _column_label(str(name))} for name in named]
+    return {"mode": "columns", "group_by": group_by} if group_by else {}
+
+
+def grouping_columns(page: dict) -> set:
+    grouping = page.get("grouping") if isinstance(page.get("grouping"), dict) else {}
+    return {str(g["column"]).lower() for g in grouping.get("group_by") or [] if isinstance(g, dict) and isinstance(g.get("column"), str)}
+
+
 def list_column_filters(page: dict, types=None, actions: bool = False) -> list:
     records = page.get("records")
     if not isinstance(records, dict):
         return []
-    found = column_filters(records.get(COLUMN_FILTERS), list_shown(records), types)
-    taken = {f["column"] for f in found}
+    shown = list_shown(records)
+    wanted = grouping_columns(page)
+    found = [dict(f, grouping=True) if f["column"].lower() in wanted and f["type"] == "multi_select" else f
+             for f in column_filters(records.get(COLUMN_FILTERS), shown, types)]
+    grouped = [{"column": column, "type": "multi_select", "label": label, "grouping": True}
+               for column, (label, _kind) in shown.items() if column.lower() in wanted and column not in {f["column"] for f in found}]
+    taken = {f["column"] for f in found + grouped}
     offered = actions and records.get(COLUMN_FILTERS) is not False
-    return found + [{"column": column, "type": "multi_select", "label": label, "implied": True, "action": True}
-                    for column, label, _target in ACTION_FILTERS if offered and column not in taken]
+    return found + grouped + [{"column": column, "type": "multi_select", "label": label, "implied": True, "action": True}
+                              for column, label, _target in ACTION_FILTERS if offered and column not in taken]
 
 
 def table_column_filters(table: dict, types=None) -> list:

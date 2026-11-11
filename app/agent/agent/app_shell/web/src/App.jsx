@@ -30,7 +30,7 @@ const Tour = lazy(() => import('./Tour.jsx'));
 const Performance = lazy(() => import('./Performance.jsx'));
 
 const THEME_KEY = 'inspire-app-theme';
-const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', settings: 'sliders' };
+const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', impact: 'trend', feedback: 'info', reports: 'history', settings: 'sliders' };
 
 function initials(user) {
   const source = user?.name || user?.email || '';

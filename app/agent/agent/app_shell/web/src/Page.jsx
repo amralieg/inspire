@@ -21,6 +21,7 @@ import SettingsPanel, { SettingGroup, useSettings } from './Settings.jsx';
 import { paletteItems } from './Palette.jsx';
 import { FoldScope, useMyView } from './MyView.jsx';
 import { isLaidOut, isQueue, pageSections } from './Layouts.jsx';
+import { feedbackSectionOf } from './feedback.js';
 import { windowParams } from './prefs.js';
 import { pageDecides, statusChoices } from './records.js';
 import { GenieScope } from './AskGenie.jsx';
@@ -38,6 +39,9 @@ import { KPI_TARGET, MEASURES, kpiGap, kpiGapText, promisedView, valueLine } fro
 
 const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
+const FeedbackScreen = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackScreen })));
+const ReportedIssues = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.ReportedIssues })));
+const PromisedDelivered = lazy(() => import('./Performance.jsx').then((m) => ({ default: m.PromisedDelivered })));
 const InboxSection = lazy(() => import('./InboxSection.jsx'));
 const WaitingForAccess = lazy(() => import('./WaitingForAccess.jsx'));
 const WorkPage = lazy(() => import('./WorkPage.jsx'));
@@ -262,8 +266,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const kpiTargetSetting = settings?.settings?.find((s) => s.name === KPI_TARGET);
   const kpiTarget = kpiTargetSetting?.value ?? '';
   const kpiGapLine = kpiRun?.kpi_name ? `${kpiRun.kpi_name}: ${kpiGapText(kpiGap({ latest: kpiRun.kpi_latest, target: kpiTarget, direction: kpiRun.kpi_direction }), kpiRun.kpi_unit)}` : '';
-  const reporting = !!page.history;
-  const report = { section: shown, filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
+  const report = { section: feedbackSectionOf(shown), filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
   const head = (
     <header className="ph" data-tour="decision">
       <div className="pg-h">
@@ -342,9 +345,12 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         </Suspense>
       )}
       {shown === 'alerts' && <Suspense fallback={<Waiting />}><Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} /></Suspense>}
+      {shown === 'impact' && <Suspense fallback={<Waiting />}><PromisedDelivered app={app} page={page} summary={summary} /></Suspense>}
+      {shown === 'feedback' && <Suspense fallback={<Waiting />}><FeedbackScreen pageId={page.id} context={report} sections={sections} /></Suspense>}
+      {shown === 'reports' && <Suspense fallback={<Waiting />}><ReportedIssues pageId={page.id} /></Suspense>}
       {shown === 'settings' && (
         <SettingsPanel pageId={page.id} data={settings} error={settingsError} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRun={freshness.ask} running={freshness.busy}
-          footer={reporting && (
+          footer={(
             <SettingGroup id="feedback" title="App Feedback" why="Tell the owners of this use case what is wrong or what you would change. They see it on its Build page in Inspire.">
               <Suspense fallback={<Skeleton height={120} />}>
                 <FeedbackSettings pageId={page.id} context={{ ...report, section: 'settings' }} sections={sections} />
