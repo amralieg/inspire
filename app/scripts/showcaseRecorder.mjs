@@ -650,7 +650,7 @@ export async function requestMyWork(page, { log, where }) {
   log(`${where}: no My work screen, so its ${PERIODS.length} periods were requested from the App's own route`);
 }
 
-export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, blocked, log = () => {}, rows = 2, questions = 4 }) {
+export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, blocked, log = () => {}, rows = 2, questions = 4, periods = false }) {
   const page = await context.newPage();
   const origin = new URL(url).origin;
   await page.route((u) => u.origin === origin && u.pathname.startsWith('/api/'), async (route) => {
@@ -683,7 +683,7 @@ export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, 
       await walkScreen(page, settle, { rows, questions: shared ? 0 : questions, log, where: title, home: await screenOf(page), goBack });
       performed = (await walkPerformance(page, settle, { log, where: title })) || performed;
     }
-    if (!performed) await requestMyWork(page, { log, where: origin });
+    if (periods && !performed) await requestMyWork(page, { log, where: origin });
     log(`MVP App ${origin}: walked ${n} screens`);
   } finally {
     await page.unrouteAll({ behavior: 'ignoreErrors' });
