@@ -2182,8 +2182,13 @@ function columnMatchCtes(candidateWhere) {
     + `WHERE k0.table_catalog <> 'system' AND k0.table_schema <> 'information_schema' AND NOT (${SOURCE_COLUMNS})${candidateWhere}) `;
 }
 
-function tableSwapStatement(name, requiredColumns = []) {
+function sourceParams(name) {
   const t = tableParts(name);
+  return [{ name: 'c', value: t.catalog, type: 'STRING' }, { name: 's', value: t.schema, type: 'STRING' },
+    { name: 't', value: t.table, type: 'STRING' }];
+}
+
+function tableSwapStatement(name, requiredColumns = []) {
   const required = requiredColumns.map((c) => str(c).trim().toLowerCase()).filter(Boolean);
   if (required.some((c) => !/^[a-z0-9_]{1,128}$/.test(c))) throw badRequest('required columns must be plain column names');
   const requiredParams = required.map((c, i) => ({ name: `r${i}`, value: c, type: 'STRING' }));
@@ -2196,8 +2201,21 @@ function tableSwapStatement(name, requiredColumns = []) {
       + 'FROM k JOIN o ON k.c = o.c AND k.ty = o.ty CROSS JOIN n '
       + `GROUP BY k.table_catalog, k.table_schema, k.table_name HAVING COUNT(*) >= GREATEST(2, CEIL(MAX(n.total) * 0.5))${requiredClause} `
       + 'ORDER BY matched DESC, k.table_catalog, k.table_schema, k.table_name LIMIT 20',
-    parameters: [{ name: 'c', value: t.catalog, type: 'STRING' }, { name: 's', value: t.schema, type: 'STRING' },
-      { name: 't', value: t.table, type: 'STRING' }, ...requiredParams],
+    parameters: [...sourceParams(name), ...requiredParams],
+  };
+}
+
+// The copy a person made of a built-in sample lives in a catalog they own, under any name (the walk's copy of
+// samples.nyctaxi.trips is nyctaxi_trips), so it is found by its columns. Only owned catalogs are scanned, which keeps
+// the lookup cheap on a large metastore; a copy has every column of the source.
+function copySwapStatement(name) {
+  return {
+    sql: `${columnMatchCtes(' AND own.catalog_name IS NOT NULL')}`
+      + 'SELECT k.table_catalog, k.table_schema, k.table_name, COUNT(*) AS matched, MAX(n.total) AS total, MAX(k.owned) AS owned '
+      + 'FROM k JOIN o ON k.c = o.c AND k.ty = o.ty CROSS JOIN n '
+      + 'GROUP BY k.table_catalog, k.table_schema, k.table_name HAVING COUNT(*) = MAX(n.total) '
+      + 'ORDER BY k.table_catalog, k.table_schema, k.table_name LIMIT 5',
+    parameters: sourceParams(name),
   };
 }
 
@@ -2359,6 +2377,7 @@ function checkedSourceTables(spec, involved) {
 
 const IMPLEMENT_TABLES_NO_SIGN_IN = 'Inspire reads the new tables with your own sign-in, and this request carries none, so it cannot tell whether the change rebuilds anything';
 const IMPLEMENT_SWAPS_NO_SIGN_IN = 'Inspire looks for similar tables with your own sign-in, and this request carries none, so it suggests none';
+const IMPLEMENT_SWAPS_TOO_SLOW = 'The search for similar tables took too long. Use Search for another table to pick one.';
 
 const lowerName = (value) => str(value).trim().toLowerCase();
 const byLowerName = (a, b) => {
@@ -3784,6 +3803,7 @@ module.exports = {
   columnsStatement,
   primaryKeysStatement,
   tableSwapStatement,
+  copySwapStatement,
   tableMatchStatement,
   columnValuesStatement,
   readinessStatement,
@@ -3796,6 +3816,7 @@ module.exports = {
   checkedSourceTables,
   IMPLEMENT_TABLES_NO_SIGN_IN,
   IMPLEMENT_SWAPS_NO_SIGN_IN,
+  IMPLEMENT_SWAPS_TOO_SLOW,
   implementTableSwapChanges,
   implementTableChange,
   implementTableChangeText,

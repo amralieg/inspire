@@ -47,6 +47,34 @@ test('a built-in sample source is refused, the picker lists the person’s own c
   }
 });
 
+test('a slow catalog search does not hold the copy: the copy is listed within 2 s and the similar tables arrive later', async () => {
+  const SIMILAR = { table_catalog: 'main', table_schema: 's2', table_name: 'orders_v2', matched: '5', total: '6' };
+  const ui = await openUi('wizard', {
+    me: ME, useCase: SAMPLE_CASE, history: [], forwardedToken: PERSON, columnsByTable: COLUMNS,
+    swapRowsByToken: { [PERSON]: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
+    statements: { 'GREATEST(2, CEIL(': async () => {
+      await new Promise((done) => setTimeout(done, 5000));
+      return { rows: [SIMILAR, COPY_ROW] };
+    } },
+  });
+  try {
+    const { page } = ui;
+    await goToStep(page, 'Data');
+    await page.getByText(BUILT_IN, { exact: false }).first().waitFor({ timeout: 15000 });
+    const started = Date.now();
+    await tableRow(page, SAMPLE).getByRole('button', { name: 'Change', exact: true }).click();
+    await page.waitForFunction((text) => [...document.querySelectorAll('option')].some((o) => o.textContent.trim() === text),
+      `Your copy of ${SAMPLE} (${COPY})`, { timeout: 2000 });
+    assert.ok(Date.now() - started < 2000 + 1000, 'the copy did not wait for the slow search');
+    assert.equal((await optionTexts(picker(page, SAMPLE))).some((t) => t.includes('columns match')), false, 'the similar tables have not arrived yet');
+    await picker(page, SAMPLE).locator('option', { hasText: 'main.s2.orders_v2 (5 of 6 columns match)' }).waitFor({ state: 'attached', timeout: 15000 });
+    assert.deepEqual((await optionTexts(picker(page, SAMPLE))).slice(0, 2), [`${SAMPLE} (Inspire's pick)`, `Your copy of ${SAMPLE} (${COPY})`]);
+    assert.deepEqual(ui.pageErrors.filter((line) => !/status of 401/.test(line)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('a table typed into the picker is checked with the person’s sign-in: a readable table in another catalog is used, and one they cannot read is refused (must-exclude)', async () => {
   const ui = await openUi('wizard', {
     me: ME, history: [], forwardedToken: PERSON, columnsByTable: COLUMNS, probeErrors: { '`other`.`x`.`trips_copy`': FOREIGN_DENIED },

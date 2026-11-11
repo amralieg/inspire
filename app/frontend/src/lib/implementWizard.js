@@ -3011,3 +3011,19 @@ export function appStatusRows(appStatus, asset) {
 export function runProfileText(profile) {
   return profile || 'full (job default)';
 }
+
+// Similar tables arrive in two requests: the person's own copy of a built-in sample first (a cheap lookup in the catalogs
+// they own), then the wider search. onPart gets each list as it lands; why is null for the copy so it never overwrites
+// the search's reason.
+export function swapParts(post, table, onPart) {
+  const body = { table, required_columns: [] };
+  const copy = post('copy', body).then((data) => { if (data.swaps?.length) onPart(data.swaps, null); });
+  const similar = post('', body).then((data) => onPart(data.swaps || [], data.why || ''));
+  return Promise.all([copy, similar]);
+}
+
+export function mergeSwaps(prior = [], arriving = []) {
+  const seen = new Set();
+  return [...arriving, ...prior].filter((s) => (seen.has(s.table) ? false : seen.add(s.table)))
+    .sort((a, b) => Number(Boolean(b.copy)) - Number(Boolean(a.copy)));
+}
