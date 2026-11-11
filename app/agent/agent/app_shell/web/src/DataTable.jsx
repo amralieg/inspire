@@ -7,7 +7,7 @@ import { MONEY_COLUMN } from './records.js';
 import { askGenieAbout } from './genieAsk.js';
 import { ColumnFilterStatus, withColumnFilters } from './ColumnFilters.jsx';
 import { columnFiltersOn, withValue } from './filters.js';
-import { columnName, filterRows, localFilters, movableKeys, moveKey, orderColumns, sameOrder, savedOrder } from './grid.js';
+import { columnName, filterRows, localFilters, movableKeys, moveKey, orderColumns, sameOrder, savedOrder, searchRows } from './grid.js';
 import { useMyView } from './MyView.jsx';
 import { columnOrder, setColumnOrder } from './prefs.js';
 import { AskGenie } from './AskGenie.jsx';
@@ -101,12 +101,15 @@ const isolated = (c, v) => (!c.num && typeof v === 'string' && v ? <bdi>{v}</bdi
 const cellClass = (c, row) => [c.num ? 'num' : '', c.className || '', row && c.cellClass ? c.cellClass(row) : ''].filter(Boolean).join(' ') || undefined;
 
 export default function DataTable({ columns: given, rows: all, initialSort, rowKey, onRow, empty = 'No row matches these filters.', label, sort: served, onSort, paged = true,
-  rowClass, rowProps, detail, detailClass = 'tbl-detail', askAbout, askRow, grid, filtering = 'local', tableClass = '' }) {
+  rowClass, rowProps, detail, detailClass = 'tbl-detail', askAbout, askRow, grid, filtering = 'local', tableClass = '', query: givenQuery, onQuery }) {
   const base = askAbout || askRow ? [...given, askColumn(askAbout, askRow)] : given;
   const rows = all || [];
   const { ordered, order, moved, keep } = useColumnOrder(base, grid);
   const [own, setOwn] = useState(initialSort || null);
   const [picked, setPicked] = useState({});
+  const [ownQuery, setOwnQuery] = useState('');
+  const query = onQuery ? givenQuery || '' : ownQuery;
+  const setQuery = onQuery || setOwnQuery;
   const [said, setSaid] = useState('');
   const [over, setOver] = useState('');
   const [focusKey, setFocusKey] = useState('');
@@ -118,7 +121,7 @@ export default function DataTable({ columns: given, rows: all, initialSort, rowK
   const [size, setSize] = useState(12);
   useEffect(() => { setAt(0); }, [all, picked]);
   const filters = useMemo(() => (local ? localFilters(base, rows) : []), [local, base, rows]);
-  const kept = useMemo(() => (local ? filterRows(rows, base, filters, picked) : rows), [local, rows, base, filters, picked]);
+  const kept = useMemo(() => searchRows(local ? filterRows(rows, base, filters, picked) : rows, base, query), [local, rows, base, filters, picked, query]);
   const columns = local ? withColumnFilters(ordered, filters, picked, (column, value) => setPicked((p) => withValue(p, column, value)), null, null) : ordered;
   const sorted = useMemo(() => {
     if (!sort || onSort) return kept;
@@ -247,7 +250,11 @@ export default function DataTable({ columns: given, rows: all, initialSort, rowK
         </table>
       </div>
       {!rows.length && <p className="more">{empty}</p>}
-      {rows.length > 0 && !kept.length && <p className="more">No row matches these column filters.</p>}
+      {(rows.length > 0 || query) && (
+        <label className="search tbl-search"><Icon name="search" size={14} /><input dir="auto" type="search" value={query} onChange={(e) => setQuery(e.target.value)}
+          placeholder="Search the rows" aria-label="Search the rows" maxLength={200} data-table-search /></label>
+      )}
+      {(rows.length > 0 || query) && !kept.length && <p className="more">No row matches this search or these column filters.</p>}
       {paged && sorted.length > 12 && (
         <div className="pager">
           <span>Rows per page</span>

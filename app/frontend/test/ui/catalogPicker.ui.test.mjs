@@ -9,9 +9,7 @@ const many = Array.from({ length: 80 }, (_, i) => `cat_${String(i).padStart(3, '
 
 async function resultStep(state) {
   const ui = await openUi('wizard', { me: { userName: 'owner@example.com', displayName: 'Owner' }, schemas: { main: ['inspire'] }, ...state });
-  await goToStep(ui.page, 'What to build');
   await goToStep(ui.page, 'Data');
-  await dataToResults(ui.page);
   const step = ui.page.getByRole('region', { name: 'Where the result table lives' });
   await step.getByRole('heading', { name: 'Where should the result table live?' }).waitFor();
   return { ui, step: ui.page.getByRole('group', { name: 'Result table catalog and schema' }) };
@@ -47,7 +45,7 @@ test('Results makes a new schema or catalog for the result table with the right 
   const { ui, step } = await resultStep({ catalogs: ['main', 'sales'] });
   const { page, made } = ui;
   try {
-    assert.equal(await page.getByRole('button', { name: /^(Change|Close) / }).count(), 0, 'the place is on Results, not under Advanced');
+    assert.equal(await page.getByRole('region', { name: 'Where the result table lives' }).getByRole('button', { name: /^(Change|Close) / }).count(), 0, 'the place is on Data & results, not under Advanced');
     const box = page.getByRole('region', { name: 'Where the result table lives' }).getByRole('group', { name: 'New catalog or schema' });
     await box.getByText('Needs CREATE SCHEMA on the catalog.', { exact: true }).waitFor();
     await box.getByRole('textbox', { name: 'New schema name' }).fill('mvp out');

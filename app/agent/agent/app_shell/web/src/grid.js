@@ -76,6 +76,13 @@ export function passes(filter, raw, picked) {
   return (!present(picked[lo]) || n >= Number(picked[lo])) && (!present(picked[hi]) || n <= Number(picked[hi]));
 }
 
+export function searchRows(rows, columns, text) {
+  const q = String(text ?? '').trim().toLowerCase();
+  if (!q) return rows;
+  const reads = columns.map((c) => cellValue(c));
+  return rows.filter((r) => reads.some((read) => String(read(r) ?? '').toLowerCase().includes(q)));
+}
+
 export function filterRows(rows, columns, filters, values) {
   const live = filters.filter((f) => columnFilterOn(values?.[f.column]));
   if (!live.length) return rows;

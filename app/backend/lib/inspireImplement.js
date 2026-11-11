@@ -40,7 +40,7 @@ const IMPLEMENT_STOPPED_STATES = ['deleted', 'released'];
 const IMPLEMENT_RUN_ENDED_STATES = ['TERMINATED', 'SKIPPED', 'INTERNAL_ERROR'];
 const IMPLEMENT_STALE_AFTER_MS = 4 * 3600 * 1000;
 const IMPLEMENT_CHANGE_CLASSES = ['initial', 'data', 'config', 'schedule', 'holdout', 'capacity', 'outputs', 'settings', 'deselect', 'sharing',
-  'retry', 'rollback', 'vibe', 'remove_kept', 'uninstall'];
+  'retry', 'rollback', 'vibe', 'remove_kept', 'uninstall', 'name'];
 const IMPLEMENT_CAPACITY_SOURCES = ['default', 'user'];
 const IMPLEMENT_CAPACITY_MAX = 1000000;
 const IMPLEMENT_VIBE_PREVIOUS = ['keep', 'remove'];
@@ -1308,6 +1308,7 @@ function classifyImplementChange(previous, current, built = null, tableChange = 
     widgets = 'config';
   }
   if (sortedJson(assumptionsOf(previous)) !== sortedJson(assumptionsOf(current)) || widgets === 'settings') classes.add('settings');
+  if (str(previous.use_case_name).trim() !== str(current.use_case_name).trim()) classes.add('name');
   if (section(previous, 'schedule') !== section(current, 'schedule')) classes.add('schedule');
   const before = previous.outputs || {};
   const after = current.outputs || {};
@@ -1351,7 +1352,7 @@ function implementChangeSummary(previous, current, assets = {}, built = null, ha
     if (!assets[name] || !before[name] || renamed) build.push(name);
     else if (rollingBack.includes(name)) rollback.push(name);
     else if (refill || changedOptions.includes(name) || retry.includes(name)
-      || (name === 'alert' && classes.includes('schedule'))) refresh.push(name);
+      || (name === 'alert' && classes.includes('schedule')) || (name === 'app' && classes.includes('name'))) refresh.push(name);
   }
   const deselected = IMPLEMENT_OUTPUTS.filter((n) => before[n] && !after[n]);
   const removed = current.removed_outputs || {};
@@ -2182,9 +2183,12 @@ function columnValuesStatement(name, column, limit = 200) {
   };
 }
 
+const FILTER_RANGE_OPS = ['>', '>=', '<', '<='];
+
 function filterClause(filter, index) {
   const col = quoteColumn(filter.column);
   const op = str(filter.op).toLowerCase();
+  if (op === 'is null') return { sql: `${col} IS NULL`, params: [] };
   const values = (Array.isArray(filter.values) ? filter.values : []).map((v) => str(v));
   const params = values.map((v, i) => ({ name: `f${index}_${i}`, value: v, type: 'STRING' }));
   const refs = params.map((p) => `:${p.name}`);
@@ -2195,9 +2199,10 @@ function filterClause(filter, index) {
   }
   if (op === 'between') {
     if (refs.length !== 2) throw badRequest(`filter ${filter.column} between needs two values`);
-    return { sql: `CAST(${col} AS STRING) BETWEEN ${refs[0]} AND ${refs[1]}`, params };
+    return { sql: `${col} BETWEEN ${refs[0]} AND ${refs[1]}`, params };
   }
   if (refs.length !== 1) throw badRequest(`filter ${filter.column} ${op} needs one value`);
+  if (FILTER_RANGE_OPS.includes(op)) return { sql: `${col} ${op} ${refs[0]}`, params };
   return { sql: `CAST(${col} AS STRING) ${op} ${refs[0]}`, params };
 }
 
@@ -3008,9 +3013,16 @@ function builtInSampleTable(name) {
 
 function builtInSampleMessage(tables) {
   const one = tables.length === 1;
-  return `${one ? 'A source table is' : `${tables.length} source tables are`} in a built-in sample catalog that Databricks owns (System user), so nobody can grant `
-    + `the App read metadata on ${one ? 'it' : 'them'}. Copy ${one ? 'the table' : 'each table'} into a catalog you own, `
-    + `with CREATE TABLE ... AS SELECT, and use the copy`;
+  const subject = one ? tables[0] : `${tables.length} source tables`;
+  const verb = one ? 'is in' : 'are in';
+  return `${subject} ${verb} a built-in sample catalog that Databricks owns, so nobody can grant the App access to ${one ? 'it' : 'them'}: `
+    + `copy ${one ? 'the table' : 'each table'} into a catalog you own with CREATE TABLE ... AS SELECT, and use the ${one ? 'copy' : 'copies'}`;
+}
+
+function abacUnreadableSentence(label, { app = false } = {}) {
+  const name = str(label).trim();
+  const who = app ? `The App's service principal ${name}` : (name || 'The build');
+  return `${who} cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them`;
 }
 
 function appReadGrantsOffer(tables, plans, app) {
@@ -3647,6 +3659,7 @@ module.exports = {
   IMPLEMENT_SOURCE_NEEDS,
   builtInSampleTable,
   builtInSampleMessage,
+  abacUnreadableSentence,
   ownerLabel,
   IMPLEMENT_TRAVERSE_PRIVILEGES,
   IMPLEMENT_NOTEBOOK_TASK_KEY,

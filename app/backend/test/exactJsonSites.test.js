@@ -37,6 +37,7 @@ const ALLOWED = [
   ['lib/showcaseRecord.js', 'JSON.parse(postData)', 'request bodies the recorder sees'],
   ['lib/inspireImplement.js', 'JSON.parse(`"${body}"`)', 'one JSON string literal'],
   ['lib/appShell.js', 'JSON.parse(literal.replace(', 'the App shell catalog literal'],
+  ['lib/inspireJobParams.js', 'JSON.parse(source)', 'the table scope the person picked in Data selection, read once at launch'],
   ['lib/exactJson.js', 'JSON.parse(', 'the exact reader itself'],
 ];
 
@@ -54,6 +55,7 @@ const BROWSER_ALLOWED = [
   ['lib/v130UseCase.js', 'JSON.parse(text)', 'the strategy alignment and data evidence of a use case, which name no id'],
   ['lib/runScope.js', 'JSON.parse(raw)', 'the first run groups the App saved, whose values it writes as text, so a key value never passes through a number'],
   ['lib/artifactFiles.js', 'JSON.parse(text);', 'a JSON file read only to check it is valid JSON; the preview prints the file\'s own text, so every id reads as the file holds it'],
+  ['lib/useCaseArchive.js', 'JSON.parse(storage.getItem(ARCHIVE_STORAGE_KEY)', 'the use cases this browser archived itself, keyed by text (run id and use case id), so no id passes through a number'],
   ['lib/wizardDraft.js', "JSON.parse(raw || 'null')", 'the wizard draft this browser stored itself from the spec it holds, so every id in it reads back as the wizard wrote it'],
 ];
 

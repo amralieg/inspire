@@ -32,6 +32,8 @@ const {
 } = require('./lib/inspireJobParams');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
+const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql, valueOfSession, valueOfRuns, overallValue } = require('./lib/inspireValue');
+const { normalizeUseCaseName, renameStatement } = require('./lib/useCaseName');
 const { createExecuteSql, runWithRequestDeadline } = require('./lib/sqlStatements');
 const { plural } = require('./lib/plural');
 const { jsonOf, registerImplementRoutes } = require('./implementRoutes');
@@ -62,6 +64,7 @@ const {
 } = require('./lib/inspireFeedback');
 const { createHostedRun, workspaceFiles } = require('./lib/hostedRun');
 const RP = require('./lib/routePolicy');
+const DJ = require('./lib/documentJob');
 const LC = require('./lib/launchChoice');
 const { crossSiteGuard } = require('./lib/crossSite');
 const L = require('./lib/launchLedger');
@@ -632,8 +635,9 @@ async function fetchInspireSessionWidgetRow(host, token, warehouseId, catalog, s
   const widgetColsBase = `business_name, inspire_database_name, operation_mode, table_election_mode, use_cases_quality, strategic_goals, business_priorities, business_domains, catalogs, schemas_str, tables_str, generate_choices, generation_path, output_language, sql_generation_per_domain, technical_exclusion_strategy, json_file_path`;
   const widgetColsV08 = `${widgetColsBase}, enriched_business_context, enriched_strategic_goals, enriched_business_priorities, enriched_strategic_initiative, enriched_value_chain, enriched_revenue_model, generation_instructions_section`;
   const widgetColsV13 = `${widgetColsV08}, discovery_type, strategic_context`;
+  const widgetColsV14 = `${widgetColsV13}, table_scope`;
   const baseCols = `session_id, processing_status, completed_percent, create_at, last_updated, completed_on, inspire_json, results_json`;
-  const columnSets = [widgetColsV13, widgetColsV08, widgetColsBase];
+  const columnSets = [widgetColsV14, widgetColsV13, widgetColsV08, widgetColsBase];
   for (let i = 0; i < columnSets.length; i++) {
     const sql = `SELECT ${baseCols}, ${columnSets[i]} FROM ${table} WHERE session_id = ${sessionIdStr} LIMIT 1`;
     try {
@@ -642,7 +646,7 @@ async function fetchInspireSessionWidgetRow(host, token, warehouseId, catalog, s
       return rows[0] || null;
     } catch (e1) {
       const msg = String(e1.message || e1);
-      const missingColumn = /discovery_type|strategic_context|enriched_|generation_instructions_section|UNRESOLVED_COLUMN|FIELD_NOT_FOUND|cannot resolve/i.test(msg);
+      const missingColumn = /discovery_type|strategic_context|table_scope|enriched_|generation_instructions_section|UNRESOLVED_COLUMN|FIELD_NOT_FOUND|cannot resolve/i.test(msg);
       if (!missingColumn || i === columnSets.length - 1) throw e1;
     }
   }
@@ -2125,6 +2129,26 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
   }
 });
 
+app.post('/api/documents', requireToken, async (req, res) => {
+  try {
+    const { params, document } = DJ.documentRunParams(req.body || {});
+    const refused = await launchSessionProblem(req, params);
+    if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
+    const out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
+      params,
+      jobType: 'discovery',
+      launchedBy: RP.forwardedPerson(req.headers),
+      writeCheck: (writes) => outputWriteVerdict(req, writes),
+      asker: req,
+    });
+    res.json({ ...out, document });
+  } catch (err) {
+    if (err.writeRefusal) return res.status(err.writeRefusal.status).json(writeRefusalBody(req.policyKey, err.writeRefusal));
+    const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
+    res.status(code).json({ error: err.message });
+  }
+});
+
 async function launchDiscover(req, res, { params, notebook_path, cluster_id }) {
   try {
     const refused = LC.launchParamsProblem(params) || await launchSessionProblem(req, params);
@@ -2316,19 +2340,20 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
     const widgetColsBase = `business_name, inspire_database_name, operation_mode, table_election_mode, use_cases_quality, strategic_goals, business_priorities, business_domains, catalogs, schemas_str, tables_str, generate_choices, generation_path, output_language, sql_generation_per_domain, technical_exclusion_strategy, json_file_path`;
     const widgetColsV08 = `${widgetColsBase}, enriched_business_context, enriched_strategic_goals, enriched_business_priorities, enriched_strategic_initiative, enriched_value_chain, enriched_revenue_model, generation_instructions_section`;
     const widgetColsV13 = `${widgetColsV08}, discovery_type, strategic_context`;
+    const widgetColsV14 = `${widgetColsV13}, table_scope`;
     const baseCols = `session_id, processing_status, completed_percent, create_at, last_updated, completed_on, inspire_json, results_json`;
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
     const where = session_id ? `WHERE session_id = ${String(session_id).trim()} LIMIT 1` : 'ORDER BY create_at DESC LIMIT 1';
 
     let result;
-    const columnSets = [widgetColsV13, widgetColsV08, widgetColsBase];
+    const columnSets = [widgetColsV14, widgetColsV13, widgetColsV08, widgetColsBase];
     for (let i = 0; i < columnSets.length; i++) {
       try {
         result = await executeSql(req.dbHost, req.dbToken, warehouse_id, `SELECT ${baseCols}, ${columnSets[i]} FROM ${table} ${where}`);
         break;
       } catch (e1) {
         const msg = String(e1.message || e1);
-        const missingColumn = /discovery_type|strategic_context|enriched_|generation_instructions_section|UNRESOLVED_COLUMN|FIELD_NOT_FOUND|cannot resolve/i.test(msg);
+        const missingColumn = /discovery_type|strategic_context|table_scope|enriched_|generation_instructions_section|UNRESOLVED_COLUMN|FIELD_NOT_FOUND|cannot resolve/i.test(msg);
         if (!missingColumn || i === columnSets.length - 1) throw e1;
       }
     }
@@ -2389,6 +2414,60 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
     if (isMissingTableError(err)) {
       return res.json({ session: null, message: 'Inspire is getting ready...' });
     }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+async function readValueRows(req, warehouse_id, sql) {
+  try {
+    return sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouse_id, sql));
+  } catch (err) {
+    if (isMissingTableError(err)) return [];
+    throw err;
+  }
+}
+
+app.get('/api/inspire/value', requireToken, async (req, res) => {
+  try {
+    const { inspire_database, warehouse_id, session_id } = req.query;
+    if (!inspire_database || !warehouse_id || !session_id) {
+      return res.status(400).json({ error: 'inspire_database, warehouse_id and session_id required.' });
+    }
+    const parsedDb = splitInspireDatabase(inspire_database);
+    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
+    res.json(valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), String(session_id).trim()))));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/inspire/value/overall', requireToken, async (req, res) => {
+  try {
+    const { inspire_database, warehouse_id } = req.query;
+    if (!inspire_database || !warehouse_id) {
+      return res.status(400).json({ error: 'inspire_database and warehouse_id required.' });
+    }
+    const parsedDb = splitInspireDatabase(inspire_database);
+    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    const totals = await readValueRows(req, warehouse_id, valueOverallSql(valueLedgerTable(parsedDb), inspireSessionTable(parsedDb)));
+    const [counts] = await readValueRows(req, warehouse_id, sessionCountsSql(inspireSessionTable(parsedDb)));
+    res.json(overallValue(totals, counts));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/inspire/value/runs', requireToken, async (req, res) => {
+  try {
+    const { inspire_database, warehouse_id } = req.query;
+    if (!inspire_database || !warehouse_id) {
+      return res.status(400).json({ error: 'inspire_database and warehouse_id required.' });
+    }
+    const parsedDb = splitInspireDatabase(inspire_database);
+    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    res.json(valueOfRuns(await readValueRows(req, warehouse_id, valueRunsSql(valueLedgerTable(parsedDb)))));
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });
@@ -2525,7 +2604,8 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
     // Normalize tracking table snake_case → frontend Title Case
     for (const row of rows) {
       row.No = row.id || '';
-      row.Name = row.use_case || row.Name || '';
+      row.original_name = row.use_case || row.Name || '';
+      row.Name = row.user_use_case_name || row.original_name;
       row.short_name = row.short_name || row.use_case || '';
       row['Business Domain'] = row.business_domain || '';
       row.Subdomain = row.subdomain || '';
@@ -2574,6 +2654,31 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
     if (isMissingTableError(err)) {
       return res.json({ usecases: [], count: 0, message: 'Usecases table not found.' });
     }
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.post('/api/inspire/usecase-name', requireToken, async (req, res) => {
+  try {
+    const { inspire_database, warehouse_id, session_id, use_case_id, name: rawName } = req.body || {};
+    if (!inspire_database || !warehouse_id) {
+      return res.status(400).json({ error: 'inspire_database and warehouse_id are required.' });
+    }
+    const sidStr = int64Id(session_id);
+    if (!sidStr) return res.status(400).json({ error: 'session_id must be a numeric Inspire session id.' });
+    const id = String(use_case_id ?? '').trim();
+    if (!/^[a-zA-Z0-9_.\-]+$/.test(id)) return res.status(400).json({ error: USE_CASE_ID_SHAPE });
+    const parsedDb = splitInspireDatabase(inspire_database);
+    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    const { name, error } = normalizeUseCaseName(rawName);
+    if (error) return res.status(400).json({ error });
+    const table = `\`${parsedDb.catalog}\`.\`${parsedDb.schema}\`.\`__inspire_usecases\``;
+    await ensureTableColumns(req.dbHost, req.dbToken, warehouse_id, table, [['user_use_case_name', 'STRING']]);
+    const stmt = renameStatement(table, sidStr, id, name);
+    await executeSql(req.dbHost, req.dbToken, warehouse_id, stmt.sql, stmt.parameters);
+    console.log(`   ✏️ use case name: session=${sidStr}, use_case=${id}, ${name ? 'renamed' : 'cleared'}`);
+    res.json({ success: true, session_id: sidStr, use_case_id: id, name });
+  } catch (err) {
     res.status(500).json({ error: err.message });
   }
 });

@@ -56,3 +56,12 @@ test('the worked example takes a rate from the rate table sample when the owner 
   assert.equal(lines[0], 'AED 100 × 0.27 = 27 USD.');
   assert.match(lines[1], /^EUR 20: no rate for EUR in main\.fx\.rates yet/);
 });
+
+test('the money sentence names its columns in plain words, never as raw ids', () => {
+  const sentence = ruleSentence({ currency: 'convert', base: 'USD', rate_column: 'fx_rate', per: 'group', group_column: 'sales_channel', rule: 'losses' });
+  assert.match(sentence, /at the rate in fx rate on its own row/);
+  assert.match(sentence, /Each sales channel counts once/);
+  assert.doesNotMatch(sentence, /[a-z]_[a-z]/);
+  const table = ruleSentence({ currency: 'convert', base: 'USD', rate_table: { table: 'fin.fx_rates' } });
+  assert.doesNotMatch(table, /[a-z]_[a-z]/);
+});

@@ -605,3 +605,6 @@ export function explainContext(meta, data, row, unit = '', kind = '') {
     ...(CONFIDENCE_LEVELS.includes(level) ? { confidence: level, facts: plainText(current.ai_facts ?? row?.ai_facts).slice(0, EXPLAIN_FACTS) } : {}),
   };
 }
+
+export const recordName = (row, meta) => entityName(row, meta?.label);
+export const recordSentenceName = (row, meta) => entityName(row, meta?.label, { sentence: true }) || 'This record';

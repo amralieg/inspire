@@ -262,9 +262,17 @@ export function strategyLevelFilters(infos, coverageEntries, context) {
   const levels = context?.levelNames || [];
   if (!levels.length) return [];
   const { options } = strategyFilterOptions(infos, coverageEntries);
-  return levels
-    .map((level, depth) => ({ level, options: options.filter((o) => o.depth === depth).map((o) => ({ ...o, depth: 0 })) }))
-    .filter((panel) => panel.options.length);
+  const counts = new Map(options.map((o) => [o.value, o.count]));
+  const paths = [...new Set([...(coverageEntries || []), ...options].map((e) => String(e?.path ?? e?.value ?? '').trim()).filter(Boolean))];
+  const depthOf = (path) => pathParts(path).length - 1;
+  const depth = Math.max(0, ...paths.map((path) => depthOf(path) + 1));
+  return levels.slice(0, depth).map((level, d) => ({
+    level,
+    options: paths.filter((path) => depthOf(path) === d).map((path) => {
+      const parts = pathParts(path);
+      return { value: path, label: parts[parts.length - 1], title: path, depth: 0, count: counts.get(path) || 0 };
+    }),
+  }));
 }
 
 export const KPI_FROM_STRATEGY = 'From your strategy';

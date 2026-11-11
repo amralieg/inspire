@@ -8,8 +8,8 @@ import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const WITH_APP = ['1. Data', '2. Data groups', '3. First run', '4. Results', '5. What to deliver', '6. Where it lives', '7. Who uses the App', '8. App pages', '9. App look', '10. Run it', '11. Review & build'];
-const NO_APP = ['1. Data', '2. First run', '3. Results', '4. What to deliver', '5. Run it', '6. Review & build'];
+const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. App look', '9. Run it', '10. Review & build'];
+const NO_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Run it', '6. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const builtLine = (page) => page.locator('[data-built-sentence]').innerText();
 
@@ -49,7 +49,7 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
   const { page, made } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await onStep(page, 'Use case');
+    await goToStep(page, 'Data');
     await stepsAre(page, WITH_APP);
     await noOldSteps(page);
     await page.locator('[data-wizard-header]').waitFor();
@@ -62,8 +62,7 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     assert.equal(await page.getByRole('region', { name: GROUPING_TITLE, exact: true }).count(), 0, 'the groups are their own step, not on Data (must-exclude)');
     await onePerQuestion(page, 'Data');
     await shot(page, '02-data', false);
-    await next(page);
-    await onStep(page, 'Data groups');
+    await goToStep(page, 'Data groups');
     const groups = page.getByRole('region', { name: GROUPING_TITLE, exact: true });
     await groups.waitFor({ timeout: 30000 });
     assert.equal(await groups.locator('[data-grouping-example-plain]').innerText(), `${GROUPING_EXAMPLE} ${GROUPING_PICK}`, 'the step explains groups with the average salary example');
@@ -74,8 +73,7 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     assert.equal(combineNote.split(/(?<=\.)\s/).length, 1, 'one line, one sentence');
     await onePerQuestion(page, 'Data groups');
     await shot(page, '03-data-groups', false);
-    await next(page);
-    await onStep(page, 'First run');
+    await goToStep(page, 'First run');
     assert.equal(await page.getByRole('region', { name: GROUPING_TITLE, exact: true }).count(), 0, 'the groups are set on Data groups, not again on First run');
     const chosen = page.locator('[data-grouping-chosen]');
     assert.equal(await chosen.getAttribute('role'), 'note', 'the Data groups line is information');
@@ -93,13 +91,12 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     }
     await onePerQuestion(page, 'First run');
     await shot(page, '04-first-run', false);
-    await next(page);
-    await onStep(page, 'Results');
+    await page.locator('[data-step-go="data"]').click();
+    await onStep(page, 'Data & results');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Results holds only where the result table lives');
     await onePerQuestion(page, 'Results');
     await shot(page, '05-results', false);
-    await next(page);
-    await onStep(page, 'What to deliver');
+    await goToStep(page, 'What to deliver');
     const notebook = page.locator('[data-output="notebook"] input');
     assert.deepEqual([await notebook.isChecked(), await notebook.isDisabled()], [true, true], 'the notebook is always built');
     assert.equal(await page.getByRole('checkbox', { name: /^App / }).isChecked(), true);
@@ -108,16 +105,14 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     assert.equal(await page.getByRole('region', { name: 'App placement' }).count(), 0, 'where the App goes waits for Where it lives (must-exclude)');
     await onePerQuestion(page, 'What to deliver');
     await shot(page, '06-deliver', false);
-    await next(page);
-    await onStep(page, 'Where it lives');
+    await goToStep(page, 'Where it lives');
     await page.getByRole('region', { name: 'App placement' }).waitFor();
     await page.locator('input[name="app-place"]').first().waitFor();
     await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'who sees which rows waits for its own step (must-exclude)');
     await onePerQuestion(page, 'Where it lives');
     await shot(page, '06-where', false);
-    await next(page);
-    await onStep(page, 'Who uses the App');
+    await goToStep(page, 'Who uses the App');
     await page.getByRole('region', { name: 'App access' }).waitFor();
     assert.equal(await page.locator('input[name="app-place"]').count(), 0, 'where the App goes was picked on Where it lives (must-exclude)');
     assert.equal(await page.getByLabel('App name').count(), 0, 'and so was its name (must-exclude)');
@@ -127,26 +122,22 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     assert.doesNotMatch(dialogWords, /service principal|Lakebase/i, 'no internals in view outside the storage choice');
     assert.ok((await page.locator('[role="dialog"]').innerText()).split(/could not check/i).length <= 2, 'one sentence says what Inspire could not check');
     await shot(page, '07-who-uses-the-app', false);
-    await next(page);
-    await onStep(page, 'App pages');
+    await goToStep(page, 'App pages');
     await page.getByRole('region', { name: 'App features' }).waitFor();
-    assert.equal(await page.locator('input[name="app-place"]').count(), 0, 'placement stays on Where it lives (must-exclude)');
+    assert.ok(await page.locator('input[name="app-place"]').count() > 0, 'the App placement sits on Where it lives, with the App pages (the pages are on the same step)');
     assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'and access on Who uses the App (must-exclude)');
     await onePerQuestion(page, 'App pages');
     await shot(page, '08-app-pages', false);
-    await next(page);
-    await onStep(page, 'App look');
+    await goToStep(page, 'App look');
     await onePerQuestion(page, 'App look');
-    await next(page);
-    await onStep(page, 'Run it');
+    await goToStep(page, 'Run it');
     assert.equal(await page.locator('[data-run-it]').innerText(), RUN_IT_TITLE);
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
     assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh is on, Daily, by default');
     assert.equal(await page.getByRole('checkbox', { name: /^Hold back/ }).count(), 1, 'Measure impact sits on Run it');
     await onePerQuestion(page, 'Run it');
     await shot(page, '09-run-it', false);
-    await next(page);
-    await onStep(page, 'Review & build');
+    await goToStep(page, 'Review & build');
     assert.match(await builtLine(page), /^The MVP: .*App.*, the result table and the notebook that fills it\.$/);
     await page.getByRole('region', { name: 'Vibes' }).waitFor();
     await summaryHasNoCapacity(page);

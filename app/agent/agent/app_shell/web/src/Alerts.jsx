@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { deleteAlert, failureOf, getAlerts, pauseAlert, previewAlert, saveAlert } from './api.js';
+import { deleteAlert, failureOf, getAlerts, pauseAlert, previewAlert, saveAlert, waitingOf } from './api.js';
+import WaitingForAccess from './WaitingForAccess.jsx';
 import { formatValue } from './format.js';
 import { stampText } from './freshness.js';
 import { plural } from './hub.js';
@@ -13,14 +14,15 @@ import {
   blankForm, capText, capped, defaultName, filtersText, formFrom, formProblem, measureOf, operatorLabel, operatorsOf, parseEmails,
   previewText, reachable, ruleText, stateFlag, watchOf,
 } from './alerts.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 function useAlerts(pageId) {
-  const [out, setOut] = useState({ data: null, error: '' });
+  const [out, setOut] = useState({ data: null, error: '', waiting: null });
   const seq = useRef(0);
   const load = useCallback(() => {
     const mine = ++seq.current;
     getAlerts(pageId).then((data) => { if (mine === seq.current) setOut({ data, error: '' }); })
-      .catch((e) => { if (mine === seq.current) setOut((o) => ({ data: o.data, error: e.message })); });
+      .catch((e) => { if (mine === seq.current) setOut((o) => ({ data: o.data, error: e.message, waiting: waitingOf(e) })); });
   }, [pageId]);
   useEffect(() => { load(); }, [load]);
   return { ...out, load };
@@ -142,7 +144,7 @@ function AlertForm({ listing, meta, page, start, onDone, onCancel }) {
         <button type="button" className="btn" onClick={check} disabled={!!problem || checking}><Icon name="search" size={14} />{checking ? 'Checking' : 'Check the value now'}</button>
         <span className="sp" />
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-        <SaveButton write="alert:save" type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />{form.id ? 'Save the alert' : 'Set up the alert'}</SaveButton>
+        <SaveButton write="alert:save" type="submit" className="btn btn--pri" disabled={!!problem} why={problem || ''}><Icon name="check" size={14} />{form.id ? 'Save the alert' : 'Set up the alert'}</SaveButton>
       </div>
     </form>
   );
@@ -227,7 +229,7 @@ function alertFields(alert, columns, listing, meta) {
 }
 
 export default function Alerts({ app, page, meta, compose = false, onComposed }) {
-  const { data, error, load } = useAlerts(page.id);
+  const { data, error, waiting, load } = useAlerts(page.id);
   const [form, setForm] = useState(null);
   const listing = data;
   const full = capped(listing?.caps);
@@ -246,6 +248,7 @@ export default function Alerts({ app, page, meta, compose = false, onComposed })
           <h2>Alerts</h2>
           <p>Get an email when what this page shows crosses a line you set. Each alert checks on its own schedule.</p>
         </div>
+        <SectionHelp title="Alerts" steps={[{ title: 'Get an email when a line is crossed', text: 'Set a line on a number this page shows, pick who gets the email, and it checks on its own schedule.' }]} />
         {listing && !form && listing.measures.length > 0 && (
           <button className="btn btn--pri" onClick={() => setForm(blankForm(listing, app.user))} disabled={full} title={full ? capText(listing.caps) : undefined}>
             <Icon name="plus" size={14} />New alert
@@ -254,7 +257,8 @@ export default function Alerts({ app, page, meta, compose = false, onComposed })
         <AskGenie kind="table" title="Alerts" context={tableContext('The alerts of this use case.', listing?.alerts || [], fields)} />
       </header>
       {!listing && !error && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {error && <PlainNote text={error} prefix="The alerts could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={load} />}
+      {waiting && <WaitingForAccess waiting={waiting} compact onCheck={load} />}
+      {error && !waiting && <PlainNote text={error} prefix="The alerts could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={load} />}
       {listing && form && <AlertForm key={form.id || 'new'} listing={listing} meta={meta} page={page} start={form} onDone={done} onCancel={() => setForm(null)} />}
       {listing && (
         <>

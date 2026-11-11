@@ -117,6 +117,10 @@ function makeApp(overrides = {}, { mount } = {}) {
         if (state.tagsError) throw new Error(state.tagsError);
         return { rows: state.columnTags || [] };
       }
+      if (sql.includes('SELECT DISTINCT CAST(')) {
+        const column = (/SELECT DISTINCT CAST\(`([^`]+)`/.exec(sql) || [])[1] || '';
+        return { rows: ((state.valuesByColumn || {})[column] || []).map((value) => ({ value })) };
+      }
       if (sql.includes('information_schema.columns') && sql.includes('WITH o AS')) {
         return { rows: state.swapRowsByToken ? state.swapRowsByToken[token] || [] : state.swapRows || [] };
       }
@@ -134,6 +138,8 @@ function makeApp(overrides = {}, { mount } = {}) {
         return { rows: since ? steps.filter((s) => Date.parse(s.last_updated) > Date.parse(since.value)) : steps };
       }
       if (sql.startsWith('SELECT COUNT(*) AS row_count')) {
+        const filtered = (parameters || []).map((p) => String(p.value)).find((v) => state.readinessByFilter && Object.hasOwn(state.readinessByFilter, v));
+        if (filtered !== undefined) return { rows: [{ row_count: state.readinessByFilter[filtered] }] };
         const named = Object.entries(state.readinessByTable || {}).find(([t]) => sql.includes(t.split('.').map((p) => `\`${p}\``).join('.')));
         return { rows: named ? [{ row_count: named[1] }] : state.readinessRows || [{ row_count: '1200' }] };
       }
@@ -314,6 +320,9 @@ function makeApp(overrides = {}, { mount } = {}) {
     const usecases = state.useCases || (state.useCase ? [state.useCase] : []);
     res.json({ usecases, count: usecases.length });
   });
+  app.get('/api/inspire/value', (_req, res) => res.json(state.value || { use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } }));
+  app.get('/api/inspire/value/overall', (_req, res) => res.json(state.valueOverall || { at_stake: [], saved: [], runs: 0, businesses: 0 }));
+  app.get('/api/inspire/value/runs', (_req, res) => res.json(state.valueRuns || { runs: {} }));
   return { app, sqlCalls, fetches, jobs, state, altered, flagged, appCalls, launches, catalogLists };
 }
 

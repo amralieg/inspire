@@ -1425,7 +1425,8 @@ def test_a_saved_change_shows_on_top_of_lakebase_while_the_list_reads_postgres_a
 
 
 READ_ROUTES_SKIPPED = {("POST", "records/act"), ("POST", "refresh"), ("GET", "agent/status"), ("POST", "agent/ask"),
-                       ("GET", "agent/turn"), ("POST", "agent/feedback")}
+                       ("GET", "agent/turn"), ("POST", "agent/feedback"),
+                       ("POST", "agent/prepare")}
 
 
 def read_routes():

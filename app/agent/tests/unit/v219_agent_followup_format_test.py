@@ -142,7 +142,7 @@ def test_a_long_answer_is_cut_at_the_cap(tmp_path):
     s, _ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
     answer = ask(s, "List them")["answer"]
     assert len(answer) == shell_agent.ANSWER_CHARS and answer.endswith("…")
-    assert shell_agent.shape_answer("line\n" * 3000) == "line\nline"
+    assert shell_agent.shape_answer("line\n" * 3000) == "line"
 
 
 SLOP = ("Sure! Here is what I found about the causes. Cause A leads with 4 records. Cause B follows with 2. Cause C has 1. "

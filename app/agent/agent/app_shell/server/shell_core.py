@@ -16,6 +16,7 @@ from concurrent.futures import CancelledError, Future, ThreadPoolExecutor
 import shell_agent
 import shell_alerts
 import shell_db
+import shell_facts
 import shell_pg
 import shell_sql
 from shell_db import HttpError, QueryError, Workspace, error_body, normalize_host, stamp_of
@@ -103,9 +104,29 @@ def is_write_route(method: str, name: str) -> bool:
 WAITING_FOR_ACCESS = "This App is waiting for access to its data. Your data owner needs to grant the App access; the exact grant is under Details."
 
 
-def waiting_for_access_body(error) -> dict:
-    tables = list(dict.fromkeys(m.replace("`", "").strip("'") for m in shell_sql.ACCESS_ON.findall(str(error))))
-    return {"state": "waiting_for_access", "message": WAITING_FOR_ACCESS, "tables": tables, "detail": str(error)}
+NO_ACCESS_LIST = re.compile(r"No access to ([^;]+)")
+CARD_WAITING = "This App is waiting for access to this data. Ask {owner} to grant it."
+
+
+def access_refusal(text: str) -> bool:
+    return bool(NO_ACCESS.search(text) or text.startswith("No access to "))
+
+
+def card_waiting_text(owners) -> str:
+    return CARD_WAITING.format(owner=" or ".join(owners) if owners else "your data owner")
+
+
+def waiting_for_access_body(error, owners=()) -> dict:
+    listed = [part for match in NO_ACCESS_LIST.findall(str(error)) for part in match.split(",")]
+    named = [m for m in shell_sql.ACCESS_ON.findall(str(error))] + [part.strip() for part in listed]
+    tables = list(dict.fromkeys(m.replace("`", "").strip("'").strip() for m in named if m.strip()))
+    return {"state": "waiting_for_access", "message": WAITING_FOR_ACCESS, "tables": tables, "owners": list(owners), "detail": str(error)}
+ACCESS_CARD_ROUTES = ("page", "defaults", "runs", "filters")
+ACCESS_STEPS = ("diagnose", "check", "copy", "grant")
+ACCESS_READS = (("USE CATALOG", "CATALOG", 1), ("USE SCHEMA", "SCHEMA", 2), ("SELECT", "TABLE", 3))
+ACCESS_GRANT = re.compile(r"^GRANT (USE CATALOG|USE SCHEMA|SELECT) ON \w+ (\S+) TO ")
+APP_PRINCIPAL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$")
+NO_SCOPE = re.compile(r"scope", re.I)
 VERSION_US = re.compile(r"^\d{1,19}$")
 RECORD_KEY_CHARS = 512
 MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "time_zone", "exclude", "choice", "focus")
@@ -410,6 +431,24 @@ def protected_problems(settings: dict) -> list:
 
 def blocked_tables(settings: dict) -> tuple:
     return tuple(sorted({str(t).replace("`", "").strip().lower() for t in settings.get("blocked") or () if str(t).strip()}))
+def access_grants(table: str, principal: str) -> list:
+    if not APP_PRINCIPAL.match(str(principal or "")):
+        return []
+    try:
+        parts = shell_sql.table_name(table).split(".")
+    except ValueError:
+        return []
+    return [f"GRANT {privilege} ON {level} {'.'.join(parts[:depth])} TO `{principal}`" for privilege, level, depth in ACCESS_READS]
+
+
+def access_said(statement: str) -> tuple:
+    privilege, target = ACCESS_GRANT.match(statement).groups()
+    return privilege, target.replace("`", "")
+
+
+def access_owners(tables: list) -> str:
+    owners = list(dict.fromkeys(t["owner"] for t in tables if t.get("owner")))
+    return " or ".join(owners) if owners else "the owner of that data"
 
 
 def settings_problems(settings: dict, pages: list) -> list:
@@ -580,7 +619,7 @@ def public_page(page: dict, gaps=frozenset()) -> dict:
     records = page.get("records")
     out["records"] = dict(records, filters=by_column.get(shell_sql.RECORDS_DATASET, {})) if records else None
     out["history"] = bool(page.get("result_table"))
-    out["similar_by"] = [{"filter": f["id"], "label": f.get("label")} for f in shell_sql.similar_filters(page)]
+    out["similar_by"] =[{"filter": f["id"], "label": f.get("label")} for f in shell_sql.similar_filters(page)]
     out[shell_sql.BLOCKS] = shell_sql.public_blocks(page)
     out[TOUR] = public_tour(page, gaps)
     return out
@@ -723,6 +762,30 @@ def fit_tour(page: dict, languages=None, gaps=frozenset()) -> tuple:
                     notes.append(f"tour {language}: fewer than {least} steps, added the template step for {anchor}")
         out[language] = sorted(kept, key=lambda s: anchors.index(s["anchor"]))
     return {"languages": wanted, "steps": out}, notes
+
+
+TOUR_OPTIONAL_PARTS = ("alerts",)
+
+
+def tour_build_problems(page: dict, tour: dict) -> list:
+    reg = tour_registry()
+    gaps = set(TOUR_OPTIONAL_PARTS) | (set() if shell_sql.page_decides(page) else {"actions", "bulk"})
+    required = [a for a in tour_anchors(page) if a not in gaps]
+    generic = [str(p).lower() for p in reg.get("generic") or [] if str(p).strip()]
+    out = []
+    for language, steps in (tour.get("steps") or {}).items():
+        rows = [s for s in steps or [] if isinstance(s, dict)]
+        covered = {s.get("anchor") for s in rows}
+        out += [f"{language}: the part {anchor} has no step" for anchor in required if anchor not in covered]
+        for step in rows:
+            anchor, low = step.get("anchor"), str(step.get("text") or "").lower()
+            hit = next((p for p in generic if p in low), "")
+            if hit:
+                out.append(f"{language} {anchor}: the text is generic ({hit!r}) and names nothing of this use case")
+            missing = [w for w in reg.get("must_name", {}).get(anchor, []) if str(w).lower() not in low] if language == TOUR_FALLBACK else []
+            if missing:
+                out.append(f"{language} {anchor}: the text does not name {', '.join(missing)}")
+    return out
 
 
 def public_tour(page: dict, gaps=frozenset()):
@@ -2203,10 +2266,25 @@ class Shell:
         listed = [item.get("error") for item in answer.get("filters") or [] if isinstance(item, dict)]
         refused = [text for text in list(errors.values()) + listed + ([answer["error"]] if isinstance(answer.get("error"), str) else [])
                    if isinstance(text, str) and text]
-        if refused and all(NO_ACCESS.search(text) or text.startswith("No access to ") for text in refused) \
-                and not any(answer.get(k) for k in ("kpis", "charts", "rows", "runs")):
-            return 200, waiting_for_access_body("; ".join(refused))
+        if not refused or not all(access_refusal(text) for text in refused):
+            return status, answer
+        owners = self.access_owners(refused)
+        if not any(answer.get(k) for k in ("kpis", "charts", "rows", "runs", "tables")):
+            return 200, waiting_for_access_body("; ".join(refused), owners)
+        if name not in ACCESS_CARD_ROUTES:
+            return status, answer
+        card = card_waiting_text(owners)
+        if isinstance(answer.get("errors"), dict):
+            answer["errors"] = {key: card if isinstance(text, str) and access_refusal(text) else text for key, text in answer["errors"].items()}
+        answer["filters"] = [dict(item, error=card) if isinstance(item, dict) and item.get("error") and access_refusal(str(item.get("error")))
+                             else item for item in answer.get("filters") or []] if answer.get("filters") else answer.get("filters")
         return status, answer
+
+    def access_owners(self, texts) -> list:
+        text = " ".join(texts).replace("`", "").lower()
+        owners = self.settings.get("unread_owners") or {}
+        return list(dict.fromkeys(str(owner) for table, owner in owners.items()
+                                  if owner and str(table).replace("`", "").lower() in text and "@" not in str(owner)))
 
     def dispatch(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
         status, answer = self.answer(method, path, query, headers, body)
@@ -2243,7 +2321,7 @@ class Shell:
                 return 200, self.defaults(headers, query.get("page"))
             if route == ("POST", "page"):
                 return 200, self.page_data(headers, data.get("page"), data.get("filters"), tables=data.get("table_filters"),
-                                           sorts=data.get("table_sorts"))
+                                           sorts=data.get("table_sorts"), searches=data.get("table_search"))
             if route == ("POST", "records"):
                 return 200, self.records(headers, data)
             if route == ("POST", "records/act"):
@@ -2280,6 +2358,8 @@ class Shell:
                 return 200, self.batches(headers, query.get("page"))
             if route == ("GET", "records/similar"):
                 return 200, self.similar(headers, query)
+            if route == ("POST", "access"):
+                return 200, self.app_access(headers, data)
             if route == ("POST", "genie/ask"):
                 return 200, self.genie_ask(headers, data)
             if route == ("POST", "genie/explain"):
@@ -2292,6 +2372,8 @@ class Shell:
                 return 200, self.agent.turn(headers, query)
             if route == ("POST", "agent/feedback"):
                 return 200, self.agent.feedback(headers, data)
+            if route == ("POST", "agent/prepare"):
+                return 200, self.agent.prepare(headers, data)
             if route == ("GET", "genie/message"):
                 return 200, self.genie_message(headers, query)
             if route == ("POST", "genie/feedback"):
@@ -2407,6 +2489,99 @@ class Shell:
             "no_access": {table: owner for table, owner in (s.get("unread_owners") or {}).items() if table in (s.get("unread") or {})},
         }
 
+    def app_access(self, headers: dict, data: dict) -> dict:
+        step = data.get("step")
+        if step not in ACCESS_STEPS:
+            raise HttpError(400, f"the access steps are {', '.join(ACCESS_STEPS)}")
+        found = self.access_found(headers)
+        return self.access_grant(headers, data, found) if step == "grant" else found
+
+    def access_found(self, headers: dict) -> dict:
+        principal = str(self.env.get("DATABRICKS_CLIENT_ID") or "") if self.settings["auth"] == "sp" else ""
+        owners, tables = self.settings.get("unread_owners") or {}, []
+        token = headers.get("x-forwarded-access-token")
+        ws = self.user_factory(self.env.get("DATABRICKS_HOST", ""), token) if token else None
+        for table, recorded in (self.settings.get("unread") or {}).items():
+            if not self.app_uses(table):
+                print(f"[APP-ACCESS FIRED] skipped {table}: no page of the App reads it", file=sys.stderr, flush=True)
+                continue
+            if self.reads_now(headers, table):
+                continue
+            allowed = access_grants(table, principal)
+            tables.append({"table": table, "owner": str(owners.get(table) or ""), "grants": [g for g in allowed if g in recorded] or allowed,
+                           "you_can_grant": ws is not None and self.person_can_grant(ws, table)})
+        statements = [g for t in tables for g in t["grants"]]
+        return {"tables": tables, "can_grant": bool(statements), "you_can_grant": bool(statements) and all(t["you_can_grant"] for t in tables),
+                "sql": "\n".join(f"{g};" for g in statements),
+                "seen": hashlib.sha256("\n".join(statements).encode("utf-8")).hexdigest()}
+
+    def person_can_grant(self, ws, table: str) -> bool:
+        try:
+            catalog, schema, name = (part.strip("`") for part in shell_sql.table_name(table).split("."))
+        except ValueError:
+            return False
+        holds = "privilege_type IN ('OWNER', 'MANAGE') AND (grantee = current_user() OR is_account_group_member(grantee))"
+        sql = (f"SELECT 1 FROM system.information_schema.table_privileges WHERE table_catalog = '{catalog}' AND table_schema = '{schema}' "
+               f"AND table_name = '{name}' AND {holds} "
+               f"UNION ALL SELECT 1 FROM system.information_schema.tables WHERE table_catalog = '{catalog}' AND table_schema = '{schema}' "
+               f"AND table_name = '{name}' AND (table_owner = current_user() OR is_account_group_member(table_owner)) "
+               f"UNION ALL SELECT 1 FROM system.information_schema.schema_privileges WHERE catalog_name = '{catalog}' AND schema_name = '{schema}' AND {holds} "
+               f"UNION ALL SELECT 1 FROM system.information_schema.schemata WHERE catalog_name = '{catalog}' AND schema_name = '{schema}' "
+               f"AND (schema_owner = current_user() OR is_account_group_member(schema_owner)) "
+               f"UNION ALL SELECT 1 FROM system.information_schema.catalog_privileges WHERE catalog_name = '{catalog}' AND {holds} "
+               f"UNION ALL SELECT 1 FROM system.information_schema.catalogs WHERE catalog_name = '{catalog}' "
+               f"AND (catalog_owner = current_user() OR is_account_group_member(catalog_owner))")
+        try:
+            return bool(self.execute(ws, sql, [], 1, delta=True).get("rows"))
+        except (QueryError, HttpError, ValueError):
+            return False
+
+    def app_uses(self, table: str) -> bool:
+        read = " ".join([str(d.get("sql") or "") for p in self.pages for d in p.get("datasets") or [] if isinstance(d, dict)] +
+                        [str(p.get("result_table") or "") for p in self.pages]).replace("`", "").lower()
+        return bool(re.search(rf"(?<![\w.]){re.escape(table.replace('`', '').lower())}(?![\w.])", read))
+
+    def reads_now(self, headers: dict, table: str) -> bool:
+        try:
+            self.execute(self.workspace(headers)[0], f"SELECT 1 FROM {shell_sql.table_name(table)} LIMIT 0", [], 1, delta=True)
+            return True
+        except (QueryError, HttpError, ValueError) as error:
+            if not NO_ACCESS.search(str(getattr(error, "message", None) or error)):
+                print(f"[APP-ACCESS FIRED] could not check {table}: {str(error)[:4000]}", file=sys.stderr, flush=True)
+            return False
+
+    def access_grant(self, headers: dict, data: dict, found: dict) -> dict:
+        statements = [g for t in found["tables"] for g in t["grants"]]
+        if not statements:
+            raise HttpError(409, "There is no access this App can be granted from here: each person reads its data with their own access, "
+                                 "or the App already reads everything", extra={"access": found})
+        if data.get("confirmed") is not True or data.get("seen") != found["seen"]:
+            raise HttpError(409, "What the App needs changed since you looked, or the grant was not confirmed. Press Check again, then grant.",
+                            extra={"access": found})
+        owner = access_owners(found["tables"])
+        token = headers.get("x-forwarded-access-token")
+        if not found["you_can_grant"]:
+            raise HttpError(403, f"You cannot grant this access yourself: you need to own the data or hold MANAGE on it. "
+                                 f"Copy the grant SQL and send it to {owner}.", extra={"access": found})
+        if not token:
+            raise HttpError(403, f"This App cannot act as you, so it cannot grant access with your permissions. Copy the grant SQL and run "
+                                 f"it, or send it to {owner}.", extra={"access": found})
+        ws, granted = self.user_factory(self.env.get("DATABRICKS_HOST", ""), token), []
+        for statement in statements:
+            try:
+                self.execute(ws, statement, [], 1, delta=True)
+            except QueryError as error:
+                print(f"[APP-ACCESS-GRANT FIRED] refused {statement}: {str(error)[:4000]}", file=sys.stderr, flush=True)
+                privilege, target = access_said(statement)
+                said = (f"This App may not run SQL as you, so it could not grant {privilege} on {target}" if NO_SCOPE.search(str(error)) else
+                        f"Unity Catalog did not let you grant {privilege} on {target}")
+                raise HttpError(403, f"{said}. Ask {owner} to grant it; Copy the grant SQL to send it.",
+                                extra={"access": self.access_found(headers), "granted": granted}) from error
+            granted.append(statement)
+        print(f"[APP-ACCESS-GRANT FIRED] granted {len(granted)} as {headers.get('x-forwarded-email') or 'the signed-in person'}",
+              file=sys.stderr, flush=True)
+        return dict(self.access_found(headers), granted=granted)
+
     def _timed(self, fn, key, probe):
         if probe is None:
             return fn()
@@ -2445,6 +2620,7 @@ class Shell:
     def filters(self, headers: dict, ident, probe=None) -> dict:
         page = self.page(ident)
         ws, who = self.session(headers, probe)
+        page = self.live_grouping(ws, who, page)
         self.warm_open(ws, who, page)
         jobs = self.bounds_jobs(ws, who, page)
         chosen = len(jobs)
@@ -2487,7 +2663,15 @@ class Shell:
             if key in errors:
                 item["error"] = errors[key]
             (columns["list"] if table is None else columns["tables"].setdefault(table, [])).append(item)
-        return {"filters": out, "columns": columns}
+        return {"filters": out, "columns": columns, "grouping": page.get("grouping") or {}}
+
+    def live_grouping(self, ws, who, page: dict) -> dict:
+        if not any(isinstance(s, dict) and s.get("name") == shell_sql.GROUP_BY_SETTING for s in page.get("settings") or []):
+            return page
+        saved = next((row for row in self.assumption_rows(ws, who, page) if row.get("name") == shell_sql.GROUP_BY_SETTING), None)
+        if saved is None or not isinstance(saved.get("text_value"), str):
+            return page
+        return dict(page, grouping=shell_sql.grouping_of(page, saved["text_value"]))
 
     def bounds_jobs(self, ws, who, page: dict, apart: bool = False) -> dict:
         dated = [f["id"] for f in page.get("filters") or [] if f["type"] == "date_range"]
@@ -2562,9 +2746,10 @@ class Shell:
         return dict({"filter": ident, "q": text, "options": [r.get("v") for r in rows]},
                     **({} if column is None else {"column": ident, "table": table}))
 
-    def page_data(self, headers: dict, ident, values, probe=None, tables=None, sorts=None) -> dict:
+    def page_data(self, headers: dict, ident, values, probe=None, tables=None, sorts=None, searches=None) -> dict:
         page = self.page(ident)
-        problems = shell_sql.filter_values_problems(page, values) + shell_sql.table_sorts_problems(page, sorts)
+        problems = (shell_sql.filter_values_problems(page, values) + shell_sql.table_sorts_problems(page, sorts)
+                    + shell_sql.table_search_problems(page, searches))
         if not problems and tables is not None and not isinstance(tables, dict):
             problems = shell_sql.table_values_problems(page, tables)
         if problems:
@@ -2582,7 +2767,7 @@ class Shell:
         except (QueryError, HttpError) as error:
             previous, failed = {}, {key: getattr(error, "message", None) or str(error) for key in compared}
         jobs, sqls = {}, {}
-        for kind, item_id, sql, params in shell_sql.page_queries(page, values or {}, tables, previous, types, sorts):
+        for kind, item_id, sql, params in shell_sql.page_queries(page, values or {}, tables, previous, types, sorts, searches):
             sqls[(kind, item_id)] = sql
             if (kind, item_id) not in failed:
                 limit = shell_sql.CAPS["kpi_rows" if kind == "kpi" else "table_rows" if kind == "table" else "chart_rows"]
@@ -3315,12 +3500,12 @@ class Shell:
 
     def feedback_page(self, ident) -> dict:
         page = self.page(ident)
-        if not page.get("result_table"):
+        if not page.get("result_table") and not self.settings.get("feedback_table"):
             raise HttpError(409, NO_FEEDBACK)
         return page
 
     def feedback_missing(self, page: dict, error) -> HttpError:
-        return HttpError(409, f"Nothing was saved: {shell_sql.feedback_table(page)} does not exist yet ({error}). Ask the person who built "
+        return HttpError(409, f"Nothing was saved: {shell_sql.feedback_table(page, self.settings.get('feedback_table', ''))} does not exist yet ({error}). Ask the person who built "
                               f"the App to {shell_sql.rebuild_action()}, so Inspire creates it")
 
     def feedback_list(self, headers: dict, ident) -> dict:
@@ -3328,7 +3513,7 @@ class Shell:
         editor = self.editor(headers)
         everyone = bool(self.signed_in(headers) & self.page_editors(page))
         ws, _who = self.workspace(headers)
-        sql, params = shell_sql.feedback_query(page, None if everyone else editor, shell_sql.CAPS["feedback_rows"])
+        sql, params = shell_sql.feedback_query(page, None if everyone else editor, shell_sql.CAPS["feedback_rows"], self.settings.get("feedback_table", ""))
         try:
             rows = self.execute(self.decision_writer(ws), sql, params, shell_sql.CAPS["feedback_rows"], delta=True)["rows"]
         except QueryError as error:
@@ -3367,11 +3552,13 @@ class Shell:
         self.feedback_allowed(editor)
         feedback_id = uuid.uuid4().hex
         try:
-            self.execute(writer, *shell_sql.feedback_write(page, feedback_id, section, record.strip(), text.strip(), editor, filters.strip()), 1,
+            self.execute(writer, *shell_sql.feedback_write(page, feedback_id, section, record.strip(), text.strip(), editor, filters.strip(),
+                                                           self.settings.get("feedback_table", "")), 1,
                          delta=True)
         except QueryError as error:
             if NOT_ALLOWED.search(str(error)):
-                raise self.write_refused(shell_sql.feedback_table(page), error, as_app=self.settings["auth"] == "user") from error
+                raise self.write_refused(shell_sql.feedback_table(page, self.settings.get("feedback_table", "")), error,
+                                         as_app=self.settings["auth"] == "user") from error
             if NO_TABLE.search(str(error)):
                 raise self.feedback_missing(page, error) from error
             raise
@@ -4102,8 +4289,51 @@ class Shell:
             out = self.act_on_reviewed(ws, writer, who, page, fields, keys, seen, similar, editor, values, batch)
         else:
             out = self.act_on_keys(ws, writer, page, fields, keys, seen, editor, values, batch)
+        named = "realized_value" in (data.get("values") or {})
+        out = dict(out, **self.record_value_saves(ws, page, batch["id"], values, named, editor))
+        if not named and values.get("action_status") not in (None, shell_sql.DONE):
+            out = dict(out, **self.record_value_clears(ws, page, batch["id"], editor))
         notice = self.alerts.assigned(headers, page, values.get("action_owner"), editor) if values.get("action_owner") else ""
         return dict(out, **({"notice": notice} if notice else {}))
+
+    def record_value_saves(self, ws, page: dict, batch: str, values: dict, sent: bool, editor: str) -> dict:
+        """Counts a realized value the request named, in the value ledger: one statement, with the App's own identity."""
+        if not sent:
+            return {}
+        value, table = values["realized_value"], page.get("value_ledger")
+        if not table or not page.get("result_table") or not page.get("use_case_id"):
+            return {} if value is None else {"value_warning": "the saved value is not counted in the value ledger, because this App's page "
+                                                              "names no ledger; rebuild the App so it does"}
+        writer = ws if self.inside else self.service()
+        try:
+            stake = self.execute(writer, shell_facts.ledger_latest_stake_sql(table, page["result_table"], page["use_case_id"]), [], 1,
+                                 delta=True)["rows"]
+        except QueryError as error:
+            return {"value_warning": f"the saved value is not counted in the value ledger: {shell_sql.error_text(error)}"}
+        found = (stake or [None])[0]
+        if found is None:
+            return {} if value is None else {"value_warning": "the saved value is not counted in the value ledger, because this use case "
+                                                              "has no measured value at stake yet"}
+        sql = shell_facts.ledger_saved_from_batch_sql(table, page["result_table"], shell_sql.BATCH_COLUMN, batch, found,
+                                                      page["use_case_id"], value, editor)
+        try:
+            written = (self.execute(writer, sql, [], 1, delta=True)["rows"] or [{}])[0]
+        except QueryError as error:
+            return {"value_warning": f"the saved value is not counted in the value ledger: {shell_sql.error_text(error)}"}
+        return {"value_recorded": int(written.get("num_inserted_rows", written.get("num_affected_rows")) or 0)}
+
+    def record_value_clears(self, ws, page: dict, batch: str, editor: str) -> dict:
+        """A record that leaves Done stops counting: its counted saved value is cleared, in one statement, with the App's identity."""
+        table = page.get("value_ledger")
+        if not table or not page.get("result_table") or not page.get("use_case_id"):
+            return {}
+        sql = shell_facts.ledger_clear_from_batch_sql(table, page["result_table"], page["use_case_id"], shell_sql.BATCH_COLUMN, batch, editor)
+        writer = ws if self.inside else self.service()
+        try:
+            written = (self.execute(writer, sql, [], 1, delta=True)["rows"] or [{}])[0]
+        except QueryError as error:
+            return {"value_warning": f"the cleared value is still counted in the value ledger: {shell_sql.error_text(error)}"}
+        return {"value_cleared": int(written.get("num_inserted_rows", written.get("num_affected_rows")) or 0)}
 
     def replayed_act(self, ws, page: dict, request: str, editor: str, keys) -> dict:
         sql, params = shell_sql.batches_query(page, 1, batch_id=request)

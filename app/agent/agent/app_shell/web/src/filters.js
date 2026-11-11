@@ -166,8 +166,13 @@ export function groupsOf(meta) {
       table: f.table ?? null, column: f.column, page: false }));
   const named = new Set(page.map((g) => String(g.label).trim().toLowerCase()));
   const all = [...page, ...columns.filter((g) => !named.has(String(g.label).trim().toLowerCase()))];
-  return all.map((g) => ({ ...g, high: !!g.filter.searchable || !!g.filter.lazy || (g.filter.options || []).length > HIGH_CARDINALITY }))
+  return all.map((g) => ({ ...g, high: !g.filter.grouping && (!!g.filter.searchable || !!g.filter.lazy || (g.filter.options || []).length > HIGH_CARDINALITY) }))
     .sort((a, b) => Number(a.high) - Number(b.high));
+}
+
+export function groupedByText(grouping) {
+  const names = (grouping?.group_by || []).map((g) => g.label).filter(Boolean);
+  return names.length ? `Grouped by ${names.join(', ')}` : '';
 }
 
 export function groupValues(state, group) {
@@ -188,10 +193,12 @@ export const groupsOn = (state, groups) => groups.some((g) => groupValues(state,
 export function groupAliases(meta) {
   const pages = new Map((meta?.filters || []).filter((f) => f.type === 'multi_select').map((f) => [String(f.label).trim().toLowerCase(), f.id]));
   const out = {};
-  (meta?.columns?.list || []).filter((f) => f.type === 'multi_select' && !f.action).forEach((f) => {
+  const link = (table, columns) => (columns || []).filter((f) => f.type === 'multi_select' && !f.action).forEach((f) => {
     const id = pages.get(String(f.label).trim().toLowerCase());
-    if (id) out[`|${f.column}`] = id;
+    if (id) out[`${table}|${f.column}`] = id;
   });
+  link('', meta?.columns?.list);
+  Object.entries(meta?.columns?.tables || {}).forEach(([table, columns]) => link(table, columns));
   return out;
 }
 

@@ -597,7 +597,7 @@ function registerImplementRoutes(app, deps) {
       for (const row of history) (versionsByUc[row.use_case_id] || (versionsByUc[row.use_case_id] = [])).push(row);
       const latest = Object.values(versionsByUc).map((rows) => {
         const live = I.previousBuilt(rows);
-        return Object.assign(rows[0], { live_version: live ? live.spec_version : null });
+        return Object.assign(rows[0], { live_version: live ? live.spec_version : null, live_spec_json: live ? live.spec_json : null });
       });
       const [notebook] = await Promise.all([
         latestGenieNotebookRun(fetchJsonFor(req), sid).then((run) => ({ run, error: '' }), (err) => ({ run: null, error: err.message })),
@@ -876,9 +876,12 @@ function registerImplementRoutes(app, deps) {
         loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
       ]);
       const sourced = await sourceVerdict(req, warehouseId, useCaseNow, historyNow[0] || null, resultTable);
+      const blocking = I.blockingMissingTables(sourced.missing, (historyNow[0] && historyNow[0].spec_json) || {}, useCaseNow);
       checks.sources = sourced.app_unreadable
         ? { ok: false, detail: sourced.app_unreadable.text }
-        : { ok: true, detail: 'the App can read every source of this use case' };
+        : blocking.length
+          ? { ok: false, detail: I.missingTablesMessage(blocking) }
+          : { ok: true, detail: 'the App can read every source of this use case' };
       if (shares) checks.result_grant = I.shareCheck(output ? output.grant : null);
       if (appName) {
         const name = I.appNameCheck(appName, existingApp && existingApp.ok ? existingApp.data : null, { useCaseId, sessionId: sid });
@@ -911,6 +914,7 @@ function registerImplementRoutes(app, deps) {
         ...(appName || mergeApp ? {} : { new_app: output ? output.app : unchecked }),
         features,
         ...(moved ? { result_table_moved: moved } : {}),
+        app_unreadable: sourced.app_unreadable || null,
       });
     } catch (err) {
       sendError(res, err);
@@ -1288,8 +1292,8 @@ function registerImplementRoutes(app, deps) {
     };
   }
 
-  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [] }) {
-    I.refuseUnchanged(plan);
+  async function startVersion(req, { sid, warehouseId, inspire_database, catalog, schema, spec: planned, useCaseId, session, plan, person, warnings: noted = [], warningDetails = [], rebuildAsIs = false }) {
+    if (!rebuildAsIs) I.refuseUnchanged(plan);
     const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
     const warnings = [...noted, ...outputWarnings];
     const params = I.implementJobParams(notebookParamsFromSessionForGenerateRun(session, sid), useCaseId, plan.nextVersion);
@@ -1372,7 +1376,7 @@ function registerImplementRoutes(app, deps) {
       res.json(await oneBuildAtATime(req, async () => {
         const prepared = await prepareSubmission(req);
         if (GC.needsGenieCode(prepared.spec)) await requireGenieCode(req);
-        return startVersion(req, prepared);
+        return startVersion(req, { ...prepared, rebuildAsIs: req.body?.rebuild_as_is === true });
       }));
     } catch (err) {
       sendError(res, err);
@@ -1548,33 +1552,48 @@ function registerImplementRoutes(app, deps) {
     return { sid, warehouseId, catalog, schema, useCaseId, history, person, table, before, refused };
   }
 
+  function feedbackTables(ctx) {
+    const app = FB.appFeedbackTable(`${ctx.catalog}.${ctx.schema}`);
+    return ctx.table ? [FB.feedbackTable(ctx.table), app] : [app];
+  }
+
   function feedbackOwnerOnly(ctx) {
-    if (!ctx.table) throw I.badRequest('this use case has no result table yet, so its App keeps no reported issues', 409);
     if (ctx.refused) throw I.badRequest(ctx.refused.message, ctx.refused.status);
+  }
+
+  async function feedbackLists(req, ctx, statementOf) {
+    const lists = [];
+    for (const table of feedbackTables(ctx)) {
+      try {
+        lists.push(await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, statementOf(table)));
+      } catch (err) {
+        if (!isMissingTableError(err)) throw err;
+      }
+    }
+    return { lists, missing: lists.length === 0 };
   }
 
   app.get('/api/inspire/implement/feedback', requireToken, async (req, res) => {
     try {
       const ctx = await feedbackContext(req);
       const owner = { editable: !ctx.refused, why: ctx.refused ? ctx.refused.message : '' };
-      if (!ctx.table) return res.json({ ...FB.feedbackView([], owner), result_table: '', missing: true });
-      let rows;
-      try {
-        rows = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackListStatement(ctx.table, ctx.useCaseId));
-      } catch (err) {
-        if (!isMissingTableError(err)) throw err;
-        return res.json({ ...FB.feedbackView([], owner), result_table: ctx.table, missing: true });
-      }
-      return res.json({ ...FB.feedbackView(rows, owner), result_table: ctx.table, missing: false });
+      const { lists, missing } = await feedbackLists(req, ctx, (t) => FB.feedbackListStatement(t, ctx.useCaseId));
+      return res.json({ ...FB.feedbackView(FB.feedbackRowsAcross(lists), owner), result_table: ctx.table || '', missing });
     } catch (err) {
       return sendError(res, err);
     }
   });
 
   async function oneFeedback(req, ctx, id) {
-    const rows = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackOneStatement(ctx.table, ctx.useCaseId, id));
-    if (!rows[0]) throw I.badRequest(`No reported issue ${id} for ${ctx.useCaseId}.`, 404);
-    return rows[0];
+    for (const table of feedbackTables(ctx)) {
+      try {
+        const rows = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackOneStatement(table, ctx.useCaseId, id));
+        if (rows[0]) return { row: rows[0], table };
+      } catch (err) {
+        if (!isMissingTableError(err)) throw err;
+      }
+    }
+    throw I.badRequest(`No reported issue ${id} for ${ctx.useCaseId}.`, 404);
   }
 
   app.post('/api/inspire/implement/feedback/status', requireToken, async (req, res) => {
@@ -1582,10 +1601,11 @@ function registerImplementRoutes(app, deps) {
       const change = FB.feedbackStatusChange(req.body);
       const ctx = await feedbackContext(req);
       feedbackOwnerOnly(ctx);
-      await oneFeedback(req, ctx, change.feedback_id);
-      await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackStatusStatement(ctx.table, ctx.useCaseId, change, ctx.person.username));
-      const rows = await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackListStatement(ctx.table, ctx.useCaseId));
-      return res.json({ ...FB.feedbackView(rows, { editable: true }), result_table: ctx.table, missing: false, changed: change.feedback_id });
+      const { table } = await oneFeedback(req, ctx, change.feedback_id);
+      await sqlRows(req.dbHost, req.dbToken, ctx.warehouseId, FB.feedbackStatusStatement(table, ctx.useCaseId, change, ctx.person.username));
+      const { lists } = await feedbackLists(req, ctx, (t) => FB.feedbackListStatement(t, ctx.useCaseId));
+      return res.json({ ...FB.feedbackView(FB.feedbackRowsAcross(lists), { editable: true }), result_table: ctx.table || '', missing: false,
+        changed: change.feedback_id });
     } catch (err) {
       return sendError(res, err);
     }
@@ -1609,7 +1629,7 @@ function registerImplementRoutes(app, deps) {
       const ctx = await feedbackContext(req);
       feedbackOwnerOnly(ctx);
       const token = personReadToken(req);
-      const feedback = await oneFeedback(req, ctx, id);
+      const { row: feedback } = await oneFeedback(req, ctx, id);
       const spec = ctx.before.spec_json || {};
       const listed = await jsonOf(dbFetch, req.dbHost, token, '/api/2.0/serving-endpoints');
       if (!listed.ok) throw I.badRequest(`Inspire could not list the serving endpoints with your sign-in: ${listed.data.message || listed.data.error || `HTTP ${listed.status}`}`, listed.status);

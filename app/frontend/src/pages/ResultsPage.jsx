@@ -35,6 +35,7 @@ import {
   Boxes,
   AlertTriangle,
   XCircle,
+  Archive,
 } from 'lucide-react';
 import GlassCard from '../components/GlassCard';
 import DomainSunburst from '../components/DomainSunburst';
@@ -43,6 +44,9 @@ import { SkeletonCard, SkeletonStats } from '../components/SkeletonLoader';
 import { DataAccessBadge, InsightsGrid, SidebarFilterPanel } from '../components/ResultsInsights';
 import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
+import ValueBadge from '../components/ValueBadge';
+import { valueQuery } from '../lib/valueLedger';
+import { useValueRead } from '../lib/useValueLedger';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { executiveSummaryOf, runBusiness, runDate, runFigureParts, runFiguresOf } from '../lib/reviewFigures';
 import {
@@ -90,11 +94,15 @@ import { liveCountText } from '../lib/liveUseCases';
 import { saveBlob } from '../lib/download';
 import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
+import DocumentActions from '../components/DocumentActions';
+import { englishCatalogPath } from '../lib/documentActions';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
+import { cardAssetLinks, liveAppRenameStale, renameRestyleSpec } from '../lib/implementControl';
+import { ARCHIVE_VIEWS, archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../lib/useCaseArchive';
 import QualityGateDrops from '../components/QualityGateDrops';
 import { makeApiFetch, makeApiPostJson, requestHeaders } from '../lib/apiClient';
 import { RESULTS_PENDING_TEXT, noResultsText, reviewLinkText } from '../lib/runPages';
@@ -206,6 +214,11 @@ export default function ResultsPage({
     });
   }, []);
 
+  // Archive: browser localStorage, keyed by run and use case id; archived use cases leave the Active list
+  const [archiveView, setArchiveView] = useState('active');
+  const [archived, setArchived] = useState(loadArchiveMap);
+  const toggleArchive = useCallback((key) => setArchived((prev) => toggledArchive(prev, key)), []);
+
   const [feedbackState, setFeedbackState] = useState({ available: null, latest: [], message: '' });
   const [feedbackRefresh, setFeedbackRefresh] = useState(0);
   const [feedbackBusyKey, setFeedbackBusyKey] = useState('');
@@ -249,6 +262,10 @@ export default function ResultsPage({
 
   const [portfolioTick, setPortfolioTick] = useState(0);
   const { portfolio } = usePortfolio(apiFetch, inspireDb, warehouseId, portfolioTick);
+  const runValueUrl = selectedSessionId && inspireDb && warehouseId && !showcase
+    ? `/api/inspire/value?${valueQuery(inspireDb, warehouseId, { session_id: String(selectedSessionId) })}`
+    : '';
+  const runValue = useValueRead(apiFetch, runValueUrl, implementRefresh);
 
   const resultsDiscoveryType = results?.discovery_type || '';
   const feedbackBusiness = useMemo(() => {
@@ -319,6 +336,33 @@ export default function ResultsPage({
       }
     },
     [apiFetch, inspireDb, warehouseId]
+  );
+
+  const updateLiveApp = useCallback(
+    async (uc) => {
+      const id = String(uc?.No ?? '');
+      const q = new URLSearchParams({ inspire_database: inspireDb, warehouse_id: warehouseId, session_id: String(selectedSessionId), use_case_id: id });
+      const data = await apiFetch(`/api/inspire/implement/history?${q}`);
+      const spec = renameRestyleSpec(data.history, id, uc?.Name);
+      if (!spec) throw new Error('This use case has no built App to update.');
+      await apiPostJson('/api/inspire/implement/submit', { spec });
+      setImplementRefresh((n) => n + 1);
+    },
+    [apiFetch, apiPostJson, inspireDb, warehouseId, selectedSessionId]
+  );
+
+  const renameUseCase = useCallback(
+    async (uc, name) => {
+      await apiPostJson('/api/inspire/usecase-name', {
+        inspire_database: inspireDb,
+        warehouse_id: warehouseId,
+        session_id: String(selectedSessionId),
+        use_case_id: String(uc?.No ?? ''),
+        name,
+      });
+      await refreshUsecasesForSession(selectedSessionId);
+    },
+    [apiPostJson, inspireDb, warehouseId, selectedSessionId, refreshUsecasesForSession]
   );
 
   const refreshResultsJsonForSession = useCallback(
@@ -577,6 +621,11 @@ export default function ResultsPage({
   }
   const starredCount = allUseCases.filter((uc) => uc?._v130?.bestOfBest).length;
 
+  const isArchivedUc = (uc) => Boolean(archived[archiveKeyOf(selectedSessionId, uc)]);
+  const archivedCount = allUseCases.filter(isArchivedUc).length;
+  const archiveCounts = { active: allUseCases.length - archivedCount, archived: archivedCount };
+  filteredUseCases = filteredUseCases.filter((uc) => inArchiveView(archiveView, isArchivedUc(uc)));
+
   // Apply favorites filter
   if (showFavoritesOnly) {
     filteredUseCases = filteredUseCases.filter((uc) => {
@@ -737,6 +786,7 @@ export default function ResultsPage({
     const no = String(uc?.No ?? '').trim();
     if (!no) return;
     clearAllFilters();
+    setArchiveView(isArchivedUc(uc) ? 'archived' : 'active');
     setShowFavoritesOnly(false);
     setExpandedUseCase(cardKeyOf(uc));
     requestAnimationFrame(() => requestAnimationFrame(() => {
@@ -1034,6 +1084,15 @@ export default function ResultsPage({
               {runDate(selectedSession) && <span>· Updated {formatSessionDate(runDate(selectedSession))}</span>}
               <LatestRunBadge session={selectedSession} />
             </p>
+            {runValue?.run && (
+              <ValueBadge
+                atStake={runValue.run.at_stake}
+                saved={runValue.run.saved}
+                measured={Number(runValue.run.mvps_measured) > 0}
+                mvps={Number(runValue.run.mvps_measured) || 0}
+                className="mt-2"
+              />
+            )}
           </div>
           <button
             type="button"
@@ -1551,6 +1610,16 @@ export default function ResultsPage({
             );
           })()}
 
+          {generationPath && !showcase && selectedSessionId && (
+            <DocumentActions
+              apiFetch={apiFetch}
+              apiPostJson={apiPostJson}
+              session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), generationPath, outputLanguage: selectedSession?.output_language || '' }}
+              catalogPath={englishCatalogPath(artifactsRootFiles, artifactTree)}
+              onFinished={() => loadArtifacts(generationPath)}
+            />
+          )}
+
           {/* Quick Access — always visible, PDF/Excel/CSV files from artifacts */}
           {(() => {
             const artifactFiles = [];
@@ -1779,6 +1848,25 @@ export default function ResultsPage({
                   : 'top-20 max-h-[calc(100dvh-5rem)]'
               }`}
             >
+              <div role="group" aria-label="Show active or archived use cases" data-archive-views="" className="flex shrink-0 gap-1 rounded-xl border border-border bg-surface p-1 shadow-sm">
+                {ARCHIVE_VIEWS.map((view) => (
+                  <button
+                    key={view.id}
+                    type="button"
+                    onClick={() => setArchiveView(view.id)}
+                    aria-pressed={archiveView === view.id}
+                    data-archive-view={view.id}
+                    className={`flex flex-1 items-center justify-center gap-1.5 rounded-lg px-2 py-1.5 text-[11px] font-semibold transition-smooth ${
+                      archiveView === view.id ? 'bg-db-red-50 text-db-red-fg border border-db-red/20' : 'text-text-secondary border border-transparent hover:bg-bg-subtle'
+                    }`}
+                  >
+                    {view.id === 'archived' && <Archive size={12} />}
+                    {view.label}
+                    <span className="text-[10px] font-medium">{archiveCounts[view.id]}</span>
+                  </button>
+                ))}
+              </div>
+
               <div className="flex shrink-0 flex-col overflow-hidden rounded-xl border border-border bg-surface shadow-sm">
                 <button
                   type="button"
@@ -1921,7 +2009,7 @@ export default function ResultsPage({
                 <SidebarFilterPanel
                   key={`level-${level}`}
                   title={level}
-                  subtitle={`${options.filter((o) => o.value !== NOT_ALIGNED_FILTER).length} in use \u00b7 your strategy`}
+                  subtitle={`${options.filter((o) => o.value !== NOT_ALIGNED_FILTER && o.count > 0).length} in use \u00b7 your strategy`}
                   icon={Compass}
                   open={!!levelPanelOpen[level]}
                   onToggle={() => setLevelPanelOpen((o) => ({ ...o, [level]: !o[level] }))}
@@ -2334,17 +2422,34 @@ export default function ResultsPage({
                         onToggle={() => setExpandedUseCase(expandedUseCase === cardKeys.get(uc) ? null : cardKeys.get(uc))}
                         isFavorite={!!(favKey && favorites[favKey])}
                         onToggleFavorite={() => toggleFavorite(uc)}
+                        onRename={inspireDb && warehouseId && selectedSessionId ? (name) => renameUseCase(uc, name) : undefined}
+                        liveAppStale={liveAppRenameStale(implementLatestById[trackingIdOf(uc)], uc.Name) && cardAssetLinks(implementLatestById[trackingIdOf(uc)]).some((l) => l.id === 'app')}
+                        onUpdateLiveApp={inspireDb && warehouseId && selectedSessionId ? () => updateLiveApp(uc) : undefined}
                         v130={uc._v130}
                         feedbackCurrent={feedbackCurrentFor(uc)}
+                        useCaseValue={runValue?.use_cases?.[trackingIdOf(uc)] ?? null}
                         implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}
                         onImplement={canImplement ? () => startImplement(uc) : undefined}
                         onOpenMvp={onOpenImplement && tid && selectedSessionId ? () => onOpenImplement(String(selectedSessionId), tid) : undefined}
                         notebookUrl={workspaceNotebookUrl(databricksHost, uc.notebook_path || '')}
+                        assetLinks={tid ? cardAssetLinks(implementLatestById[tid] || null) : []}
+                        isArchived={isArchivedUc(uc)}
+                        onToggleArchive={selectedSessionId && archiveKeyOf(selectedSessionId, uc) ? () => toggleArchive(archiveKeyOf(selectedSessionId, uc)) : undefined}
                         {...detailPropsFor(uc)}
                       />
                       </div>
                       );
                     })}
+                  </div>
+                ) : allUseCases.length > 0 && archiveCounts[archiveView] === 0 ? (
+                  <div data-archive-empty={archiveView} className="bg-surface border border-border/70 rounded-xl p-10 text-center shadow-elevated">
+                    <Archive size={20} className="text-text-tertiary mx-auto mb-3" />
+                    <p className="text-sm text-text-secondary">
+                      {archiveView === 'archived' ? 'No archived use cases. Archive one from its card to move it here.' : 'Every use case of this run is archived.'}
+                    </p>
+                    <button type="button" onClick={() => setArchiveView(archiveView === 'archived' ? 'active' : 'archived')} className="text-xs text-db-red-fg hover:underline mt-2 font-medium">
+                      {archiveView === 'archived' ? 'Show active use cases' : 'Show archived use cases'}
+                    </button>
                   </div>
                 ) : allUseCases.length > 0 ? (
                   <div className="bg-surface border border-border/70 rounded-xl p-10 text-center shadow-elevated">

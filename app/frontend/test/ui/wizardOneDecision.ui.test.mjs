@@ -11,13 +11,13 @@ const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol 
 const stepGo = (page, id) => page.locator(`[data-step-go="${id}"]`);
 const buildNow = (page) => page.locator('[data-build-now]');
 
-test('the wizard starts on Data with no Use case step: the use case is a strip with Details, and no Advanced settings text is left', async () => {
+test('the wizard starts on What to deliver, with no Use case step: the use case is a strip with Details, and no Advanced settings text is left', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     const labels = await stepLabels(page);
-    assert.equal(labels[0], 'Data', labels.join(' | '));
+    assert.equal(labels[0], 'What to deliver', labels.join(' | '));
     assert.equal(labels.includes('Use case'), false, 'no Use case step (must-exclude)');
     assert.equal(await page.getByText('Advanced settings', { exact: false }).count(), 0, 'no Advanced settings text on any step (must-exclude)');
     assert.equal(await page.getByRole('heading', { name: 'Is this the use case you want to build?' }).count(), 0, 'the old use case question is gone (must-exclude)');
@@ -35,9 +35,8 @@ test('the stepper is a row of buttons: a finished step ticks, and a step after a
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await onStep(page, 'Data');
-    await stepGo(page, 'results').waitFor();
-    assert.equal(await stepGo(page, 'results').count(), 1, 'a later step is a button once the steps before it are valid');
+    await stepGo(page, 'data').waitFor();
+    assert.equal(await stepGo(page, 'data').count(), 1, 'a later step is a button once the steps before it are valid');
     assert.equal(await page.locator('[data-wizard-header] ol li button').first().count() > 0, true);
     await page.locator('[data-use-case-details-open]').click();
     const drawer = page.getByRole('dialog', { name: /^Use case details: / });
@@ -45,13 +44,13 @@ test('the stepper is a row of buttons: a finished step ticks, and a step after a
     await drawer.getByRole('button', { name: 'Close details' }).click();
     await page.waitForFunction(() => !document.querySelector('[data-use-case-drawer]'));
     await page.waitForTimeout(300);
-    assert.equal(await stepGo(page, 'results').count(), 0, 'Results is not reachable while the goal is empty (must-exclude)');
+    assert.equal(await stepGo(page, 'stake').count(), 0, 'Measure is not reachable while the goal is empty (must-exclude)');
     await page.locator('[data-use-case-details-open]').click();
     await page.getByRole('dialog', { name: /^Use case details: / }).getByLabel('Goal sentence').fill('Forecast billed revenue by district');
     await page.getByRole('button', { name: 'Close details' }).click();
-    await page.waitForFunction(() => document.querySelector('[data-step-go="results"]'));
-    await stepGo(page, 'results').click();
-    await onStep(page, 'Results');
+    await page.waitForFunction(() => document.querySelector('[data-step-go="stake"]'));
+    await stepGo(page, 'stake').click();
+    await onStep(page, 'Measure');
     const ticked = await page.locator('[data-wizard-header] ol li').first().locator('svg').count();
     assert.equal(ticked, 1, 'the finished Data step shows a tick');
     assert.deepEqual(ui.pageErrors, []);
@@ -60,12 +59,12 @@ test('the stepper is a row of buttons: a finished step ticks, and a step after a
   }
 });
 
-test('Build with these choices is on every step after Data and not on Data itself', async () => {
+test('Build with these choices is on every step after What to deliver and not on What to deliver itself', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await onStep(page, 'Data');
-    assert.equal(await buildNow(page).count(), 0, 'not on Data (must-exclude)');
+    await goToStep(page, 'What to deliver');
+    assert.equal(await buildNow(page).count(), 0, 'not on What to deliver (must-exclude)');
     await goToStep(page, 'Results');
     await buildNow(page).waitFor();
     await page.waitForFunction(() => {
@@ -84,7 +83,7 @@ test('every setting that used to sit under Advanced settings opens from its own 
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     for (const label of ['Window start', 'Window end']) assert.equal(await page.getByLabel(label, { exact: true }).count(), 0, `${label} waits behind its Change line`);
     await openAdvanced(page, 'data settings');
     for (const label of ['Window start', 'Window end']) await page.getByLabel(label, { exact: true }).first().waitFor();
@@ -139,7 +138,7 @@ test('Data groups with 20 columns shows a short list with a Show all and a searc
   }
 });
 
-test('Next on Results does not wait for the own schema to be created: the step moves on and the build waits for it', async () => {
+test('Next on Data and results does not wait for the own schema to be created: the step moves on and the build waits for it', async () => {
   const delayed = (app) => {
     app.post('/api/inspire/implement/create-schema', (_req, res) => setTimeout(() => res.json({ warnings: [] }), 6000));
   };
@@ -154,8 +153,8 @@ test('Next on Results does not wait for the own schema to be created: the step m
     await page.locator('input[name="result-place"][value="own"]').waitFor();
     const started = Date.now();
     await page.getByRole('button', { name: 'Next' }).click();
-    await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor({ timeout: 4000 });
-    assert.ok(Date.now() - started < 4000, 'Deliver opened while the schema was still being created');
+    await page.locator('[aria-current="step"]', { hasText: /^\s*(\d+\.\s*)?(First run|Measure)\s*$/ }).waitFor({ timeout: 4000 });
+    assert.ok(Date.now() - started < 4000, 'the next step opened while the schema was still being created');
     await page.locator('[data-schema-job="running"]').waitFor();
     assert.equal(await page.locator('[data-build-now]').isDisabled(), true, 'Build with these choices waits for the schema (must-exclude: building before it exists)');
     assert.deepEqual(ui.pageErrors, []);
@@ -164,14 +163,15 @@ test('Next on Results does not wait for the own schema to be created: the step m
   }
 });
 
-test('App pages and App look are two steps: the pages step holds no look picker and the look step holds no pages', async () => {
+test('App pages sit on Where it lives with the App placement, and App look is its own step that holds no pages', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
     await goToStep(page, 'App pages');
     const labels = await stepLabels(page);
-    assert.ok(labels.includes('App pages') && labels.includes('App look'), labels.join(' | '));
-    assert.equal(labels.includes('App pages and look'), false, 'no combined step (must-exclude)');
+    assert.ok(labels.includes('Where it lives') && labels.includes('App look'), labels.join(' | '));
+    assert.equal(labels.includes('App pages'), false, 'App pages is no step of its own (must-exclude)');
+    await page.getByRole('region', { name: 'App features' }).waitFor();
     assert.equal(await page.getByRole('tab', { name: 'Palette', exact: true }).count(), 0, 'the look is not on the pages step (must-exclude)');
     await goToStep(page, 'App look');
     await page.getByText('How should the App look?', { exact: true }).waitFor();
@@ -224,14 +224,14 @@ test('the stepper, its numbers and its Step count agree: one step bar, unique la
   const ui = await openUi('wizard', ME, '', { init: profileAt([], GROUPING_PROFILE, { after: 2000 }) });
   const { page } = ui;
   try {
-    await onStep(page, 'Data');
+    await goToStep(page, 'Data');
     const check = async () => {
       const labels = await page.locator('[data-wizard-header] ol li').allTextContents();
       assert.equal(await page.locator('[data-wizard-header] ol').count(), 1, 'one step bar');
       assert.deepEqual(labels.map((l) => l.replace(/^\d+\.\s*/, '')), [...new Set(labels.map((l) => l.replace(/^\d+\.\s*/, '')))], labels.join(' | '));
       labels.forEach((l, i) => assert.ok(l.startsWith(`${i + 1}. `), `step ${i + 1} is numbered ${i + 1}: ${l}`));
       const count = await page.locator('[data-wizard-header] .sr-only').innerText();
-      assert.equal(count, `Step 1 of ${labels.length}`, 'the Step count matches the labels');
+      assert.match(count, new RegExp(`^Step \\d+ of ${labels.length}$`), 'the Step count matches the labels');
     };
     await check();
     await page.waitForTimeout(3000);

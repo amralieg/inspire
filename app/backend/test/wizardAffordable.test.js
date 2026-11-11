@@ -92,8 +92,8 @@ test('the Summary of an MVP build states what is built, never only a notebook, a
 test('Results holds only the table place; Run it holds Keep it fresh and Measure impact; the wizard has no Team capacity', async () => {
   const w = await lib('implementWizard.js');
   const steps = w.wizardSteps('mvp', { outputs: { app: true } }, { grouping: true, firstRun: true });
-  const results = steps.find((s) => s.id === 'results');
-  assert.deepEqual(results.sections, ['results']);
+  const results = steps.find((s) => s.id === 'data');
+  assert.deepEqual(results.sections.filter((x) => x === 'results'), ['results'], 'the result table is on Data & results');
   assert.deepEqual(steps.find((s) => s.id === 'run').sections, ['schedule', 'kpi', 'holdout']);
   assert.deepEqual(steps.find((s) => s.id === 'run').panels, ['fresh', 'measure'], 'Keep it fresh comes first');
   assert.equal(steps.flatMap((s) => s.sections).includes('capacity'), false);

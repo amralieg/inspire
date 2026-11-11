@@ -92,9 +92,11 @@ test('entity matching: a merged pair offers Unmerge, which asks first and puts t
   const { page, context, seen } = await open({ ...base, records: h.records, 'records/act': h.act, 'records/undo': h.undo });
   const before = await rowCount(page);
   await page.locator('[data-choice-row="K1"] [data-choice="merge"]').click();
+  await page.locator('[data-choice-row="K1"] [data-decided]').waitFor();
   await idle(page);
   assert.equal(await page.locator('[data-choice-row="K1"] [data-decided]').count(), 1, 'the merged pair shows its outcome');
   assert.equal(await page.locator('[data-choice-row="K1"] [data-unmerge]').count(), 1, 'the merged pair offers Unmerge');
+  assert.equal((await page.locator('[data-choice-row="K1"] [data-unmerge]').innerText()).trim(), 'Unmerge', 'the entity page names the undo Unmerge');
   await page.locator('[data-choice-row="K1"] [data-unmerge]').click();
   const ask = page.locator('[role="group"][aria-label="Undo this decision"]');
   await ask.waitFor();
@@ -256,3 +258,56 @@ test('entity matching group: a group action whose refresh fails keeps every row 
   assert.ok(await page.locator('[data-choice-row] [data-choice]').count() > 0, 'decision buttons survive the failed refresh');
   await context.close();
 });
+
+test('a decision list whose kind names no undo word says Undo, not Unmerge', async () => {
+  const state = { rows: freshRows() };
+  const h = listing(state);
+  const info = appInfo(DECIDE, 1, {}, 'examples/network_explorer.json');
+  const spec = JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', 'network_explorer.json'), 'utf8'));
+  const base = kindRoutes(CASE.data(), state.rows, [], spec);
+  const { page, context, seen } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act, 'records/undo': h.undo } });
+  await page.locator('[data-choice-row]').first().waitFor();
+  await idle(page);
+  await page.locator('[data-choice-row="K1"] [data-choice="block"]').click();
+  await idle(page);
+  assert.equal((await page.locator('[data-choice-row="K1"] [data-unmerge]').innerText()).trim(), 'Undo', 'the generic word');
+  await context.close();
+  assert.deepEqual(seen.errors.filter((e) => !/Failed to load resource/.test(e)), []);
+});
+
+test('entity matching group: Merge group writes one batch for a cluster, keeps every row and its actions, and Unmerge group undoes it', async () => {
+  const state = { rows: freshRows() };
+  const h = listing(state);
+  const base = kindRoutes(CASE.data(), state.rows, [], PAGE);
+  const { page, context, seen } = await open({ ...base, records: h.records, 'records/act': h.act, 'records/undo': h.undo });
+  const before = await rowCount(page);
+  const ring = state.rows.filter((r) => r.community === 'Ring 1').map((r) => String(r.record_key)).sort();
+  assert.ok(ring.length >= 3, `the cluster has ${ring.length} records`);
+  const other = state.rows.find((r) => r.community !== 'Ring 1');
+  await page.locator('[data-cluster="Ring 1"] [data-group-merge]').click();
+  await page.locator('[data-cluster="Ring 1"] [data-group-confirm]').click();
+  await idle(page);
+  await page.waitForTimeout(300);
+  assert.equal(h.acts.length, 1, 'the group is written once');
+  assert.deepEqual([...h.acts[0].record_keys].sort(), ring, 'every open record of the cluster is in the one write');
+  assert.equal(h.acts[0].values.action_status, 'Done', 'the group writes the merge status');
+  assert.equal(h.acts[0].values.action_choice, 'merge', 'the group writes the merge choice');
+  assert.equal(await rowCount(page), before, 'no row disappears after the group merge');
+  assert.equal(await page.locator('[data-choice-row] [data-decided]').count(), ring.length, 'every merged record shows its outcome');
+  assert.ok(await page.locator(`[data-choice-row="${other.record_key}"] [data-choice]`).count() === 3, 'a record outside the cluster keeps its three buttons');
+  assert.equal(await page.locator('[data-cluster="Ring 1"] [data-group-unmerge]').count(), 1, 'the group offers Unmerge group');
+  await page.locator('[data-cluster="Ring 1"] [data-group-unmerge]').click();
+  const ask = page.locator('[data-cluster="Ring 1"] [role="group"][aria-label="Undo this decision"]');
+  await ask.waitFor();
+  assert.equal(h.undos.length, 0, 'nothing is undone before the person confirms');
+  await ask.getByRole('button', { name: 'Unmerge group' }).click();
+  await idle(page);
+  await page.waitForTimeout(300);
+  assert.deepEqual(h.undos.map((u) => u.batch_id), [batchId(1)], 'the group batch is undone once');
+  assert.equal(await rowCount(page), before, 'no row disappears after Unmerge group');
+  assert.equal(await page.locator('[data-choice-row] [data-decided]').count(), 0, 'every record of the cluster is open again');
+  assert.equal(await page.locator(`[data-choice-row="${ring[0]}"] [data-choice]`).count(), 3, 'a cluster record keeps its three buttons after Unmerge group');
+  await context.close();
+  assert.deepEqual(seen.errors.filter((e) => !/Failed to load resource/.test(e)), []);
+});
+

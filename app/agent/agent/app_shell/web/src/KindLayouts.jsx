@@ -10,6 +10,7 @@ import { GenieMark, Icon } from './icons.jsx';
 import { Skeleton, PlainNote, NewMessages, useFollowBottom } from './ui.jsx';
 import { SaveButton, runWrite } from './saving.jsx';
 import './styles/kindlayouts.css';
+import { SectionHelp } from './SectionHelp.jsx';
 
 export const CHAT_QUESTIONS = 12;
 export { RATINGS };
@@ -65,7 +66,7 @@ function Conversation({ page, app, genie }) {
           : chat.on ? `Answers from the Genie Agent${chat.info.title ? ` "${chat.info.title}"` : ''}, ${who}. Genie answers only: nothing on this page changes a record.`
           : chat.info.note || 'Ask Genie is off for this use case.'}</p>{chat.note && <p className="g-err" role="note" data-agent-note>{chat.note}</p>}</div>
         {chat.on && chat.thread.length > 0 && <button type="button" className="link" onClick={genie.reset}>New chat</button>}
-        <AskGenie kind="text" title="Ask the data" context={{ hint: chat.pairs.map((p) => p.question?.text).filter(Boolean).join('; ') || page.question || '' }} />
+        <SectionHelp title={'Ask the data'} steps={[{ title: 'Ask the data', text: "Ask a question about this data in your own words. Genie answers from this use case's tables." }]} /><AskGenie kind="text" title="Ask the data" context={{ hint: chat.pairs.map((p) => p.question?.text).filter(Boolean).join('; ') || page.question || '' }} />
       </header>
       <div className="chat-log" ref={log} role="log" aria-live="polite" aria-label="Genie conversation">
         {chat.on && !chat.thread.length && <p className="empty">Ask a question, or pick one below. Genie writes the SQL, runs it {who}, and shows its work.</p>}
@@ -96,7 +97,7 @@ function Suggested({ page, app, genie }) {
   return (
     <section className="card" aria-label="Suggested questions" data-part="suggested_questions">
       <header className="card-h"><div><h2>Questions to start with</h2><p>Each one goes to Genie as written; edit nothing, or ask your own above.</p></div>
-        <AskGenie kind="text" title="Questions to start with" context={{ hint: questions.join('; ') }} /></header>
+        <SectionHelp title={'Questions to start with'} steps={[{ title: 'Questions to start with', text: "Suggested questions Genie can answer for this use case. Pick one to see its answer." }]} /><AskGenie kind="text" title="Questions to start with" context={{ hint: questions.join('; ') }} /></header>
       <div className="chat-sugg">
         {questions.map((q) => <button key={q} type="button" className="sugg" data-question disabled={!chat.on || chat.busy} onClick={() => genie.ask(q)}>{q}</button>)}
       </div>
@@ -110,7 +111,7 @@ function CitedSql({ page, app, genie }) {
   return (
     <section className="card" aria-label="The SQL behind each answer" data-part="cited_sql">
       <header className="card-h"><div><h2>The SQL behind each answer</h2><p>Check what Genie read before you use a number from it.</p></div>
-        <AskGenie kind="text" title="The SQL behind each answer" context={{ hint: cited.map((p) => p.answer.answer.sql).join('\n\n') }} /></header>
+        <SectionHelp title={'The SQL behind each answer'} steps={[{ title: 'The SQL behind each answer', text: "The query Genie ran for each answer. Check it before you use a number from it." }]} /><AskGenie kind="text" title="The SQL behind each answer" context={{ hint: cited.map((p) => p.answer.answer.sql).join('\n\n') }} /></header>
       {!cited.length && <p className="empty">Ask a question: the SQL Genie runs shows here, with the tables it read.</p>}
       <ol className="chat-cited">
         {cited.map(({ answer, question }) => (
@@ -143,7 +144,7 @@ function Feedback({ page, app, genie }) {
   return (
     <section className="card" aria-label="Rate the answers" data-part="feedback">
       <header className="card-h"><div><h2>Rate the answers</h2><p>Your mark goes to the Genie Agent, so its owner can see which answers to fix.</p></div>
-        <AskGenie kind="text" title="Rate the answers" context={{ hint: done.map((p) => `${p.question?.text || 'Answer'}: ${RATINGS.find((r) => r.id === sent[p.answer.n])?.label || 'not rated'}`).join('; ') }} /></header>
+        <SectionHelp title={'Rate the answers'} steps={[{ title: 'Rate the answers', text: "Mark each Genie answer helpful or not, so its owner can see which answers to fix." }]} /><AskGenie kind="text" title="Rate the answers" context={{ hint: done.map((p) => `${p.question?.text || 'Answer'}: ${RATINGS.find((r) => r.id === sent[p.answer.n])?.label || 'not rated'}`).join('; ') }} /></header>
       {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
       {!done.length && <p className="empty">Answers you get show here for a helpful or not helpful mark.</p>}
       <ol className="chat-rate">
@@ -152,7 +153,7 @@ function Feedback({ page, app, genie }) {
             <span>{question?.text || 'Answer'}</span>
             <span role="group" aria-label={`Rate the answer to ${question?.text || 'this question'}`}>
               {RATINGS.map((r) => (
-                <SaveButton key={r.id} write={`rate:${answer.n}:${r.id}`} className={`btn btn--sm ${sent[answer.n] === r.id ? 'btn--pri' : ''}`} disabled={!on} aria-pressed={sent[answer.n] === r.id}
+                <SaveButton key={r.id} write={`rate:${answer.n}:${r.id}`} className={`btn btn--sm ${sent[answer.n] === r.id ? 'btn--pri' : ''}`} disabled={!on} why={on ? '' : 'Genie is not on for this page, so the rating cannot be sent.'} aria-pressed={sent[answer.n] === r.id}
                   data-rating={r.id} onClick={() => rate(answer, r.id)}>{r.label}</SaveButton>
               ))}
             </span>

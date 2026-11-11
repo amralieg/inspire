@@ -3428,6 +3428,8 @@
     ]
    },
    "demo_signal": "names and addresses with 5% near-duplicates that differ in spelling",
+   "undo_label": "Unmerge",
+   "group": {"column": "community", "choice": "merge", "label": "Merge group", "undo": "Unmerge group"},
    "choices": [
     {
      "id": "merge",
@@ -5252,6 +5254,15 @@
   "runs": "the runs entry, the history of each refresh of this use case and what it found",
   "settings": "the settings entry, where the target, the measurement and the flagging rules are set"
   },
+  "must_name": {
+    "actions": ["side panel", "choice"]
+  },
+  "generic": [
+    "Pick a date range or a group",
+    "Use the filters at the top",
+    "Click any row",
+    "Read the So what line"
+  ],
   "rail": [
    "genie",
    "alerts",

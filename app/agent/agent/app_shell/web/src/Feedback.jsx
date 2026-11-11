@@ -104,6 +104,25 @@ export function FeedbackButton({ pageId, context, sections }) {
   );
 }
 
+export function FeedbackScreen({ pageId, context, sections }) {
+  return (
+    <section className="card" aria-label="Feedback" data-feedback-screen>
+      <FeedbackForm pageId={pageId} context={context} sections={sections} />
+    </section>
+  );
+}
+
+export function ReportedIssues({ pageId }) {
+  const feedback = useFeedback(pageId);
+  const empty = !!feedback.data && !feedback.data.missing && !feedback.data.items?.length;
+  return (
+    <section className="card" aria-label="Reported issues" data-reported-issues>
+      <FeedbackList data={feedback.data} failure={feedback.failure} />
+      {empty && <p className="why" data-feedback-empty>Nobody has reported an issue with this App yet.</p>}
+    </section>
+  );
+}
+
 export function FeedbackSettings({ pageId, context, sections }) {
   const feedback = useFeedback(pageId);
   return (

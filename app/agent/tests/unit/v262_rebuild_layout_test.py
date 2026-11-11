@@ -23,7 +23,7 @@ def test_a_look_only_rebuild_of_a_dashboard_page_that_now_draws_a_decision_list_
     host = {"merged": False, "name": "airline-n04-u05", "pages": [{"id": own, "layout": "dashboard", "records": None}],
             "settings": {"genie": {"space_id": ""}}, "info": [], "notes": []}
     context = {"uc_id": "N04-U05", "use_case": {"use_case_kind": "driver_breakdown", "app_layout": "dashboard"},
-               "spec": {"outputs": {"app_look": {"style": "a"}, "app_purpose": "channel revenue drivers"}}, "key": ("1794109256659047797", "N04-U05", 3)}
+               "spec": {"outputs": {"app_look": {"style": "a"}, "app_purpose": "channel revenue drivers"}}, "key": ("4242", "N04-U05", 3)}
     result = inst._implement_app_restyle(context, host, {}, {"shell_core": None})
     assert result is None, "the held dashboard page is not reused"
     assert redeployed == [], "nothing is redeployed without Genie"

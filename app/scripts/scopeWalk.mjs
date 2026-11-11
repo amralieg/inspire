@@ -36,11 +36,12 @@ export function checkWizardSteps(steps, profile, { groupingShown = false } = {})
   if (!profile) return [{ check: 'the table profile', ok: null, detail: 'the wizard never read a Data groups profile, so nothing can be compared' }];
   const firstRun = FIRST_RUN_STEP.label;
   const groups = GROUPING_STEP.label;
+  const DATA_RESULTS_LABEL = 'Data & results';
   return [
     { check: 'the wizard asks Data groups whenever the technique works in groups', ok: groupingShown === Boolean(profile.applies), detail: `applies ${Boolean(profile.applies)}, asked ${groupingShown}` },
-    { check: `${groups} is a step of its own right after Data exactly when the technique works in groups`,
-      ok: steps.includes(groups) === Boolean(profile.applies) && (!profile.applies || steps.indexOf(groups) === steps.indexOf('Data') + 1), detail: steps.join(' > ') },
-    { check: `${firstRun} comes right after ${groups} or Data`, ok: steps.indexOf(firstRun) === Math.max(steps.indexOf('Data'), steps.indexOf(groups)) + 1, detail: steps.join(' > ') },
+    { check: `${groups} is a step of its own right after Data & results exactly when the technique works in groups`,
+      ok: steps.includes(groups) === Boolean(profile.applies) && (!profile.applies || steps.indexOf(groups) === steps.indexOf(DATA_RESULTS_LABEL) + 1), detail: steps.join(' > ') },
+    { check: `${firstRun} comes right after ${groups} or Data & results`, ok: steps.indexOf(firstRun) === Math.max(steps.indexOf(DATA_RESULTS_LABEL), steps.indexOf(groups)) + 1, detail: steps.join(' > ') },
   ];
 }
 

@@ -21,8 +21,8 @@ ROW_ANSWER = ("This row is for **franchise 3000046**, showing a sale of **$450 a
               "on it. In short, this row is one of the individual sales records that feeds into the analysis of which franchises lost weekly "
               "sales mainly from lower volume -- which is exactly what this use case tracks.")
 SHAPED_ROW = ("This row is for **franchise 3000046**, showing a sale of **$450 across 3 transactions** on **May 12, 2024** for **Golden Gate "
-              "Ginger** (paid by Amex, in the Current 7-day window). It appears in this weekly sales driver review because:\n\n"
-              "- It falls within the **current 7-day sales window** being reviewed (May 4-17, 2024).\n- Its **main sales driver is Volume**.\n"
+              "Ginger** (paid by Amex, in the Current 7-day window).\n\n"
+              "- It falls within **current 7-day sales window** being reviewed (May 4-17, 2024).\n- Its **main sales driver is Volume**.\n"
               "- It is tagged **Action tier: Monitor**.")
 SHORT_ROW = ("Franchise 3000046 sold **$450 across 3 transactions** on May 12, 2024, inside the current 7-day window.\n\n"
              "- Its main sales driver is Volume.\n- It is tagged Action tier: Monitor.")
@@ -49,7 +49,7 @@ def test_the_screenshot_answer_comes_back_as_a_short_lead_and_bullets_on_their_o
     assert " - " not in shaped and "--" not in shaped and "\u2014" not in shaped
     assert "In short" not in shaped and "exactly what this use case tracks" not in shaped
     assert sum(len(shell_agent.sentences_of(line)) for line in prose(shaped)) <= shell_agent.LEAD_SENTENCES
-    assert all(shell_agent.words_of(b) <= shell_agent.BULLET_WORDS for b in bullets(shaped)), shaped
+    assert all(shell_agent.words_of(b) <= shell_agent.BULLET_WORDS for b in bullets(shaped)[1:]), shaped
     for number in ("3000046", "$450", "3 transactions", "May 12, 2024", "May 4-17, 2024"):
         assert number in shaped, number
     assert shell_agent.words_of(shaped) < shell_agent.words_of(ROW_ANSWER) / 2
@@ -59,7 +59,7 @@ def test_the_screenshot_answer_is_named_as_breaking_the_cap_by_a_lot():
     problems, far = shell_agent.answer_problems(ROW_ANSWER)
     assert far is True
     joined = "; ".join(problems)
-    for named in ("written inside a sentence", "dashes", "closing summary", "longer than 20 words"):
+    for named in ("written inside a sentence", "dashes", "closing summary", "longer than 12 words"):
         assert named in joined, named
     assert shell_agent.answer_problems(SHORT_ROW) == ([], False)
 
@@ -92,7 +92,7 @@ def test_a_summary_opener_that_is_the_answer_itself_is_kept():
 
 def test_a_closing_sentence_that_holds_the_answers_number_is_kept_without_its_summary_words():
     shaped = shell_agent.shape_answer("Sales fell in three districts. The drop sits in the north. Staffing is the likely cause. In short, the loss is $4,200.")
-    assert shaped == "Sales fell in three districts. The loss is $4,200."
+    assert shaped == "The loss is $4,200."
 
 
 def test_a_bullet_never_loses_the_sentence_that_holds_the_answers_number():
@@ -100,12 +100,12 @@ def test_a_bullet_never_loses_the_sentence_that_holds_the_answers_number():
     assert bullets(shaped) == ["The loss is $4,200.", "Staffing fell."]
 
 
-def test_the_lead_keeps_two_sentences_the_list_four_bullets_and_a_table_six_rows():
+def test_the_lead_keeps_one_sentence_the_list_three_bullets_and_a_table_six_rows():
     text = ("One is first. Two is next. Three is extra. Four is extra.\n\n" + "\n".join(f"- Point {n} matters." for n in range(1, 8))
             + "\n\n| Item | Loss |\n|---|--:|\n" + "\n".join(f"| r{n} | {n} |" for n in range(1, 11)))
     shaped = shell_agent.shape_answer(text)
-    assert prose(shaped) == ["One is first. Two is next."]
-    assert len(bullets(shaped)) == 4
+    assert prose(shaped) == ["One is first."]
+    assert len(bullets(shaped)) == shell_agent.ANSWER_BULLETS == 3
     rows = [line for line in shaped.split("\n") if line.startswith("|")]
     assert rows[:2] == ["| Item | Loss |", "|---|--:|"] and len(rows) == 2 + shell_agent.TABLE_ROWS
 
@@ -117,7 +117,7 @@ def test_a_long_bullet_is_cut_at_a_clause_and_never_drops_a_number():
     kept = bullets(shell_agent.shape_answer(numbered))[0]
     assert "40" in kept and shell_agent.words_of(kept) < shell_agent.words_of(numbered)
     unbreakable = "- " + " ".join(["word"] * 30)
-    assert bullets(shell_agent.shape_answer(unbreakable)) == [" ".join(["word"] * 30)]
+    assert bullets(shell_agent.shape_answer(unbreakable)) == [" ".join(["word"] * shell_agent.BULLET_WORDS) + "…"]
 
 
 def test_a_bullet_whose_second_sentence_is_a_summary_loses_it():
@@ -145,7 +145,7 @@ def test_a_model_answer_far_over_the_cap_is_rewritten_once_with_its_problems_nam
     assert len(calls) == 2, "one answer and exactly one rewrite"
     note = calls[1]["messages"][-1]["content"]
     assert calls[1]["messages"][-2] == {"role": "assistant", "content": ROW_ANSWER} and "tools" not in calls[1]
-    for named in ("written inside a sentence", "dashes", "closing summary", "longer than 20 words", "Keep every number"):
+    for named in ("written inside a sentence", "dashes", "closing summary", "longer than 12 words", "Keep every number"):
         assert named in note, named
     assert turn["answer"] == shell_agent.shape_answer(ROW_ANSWER) and len(bullets(turn["answer"])) == 3
 

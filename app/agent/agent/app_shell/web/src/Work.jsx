@@ -6,7 +6,7 @@ import { withNotice } from './alerts.js';
 import { compareValues, countOf, integer, kindOf, plainText, unitOf } from './format.js';
 import { Icon } from './icons.jsx';
 import { Popover, SaidNote, useDialog, useToast, PlainNote, toastFailure } from './ui.jsx';
-import { SaveButton, runWrite, useWrite } from './saving.jsx';
+import { SaveButton, missingWhy, runWrite, useWrite } from './saving.jsx';
 import { localDay, nextDay } from './prefs.js';
 import {
   DRAFT_LABEL, DRAFT_RECORDS, NOTE_CHARS, NO_AS_OF, NO_SIMILAR, REASON_CHARS, actError, listAsOf, matchOf, SIMILAR_KEYS, SIMILAR_PAGE, SIMILAR_SUMMARY, UNDO_MS, CHOICE_COLUMN, DEFAULT_CHOICES, DISMISSED, DONE, IN_PROGRESS, choiceOf, choiceValues, statusKind, actOutcome, actedText, actionProblem, asOfText, batchText, byWords, conflictText,
@@ -203,7 +203,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
               {why && <PlainNote text={why} as="small" className="in-err" />}
             </label>
             {note500}
-            <SaveButton write="bulk:dismiss" type="submit" className="btn btn--pri" disabled={!!why}>Mark {what} not an issue</SaveButton>
+            <SaveButton write="bulk:dismiss" type="submit" className="btn btn--pri" disabled={!!why} why={why || ''}>Mark {what} not an issue</SaveButton>
           </form>
         </Popover>
       )}
@@ -213,7 +213,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
             <label className="in"><span>Owner</span><input dir="auto" name="bulk_owner" autoFocus value={owner} onChange={(e) => setOwner(e.target.value)} list="owners-bulk" maxLength={254} autoComplete="off" /></label>
             <datalist id="owners-bulk">{owners.map((o) => <option key={o} value={o} />)}</datalist>
             {note500}
-            <SaveButton write="bulk:assign" type="submit" className="btn btn--pri" disabled={!owner.trim()}>Assign {what}</SaveButton>
+            <SaveButton write="bulk:assign" type="submit" className="btn btn--pri" disabled={!owner.trim()} why={missingWhy(['who owns them'])}>Assign {what}</SaveButton>
           </form>
         </Popover>
       )}
@@ -229,7 +229,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
               </label>
             )}
             {note500}
-            <SaveButton write="bulk:status" type="submit" className="btn btn--pri" disabled={!!problem || !choice}>Set status of {what}</SaveButton>
+            <SaveButton write="bulk:status" type="submit" className="btn btn--pri" disabled={!!problem || !choice} why={problem || missingWhy(['a status'])}>Set status of {what}</SaveButton>
           </form>
         </Popover>
       )}
@@ -238,7 +238,7 @@ export function BulkBar({ picked, matching, total, capped = false, allOnPage, ow
           <form className="bulk-pop" onSubmit={submit('snooze', { snooze_until: until })}>
             <label className="in"><span>Snooze until</span><input type="date" name="bulk_snooze" min={tomorrow} value={until} onChange={(e) => setUntil(e.target.value)} required /></label>
             {note500}
-            <SaveButton write="bulk:snooze" type="submit" className="btn btn--pri" disabled={!until || until < tomorrow}>Snooze {what}</SaveButton>
+            <SaveButton write="bulk:snooze" type="submit" className="btn btn--pri" disabled={!until || until < tomorrow} why={until ? 'Pick a date after today to snooze.' : missingWhy(['a date'])}>Snooze {what}</SaveButton>
           </form>
         </Popover>
       )}
@@ -409,7 +409,8 @@ export function SimilarDialog({ similar, meta, pageId, model, onClose, onApply, 
         <NoteField name="similar_note" value={note} onChange={setNote} />
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <SaveButton write={SIMILAR_WRITE} type="submit" className="btn btn--pri" disabled={!!problem || !choice || !kept.length || !similar.match}>{`Apply to ${recordsText(kept.length)}`}</SaveButton>
+          <SaveButton write={SIMILAR_WRITE} type="submit" className="btn btn--pri" disabled={!!problem || !choice || !kept.length || !similar.match}
+            why={problem || (!choice ? missingWhy(['a status']) : !kept.length ? 'No record on this list is left to change.' : !similar.match ? 'No similar records were found to apply to.' : '')}>{`Apply to ${recordsText(kept.length)}`}</SaveButton>
         </footer>
       </form>
     </dialog>

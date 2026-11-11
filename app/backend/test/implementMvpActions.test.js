@@ -40,7 +40,7 @@ const uninstalledRow = (version) => row(version, {
 test('a vibe, a kept version removal and an uninstall are each a change class of their own, in the shared order', () => {
   const previous = spec();
   const classes = I.IMPLEMENT_CHANGE_CLASSES;
-  assert.deepEqual(classes.slice(classes.indexOf('retry')), ['retry', 'rollback', 'vibe', 'remove_kept', 'uninstall']);
+  assert.deepEqual(classes.slice(classes.indexOf('retry')), ['retry', 'rollback', 'vibe', 'remove_kept', 'uninstall', 'name']);
   assert.deepEqual(I.classifyImplementChange(previous, spec({ vibes: 'Put the riskiest first', vibe_previous: 'keep' })), ['vibe']);
   assert.deepEqual(I.classifyImplementChange(previous, spec({ remove_kept: [2] })), ['remove_kept']);
   assert.deepEqual(I.classifyImplementChange(previous, spec({ uninstall: true })), ['uninstall']);

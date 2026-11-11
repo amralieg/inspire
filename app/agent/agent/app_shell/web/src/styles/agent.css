@@ -8,4 +8,8 @@
 .ag-done{margin:0;font-size:12.5px;display:flex;gap:8px;align-items:center}
 .ag-view{margin:8px 0 0;font-size:12px;color:var(--muted);display:flex;gap:6px;align-items:center}
 .ag-rate{display:inline-flex;gap:6px;margin-top:8px;align-items:center}
+.ag-offer-acts{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.ag-offer-ask{display:flex;flex-wrap:wrap;gap:8px;align-items:flex-end;margin-top:8px}
+.ag-offer-ask label{display:flex;flex-direction:column;gap:4px;font-size:12px;color:var(--muted)}
+.ag-next{margin-top:8px}
 .g-note{margin:0;padding:6px 14px;font-size:12px;color:var(--muted);border-bottom:1px solid var(--line)}

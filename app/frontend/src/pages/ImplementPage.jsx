@@ -1330,8 +1330,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   );
 
   const reads = readOnly ? null : liveReads(sourceNow);
-  const readsShown = readsResult && !readsResult.error && readsResult.version === latest?.spec_version ? readsResult : null;
-  const readsLeft = readsShown ? { app: reads?.app || '', tables: readsShown.tables || [], canGrant: reads?.canGrant } : reads;
+  const readsLeft = reads;
   const runReads = async (action) => {
     setReadsBusy(action);
     try {

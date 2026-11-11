@@ -22,7 +22,6 @@ export function useChart(option, deps, onWidth) {
   const inst = useRef(null);
   const latest = useRef(option);
   latest.current = option;
-  const [, setReady] = useState(0);
   useEffect(() => {
     if (!el.current || !option) return undefined;
     let gone = false;
@@ -36,7 +35,6 @@ export function useChart(option, deps, onWidth) {
         if (onWidth && el.current) onWidth(Math.round(el.current.clientWidth / WIDTH_STEP) * WIDTH_STEP);
       });
       observer.observe(el.current);
-      setReady((n) => n + 1);
     });
     return () => { gone = true; observer?.disconnect(); inst.current?.dispose(); inst.current = null; };
   }, [!!option]);
