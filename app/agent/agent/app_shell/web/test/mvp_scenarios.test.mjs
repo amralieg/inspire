@@ -51,7 +51,7 @@ test('a list of 10,000 records pages 25 at a time and says how many there are, w
   assert.match(main, /10,000/);
   assert.doesNotMatch(main, /\b10000\b/, 'counts are grouped');
   assert.equal(await page.locator('tbody tr').filter({ hasText: /^Item number|Item number \d+/ }).count() <= 25, true, 'one page of rows, never all 10,000');
-  assert.match(await page.locator('[data-todo-count]').innerText(), /^10,000 of 10,000 waiting for you$/);
+  assert.match(await page.locator('[data-section="todo"] [data-todo-count]').innerText(), /^10,000 of 10,000 waiting for you$/);
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -88,7 +88,7 @@ test('a list the App may not read says so in a sentence, never raw JSON, and off
   const text = await page.locator('main').innerText();
   assert.doesNotMatch(text, JUNK);
   assert.equal(await page.locator('[data-act-all], [data-accept], [data-bulk]').count(), 0);
-  assert.equal(await page.locator('[data-todo-count]').count(), 0, 'no count of records the App could not read');
+  assert.equal(await page.locator('[data-section="todo"] [data-todo-count]').count(), 0, 'no count of records the App could not read');
   assert.ok(seen.errors.every((e) => /403/.test(e)), seen.errors.join('\n'));
   await context.close();
 });
@@ -103,8 +103,8 @@ test('an empty run says the list is empty, offers no bulk action and counts noth
       summary: { open: 0, done: 0, resolved: 0, left: 0, owners: [] }, errors: {} });
   };
   const { page, seen, context } = await openApp(browser, served.base, info, { routes, width: 1280, height: 800, ready: 'main' });
-  await page.locator('[data-todo-count]').waitFor();
-  assert.equal(await page.locator('[data-todo-count]').innerText(), 'Nothing is waiting for you right now');
+  await page.locator('[data-section="todo"] [data-todo-count]').waitFor();
+  assert.equal(await page.locator('[data-section="todo"] [data-todo-count]').innerText(), 'Nothing is waiting for you right now');
   assert.equal(await page.locator('.todo-bar').count(), 0);
   assert.equal(await page.locator('[data-act-all]').count(), 0);
   assert.doesNotMatch(await page.locator('main').innerText(), JUNK);

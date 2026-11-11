@@ -129,6 +129,7 @@ export async function wheelToEnd(page, region, last, name, over = null) {
 }
 
 export async function wheelReads(page, box, { lines = '', readable = 3, delta = 1200 } = {}) {
+  await page.waitForFunction((el) => el.scrollHeight > el.clientHeight, await box.elementHandle(), { timeout: 15000 });
   await box.evaluate((el) => { el.scrollTop = 0; });
   await frames(page);
   const at = await where(box);
