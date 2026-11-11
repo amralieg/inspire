@@ -1968,7 +1968,7 @@ export default function ResultsPage({
                 <SidebarFilterPanel
                   key={`level-${level}`}
                   title={level}
-                  subtitle={`${options.filter((o) => o.value !== NOT_ALIGNED_FILTER).length} in use \u00b7 your strategy`}
+                  subtitle={`${options.filter((o) => o.value !== NOT_ALIGNED_FILTER && o.count > 0).length} in use \u00b7 your strategy`}
                   icon={Compass}
                   open={!!levelPanelOpen[level]}
                   onToggle={() => setLevelPanelOpen((o) => ({ ...o, [level]: !o[level] }))}
