@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { draftOf, ruleOf, ruleSentence } from '../../../agent/agent/app_shell/web/src/moneyRule.js';
 import '../../../agent/agent/app_shell/web/src/styles/moneyRule.css';
 import { compileExpression } from '../../../agent/agent/app_shell/web/src/moneyValue.js';
+import { MONEY_PARTS } from '../lib/moneyParts.js';
 import { PlainMessage } from './TechnicalDetails.jsx';
 
 const ISO = /^[A-Z]{3}$/;
@@ -68,7 +69,9 @@ function ruleTextOf(value) {
 
 const shownAmount = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
-export function MoneyRuleEditor({ value, onChange, sample = null, table = '', columns = [], api = {} }) {
+export function MoneyRuleEditor({ value, onChange, sample = null, table = '', columns = [], api = {}, part = null }) {
+  const onlyPart = MONEY_PARTS.includes(part) ? part : null;
+  const show = (name) => !onlyPart || onlyPart === name;
   const [draft, setDraft] = useState(() => ({ ...draftOf({ currency: 'convert', base: value?.base || '', rates: value?.rates || {} }), mode: 'convert', rateSource: 'typed' }));
   const [pick, setPick] = useState(() => ({ ...pickOf(value?.value) }));
   const [problems, setProblems] = useState([]);
@@ -159,6 +162,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
 
   return (
     <div className="money-rule space-y-4" data-money-rule-editor>
+      {show('method') && (<>
       <fieldset className="space-y-2" data-measure-value>
         <legend className="text-[13px] font-semibold text-text-primary">How does your business measure the value of each record?</legend>
         {METHODS.map((m) => (
@@ -229,6 +233,8 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         </div>
       )}
 
+      </>)}
+      {show('direction') && (<>
       <fieldset className="space-y-2" data-measure-direction>
         <legend className="text-[13px] font-semibold text-text-primary">Which movement counts?</legend>
         {DIRECTIONS.map((d) => (
@@ -239,6 +245,8 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         ))}
       </fieldset>
 
+      </>)}
+      {show('currency') && (<>
       <div className="space-y-2" data-money-convert>
         <p className="text-[13px] font-semibold text-text-primary">Report every amount in one currency</p>
         <label className="block text-[12px]">Reporting currency
@@ -264,9 +272,12 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         )}
       </div>
 
+      </>)}
+      {(!onlyPart || onlyPart === 'window' || onlyPart === 'off') && (
       <details className="text-[12px]" data-money-more>
         <summary className="cursor-pointer text-text-secondary">More options</summary>
         <div className="space-y-2 pt-2">
+          {show('window') && (<>
           <label className="block">Closed periods to total (empty for every closed period)
             <input className="block mt-1 w-24" value={draft.window} onChange={(e) => setDraftPart({ window: e.target.value })} data-money-window />
           </label>
@@ -278,10 +289,11 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
               <input className="block mt-1 w-40" value={draft.statusColumn} onChange={(e) => setDraftPart({ statusColumn: e.target.value })} data-money-status-column />
             </label>
           )}
-          <label className="flex items-center gap-2"><input type="checkbox" checked={draft.off} onChange={(e) => setDraftPart({ off: e.target.checked })} data-money-off /> Off: show no money total, chart or Genie money answer</label>
+          </>)}
+          {show('off') && <label className="flex items-center gap-2"><input type="checkbox" checked={draft.off} onChange={(e) => setDraftPart({ off: e.target.checked })} data-money-off /> Off: show no money total, chart or Genie money answer</label>}
         </div>
       </details>
-
+      )}
       {!effective.method && <p className="text-[12px] text-text-secondary" data-money-genie-estimate>Until you choose how to measure value, the totals are Genie estimate, not your rule.</p>}
       {sentence && <p className="sentence text-[12px] text-text-primary" data-money-sentence>{sentence}</p>}
       {problems.length > 0 && <PlainMessage text={problems.join(' ')} className="text-[12px] text-danger" data-money-error />}
