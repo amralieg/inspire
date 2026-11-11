@@ -61,12 +61,12 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     const accessWords = await access.evaluate((el) => { const copy = el.cloneNode(true); copy.querySelectorAll('[data-app-speed]').forEach((n) => n.remove()); return copy.textContent; });
     assert.doesNotMatch(accessWords, /service principal|Lakebase/, 'App access names no service principal and no Lakebase outside its storage choice (must-exclude)');
     assert.equal(await access.getByRole('checkbox').count(), 0, 'what people can do is on its own step');
-    await goToStep(page, 'App features');
+    await goToStep(page, 'Who uses the App');
     assert.equal(await page.getByRole('region', { name: 'App features' }).getByRole('checkbox', { name: /^Send alerts/ }).count(), 0,
       'the default per-user App sends no alerts (must-exclude)');
     await goToStep(page, 'App access');
     await internal.check();
-    await goToStep(page, 'App features');
+    await goToStep(page, 'Who uses the App');
     const features = page.getByRole('region', { name: 'App features' });
     assert.deepEqual(await features.getByRole('checkbox').evaluateAll((boxes) => boxes.map((b) => [b.closest('label').querySelector('span span').textContent, b.checked])),
       [['Let people edit data', false], ['Record decisions', true], ['Send alerts', false]], 'record decisions start on, the other options off, and none is a download');
@@ -81,7 +81,7 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     await features.getByRole('checkbox', { name: /^Send alerts/ }).check();
     await goToStep(page, 'App access');
     await perUser.check();
-    await goToStep(page, 'App features');
+    await goToStep(page, 'Who uses the App');
     assert.equal(await features.getByRole('checkbox', { name: /^Record decisions/ }).isChecked(), true, 'per-user keeps record decisions');
     assert.equal(await features.getByRole('checkbox', { name: /^Send alerts/ }).count(), 0, 'per-user hides alerts');
     await features.locator('details').evaluate((d) => { d.open = true; });
@@ -310,7 +310,7 @@ async function withEveryAppLookOption(check) {
     await page.setViewportSize({ width: 1440, height: 900 });
     await toDelivery(page);
     await toSharedAccess(page);
-    await goToStep(page, 'App features');
+    await goToStep(page, 'Who uses the App');
     await goToStep(page, 'Who uses the App');
     const features = page.getByRole('region', { name: 'App features' });
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
@@ -1104,7 +1104,7 @@ test('Send alerts is a build setting of a shared App: off until ticked, then sen
     await toDelivery(page);
     await page.getByRole('checkbox', { name: /^App / }).check();
     await toSharedAccess(page);
-    await goToStep(page, 'App features');
+    await goToStep(page, 'Who uses the App');
     const features = page.getByRole('region', { name: 'App features' });
     const alerts = features.getByRole('checkbox', { name: /^Send alerts/ });
     assert.equal(await alerts.isChecked(), false, 'alerts start off');

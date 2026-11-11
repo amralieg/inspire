@@ -1546,12 +1546,12 @@ export default function ImplementWizard({
           </>
         )}
 
-        {shows('fresh') && <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>}
         {shows('fresh') && (
           <>
             <section className="space-y-2">
               <h3 className="text-sm font-semibold text-text-primary">{FRESH_LABEL}</h3>
               <p className="text-[11px] text-text-secondary">{FRESH_HELP}</p>
+              <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
               <div data-choice="freshness" className="space-y-2">
               <div role="group" aria-label="Keep it fresh" className="inline-flex rounded-lg border border-border overflow-hidden">
                 {[...FRESHNESS_OPTIONS, ...(freshness === 'custom' ? [{ id: 'custom', label: 'Custom' }] : [])].map((option) => (
