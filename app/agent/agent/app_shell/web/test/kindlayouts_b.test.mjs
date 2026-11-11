@@ -169,6 +169,7 @@ test('the mouse wheel scrolls the chat conversation to its last message at 1280x
   const { page, seen, context } = await open('agent_chat', [], {});
   await page.locator('[data-question]').first().click();
   await page.locator('[data-chat="done"]').waitFor();
+  await page.locator('.chat-log .cursor').waitFor({ state: 'detached' });
   const log = page.locator('.chat-log');
   await wheelScrolls(page, log, () => log.locator('[data-wheel-copy]').last(), { name: 'chat conversation',
     fill: () => fillWithCopies(log, ':scope > .msg', 14), unfill: () => dropCopies(log) });
