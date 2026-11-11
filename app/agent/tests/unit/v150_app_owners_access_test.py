@@ -132,7 +132,7 @@ def test_a_per_user_app_gets_a_service_principal_grant_only_on_the_table_it_reco
      "Inspire could not grant it: GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out_assumptions` TO `sp-1` failed: "
      "PERMISSION_DENIED: not a manager"),
     ({"CREATE TABLE IF NOT EXISTS `main`.`inspire`.`churn_out_assumptions`": RuntimeError("PERMISSION_DENIED: no CREATE TABLE")},
-     "Inspire could not create it: PERMISSION_DENIED: no CREATE TABLE"),
+     "Inspire could not create it: main.inspire.churn_out_assumptions: PERMISSION_DENIED: no CREATE TABLE"),
 ])
 def test_an_assumptions_grant_that_fails_is_a_plain_warning_and_the_app_still_ships(agent_ns, sdk_stub, fail, reason):
     spark = Catalog(fail=fail)
