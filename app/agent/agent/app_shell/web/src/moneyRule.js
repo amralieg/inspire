@@ -1,3 +1,4 @@
+import { plainColumns } from './impact.js';
 // ISO 4217 codes, the same list as shell_sql.MONEY_CODES; the parity test runs the shared fixture through both.
 const CURRENCY_CODES = new Set([
   'AED', 'AFN', 'ALL', 'AMD', 'ANG', 'AOA', 'ARS', 'AUD', 'AWG', 'AZN', 'BAM', 'BBD', 'BDT',
@@ -106,13 +107,13 @@ export function ruleSentence(rule) {
   const periods = rule?.window?.periods;
   const window = periods ? ` over the last ${periods} closed ${periods === 1 ? 'period' : 'periods'}` : ' over every closed period';
   if (rule?.off) return 'Money is off for this use case: no money total, chart or Genie money answer is shown.';
-  const counted = rule?.per === 'group' ? `Each ${rule.group_column} counts once, with its largest row. ` : '';
+  const counted = rule?.per === 'group' ? `Each ${plainColumns(rule.group_column)} counts once, with its largest row. ` : '';
   const statuses = rule?.statuses ? ` Only rows whose status is ${rule.statuses.join(', ')} count.` : '';
   const losses = (rule?.rule || 'losses') === 'losses' ? 'Only losses count' : 'Gains and losses are netted';
   const tail = `${counted}${losses}.${statuses}`;
   if (rule?.currency !== 'convert') return `Each currency is totalled on its own${window}. Amounts in different currencies are never added together. ${tail}`;
-  if (rule.rate_table) return `Every amount is converted to ${rule.base} at the rate in ${rule.rate_table.table} for its currency, base and date, then added up${window}. ${tail}`;
-  if (rule.rate_column !== undefined) return `Every amount is converted to ${rule.base} at the rate in ${rule.rate_column} on its own row, then added up${window}. ${tail}`;
+  if (rule.rate_table) return `Every amount is converted to ${rule.base} at the rate in ${plainColumns(rule.rate_table.table)} for its currency, base and date, then added up${window}. ${tail}`;
+  if (rule.rate_column !== undefined) return `Every amount is converted to ${rule.base} at the rate in ${plainColumns(rule.rate_column)} on its own row, then added up${window}. ${tail}`;
   const rates = Object.entries(rule.rates || {}).map(([code, rate]) => `1 ${code} = ${rate} ${rule.base}`).join(', ');
   return `Every amount is converted to ${rule.base} at the rates you typed in (${rates}), then added up${window}. ${tail}`;
 }
