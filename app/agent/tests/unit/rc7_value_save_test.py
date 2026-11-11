@@ -63,12 +63,12 @@ def test_clearing_a_saved_value_with_done_and_null_writes_a_NULL_saved_row(tmp_p
     assert f"NULL, NULL, '{PERSON}', current_timestamp()" in sql
 
 
-def test_a_status_change_that_does_not_name_realized_value_writes_no_ledger_row(tmp_path):
+def test_a_status_change_that_does_not_name_realized_value_writes_only_a_clearing_statement_for_the_record(tmp_path):
     ws = LedgerWorkspace(stake=STAKE_EUR, keys=("k1",))
     s, ws, _made = shell(tmp_path, settings=DECIDE, pages=[_page()], ws=ws)
     status, out = act(s, values={"action_status": "In progress"})
     assert status == 200 and "value_recorded" not in out and "value_warning" not in out
-    assert ws.inserts == [] and ws.queries(LEDGER) == []
+    assert len(ws.inserts) == 1 and "JOIN (SELECT DISTINCT `record_key`" in ws.inserts[0]
 
 
 def test_a_use_case_with_no_measured_stake_says_the_value_is_not_counted_and_the_save_still_stands(tmp_path):
@@ -109,3 +109,24 @@ def test_the_ledger_write_uses_the_app_identity_not_the_person(tmp_path):
     assert status == 200 and out.get("value_recorded") == 1, out
     assert len(writer.inserts) == 1, "the App's service principal writes the ledger row"
     assert reader.inserts == [], "the person's own sign-in never writes the ledger"
+
+
+def test_reopening_a_record_that_was_counted_writes_one_clearing_row_for_it(tmp_path):
+    ws = LedgerWorkspace(stake=STAKE_EUR, keys=("k1",))
+    s, ws, _made = shell(tmp_path, settings=DECIDE, pages=[_page()], ws=ws)
+    status, out = act(s, values={"action_status": "Done", "realized_value": 300})
+    assert status == 200 and out["value_recorded"] == 1 and len(ws.inserts) == 1
+    status, out = act(s, values={"action_status": "In progress"})
+    assert status == 200 and "value_cleared" in out and "value_recorded" not in out
+    assert len(ws.inserts) == 2
+    clearing = ws.inserts[1]
+    assert "JOIN (SELECT DISTINCT `record_key`" in clearing and "`action_batch` = '" in clearing
+    assert f"NULL, NULL, '{PERSON}', current_timestamp()" in clearing
+
+
+def test_a_Done_act_that_names_no_value_clears_nothing(tmp_path):
+    ws = LedgerWorkspace(stake=STAKE_EUR, keys=("k1",))
+    s, ws, _made = shell(tmp_path, settings=DECIDE, pages=[_page()], ws=ws)
+    status, out = act(s, values={"action_status": "Done"})
+    assert status == 200 and "value_cleared" not in out
+    assert ws.inserts == []
