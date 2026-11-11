@@ -15,6 +15,7 @@ SCOPE_JSON = json.dumps({"main.s.orders": {
     "rows": [{"column": "status", "op": "=", "values": ["gold"]}],
 }})
 SCOPED_ORDERS = "(SELECT `order_id`, `customer_id`, `order_date` FROM `main`.`s`.`orders` WHERE `status` = 'gold')"
+SCOPED_ORDERS_FROM = SCOPED_ORDERS + " AS `orders`"
 
 
 @pytest.fixture
@@ -32,7 +33,7 @@ def test_a_scope_names_the_columns_read_and_the_rows_kept_and_the_source_is_thei
     entry = scopes["main.s.orders"]
     assert entry["columns"] == ["order_id", "customer_id", "order_date"]
     assert entry["source"] == SCOPED_ORDERS
-    assert scoped["scoped_source"]("main", "s", "orders") == SCOPED_ORDERS
+    assert scoped["scoped_source"]("main", "s", "orders") == SCOPED_ORDERS_FROM
     assert scoped["scoped_source"]("main", "s", "customers") == "`main`.`s`.`customers`", "an unscoped table is read by its plain name"
 
 
@@ -283,7 +284,7 @@ def viewed(agent_ns):
 def test_one_scope_definition_builds_the_view_and_the_source_reads_the_view_once_it_exists(viewed):
     scope = viewed["INSPIRE_TABLE_SCOPES"]["main.s.orders"]
     assert scope["view_sql"] == VIEW_SQL, scope["view_sql"]
-    assert viewed["scoped_source"]("main", "s", "orders") == SCOPED_ORDERS, "before the view exists, reads use the scoped subquery"
+    assert viewed["scoped_source"]("main", "s", "orders") == SCOPED_ORDERS_FROM, "before the view exists, reads use the scoped subquery"
     spark = _RecordingSpark()
     assert viewed["create_scope_views"](spark) == ["main.insp.main_s_orders__scope"]
     assert spark.statements == [VIEW_SQL]
