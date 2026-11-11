@@ -4,6 +4,7 @@ import { createRequire } from 'node:module';
 import { SHOWCASE_BUTTON } from '../frontend/src/lib/showcase.js';
 import { APP_TABS } from '../frontend/src/lib/tabs.js';
 import { RUN_BACK } from '../frontend/src/lib/runPages.js';
+import { CUSTOM, DEFAULT_PERIOD, PERIODS } from '../agent/agent/app_shell/web/src/mywork.js';
 
 const require = createRequire(import.meta.url);
 const { SHOWCASE_GENIE_ASK, SHOWCASE_HEADER, SHOWCASE_READ_ONLY, showcaseCanRead } = require('../backend/lib/showcase.js');
@@ -540,6 +541,16 @@ async function walkScreen(page, settle, { rows, questions, log, where, home, goB
     for (let j = 0; j < r; j += 1) {
       await clickable.nth(j).click();
       await settle();
+      const fix = page.locator('[data-act="genie"]', { hasText: 'Ask Genie to fix' });
+      if (questions && (await fix.count())) {
+        await fix.first().click();
+        await page.waitForFunction(() => document.querySelectorAll('.msg--genie').length > 0
+          && !document.querySelector('.msg--genie .g-step'), null, { timeout: GENIE_WAIT_MS });
+        await settle();
+        log(`${where}: Genie answered the fix question on a record`);
+        const closeGenie = page.locator('.genie button[aria-label="Close Ask Genie"]');
+        if (await closeGenie.count()) await closeGenie.click();
+      }
       await page.keyboard.press('Escape');
       await settle();
       await back((await views.count()) ? i : -1);
@@ -591,16 +602,6 @@ async function walkScreen(page, settle, { rows, questions, log, where, home, goB
     const close = page.locator('.genie button[aria-label="Close Ask Genie"]');
     if (await close.count()) await close.click();
     await back();
-    const first = page.locator('button', { hasText: 'Ask Genie what to do first' }).first();
-    if (await first.count()) {
-      await first.click();
-      await page.waitForFunction(() => document.querySelectorAll('.msg--genie').length > 0
-        && !document.querySelector('.msg--genie .g-step'), null, { timeout: GENIE_WAIT_MS });
-      await settle();
-      log(`${where}: Genie answered what to do first`);
-      if (await close.count()) await close.click();
-      await back();
-    }
   }
   for (let i = 0; questions && i < v; i += 1) {
     if (await views.count()) {
@@ -618,6 +619,29 @@ async function walkScreen(page, settle, { rows, questions, log, where, home, goB
       await back((await views.count()) ? i : -1);
     }
   }
+}
+
+export const PERIOD_PICK = { from: '2026-11-01', to: '2026-11-02' };
+
+export async function walkPerformance(page, settle, { log, where }) {
+  const area = page.locator('[data-performance]');
+  if (!(await area.count())) return;
+  for (const [choice, text] of PERIODS) {
+    await area.getByRole('button', { name: text, exact: true }).click();
+    if (choice === CUSTOM) {
+      await area.locator('input[name="my_work_from"]').fill(PERIOD_PICK.from);
+      await area.locator('input[name="my_work_to"]').fill(PERIOD_PICK.to);
+    }
+    await settle();
+    const more = area.locator('[data-my-work-more]');
+    if (await more.count()) {
+      await more.click();
+      await settle();
+    }
+  }
+  await area.getByRole('button', { name: PERIODS.find(([choice]) => choice === DEFAULT_PERIOD)[1], exact: true }).click();
+  await settle();
+  log(`${where}: My work asked for ${PERIODS.length} periods`);
 }
 
 export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, blocked, log = () => {}, rows = 2, questions = 4 }) {
@@ -650,6 +674,7 @@ export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, 
       const hash = await page.evaluate(() => location.hash);
       const goBack = () => page.evaluate((h) => { location.hash = h; }, hash);
       await walkScreen(page, settle, { rows, questions: shared ? 0 : questions, log, where: title, home: await screenOf(page), goBack });
+      await walkPerformance(page, settle, { log, where: title });
     }
     log(`MVP App ${origin}: walked ${n} screens`);
   } finally {

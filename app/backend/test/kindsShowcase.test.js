@@ -106,6 +106,8 @@ test('a kinds demo list says no record left it, because the demo has no earlier 
 
 test('the Inspire App hosts each kinds demo MVP App: the shell, its reads and Genie come from the file, and a change is refused', async () => {
   const { USE_CASES } = await kinds();
+  const { PERIODS, periodBody } = await import('../../agent/agent/app_shell/web/src/mywork.js');
+  const { PERIOD_PICK } = await import('../../scripts/showcaseRecorder.mjs');
   const { srv, reached } = await serve();
   try {
     for (const u of USE_CASES) {
@@ -122,8 +124,10 @@ test('the Inspire App hosts each kinds demo MVP App: the shell, its reads and Ge
       const said = await call(srv.url, `${base}/api/genie/message?page=${id}&message_id=${ask.data.message_id}&conversation_id=${ask.data.conversation_id}`);
       assert.equal(said.status, 200, u.no);
       assert.ok(said.data.text.startsWith(u.genie[0].a), u.no);
-      const work = await call(srv.url, `${base}/api/my_work`, { method: 'POST', body: { window: 'week', time_zone: 'Pacific/Auckland' } });
-      assert.equal(work.status, 200, `${u.no} My work replays in any time zone`);
+      for (const [choice] of PERIODS) {
+        const work = await call(srv.url, `${base}/api/my_work`, { method: 'POST', body: periodBody(choice, PERIOD_PICK.from, PERIOD_PICK.to, 'Pacific/Auckland') });
+        assert.equal(work.status, 200, `${u.no} My work for ${choice} replays (no 404)`);
+      }
       const change = await call(srv.url, `${base}/api/records/act`, { method: 'POST', body: { page: id, keys: ['K1'], action: 'fixed' } });
       assert.deepEqual([change.status, change.data.error], [403, S.SHOWCASE_READ_ONLY], u.no);
     }
@@ -266,11 +270,14 @@ test('the kinds demo tells one story about its counts, schedule and alerts: the 
     assert.equal(overview.high, computeHighPriorityCount(list));
     assert.ok(overview.preview_use_cases.length > 0 && overview.preview_use_cases.every((uc) => uc.Name && !('name' in uc)), 'the preview carries the Name the Start card reads');
   }
+  const { FRESHNESS_OPTIONS, FRESH_DEFAULT } = await import('../../frontend/src/lib/implementWizard.js');
+  const defaultCron = FRESHNESS_OPTIONS.find((o) => o.id === FRESH_DEFAULT).cron;
   const history = b.inspire[`GET /api/inspire/implement/history?session_id=${b.session_id}`].body.history;
   for (const row of history) {
     const spec = typeof row.spec_json === 'string' ? JSON.parse(row.spec_json) : row.spec_json;
     const live = b.inspire[`GET /api/inspire/implement/live?session_id=${b.session_id}&use_case_id=${row.use_case_id}`].body.assets;
     assert.equal(spec.schedule.enabled, true, `${row.use_case_id} keeps its schedule on`);
+    assert.equal(spec.schedule.cron, defaultCron, `${row.use_case_id} keeps the wizard's default freshness`);
     assert.deepEqual([spec.schedule.cron, spec.schedule.timezone], [live.job.schedule.cron, live.job.schedule.timezone], `${row.use_case_id} states the schedule its job runs on`);
     assert.equal(live.job.schedule.paused, false);
     assert.deepEqual([live.alert.ok, live.alert.state, Boolean(live.alert.checked_at), Boolean(live.alert.name)], [true, 'OK', true, true], `${row.use_case_id} alert has been checked`);
