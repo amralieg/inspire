@@ -25,13 +25,13 @@ def test_an_older_feedback_table_gains_only_its_missing_columns(fresh_ns):
             return [{"col_name": n, "data_type": t} for n, t in old]
         return []
     spark = FakeSpark(responder=respond)
-    fresh_ns["inspire_ensure_feedback"](spark, TABLE)
+    fresh_ns["inspire_ensure_sibling"](spark, TABLE, fresh_ns["INSPIRE_FEEDBACK_SUFFIX"], fresh_ns["INSPIRE_FEEDBACK_COLUMNS"])
     assert spark.statements[0].startswith(f"CREATE TABLE IF NOT EXISTS {FEEDBACK}")
     altered = [s for s in spark.statements if s.startswith("ALTER")]
     assert altered == [f"ALTER TABLE {FEEDBACK} ADD COLUMN `{n}` {k}" for n, k in
                        (("vibe_text", "STRING"), ("handled_by", "STRING"), ("handled_at", "TIMESTAMP"), ("filters", "STRING"))]
     full = FakeSpark(responder=lambda s: [{"col_name": n, "data_type": "string"} for n in NAMES] if s.startswith("DESCRIBE") else [])
-    fresh_ns["inspire_ensure_feedback"](full, TABLE)
+    fresh_ns["inspire_ensure_sibling"](full, TABLE, fresh_ns["INSPIRE_FEEDBACK_SUFFIX"], fresh_ns["INSPIRE_FEEDBACK_COLUMNS"])
     assert not [s for s in full.statements if s.startswith("ALTER")]
 
 

@@ -50,8 +50,8 @@ def test_a_scope_with_no_column_is_refused_so_a_whole_table_is_never_read_by_acc
 @pytest.mark.parametrize("row, message", [
     ({"column": "status", "op": "like", "values": ["g"]}, "operator like, which is not supported"),
     ({"column": "", "op": "=", "values": ["gold"]}, "needs a column"),
-    ({"column": "status", "op": "=", "values": []}, "needs 1 value(s) for ="),
-    ({"column": "amount", "op": "between", "values": ["1"]}, "needs 2 value(s) for between"),
+    ({"column": "status", "op": "=", "values": []}, "needs 1 value for ="),
+    ({"column": "amount", "op": "between", "values": ["1"]}, "needs 2 values for between"),
     ({"column": "status", "op": "in", "values": []}, "needs at least one value for in"),
     ({"column": "status", "op": "=", "values": [" "]}, "has an empty value"),
 ])

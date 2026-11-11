@@ -236,7 +236,7 @@ def _gate(ns, result_columns, outputs=None, fail=()):
     inst._implement_update = lambda key, **kw: inst.updates.append(kw)
     spec = _spec(ns)[0]
     spec["outputs"].update(outputs or {"app_access": "user"})
-    context = {"spec": spec, "key": (5150, "N01-U01", 2), "use_case": {}, "asset_status": {}, "result_table": RESULT,
+    context = {"spec": spec, "key": (5150, "N01-U01", 2), "uc_id": "N01-U01", "use_case": {}, "asset_status": {}, "result_table": RESULT,
                "summary_table": SUMMARY, "allowed": [RESULT, SUMMARY, "main.s.orders_v2"]}
     return inst, context
 
@@ -320,6 +320,7 @@ def test_the_shell_settings_check_runs_the_protection_rule():
 
 def test_the_shell_does_not_run_sql_over_a_blocked_table_but_runs_other_tables():
     ws = shell_db.Workspace.__new__(shell_db.Workspace)
+    ws.query_tags = []
     ws.blocked = (SUMMARY,)
     ws.clock = lambda: 0.0
     sent = []

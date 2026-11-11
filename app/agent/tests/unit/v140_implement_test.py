@@ -3111,12 +3111,12 @@ APP_FEEDBACK_SQL = "`main`.`inspire`.`__inspire_app_feedback_churn_desk`"
 LEDGER_SQL = "`main`.`inspire`.`__inspire_value_ledger`"
 
 
-def _without_feedback(statements):
-    return [s for s in statements if FEEDBACK_SQL not in s and APP_FEEDBACK_SQL not in s]
-
-
 def _without_ledger(statements):
     return [s for s in statements if LEDGER_SQL not in s]
+
+
+def _without_feedback(statements):
+    return [s for s in statements if FEEDBACK_SQL not in s and APP_FEEDBACK_SQL not in s]
 
 
 def _feedback_writes(agent_ns, client="sp-1", fresh=False):
