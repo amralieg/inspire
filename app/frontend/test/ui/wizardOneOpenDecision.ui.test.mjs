@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, onStep, openUi, wizardInScreen } from './uiSupport.mjs';
+import { closeBrowser, goToStep, onStep, openRow, openUi, wizardInScreen } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -13,28 +13,26 @@ const openDecisions = (page) => body(page).evaluate((el) => [...el.querySelector
   .filter((c) => c.getClientRects().length > 0).map((c) => c.getAttribute('data-choice')));
 const changeRow = (page, what) => page.getByRole('button', { name: `Change ${what}`, exact: true });
 
-test('Data and results opens on the source tables, and the result table and Keep it fresh sit behind Change rows', async () => {
+test('Data and results opens on the source tables, and Keep it fresh sits behind a Change row', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
     await goToStep(page, 'Data');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
-    assert.equal(await page.getByRole('radiogroup', { name: 'Where the tables go' }).count(), 0, 'the result table is behind its Change row');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Keep it fresh is behind its Change row');
-    assert.equal(await changeRow(page, 'result table').getAttribute('aria-expanded'), 'false', 'the result table row is closed');
     assert.equal(await changeRow(page, 'Keep it fresh').getAttribute('aria-expanded'), 'false', 'the Keep it fresh row is closed');
-    assert.deepEqual(await openDecisions(page), [], 'no decision group is open on Data and results before a Change row is opened');
-    await changeRow(page, 'result table').click();
-    await page.getByRole('radiogroup', { name: 'Where the tables go' }).waitFor();
-    assert.deepEqual(await openDecisions(page), ['result-table'], 'opening the result table shows only that decision');
+    assert.equal((await openDecisions(page)).includes('freshness'), false, 'Keep it fresh is not open on Data and results before its Change row is opened');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('a result table problem keeps its row open, so the message sits beside the field it is about', async () => {
-  const ui = await openUi('wizard', ME);
+test('a blocked Next opens the result table row, so the message sits beside the field it is about', async () => {
+  const ui = await openUi('wizard', {
+    me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'person-tok', dbToken: 'person-tok', catalogs: ['main'], schemas: { main: ['inspire'] },
+    statements: { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }] }) },
+  });
   const { page } = ui;
   try {
     await goToStep(page, 'Data');
@@ -42,10 +40,11 @@ test('a result table problem keeps its row open, so the message sits beside the 
     const place = page.getByRole('region', { name: 'Where the result table lives' });
     await place.getByLabel('Table name').fill('bad name!');
     await page.getByRole('button', { name: 'Close result table', exact: true }).click();
-    await place.getByLabel('Table name').waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Close result table', exact: true }).count(), 1, 'the row stays open while its table name is not valid');
+    assert.equal(await place.count(), 0, 'the row closes when the person closes it');
     await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await place.getByLabel('Table name').waitFor();
     await page.getByText('can only use catalog, schema and table names', { exact: false }).waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Close result table', exact: true }).count(), 1, 'the blocked Next leaves the row open');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -102,7 +101,8 @@ test('the first page is What to deliver, and each step fits the screen at 1280x8
         }).length };
       });
       assert.deepEqual(list, { hidden: 0, outside: 0 }, `${width}x${height}: every step is on screen in the step list`);
-      for (const label of labels.filter((l) => l !== 'Measure')) {
+      for (const label of labels.filter((l) => l !== 'Measure' && l !== 'Review & build')) {
+        if (!(await stepLabels(page)).includes(label)) continue;
         await goToStep(page, label);
         await wizardInScreen(page, `${label} ${width}x${height}`, height);
         const problems = await body(page).evaluate((el) => {

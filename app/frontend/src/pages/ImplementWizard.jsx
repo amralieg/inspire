@@ -60,7 +60,7 @@ import {
   alertTriggerText,
   sectionErrors,
   stepErrors,
-  advancedErrors,
+  advancedWithErrors,
   freshnessOf,
   withFreshness,
   nextAppName,
@@ -743,7 +743,8 @@ export default function ImplementWizard({
   const blockedBy = (id) => {
     setAttempted((prev) => ({ ...prev, [id]: true }));
     if (!stepErrors(id, spec, extras, mode).length) return false;
-    if (advancedErrors(id, spec, extras, mode).length) setAdvanced((prev) => ({ ...prev, [id]: true }));
+    const hidden = advancedWithErrors(id, spec, extras, mode);
+    if (hidden.length) setAdvanced((prev) => ({ ...prev, ...Object.fromEntries(hidden.map((section) => [section, true])) }));
     if (id === 'data' && (!String(spec.use_case.goal || '').trim() || !String(spec.use_case.decision_owner || '').trim())) setDetails(true);
     if (id === SUMMARY_STEP.id) {
       const where = vibesProblem('mvp', spec.vibes, 'MVP') ? '[data-vibes="mvp"] textarea' : vibePreviousProblem(spec, built) ? '[data-vibe-previous] input' : '';
@@ -1520,7 +1521,7 @@ export default function ImplementWizard({
         )}
 
         {resultsOn && (
-          <Advanced open={advanced.results || sectionErrors('results', spec, extras).length > 0 || Boolean(placeNote) || outputCheck?.write?.ok === false} onToggle={() => toggleAdvanced('results')} what="result table"
+          <Advanced open={advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false} onToggle={() => toggleAdvanced('results')} what="result table"
             summary={`Result table: ${spec.config.result_table || 'not set yet'}`}>
             <ResultTableStep
               table={spec.config.result_table}
