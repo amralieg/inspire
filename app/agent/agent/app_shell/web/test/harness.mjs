@@ -12,6 +12,7 @@ import { INBOX_ROWS } from '../src/inbox.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
 export const SRC = join(HERE, '..', 'src');
+export const APP_JS = join(HERE, '..', 'dist', 'assets', 'app.js');
 export const fileNames = (dir) => readdirSync(dir, { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name);
 const REPO = join(HERE, '..', '..', '..', '..');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2' };
@@ -114,6 +115,12 @@ export const scrollsAsked = (page) => page.evaluate(() => window.__scrolls.splic
 
 export async function holdClock(page) {
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
+}
+
+export async function reportIssue(page) {
+  const more = page.locator('[data-head-more]');
+  if (!(await more.evaluate((d) => d.open))) await more.locator('> summary').click();
+  await page.locator('[data-feedback-open]').click();
 }
 
 export async function goRail(page, id) {
@@ -353,6 +360,7 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
     if (path === 'feedback') return json(200, NO_FEEDBACK);
     if (path === 'records/batches') return json(200, { ...CONTRACT.batches.response, batches: [] });
     if (path === 'agent/status') return json(200, GENIE_ONLY);
+    if (path === 'access') return json(200, { tables: [], can_grant: false, sql: '', seen: '' });
     if (path === 'page') {
       const body = route.request().postDataJSON();
       seen.pages.push(body);
@@ -425,7 +433,7 @@ export async function openBundle(browser, bundle, props, routes = {}, { width = 
 export const ASK_GROUPS = {
   card: '[data-card], [data-bars], section.card--table, section.money, .main .card:has(> .card-h)',
   kpi: '.kpi',
-  text: '.story, .blk--text, .blk--html, .sum',
+  text: '.blk--text, .blk--html, .sum',
   controls: '.fbar',
   row: '.main tbody tr, .main .choice-row',
   group: '.main .rec-entity',

@@ -182,7 +182,7 @@ test('the three styles and dark mode apply their tokens', async () => {
   for (const style of ['a', 'b', 'c']) {
     const { page, seen, context } = await open(appInfo({ style }));
     assert.equal(await page.evaluate(() => document.documentElement.dataset.look), style);
-    assert.equal(await page.locator('form.ask').count(), style === 'c' ? 1 : 0);
+    assert.equal(await page.locator('form.ask').count(), 0, 'the header keeps one Ask Genie, in the top bar');
     const light = await page.evaluate(() => getComputedStyle(document.querySelector('.kpi')).backgroundColor);
     await goRail(page, 'settings');
     await page.getByRole('button', { name: 'Switch to dark theme' }).click();

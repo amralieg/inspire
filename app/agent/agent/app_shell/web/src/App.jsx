@@ -1,16 +1,17 @@
 import { Suspense, lazy, useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState } from 'react';
-import { getApp, getDefaults, getFilters, getOverview, getSummary } from './api.js';
+import { WAITING_FOR_ACCESS_CODE, getApp, getDefaults, getFilters, getOverview, getSummary } from './api.js';
 import { applyTheme, hueVars, rememberPalette, storedPalette } from './theme.js';
 import { apiValues, initialFilterState } from './filters.js';
-import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf } from './agentView.js';
+import { AGENT_OPEN, EMPTY_LOOK, applyActions, changesView, visibleOf, topFact } from './agentView.js';
 import { GenieMark, Icon } from './icons.jsx';
 import { NoAccessScope, PlainNote, RetryProvider, ToastProvider, useToast } from './ui.jsx';
 import Page from './Page.jsx';
+import WaitingForAccess from './WaitingForAccess.jsx';
 import { isQueue, pageSections } from './Layouts.jsx';
 import { pageMode, performanceOn, sectionTitle } from './modes.js';
 import ModeView from './ModeView.jsx';
 import { inboxOn } from './inbox.js';
-import Admin from './Admin.jsx';
+const Admin = lazy(() => import('./Admin.jsx'));
 import { ADMIN_ROUTE } from './admin.js';
 import GeniePanel, { useGenie } from './Genie.jsx';
 import { GenieScope, GenieState } from './AskGenie.jsx';
@@ -29,7 +30,7 @@ const Tour = lazy(() => import('./Tour.jsx'));
 const Performance = lazy(() => import('./Performance.jsx'));
 
 const THEME_KEY = 'inspire-app-theme';
-const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', settings: 'sliders' };
+const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', impact: 'trend', feedback: 'info', reports: 'history', settings: 'sliders' };
 
 function initials(user) {
   const source = user?.name || user?.email || '';
@@ -68,7 +69,7 @@ function useHub(pages, asked) {
   const load = useCallback(() => {
     const mine = ++seq.current;
     getOverview(JSON.parse(asked)).then((data) => { if (mine === seq.current) { setHub(data); setError(''); } })
-      .catch((e) => { if (mine === seq.current) setError(e.message); });
+      .catch((e) => { if (mine === seq.current) setError(e); });
   }, [asked]);
   const summarize = useCallback((id) => getSummary(id).then((s) => setSummaries((x) => ({ ...x, [id]: s })))
     .catch((e) => setSummaries((x) => ({ ...x, [id]: { run: null, categories: {}, error: e.message } }))), []);
@@ -107,7 +108,7 @@ function SectionRail({ sections, on, onGo, open, page, counts = {}, alerting }) 
   );
 }
 
-function Shell({ app }) {
+function Shell({ app, onRefreshSiblings }) {
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem(THEME_KEY) || app.theme; } catch { return app.theme; }
   });
@@ -180,7 +181,8 @@ function Shell({ app }) {
   const openGenie = () => (fullChat ? null : working ? setDock('genie') : setGenieOpen(true));
   const genie = useGenie(app, page ? page.id : '', openGenie, agentView);
   const genieState = useMemo(() => ({ app, busy: genie.busy }), [app, genie.busy]);
-  const { hub, summaries, load: loadHub, summarize } = useHub(pages, JSON.stringify(windowParams(prefs)));
+  const { hub, error: hubError, summaries, load: loadHub, summarize } = useHub(pages, JSON.stringify(windowParams(prefs)));
+  const hubWaiting = hubError && hubError.code === WAITING_FOR_ACCESS_CODE ? hubError : null;
   const shown = visiblePages(pages, hub);
   const toast = useToast();
 
@@ -286,7 +288,7 @@ function Shell({ app }) {
       setGenieOpen(true);
     }
   }, [working]);
-  const genieProps = { app, genie, page, pages: shown, onPick: go };
+  const genieProps = { app, genie, page, pages: shown, onPick: go, fact: page ? topFact(page, tourFacts[page.id]) : '' };
 
   return (
     <GenieState.Provider value={genieState}>
@@ -303,9 +305,9 @@ function Shell({ app }) {
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
           <button className="genie-btn" data-tour="genie" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
-          <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} siblings={app.siblings || []} />
-          {page && !admin && page.tour && <button type="button" className="ibtn tour-top" onClick={takeTour} data-tour-top aria-label="Take the guided tour" title="Take the guided tour"><Icon name="info" size={16} /></button>}
+          <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={() => { loadHub(); onRefreshSiblings?.(); }} siblings={app.siblings || []} />
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
+          {page && !admin && <button type="button" className="ibtn tour-top" onClick={takeTour} disabled={!page.tour} data-tour-top aria-label="Take the guided tour again" title="Take the guided tour again"><Icon name="info" size={16} /></button>}
         </header>
         <div className="body">
           {page && <SectionRail sections={rail} on={section === 'alerts' && !rail.includes('alerts') ? 'runs' : section} onGo={goSection} open={navOpen} page={page}
@@ -314,7 +316,8 @@ function Shell({ app }) {
           <main className="main" tabIndex={-1}>
             <NoAccessScope key={page ? `page:${page.id}` : admin ? 'admin' : 'home'} app={app}>
             <RetryProvider value={loadHub}>
-            {admin && <Admin />}
+            {admin && <Suspense fallback={null}><Admin /></Suspense>}
+            {!admin && !page && hubWaiting && <WaitingForAccess waiting={hubWaiting.detail} onCheck={loadHub} />}
             {!admin && page && section === 'performance' && (
               <GenieScope.Provider value={perfScope}>
                 <ModeView key={page.id} mode={mode.id} part="Performance" app={app} page={page} genie={genie}
@@ -353,11 +356,12 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [error, setError] = useState(null);
   const boot = useCallback(() => getApp().then((got) => { setError(null); setApp(got); }).catch(setError), []);
+  const refreshSiblings = useCallback(() => getApp().then((got) => setApp((a) => (a ? { ...a, siblings: got.siblings || [] } : a))).catch(() => {}), []);
   useEffect(() => { boot(); }, [boot]);
   useLayoutEffect(() => { if (!app) applyTheme('default', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', 'a'); }, [app]);
   return (
     <ToastProvider>
-      {error ? <Fatal error={error} onRetry={boot} /> : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} /></MyViewProvider>
+      {error ? (error.code === WAITING_FOR_ACCESS_CODE ? <WaitingForAccess waiting={error.detail} onCheck={boot} /> : <Fatal error={error} onRetry={boot} />) : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} onRefreshSiblings={refreshSiblings} /></MyViewProvider>
         : <div className="boot" role="status"><span className="ring" /><span>Opening the App…</span></div>}
     </ToastProvider>
   );

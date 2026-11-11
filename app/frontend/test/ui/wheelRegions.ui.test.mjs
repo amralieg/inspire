@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER, RESULTS } from './implementFixtures.js';
 import { closeBrowser, goToStep, openUi, profileAt } from './uiSupport.mjs';
-import { WHEEL_SCREENS, wheelEveryRegion, wheelScrolls } from './wheelScroll.mjs';
+import { WHEEL_SCREENS, aimWheel, wheelEveryRegion, wheelScrolls } from './wheelScroll.mjs';
 
 test.after(closeBrowser);
 
@@ -38,7 +38,7 @@ for (const [kind, delta, pause, events] of [['mouse wheel notches of 100 pixels'
         await slides.waitFor({ timeout: 20000 });
         await slides.evaluate((el) => { el.scrollTop = 0; });
         await page.waitForTimeout(300);
-        await page.mouse.move(width / 2, height / 2);
+        await aimWheel(page, width / 2, height / 2);
         const tops = [];
         for (let i = 0; i < 400; i += 1) {
           for (let k = 0; k < events; k += 1) {
@@ -123,7 +123,7 @@ const BIG_PROFILE = {
 };
 const INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
   + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Data groups |\n| `run_scope` | text | all | | First run |\n';
-const STEPS = ['Data', 'Data groups', 'First run', 'Results', 'What to deliver', 'Where it lives', 'Who uses the App', 'App pages', 'App look', 'Run it', 'Review & build'];
+const STEPS = ['What to deliver', 'Data & results', 'Data groups', 'First run', 'Measure', 'Where it lives', 'Who uses the App', 'App look', 'Run it', 'Review & build'];
 
 const OPEN_ALL = {
   'Data groups': async (page) => {

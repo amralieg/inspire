@@ -356,7 +356,8 @@ def test_the_app_and_the_notebook_name_the_same_stage_property_and_steps(agent_n
     assert agent_ns["INSPIRE_RUN_REASON_CHARS"] == shell_sql.STAGE_REASON_CHARS
     assert list(agent_ns["INSPIRE_RUN_STAGES"]) == STAGES and len(STAGES) <= shell_sql.STAGES_MAX
     assert ("run_stages", "STRING") in agent_ns["INSPIRE_RUN_LOG_COLUMNS"]
-    assert "timeout_seconds=14400" in agent_ns["DatabricksInspire"]._JOB_LAUNCHER_CLASS_SOURCE and shell_core.RUN_TIMEOUT_S == 14400
+    launcher = agent_ns["DatabricksInspire"]._JOB_LAUNCHER_CLASS_SOURCE
+    assert "RUN_TIMEOUT_S = 14400" in launcher and "timeout_seconds=self.RUN_TIMEOUT_S" in launcher and shell_core.RUN_TIMEOUT_S == 14400
 
 
 class StageSpark:
@@ -557,7 +558,8 @@ def test_the_delta_list_ranks_its_window_by_stake_with_the_bounds_as_parameters(
         assert "COALESCE(c.`_inspire_status`, 'New') IN ('New', 'In progress')" in text
         assert "(c.`_inspire_snooze` IS NULL OR c.`_inspire_snooze` <= :p0)" in text
         assert "unix_micros(c.`_inspire_joined`) >= :p3" in text
-    assert re.search(r"w AS \(SELECT \* FROM f ORDER BY .+ DESC NULLS LAST, CASE WHEN `_inspire_due` < :p0 THEN 0 ELSE 1 END ASC, "
+    assert re.search(r"w AS \(SELECT \* FROM f ORDER BY CASE WHEN `_inspire_due` < :p0 THEN 0 ELSE 1 END ASC, "
+                     r"CASE WHEN `_inspire_due` < :p0 THEN `_inspire_due` END ASC NULLS LAST, .+ DESC NULLS LAST, "
                      r"`_inspire_due` ASC NULLS LAST, `record_key` ASC LIMIT 25\)", rows)
     by = {p["name"]: p for p in params}
     start = datetime.datetime(2026, 10, 26, 20, tzinfo=UTC)
@@ -893,7 +895,7 @@ def test_a_page_inside_inspire_without_inspire_s_writer_refuses_decisions_and_wi
     assert status == 200 and out["written"] == ["k1"] and len(writer.queries("MERGE INTO")) == 1 and reader.queries("MERGE INTO") == []
     writer.fail["merge"] = shell_core.QueryError("PERMISSION_DENIED: no MODIFY")
     status, out = post(s, "records/act", body, headers=SIGNED_IN)
-    assert status == 403 and out["error"].startswith("Nothing was saved: Inspire's service principal records the decisions of this page")
+    assert status == 403 and out["error"] == shell_core.REFUSED_WRITE and "PERMISSION_DENIED: no MODIFY" in out["details"], out
 
 
 def test_similar_records_come_from_the_page_s_grouping_columns_and_feed_one_match(tmp_path):
@@ -933,7 +935,7 @@ class HeldLakebase:
     def __init__(self):
         self.tables, self.writes = {}, []
 
-    def run(self, sql, params, limit, queued=False):
+    def run(self, sql, params, limit, queued=False, viewer=""):
         raise shell_pg.NotHeld(TRACKED)
 
     def noted(self, note):
@@ -1029,9 +1031,9 @@ WINDOW_ROWS = [row("a", 50, due=datetime.date(2026, 10, 27)), row("b", 500, due=
 
 
 @pytest.mark.parametrize("window, limit, keys, total", [
-    ("today", None, ["a", "d", "c", "i"], 4), ("hour", None, ["a", "d", "c", "i"], 4), ("week", None, ["b", "a", "d", "c", "i"], 5),
-    ("month", None, ["e", "b", "a", "d", "c", "i"], 6), ("all", None, ["e", "b", "k", "j", "a", "d", "c", "i", "l"], 9),
-    ("all", 2, ["e", "b"], 9)])
+    ("today", None, ["c", "a", "d", "i"], 4), ("hour", None, ["c", "a", "d", "i"], 4), ("week", None, ["c", "b", "a", "d", "i"], 5),
+    ("month", None, ["c", "e", "b", "a", "d", "i"], 6), ("all", None, ["c", "e", "b", "k", "j", "a", "d", "i", "l"], 9),
+    ("all", 2, ["c", "e"], 9)])
 def test_on_postgres_a_window_leaves_out_what_is_outside_it_keeps_overdue_and_ranks_by_stake(pg, window, limit, keys, total):
     tables = pg_table(pg, f"w_{window}_{limit or 0}", WINDOW_ROWS)
     context = pg_context()

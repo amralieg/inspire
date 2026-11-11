@@ -17,6 +17,7 @@ import base64
 import json
 import os
 import re
+import functools
 import zlib
 
 import pytest
@@ -39,9 +40,6 @@ WRITE_CLAUSES = [
                rf"(?:IF\s+(?:NOT\s+)?EXISTS\s+)?({TARGET})", re.I),
 ]
 FUNCTION_FROM = re.compile(r"\b(EXTRACT|TRIM|SUBSTRING|OVERLAY|POSITION)\s*\($", re.I)
-OWNED_PLACEHOLDER = re.compile(
-    r"\{[^}]*(tracking_table|session_table|steps?_table|lock_table|feedback_table|ailogs_table|implement_table|owned_table|view_name|"
-    r"_view\b|temp_view|tmp_view)[^}]*\}")
 IMPLEMENT_FUNCTION = re.compile(r"^_?implement_")
 OWNED_TABLE_GATES = {"add_missing_columns"}
 IMPLEMENT_RESULT_PLACEHOLDER = re.compile(r"^\{[^{}]*\bresult_table\b[^{}]*\}$")
@@ -50,6 +48,7 @@ CTE_NAME = re.compile(r"(?:^\s*\(?\s*WITH\s+(?:RECURSIVE\s+)?|\)\s*,\s*)([A-Za-z
 DATA_READER_CLASS = "DeepEvidence"
 DEEP_ONLY_SOURCES = ("system.query.history",)
 EXECUTORS = {"execute_sql": 1, "inspire_sql": 0}
+OWNED_VIEW_EMITTERS = {"inspire_owned_view_sql": 1, "implement_lakebase_view_sql": 2}
 SQL_RECEIVER_METHOD = "sql"
 LOG_METHODS = {"debug", "info", "warning", "error", "critical", "exception"}
 LOG_FUNCTIONS = {"log_print", "print"}
@@ -76,6 +75,10 @@ def render(node):
         if left is not None and right is not None:
             return left + right
     return None
+
+
+def callee_name(call):
+    return call.func.attr if isinstance(call.func, ast.Attribute) else call.func.id if isinstance(call.func, ast.Name) else None
 
 
 class SqlIndex:
@@ -122,6 +125,16 @@ class SqlIndex:
                 if arg is not None:
                     yield node, arg
 
+    def bind_arguments(self, templates, builder, call, scope, depth):
+        """A `{param}` placeholder takes the call-site argument only when that argument is an Inspire-owned name, so the owned name stays owned.
+        Any other argument keeps its placeholder, which is checked as before."""
+        bound = list(templates)
+        for name, arg in zip([a.arg for a in builder.args.args], call.args):
+            values, _reasons = self.resolve(arg, scope, depth + 1)
+            if len(values) == 1 and classify_target(values[0]) == "inspire_owned":
+                bound = [t.replace("{" + name + "}", values[0]) for t in bound]
+        return bound
+
     def resolve(self, expr, scope, depth=0):
         """Return (templates, unresolved_reasons) for a SQL expression inside function `scope`."""
         text = render(expr)
@@ -140,16 +153,17 @@ class SqlIndex:
             return templates, ([] if templates else reasons)
         if isinstance(expr, ast.Name) and scope is not None:
             return self.resolve_name(expr.id, scope, depth + 1)
+        if isinstance(expr, ast.Call) and callee_name(expr) in owned_name_builders():
+            return ["{" + ast.unparse(expr) + "}"], []
         if isinstance(expr, ast.Call):
-            callee = expr.func.attr if isinstance(expr.func, ast.Attribute) else \
-                expr.func.id if isinstance(expr.func, ast.Name) else None
+            callee = callee_name(expr)
             builders = self.functions.get(callee) or []
             templates, reasons = [], []
             for builder in builders:
                 for node in ast.walk(builder):
                     if isinstance(node, ast.Return) and node.value is not None:
                         t, r = self.resolve(node.value, builder, depth + 1)
-                        templates += t
+                        templates += self.bind_arguments(t, builder, expr, scope, depth)
                         reasons += r
             if builders:
                 return templates, ([] if templates else reasons or [f"builder {callee} returns no SQL literal"])
@@ -236,15 +250,14 @@ class SqlIndex:
                     reasons += r
             return (templates, reasons) if found else ([], [f"sequence {expr.id} not bound in {scope.name}"])
         if isinstance(expr, ast.Call):
-            callee = expr.func.attr if isinstance(expr.func, ast.Attribute) else \
-                expr.func.id if isinstance(expr.func, ast.Name) else None
+            callee = callee_name(expr)
             builders = self.functions.get(callee) or []
             templates, reasons = [], []
             for builder in builders:
                 for node in ast.walk(builder):
                     if isinstance(node, ast.Return) and node.value is not None:
                         t, r = self.resolve_items(node.value, builder, depth + 1)
-                        templates += t
+                        templates += self.bind_arguments(t, builder, expr, scope, depth)
                         reasons += r
             if builders:
                 return templates, ([] if templates else reasons or [f"builder {callee} returns no SQL literal"])
@@ -281,6 +294,20 @@ class SqlIndex:
                     return True
             cur = self.parent.get(cur)
         return False
+
+    def emitted_view_bodies(self):
+        """(function, SQL text) of every SELECT body handed to the owned-view emitter in the same function."""
+        out = set()
+        for node in ast.walk(self.tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in OWNED_VIEW_EMITTERS):
+                continue
+            position = OWNED_VIEW_EMITTERS[node.func.id]
+            if len(node.args) <= position:
+                continue
+            scope = self.enclosing_function(node)
+            templates, _reasons = self.resolve(node.args[position], scope)
+            out.update((scope.name if scope else "", template) for template in templates)
+        return out
 
     def sql_literals(self):
         """Every SQL-shaped string the module builds outside prompt templates, docstrings and log text."""
@@ -329,6 +356,24 @@ def statement_targets(sql):
     return targets
 
 
+AGGREGATE_PROBE_BUILDER = "implement_aggregate_probe_sql"
+AGGREGATE_PROBE_SHAPE = re.compile(r"^SELECT COUNT\(DISTINCT r\.\{[^{}]+\}\) AS outside FROM \{[^{}]+\} AS r LEFT ANTI JOIN \{[^{}]+\} AS s "
+                                   r"ON r\.\{[^{}]+\} = s\.\{[^{}]+\} WHERE r\.\{[^{}]+\} IS NOT NULL$")
+
+
+@functools.lru_cache(maxsize=None)
+def owned_name_builders():
+    """The one registry of Inspire-owned names: the notebook constant INSPIRE_OWNED_NAME_BUILDERS, read from its source."""
+    found = re.search(r"^INSPIRE_OWNED_NAME_BUILDERS = (\(.*\))$", agent_source(), re.M)
+    if not found:
+        raise AssertionError("the notebook names no INSPIRE_OWNED_NAME_BUILDERS registry")
+    return tuple(ast.literal_eval(found.group(1)))
+
+
+def is_aggregate_probe(arg):
+    return isinstance(arg, ast.Call) and isinstance(arg.func, ast.Name) and arg.func.id == AGGREGATE_PROBE_BUILDER
+
+
 def classify_target(target):
     plain = re.sub(r"\s+", "", target.replace("`", ""))
     if re.search(r"(^|\.)information_schema\.", plain, re.I):
@@ -337,7 +382,9 @@ def classify_target(target):
         return "pg_catalog"
     if re.search(r"(^|\.)system\.access\.table_lineage$", plain, re.I):
         return "system_lineage"
-    if OWNED_PLACEHOLDER.search(target):
+    if any(re.search(r"\{[^}]*" + re.escape(name) + (r"\b" if name == "_view" else "") + r"[^}]*\}", target) for name in owned_name_builders()):
+        return "inspire_owned"
+    if any(re.search(rf"(?<!\w){re.escape(name)}\(", target) for name in owned_name_builders()):
         return "inspire_owned"
     if re.match(r"^(_{1,2}inspire_|_ailogs$)", plain.split(".")[-1], re.I):
         return "inspire_owned"
@@ -365,26 +412,34 @@ def add_global_builders(index, source):
                 index.functions.setdefault(node.name, []).append(node)
 
 
-SHELL_SQL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "agent", "app_shell", "server", "shell_sql.py")
+SERVER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "agent", "app_shell", "server")
+SHELL_SQL_PATH = os.path.join(SERVER_DIR, "shell_sql.py")
 SHELL_SQL_BUILDERS = ("siblings_query",)
+SHELL_FACTS_PATH = os.path.join(SERVER_DIR, "shell_facts.py")
+SHELL_FACTS_BUILDERS = ("ledger_grant_sqls", "ledger_create_sql")
 
 
-def add_shell_builders(index):
-    """The notebook calls these shell_sql builders through modules["shell_sql"]; the guard reads them from the shipped module."""
-    with open(SHELL_SQL_PATH, encoding="utf-8") as handle:
+def add_module_builders(index, path, names):
+    with open(path, encoding="utf-8") as handle:
         tree = ast.parse(handle.read())
     for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name in SHELL_SQL_BUILDERS:
+        if isinstance(node, ast.FunctionDef) and node.name in names:
             index.functions.setdefault(node.name, []).append(node)
 
 
-def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None):
+def add_shell_builders(index, facts_path=SHELL_FACTS_PATH):
+    """The notebook calls these shell modules' builders through modules["shell_sql"] and inspire_shell_facts; the guard reads them from the shipped modules."""
+    add_module_builders(index, SHELL_SQL_PATH, SHELL_SQL_BUILDERS)
+    add_module_builders(index, facts_path, SHELL_FACTS_BUILDERS)
+
+
+def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None, facts_path=SHELL_FACTS_PATH):
     index = SqlIndex(ast.parse(source))
     add_global_builders(index, source)
-    add_shell_builders(index)
+    add_shell_builders(index, facts_path)
     runs = (lambda lineno: True) if scope is None else (lambda lineno: scope(lineno)[0])
     implement = (lambda lineno: None) if scope is None else (lambda lineno: scope(lineno)[1])
-    executed, unresolved, owned = [], [], []
+    executed, unresolved, owned, probe_bad = [], [], [], []
     for call, arg in index.sql_calls():
         if not runs(call.lineno):
             continue
@@ -392,12 +447,19 @@ def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None)
         templates, reasons = index.resolve(arg, scope_node)
         for template in templates:
             executed.append((call.lineno, template))
+            if is_aggregate_probe(arg):
+                if not AGGREGATE_PROBE_SHAPE.match(" ".join(template.split())):
+                    probe_bad.append((call.lineno, "probe", template, " ".join(template.split())[:160]))
+                continue
             owned.append((call.lineno, template, index.enclosing_class(call), scope_node.name if scope_node else ""))
         if reasons and not templates:
             unresolved.append((call.lineno, scope_node.name if scope_node else "<module>", ast.unparse(call)[:120], reasons))
-    bad, deep_reads, implement_reads = [], [], []
-    literals = [entry for entry in index.sql_literals() if runs(entry[0])]
+    bad, deep_reads, implement_reads = list(probe_bad), [], []
+    emitted = index.emitted_view_bodies()
+    literals = [entry for entry in index.sql_literals() if runs(entry[0]) and (entry[3], entry[1]) not in emitted]
     for lineno, sql, owner, function in owned + literals:
+        if function == AGGREGATE_PROBE_BUILDER:
+            continue
         for kind, target in violations_in(sql):
             entry = (lineno, kind, target, " ".join(sql.split())[:160])
             if implement_permits(function, kind, target, sql, implement(lineno)):
@@ -537,7 +599,7 @@ def runtime_audit(source):
     trees = {name: ast.parse(text) for name, (text, _space) in found.items()}
     definitions = {name: runtime_definitions(tree) for name, tree in trees.items()}
     report = {"sources": {name: text for name, (text, _space) in found.items()}, "unreadable": unreadable, "checked": {},
-              "crossed": [], "bad": [], "unresolved": [], "dataframe": [], "implement": [], "deep": []}
+              "crossed": [], "bad": [], "unresolved": [], "dataframe": [], "implement": [], "deep": [], "executes": set()}
     for name, tree in sorted(trees.items()):
         members, lines = definitions[name]
         named = {identifier(node) for node in ast.walk(tree)} - {None}
@@ -569,6 +631,11 @@ def runtime_audit(source):
                                                     for caller in reach)
 
         executed, unresolved, bad, frames, implement = audit(report["sources"][name], with_implement_reads=True, scope=scope)
+        text_index = SqlIndex(ast.parse(report["sources"][name]))
+        for call, _arg in text_index.sql_calls():
+            owner = text_index.enclosing_function(call)
+            if owner is not None and scope(call.lineno)[0]:
+                report["executes"].add(owner.name)
         deep = audit(report["sources"][name], with_deep_reads=True, scope=scope)[4]
         report["checked"][name] = len(executed)
         for key, entries in (("bad", bad), ("unresolved", unresolved), ("dataframe", frames), ("implement", implement),
@@ -591,9 +658,13 @@ def test_guard_extracts_the_agents_sql_surface(notebook_audit):
         assert expected in joined, f"extractor did not resolve the statement containing {expected!r}"
 
 
+def queued_worker_leftovers(unresolved):
+    return [u for u in unresolved if not (u[1] in QUEUED_SQL_WORKERS and u[2] == "self.spark.sql(sql)")]
+
+
 def test_every_executed_sql_call_site_is_resolved(notebook_audit):
     _, unresolved, _, _ = notebook_audit
-    leftovers = [u for u in unresolved if not (u[1] in QUEUED_SQL_WORKERS and u[2] == "self.spark.sql(sql)")]
+    leftovers = queued_worker_leftovers(unresolved)
     assert not leftovers, "SQL call sites whose statement cannot be traced to a literal:\n" + "\n".join(
         f"line {line} in {func}: {call} -> {reasons}" for line, func, call, reasons in leftovers)
     assert len(unresolved) - len(leftovers) <= 1, "only the single-writer queue worker may execute queued SQL"
@@ -734,6 +805,61 @@ def test_guard_flags_a_loop_variable_over_a_builder_that_returns_row_reads():
     assert not unresolved, unresolved
     flagged = {line for line, kind, target, _sql in bad if (kind, target) == ("read", "{table}")}
     assert set(_call_lines(leaky)) <= flagged, (bad, _call_lines(leaky))
+
+
+LEDGER_SHARE_SOURCE = '''
+def share_ledger(spark, table, client_id):
+    for statement in inspire_shell_facts.ledger_grant_sqls(table, client_id):
+        spark.sql(statement)
+'''
+
+
+def test_guard_follows_the_value_ledger_grant_builder_the_agent_reads_from_shell_facts():
+    executed, unresolved, bad, _frames = audit(LEDGER_SHARE_SOURCE)
+    assert not unresolved, unresolved
+    assert sorted(line for line, _sql in executed) == _call_lines(LEDGER_SHARE_SOURCE)
+    assert not bad, bad
+
+
+LEDGER_CREATE_SOURCE = '''
+def make_ledger(spark, database):
+    table = inspire_shell_facts.ledger_table(database)
+    spark.sql(inspire_shell_facts.ledger_create_sql(table))
+'''
+
+
+def test_guard_traces_the_ledger_create_argument_to_the_owned_ledger_table():
+    executed, unresolved, bad, _frames = audit(LEDGER_CREATE_SOURCE)
+    assert not unresolved, unresolved
+    assert executed and all("{inspire_shell_facts.ledger_table(database)}" in sql for _line, sql in executed), executed
+    assert not bad, bad
+
+
+def test_guard_flags_a_ledger_create_whose_table_is_not_owned():
+    unowned = LEDGER_CREATE_SOURCE.replace("inspire_shell_facts.ledger_table(database)", "\"main.sales.orders\"")
+    _executed, unresolved, bad, _frames = audit(unowned)
+    assert not unresolved, unresolved
+    assert ("write", "{table}") in {(kind, target) for _line, kind, target, _sql in bad}, bad
+
+
+LEAKY_LEDGER_BUILDERS = (
+    ("return f\"CREATE TABLE IF NOT EXISTS {table} ({LEDGER_COLUMNS_DDL})\"",
+     "return f\"CREATE TABLE IF NOT EXISTS {table} ({LEDGER_COLUMNS_DDL}) AS SELECT * FROM samples.sales.orders\""),
+    ("return [f\"GRANT {privilege} ON TABLE {table} TO {quote_principal(principal)}\" for privilege in LEDGER_GRANTS]",
+     "return [f\"SELECT * FROM samples.sales.orders\" for privilege in LEDGER_GRANTS]"),
+)
+
+
+@pytest.mark.parametrize("old, new", LEAKY_LEDGER_BUILDERS, ids=["create", "grant"])
+def test_a_shell_facts_ledger_builder_that_reads_user_rows_fails_the_guard(tmp_path, old, new):
+    with open(SHELL_FACTS_PATH, encoding="utf-8") as handle:
+        text = handle.read()
+    assert text.count(old) == 1, old
+    leaky = tmp_path / "shell_facts.py"
+    leaky.write_text(text.replace(old, new), encoding="utf-8")
+    _executed, unresolved, bad, _frames = audit(agent_source(), facts_path=str(leaky))
+    assert not queued_worker_leftovers(unresolved), unresolved
+    assert ("read", "samples.sales.orders") in {(kind, target) for _line, kind, target, _sql in bad}, bad
 
 
 def test_guard_leaves_a_loop_over_an_unknown_sequence_unresolved():
@@ -916,6 +1042,11 @@ def runtime_report():
     return runtime_audit(agent_source())
 
 
+def assert_guard_reaches_sibling_and_summary(report, drop=()):
+    reached = ({entry[-1] for entry in report["implement"]} | report["executes"]) - set(drop)
+    assert {"inspire_ensure_summary", "inspire_ensure_sibling"} <= reached, sorted(reached)
+
+
 def test_guard_reads_every_source_the_agent_compiles_at_runtime(runtime_report):
     assert not runtime_report["unreadable"], runtime_report["unreadable"]
     assert all(other in SHARED_SOURCES for _name, other, _names in runtime_report["crossed"]), \
@@ -927,9 +1058,8 @@ def test_guard_reads_every_source_the_agent_compiles_at_runtime(runtime_report):
     for name, text in runtime_report["sources"].items():
         assert runtime_sources(text) == ({}, []), f"{name} compiles a source of its own, which the guard does not read"
     assert runtime_report["checked"]["IMPLEMENT_RESULT_HISTORY_SOURCE"] >= 3, runtime_report["checked"]
-    reached = {entry[-1] for entry in runtime_report["implement"]}
-    assert {"inspire_ensure_summary", "inspire_ensure_sibling"} <= reached
-    assert not {"inspire_ensure_history", "inspire_ensure_actions"} & reached, "the build migrates no result table"
+    assert_guard_reaches_sibling_and_summary(runtime_report)
+    assert not {"inspire_ensure_history", "inspire_ensure_actions"} & ({e[-1] for e in runtime_report["implement"]} | runtime_report["executes"]), "the build migrates no result table"
 
 
 def test_the_one_gate_into_the_shared_column_helper_refuses_every_table_inspire_does_not_own():
@@ -1019,3 +1149,130 @@ def test_guard_accepts_a_result_read_and_a_zero_row_probe_only_implement_code_re
 def test_only_qualified_postgres_catalog_reads_count_as_metadata(target, expected):
     assert classify_target(target) == expected
     assert violations_in(f"SELECT 1 FROM {target}") == ([] if expected else [("read", target)])
+
+
+PROBE_ANCHOR = "def implement_key_values(spark, key: dict):\n"
+
+
+@pytest.mark.parametrize("line,target", [
+    ('    spark.sql(f"SELECT {named} FROM {inspire_table_name(source_table)}").collect()\n', "{inspire_table_name(source_table)}"),
+    ('    spark.sql(f"SELECT count(*) AS n FROM {inspire_table_name(source_table)}").collect()\n', "{inspire_table_name(source_table)}"),
+    ('    spark.sql(f"SELECT {named}, count(*) AS n FROM {inspire_table_name(source_table)} GROUP BY {named}").collect()\n',
+     "{inspire_table_name(source_table)}"),
+])
+def test_an_aggregate_built_outside_the_probe_helper_or_a_value_read_still_fails_the_guard(line, target):
+    source = agent_source()
+    assert source.count(PROBE_ANCHOR) == 1
+    _, _, bad, _ = audit(source.replace(PROBE_ANCHOR, PROBE_ANCHOR + line))
+    assert any(t == target for _, _, t, _ in bad), bad
+
+
+def test_the_probe_helper_is_the_only_sql_the_key_check_may_send_to_a_user_table():
+    source = agent_source()
+    _, _, bad, _ = audit(source)
+    assert not [entry for entry in bad if "source_table" in entry[2]], bad
+    broken = source.replace("LEFT ANTI JOIN {inspire_table_name(source_table)} AS s", "LEFT ANTI JOIN {inspire_table_name(source_table)} AS s, {named} AS v", 1)
+    assert broken != source
+    _, _, probe_bad, _ = audit(broken)
+    assert any(kind == "probe" for _, kind, _, _ in probe_bad), probe_bad
+
+
+def test_a_user_table_read_is_not_owned_by_name():
+    assert "inspire_table_name" not in owned_name_builders()
+    assert classify_target("{inspire_table_name(source_table)}") is None
+    assert classify_target("{inspire_owned_table(stale)}") == "inspire_owned"
+
+
+OWNED_VIEW_SOURCE = """
+def inspire_owned_view_sql(target, body):
+    return f"CREATE OR REPLACE VIEW {inspire_owned_table(target)} AS {body}"
+
+def scope_view(self, view, cat):
+    body = f"SELECT * FROM {build_fqn(cat, 's', 't')}"
+    self.spark.sql(inspire_owned_view_sql(view, body))
+
+def map_view(self, result_table, map_name):
+    body = f"SELECT * FROM {inspire_table_name(map_name)}"
+    self.spark.sql(implement_lakebase_view_sql(result_table, "__lbm", body, "row"))
+"""
+
+
+def test_a_body_handed_to_the_owned_view_emitter_is_not_a_standalone_read():
+    executed, unresolved, bad, _frames = audit(OWNED_VIEW_SOURCE)
+    assert not bad, bad
+    assert classify_target("{inspire_owned_table(target)}") == "inspire_owned"
+
+
+def test_an_agent_executed_select_of_the_map_table_flags():
+    source = OWNED_VIEW_SOURCE + ('def read_map(self, map_name):\n'
+                                  '    return self.spark.sql(f"SELECT * FROM {inspire_table_name(map_name)}").collect()\n')
+    bad = audit(source)[2]
+    assert {(kind, target) for _line, kind, target, _sql in bad} == {("read", "{inspire_table_name(map_name)}")}, bad
+
+
+def test_a_create_view_whose_target_is_not_owned_flags():
+    source = ('def publish(self, cat):\n'
+              '    self.spark.sql(f"CREATE OR REPLACE VIEW {build_fqn(cat, \'s\', \'v\')} AS SELECT 1")\n')
+    bad = audit(source)[2]
+    assert {(kind, target) for _line, kind, target, _sql in bad} == {("write", "{build_fqn(cat, 's', 'v')}")}, bad
+
+
+def test_a_ctas_into_a_non_owned_name_flags_its_target_and_its_body():
+    source = ('def publish(self, cat):\n'
+              '    self.spark.sql(f"CREATE TABLE {build_fqn(cat, \'s\', \'t\')} AS SELECT * FROM main.sales.orders")\n')
+    bad = audit(source)[2]
+    assert {(kind, target) for _line, kind, target, _sql in bad} == {
+        ("write", "{build_fqn(cat, 's', 't')}"), ("read", "main.sales.orders")}, bad
+
+
+def test_a_body_literal_passed_anywhere_other_than_the_owned_emitter_flags():
+    source = ('def helper(view, body):\n'
+              '    return body\n\n'
+              'def leak(self, cat):\n'
+              '    body = f"SELECT * FROM {build_fqn(cat, \'s\', \'t\')}"\n'
+              '    return helper("v", body)\n')
+    bad = audit(source)[2]
+    assert {(kind, target) for _line, kind, target, _sql in bad} == {("read", "{build_fqn(cat, 's', 't')}")}, bad
+
+
+def test_the_reach_check_fails_when_the_sibling_helper_is_taken_out_of_the_scanned_set(runtime_report):
+    assert_guard_reaches_sibling_and_summary(runtime_report)
+    with pytest.raises(AssertionError, match="inspire_ensure_sibling"):
+        assert_guard_reaches_sibling_and_summary(runtime_report, drop={"inspire_ensure_sibling"})
+
+
+OWNED_TARGET_PLACEHOLDER = re.compile(r"^\{((?:self\.)?[A-Za-z_]\w*)\}$")
+NOT_OWNED_TARGET_ROOTS = {"result_table"}
+
+
+def owned_target_roots(source):
+    """Plain-name placeholders of every write the notebook executes that name an Inspire tracking object (not calls, not result tables)."""
+    index = SqlIndex(ast.parse(source))
+    roots = set()
+    for _lineno, sql, _owner, _function in index.sql_literals():
+        for kind, target in statement_targets(sql):
+            found = OWNED_TARGET_PLACEHOLDER.match(target.strip())
+            if kind == "write" and found:
+                root = found.group(1).split(".")[-1].lstrip("_")
+                if root not in NOT_OWNED_TARGET_ROOTS and re.search(r"(table|view)", root):
+                    roots.add(root)
+    return roots
+
+
+def registry_missing(source):
+    found = re.search(r"^INSPIRE_OWNED_NAME_BUILDERS = (\(.*\))$", source, re.M)
+    if not found:
+        return sorted(owned_target_roots(source))
+    names = set(ast.literal_eval(found.group(1)))
+    return sorted(root for root in owned_target_roots(source) if not any(name in root for name in names))
+
+
+def test_the_owned_registry_names_every_builder_an_owned_write_target_uses():
+    assert registry_missing(agent_source()) == [], "a merge shrank INSPIRE_OWNED_NAME_BUILDERS"
+
+
+def test_a_registry_that_lost_a_tracking_builder_fails_the_check():
+    source = agent_source()
+    shrunk = re.sub(r"^(INSPIRE_OWNED_NAME_BUILDERS = .*)$", lambda m: m.group(1).replace(", \"tracking_table\"", ""), source, count=1, flags=re.M)
+    assert shrunk != source
+    assert any("tracking_table" in root for root in registry_missing(shrunk)), registry_missing(shrunk)

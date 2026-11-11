@@ -11,7 +11,15 @@ from v140_implement_test import _app_flow, _app_shell, _churn_page, _inspire
 from v141_app_shell_test import FakeWorkspace
 
 SHELL_LOADERS = ("_implement_app_shell", "implement_app_shell_modules")
+LAKEBASE_ENFORCEMENT_REVIEWED = {
+    ("_implement_lakebase_enforce_views", "shell_pg.enforcing_view_sql"): "REQ-060b per-user Lakebase enforcement: builds the enforcing view SQL",
+    ("_implement_lakebase_enforce_views", "shell_pg.pg_ident"): "REQ-060b per-user Lakebase enforcement: quotes the Postgres identity the views grant to",
+    ("_implement_lakebase_plans", "shell_pg.enforce_plan"): "REQ-060b per-user Lakebase enforcement: plans the enforced views for each copy",
+}
 SHELL_ENTRY_POINTS = {
+    ("_implement_page_file", "shell_sql.money_page_problems"),
+    ("_implement_siblings", "shell_sql.sibling_items"),
+    ("implement_page_grouping", "shell_sql.page_grouping"),
     ("_implement_alert.build", "_implement_app_shell"),
     ("_implement_alert_subscribers", "_implement_app_shell"),
     ("_implement_alert_subscribers", "shell_alerts.workspace_user"),
@@ -46,6 +54,7 @@ SHELL_ENTRY_POINTS = {
     ("_implement_app_tour", "shell_core.fit_tour"),
     ("_implement_app_tour", "shell_core.tour_anchors"),
     ("_implement_app_tour", "shell_core.tour_registry"),
+    ("_implement_app_tour.ask", "shell_core.tour_build_problems"),
     ("_implement_dashboard", "_implement_app_shell"),
     ("_implement_dashboard.deploy", "shell_sql.chart_date_problems"),
     ("_implement_dashboard.deploy", "shell_sql.chart_query"),
@@ -143,6 +152,8 @@ SHELL_ENTRY_POINTS = {
     ("implement_digest_body", "shell_sql.stake_words"),
     ("implement_driver_problems", "shell_sql.driver_charts"),
     ("implement_layout_brief", "shell_sql.layout_decides"),
+    *LAKEBASE_ENFORCEMENT_REVIEWED,
+
 }
 PURE_ENTRY_POINTS = {
     "shell_sql.impact_of": ("reads the impact kind, the unit and the currency the run's summary row names into one impact for the "
@@ -596,7 +607,7 @@ def test_the_check_reads_lakebase_rows_through_the_same_watch(agent_ns, tmp_path
         def __init__(self, backend, env, service):
             self.made = (backend, env, service)
 
-        def run(self, sql, params, limit, queued=False):
+        def run(self, sql, params, limit, queued=False, viewer=""):
             return {"columns": [], "rows": [{"v": secret}, {"v": "n01_u01"}]}
 
     core = types.SimpleNamespace(**{k: getattr(modules["shell_core"], k) for k in ("SETTINGS_FILE", "PAGES_DIR", "HttpError", "CHECK_FAILED", "CHECK_DESIGN",

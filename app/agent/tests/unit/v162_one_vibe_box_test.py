@@ -306,7 +306,7 @@ def test_a_rebuild_sends_an_ask_for_an_unbuilt_part_to_its_owner_and_one_for_an_
     status = _run(inst, dict(VALID, vibes=f"{OLD}\n{PAGER}", vibe_previous="remove"))
     final = inst.updates[-1]
     old = next(entry for entry in final["asset_status"]["checklist"] if entry["part"] == "dashboard")
-    assert (status, old["status"], old["evidence"]) == ("vibe_not_met", "not_met", "the built Dashboard has no old chart"), \
+    assert (status, old["status"], old["evidence"]) == ("ready_with_warnings", "not_met", "the built Dashboard has no old chart"), \
         "the rebuilt dashboard has no chart at all, so no judge can meet an ask about its old chart"
     assert final["asset_status"]["vibe"]["routes"] == {"dashboard": OLD, "notebook": PAGER}
     assert final["asset_status"]["vibe"]["fallback"] == [
@@ -451,7 +451,7 @@ def test_a_notebook_ask_the_judge_proves_only_with_a_line_the_notebook_before_ha
     inst = _rebuild(agent_ns, calls)
     inst._implement_export_text = lambda path: json.dumps({"cells": [CELL]})
     _llm(inst, {"notebook": HOLDOUT})
-    assert _run(inst, dict(VALID, vibes=HOLDOUT, vibe_previous="remove")) == "vibe_not_met", \
+    assert _run(inst, dict(VALID, vibes=HOLDOUT, vibe_previous="remove")) == "ready_with_warnings", \
         "the judge's only proof is a line the notebook before already had, which shows nothing about this ask, so it is not met"
     [entry] = [e for e in inst.updates[-1]["asset_status"]["checklist"] if e["requirement"] == HOLDOUT]
     assert entry["status"] == "not_met" and "already_there" not in entry
@@ -467,7 +467,7 @@ def test_the_same_notebook_ask_the_judge_finds_missing_on_the_built_notebook_sti
     inst._implement_vibes_llm = lambda kind, prompt, schema: (
         {"checks": [{"n": 1, "status": "missing", "evidence": "no cell holds out any weeks"}]} if kind == "judge"
         else routed(kind, prompt, schema))
-    assert _run(inst, dict(VALID, vibes=HOLDOUT, vibe_previous="remove")) == "vibe_not_met", \
+    assert _run(inst, dict(VALID, vibes=HOLDOUT, vibe_previous="remove")) == "ready_with_warnings", \
         "an ask the built notebook does not meet holds, whatever the notebook before had"
     [entry] = [e for e in inst.updates[-1]["asset_status"]["checklist"] if e["requirement"] == HOLDOUT]
     assert entry["status"] == "not_met" and "already_there" not in entry

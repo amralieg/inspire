@@ -38,12 +38,22 @@ export function Saving({ slow }) {
   return <><span className="saving-ring" aria-hidden="true" />{savingLabel(slow)}</>;
 }
 
-export function SaveButton({ write, disabled, children, className = 'btn', type = 'button', ...rest }) {
+export const missingWhy = (parts) => {
+  const list = parts.filter(Boolean);
+  return list.length ? `Add ${list.join(' and ')} to save.` : '';
+};
+
+export function SaveButton({ write, disabled, why = '', children, className = 'btn', type = 'button', ...rest }) {
   const gate = useWrite();
   const mine = gate.mine(write);
+  const off = !!disabled || gate.busy;
+  const reason = disabled && !gate.busy ? why : '';
   return (
-    <button type={type} className={className} {...rest} disabled={!!disabled || gate.busy} aria-busy={mine || undefined} data-saving={mine ? '' : undefined}>
-      {mine ? <Saving slow={gate.slow} /> : children}
-    </button>
+    <>
+      <button type={type} className={className} {...rest} disabled={off} title={reason || undefined} aria-busy={mine || undefined} data-saving={mine ? '' : undefined}>
+        {mine ? <Saving slow={gate.slow} /> : children}
+      </button>
+      {reason && <small className="save-why" data-save-missing>{reason}</small>}
+    </>
   );
 }

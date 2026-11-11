@@ -41,3 +41,29 @@ def test_the_due_first_order_puts_the_open_records_by_value_after_the_overdue_on
 
 def test_a_list_the_user_sorted_keeps_the_sort_and_is_not_reordered_by_due_date(tmp_path):
     assert keys_in_order(tmp_path, due_first=True, sort={"key": "rank", "dir": "asc"}) == ["k1", "k2", "k9"]
+
+
+OVERDUE_ROWS = [
+    version("k7", "Act now", 900.0, action_owner=PERSON, action_status="New", action_due="2020-06-01"),
+    version("k9", "Act now", 10.0, action_owner=PERSON, action_status="New", action_due="2020-01-01"),
+    version("k1", "Act now", 500.0, action_owner=PERSON, action_status="New", action_due="2099-01-01"),
+]
+
+
+def overdue_keys(tmp_path, **body):
+    s, _ws, _made = hub_shell(tmp_path, settings=DECIDE, ws=SqliteWorkspace(tables={"loss_desk_out": OVERDUE_ROWS}))
+    status, out = call(s, "POST", "records", headers={"x-forwarded-email": PERSON}, body=dict({"page": "n01_u05", "limit": 25}, **body))
+    assert status == 200, out
+    return [r["record_key"] for r in out["rows"]]
+
+
+def test_overdue_records_are_ordered_earliest_due_first_not_by_value(tmp_path):
+    assert overdue_keys(tmp_path, due_first=True) == ["k9", "k7", "k1"]
+
+
+def test_the_overdue_tab_keeps_the_earliest_due_first_order(tmp_path):
+    assert overdue_keys(tmp_path, due_first=True, focus="overdue") == ["k9", "k7"]
+
+
+def test_the_overdue_tab_keeps_the_earliest_due_first_order_when_the_list_does_not_ask_for_it(tmp_path):
+    assert overdue_keys(tmp_path, focus="overdue") == ["k9", "k7"]

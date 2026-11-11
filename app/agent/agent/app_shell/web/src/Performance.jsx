@@ -20,6 +20,7 @@ import {
   CUSTOM, DEFAULT_PERIOD, PAGE_ROWS, PERIODS, activityText, aiQuestion, answerProblem, checkedAnswer, outcomeMix,
   performanceTiles, periodBody, periodProblem, scopeText, templateText, weekTrend, whenText, workFacts,
 } from './mywork.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const SIGN_IN = 'Sign in so the App can show the work you did.';
 const FIGURES = [['estimated', 'Estimated'], ['reported', 'Reported'], ['measured', 'Measured'], ['wrong', 'Said wrong']];
@@ -65,7 +66,7 @@ function Summary({ app, facts }) {
     <section className="card" aria-label="Summary" data-summary>
       <header className="card-h">
         <div><h2>In short</h2><p data-summary-text={said.state}>{said.text || templateText(facts)}</p>{said.note && <p className="more">{said.note}</p>}</div>
-        <AskGenie kind="text" title="In short" context={{ hint: said.text || templateText(facts) }} />
+        <SectionHelp title={'In short'} steps={[{ title: 'In short', text: "The short answer for this use case: what the actions delivered in plain words, and what to do next." }]} /><AskGenie kind="text" title="In short" context={{ hint: said.text || templateText(facts) }} />
         {target && facts.worked.records > 0 && (
           <div className="tbar">
             <button type="button" className="btn" onClick={write} disabled={said.state === 'running'} data-summary-ai>
@@ -90,7 +91,7 @@ function Outcomes({ entry, onExplain, genieBusy }) {
   );
 }
 
-const overdueFields = (item, today) => ({ Record: item.label || item.key, Due: shortDay(item.due), Late: dueText(item.due, today).text });
+const overdueFields = (item, today) => ({ Record: item.label || 'This record', Due: shortDay(item.due), Late: dueText(item.due, today).text });
 
 function Overdue({ app, entry, today, onRecord, pageId }) {
   const items = entry.overdue?.items || [];
@@ -100,7 +101,7 @@ function Overdue({ app, entry, today, onRecord, pageId }) {
     <section className="card card--table" aria-label="Overdue items you own" data-overdue>
       <header className="card-h">
         <div><h2>Overdue items you own</h2><p>{hint}</p></div>
-        <AskGenie kind="table" title="Overdue items you own" context={tableContext(hint, items, (item) => overdueFields(item, today), entry.overdue.n)} />
+        <SectionHelp title={'Overdue items you own'} steps={[{ title: 'Overdue items you own', text: "The open records you own that are past their due day, earliest first. Open one to act on it." }]} /><AskGenie kind="table" title="Overdue items you own" context={tableContext(hint, items, (item) => overdueFields(item, today), entry.overdue.n)} />
       </header>
       <div className="tbl-wrap">
         <table className="tbl tbl--work">
@@ -135,7 +136,7 @@ function Activity({ app, data, onMore, onRecord }) {
     <section className="card card--table" aria-label="What you did">
       <header className="card-h">
         <div><h2>What you did</h2><p>{`Every change you made, newest first: ${grouped(data.activity.length)} of ${plural(data.total, 'change')}`}</p></div>
-        <AskGenie kind="table" title="What you did" context={tableContext('Every change you made, newest first.', data.activity, activityFields, data.total)} />
+        <SectionHelp title={'What you did'} steps={[{ title: 'What you did', text: "Every change you made to a record, newest first. Use it to see what you have already handled." }]} /><AskGenie kind="table" title="What you did" context={tableContext('Every change you made, newest first.', data.activity, activityFields, data.total)} />
       </header>
       {data.activity.length === 0 ? <div className="nomatch">You changed no records in this period.</div> : (
         <div className="tbl-wrap">
@@ -295,7 +296,7 @@ export function PromisedDelivered({ app, page, summary }) {
           {run?.scope_text && <p className="kpi-scope" data-scope={page.id}>{run.scope_text}</p>}
         </div>
         <ReviewLink page={page} app={app} />
-        <AskGenie kind="text" title={`The impact of ${page.title}`} page={page.id} context={{ hint: note, fields: impactFields(page, entry, figures, run) }} />
+        <SectionHelp title={'Promised and delivered'} steps={[{ title: 'Promised and delivered', text: "What this use case promised, next to what it has delivered so far. Settings says how each figure is measured." }]} /><AskGenie kind="text" title={`The impact of ${page.title}`} page={page.id} context={{ hint: note, fields: impactFields(page, entry, figures, run) }} />
       </header>
       <div className="imp-grid">
         <Promised page={page} />

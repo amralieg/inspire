@@ -199,6 +199,8 @@
  ],
  "records": {
   "title": "Merge candidates",
+  "undo": "Unmerge",
+  "group": {"column": "community", "choice": "merge", "label": "Merge group", "undo": "Unmerge group"},
   "hint": "Merge the strongest matches into the lead record, mark the rest for review, or keep the records separate.",
   "key": "entity_id",
   "label": "entity_label",

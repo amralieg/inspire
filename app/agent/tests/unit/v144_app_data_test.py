@@ -145,6 +145,30 @@ def test_the_list_pages_in_sql_by_the_sort_column_then_record_key_with_the_count
     assert status == 200 and "ORDER BY `value` DESC NULLS LAST, `record_key` ASC LIMIT 100 OFFSET 0" in ws.queries(" OFFSET ")[-1][0]
 
 
+@pytest.mark.parametrize("sort, offset, limit", [
+    ({"key": "rank", "dir": "asc"}, 0, 50),
+    ({"key": "value", "dir": "desc"}, 9950, 50),
+    ({"key": "rank", "dir": "desc"}, 4_999_950, 100),
+])
+def test_a_ten_million_record_table_answers_every_page_with_the_capped_count_and_bounded_sql(tmp_path, sort, offset, limit):
+    cap = shell_sql.CAPS["count_cap"]
+    ws = DataWorkspace(rows=[{"record_key": f"k{i}", "rank": i} for i in range(limit)], total=10_000_000)
+    s, ws, _made = shell(tmp_path, ws=ws)
+    status, out = records(s, offset=offset, limit=limit, sort=sort, filters={"run_date": {"from": "2026-01-01", "to": "2026-10-15"}})
+    assert status == 200, out
+    assert (out["total"], out["total_more"], len(out["rows"])) == (cap, True, limit), \
+        "10,000,000 matching records answer with the cap and say there are more"
+    statements = [sql for sql, _params, _limit in ws.sql]
+    assert statements and all("LIMIT" in sql for sql in statements if "FROM f" in sql), \
+        "every statement that reads the result table is bounded by a LIMIT, so no page scans or sorts the whole table"
+    (rows_sql, _), = ws.queries(" OFFSET ")
+    assert f"LIMIT {limit} OFFSET {offset})" in rows_sql or f"LIMIT {limit} OFFSET {offset} " in rows_sql, \
+        "the page sorts inside a bounded top-N read of its own offset, not a full sort of the table"
+    (total_sql, _), = ws.queries("AS total FROM (SELECT 1 FROM f LIMIT")
+    assert total_sql.endswith(f"SELECT COUNT(*) AS total FROM (SELECT 1 FROM f LIMIT {cap + 1}) AS z") and " OFFSET " not in total_sql, \
+        "the count reads at most cap + 1 rows, never the whole table"
+
+
 @pytest.mark.parametrize("sort, fragment", [
     ({"key": "valid_from"}, "cannot sort by 'valid_from'"),
     ({"key": "rank` DESC; DROP TABLE t; --"}, "cannot sort by"),
@@ -337,7 +361,7 @@ def test_a_per_user_decision_the_app_may_not_write_names_the_app_identity_not_th
     writer = DataWorkspace(fail={"merge": shell_db.QueryError("PERMISSION_DENIED: no MODIFY")})
     s, _made = person_shell(tmp_path, reader, writer)
     status, out = act(s, headers=dict(EDITOR, **TOKEN))
-    assert status == 403 and out["error"].startswith("Nothing was saved: this App's service principal may not change ")
+    assert status == 403 and out["error"] == "Nothing was saved: this App cannot write this change. Ask the App owner to check its access."
 
 
 def test_a_failed_list_query_is_a_502_and_a_failed_summary_query_is_reported_without_failing_the_list(tmp_path):
@@ -567,7 +591,7 @@ def test_a_concurrent_delta_conflict_during_an_act_reads_back_each_record(tmp_pa
     (tmp_path / "denied").mkdir()
     s, _ws, _made = shell(tmp_path / "denied", ws=DataWorkspace(fail={"merge": shell_db.QueryError("PERMISSION_DENIED: no MODIFY")}))
     status, out = act(s)
-    assert status == 403 and out["error"].startswith("Nothing was saved: this App's service principal may not change ")
+    assert status == 403 and out["error"] == "Nothing was saved: this App cannot write this change. Ask the App owner to check its access."
 
 
 def test_the_list_carries_owner_status_and_version_and_my_actions_filters_in_sql(tmp_path):

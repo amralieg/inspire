@@ -76,6 +76,12 @@ export function suggestions(page, about, entity, done) {
   return [...own.slice(0, 3), ...listed].slice(0, 4);
 }
 
+export function topFact(page, facts) {
+  const kpi = (page?.kpis || [])[0];
+  const value = kpi ? facts?.kpis?.[kpi.id] : '';
+  return kpi && value ? `${kpi.label}: ${value}` : '';
+}
+
 export function confirmText(confirm) {
   const n = confirm?.rows?.length || 0;
   return `${confirm?.label || 'Change'}: ${n} ${n === 1 ? 'record' : 'records'}`;

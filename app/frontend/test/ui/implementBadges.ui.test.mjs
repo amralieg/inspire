@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openUi, settleChoices } from './uiSupport.mjs';
-import { APP_LOOK_STEP, APP_LOOK_TABS, APP_PAGES_STEP, APP_STEP } from '../../src/lib/implementWizard.js';
+import { APP_LOOK_STEP, APP_LOOK_TABS, APP_STEP, WHERE_LABEL } from '../../src/lib/implementWizard.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const DATED = [{ column_name: 'order_id', data_type: 'STRING', ordinal_position: 1 }, { column_name: 'order_date', data_type: 'DATE', ordinal_position: 2 }];
@@ -22,8 +22,8 @@ async function auditEveryStep(page, { look = true } = {}) {
       const where = tab ? `${label} / ${tab}` : label;
       assertOneBadgeOnDefault(shown, where, { perChoice: true });
       assertOneBadgeOnDefault(shown.filter((c) => c.choice === 'outputs' || c.choice.startsWith('removed-')), `${where} outputs`);
-      if (label === APP_STEP.label) assertOneBadgeOnDefault(shown.filter((c) => ['app-place', 'app-target'].includes(c.choice)), `${where} placement`);
-      if (label === APP_PAGES_STEP.label) assertOneBadgeOnDefault(shown.filter((c) => ['app-options', 'replace-edits'].includes(c.choice)), `${where} features`);
+      if (label === WHERE_LABEL) assertOneBadgeOnDefault(shown.filter((c) => ['app-place', 'app-target'].includes(c.choice)), `${where} placement`);
+      if (label === WHERE_LABEL) assertOneBadgeOnDefault(shown.filter((c) => ['app-options', 'replace-edits'].includes(c.choice)), `${where} features`);
       for (const { choice } of shown) seen.add(choice);
     }
   }

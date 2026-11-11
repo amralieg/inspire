@@ -225,10 +225,10 @@ def test_deep_budget_counts_read_time_not_wall_time(agent_ns, monkeypatch):
 
 
 def test_quote_identifier_escapes_inner_backticks(agent_ns):
-    quote = agent_ns["quote_identifier"]
+    quote = agent_ns["inspire_quote_identifier"]
     assert quote("my-schema") == quote("`my-schema`") == "`my-schema`"
     assert quote("a`b") == "`a``b`"
-    assert agent_ns["quote_qualified_name"]("`a`.b.__c") == "`a`.`b`.`__c`"
+    assert agent_ns["inspire_quote_qualified_name"]("`a`.b.__c") == "`a`.`b`.`__c`"
 
 
 def test_history_join_mining_returns_edges_only_between_known_tables(agent_ns):

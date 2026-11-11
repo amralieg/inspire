@@ -1,8 +1,9 @@
+import { useState } from 'react';
 import { Icon } from './icons.jsx';
 import { confirmText } from './agentView.js';
 import { SaveButton } from './saving.jsx';
 import './styles/agent.css';
-import { PlainNote } from './ui.jsx';
+import { AccessActions, PlainNote } from './ui.jsx';
 
 export const RATINGS = [{ id: 'POSITIVE', label: 'Helpful' }, { id: 'NEGATIVE', label: 'Not helpful' }];
 
@@ -72,14 +73,95 @@ export function Rate({ message, onRate, disabled }) {
   );
 }
 
+const OFFER_BUTTONS = [['done', 'Mark done'], ['not_an_issue', 'Not an issue'], ['snooze', 'Snooze'], ['assign', 'Assign']];
+const OFFER_ASK = {
+  not_an_issue: { label: 'Reason', type: 'text', key: 'reason' },
+  snooze: { label: 'Snooze until', type: 'date', key: 'until' },
+  assign: { label: 'Assign to', type: 'text', key: 'owner' },
+};
+
+export function Offers({ message, genie }) {
+  const [asking, setAsking] = useState(null);
+  const [value, setValue] = useState('');
+  const offers = message.offers;
+  if (!offers?.rows?.length) return null;
+  const k = message.k;
+  const start = (action, recordKey) => {
+    if (action === 'done') genie.offer(k, message.n, action, recordKey, {});
+    else { setAsking({ action, recordKey }); setValue(''); }
+  };
+  const send = (event) => {
+    event.preventDefault();
+    const spec = OFFER_ASK[asking.action];
+    genie.offer(k, message.n, asking.action, asking.recordKey, { [spec.key]: value.trim() });
+    setAsking(null);
+  };
+  return (
+    <div className="msg-t ag-offers" role="group" aria-label="Actions on these records" data-offers>
+      <table>
+        <thead><tr><th>Record</th><th>Status</th><th>Actions</th></tr></thead>
+        <tbody>
+          {offers.rows.map((r) => (
+            <tr key={r.record_key} data-offer={r.record_key}>
+              <td>{r.label}</td><td>{r.status}</td>
+              <td className="ag-offer-acts">
+                {OFFER_BUTTONS.map(([action, label]) => (
+                  <button key={action} type="button" className="btn btn--sm" onClick={() => start(action, r.record_key)}>{label}</button>
+                ))}
+                <button type="button" className="btn btn--sm" onClick={() => genie.openRecord(k, r.record_key)}>Open record</button>
+              </td>
+            </tr>
+          ))}
+        </tbody>
+      </table>
+      {asking && (
+        <form className="ag-offer-ask" onSubmit={send} data-offer-ask={asking.action}>
+          <label>{OFFER_ASK[asking.action].label}
+            <input type={OFFER_ASK[asking.action].type} dir="auto" value={value} onChange={(e) => setValue(e.target.value)} required autoFocus />
+          </label>
+          <button type="submit" className="btn btn--sm btn--pri">Prepare</button>
+          <button type="button" className="btn btn--sm" onClick={() => setAsking(null)}>Cancel</button>
+        </form>
+      )}
+      {message.offerError && <PlainNote text={message.offerError} className="g-err" role="alert" />}
+    </div>
+  );
+}
+
+export function NextSteps({ message, genie }) {
+  if (message.stepped) return <p className="ag-view" role="status" data-next-done>{message.stepped}</p>;
+  if (!message.next?.length) return null;
+  return (
+    <div className="g-sugg ag-next" aria-label="Next steps" data-next>
+      {message.next.map((step, i) => (
+        <button key={step.label} type="button" className="sugg" data-next-step={i} onClick={() => genie.step(message.k, message.n, i)}>{step.label}</button>
+      ))}
+    </div>
+  );
+}
+
+export function RecordOffers({ message, genie }) {
+  return (
+    <>
+      <Offers message={message} genie={genie} />
+      <ConfirmCard confirm={message.confirm} write={confirmWrite(message.k, message.n)} onConfirm={() => genie.confirm(message.k, message.n)}
+        onCancel={() => genie.cancel(message.k, message.n)} onUndo={() => genie.undoSaved(message.k, message.n)} />
+    </>
+  );
+}
+
 export function AgentExtras({ message, genie, rating = true }) {
   if (!message.agent) return null;
   const k = message.k;
   return (
     <>
+      <Offers message={message} genie={genie} />
+      <NextSteps message={message} genie={genie} />
       <ViewUndo message={message} onUndo={() => genie.undoView(k, message.n)} />
-      <ConfirmCard confirm={message.confirm} write={confirmWrite(k, message.n)} onConfirm={() => genie.confirm(k, message.n)} onCancel={() => genie.cancel(k, message.n)}
-        onUndo={() => genie.undoSaved(k, message.n)} />
+      {message.confirm?.kind === 'access'
+        ? <div className="ag-confirm" data-confirm="access"><AccessActions access={message.confirm.access} /></div>
+        : <ConfirmCard confirm={message.confirm} write={confirmWrite(k, message.n)} onConfirm={() => genie.confirm(k, message.n)} onCancel={() => genie.cancel(k, message.n)}
+          onUndo={() => genie.undoSaved(k, message.n)} />}
       {rating && <Rate message={message} onRate={(r) => genie.rate(k, message.n, r)} />}
     </>
   );

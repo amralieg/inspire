@@ -250,3 +250,121 @@ test('a multi-bullet answer renders as a list with bold labels, never as bullets
     await context.close();
   }
 });
+
+test('an answer table reads its headers in plain words, never as capitals', async () => {
+  const genie = { conversation_id: 'c1', message_id: 'm1', sql: 'SELECT SUM(incremental_value) FROM t', columns: [{ name: 'SUM INCREMENTAL VALUE', type: 'DOUBLE' }],
+    rows: [{ 'SUM INCREMENTAL VALUE': 12.5 }], truncated: false };
+  const { routes } = agentRoutes({ ...DONE_TURN, answer: 'The total is 12.5.', steps: [], actions: [], confirm: null, genie });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(), { routes });
+  try {
+    await askAgent(page, 'What is the total incremental value?');
+    const reply = page.locator('.genie .msg-b').last();
+    await reply.locator('.msg-t table tbody tr').first().waitFor();
+    assert.deepEqual(await reply.locator('.msg-t table thead th').allInnerTexts(), ['Sum incremental value']);
+    assert.deepEqual(seen.errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+const OFFERED = { ...DONE_TURN, answer: 'Pick a fix for Item 1.', steps: [{ tool: 'offer_actions', text: 'Offered actions on 1 record' }], actions: [],
+  confirm: null, genie: null, next: [], offers: { actions: ['done', 'not_an_issue', 'snooze', 'assign'], rows: [{ record_key: 'R001', label: 'Item 1', status: 'Open' }] } };
+const PREPARED = { confirm: { action: 'done', label: 'Mark done', route: 'records/act', values: { action_status: 'Done' }, rows: [{ record_key: 'R001', label: 'Item 1' }],
+  body: { page: 'n01_u05', record_keys: ['R001'], seen: { R001: '100' }, values: { action_status: 'Done' } } } };
+
+test('fix this shows the buttons on the record, Mark done prepares the change with no model call, and only Confirm writes', async () => {
+  const prepared = [];
+  const { calls, acted, routes } = agentRoutes(OFFERED, {
+    'agent/prepare': ({ route, json }) => { prepared.push(route.request().postDataJSON()); return json(200, PREPARED); },
+  });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes, hash: '#/n01_u05/work' });
+  try {
+    await askAgent(page, 'fix this');
+    const row = page.locator('[data-offer="R001"]');
+    for (const name of ['Mark done', 'Not an issue', 'Snooze', 'Assign', 'Open record']) await row.getByRole('button', { name }).waitFor();
+    await row.getByRole('button', { name: 'Mark done' }).click();
+    const card = page.getByRole('group', { name: 'Mark done: 1 record' });
+    await card.getByText('Item 1').waitFor();
+    assert.deepEqual(prepared, [{ page: 'n01_u05', action: 'done', record_keys: ['R001'] }]);
+    assert.equal(calls.asks.length, 1, 'the click sends no second question to Genie');
+    assert.equal(acted.acts.length, 0, 'nothing is written before Confirm');
+    await card.getByRole('button', { name: 'Confirm' }).click();
+    await card.getByText('Saved 1 record.').waitFor();
+    assert.deepEqual(acted.acts, [PREPARED.confirm.body]);
+    assert.deepEqual(seen.errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('Not an issue asks for the reason first, and the reason goes into the prepared change', async () => {
+  const prepared = [];
+  const { routes } = agentRoutes(OFFERED, {
+    'agent/prepare': ({ route, json }) => { prepared.push(route.request().postDataJSON()); return json(200, PREPARED); },
+  });
+  const { page, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes, hash: '#/n01_u05/work' });
+  try {
+    await askAgent(page, 'fix this');
+    await page.locator('[data-offer="R001"]').getByRole('button', { name: 'Not an issue' }).click();
+    await page.locator('[data-offer-ask="not_an_issue"]').getByRole('textbox', { name: 'Reason' }).fill('Duplicate of Item 2');
+    await page.locator('[data-offer-ask="not_an_issue"]').getByRole('button', { name: 'Prepare' }).click();
+    await until(() => prepared.length === 1);
+    assert.deepEqual(prepared, [{ page: 'n01_u05', action: 'not_an_issue', record_keys: ['R001'], reason: 'Duplicate of Item 2' }]);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a next step changes the page through the view, says what changed, and can be undone', async () => {
+  const step = { label: 'Sort by value, largest first', text: 'Sorted the list by value, largest first',
+    actions: [{ type: 'sort', target: 'records', key: 'value', dir: 'desc', text: 'Sorted the list by value, largest first' }] };
+  const { routes } = agentRoutes({ ...DONE_TURN, answer: 'North lost the most.', steps: [], actions: [], confirm: null, genie: null, offers: null, next: [step] });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes, hash: '#/n01_u05/work' });
+  try {
+    await askAgent(page, 'Which region lost the most?');
+    await page.getByRole('button', { name: 'Sort by value, largest first' }).click();
+    await page.locator('[data-next-done]').getByText('Sorted the list by value, largest first').waitFor();
+    await page.locator('[data-view-undo="ready"]').getByRole('button', { name: 'Undo' }).waitFor();
+    assert.deepEqual(seen.errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('opening Ask Genie shows the page top fact and three one-tap next steps', async () => {
+  const { page, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes: agentRoutes().routes, hash: '#/n01_u05/work' });
+  try {
+    await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
+    const fact = page.locator('.genie [data-fact]');
+    await fact.waitFor();
+    assert.match(await fact.innerText(), /^[^:]+: .+/);
+    assert.equal(await page.locator('.genie .g-sugg .sugg').count(), 3);
+  } finally {
+    await context.close();
+  }
+});
+
+test('in Genie-only mode a record asked about gets the same buttons, and Mark done prepares the change through the confirm card', async () => {
+  const prepared = [];
+  const { acted, routes } = agentRoutes(DONE_TURN, {
+    'agent/status': ({ json }) => json(200, { mode: 'genie', note: '', page: 'n01_u05', genie: true, model: '' }),
+    'agent/prepare': ({ route, json }) => { prepared.push(route.request().postDataJSON()); return json(200, PREPARED); },
+  });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes, hash: '#/n01_u05/work' });
+  try {
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('inspire:genie-ask',
+      { detail: { pageId: 'n01_u05', recordKey: 'R001', label: 'Item 1', question: 'fix this' } })));
+    const row = page.locator('[data-offer="R001"]');
+    await row.getByRole('button', { name: 'Mark done' }).click();
+    const card = page.getByRole('group', { name: 'Mark done: 1 record' });
+    await card.getByText('Item 1').waitFor();
+    assert.deepEqual(prepared, [{ page: 'n01_u05', action: 'done', record_keys: ['R001'] }]);
+    assert.equal(acted.acts.length, 0, 'nothing is written before Confirm');
+    await card.getByRole('button', { name: 'Confirm' }).click();
+    await card.getByText('Saved 1 record.').waitFor();
+    assert.deepEqual(acted.acts, [PREPARED.confirm.body]);
+    assert.deepEqual(seen.errors, []);
+  } finally {
+    await context.close();
+  }
+});

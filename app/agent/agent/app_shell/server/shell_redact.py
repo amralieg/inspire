@@ -175,6 +175,7 @@ def _redact_known(value: str, known: str, segments) -> bool:
 
 
 _REDACT_CODE_WORDS = {}
+_REDACT_CODE_WORD_MAX_CHARS = 1000
 
 
 def _redact_strings(value, depth: int = 2) -> list:
@@ -194,7 +195,7 @@ def _redact_code_words() -> frozenset:
     if _REDACT_CODE_WORDS.get("size") != len(scope):
         words, codes, seen = set(), [], set()
         for value in list(scope.values()):
-            words.update(_redact_strings(value))
+            words.update(word for word in _redact_strings(value) if len(word) <= _REDACT_CODE_WORD_MAX_CHARS)
             for member in (list(vars(value).values()) if isinstance(value, type) else [value]):
                 member = member.__func__ if isinstance(member, (staticmethod, classmethod)) else (
                     member.fget if isinstance(member, property) else member)
@@ -204,7 +205,8 @@ def _redact_code_words() -> frozenset:
             code = codes.pop()
             if id(code) not in seen:
                 seen.add(id(code))
-                words.update(const for const in code.co_consts if isinstance(const, str))
+                words.update(const for const in code.co_consts
+                             if isinstance(const, str) and len(const) <= _REDACT_CODE_WORD_MAX_CHARS)
                 codes.extend(const for const in code.co_consts if hasattr(const, "co_consts"))
         quoted = {part for word in words if "'" in word or '"' in word
                   for found in _REDACT_CODE_QUOTED_RE.finditer(word) for part in found.groups() if part}

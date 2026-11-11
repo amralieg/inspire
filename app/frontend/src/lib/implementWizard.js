@@ -22,6 +22,8 @@ export const NOTEBOOK_MODE_LABEL = 'I will build it myself';
 
 export const DELIVERY_LABEL = 'What to deliver';
 export const WHERE_LABEL = 'Where it lives';
+export const DATA_RESULTS_LABEL = 'Data & results';
+export const MEASURE_LABEL = 'Measure';
 export const DELIVERY_QUESTION = 'How will people use this use case?';
 export const BUILD_IT_LABEL = 'All Good, Build it Now';
 export const BACK_TO_SUMMARY = 'Back to Summary';
@@ -34,19 +36,23 @@ export const BUILD_NOW_LABEL = 'Build with these choices';
 export const CHANGE_LABEL = 'Change';
 
 const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery'] };
-const WHERE_STEP = { id: 'where', label: WHERE_LABEL, sections: ['app_place'], advanced: [], panels: ['app_place'] };
-const DATA_STEP = { id: 'data', label: 'Data', sections: ['use_case', 'data', 'configure'], advanced: ['data', 'configure'], panels: ['data'] };
+const WHERE_STEP = { id: 'where', label: WHERE_LABEL, sections: ['app_place', 'app_features'], advanced: [], panels: ['app_place', 'app_features'] };
+const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case', 'data', 'configure', 'results'], advanced: ['data', 'configure'], panels: ['data', 'results'] };
 export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
-const RESULTS_STEP = { id: 'results', label: 'Results', sections: ['results'], advanced: [], panels: ['results'] };
+export const MEASURE_STEP = { id: 'stake', label: MEASURE_LABEL, sections: [], advanced: [], panels: ['stake'] };
+
+export function withMoneyRule(spec, money) {
+  const { money: _previous, ...rest } = spec || {};
+  return money ? { ...rest, money } : rest;
+}
 export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule', 'kpi', 'holdout'], advanced: ['schedule', 'holdout'], panels: ['fresh', 'measure'] };
 
-export const IMPLEMENT_STEPS = [DATA_STEP, RESULTS_STEP, DELIVERY_STEP, RUN_STEP];
+export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP, RUN_STEP];
 
 export const APP_PANELS = ['app_place', 'app_access', 'app_features', 'app_look'];
 export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_access'], advanced: [], panels: ['app_access'] };
-export const APP_PAGES_STEP = { id: 'app_pages', label: 'App pages', sections: ['app_features'], advanced: [], panels: ['app_features'] };
 export const APP_LOOK_STEP = { id: 'app_look', label: 'App look', sections: ['app_look'], advanced: [], panels: ['app_look'] };
-export const WIZARD_STEPS_MAX = 11;
+export const WIZARD_STEPS_MAX = 10;
 
 export const SUMMARY_STEP = { id: 'summary', label: 'Review & build', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
 
@@ -61,9 +67,10 @@ export const NOTEBOOK_STEPS = [
 
 const STEP_ALIASES = {
   use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: RUN_STEP.id, fresh: RUN_STEP.id, vibes: SUMMARY_STEP.id,
-  settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: APP_STEP.id, app_features: APP_PAGES_STEP.id, app_look: APP_LOOK_STEP.id,
+  settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: APP_STEP.id, app_features: WHERE_STEP.id, app_look: APP_LOOK_STEP.id,
+  results: DATA_STEP.id, app_pages: WHERE_STEP.id,
 };
-const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id, [APP_LOOK_STEP.id]: APP_PAGES_STEP.id, [APP_PAGES_STEP.id]: APP_STEP.id, [APP_STEP.id]: WHERE_STEP.id };
+const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id, [APP_LOOK_STEP.id]: APP_STEP.id, [APP_STEP.id]: WHERE_STEP.id };
 
 function heldStepOf(steps, id) {
   let want = id;
@@ -83,15 +90,17 @@ export function contextSettings(context, spec) {
 export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   if (mode === 'mvp') {
     const app = Boolean(spec?.outputs?.app);
-    const appSteps = app && !joinsApp(spec) ? [APP_STEP, APP_PAGES_STEP, APP_LOOK_STEP] : [];
-    return [DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), RESULTS_STEP, DELIVERY_STEP,
-      ...(app ? [WHERE_STEP] : []), ...appSteps, RUN_STEP, SUMMARY_STEP];
+    const joined = joinsApp(spec);
+    const where = app ? [{ ...WHERE_STEP, sections: joined ? ['app_place'] : WHERE_STEP.sections, panels: joined ? ['app_place'] : WHERE_STEP.panels }] : [];
+    const appSteps = app && !joined ? [APP_STEP, APP_LOOK_STEP] : [];
+    return [DELIVERY_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), MEASURE_STEP,
+      ...where, ...appSteps, RUN_STEP, SUMMARY_STEP];
   }
   if (mode === 'notebook') return NOTEBOOK_STEPS;
   throw new Error(`unknown implement mode '${mode}'`);
 }
 
-export const BUILD_STEP_IDS = [DELIVERY_STEP.id, WHERE_STEP.id, APP_STEP.id, APP_PAGES_STEP.id, APP_LOOK_STEP.id, SUMMARY_STEP.id];
+export const BUILD_STEP_IDS = [DELIVERY_STEP.id, WHERE_STEP.id, APP_STEP.id, APP_LOOK_STEP.id, SUMMARY_STEP.id];
 
 export const APP_PLACEMENTS = [
   { id: 'domain', label: 'One App per business domain', blurb: 'Use cases of the same domain share one App, so the people of that domain find them in one place.' },
@@ -147,27 +156,48 @@ export const APP_BACKENDS = ['lakebase', 'delta'];
 export const APP_BACKEND_CHOICES = [
   { id: 'lakebase', label: 'Fast pages (Lakebase)',
     blurb: 'Inspire keeps a fast copy of the result after every run, so pages open at once. Edits still save to the result table.' },
-  { id: 'delta', label: 'Standard pages (Delta)' },
+  { id: 'delta', label: 'Delta' },
 ];
 export const APP_BACKEND_GUIDE = [
-  'Fast pages are recommended for Apps: pages read a Postgres copy that is synced from your tables, so most pages open without waiting for a SQL warehouse. Pages are as fresh as the last sync.',
-  'Pick Standard pages (Delta) when Lakebase is not available here, the tables are very large, or instant pages do not matter.',
+  'Fast pages (Lakebase) is the default and the recommended choice for Apps: pages read a Postgres copy that is synced from your tables, so most pages open at once without waiting for a SQL warehouse. Pages are as fresh as the last sync.',
+  'Pick Delta when Lakebase is not available here, the tables are very large, or instant pages do not matter.',
 ];
-export const LAKEBASE_PER_USER_REASON = 'Each person signs in as themselves, and the fast copy cannot keep each person to their own rows, '
-  + 'so this App\'s pages take a few seconds to open.';
+export const LAKEBASE_PER_USER_REASON = 'Each person signs in as themselves. Inspire checks which tables Fast pages can keep to each person\'s rows, '
+  + 'and this App uses Standard pages until it has checked them.';
+export const PER_USER_GUIDE = 'Each person signs in as themselves, so pages read your tables directly. Pick Delta here.';
 export const LAKEBASE_CHECKING = 'Inspire is still checking whether fast pages are possible here';
+
+export function enforceOf(offer) {
+  const enforce = offer?.enforce;
+  return enforce && typeof enforce === 'object' && !Array.isArray(enforce) ? enforce : {};
+}
+
+export function perUserFastPages(offer) {
+  const tables = Object.values(enforceOf(offer));
+  return offer?.state === 'available' && tables.length > 0 && tables.every((t) => t.enforced);
+}
+
+export function perUserFallback(offer) {
+  const tables = Object.entries(enforceOf(offer));
+  if (!tables.length) return LAKEBASE_PER_USER_REASON;
+  const refused = tables.filter(([, t]) => !t.enforced).map(([name, t]) => `${name} uses Standard pages because ${t.reason}`);
+  if (refused.length) return `Fast pages cannot keep each person to their own rows here: ${refused.join('; ')}.`;
+  return LAKEBASE_PER_USER_REASON;
+}
 
 export function appBackendDefault(spec, offer) {
   const outputs = spec?.outputs || {};
   if (!outputs.app) return '';
-  return insideInspire(spec) || outputs.merge?.app || outputs.app_access === 'user' || offer?.state !== 'available' ? 'delta' : 'lakebase';
+  const ready = outputs.app_access === 'user' ? perUserFastPages(offer) : offer?.state === 'available';
+  return insideInspire(spec) || outputs.merge?.app || !ready ? 'delta' : 'lakebase';
 }
 
 export function appBackendOf(spec, offer) {
   const outputs = spec?.outputs || {};
   if (!outputs.app) return '';
   const picked = APP_BACKENDS.includes(outputs.app_backend) ? outputs.app_backend : '';
-  if (insideInspire(spec) || outputs.app_access === 'user' || offer?.state === 'absent') return 'delta';
+  if (insideInspire(spec) || offer?.state === 'absent') return 'delta';
+  if (outputs.app_access === 'user' && picked === 'lakebase' && !perUserFastPages(offer)) return 'delta';
   return picked || appBackendDefault(spec, offer);
 }
 
@@ -176,7 +206,9 @@ export const LAKEBASE_UNCHECKED = 'Inspire could not check whether fast pages ar
 
 export function appBackendBlocks(spec, offer) {
   if (insideInspire(spec)) return { lakebase: blockOf(INSIDE_BACKEND_REASON) };
-  if (spec?.outputs?.app_access === 'user') return { lakebase: blockOf(LAKEBASE_PER_USER_REASON) };
+  if (spec?.outputs?.app_access === 'user' && !['denied', 'absent'].includes(offer?.state)) {
+    return perUserFastPages(offer) ? {} : { lakebase: blockOf(perUserFallback(offer)) };
+  }
   if (offer?.state === 'denied') return { lakebase: blockOf(needsAccess(offer.detail), offer.detail) };
   if (offer?.state === 'absent') return { lakebase: blockOf(LAKEBASE_ABSENT, offer.detail) };
   return {};
@@ -1199,6 +1231,7 @@ export function specFromLatest(latest, fallback, assets = {}) {
   const edited = {
     ...fallback,
     ...withoutOneVersionKeys(parsed),
+    use_case_name: fallback.use_case_name,
     based_on_version: latest.spec_version,
     use_case: { ...fallback.use_case, ...(parsed.use_case || {}) },
     data: { ...fallback.data, ...(parsed.data || {}) },
@@ -1659,6 +1692,12 @@ export function rebuildableOutputs(latest) {
   const chosen = latest.spec_json?.outputs || {};
   const assets = latest.asset_status || {};
   return IMPLEMENT_OUTPUTS.filter((o) => chosen[o.id] && BUILT_ASSET_STATES.includes(assets[o.id]?.state));
+}
+
+export const REBUILD_AS_IS_NOTE = 'Rebuild as is: build the current choices again, for example to pick up a new Inspire version.';
+
+export function rebuildNeedsChoice(plan, rebuildAsIs) {
+  return Boolean(plan?.unchanged) && !rebuildAsIs;
 }
 
 export function sectionErrors(section, spec, extras = {}) {
@@ -2411,7 +2450,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
     ...(filters ? [row('filters', 'data', 'Filters', plural(filters, 'filter'))] : []),
     ...(more.grouping ? [row('grouping', 'grouping', 'Data groups', more.grouping)] : []),
     ...(more.firstRun ? [row('first_run', 'first_run', FIRST_RUN_LABEL, more.firstRun)] : []),
-    row('result', 'results', 'Result table', String(spec?.config?.result_table || '') || 'not named yet'),
+    row('result', 'data', 'Result table', String(spec?.config?.result_table || '') || 'not named yet'),
     row('kpi', 'run', 'Target KPI', kpiTargetOf(spec) || 'Inspire picks'),
     row('holdout', 'run', HOLDOUT_LABEL, holdout.enabled ? `On, ${holdoutPercentText(spec) || '?'}% kept aside` : 'Off'),
     row('schedule', 'run', FRESH_LABEL, freshness === 'off' ? 'Off, it runs once'
@@ -2421,7 +2460,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
       : [placement?.label, outputs.app_name].filter(Boolean).join(': ') || 'not placed yet')] : []),
     ...(app && !joined ? [
       row('app_access', 'app', 'App access', APP_ACCESS_CHOICES.find((c) => c.id === outputs.app_access)?.label || 'not picked yet'),
-      row('app_features', 'app_pages', 'App features', APP_OPTIONS.filter((o) => outputs.app_options?.[o.id] && appOptionShown(spec, o.id)).map((o) => o.label).join(', ') || 'none'),
+      row('app_features', 'where', 'App features', APP_OPTIONS.filter((o) => outputs.app_options?.[o.id] && appOptionShown(spec, o.id)).map((o) => o.label).join(', ') || 'none'),
       row('app_look', 'app_look', 'App look', lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
     ] : []),
   ];
@@ -2624,7 +2663,7 @@ export function appReadsSql(reads) {
 export function appReadsText(reads, appName = '') {
   const count = (reads?.tables || []).length;
   const tables = count === 1 ? 'this table' : `${count} tables`;
-  return `The build finished, but the App${appName ? ` ${appName}` : ''} cannot read ${tables}, so its pages show no data from ${count === 1 ? 'it' : 'them'} yet. `
+  return `The build finished, but the App${appName ? ` ${appName}` : ''} cannot read ${tables}, so its pages show no data from ${count === 1 ? 'it' : 'them'} yet; `
     + 'Inspire could not grant the access itself, because it does not own that data.';
 }
 

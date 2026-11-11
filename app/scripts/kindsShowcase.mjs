@@ -75,7 +75,7 @@ const DRAFTS = [
   },
   {
     no: 'N01-U04', kind_num: 36, technique: 'Survival Analysis', name: 'Call the overdue invoices most likely to slip past 90 days',
-    headline: 'Collect Overdue Invoices Before They Pass 90 Days', subdomain: 'Collections', sponsor: 'Credit Manager', beneficiary: 'Collectors', cadence: 'Daily', bob: 7.9,
+    headline: 'Collect Overdue Invoices to Recover Cash Before 90 Days', subdomain: 'Collections', sponsor: 'Credit Manager', beneficiary: 'Collectors', cadence: 'Daily', bob: 7.9,
     serve: 'A daily call list for collectors: the overdue invoices most likely to slip past 90 days, with the cash each one holds.',
     how: 'Survival analysis: a time-to-pay model learns from paid invoices how payment speed depends on the customer\'s history, the invoice size and the terms, and gives each open invoice its chance of paying within 90 days.',
     value: 'Cash in sooner and fewer write-offs: cash at risk times the drop in late payment, from invoice_date, due_date, paid_date and amount.',
@@ -107,7 +107,7 @@ const DRAFTS = [
   },
   {
     no: 'N02-U02', kind_num: 24, technique: 'Controls Testing', name: 'Catch freight invoices billed above the contract rate',
-    headline: 'Recover Freight Overbilling Before Invoices Are Paid', subdomain: 'Freight audit', sponsor: 'Accounts Payable Manager', beneficiary: 'Accounts Payable', cadence: 'Daily', bob: 8.1,
+    headline: 'Recover Freight Overbilling to Stop Bad Invoices Being Paid', subdomain: 'Freight audit', sponsor: 'Accounts Payable Manager', beneficiary: 'Accounts Payable', cadence: 'Daily', bob: 8.1,
     serve: 'A daily exceptions queue for Accounts Payable: freight invoices billed above the contract rate, duplicated, or charged for more weight than was shipped, before they are paid.',
     how: 'Reconciliation and control tests: every invoice line is matched to its shipment and its contract rate. A line is flagged when the amount falls outside what the contract and the shipped weight allow, or when it repeats another invoice.',
     value: 'Overbilling recovered before payment: the billed amount above the contract amount, from freight_invoice, shipment and carrier_contract.',
@@ -162,7 +162,7 @@ const DRAFTS = [
   },
   {
     no: 'N04-U02', kind_num: 16, technique: 'Simulation', name: "Test price and cost moves on next quarter's margin",
-    headline: 'Plan Next Quarter Margin Against Price and Cost Moves', subdomain: 'Margin planning', sponsor: 'CFO', beneficiary: 'Finance Team', cadence: 'Monthly', bob: 7.6,
+    headline: 'Plan Next Quarter Margin to Absorb Price and Cost Moves', subdomain: 'Margin planning', sponsor: 'CFO', beneficiary: 'Finance Team', cadence: 'Monthly', bob: 7.6,
     serve: 'A scenario lab for the CFO: move price, cost and volume levers and see next quarter\'s margin with its range and the chance of hitting target, then save a plan of record.',
     how: 'Simulation: a driver model fitted on 3 years of sales links margin to each lever. 2,400 Monte Carlo scenarios give every lever combination a range instead of one number.',
     value: 'A better plan of record: the margin difference between the chosen plan and the base case, from net_paid, unit_cost, quantity and promotion cost.',
@@ -188,7 +188,7 @@ const DRAFTS = [
   },
   {
     no: 'N05-U01', kind_num: 11, technique: 'Optimization', name: 'Rebalance stock between warehouses at the lowest cost',
-    headline: 'Cut Freight and Holding Cost by Rebalancing Warehouse Stock', subdomain: 'Stock balancing', sponsor: 'Head of Supply', beneficiary: 'Supply Planners', cadence: 'Weekly', bob: 8.6,
+    headline: 'Rebalance Warehouse Stock to Cut Freight and Holding Cost', subdomain: 'Stock balancing', sponsor: 'Head of Supply', beneficiary: 'Supply Planners', cadence: 'Weekly', bob: 8.6,
     serve: 'A planner for the Head of Supply: each week it proposes which units to move between warehouses, and each line is accepted or overridden.',
     how: 'Optimization: a solver picks the moves that cover forecast demand at the lowest freight and holding cost, within warehouse capacity, truck slots and the weekly budget.',
     value: 'Fewer stockouts and less overstock: lost margin avoided plus holding cost saved, from on_hand, forecast_qty, unit_margin and freight_rate.',
@@ -230,7 +230,7 @@ const DRAFTS = [
   },
   {
     no: 'N06-U01', kind_num: 30, technique: 'Segmentation', name: 'Serve each customer group at a cost it can carry',
-    headline: 'Align Service Cost With the Margin Each Segment Earns', subdomain: 'Customer value', sponsor: 'Head of Customer', beneficiary: 'Customer Team', cadence: 'Quarterly', bob: 8.0,
+    headline: 'Align Service Cost to the Margin Each Segment Earns', subdomain: 'Customer value', sponsor: 'Head of Customer', beneficiary: 'Customer Team', cadence: 'Quarterly', bob: 8.0,
     serve: 'A segment explorer for the Head of Customer: buyers grouped by how they buy and what they cost to serve, with one treatment chosen per segment.',
     how: 'Clustering: k-means groups buyers on order frequency, basket size, returns, discount share and service contacts. Cost to serve is allocated per buyer from returns, shipping and contacts.',
     value: 'Margin from serving each segment at a cost it can carry: the cost-to-serve gap closed in the loss-making segments, from net_paid, returns, ship_cost and contacts.',
@@ -253,7 +253,7 @@ const DRAFTS = [
   },
   {
     no: 'N06-U04', kind_num: 31, technique: 'Recommendation', name: 'Pick the next product to offer each loyal buyer',
-    headline: 'Raise Repeat Orders With the Next Best Product Offer', subdomain: 'Personalization', sponsor: 'Head of E-commerce', beneficiary: 'Campaign Team', cadence: 'Weekly', bob: 7.7,
+    headline: 'Raise Repeat Orders to Sell the Next Best Product Offer', subdomain: 'Personalization', sponsor: 'Head of E-commerce', beneficiary: 'Campaign Team', cadence: 'Weekly', bob: 7.7,
     serve: 'An offer desk for e-commerce: the next 3 products to offer each loyal buyer, with the reason, sent to the weekly campaign.',
     how: 'Recommendation: item-to-item similarity learned from what buyers bought together and in sequence, checked against offering the most popular items to everyone.',
     value: 'Extra margin from offers that convert: offers sent times lift in conversion times margin per order, from web_sales, store_sales and item.',
@@ -370,7 +370,7 @@ const DRAFTS = [
   },
   {
     no: 'N09-U01', kind_num: 34, technique: 'Process Mining', name: 'Cut order-to-ship delays at the slowest warehouses',
-    headline: 'Ship Orders on Time by Removing Fulfillment Bottlenecks', subdomain: 'Order flow', sponsor: 'Head of Fulfillment', beneficiary: 'Warehouse Leads', cadence: 'Weekly', bob: 7.9,
+    headline: 'Ship Orders on Time to Remove Fulfillment Bottlenecks', subdomain: 'Order flow', sponsor: 'Head of Fulfillment', beneficiary: 'Warehouse Leads', cadence: 'Weekly', bob: 7.9,
     serve: 'A process view for fulfillment: how orders really flow from placed to shipped, where they wait, and which open orders will miss the promised date.',
     how: 'Process mining: the order status timestamps form an event log. Inspire rebuilds each order\'s path, measures the wait between steps and scores open orders for the risk of missing their date.',
     value: 'Fewer late shipments: late orders avoided times the cost of a late order (refunds, lost repeat), from order_status_history and orders.',
@@ -400,7 +400,7 @@ const DRAFTS = [
   },
   {
     no: 'N10-U01', kind_num: 13, technique: 'Geospatial Analysis', name: 'Choose the next five store sites by unmet demand',
-    headline: 'Grow Sales With the Right Next Store Sites', subdomain: 'Expansion', sponsor: 'Head of Expansion', beneficiary: 'Real Estate Team', cadence: 'Quarterly', bob: 7.7,
+    headline: 'Grow Sales to Pick the Right Next Store Sites', subdomain: 'Expansion', sponsor: 'Head of Expansion', beneficiary: 'Real Estate Team', cadence: 'Quarterly', bob: 7.7,
     serve: 'A site map for expansion: candidate locations ranked by unmet demand nearby, net of the sales they would take from current stores.',
     how: 'Geospatial analysis and optimization: demand is estimated around each candidate from buyers\' home locations, and a solver picks the 5 sites that add the most net demand together.',
     value: 'Sales from the right next stores: net new demand of the chosen sites, from customer_address, store and store_sales.',
@@ -426,7 +426,7 @@ const DRAFTS = [
   },
   {
     no: 'N10-U03', kind_num: 27, technique: 'Network Analysis', name: 'Break up return-abuse rings across accounts',
-    headline: 'Stop Refund Abuse by Coordinated Account Rings', subdomain: 'Loss prevention', sponsor: 'Head of Loss Prevention', beneficiary: 'Loss Prevention Analysts', cadence: 'Weekly', bob: 8.0,
+    headline: 'Stop Refund Abuse to Break Up Coordinated Account Rings', subdomain: 'Loss prevention', sponsor: 'Head of Loss Prevention', beneficiary: 'Loss Prevention Analysts', cadence: 'Weekly', bob: 8.0,
     serve: 'A network view for loss prevention: groups of accounts linked by shared cards, addresses or devices that return far more than normal.',
     how: 'Network analysis: accounts become nodes, shared attributes become links, and community detection finds tight groups whose return pattern stands out.',
     value: 'Refund abuse stopped: refunds in confirmed rings, from store_returns, customer and payment details.',
@@ -458,7 +458,7 @@ const DRAFTS = [
   },
   {
     no: 'N11-U01', kind_num: 40, technique: 'Data Agent', name: 'Answer any sales and stock question with the SQL behind it',
-    headline: 'Answer Commercial Data Questions in Plain Words', subdomain: 'Self-service', sponsor: 'Head of Commercial', beneficiary: 'Commercial Teams', cadence: 'On demand', bob: 7.2,
+    headline: 'Answer Commercial Data Questions to Get Plain Answers', subdomain: 'Self-service', sponsor: 'Head of Commercial', beneficiary: 'Commercial Teams', cadence: 'On demand', bob: 7.2,
     serve: 'A data agent for commercial teams: ask the sales and stock data anything in plain words and get the answer with the SQL it ran.',
     how: 'Genie answers from a room built on the sales and stock tables, with checked example questions. ai_query writes the short summaries.',
     value: 'Hours saved on ad hoc requests: questions answered times analyst time per request, from the room\'s question log.',
@@ -479,7 +479,7 @@ const DRAFTS = [
   },
   {
     no: 'N12-U01', kind_num: 2, technique: 'Decomposition', name: "Split this month's margin change into price, volume and mix",
-    headline: 'Show Monthly Margin Movement by Price, Volume and Mix', subdomain: 'Monthly margin', sponsor: 'Finance Business Partner', beneficiary: 'Finance Team', cadence: 'Monthly', bob: 7.6,
+    headline: 'Explain Monthly Margin Movement to Act on Price, Volume and Mix', subdomain: 'Monthly margin', sponsor: 'Finance Business Partner', beneficiary: 'Finance Team', cadence: 'Monthly', bob: 7.6,
     serve: 'A monthly dashboard for finance: how much of the change in margin came from price, volume, mix and cost, by region and category.',
     how: 'A price-volume-mix bridge: the change in margin is split into what price, units sold, the mix of items and unit cost each contributed, line by line.',
     value: 'Faster, shared answers to "why did margin move": the bridge from store_sales, item and item_cost.',
@@ -1181,22 +1181,12 @@ function filterOptions(u, page, rows) {
   });
 }
 
-export const FIRST_QUESTION = /^What should I do first on .+, and why\?$/;
-
 const hashOf = (text) => [...String(text)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7).toString(36);
 
 function answerFor(u, body, rows) {
   const question = String(body?.question || '').trim();
   const known = u.genie.find((x) => x.q === question);
   if (known) return { text: `${known.a}\n\n${DEMO_RECORDED}`, sql: known.sql };
-  const top = FIRST_QUESTION.test(question) ? rows[0] : null;
-  if (top) {
-    const why = (top.top_reasons || []).join('; ');
-    const said = [`Start with ${top.entity_label ?? top.record_key}${why ? `: ${why}` : ''}.`, top.recommended_action ? `Suggested: ${top.recommended_action}.` : '',
-      'Then work down the list in order.', u.story].filter(Boolean).join(' ');
-    return { text: `${said}\n\n${DEMO_RECORDED}`,
-      sql: `SELECT * FROM ${DEMO_CATALOG}.${u.result} ORDER BY rank LIMIT 5` };
-  }
   const about = body?.about || {};
   const row = rows.find((r) => r.record_key === about.recordKey);
   if (row) {

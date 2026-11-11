@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { getFreshness, getImpact, getRuns, getTrends, refreshPage } from './api.js';
+import { getFreshness, getImpact, getRuns, getTrends, refreshPage, waitingOf } from './api.js';
 import { Icon } from './icons.jsx';
 import { useToast, PlainNote, toastFailure } from './ui.jsx';
 import { runWrite, useWrite } from './saving.jsx';
@@ -149,7 +149,7 @@ export function FreshDetail({ freshness }) {
 }
 
 export function useRuns(pageId, offset, nonce, on = true) {
-  const [out, setOut] = useState({ data: null, error: '', busy: on, scope: '' });
+  const [out, setOut] = useState({ data: null, error: '', waiting: null, busy: on, scope: '' });
   const seq = useRef(0);
   const scope = `${pageId}\n${offset}`;
   useEffect(() => {
@@ -161,7 +161,7 @@ export function useRuns(pageId, offset, nonce, on = true) {
     setOut((o) => ({ ...o, busy: true }));
     getRuns(pageId, offset)
       .then((data) => { if (mine === seq.current) setOut({ data, error: '', busy: false, scope }); })
-      .catch((e) => { if (mine === seq.current) setOut((o) => ({ data: o.scope === scope ? o.data : null, error: e.message, busy: false, scope })); });
+      .catch((e) => { if (mine === seq.current) setOut((o) => ({ data: o.scope === scope ? o.data : null, error: e.message, waiting: waitingOf(e), busy: false, scope })); });
   }, [pageId, offset, nonce, on]);
   return out;
 }

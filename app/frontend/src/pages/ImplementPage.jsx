@@ -65,6 +65,7 @@ import { liveImpact, rowImpact, targetKpiView, trackedKpiOf } from '../lib/targe
 import { SHOWCASE_ALERT_NOTE, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOWCASE_NO_MVP, SHOWCASE_OPEN_APP, readOnlyReason } from '../lib/showcase';
 import { buildFilterText } from '../lib/reviewFigures';
 import ValueEstimateLine from '../components/ValueEstimateLine';
+import { BuildNextStep } from '../components/BuildNext';
 
 const OUTPUT_ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: BellRing };
 const OUTPUT_NAMES = { dashboard: 'Dashboard', genie_space: 'Genie Agent', app: 'App', alert: 'Alert' };
@@ -500,6 +501,11 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
         </div>
         <PaneResizer width={railPx} onWidth={(width) => setRailPx(paneWidth(RAIL_WIDTH, width))} limits={RAIL_WIDTH} label="Resize the use case list" data-rail-resizer="" className="self-stretch" />
         <section ref={paneRef} aria-label="Use case" className="relative flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">
+          {selected && (
+            <BuildNextStep apiFetch={apiFetch} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId} sessionId={sessionId}
+              focusId={selected.id} live={IMPLEMENT_DONE_STATUSES.includes(String(selected.latest?.status || ''))}
+              onOpen={readOnly ? undefined : select} />
+          )}
           {selected ? (
             <UseCaseDetail
               key={selected.id}
@@ -1296,7 +1302,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       {protectionFailed.length > 0 && (
         <details data-protection-failed="" className="text-[11px] text-error-fg">
           <summary className="cursor-pointer">Details</summary>
-          <ul className="mt-1 space-y-0.5">{protectionFailed.map((line) => <li key={line} className="font-mono break-all">{line}</li>)}</ul>
+          <ul className="mt-1 space-y-0.5">{protectionFailed.map((line, i) => <li key={`${i}-${line}`} className="font-mono break-all">{line}</li>)}</ul>
         </details>
       )}
       {buildAgain && !protection && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : terminal ? TERMINAL_STOP_HINT : buildAgainHint(latest)}</p>}
@@ -1330,8 +1336,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   );
 
   const reads = readOnly ? null : liveReads(sourceNow);
-  const readsShown = readsResult && !readsResult.error && readsResult.version === latest?.spec_version ? readsResult : null;
-  const readsLeft = readsShown ? { app: reads?.app || '', tables: readsShown.tables || [], canGrant: reads?.canGrant } : reads;
+  const grantedAll = !readOnly && !reads && readsResult?.version === latest?.spec_version && readsResult?.action === 'grant'
+    && !readsResult?.refused && !readsResult?.error;
+  const readsLeft = reads || (grantedAll ? { tables: [], canGrant: false } : null);
   const runReads = async (action) => {
     setReadsBusy(action);
     try {
@@ -1369,7 +1376,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     autoReads.current[key] = true;
     runReads('grant');
   }, [reads, readOnly, latest?.session_id, latest?.spec_version]);
-  const readsCard = reads && (
+  const readsCard = readsLeft && (
     <section aria-label={APP_READS_HEADING} data-app-reads="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
       <div className="flex items-start gap-2.5">
         <AlertTriangle size={16} className="mt-px shrink-0 text-warning-fg" aria-hidden />
@@ -1394,7 +1401,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {!readsResult.error && readsResult.failed?.length > 0 && (
             <details data-app-reads-failed="" className="text-[11px]">
               <summary className="cursor-pointer">Details</summary>
-              <ul className="space-y-0.5 mt-1">{readsResult.failed.map((line) => <li key={line} className="font-mono break-all">{line}</li>)}</ul>
+              <ul className="space-y-0.5 mt-1">{readsResult.failed.map((line, i) => <li key={`${i}-${line}`} className="font-mono break-all">{line}</li>)}</ul>
             </details>
           )}
           {readsResult.copied && <p>The grant SQL is copied. Send it to {readsLeft.tables.map((t) => t.owner).filter(Boolean)[0] || 'the table owner'}.</p>}
@@ -1540,7 +1547,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
               <div>v{entry.spec_version} · {historyStatus(entry, latest, stalled)} · {isAppUpdate(history, entry) ? APP_UPDATED_TEXT : entry.change_classes || 'initial'}</div>
               <div className="text-text-secondary">{entry.created_by} · {entry.updated_at}</div>
               <VibeChecklist compact checklist={vibeChecklist(null, entry)} assets={entry.asset_status} />
-              {notDoneLines(entry).map((line) => <p key={line} data-not-done-line="" className="text-error-fg">{line}</p>)}
+              {notDoneLines(entry).map((line, i) => <p key={`${i}-${line}`} data-not-done-line="" className="text-error-fg">{line}</p>)}
             </div>
           ))}
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary pt-2">Job runs</div>

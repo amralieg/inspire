@@ -1,5 +1,4 @@
 import { useEffect, useRef, useState } from 'react';
-import echarts from './echarts.js';
 import { HORIZONS, chartIsEmpty, chartOption, clickHint, clickPart, clickPick } from './charts.js';
 import { countOf, largestFirst, numberOf } from './format.js';
 import { chartPalette, hueVars, reducedMotion } from './theme.js';
@@ -16,18 +15,28 @@ import { genieOn } from './genieAsk.js';
 import { useFx } from './Fx.jsx';
 import { FoldButton, useFold } from './MyView.jsx';
 
+export const loadECharts = () => import('./echarts.js').then((m) => m.default);
+
 export function useChart(option, deps, onWidth) {
   const el = useRef(null);
   const inst = useRef(null);
+  const latest = useRef(option);
+  latest.current = option;
   useEffect(() => {
     if (!el.current || !option) return undefined;
-    inst.current = echarts.init(el.current, null, { renderer: 'canvas' });
-    const observer = new ResizeObserver(() => {
-      inst.current?.resize();
-      if (onWidth && el.current) onWidth(Math.round(el.current.clientWidth / WIDTH_STEP) * WIDTH_STEP);
+    let gone = false;
+    let observer = null;
+    loadECharts().then((echarts) => {
+      if (gone || !el.current) return;
+      inst.current = echarts.init(el.current, null, { renderer: 'canvas' });
+      if (latest.current) inst.current.setOption(latest.current, true);
+      observer = new ResizeObserver(() => {
+        inst.current?.resize();
+        if (onWidth && el.current) onWidth(Math.round(el.current.clientWidth / WIDTH_STEP) * WIDTH_STEP);
+      });
+      observer.observe(el.current);
     });
-    observer.observe(el.current);
-    return () => { observer.disconnect(); inst.current?.dispose(); inst.current = null; };
+    return () => { gone = true; observer?.disconnect(); inst.current?.dispose(); inst.current = null; };
   }, [!!option]);
   useEffect(() => {
     if (inst.current && option) inst.current.setOption(option, true);
@@ -141,14 +150,17 @@ export default function ChartCard({ chart, wide, result, error, loading, themeKe
     const P = chartPalette();
     if (kind === 'png') {
       saveDataUrl(inst.current.getDataURL({ type: 'png', pixelRatio: 2, backgroundColor: P.card }), `${name}.png`);
-    } else {
+      toast(`Downloaded ${kind.toUpperCase()}`);
+      return;
+    }
+    loadECharts().then((echarts) => {
       const ssr = echarts.init(null, null, { renderer: 'svg', ssr: true, width: el.current.clientWidth, height: el.current.clientHeight });
       ssr.setOption({ ...chartOption(shown, rows, P, { reduced: true, width: el.current.clientWidth }), animation: false, backgroundColor: P.card });
       const svg = ssr.renderToSVGString();
       ssr.dispose();
       saveBlob(new Blob([svg], { type: 'image/svg+xml' }), `${name}.svg`);
-    }
-    toast(`Downloaded ${kind.toUpperCase()}`);
+      toast(`Downloaded ${kind.toUpperCase()}`);
+    });
   };
   const drawn = !loading && !error ? chartContext(chart, result) : { hint: chart.hint || '', type: chart.type, rows: [], row_count: 0 };
   const explain = genieOn(app, pageId) && onExplain && option ? () => onExplain('chart', chart.title, chartContext(chart, result)) : null;

@@ -3,7 +3,7 @@ import { getRecords } from './api.js';
 import { cellText, formatValue, integer, isKeyColumn, numberOf } from './format.js';
 import { IN_PROGRESS, NEW, UNDO_CLOSE, isClosed, statusKind, actError, canDecide, choiceLabel, choiceValues, listAsOf, matchOf, noDecisionText, pageDecides, recordKeyOf, statusChoices, undoBatchOf } from './records.js';
 import { QueueBulk, useActs } from './Work.jsx';
-import { RecordPanel } from './Records.jsx';
+const RecordPanel = lazy(() => import('./Records.jsx').then((m) => ({ default: m.RecordPanel })));
 import { useList } from './Layouts.jsx';
 import { Icon } from './icons.jsx';
 import { Skeleton, PlainNote, useRetry } from './ui.jsx';
@@ -15,8 +15,10 @@ import { CardFailure, useShared } from './PageFailure.jsx';
 import { RowGenie, columnOf } from './DataTable.jsx';
 import { ITEM_KINDS, fieldsOf, tableContext } from './explain.js';
 import './styles/kindparts.css';
+import { SectionHelp } from './SectionHelp.jsx';
 
 export const LIST_ROWS = 60;
+export const GROUP_MIN = 3;
 export const SEGMENT_CARDS = 12;
 export const EFFECT_CARDS = 6;
 export const SIGNIFICANT = 0.05;
@@ -39,6 +41,17 @@ export function suggestedChoice(choices, text) {
   const at = (c) => [c.id, ...wordsOf(c.label)].map((w) => words.indexOf(w)).filter((i) => i >= 0);
   const found = (choices || []).map((c) => [c, Math.min(...at(c))]).filter(([, i]) => Number.isFinite(i)).sort((a, b) => a[1] - b[1]);
   return found.length ? found[0][0] : null;
+}
+
+export function clustersOf(rows, column) {
+  const groups = new Map();
+  rows.forEach((row) => {
+    const name = String(row[column] ?? '');
+    if (!name) return;
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(row);
+  });
+  return [...groups].filter(([, items]) => items.length >= GROUP_MIN);
 }
 
 export function treatmentValues(treatment) {
@@ -153,7 +166,7 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, onChoose, onOpe
       </div>
       <div className="choice-act" role="group" aria-label={`Decide ${row[page.records?.label] ?? key}`}>
         {closed && <span className="choice-done" data-decided><Icon name="check" size={13} />{decidedText(row, statusChoices(page))}</span>}
-        {batch && !undoing && <button type="button" className="link" data-unmerge onClick={() => setUndoing(true)}><Icon name="undo" size={13} />Unmerge</button>}
+        {batch && !undoing && <button type="button" className="link" data-unmerge onClick={() => setUndoing(true)}><Icon name="undo" size={13} />{page.records?.undo || 'Undo'}</button>}
         {!closed && canAct && choices.map((c) => (
           <SaveButton key={c.id} write={`choice:${key}:${c.id}`} className={`btn btn--sm ${suggested?.id === c.id ? 'btn--pri' : ''}`} data-choice={c.id}
             onClick={() => (statusKind(c.status) === 'dismissed' ? setSkipping(c) : onChoose(row, c))}>
@@ -194,7 +207,7 @@ export function RowPanel({ page, app, list, opened, filters, view, onChanged }) 
     <>
       {canDecide(app, list) && <QueueBulk choices={statusChoices(page)} pageId={page.id} list={list} asked={{ page: page.id, filters: filters || {}, ...(view || {}) }} person={app.user?.email || ''}
         onChanged={onChanged} />}
-      <RecordPanel meta={page.records} app={app} pageId={page.id} row={opened.row} list={list} onClose={opened.close} onChanged={onChanged} similarBy={page.similar_by} />
+      {opened.row && <Suspense fallback={null}><RecordPanel meta={page.records} app={app} pageId={page.id} row={opened.row} list={list} onClose={opened.close} onChanged={onChanged} similarBy={page.similar_by} /></Suspense>}
     </>
   );
 }
@@ -205,7 +218,7 @@ function ListShell({ page, app, title, hint, section, list, empty, actions, erro
   return (
     <section className="card card--table choices" aria-label={title} data-part={section}>
       <header className="card-h"><div><h2>{title}</h2>{off ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p> : hint && <p>{hint}</p>}</div>{actions}
-        <AskGenie kind="table" title={title} context={tableContext(hint || '', list.data?.rows || [], (row) => choiceFields(page, row), list.data?.total)} /></header>
+        <SectionHelp title={title} steps={[{ title: title, text: "Each record's decision: pick the choice that fits, and the record keeps its history." }]} /><AskGenie kind="table" title={title} context={tableContext(hint || '', list.data?.rows || [], (row) => choiceFields(page, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={retry} />}
       {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
@@ -289,6 +302,9 @@ export function ChoiceList({ page, app, filters, ready, nonce, onChanged, sectio
     <ListShell page={page} app={app} title={meta.title || 'Decide each one'} hint={meta.hint} section={section} list={list} error={decide.error}
       filters={filters} onChanged={onChanged} opened={opened}
       empty="Nothing to decide for these filters." actions={can && <TakeAll count={open} onClick={() => decide.takeAll(rows, suggest)} />}>
+      {meta.group && clustersOf(rows, meta.group.column).map(([name, items]) => (
+        <ClusterBar key={name} page={page} app={app} name={name} items={items} decide={decide} can={can} />
+      ))}
       <ol className="choice-list">
         {rows.map((row) => (
           <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can}
@@ -368,7 +384,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
           {off ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p>
             : <p>{table?.hint || 'Choose a treatment for each segment once: every member of the segment gets it.'}</p>}</div>
           {can && waiting.length > 0 && <TakeAll count={waiting.length} onClick={() => runWrite(TAKE_ALL, async () => { for (const r of waiting) if (!(await choose(r, suggestedOf(r), true))) return; })} />}
-          {!shared && <AskGenie kind="table" title={table?.title || 'Segments'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />}
+          <SectionHelp title={table?.title || 'Segments'} steps={[{ title: table?.title || 'Segments', text: "Each segment with the figures that set it apart. Pick a segment to narrow the page to it." }]} />{!shared && <AskGenie kind="table" title={table?.title || 'Segments'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />}
         </header>
         {!result && !failed && <div style={{ padding: 16 }}><Skeleton height={90} /></div>}
         <CardFailure text={failed} prefix="The segments could not load: " />
@@ -406,6 +422,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
                   <div className="seg-act" role="group" aria-label={`Treatment for ${row.label}`}>
                     {(block.treatments || []).map((t) => (
                       <SaveButton key={t} write={`choice:seg:${id}:${t}`} className={`btn btn--sm ${star === t ? 'btn--pri' : ''}`} disabled={!c.asOf || !c.waiting}
+                        why={!c.asOf ? 'This group has no as-of date yet, so a treatment cannot be recorded.' : 'No member of this group waits for a treatment.'}
                         data-treatment={t} onClick={() => choose(row, t)}>{star === t && <span aria-hidden="true">★ </span>}{t}</SaveButton>
                     ))}
                   </div>
@@ -431,7 +448,7 @@ export function EffectCard({ page, data, filters, onPick }) {
     <section className="card effects" aria-label={table?.title || 'Effect'} data-part="effect_card">
       <header className="card-h"><div><h2>{table?.title || 'Effect'}</h2>{table?.hint && <p>{table.hint}</p>}
         {table?.so_what && <p className="so-what" data-so-what><b>So what:</b> {table.so_what}</p>}</div>
-        {!shared && <AskGenie kind="table" title={table?.title || 'Effect'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />}</header>
+        <SectionHelp title={table?.title || 'Effect'} steps={[{ title: table?.title || 'Effect', text: "What each intervention is expected to change, with the verdict on whether it pays." }]} />{!shared && <AskGenie kind="table" title={table?.title || 'Effect'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />}</header>
       {!result && !failed && <div style={{ padding: 16 }}><Skeleton height={90} /></div>}
       <CardFailure text={failed} prefix="The effect could not load: " />
       {result && !rows.length && <p className="empty">No measured effect for these filters.</p>}
@@ -455,6 +472,39 @@ export function EffectCard({ page, data, filters, onPick }) {
         })}
       </div>
     </section>
+  );
+}
+
+function ClusterBar({ page, app, name, items, decide, can }) {
+  const [asking, setAsking] = useState('');
+  const group = page.records.group;
+  const choice = (page.choices || []).find((c) => c.id === group.choice);
+  const open = items.filter((r) => !isClosed(r) && r._inspire_version);
+  const batches = [...new Set(items.map((r) => undoBatchOf(r, app?.user?.email)))];
+  const undoable = items.every(isClosed) && batches.length === 1 && batches[0] ? batches[0] : '';
+  const merge = () => decide.run(`group:${name}`, { record_keys: open.map((r) => String(recordKeyOf(r))),
+    seen: Object.fromEntries(open.map((r) => [String(recordKeyOf(r)), String(r._inspire_version)])) },
+  choiceValues(choice, '', page.choices), `${choice.label}: ${open.length} records in ${name}`).then((out) => out && setAsking(''));
+  return (
+    <div className="cluster-bar" data-cluster={name}>
+      <span><b>{name}</b> · {plural(items.length, 'record')}</span>
+      {can && choice && open.length >= GROUP_MIN && !asking && <button type="button" className="btn btn--sm" data-group-merge onClick={() => setAsking('merge')}>{group.label}</button>}
+      {undoable && !asking && <button type="button" className="link" data-group-unmerge onClick={() => setAsking('undo')}><Icon name="undo" size={13} />{group.undo}</button>}
+      {asking === 'merge' && (
+        <div className="choice-why" role="group" aria-label={`Confirm ${group.label}`}>
+          <span>{`${choice.label} for the ${plural(open.length, 'open record')} in ${name}. The records stay in the list, and one Undo puts them back.`}</span>
+          <SaveButton write={`group:${name}`} className="btn btn--sm btn--pri" data-group-confirm onClick={merge}>{group.label}</SaveButton>
+          <button type="button" className="link" onClick={() => setAsking('')}>Keep them</button>
+        </div>
+      )}
+      {asking === 'undo' && (
+        <div className="choice-why" role="group" aria-label="Undo this decision">
+          <span>{UNDO_CLOSE}</span>
+          <SaveButton write={`undo:group:${name}`} className="btn btn--sm btn--pri" data-group-confirm onClick={async () => { if (await decide.undo(undoable, `undo:group:${name}`)) setAsking(''); }}>{group.undo}</SaveButton>
+          <button type="button" className="link" onClick={() => setAsking('')}>Keep it</button>
+        </div>
+      )}
+    </div>
   );
 }
 

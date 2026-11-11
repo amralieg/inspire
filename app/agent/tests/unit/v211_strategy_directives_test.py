@@ -232,3 +232,51 @@ def test_the_app_kpi_check_fixture_matches_the_agent_and_covers_negated_sign_wor
     assert named["a negated sign word: non-positive amounts filtered with > 0"]["problem"].endswith("keeps the rows above 0")
     assert named["a negated sign word: non-positive amounts filtered with < 1"]["problem"].endswith("non positive needs amount <= 0")
     assert named["a positive word kept: positive amounts filtered with >= 0"]["problem"], "a bare positive still compares (must-exclude)"
+
+
+def test_the_excel_workbook_opens_with_one_filled_column_per_customer_level(docs):
+    import openpyxl
+    obj = level_obj(docs)
+    obj._generate_use_case_excel("English", "en", portfolio())
+    path = next(p for p in obj.w_client.workspace.files if str(p).endswith(".xlsx"))
+    data = obj.w_client.workspace.files[path]
+    book = openpyxl.load_workbook(io.BytesIO(data))
+    sheet = book.worksheets[0]
+    rows = [[cell.value for cell in row] for row in sheet.iter_rows()]
+    header_at = next(i for i, row in enumerate(rows) if "Strategic Goals Alignment" in row)
+    headers = rows[header_at]
+    at = headers.index("Strategic Goals Alignment")
+    assert headers[at + 1:at + 5] == ["Theme", "Ambition", "Outcome", "Focus Area"]
+    first = dict(zip(headers, rows[header_at + 1]))
+    second = dict(zip(headers, rows[header_at + 2]))
+    assert (first["Theme"], first["Ambition"], first["Outcome"], first["Focus Area"]) == (
+        "Customer", "Win loyalty", "Grow repeat purchases", "Repeat buyers")
+    assert (second["Theme"], second["Outcome"], second["Focus Area"]) == ("Operations", "Cut stockouts", None)
+
+
+def test_a_level_named_like_a_built_in_column_keeps_its_name_and_the_built_in_takes_a_number(docs):
+    import openpyxl
+    obj = level_obj(docs)
+    obj.strategy_tree = docs["parse_strategic_context"](json.dumps(
+        dict(FOUR_LEVELS, levels=["Theme", "Ambition", "Outcome", "Priority"], labels={})))
+    headers, _rows, _numeric = obj._catalog_export_table(portfolio())
+    at = headers.index("Strategic Goals Alignment")
+    assert headers[at + 1:at + 5] == ["Theme", "Ambition", "Outcome", "Priority"], headers
+    assert headers.count("Priority") == 1 and "Priority (2)" in headers
+    obj._generate_use_case_excel("English", "en", portfolio())
+    path = next(p for p in obj.w_client.workspace.files if str(p).endswith(".xlsx"))
+    sheet = openpyxl.load_workbook(io.BytesIO(obj.w_client.workspace.files[path])).worksheets[0]
+    book_headers = [cell.value for cell in sheet[1]]
+    assert book_headers[at + 1:at + 5] == ["Theme", "Ambition", "Outcome", "Priority"]
+    level_at = book_headers.index("Priority", at)
+    assert [sheet.cell(row=2, column=level_at + 1).value] == ["Repeat buyers"]
+
+
+def test_a_strategy_typed_in_and_a_strategy_file_give_the_same_user_levels(agent_ns):
+    text = json.dumps(FOUR_LEVELS)
+    typed = agent_ns["parse_strategic_context"](text)
+    from_file = agent_ns["parse_strategic_context"]("/Workspace/Users/me/strategy.json", read_file=lambda path: text)
+    assert typed["levels"] == from_file["levels"] == ["Theme", "Ambition", "Outcome", "Focus Area"]
+    assert typed["source"] == from_file["source"] == "customer"
+    assert [(n["id"], n["level"]) for n, _p in agent_ns["iter_strategy_entries"](typed)] == \
+        [(n["id"], n["level"]) for n, _p in agent_ns["iter_strategy_entries"](from_file)]

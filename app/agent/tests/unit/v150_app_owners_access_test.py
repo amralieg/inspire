@@ -87,13 +87,16 @@ def test_a_shared_app_gets_select_and_modify_on_the_assumptions_table_it_writes(
     spark = Catalog()
     inst, fields = _deploy(agent_ns, spark)
     assert "_warnings" not in fields and fields["app_url"] == "https://churn-desk.example"
+    shell_facts = agent_ns["inspire_shell_facts"]
+    ledger = shell_facts.ledger_table("main.inspire")
+    ledger_sql = [shell_facts.ledger_create_sql(ledger)] + shell_facts.ledger_grant_sqls(ledger, "sp-1")
     assert _not_access_reads(spark.statements) == [
         GRANT.format("USE CATALOG", "CATALOG `main`"), GRANT.format("USE SCHEMA", "SCHEMA `main`.`inspire`"),
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out`"), GRANT.format("USE CATALOG", "CATALOG `main`"),
         GRANT.format("USE SCHEMA", "SCHEMA `main`.`s`"), GRANT.format("SELECT", "TABLE `main`.`s`.`orders`"),
         GRANT.format("READ METADATA", "TABLE `main`.`s`.`orders`"), GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`"), "DESCRIBE TABLE `main`.`inspire`.`churn_out`", CREATE, "DESCRIBE TABLE `main`.`inspire`.`churn_out_assumptions`",
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out_assumptions`"),
-        GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out_assumptions`")] + _feedback_writes(agent_ns), \
+        GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out_assumptions`")] + _feedback_writes(agent_ns) + ledger_sql, \
         "the assumptions and feedback tables are read after the result table's grants, so their catalog and schema are not granted again"
     reading = Catalog()
     _deploy(agent_ns, reading, {"app_options": {"modify": False, "decisions": False}})
@@ -105,8 +108,10 @@ def test_a_table_without_money_at_stake_gets_no_assumptions_table(agent_ns, sdk_
     spark = Catalog(schema=[("entity_id", "string"), ("priority_tier", "string")])
     _inst, fields = _deploy(agent_ns, spark, {"app_options": {"modify": False, "decisions": False}})
     assert "_warnings" not in fields
-    assert not any(s.startswith("CREATE TABLE") or "assumptions" in s or "MODIFY" in s for s in _without_feedback(spark.statements))
-    assert [s for s in spark.statements if s.startswith(("CREATE TABLE", "DESCRIBE TABLE `main`.`inspire`.`churn_out_f", "GRANT"))][-4:] == \
+    ledger = agent_ns["inspire_shell_facts"].ledger_table("main.inspire")
+    assert not any(s.startswith("CREATE TABLE") or "assumptions" in s or "MODIFY" in s for s in _without_feedback(spark.statements)
+                   if ledger not in s), "only the value ledger, which every App with a database gets, is created here"
+    assert [s for s in spark.statements if s.startswith(("CREATE TABLE", "DESCRIBE TABLE `main`.`inspire`.`churn_out_f", "GRANT")) and ledger not in s][-4:] == \
         _feedback_writes(agent_ns), "every App takes reported issues, so its feedback table is built and granted even with nothing at stake"
 
 
@@ -115,16 +120,20 @@ def test_a_per_user_app_gets_a_service_principal_grant_only_on_the_table_it_reco
     spark = Catalog()
     _inst, fields = _deploy(agent_ns, spark, {"app_access": "user", "app_options": {"decisions": False}}, answers)
     assert fields["app_url"] == "https://churn-desk.example"
-    assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE"))] == _feedback_writes(agent_ns, fresh=True), \
+    ledger = agent_ns["inspire_shell_facts"].ledger_table("main.inspire")
+    assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE")) and ledger not in s] == _feedback_writes(agent_ns, fresh=True), \
         "a per-user App stores reported issues as its service principal, so the feedback table is all it gets"
     spark = Catalog()
     _inst, fields = _deploy(agent_ns, spark, {"app_access": "user"}, answers)
     assert "_warnings" not in fields
-    assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE"))] == [
+    ledger = agent_ns["inspire_shell_facts"].ledger_table("main.inspire")
+    assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE")) and ledger not in s] == [
         GRANT.format("USE CATALOG", "CATALOG `main`"), GRANT.format("USE SCHEMA", "SCHEMA `main`.`inspire`"),
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out`"), GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`")] + \
         _feedback_writes(agent_ns), \
         "a per-user App records decisions and reported issues as its service principal, so it gets the result and feedback tables only"
+    assert [s for s in spark.statements if ledger in s and s.startswith("CREATE TABLE")] and not [s for s in spark.statements if ledger in s and s.startswith("GRANT")], \
+        "the job identity creates the value ledger for a per-user App too, and grants it to no service principal"
 
 
 @pytest.mark.parametrize("fail,reason", [
@@ -132,7 +141,7 @@ def test_a_per_user_app_gets_a_service_principal_grant_only_on_the_table_it_reco
      "Inspire could not grant it: GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out_assumptions` TO `sp-1` failed: "
      "PERMISSION_DENIED: not a manager"),
     ({"CREATE TABLE IF NOT EXISTS `main`.`inspire`.`churn_out_assumptions`": RuntimeError("PERMISSION_DENIED: no CREATE TABLE")},
-     "Inspire could not create it: PERMISSION_DENIED: no CREATE TABLE"),
+     "Inspire could not create it: main.inspire.churn_out_assumptions: PERMISSION_DENIED: no CREATE TABLE"),
 ])
 def test_an_assumptions_grant_that_fails_is_a_plain_warning_and_the_app_still_ships(agent_ns, sdk_stub, fail, reason):
     spark = Catalog(fail=fail)
@@ -154,6 +163,8 @@ def test_an_assumptions_table_inspire_cannot_manage_names_the_grants_to_ask_for(
                                      {"level": "table", "privilege": "OWNER", "principal": "data-eng", "mine": False,
                                       "me": "inspire-sp"}] + ([] if str(t).endswith("_assumptions") else [
                                      {"level": "table", "privilege": "SELECT", "principal": "account users", "mine": True,
+                                      "me": "inspire-sp"},
+                                     {"level": "table", "privilege": "MANAGE", "principal": "inspire-sp", "mine": True,
                                       "me": "inspire-sp"}])
     inst, fields = _deploy(agent_ns, spark, answers=[{"description": OURS_APP, "compute_status": {"state": "ACTIVE"},
                                                       "service_principal_client_id": "sp-1"}] + NEW_APP[2:])

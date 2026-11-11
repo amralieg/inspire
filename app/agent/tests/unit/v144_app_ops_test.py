@@ -766,7 +766,9 @@ def test_runs_without_a_summary_table_or_with_a_refused_read_still_list_the_job_
     (tmp_path / "denied").mkdir()
     s, _sp, _now = ops_shell(tmp_path / "denied", JobsWorkspace(job_runs=jobs, runs=WEEKLY[:1], summary=denied))
     status, out = call(s, "GET", "runs", query={"page": "n01_u05"}, headers=signed(DANA))
-    assert status == 200 and out["errors"] == {"summary": str(denied)} and len(out["runs"]) == 2
+    card = "This App is waiting for access to this data. Ask your data owner to grant it."
+    assert status == 200 and out["errors"] == {"summary": card} and len(out["runs"]) == 2 and [r["job_run_id"] for r in out["runs"]] == ["408", "407"]
+    assert out["detail"] == str(denied), "the raw refusal stays under Details, as the waiting view keeps it"
 
     class DetailsDenied(JobsWorkspace):
         def summary_rows(self, sql, params, limit):
@@ -778,8 +780,8 @@ def test_runs_without_a_summary_table_or_with_a_refused_read_still_list_the_job_
     s, _sp, _now = ops_shell(tmp_path / "details", DetailsDenied(runs=WEEKLY[:1], summary=[summary_row("u3", "2026-10-25T06:05:00.000Z")]),
                              settings=ops_settings(jobs={}))
     status, out = call(s, "GET", "runs", query={"page": "n01_u05"}, headers=signed(DANA))
-    assert status == 200 and out["errors"] == {"details": str(denied)}
-    assert out["runs"][0]["run_id"] == "u3" and out["runs"][0]["records"] == 10 and out["runs"][0]["summary"] == ""
+    assert status == 200 and out["errors"] == {"details": "This App is waiting for access to this data. Ask your data owner to grant it."}
+    assert out["detail"] == str(denied) and out["runs"][0]["run_id"] == "u3" and out["runs"][0]["records"] == 10 and out["runs"][0]["summary"] == ""
 
 
 def test_runs_of_a_page_without_a_result_table_list_its_job_runs_and_read_no_table(tmp_path):

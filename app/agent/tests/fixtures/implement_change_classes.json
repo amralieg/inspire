@@ -5137,6 +5137,88 @@
         "review_share",
         "min_probability"
       ]
+    },
+    {
+      "name": "display name changed on a built App",
+      "previous": {
+        "use_case_id": "N01-U01",
+        "data": {
+          "tables": {},
+          "filters": [],
+          "run_profile": "preview",
+          "notes": ""
+        },
+        "config": {
+          "widgets": {
+            "top_k": "10"
+          },
+          "result_table": "",
+          "ai_endpoint": "",
+          "warehouse_id": "wh1"
+        },
+        "schedule": {
+          "enabled": false,
+          "cron": "0 0 6 ? * MON",
+          "timezone": "UTC"
+        },
+        "outputs": {
+          "dashboard": true,
+          "genie_space": false,
+          "app": true,
+          "app_name": "churn-desk",
+          "app_access": "sp",
+          "app_look": {
+            "palette": "default"
+          },
+          "inspire_url": "https://inspire.example.com"
+        },
+        "removed_outputs": {},
+        "sharing": {
+          "principals": []
+        },
+        "use_case_name": "Forecast demand"
+      },
+      "current": {
+        "use_case_id": "N01-U01",
+        "data": {
+          "tables": {},
+          "filters": [],
+          "run_profile": "preview",
+          "notes": ""
+        },
+        "config": {
+          "widgets": {
+            "top_k": "10"
+          },
+          "result_table": "",
+          "ai_endpoint": "",
+          "warehouse_id": "wh1"
+        },
+        "schedule": {
+          "enabled": false,
+          "cron": "0 0 6 ? * MON",
+          "timezone": "UTC"
+        },
+        "outputs": {
+          "dashboard": true,
+          "genie_space": false,
+          "app": true,
+          "app_name": "churn-desk",
+          "app_access": "sp",
+          "app_look": {
+            "palette": "default"
+          },
+          "inspire_url": "https://inspire.example.com"
+        },
+        "removed_outputs": {},
+        "sharing": {
+          "principals": []
+        },
+        "use_case_name": "Churn early warning"
+      },
+      "classes": [
+        "name"
+      ]
     }
   ],
   "plans": [
@@ -7539,6 +7621,29 @@
         "keep_unmanaged": [],
         "schedule": false
       }
+    },
+    {
+      "name": "a display name change refreshes the built App only",
+      "case": "display name changed on a built App",
+      "assets": {
+        "dashboard": "d1",
+        "genie_space": "g1",
+        "app": "churn-desk"
+      },
+      "summary": {
+        "classes": [
+          "name"
+        ],
+        "refill": false,
+        "build": [],
+        "refresh": [
+          "app"
+        ],
+        "rollback": [],
+        "delete": [],
+        "keep_unmanaged": [],
+        "schedule": false
+      }
     }
   ],
   "columns": [
@@ -9649,7 +9754,6 @@
       "ready",
       "ready_with_warnings",
       "failed",
-      "vibe_not_met",
       "uninstalled"
     ],
     "IMPLEMENT_DONE_STATUSES": [
@@ -9697,7 +9801,8 @@
       "rollback",
       "vibe",
       "remove_kept",
-      "uninstall"
+      "uninstall",
+      "name"
     ],
     "IMPLEMENT_RUN_PROFILES": [
       "preview",

@@ -5,6 +5,7 @@ import tailwindcss from '@tailwindcss/vite'
 
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  resolve: { dedupe: ['react', 'react-dom', 'react/jsx-runtime'] },
   server: {
     fs: {
       allow: [searchForWorkspaceRoot(fileURLToPath(new URL('.', import.meta.url))), fileURLToPath(new URL('../agent/agent/app_shell', import.meta.url))]

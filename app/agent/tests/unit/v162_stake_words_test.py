@@ -137,7 +137,7 @@ def test_the_app_grant_warning_names_the_use_case_s_unit(agent_ns, sdk_stub):
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
     assert [w for w in fields["_warnings"] if "assumptions" in w] == [
         "App: the owners of this use case cannot change its hours at stake assumptions in the App until its service principal sp-1 "
-        "can read and change the result table. Inspire could not create it: PERMISSION_DENIED: no CREATE TABLE"]
+        "can read and change the result table. Inspire could not create it: main.inspire.churn_out_assumptions: PERMISSION_DENIED: no CREATE TABLE"]
 
 
 class _Log:

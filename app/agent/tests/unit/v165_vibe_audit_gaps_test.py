@@ -209,7 +209,7 @@ def test_the_restyle_hands_its_live_page_to_the_build_so_a_snapshot_is_saved(age
     other = dict(PAGE, id="n02_u01", title="Another page")
     host = {"merged": False, "name": "churn-desk", "app": {}, "settings": {}, "pages": [other, PAGE], "notes": []}
     look = {"style": "a", "layout": "sidebar", "palette": "ocean", "theme": "dark"}
-    context = {"uc_id": "N01-U01", "key": (5150, "N01-U01", 3), "spec": {"outputs": {"app_look": look, "app_pages": {}}}}
+    context = {"uc_id": "N01-U01", "key": (5150, "N01-U01", 3), "use_case": {}, "spec": {"outputs": {"app_look": look, "app_pages": {}}}}
     fields = inst._implement_app_restyle(context, host, {}, {"shell_core": None})
     assert fields["app_name"] == "churn-desk" and context["artifacts"]["app"] == PAGE
     assert context["artifacts"]["app"] is not PAGE, "the snapshot is a copy, never the App's own page object"

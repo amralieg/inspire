@@ -14,6 +14,8 @@ from shell_sql import error_text
 
 KINDS = ("lakebase", "delta")
 LAKEBASE = "lakebase"
+VIEWER_SETTING = "inspire.viewer"
+ENFORCE_KEYS = ("column", "map", "key", "principal")
 PG_NAME = re.compile(r"^[A-Za-z0-9_]{1,63}$")
 PG_QUOTED = re.compile(r'"((?:[^"]|"")+)"')
 PIPELINE_ID = re.compile(r"^[A-Za-z0-9-]{1,64}$")
@@ -140,15 +142,181 @@ def _indexed_problem(name: str, entry: dict) -> list:
     return []
 
 
+def _one_enforce_problem(name: str, enforce, columns) -> list:
+    if (not isinstance(enforce, dict) or set(enforce) != set(ENFORCE_KEYS)
+            or any(not isinstance(enforce[k], str) or not enforce[k].strip() for k in ENFORCE_KEYS)):
+        return [f"the Lakebase copy of {name} is not enforced: each row filter must name the column it reads, the mapping table, "
+                "the mapping key and the principal column"]
+    if enforce["column"] not in {c.get("name") for c in columns or []}:
+        return [f"the enforced Lakebase copy of {name} filters on {enforce['column']}, which the copy does not hold"]
+    parts = enforce["map"].split(".")
+    if len(parts) != 2 or not all(PG_NAME.match(p) for p in parts):
+        return [f"the enforced Lakebase copy of {name} needs a mapping table that is a Postgres schema.table"]
+    return []
+
+
+def _enforce_problem(name: str, entry) -> list:
+    base = str(entry.get("base") or "") if isinstance(entry, dict) else ""
+    parts = base.split(".")
+    problems = [] if len(parts) == 2 and all(PG_NAME.match(p) for p in parts) else [
+        f"the enforced Lakebase copy of {name} needs a base that is a Postgres schema.table"]
+    enforce = entry.get("enforce") if isinstance(entry, dict) else None
+    if "enforce" not in (entry if isinstance(entry, dict) else {}):
+        return problems + [f"the Lakebase copy of {name} is not enforced: it must list its row filters, or null when it has none"]
+    if enforce is None:
+        return problems
+    if not isinstance(enforce, list) or not enforce:
+        return problems + [f"the enforced Lakebase copy of {name} must list its row filters, or be null when it has none"]
+    for one in enforce:
+        problems += _one_enforce_problem(name, one, entry.get("columns"))
+    return problems
+
+
+def enforcing_view_sql(entry: dict) -> str:
+    enforces, view, base = entry["enforce"], entry["pg"], entry["base"]
+    if enforces is None:
+        return f"CREATE OR REPLACE VIEW {_qualified(view)} AS SELECT t.* FROM {_qualified(base)} AS t"
+    kept = []
+    for enforce in enforces:
+        mapping = (f"SELECT m.{pg_ident(enforce['key'])} FROM {_qualified(enforce['map'])} AS m "
+                   f"WHERE lower(m.{pg_ident(enforce['principal'])}) = ANY(string_to_array(current_setting('{VIEWER_SETTING}', true), ','))")
+        kept.append(f"t.{pg_ident(enforce['column'])} IN ({mapping})")
+    return (f"CREATE OR REPLACE VIEW {_qualified(view)} WITH (security_barrier = true) AS SELECT t.* FROM {_qualified(base)} AS t "
+            f"WHERE {' AND '.join(kept)}")
+
+
+def base_read_probe(backend: dict) -> tuple:
+    bases = set()
+    for entry in (backend.get("tables") or {}).values():
+        if not isinstance(entry, dict) or "base" not in entry:
+            continue
+        bases.add(str(entry["base"]))
+        for enforce in entry.get("enforce") or ():
+            bases.add(str(enforce["map"]))
+    return ("SELECT bool_or(has_table_privilege(current_user, c.oid, 'SELECT')) FROM pg_catalog.pg_class AS c "
+            "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname || '.' || c.relname = ANY(%(bases)s::text[])",
+            {"bases": sorted(bases)})
+
+
+def _qualified(name: str) -> str:
+    schema, table = str(name).split(".")
+    return f"{pg_ident(schema)}.{pg_ident(table)}"
+
+
+def viewer_principals(email: str, groups=()) -> str:
+    names = {str(n).strip().lower() for n in (email, *groups) if str(n or "").strip()}
+    if not str(email or "").strip() or any("," in n or any(c.isspace() for c in n) for n in names):
+        raise ValueError("the viewer needs a signed-in email, and no principal may hold a comma or a space")
+    return ",".join(sorted(names))
+
+
+_PG_ID = r"(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_]*)"
+_PG_MAP = rf"{_PG_ID}(?:\.{_PG_ID}){{2}}"
+_PLAIN = r"[A-Za-z_][A-Za-z0-9_]*"
+_EXISTS_SHAPE = re.compile(rf"^exists\s*\(\s*select\s+1\s+from\s+({_PG_MAP})\s+({_PLAIN})\s+where\s+\2\.({_PLAIN})\s*=\s*({_PLAIN})"
+                            rf"\s+and\s+(.+?)\s*\)$", re.I)
+_IN_SHAPE = re.compile(rf"^({_PLAIN})\s+in\s*\(\s*select\s+({_PLAIN})\.({_PLAIN})\s+from\s+({_PG_MAP})\s+({_PLAIN})"
+                        rf"\s+where\s+(.+?)\s*\)$", re.I)
+
+
+def _unquoted(name) -> str:
+    return str(name).replace("`", "").strip()
+
+
+def _stripped(expr) -> str:
+    text = " ".join(str(expr or "").split()).rstrip(";").strip()
+    text = re.sub(r"^return\s+", "", text, flags=re.I)
+    while text.startswith("(") and text.endswith(")") and _balanced(text[1:-1]):
+        text = text[1:-1].strip()
+    return text
+
+
+def _balanced(text: str) -> bool:
+    depth = 0
+    for ch in text:
+        depth += (ch == "(") - (ch == ")")
+        if depth < 0:
+            return False
+    return depth == 0
+
+
+def _principal_column(expr: str, alias: str) -> str:
+    columns = set()
+    for part in (_stripped(p) for p in re.split(r"\s+or\s+", _stripped(expr), flags=re.I)):
+        found = (re.match(rf"^{alias}\.({_PLAIN})\s*=\s*current_user\(\)$", part, re.I)
+                 or re.match(rf"^is_account_group_member\(\s*{alias}\.({_PLAIN})\s*\)$", part, re.I))
+        if not found:
+            return ""
+        columns.add(found.group(1).lower())
+    return columns.pop() if len(columns) == 1 else ""
+
+
+def row_filter_mapping(body, column: str, parameter: str):
+    """The user-to-key mapping of a Unity Catalog row filter body, or None when the body is not that shape."""
+    text, parameter = _stripped(body), parameter.lower()
+    found = _EXISTS_SHAPE.match(text)
+    if found:
+        map_name, alias, key, param, principal = found.groups()
+        if _unquoted(param).lower() != parameter:
+            return None
+        principal_name = _principal_column(principal, alias)
+        key_name = key
+    else:
+        found = _IN_SHAPE.match(text)
+        if not found:
+            return None
+        param, key_alias, key_name, map_name, alias, principal = found.groups()
+        if _unquoted(param).lower() != parameter or key_alias != alias:
+            return None
+        principal_name = _principal_column(principal, alias)
+    if not principal_name:
+        return None
+    return {"map": _unquoted(map_name), "key": _unquoted(key_name), "principal": principal_name, "column": column}
+
+
+def enforce_plan(filters: list, result_columns, masked=()) -> dict:
+    """Whether the database can keep each viewer to their rows of one result table, from its source tables' row filters.
+
+    filters: one entry per source table with a row filter: {"table", "column", "parameter", "body", "unreadable"}.
+    result_columns: the columns the copy of the result table holds. masked: the result columns a column mask hides.
+    Every filter must translate, and every key column must be on the copy; the view then keeps a row only when each mapping does."""
+    result = {str(c).lower() for c in result_columns or ()}
+    hidden = sorted({str(c) for c in masked or ()})
+
+    def refuse(reason, ask=""):
+        return {"enforced": False, "enforce": None, "masked": hidden, "reason": reason, "ask": ask}
+
+    if not filters:
+        return {"enforced": True, "enforce": None, "masked": hidden, "reason": "", "ask": ""}
+    enforce = []
+    for row in filters:
+        if row.get("unreadable") or row.get("body") is None:
+            return refuse(f"Inspire could not read the row filter of {row['table']}")
+        mapping = row_filter_mapping(row["body"], row["column"], row["parameter"])
+        if mapping is None:
+            return refuse(f"the row filter of {row['table']} is not a user-to-key mapping table")
+        if row["column"].lower() not in result:
+            return refuse(f"the result table has no {row['column']} column to carry the row filter of {row['table']}",
+                          f"the result table must carry the column {row['column']} from {row['table']} unchanged, because its row "
+                          "filter keeps each person to their rows through that column")
+        if row["column"] in hidden:
+            return refuse(f"a column mask hides {row['column']}, the column the row filter of {row['table']} reads")
+        enforce.append({k: mapping[k] for k in ENFORCE_KEYS})
+    return {"enforced": True, "enforce": enforce, "masked": hidden, "reason": "", "ask": ""}
+
+
 def backend_problems(backend, auth: str, pages: list) -> list:
     if not isinstance(backend, dict) or backend.get("kind") not in KINDS:
         return [f"the App backend must be an object whose kind is one of {', '.join(KINDS)}"]
     if backend["kind"] != LAKEBASE:
         return []
     problems = []
-    if auth != "sp":
-        problems.append("only an App that reads through its service principal can read Lakebase, because Lakebase does not carry "
-                        "Unity Catalog row filters, column masks or grants to each viewer")
+    enforced = backend.get("enforced") is True
+    if auth == "user" and not enforced:
+        problems.append("an App where each viewer sees only their own rows reads Lakebase only when the database enforces every table "
+                        "it holds: each table is a view on the viewer's access, and the App's role cannot read the synced table")
+    if enforced and auth != "user":
+        problems.append("only an App where each viewer signs in as themselves can read enforced Lakebase tables")
     if not isinstance(backend.get("pipeline_id"), str) or not PIPELINE_ID.match(backend["pipeline_id"]):
         problems.append("the Lakebase backend needs pipeline_id, the id of the pipeline that syncs its tables")
     tables = backend.get("tables")
@@ -165,6 +333,8 @@ def backend_problems(backend, auth: str, pages: list) -> list:
         if len(parts) != 2 or not all(PG_NAME.match(p) for p in parts):
             problems.append(f"the Lakebase copy of {name} must be a Postgres schema.table of letters, digits and underscores")
         problems += _columns_problem(name, entry) or _indexed_problem(name, entry)
+        if enforced:
+            problems += _enforce_problem(name, entry)
     held = {uc_key(n) for n in tables}
     datasets = backend.get("datasets")
     if not isinstance(datasets, dict):
@@ -975,6 +1145,7 @@ class Lakebase:
         self.overlays, self.stuck, self.queued, self.overlayer = {}, {}, queue.Queue(), None
         self.note, self.noted_at, self.synced_at = "", 0.0, None
         self.synced_iso, self.synced_read = None, float("-inf")
+        self.enforced = backend.get("enforced") is True
 
     def secrets(self) -> tuple:
         return self.host, self.user, self.token
@@ -1008,6 +1179,12 @@ class Lakebase:
                 cur.execute(f"SET statement_timeout = {STATEMENT_TIMEOUT_MS}")
                 cur.execute("SET default_transaction_read_only = on")
                 cur.execute("SET TIME ZONE 'UTC'")
+                if self.enforced:
+                    cur.execute(*base_read_probe({"tables": self.tables}))
+                    if cur.fetchone()[0]:
+                        conn.close()
+                        raise LakebaseError("the App's Postgres role can read a synced base table, so the App refuses to read each "
+                                            "viewer's rows through it: it must read only the views")
         except psycopg.Error as error:
             raise LakebaseError(f"the App could not connect to Lakebase: {error_text(error, self.secrets())}") from error
         return conn
@@ -1052,19 +1229,23 @@ class Lakebase:
             return False
         return isinstance(error, (psycopg.OperationalError, psycopg.InterfaceError))
 
-    def query(self, text: str, values: dict, limit: int, queued: bool = False) -> tuple:
+    def query(self, text: str, values: dict, limit: int, queued: bool = False, viewer: str = "") -> tuple:
+        if self.enforced and not viewer:
+            raise LakebaseError("the App could not tell who is signed in, so it reads no rows from Lakebase")
         if not queued:
-            return self._query(text, values, limit)
+            return self._query(text, values, limit, viewer)
         with self.reads:
-            return self._query(text, values, limit)
+            return self._query(text, values, limit, viewer)
 
-    def _query(self, text: str, values: dict, limit: int) -> tuple:
+    def _query(self, text: str, values: dict, limit: int, viewer: str = "") -> tuple:
         for attempt in (0, 1):
             conn = self._take()
             try:
                 with conn.transaction():
                     with conn.cursor() as setup:
                         setup.execute(f"SET LOCAL statement_timeout = {READ_TIMEOUT_MS}")
+                        if self.enforced:
+                            setup.execute("SELECT set_config(%s, %s, true)", (VIEWER_SETTING, viewer))
                     with conn.cursor(name=READ_CURSOR) as cur:
                         cur.execute(text, values)
                         rows = cur.fetchmany(limit + 1)
@@ -1091,7 +1272,7 @@ class Lakebase:
             return names, types, rows
         raise LakebaseError("Lakebase did not answer")
 
-    def run(self, sql: str, params, limit: int, queued: bool = False) -> dict:
+    def run(self, sql: str, params, limit: int, queued: bool = False, viewer: str = "") -> dict:
         with self.lock:
             held = set(self.held)
             overlays = {table: {"column": entry["column"], "keys": list(entry["rows"]),
@@ -1102,7 +1283,7 @@ class Lakebase:
         for key in sorted(read):
             for column in self.tables[key]["columns"]:
                 known.setdefault(column["name"], column)
-        names, types, rows = self.query(text, values, limit, queued)
+        names, types, rows = self.query(text, values, limit, queued, viewer)
         return {"columns": columns_of(names, types, known), "rows": [{n: cell(v) for n, v in zip(names, row)} for row in rows[:limit]],
                 "truncated": len(rows) > limit}
 

@@ -4,6 +4,7 @@ import { Icon } from './icons.jsx';
 import DataTable from './DataTable.jsx';
 import { PlainNote } from './ui.jsx';
 import { ADMIN_ROUTE, NO_PEOPLE, USAGE_RECORDED, USAGE_UNRECORDED, usageView } from './admin.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const REFUSED = [401, 403];
 
@@ -20,7 +21,7 @@ function usageColumns(first, lead, kinds) {
 function UsageTable({ label, first, kinds, rows, lead }) {
   return (
     <section className="card card--table" aria-label={label}>
-      <header className="card-h"><div><h2>{label}</h2></div></header>
+      <header className="card-h"><div><h2>{label}</h2></div><SectionHelp title={label} steps={[{ title: label, text: "The owners' controls for this use case: who sees it and how it is set up." }]} /></header>
       <DataTable label={label} tableClass="tbl--usage" columns={usageColumns(first, lead, kinds)} rows={rows} rowKey={(r) => r.key} grid={`admin:${first}`} />
     </section>
   );
@@ -37,14 +38,6 @@ function Usage({ view }) {
           rows={view.people.map((p) => ({ key: p.who, name: p.who, lead: [p.pages], cells: p.cells, total: p.total, last: p.last, amounts: p.amounts }))} />
         : <p className="more">{NO_PEOPLE}</p>}
     </>
-  );
-}
-
-export function AdminLink({ on }) {
-  return (
-    <a className={`admin-link top-ic ${on ? 'is-on' : ''}`} data-more="tight" href={`#/${ADMIN_ROUTE}`} aria-current={on ? 'page' : undefined} aria-label="Admin" title="Admin">
-      <Icon name="lock" size={13} /><span>Admin</span>
-    </a>
   );
 }
 

@@ -810,8 +810,8 @@ def test_a_tile_whose_table_the_app_cannot_read_names_the_grant_and_other_tiles_
                          sp_factory=lambda: ws, user_factory=lambda h, t: ws)
     status, data = call(s, "POST", "page", body={"page": "n01_u05", "filters": {}})
     assert status == 200
-    assert data["errors"]["chart:by_category"] == "No access to main.pricing.items"
-    assert "chart:loss_trend" not in data["errors"] and data["charts"]["loss_trend"]["rows"]
+    assert data["errors"]["chart:by_category"] == "This App is waiting for access to this data. Ask your data owner to grant it."
+    assert "chart:loss_trend" not in data["errors"] and data["charts"]["loss_trend"]["rows"], "the readable cards keep working"
     status, info = call(s, "GET", "app")
     assert status == 200 and info["no_access"] == {}, "no owner recorded names no one"
     (tmp_path / "owned").mkdir()

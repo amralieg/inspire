@@ -46,3 +46,15 @@ test('a disabled scenario save says it needs a name, and the hint goes once the 
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+test('a disabled scenario save shows its reason as the button hover text too, so the reason shows on hover', async () => {
+  const { page, context, seen } = await open('scenario_lab.json', scenarioRoutes([], []));
+  await EXAMPLES['scenario_lab.json'].ready(page);
+  const save = page.getByRole('button', { name: 'Save the scenario' });
+  assert.equal(await save.isDisabled(), true);
+  assert.equal(await save.getAttribute('title'), 'Add a name to save.');
+  await page.getByRole('textbox', { name: 'Name this scenario' }).fill('Price up 8%');
+  assert.equal(await save.getAttribute('title'), null);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});

@@ -134,7 +134,7 @@ def test_too_many_steps_are_cut_and_too_few_are_filled_from_templates():
     page = queue_page()
     many = [step(a) for a in TOUR["layouts"]["decision_queue"]]
     tour, notes = shell_core.fit_tour(dict(page, tour={"steps": {"English": many}}))
-    assert len(tour["steps"]["English"]) == TOUR["most"] and any("more than 8" in n for n in notes)
+    assert len(tour["steps"]["English"]) == TOUR["most"] and any(f"more than {TOUR['most']}" in n for n in notes)
     tour, notes = shell_core.fit_tour(dict(page, tour={"steps": {"English": GOOD[:2]}}))
     assert len(tour["steps"]["English"]) == TOUR["least"]
     assert sum("fewer than 5 steps" in n for n in notes) == 3

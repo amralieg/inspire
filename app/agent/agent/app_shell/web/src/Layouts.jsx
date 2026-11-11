@@ -1,12 +1,12 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
-import { decidePlan, getRecords } from './api.js';
+import { decidePlan, getListed } from './api.js';
 import { entityName, formatValue, integer, numberOf } from './format.js';
-import { CODES, canDecide, choiceLabel, noDecisionText, pageDecides, recordKeyOf, statusChoices, withoutWindow } from './records.js';
+import { canDecide, choiceLabel, noDecisionText, pageDecides, recordKeyOf, statusChoices, withoutWindow } from './records.js';
 import { Icon } from './icons.jsx';
 import { SaidNote, Skeleton, useToast, PlainNote, useRetry } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
 import { ChartsReady, RowPanel, SECTION_PARTS, TAKE_ALL, TakeAll, decidedText, isClosed, useOpenRow } from './KindParts.jsx';
-import { SaveButton, runWrite } from './saving.jsx';
+import { SaveButton, missingWhy, runWrite } from './saving.jsx';
 import { AskGenie } from './AskGenie.jsx';
 import { SectionHelp } from './SectionHelp.jsx';
 import { RowGenie } from './DataTable.jsx';
@@ -20,8 +20,9 @@ const ScenarioPanel = lazy(() => import('./Scenario.jsx'));
 
 export { DEFAULT_LAYOUT, layoutOf, isLaidOut, isQueue };
 export const tabLabel = (page, fallback) => (isLaidOut(page) && page.layout?.tab_label) || fallback;
+export const impactOn = (app, page) => app?.screens?.impact !== false && (!!page?.history || !!page?.promised);
 export const pageSections = (app, page) => ['dashboard', ...(hasWork(page) ? ['work'] : []), ...(app?.screens?.runs !== false ? ['runs'] : []),
-  ...(app?.alerting?.on ? ['alerts'] : []), 'settings'];
+  ...(app?.alerting?.on ? ['alerts'] : []), ...(impactOn(app, page) ? ['impact'] : []), 'feedback', ...(page?.is_owner === true ? ['reports'] : []), 'settings'];
 export const decides = pageDecides;
 const PLAN_ROWS = 50;
 const TOUR_HELD = ['todo', 'kpis', 'objective', 'records', 'plan', 'resolve'];
@@ -38,12 +39,8 @@ export function useList(pageId, filters, ready, nonce, limit, on = true, view = 
     let live = true;
     const body = { ...(view || {}), page: pageId, filters: filters || {}, offset: 0, limit };
     const plain = body.window ? withoutWindow(body) : null;
-    getRecords(body)
-      .catch((e) => {
-        if (!plain || e.code !== CODES.noWindow) throw e;
-        return getRecords(plain).then((data) => { if (data?.actions) throw e; return data; });
-      })
-      .then((data) => live && setState({ data, error: '', scope }))
+    getListed(body, plain)
+      .then(({ data }) => live && setState({ data, error: '', scope }))
       .catch((e) => live && setState((s) => (s.scope === scope ? { ...s, error: e.message } : { data: null, error: e.message, scope })));
     return () => { live = false; };
   }, [pageId, key, ready, nonce, limit, on]);
@@ -67,11 +64,10 @@ export function todoSteps(page, list, { modify = false, accept = false, plan = f
     steps.push({ id: 'sql', text: 'Open the SQL under each answer to check what Genie read before you use a number.', action: null });
     steps.push({ id: 'rate', text: 'Mark each answer helpful or not, so the Genie Agent learns what a good answer is.', action: null });
   } else if (!decides(page)) {
-    steps.push({ id: 'read', text: page.question || page.title, action: null });
     steps.push({ id: 'so_what', text: 'Read the “So what” line under each chart: it says what to do with it.', action: null });
     if (page.filters?.length) steps.push({ id: 'filters', text: 'Use the filters at the top to narrow every chart to the part you own.', action: null });
   } else if (first) {
-    const name = entityName(first, label);
+    const name = entityName(first, label, { sentence: true });
     const value = name ? ['Start with ', name, ': it is first in the list because it matters most.']
       : ['Start with the first record on the list: it is first in the list because it matters most.'];
     steps.push({ id: 'first', text: value.join(''), value, action: 'Show me', to });
@@ -83,13 +79,13 @@ export function todoSteps(page, list, { modify = false, accept = false, plan = f
   return steps;
 }
 
-export function TodoNow({ page, app, ready, nonce, shared, onRecords, filters = {} }) {
+export function TodoNow({ page, app, ready, nonce, shared, onRecords, filters = {}, planCard = false }) {
   const retry = useRetry();
   const decided = decides(page);
   const fetched = useList(page.id, filters, ready, nonce, TODO_ROWS, decided && shared === undefined, windowParams(DEFAULT_PREFS));
   const list = shared === undefined ? fetched : shared || {};
-  const steps = todoSteps(page, list.data, { modify: !!app?.options?.modify, accept: !!(list.data?.actions && page.records?.action),
-    plan: !!(page.plan && list.data && planDecides(app, page.plan, list.data)) });
+  const planDecided = !!(page.plan && list.data && planDecides(app, page.plan, list.data));
+  const steps = todoSteps(page, list.data, { modify: !!app?.options?.modify, accept: !!(list.data?.actions && page.records?.action), plan: planDecided });
   const counted = decided && !!list.data?.actions;
   const summary = list.data?.summary;
   const closed = list.data?.window ? list.data.demo_moved ?? 0 : (summary?.done ?? 0) + (summary?.resolved ?? 0);
@@ -98,7 +94,7 @@ export function TodoNow({ page, app, ready, nonce, shared, onRecords, filters = 
   return (
     <section className="todo card" aria-label="What to do now" data-section="todo">
       <header className="card-h"><div><h2>What to do now</h2>
-        {decided && list.data && waiting != null && <p data-todo-count>{all ? `${integer(waiting)} of ${integer(all)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
+        {decided && list.data && waiting != null && !(planCard && planDecided) && <p data-todo-count>{all ? `${integer(waiting)} of ${integer(all)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
         {decided && !list.data && !list.error && <Skeleton height={14} width="40%" />}
         {list.error && <PlainNote text={list.error} icon={<Icon name="info" size={12} />} className="tile-err" onRetry={retry} />}
       </div>
@@ -211,8 +207,8 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen, first, plan
           <form onSubmit={(e) => { e.preventDefault(); decide('override'); }}>
             <label>Your value<input type="number" step="any" required value={value} onChange={(e) => setValue(e.target.value)} /></label>
             <label className="grow">Why you override it<input dir="auto" required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
-            <SaveButton write={`plan:${key}:override`} className="btn btn--sm btn--pri" type="submit" disabled={!value || !reason.trim()}>Save override</SaveButton>
-            {(!value || !reason.trim()) && <p className="text-[12px] text-text-secondary" data-save-missing>{`Add ${[!value && 'your value', !reason.trim() && 'why you override it'].filter(Boolean).join(' and ')} to save.`}</p>}
+            <SaveButton write={`plan:${key}:override`} className="btn btn--sm btn--pri" type="submit" disabled={!value || !reason.trim()}
+              why={missingWhy([!value && 'your value', !reason.trim() && 'why you override it'])}>Save override</SaveButton>
           </form>
         </td></tr>
       )}
@@ -266,9 +262,10 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged, planId 
     <section className="card card--table plan" aria-label={plan.title}>
       <header className="card-h"><div><h2>{plan.title}</h2>
         {locked ? <p className="muted" data-plan-locked>{locked}</p> : list.data && !can ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p> : plan.hint && <p>{plan.hint}</p>}
+        {can && list.data && <p data-todo-count>{rows.length ? `${integer(open.length)} of ${integer(rows.length)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
       </div>
       {open.length > 0 && <TakeAll count={open.length} onClick={acceptAll} />}
-      <AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
+      <SectionHelp title={plan.title} steps={[{ title: plan.title, text: "The plan for this use case: each line with its suggested value, and what you change when you disagree." }]} /><AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <PlainNote text={list.error} prefix="The plan could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={retry} />}
       {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
@@ -296,9 +293,10 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kp
   const listAt = sections.find((s) => holds[s] === 'records' || holds[s] === 'plan');
   const toured = (s) => (s === viewAt ? 'view' : s === listAt ? 'records' : undefined);
   const plan = (key) => <PlanTable key={key} page={page} app={app} filters={filters} ready={ready} nonce={nonce} onChanged={onChanged} />;
+  const planCard = !!page.plan && sections.some((s) => !SECTION_PARTS[s] && !KIND_PARTS[s] && ['plan', 'records'].includes(holds[s]));
   const draw = (section) => {
     const hold = holds[section];
-    if (hold === 'todo') return <TodoNow key="todo" page={page} app={app} ready={ready} nonce={nonce} />;
+    if (hold === 'todo') return <TodoNow key="todo" page={page} app={app} ready={ready} nonce={nonce} planCard={planCard} />;
     if (hold === 'kpis') return <div key="kpis" data-section="kpis">{kpisOf(page.kpis.filter((k) => !holds[k.section]))}</div>;
     if (hold === 'objective') {
       const hero = page.kpis.filter((k) => k.section === section);

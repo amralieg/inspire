@@ -33,7 +33,7 @@ function itemOf(row, meta, today) {
   const key = recordKeyOf(row);
   const status = row._inspire_status || NEW;
   const due = row._inspire_due ? String(row._inspire_due).slice(0, 10) : '';
-  return { kind: 'record', key: String(key), label: entityName(row, meta?.label) || String(key), status: statusLabel(status), due,
+  return { kind: 'record', key: String(key), label: entityName(row, meta?.label, { sentence: true }) || 'This record', status: statusLabel(status), due,
     late: isOverdue(due, status, today), kept: !!missingSince(row) };
 }
 

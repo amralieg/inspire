@@ -37,7 +37,7 @@ test('the wizard offers exactly the App choices the backend and the App shell ac
     'Sensitive data: each person signs in as themselves (per-user)',
     'Internal data: everyone sees the same rows',
   ]);
-  assert.deepEqual(w.APP_BACKEND_CHOICES.map((c) => c.label), ['Fast pages (Lakebase)', 'Standard pages (Delta)'], 'the storage choice names both paths, as the user asked');
+  assert.deepEqual(w.APP_BACKEND_CHOICES.map((c) => c.label), ['Fast pages (Lakebase)', 'Delta'], 'the storage choice names both paths, as the user asked');
   for (const text of [...w.APP_ACCESS_CHOICES.flatMap((c) => [c.label, c.blurb]), w.APP_ACCESS_NOTE,
     ...w.APP_BACKEND_CHOICES.flatMap((c) => [c.blurb]).filter(Boolean), w.LAKEBASE_PER_USER_REASON, w.LAKEBASE_ABSENT, w.LAKEBASE_UNCHECKED]) {
     assert.doesNotMatch(text, /service principal|lakebase|delta/i, `plain words: ${text}`);
@@ -58,15 +58,24 @@ test('the wizard offers exactly the App choices the backend and the App shell ac
   assert.deepEqual(w.REPLACE_EDITS_CHOICES.map((c) => [c.id, c.label]), [[false, 'No'], [true, 'Yes']], 'No comes first, as the default');
 });
 
-test('the storage guide says why fast pages are recommended for Apps and when Standard pages (Delta) fit, and the default follows who signs in', async () => {
+test('the storage guide says why fast pages are recommended for Apps and when Delta fits, and the default follows who signs in', async () => {
   const w = await load();
   assert.equal(w.APP_BACKEND_GUIDE.length, 2);
-  assert.equal(w.APP_BACKEND_GUIDE[0], 'Fast pages are recommended for Apps: pages read a Postgres copy that is synced from your tables, so most pages open without waiting for a SQL warehouse. Pages are as fresh as the last sync.');
-  assert.equal(w.APP_BACKEND_GUIDE[1], 'Pick Standard pages (Delta) when Lakebase is not available here, the tables are very large, or instant pages do not matter.');
+  assert.equal(w.APP_BACKEND_GUIDE[0], 'Fast pages (Lakebase) is the default and the recommended choice for Apps: pages read a Postgres copy that is synced from your tables, so most pages open at once without waiting for a SQL warehouse. Pages are as fresh as the last sync.');
+  assert.equal(w.APP_BACKEND_GUIDE[1], 'Pick Delta when Lakebase is not available here, the tables are very large, or instant pages do not matter.');
   const shared = { outputs: { app: true, app_access: 'sp' } };
   assert.equal(w.appBackendDefault(shared, { state: 'available' }), 'lakebase', 'a shared App reads the fast copy by default');
   assert.equal(w.appBackendDefault({ outputs: { app: true, app_access: 'user' } }, { state: 'available' }), 'delta', 'a per-user App reads Delta');
   assert.equal(w.appBackendOf(shared, { state: 'absent' }), 'delta', 'no Lakebase here means Delta');
+});
+
+test('a per-user App never claims fast pages are recommended: it says why Lakebase is not possible and pre-selects Delta', async () => {
+  const w = await load();
+  assert.equal(w.LAKEBASE_PER_USER_REASON, "Each person signs in as themselves. Inspire checks which tables Fast pages can keep to each person's rows, and this App uses Standard pages until it has checked them."); // P c0c9a045 new contract
+  assert.equal(w.PER_USER_GUIDE, 'Each person signs in as themselves, so pages read your tables directly. Pick Delta here.');
+  const perUser = { outputs: { app: true, app_access: 'user' } };
+  assert.equal(w.appBackendOf(perUser, { state: 'available' }), 'delta', 'the pre-selected choice is Delta');
+  assert.equal(w.bestAppBackend ? w.bestAppBackend(perUser, { state: 'available' }) : null, null, 'no Recommended badge on a per-user App');
 });
 
 test('a new spec has the Genie Agent and App on and the dashboard and alert off, signs each viewer in as themselves, and validates as made', async () => {
@@ -127,8 +136,8 @@ test('ticking the App ticks the Genie Agent and locks it, and the lock refuses a
   assert.deepEqual([off.outputs.app, off.outputs.genie_space], [false, true], 'unticking the App leaves the Genie Agent as it is');
   assert.equal(w.withOutput(off, 'genie_space', false).outputs.genie_space, false);
   assert.deepEqual(w.withOutput(spec, 'alert', true).outputs.alert_recipients, w.defaultAlertRecipients(spec));
-  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['data', 'results', 'delivery', 'where', 'app', 'app_pages', 'app_look', 'run', 'summary']);
-  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['data', 'results', 'delivery', 'run', 'summary'], 'with Apps unticked no App step shows');
+  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['delivery', 'data', 'stake', 'where', 'app', 'app_look', 'run', 'summary']);
+  assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['delivery', 'data', 'stake', 'run', 'summary'], 'with Apps unticked no App step shows');
   assert.deepEqual(w.stepErrors('delivery', { ...ticked, outputs: { ...ticked.outputs, genie_space: false } }), [w.GENIE_FOR_APP_NOTE]);
 });
 
@@ -170,8 +179,8 @@ test('a use case that joins an existing App skips App access and App look, shows
   assert.equal(w.wizardSteps('mvp', joined).find((s) => s.id === 'app'), undefined, 'the existing App keeps its sign-in, data source and look');
   assert.deepEqual(w.wizardSteps('mvp', joined).find((s) => s.id === 'where').panels, ['app_place'], 'where it goes is still picked on Where it lives');
   assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app').panels, ['app_access']);
-  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app_pages').panels, ['app_features']);
-  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => id !== 'app' && id !== 'app_pages' && id !== 'app_look'),
+  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'where').panels, ['app_place', 'app_features']);
+  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => id !== 'app' && id !== 'app_look'),
     'a joined App keeps its own pages, look and sign-in, so it has no App steps (must-exclude)');
   assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'no hidden App owner blocks Next');
   assert.deepEqual(w.advancedErrors('delivery', joined, { mergeTargets: targets }), []);
@@ -190,7 +199,7 @@ test('the App reads Lakebase by default when the workspace has it, Delta tables 
   const { w, spec } = await appSpec({ app_access: 'sp' });
   const offer = (state, detail = '') => ({ state, detail });
   assert.deepEqual(w.APP_BACKEND_CHOICES.map((c) => [c.id, c.label]), [
-    ['lakebase', 'Fast pages (Lakebase)'], ['delta', 'Standard pages (Delta)']]);
+    ['lakebase', 'Fast pages (Lakebase)'], ['delta', 'Delta']]);
   assert.deepEqual(w.APP_BACKENDS, SHELL.backends, 'the wizard offers the backends the App shell reads');
   for (const text of [...w.APP_BACKEND_CHOICES.flatMap((c) => [c.label, c.blurb]).filter(Boolean), w.LAKEBASE_PER_USER_REASON, w.LAKEBASE_CHECKING]) {
     assert.doesNotMatch(text, /\u2014|\u2013/, `no dashes: ${text}`);
@@ -249,7 +258,7 @@ test('an Edit of a version saved before result tables carried the session keeps 
   const edited = w.specFromLatest(older, fallback);
   assert.equal(fallback.config.result_table, 'main._inspire_n01_u01.n01_u01_results');
   assert.equal(edited.config.result_table, 'main.inspire.n01_u01_out');
-  assert.deepEqual(w.stepErrors('results', edited), []);
+  assert.deepEqual(w.sectionErrors('results', edited), []);
   const fresh = w.specFromLatest(null, fallback);
   assert.equal(fresh.config.result_table, 'main._inspire_n01_u01.n01_u01_results');
 });
@@ -270,10 +279,10 @@ test('the result table is picked as catalog, schema and name, defaults to its ow
   assert.deepEqual(w.resultTableParts(''), { catalog: '', schema: '', table: '' });
   const moved = w.withResultTable(spec, { catalog: 'sales', schema: 'mvp', table: ' churn_out ' });
   assert.equal(moved.config.result_table, 'sales.mvp.churn_out');
-  assert.deepEqual(w.stepErrors('results', moved), []);
-  assert.deepEqual(w.stepErrors('results', w.withResultTable(spec, { catalog: 'sales', schema: '', table: 'x' })),
+  assert.deepEqual(w.sectionErrors('results', moved), []);
+  assert.deepEqual(w.sectionErrors('results', w.withResultTable(spec, { catalog: 'sales', schema: '', table: 'x' })),
     ['pick a catalog and a schema, and name the result table']);
-  assert.deepEqual(w.stepErrors('results', w.withResultTable(spec, { catalog: 'sales', schema: 'mvp', table: 'churn out' })),
+  assert.deepEqual(w.sectionErrors('results', w.withResultTable(spec, { catalog: 'sales', schema: 'mvp', table: 'churn out' })),
     ['the result table can only use catalog, schema and table names of letters, digits, _ and -']);
   assert.equal(w.withResultTable(spec, { catalog: '', schema: '', table: '' }).config.result_table, '');
   assert.match(w.RESULT_TABLE_MOVE_NOTE, /copies its history to the new table and keeps the old one/);
@@ -373,4 +382,23 @@ test('the wizard\'s chart kinds, Inspire\'s pick and the pages it can turn off a
     assert.ok(m, `the shell labels ${kind.id}`);
     assert.equal(kind.label, m[1], `the wizard calls ${kind.id} what Genie is told`);
   }
+});
+
+test('a per-user App defaults to Fast pages only when the check says every table keeps each person to their rows, and names each table that reads Delta (must-exclude)', async () => {
+  const { w, spec } = await appSpec({ app_access: 'user' });
+  const offer = (enforce, state = 'available') => ({ state, detail: '', enforce });
+  const enforced = { mapping: { map: 'main.sec.map' }, column: 'region', enforced: true, filtered: true, reason: '' };
+  const plain = { enforced: true, filtered: false, reason: '' };
+  const refused = { enforced: false, filtered: true, reason: 'the row filter main.sec.fn is not a user-to-key mapping table' };
+  assert.equal(w.appBackendDefault(spec, offer({ 'main.s.orders': enforced, 'main.s.plain': plain })), 'lakebase');
+  assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced, 'main.s.plain': plain })), 'lakebase');
+  assert.deepEqual(w.appBackendBlocks(spec, offer({ 'main.s.orders': enforced, 'main.s.plain': plain })), {});
+  assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced, 'main.s.returns': refused })), 'delta', 'one refused table keeps the App on Standard pages');
+  assert.deepEqual(w.appBackendBlocks(spec, offer({ 'main.s.orders': enforced, 'main.s.returns': refused })),
+    { lakebase: { why: 'Fast pages cannot keep each person to their own rows here: main.s.returns uses Standard pages because the row filter main.sec.fn is not a user-to-key mapping table.', details: '' } });
+  assert.equal(w.appBackendOf(spec, offer({ 'main.s.a': enforced, 'main.s.b': enforced })), 'lakebase', 'two filtered tables that both map are each ANDed into the view');
+  assert.deepEqual(w.appBackendBlocks(spec, offer({ 'main.s.a': enforced, 'main.s.b': enforced })), {});
+  assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced }, 'absent')), 'delta');
+  const picked = w.withAppBackend(spec, 'lakebase');
+  assert.equal(w.appBackendOf(picked, offer({ 'main.s.orders': refused })), 'delta', 'a Fast pages pick the check refuses falls back to Delta');
 });

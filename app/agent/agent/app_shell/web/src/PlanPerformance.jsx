@@ -4,6 +4,7 @@ import { usePlans } from './PlanSection.jsx';
 import { PlainNote, Skeleton } from './ui.jsx';
 import { NOT_RECORDED, formatValue, integer } from './format.js';
 import './styles/plan.css';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const STATE_WORDS = { on: 'On plan', off: 'Off plan', unknown: 'Not known yet' };
 
@@ -43,7 +44,7 @@ export default function PlanPerformance({ page }) {
               note={d.has_value ? `of ${money(d.value_planned)} planned` : 'the plan lines carry no objective_contribution column'} />
           </div>
           <section className="card card--table" aria-label="Plan against actuals by line">
-            <header className="card-h"><div><h2>Plan against actuals</h2><p>Each line of {d.version.label} next to its value in the latest run. Lines off plan come first.</p></div></header>
+            <header className="card-h"><div><h2>Plan against actuals</h2><p>Each line of {d.version.label} next to its value in the latest run. Lines off plan come first.</p></div><SectionHelp title={'Plan against actuals'} steps={[{ title: 'Plan against actuals', text: "Each line of the plan next to its value in the latest run. Lines that are off plan come first." }]} /></header>
             {d.lines.length ? (
               <div className="tw"><table className="plan-t">
                 <thead><tr><th scope="col">Line</th><th scope="col">Planned</th><th scope="col">Now</th><th scope="col">Gap</th><th scope="col">State</th><th scope="col">Override reason</th></tr></thead>

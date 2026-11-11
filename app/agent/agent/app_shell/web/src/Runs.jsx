@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from 'react';
 import { saveSetting } from './api.js';
+import WaitingForAccess from './WaitingForAccess.jsx';
 import { formatValue, integer, kindOf, unitOf } from './format.js';
 import Fx from './Fx.jsx';
 import { Icon } from './icons.jsx';
-import { Skeleton, PlainNote, useRetry } from './ui.jsx';
+import { Skeleton, PlainNote, TechnicalDetails, useRetry } from './ui.jsx';
 import ChartCard, { BarsCard } from './ChartCard.jsx';
 import DataTable from './DataTable.jsx';
 import { fieldsOf, tableContext } from './explain.js';
@@ -13,6 +14,7 @@ import {
   triggerText,
 } from './freshness.js';
 import { timelineChart } from './trends.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 function RunNow({ onRun, running }) {
   return (
@@ -133,7 +135,7 @@ function emptyText(page, job) {
 export default function Runs({ page, runs, offset, onOffset, onExplain, genieBusy, trends, themeKey, app, onRun, running, opened = '' }) {
   const retry = useRetry();
   const [open, setOpen] = useState(() => new Set(opened ? [opened] : []));
-  const { data, error, busy } = runs;
+  const { data, error, waiting, busy } = runs;
   const list = data?.runs || [];
   const total = data?.total || 0;
   const size = data?.limit || RUNS_PAGE;
@@ -167,13 +169,16 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
             <h2>Runs</h2>
             <p>Newest first. Click a run to see the tables it used. Refresh now updates all the data.</p>
           </div>
+          <SectionHelp title="Runs" steps={[{ title: 'Each refresh of this use case', text: 'Each row is one refresh: when it ran, what it found and the figures it reached. Click a run to see which tables it read.' }]} />
           <AskGenie kind="table" title="Runs" context={tableContext('The runs of this use case, newest first.', list, (run) => fieldsOf(run, columns), total)} />
         </header>
         {busy && !data && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}
-        {error && <PlainNote text={error} prefix="The runs could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
+        {waiting && <WaitingForAccess waiting={waiting} compact onCheck={retry} />}
+        {error && !waiting && <PlainNote text={error} prefix="The runs could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
         {data?.job?.error && <PlainNote text={data.job.error} prefix="The job's runs could not load, so the list shows only the runs this use case recorded: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
         {errors.table && <PlainNote text={errors.table} prefix="The runs written to the results table could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
         {details && <PlainNote text={details} prefix="The details of each run could not load, so the list shows what the job recorded: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={retry} />}
+        {details && data?.detail && <TechnicalDetails items={data.detail} />}
         {data && (
           <>
             <DataTable label="Runs of this use case" tableClass="runs-tbl" columns={columns} rows={list} rowKey={runKey} paged={false} grid={`page:${page.id}:runs`}

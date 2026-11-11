@@ -110,7 +110,9 @@ def test_the_dashboard_is_built_from_the_page_spec_and_the_app_reuses_it_without
     assert never.prompts == [], "the App reuses the dashboard's page spec; Genie is not asked again"
     name, files, reads, _space = seen["deployed"][0]
     deployed = json.loads(files["pages/n01_u01.json"])
-    assert {k: v for k, v in deployed.items() if k not in ("genie", "genie_note", "tour")} == page and name == "churn-desk"
+    app_only = ("genie", "genie_note", "tour", "value_ledger")
+    assert {k: v for k, v in deployed.items() if k not in app_only} == {k: v for k, v in page.items() if k not in app_only} and name == "churn-desk"
+    assert deployed["value_ledger"] == "`main`.`inspire`.`__inspire_value_ledger`", "the App counts its values in the value ledger (lane E); the dashboard spec never names it"
     assert deployed["tour"]["steps"] and set(deployed["tour"]["steps"]) == {"English"}, "the App writes its own tour, the dashboard spec has none"
     assert "genie" not in page and "genie_note" not in page, "the dashboard's page spec never carries the App's Genie Agent"
     assert deployed["genie"] is None

@@ -199,6 +199,17 @@ export function deliveredOutputs(latest) {
     .map((output) => output.id);
 }
 
+const CARD_LINK_LABELS = { app: 'Open App', dashboard: 'Open Dashboard', genie_space: 'Open Genie Agent', alert: 'Open alert' };
+const CARD_LINK_ORDER = ['app', 'dashboard', 'genie_space', 'alert'];
+
+export function cardAssetLinks(latest) {
+  if (!latest || typeof latest !== 'object') return [];
+  const delivered = new Set(deliveredOutputs(latest));
+  return CARD_LINK_ORDER
+    .map((id) => ({ id, label: CARD_LINK_LABELS[id], url: String(latest[OUTPUT_URLS[id]] || '').trim() }))
+    .filter((link) => delivered.has(link.id) && /^https:\/\//i.test(link.url));
+}
+
 export function buildSummary(items) {
   const list = Array.isArray(items) ? items : [];
   const mvps = list.filter((item) => item.state?.kind === 'mvp');
@@ -800,4 +811,22 @@ export function filterByAsset(groups, asset) {
 export function filterByMvp(groups, mvp) {
   if (!mvp) return groups;
   return (groups || []).map((group) => ({ ...group, items: group.items.filter((item) => mvpFilterMatches(mvp, item.state)) }));
+}
+
+export function liveAppBuiltName(latest) {
+  return String(latest?.live_spec_json?.use_case_name || '').trim();
+}
+
+export function liveAppRenameStale(latest, name) {
+  const built = liveAppBuiltName(latest);
+  return Boolean(built) && built !== String(name || '').trim();
+}
+
+export function renameRestyleSpec(history, useCaseId, name) {
+  const id = String(useCaseId || '');
+  const rows = (Array.isArray(history) ? history : []).filter((row) => String(row?.use_case_id || '') === id);
+  const latest = rows.find((row) => row.live_version != null) || null;
+  const built = latest ? rows.find((row) => String(row.spec_version) === String(latest.live_version)) : null;
+  if (!built || !built.spec_json || typeof built.spec_json !== 'object') return null;
+  return { ...built.spec_json, use_case_name: String(name || '').trim(), based_on_version: built.spec_version };
 }

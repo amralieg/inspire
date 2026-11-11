@@ -31,7 +31,8 @@ async function withApp(overrides, run) {
 }
 
 for (const c of CASES.new_apps) {
-  test(`new Apps catalog access: ${c.name}`, () => {
+  
+test(`new Apps catalog access: ${c.name}`, () => {
     const got = I.catalogAccessDecision(c.setting, CASES.catalog, c.account_users, c.person, c.below, c.inspire_manages);
     assert.equal(got.decision, c.decision);
     assert.deepEqual(got.real, c.real);
@@ -82,6 +83,12 @@ const PERSON_READS = [
   { level: 'table', privilege: 'OWNER', principal: 'data-eng', mine: 'false', me: 'amr@x' },
   { level: 'table', privilege: 'SELECT', principal: 'amr@x', mine: 'true', me: 'amr@x' },
 ];
+
+const appPolicyDenied = (base) => ({ token, path, method, body }) => {
+  if (token !== 'tok' && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)) return undefined;
+  if (/^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)) return [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403];
+  return base ? base({ token, path, method, body }) : undefined;
+};
 
 function split(personRows, { personReads = true, onGrant } = {}) {
   const live = { appReads: false };
@@ -383,7 +390,7 @@ test('Let Inspire read these tables grants every App read grant on a source only
 test('the preflight context offers the App read grants when only the policy read is denied, with READ METADATA and no SELECT gap', async () => {
   const { live, overrides } = split(PERSON_OWNS);
   live.appReads = true;
-  await withApp({ ...overrides, abacUnreadable: true }, async (url) => {
+  await withApp({ ...overrides, workspace: appPolicyDenied(overrides.workspace) }, async (url) => {
     const before = await call(url, `/api/inspire/implement/context?${Q}`);
     assert.deepEqual(before.data.app_unreadable.tables, ['main.s.orders']);
     assert.equal(before.data.app_unreadable.can_grant, true);
@@ -396,7 +403,7 @@ test('a built-in sample catalog the App cannot read is named as not shareable an
   const grants = [];
   const { live, overrides } = split(PERSON_OWNS, { onGrant: (sql, token) => grants.push([sql, token]) });
   live.appReads = true;
-  await withApp({ ...overrides, abacUnreadable: true }, async (url) => {
+  await withApp({ ...overrides, workspace: appPolicyDenied(overrides.workspace) }, async (url) => {
     const got = await call(url, `/api/inspire/implement/grant-access?${Q}&kind=source_tables`, { method: 'POST',
       body: { tables: ['samples.bakehouse.sales_transactions'] } });
     assert.equal(got.status, 403, JSON.stringify(got.data));

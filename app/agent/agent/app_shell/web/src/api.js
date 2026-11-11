@@ -1,4 +1,4 @@
-import { CLOSED_STATUSES } from './records.js';
+import { CLOSED_STATUSES, CODES } from './records.js';
 export const DEMO_NOTE = 'This is a demo, so it is read-only: nothing you do here changes any data.';
 export const toneOf = (err) => (err?.calm ? 'info' : 'error');
 export const failureOf = (err, text) => ({ text: text ?? (err?.message || ''), calm: !!err?.calm, technical: text == null ? String(err?.detail?.details || '') : '' });
@@ -53,6 +53,7 @@ async function send(method, path, body, again = readsOnly(method, path)) {
 
 export const WAITING_FOR_ACCESS_CODE = 'waiting_for_access';
 export const WAITING_FOR_ACCESS_TITLE = 'This App is waiting for access to its data';
+export const waitingOf = (error) => (error?.code === WAITING_FOR_ACCESS_CODE ? (error.detail || { tables: [] }) : null);
 export const waitingError = (data) => {
   const error = new Error(data.message || WAITING_FOR_ACCESS_TITLE);
   error.status = 200;
@@ -68,10 +69,11 @@ const json = async (method, path, body) => {
 };
 
 export const getApp = () => json('GET', 'app');
+export const appAccess = (step, body = {}) => json('POST', 'access', { ...body, step });
 export const getFilters = (page) => json('GET', `filters?page=${encodeURIComponent(page)}`);
 export const getDefaults = (page) => json('GET', `defaults?page=${encodeURIComponent(page)}`);
-export const getPage = (page, filters, tables, sorts) => json('POST', 'page', { page, filters, ...(tables && Object.keys(tables).length ? { table_filters: tables } : {}),
-  ...(sorts && Object.keys(sorts).length ? { table_sorts: sorts } : {}) });
+export const getPage = (page, filters, tables, sorts, searches) => json('POST', 'page', { page, filters, ...(tables && Object.keys(tables).length ? { table_filters: tables } : {}),
+  ...(sorts && Object.keys(sorts).length ? { table_sorts: sorts } : {}), ...(searches && Object.keys(searches).length ? { table_search: searches } : {}) });
 export const askGenie = (page, question, conversationId, about) =>
   json('POST', 'genie/ask', { page, question, conversation_id: conversationId || '', ...(about ? { record_key: about.recordKey } : {}) });
 export const explainGenie = (body) => json('POST', 'genie/explain', { ...body, conversation_id: body.conversation_id || '' });
@@ -83,6 +85,7 @@ export const agentStatus = (page) => json('GET', `agent/status?page=${encodeURIC
 export const agentAsk = (body) => json('POST', 'agent/ask', body);
 export const agentTurn = (turnId) => json('GET', `agent/turn?turn_id=${encodeURIComponent(turnId)}`);
 export const agentFeedback = (turnId, rating) => json('POST', 'agent/feedback', { turn_id: turnId, rating });
+export const agentPrepare = (body) => json('POST', 'agent/prepare', body);
 export const getHistory = (page, ref) => json('GET', `records/history?${new URLSearchParams({ page, ...ref })}`);
 export const getFields = (page) => json('GET', `records/fields?page=${encodeURIComponent(page)}`);
 const DEMO_DECIDED = 'inspire-demo-decisions';
@@ -108,6 +111,10 @@ export const withDemoDecisions = (page, list, filters = {}) => {
   return { ...list, ...(summary ? { summary } : {}), demo_moved: moved, rows: list.rows.map((r) => (decided[String(r.record_key)] ? { ...r, ...decided[String(r.record_key)] } : r)) };
 };
 export const getRecords = async (body) => withDemoDecisions(body?.page, await json('POST', 'records', body), body?.filters);
+export const getListed = (body, plain = null) => getRecords(body).then((data) => ({ data, unwindowed: false }))
+  .catch((e) => (plain && e.code === CODES.noWindow
+    ? getRecords(plain).then((data) => { if (data?.actions) throw e; return { data, unwindowed: true }; })
+    : Promise.reject(e)));
 export const requestId = () => Array.from(crypto.getRandomValues(new Uint8Array(16)), (b) => b.toString(16).padStart(2, '0')).join('');
 export const actRecords = async (body) => {
   const sent = { request_id: requestId(), ...body };

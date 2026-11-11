@@ -7,6 +7,7 @@ import FilterBar from './FilterBar.jsx';
 import { ModeEmpty } from './ModeParts.jsx';
 import { PlainNote } from './ui.jsx';
 import { USAGE_UNRECORDED } from './admin.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 export const NO_LIST = 'This page shows results only, so it has no row or bulk actions. Its tables are below.';
 
@@ -18,7 +19,7 @@ function Work({ page, meta, state, onState, tableCard, views, notify }) {
   const tables = page.tables || [];
   return (
     <div className="mode-work mode-explore" data-mode-work="explore">
-      <FilterBar meta={meta?.filters} columns={meta?.columns} state={state || { range: {}, sel: {} }} onState={onState} pageId={page.id} />
+      <FilterBar meta={meta?.filters} columns={meta?.columns} grouping={meta?.grouping} state={state || { range: {}, sel: {} }} onState={onState} pageId={page.id} />
       <div className="mode-tools" data-explore-tools>
         {views}
         {notify}
@@ -43,7 +44,7 @@ function Performance({ app, page }) {
   }, [page.id, alerting, again]);
   return (
     <section className="card mode-usage" data-mode-performance="explore" aria-label="Usage">
-      <header className="card-h"><div><h2>Usage</h2><p>How you use {page.title}, in this browser.</p></div></header>
+      <header className="card-h"><div><h2>Usage</h2><p>How you use {page.title}, in this browser.</p></div><SectionHelp title={'Usage'} steps={[{ title: 'Usage', text: "How you have used this use case in this browser: the views and filters you opened most." }]} /></header>
       <div className="mode-stats">
         <div className="mode-stat" data-stat="views"><small>Saved views</small><b>{integer(saved.length)}</b></div>
         {alerting && <div className="mode-stat" data-stat="alerts"><small>Your alerts</small><b>{alerts.mine == null ? '…' : integer(alerts.mine)}</b></div>}

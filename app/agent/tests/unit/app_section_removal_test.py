@@ -99,10 +99,33 @@ def test_the_app_settings_carry_the_screen_off_and_the_removed_label(agent_ns):
     inst = build_inspire(agent_ns)
     inst.business_name = "Acme"
     uc = make_uc(**{"Analytics Technique": "Forecasting", "app_layout": FORECAST})
-    context = {"uc_id": "N01-U01", "use_case": uc, "job_id": 77, "spec": {"outputs": {"app_vibes": "Remove the Accuracy page"}},
+    context = {"uc_id": "N01-U01", "use_case": uc, "key": (5150, "N01-U01", 1), "job_id": 77, "spec": {"outputs": {"app_vibes": "Remove the Accuracy page"}},
                "urls": {}}
     core = type("Core", (), {"SETTINGS_VERSION": 1})
     outputs = {"app_access": "sp", "app_vibes": "Remove the Accuracy page", "app_options": {"alerts": False}}
     written = inst._implement_app_settings(context, {"shell_core": core}, {"id": "n01_u01"}, None, "off", outputs)
     assert written["screens"]["performance"] is False and written["screens"]["runs"] is True
     assert written["removed_nav"] == ["Accuracy"] and written["removed_sections"] == [] and written["removal_notes"] == []
+
+
+def test_a_look_change_that_keeps_a_removal_vibe_redeploys_the_app_with_the_screen_still_off(agent_ns, monkeypatch):
+    inst = build_inspire(agent_ns)
+    uc = make_uc(**{"Analytics Technique": "Forecasting", "app_layout": FORECAST})
+    outputs = {"app_look": {"style": "a", "layout": "sidebar", "palette": "default", "theme": "light"}, "app_pages": {"runs": True, "impact": True},
+               "app_vibes": "Remove the Accuracy page", "app_options": {"alerts": False}}
+    context = {"uc_id": "N01-U01", "use_case": uc, "key": ("s", "N01-U01", 2), "spec": {"outputs": outputs}, "job_id": 77,
+               "app_host": {"name": "demo-app"}}
+    host = {"merged": False, "name": "demo-app", "info": [], "notes": [], "settings": {"screens": {"performance": False}},
+            "pages": [{"id": "n01_u01", "layout": "forecast_cockpit"}]}
+    seen = {}
+    monkeypatch.setattr(inst, "_implement_emit", lambda *a, **k: 1)
+    monkeypatch.setattr(inst, "_implement_app_own_page", lambda ctx, h: "n01_u01")
+    monkeypatch.setattr(inst, "_implement_app_kept_settings", lambda ctx, h, core: dict(h["settings"], screens={"performance": False}))
+
+    def redeploy(context, host, settings, pages, payload, modules, label, space_id):
+        seen["settings"] = settings
+        return {"_asset": {}}, [], {"kind": "Delta tables"}
+    monkeypatch.setattr(inst, "_implement_app_redeploy", redeploy)
+    inst._implement_app_restyle(context, host, {"files": {}}, {"shell_core": type("Core", (), {"SETTINGS_VERSION": 1})})
+    assert seen["settings"]["screens"]["performance"] is False, seen["settings"]["screens"]
+    assert seen["settings"]["screens"]["runs"] is True

@@ -100,7 +100,7 @@ test('on a phone the sections sit behind the menu and the switcher lists every u
   await page.getByRole('button', { name: 'Open the sections' }).click();
   await page.waitForTimeout(300);
   assert.ok(await sideOpen(page), 'the menu opens the sections on screen');
-  assert.deepEqual(await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail)), ['dashboard', 'work', 'performance', 'runs', 'settings']);
+  assert.deepEqual(await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail)), ['dashboard', 'work', 'performance', 'runs', 'feedback', 'settings']);
   await page.locator('[data-rail="runs"]').click();
   await page.waitForTimeout(300);
   assert.equal(await sideOpen(page), false, 'picking a section closes the menu');

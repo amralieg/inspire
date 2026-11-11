@@ -210,7 +210,8 @@ test('a link to an unknown page opens the App with a notice instead of breaking'
   await toastSays(page, UNKNOWN_PAGE);
   await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.equal(await page.locator('.main h1').innerText(), 'Price-loss decision desk');
-  assert.equal(await page.locator('[data-rail]').count(), 5);
+  assert.equal(await page.locator('[data-rail]').count(), 6, 'the rail lists the sections, Feedback included (bff5947e)');
+  assert.ok(await page.locator('[data-rail="feedback"]').count() === 1, 'Feedback is on the rail');
   assert.deepEqual(seen.errors, []);
   await context.close();
 
@@ -407,15 +408,34 @@ test('the browser print keeps the title, the filters in words and the data date 
   await context.close();
 });
 
+test('at 1280 with a long use-case title beside a narrower page, the title wraps and the update note and Refresh now stay on its line', async () => {
+  const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'tabs' }, 2), { width: 1280, height: 800 });
+  await page.goto(`${base}#/n01_u05`);
+  await page.waitForFunction(chartsDrawn, 4);
+  await page.evaluate(() => {
+    document.querySelector('.pg-h h1').textContent = 'Price-loss decision desk for the Northeast and Mid-Atlantic regional sales teams, reviewed weekly';
+    document.querySelector('.pg-h').style.maxWidth = '700px';
+  });
+  const boxes = await page.evaluate(() => {
+    const top = (el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) }; };
+    return { title: top(document.querySelector('.pg-h h1')), tools: top(document.querySelector('.ph-tools')), refresh: top(document.querySelector('.fresh-btn')) };
+  });
+  assert.ok(Math.abs(boxes.title.top - boxes.tools.top) < 12, `the header wraps: ${JSON.stringify(boxes)}`);
+  assert.ok(Math.abs(boxes.title.top - boxes.refresh.top) < 12, `Refresh now sits under the title: ${JSON.stringify(boxes)}`);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
 test('on a phone the page tools shrink to labelled icons and the page still fits', async () => {
   const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'tabs' }, 2), { width: 375 });
   await page.goto(`${base}#/n01_u05`);
   await page.waitForFunction(chartsDrawn, 4);
-  const tools = await page.evaluate(() => [...document.querySelectorAll('.ph-tools .btn')].filter((b) => getComputedStyle(b).display !== 'none').map((b) => {
+  const tools = await page.evaluate(() => [...document.querySelectorAll('.ph-tools .btn')].filter((b) => b.getClientRects().length > 0 && !b.closest('.head-more-menu')).map((b) => {
     const r = b.getBoundingClientRect();
     return { name: b.getAttribute('aria-label'), width: Math.round(r.width), label: getComputedStyle(b.querySelector('span')).display, inView: r.left >= 0 && r.right <= window.innerWidth };
   }));
-  assert.deepEqual(tools.map((t) => t.name), ['Views', 'Refresh now']);
+  assert.deepEqual(tools.map((t) => t.name).sort(), ['More actions', 'Refresh now', 'Views'], 'the More menu joins the tools as an icon-labelled button');
   assert.ok(tools.every((t) => t.width >= 40 && t.width <= 44 && t.label === 'none' && t.inView), JSON.stringify(tools));
   assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
   await page.getByRole('button', { name: 'Views', exact: true }).click();

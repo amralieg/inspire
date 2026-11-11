@@ -1,4 +1,5 @@
 import json
+import math
 import re
 
 IDENT = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,62}$")
@@ -628,3 +629,125 @@ def facts_problem(facts) -> str:
     return ""
 
 
+
+
+LEDGER_TABLE = "__inspire_value_ledger"
+LEDGER_COLUMNS = (("session_id", "STRING"), ("result_table", "STRING"), ("use_case_id", "STRING"), ("run_id", "STRING"),
+                  ("record_key", "STRING"), ("kind", "STRING"), ("currency", "STRING"), ("unit", "STRING"), ("at_stake", "DOUBLE"),
+                  ("saved", "DOUBLE"), ("recorded_at", "TIMESTAMP"), ("recorded_by", "STRING"))
+LEDGER_NAMES = tuple(name for name, _kind in LEDGER_COLUMNS)
+LEDGER_COLUMNS_DDL = ", ".join(f"`{name}` {kind}" for name, kind in LEDGER_COLUMNS)
+
+
+def ledger_table(inspire_database: str) -> str:
+    return table_name(f"{str(inspire_database or '').strip()}.{LEDGER_TABLE}")
+
+
+def ledger_literal(value) -> str:
+    if value is None:
+        return "NULL"
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, (int, float)):
+        if not math.isfinite(float(value)):
+            raise ValueError("a ledger amount is a finite number, or NULL when it is not measured")
+        return repr(float(value))
+    return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
+
+
+def ledger_create_sql(table: str) -> str:
+    return f"CREATE TABLE IF NOT EXISTS {table} ({LEDGER_COLUMNS_DDL})"
+
+
+LEDGER_GRANTS = ("SELECT", "MODIFY")
+
+
+def quote_principal(principal) -> str:
+    return "`" + str(principal or "").strip().replace("`", "``") + "`"
+
+
+def ledger_grant_sqls(table: str, principal: str) -> list:
+    if not str(principal or "").strip():
+        raise ValueError("the value ledger grant needs the App's service principal")
+    return [f"GRANT {privilege} ON TABLE {table} TO {quote_principal(principal)}" for privilege in LEDGER_GRANTS]
+
+
+def ledger_stake_row(session_id, result_table, use_case_id, run_id, kind, currency, unit, at_stake, recorded_by="") -> dict:
+    return {"session_id": str(session_id), "result_table": result_table, "use_case_id": str(use_case_id), "run_id": str(run_id),
+            "record_key": None, "kind": kind, "currency": currency or None, "unit": unit or None, "at_stake": at_stake, "saved": None,
+            "recorded_by": recorded_by or None}
+
+
+def ledger_saved_row(session_id, result_table, use_case_id, run_id, record_key, kind, currency, unit, saved, recorded_by="") -> dict:
+    return {"session_id": str(session_id), "result_table": result_table, "use_case_id": str(use_case_id), "run_id": str(run_id),
+            "record_key": str(record_key), "kind": kind, "currency": currency or None, "unit": unit or None, "at_stake": None,
+            "saved": saved, "recorded_by": recorded_by or None}
+
+
+def ledger_insert_sql(table: str, rows: list) -> str:
+    if not rows:
+        raise ValueError("the value ledger insert has no rows")
+    names = [name for name in LEDGER_NAMES if name != "recorded_at"]
+    tuples = []
+    for row in rows:
+        unknown = set(row) - set(LEDGER_NAMES)
+        if unknown:
+            raise ValueError(f"the value ledger has no column {', '.join(sorted(unknown))}")
+        tuples.append("(" + ", ".join(ledger_literal(row.get(name)) for name in names) + ", current_timestamp())")
+    columns = ", ".join(f"`{name}`" for name in names + ["recorded_at"])
+    return f"INSERT INTO {table} ({columns}) VALUES {', '.join(tuples)}"
+
+
+def ledger_saved_from_batch_sql(table: str, result_table: str, batch_column: str, batch_id: str, found: dict, use_case_id: str,
+                                value, recorded_by: str) -> str:
+    keys = f"(SELECT DISTINCT `record_key` FROM {table_name(result_table)} WHERE `change_source` = 'action' AND `{batch_column}` = "
+    keys += f"{ledger_literal(str(batch_id))} AND `record_key` IS NOT NULL)"
+    select = [ledger_literal(str(found["session_id"])), ledger_literal(result_table), ledger_literal(str(use_case_id)),
+              ledger_literal(str(found["run_id"])), "`record_key`", ledger_literal(found.get("kind")),
+              ledger_literal(found.get("currency") or None), ledger_literal(found.get("unit") or None), "NULL",
+              ledger_literal(value), ledger_literal(recorded_by or None)]
+    names = [name for name in LEDGER_NAMES if name != "recorded_at"]
+    columns = ", ".join(f"`{name}`" for name in names + ["recorded_at"])
+    return (f"INSERT INTO {table} ({columns}) SELECT {', '.join(select)}, current_timestamp() FROM {keys} AS batch_keys")
+
+
+def ledger_clear_from_batch_sql(table: str, result_table: str, use_case_id: str, batch_column: str, batch_id: str,
+                                recorded_by: str) -> str:
+    keys = (f"(SELECT DISTINCT `record_key` FROM {table_name(result_table)} WHERE `change_source` = 'action' AND `{batch_column}` = "
+            f"{ledger_literal(str(batch_id))} AND `record_key` IS NOT NULL)")
+    latest = ("SELECT session_id, result_table, use_case_id, run_id, record_key, kind, currency, unit, saved, ROW_NUMBER() OVER "
+              "(PARTITION BY session_id, result_table, use_case_id, record_key ORDER BY recorded_at DESC, run_id DESC) AS rn "
+              f"FROM {table} WHERE result_table = {ledger_literal(result_table)} AND use_case_id = {ledger_literal(str(use_case_id))} "
+              "AND record_key IS NOT NULL")
+    counted = (f"(SELECT session_id, result_table, use_case_id, run_id, record_key, kind, currency, unit FROM ({latest}) latest "
+               "WHERE rn = 1 AND saved IS NOT NULL)")
+    names = [name for name in LEDGER_NAMES if name != "recorded_at"]
+    columns = ", ".join(f"`{name}`" for name in names + ["recorded_at"])
+    select = ("c.session_id, c.result_table, c.use_case_id, c.run_id, c.record_key, c.kind, c.currency, c.unit, NULL, NULL, "
+              f"{ledger_literal(recorded_by or None)}")
+    return (f"INSERT INTO {table} ({columns}) SELECT {select}, current_timestamp() FROM {counted} AS c "
+            f"JOIN {keys} AS k ON k.`record_key` = c.record_key")
+
+
+def ledger_latest_stake_sql(table: str, result_table: str, use_case_id: str) -> str:
+    return (f"SELECT session_id, run_id, kind, currency, unit FROM {table} WHERE result_table = {ledger_literal(result_table)} "
+            f"AND use_case_id = {ledger_literal(use_case_id)} AND record_key IS NULL ORDER BY recorded_at DESC LIMIT 1")
+
+
+GO_LIVE_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
+def ledger_saved_since_sql(table: str, result_table: str, use_case_id: str, since: str) -> str:
+    if not GO_LIVE_TIME.match(str(since or "")):
+        raise ValueError("the go-live time is an ISO timestamp such as 2026-11-10T20:00:00Z")
+    latest = ("SELECT kind, currency, unit, saved, ROW_NUMBER() OVER (PARTITION BY session_id, result_table, use_case_id, record_key "
+              "ORDER BY recorded_at DESC, run_id DESC) AS rn "
+              f"FROM {table} WHERE result_table = {ledger_literal(result_table)} AND use_case_id = {ledger_literal(str(use_case_id))} "
+              f"AND record_key IS NOT NULL AND recorded_at >= CAST({ledger_literal(since)} AS TIMESTAMP)")
+    return ("SELECT kind, currency, unit, CAST(SUM(saved) AS DOUBLE) AS amount, CAST(COUNT(*) AS INT) AS records "
+            f"FROM ({latest}) latest WHERE rn = 1 AND saved IS NOT NULL GROUP BY kind, currency, unit")
+
+
+def rebuild_action(what: str, first: bool = False, page: str = "the Build page") -> str:
+    text = f"build {what} again with Vibe/Add/Remove Features on {page}"
+    return text[:1].upper() + text[1:] if first else text

@@ -6,6 +6,7 @@ import { Icon } from './icons.jsx';
 import { PlainNote, Skeleton } from './ui.jsx';
 import { formatValue, integer, numberOf } from './format.js';
 import './styles/plan.css';
+import { SectionHelp } from './SectionHelp.jsx';
 
 export function usePlans(pageId, load = getPlans) {
   const [state, setState] = useState({ data: null, error: '', scope: '' });
@@ -26,7 +27,7 @@ export function ConstraintBars({ rows, error, onRetry = null }) {
   if (!rows?.length) return null;
   return (
     <section className="card plan-limits" aria-label="Limits the plan uses" data-constraints>
-      <header className="card-h"><div><h2>Limits the plan uses</h2><p>The bar is what the plan uses; the line is the limit. Red means the limit is fully used.</p></div></header>
+      <header className="card-h"><div><h2>Limits the plan uses</h2><p>The bar is what the plan uses; the line is the limit. Red means the limit is fully used.</p></div><SectionHelp title={'Limits the plan uses'} steps={[{ title: 'Limits the plan uses', text: "The limits this plan works within: the bar is what the plan uses, the line is the limit, and red means the limit is full." }]} /></header>
       <ul>
         {rows.map((r) => {
           const limit = numberOf(r.limit);

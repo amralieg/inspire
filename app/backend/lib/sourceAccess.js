@@ -33,6 +33,14 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     }
   }
 
+  function noSignInOffer(tables, who) {
+    const count = tables.length === 1 ? 'a source table' : `${tables.length} source tables`;
+    const app = who.name && who.name !== who.id ? `${who.name} (application id ${who.id})` : `with application id ${who.id}`;
+    return { tables, app: { name: who.name, id: who.id }, grants: [], can_grant: false, builtin: [],
+      text: `The App service principal ${app} cannot read ${count}, so the build cannot check that its results keep the access rules. `
+        + 'Sign in and build again, or ask the table owner to grant the App read access' };
+  }
+
   async function sourceAccess(req, warehouseId, tables, job = 'build') {
     const app = await appTokenOf(req);
     const probes = await Promise.all(tables.map((table) => sqlRows(req.dbHost, app, warehouseId, I.tableProbeStatement(table))
@@ -43,10 +51,24 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
       })));
     const lost = probes.filter(Boolean);
     const person = P.personTokenOf(req);
-    const policyLost = (await Promise.all(tables
-      .filter((t) => lost.every((m) => m.table !== t))
-      .map(async (t) => ((await abacUnreadable(req, app, t)) ? t : null)))).filter(Boolean);
-    if ((!lost.length && !policyLost.length) || !person || person === app) return { missing: lost, app_unreadable: null };
+    const policyLost = (await Promise.all(tables.map(async (t) => ((await abacUnreadable(req, app, t)) ? t : null)))).filter(Boolean);
+    const personPolicyLost = person && person !== app
+      ? (await Promise.all(tables.map(async (t) => ((await abacUnreadable(req, person, t)) ? t : null)))).filter(Boolean)
+      : [];
+    if (personPolicyLost.length) {
+      const label = (await appIdentity(req, person)).name;
+      const builtIn = personPolicyLost.filter((t) => I.builtInSampleTable(t));
+      const others = personPolicyLost.filter((t) => !builtIn.includes(t));
+      const text = [others.length ? I.abacUnreadableSentence(label) : '', builtIn.length ? I.builtInSampleMessage(builtIn) : ''].filter(Boolean).join('. ');
+      return { missing: lost, app_unreadable: { tables: personPolicyLost, app: { name: '', id: '' }, grants: [], can_grant: false,
+        builtin: builtIn, text } };
+    }
+    if (!lost.length && !policyLost.length) return { missing: [], app_unreadable: null };
+    if (!person || person === app) {
+      if (!policyLost.length) return { missing: lost, app_unreadable: null };
+      const who = await appIdentity(req, app);
+      return { missing: lost, app_unreadable: noSignInOffer(policyLost, who) };
+    }
     const readable = await Promise.all(lost.map((m) => sqlRows(req.dbHost, person, warehouseId, I.tableProbeStatement(m.table))
       .then(() => true).catch(() => false)));
     const appOnly = [...lost.filter((_m, i) => readable[i]).map((m) => m.table), ...policyLost];
@@ -61,7 +83,8 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     }
     const rows = await Promise.all(grantable.map((t) => accessRowsOf(req, person, warehouseId, t)));
     const offer = I.appReadGrantsOffer(grantable, grantable.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs: I.IMPLEMENT_SOURCE_NEEDS })), who);
-    const text = I.appUnreadableMessage(offer, job) + (builtIn.length ? `. ${I.builtInSampleMessage(builtIn)}` : '');
+    const policy = policyLost.length ? `${I.abacUnreadableSentence(who.name || who.id, { app: true })}. ` : '';
+    const text = policy + I.appUnreadableMessage(offer, job) + (builtIn.length ? `. ${I.builtInSampleMessage(builtIn)}` : '');
     return { missing, app_unreadable: { ...offer, builtin: builtIn, text } };
   }
 

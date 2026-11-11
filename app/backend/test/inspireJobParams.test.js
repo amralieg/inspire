@@ -109,7 +109,7 @@ test('widget keys follow the notebook order with the two v1.3.0 keys in their sl
   assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.indexOf('10_strategic_context'), INSPIRE_NOTEBOOK_WIDGET_KEYS.indexOf('09_generation_options') + 1);
   const { IMPLEMENT_USE_CASE_PARAM, IMPLEMENT_SPEC_VERSION_PARAM } = require('../lib/inspireImplement');
   assert.deepEqual(INSPIRE_NOTEBOOK_WIDGET_KEYS.slice(-3), ['16_best_of_best_count', IMPLEMENT_USE_CASE_PARAM, IMPLEMENT_SPEC_VERSION_PARAM]);
-  assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.length, 19);
+  assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.length, 20, 'the table scope widget is one more key');
 });
 
 test('the implement run id reaches the job but is not a notebook widget, so a forked run never copies it', () => {
@@ -279,23 +279,23 @@ test('every job the App launches carries the agent version tag, whatever its run
 test('several use cases share one tag, deduplicated, and a list that does not fit keeps whole ids with the full count', () => {
   const { inspireJobTags } = require('../lib/inspireJobParams');
   const two = inspireJobTags({ runType: 'genie_regen', params: { '14_session_id': '42' }, useCaseIds: ['N01-U01', 'N01-U02', 'N01-U01', ' ', null] });
-  assert.equal(two.dbx_inspire_ai_usecase_id, 'N01-U01 N01-U02');
+  assert.equal(two.dbx_inspire_ai_usecase_id, 'N01-U01,N01-U02');
   assert.equal(two.dbx_inspire_ai_usecases, '2');
   const many = Array.from({ length: 40 }, (_, i) => `N${String(i).padStart(2, '0')}-U01`);
   const capped = inspireJobTags({ runType: 'genie_regen', params: {}, useCaseIds: many });
   assert.ok(capped.dbx_inspire_ai_usecase_id.length <= 255);
-  assert.deepEqual(capped.dbx_inspire_ai_usecase_id.split(' '), many.slice(0, capped.dbx_inspire_ai_usecase_id.split(' ').length));
-  assert.ok(capped.dbx_inspire_ai_usecase_id.split(' ').length < 40);
+  assert.deepEqual(capped.dbx_inspire_ai_usecase_id.split(','), many.slice(0, capped.dbx_inspire_ai_usecase_id.split(',').length));
+  assert.ok(capped.dbx_inspire_ai_usecase_id.split(',').length < 40);
   assert.equal(capped.dbx_inspire_ai_usecases, '40');
 });
 
 test('tag values are cleaned exactly the way the agent cleans them, and the use case tags are the same on both sides', () => {
   const fs = require('fs');
   const path = require('path');
-  const { inspireJobTags, inspireTagValue } = require('../lib/inspireJobParams');
+  const { inspireJobTags, inspireTagValue, inspireTagValueMax } = require('../lib/inspireJobParams');
   const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'agent', 'tests', 'fixtures', 'implement_change_classes.json'), 'utf8'));
   for (const [raw, cleaned] of fixture.tag_values) assert.equal(inspireTagValue(raw), cleaned, raw);
-  assert.equal(inspireTagValue('x'.repeat(300)).length, 255);
+  assert.equal(inspireTagValue('x'.repeat(300)).length, inspireTagValueMax(), 'no cloud in the test environment: the strictest limit');
   const tags = inspireJobTags({
     runType: 'implement', params: { '14_session_id': '42', inspire_implement_spec_version: '1' }, businessName: 'Acme', notebookFilename: 'nb',
     useCaseIds: ['N01-U01'],
@@ -303,23 +303,52 @@ test('tag values are cleaned exactly the way the agent cleans them, and the use 
   assert.deepEqual(fixture.use_case_tag_keys.filter((key) => !(key in tags)), []);
 });
 
-test('on a GCP workspace every tag value fits the 63 characters GCP allows, and other clouds keep 255', () => {
-  const { inspireJobTags, inspireTagValue, inspireTagValueMax } = require('../lib/inspireJobParams');
-  assert.equal(inspireTagValueMax('1234567890.gcp.example'), 63);
-  assert.equal(inspireTagValueMax('dbc-1.cloud.example'), 255);
-  assert.equal(inspireTagValueMax('adb-1.12.example.net'), 255);
-  assert.equal(inspireTagValueMax(''), 255);
-  const before = process.env.DATABRICKS_HOST;
-  process.env.DATABRICKS_HOST = '1234567890.gcp.example';
+test('the tag value limit follows the cloud the workspace reports in its discovery document: 255 on AWS and Azure, 63 on GCP and when unknown', async () => {
+  const http = require('node:http');
+  const { loadInspireTagCloud, inspireTagCloud, inspireTagValue, inspireTagValueMax, inspireJobTags } = require('../lib/inspireJobParams');
+  let served = null;
+  const discovery = http.createServer((req, res) => {
+    if (req.url !== '/.well-known/databricks-config' || served === null) {
+      res.writeHead(404).end();
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ cloud: served }));
+  });
+  await new Promise((resolve) => discovery.listen(0, '127.0.0.1', resolve));
+  const host = `http://127.0.0.1:${discovery.address().port}`;
+  const useCaseIds = Array.from({ length: 20 }, (_, i) => `N${String(i + 1).padStart(2, '0')}-U01`);
+  const launch = () => inspireJobTags({ runType: 'implement', params: { '14_session_id': '42' }, businessName: 'b'.repeat(90), notebookFilename: 'n'.repeat(90), useCaseIds });
   try {
+    served = 'AWS';
+    assert.equal(await loadInspireTagCloud(host), 'aws');
+    assert.equal(inspireTagCloud(), 'aws');
+    assert.equal(inspireTagValueMax(), 255);
+    assert.equal(inspireTagValue('x'.repeat(300)).length, 255);
+    served = 'AZURE';
+    assert.equal(await loadInspireTagCloud(host), 'azure');
+    assert.equal(inspireTagValueMax(), 255);
+    served = 'GCP';
+    assert.equal(await loadInspireTagCloud(host), 'gcp');
+    assert.equal(inspireTagValueMax(), 63, 'a GCP workspace never takes a 255 value');
     assert.equal(inspireTagValue('x'.repeat(300)).length, 63);
-    const ids = Array.from({ length: 20 }, (_, i) => `N${String(i + 1).padStart(2, '0')}-U01`);
-    const tags = inspireJobTags({ runType: 'implement', params: { '14_session_id': '42' }, businessName: 'b'.repeat(90), notebookFilename: 'n'.repeat(90), useCaseIds: ids });
-    assert.deepEqual(Object.entries(tags).filter(([, value]) => value.length > 63), []);
-    assert.equal(tags.dbx_inspire_ai_usecase_id.split(' ')[0], 'N01-U01');
-    assert.equal(tags.dbx_inspire_ai_usecases, '20');
+    const gcpTags = launch();
+    assert.deepEqual(Object.entries(gcpTags).filter(([, value]) => value.length > 63), []);
+    assert.equal(gcpTags.dbx_inspire_ai_usecase_id.split(',')[0], 'N01-U01');
+    assert.equal(gcpTags.dbx_inspire_ai_usecases, '20');
+    served = 'AWS';
+    await loadInspireTagCloud(host);
+    assert.equal(inspireTagValueMax(), 255, 'a reload reads the workspace again, the GCP limit does not stay behind');
+    served = 'OTHER';
+    assert.equal(await loadInspireTagCloud(host), '', 'a cloud this table does not know takes the strictest limit');
+    assert.equal(inspireTagValueMax(), 63);
+    served = null;
+    assert.equal(await loadInspireTagCloud(host), '', 'a discovery document that is missing takes the strictest limit');
+    assert.equal(inspireTagValueMax(), 63);
+    assert.equal(await loadInspireTagCloud(''), '', 'no host, no cloud, 63');
+    assert.equal(inspireTagValueMax(), 63);
   } finally {
-    if (before === undefined) delete process.env.DATABRICKS_HOST; else process.env.DATABRICKS_HOST = before;
+    await loadInspireTagCloud('');
+    await new Promise((resolve) => discovery.close(resolve));
   }
 });
 
@@ -344,8 +373,9 @@ test('every job the App creates takes its tags from inspireJobTags', () => {
 
 test('every job tag value the App writes meets the Databricks job tag value rule, and the comma list the job refused fails it', () => {
   const { inspireJobTags, inspireJobTestTagChange } = require('../lib/inspireJobParams');
-  const rule = /^[\d \w+\-=.:/@]*$/;
-  for (const old of ['genie,agent_endpoint', 'app,genie,dashboard,alert,agent_endpoint,lakebase']) assert.equal(rule.test(old), false, old);
+  const rule = /^[\w+\-=.,:@]*$/;
+  for (const ok of ['genie,agent_endpoint', 'app,genie,dashboard,alert,agent_endpoint,lakebase']) assert.equal(rule.test(ok), true, ok);
+  for (const bad of ['genie agent_endpoint', 'a/b']) assert.equal(rule.test(bad), false, bad);
   const saved = process.env.INSPIRE_TEST_TAG;
   process.env.INSPIRE_TEST_TAG = 'rc, #1 (try)';
   try {
@@ -378,18 +408,20 @@ test('each resource kind cleans a tag to its own documented rule, and a kind wit
   assert.equal(resourceTagKey('uc', 'inspire.session-id'), 'inspire_session_id');
   assert.equal(resourceTagKey('job', 'k'.repeat(300)).length, 127);
   assert.equal(resourceTagValue('uc', 'main.inspire, x=y'), 'main.inspire, x=y');
-  assert.equal(resourceTagValue('job', 'main.inspire, x=y'), 'main.inspire_ x=y');
+  assert.equal(resourceTagValue('job', 'main.inspire, x=y'), 'main.inspire,_x=y', 'the notebook cleans a job value the same way: a space becomes _');
   assert.equal(resourceTagValue('uc', `${'a'.repeat(255)} b`), 'a'.repeat(255));
   assert.equal(resourceTagKey('uc', 'k'.repeat(300)).length, 256);
   assert.equal(resourceTagKey('job', '_.-_x-._'), 'x');
-  assert.equal(resourceTagValue('job', '  genie agent_endpoint  '), 'genie agent_endpoint');
+  assert.equal(resourceTagValue('job', '  genie agent_endpoint  '), 'genie_agent_endpoint', 'a space is not a job tag value character');
+  assert.equal(resourceTagValue('job', 'genie,agent_endpoint'), 'genie,agent_endpoint', 'a comma is a job tag value character');
   assert.throws(() => resourceTagValue('warehouse', 'x'), /no tag rule for resource kind warehouse/);
 });
 
-test('one list separator: lists join with a space and a reader still takes the older underscore form', () => {
+test('one list separator: lists join with a comma (Databricks job tag values allow it, not a space) and a reader still takes the older space and underscore forms', () => {
   const { inspireTagList, inspireTagListItems, TAG_LIST_SEP } = require('../lib/inspireJobParams');
-  assert.equal(TAG_LIST_SEP, ' ');
-  assert.equal(inspireTagList(['N01-U01', 'N01,U02', 'N01-U01', '']), 'N01-U01 N01_U02');
+  assert.equal(TAG_LIST_SEP, ',');
+  assert.equal(inspireTagList(['N01-U01', 'N01,U02', 'N01-U01', '']), 'N01-U01,N01_U02');
+  assert.deepEqual(inspireTagListItems('N01-U01,N02-U03'), ['N01-U01', 'N02-U03']);
   assert.deepEqual(inspireTagListItems('N01-U01 N02-U03'), ['N01-U01', 'N02-U03']);
   assert.deepEqual(inspireTagListItems('N01-U01_N02-U03', '_'), ['N01-U01', 'N02-U03']);
   assert.deepEqual(inspireTagListItems('genie agent_endpoint'), ['genie', 'agent_endpoint']);

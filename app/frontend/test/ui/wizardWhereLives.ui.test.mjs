@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { APP_BACKEND_GUIDE } from '../../src/lib/implementWizard.js';
+import { PER_USER_GUIDE } from '../../src/lib/implementWizard.js';
 import { closeBrowser, goToStep, openUi, shot } from './uiSupport.mjs';
 
 test.after(closeBrowser);
@@ -24,8 +24,8 @@ test('What to deliver only picks what gets built, Where it lives places the App 
 
     const labels = await stepLabels(page);
     const at = (label) => labels.indexOf(label);
-    assert.ok(at('What to deliver') >= 0 && at('Where it lives') === at('What to deliver') + 1 && at('Who uses the App') === at('Where it lives') + 1,
-      `What to deliver, then Where it lives, then Who uses the App: ${labels.join(' | ')}`);
+    assert.ok(at('What to deliver') === 0 && at('Where it lives') === at('Measure') + 1 && at('Who uses the App') === at('Where it lives') + 1,
+      `What to deliver first, then Where it lives after Measure, then Who uses the App: ${labels.join(' | ')}`);
 
     await goToStep(page, 'Where it lives');
     await page.getByRole('radio', { name: /^One App per use case/ }).waitFor();
@@ -43,8 +43,8 @@ test('What to deliver only picks what gets built, Where it lives places the App 
     const group = storage(page);
     await group.getByRole('status').waitFor({ state: 'detached' });
     await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
-    await group.getByText('Standard pages (Delta)', { exact: true }).waitFor();
-    for (const line of APP_BACKEND_GUIDE) await group.getByText(line, { exact: true }).waitFor();
+    await group.getByText('Delta', { exact: true }).waitFor();
+    await group.getByText(PER_USER_GUIDE, { exact: true }).waitFor();
     await page.setViewportSize({ width: 1280, height: 800 });
     await shot(page, 'storage-choice-1280x800', false);
     assert.deepEqual(ui.pageErrors, []);

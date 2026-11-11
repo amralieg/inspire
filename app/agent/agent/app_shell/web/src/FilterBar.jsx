@@ -2,7 +2,7 @@ import { Suspense, lazy, useEffect, useId, useMemo, useRef, useState } from 'rea
 import { GenieMark, Icon } from './icons.jsx';
 import { Popover, useDebounced } from './ui.jsx';
 import { getFilterOptions } from './api.js';
-import { CHOICES_SHOWN, choicesHint, choosePreset, clearGroups, groupValues, groupsOf, groupsOn, setGroupValues, hasSelections, matching, searchHint, setRangeEdge, setSelection } from './filters.js';
+import { CHOICES_SHOWN, choicesHint, choosePreset, clearGroups, groupedByText, groupValues, groupsOf, groupsOn, setGroupValues, hasSelections, matching, searchHint, setRangeEdge, setSelection } from './filters.js';
 import { DEFAULT_VIEW, OWNER_CHOICES, SHOW_CHOICES, hasReasons, setReason, viewIsDefault } from './hub.js';
 import { AskGenie } from './AskGenie.jsx';
 import { SectionHelp } from './SectionHelp.jsx';
@@ -133,7 +133,7 @@ function controlFields(filters, now, reasons, view) {
 
 const MoreGroups = lazy(() => import('./MoreGroups.jsx'));
 
-export default function FilterBar({ meta, columns, state, onState, pageId, reasons = [], view, onView }) {
+export default function FilterBar({ meta, columns, grouping, state, onState, pageId, reasons = [], view, onView }) {
   const [moreOpen, setMoreOpen] = useState(false);
   if (!meta && !view) return null;
   const filters = meta || [];
@@ -148,6 +148,7 @@ export default function FilterBar({ meta, columns, state, onState, pageId, reaso
       id: g.key, label: g.label, v, drop: () => onState(setGroupValues(now, g, groupValues(now, g).filter((x) => x !== v))),
     }))),
   ];
+  const grouped = groupedByText(grouping);
   const dirty = hasSelections(now) || groupsOn(now, groups) || hasReasons(now) || (view && !viewIsDefault(view));
   const clear = () => {
     if (hasSelections(now) || groupsOn(now, groups) || hasReasons(now)) onState({ ...clearGroups(now), ai: {} });
@@ -181,8 +182,9 @@ export default function FilterBar({ meta, columns, state, onState, pageId, reaso
         <AskGenie kind="controls" title="Filters" context={{ fields: controlFields(filters, now, reasons, view) }} />
         <SectionHelp title="Filters" steps={[{ title: 'Filters', text: helpLine('Pick a date range or a group to narrow every chart, table and list on this page.') }]} />
       </section>
-      {chips.length > 0 && (
+      {(chips.length > 0 || grouped) && (
         <div className="chips">
+          {grouped && <span className="chip chip--grouping" data-grouping>{grouped}</span>}
           {chips.map((c) => (
             <button key={`${c.id}:${c.v}`} className="chip" onClick={c.drop} aria-label={`Remove ${c.label} ${c.v}`}>
               {c.label}: {c.v}<Icon name="x" size={12} />

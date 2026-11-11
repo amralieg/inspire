@@ -4,6 +4,7 @@ import { answerQuality, answersOf, readAnswers, withRatings, writeAnswers } from
 import { dayLabel, integer } from './format.js';
 import { Icon } from './icons.jsx';
 import { ModeEmpty } from './ModeParts.jsx';
+import { SectionHelp } from './SectionHelp.jsx';
 
 function browserStorage() {
   try { return window.localStorage; } catch { return null; }
@@ -31,7 +32,7 @@ function Performance({ app, page }) {
   const q = answerQuality(list);
   return (
     <section className="card mode-quality" data-mode-performance="ask" aria-label="Answer quality">
-      <header className="card-h"><div><h2>Answer quality</h2><p>From the answers you rated in Ask, in this browser.</p></div></header>
+      <header className="card-h"><div><h2>Answer quality</h2><p>From the answers you rated in Ask, in this browser.</p></div><SectionHelp title={'Answer quality'} steps={[{ title: 'Answer quality', text: "Each answer you rated in Ask, marked helpful or not. Use it to see where Genie answers well and where it needs a fix." }]} /></header>
       {!q.rated && <ModeEmpty>Rate Genie&apos;s answers in Ask with Helpful or Not helpful, and the share of helpful answers shows here.</ModeEmpty>}
       {q.rated > 0 && (
         <div className="mode-stats">

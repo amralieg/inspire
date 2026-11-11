@@ -20,7 +20,6 @@ const footerErrors = (page) => page.locator('[role="alert"] p').allTextContents(
 
 async function toDelivery(page) {
   await goToStep(page, 'Data');
-  await dataToResults(page);
   await goToStep(page, 'What to build');
 }
 
@@ -74,6 +73,7 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     await features.locator('label', { hasText: 'Record decisions' })
       .getByText('They own, track and dismiss each flagged record (the action tracker).', { exact: false }).waitFor();
     assert.equal(await features.locator('label', { hasText: 'Let people edit data' }).getByText('action tracker', { exact: false }).count(), 0);
+    await features.locator('summary', { hasText: 'What every App offers' }).click();
     const offers = features.getByRole('note', { name: 'What every App offers' });
     await offers.getByText('Refresh now: only the owners of this use case can run it now, the person who asks for this version and the App owners it names. '
       + 'One refresh runs at a time.', { exact: true }).waitFor();
@@ -84,8 +84,9 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     await goToStep(page, 'App features');
     assert.equal(await features.getByRole('checkbox', { name: /^Record decisions/ }).isChecked(), true, 'per-user keeps record decisions');
     assert.equal(await features.getByRole('checkbox', { name: /^Send alerts/ }).count(), 0, 'per-user hides alerts');
+    await features.locator('details').evaluate((d) => { d.open = true; });
     const hidden = features.getByRole('note', { name: 'Why some options are hidden' });
-    await hidden.getByText(/people record decisions only on the records they can read, and the App sends no alerts and offers no chart image export\.$/).waitFor();
+    await hidden.getByText(/people record decisions only on the records they can read, and the App sends no alerts and offers no chart image export\./).waitFor();
     assert.doesNotMatch(await hidden.textContent(), /download/i);
     await offers.getByText('The App offers no data downloads.', { exact: true }).waitFor();
     const replace = features.getByRole('radiogroup', { name: 'Should a new run replace edited records?' });
@@ -397,7 +398,7 @@ for (const style of ['a', 'b', 'c']) {
   }
 }
 
-test('a shared App reads Lakebase by default when the workspace has it, the default per-user App reads Delta tables, a 403 says why, and a 404 says why with no choice', async () => {
+test('a shared App reads Lakebase by default; a per-user App keeps Fast pages when every filtered table enforces each person to their rows, and reads Delta with the reason when one does not; a 403 says why, and a 404 says why with no choice', async (t) => {
   const probe = (data, status) => ({ me: { userName: OWNER, displayName: 'Owner' }, responses: { 'GET /api/2.0/postgres/projects': [data, status] } });
   const toAccess = async (page) => {
     await toDelivery(page);
@@ -412,36 +413,68 @@ test('a shared App reads Lakebase by default when the workspace has it, the defa
     await startWhenReady(page);
   };
 
-  let ui = await openUi('wizard', probe({ projects: [] }, 200));
-  try {
-    const access = await toAccess(ui.page);
-    const group = choice(access);
-    await group.getByRole('status').waitFor({ state: 'detached' });
-    await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
-    await group.getByText('Standard pages (Delta)', { exact: true }).waitFor();
-    assert.equal(await access.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true, 'the App signs each viewer in with no click');
-    assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'the default per-user App reads Delta tables');
-    await access.getByRole('radio', { name: /^Internal data/ }).check();
-    assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a shared App reads Lakebase by default, with no other click');
-    await access.getByRole('radio', { name: /^Sensitive data/ }).check();
-    assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'a per-user App reads Delta tables');
-    assert.equal(await group.locator('[data-blocked-reason="app-backend"] p').textContent(), LAKEBASE_PER_USER_REASON);
-    assert.doesNotMatch(await group.locator('[data-blocked-reason="app-backend"]').innerText(), /Lakebase|service principal|Delta/, 'the person sees no Lakebase internals in the reason (must-exclude)');
-    await access.getByRole('radio', { name: /^Internal data/ }).check();
-    assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'back to a shared App, Lakebase comes back');
-    await toStart(ui.page);
-    assert.equal(submittedSpec(ui.made).outputs.app_backend, 'lakebase');
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
+  let ui;
+  const filtered = (fn, body) => ({
+    ...probe({ projects: [] }, 200),
+    rowFilters: { 'main.s.orders': { function_name: fn, input_column_names: ['region'] } },
+    responses: { ...probe({ projects: [] }, 200).responses, [`GET /api/2.1/unity-catalog/functions/${fn}`]: [{ routine_definition: body, input_params: { parameters: [{ name: 'region' }] } }, 200] },
+  });
+
+  await t.test('every table enforces each person to their rows (no row filter): a per-user App keeps Fast pages, and a shared App reads Lakebase', async () => {
+    ui = await openUi('wizard', probe({ projects: [] }, 200));
+    try {
+      const access = await toAccess(ui.page);
+      const group = choice(access);
+      await group.getByRole('status').waitFor({ state: 'detached' });
+      await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
+      await group.getByText('Delta', { exact: true }).waitFor();
+      assert.equal(await access.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true, 'the App signs each viewer in with no click');
+      assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a per-user App over tables that enforce each person to their rows keeps Fast pages');
+      await access.getByRole('radio', { name: /^Internal data/ }).check();
+      assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a shared App reads Lakebase by default, with no other click');
+      await access.getByRole('radio', { name: /^Sensitive data/ }).check();
+      await access.getByRole('radio', { name: /^Internal data/ }).check();
+      assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'back to a shared App, Lakebase comes back');
+      await toStart(ui.page);
+      assert.equal(submittedSpec(ui.made).outputs.app_backend, 'lakebase');
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+
+  await t.test('every filtered table enforces each person to their rows (a row filter that maps users to keys): a per-user App keeps Fast pages with no reason', async () => {
+    ui = await openUi('wizard', filtered('main.s.own_rows', 'RETURN exists(select 1 from main.s.region_access r where r.region = region and r.email = current_user())'));
+    try {
+      const access = await toAccess(ui.page);
+      const group = choice(access);
+      await group.getByRole('status').waitFor({ state: 'detached' });
+      assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a per-user App over a row filter that keeps each person to their rows keeps Fast pages');
+      assert.equal(await group.locator('[data-blocked-reason="app-backend"]').count(), 0, 'no reason is shown while Fast pages stay on');
+    } finally {
+      await ui.close();
+    }
+  });
+
+  await t.test('one filtered table does not enforce each person to their rows: a per-user App reads Delta tables and the reason names the table and its row filter', async () => {
+    ui = await openUi('wizard', filtered('main.s.hide', 'SELECT true'));
+    try {
+      const access = await toAccess(ui.page);
+      const group = choice(access);
+      await group.getByRole('status').waitFor({ state: 'detached' });
+      assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'one filtered table that does not enforce each person to their rows reads Delta tables');
+      assert.equal(await group.locator('[data-blocked-reason="app-backend"] p').textContent(), 'Fast pages cannot keep each person to their own rows here: main.s.orders uses Standard pages because the row filter main.s.hide is not a user-to-key mapping table.', 'the reason names the table and its row filter');
+    } finally {
+      await ui.close();
+    }
+  });
 
   ui = await openUi('wizard', probe({ projects: [] }, 200));
   try {
     const access = await toAccess(ui.page);
     await access.getByRole('radio', { name: /^Internal data/ }).check();
     await choice(access).getByRole('status').waitFor({ state: 'detached' });
-    await choice(access).getByText('Standard pages (Delta)', { exact: true }).click();
+    await choice(access).getByText('Delta', { exact: true }).click();
     await toStart(ui.page);
     assert.equal(submittedSpec(ui.made).outputs.app_backend, 'delta', 'a pick of Delta is kept');
   } finally {
@@ -982,7 +1015,7 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
   };
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
-    await onStep(page, 'Use case');
+    await onStep(page, 'What to deliver');
     await fits('0-use-case');
     await readable('use case');
     await goToStep(page, 'Data');
@@ -1006,6 +1039,9 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await goToStep(page, 'Where it lives');
     await placeStep(page).locator('[data-app-target]').first().waitFor();
     await fits('4-where-app');
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await fits('4-where-app-1280x800');
+    await page.setViewportSize({ width: 1440, height: 900 });
     await readable('where');
     await placeStep(page).locator('[data-app-target] input[type="radio"]:not([disabled])').first().check();
     await fits('4-deliver-app-joining');
@@ -1200,7 +1236,7 @@ test('the App reads and saves with the SQL warehouse picked on App access, label
       ['Shared SQL (RUNNING) · used for the build', 'Finance SQL (STOPPED)', 'Ops SQL (RUNNING)']);
     const buildNote = field.getByText("Dashboards and alerts Inspire builds keep using the build's SQL warehouse, Shared SQL (RUNNING).", { exact: true });
     assert.equal(await buildNote.count(), 0, 'on the build warehouse the option itself says so');
-    await access.getByText('Standard pages (Delta)', { exact: true }).click();
+    await access.getByText('Delta', { exact: true }).click();
     assert.equal(await field.locator('label span').first().textContent(), DELTA_LABEL);
     await select.selectOption('wh2');
     await buildNote.waitFor();

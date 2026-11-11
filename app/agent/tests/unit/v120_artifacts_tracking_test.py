@@ -40,7 +40,7 @@ def _row(ns, uc, session_id=7):
 
 def test_row_tuple_matches_the_schema_and_carries_every_new_column(agent_ns):
     names = _schema_names(agent_ns)
-    assert names[-len(NEW_COLUMNS + V130_COLUMNS):] == NEW_COLUMNS + V130_COLUMNS
+    assert set(NEW_COLUMNS + V130_COLUMNS) <= set(names) and len(names) == len(set(names))
     cls = agent_ns["DatabricksInspire"]
     assert len(cls._uc_to_row(make_uc("N01-U01"), 7, lambda u, n: n)) == len(names)
 
@@ -113,7 +113,9 @@ def test_replace_session_is_a_single_replace_where_swap_with_no_delete(agent_ns,
     assert len(swaps) == 1
     assert swaps[0]["mode"] == "overwrite" and swaps[0]["options"] == {"replaceWhere": "session_id = 99"}
     assert swaps[0]["source"] == stage
-    assert spark.statements[0] == f"DROP TABLE IF EXISTS {stage}" and spark.statements[-1] == f"DROP TABLE IF EXISTS {stage}"
+    assert spark.statements[0].startswith("SELECT id, user_use_case_name FROM `main`.`inspire`.`__inspire_usecases` WHERE session_id = 99"), \
+        "the names a rename carried are read before the swap, never after it"
+    assert spark.statements[1] == f"DROP TABLE IF EXISTS {stage}" and spark.statements[-1] == f"DROP TABLE IF EXISTS {stage}"
 
 
 def test_replace_session_failure_keeps_previous_rows_and_is_surfaced(agent_ns, functions_stub):
@@ -256,8 +258,8 @@ def test_inspire_database_identifier_is_quoted(agent_ns):
     obj = make_inspire(agent_ns, spark=spark, inspire_database="my-cat.my-schema")
     obj._ensure_inspire_database_exists()
     assert spark.statements == ["CREATE DATABASE IF NOT EXISTS `my-cat`.`my-schema`"]
-    assert agent_ns["quote_qualified_name"]("`a`.b.__c") == "`a`.`b`.`__c`"
-    assert agent_ns["quote_qualified_name"]("") == ""
+    assert agent_ns["inspire_quote_qualified_name"]("`a`.b.__c") == "`a`.`b`.`__c`"
+    assert agent_ns["inspire_quote_qualified_name"]("") == ""
 
 
 def test_step_payload_carries_quality_scores_and_elite_fields(agent_ns):

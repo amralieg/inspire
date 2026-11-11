@@ -1,3 +1,4 @@
+import contextvars
 import datetime
 import json
 import random
@@ -148,13 +149,34 @@ def rows_of(manifest: dict, chunks: list, limit: int) -> dict:
     return {"columns": columns, "rows": rows, "truncated": truncated}
 
 
+QUERY_TAG_APP = "dbx_inspire_ai_app_name"
+
+
+def app_query_tags(app_name) -> list:
+    name = " ".join(str(app_name or "").split())[:128]
+    return [{"key": QUERY_TAG_APP, "value": name}] if name else []
+
+
+QUERY_USE_CASE = contextvars.ContextVar("inspire_query_use_case", default="")
+
+
+def use_case_query_tags(use_case_id) -> list:
+    value = " ".join(str(use_case_id or "").split())[:128]
+    return [{"key": "dbx_inspire_ai_usecase_id", "value": value}] if value else []
+
+
+def submit_in_request(pool, fn, *args):
+    return pool.submit(contextvars.copy_context().run, fn, *args)
+
+
 class Workspace:
-    def __init__(self, host: str, auth_headers, session=None, sleep=time.sleep, clock=time.time):
+    def __init__(self, host: str, auth_headers, session=None, sleep=time.sleep, clock=time.time, query_tags=None):
         self.host = normalize_host(host)
         self.secrets = (self.host, urllib.parse.urlsplit(self.host).netloc)
         self.auth_headers = auth_headers
         self.sleep, self.clock = sleep, clock
         self.blocked = ()
+        self.query_tags = list(query_tags or [])
         if session is None:
             import requests
             session = requests.Session()
@@ -202,9 +224,13 @@ class Workspace:
                 self.sleep(conflict_delay(attempt))
 
     def _run_once(self, warehouse_id: str, statement: str, parameters, limit: int, deadline_s: int, started: float) -> dict:
-        response = self.call("POST", "/api/2.0/sql/statements", {
+        body = {
             "statement": statement, "warehouse_id": warehouse_id, "parameters": parameters or [], "wait_timeout": "30s",
-            "on_wait_timeout": "CONTINUE", "disposition": "INLINE", "format": "JSON_ARRAY", "row_limit": limit + 1})
+            "on_wait_timeout": "CONTINUE", "disposition": "INLINE", "format": "JSON_ARRAY", "row_limit": limit + 1}
+        tags = self.query_tags + use_case_query_tags(QUERY_USE_CASE.get())
+        if tags:
+            body["query_tags"] = tags
+        response = self.call("POST", "/api/2.0/sql/statements", body)
         statement_id = response.get("statement_id")
         while str((response.get("status") or {}).get("state")) not in TERMINAL:
             if self.clock() - started > deadline_s:

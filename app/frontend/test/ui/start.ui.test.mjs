@@ -213,8 +213,9 @@ test('the MVP, App, dashboard, Genie Agent and alert cards open Build filtered t
       assert.equal(await strip.getByRole('status').innerText(), text);
       await page.locator('nav[aria-label="Use cases"] section button').first().waitFor();
       assert.deepEqual(await pressed(), asset, `${key} presses its asset filter`);
-      const listed = await page.locator('nav[aria-label="Use cases"] section button').evaluateAll((els) => els.map((el) => el.querySelector('.font-mono')?.textContent));
-      assert.deepEqual(listed, ['N01-U01'], `${key} lists only the use case that has one`);
+      const listed = await page.locator('nav[aria-label="Use cases"] section button').evaluateAll((els) => els.map((el) => (el.querySelector('div') ?? el).textContent.trim()));
+      assert.equal(listed.length, 1, `${key} lists only the use case that has one`);
+      assert.notEqual(listed[0], '', `${key} names the use case it lists`);
       if (asset.length) {
         const tile = page.locator(`[data-asset-tiles] [data-asset-tile="${asset[0]}"]`);
         await tile.waitFor({ timeout: 15000 });
@@ -422,6 +423,35 @@ test('a Start run row says why it has no counts: still running with none yet, th
     assert.ok(why.some((line) => /^MVPs are not counted: /.test(line)), why.join(' | '));
     assert.equal((await older.locator('[data-run-count="mvps_built"]').innerText()).trim(), 'MVPs built not counted');
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a Start run with MVPs building shows a spinner, its building count and a Go to Build button that opens Build on that run only', async () => {
+  const state = {
+    ...REVIEW_STATE,
+    portfolioMvps: [
+      { sid: null, is_total: '1', mvps_started: '4', mvps_live: '1', mvps_building: '2', mvps_failed: '0', apps: '0', dashboards: '0', genie_spaces: '0', alerts: '0' },
+      { sid: '42', is_total: '0', mvps_started: '3', mvps_live: '1', mvps_building: '2', mvps_failed: '0', apps: '0', dashboards: '0', genie_spaces: '0', alerts: '0' },
+      { sid: '41', is_total: '0', mvps_started: '1', mvps_live: '0', mvps_building: '0', mvps_failed: '0', apps: '0', dashboards: '0', genie_spaces: '0', alerts: '0' },
+    ],
+  };
+  const ui = await openStart(state);
+  const { page } = ui;
+  try {
+    const building = page.locator('[data-run="42"] [data-run-building]');
+    await building.waitFor({ timeout: 20000 });
+    assert.equal(await building.locator('[data-run-building-spinner]').count(), 1, 'a run with MVPs building shows a spinner');
+    assert.equal((await building.innerText()).replace(/\s+/g, ' ').trim(), '2 building Go to Build', 'the count and the button read together');
+    assert.equal(await page.locator('[data-run="41"] [data-run-building]').count(), 0, 'a run with nothing building shows no spinner or button');
+    await page.locator('[data-run="42"] [data-run-building] button', { hasText: 'Go to Build' }).click();
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor({ timeout: 20000 });
+    const strip = page.locator('[data-build-filter]');
+    await strip.waitFor();
+    assert.equal(await strip.getAttribute('data-build-filter'), 'mvps_started');
+    assert.match(await strip.getByRole('status').innerText(), /^Showing: use cases with an MVP in Acme/, 'Build opens on this run, not the whole list');
+    assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }

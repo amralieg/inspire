@@ -76,7 +76,7 @@ async function openKindsDemo() {
 
 async function openMvpFromBuild(page, settle, u) {
   await tabButton(page, 'implement').click();
-  const item = page.locator('nav[aria-label="Use cases"] section button').filter({ hasText: u.no });
+  const item = page.locator('nav[aria-label="Use cases"] section button').filter({ hasText: u.name });
   await item.first().waitFor({ timeout: 60000 });
   await item.first().click();
   await settle();
@@ -350,7 +350,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     const line = (key) => plan().locator(`tr[data-plan-row="${key}"]`);
     const takeAll = () => plan().locator('[data-take-all]');
     assert.equal((await takeAll().innerText()).trim(), `Take all ${keys.length} ★ suggestions`);
-    const counter = () => frame.locator('[data-todo-count]');
+    const counter = () => plan().locator('[data-todo-count]');
     const total = Number((await counter().innerText()).match(/of (\d+) waiting/)[1]);
     assert.equal(total, keys.length, 'the counter counts the plan lines');
     const waits = (n) => until(async () => (await counter().innerText()).trim() === `${n} of ${total} waiting for you`, `${n} of ${total} waiting`);

@@ -402,7 +402,7 @@ def test_the_closes_stay_a_statement_of_their_own_when_the_rows_cannot_carry_the
 
 
 class DeltaOnlyLakebase:
-    def run(self, sql, params, limit, queued=False):
+    def run(self, sql, params, limit, queued=False, viewer=""):
         raise shell_core.shell_pg.NotHeld("main.ops.loss_desk_out")
 
     def noted(self, text):

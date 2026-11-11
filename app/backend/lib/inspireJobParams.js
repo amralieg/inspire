@@ -1,5 +1,6 @@
 const { parseExactJson } = require('./exactJson');
 const { parseStrategicContext, validateStrategy } = require('../../frontend/src/lib/strategyContext.js');
+const { scopesFromObject, serializeTableScopes, scopeKeyOf } = require('../../frontend/src/lib/tableScope.js');
 
 const INSPIRE_AGENT_VERSION = 'v1.5.1';
 const INSPIRE_ENVIRONMENT_KEY = 'Default';
@@ -23,13 +24,15 @@ const INSPIRE_NOTEBOOK_WIDGET_KEYS = [
   '12_documents_languages',
   '13_generate_genie_code_for',
   '14_session_id',
+  '17_table_scope',
   '16_best_of_best_count',
   'inspire_implement_use_case',
   'inspire_implement_spec_version',
 ];
 
 const IMPLEMENT_RUN_ID_PARAM = 'inspire_implement_run_id';
-const INSPIRE_JOB_ONLY_PARAM_KEYS = [IMPLEMENT_RUN_ID_PARAM];
+const IMPLEMENT_INSPIRE_CLIENT_PARAM = 'inspire_app_client_id';
+const INSPIRE_JOB_ONLY_PARAM_KEYS = [IMPLEMENT_RUN_ID_PARAM, IMPLEMENT_INSPIRE_CLIENT_PARAM];
 const INSPIRE_ASSETS_PARAM = 'inspire_assets_path';
 const INSPIRE_TEST_TAG = 'dbx_inspire_ai_test';
 
@@ -140,6 +143,37 @@ function validateBestOfBestCountParams(params) {
   return params;
 }
 
+function parseTableScopeText(text) {
+  const source = String(text ?? '').trim();
+  if (!source) return { scopes: {}, problems: [] };
+  let parsed;
+  try {
+    parsed = JSON.parse(source);
+  } catch {
+    return { scopes: {}, problems: ['The table scope is not valid JSON.'] };
+  }
+  return scopesFromObject(parsed);
+}
+
+function validateTableScopeParams(params) {
+  const { scopes, problems } = parseTableScopeText(params['17_table_scope']);
+  if (problems.length) throw paramError(`Table scope: ${problems.join(' ')}`);
+  const uncovered = Object.keys(scopes).filter((table) => !tableIsPicked(table, params['01_uc_metadata']));
+  if (uncovered.length) {
+    throw paramError(`Table scope names ${uncovered.join(', ')}, which ${uncovered.length === 1 ? 'is' : 'are'} not picked under Unity Catalog Metadata.`);
+  }
+  const text = serializeTableScopes(scopes, Object.keys(scopes));
+  if (text) params['17_table_scope'] = text;
+  else delete params['17_table_scope'];
+  return params;
+}
+
+function tableIsPicked(table, metadata) {
+  const picked = new Set(String(metadata || '').split(',').map(scopeKeyOf).filter(Boolean));
+  const parts = scopeKeyOf(table).split('.');
+  return [parts.join('.'), parts.slice(0, 2).join('.'), parts[0]].some((name) => picked.has(name));
+}
+
 function normalizeGenerationOptionsParams(params) {
   const allowed = new Set(['PDF Catalog', 'Presentation']);
   const normalized = String(params['09_generation_options'] || '')
@@ -158,6 +192,7 @@ function sanitizeInspireNotebookJobParams(params) {
   normalizeDiscoveryTypeParams(params);
   validateStrategicContextParams(params);
   validateBestOfBestCountParams(params);
+  validateTableScopeParams(params);
   const out = {};
   for (const k of [...INSPIRE_NOTEBOOK_WIDGET_KEYS, ...INSPIRE_JOB_ONLY_PARAM_KEYS]) {
     if (!Object.prototype.hasOwnProperty.call(params, k)) continue;
@@ -208,16 +243,38 @@ function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateT
   return sanitizeInspireNotebookJobParams(raw);
 }
 
-const INSPIRE_TAG_VALUE_MAX = 255;
-const INSPIRE_GCP_TAG_VALUE_MAX = 63;
+const TAG_KEY_MAX = 127;
+const TAG_CLOUD_VALUE_MAX = { aws: 255, azure: 255, gcp: 63 };
+const TAG_UNKNOWN_VALUE_MAX = 63;
+const TAG_CLOUD_DISCOVERY_TIMEOUT_MS = 5000;
+let tagCloud = '';
 
-function inspireTagValueMax(host = process.env.DATABRICKS_HOST) {
-  return /\.gcp\./i.test(String(host || '')) ? INSPIRE_GCP_TAG_VALUE_MAX : INSPIRE_TAG_VALUE_MAX;
+async function loadInspireTagCloud(host, fetchImpl = fetch) {
+  tagCloud = '';
+  const base = String(host || '').trim().replace(/\/+$/, '');
+  if (!base) return tagCloud;
+  try {
+    const resp = await fetchImpl(`${base}/.well-known/databricks-config`, { signal: AbortSignal.timeout(TAG_CLOUD_DISCOVERY_TIMEOUT_MS) });
+    if (!resp.ok) return tagCloud;
+    const cloud = String((await resp.json()).cloud || '').trim().toLowerCase();
+    if (Object.hasOwn(TAG_CLOUD_VALUE_MAX, cloud)) tagCloud = cloud;
+  } catch {
+    tagCloud = '';
+  }
+  return tagCloud;
 }
-const TAG_LIST_SEP = ' ';
-const TAG_ITEM_BAD = /[^A-Za-z0-9+=.:/@_-]/g;
+
+function inspireTagCloud() {
+  return tagCloud;
+}
+
+function inspireTagValueMax() {
+  return TAG_CLOUD_VALUE_MAX[tagCloud] ?? TAG_UNKNOWN_VALUE_MAX;
+}
+const TAG_LIST_SEP = ',';
+const TAG_ITEM_BAD = /[^A-Za-z0-9+=.:@_-]/g;
 const RESOURCE_TAG_RULES = {
-  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: 127, value: /^[\d \w+\-=.:/@]*$/, valueBad: /[^A-Za-z0-9 +=.:/@_-]/g, get valueMax() { return inspireTagValueMax(); } },
+  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: TAG_KEY_MAX, value: /^[\w+\-=.,:@]*$/, valueBad: /[^A-Za-z0-9+=.,:@_-]/g, get valueMax() { return inspireTagValueMax(); } },
   uc: { keyBad: /[^A-Za-z0-9_]/g, keyMax: 256, value: /^[\s\S]*$/, valueBad: null, valueMax: 256 },
 };
 
@@ -255,7 +312,7 @@ function inspireTagList(items) {
 }
 
 function inspireTagListItems(value, legacySep = '') {
-  const items = String(value ?? '').split(/\s+/).filter(Boolean);
+  const items = String(value ?? '').split(/[\s,]+/).filter(Boolean);
   return legacySep ? items.flatMap((item) => item.split(legacySep)).filter(Boolean) : items;
 }
 
@@ -409,6 +466,7 @@ function normalizeV130UseCaseFields(row) {
 
 module.exports = {
   INSPIRE_AGENT_VERSION,
+  parseTableScopeText,
   INSPIRE_ENVIRONMENT_VERSION,
   INSPIRE_NOTEBOOK_WIDGET_KEYS,
   IMPLEMENT_RUN_ID_PARAM,
@@ -428,6 +486,8 @@ module.exports = {
   buildDemoInspireDiscoveryParams,
   inspireTagValue,
   inspireTagValueMax,
+  inspireTagCloud,
+  loadInspireTagCloud,
   inspireTagList,
   inspireTagListItems,
   resourceTagKey,
@@ -449,6 +509,7 @@ module.exports = {
   normalizeDiscoveryTypeParams,
   validateStrategicContextParams,
   validateBestOfBestCountParams,
+  validateTableScopeParams,
   parseMaybeJson,
   belowBarLabelFromUseCase,
   V130_JSON_FIELDS,

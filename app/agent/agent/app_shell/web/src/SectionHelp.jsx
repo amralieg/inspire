@@ -11,7 +11,7 @@ export function SectionHelp({ title, steps }) {
     <button type="button" className="help-q" aria-label={`Help: what to do in ${title}`} title="What to do here" data-section-help
       onClick={(event) => {
         const button = event.currentTarget;
-        const el = button.closest('.card, .fold-s') || button;
+        const el = button.closest('.card, .fold-s, .set-group') || button;
         start({ title, steps: steps.map((s) => ({ ...s, el })) });
       }}>?</button>
   );

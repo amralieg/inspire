@@ -2,6 +2,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Loader2, NotebookPen, X, ChevronLeft, ChevronRight, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
 import BodyPortal from '../components/BodyPortal';
 import VibesEditor, { VibePrevious } from '../components/VibesEditor';
+import { MoneyRuleEditor } from '../components/MoneyRuleEditor.jsx';
 import SourceTables from '../components/SourceTables';
 import TabStrip, { tabPanel } from '../components/TabStrip';
 import AppSample, { paletteVars, pv } from '../components/AppSample';
@@ -217,7 +218,13 @@ import {
   CHANGE_LABEL,
   builtSentence,
   DELIVERY_QUESTION,
+  resultTableProblems,
+  REBUILD_AS_IS_NOTE,
+  rebuildNeedsChoice,
   APP_BACKEND_GUIDE,
+  PER_USER_GUIDE,
+  MEASURE_LABEL,
+  withMoneyRule,
   BUILD_IT_LABEL,
   BACK_TO_SUMMARY,
   SUMMARY_STEP,
@@ -238,7 +245,7 @@ import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 import { placeholderWords } from '../lib/placeholderWords';
 import {
   KPI_CHANGE_NOTE, KPI_INSPIRE_PICKS, KPI_NONE_YET, KPI_PICK_RULE, kpiKey, kpiOptionLabel, kpiTargetOf, kpiTargetOptions, kpiTargetProblems, trackedKpiOf,
-  trackedKpiText, withKpiTarget,
+  stakeWords, trackedKpiText, withKpiTarget,
 } from '../lib/targetKpi';
 import {
   SETTINGS_ON_THEIR_STEP, isSettingWidget, settingsModelOf, withSetting,
@@ -246,6 +253,7 @@ import {
 import ScopeSettings, { GroupingChosen } from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, useScopeProfiles } from '../lib/groupingProfile';
+import { tableScopeSummary } from '../lib/tableScope';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
   FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
@@ -457,6 +465,7 @@ export default function ImplementWizard({
   const [look, setLook] = useState(null);
   const [lookError, setLookError] = useState('');
   const [lakebase, setLakebase] = useState(null);
+  const [rebuildAsIs, setRebuildAsIs] = useState(false);
   const [warehouses, setWarehouses] = useState(null);
   const [warehousesError, setWarehousesError] = useState('');
   const [catalogs, setCatalogs] = useState(null);
@@ -481,6 +490,7 @@ export default function ImplementWizard({
   const appNameTyped = useRef(false);
   const [appRenamed, setAppRenamed] = useState(null);
   const [lastNameShown, setLastNameShown] = useState(false);
+  const [appNameRefusal, setAppNameRefusal] = useState(null);
   const [placeSet, setPlaceSet] = useState('');
   const [draftBack, setDraftBack] = useState(false);
   const draftStamp = useRef('');
@@ -510,12 +520,15 @@ export default function ImplementWizard({
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
   const shows = (panel) => steps[stepIndex].panels.includes(panel);
+  const resultsOn = shows('results');
   useEffect(() => {
     if (!context || !scopeSteps.grouping || context.latest || groupingDefaulted.current) return;
     groupingDefaulted.current = true;
     setSpec((prev) => withProfileDefaults(prev, scopeProfile.profile, withGroupingDefault));
   }, [scopeSteps.grouping, context, scopeProfile.profile]);
   const lastStep = stepIndex === steps.length - 1;
+  const scopeReady = scopeProfile.state !== 'loading';
+  const totalSteps = useMemo(() => steps.length, [scopeReady, Boolean(spec.outputs.app)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const q = useMemo(() => {
     const p = new URLSearchParams({
@@ -734,6 +747,7 @@ export default function ImplementWizard({
     try {
       const got = await apiPostJson(`/api/inspire/implement/grant-access?${q}&${new URLSearchParams({ kind: 'new_apps', table: spec.config.result_table }).toString()}`, {});
       setOutputCheck(await apiFetch(outputCheckPath()));
+      setGrantRound((n) => n + 1);
       setNewAppsGrant({ text: got.detail, ran: got.ran || [] });
     } catch (e) {
       setNewAppsGrant({ text: e.message, ran: [] });
@@ -774,7 +788,7 @@ export default function ImplementWizard({
           setReadiness({ ...counted, scope, warning });
         }
       }
-      if (stepId === 'results' && resultPlace === 'own') {
+      if (resultsOn && resultPlace === 'own') {
         const own = resultTableParts(ownTable);
         setSchemaJob({ state: 'running', text: `Creating the use case schema ${own.catalog}.${own.schema} in the background. You can keep going; Build waits for it.` });
         apiPostJson(`/api/inspire/implement/create-schema?${q}`, {
@@ -793,7 +807,7 @@ export default function ImplementWizard({
           setOutputCheck(null);
           setSchemaJob({ state: 'failed', text: `${ownSchemaFallbackNote(own.catalog, context?.me?.username)} (${e.message})` });
         });
-      } else if (stepId === 'results') {
+      } else if (resultsOn) {
         setChecking('Checking you can write the result table');
         const check = await apiFetch(outputCheckPath()).catch((e) => {
           if (checkCallRefused(e)) throw e;
@@ -832,18 +846,18 @@ export default function ImplementWizard({
   const sentScope = withGroupingDefault(scopeValues((name) => runs?.[name]), scopeProfile.profile, runs?.[GROUP_BY]);
   const specKey = JSON.stringify(sent);
   const ownErrorsKey = ownErrors.join('|');
-  const buildStep = mode === 'mvp' && stepIndex > 0;
+  const buildStep = mode === 'mvp';
   const appBlocked = Boolean(appUnreadable);
   const planReady = steps.filter((s) => BUILD_STEP_IDS.includes(s.id)).every((s) => !stepErrors(s.id, spec, extras, mode).length);
   useEffect(() => {
-    if (!buildStep) return undefined;
+    if (!buildStep || resultTableProblems(spec.config.result_table).length) return undefined;
     let cancelled = false;
     setChecksBusy(true);
     // The verdict of the previous spec is dropped now, so no check result shows while this one runs.
     setPreflight(null);
     setPreflightError('');
     const timer = setTimeout(async () => {
-      const planNow = !ownErrorsKey && planReady && !appBlocked;
+      const planNow = lastStep && !ownErrorsKey && planReady && !appBlocked;
       const mergeApp = spec.outputs.app ? spec.outputs.merge.app : '';
       const checks = new URLSearchParams({
         result_table: spec.config.result_table,
@@ -866,6 +880,10 @@ export default function ImplementWizard({
       if (cancelled) return;
       setPreflight(pre.status === 'fulfilled' ? pre.value : null);
       setPreflightError(pre.status === 'fulfilled' ? '' : pre.reason.message);
+      if (pre.status === 'fulfilled' && pre.value?.checks?.app_name?.ok === false) {
+        setAppNameRefusal({ name: spec.outputs.app_name, check: pre.value.checks.app_name });
+      }
+      if (pre.status === 'fulfilled') setAppUnreadable(pre.value.app_unreadable || null);
       setPlan(planned.status === 'fulfilled' ? planned.value : null);
       setPlanError(planned.status === 'fulfilled' ? '' : planned.reason.message);
       if (planned.status === 'rejected' && planned.reason.body?.app_unreadable) setAppUnreadable(planned.reason.body.app_unreadable);
@@ -873,7 +891,7 @@ export default function ImplementWizard({
       setChecksBusy(false);
     }, 400);
     return () => { cancelled = true; clearTimeout(timer); };
-  }, [buildStep, specKey, ownErrorsKey, planReady, q, grantRound, appBlocked]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [buildStep, specKey, ownErrorsKey, planReady, q, grantRound, appBlocked, lastStep]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const nameApp = (value) => {
     appNameTyped.current = true;
@@ -882,6 +900,7 @@ export default function ImplementWizard({
     patch('outputs.app_name', value);
   };
   const appNameCheck = spec.outputs.app && !spec.outputs.merge?.app ? preflight?.checks?.app_name || null : null;
+  const appNameShown = appNameCheck || (appNameRefusal?.name === spec.outputs.app_name ? appNameRefusal.check : null);
   useEffect(() => {
     const check = appNameCheck;
     if (!check || check.ok !== false || !check.suggested || appNameTyped.current || check.name !== spec.outputs.app_name) return;
@@ -911,7 +930,15 @@ export default function ImplementWizard({
   };
 
   const held = useMemo(() => heldAssets(context?.assets, context?.gone_assets), [context]);
-  const shared = sharedSource(planShared, live);
+  const [ownLive, setOwnLive] = useState(null);
+  useEffect(() => {
+    if (live || !spec.use_case_id) return undefined;
+    let on = true;
+    apiFetch(`/api/inspire/implement/live?${q}`).then((data) => { if (on) setOwnLive(data); }).catch(() => {});
+    return () => { on = false; };
+  }, [live, q, apiFetch]); // eslint-disable-line react-hooks/exhaustive-deps
+  const liveCheck = live || ownLive;
+  const shared = sharedSource(planShared, liveCheck);
   const savedOutputs = context?.latest?.spec_json?.outputs || {};
   const moveNote = insideMoveNote(spec, held.app || '', { shared, joinedBefore: savedOutputs.merge?.app || '', sessionId, useCaseId: spec.use_case_id });
   useEffect(() => {
@@ -970,14 +997,15 @@ export default function ImplementWizard({
     return () => { cancelled = true; };
   }, [spec.outputs.app, stepId, warehouses, warehousesError, apiFetch]);
 
+  const sourceTablesParam = sourceTables.join(',');
   useEffect(() => {
     if (!spec.outputs.app || lakebase !== null) return undefined;
     let cancelled = false;
-    apiFetch('/api/inspire/implement/lakebase')
+    apiFetch(`/api/inspire/implement/lakebase?tables=${encodeURIComponent(sourceTablesParam)}`)
       .then((data) => { if (!cancelled) setLakebase(data); })
       .catch((e) => { if (!cancelled) setLakebase({ state: 'unknown', detail: e.message }); });
     return () => { cancelled = true; };
-  }, [spec.outputs.app, lakebase, apiFetch]);
+  }, [spec.outputs.app, lakebase, apiFetch, sourceTablesParam]);
 
   const resultParts = resultTableParts(spec.config.result_table);
   const ownTable = ownSchema?.own_table ?? nameOrEmpty(() => defaultResultTable(inspireDatabase, spec.use_case_id, sessionId, context?.business_name));
@@ -985,7 +1013,7 @@ export default function ImplementWizard({
   const resultPlace = resultPlaceOf(spec.config.result_table, ownTable, inspireTable);
   const placeBlocks = resultPlaceBlocks(ownSchema, ownTable, inspireTable, ownSchema?.catalog || resultTableParts(ownTable).catalog);
   useEffect(() => {
-    if (stepId !== 'results' || catalogs !== null) return undefined;
+    if (!resultsOn || catalogs !== null) return undefined;
     let cancelled = false;
     apiFetch(`/api/catalogs?warehouse_id=${encodeURIComponent(warehouseId || '')}`)
       .then((data) => {
@@ -999,11 +1027,11 @@ export default function ImplementWizard({
         setCatalogsError(e.message);
       });
     return () => { cancelled = true; };
-  }, [stepId, catalogs, apiFetch, warehouseId]);
+  }, [stepId, resultsOn, catalogs, apiFetch, warehouseId]);
 
   useEffect(() => {
     const catalog = resultParts.catalog;
-    if (stepId !== 'results' || !catalog || schemas[catalog] || catalogsError) return undefined;
+    if (!resultsOn || !catalog || schemas[catalog] || catalogsError) return undefined;
     let cancelled = false;
     apiFetch(`/api/catalogs/${encodeURIComponent(catalog)}/schemas?warehouse_id=${encodeURIComponent(warehouseId || '')}`)
       .then((data) => {
@@ -1030,7 +1058,7 @@ export default function ImplementWizard({
   };
 
   const markTouched = (e) => {
-    if (e.target?.closest?.('input, select, textarea, button')) touched.current = true;
+    if (e.target?.closest?.('input, select, textarea, [data-option]')) touched.current = true;
   };
 
   const startOver = () => {
@@ -1056,6 +1084,7 @@ export default function ImplementWizard({
         session_id: String(sessionId),
         notebook_path: settings.notebookPath,
         spec: sent,
+        rebuild_as_is: rebuildAsIs,
       });
       clearWizardDraft(draftKey);
       onImplemented(data);
@@ -1155,7 +1184,7 @@ export default function ImplementWizard({
 
   if (loading) {
     return (
-      <Overlay title={title} uc={uc} steps={steps} step={stepIndex} onClose={cancel}>
+      <Overlay title={title} uc={uc} steps={steps} total={totalSteps} step={stepIndex} onClose={cancel}>
         <div className="flex items-center gap-2 p-8 text-sm text-text-secondary">
           <Loader2 size={16} className="animate-spin" /> Loading the use case…
         </div>
@@ -1192,7 +1221,16 @@ export default function ImplementWizard({
     ...(stepId === 'data' ? Object.values(columnsErrors) : []),
     ...(buildStep ? [lastStep ? planError : '', preflightError, ...deliveryChecks, ...earlierGaps] : []),
   ].filter(Boolean))];
-  const checkAgain = () => setGrantRound((n) => n + 1);
+  const checkAgain = async () => {
+    try {
+      const data = await apiFetch(`/api/inspire/implement/context?${contextQ}`);
+      setContext(data);
+      setAppUnreadable(data.app_unreadable || null);
+    } catch (e) {
+      setErrors([e.message]);
+    }
+    setGrantRound((n) => n + 1);
+  };
   const footerRetry = new Map([
     ...Object.entries(columnsErrors).map(([table, e]) => [e, () => loadColumns(table)]),
     [planError, checkAgain],
@@ -1200,8 +1238,8 @@ export default function ImplementWizard({
   ].filter(([e]) => e));
   const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
   const sourceRefused = Boolean(appUnreadable) || (preflight?.checks?.sources && preflight.checks.sources.ok === false);
-  const implementBlocked = busy || checksBusy || !placeSettled || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || Boolean(plan?.unchanged) || sourceRefused
-    || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || !plan || Boolean(planError)));
+  const implementBlocked = busy || checksBusy || !placeSettled || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
+    || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))));
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
   const best = oneBestPerStep({
     output: bestOutput(blocks),
@@ -1239,7 +1277,7 @@ export default function ImplementWizard({
   const toggleOutput = (id, checked) => setSpec((prev) => withOutput(prev, id, checked, context?.assets));
 
   return (
-    <Overlay title={title} uc={uc} steps={steps} step={stepIndex} reach={reach} done={done} onGo={goTo} onDetails={() => setDetails(true)}
+    <Overlay title={title} uc={uc} steps={steps} total={totalSteps} step={stepIndex} reach={reach} done={done} onGo={goTo} onDetails={() => setDetails(true)}
       onClose={cancel} onTouch={markTouched}>
       {details && <UseCaseDrawer title={title} ucRow={ucRow} spec={spec} patch={patch} onOwner={(owner) => setSpec((prev) => withDecisionOwner(prev, owner))} onClose={() => setDetails(false)} />}
       <div ref={bodyRef} data-wizard-body="" className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
@@ -1467,7 +1505,7 @@ export default function ImplementWizard({
           </section>
         )}
 
-        {stepId === 'results' && (
+        {resultsOn && (
           <>
             <ResultTableStep
               table={spec.config.result_table}
@@ -1597,7 +1635,7 @@ export default function ImplementWizard({
                   const locked = item.id === 'genie_space' && spec.outputs.app;
                   const mergeable = on && item.id !== 'app' && MERGE_OUTPUTS.includes(item.id) && !held[item.id];
                   const gone = on && (context?.gone_assets || []).includes(item.id);
-                  const holding = sharedHolding(item.id, shared, live);
+                  const holding = sharedHolding(item.id, shared, liveCheck);
                   return (
                     <div key={item.id} data-output={item.id} data-blocked={cannot ? '' : undefined} className={`border rounded-lg p-3 space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'} ${cannot && !on ? 'border-dashed bg-bg cursor-not-allowed' : ''}`}>
                       <div className="relative">
@@ -1802,6 +1840,16 @@ export default function ImplementWizard({
           </>
         )}
 
+        {shows('stake') && (
+          <section className="space-y-3" aria-label={MEASURE_LABEL}>
+            <div>
+              <h3 className="text-sm font-semibold text-text-primary">Money at stake</h3>
+              <p className="text-[11px] text-text-secondary">{`Each record is counted in the ${stakeWords(sampleStake)}. Choose how the money totals are worked out.`}</p>
+            </div>
+            <MoneyRuleEditor value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} loadRates={(body) => apiPostJson('/api/money/rate-sample', body)} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
+          </section>
+        )}
+
         {shows('app_place') && spec.outputs.app && (
           <AppPlacementStep
             spec={spec}
@@ -1878,7 +1926,11 @@ export default function ImplementWizard({
               <p className="text-[11px] text-text-secondary">{readinessText(readiness, readiness.scope)}</p>
             )}
             <p data-built-sentence="" className="text-sm font-semibold text-text-primary">{builtSentence(spec)}</p>
-            <section aria-label="What Inspire picked" data-picked-summary="" className="bg-bg border border-border rounded-lg p-4 space-y-3">
+            {shows('vibes') && (
+              <VibesPanel spec={spec} built={built} next={(context?.latest?.spec_version ?? 0) + 1} blocks={blocks} onChange={(value) => patch('vibes', value)}
+                onPrevious={(choice) => patch('vibe_previous', choice)} />
+            )}
+            <section aria-label="What Inspire picked" data-picked-summary="" className="bg-bg border border-border rounded-lg p-4 space-y-3 h-48 overflow-y-auto">
               <dl className="grid grid-cols-1 sm:grid-cols-[10rem_1fr_auto] gap-x-4 gap-y-2 text-[12px]">
                 {summaryRows.map((row) => (
                   <div key={row.id} data-picked-row={row.id} className="contents">
@@ -1934,7 +1986,7 @@ export default function ImplementWizard({
                   <h4 className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">
                     {plan.based_on_version ? `Version ${plan.spec_version}, edited from version ${plan.based_on_version}` : `Version ${plan.spec_version}`}
                   </h4>
-                  {planLines(plan.summary, { shared, live }).map((line) => <p key={line} className="text-[12px] text-text-secondary">{line}</p>)}
+                  {planLines(plan.summary, { shared, live: liveCheck }).map((line) => <p key={line} className="text-[12px] text-text-secondary">{line}</p>)}
                   {(plan.warnings || []).map((line) => <p key={line} data-plan-warning="" className="text-[12px] text-warning-fg">{line}</p>)}
                 </div>
               )}
@@ -1958,10 +2010,6 @@ export default function ImplementWizard({
             {RUN_SCOPE_UNRECORDED_HIDDEN}
           </p>
         )}
-        {shows('vibes') && (
-          <VibesPanel spec={spec} built={built} next={(context?.latest?.spec_version ?? 0) + 1} blocks={blocks} onChange={(value) => patch('vibes', value)}
-            onPrevious={(choice) => patch('vibe_previous', choice)} />
-        )}
       </div>
 
       <footer className="border-t border-border px-6 py-3 space-y-2">
@@ -1971,6 +2019,10 @@ export default function ImplementWizard({
               Nothing changed since version {plan.based_on_version}, so there is nothing new to build. Change a choice in any step to
               build version {plan.spec_version}, or go to the Build page to rebuild an output or preview a re-run.
             </p>
+            <label className="flex items-start gap-2 text-xs text-text-primary">
+              <input type="checkbox" className="mt-0.5" data-rebuild-as-is="" checked={rebuildAsIs} onChange={(e) => setRebuildAsIs(e.target.checked)} />
+              <span>{REBUILD_AS_IS_NOTE}</span>
+            </label>
             {onOpenBuild && (
               <button type="button" className="shrink-0 text-xs font-semibold text-db-red-fg hover:underline" onClick={() => onOpenBuild(plan.use_case_id)}>
                 Go to the Build page
@@ -1983,18 +2035,28 @@ export default function ImplementWizard({
         )}
         {lastStep && lastNameShown && spec.outputs.app && !spec.outputs.merge?.app && (
           <div data-last-app-name="" className="bg-bg-subtle border border-border rounded-md px-3 py-2">
-            <AppNameField name={spec.outputs.app_name || ''} nameCheck={appNameCheck} onName={nameApp} />
+            <AppNameField name={spec.outputs.app_name || ''} nameCheck={appNameShown} onName={nameApp} />
           </div>
         )}
         {lastStep && moveNote && (
           <p role="note" aria-label="Before you start" data-plan-move-note=""
             className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{moveNote}</p>
         )}
+        {stepId === 'data' && Object.keys(context?.table_scope || {}).length > 0 && (
+          <div aria-label="Table scope" data-table-scope-notes="" className="bg-bg-subtle border border-border rounded-md px-3 py-2 text-xs text-text-secondary space-y-1">
+            <p className="font-semibold text-text-primary">Inspire reads only the scope of these tables</p>
+            <ul className="list-disc ps-4">
+              {Object.entries(context.table_scope).map(([table, entry]) => (
+                <li key={table} data-scope-table={table}>{table}: {tableScopeSummary(entry)}</li>
+              ))}
+            </ul>
+          </div>
+        )}
         {readiness?.warning && (
           <p role="note" aria-label="Rows to work with" data-empty-table-warning=""
             className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{readiness.warning}</p>
         )}
-        {schemaJob?.text && stepIndex > steps.findIndex((x) => x.id === 'results') && (
+        {schemaJob?.text && stepIndex > steps.findIndex((x) => x.id === 'data') && (
           <p role="status" data-schema-job={schemaJob.state} className="bg-bg-subtle border border-border rounded-md px-3 py-2 text-xs text-text-secondary">{schemaJob.text}</p>
         )}
         {Object.values(checkNotes).filter(Boolean).map((note) => (
@@ -2018,7 +2080,7 @@ export default function ImplementWizard({
             {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceRefused && (
               <p data-source-refused="" className="text-[11px] text-warning-fg">The App cannot read its sources yet, so the build cannot start. Grant access first, then build.</p>
             )}
-            {mode === 'mvp' && stepIndex > 0 && !lastStep && (
+            {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceRefused && (
               <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-db-red-fg border border-db-red/50 disabled:opacity-50">
                 {BUILD_NOW_LABEL}
@@ -2231,7 +2293,7 @@ function AppPlacementStep({ spec, targets, targetsError, onTargetsRetry, heldApp
         <h3 className="text-sm font-semibold text-text-primary">Where does the App of this use case go?</h3>
         <p className="text-[11px] text-text-tertiary">Add it to an App Inspire built, or create a new one.{memory && ` ${memory}`}</p>
       </div>
-      <div role="radiogroup" aria-label="Where the App goes" aria-busy={listing} data-choice="app-place" className="space-y-3">
+      <div role="radiogroup" aria-label="Where the App goes" aria-busy={listing} data-choice="app-place" className="grid grid-cols-1 lg:grid-cols-2 gap-3 items-start">
         {(joined || choices.length > 0 || targets === null || targetsError) && <div data-app-place="join" className={placeCard(Boolean(joined))}>
           <label className="flex items-start gap-2.5 cursor-pointer">
             <input type="radio" name="app-place" value="join" className="mt-0.5" checked={Boolean(joined)} disabled={!joined && !open.length}
@@ -2292,7 +2354,7 @@ function AppPlacementStep({ spec, targets, targetsError, onTargetsRetry, heldApp
           )}
           {fresh && !listing && (
             <div className="ps-7 space-y-3">
-              <div role="radiogroup" aria-label="How Inspire organizes Apps" data-choice="app-policy" className="space-y-1.5">
+              <div role="radiogroup" aria-label="How Inspire organizes Apps" data-choice="app-policy" className="grid grid-cols-1 sm:grid-cols-3 gap-x-4 gap-y-1.5">
                 {APP_OWN_PLACEMENTS.map((p) => {
                   const off = newAppPlacementBlock(spec, targets, scope, p.id);
                   return (
@@ -2573,7 +2635,7 @@ function AppBackendChoice({ spec, lakebase, onBackend, children = null, best = n
               );
             })}
           </div>
-          {APP_BACKEND_GUIDE.map((line) => <p key={line} className="text-[11px] text-text-secondary">{line}</p>)}
+          {(spec.outputs.app_access === 'user' ? [PER_USER_GUIDE] : APP_BACKEND_GUIDE).map((line) => <p key={line} className="text-[11px] text-text-secondary">{line}</p>)}
           {chosen?.blurb && <p className="text-[12px] text-text-secondary">{chosen.blurb}</p>}
           {!loading && best?.reason && lakebase?.state !== 'unknown' && <p data-recommended-why="" className="text-[11px] text-text-secondary">{best.reason}</p>}
           {loading && <p className="text-[11px] text-text-tertiary" role="status">{LAKEBASE_CHECKING}…</p>}
@@ -2702,7 +2764,7 @@ function AppFeaturesStep({ spec, onOption, best = {} }) {
         <legend className={LEGEND}>
           What people can do in the App<span className="ms-2 normal-case tracking-normal font-normal text-[11px]">Record decisions starts on; the others stay off unless you turn them on.</span>
         </legend>
-        <div data-choice="app-options" data-choice-multi="" className="space-y-2.5 pt-1">
+        <div data-choice="app-options" data-choice-multi="" className="grid grid-cols-1 sm:grid-cols-2 gap-x-6 gap-y-2.5 pt-1">
           {APP_OPTIONS.filter((o) => appOptionShown(spec, o.id)).map((o) => (
             <div key={o.id}>
               <label className="flex items-start gap-2.5 cursor-pointer">
@@ -2728,8 +2790,13 @@ function AppFeaturesStep({ spec, onOption, best = {} }) {
             </div>
           ))}
         </div>
-        {access === 'user' && <p className="text-[11px] text-text-secondary" role="note" aria-label="Why some options are hidden">{PER_USER_REASON}</p>}
-        <p className="text-[11px] text-text-secondary" role="note" aria-label="What every App offers"><span>{APP_REFRESH_NOTE}</span> <span>{APP_NO_DOWNLOADS}</span></p>
+        <details className="text-[11px] text-text-secondary">
+          <summary className="cursor-pointer select-none font-medium">What every App offers</summary>
+          <div className="mt-1 space-y-1">
+            {access === 'user' && <p role="note" aria-label="Why some options are hidden">{PER_USER_REASON}</p>}
+            <p role="note" aria-label="What every App offers"><span>{APP_REFRESH_NOTE}</span> <span>{APP_NO_DOWNLOADS}</span></p>
+          </div>
+        </details>
       </fieldset>
     </section>
   );
@@ -3017,19 +3084,20 @@ function GrantList({ label, items }) {
 function AppReadAccess({ offer, result, busy, onGrant }) {
   return (
     <section aria-label="App read access" data-app-read="" className="space-y-1.5 text-[11px] bg-bg border border-border rounded-md px-3 py-2">
-      {offer && <p className="text-text-secondary">{offer.text}</p>}
-      {offer && <GrantList label="Grants the App needs" items={offer.grants} />}
+      {offer && <PlainMessage text={offer.text} className="text-text-secondary" />}
       {offer?.can_grant && (
         <button type="button" disabled={busy} onClick={onGrant}
           className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70">
           {busy ? 'Granting with your sign-in' : APP_READ_ACTION}
         </button>
       )}
+      {offer?.grants?.length > 0 && <TechnicalDetails items={offer.grants} />}
       {result && (
         <div role="status" aria-label="Grant result" className="space-y-1">
           {result.error ? <PlainMessage text={`Your grant was refused: ${result.error}`} onRetry={offer?.can_grant ? onGrant : null} copy className="text-text-secondary" /> : <p className="text-text-secondary">{result.text}</p>}
-          <GrantList label="Grants Inspire ran" items={result.ran} />
-          <GrantList label="Grants that failed" items={result.failed} />
+          {(result.ran?.length > 0 || result.failed?.length > 0) && (
+            <TechnicalDetails items={[...(result.ran || []).map((sql) => `Ran: ${sql}`), ...(result.failed || []).map((sql) => `Failed: ${sql}`)]} />
+          )}
         </div>
       )}
     </section>
@@ -3116,7 +3184,7 @@ function UseCaseDrawer({ title, ucRow, spec, patch, onOwner, onClose }) {
   );
 }
 
-function Overlay({ title, uc, steps, step, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
+function Overlay({ title, uc, steps, total = steps.length, step, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
   const stepsRef = useRef(null);
   useEffect(() => {
     const list = stepsRef.current;
@@ -3173,7 +3241,7 @@ function Overlay({ title, uc, steps, step, reach = [], done = [], onGo = null, o
                 );
               })}
             </ol>
-            <span className="sr-only">Step {step + 1} of {steps.length}</span>
+            <span className="sr-only">Step {step + 1} of {total}</span>
           </header>
           {children}
         </div>

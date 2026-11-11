@@ -190,8 +190,8 @@ test('What to do now counts the records in your window, so closed records outsid
     const summary = body.window ? { open: 16, done: 8, resolved: 0, left: 0, owners: [] } : { open: 16, done: 32, resolved: 0, left: 0, owners: [] };
     return json(200, { rows: [], total: 16, offset: 0, limit: body.limit || 25, actions: true, changes: false, summary, errors: {}, ...(body.window ? { window: { window: body.window.window } } : {}) });
   };
-  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...trackedRoutes(), records }, ready: '[data-todo-count]' });
-  assert.equal(await page.locator('[data-todo-count]').innerText(), '16 of 24 waiting for you');
+  const { page, seen, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...trackedRoutes(), records }, ready: '[data-section="todo"] [data-todo-count]' });
+  assert.equal(await page.locator('[data-section="todo"] [data-todo-count]').innerText(), '16 of 24 waiting for you');
   assert.ok(seen.records.filter((r) => !r.changed).every((r) => r.window), 'every list the Dashboard asks for carries your window, except the changed-since-visit list the Inbox asks for');
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -206,8 +206,8 @@ test('What to do now falls back to the whole list when the window is refused, so
     return ctx.json(200, { rows: [], total: 4, offset: 0, limit: body.limit || 5, actions: false, changes: false, summary: null, errors: {} });
   };
   const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { routes: { ...base, records }, ready: '[data-section]' });
-  await page.waitForSelector('[data-todo-count]', { timeout: 5000 });
-  assert.match(await page.locator('[data-todo-count]').innerText(), /waiting for you/);
+  await page.waitForSelector('[data-section="todo"] [data-todo-count]', { timeout: 5000 });
+  assert.match(await page.locator('[data-section="todo"] [data-todo-count]').innerText(), /waiting for you/);
   await context.close();
 });
 
@@ -270,7 +270,7 @@ test('the top bar holds the logo, the switcher, Ask Genie, the guided tour icon 
   assert.equal(await hashOf(page), '#/n01_u05/dashboard');
   assert.deepEqual(await page.locator('header.top > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]).filter((c) => c !== 'avatar')),
     ['ibtn', 'mark', 'switch', 'sp', 'genie-btn', 'btn', 'ibtn'], 'the top bar holds the Use cases dropdown and the guided tour icon, next to the avatar');
-  assert.deepEqual(await railOf(page), [['dashboard', 'page'], ['work', ''], ['performance', ''], ['runs', ''], ['settings', '']]);
+  assert.deepEqual(await railOf(page), [['dashboard', 'page'], ['work', ''], ['performance', ''], ['runs', ''], ['feedback', ''], ['settings', '']]);
   await page.locator('[data-rail="runs"]').click();
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
   await page.locator('[data-rail="runs"][aria-current="page"]').waitFor();
@@ -620,8 +620,8 @@ test('proof: What to do now counts only the records in its window, against the s
       summary: { open: 16, done: 8, resolved: 0, left: 16, owners: [] }, window: body.window ? { window: body.window, limit: null, shown: 16, more: 0, today: '2026-10-24' } : null });
   };
   const { page, context } = await openApp(browser, served.base, appInfo(DECIDE, 1, TABLE), { hash: '#/n01_u05/dashboard', routes: trackedRoutes({ records: windowed }), ready: '[data-section="todo"]' });
-  await page.waitForFunction(() => document.querySelector('[data-todo-count]')?.textContent?.includes('waiting for you'));
-  const text = await page.locator('[data-todo-count]').textContent();
+  await page.waitForFunction(() => document.querySelector('[data-section="todo"] [data-todo-count]')?.textContent?.includes('waiting for you'));
+  const text = await page.locator('[data-section="todo"] [data-todo-count]').textContent();
   await page.screenshot({ path: `${SHOTS}/todo_count_1440.png` });
   assert.equal(text, '16 of 24 waiting for you');
   await context.close();

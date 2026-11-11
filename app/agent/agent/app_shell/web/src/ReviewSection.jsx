@@ -3,9 +3,11 @@ import { getForecastReview, overrideForecast } from './api.js';
 import { usePlans } from './PlanSection.jsx';
 import { CYCLE_WORDS, REASON_MAX, VersionBar, statusWord, versionName } from './PlanVersions.jsx';
 import { Icon } from './icons.jsx';
+import { missingWhy } from './saving.jsx';
 import { PlainNote, SaidNote, Skeleton, useToast } from './ui.jsx';
 import { formatValue, integer } from './format.js';
 import './styles/plan.css';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const mase = (v) => (v == null ? '' : formatValue(v, 'number', 'USD', 2));
 
@@ -54,7 +56,9 @@ function SeriesRow({ page, row, cycle, can, look, onSaved }) {
           <form onSubmit={(e) => { e.preventDefault(); save(); }} data-override-form>
             <label>Your forecast for {row.next_period}<input type="number" step="any" required value={value} onChange={(e) => setValue(e.target.value)} data-override-value /></label>
             <label className="grow">Why you override the model<input dir="auto" required maxLength={REASON_MAX} value={reason} onChange={(e) => setReason(e.target.value)} data-override-reason /></label>
-            <button className="btn btn--sm btn--pri" type="submit" disabled={busy || value === '' || !reason.trim()} data-override-save>Save override</button>
+            <button className="btn btn--sm btn--pri" type="submit" disabled={busy || value === '' || !reason.trim()} data-override-save
+              title={missingWhy([value === '' && 'your forecast', !reason.trim() && 'why you override the model']) || undefined}>Save override</button>
+            {(value === '' || !reason.trim()) && <small className="save-why" data-save-missing>{missingWhy([value === '' && 'your forecast', !reason.trim() && 'why you override the model'])}</small>}
           </form>
         </td></tr>
       )}
@@ -94,7 +98,7 @@ export default function ReviewSection({ page }) {
           <div className="wchips" role="group" aria-label="Which series">
             <button type="button" className={`pick-i ${!all ? 'is-on' : ''}`} aria-pressed={!all} onClick={() => setAll(false)} data-show="risk">At risk</button>
             <button type="button" className={`pick-i ${all ? 'is-on' : ''}`} aria-pressed={all} onClick={() => setAll(true)} data-show="all">All series</button>
-          </div></header>
+          </div><SectionHelp title={'Series to review'} steps={[{ title: 'Series to review', text: "The series the forecast gets worse than a simple guess, worst first. Check them first, and override where you know better." }]} /></header>
           <SaidNote text={said} at="override" />
           {rows.length ? (
             <div className="tw"><table className="plan-t">

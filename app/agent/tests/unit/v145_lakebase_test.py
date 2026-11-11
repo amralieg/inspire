@@ -75,7 +75,7 @@ class RenderingLakebase:
         self.answers = answers if answers is not None else FakeWorkspace()
         self.rendered, self.held, self.writes, self.plans, self.fail, self.note = [], set(), [], [], None, ""
 
-    def run(self, sql, params, limit, queued=False):
+    def run(self, sql, params, limit, queued=False, viewer=""):
         text, _values, _read = shell_pg.render(sql, params, self.tables, self.held)
         self.rendered.append(text)
         if self.fail:
@@ -198,7 +198,7 @@ def test_render_refuses_forms_of_served_functions_that_postgres_cannot_match(exp
 
 DELTA_ONLY_BUILDERS = {"_changed_since": {"array_sort", "to_json"}, "uncached_sql": {"rand"}, "change_text_sql": {"format_string"},
                        "reason_wording": {"regexp_replace"}, "_digest_money": {"format_number"}, "run_status_query": {"format_number"},
-                       "_covered_sql": {"transform", "filter"}}
+                       "_covered_sql": {"transform", "filter"}, "person_can_grant": {"current_user", "is_account_group_member"}}
 SQL_TYPES = {"DECIMAL", "VARCHAR", "CHAR"}
 
 
@@ -290,7 +290,7 @@ def test_backend_problems_accept_a_whole_backend_and_name_every_broken_part():
     assert shell_pg.backend_problems({"kind": "postgres"}, "sp", pages) == [
         "the App backend must be an object whose kind is one of lakebase, delta"]
     assert shell_pg.backend_problems(None, "sp", pages)
-    assert any("only an App that reads through its service principal" in p for p in shell_pg.backend_problems(backend(True), "user", pages))
+    assert any("reads Lakebase only when the database enforces" in p for p in shell_pg.backend_problems(backend(True), "user", pages))
     broken = copy.deepcopy(backend(True))
     broken["pipeline_id"] = "x y"
     broken["tables"]["main.bad"] = {"pg": "s.t", "columns": [{"name": "a", "type": "STRING"}]}
@@ -316,7 +316,7 @@ def test_backend_problems_accept_a_whole_backend_and_name_every_broken_part():
 def test_settings_refuse_a_lakebase_app_that_reads_as_each_viewer(tmp_path):
     good = dict(SETTINGS, backend=backend())
     assert shell_core.settings_problems(good, [PAGE]) == []
-    assert any("only an App that reads through its service principal" in p
+    assert any("reads Lakebase only when the database enforces" in p
                for p in shell_core.settings_problems(dict(good, auth="user"), [PAGE]))
     with pytest.raises(ValueError, match="do not hold together"):
         shell_core.load_app(app_dir(tmp_path, dict(good, backend={"kind": "lakebase"})))
@@ -360,8 +360,8 @@ def test_a_lakebase_error_reads_delta_and_says_so_and_strict_mode_fails_instead(
     s, ws, lb = lakebase_shell(tmp_path / "strict", strict=True)
     lb.fail = shell_db.QueryError("permission denied for schema n01_u05_app")
     status, data = call(s, "POST", "page", body={"page": "n01_u05"})
-    assert status == 200 and ws.sql == [] and data["served"] == []
-    assert set(data["errors"].values()) == {"Lakebase could not run it: permission denied for schema n01_u05_app"}
+    assert status == 200 and ws.sql == [] and data["state"] == "waiting_for_access" and data["tables"] == []
+    assert "Lakebase could not run it: permission denied for schema n01_u05_app" in data["detail"]
 
 
 def test_a_dataset_lakebase_does_not_hold_reads_delta_without_a_warning(tmp_path):
@@ -1180,7 +1180,7 @@ class CredentialWorkspace(FakeWorkspace):
         raise AssertionError(f"unexpected call {method} {path}")
 
     def run_sql(self, warehouse, sql, params, limit=5000):
-        if sql.split(" WHERE ")[0].endswith("FROM `main`.`pricing`.`loss_desk_out_summary`") or sql.startswith(
+        if sql.split(" WHERE ")[0].endswith(("FROM `main`.`pricing`.`loss_desk_out_summary`", "FROM `main`.`pricing`.`loss_desk_out_assumptions`")) or sql.startswith(
                 "SELECT b.`action_batch` AS `batch_id`"):
             self.sql.append((sql, params, limit))
             return {"columns": [], "rows": [], "truncated": False}
@@ -1229,7 +1229,8 @@ def test_kpis_charts_and_the_decision_list_on_postgres_match_the_data(postgres, 
         return sum(r[measure] for r in trend_rows() if r["category"] in chosen["category"]
                    and datetime.date.fromisoformat(low) <= r["as_of_date"] <= datetime.date.fromisoformat(high))
 
-    assert data["kpis"]["total_loss"] == {"now": total("2026-05-01", "2026-10-31"), "before": None}
+    assert {k: v for k, v in data["kpis"]["total_loss"].items() if k != "left_out"} == {"now": total("2026-05-01", "2026-10-31"), "before": None}
+    assert data["kpis"]["total_loss"]["left_out"]["text"] == "0 rows without a date and 0 rows from the running month were left out", "every money KPI says what it left out"
     assert data["kpis"]["loss_rate"]["now"] == pytest.approx(total("2026-05-01", "2026-10-31") /
                                                              total("2026-05-01", "2026-10-31", "revenue") * 100)
     assert data["kpis"]["items"] == {"now": 4, "before": 1}, "the previous run's copy answers on Lakebase with the same filters"
@@ -1424,13 +1425,14 @@ def test_a_saved_change_shows_on_top_of_lakebase_while_the_list_reads_postgres_a
 
 
 READ_ROUTES_SKIPPED = {("POST", "records/act"), ("POST", "refresh"), ("GET", "agent/status"), ("POST", "agent/ask"),
-                       ("GET", "agent/turn"), ("POST", "agent/feedback")}
+                       ("GET", "agent/turn"), ("POST", "agent/feedback"),
+                       ("POST", "agent/prepare")}
 
 
 def read_routes():
     import inspect
     import re
-    found = re.findall(r'route == \("(GET|POST)", "([^"]+)"\)', inspect.getsource(shell_core.Shell.answer))
+    found = re.findall(r'route == \("(GET|POST)", "([^"]+)"\)', inspect.getsource(shell_core.Shell.answer_request))
     return sorted(set(found) - READ_ROUTES_SKIPPED)
 
 
@@ -1454,7 +1456,8 @@ def test_every_read_route_of_the_app_runs_its_queries_on_a_real_postgres_without
     assert all(answered[p] == 200 for p in ("app", "page", "records", "overview", "runs", "records/history", "summary")), answered
     batches = [q for q, _p, _l in ws.sql if q.startswith("SELECT b.`action_batch` AS `batch_id`")]
     assert len(batches) == 1, "the acts people made are versions Lakebase does not copy, so GET records/batches reads Delta"
-    assert all(q.split(" WHERE ")[0].endswith("`loss_desk_out_summary`") for q, _p, _l in ws.sql if q not in batches), [
+    delta_by_design = ("`loss_desk_out_summary`", "`loss_desk_out_assumptions`")
+    assert all(q.split(" WHERE ")[0].endswith(delta_by_design) for q, _p, _l in ws.sql if q not in batches), [
         q for q, _p, _l in ws.sql]
 
 

@@ -89,10 +89,10 @@ def test_the_re_point_rewrites_every_full_name_of_the_table_in_genie_s_cells_and
         written = json.loads(text)["cells"]
         assert (problems, "".join(written[1]["source"])) == ([], shown), code
         assert [_text(c) for c in (written[0], written[2])] == [f"print({OLD!r})", f"run_controls({OLD!r})"], "Inspire's cells stay as written"
-    refused = {"SELECT a FROM s.orders": [f"it still names {OLD} in a way Inspire cannot rewrite", f"it does not name {OLD} by its full name"],
+    refused = {"SELECT a FROM s.orders": ["it still names the replaced table in a way Inspire cannot rewrite", "it does not name the new table by its full name"],
                f"USE CATALOG main;\nSELECT a FROM {OLD}": ["it picks its catalog or schema with USE, so a table name in it may stand for another table"],
-               "SELECT a FROM main.s.orders_model": [f"it does not name {OLD} by its full name"],
-               "SELECT a FROM `main`.`s`.orders": [f"it still names {OLD} in a way Inspire cannot rewrite", f"it does not name {OLD} by its full name"]}
+               "SELECT a FROM main.s.orders_model": ["it does not name the new table by its full name"],
+               "SELECT a FROM `main`.`s`.orders": ["it still names the replaced table in a way Inspire cannot rewrite", "it does not name the new table by its full name"]}
     for code, problems in refused.items():
         assert cells(_notebook(code), [SWAP], TITLES)[1] == problems, code
     assert agent_ns["implement_retarget_instruction"]("FROM a.b.c_model JOIN a.b.c", "a.b.c", "x.y.z") == "FROM x.y.z_model JOIN x.y.z"
@@ -223,8 +223,8 @@ def test_a_notebook_inspire_cannot_point_at_the_new_table_is_rebuilt_by_genie_wi
     with pytest.raises(agent_ns["ImplementStopped"], match="Only the owners of this use case can change its settings"):
         run()
     assert refused["genie"] == 0, "it stays a settings change, so only an owner can ask for it"
-    assert seen["warnings"] == [f"Notebook: Inspire could not point the built notebook at {NEW} by itself, because it still names {OLD} in a "
-                                f"way Inspire cannot rewrite; it does not name {OLD} by its full name, so Genie rebuilds it"]
+    assert seen["warnings"] == [f"Notebook: Inspire could not point the built notebook at the swapped source tables by itself, because it still names the replaced table in a "
+                                f"way Inspire cannot rewrite; it does not name the new table by its full name, so Genie rebuilds it"]
 
 
 def test_a_re_pointed_run_that_misses_a_column_falls_back_to_a_genie_rebuild_with_a_plain_warning(agent_ns):
@@ -262,7 +262,7 @@ def test_a_written_notebook_that_no_longer_names_the_table_is_handed_to_genie_in
                                       inst._implement_import_notebook("/Workspace/nb_v2", _notebook("print(1)\n")) or "/Workspace/nb_v2")
     with pytest.raises(agent_ns["ImplementRetableMissed"]) as missed:
         run()
-    assert str(missed.value) == (f"Inspire could not point the built notebook at {NEW} by itself, because it does not name {OLD} by its full "
+    assert str(missed.value) == (f"Inspire could not point the built notebook at the swapped source tables by itself, because it does not name the new table by its full "
                                  "name, so Genie rebuilds it")
     assert seen["fills"] == [] and agent_ns["implement_known_repair"](missed.value, str(missed.value)) == {
         "kind": "rebuild_with_error", "why": "pointing the notebook at the new table did not work, so Genie rebuilds it for that table",
@@ -292,10 +292,10 @@ def test_an_output_artifact_is_pointed_at_the_new_table_wherever_it_names_the_ol
     for untouched in (PAGE, {"query": "SELECT a FROM main.s.orders_model"}, {"n": 3, "flag": True, "none": None}, None):
         assert retable(untouched, [SWAP]) == (untouched, [], []), untouched
     assert retable({"query": "SELECT a FROM s.orders"}, [SWAP])[1:] == ([SWAP], [
-        f"it still names {OLD} in a way Inspire cannot rewrite", f"it does not name {OLD} by its full name"])
+        "it still names the replaced table in a way Inspire cannot rewrite", "it does not name the new table by its full name"])
     back = {"original": NEW, "replaced": NEW, "chosen": OLD}
     assert retable({"query": f"SELECT a FROM {OLD} JOIN {NEW}"}, [SWAP, back])[2] == [
-        f"it still names {OLD} in a way Inspire cannot rewrite", f"it does not name {OLD} by its full name"], \
+        "it still names the replaced table in a way Inspire cannot rewrite", "it does not name the new table by its full name"], \
         "two tables swapped for each other are refused, never renamed into one"
 
 
@@ -400,7 +400,7 @@ def _final(seen):
     return next(u for u in reversed(seen["updates"]) if u.get("status", "").startswith("ready"))
 
 
-REFUSED_APP = f"App: Inspire could not point it at {NEW} by itself, because no copy of the one built in v1 was saved, so Genie rebuilds it"
+REFUSED_APP = f"App: Inspire could not point it at the swapped source tables by itself, because no copy of the one built in v1 was saved, so Genie rebuilds it"
 
 
 def test_a_settings_swap_re_points_each_built_output_that_reads_the_table_from_its_saved_copy_with_no_genie(agent_ns):

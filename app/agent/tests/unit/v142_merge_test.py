@@ -10,7 +10,7 @@ from v140_implement_test import (FIXTURE, OURS_APP, READS, SHELL_FILES, TRUTH, V
                                  _deploy_inspire, _FileRunner, _inspire, _left_by, _NB_SPEC, _not_access_reads, _output_context,
                                  _without_feedback,
                                  _output_inspire, _space, _spec, _without_requirements, sdk_stub)
-from v142_look_test import DEPLOYED
+from v142_look_test import DEPLOYED, VALUE_LEDGER
 
 HOST_UC = "N01-U07"
 SOURCE = "/Workspace/Users/someone/sales/apps/sales-desk"
@@ -261,8 +261,10 @@ def test_a_shared_view_use_case_merged_into_a_per_user_app_keeps_the_hosts_scope
     fields = inst._implement_deploy_app(context, "sales-desk", SHELL_FILES, READS, "gA", poll_s=0)
     assert [c[0] for c in calls].count("PATCH") == 0, "the host keeps the user scopes its viewers sign in with"
     assert not any("could not remove" in w for w in fields.get("_warnings") or [])
-    assert _without_feedback(_not_access_reads(inst.spark.statements)) == [] and inst.genie_grants == [], \
-        "each viewer of the per-user host reads with their own grants, so its identity gets none beyond the feedback table"
+    ledger_creates = [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("CREATE TABLE")]
+    assert _without_feedback(_not_access_reads(inst.spark.statements)) == ledger_creates and len(ledger_creates) == 1 and inst.genie_grants == [], \
+        "each viewer of the per-user host reads with their own grants, so its identity gets none beyond the feedback table (the job identity creates the value ledger)"
+    assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")] == []
     assert inst.tagged == [], "the host keeps its own owner tag"
 
 def test_a_sensitive_use_case_is_never_merged_into_a_service_principal_app(agent_ns, tmp_path, monkeypatch):
@@ -485,7 +487,9 @@ def test_a_look_only_edit_rewrites_the_app_settings_and_redeploys_without_genie(
     settings = json.loads(deployed["inspire_app.json"])
     assert (name, settings["layout"], settings["palette"], settings["style"], settings["theme"]) == ("churn-desk", "tabs", "ocean", "a", "light")
     assert settings["pages"] == ["n01_u01", "n01_u02"] and settings["genie"]["space_id"] == "g1" and space_id == "g1"
-    assert json.loads(deployed["pages/n01_u01.json"]) == own_page and json.loads(deployed["pages/n01_u02.json"]) == merged_page
+    assert json.loads(deployed["pages/n01_u01.json"]) == dict(own_page, title="Predict churn"), (
+        "the App's own page carries the use case name, as implement_app_renamed sets it (names lane, rc7_app_rename_test)")
+    assert json.loads(deployed["pages/n01_u02.json"]) == merged_page
     assert inst.checked == [_without_requirements(deployed)] and deployed["requirements.txt"] == ""
     assert {"main.inspire.sales_out", "main.s.stores", "main.inspire.churn_out"} <= set(reads)
     messages = [e.get("message") for e in inst.emitted]

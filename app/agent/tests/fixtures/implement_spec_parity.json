@@ -17147,9 +17147,9 @@
             "app_owners"
           ],
           [
-            "A@b.co",
-            "a@B.co",
-            " c@d.co "
+            "A@example.com",
+            "a@example.com",
+            " c@example.com "
           ]
         ]
       ],
@@ -17161,7 +17161,7 @@
             "app_owners",
             0
           ],
-          "A@b.co"
+          "A@example.com"
         ],
         [
           [
@@ -17169,7 +17169,7 @@
             "app_owners",
             1
           ],
-          "c@d.co"
+          "c@example.com"
         ]
       ],
       "removed": [

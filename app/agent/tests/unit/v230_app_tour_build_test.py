@@ -1,17 +1,26 @@
 import json
+import os
 
 import pytest
 
 from v140_implement_test import _app_flow, _churn_page
 from v197_genie_question_rows_test import _logged
 
+TOUR = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "agent", "app_shell", "kinds.json"), encoding="utf-8"))["tour"]
+
 STEPS = [
-    {"anchor": "decision", "title": "Keep the customers who are about to leave",
-     "text": "This desk lists the customers most likely to leave next month. {open_count} wait for a call."},
+    {"anchor": "decision", "title": "Keep the customers who are about to leave", "text": "This desk lists the customers most likely to leave next month. {open_count} wait for a call."},
     {"anchor": "kpis", "title": "How much is at risk", "text": "The first tile is the revenue at risk, {kpi:total_loss} today."},
+    {"anchor": "view", "title": "Where the risk sits", "text": "This view shows which customer groups carry the most revenue at risk. Click a group to see its customers."},
+    {"anchor": "filters", "title": "Narrow the call list", "text": "Use Region and Segment to see only the customers you call."},
     {"anchor": "records", "title": "Your call list", "text": "Each customer here needs a retention call or a reason to skip it."},
     {"anchor": "top_record", "title": "Call this one first", "text": "Start with {top_record}, the most likely to leave."},
+    {"anchor": "actions", "title": "Log each call", "text": "Open a customer to see the side panel and pick a choice: call made, retained or not reachable."},
+    {"anchor": "bulk", "title": "Log many calls at once", "text": "Select several customers and log the same outcome for all of them in one step."},
     {"anchor": "genie", "title": "Ask why they leave", "text": "Ask Genie why a customer is likely to leave, in your own words."},
+    {"anchor": "performance", "title": "See what the calls saved", "text": "Performance shows the revenue the retention calls promised and the revenue they kept."},
+    {"anchor": "runs", "title": "Each run", "text": "Every refresh of this use case is a run. Open Runs to see what each one found."},
+    {"anchor": "settings", "title": "Settings", "text": "Settings hold the target, how the value is measured and the rules that flag customers."},
 ]
 
 
@@ -62,7 +71,7 @@ def test_the_prompt_carries_the_user_vibes_preamble_the_use_case_words_the_page_
     for kpi in page["kpis"]:
         assert f"`{{kpi:{kpi['id']}}}`" in prompt
     assert "{open_count}" in prompt and "{top_record}" in prompt
-    assert "5 to 8 steps" in prompt and "at most 60 characters" in prompt and "at most 220 characters" in prompt
+    assert f"{TOUR['least']} to {TOUR['most']} steps" in prompt and "at most 60 characters" in prompt and "at most 220 characters" in prompt
     assert "English, Arabic." in prompt
     assert agent_ns["NO_EM_DASH_RULE"] in prompt
 
@@ -95,7 +104,7 @@ def test_the_app_ships_the_tour_written_for_its_use_case(agent_ns, tmp_path):
     page = _deployed(seen)
     assert page["tour"] == {"languages": ["English"], "steps": {"English": STEPS}}
     assert not _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR FIXED]")
-    assert _logged(inst, "INFO", "[IMPLEMENT-APP-TOUR] N01-U01: the App tour has 5 steps in English")
+    assert _logged(inst, "INFO", "[IMPLEMENT-APP-TOUR] N01-U01: the App tour has 12 steps in English")
     assert context["artifacts"]["app"]["tour"] == page["tour"]
 
 
@@ -119,7 +128,7 @@ def test_a_tour_the_model_never_writes_is_asked_again_without_the_cache_then_fal
     assert _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR-RETRY FIRED] N01-U01: the App tour was not written")
     assert _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR] N01-U01: the App tour was not written, so the App shows the template tour")
     steps = _deployed(seen)["tour"]["steps"]["English"]
-    assert len(steps) == 8 and steps[0]["anchor"] == "decision"
+    assert len(steps) == TOUR["most"] and steps[0]["anchor"] == "decision"
     assert steps[0] == _core(inst).tour_template("decision", "English", _deployed(seen))
 
 

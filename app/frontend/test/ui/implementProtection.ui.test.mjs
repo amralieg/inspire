@@ -28,6 +28,7 @@ function protectionFailure(rights) {
       tokenKind: 'app',
       forwardedToken: PERSON,
       abacUnreadable: true,
+      abacUnreadableAppOnly: true,
       ...STUDIO_STATE,
       history: [{ session_id: '42', use_case_id: 'N01-U01', spec_version: 1, status: 'failed', change_classes: 'initial', created_by: OWNER,
         updated_at: '2026-10-25T04:00:00Z', spec_json: JSON.stringify(builtSpec()), asset_status: JSON.stringify({ protection: record }) }],

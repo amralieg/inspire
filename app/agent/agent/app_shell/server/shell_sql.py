@@ -29,8 +29,7 @@ RAW_ERROR = re.compile(r"SQLSTATE|\[[A-Z][A-Z0-9_]{3,}(?:\.[A-Z0-9_]+)*\]|Traceb
 
 
 def rebuild_action(what: str = "it", first: bool = False) -> str:
-    text = f"build {what} again with Vibe/Add/Remove Features on Inspire's Build page"
-    return text[:1].upper() + text[1:] if first else text
+    return shell_facts.rebuild_action(what, first, "Inspire's Build page")
 
 
 NO_ACCESS_LEAD = "No access to "
@@ -118,6 +117,7 @@ _REGISTRY = {}
 RECORDS_DATASET = "records"
 IDENT = shell_facts.IDENT
 REVIEW_LINK = re.compile(r"^https://[a-z0-9.-]{1,253}/\?review=[A-Za-z0-9%._~-]{1,600}&uc=[A-Za-z0-9%._~-]{1,600}$")
+RUN_REVIEW_LINK = re.compile(r"^https://[a-z0-9.-]{1,253}/\?review=[A-Za-z0-9%._~-]{1,600}$")
 TABLE_PART = shell_facts.TABLE_PART
 HISTORY_COLUMNS = ("record_key", "valid_from", "valid_to", "is_current", "change_source", "changed_by")
 RUN_COLUMNS = ("run_id", "use_case_id", "as_of_date")
@@ -424,7 +424,7 @@ HUES = ("blue", "teal", "amber", "green", "violet", "coral", "plum", "rose", "sl
 RATIO_TOKENS = frozenset(("ratio", "rate", "pct", "percent", "percentage", "proportion", "share", "avg", "average", "mean",
                           "median", "margin", "per"))
 CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "tiles": 12, "datasets": 12, "y": 4,
-        "chart_rows": 5000, "table_rows": 5000, "records_rows": 5000, "options": 500, "values": 200, "value_chars": 300,
+        "chart_rows": 5000, "table_rows": 5000, "table_search_chars": 200, "records_rows": 5000, "options": 500, "values": 200, "value_chars": 300,
         "history_rows": 500, "runs_rows": 5000, "field_chars": 4000, "lines": 50, "fields": 200,
         "list_rows": 100, "list_offset": 10 ** 9, "search_chars": 200, "option_matches": 50, "act_records": 200, "owners": 50,
         "owner_chars": 254, "reason_chars": 300, "overview_rows": 500, "assumption_rows": 200, "assumption_limit": 1e15,
@@ -690,6 +690,11 @@ def _count_problem(key: str, items: list, low=None) -> list:
     if not low <= len(items) <= high:
         return [f"the page has {shown_number(len(items))} {key}; it needs {shown_number(low)} to {shown_number(high)}"]
     return []
+
+
+def run_review_link(value) -> str:
+    text = value if isinstance(value, str) else ""
+    return text if RUN_REVIEW_LINK.match(text) else ""
 
 
 def review_problems(page: dict) -> list:
@@ -999,6 +1004,17 @@ def _records_problems(records, has_dataset: bool) -> list:
     for key in ("sublabel", "tier", "reasons", "action"):
         if records.get(key) is not None:
             problems += column_problem(records.get(key), f"{where} {key} must be a column name")
+    problems += _text_problem(where, records.get("undo"), "undo", required=False)
+    group = records.get("group")
+    if group is not None:
+        if not isinstance(group, dict):
+            problems.append(f"{where} group must be an object with a column, a choice, a label and an undo label")
+        else:
+            problems += column_problem(group.get("column"), f"{where} group needs a column name")
+            problems += _text_problem(f"{where} group", group.get("label"), "label")
+            problems += _text_problem(f"{where} group", group.get("undo"), "undo")
+            if not isinstance(group.get("choice"), str) or not group.get("choice"):
+                problems.append(f"{where} group needs the id of the choice it writes")
     for key, low, high in (("columns", 1, 8), ("detail", 0, 12)):
         items = records.get(key) if isinstance(records.get(key), list) else []
         if not low <= len(items) <= high:
@@ -1090,15 +1106,50 @@ def column_filters(entries, shown: dict, types=None) -> list:
     return out
 
 
+GROUP_BY_SETTING = "group_by"
+
+
+def page_grouping(page: dict, named) -> dict:
+    records = page.get("records") if isinstance(page.get("records"), dict) else {}
+    shown = {column.lower(): label for column, (label, _kind) in list_shown(records).items()}
+    group_by = [{"column": str(name), "label": shown.get(str(name).lower()) or _column_label(str(name))} for name in named]
+    return {"mode": "columns", "group_by": group_by} if group_by else {}
+
+
+def grouping_of(page: dict, text) -> dict:
+    names = [part.strip() for part in str("" if text is None else text).split(",") if part.strip()]
+    if not names or [name.lower() for name in names] == [SETTING_ALL] or any(name.lower() in ("all", "custom") for name in names[1:]):
+        return {}
+    return page_grouping(page, [] if any(name.lower() in ("all", "custom") for name in names) else names)
+
+
+def grouping_entries(page: dict) -> list:
+    grouping = page.get("grouping") if isinstance(page.get("grouping"), dict) else {}
+    return [g for g in grouping.get("group_by") or [] if isinstance(g, dict) and isinstance(g.get("column"), str)]
+
+
 def list_column_filters(page: dict, types=None, actions: bool = False) -> list:
     records = page.get("records")
     if not isinstance(records, dict):
         return []
-    found = column_filters(records.get(COLUMN_FILTERS), list_shown(records), types)
-    taken = {f["column"] for f in found}
+    shown = list_shown(records)
+    entries = grouping_entries(page)
+    wanted = {g["column"].lower() for g in entries}
+    found = [dict(f, grouping=True) if f["column"].lower() in wanted and f["type"] == "multi_select" else f
+             for f in column_filters(records.get(COLUMN_FILTERS), shown, types)]
+    listed = {c.lower(): (label, c) for c, (label, _kind) in shown.items()}
+    grouped, seen = [], {f["column"].lower() for f in found}
+    for g in entries:
+        key = g["column"].lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        label, column = listed.get(key, (g.get("label") or _column_label(g["column"]), g["column"]))
+        grouped.append({"column": column, "type": "multi_select", "label": label, "grouping": True})
+    taken = {f["column"] for f in found + grouped}
     offered = actions and records.get(COLUMN_FILTERS) is not False
-    return found + [{"column": column, "type": "multi_select", "label": label, "implied": True, "action": True}
-                    for column, label, _target in ACTION_FILTERS if offered and column not in taken]
+    return found + grouped + [{"column": column, "type": "multi_select", "label": label, "implied": True, "action": True}
+                              for column, label, _target in ACTION_FILTERS if offered and column not in taken]
 
 
 def table_column_filters(table: dict, types=None) -> list:
@@ -2869,7 +2920,27 @@ def chart_query(page: dict, ident: str, values: dict) -> tuple:
     return text, params.items
 
 
-def table_query(page: dict, ident: str, values: dict, columns=None, types=None, asked=None) -> tuple:
+def table_search_problems(page: dict, searches) -> list:
+    if searches is None:
+        return []
+    if not isinstance(searches, dict):
+        return ["table_search must be an object of table id to the text to search its rows for"]
+    known = {t.get("id") for t in page.get("tables") or []}
+    problems = []
+    for ident, text in searches.items():
+        if ident not in known:
+            problems.append(f"the page has no table {ident!r}")
+        elif not isinstance(text, str) or len(text) > CAPS["table_search_chars"]:
+            problems.append(f"table {ident} search takes text of at most {CAPS['table_search_chars']} characters")
+    return problems
+
+
+def table_search_condition(table: dict, text: str, params) -> str:
+    holder = params.add(contains_pattern(text.strip()))
+    return "(" + " OR ".join(f"CAST(d.{quote(c)} AS STRING) ILIKE {holder} ESCAPE '{LIKE_ESCAPE}'" for c in table_shown(table)) + ")"
+
+
+def table_query(page: dict, ident: str, values: dict, columns=None, types=None, asked=None, search: str = "") -> tuple:
     table = _item(page, "tables", ident)
     own = card_picks(page).get(ident)
     if own and (values or {}).get(own):
@@ -2885,6 +2956,8 @@ def table_query(page: dict, ident: str, values: dict, columns=None, types=None, 
     limit = min(int(table.get("limit", CAPS["table_rows"])), CAPS["table_rows"])
     fetched = limit + 1 if limit == CAPS["table_rows"] else limit
     conditions = _conditions(page, table["dataset"], values, params) + column_conditions(table_column_filters(table, types), columns, params)
+    if search.strip():
+        conditions.append(table_search_condition(table, search, params))
     where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     return f"SELECT {picked} FROM ({sql}) AS d{where}{order} LIMIT {fetched}", params.items
 
@@ -3169,11 +3242,11 @@ def default_values(page: dict, bounds: dict) -> dict:
     return values
 
 
-def page_queries(page: dict, values: dict, tables=None, previous=None, types=None, sorts=None) -> list:
+def page_queries(page: dict, values: dict, tables=None, previous=None, types=None, sorts=None, searches=None) -> list:
     out = [("kpi", k["id"]) + kpi_query(page, k["id"], values, (previous or {}).get(k["dataset"])) for k in page.get("kpis") or []]
     out += [("chart", c["id"]) + chart_query(page, c["id"], values) for c in page.get("charts") or []]
     out += [("table", t["id"]) + table_query(page, t["id"], values, (tables or {}).get(t["id"]), (types or {}).get(t["id"]),
-                                             (sorts or {}).get(t["id"])) for t in page.get("tables") or []]
+                                             (sorts or {}).get(t["id"]), (searches or {}).get(t["id"], "")) for t in page.get("tables") or []]
     return out
 
 
@@ -3379,13 +3452,14 @@ def window_conditions(bounds: dict, params, held: bool, today: str) -> list:
     return out
 
 
-def window_order(stake: str, due: str, today: str, tie: str) -> str:
+def stake_first_order(stake: str, due: str, today: str, tie: str) -> str:
     return (f"{stake} DESC NULLS LAST, CASE WHEN {due} < {today} THEN 0 ELSE 1 END ASC, {due} ASC NULLS LAST"
             + (f", {tie} ASC" if tie else ""))
 
 
 def due_first_order(stake: str, due: str, today: str, tie: str) -> str:
-    return (f"CASE WHEN {due} < {today} THEN 0 ELSE 1 END ASC, {stake} DESC NULLS LAST, {due} ASC NULLS LAST"
+    return (f"CASE WHEN {due} < {today} THEN 0 ELSE 1 END ASC, CASE WHEN {due} < {today} THEN {due} END ASC NULLS LAST, "
+            f"{stake} DESC NULLS LAST, {due} ASC NULLS LAST"
             + (f", {tie} ASC" if tie else ""))
 
 
@@ -3410,7 +3484,8 @@ def list_request(page: dict, data: dict, context: dict, now: datetime.datetime =
     if within is not None and (not window or not _whole(within, 0, CAPS["due_within_days"])):
         raise ValueError(f"due_within goes with a window and takes a whole number of days from 0 to {CAPS['due_within_days']}")
     allowed = list_columns(page) + (list(ACTION_SORTS) if context["actions"] else [])
-    due_first = bool(data.get("due_first")) and bool(context["actions"])
+    overdue_tab = data.get("focus") == "overdue"
+    due_first = (bool(data.get("due_first")) or overdue_tab) and bool(context["actions"])
     now = now or datetime.datetime.now(datetime.timezone.utc)
     ranked = not sort and (bool(window) or due_first)
     return dict(_list_request(page, data, context, allowed), window=window, ranked=ranked, due_first=due_first, today=now.date().isoformat(),
@@ -4354,7 +4429,7 @@ def list_queries(page: dict, values: dict, request: dict, context: dict, editor:
     fields = dict(fields, keyset=False) if request.get("ranked") else fields
     sort = quote(fields["sort"])
     if request.get("ranked"):
-        order = (window_order if request.get("window") else due_first_order)(_stake(context), "`_inspire_due`", plan["today"], quote(context["tie"]))
+        order = due_first_order(_stake(context), "`_inspire_due`", plan["today"], quote(context["tie"]))
     else:
         order = f"{sort} {request['dir'].upper()} NULLS LAST" + (f", {quote(context['tie'])} ASC" if context["tie"] != request["sort"] else "")
     counted_params = list(params.items)
@@ -4395,7 +4470,7 @@ def list_match_query(page: dict, values: dict, request: dict, context: dict, edi
     top = (request.get("window") or {}).get("limit")
     source = "f"
     if top:
-        order = window_order(_stake(plan["context"]), "`_inspire_due`", plan["today"], quote(plan["context"]["tie"]))
+        order = due_first_order(_stake(plan["context"]), "`_inspire_due`", plan["today"], quote(plan["context"]["tie"]))
         ctes["w"], counted, source = f"SELECT * FROM f ORDER BY {order} LIMIT {int(top)}", counted + ["w"], "w"
     head = _with(ctes, counted)
     return {"keys": f"{head} SELECT DISTINCT `_inspire_key` FROM {source} WHERE `_inspire_key` IS NOT NULL", "params": params,
@@ -5019,22 +5094,22 @@ FEEDBACK_COLUMNS = ("feedback_id", "section", "record_key", "text", "filters", "
                     "handled_at")
 
 
-def feedback_table(page: dict) -> str:
-    return sibling_table(page, FEEDBACK_SUFFIX)
+def feedback_table(page: dict, app_table: str = "") -> str:
+    return sibling_table(page, FEEDBACK_SUFFIX) if page.get("result_table") else table_name(app_table)
 
 
-def feedback_write(page: dict, feedback_id: str, section: str, record_key: str, text: str, reporter: str, filters: str) -> tuple:
+def feedback_write(page: dict, feedback_id: str, section: str, record_key: str, text: str, reporter: str, filters: str, app_table: str = "") -> tuple:
     params = _Params()
     cells = [params.add(feedback_id), params.add(str(page.get("use_case_id") or "")), params.add(section), params.add(record_key or None),
              params.add(text), params.add(reporter), "current_timestamp()", params.add(FEEDBACK_NEW), params.add(filters or None)]
-    return (f"INSERT INTO {feedback_table(page)} (`feedback_id`, `use_case_id`, `section`, `record_key`, `text`, `reported_by`, `reported_at`, "
+    return (f"INSERT INTO {feedback_table(page, app_table)} (`feedback_id`, `use_case_id`, `section`, `record_key`, `text`, `reported_by`, `reported_at`, "
             f"`status`, `filters`) VALUES ({', '.join(cells)})", params.items)
 
 
-def feedback_query(page: dict, reporter=None, limit: int = 50) -> tuple:
+def feedback_query(page: dict, reporter=None, limit: int = 50, app_table: str = "") -> tuple:
     params = _Params()
     mine = f" AND lower(`reported_by`) = {params.add(str(reporter).lower())}" if reporter is not None else ""
-    return (f"SELECT {', '.join(f'`{c}`' for c in FEEDBACK_COLUMNS)} FROM {feedback_table(page)} WHERE `use_case_id` = "
+    return (f"SELECT {', '.join(f'`{c}`' for c in FEEDBACK_COLUMNS)} FROM {feedback_table(page, app_table)} WHERE `use_case_id` = "
             f"{params.add(str(page.get('use_case_id') or ''))}{mine} ORDER BY `reported_at` DESC LIMIT {int(limit)}", params.items)
 
 
@@ -5588,7 +5663,7 @@ def overview_query(page: dict, values: dict, picked: dict, context: dict, fields
     if window:
         today = params.add(window["today"], "DATE")
         conditions += window_conditions(window, params, held, today)[1:]
-        ranked = window_order("`money`", "`day`", today, "`k`")
+        ranked = stake_first_order("`money`", "`day`", today, "`k`")
         top = min(top, int(window.get("limit") or top))
     item = {"k": f"COALESCE(c.`_inspire_key`, CAST(d.{quote(records['key'])} AS STRING))", "label": f"d.{quote(records['label'])}",
             "n": "COUNT(*) OVER ()"}

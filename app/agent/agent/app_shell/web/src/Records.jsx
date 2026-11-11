@@ -12,12 +12,12 @@ import { OPEN_TAB, tabChoice, withRecord, withoutRecord } from './links.js';
 import { useDock } from './Dock.jsx';
 import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, integer, kindOf, plainText, savedWords, shownUnit, unitOf } from './format.js';
 
-export const recordName = (row, meta) => entityName(row, meta?.label);
 import { hueVars, reducedMotion } from './theme.js';
 import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast, PlainNote, toastFailure } from './ui.jsx';
-import { failureOf, getRecords } from './api.js';
+import { failureOf, getListed, getRecords, waitingOf } from './api.js';
+import WaitingForAccess from './WaitingForAccess.jsx';
 import { HistoryList, useHistory } from './History.jsx';
-import { SaveButton, savingLabel, useWrite } from './saving.jsx';
+import { SaveButton, missingWhy, savingLabel, useWrite } from './saving.jsx';
 import RecordForm, { DeleteDialog } from './RecordForm.jsx';
 import { moneyOf } from './money.js';
 import { apiColumns } from './filters.js';
@@ -26,14 +26,15 @@ import { useCopyLink } from './PageLink.jsx';
 import { WindowChips, useFocusList, useMyView } from './MyView.jsx';
 import { EVERYTHING, listLimit, listWindow, localDay, markVisit, narrowWindow, nextDay, visitedAt, windowLabel } from './prefs.js';
 import { BatchesDialog, BulkBar, CaughtUp, ChoiceSelect, ConflictNote, HelpDialog, NoteField, SimilarDialog, isTyping, useActs } from './Work.jsx';
-import {
+import { recordName, recordSentenceName,
   DRAFT_LABEL, ACT_LIMIT, CHOICE_COLUMN, CLOSED_STATUSES, DONE, HELD, NOTE_CHARS, PAGE_SIZES, REASON_CHARS, UNEXPLAINED, actionForm, actionProblem, actionValues, pageChoices, pickChoice, statusKind, OPEN_STATUSES, isOpenStatus, choiceLabel, closingChoices, isDefaultChoice, QUICK_CLOSE,
   aiValue, askQuestions, changeBadge, doneText, dueText, explainContext, heldBack, heldText, impactText, initials, isOverdue, keptText, leftText, matchOf,
   missingSince, NOT_IN_RUN, notInRunText, overdueFirst, pageText, recordCurrency, recordKeyOf, recordRef, recordView, recordsText, savingText, statusClass,
   statusLabel, actError, withoutWindow, NO_AS_OF, listAsOf,
-  CODES, isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
+  isStaleRecord, closedText, closedBatchOf, undoBatchOf, UNDO_CLOSE, isClosed, skippedText, READ_ONLY, READ_ONLY_KEPT, READ_ONLY_THEIRS,
   CLOSED_PICK, ACCEPTED, acceptable, acceptedText, quietList, claimTarget, claimText, pageDecides, recordLine, recordDetails, choiceValues, rowChoice,
 } from './records.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const tierClass = (t) => `tier tier--${String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 const CHANGE_TAGS = { edit: 'Edited', add: 'Added' };
@@ -75,17 +76,13 @@ function useList(body, ready, nonce, plain = null) {
     if (!ready) return;
     const mine = ++seq.current;
     setState((s) => ({ ...s, busy: true }));
-    getRecords(JSON.parse(key))
-      .then((data) => ({ data, unwindowed: false }))
-      .catch((e) => (plainKey && e.code === CODES.noWindow
-        ? getRecords(JSON.parse(plainKey)).then((data) => { if (data?.actions) throw e; return { data, unwindowed: true }; })
-        : Promise.reject(e)))
+    getListed(JSON.parse(key), plainKey ? JSON.parse(plainKey) : null)
       .then(({ data, unwindowed }) => { if (mine === seq.current) setState({ data, error: '', busy: false, at: Date.now(), unwindowed, key }); })
       .catch((e) => {
         if (mine !== seq.current) return;
         setState((s) => (s.key === key
-          ? { ...s, error: e.message, busy: false }
-          : { data: null, error: e.message, busy: false, at: 0, unwindowed: false, key }));
+          ? { ...s, error: e.message, waiting: waitingOf(e), busy: false }
+          : { data: null, error: e.message, waiting: waitingOf(e), busy: false, at: 0, unwindowed: false, key }));
       });
   }, [key, plainKey, ready, nonce]);
   return state;
@@ -143,11 +140,13 @@ function AddNote({ action }) {
       <h3><Icon name="edit" size={13} />Add a note</h3>
       <form className="note-f" onSubmit={submit}>
         <NoteField name="record_note" value={note} onChange={setNote} label="Note for the history" />
-        <SaveButton write={NOTE_WRITE} type="submit" disabled={!note.trim()}>Add note</SaveButton>
+        <SaveButton write={NOTE_WRITE} type="submit" disabled={!note.trim()} why={missingWhy(['a note'])}>Add note</SaveButton>
       </form>
     </section>
   );
 }
+
+const ACT_OFF = 'This record cannot be acted on here: it is deleted, held, or this App keeps no action tracker.';
 
 function WorkBar({ work, action, tomorrow, canAct }) {
   const [until, setUntil] = useState(tomorrow);
@@ -158,9 +157,11 @@ function WorkBar({ work, action, tomorrow, canAct }) {
   return (
     <div className="work-f" role="group" aria-label="Work through the list">
       <span className="work-k" data-work-k>{work.text}</span>
-      <SaveButton write="work:done" className="btn btn--pri" onClick={() => run('done', { action_status: DONE })} disabled={!canAct} data-key="d"><Icon name="check" size={15} />Done and next</SaveButton>
+      <SaveButton write="work:done" className="btn btn--pri" onClick={() => run('done', { action_status: DONE })} disabled={!canAct} data-key="d"
+        why={canAct ? '' : ACT_OFF}><Icon name="check" size={15} />Done and next</SaveButton>
       <label className="work-snz"><span className="sr">Snooze until</span><input type="date" name="work_snooze" min={tomorrow} value={until} onChange={(e) => setUntil(e.target.value)} /></label>
-      <SaveButton write="work:snoozed" onClick={() => run('snoozed', { snooze_until: until })} disabled={!canAct || !until || until < tomorrow} data-key="s">Snooze and next</SaveButton>
+      <SaveButton write="work:snoozed" onClick={() => run('snoozed', { snooze_until: until })} disabled={!canAct || !until || until < tomorrow} data-key="s"
+        why={!canAct ? ACT_OFF : !until ? missingWhy(['a date']) : 'Pick a date after today to snooze.'}>Snooze and next</SaveButton>
       <button className="btn" onClick={() => run('skipped', null)} disabled={action.saving} data-key="skip">Skip</button>
     </div>
   );
@@ -183,7 +184,7 @@ function SnoozeButton({ action, tomorrow }) {
         <Popover anchor={anchor.current} onClose={close} label="Snooze this record" width={260}>
           <form className="bulk-pop" onSubmit={submit}>
             <label className="in"><span>Snooze until</span><input type="date" name="record_snooze" autoFocus min={tomorrow} value={until} onChange={(e) => setUntil(e.target.value)} required /></label>
-            <SaveButton write={SNOOZE_WRITE} type="submit" className="btn btn--pri" disabled={!until || until < tomorrow}>Snooze until {until ? dayLabel(until) : 'the date'}</SaveButton>
+            <SaveButton write={SNOOZE_WRITE} type="submit" className="btn btn--pri" disabled={!until || until < tomorrow} why={until ? 'Pick a date after today to snooze.' : missingWhy(['a date'])}>Snooze until {until ? dayLabel(until) : 'the date'}</SaveButton>
           </form>
         </Popover>
       )}
@@ -229,7 +230,7 @@ function ActionPanel({ action, owners, pageId, reason, owner, closing, unit, kin
         )}
         <div className="act-btns in--wide">
           <span className="sp" />
-          <SaveButton write={SAVE_WRITE} type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />Save action</SaveButton>
+          <SaveButton write={SAVE_WRITE} type="submit" className="btn btn--pri" disabled={!!problem} why={problem || ''}><Icon name="check" size={14} />Save action</SaveButton>
         </div>
         </fieldset>
       </form>
@@ -616,7 +617,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const quiet = quietList(rows, meta, aliases);
   const labelOf = (c) => {
     const row = rows.find((r) => keyOf(r) === String(c.record_key));
-    return row ? recordName(row, meta) : plainText(c.label ?? c.record_key ?? '');
+    return row ? recordSentenceName(row, meta) : plainText(c.label ?? '') || String(c.record_key ?? '');
   };
   const isNew = (r) => {
     const at = Number(r?._inspire_version) / 1000;
@@ -724,7 +725,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
     if (key == null || !row._inspire_version) return;
     try {
       await acts.act({ record_keys: [String(key)], seen: { [String(key)]: String(row._inspire_version) } }, values,
-        { said, about: { record_key: String(key), label: recordName(row, meta) || String(key) }, key: write });
+        { said, about: { record_key: String(key), label: recordSentenceName(row, meta) }, key: write });
     } catch (err) {
       toastFailure(toast, err, () => quick(row, values, said, write));
     }
@@ -920,7 +921,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           <span className="row-acts row-next-acts">
             {closingChoices(choices).filter((c) => c.id !== now).map((c) => {
               const label = isDefaultChoice(c) ? QUICK_CLOSE[statusKind(c.status)]?.[0] || c.label : c.label;
-              const name = recordName(r, meta);
+              const name = recordSentenceName(r, meta);
               if (statusKind(c.status) === 'dismissed') {
                 return <button key={c.id} type="button" className="btn btn--sm" data-row-choice={c.id} onClick={stop(() => setOpen(r))} aria-label={`${label} ${name}: give the reason in the record`}>{label}</button>;
               }
@@ -965,6 +966,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           {countText && <p>{countText}</p>}
           {left && <p className="left-n"><Icon name="trend" size={13} />{left}</p>}
         </div>
+        <SectionHelp title={meta.title} steps={[{ title: meta.title, text: 'Each row is one record that needs a decision. Use the filters to narrow the list, open a row to act on it, or select several to act on them together.' }]} />
         <div className="tbar">
           <ColumnFilterStatus filters={metas} values={columnValues} onClear={onClearColumns} />
           <label className="search"><Icon name="search" size={14} /><input dir="auto" ref={searchBox} value={query} onChange={(e) => setQuery(e.target.value)} placeholder="Search the list" aria-label="Search the list" maxLength={200} /></label>
@@ -1027,7 +1029,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           onDraft={() => setDrafted([...picked.keys()])} />
       )}
       {!data && list.busy && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={() => setRefresh((n) => n + 1)} />}
+      {list.waiting && <WaitingForAccess waiting={list.waiting} compact onCheck={() => setRefresh((n) => n + 1)} />}
+      {list.error && !list.waiting && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={() => setRefresh((n) => n + 1)} />}
       {data && (
         <>
           {claim && <div className="quiet-n" data-claim><Icon name="info" size={13} /><div><p>{claimText(claim.record_keys.length)}</p>
@@ -1041,8 +1044,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
             sort={shownSort ? { key: shownSort.key, dir: shownSort.dir === 'desc' ? -1 : 1 } : null} onSort={(s) => setSort({ key: s.key, dir: s.dir > 0 ? 'asc' : 'desc' })}
             rowClass={(r) => [picked.has(String(recordKeyOf(r))) || matching ? 'is-picked' : '', keyOf(r) === cursorKey ? 'is-cursor' : '', gate.holds(keyOf(r)) || (matching && gate.busy) ? 'is-saving' : '',
               isOverdue(r._inspire_due, r._inspire_status, today) ? 'is-late' : ''].filter(Boolean).join(' ')}
-            askAbout={genieOn(app, pageId) && history ? (r) => ({ pageId, recordKey: keyOf(r), label: recordName(r, meta) || keyOf(r) }) : undefined}
-            askRow={(r) => ({ title: recordName(r, meta) || keyOf(r), context: { hint: meta.hint || '', fields: shownFields(r) } })} />
+            askAbout={genieOn(app, pageId) && history ? (r) => ({ pageId, recordKey: keyOf(r), label: recordSentenceName(r, meta) }) : undefined}
+            askRow={(r) => ({ title: recordSentenceName(r, meta), context: { hint: meta.hint || '', fields: shownFields(r) } })} />
           {cap > 0 && beyond > 0 && (
             <p className="more" data-limit>{`Your limit shows the top ${integer(cap)} of ${integer(addCounts([cap, beyond]))}. ${integer(beyond)} more are not shown; change the limit in Settings.`}</p>
           )}

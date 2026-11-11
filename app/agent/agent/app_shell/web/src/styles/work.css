@@ -26,8 +26,6 @@
 [data-toast-host]>.toast:not(.is-on){display:none}
 .wchips{display:flex;flex-wrap:wrap;align-items:center;gap:6px}
 .list-tools{display:flex;flex-wrap:wrap;align-items:center;gap:8px;margin:8px 16px 0}
-.card--list>.card-h{flex-wrap:wrap}
-.card--list>.card-h>div:first-child{min-width:min(260px,100%)}
 .list-tools .keys-b{font-weight:700;font-size:14px;border-color:var(--line-strong)}
 .pick-i--you.is-on,.chg-b--you{background:var(--teal-bg);color:var(--teal-ink);border-color:var(--teal-bd)}
 .chg-b--late{background:var(--danger-bg);color:var(--danger);border-color:var(--brand-bd)}

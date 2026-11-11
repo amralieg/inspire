@@ -270,7 +270,8 @@ def test_only_a_version_whose_asks_alone_rebuild_an_output_is_guarded(agent_ns, 
 def test_a_core_vibe_rebuild_skips_the_guard_even_when_genie_changes_every_chart(agent_ns, tmp_path):
     inst, context, deployed, deploy = _page_inspire(agent_ns, tmp_path, guarded=())
     inst._implement_page_spec(context, _Runner([V4]), "app", deploy)
-    assert [{k: v for k, v in page.items() if k != "tour"} for page in deployed] == [V4] and "app" not in context["untargeted"]
+    assert [{k: v for k, v in page.items() if k != "tour"} for page in deployed] == [dict(V4, value_ledger="`main`.`inspire`.`__inspire_value_ledger`")] \
+        and "app" not in context["untargeted"], "the App counts its values in the value ledger (lane E), so the deployed page carries it"
 
 
 SPACE = {"title": "Fare agent", "description": "Ask about daily fare takings",

@@ -129,7 +129,8 @@ def test_a_mask_whose_using_column_is_missing_is_refused(agent_ns):
 def test_two_sources_with_different_row_filters_are_refused(agent_ns):
     sources = dict(_source(agent_ns), **{"main.s.other": _protection(agent_ns, ["team"], filters=[("main.sec.team_rows", "team")])})
     plan = _plan(agent_ns)(sources, {RESULT: _protection(agent_ns, ["owner", "team", "ssn", "region"])})
-    assert any("which have different row filters, and a table keeps only one row filter" in r for r in plan["refuse"])
+    assert any("reads 2 source tables with 2 different row filters, and a table keeps only one row filter, so it cannot keep all of those" in r
+               for r in plan["refuse"]), plan["refuse"]
 
 
 def test_a_masked_column_the_notebook_reads_but_no_result_carries_is_refused(agent_ns):
@@ -235,7 +236,7 @@ def _gate(ns, result_columns, outputs=None, fail=()):
     inst._implement_update = lambda key, **kw: inst.updates.append(kw)
     spec = _spec(ns)[0]
     spec["outputs"].update(outputs or {"app_access": "user"})
-    context = {"spec": spec, "key": (5150, "N01-U01", 2), "use_case": {}, "asset_status": {}, "result_table": RESULT,
+    context = {"spec": spec, "key": (5150, "N01-U01", 2), "uc_id": "N01-U01", "use_case": {}, "asset_status": {}, "result_table": RESULT,
                "summary_table": SUMMARY, "allowed": [RESULT, SUMMARY, "main.s.orders_v2"]}
     return inst, context
 
@@ -319,6 +320,7 @@ def test_the_shell_settings_check_runs_the_protection_rule():
 
 def test_the_shell_does_not_run_sql_over_a_blocked_table_but_runs_other_tables():
     ws = shell_db.Workspace.__new__(shell_db.Workspace)
+    ws.query_tags = []
     ws.blocked = (SUMMARY,)
     ws.clock = lambda: 0.0
     sent = []

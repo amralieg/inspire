@@ -153,7 +153,7 @@ for (const theme of ['light', 'dark']) {
     const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } }, '',
       { init: async (page) => { await sized(SCREEN, theme)(page); await profileAt([], GROUPING_PROFILE)(page); } });
     try {
-      await onStep(ui.page, 'Use case');
+      await goToStep(ui.page, 'Data');
       assert.equal(await ui.page.evaluate(() => document.documentElement.classList.contains('dark')), theme === 'dark');
       const labels = (await ui.page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\.\s*/, '').trim());
       const missed = [];

@@ -27,7 +27,7 @@ const IMPLEMENT_UNINSTALLED = 'uninstalled';
 const FIRST_RUN_CARRIED = 'The version before this one already saved this, so Inspire builds on its First run choice: ';
 const IMPLEMENT_VIBE_NOT_MET = 'vibe_not_met';
 const IMPLEMENT_STATUSES = ['queued', 'filling', 'previewing', 'building_outputs', 'checking', 'ready', 'ready_with_warnings', 'failed',
-  IMPLEMENT_VIBE_NOT_MET, IMPLEMENT_UNINSTALLED];
+  IMPLEMENT_UNINSTALLED];
 const IMPLEMENT_ACTIVE_STATUSES = ['queued', 'filling', 'previewing', 'building_outputs', 'checking'];
 const IMPLEMENT_DONE_STATUSES = ['ready', 'ready_with_warnings'];
 const IMPLEMENT_OUTPUTS = ['dashboard', 'genie_space', 'app', 'alert'];
@@ -40,7 +40,7 @@ const IMPLEMENT_STOPPED_STATES = ['deleted', 'released'];
 const IMPLEMENT_RUN_ENDED_STATES = ['TERMINATED', 'SKIPPED', 'INTERNAL_ERROR'];
 const IMPLEMENT_STALE_AFTER_MS = 4 * 3600 * 1000;
 const IMPLEMENT_CHANGE_CLASSES = ['initial', 'data', 'config', 'schedule', 'holdout', 'capacity', 'outputs', 'settings', 'deselect', 'sharing',
-  'retry', 'rollback', 'vibe', 'remove_kept', 'uninstall'];
+  'retry', 'rollback', 'vibe', 'remove_kept', 'uninstall', 'name'];
 const IMPLEMENT_CAPACITY_SOURCES = ['default', 'user'];
 const IMPLEMENT_CAPACITY_MAX = 1000000;
 const IMPLEMENT_VIBE_PREVIOUS = ['keep', 'remove'];
@@ -124,6 +124,7 @@ const IMPLEMENT_NOTEBOOK_TASK_KEY = 'inspire_task';
 const IMPLEMENT_PRINCIPAL_TYPES = ['user', 'group', 'service_principal'];
 const IMPLEMENT_USE_CASE_PARAM = 'inspire_implement_use_case';
 const IMPLEMENT_SPEC_VERSION_PARAM = 'inspire_implement_spec_version';
+const IMPLEMENT_INSPIRE_CLIENT_PARAM = 'inspire_app_client_id';
 const IMPLEMENT_RUN_ID_REFERENCE = '{{job.run_id}}';
 const IMPLEMENT_APP_NAME_RE = /^[a-z][a-z0-9-]{1,28}[a-z0-9]$/;
 const IMPLEMENT_WIDGET_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,40}$/;
@@ -1308,6 +1309,7 @@ function classifyImplementChange(previous, current, built = null, tableChange = 
     widgets = 'config';
   }
   if (sortedJson(assumptionsOf(previous)) !== sortedJson(assumptionsOf(current)) || widgets === 'settings') classes.add('settings');
+  if (str(previous.use_case_name).trim() !== str(current.use_case_name).trim()) classes.add('name');
   if (section(previous, 'schedule') !== section(current, 'schedule')) classes.add('schedule');
   const before = previous.outputs || {};
   const after = current.outputs || {};
@@ -1351,7 +1353,7 @@ function implementChangeSummary(previous, current, assets = {}, built = null, ha
     if (!assets[name] || !before[name] || renamed) build.push(name);
     else if (rollingBack.includes(name)) rollback.push(name);
     else if (refill || changedOptions.includes(name) || retry.includes(name)
-      || (name === 'alert' && classes.includes('schedule'))) refresh.push(name);
+      || (name === 'alert' && classes.includes('schedule')) || (name === 'app' && classes.includes('name'))) refresh.push(name);
   }
   const deselected = IMPLEMENT_OUTPUTS.filter((n) => before[n] && !after[n]);
   const removed = current.removed_outputs || {};
@@ -2095,12 +2097,13 @@ function refuseUnchanged(plan) {
   }
 }
 
-function implementJobParams(baseParams, useCaseId, specVersion) {
+function implementJobParams(baseParams, useCaseId, specVersion, inspireClientId = '') {
   return {
     ...baseParams,
     '15_operation': IMPLEMENT_OPERATION,
     [IMPLEMENT_USE_CASE_PARAM]: String(useCaseId),
     [IMPLEMENT_SPEC_VERSION_PARAM]: String(specVersion),
+    [IMPLEMENT_INSPIRE_CLIENT_PARAM]: String(inspireClientId || ''),
     [IMPLEMENT_RUN_ID_PARAM]: IMPLEMENT_RUN_ID_REFERENCE,
   };
 }
@@ -2150,6 +2153,18 @@ function columnsStatement(name) {
   };
 }
 
+function primaryKeysStatement(name) {
+  const t = tableParts(name);
+  return {
+    sql: `SELECT kcu.column_name FROM \`${t.catalog}\`.information_schema.key_column_usage kcu `
+      + `JOIN \`${t.catalog}\`.information_schema.table_constraints tc ON kcu.constraint_name = tc.constraint_name `
+      + 'AND kcu.table_schema = tc.table_schema AND kcu.table_name = tc.table_name '
+      + "WHERE tc.constraint_type = 'PRIMARY KEY' AND kcu.table_schema = lower(:s) AND kcu.table_name = lower(:t) "
+      + 'ORDER BY kcu.ordinal_position',
+    parameters: [{ name: 's', value: t.schema, type: 'STRING' }, { name: 't', value: t.table, type: 'STRING' }],
+  };
+}
+
 function tableSwapStatement(name, requiredColumns = []) {
   const t = tableParts(name);
   const required = requiredColumns.map((c) => str(c).trim().toLowerCase()).filter(Boolean);
@@ -2182,9 +2197,12 @@ function columnValuesStatement(name, column, limit = 200) {
   };
 }
 
+const FILTER_RANGE_OPS = ['>', '>=', '<', '<='];
+
 function filterClause(filter, index) {
   const col = quoteColumn(filter.column);
   const op = str(filter.op).toLowerCase();
+  if (op === 'is null') return { sql: `${col} IS NULL`, params: [] };
   const values = (Array.isArray(filter.values) ? filter.values : []).map((v) => str(v));
   const params = values.map((v, i) => ({ name: `f${index}_${i}`, value: v, type: 'STRING' }));
   const refs = params.map((p) => `:${p.name}`);
@@ -2195,9 +2213,10 @@ function filterClause(filter, index) {
   }
   if (op === 'between') {
     if (refs.length !== 2) throw badRequest(`filter ${filter.column} between needs two values`);
-    return { sql: `CAST(${col} AS STRING) BETWEEN ${refs[0]} AND ${refs[1]}`, params };
+    return { sql: `${col} BETWEEN ${refs[0]} AND ${refs[1]}`, params };
   }
   if (refs.length !== 1) throw badRequest(`filter ${filter.column} ${op} needs one value`);
+  if (FILTER_RANGE_OPS.includes(op)) return { sql: `${col} ${op} ${refs[0]}`, params };
   return { sql: `CAST(${col} AS STRING) ${op} ${refs[0]}`, params };
 }
 
@@ -3008,9 +3027,16 @@ function builtInSampleTable(name) {
 
 function builtInSampleMessage(tables) {
   const one = tables.length === 1;
-  return `${one ? 'A source table is' : `${tables.length} source tables are`} in a built-in sample catalog that Databricks owns (System user), so nobody can grant `
-    + `the App read metadata on ${one ? 'it' : 'them'}. Copy ${one ? 'the table' : 'each table'} into a catalog you own, `
-    + `with CREATE TABLE ... AS SELECT, and use the copy`;
+  const subject = one ? tables[0] : `${tables.length} source tables`;
+  const verb = one ? 'is in' : 'are in';
+  return `${subject} ${verb} a built-in sample catalog that Databricks owns, so nobody can grant the App access to ${one ? 'it' : 'them'}: `
+    + `copy ${one ? 'the table' : 'each table'} into a catalog you own with CREATE TABLE ... AS SELECT, and use the ${one ? 'copy' : 'copies'}`;
+}
+
+function abacUnreadableSentence(label, { app = false } = {}) {
+  const name = str(label).trim();
+  const who = app ? `The App's service principal ${name}` : (name || 'The build');
+  return `${who} cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them`;
 }
 
 function appReadGrantsOffer(tables, plans, app) {
@@ -3647,9 +3673,11 @@ module.exports = {
   IMPLEMENT_SOURCE_NEEDS,
   builtInSampleTable,
   builtInSampleMessage,
+  abacUnreadableSentence,
   ownerLabel,
   IMPLEMENT_TRAVERSE_PRIVILEGES,
   IMPLEMENT_NOTEBOOK_TASK_KEY,
+  IMPLEMENT_INSPIRE_CLIENT_PARAM,
   IMPLEMENT_USE_CASE_PARAM,
   IMPLEMENT_SPEC_VERSION_PARAM,
   IMPLEMENT_RUN_ID_PARAM,
@@ -3724,6 +3752,7 @@ module.exports = {
   implementWidgets,
   tableParts,
   columnsStatement,
+  primaryKeysStatement,
   tableSwapStatement,
   columnValuesStatement,
   readinessStatement,

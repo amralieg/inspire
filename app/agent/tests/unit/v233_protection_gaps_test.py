@@ -190,7 +190,8 @@ def test_a_per_user_app_over_a_protected_result_gives_its_service_principal_no_g
     inst, _fields = _decided_deploy(agent_ns, {})
     assert any("TO `sp-1`" in s for s in _not_access_reads(inst.spark.statements)), "decisions on a plain table are written by the App"
     inst, fields = _decided_deploy(agent_ns, {RESULT: "a row filter"})
-    assert not any("TO `sp-1`" in s for s in _not_access_reads(inst.spark.statements))
+    assert not any("TO `sp-1`" in s for s in _not_access_reads(inst.spark.statements) if "__inspire_value_ledger" not in s), (
+        "the protected result gets no grant; the value ledger grant is its own table (lane E)")
     assert any(w.startswith(f"App: each person records decisions on {RESULT} as themselves") for w in fields.get("_warnings") or [])
     assert any("[IMPLEMENT-PROTECTED-WRITER FIRED]" in m for _, m in inst.logger.records)
 

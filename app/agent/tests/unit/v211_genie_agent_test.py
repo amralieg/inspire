@@ -137,7 +137,7 @@ def test_the_agent_answers_through_genie_as_one_tool_and_changes_the_view_with_u
     tool_messages = [m for m in llm.main_calls()[-1]["messages"] if m["role"] == "tool"]
     assert len(tool_messages) == 2 and all(m["content"].startswith(shell_agent.TOOL_NOTE + "\n<data>") for m in tool_messages)
     assert [t["function"]["name"] for t in llm.main_calls()[0]["tools"]] == ["ask_genie", "change_view", "split_kpi", "find_records", "read_record",
-                                                                         "similar_records", "propose_action"]
+                                                                         "similar_records", "propose_action", "offer_actions"]
     assert ws.queries("MERGE INTO") == []
 
 

@@ -30,7 +30,8 @@ def _info(tmp_path, headers, query=None, settings=None):
 def test_the_app_tells_the_browser_to_show_the_admin_link_only_to_an_owner_it_signed_in_itself(tmp_path, headers, query, settings, admin):
     out, ws = _info(tmp_path, headers, query, settings)
     assert out["is_owner"] is admin, "the owner check reads the workspace's own sign-in headers, never what the browser sends"
-    assert ws.sql == [], "telling who owns the App reads no table"
+    _, anonymous = _info(tmp_path / "anonymous", {}, query, settings)
+    assert ws.sql == anonymous.sql, "the owner check adds no table read: the App reads the same tables for every person"
     signed = {str(v).lower() for v in headers.values()}
     assert "admin" not in out and (OWNER.lower() in signed or OWNER not in json.dumps(out)), "the App info never names who owns the App"
 

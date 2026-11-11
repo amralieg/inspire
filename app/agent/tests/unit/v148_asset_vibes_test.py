@@ -586,7 +586,7 @@ def test_the_app_names_the_business_and_links_each_page_to_its_alert(agent_ns):
     inst = build_inspire(agent_ns)
     inst.business_name = "Acme Retail"
     inst._implement_builder = lambda: "builder@example.com"
-    context = {"uc_id": "N01-U01", "use_case": {"Name": "Predict churn"}, "job_id": 77, "spec": {"outputs": {"alert": True, "app_access": "sp"}},
+    context = {"uc_id": "N01-U01", "key": (5150, "N01-U01", 1), "use_case": {"Name": "Predict churn"}, "job_id": 77, "spec": {"outputs": {"alert": True, "app_access": "sp"}},
                "urls": {"alert_url": "https://h/sql/alerts-v2/al-1"}}
     core = type("Core", (), {"SETTINGS_VERSION": 1})
     written = inst._implement_app_settings(context, {"shell_core": core}, {"id": "n01_u01"}, None, "off", context["spec"]["outputs"])

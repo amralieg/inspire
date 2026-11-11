@@ -4,6 +4,7 @@ const { vibeRefusalText, vibeRefusals } = require('../../frontend/src/lib/vibeLi
 const { parseExactJson } = require('./exactJson');
 
 const FEEDBACK_SUFFIX = '_feedback';
+const APP_FEEDBACK_PREFIX = '__inspire_app_feedback_';
 const FEEDBACK_STATUSES = ['new', 'vibe', 'closed'];
 const FEEDBACK_ROWS = 200;
 const FEEDBACK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -35,23 +36,43 @@ function feedbackTable(resultTable) {
   return quoteTable(`${String(resultTable).trim()}${FEEDBACK_SUFFIX}`);
 }
 
-function feedbackListStatement(resultTable, useCaseId) {
+function appFeedbackKey({ appName, useCaseId }) {
+  const name = appName || useCaseId;
+  return str(name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function appFeedbackTable({ database, appName, useCaseId }) {
+  const parts = str(database).trim().split('.');
+  if (parts.length !== 2 || parts.some((p) => !p)) throw badRequest('the Inspire database must be catalog.schema');
+  const key = appFeedbackKey({ appName, useCaseId });
+  if (!key) throw badRequest('the App needs a name or a use case id before it can keep reported issues');
+  return quoteTable(`${parts[0]}.${parts[1]}.${APP_FEEDBACK_PREFIX}${key}`);
+}
+
+const STATUS_ORDER = { new: 0, vibe: 1 };
+
+function feedbackRowsAcross(lists) {
+  return lists.flat().sort((a, b) => (STATUS_ORDER[a.status] ?? 2) - (STATUS_ORDER[b.status] ?? 2)
+    || String(b.reported_at || '').localeCompare(String(a.reported_at || '')));
+}
+
+function feedbackListStatement(table, useCaseId) {
   return {
-    sql: `SELECT ${FEEDBACK_COLUMNS.join(', ')} FROM ${feedbackTable(resultTable)} WHERE use_case_id = :uc ORDER BY CASE status WHEN 'new' THEN 0 WHEN 'vibe' THEN 1 ELSE 2 END, reported_at DESC LIMIT ${FEEDBACK_ROWS}`,
+    sql: `SELECT ${FEEDBACK_COLUMNS.join(', ')} FROM ${table} WHERE use_case_id = :uc ORDER BY CASE status WHEN 'new' THEN 0 WHEN 'vibe' THEN 1 ELSE 2 END, reported_at DESC LIMIT ${FEEDBACK_ROWS}`,
     parameters: [{ name: 'uc', value: String(useCaseId), type: 'STRING' }],
   };
 }
 
-function feedbackOneStatement(resultTable, useCaseId, feedbackId) {
+function feedbackOneStatement(table, useCaseId, feedbackId) {
   return {
-    sql: `SELECT ${FEEDBACK_COLUMNS.join(', ')} FROM ${feedbackTable(resultTable)} WHERE use_case_id = :uc AND feedback_id = :id LIMIT 1`,
+    sql: `SELECT ${FEEDBACK_COLUMNS.join(', ')} FROM ${table} WHERE use_case_id = :uc AND feedback_id = :id LIMIT 1`,
     parameters: [{ name: 'uc', value: String(useCaseId), type: 'STRING' }, { name: 'id', value: String(feedbackId), type: 'STRING' }],
   };
 }
 
-function feedbackStatusStatement(resultTable, useCaseId, change, by) {
+function feedbackStatusStatement(table, useCaseId, change, by) {
   return {
-    sql: `UPDATE ${feedbackTable(resultTable)} SET status = :status, vibe_text = :vibe, handled_by = :by, handled_at = current_timestamp() `
+    sql: `UPDATE ${table} SET status = :status, vibe_text = :vibe, handled_by = :by, handled_at = current_timestamp() `
       + 'WHERE use_case_id = :uc AND feedback_id = :id',
     parameters: [
       { name: 'status', value: change.status, type: 'STRING' },
@@ -184,8 +205,11 @@ module.exports = {
   VIBE_MAX_TOKENS,
   chatEndpoint,
   feedbackId,
+  appFeedbackKey,
+  appFeedbackTable,
   feedbackListStatement,
   feedbackOneStatement,
+  feedbackRowsAcross,
   feedbackStatusChange,
   feedbackStatusStatement,
   feedbackTable,

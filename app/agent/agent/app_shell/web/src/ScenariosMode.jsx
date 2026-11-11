@@ -2,9 +2,11 @@ import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { chooseScenario, evaluateScenario, getSavedScenarios, saveScenario, shareScenario, toneOf } from './api.js';
 import { dayLabel, formatValue, integer } from './format.js';
 import { Icon } from './icons.jsx';
+import { missingWhy } from './saving.jsx';
 import { PlainNote, Skeleton, useToast } from './ui.jsx';
 import { ModeEmpty } from './ModeParts.jsx';
 import { COMPARE_MAX, compareRows, decisionCounts, toggleCompared } from './scenarios.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const ScenarioPanel = lazy(() => import('./Scenario.jsx'));
 const NAME_CHARS = 80;
@@ -48,8 +50,8 @@ function SaveForm({ page, result, onSaved }) {
     <form className="scenario-save" onSubmit={submit} data-scenario-save>
       <label>Name this scenario<input dir="auto" required maxLength={NAME_CHARS} value={name} onChange={(e) => setName(e.target.value)} /></label>
       <label>Why, for whoever reads it<input dir="auto" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} /></label>
-      <button className="btn btn--sm btn--pri" type="submit" disabled={busy || !name.trim()}>Save the scenario</button>
-      {!name.trim() && <p className="text-[12px] text-text-secondary" data-save-missing>Add a name to save the scenario.</p>}
+      <button className="btn btn--sm btn--pri" type="submit" disabled={busy || !name.trim()} title={!name.trim() ? missingWhy(['a name']) : undefined}>Save the scenario</button>
+      {!name.trim() && <small className="save-why" data-save-missing>{missingWhy(['a name'])}</small>}
       {error && <PlainNote text={error} prefix="The scenario was not saved: " icon={<Icon name="info" size={12} />} className="tile-err" role="alert" />}
     </form>
   );
@@ -73,7 +75,7 @@ function Compare({ page, picked }) {
     ? formatValue(v, outcome.format, outcome.currency) : formatValue(v, row.format, row.currency));
   return (
     <section className="card card--table" aria-label="Compare scenarios" data-scenario-compare>
-      <header className="card-h"><div><h2>Compare</h2><p>Each scenario is worked out again on today&apos;s model, next to what it showed when saved.</p></div></header>
+      <header className="card-h"><div><h2>Compare</h2><p>Each scenario is worked out again on today&apos;s model, next to what it showed when saved.</p></div><SectionHelp title={'Compare'} steps={[{ title: 'Compare', text: "Each scenario worked out again on today's data, next to the result it showed when it was saved." }]} /></header>
       <div className="tbl-wrap">
         <table className="tbl">
           <thead><tr><th scope="col">Figure</th>{picked.map((s) => <th key={s.id} scope="col">{s.name}</th>)}</tr></thead>
@@ -144,7 +146,7 @@ function Work({ app, page, ready }) {
       {library.data?.note && <p className="note" role="status" data-scenario-note><Icon name="info" size={14} />{library.data.note}</p>}
       {error && <PlainNote text={error.message} icon={<Icon name="info" size={14} />} className={toneOf(error) === 'info' ? 'note' : 'tile-err'} role="alert" onRetry={error === library.error ? library.load : null} />}
       <section className="card card--table" aria-label="Saved scenarios" data-saved-scenarios>
-        <header className="card-h"><div><h2>Saved scenarios</h2><p>Yours, and the ones others shared. Pick up to {COMPARE_MAX} to compare.</p></div></header>
+        <header className="card-h"><div><h2>Saved scenarios</h2><p>Yours, and the ones others shared. Pick up to {COMPARE_MAX} to compare.</p></div><SectionHelp title={'Saved scenarios'} steps={[{ title: 'Saved scenarios', text: "The scenarios you and your team saved. Pick up to the limit to compare them side by side." }]} /></header>
         {!library.data && !library.error && <div className="mode-wait"><Skeleton height={60} /></div>}
         {library.data && !saved.length && <ModeEmpty>No saved scenario yet. Move the levers above, name the scenario and save it.</ModeEmpty>}
         {saved.length > 0 && (
@@ -176,7 +178,7 @@ function Work({ app, page, ready }) {
       </section>
       {picked.length > 1 && <Compare page={page} picked={picked} />}
       <section className="card" aria-label="Decision log">
-        <header className="card-h"><div><h2>Decision log</h2><p>Which scenario was chosen, by whom, and why.</p></div></header>
+        <header className="card-h"><div><h2>Decision log</h2><p>Which scenario was chosen, by whom, and why.</p></div><SectionHelp title={'Decision log'} steps={[{ title: 'Decision log', text: "Which scenario was chosen, by whom, and why." }]} /></header>
         <Decisions decisions={library.data?.decisions || []} />
       </section>
     </div>
@@ -189,7 +191,7 @@ function Performance({ page }) {
   const loaded = !!library.data;
   return (
     <section className="card" data-mode-performance="scenarios" aria-label="Decisions taken">
-      <header className="card-h"><div><h2>Decisions taken</h2><p>The scenarios saved on {page.title} and the ones chosen.</p></div></header>
+      <header className="card-h"><div><h2>Decisions taken</h2><p>The scenarios saved on {page.title} and the ones chosen.</p></div><SectionHelp title={'Decisions taken'} steps={[{ title: 'Decisions taken', text: "The scenarios saved on this use case and the ones that were chosen." }]} /></header>
       {library.error && <PlainNote text={library.error.message} prefix="The saved scenarios could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={library.load} />}
       <div className="mode-stats">
         <div className="mode-stat" data-stat="yours"><small>Saved by you</small><b>{loaded ? integer(counts.mine) : '…'}</b></div>
