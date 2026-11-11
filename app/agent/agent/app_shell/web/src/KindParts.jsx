@@ -153,7 +153,7 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, onChoose, onOpe
       </div>
       <div className="choice-act" role="group" aria-label={`Decide ${row[page.records?.label] ?? key}`}>
         {closed && <span className="choice-done" data-decided><Icon name="check" size={13} />{decidedText(row, statusChoices(page))}</span>}
-        {batch && !undoing && <button type="button" className="link" data-unmerge onClick={() => setUndoing(true)}><Icon name="undo" size={13} />Unmerge</button>}
+        {batch && !undoing && <button type="button" className="link" data-unmerge onClick={() => setUndoing(true)}><Icon name="undo" size={13} />{page.records?.undo || 'Undo'}</button>}
         {!closed && canAct && choices.map((c) => (
           <SaveButton key={c.id} write={`choice:${key}:${c.id}`} className={`btn btn--sm ${suggested?.id === c.id ? 'btn--pri' : ''}`} data-choice={c.id}
             onClick={() => (statusKind(c.status) === 'dismissed' ? setSkipping(c) : onChoose(row, c))}>

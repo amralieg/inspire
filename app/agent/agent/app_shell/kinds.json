@@ -3428,6 +3428,7 @@
     ]
    },
    "demo_signal": "names and addresses with 5% near-duplicates that differ in spelling",
+   "undo_label": "Unmerge",
    "choices": [
     {
      "id": "merge",

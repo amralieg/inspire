@@ -95,6 +95,7 @@ test('entity matching: a merged pair offers Unmerge, which asks first and puts t
   await idle(page);
   assert.equal(await page.locator('[data-choice-row="K1"] [data-decided]').count(), 1, 'the merged pair shows its outcome');
   assert.equal(await page.locator('[data-choice-row="K1"] [data-unmerge]').count(), 1, 'the merged pair offers Unmerge');
+  assert.equal((await page.locator('[data-choice-row="K1"] [data-unmerge]').innerText()).trim(), 'Unmerge', 'the entity page names the undo Unmerge');
   await page.locator('[data-choice-row="K1"] [data-unmerge]').click();
   const ask = page.locator('[role="group"][aria-label="Undo this decision"]');
   await ask.waitFor();
@@ -255,4 +256,20 @@ test('entity matching group: a group action whose refresh fails keeps every row 
   assert.equal(await rowCount(page), DUP_ROWS.length, 'rows survive the failed refresh');
   assert.ok(await page.locator('[data-choice-row] [data-choice]').count() > 0, 'decision buttons survive the failed refresh');
   await context.close();
+});
+
+test('a decision list whose kind names no undo word says Undo, not Unmerge', async () => {
+  const state = { rows: freshRows() };
+  const h = listing(state);
+  const info = appInfo(DECIDE, 1, {}, 'examples/network_explorer.json');
+  const spec = JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', 'network_explorer.json'), 'utf8'));
+  const base = kindRoutes(CASE.data(), state.rows, [], spec);
+  const { page, context, seen } = await openApp(browser, served.base, info, { routes: { ...base, records: h.records, 'records/act': h.act, 'records/undo': h.undo } });
+  await page.locator('[data-choice-row]').first().waitFor();
+  await idle(page);
+  await page.locator('[data-choice-row="K1"] [data-choice="block"]').click();
+  await idle(page);
+  assert.equal((await page.locator('[data-choice-row="K1"] [data-unmerge]').innerText()).trim(), 'Undo', 'the generic word');
+  await context.close();
+  assert.deepEqual(seen.errors.filter((e) => !/Failed to load resource/.test(e)), []);
 });
