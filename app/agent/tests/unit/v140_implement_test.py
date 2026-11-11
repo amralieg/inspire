@@ -3304,58 +3304,40 @@ def test_a_new_app_that_could_not_read_its_table_is_refused_before_anything_is_c
     assert _not_access_reads(inst.spark.statements) == []
 
 
-def test_an_existing_app_whose_service_principal_cannot_read_its_tables_is_deployed_and_names_every_grant(agent_ns, sdk_stub):
+def test_an_existing_app_that_cannot_read_its_tables_is_never_shipped_and_the_build_asks_for_the_grants(agent_ns, sdk_stub):
+    # H 50d990bd (REQ-037..042): an App that cannot read its data is never deployed, fresh or existing. The existing App keeps
+    # its last good version; the build stops with the exact grants to ask for.
     inst, context, calls, imported = _deploy_inspire(agent_ns, [
         {"description": OURS_APP, "compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-2"},
         {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}], LIVE_ACCESS)
-    fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
-    assert fields["app_url"] == "https://churn-desk.example", "a read Inspire cannot grant never stops the build"
-    result = [GRANT_CATALOG.format("sp-2"), GRANT_SCHEMA.format("sp-2")]
-    orders = [GRANT_CATALOG.format("sp-2"), "GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `sp-2`"]
-    reported = [w for w in fields["_warnings"] if w.startswith("App: people cannot report issues")]
-    assert len(reported) == 2 and all(r.startswith("App: people cannot report issues about this use case from the App until its service principal sp-2") for r in reported)
-    assert reported[0].endswith(f"{GRANT_CATALOG.format('sp-2')}; {GRANT_SCHEMA.format('sp-2')}")
-    assert [w for w in fields["_warnings"] if w not in reported] == [
-        "App: its service principal sp-2 cannot read 2 source tables, so the tiles that query them show no data "
-        "and name the grants they need, and Inspire could not grant them itself: for source table 1, ask your data owner to "
-        f"run: {'; '.join(result)}; for source table 2, ask your data owner to run: {'; '.join(orders)}"]
-    settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
-    assert settings["unread"] == {ACCESS_TABLE: result, "main.s.orders": orders}, "the App's tiles name the exact grants"
-    assert settings["unread_owners"] == {ACCESS_TABLE: "your data owner", "main.s.orders": "your data owner"}, "the App's banner names who can grant"
-    assert fields["_asset"]["unread"] == {"app": "sp-2", "tables": [{"table": ACCESS_TABLE, "owner": "your data owner", "grants": result},
-                                                                     {"table": "main.s.orders", "owner": "your data owner", "grants": orders}]}, \
-        "the build records what the App cannot read, so the Build page asks for the grant instead of saying Done"
-    assert ("POST", "/api/2.0/apps/churn-desk/deployments") in [c[:2] for c in calls]
-    assert inst.tagged == ["churn-desk"]
+    with pytest.raises(agent_ns["ImplementBlocked"]) as blocked:
+        inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
+    message = str(blocked.value)
+    assert "could not be given read access to 2 source tables" in message and "so Inspire did not deploy the App" in message
+    assert GRANT_CATALOG.format("sp-2") in message and GRANT_SCHEMA.format("sp-2") in message
+    assert not [c for c in calls if c[1].endswith("/deployments")], "the block fires before any deploy call"
 
-
-def test_a_read_grant_the_platform_refuses_is_a_warning_with_the_exact_grant_and_the_app_still_ships(agent_ns, sdk_stub):
+def test_a_read_grant_the_platform_refuses_blocks_a_fresh_app_and_no_deploy_call_happens(agent_ns, sdk_stub):
+    # H 50d990bd (REQ-037..042): a fresh App whose service principal cannot read a source is never deployed.
     inst, context, calls, imported = _deploy_inspire(agent_ns, [
         RuntimeError("RESOURCE_DOES_NOT_EXIST: app churn-desk"),
         {"compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-1"},
         {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}])
     context["spec"]["outputs"]["app_options"]["decisions"] = False
-
     def respond(statement):
         if statement.startswith("SELECT level, privilege, principal"):
             return INSPIRE_OWNS
         if statement == GRANT_ORDERS.format("sp-1"):
             raise RuntimeError("PERMISSION_DENIED: User does not have MANAGE on Table 'main.s.orders'")
         return None
-
     inst.spark = FakeSpark(responder=respond)
-    fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
-    assert fields["app_url"] == "https://churn-desk.example"
-    [warning] = fields["_warnings"]
-    assert warning.startswith("App: its service principal sp-1 cannot read this source table, so the tiles that query it show no data")
-    assert (f"for source table 1 ({GRANT_ORDERS.format('sp-1')} failed: PERMISSION_DENIED: User does not have MANAGE on Table "
-            f"'main.s.orders'), ask inspire-sp to run: {GRANT_ORDERS.format('sp-1')}") in warning
-    assert "main.inspire.churn_out" not in warning, "a table whose grant ran is not named (must-exclude)"
-    settings = json.loads(inst.uploads["/W/acme_implemented/Sales/apps/churn-desk/inspire_app.json"][0])
-    assert settings == {"unread": {"main.s.orders": [GRANT_ORDERS.format("sp-1")]}, "unread_owners": {"main.s.orders": "inspire-sp"}}
-    assert fields["_asset"]["unread"]["tables"] == [{"table": "main.s.orders", "owner": "inspire-sp", "grants": [GRANT_ORDERS.format("sp-1")]}]
-    assert GRANT_SELECT.format("sp-1") in inst.spark.statements
-
+    with pytest.raises(agent_ns["ImplementBlocked"]) as blocked:
+        inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
+    message = str(blocked.value)
+    assert f"for source table 1 (GRANT SELECT ON TABLE `main`.`s`.`orders` TO `sp-1` failed: PERMISSION_DENIED" in message
+    assert GRANT_ORDERS.format("sp-1") in message and "Grant it, then build again" in message
+    assert not [c for c in calls if c[1].endswith("/deployments")], "the block fires before any deploy call"
+    assert not inst.genie_grants, "no Genie grant runs after the block"
 
 def test_an_existing_app_whose_service_principal_reads_through_a_group_is_redeployed(agent_ns, sdk_stub):
     inst, context, calls, imported = _deploy_inspire(agent_ns, [
