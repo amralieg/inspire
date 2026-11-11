@@ -974,6 +974,29 @@ def test_implement_mode_needs_a_database_and_a_queued_spec(agent_ns):
         inst._run_implement_mode()
 
 
+def test_an_implement_run_ignores_a_docs_json_path_in_uc_metadata(agent_ns):
+    uc_metadata_for_operation = agent_ns["uc_metadata_for_operation"]
+    assert uc_metadata_for_operation("Implement Use Cases", "/Workspace/Users/a/docs/acme.json") == ""
+    assert uc_metadata_for_operation("Generate Use Cases", " /Workspace/Users/a/docs/acme.json ") == "/Workspace/Users/a/docs/acme.json"
+    assert uc_metadata_for_operation("Discover Use Cases", "main.sales") == "main.sales"
+    main = ast.unparse(top_level_defs()["main"])
+    applied = main.index("uc_metadata_for_operation(operation, catalogs_and_schemas_str)")
+    assert applied < main.index("startswith('/')"), "the operation decides docs-only mode before the JSON path check reads UC Metadata"
+
+
+def test_an_implement_run_with_nothing_queued_records_the_reason_on_the_build_feed(agent_ns):
+    inst = _inspire(agent_ns, FakeSpark())
+    inst.atomic_writer = types.SimpleNamespace(_ensure_implement_table=lambda: None)
+    inst._implement_targets = lambda: []
+    emitted = []
+    inst._implement_emit = lambda uc_id, step, message, status, *args, **kwargs: emitted.append((uc_id, step, message, status))
+    with pytest.raises(RuntimeError, match="No queued use case MVP spec for session 5150"):
+        inst._run_implement_mode()
+    assert len(emitted) == 1
+    uc_id, step, message, status = emitted[0]
+    assert (step, status) == ("Implement", "ended_error") and "submit the wizard first" in message
+
+
 def test_a_retry_of_a_version_that_already_ran_ends_with_its_recorded_outcome_not_a_wizard_hint(agent_ns):
     assert "status_message" in agent_ns["DatabricksInspire"]._IMPLEMENT_READ_COLUMNS
     inst = _inspire(agent_ns, FakeSpark())

@@ -6,6 +6,7 @@ import { specVibeAsks, vibeConflicts, vibeRefusalText, vibeRefusals } from './vi
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
 import { FIRST_RUN_LABEL, firstRunSent, latestRunScope, scopeProblems, scopeValues } from './runScope.js';
 import { PLACE_NAME_RE } from './tableName.js';
+import { newIssueUrl } from './issues.js';
 import {
   allowedRule, allowedText, isSettingWidget, numberText, settingsModelOf, settingsProblems, widgetProblems, widgetSetProblems, widgetValueProblem,
   wizardSettings, withSettingsNote,
@@ -2541,6 +2542,28 @@ export function failureChoices(latest, { technique = '', notebookUrl = '' } = {}
   return choices;
 }
 
+const NEVER_PICKED_UP_RE = /^the run building (v\d+) ended \([\s\S]+\) while \1 was still queued$/;
+
+export function stoppedWords(stalled) {
+  const reason = String(stalled?.reason || '').trim();
+  const queued = NEVER_PICKED_UP_RE.exec(reason);
+  if (queued) return `The build job ended before Inspire started building ${queued[1]}`;
+  return reason || 'its run stopped before it finished';
+}
+
+export function stoppedChoices(latest, { notebookUrl = '' } = {}) {
+  const version = versionOf(latest);
+  const useCase = String(latest?.use_case_id || '').trim();
+  return [
+    { id: 'scope', label: 'Change the source or scope', detail: 'Change the tables, the columns or the first-run size in all settings, then build again.' },
+    { id: 'notebook', label: 'Build it without the App', url: notebookUrl,
+      detail: notebookUrl ? 'Open the Genie Code notebook Inspire wrote for this use case and run it yourself.'
+        : 'Inspire writes the Genie Code notebook for this use case, and you run it yourself.' },
+    { id: 'report', label: 'Report the issue', detail: 'Open a report with this version and the reason. It holds no workspace details.',
+      url: newIssueUrl({ title: `Build of ${useCase} v${version} stopped`, body: `Use case ${useCase}, version v${version}: the build stopped. Add what you tried.` }) },
+  ];
+}
+
 export const DATA_STOP_HINT = 'Trying again stops on the same data. Change the ask in Vibe/Add/Remove Features, or the tables and columns in all settings, then rebuild.';
 
 export function dataStopped(latest) {
@@ -2581,7 +2604,7 @@ export const UNRELIABLE_FIX = 'change the data or the method so the run passes w
 export function statusReason(latest, stalled = null) {
   const s = String(latest?.status || '');
   if (runStopped(s, stalled)) {
-    return `${String(stalled.reason || 'its run stopped before it finished').trim()}. Rebuild in ${VIBE_FEATURES_LABEL} submits a new version.`;
+    return `${stoppedWords(stalled)}. Rebuild in ${VIBE_FEATURES_LABEL} submits a new version.`;
   }
   if (s === IMPLEMENT_VIBE_NOT_MET) {
     return String(latest?.asset_status?.held?.reason ?? '').trim() || heldNoReasonText(versionOf(latest));
