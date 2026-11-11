@@ -4345,6 +4345,16 @@ class Shell:
         notice = self.alerts.assigned(headers, page, values.get("action_owner"), editor) if values.get("action_owner") else ""
         return dict(out, **({"notice": notice} if notice else {}))
 
+    def ledger_writer(self, ws):
+        """The value ledger is written with the signed-in person's token in per-user mode (the build grants no App principal on it), with the App's identity otherwise."""
+        return ws if self.inside or self.settings["auth"] == "user" else self.service()
+
+    def ledger_warning(self, error, cleared: bool = False) -> str:
+        what = "the cleared value is still counted in the value ledger" if cleared else "the saved value is not counted in the value ledger"
+        if NOT_ALLOWED.search(str(error)):
+            return f"{what}, because you cannot write to the value ledger; ask the App owner to check its access"
+        return f"{what}: {shell_sql.error_text(error)}"
+
     def record_value_saves(self, ws, page: dict, batch: str, values: dict, sent: bool, editor: str) -> dict:
         """Counts a realized value the request named, in the value ledger: one statement, with the App's own identity."""
         if not sent:
@@ -4353,12 +4363,12 @@ class Shell:
         if not table or not page.get("result_table") or not page.get("use_case_id"):
             return {} if value is None else {"value_warning": "the saved value is not counted in the value ledger, because this App's page "
                                                               "names no ledger; rebuild the App so it does"}
-        writer = ws if self.inside else self.service()
+        writer = self.ledger_writer(ws)
         try:
             stake = self.execute(writer, shell_facts.ledger_latest_stake_sql(table, page["result_table"], page["use_case_id"]), [], 1,
                                  delta=True)["rows"]
         except QueryError as error:
-            return {"value_warning": f"the saved value is not counted in the value ledger: {shell_sql.error_text(error)}"}
+            return {"value_warning": self.ledger_warning(error)}
         found = (stake or [None])[0]
         if found is None:
             return {} if value is None else {"value_warning": "the saved value is not counted in the value ledger, because this use case "
@@ -4368,7 +4378,7 @@ class Shell:
         try:
             written = (self.execute(writer, sql, [], 1, delta=True)["rows"] or [{}])[0]
         except QueryError as error:
-            return {"value_warning": f"the saved value is not counted in the value ledger: {shell_sql.error_text(error)}"}
+            return {"value_warning": self.ledger_warning(error)}
         return {"value_recorded": int(written.get("num_inserted_rows", written.get("num_affected_rows")) or 0)}
 
     def record_value_clears(self, ws, page: dict, batch: str, editor: str) -> dict:
@@ -4377,11 +4387,11 @@ class Shell:
         if not table or not page.get("result_table") or not page.get("use_case_id"):
             return {}
         sql = shell_facts.ledger_clear_from_batch_sql(table, page["result_table"], page["use_case_id"], shell_sql.BATCH_COLUMN, batch, editor)
-        writer = ws if self.inside else self.service()
+        writer = self.ledger_writer(ws)
         try:
             written = (self.execute(writer, sql, [], 1, delta=True)["rows"] or [{}])[0]
         except QueryError as error:
-            return {"value_warning": f"the cleared value is still counted in the value ledger: {shell_sql.error_text(error)}"}
+            return {"value_warning": self.ledger_warning(error, cleared=True)}
         return {"value_cleared": int(written.get("num_inserted_rows", written.get("num_affected_rows")) or 0)}
 
     def replayed_act(self, ws, page: dict, request: str, editor: str, keys) -> dict:
