@@ -73,3 +73,25 @@ def test_undo_word_is_checked_as_a_short_text(ns):
     base = shell_sql._records_problems(records, True)
     assert shell_sql._records_problems(dict(records, undo="Unmerge"), True) == base
     assert any("undo" in p for p in shell_sql._records_problems(dict(records, undo="x" * 200), True))
+
+
+def test_generated_entity_page_names_its_group_action(ns):
+    kind = _kinds()["entity_matching"]
+    assert kind["group"] == {"column": "community", "choice": "merge", "label": "Merge group", "undo": "Unmerge group"}
+    page = {"records": {"title": "Merge candidates", "label": "entity_label"}, "layout": "network_explorer"}
+    out = ns["implement_app_page"](page, "N06-U02", {}, "main.master.accounts_out", None, None, "", "network_explorer", kind["choices"],
+                                   undo=kind["undo_label"], group=kind["group"])
+    assert out["records"]["group"] == kind["group"]
+    plain = ns["implement_app_page"](page, "N05-U01", {}, "main.risk.ring_out", None, None, "", "network_explorer", None)
+    assert "group" not in plain["records"]
+
+
+def test_group_config_must_name_a_column_a_choice_and_its_words(ns):
+    records = {"title": "Merge candidates", "label": "entity_label", "key": "entity_id", "rank": "rank",
+               "columns": [{"column": "centrality", "label": "Match strength", "format": "number"}], "detail": []}
+    base = shell_sql._records_problems(records, True)
+    good = {"column": "community", "choice": "merge", "label": "Merge group", "undo": "Unmerge group"}
+    assert shell_sql._records_problems(dict(records, group=good), True) == base
+    assert shell_sql._records_problems(dict(records, group=dict(good, choice="")), True)
+    assert shell_sql._records_problems(dict(records, group=dict(good, column="")), True)
+    assert shell_sql._records_problems(dict(records, group="community"), True)
