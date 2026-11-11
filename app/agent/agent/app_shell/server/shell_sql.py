@@ -3479,7 +3479,8 @@ def list_request(page: dict, data: dict, context: dict, now: datetime.datetime =
     if within is not None and (not window or not _whole(within, 0, CAPS["due_within_days"])):
         raise ValueError(f"due_within goes with a window and takes a whole number of days from 0 to {CAPS['due_within_days']}")
     allowed = list_columns(page) + (list(ACTION_SORTS) if context["actions"] else [])
-    due_first = bool(data.get("due_first")) and bool(context["actions"])
+    overdue_tab = data.get("focus") == "overdue"
+    due_first = (bool(data.get("due_first")) or overdue_tab) and bool(context["actions"])
     now = now or datetime.datetime.now(datetime.timezone.utc)
     ranked = not sort and (bool(window) or due_first)
     return dict(_list_request(page, data, context, allowed), window=window, ranked=ranked, due_first=due_first, today=now.date().isoformat(),
