@@ -92,6 +92,7 @@ test('entity matching: a merged pair offers Unmerge, which asks first and puts t
   const { page, context, seen } = await open({ ...base, records: h.records, 'records/act': h.act, 'records/undo': h.undo });
   const before = await rowCount(page);
   await page.locator('[data-choice-row="K1"] [data-choice="merge"]').click();
+  await page.locator('[data-choice-row="K1"] [data-decided]').waitFor();
   await idle(page);
   assert.equal(await page.locator('[data-choice-row="K1"] [data-decided]').count(), 1, 'the merged pair shows its outcome');
   assert.equal(await page.locator('[data-choice-row="K1"] [data-unmerge]').count(), 1, 'the merged pair offers Unmerge');
