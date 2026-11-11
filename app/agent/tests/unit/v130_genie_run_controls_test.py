@@ -205,7 +205,8 @@ def test_as_job_creates_the_tagged_persistent_job_runs_it_and_stops_here(agent_n
     assert launch["job_name"] == ns["JobLauncher"].persistent_job_name(ns["INSPIRE_RUN"]["job_slug"], launch["path"])
     assert launch["job_name"].startswith("dbx_inspire_ai_")
     assert launch["run_parameters"] == {"result_table": "main.inspire.n01_u01_churn_out", "lookback_weeks": "16",
-                                        "as_of_date": "2026-09-30", marker: "1", "refresh_requested_by": "the notebook"}
+                                        "as_of_date": "2026-09-30", marker: "1", "refresh_requested_by": "the notebook",
+                                        "14_session_id": ns["INSPIRE_RUN"]["session_id"]}
     assert launch["base"] == dict(launch["run_parameters"], as_of_date="latest", refresh_requested_by="schedule"), \
         "the job's stored parameters run as the child with the latest as-of date, so a scheduled run never repeats this run's date"
     assert launch["max_concurrent_runs"] == 1 and launch["queue"] is True and launch["schedule_cron"] == ns["INSPIRE_RUN"]["schedule_cron"]
