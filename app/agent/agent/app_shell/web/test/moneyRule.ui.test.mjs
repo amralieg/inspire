@@ -19,7 +19,7 @@ function pageRoute(extra = {}) {
     const data = pageData({});
     const kpis = Object.fromEntries(Object.entries(data.kpis).map(([id, value]) => [id, id === 'total_loss'
       ? { ...value, basis: extra.basis || '', left_out: { undated: 2, running: 1, unrated: 0, text: LEFT } } : value]));
-    return json(200, { ...data, kpis, errors: {} });
+    return json(200, { ...data, kpis, errors: {}, ...(extra.note ? { money_note: extra.note } : {}) });
   };
 }
 
@@ -116,5 +116,27 @@ test('the build-level money fields are locked with the rebuild note, Off and the
   assert.equal(await page.locator('[data-money-off]').isEnabled(), true, 'Off is the owner\'s to change');
   await page.locator('[data-money-rule]').scrollIntoViewIfNeeded();
   await page.screenshot({ path: `${SHOTS}/measurement-build-fields-locked-1280x800.png` });
+  await context.close();
+});
+
+const FALLBACK = 'The saved value uses amount, which the table no longer has, so the totals are Genie estimates until the value is changed.';
+
+test('when a saved money value lost its column the App says so above the money KPIs, at 1280x800', async () => {
+  const info = appInfo({}, 1, { ...TABLE }, 'example_page.json');
+  const { page, context } = await openApp(browser, served.base, info, {
+    width: 1280, height: 800, routes: { page: pageRoute({ note: FALLBACK }) }, hash: '#/n01_u05', ready: '.kpi-v',
+  });
+  await page.waitForSelector('[data-money-note]', { timeout: 15000 });
+  assert.equal(await page.locator('[data-money-note]').innerText(), FALLBACK);
+  await context.close();
+});
+
+test('a page with no money note shows no money note line', async () => {
+  const info = appInfo({}, 1, { ...TABLE }, 'example_page.json');
+  const { page, context } = await openApp(browser, served.base, info, {
+    width: 1280, height: 800, routes: { page: pageRoute({}) }, hash: '#/n01_u05', ready: '.kpi-v',
+  });
+  await page.waitForSelector('.kpi-v', { timeout: 15000 });
+  assert.equal(await page.locator('[data-money-note]').count(), 0);
   await context.close();
 });

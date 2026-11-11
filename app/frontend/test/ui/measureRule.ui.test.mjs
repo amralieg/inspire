@@ -178,3 +178,20 @@ test('gains only is one of the three direction choices and names itself in the s
     await page.context().close();
   }
 });
+
+test('an equation that names a column the table does not have is refused before it saves, and nothing is saved', async () => {
+  const ui = await openMeasure();
+  const { page, calls } = ui;
+  try {
+    await page.locator('[data-money-method="equation"]').check();
+    await page.locator('[data-money-value-code]').fill('USD');
+    await page.locator('[data-money-equation]').fill('quantity * shipping_fee');
+    await page.waitForSelector('[data-money-error]', { timeout: 15000 });
+    assert.match(await page.locator('[data-money-error]').innerText(), /The column shipping_fee is not in this table, so the rule cannot use it./);
+    assert.equal(calls.preview.length, 0, 'a rule naming a missing column never reaches the warehouse');
+    await page.locator('[data-money-equation]').fill('quantity * unit_price');
+    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
+  } finally {
+    await page.context().close();
+  }
+});
