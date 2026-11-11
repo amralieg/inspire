@@ -3,7 +3,7 @@ import { PlainMessage } from './TechnicalDetails';
 
 const tidy = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 
-export default function UseCaseNameEditor({ name, originalName = '', onSave }) {
+export default function UseCaseNameEditor({ name, originalName = '', onSave, liveAppStale = false, onUpdateLiveApp }) {
   const [draft, setDraft] = useState(name);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -12,11 +12,11 @@ export default function UseCaseNameEditor({ name, originalName = '', onSave }) {
 
   useEffect(() => setDraft(name), [name]);
 
-  const save = async (value) => {
+  const save = async (value, action = onSave) => {
     setBusy(true);
     setError('');
     try {
-      await onSave(value);
+      await action(value);
     } catch (err) {
       setError(err?.message || 'Could not save the name.');
     } finally {
@@ -56,6 +56,16 @@ export default function UseCaseNameEditor({ name, originalName = '', onSave }) {
         )}
       </div>
       {renamed && <p className="mt-1 text-xs text-text-tertiary">Catalogue name: {originalName}</p>}
+      {liveAppStale && typeof onUpdateLiveApp === 'function' && (
+        <button
+          type="button"
+          disabled={busy}
+          onClick={() => save(null, onUpdateLiveApp)}
+          className="mt-2 rounded-md border border-border px-3 py-1.5 text-sm font-semibold text-text-primary disabled:opacity-40"
+        >
+          Update the live App to show the new name
+        </button>
+      )}
       {error && <PlainMessage as="p" text={error} role="alert" dir="auto" className="mt-1 text-xs text-error-fg" />}
     </div>
   );

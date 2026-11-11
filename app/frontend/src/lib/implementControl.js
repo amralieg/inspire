@@ -812,3 +812,21 @@ export function filterByMvp(groups, mvp) {
   if (!mvp) return groups;
   return (groups || []).map((group) => ({ ...group, items: group.items.filter((item) => mvpFilterMatches(mvp, item.state)) }));
 }
+
+export function liveAppBuiltName(latest) {
+  return String(latest?.spec_json?.use_case_name || '').trim();
+}
+
+export function liveAppRenameStale(latest, name) {
+  const built = liveAppBuiltName(latest);
+  return Boolean(built) && built !== String(name || '').trim();
+}
+
+export function renameRestyleSpec(history, useCaseId, name) {
+  const id = String(useCaseId || '');
+  const rows = (Array.isArray(history) ? history : []).filter((row) => String(row?.use_case_id || '') === id);
+  const latest = rows.find((row) => row.live_version != null) || null;
+  const built = latest ? rows.find((row) => String(row.spec_version) === String(latest.live_version)) : null;
+  if (!built || !built.spec_json || typeof built.spec_json !== 'object') return null;
+  return { ...built.spec_json, use_case_name: String(name || '').trim(), based_on_version: built.spec_version };
+}
