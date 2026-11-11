@@ -79,13 +79,13 @@ export function todoSteps(page, list, { modify = false, accept = false, plan = f
   return steps;
 }
 
-export function TodoNow({ page, app, ready, nonce, shared, onRecords, filters = {} }) {
+export function TodoNow({ page, app, ready, nonce, shared, onRecords, filters = {}, planCard = false }) {
   const retry = useRetry();
   const decided = decides(page);
   const fetched = useList(page.id, filters, ready, nonce, TODO_ROWS, decided && shared === undefined, windowParams(DEFAULT_PREFS));
   const list = shared === undefined ? fetched : shared || {};
-  const steps = todoSteps(page, list.data, { modify: !!app?.options?.modify, accept: !!(list.data?.actions && page.records?.action),
-    plan: !!(page.plan && list.data && planDecides(app, page.plan, list.data)) });
+  const planDecided = !!(page.plan && list.data && planDecides(app, page.plan, list.data));
+  const steps = todoSteps(page, list.data, { modify: !!app?.options?.modify, accept: !!(list.data?.actions && page.records?.action), plan: planDecided });
   const counted = decided && !!list.data?.actions;
   const summary = list.data?.summary;
   const closed = list.data?.window ? list.data.demo_moved ?? 0 : (summary?.done ?? 0) + (summary?.resolved ?? 0);
@@ -94,7 +94,7 @@ export function TodoNow({ page, app, ready, nonce, shared, onRecords, filters = 
   return (
     <section className="todo card" aria-label="What to do now" data-section="todo">
       <header className="card-h"><div><h2>What to do now</h2>
-        {decided && list.data && waiting != null && <p data-todo-count>{all ? `${integer(waiting)} of ${integer(all)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
+        {decided && list.data && waiting != null && !(planCard && planDecided) && <p data-todo-count>{all ? `${integer(waiting)} of ${integer(all)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
         {decided && !list.data && !list.error && <Skeleton height={14} width="40%" />}
         {list.error && <PlainNote text={list.error} icon={<Icon name="info" size={12} />} className="tile-err" onRetry={retry} />}
       </div>
@@ -262,7 +262,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged, planId 
     <section className="card card--table plan" aria-label={plan.title}>
       <header className="card-h"><div><h2>{plan.title}</h2>
         {locked ? <p className="muted" data-plan-locked>{locked}</p> : list.data && !can ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p> : plan.hint && <p>{plan.hint}</p>}
-        {can && rows.length > 0 && <p data-todo-count>{`${integer(open.length)} of ${integer(rows.length)} waiting for you`}</p>}
+        {can && list.data && <p data-todo-count>{rows.length ? `${integer(open.length)} of ${integer(rows.length)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
       </div>
       {open.length > 0 && <TakeAll count={open.length} onClick={acceptAll} />}
       <SectionHelp title={plan.title} steps={[{ title: plan.title, text: "The plan for this use case: each line with its suggested value, and what you change when you disagree." }]} /><AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
@@ -293,9 +293,10 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kp
   const listAt = sections.find((s) => holds[s] === 'records' || holds[s] === 'plan');
   const toured = (s) => (s === viewAt ? 'view' : s === listAt ? 'records' : undefined);
   const plan = (key) => <PlanTable key={key} page={page} app={app} filters={filters} ready={ready} nonce={nonce} onChanged={onChanged} />;
+  const planCard = !!page.plan && sections.some((s) => !SECTION_PARTS[s] && !KIND_PARTS[s] && ['plan', 'records'].includes(holds[s]));
   const draw = (section) => {
     const hold = holds[section];
-    if (hold === 'todo') return <TodoNow key="todo" page={page} app={app} ready={ready} nonce={nonce} />;
+    if (hold === 'todo') return <TodoNow key="todo" page={page} app={app} ready={ready} nonce={nonce} planCard={planCard} />;
     if (hold === 'kpis') return <div key="kpis" data-section="kpis">{kpisOf(page.kpis.filter((k) => !holds[k.section]))}</div>;
     if (hold === 'objective') {
       const hero = page.kpis.filter((k) => k.section === section);
