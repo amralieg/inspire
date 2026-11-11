@@ -2037,11 +2037,7 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
     const pipelineWarehouseId =
       String(req.body?.warehouse_id || DEFAULT_WAREHOUSE_ID || '').trim() || undefined;
 
-    const appSpApplicationId = await resolveInspireAppServicePrincipalId(
-      dbFetch,
-      req.dbHost,
-      req.dbToken,
-    );
+    const appSpApplicationId = resolveInspireAppServicePrincipalId();
     if (!appSpApplicationId) {
       console.warn(
         '⚠️ Demo pipeline: inspire-ai service principal not resolved, so step 1 may skip SP grants',
