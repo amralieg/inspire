@@ -42,8 +42,8 @@ test('an unknown kind, a path that is not the English catalog, and a session id 
   assert.throws(() => documentRunParams(body({ generation_path: '' })), /generation_path/);
 });
 
-test('the kinds are exactly the two Review buttons', () => {
-  assert.deepEqual(Object.keys(DOCUMENT_KINDS).sort(), ['strategy-document', 'use-case-catalog']);
+test('the kinds are exactly the three Review document buttons', () => {
+  assert.deepEqual(Object.keys(DOCUMENT_KINDS).sort(), ['excel-workbook', 'strategy-document', 'use-case-catalog']);
 });
 
 test('the rebuild regenerates every language the session was created with, English first, and refuses a language the notebook does not offer (REQ-077)', () => {

@@ -32,7 +32,7 @@ function notebookParamsFromSessionForGenerateRun(session, targetSessionIdStr) {
     ? genChoices
         .split(',')
         .map((x) => x.trim())
-        .filter((g) => g === 'PDF Catalog' || g === 'Presentation')
+        .filter((g) => g === 'PDF Catalog' || g === 'Presentation' || g === 'Excel')
         .join(',')
     : '';
   const outLang = String(session.output_language || 'English').trim() || 'English';

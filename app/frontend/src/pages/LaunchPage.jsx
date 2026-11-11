@@ -8,6 +8,7 @@ import {
   Target,
   Layers,
   FileText,
+  FileSpreadsheet,
   Search,
   CheckCircle2,
   Globe2,
@@ -104,6 +105,7 @@ const OPERATION_WIDGET_OPTIONS = ['Discover Use Cases', 'Generate Use Cases'];
 const GENERATION_OPTIONS = [
   { key: 'PDF Catalog', icon: FileText, desc: 'Professional PDF use case catalog' },
   { key: 'Presentation', icon: Target, desc: 'Executive-ready slide deck' },
+  { key: 'Excel', icon: FileSpreadsheet, desc: 'Excel workbook of the use cases' },
 ];
 const BUSINESS_PRIORITIES = [
   { key: 'Increase Revenue', icon: TrendingUp },
@@ -175,7 +177,7 @@ const defaultParams = (inspireDatabase) => ({
 const DRAFT_PARAMS = ['00_business_name', '03_discovery_type', '04_table_election', '05_use_cases_quality', '06_business_domains', '08_generation_instructions',
   '11_generation_path', '12_documents_languages', '13_generate_genie_code_for', '15_operation', '16_best_of_best_count'];
 const FORM_DEFAULTS = {
-  genChecks: { 'PDF Catalog': false, Presentation: false }, priorityChecks: {}, customPriorities: [], strategyBase: '',
+  genChecks: { 'PDF Catalog': false, Presentation: false, Excel: false }, priorityChecks: {}, customPriorities: [], strategyBase: '',
   selectedCatalogs: [], selectedSchemas: [], selectedTables: [], tableScopes: {},
   electionTouched: false, discoveryTouched: false, strategyTouched: false, prioritiesTouched: false,
 };

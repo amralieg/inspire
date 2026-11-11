@@ -72,6 +72,8 @@ test('no documents: an empty generation choice sends no document formats, and a 
   assert.equal(none['09_generation_options'], '');
   const pptx = sanitizeInspireNotebookJobParams({ '00_business_name': 'Retail', '09_generation_options': 'Presentation' });
   assert.equal(pptx['09_generation_options'], 'Presentation');
+  const excel = sanitizeInspireNotebookJobParams({ '00_business_name': 'Retail', '09_generation_options': 'Excel' });
+  assert.equal(excel['09_generation_options'], 'Excel', 'the Excel workbook is a choice the person can pick');
 });
 
 test('sanitizer forwards only notebook widget keys and valid generation choices', () => {

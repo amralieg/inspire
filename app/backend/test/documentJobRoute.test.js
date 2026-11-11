@@ -51,6 +51,17 @@ test('the Create strategy document button sends the format the person picked as 
   assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['09_generation_options'], 'PDF Catalog');
 });
 
+test('the Create Excel workbook button launches a docs-only run with the Excel option, the session and the English catalog (REQ-077)', async () => {
+  S.reset({ notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } } });
+  const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'excel-workbook' } });
+  assert.equal(got.status, 200, got.text.slice(0, 300));
+  assert.deepEqual(got.data.document, { kind: 'excel-workbook', option: 'Excel', session_id: '7300', languages: ['English'] });
+  const params = S.state.createdJob.tasks[0].notebook_task.base_parameters;
+  assert.equal(params['09_generation_options'], 'Excel');
+  assert.equal(params['01_uc_metadata'], CATALOG);
+  assert.equal(params['14_session_id'], '7300');
+});
+
 test('a document request without a session or with a catalog that is not the English one starts no job (must-exclude)', async () => {
   S.reset({ notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } } });
   const noSession = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, session_id: '', kind: 'use-case-catalog' } });

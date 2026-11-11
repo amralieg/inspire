@@ -15,6 +15,7 @@ test('the Review shows the two document buttons, and both wait for the catalog t
     await page.locator('[data-document-actions]').waitFor();
     assert.equal((await page.locator('[data-doc-action="strategy-document"]').innerText()).trim(), 'Create strategy document');
     assert.equal((await page.locator('[data-doc-action="use-case-catalog"]').innerText()).trim(), 'Create use case catalog');
+    assert.equal((await page.locator('[data-doc-action="excel-workbook"]').innerText()).trim(), 'Create Excel workbook');
     assert.equal(await page.locator('[data-doc-action="strategy-document"]').isDisabled(), true, 'no catalog listed, so no job');
     assert.match(await page.locator('[data-document-actions]').innerText(), /Open the artifacts folder/);
     assert.deepEqual(ui.pageErrors, []);

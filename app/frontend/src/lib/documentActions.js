@@ -1,6 +1,7 @@
 export const DOCUMENT_ACTIONS = {
   'strategy-document': { label: 'Create strategy document', formats: ['PDF', 'PPTX'] },
   'use-case-catalog': { label: 'Create use case catalog', formats: [] },
+  'excel-workbook': { label: 'Create Excel workbook', formats: [] },
 };
 
 const ENGLISH_CATALOG = /-dbx_inspire\.json$/;

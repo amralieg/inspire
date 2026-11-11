@@ -3,6 +3,7 @@
 const DOCUMENT_KINDS = {
   'strategy-document': { formats: { PDF: 'PDF Catalog', PPTX: 'Presentation' } },
   'use-case-catalog': { fixed: 'PDF Catalog' },
+  'excel-workbook': { fixed: 'Excel' },
 };
 
 const ENGLISH_CATALOG = /-dbx_inspire\.json$/;

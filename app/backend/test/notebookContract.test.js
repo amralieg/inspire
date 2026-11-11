@@ -48,8 +48,10 @@ test('backend widget allowlist matches the notebook contract', () => {
   assert.deepEqual(notebookKeys, INSPIRE_NOTEBOOK_WIDGET_KEYS);
 });
 
-test('v1.2.0 generation widget only offers PDF and Presentation', () => {
+test('the generation widget offers PDF, Presentation and Excel, and defaults to no documents (REQ-077)', () => {
   assert.match(source, /dbutils\.widgets\.multiselect\(\s*"09_generation_options"/);
+  assert.match(source, /generation_options = \[[\s\S]{0,200}"Excel"/);
+  assert.match(source, /dbutils\.widgets\.multiselect\(\s*"09_generation_options",\s*\n\s*"",/);
   assert.doesNotMatch(source, /dbutils\.widgets\.multiselect\(\s*"09_generation_options"[\s\S]{0,400}Genie Code Instructions/);
 });
 

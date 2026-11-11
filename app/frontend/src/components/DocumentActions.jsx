@@ -63,6 +63,10 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, catalo
           onClick={() => start('use-case-catalog')} className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50">
           {DOCUMENT_ACTIONS['use-case-catalog'].label}
         </button>
+        <button type="button" data-doc-action="excel-workbook" disabled={disabled}
+          onClick={() => start('excel-workbook')} className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50">
+          {DOCUMENT_ACTIONS['excel-workbook'].label}
+        </button>
       </div>
       {!catalogPath && (
         <p className="mt-2 text-xs text-muted-foreground">Open the artifacts folder so Inspire can see this session's catalog, then try again.</p>
