@@ -52,3 +52,27 @@ test('a row with no user name leaves the list name exactly as the run wrote it',
   assert.equal(uc.Name, CATALOGUE);
   assert.equal(uc.user_use_case_name, undefined);
 });
+
+test('a renamed use case with a built App gets a restyle of the built spec under the new name, and only the built version (must-exclude)', async () => {
+  const { renameRestyleSpec, liveAppRenameStale } = await import('../../src/lib/implementControl.js');
+  const built = { use_case_id: 'N01-U01', spec_version: 2, spec_json: { use_case_id: 'N01-U01', use_case_name: CATALOGUE, outputs: { app: true } } };
+  const history = [
+    { ...built, live_version: 2 },
+    { use_case_id: 'N01-U01', spec_version: 3, spec_json: { use_case_id: 'N01-U01', use_case_name: CATALOGUE, outputs: { app: true } }, status: 'failed', live_version: 2 },
+    { use_case_id: 'N02-U09', spec_version: 1, spec_json: { use_case_name: 'Other' }, live_version: 1 },
+  ];
+  const spec = renameRestyleSpec(history, 'N01-U01', RENAMED);
+  assert.equal(spec.use_case_name, RENAMED);
+  assert.equal(spec.based_on_version, 2);
+  assert.deepEqual(spec.outputs, { app: true });
+  assert.equal(renameRestyleSpec([{ use_case_id: 'N01-U01', spec_version: 1, spec_json: {}, live_version: null }], 'N01-U01', RENAMED), null, 'no built App, nothing to update');
+  assert.equal(renameRestyleSpec(history, 'N99-U99', RENAMED), null);
+});
+
+test('the Update button is offered only when the built App shows a different name than the use case (must-exclude)', async () => {
+  const { liveAppRenameStale } = await import('../../src/lib/implementControl.js');
+  const latest = { spec_json: { use_case_name: CATALOGUE } };
+  assert.equal(liveAppRenameStale(latest, RENAMED), true);
+  assert.equal(liveAppRenameStale(latest, CATALOGUE), false, 'the names match: no update');
+  assert.equal(liveAppRenameStale(null, RENAMED), false);
+});

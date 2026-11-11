@@ -96,7 +96,7 @@ import ImplementWizard from './ImplementWizard';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
 import { MVP_FILTERS, START_MVP_LABEL, implementState, mvpCounts, mvpFilterMatches, notebookRunEnded, notebookStatus, versionActive } from '../lib/implementWizard';
 import { buildUseCaseList } from '../lib/useCaseList';
-import { cardAssetLinks } from '../lib/implementControl';
+import { cardAssetLinks, liveAppRenameStale, renameRestyleSpec } from '../lib/implementControl';
 import { ARCHIVE_VIEWS, archiveKeyOf, inArchiveView, loadArchiveMap, toggledArchive } from '../lib/useCaseArchive';
 import QualityGateDrops from '../components/QualityGateDrops';
 import { makeApiFetch, makeApiPostJson, requestHeaders } from '../lib/apiClient';
@@ -327,6 +327,19 @@ export default function ResultsPage({
       }
     },
     [apiFetch, inspireDb, warehouseId]
+  );
+
+  const updateLiveApp = useCallback(
+    async (uc) => {
+      const id = String(uc?.No ?? '');
+      const q = new URLSearchParams({ inspire_database: inspireDb, warehouse_id: warehouseId, session_id: String(selectedSessionId), use_case_id: id });
+      const data = await apiFetch(`/api/inspire/implement/history?${q}`);
+      const spec = renameRestyleSpec(data.history, id, uc?.Name);
+      if (!spec) throw new Error('This use case has no built App to update.');
+      await apiPostJson('/api/inspire/implement/submit', { spec });
+      setImplementRefresh((n) => n + 1);
+    },
+    [apiFetch, apiPostJson, inspireDb, warehouseId, selectedSessionId]
   );
 
   const renameUseCase = useCallback(
@@ -2382,6 +2395,8 @@ export default function ResultsPage({
                         isFavorite={!!(favKey && favorites[favKey])}
                         onToggleFavorite={() => toggleFavorite(uc)}
                         onRename={inspireDb && warehouseId && selectedSessionId ? (name) => renameUseCase(uc, name) : undefined}
+                        liveAppStale={liveAppRenameStale(implementLatestById[trackingIdOf(uc)], uc.Name) && cardAssetLinks(implementLatestById[trackingIdOf(uc)]).some((l) => l.id === 'app')}
+                        onUpdateLiveApp={inspireDb && warehouseId && selectedSessionId ? () => updateLiveApp(uc) : undefined}
                         v130={uc._v130}
                         feedbackCurrent={feedbackCurrentFor(uc)}
                         implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}

@@ -32,6 +32,8 @@ export default function UseCaseCard({
   assetLinks = [],
   isArchived = false,
   onRename,
+  liveAppStale = false,
+  onUpdateLiveApp,
   onToggleArchive,
   v130 = null,
   feedbackCurrent,
@@ -167,7 +169,7 @@ export default function UseCaseCard({
       <ImplementCardActions status={implementStatus} onImplement={onImplement} onOpen={onOpenMvp} notebookUrl={notebookUrl} links={assetLinks} />
 
       {expanded && typeof onRename === 'function' && (
-        <UseCaseNameEditor name={s(u.Name)} originalName={s(u.original_name)} onSave={onRename} />
+        <UseCaseNameEditor name={s(u.Name)} originalName={s(u.original_name)} onSave={onRename} liveAppStale={liveAppStale} onUpdateLiveApp={onUpdateLiveApp} />
       )}
       {expanded && (
         <UseCaseDetailBody

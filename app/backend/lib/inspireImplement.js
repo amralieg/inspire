@@ -40,7 +40,7 @@ const IMPLEMENT_STOPPED_STATES = ['deleted', 'released'];
 const IMPLEMENT_RUN_ENDED_STATES = ['TERMINATED', 'SKIPPED', 'INTERNAL_ERROR'];
 const IMPLEMENT_STALE_AFTER_MS = 4 * 3600 * 1000;
 const IMPLEMENT_CHANGE_CLASSES = ['initial', 'data', 'config', 'schedule', 'holdout', 'capacity', 'outputs', 'settings', 'deselect', 'sharing',
-  'retry', 'rollback', 'vibe', 'remove_kept', 'uninstall'];
+  'retry', 'rollback', 'vibe', 'remove_kept', 'uninstall', 'name'];
 const IMPLEMENT_CAPACITY_SOURCES = ['default', 'user'];
 const IMPLEMENT_CAPACITY_MAX = 1000000;
 const IMPLEMENT_VIBE_PREVIOUS = ['keep', 'remove'];
@@ -1308,6 +1308,7 @@ function classifyImplementChange(previous, current, built = null, tableChange = 
     widgets = 'config';
   }
   if (sortedJson(assumptionsOf(previous)) !== sortedJson(assumptionsOf(current)) || widgets === 'settings') classes.add('settings');
+  if (str(previous.use_case_name).trim() !== str(current.use_case_name).trim()) classes.add('name');
   if (section(previous, 'schedule') !== section(current, 'schedule')) classes.add('schedule');
   const before = previous.outputs || {};
   const after = current.outputs || {};
@@ -1351,7 +1352,7 @@ function implementChangeSummary(previous, current, assets = {}, built = null, ha
     if (!assets[name] || !before[name] || renamed) build.push(name);
     else if (rollingBack.includes(name)) rollback.push(name);
     else if (refill || changedOptions.includes(name) || retry.includes(name)
-      || (name === 'alert' && classes.includes('schedule'))) refresh.push(name);
+      || (name === 'alert' && classes.includes('schedule')) || (name === 'app' && classes.includes('name'))) refresh.push(name);
   }
   const deselected = IMPLEMENT_OUTPUTS.filter((n) => before[n] && !after[n]);
   const removed = current.removed_outputs || {};
