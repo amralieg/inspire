@@ -5,6 +5,9 @@ import MagneticButton from '../components/MagneticButton';
 import { SkeletonCard } from '../components/SkeletonLoader';
 import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
+import ValueBadge, { OverallValue } from '../components/ValueBadge';
+import { valueQuery } from '../lib/valueLedger';
+import { useRunValues, useValueRead } from '../lib/useValueLedger';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runCounts, runLabel, runFilterText, runsOfCard } from '../lib/reviewFigures';
 import { sessionCountsLine, sessionStatus } from '../lib/monitorState';
@@ -180,6 +183,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const [runFilter, setRunFilter] = useState('');
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
   const { portfolio, error: portfolioError } = usePortfolio(apiFetch, inspireDatabase, warehouseId);
+  const overallValue = useValueRead(apiFetch, inspireDatabase && warehouseId ? `/api/inspire/value/overall?${valueQuery(inspireDatabase, warehouseId)}` : '');
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
@@ -262,6 +266,12 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
     })();
   }, [token, databricksHost, warehouseId, inspireDatabase, showcase]);
 
+  const filtered = runFilter ? runsOfCard(runFilter, sessions, portfolio) : sessions;
+  const listed = runFilter || showAll ? filtered : filtered.slice(0, 5);
+  const runValues = useRunValues(apiFetch, inspireDatabase, warehouseId, listed
+    .filter((s) => Number(portfolio?.sessions?.[String(s.session_id)]?.mvps_started) > 0)
+    .map((s) => String(s.session_id)));
+
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
@@ -294,8 +304,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
     );
   }
 
-  const filtered = runFilter ? runsOfCard(runFilter, sessions, portfolio) : sessions;
-  const listed = runFilter || showAll ? filtered : filtered.slice(0, 5);
   const openCard = (key) => {
     if (portfolioCard(key)?.opens === 'build') {
       const filter = buildFilterOf(key, sessions, portfolio);
@@ -334,6 +342,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
         )}
+        {inspireDatabase && warehouseId && <OverallValue value={overallValue} />}
 
         {/* ── Previous Experiments ── */}
         <div className="space-y-3">
@@ -468,6 +477,16 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                               ))}
                               {isCompleted && session.completed_on && <li className="text-text-tertiary">Completed {formatCompletedDate(session.completed_on)}</li>}
                             </ul>
+                          )}
+                          {runValues[sidStr] && (
+                            <div data-run-value="" className="mt-2 border-t border-border pt-2">
+                              <ValueBadge
+                                atStake={runValues[sidStr].at_stake}
+                                saved={runValues[sidStr].saved}
+                                measured={Number(runValues[sidStr].mvps_measured) > 0}
+                                mvps={Number(runValues[sidStr].mvps_measured) || 0}
+                              />
+                            </div>
                           )}
                           {counts.note && <p data-run-counts-note="" className="mt-1.5 text-[11px] text-text-secondary">{counts.note}</p>}
                           {counts.why.map((line) => (
