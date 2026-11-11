@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { newIssueUrl } from '../lib/issues';
 import {
   AlertTriangle, AppWindow, ArrowRight, BellRing, CheckCircle2, ChevronDown, CircleDashed, ExternalLink, FileText, Hammer, History, LayoutDashboard, Loader2,
   NotebookPen, Pencil, RefreshCw, Rocket, RotateCcw, Search, Settings2, Sparkles, Square, Trash2, XCircle,
@@ -8,7 +9,7 @@ import {
   runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
-  failureChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
+  failureChoices, stoppedChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
   unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices, abacGrantText, liveSourceNow, liveProtection, liveReads,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
@@ -1206,9 +1207,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   }, [qBase, latest?.session_id, latest?.spec_version, readOnly]);
   const protection = readOnly ? null : liveProtection(sourceNow, protectionStopOf(latest));
   const choicesNow = protection ? protectionChoices(protection)
-    : buildAgain && !dataStop && !stopped && latest?.status === 'failed' ? failureChoices(latest, {
-      technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '',
-    }) : [];
+    : buildAgain && !dataStop && latest?.status === 'failed' ? (stopped
+      ? stoppedChoices(latest, { notebookUrl: notebook?.href || '', issueUrl: newIssueUrl })
+      : failureChoices(latest, { technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '' })) : [];
   const writeNotebook = async () => {
     setWritingNotebook(true);
     setError('');
@@ -1261,6 +1262,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       }
       return undefined;
     }
+    if (choice.id === 'scope') return openSettings();
     if (protection && choice.id === 'check') return recheckSources();
     if (protection && choice.id === 'grant') return grantSourceRead();
     if (protection && choice.id === 'access') return onEdit?.({ step: 'app_access' }, live);

@@ -1260,7 +1260,9 @@ export function specForSibling(liveSpec, uc, ctx = {}) {
   const { catalog, schema } = resultTableParts(app.config.result_table);
   const { table } = resultTableParts(own.config.result_table);
   const resultTable = catalog && schema && table ? `${catalog}.${schema}.${table}` : own.config.result_table;
-  const appName = placementAppName(app.outputs.app_placement, { business: ctx.businessName, domain: domainOf(uc), useCaseAppName: caseAppNameOf(uc) });
+  const appName = placementAppName(app.outputs.app_placement, { business: ctx.businessName || '', domain: domainOf(uc), useCaseAppName: caseAppNameOf(uc) });
+  const outputs = { ...own.outputs, ...app.outputs };
+  for (const key of ['app_look', 'app_options', 'merge']) outputs[key] = { ...own.outputs[key], ...(app.outputs[key] || {}) };
   return withMoneyRule(withKpiTarget({
     ...app,
     use_case_id: own.use_case_id,
@@ -1270,7 +1272,7 @@ export function specForSibling(liveSpec, uc, ctx = {}) {
     use_case: own.use_case,
     data: { ...app.data, tables: {}, removed_tables: [], filters: [], column_roles: {}, notes: '' },
     config: { ...app.config, widgets: {}, result_table: resultTable },
-    outputs: { ...app.outputs, ...PER_USE_CASE_OUTPUTS, app_name: appName },
+    outputs: { ...outputs, ...PER_USE_CASE_OUTPUTS, app_name: appName },
     removed_outputs: {},
   }, ''), null);
 }
@@ -1608,6 +1610,22 @@ export function profileEstimate({ evidence, table, dateColumn, windowDays, dataW
 
 export function modelNameOf(spec) {
   return String(spec?.config?.widgets?.model_name ?? '').trim();
+}
+
+export function preflightParams(spec) {
+  const mergeApp = spec.outputs.app ? spec.outputs.merge.app : '';
+  return new URLSearchParams({
+    result_table: spec.config.result_table,
+    model_name: modelNameOf(spec),
+    app_name: spec.outputs.app && !mergeApp ? spec.outputs.app_name : '',
+    app_warehouse: spec.outputs.app && !mergeApp ? spec.outputs.app_warehouse_id || '' : '',
+    merge_app: mergeApp,
+    alert: spec.outputs.alert ? '1' : '0',
+    genie: spec.outputs.genie_space ? '1' : '0',
+    dashboard: spec.outputs.dashboard ? '1' : '0',
+    share: (spec.sharing.principals || []).length ? '1' : '0',
+    principals: JSON.stringify((spec.sharing.principals || []).map((p) => p.name)),
+  });
 }
 
 export function genieCodeOff(features) {
@@ -2568,6 +2586,28 @@ export function failureChoices(latest, { technique = '', notebookUrl = '' } = {}
   return choices;
 }
 
+const NEVER_PICKED_UP_RE = /^the run building (v\d+) ended \([\s\S]+\) while \1 was still queued$/;
+
+export function stoppedWords(stalled) {
+  const reason = String(stalled?.reason || '').trim();
+  const queued = NEVER_PICKED_UP_RE.exec(reason);
+  if (queued) return `The build job ended before Inspire started building ${queued[1]}`;
+  return reason || 'its run stopped before it finished';
+}
+
+export function stoppedChoices(latest, { notebookUrl = '', issueUrl = null } = {}) {
+  const version = versionOf(latest);
+  const useCase = String(latest?.use_case_id || '').trim();
+  return [
+    { id: 'scope', label: 'Change the source or scope', detail: 'Change the tables, the columns or the first-run size in all settings, then build again.' },
+    { id: 'notebook', label: 'Build it without the App', url: notebookUrl,
+      detail: notebookUrl ? 'Open the Genie Code notebook Inspire wrote for this use case and run it yourself.'
+        : 'Inspire writes the Genie Code notebook for this use case, and you run it yourself.' },
+    { id: 'report', label: 'Report the issue', detail: 'Open a report with this version and the reason. It holds no workspace details.',
+      url: issueUrl ? issueUrl({ title: `Build of ${useCase} v${version} stopped`, body: `Use case ${useCase}, version v${version}: the build stopped. Add what you tried.` }) : '' },
+  ];
+}
+
 export const DATA_STOP_HINT = 'Trying again stops on the same data. Change the ask in Vibe/Add/Remove Features, or the tables and columns in all settings, then rebuild.';
 
 export function dataStopped(latest) {
@@ -2608,7 +2648,7 @@ export const UNRELIABLE_FIX = 'change the data or the method so the run passes w
 export function statusReason(latest, stalled = null) {
   const s = String(latest?.status || '');
   if (runStopped(s, stalled)) {
-    return `${String(stalled.reason || 'its run stopped before it finished').trim()}. Rebuild in ${VIBE_FEATURES_LABEL} submits a new version.`;
+    return `${stoppedWords(stalled)}. Rebuild in ${VIBE_FEATURES_LABEL} submits a new version.`;
   }
   if (s === IMPLEMENT_VIBE_NOT_MET) {
     return String(latest?.asset_status?.held?.reason ?? '').trim() || heldNoReasonText(versionOf(latest));

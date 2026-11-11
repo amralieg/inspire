@@ -807,6 +807,32 @@ test('a version that ended with a warning says why under its status, and a ready
   }
 });
 
+test('a build whose job ended before Inspire picked the version up says so in plain words, with the choices, and never shows the raw job state', async () => {
+  const queued = built({ spec_version: 2, status: 'failed', status_message: 'the run building v2 ended (Finished) while v2 was still queued',
+    implement_run_id: '5555555555555555', ...NOTHING_BUILT });
+  const run = { run_id: 5555555555555555, run_page_url: 'https://workspace.example.com/#job/77/run/5555555555555555',
+    state: { life_cycle_state: 'TERMINATED', result_state: 'SUCCESS', state_message: '' } };
+  const ui = await openUi('implement', { ...STUDIO_STATE, history: [queued, built()], implementRun: run });
+  const { page } = ui;
+  try {
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await expandBuild(page);
+    const failed = page.getByRole('region', { name: 'Build failed' });
+    await failed.getByText('The build job ended before Inspire started building v2. Rebuild in Vibe/Add/Remove Features submits a new version.',
+      { exact: true }).waitFor();
+    assert.equal(await failed.locator('p').first().innerText(), 'The build stopped');
+    assert.doesNotMatch(await failed.innerText(), /Finished|still queued/, 'the raw job state stays out of the panel');
+    assert.deepEqual((await failed.getByRole('button').allInnerTexts()).map((t) => t.trim()),
+      ['Change the source or scope', 'Build it without the App', 'Try again', 'Open all settings']);
+    assert.equal(await failed.getByRole('link', { name: 'Report the issue' }).count(), 1);
+    assert.match(await failed.getByRole('link', { name: 'Report the issue' }).getAttribute('href'), /^https:\/\/github\.com\/amralieg\/inspire\/issues\/new\?/);
+    assert.equal(await failed.getByRole('link', { name: 'Open the run that stopped' }).getAttribute('href'), run.run_page_url);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('a version whose run stopped reads as Stopped with the reason and the run, and Rebuild and the schedule work again', async () => {
   const stopped = built({ spec_version: 2, status: 'filling', status_message: 'filling: v2', implement_run_id: '5555555555555555',
     updated_at: new Date().toISOString() });
@@ -821,7 +847,8 @@ test('a version whose run stopped reads as Stopped with the reason and the run, 
     const failed = page.getByRole('region', { name: 'Build failed' });
     await failed.getByText(why, { exact: true }).waitFor();
     assert.equal(await failed.locator('p').first().innerText(), 'The build stopped');
-    assert.deepEqual((await failed.getByRole('button').allInnerTexts()).map((t) => t.trim()), ['Try again', 'Open all settings']);
+    assert.deepEqual((await failed.getByRole('button').allInnerTexts()).map((t) => t.trim()), ['Change the source or scope', 'Build it without the App', 'Try again', 'Open all settings'],
+      'a stopped build offers the same choices as a failed one');
     assert.equal(await viewOf(page, 'build').getByRole('region', { name: 'Build failed' }).count(), 1, 'the banner sits in the Build progress box');
     const chip = page.locator('[data-mvp-progress] p', { hasText: /^Stopped$/ }).first();
     await chip.waitFor();

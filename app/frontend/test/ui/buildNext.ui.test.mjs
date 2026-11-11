@@ -33,6 +33,8 @@ async function openApp(state = STATE) {
 }
 
 async function go(page, hash) {
+  await page.waitForLoadState('networkidle');
+  await page.waitForFunction(() => !document.body.innerText.includes('Connecting to workspace'), null, { timeout: 20000 });
   await page.evaluate((target) => { window.location.hash = target; }, hash);
 }
 
@@ -106,21 +108,28 @@ const CUSTOMERS_REFUSAL = {
   app: { name: 'churn-desk', id: 'app-sp-id' },
 };
 
-function mountBuilds(app, log, { refuse = null, gate = null } = {}) {
+function mountBuilds(app, log, { refuse = null, gate = null, preflight = {} } = {}) {
   mount(app);
+  const unreadable = () => refuse && !log.granted;
+  app.post('/api/inspire/implement/preflight', (req, res) => {
+    if (unreadable()) return res.json({ checks: {}, app_unreadable: refuse });
+    return res.json({ checks: {}, ...preflight });
+  });
   app.post('/api/inspire/implement/submit', async (req, res) => {
     log.submits.push(req.body);
     if (gate) await gate;
-    if (refuse) return res.status(409).json({ error: refuse.text, app_unreadable: refuse });
+    if (unreadable()) return res.status(409).json({ error: refuse.text, app_unreadable: refuse });
     return res.json({ session_id: '42', use_case_id: req.body.spec.use_case_id, spec_version: 1, summary: {}, warnings: [] });
   });
   app.post('/api/inspire/implement/grant-access', (req, res) => {
     log.grants.push(req.body);
+    log.granted = true;
     res.json({ ran: [GRANT], failed: [], app_unreadable: null });
   });
 }
 
-const newLog = () => ({ submits: [], grants: [] });
+const newLog = () => ({ submits: [], grants: [], granted: false });
+const APP_NAME_TAKEN = 'inspire-acme-customer is already the name of another App, so this build cannot name its App that.';
 const sibling = (page, id) => page.locator(`[data-next-step-row="${id}"]`);
 const buildNowOf = (page, id) => sibling(page, id).getByRole('button', { name: 'Build Now', exact: true });
 
@@ -150,7 +159,7 @@ test('Build Now builds the sibling with the live App settings, its own use case 
     assert.deepEqual(spec.holdout, live.holdout);
     assert.deepEqual(spec.sharing, live.sharing);
     for (const key of ['app_placement', 'app_access', 'app_look', 'app_pages', 'app_options', 'genie_space', 'dashboard', 'alert', 'alert_recipients', 'inspire_url']) {
-      assert.deepEqual(spec.outputs[key], live.outputs[key], `outputs.${key} is the App's`);
+      if (key in live.outputs) assert.deepEqual(spec.outputs[key], live.outputs[key], `outputs.${key} is the App's`);
     }
     assert.deepEqual(spec.outputs.genie_questions, [], 'the App\'s Genie questions belong to its own use case');
     assert.notEqual(spec.use_case.goal, live.use_case.goal);
@@ -177,6 +186,38 @@ test('Build Now shows a spinner while the build is sent, then the build progress
     assert.equal(log.submits.length, 1);
   } finally {
     release();
+    await ui.close();
+  }
+});
+
+test('Build Now refuses a blocking preflight check plainly in the sibling row and sends no build', async () => {
+  const log = newLog();
+  const ui = await openUi('app', STATE, '', { mount: (app) => mountBuilds(app, log, { preflight: { checks: { app_name: { ok: false, detail: APP_NAME_TAKEN } } } }) });
+  const { page } = ui;
+  try {
+    await go(page, '#/build/42/N01-U01');
+    await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await buildNowOf(page, 'N01-U02').click();
+    await sibling(page, 'N01-U02').getByText(/could not start the build/).waitFor({ timeout: 20000 });
+    assert.equal(log.submits.length, 0, 'the refused check stops the build before submit');
+    assert.equal(await page.getByRole('dialog', { name: WIZARD }).count(), 0);
+    assert.equal(await sibling(page, 'N01-U02').getByRole('button', { name: 'Build Now', exact: true }).isEnabled(), true, 'the person can change the choice and try again');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Build Now names the sibling App with the business prefix the wizard uses', async () => {
+  const log = newLog();
+  const ui = await openUi('app', STATE, '', { mount: (app) => mountBuilds(app, log) });
+  const { page } = ui;
+  try {
+    await go(page, '#/build/42/N01-U01');
+    await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await buildNowOf(page, 'N01-U02').click();
+    await until(() => log.submits.length === 1, 'one build submitted');
+    assert.equal(log.submits[0].spec.outputs.app_name, 'inspire-acme-customer');
+  } finally {
     await ui.close();
   }
 });
@@ -210,10 +251,11 @@ test('Build Now on a sibling whose tables the App cannot read shows the access r
     await panel.waitFor({ timeout: 20000 });
     assert.match(await panel.innerText(), /The App cannot read main\.s\.customers/);
     assert.equal(await page.getByRole('dialog', { name: WIZARD }).count(), 0, 'the refusal does not open the wizard');
+    assert.equal(log.submits.length, 0, 'no build is sent while the App cannot read the tables');
     await panel.getByRole('button', { name: 'Let Inspire read these tables', exact: true }).click();
-    await panel.getByRole('status', { name: 'Grant result' }).getByText(/Inspire ran 1 grant with your sign-in/).waitFor({ timeout: 20000 });
     assert.deepEqual(log.grants.map((g) => g.tables), [['main.s.customers']], 'the grant names the unreadable table');
-    assert.equal(log.submits.length, 1, 'the refused build is not retried by itself');
+    await until(() => log.submits.length === 1, 'the build continues on its own after the grant');
+    await page.waitForFunction(() => window.location.hash.includes('/build/42/N01-U02'), null, { timeout: 20000 });
   } finally {
     await ui.close();
   }

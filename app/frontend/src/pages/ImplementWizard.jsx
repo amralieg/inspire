@@ -179,6 +179,7 @@ import {
   VIBES_STEP_NOTE,
   vibesSkippedText,
   modelNameOf,
+  preflightParams,
   splitList,
   APP_OWNERS_LABEL,
   APP_OWNERS_HELP,
@@ -864,19 +865,7 @@ export default function ImplementWizard({
     setPreflightError('');
     const timer = setTimeout(async () => {
       const planNow = lastStep && !ownErrorsKey && planReady && !appBlocked;
-      const mergeApp = spec.outputs.app ? spec.outputs.merge.app : '';
-      const checks = new URLSearchParams({
-        result_table: spec.config.result_table,
-        model_name: modelNameOf(spec),
-        app_name: spec.outputs.app && !mergeApp ? spec.outputs.app_name : '',
-        app_warehouse: spec.outputs.app && !mergeApp ? spec.outputs.app_warehouse_id || '' : '',
-        merge_app: mergeApp,
-        alert: spec.outputs.alert ? '1' : '0',
-        genie: spec.outputs.genie_space ? '1' : '0',
-        dashboard: spec.outputs.dashboard ? '1' : '0',
-        share: (spec.sharing.principals || []).length ? '1' : '0',
-        principals: JSON.stringify((spec.sharing.principals || []).map((p) => p.name)),
-      });
+      const checks = preflightParams(spec);
       const [pre, planned] = await Promise.allSettled([
         apiPostJson(`/api/inspire/implement/preflight?${q}&${checks.toString()}`, { spec: sent }),
         planNow
