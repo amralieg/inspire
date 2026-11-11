@@ -117,7 +117,7 @@ export function Offers({ message, genie }) {
       {asking && (
         <form className="ag-offer-ask" onSubmit={send} data-offer-ask={asking.action}>
           <label>{OFFER_ASK[asking.action].label}
-            <input type={OFFER_ASK[asking.action].type} value={value} onChange={(e) => setValue(e.target.value)} required autoFocus />
+            <input type={OFFER_ASK[asking.action].type} dir="auto" value={value} onChange={(e) => setValue(e.target.value)} required autoFocus />
           </label>
           <button type="submit" className="btn btn--sm btn--pri">Prepare</button>
           <button type="button" className="btn btn--sm" onClick={() => setAsking(null)}>Cancel</button>

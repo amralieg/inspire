@@ -276,7 +276,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
             {shown !== 'settings' && <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />}
             {shown !== 'feedback' && shown !== 'reports' && (
               <details className="head-more" data-head-more>
-                <summary className="btn" aria-label="More actions">More</summary>
+                <summary className="btn top-ic" aria-label="More actions"><Icon name="dots" size={14} /><span>More</span></summary>
                 <div className="head-more-menu"><Suspense fallback={null}><FeedbackButton pageId={page.id} context={report} sections={sections} reports={page.reports} /></Suspense></div>
               </details>
             )}
