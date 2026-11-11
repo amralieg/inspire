@@ -445,7 +445,7 @@ def test_the_kind_tags_rank_below_every_id_so_the_cap_drops_them_first(agent_ns)
     ids = [key for key in order if key.endswith(("_id", "_ids"))]
     assert ids and max(order.index(key) for key in ids) < min(order.index(key) for key in kind_tags)
     kept = launcher.merged_tags({"team": "growth"}, {key: "v" for key in order})
-    assert len(kept) == 20 and set(ids) <= set(kept) and not set(kind_tags) & set(kept)
+    assert launcher.TAG_LIMIT == 25 and len(kept) == 25 and set(ids) <= set(kept) and not set(kind_tags) & set(kept)
     room = launcher.merged_tags({}, dict({key: "v" for key in ids[:5]}, **{key: "v" for key in kind_tags}))
     assert set(kind_tags) <= set(room)
 

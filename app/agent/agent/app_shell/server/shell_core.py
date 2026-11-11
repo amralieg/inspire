@@ -1039,14 +1039,18 @@ def genie_ids(data: dict) -> tuple:
     return conversation, message
 
 
+def app_query_tags() -> list:
+    return shell_db.app_query_tags(os.environ.get("DATABRICKS_APP_NAME"))
+
+
 def sp_workspace_factory():
     from databricks.sdk.core import Config
     config = Config()
-    return Workspace(config.host, config.authenticate)
+    return Workspace(config.host, config.authenticate, query_tags=app_query_tags())
 
 
 def user_workspace_factory(host: str, token: str):
-    return Workspace(host, lambda: {"Authorization": f"Bearer {token}"})
+    return Workspace(host, lambda: {"Authorization": f"Bearer {token}"}, query_tags=app_query_tags())
 
 
 class OnWarehouse:
