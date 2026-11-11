@@ -3,6 +3,19 @@ import { ArrowRight } from 'lucide-react';
 import ValueEstimateLine from './ValueEstimateLine';
 import { buildItems, buildNextOf, moneyText, nextSharingTables } from '../lib/buildNext';
 
+function RunValue({ row, onMeasure }) {
+  if (row.uc && row.est) return <ValueEstimateLine uc={row.uc} />;
+  return (
+    <p data-value-estimate="not-calculated" className="text-xs leading-snug text-text-secondary">
+      Value at stake: Not calculated
+      {onMeasure && (
+        <button type="button" data-measure-value={row.id} onClick={() => onMeasure(row.id)}
+          className="ms-2 font-medium text-db-red-fg hover:underline glow-focus">Measure</button>
+      )}
+    </p>
+  );
+}
+
 export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId) {
   const [state, setState] = useState({ rows: null, error: '' });
   useEffect(() => {
@@ -40,7 +53,7 @@ function StartButton({ id, onStart }) {
   );
 }
 
-export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, sessionId, onStart }) {
+export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, sessionId, onStart, onMeasure = null }) {
   const { rows, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId);
   const plan = useMemo(() => (rows ? buildNextOf(rows) : null), [rows]);
   if (error) return <p role="alert" data-build-next-error="" className="text-[12px] text-error-fg">Inspire could not load the next use cases: {error}</p>;
@@ -59,7 +72,7 @@ export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, session
             <li key={row.id} data-build-next-row={row.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-text-primary">{row.name || row.id}</p>
-                <ValueEstimateLine uc={row.uc} />
+                <RunValue row={row} onMeasure={onMeasure} />
               </div>
               {onStart && <StartButton id={row.id} onStart={onStart} />}
             </li>
@@ -70,7 +83,7 @@ export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, session
   );
 }
 
-export function BuildNextStep({ apiFetch, inspireDatabase, warehouseId, sessionId, focusId, live, onOpen }) {
+export function BuildNextStep({ apiFetch, inspireDatabase, warehouseId, sessionId, focusId, live, onOpen, onMeasure = null }) {
   const { rows, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId);
   const next = useMemo(() => (rows && live ? nextSharingTables(rows, focusId) : []), [rows, live, focusId]);
   if (!live || error || !next.length) return null;
@@ -86,7 +99,7 @@ export function BuildNextStep({ apiFetch, inspireDatabase, warehouseId, sessionI
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-text-primary">{row.name || row.id}</p>
               <p className="text-[11px] text-text-secondary">Shares {row.shared.join(', ')}</p>
-              <ValueEstimateLine uc={row.uc} />
+              <RunValue row={row} onMeasure={onMeasure} />
             </div>
             {onOpen && <StartButton id={row.id} onStart={onOpen} />}
           </li>

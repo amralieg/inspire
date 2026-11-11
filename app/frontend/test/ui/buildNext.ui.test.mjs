@@ -142,3 +142,25 @@ test('the new panel and card use no dashes or customer-facing selling words', as
     await ui.close();
   }
 });
+
+test('a run card with no measured KPI baseline says Value at stake: Not calculated, and its Measure action opens that use case (must-exclude a made-up number)', async () => {
+  const ui = await openApp({ ...STATE, useCases: USE_CASES.map((uc) => (uc.id === 'N01-U02' ? { ...uc, value_estimate: notMeasured() } : uc)) });
+  const { page } = ui;
+  try {
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    const panel = page.locator('[data-build-next]');
+    await panel.waitFor({ timeout: 20000 });
+    const row = panel.locator('[data-build-next-row="N02-U02"]');
+    const line = await row.locator('[data-value-estimate="not-calculated"]').innerText();
+    assert.match(line, /Value at stake: Not calculated/);
+    assert.doesNotMatch(line, /AED|\d/, 'no number is shown for a use case without a measured baseline');
+    assert.equal(await row.locator('[data-measure-value="N02-U02"]').innerText(), 'Measure');
+    assert.match(await panel.locator('[data-build-next-row="N02-U01"] [data-value-estimate]').innerText(), /AED 2,500/, 'a measured card still shows its estimate');
+    await row.locator('[data-measure-value="N02-U02"]').click();
+    await page.waitForFunction(() => window.location.hash.includes('/build/42/N02-U02'), null, { timeout: 20000 });
+    await page.getByRole('region', { name: 'Measure' }).waitFor({ timeout: 20000 });
+    assert.match(await page.locator('[data-wizard-header]').innerText(), /Step \d+ of \d+|Measure/, 'the wizard opens on its Measure step');
+  } finally {
+    await ui.close();
+  }
+});

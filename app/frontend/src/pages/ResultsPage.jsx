@@ -88,6 +88,7 @@ import {
   compareMeetsQualityBarFirst,
   qualityBarCountsOf,
   qualityBarFilterMatches,
+  nameOfUseCase,
 } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText } from '../lib/liveUseCases';
@@ -305,7 +306,7 @@ export default function ResultsPage({
           session_id: String(selectedSessionId),
           use_case_key: info.useCaseKey,
           use_case_id: String(uc?.catalog_no || uc?.No || ''),
-          use_case_title: String(uc?.Name || ''),
+          use_case_title: nameOfUseCase(uc),
           status,
           reason,
         });
@@ -713,7 +714,7 @@ export default function ResultsPage({
   const describeUseCase = (id) => {
     const uc = useCaseById.get(String(id ?? '').trim());
     return uc
-      ? { name: String(uc.Name || id), domain: String(uc._domain || ''), score: inspireScoreFromUc(uc), useCase: uc.No ? uc : null }
+      ? { name: nameOfUseCase(uc) || id, domain: String(uc._domain || ''), score: inspireScoreFromUc(uc), useCase: uc.No ? uc : null }
       : null;
   };
   const feedbackLatest = useMemo(() => latestFeedbackMap(feedbackState.latest), [feedbackState.latest]);
@@ -1117,7 +1118,8 @@ export default function ResultsPage({
       {!embedded && results && selectedSessionId && inspireDb && warehouseId && (
         <div className="mb-3">
           <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId}
-            onStart={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId) : undefined} />
+            onStart={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId) : undefined}
+            onMeasure={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId, 'measure') : undefined} />
         </div>
       )}
       {embedded && filteredUseCases.length > 0 && (
