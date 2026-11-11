@@ -33,13 +33,28 @@ function stub(path, answerOf, calls) {
   };
 }
 
-async function openMeasure({ rates = LIVE_RATES, calls = { preview: [], currency: [], describe: [] } } = {}) {
+function plannedStub(path, plan, calls) {
+  return async (page) => {
+    let n = 0;
+    await page.route(`**/api/money/${path}`, async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      calls.push(body);
+      const step = plan(n, body);
+      n += 1;
+      if (step.delay) await new Promise((done) => setTimeout(done, step.delay));
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(step.answer) });
+    });
+  };
+}
+
+async function openMeasure({ rates = LIVE_RATES, calls = { preview: [], currency: [], describe: [] }, init = null } = {}) {
   const ui = await openUi('wizard', ME, '', {
     init: async (page) => {
       await profileAt([], MONEY_PROFILE)(page);
       await stub('currency-rates', () => rates, calls.currency)(page);
       await stub('value-preview', () => PREVIEW('USD'), calls.preview)(page);
       await stub('describe-value', () => DESCRIBED, calls.describe)(page);
+      if (init) await init(page);
     },
   });
   await goToStep(ui.page, 'Measure');
@@ -191,6 +206,45 @@ test('an equation that names a column the table does not have is refused before 
     assert.equal(calls.preview.length, 0, 'a rule naming a missing column never reaches the warehouse');
     await page.locator('[data-money-equation]').fill('quantity * unit_price');
     await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('a slow rates reply does not overwrite a rate the person typed while it was on its way', async () => {
+  const calls = { preview: [], currency: [], describe: [] };
+  const usdRates = { ...LIVE_RATES, base: 'USD', rates: { AED: 3.6725, EUR: 0.9 }, sources: { AED: 'today', EUR: 'today' } };
+  const ui = await openMeasure({ calls, init: plannedStub('currency-rates', (n) => (n === 0 ? { answer: LIVE_RATES } : { answer: usdRates, delay: 2000 }), calls.currency) });
+  const { page } = ui;
+  try {
+    await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').waitFor({ timeout: 15000 });
+    await page.locator('[data-money-base]').fill('USD');
+    await page.locator('[data-money-base]').blur();
+    await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').fill('0.5');
+    await page.waitForFunction(() => document.querySelector('[data-money-base]')?.value === 'USD' && /1 EUR = 0\.5 USD/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
+    await page.waitForTimeout(2500);
+    assert.equal(await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').inputValue(), '0.5', 'the typed rate survives the reply');
+    assert.match(await page.locator('[data-money-sentence]').innerText(), /1 EUR = 0\.5 USD/);
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('an older Describe it proposal that answers late does not replace the newer one', async () => {
+  const calls = { preview: [], currency: [], describe: [] };
+  const first = { value: { method: 'equation', expression: 'quantity * unit_price', currency_column: 'currency' }, explanation: 'first reading' };
+  const second = { value: { method: 'equation', expression: 'quantity * discount', currency_column: 'currency' }, explanation: 'second reading' };
+  const ui = await openMeasure({ calls, init: plannedStub('describe-value', (n) => (n === 0 ? { answer: first, delay: 2500 } : { answer: second }), calls.describe) });
+  const { page } = ui;
+  try {
+    await page.locator('[data-money-method="describe"]').check();
+    await page.locator('[data-money-describe-text]').fill('a booking, two ways');
+    await page.locator('[data-money-describe-propose]').click();
+    await page.locator('[data-money-describe-propose]').click();
+    await page.waitForSelector('[data-money-describe-explanation]', { timeout: 15000 });
+    await page.waitForTimeout(3000);
+    assert.equal(await page.locator('[data-money-describe-explanation]').innerText(), 'second reading');
+    assert.match(await page.locator('[data-money-describe-rule]').innerText(), /quantity \* discount/);
   } finally {
     await page.context().close();
   }

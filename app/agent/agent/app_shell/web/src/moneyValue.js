@@ -42,7 +42,7 @@ export function compileExpression(expression, quote = (name) => `\`${name}\``) {
   }
   function product() {
     let left = factor();
-    while (peekOp('*', '/')) { const op = next().op; left = `(${left} ${op} ${factor()})`; }
+    while (peekOp('*', '/')) { const op = next().op; const right = factor(); left = op === '/' ? `try_divide(${left}, ${right})` : `(${left} * ${right})`; }
     return left;
   }
   function sum() {

@@ -2458,8 +2458,8 @@ CONVERTED = "_inspire_converted"
 MONEY_RULE_MODES = ("per_currency", "convert")
 MONEY_MAX_PERIODS = 60
 MONTHS_PER_PERIOD = {"month": 1, "quarter": 3, "year": 12}
-IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
-MONEY_TABLE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}$")
+IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
+MONEY_TABLE_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}")
 MONEY_STATUS_RE = re.compile(r"^[A-Za-z0-9_ -]{1,40}$")
 MONEY_RULES = ("losses", "net", "gains")
 MONEY_PER = ("row", "group")
@@ -2530,7 +2530,8 @@ def money_equation_sql(expression):
         while peek_op("*", "/"):
             op = tokens[at][1]
             at += 1
-            left = f"({left} {op} {factor()})"
+            right = factor()
+            left = f"try_divide({left}, {right})" if op == "/" else f"({left} * {right})"
         return left
 
     def sum_():
@@ -2569,14 +2570,14 @@ def money_value_problems(value) -> list:
         problems.append("the value names one currency: a code such as USD (currency), or the column that holds it (currency_column)")
     elif by_code and value["currency"] not in MONEY_CODES:
         problems.append("the value currency is an ISO 4217 code such as USD")
-    elif by_column and not (isinstance(value["currency_column"], str) and IDENT_RE.match(value["currency_column"])):
+    elif by_column and not (isinstance(value["currency_column"], str) and IDENT_RE.fullmatch(value["currency_column"])):
         problems.append("the value currency_column is a plain column name")
     method = value["method"]
     if method == "fixed":
         amount = value.get("amount")
         if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not 0 < amount <= 1e12:
             problems.append("a fixed value is a positive amount per record")
-    if method == "column" and not (isinstance(value.get("column"), str) and IDENT_RE.match(value["column"])):
+    if method == "column" and not (isinstance(value.get("column"), str) and IDENT_RE.fullmatch(value["column"])):
         problems.append("a column value names the plain column that holds each amount")
     if method == "equation" and money_equation_sql(value.get("expression")) is None:
         problems.append(MONEY_EQUATION_HELP)
@@ -2627,7 +2628,7 @@ def _money_rule_problems(money) -> list:
         else:
             problems += [f"the status {s!r} is a plain word such as used" for s in statuses
                          if not isinstance(s, str) or not MONEY_STATUS_RE.match(s)]
-    if "statuses" in money and not (isinstance(money.get("status_column"), str) and IDENT_RE.match(money["status_column"])):
+    if "statuses" in money and not (isinstance(money.get("status_column"), str) and IDENT_RE.fullmatch(money["status_column"])):
         problems.append("statuses need status_column, the plain column name that holds each row status")
     if "rule" in money and money["rule"] not in MONEY_RULES:
         problems.append(f"the money rule is one of {', '.join(MONEY_RULES)}")
@@ -2636,7 +2637,7 @@ def _money_rule_problems(money) -> list:
     per = money.get("per", "row")
     if per not in MONEY_PER:
         problems.append(f"per is one of {', '.join(MONEY_PER)}")
-    if per == "group" and not (isinstance(money.get("group_column"), str) and IDENT_RE.match(money["group_column"])):
+    if per == "group" and not (isinstance(money.get("group_column"), str) and IDENT_RE.fullmatch(money["group_column"])):
         problems.append("per group needs group_column, the plain column name that identifies each group")
     if mode == "per_currency":
         return problems
@@ -2650,13 +2651,13 @@ def _money_rule_problems(money) -> list:
         keys = ("table", "currency_column", "base_column", "date_column", "rate_column", "load_column")
         if not isinstance(table, dict) or not all(isinstance(table.get(k), str) for k in keys):
             return problems + ["the rate table names its table and its columns: table, currency_column, base_column, date_column, rate_column, load_column"]
-        if not MONEY_TABLE_RE.match(table["table"]):
+        if not MONEY_TABLE_RE.fullmatch(table["table"]):
             problems.append("the rate table is a table name such as main.fx.rates")
-        problems += [f"the rate table {k} is a plain column name" for k in keys[1:] if not IDENT_RE.match(table[k])]
+        problems += [f"the rate table {k} is a plain column name" for k in keys[1:] if not IDENT_RE.fullmatch(table[k])]
         return problems
     if "rate_column" in money:
         column = money.get("rate_column")
-        return problems + ([] if isinstance(column, str) and IDENT_RE.match(column) else ["the rate column is a plain column name"])
+        return problems + ([] if isinstance(column, str) and IDENT_RE.fullmatch(column) else ["the rate column is a plain column name"])
     rates = money.get("rates")
     if not isinstance(rates, dict) or not rates:
         return problems + ["converting money needs at least one rate, typed in as currency: units of the base currency"]
@@ -2690,6 +2691,14 @@ def money_scope(page: dict, dataset: str) -> dict:
             "currency_filter": currency}
 
 
+def money_direction_amount(amount: str, direction: str) -> str:
+    """The amount a direction counts: losses and gains both count the positive magnitude of the saved value, and net keeps its sign.
+    A NULL amount stays NULL, so a row without a value is unrated rather than a zero."""
+    if direction == "net":
+        return amount
+    return f"CASE WHEN {amount} IS NULL THEN NULL ELSE GREATEST({amount}, 0) END"
+
+
 def money_value_override(page: dict, dataset: str, sql: str) -> str:
     """The value the person saved for each record replaces the Genie value_at_stake in every money total: the rule's direction
     decides which sign counts, and a currency the value names replaces the currency column of the page."""
@@ -2700,10 +2709,7 @@ def money_value_override(page: dict, dataset: str, sql: str) -> str:
     amount = money_value_sql(value)
     if amount is None:
         return sql
-    if scope["direction"] == "losses":
-        amount = f"GREATEST({amount}, 0)"
-    elif scope["direction"] == "gains":
-        amount = f"GREATEST(-({amount}), 0)"
+    amount = money_direction_amount(amount, scope["direction"])
     replaced = ["value_at_stake"]
     currency_part = ""
     if scope["currency_filter"] and ("currency" in value or "currency_column" in value):
@@ -2786,7 +2792,7 @@ def money_left_out(page: dict, kpi: dict, values: dict):
         return None
     params = _Params()
     where = _where(page, dataset, values, params)
-    source = money_joined(page, dataset, _dataset(page, dataset))
+    source = money_joined(page, dataset, money_value_override(page, dataset, _dataset(page, dataset)))
     cells = []
     if scope["period"]:
         column = quote(scope["period"])

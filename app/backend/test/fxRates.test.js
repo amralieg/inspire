@@ -5,7 +5,7 @@ const { currencyRates, AVERAGE_PER_USD, AVERAGE_PERIOD } = require('../lib/fxRat
 const liveFrom = (rates, date = '2026-11-11') => async () => ({ ok: true, status: 200, json: async () => ({ amount: 1, base: 'USD', date, rates }) });
 const offline = async () => { throw new Error('getaddrinfo ENOTFOUND api.frankfurter.dev'); };
 const SOURCE = 'https://rates.example.test/v1/latest';
-const round6 = (n) => Math.round(n * 1e6) / 1e6;
+const round6 = (n) => Number(n.toPrecision(10));
 
 test('the saved averages are the previous full calendar year of the ECB series, with a real period', () => {
   assert.equal(AVERAGE_PERIOD.from, '2025-01-01');
@@ -88,4 +88,24 @@ test('with no live rate source set, every rate is the saved value, and the messa
   const out = await currencyRates({ sourceUrl: '', base: 'USD', codes: ['EUR'], fetchImpl: liveFrom({ EUR: 0.8 }) });
   assert.equal(out.sources.EUR, 'average', 'the live source is never asked when none is configured');
   assert.match(out.message, /^No live rate source: every rate is saved in Inspire/);
+});
+
+test('a rate keeps ten significant figures, so a small currency like IDR is not rounded away', async () => {
+  const out = await currencyRates({ sourceUrl: SOURCE, base: 'USD', codes: ['IDR'], fetchImpl: liveFrom({ IDR: 15700 }) });
+  assert.equal(out.rates.IDR, Number((1 / 15700).toPrecision(10)));
+  assert.ok(Math.abs(out.rates.IDR * 15700 - 1) < 1e-9, 'the rate times the currency count gives 1 USD to within 1e-9');
+});
+
+test('when INSPIRE_FX_URL is set the App asks that live source, and the query goes to it', async () => {
+  const asked = [];
+  const previous = process.env.INSPIRE_FX_URL;
+  process.env.INSPIRE_FX_URL = 'https://rates.example.test/v1/latest';
+  try {
+    const out = await currencyRates({ base: 'USD', codes: ['EUR'], fetchImpl: async (url) => { asked.push(url); return { ok: true, status: 200, json: async () => ({ date: '2026-11-11', rates: { EUR: 0.8 } }) }; } });
+    assert.equal(asked.length, 1);
+    assert.match(asked[0], /^https:\/\/rates\.example\.test\/v1\/latest\?base=USD&symbols=EUR$/);
+    assert.equal(out.sources.EUR, 'today');
+  } finally {
+    if (previous === undefined) delete process.env.INSPIRE_FX_URL; else process.env.INSPIRE_FX_URL = previous;
+  }
 });

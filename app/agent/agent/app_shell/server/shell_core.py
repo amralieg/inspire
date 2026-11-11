@@ -2847,7 +2847,7 @@ class Shell:
         errors.pop(("scope", "runs"), None)
         errors.update(failed)
         out = {"kpis": {}, "charts": {}, "tables": {}, "errors": {}, "served": served_by(done), "catching_up": self.catching_up(),
-               "scope": shell_sql.scope_view(scoped) if scoped is not None else None}
+               "scope": shell_sql.scope_view(scoped) if scoped is not None else None, "money_note": page.get("money_note") or ""}
         for (kind, item_id), result in done.items():
             if kind == "kpi":
                 out["kpis"][item_id] = shell_sql.kpi_values(result["rows"])

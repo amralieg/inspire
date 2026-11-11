@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { draftOf, ruleOf, ruleSentence } from '../../../agent/agent/app_shell/web/src/moneyRule.js';
 import '../../../agent/agent/app_shell/web/src/styles/moneyRule.css';
 import { compileExpression } from '../../../agent/agent/app_shell/web/src/moneyValue.js';
@@ -90,19 +90,34 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
   const setPickPart = (patch) => { const next = { ...pick, ...patch }; setPick(next); save(draft, next); };
   const setRate = (i, patch) => setDraftPart({ rates: draft.rates.map((row, at) => (at === i ? { ...row, ...patch, source: 'typed' } : row)) });
 
+  const latest = useRef({ draft, pick });
+  latest.current = { draft, pick };
+  const ratesRequest = useRef(0);
+  const proposalRequest = useRef(0);
+
+  const mergedRates = (current, data) => {
+    const rates = data.rates || {};
+    const sources = data.sources || {};
+    const fresh = [{ code: data.base, rate: '1', source: 'base' }, ...(data.currencies || []).filter((c) => c.code !== data.base).map((c) => ({
+      code: c.code, rate: rates[c.code] !== undefined ? String(rates[c.code]) : '', source: sources[c.code] || 'missing',
+    }))];
+    const typed = new Map((current.rates || []).filter((row) => row.source === 'typed').map((row) => [row.code, row]));
+    return fresh.map((row) => (typed.has(row.code) ? typed.get(row.code) : row));
+  };
+
   const loadRates = (asked) => {
     if (!table || !hasCurrencyColumn || !api.currencies) return;
-    api.currencies({ table, currency_column: sample.currency, base: asked }).then((data) => {
-      const rates = data.rates || {};
-      const sources = data.sources || {};
-      const rows = [{ code: data.base, rate: '1', source: 'base' }, ...(data.currencies || []).filter((c) => c.code !== data.base).map((c) => ({
-        code: c.code, rate: rates[c.code] !== undefined ? String(rates[c.code]) : '', source: sources[c.code] || 'missing',
-      }))];
-      const next = { ...draft, mode: 'convert', base: data.base, rates: rows };
+    const request = ++ratesRequest.current;
+    const tableAt = table;
+    const currencyAt = sample.currency;
+    api.currencies({ table: tableAt, currency_column: currencyAt, base: asked }).then((data) => {
+      if (request !== ratesRequest.current || tableAt !== table || currencyAt !== sample?.currency) return;
+      const current = latest.current;
+      const next = { ...current.draft, mode: 'convert', base: data.base, rates: mergedRates(current.draft, data) };
       setDraft(next);
       setNotice(data.message || '');
-      save(next, pick);
-    }).catch((err) => setNotice(err?.message || 'The rates could not be read; type them in.'));
+      save(next, current.pick);
+    }).catch((err) => { if (request === ratesRequest.current) setNotice(err?.message || 'The rates could not be read; type them in.'); });
   };
 
   useEffect(() => {
@@ -124,12 +139,14 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
 
   const propose = () => {
     const text = pick.text.trim();
+    const request = ++proposalRequest.current;
     setProposalRows(null);
     setPick((p) => ({ ...p, error: '', proposal: null, explanation: '' }));
     api.describe({ table, text, columns, currency_column: sample?.currency || '' }).then((data) => {
+      if (request !== proposalRequest.current) return null;
       setPick((p) => ({ ...p, proposal: data.value, explanation: data.explanation || '', error: '' }));
-      return api.preview({ table, value: data.value }).then((pv) => setProposalRows(pv.rows || []));
-    }).catch((err) => setPick((p) => ({ ...p, proposal: null, error: err?.message || 'The rule could not be proposed; choose one of the other ways.' })));
+      return api.preview({ table, value: data.value }).then((pv) => { if (request === proposalRequest.current) setProposalRows(pv.rows || []); });
+    }).catch((err) => { if (request === proposalRequest.current) setPick((p) => ({ ...p, proposal: null, error: err?.message || 'The rule could not be proposed; choose one of the other ways.' })); });
   };
 
   const useProposal = () => {
@@ -155,7 +172,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
       {pick.method === 'describe' && (
         <div className="space-y-2 text-[12px]" data-money-describe>
           <label>How does the value of each record work?
-            <textarea rows={3} dir="auto" className="block mt-1 w-full" value={pick.text} onChange={(e) => setPickPart({ text: e.target.value, proposal: null })} data-money-describe-text />
+            <textarea rows={3} dir="auto" className="block mt-1 w-full" value={pick.text} onChange={(e) => { proposalRequest.current += 1; setPickPart({ text: e.target.value, proposal: null }); }} data-money-describe-text />
           </label>
           <button type="button" className="lnk" disabled={!pick.text.trim()} onClick={propose} data-money-describe-propose>Turn into a rule</button>
           {pick.error && <PlainMessage text={pick.error} className="text-[12px] text-danger" data-money-describe-error />}

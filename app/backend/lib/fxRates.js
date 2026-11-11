@@ -49,7 +49,7 @@ async function currencyRates({ base, codes, fetchImpl = fetch, sourceUrl = proce
   for (const code of wanted) {
     const mine = rateOf(code);
     if (!mine || !baseRate) { missing.push(code); continue; }
-    rates[code] = Math.round((baseRate.perUsd / mine.perUsd) * 1e6) / 1e6;
+    rates[code] = Number((baseRate.perUsd / mine.perUsd).toPrecision(10));
     sources[code] = mine.source;
   }
   const averaged = Object.keys(sources).filter((c) => sources[c] === 'average');
