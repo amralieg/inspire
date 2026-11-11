@@ -57,8 +57,11 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
       : [];
     if (personPolicyLost.length) {
       const label = (await appIdentity(req, person)).name;
+      const builtIn = personPolicyLost.filter((t) => I.builtInSampleTable(t));
+      const others = personPolicyLost.filter((t) => !builtIn.includes(t));
+      const text = [others.length ? I.abacUnreadableSentence(label) : '', builtIn.length ? I.builtInSampleMessage(builtIn) : ''].filter(Boolean).join('. ');
       return { missing: lost, app_unreadable: { tables: personPolicyLost, app: { name: '', id: '' }, grants: [], can_grant: false,
-        builtin: [], text: I.abacUnreadableSentence(label) } };
+        builtin: builtIn, text } };
     }
     if (!lost.length && !policyLost.length) return { missing: [], app_unreadable: null };
     if (!person || person === app) {

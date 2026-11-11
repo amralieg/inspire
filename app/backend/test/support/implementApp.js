@@ -160,7 +160,9 @@ function makeApp(overrides = {}, { mount } = {}) {
         if (got !== undefined) return json(got[0], got[1] || 200);
       }
       if (/^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)) {
-        return state.abacUnreadable ? json({ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403)
+        const denied = typeof state.abacUnreadable === 'function' ? state.abacUnreadable(token)
+          : state.abacUnreadable && (!state.abacUnreadableAppOnly || token === (state.dbToken || 'tok'));
+        return denied ? json({ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403)
           : json({ policies: [] });
       }
       const ucTable = /^\/api\/2\.1\/unity-catalog\/tables\/([^/?]+)$/.exec(path);

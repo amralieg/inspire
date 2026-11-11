@@ -274,7 +274,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <div className="ph-tools" data-section-tools>
           <FreshBar freshness={freshness}>
             {shown !== 'settings' && <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />}
-            {reporting && (shown === 'dashboard' || shown === 'work') && (
+            {shown !== 'feedback' && shown !== 'reports' && (
               <details className="head-more" data-head-more>
                 <summary className="btn" aria-label="More actions">More</summary>
                 <div className="head-more-menu"><Suspense fallback={null}><FeedbackButton pageId={page.id} context={report} sections={sections} reports={page.reports} /></Suspense></div>

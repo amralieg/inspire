@@ -22,6 +22,7 @@ test('a person who cannot grant sees one plain sentence naming the owner, the GR
     tokenKind: 'app',
     forwardedToken: PERSON,
     abacUnreadable: true,
+    abacUnreadableAppOnly: true,
     history: [{ session_id: '42', use_case_id: 'N01-U01', spec_version: 1, status: 'ready', change_classes: 'initial', created_by: OWNER,
       updated_at: '2026-10-25T04:00:00Z', spec_json: JSON.stringify(builtSpec()), app_name: 'churn-desk', asset_status: JSON.stringify({ app: { unread } }) }],
     workspace: ({ token, path }) => (path.includes('/scim/v2/Me')

@@ -40,7 +40,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', lo
       {sample && workedExample(shown, { ...sample, rates }).length > 0 && (
         <div className="space-y-1 text-[12px]" data-money-example>
           <p className="font-semibold text-text-primary">Worked example on the first rows of the table</p>
-          <ol className="list-decimal pl-5">{workedExample(shown, { ...sample, rates }).map((line) => <li key={line}>{line}</li>)}</ol>
+          <ol className="list-decimal ps-5">{workedExample(shown, { ...sample, rates }).map((line) => <li key={line}>{line}</li>)}</ol>
         </div>
       )}
       {problems.length > 0 && <PlainMessage text={problems.join(' ')} className="text-[12px] text-danger" data-money-error />}

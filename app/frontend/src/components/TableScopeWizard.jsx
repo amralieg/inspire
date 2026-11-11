@@ -224,7 +224,7 @@ function FilterRow({ index, filter, names, values, onColumn, onPatch, onAdd, onR
           </div>
           {filter.values.length < max && (
             <form className="flex gap-2" onSubmit={(e) => { e.preventDefault(); onAdd(index, typed); setTyped(''); }}>
-              <input aria-label={`Filter ${n} value`} className={FIELD} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Type a value" />
+              <input dir="auto" aria-label={`Filter ${n} value`} className={FIELD} value={typed} onChange={(e) => setTyped(e.target.value)} placeholder="Type a value" />
               <button type="submit" className={BUTTON} disabled={!typed.trim()}>Add value</button>
             </form>
           )}
