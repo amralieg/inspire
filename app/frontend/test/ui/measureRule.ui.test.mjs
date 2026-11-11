@@ -1,45 +1,145 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, openUi } from './uiSupport.mjs';
+import { closeBrowser, goToStep, openUi, profileAt } from './uiSupport.mjs';
+import { GROUPING_PROFILE } from './implementFixtures.js';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
+const MONEY_PROFILE = {
+  ...GROUPING_PROFILE,
+  money_columns: ['order_id', 'quantity', 'unit_price', 'discount', 'amount', 'currency'],
+  money_sample: { amount: 'amount', currency: 'currency', status: '', rows: [{ amount: 100, currency: 'AED' }, { amount: 50, currency: 'USD' }, { amount: 20, currency: 'EUR' }] },
+};
+const LIVE_RATES = {
+  base: 'AED', currencies: [{ code: 'AED', records: 40 }, { code: 'USD', records: 9 }, { code: 'EUR', records: 4 }],
+  rates: { USD: 0.272294, EUR: 0.2967 }, sources: { USD: 'today', EUR: 'today' }, missing: [], as_of: '2026-11-11', offline: false, message: '',
+};
+const OFFLINE_RATES = {
+  ...LIVE_RATES, sources: { USD: 'average', EUR: 'average' }, offline: true,
+  message: 'No internet: every rate is the saved historical average (fetch failed).',
+};
+const PREVIEW = (currency) => ({ rows: [{ stake: 120, currency }, { stake: 120, currency }, { stake: 120, currency }] });
 
-test('the Measure step shows how each total is counted and changes the rule in plain words', async () => {
-  const ui = await openUi('wizard', ME);
+function stub(path, answerOf, calls) {
+  return async (page) => {
+    await page.route(`**/api/money/${path}`, async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      calls.push(body);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(answerOf(body)) });
+    });
+  };
+}
+
+async function openMeasure({ rates = LIVE_RATES, calls = { preview: [], currency: [] } } = {}) {
+  const ui = await openUi('wizard', ME, '', {
+    init: async (page) => {
+      await profileAt([], MONEY_PROFILE)(page);
+      await stub('currency-rates', () => rates, calls.currency)(page);
+      await stub('value-preview', () => PREVIEW('USD'), calls.preview)(page);
+    },
+  });
+  await goToStep(ui.page, 'Measure');
+  await ui.page.locator('[data-money-rule-editor]').waitFor({ timeout: 15000 });
+  return { ...ui, calls };
+}
+
+test('the Measure step asks how the value of each record is measured, with three choices and no old fields', async () => {
+  const ui = await openMeasure();
   const { page } = ui;
   try {
-    await goToStep(page, 'Measure');
-    const editor = page.locator('[data-money-rule-editor]');
-    await editor.waitFor({ timeout: 15000 });
-    assert.match(await page.locator('[data-money-formula]').first().innerText(), /^Stake = /);
-    assert.match(await editor.locator('[data-money-sentence]').innerText(), /totalled on its own/);
-    await page.locator('[data-money-mode="convert"]').check();
-    await page.locator('[data-money-base]').fill('USD');
-    await page.locator('[data-money-rate-code]').first().fill('AED');
-    await page.locator('[data-money-rate]').first().fill('0.27');
-    await page.waitForFunction(() => /converted to USD/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
-    assert.match(await editor.locator('[data-money-sentence]').innerText(), /1 AED = 0\.27 USD/);
-    assert.equal(await page.locator('[data-money-error]').count(), 0, 'a complete rate is not refused');
+    assert.match(await page.locator('[data-measure-value] legend').innerText(), /How does your business measure the value of each record\?/);
+    assert.equal(await page.locator('[data-money-method]').count(), 3);
+    assert.equal(await page.locator('[data-money-mode]').count(), 0, 'the old per-currency and convert radios are gone');
+    assert.equal(await page.locator('[data-money-more] summary').innerText(), 'More options');
   } finally {
     await page.context().close();
   }
 });
 
-test('a converted rule with a bad base says so in the Measure step', async () => {
-  const ui = await openUi('wizard', ME);
+test('a fixed amount previews three example rows in the currency it names, and the rule saves that value', async () => {
+  const ui = await openMeasure();
+  const { page, calls } = ui;
+  try {
+    await page.locator('[data-money-method="fixed"]').check();
+    await page.locator('[data-money-fixed-amount]').fill('120');
+    await page.locator('[data-money-value-code]').fill('USD');
+    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
+    assert.equal(await page.locator('[data-money-preview-rows] li').count(), 3);
+    assert.equal(await page.locator('[data-money-preview-rows] li').first().innerText(), '120 USD');
+    assert.deepEqual(calls.preview.at(-1).value, { method: 'fixed', amount: 120, currency: 'USD' });
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('a column value previews the rows of the column picked, with its currency column', async () => {
+  const ui = await openMeasure();
+  const { page, calls } = ui;
+  try {
+    await page.locator('[data-money-method="column"]').check();
+    await page.locator('[data-money-value-column]').selectOption('amount');
+    await page.locator('[data-money-value-currency-by="column"]').check();
+    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
+    assert.deepEqual(calls.preview.at(-1).value, { method: 'column', column: 'amount', currency_column: 'currency' });
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('an equation the grammar does not allow is refused on the spot, and a valid one previews its three rows', async () => {
+  const ui = await openMeasure();
+  const { page, calls } = ui;
+  try {
+    await page.locator('[data-money-method="equation"]').check();
+    await page.locator('[data-money-value-code]').fill('USD');
+    await page.locator('[data-money-equation]').fill('quantity ^ 2');
+    await page.waitForSelector('[data-money-error]', { timeout: 15000 });
+    assert.match(await page.locator('[data-money-error]').innerText(), /adds, subtracts, multiplies and divides column names and numbers/);
+    assert.equal(calls.preview.length, 0, 'a refused equation never reaches the warehouse');
+    await page.locator('[data-money-equation]').fill('quantity * unit_price - discount');
+    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
+    assert.equal(await page.locator('[data-money-preview-rows] li').count(), 3);
+    assert.equal(calls.preview.at(-1).value.expression, 'quantity * unit_price - discount');
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('the reporting currency is the data main currency, its rates show today’s source, and an edited rate is saved as typed', async () => {
+  const ui = await openMeasure();
   const { page } = ui;
   try {
-    await goToStep(page, 'Measure');
-    await page.locator('[data-money-rule-editor]').waitFor({ timeout: 15000 });
-    await page.locator('[data-money-mode="convert"]').check();
-    await page.locator('[data-money-base]').fill('dollars');
-    await page.locator('[data-money-rate-code]').first().fill('AED');
-    await page.locator('[data-money-rate]').first().fill('0.27');
-    await page.waitForSelector('[data-money-error]', { timeout: 15000 });
-    assert.match(await page.locator('[data-money-error]').innerText(), /base currency is a three-letter code/);
+    assert.equal(await page.locator('[data-money-base]').inputValue(), 'AED');
+    const usd = page.locator('[data-money-rate-row="USD"]');
+    assert.match(await usd.locator('[data-money-rate-source]').innerText(), /today/);
+    await usd.locator('[data-money-rate]').fill('0.3');
+    await page.waitForFunction(() => /1 USD = 0\.3 AED/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
+    assert.match(await usd.locator('[data-money-rate-source]').innerText(), /typed in/);
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('with no internet the rates are the saved averages, and one line says so', async () => {
+  const ui = await openMeasure({ rates: OFFLINE_RATES });
+  const { page } = ui;
+  try {
+    assert.match(await page.locator('[data-money-rates-notice]').innerText(), /No internet: every rate is the saved historical average/);
+    assert.match(await page.locator('[data-money-rate-row="EUR"] [data-money-rate-source]').innerText(), /saved average/);
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('which movement counts is one plain question, and both gains and losses net inside each total', async () => {
+  const ui = await openMeasure();
+  const { page } = ui;
+  try {
+    await page.locator('[data-money-rule-kind="net"]').check();
+    await page.waitForFunction(() => /netted/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
+    assert.equal(await page.locator('[data-money-rule-kind="net"]').isChecked(), true);
   } finally {
     await page.context().close();
   }

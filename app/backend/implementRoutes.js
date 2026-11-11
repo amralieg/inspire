@@ -1849,12 +1849,13 @@ function registerImplementRoutes(app, deps) {
   app.post('/api/money/currency-rates', requireToken, async (req, res) => {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
-    const base = String(req.body?.base || '').trim().toUpperCase();
+    const asked = String(req.body?.base || '').trim().toUpperCase();
     try {
       const sql = GP.currencySpreadSql(req.body?.table, req.body?.currency_column);
-      if (!sql || !/^[A-Z]{3}$/.test(base)) throw I.badRequest('Name the use case table and its currency column, and the reporting currency as a three-letter code such as USD.');
+      if (!sql || (asked && !/^[A-Z]{3}$/.test(asked))) throw I.badRequest('Name the use case table and its currency column, and the reporting currency as a three-letter code such as USD.');
       const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.CURRENCY_SPREAD_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
       const currencies = sqlResultToObjects(found).map((r) => ({ code: String(r.currency ?? '').trim().toUpperCase(), records: Number(r.records) }));
+      const base = asked || (currencies[0] ? currencies[0].code : 'USD');
       const rates = await FX.currencyRates({ base, codes: currencies.map((c) => c.code) });
       return res.json({ ...rates, currencies });
     } catch (err) {
@@ -1955,7 +1956,8 @@ function registerImplementRoutes(app, deps) {
           time, days, joined: profiledJoined, deep: deep ? deep.columns : [], groupBy, readAt: new Date().toISOString(), subject: text });
         const pick = GP.moneySampleColumns(columns);
         const example = pick ? await rows(GP.moneySampleSql(main, pick), null, GP.MONEY_SAMPLE_ROWS) : [];
-        const withExample = (view) => ({ ...view, money_sample: pick ? { ...pick, rows: example } : null });
+        const moneyColumns = (columns || []).map((c) => String(c.column_name ?? '')).filter(Boolean);
+        const withExample = (view) => ({ ...view, money_columns: moneyColumns, money_sample: pick ? { ...pick, rows: example } : null });
         const first = draft(null);
         const grouped = GR.groupByColumns(first.groups_for);
         if (grouped.length < 2) return withExample(first);
