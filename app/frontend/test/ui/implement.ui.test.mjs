@@ -847,7 +847,8 @@ test('a version whose run stopped reads as Stopped with the reason and the run, 
     const failed = page.getByRole('region', { name: 'Build failed' });
     await failed.getByText(why, { exact: true }).waitFor();
     assert.equal(await failed.locator('p').first().innerText(), 'The build stopped');
-    assert.deepEqual((await failed.getByRole('button').allInnerTexts()).map((t) => t.trim()), ['Try again', 'Open all settings']);
+    assert.deepEqual((await failed.getByRole('button').allInnerTexts()).map((t) => t.trim()), ['Change the source or scope', 'Build it without the App', 'Try again', 'Open all settings'],
+      'a stopped build offers the same choices as a failed one');
     assert.equal(await viewOf(page, 'build').getByRole('region', { name: 'Build failed' }).count(), 1, 'the banner sits in the Build progress box');
     const chip = page.locator('[data-mvp-progress] p', { hasText: /^Stopped$/ }).first();
     await chip.waitFor();
