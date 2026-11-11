@@ -48,6 +48,7 @@ CTE_NAME = re.compile(r"(?:^\s*\(?\s*WITH\s+(?:RECURSIVE\s+)?|\)\s*,\s*)([A-Za-z
 DATA_READER_CLASS = "DeepEvidence"
 DEEP_ONLY_SOURCES = ("system.query.history",)
 EXECUTORS = {"execute_sql": 1, "inspire_sql": 0}
+OWNED_VIEW_EMITTERS = {"inspire_owned_view_sql": 1, "implement_lakebase_view_sql": 2}
 SQL_RECEIVER_METHOD = "sql"
 LOG_METHODS = {"debug", "info", "warning", "error", "critical", "exception"}
 LOG_FUNCTIONS = {"log_print", "print"}
@@ -280,6 +281,20 @@ class SqlIndex:
             cur = self.parent.get(cur)
         return False
 
+    def emitted_view_bodies(self):
+        """(function, SQL text) of every SELECT body handed to the owned-view emitter in the same function."""
+        out = set()
+        for node in ast.walk(self.tree):
+            if not (isinstance(node, ast.Call) and isinstance(node.func, ast.Name) and node.func.id in OWNED_VIEW_EMITTERS):
+                continue
+            position = OWNED_VIEW_EMITTERS[node.func.id]
+            if len(node.args) <= position:
+                continue
+            scope = self.enclosing_function(node)
+            templates, _reasons = self.resolve(node.args[position], scope)
+            out.update((scope.name if scope else "", template) for template in templates)
+        return out
+
     def sql_literals(self):
         """Every SQL-shaped string the module builds outside prompt templates, docstrings and log text."""
         out = []
@@ -418,7 +433,8 @@ def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None)
         if reasons and not templates:
             unresolved.append((call.lineno, scope_node.name if scope_node else "<module>", ast.unparse(call)[:120], reasons))
     bad, deep_reads, implement_reads = list(probe_bad), [], []
-    literals = [entry for entry in index.sql_literals() if runs(entry[0])]
+    emitted = index.emitted_view_bodies()
+    literals = [entry for entry in index.sql_literals() if runs(entry[0]) and (entry[3], entry[1]) not in emitted]
     for lineno, sql, owner, function in owned + literals:
         if function == AGGREGATE_PROBE_BUILDER:
             continue
@@ -561,7 +577,7 @@ def runtime_audit(source):
     trees = {name: ast.parse(text) for name, (text, _space) in found.items()}
     definitions = {name: runtime_definitions(tree) for name, tree in trees.items()}
     report = {"sources": {name: text for name, (text, _space) in found.items()}, "unreadable": unreadable, "checked": {},
-              "crossed": [], "bad": [], "unresolved": [], "dataframe": [], "implement": [], "deep": []}
+              "crossed": [], "bad": [], "unresolved": [], "dataframe": [], "implement": [], "deep": [], "executes": set()}
     for name, tree in sorted(trees.items()):
         members, lines = definitions[name]
         named = {identifier(node) for node in ast.walk(tree)} - {None}
@@ -593,6 +609,11 @@ def runtime_audit(source):
                                                     for caller in reach)
 
         executed, unresolved, bad, frames, implement = audit(report["sources"][name], with_implement_reads=True, scope=scope)
+        text_index = SqlIndex(ast.parse(report["sources"][name]))
+        for call, _arg in text_index.sql_calls():
+            owner = text_index.enclosing_function(call)
+            if owner is not None and scope(call.lineno)[0]:
+                report["executes"].add(owner.name)
         deep = audit(report["sources"][name], with_deep_reads=True, scope=scope)[4]
         report["checked"][name] = len(executed)
         for key, entries in (("bad", bad), ("unresolved", unresolved), ("dataframe", frames), ("implement", implement),
@@ -951,7 +972,7 @@ def test_guard_reads_every_source_the_agent_compiles_at_runtime(runtime_report):
     for name, text in runtime_report["sources"].items():
         assert runtime_sources(text) == ({}, []), f"{name} compiles a source of its own, which the guard does not read"
     assert runtime_report["checked"]["IMPLEMENT_RESULT_HISTORY_SOURCE"] >= 3, runtime_report["checked"]
-    reached = {entry[-1] for entry in runtime_report["implement"]}
+    reached = {entry[-1] for entry in runtime_report["implement"]} | runtime_report["executes"]
     assert {"inspire_ensure_summary", "inspire_ensure_sibling"} <= reached
     assert not {"inspire_ensure_history", "inspire_ensure_actions"} & reached, "the build migrates no result table"
 
@@ -1075,3 +1096,55 @@ def test_a_user_table_read_is_not_owned_by_name():
     assert "inspire_table_name" not in owned_name_builders()
     assert classify_target("{inspire_table_name(source_table)}") is None
     assert classify_target("{inspire_owned_table(stale)}") == "inspire_owned"
+
+
+OWNED_VIEW_SOURCE = """
+def inspire_owned_view_sql(target, body):
+    return f"CREATE OR REPLACE VIEW {inspire_owned_table(target)} AS {body}"
+
+def scope_view(self, view, cat):
+    body = f"SELECT * FROM {build_fqn(cat, 's', 't')}"
+    self.spark.sql(inspire_owned_view_sql(view, body))
+
+def map_view(self, result_table, map_name):
+    body = f"SELECT * FROM {inspire_table_name(map_name)}"
+    self.spark.sql(implement_lakebase_view_sql(result_table, "__lbm", body, "row"))
+"""
+
+
+def test_a_body_handed_to_the_owned_view_emitter_is_not_a_standalone_read():
+    executed, unresolved, bad, _frames = audit(OWNED_VIEW_SOURCE)
+    assert not bad, bad
+    assert classify_target("{inspire_owned_table(target)}") == "inspire_owned"
+
+
+def test_an_agent_executed_select_of_the_map_table_flags():
+    source = OWNED_VIEW_SOURCE + ('def read_map(self, map_name):\n'
+                                  '    return self.spark.sql(f"SELECT * FROM {inspire_table_name(map_name)}").collect()\n')
+    bad = audit(source)[2]
+    assert {(kind, target) for _line, kind, target, _sql in bad} == {("read", "{inspire_table_name(map_name)}")}, bad
+
+
+def test_a_create_view_whose_target_is_not_owned_flags():
+    source = ('def publish(self, cat):\n'
+              '    self.spark.sql(f"CREATE OR REPLACE VIEW {build_fqn(cat, \'s\', \'v\')} AS SELECT 1")\n')
+    bad = audit(source)[2]
+    assert {(kind, target) for _line, kind, target, _sql in bad} == {("write", "{build_fqn(cat, 's', 'v')}")}, bad
+
+
+def test_a_ctas_into_a_non_owned_name_flags_its_target_and_its_body():
+    source = ('def publish(self, cat):\n'
+              '    self.spark.sql(f"CREATE TABLE {build_fqn(cat, \'s\', \'t\')} AS SELECT * FROM main.sales.orders")\n')
+    bad = audit(source)[2]
+    assert {(kind, target) for _line, kind, target, _sql in bad} == {
+        ("write", "{build_fqn(cat, 's', 't')}"), ("read", "main.sales.orders")}, bad
+
+
+def test_a_body_literal_passed_anywhere_other_than_the_owned_emitter_flags():
+    source = ('def helper(view, body):\n'
+              '    return body\n\n'
+              'def leak(self, cat):\n'
+              '    body = f"SELECT * FROM {build_fqn(cat, \'s\', \'t\')}"\n'
+              '    return helper("v", body)\n')
+    bad = audit(source)[2]
+    assert {(kind, target) for _line, kind, target, _sql in bad} == {("read", "{build_fqn(cat, 's', 't')}")}, bad
