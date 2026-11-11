@@ -4,7 +4,7 @@ const { vibeRefusalText, vibeRefusals } = require('../../frontend/src/lib/vibeLi
 const { parseExactJson } = require('./exactJson');
 
 const FEEDBACK_SUFFIX = '_feedback';
-const APP_FEEDBACK_TABLE = '__inspire_app_feedback';
+const APP_FEEDBACK_PREFIX = '__inspire_app_feedback_';
 const FEEDBACK_STATUSES = ['new', 'vibe', 'closed'];
 const FEEDBACK_ROWS = 200;
 const FEEDBACK_ID_RE = /^[A-Za-z0-9_-]{1,64}$/;
@@ -36,10 +36,17 @@ function feedbackTable(resultTable) {
   return quoteTable(`${String(resultTable).trim()}${FEEDBACK_SUFFIX}`);
 }
 
-function appFeedbackTable(database) {
-  const parts = String(database || '').trim().split('.');
+function appFeedbackKey({ appName, useCaseId, hosted }) {
+  const name = hosted || !appName ? useCaseId : appName;
+  return str(name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
+}
+
+function appFeedbackTable({ database, appName, useCaseId, hosted }) {
+  const parts = str(database).trim().split('.');
   if (parts.length !== 2 || parts.some((p) => !p)) throw badRequest('the Inspire database must be catalog.schema');
-  return quoteTable(`${parts[0]}.${parts[1]}.${APP_FEEDBACK_TABLE}`);
+  const key = appFeedbackKey({ appName, useCaseId, hosted });
+  if (!key) throw badRequest('the App needs a name or a use case id before it can keep reported issues');
+  return quoteTable(`${parts[0]}.${parts[1]}.${APP_FEEDBACK_PREFIX}${key}`);
 }
 
 const STATUS_ORDER = { new: 0, vibe: 1 };
@@ -198,6 +205,7 @@ module.exports = {
   VIBE_MAX_TOKENS,
   chatEndpoint,
   feedbackId,
+  appFeedbackKey,
   appFeedbackTable,
   feedbackListStatement,
   feedbackOneStatement,

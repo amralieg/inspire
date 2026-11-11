@@ -137,7 +137,8 @@ USE_CASE_OWNERS_MAX = OWNERS_MAX + 1
 NOTE_CHARS = 300
 FEEDBACK_SECTIONS = ("dashboard", "work", "performance", "runs", "alerts", "settings")
 FEEDBACK_WINDOW_S = 3600.0
-NO_FEEDBACK = "this page names no result table, so the App has nowhere to keep reported issues"
+NO_FEEDBACK = ("Reports cannot be saved for this App yet, because it was built before it kept reported issues. Send the report to its owner, "
+               "or through Inspire's Build page for this use case, where the owner can rebuild the App so it keeps them")
 NO_MONEY = f"this page puts no {shell_sql.stake_words(None)} on its records"
 NO_SETTINGS = "this use case has no settings the App can change"
 PREVIEW_UNACCEPTED = ("The next run works out which records this moves: no model passed acceptance in the last run, so every "
@@ -223,7 +224,7 @@ INSIDE_SETTINGS = ("Nothing was saved: settings cannot be changed from this page
 INSIDE_DECISIONS = ("A page inside Inspire records decisions through Inspire, and the Inspire App serving this page cannot record them; "
                     "update the Inspire App, then open the page again from the Run tab")
 CLI_VERSION = 1
-CLI_ROUTES = ("records/act", "records/undo", "settings/save", "money/assumption", "money/rule")
+CLI_ROUTES = ("records/act", "records/undo", "settings/save", "money/assumption", "money/rule", "feedback")
 JOB_RUNS_RECENT = 25
 STAGE_RUNS = 10
 RUN_TIMEOUT_S = 14400
@@ -1064,6 +1065,15 @@ def _cli_text(request: dict, key: str) -> str:
     return value.strip()
 
 
+def decision_table_problem(page: dict, route: str, built: str) -> str:
+    if route == "feedback" and not page.get("result_table"):
+        return ""
+    if not page.get("result_table") or shell_pg.uc_key(page["result_table"]) != shell_pg.uc_key(built):
+        return (f"this page names a result table Inspire did not build for it, so Inspire records no decision on it; "
+                f"{shell_sql.rebuild_action('the use case')}")
+    return ""
+
+
 def cli_answer(request: dict, user_factory=user_workspace_factory) -> tuple:
     try:
         return _cli_step(request, user_factory)
@@ -1089,10 +1099,9 @@ def _cli_step(request: dict, user_factory) -> tuple:
     if not shell.inside or shell.settings["auth"] != "user":
         raise HttpError(409, "Inspire records decisions only for a page inside Inspire that signs viewers in as themselves")
     page = shell.page(body.get("page"))
-    built = _cli_text(request, "result_table")
-    if not page.get("result_table") or shell_pg.uc_key(page["result_table"]) != shell_pg.uc_key(built):
-        raise HttpError(409, f"this page names a result table Inspire did not build for it, so Inspire records no decision on it; "
-                             f"{shell_sql.rebuild_action('the use case')}")
+    problem = decision_table_problem(page, route, _cli_text(request, "result_table"))
+    if problem:
+        raise HttpError(409, problem)
     sent = {str(k).lower(): str(v) for k, v in headers.items() if isinstance(v, str)}
     return shell.handle("POST", route, {}, dict(sent, **{"content-type": "application/json"}), json.dumps(body).encode("utf-8"))
 
