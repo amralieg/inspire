@@ -406,6 +406,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
                   <div className="seg-act" role="group" aria-label={`Treatment for ${row.label}`}>
                     {(block.treatments || []).map((t) => (
                       <SaveButton key={t} write={`choice:seg:${id}:${t}`} className={`btn btn--sm ${star === t ? 'btn--pri' : ''}`} disabled={!c.asOf || !c.waiting}
+                        why={!c.asOf ? 'This group has no as-of date yet, so a treatment cannot be recorded.' : 'No member of this group waits for a treatment.'}
                         data-treatment={t} onClick={() => choose(row, t)}>{star === t && <span aria-hidden="true">★ </span>}{t}</SaveButton>
                     ))}
                   </div>

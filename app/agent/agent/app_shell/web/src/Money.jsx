@@ -75,7 +75,7 @@ function Editor({ pageId, a, onSaved, onCancel }) {
       <label className="in"><span>Why it changed</span>
         <input dir="auto" className="note" name="assumption_note" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
-      <SaveButton write={`money:${a.name}`} type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />Save</SaveButton>
+      <SaveButton write={`money:${a.name}`} type="submit" className="btn btn--pri" disabled={!!problem} why={problem || ''}><Icon name="check" size={14} />Save</SaveButton>
       <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>
       {problem && text.trim() !== '' && <PlainNote text={problem} className="err" role="alert" />}
       <Failure failure={failure} className="err">{failure?.text}</Failure>

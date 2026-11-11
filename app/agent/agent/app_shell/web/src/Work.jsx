@@ -410,7 +410,7 @@ export function SimilarDialog({ similar, meta, pageId, model, onClose, onApply, 
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
           <SaveButton write={SIMILAR_WRITE} type="submit" className="btn btn--pri" disabled={!!problem || !choice || !kept.length || !similar.match}
-            why={problem || missingWhy([!choice && 'a status', !similar.match && 'a similar record to match'])}>{`Apply to ${recordsText(kept.length)}`}</SaveButton>
+            why={problem || (!choice ? missingWhy(['a status']) : !kept.length ? 'No record on this list is left to change.' : !similar.match ? 'No similar records were found to apply to.' : '')}>{`Apply to ${recordsText(kept.length)}`}</SaveButton>
         </footer>
       </form>
     </dialog>

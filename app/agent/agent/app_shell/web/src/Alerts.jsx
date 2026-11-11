@@ -143,7 +143,7 @@ function AlertForm({ listing, meta, page, start, onDone, onCancel }) {
         <button type="button" className="btn" onClick={check} disabled={!!problem || checking}><Icon name="search" size={14} />{checking ? 'Checking' : 'Check the value now'}</button>
         <span className="sp" />
         <button type="button" className="btn" onClick={onCancel}>Cancel</button>
-        <SaveButton write="alert:save" type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />{form.id ? 'Save the alert' : 'Set up the alert'}</SaveButton>
+        <SaveButton write="alert:save" type="submit" className="btn btn--pri" disabled={!!problem} why={problem || ''}><Icon name="check" size={14} />{form.id ? 'Save the alert' : 'Set up the alert'}</SaveButton>
       </div>
     </form>
   );

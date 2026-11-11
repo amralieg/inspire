@@ -91,7 +91,7 @@ function Editor({ pageId, setting, onSaved, onCancel }) {
       <label className="in"><span>Why it changed</span>
         <input dir="auto" className="note" name="setting_note" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} />
       </label>
-      <SaveButton write={`setting:${setting.name}`} type="submit" className="btn btn--pri" disabled={!!problem}><Icon name="check" size={14} />Save</SaveButton>
+      <SaveButton write={`setting:${setting.name}`} type="submit" className="btn btn--pri" disabled={!!problem} why={problem || ''}><Icon name="check" size={14} />Save</SaveButton>
       <button type="button" className="btn" onClick={onCancel} disabled={saving}>Cancel</button>
       {problem && text.trim() !== '' && <PlainNote text={problem} className="err" role="alert" />}
       {preview && <p className="preview" role="status" data-preview>{preview}</p>}
