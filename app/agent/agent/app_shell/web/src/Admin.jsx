@@ -3,7 +3,7 @@ import { getUsage } from './api.js';
 import { Icon } from './icons.jsx';
 import DataTable from './DataTable.jsx';
 import { PlainNote } from './ui.jsx';
-import { ADMIN_ROUTE, NO_PEOPLE, USAGE_RECORDED, USAGE_UNRECORDED, usageView } from './admin.js';
+import { NO_PEOPLE, USAGE_RECORDED, USAGE_UNRECORDED, usageView } from './admin.js';
 
 const REFUSED = [401, 403];
 
@@ -37,14 +37,6 @@ function Usage({ view }) {
           rows={view.people.map((p) => ({ key: p.who, name: p.who, lead: [p.pages], cells: p.cells, total: p.total, last: p.last, amounts: p.amounts }))} />
         : <p className="more">{NO_PEOPLE}</p>}
     </>
-  );
-}
-
-export function AdminLink({ on }) {
-  return (
-    <a className={`admin-link top-ic ${on ? 'is-on' : ''}`} data-more="tight" href={`#/${ADMIN_ROUTE}`} aria-current={on ? 'page' : undefined} aria-label="Admin" title="Admin">
-      <Icon name="lock" size={13} /><span>Admin</span>
-    </a>
   );
 }
 
