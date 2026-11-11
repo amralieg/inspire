@@ -40,9 +40,6 @@ WRITE_CLAUSES = [
                rf"(?:IF\s+(?:NOT\s+)?EXISTS\s+)?({TARGET})", re.I),
 ]
 FUNCTION_FROM = re.compile(r"\b(EXTRACT|TRIM|SUBSTRING|OVERLAY|POSITION)\s*\($", re.I)
-OWNED_PLACEHOLDER = re.compile(
-    r"\{[^}]*(tracking_table|session_table|steps?_table|lock_table|feedback_table|ailogs_table|implement_table|owned_table|view_name|"
-    r"_view\b|temp_view|tmp_view)[^}]*\}")
 IMPLEMENT_FUNCTION = re.compile(r"^_?implement_")
 OWNED_TABLE_GATES = {"add_missing_columns"}
 IMPLEMENT_RESULT_PLACEHOLDER = re.compile(r"^\{[^{}]*\bresult_table\b[^{}]*\}$")
@@ -356,7 +353,7 @@ def classify_target(target):
         return "pg_catalog"
     if re.search(r"(^|\.)system\.access\.table_lineage$", plain, re.I):
         return "system_lineage"
-    if OWNED_PLACEHOLDER.search(target):
+    if any(re.search(r"\{[^}]*" + re.escape(name) + (r"\b" if name == "_view" else "") + r"[^}]*\}", target) for name in owned_name_builders()):
         return "inspire_owned"
     if any(re.search(rf"(?<!\w){re.escape(name)}\(", target) for name in owned_name_builders()):
         return "inspire_owned"
