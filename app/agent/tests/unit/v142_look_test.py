@@ -413,12 +413,15 @@ def test_a_per_user_build_grants_the_value_ledger_to_no_service_principal_and_a_
     inst, context, _calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [created, dict(created, user_api_scopes=["sql:restricted-query", "genie"])] + DEPLOYED,
                                                        access=[])
     inst._implement_deploy_app(_user_context(agent_ns, context, decisions=False), "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
-    assert [s for s in inst.spark.statements if VALUE_LEDGER in s] == [], (
-        "a per-user App works as the signed-in person, so the build neither creates nor grants the value ledger to its principal")
+    created_ledger = [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("CREATE TABLE")]
+    assert len(created_ledger) == 1, "the job identity creates Inspire's own value ledger for a per-user App too"
+    assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")] == [], (
+        "a per-user App works as the signed-in person, so the build grants the value ledger to no service principal")
 
     inst, context, _calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [created] + DEPLOYED)
     context["spec"]["outputs"]["app_options"]["decisions"] = False
     inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
+    assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("CREATE TABLE")], "the shared build creates the ledger too"
     assert {s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")} == {
         f"GRANT SELECT ON TABLE {VALUE_LEDGER} TO `sp-1`", f"GRANT MODIFY ON TABLE {VALUE_LEDGER} TO `sp-1`"}, (
         "a shared App's principal writes the value ledger, so the build grants it SELECT and MODIFY on that table only")
