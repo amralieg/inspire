@@ -2596,7 +2596,7 @@ class Shell:
             return True
         except (QueryError, HttpError, ValueError) as error:
             if not NO_ACCESS.search(str(getattr(error, "message", None) or error)):
-                print(f"[APP-ACCESS FIRED] could not check {table}: {str(error)[:4000]}", file=sys.stderr, flush=True)
+                print(f"[APP-ACCESS FIRED] could not check {table}: {inspire_redact_text(str(error), set(), '')[:4000]}", file=sys.stderr, flush=True)
             return False
 
     def access_grant(self, headers: dict, data: dict, found: dict) -> dict:

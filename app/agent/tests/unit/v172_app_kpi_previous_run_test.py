@@ -201,7 +201,7 @@ def test_the_app_compares_each_compared_kpi_with_the_previous_run_and_leaves_the
 def test_a_result_table_that_cannot_be_read_never_shows_a_made_up_change(tmp_path):
     ws = SchemaWorkspace(fail="PERMISSION_DENIED on churn_out")
     status, data = call(_shell(tmp_path, ws), "POST", "page", body={"page": "n01_u05"})
-    assert status == 200 and data["errors"]["kpi:items"] == "PERMISSION_DENIED on churn_out" and "items" not in data["kpis"]
+    assert status == 200 and data["errors"]["kpi:items"] == shell_core.card_waiting_text([]) and "items" not in data["kpis"], data["errors"]
     assert {k: v for k, v in data["kpis"]["total_loss"].items() if k != "left_out"} == {"now": 120.0, "before": None}, "only the compared tiles depend on the result table"
 
 
