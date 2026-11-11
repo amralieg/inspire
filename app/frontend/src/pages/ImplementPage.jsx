@@ -38,7 +38,8 @@ import { catalogRow } from '../lib/useCaseFacets';
 import { fieldOf } from '../lib/useCaseFields';
 import {
   ASSET_TILES, CONTROL_REFRESH_MS, REBUILD_NOTHING, appUpdateChanges, assetFilterCounts, assetGroups, assetUninstall, buildSummary, checksSummary, collectAsk,
-  collectRemoval, collectedScope, controlRows, controlTiles, deliveredOutputs, dropCollected, filterByAsset, filterByMvp, heldVersion, keptVersions,
+  assetFiltersFrom, collectRemoval, collectedScope, controlRows, controlTiles, deliveredOutputs, dropCollected, filterByAssets, filterByMvp, heldVersion,
+  keptVersions, loadAssetFilters, saveAssetFilters,
   loadCollectedVibes, missingAsks, notDoneLines, rebuildSpec, rebuildingText, rephrasedAsk, removeChanges, removeKeptChanges, rollbackChanges, rollingBackText,
   saveCollectedVibes, statusWarnings, tryAgainChanges, uninstallChanges, vibeCards, vibeFeaturesLabel,
 } from '../lib/implementControl';
@@ -211,23 +212,23 @@ function OutputIcons({ latest }) {
 
 const FILTER_ICONS = { notebook: NotebookPen, ...OUTPUT_ICONS };
 
-function AssetFilters({ counts, asset, onAsset }) {
+function AssetFilters({ counts, assets, onToggle }) {
   const total = counts.reduce((most, entry) => Math.max(most, entry.count), 0);
-  if (!total && !asset) return null;
-  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth disabled:opacity-40 ${
+  if (!total && !assets.length) return null;
+  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth has-disabled:opacity-40 ${
     on ? 'border-db-red/40 bg-db-red-50 text-db-red-fg' : 'border-border bg-surface text-text-primary hover:bg-bg-subtle'}`;
   return (
     <div role="group" aria-label="Show use cases with" className="rounded-xl border border-border bg-surface px-3 py-2.5 shadow-sm space-y-1.5">
       <p className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary">Show use cases with</p>
       <div className="flex flex-wrap gap-1.5">
-        <button type="button" aria-pressed={!asset} onClick={() => onAsset('')} className={chip(!asset)}>All</button>
         {counts.map((entry) => {
           const Icon = FILTER_ICONS[entry.id];
-          const on = asset === entry.id;
+          const on = assets.includes(entry.id);
           return (
-            <button key={entry.id} type="button" data-asset-filter={entry.id} aria-pressed={on} disabled={!entry.count && !on} onClick={() => onAsset(on ? '' : entry.id)} className={chip(on)}>
+            <label key={entry.id} className={chip(on)}>
+              <input type="checkbox" data-asset-filter={entry.id} checked={on} disabled={!entry.count && !on} onChange={() => onToggle(entry.id)} className="accent-db-red" />
               <Icon size={11} aria-hidden /> {entry.label} <span className="font-mono text-text-secondary">{entry.count}</span>
-            </button>
+            </label>
           );
         })}
       </div>
@@ -253,16 +254,17 @@ function RailProgress({ item, progress }) {
   );
 }
 
-function Rail({ groups, listLoading, query, asset, mvp = '', assetLabel, shownId, progress = {}, onSelect }) {
+function Rail({ groups, listLoading, query, assets = [], mvp = '', assetLabels = [], shownId, progress = {}, onSelect }) {
   const mvpWords = mvp === 'live' ? 'a live MVP' : 'an MVP';
+  const assetWords = assetLabels.map((label) => `${/^[AEIOU]/.test(label) ? 'an' : 'a'} ${label}`).join(' or ');
   return (
     <nav aria-label="Use cases" className="relative flex-1 min-h-32 space-y-3 overflow-y-auto pe-1">
       {listLoading && (
         <p className="flex items-center gap-2 px-1 text-[12px] text-text-secondary"><Loader2 size={14} className="animate-spin" /> Loading the use cases…</p>
       )}
-      {!listLoading && (query.trim() || asset || mvp) && groups.every((group) => group.items.length === 0) && (
+      {!listLoading && (query.trim() || assets.length || mvp) && groups.every((group) => group.items.length === 0) && (
         <p className="px-1 text-[12px] text-text-secondary">
-          {asset ? `No use case${query.trim() ? ` matching "${query.trim()}"` : ''} has ${/^[AEIOU]/.test(assetLabel) ? 'an' : 'a'} ${assetLabel} yet.`
+          {assets.length ? `No use case${query.trim() ? ` matching "${query.trim()}"` : ''} has ${assetWords} yet.`
             : mvp ? `No use case${query.trim() ? ` matching "${query.trim()}"` : ''} has ${mvpWords} yet.`
               : <>No use case matches &quot;{query.trim()}&quot;.</>}
         </p>
@@ -356,7 +358,8 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
   const [rail, setRail] = useState(NO_RAIL);
   const [railError, setRailError] = useState('');
   const [query, setQuery] = useState('');
-  const [assetFilter, setAssetFilter] = useState(filter?.asset || '');
+  const [assetFilters, setAssetFilters] = useState(() => (filter ? assetFiltersFrom(filter.asset) : loadAssetFilters()));
+  useEffect(() => { saveAssetFilters(assetFilters); }, [assetFilters]);
   const [mvpFilter, setMvpFilter] = useState(filter?.mvp || '');
   const [chosenId, setChosenId] = useState(focusId);
   const [wizard, setWizard] = useState(null);
@@ -423,18 +426,18 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
 
   const searched = useMemo(() => implementGroups(useCases, rail.latest, rail.notebook_run, query), [useCases, rail.latest, rail.notebook_run, query]);
   const assetCounts = useMemo(() => assetFilterCounts(searched.flatMap((g) => g.items)), [searched]);
-  const groups = useMemo(() => filterByMvp(filterByAsset(searched, assetFilter), mvpFilter), [searched, assetFilter, mvpFilter]);
+  const groups = useMemo(() => filterByMvp(filterByAssets(searched, assetFilters), mvpFilter), [searched, assetFilters, mvpFilter]);
   const clearFilter = () => {
-    setAssetFilter('');
+    setAssetFilters([]);
     setMvpFilter('');
     onClearFilter?.();
   };
-  const pickAsset = (asset) => {
+  const toggleAsset = (asset) => {
     if (filter) {
       setMvpFilter('');
       onClearFilter?.();
     }
-    setAssetFilter(asset);
+    setAssetFilters((prev) => (prev.includes(asset) ? prev.filter((id) => id !== asset) : [...prev, asset]));
   };
   const allItems = useMemo(() => implementGroups(useCases, rail.latest, rail.notebook_run).flatMap((g) => g.items), [useCases, rail.latest, rail.notebook_run]);
   const summary = useMemo(() => buildSummary(allItems), [allItems]);
@@ -495,9 +498,10 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
           className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] overflow-y-auto md:max-h-none md:min-h-0">
-          {!listLoading && <AssetFilters counts={assetCounts} asset={assetFilter} onAsset={pickAsset} />}
-          <Rail groups={groups} listLoading={listLoading} query={query} asset={assetFilter} mvp={mvpFilter}
-            assetLabel={assetCounts.find((entry) => entry.id === assetFilter)?.label || ''} shownId={shownId} progress={progress} onSelect={select} />
+          {!listLoading && <AssetFilters counts={assetCounts} assets={assetFilters} onToggle={toggleAsset} />}
+          <Rail groups={groups} listLoading={listLoading} query={query} assets={assetFilters} mvp={mvpFilter}
+            assetLabels={assetCounts.filter((entry) => assetFilters.includes(entry.id)).map((entry) => entry.label)}
+            shownId={shownId} progress={progress} onSelect={select} />
         </div>
         <PaneResizer width={railPx} onWidth={(width) => setRailPx(paneWidth(RAIL_WIDTH, width))} limits={RAIL_WIDTH} label="Resize the use case list" data-rail-resizer="" className="self-stretch" />
         <section ref={paneRef} aria-label="Use case" className="relative flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">

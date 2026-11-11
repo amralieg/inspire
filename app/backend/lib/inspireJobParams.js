@@ -2,7 +2,7 @@ const { parseExactJson } = require('./exactJson');
 const { parseStrategicContext, validateStrategy } = require('../../frontend/src/lib/strategyContext.js');
 const { scopesFromObject, serializeTableScopes, scopeKeyOf } = require('../../frontend/src/lib/tableScope.js');
 
-const INSPIRE_AGENT_VERSION = 'v1.5.1';
+const INSPIRE_AGENT_VERSION = 'v1.5.2';
 const INSPIRE_ENVIRONMENT_KEY = 'Default';
 const INSPIRE_ENVIRONMENT_VERSION = '4';
 

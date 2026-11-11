@@ -280,9 +280,9 @@ test('the demo replays every view from the bundle with no workspace call, refuse
     await page.locator('[data-asset-tiles]').waitFor();
     await settle();
     assert.equal((await page.locator('[data-pinned-name] h2').textContent()).trim(), 'Predict churn');
-    const alertChip = page.locator('[data-asset-filter="alert"]');
+    const alertChip = page.locator('label:has([data-asset-filter="alert"])');
     assert.match((await alertChip.innerText()).replace(/\s+/g, ' ').trim(), /^Alert [1-9]\d*$/, 'the demo counts its built alert, never Alert 0');
-    assert.equal(await alertChip.isDisabled(), false);
+    assert.equal(await page.locator('[data-asset-filter="alert"]').isDisabled(), false);
     await page.locator('[data-progress-card]').waitFor();
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'a ready MVP opens on its tiles and its Build progress, with no drawer open');
     for (const name of ['Vibe/Add/Remove Features (0)', 'Uninstall all', START_MVP_LABEL]) assert.equal(await page.getByRole('button', { name, exact: true }).count(), 0, name);
