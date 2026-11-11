@@ -34,9 +34,9 @@ test('a tour leaves out the runs step when the App hides its runs', () => {
 });
 
 test('a language without its own words for a step gets the English step, so no step is blank', () => {
-  const info = appInfo({}, 1, { tour: { languages: ['French'], steps: { French: [] } } });
+  const info = appInfo({}, 1, { tour: { languages: ['Klingon'], steps: { Klingon: [] } } });
   const runs = info.pages[0].tour.languages[0].steps.find((s) => s.anchor === 'runs');
-  assert.equal(runs?.title, 'Each run', 'the French runs step falls back to the English words');
+  assert.equal(runs?.title, 'Each run', 'a language with no template words falls back to the English runs step');
 });
 
 test('the actions step names the page own choices and says what each one does', () => {
