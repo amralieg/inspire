@@ -592,7 +592,8 @@ test('in Everything a closed record is read-only: its closure line, its history 
   const { page, seen, context } = await openWith(appInfo(EDIT_TOO, 1, TABLE), routes, { prefs: { window: 'everything' } });
   await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 3);
   const rowActs = page.locator('.card--table tbody .row-acts:not(.row-next-acts)');
-  assert.deepEqual(await Promise.all([0, 1, 2].map((i) => rowActs.nth(i).locator('button').count())), [3, 1, 1], 'a closed row keeps only its history');
+  assert.deepEqual(await Promise.all([0, 1, 2].map((i) => rowActs.nth(i).locator('button').count())), [3, 1, 1], 'an open row keeps edit, delete and history');
+  assert.deepEqual(await Promise.all([1, 2].map((i) => rowActs.nth(i).locator('button').innerText())), ['Reopen', 'Reopen'], 'a closed row shows only Reopen');
   const drawer = page.locator('dialog.drawer');
   await page.locator('.cell-t').nth(1).click();
   await drawer.locator('.done').waitFor();
@@ -617,6 +618,20 @@ test('in Everything a closed record is read-only: its closure line, its history 
   await page.locator('.cell-t').nth(0).click();
   await drawer.getByRole('region', { name: 'Action', exact: true }).waitFor();
   assert.equal(await drawer.locator('[data-read-only]').count(), 0, 'an open record keeps its action form in Everything');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
+test('in Everything Reopen on a closed row opens that record at its Undo ask, and undoes nothing by itself', async () => {
+  const calls = { undos: [] };
+  const { routes } = everything(calls);
+  const { page, seen, context } = await openWith(appInfo(EDIT_TOO, 1, TABLE), routes, { prefs: { window: 'everything' } });
+  await page.waitForFunction(() => document.querySelectorAll('.card--table tbody tr').length === 3);
+  await page.locator('.card--table tbody .row-acts:not(.row-next-acts)').nth(1).getByRole('button', { name: /^Reopen / }).click();
+  const drawer = page.locator('dialog.drawer');
+  await drawer.locator('[data-read-only]').waitFor();
+  assert.deepEqual(await drawer.locator('.panel-f button').allInnerTexts(), ['Undo this change', 'Close'], 'the drawer offers the Undo that reopens the record');
+  assert.equal(calls.undos.length, 0, 'Reopen itself sends no undo');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
