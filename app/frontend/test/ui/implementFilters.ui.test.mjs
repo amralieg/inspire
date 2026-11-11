@@ -2,6 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { closeBrowser, goToStep, onStep, openUi, profileAt, startMvp, toSummary } from './uiSupport.mjs';
+import { WIZARD_DRAFT_PREFIX } from '../../src/lib/wizardDraft.js';
 
 test.after(closeBrowser);
 
@@ -123,6 +124,65 @@ test('a narrowed scope reads the row count of every Data group under the same sc
     assert.equal(groupCounts.length, 1, 'one group-count read under the scope');
     assert.match(String(groupCounts[0].sql), /WHERE CAST\(`status` AS STRING\) IN/, 'the group counts carry the same filter as the readiness count');
     assert.match(await page.locator('[data-first-run-choice="all"]').innerText(), /\b120 records\b/);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a restored draft that opens First run on a narrowed scope counts that scope again and shows only that count', async () => {
+  const calls = [];
+  const ui = await openUi('wizard', { me: ME, columns: COLUMNS, valuesByColumn: VALUES, readinessByFilter: { gold: '120' } }, '', { init: profileAt(calls, PROFILE) });
+  const { page, made, pageErrors } = ui;
+  try {
+    await goToStep(page, 'Data');
+    await block(page, 'main.s.orders').getByLabel('Filter rows of main.s.orders by column').selectOption('status');
+    await block(page, 'main.s.orders').getByRole('button', { name: 'Load values' }).first().click();
+    await block(page, 'main.s.orders').getByRole('checkbox', { name: 'gold', exact: true }).first().check();
+    await goToStep(page, 'First run');
+    await page.locator('[data-first-run-choice="all"]').waitFor();
+    const counted = () => made.sqlCalls.filter((c) => String(c.sql).startsWith('SELECT COUNT(*) AS row_count')).length;
+    const before = counted();
+    await page.reload();
+    await onStep(page, 'First run');
+    await page.waitForFunction(() => /\b120 records\b/.test(document.querySelector('[data-first-run-choice="all"]')?.textContent || ''), null, { timeout: 15000 });
+    assert.ok(counted() > before, 'the restored First run counted its scope again');
+    assert.doesNotMatch(await page.locator('[data-first-run-choice="all"]').innerText(), /48,210/, 'the whole table is not shown for the narrowed scope');
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a row filter left on a table that is no longer a source is listed, and Remove these filters drops it and keeps the rest', async () => {
+  const ui = await openUi('wizard&discovery=Deep', { columns: COLUMNS, valuesByColumn: VALUES, me: ME });
+  const { page, pageErrors } = ui;
+  try {
+    await goToStep(page, 'Data');
+    await block(page, 'main.s.orders').getByLabel('Filter rows of main.s.orders by column').selectOption('status');
+    await block(page, 'main.s.orders').getByRole('button', { name: 'Load values' }).first().click();
+    await block(page, 'main.s.orders').getByRole('checkbox', { name: 'gold', exact: true }).first().check();
+    await page.waitForFunction((prefix) => Object.keys(localStorage).some((k) => k.startsWith(prefix)), WIZARD_DRAFT_PREFIX);
+    await page.evaluate((prefix) => {
+      const key = Object.keys(localStorage).find((k) => k.startsWith(prefix));
+      const draft = JSON.parse(localStorage.getItem(key));
+      draft.spec.data.filters.push({ table: 'main.s.gone', column: 'status', op: 'in', values: ['x'] });
+      localStorage.setItem(key, JSON.stringify(draft));
+    }, WIZARD_DRAFT_PREFIX);
+    await page.reload();
+    await onStep(page, 'Data');
+    const orphan = page.locator('[data-filters-outside="main.s.gone"]');
+    await orphan.waitFor();
+    assert.match(await orphan.innerText(), /Row filters on main\.s\.gone, which is no longer a source table\./);
+    await orphan.getByRole('button', { name: 'Remove these filters', exact: true }).click();
+    await orphan.waitFor({ state: 'detached' });
+    assert.equal(await page.locator('[data-filters-outside]').count(), 0);
+    await block(page, 'main.s.orders').waitFor();
+    const kept = await page.evaluate((prefix) => {
+      const key = Object.keys(localStorage).find((k) => k.startsWith(prefix));
+      return JSON.parse(localStorage.getItem(key)).spec.data.filters.map((f) => f.table);
+    }, WIZARD_DRAFT_PREFIX);
+    assert.deepEqual(kept, ['main.s.orders'], 'the filter on the source table stays');
     assert.deepEqual(pageErrors, []);
   } finally {
     await ui.close();

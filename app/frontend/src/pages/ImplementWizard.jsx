@@ -1098,7 +1098,7 @@ export default function ImplementWizard({
   };
 
   const markTouched = (e) => {
-    if (e.target?.closest?.('input, select, textarea, [data-option]')) touched.current = true;
+    if (e.target?.closest?.('input, select, textarea, button, [data-option]')) touched.current = true;
   };
 
   const startOver = () => {
