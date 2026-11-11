@@ -83,6 +83,7 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
     const submitResp = await dbFetch(host, token, '/api/2.0/sql/statements', {
       method: 'POST',
       body: JSON.stringify(body),
+      idempotent: READ_ONLY_SQL_RE.test(sql),
     });
     if (!submitResp.ok) {
       const errText = await submitResp.text();
