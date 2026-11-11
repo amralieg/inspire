@@ -193,3 +193,8 @@ def test_a_scope_whose_view_is_not_ready_reads_the_base_table_with_its_rows_and_
     assert ("where", "`main`.`s`.`orders`", "region = 'EU'") in spark.ops, "the row filter of the scope is applied"
     assert ("select", "`main`.`s`.`orders`", ("`order_id`", "`region`")) in spark.ops, (
         "the column list of the scope is applied too (REQ-022: selected columns and rows)")
+
+
+def test_the_lakebase_view_ref_quotes_each_part_for_postgres_in_the_agent(agent_ns):
+    assert agent_ns["inspire_lakebase_view_ref"]('main.pricing_lb.n01_u05"x') == '"main"."pricing_lb"."n01_u05""x"', (
+        "the Lakebase DROP VIEW name quotes every part the way the shell quotes it, without an undefined pg helper")
