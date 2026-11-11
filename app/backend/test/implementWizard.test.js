@@ -1368,6 +1368,29 @@ test('the Implement page gives the reason only for a warning or a failure', asyn
   }
 });
 
+test('a build whose job ended before Inspire picked the version up says so in plain words, and offers scope, notebook and report choices (must-exclude)', async () => {
+  const w = await load();
+  const latest = { spec_version: 2, use_case_id: 'N01-U01', status: 'failed', status_message: 'the run building v2 ended (Finished) while v2 was still queued' };
+  const queued = { run_id: '5555555555555555', run_url: 'https://x/run/5555555555555555', reason: latest.status_message, ended: true };
+  const reason = w.statusReason(latest, queued);
+  assert.equal(reason, 'The build job ended before Inspire started building v2. Rebuild in Vibe/Add/Remove Features submits a new version.');
+  assert.doesNotMatch(reason, /Finished|still queued/, 'the raw job state is not shown to the person');
+  const { newIssueUrl } = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'issues.js')).href);
+  assert.equal(w.stoppedChoices(latest, { stalled: queued }).find((c) => c.id === 'report').url, '', 'the wizard module names no internet host; the page supplies the link');
+  const choices = w.stoppedChoices(latest, { stalled: queued, notebookUrl: '', issueUrl: newIssueUrl });
+  assert.deepEqual(choices.map((c) => c.id), ['scope', 'notebook', 'report']);
+  assert.equal(choices.find((c) => c.id === 'notebook').url, '', 'without a notebook link the choice writes one');
+  const report = new URL(choices.find((c) => c.id === 'report').url);
+  assert.equal(report.hostname, 'github.com');
+  assert.match(report.searchParams.get('body'), /version v2/);
+  assert.doesNotMatch(`${report.searchParams.get('title')} ${report.searchParams.get('body')}`, /5555555555555555|https?:|@/,
+    'the public report holds no run id, run link or person');
+  assert.deepEqual(w.stoppedChoices(latest, { stalled: queued, notebookUrl: 'https://x/nb' }).find((c) => c.id === 'notebook').url, 'https://x/nb');
+  const filling = { ...queued, reason: 'the run building v2 ended (CANCELED) while v2 was still filling' };
+  assert.equal(w.stoppedWords(filling), 'the run building v2 ended (CANCELED) while v2 was still filling', 'a run that stopped while filling keeps its own words');
+  assert.equal(w.stoppedWords({ reason: 'the run building v2 ended (Finished) while v3 was still queued' }), 'the run building v2 ended (Finished) while v3 was still queued', 'the version in the reason must match');
+});
+
 test('a stalled version reads as stopped, frees the Implement page actions, says why, and the History calls older active versions stopped', async () => {
   const w = await load();
   assert.deepEqual(w.IMPLEMENT_ACTIVE_STATUSES, backend.IMPLEMENT_ACTIVE_STATUSES);

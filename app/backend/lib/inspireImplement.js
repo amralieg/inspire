@@ -2101,6 +2101,7 @@ function implementJobParams(baseParams, useCaseId, specVersion, inspireClientId 
   return {
     ...baseParams,
     '15_operation': IMPLEMENT_OPERATION,
+    '01_uc_metadata': '',
     [IMPLEMENT_USE_CASE_PARAM]: String(useCaseId),
     [IMPLEMENT_SPEC_VERSION_PARAM]: String(specVersion),
     [IMPLEMENT_INSPIRE_CLIENT_PARAM]: String(inspireClientId || ''),

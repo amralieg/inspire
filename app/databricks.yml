@@ -51,7 +51,7 @@ resources:
     inspire_pipeline:
       name: "Inspire AI Pipeline"
       tags:
-        inspire_version: "v1.5.1"
+        inspire_version: "v1.5.2"
         dbx_inspire_ai_type: "discovery"
       tasks:
         - task_key: inspire_notebook
