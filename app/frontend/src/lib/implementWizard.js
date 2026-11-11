@@ -1248,6 +1248,33 @@ export function specFromLatest(latest, fallback, assets = {}) {
   return withSettingsNote(spec, '');
 }
 
+const PER_USE_CASE_OUTPUTS = {
+  app_purpose: '', app_vibes: '', app_charts: [], genie_space_name: '', genie_questions: [], genie_space_vibes: '',
+  dashboard_name: '', dashboard_filters: [], dashboard_vibes: '', alert_name: '', alert_condition_text: '', alert_vibes: '',
+};
+
+// Build Now: the live App's settings carried to a sibling use case. Its own use case, tables, result table and names replace the App's.
+export function specForSibling(liveSpec, uc, ctx = {}) {
+  const app = withoutOneVersionKeys(structuredClone(liveSpec));
+  const own = defaultSpecFromUseCase(uc, ctx);
+  const { catalog, schema } = resultTableParts(app.config.result_table);
+  const { table } = resultTableParts(own.config.result_table);
+  const resultTable = catalog && schema && table ? `${catalog}.${schema}.${table}` : own.config.result_table;
+  const appName = placementAppName(app.outputs.app_placement, { business: ctx.businessName, domain: domainOf(uc), useCaseAppName: caseAppNameOf(uc) });
+  return withMoneyRule(withKpiTarget({
+    ...app,
+    use_case_id: own.use_case_id,
+    use_case_name: own.use_case_name,
+    based_on_version: null,
+    confirm_notebook_overwrite: false,
+    use_case: own.use_case,
+    data: { ...app.data, tables: {}, removed_tables: [], filters: [], column_roles: {}, notes: '' },
+    config: { ...app.config, widgets: {}, result_table: resultTable },
+    outputs: { ...app.outputs, ...PER_USE_CASE_OUTPUTS, app_name: appName },
+    removed_outputs: {},
+  }, ''), null);
+}
+
 export const ROLE_RULES = {
   keyNameSuffixes: ['_id', '_key', '_sk', '_pk', '_fk', '_nk', '_code', '_no', '_num', '_number', '_ref', '_uuid', '_guid', '_zip', '_zipcode', '_postcode'],
   keyNamePrefixes: ['id_', 'fk_', 'sk_', 'pk_'],

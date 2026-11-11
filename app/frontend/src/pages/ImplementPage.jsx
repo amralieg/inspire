@@ -506,9 +506,10 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
         <PaneResizer width={railPx} onWidth={(width) => setRailPx(paneWidth(RAIL_WIDTH, width))} limits={RAIL_WIDTH} label="Resize the use case list" data-rail-resizer="" className="self-stretch" />
         <section ref={paneRef} aria-label="Use case" className="relative flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">
           {selected && (
-            <BuildNextStep apiFetch={apiFetch} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId} sessionId={sessionId}
-              focusId={selected.id} live={IMPLEMENT_DONE_STATUSES.includes(String(selected.latest?.status || ''))}
-              onOpen={readOnly ? undefined : select} />
+            <BuildNextStep apiFetch={apiFetch} apiPostJson={apiPostJson} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId} sessionId={sessionId}
+              notebookPath={settings.notebookPath} focusId={selected.id} live={IMPLEMENT_DONE_STATUSES.includes(String(selected.latest?.status || ''))}
+              caseOf={(id) => allItems.find((item) => item.id === id)?.uc}
+              onBuilt={readOnly ? undefined : onImplemented} onBuildCustom={readOnly ? undefined : (uc) => setWizard({ uc, focus: null, live: false })} />
           )}
           {selected ? (
             <UseCaseDetail
