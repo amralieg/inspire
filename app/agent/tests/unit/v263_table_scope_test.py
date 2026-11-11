@@ -337,3 +337,58 @@ def test_every_use_case_on_a_scoped_table_states_the_scope_and_the_check_is_idem
     assert use_cases[0]["Statement"] == "Find late orders. " + sentence
     assert use_cases[1]["Statement"] == "Count customers.", "a table with no scope is untouched"
     assert viewed["ensure_scope_statements"](use_cases) == [], "a statement that already states the scope is not changed again"
+
+
+def test_dashboard_and_app_datasets_read_the_scope_view_and_a_base_table_is_refused(viewed):
+    spark = _RecordingSpark()
+    viewed["create_scope_views"](spark)
+    items = [{"name": "d1", "sql": "SELECT COUNT(*) FROM main.s.orders"}, {"name": "d2", "sql": "SELECT 1"}]
+    assert viewed["scope_dataset_sql"](items, "the App") == []
+    assert items[0]["sql"] == "SELECT COUNT(*) FROM `main`.`insp`.`main_s_orders__scope`"
+    bad = [{"name": "d3", "sql": "SELECT * FROM `main`.`s`.`orders` o"}]
+    viewed["ready_backup"] = viewed["TABLE_SCOPES"]["main.s.orders"]["ready"]
+    viewed["TABLE_SCOPES"]["main.s.orders"]["ready"] = False
+    try:
+        problems = viewed["scope_dataset_sql"](bad, "the dashboard")
+    finally:
+        viewed["TABLE_SCOPES"]["main.s.orders"]["ready"] = viewed["ready_backup"]
+    assert problems and "dashboard dataset d3 reads main.s.orders" in problems[0]
+
+
+def test_the_dashboard_check_refuses_a_dataset_on_a_scoped_base_table_before_the_build_ships(viewed):
+    _, errors = viewed["check_dashboard_definition"]({"datasets": [{"name": "d", "sql": "SELECT * FROM main.s.orders"}], "pages": []},
+                                                    ["main.insp.other"])
+    assert any("reads main.s.orders, the base table of its Table Scope" in e for e in errors), errors
+
+
+def test_a_dropped_or_changed_scope_removes_its_stale_views_and_keeps_current_ones(viewed):
+    class Spark(_RecordingSpark):
+        def sql(self, statement):
+            self.statements.append(" ".join(str(statement).split()))
+            if statement.startswith("SHOW VIEWS"):
+                return _Listed(["main_s_orders__scope", "main_s_gone__scope"])
+            return _Listed([])
+
+    class _Listed(list):
+        def collect(self):
+            return [{"viewName": v} for v in self]
+
+    spark = Spark()
+    assert viewed["drop_stale_scope_views"](spark, "main.insp") == ["main.insp.main_s_gone__scope"]
+    assert spark.statements[-1] == "DROP VIEW IF EXISTS `main`.`insp`.`main_s_gone__scope`"
+    assert viewed["drop_stale_scope_views"](spark, "") == []
+
+
+def test_the_genie_space_keeps_only_the_selected_column_configs_of_a_scoped_table(viewed):
+    space = {"data_sources": {"tables": [{"identifier": "main.s.orders", "column_configs": [
+        {"column_name": "order_id"}, {"column_name": "status"}, {"column_name": "amount"}]}]}}
+    viewed["scope_genie_space"](space, _RecordingSpark())
+    table = space["data_sources"]["tables"][0]
+    assert [c["column_name"] for c in table["column_configs"]] == ["order_id"], table
+
+
+def test_the_statement_check_covers_every_involved_table_not_only_the_primary(viewed):
+    use_cases = [{"Primary Table": "main.s.customers", "Statement": "Count customers."}]
+    changed = viewed["ensure_scope_statements"](use_cases, lambda uc: ["main.s.orders"])
+    assert changed == ["main.s.orders"]
+    assert "Covers only the columns `order_id`, `customer_id`, `order_date` and the rows where `status` = gold of main.s.orders." in use_cases[0]["Statement"]
