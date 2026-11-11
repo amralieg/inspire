@@ -26,6 +26,8 @@ const {
   inspireJobEnvironments,
   inspireJobTags,
   inspireTaskCompute,
+  inspireTagCloud,
+  loadInspireTagCloud,
   normalizeUseCasesQualityParams,
   sanitizeInspireNotebookJobParams,
   normalizeV130UseCaseFields,
@@ -3174,6 +3176,7 @@ if (require.main === module) (async () => {
   if (SP_CLIENT_ID && SP_CLIENT_SECRET && !SERVICE_TOKEN) {
     await refreshSpToken();
   }
+  await loadInspireTagCloud(DATABRICKS_HOST);
 
   hostedRun.installLifecycle();
   const server = app.listen(PORT, (err) => {
@@ -3190,6 +3193,7 @@ if (require.main === module) (async () => {
     console.log(`   Notebook:        ${hasNotebook ? '✅ Found' : '❌ Not found'}`);
     console.log(`   Frontend:        ${servingStatic ? '✅ ' + STATIC_DIR : '(dev proxy mode)'}`);
     console.log(`   Warehouse:       ${DEFAULT_WAREHOUSE_ID || '⚠️  Not configured'}`);
-    console.log(`   Database:        ${DEFAULT_INSPIRE_DB || '⚠️  Not configured'}\n`);
+    console.log(`   Database:        ${DEFAULT_INSPIRE_DB || '⚠️  Not configured'}`);
+    console.log(`   Cloud:           ${inspireTagCloud() || '⚠️  unknown (job tag values capped at 63)'}\n`);
   });
 })();
