@@ -424,7 +424,7 @@ HUES = ("blue", "teal", "amber", "green", "violet", "coral", "plum", "rose", "sl
 RATIO_TOKENS = frozenset(("ratio", "rate", "pct", "percent", "percentage", "proportion", "share", "avg", "average", "mean",
                           "median", "margin", "per"))
 CAPS = {"kpis": (3, 6), "charts": (3, 8), "tables": (0, 3), "filters": (1, 8), "tiles": 12, "datasets": 12, "y": 4,
-        "chart_rows": 5000, "table_rows": 5000, "records_rows": 5000, "options": 500, "values": 200, "value_chars": 300,
+        "chart_rows": 5000, "table_rows": 5000, "table_search_chars": 200, "records_rows": 5000, "options": 500, "values": 200, "value_chars": 300,
         "history_rows": 500, "runs_rows": 5000, "field_chars": 4000, "lines": 50, "fields": 200,
         "list_rows": 100, "list_offset": 10 ** 9, "search_chars": 200, "option_matches": 50, "act_records": 200, "owners": 50,
         "owner_chars": 254, "reason_chars": 300, "overview_rows": 500, "assumption_rows": 200, "assumption_limit": 1e15,
@@ -2869,7 +2869,27 @@ def chart_query(page: dict, ident: str, values: dict) -> tuple:
     return text, params.items
 
 
-def table_query(page: dict, ident: str, values: dict, columns=None, types=None, asked=None) -> tuple:
+def table_search_problems(page: dict, searches) -> list:
+    if searches is None:
+        return []
+    if not isinstance(searches, dict):
+        return ["table_search must be an object of table id to the text to search its rows for"]
+    known = {t.get("id") for t in page.get("tables") or []}
+    problems = []
+    for ident, text in searches.items():
+        if ident not in known:
+            problems.append(f"the page has no table {ident!r}")
+        elif not isinstance(text, str) or len(text) > CAPS["table_search_chars"]:
+            problems.append(f"table {ident} search takes text of at most {CAPS['table_search_chars']} characters")
+    return problems
+
+
+def table_search_condition(table: dict, text: str, params) -> str:
+    holder = params.add(contains_pattern(text.strip()))
+    return "(" + " OR ".join(f"CAST(d.{quote(c)} AS STRING) ILIKE {holder} ESCAPE '{LIKE_ESCAPE}'" for c in table_shown(table)) + ")"
+
+
+def table_query(page: dict, ident: str, values: dict, columns=None, types=None, asked=None, search: str = "") -> tuple:
     table = _item(page, "tables", ident)
     own = card_picks(page).get(ident)
     if own and (values or {}).get(own):
@@ -2885,6 +2905,8 @@ def table_query(page: dict, ident: str, values: dict, columns=None, types=None, 
     limit = min(int(table.get("limit", CAPS["table_rows"])), CAPS["table_rows"])
     fetched = limit + 1 if limit == CAPS["table_rows"] else limit
     conditions = _conditions(page, table["dataset"], values, params) + column_conditions(table_column_filters(table, types), columns, params)
+    if search.strip():
+        conditions.append(table_search_condition(table, search, params))
     where = f" WHERE {' AND '.join(conditions)}" if conditions else ""
     return f"SELECT {picked} FROM ({sql}) AS d{where}{order} LIMIT {fetched}", params.items
 
@@ -3169,11 +3191,11 @@ def default_values(page: dict, bounds: dict) -> dict:
     return values
 
 
-def page_queries(page: dict, values: dict, tables=None, previous=None, types=None, sorts=None) -> list:
+def page_queries(page: dict, values: dict, tables=None, previous=None, types=None, sorts=None, searches=None) -> list:
     out = [("kpi", k["id"]) + kpi_query(page, k["id"], values, (previous or {}).get(k["dataset"])) for k in page.get("kpis") or []]
     out += [("chart", c["id"]) + chart_query(page, c["id"], values) for c in page.get("charts") or []]
     out += [("table", t["id"]) + table_query(page, t["id"], values, (tables or {}).get(t["id"]), (types or {}).get(t["id"]),
-                                             (sorts or {}).get(t["id"])) for t in page.get("tables") or []]
+                                             (sorts or {}).get(t["id"]), (searches or {}).get(t["id"], "")) for t in page.get("tables") or []]
     return out
 
 
@@ -3379,7 +3401,7 @@ def window_conditions(bounds: dict, params, held: bool, today: str) -> list:
     return out
 
 
-def window_order(stake: str, due: str, today: str, tie: str) -> str:
+def stake_first_order(stake: str, due: str, today: str, tie: str) -> str:
     return (f"{stake} DESC NULLS LAST, CASE WHEN {due} < {today} THEN 0 ELSE 1 END ASC, {due} ASC NULLS LAST"
             + (f", {tie} ASC" if tie else ""))
 
@@ -4355,7 +4377,7 @@ def list_queries(page: dict, values: dict, request: dict, context: dict, editor:
     fields = dict(fields, keyset=False) if request.get("ranked") else fields
     sort = quote(fields["sort"])
     if request.get("ranked"):
-        order = (window_order if request.get("window") else due_first_order)(_stake(context), "`_inspire_due`", plan["today"], quote(context["tie"]))
+        order = due_first_order(_stake(context), "`_inspire_due`", plan["today"], quote(context["tie"]))
     else:
         order = f"{sort} {request['dir'].upper()} NULLS LAST" + (f", {quote(context['tie'])} ASC" if context["tie"] != request["sort"] else "")
     counted_params = list(params.items)
@@ -4396,7 +4418,7 @@ def list_match_query(page: dict, values: dict, request: dict, context: dict, edi
     top = (request.get("window") or {}).get("limit")
     source = "f"
     if top:
-        order = window_order(_stake(plan["context"]), "`_inspire_due`", plan["today"], quote(plan["context"]["tie"]))
+        order = due_first_order(_stake(plan["context"]), "`_inspire_due`", plan["today"], quote(plan["context"]["tie"]))
         ctes["w"], counted, source = f"SELECT * FROM f ORDER BY {order} LIMIT {int(top)}", counted + ["w"], "w"
     head = _with(ctes, counted)
     return {"keys": f"{head} SELECT DISTINCT `_inspire_key` FROM {source} WHERE `_inspire_key` IS NOT NULL", "params": params,
@@ -5589,7 +5611,7 @@ def overview_query(page: dict, values: dict, picked: dict, context: dict, fields
     if window:
         today = params.add(window["today"], "DATE")
         conditions += window_conditions(window, params, held, today)[1:]
-        ranked = window_order("`money`", "`day`", today, "`k`")
+        ranked = stake_first_order("`money`", "`day`", today, "`k`")
         top = min(top, int(window.get("limit") or top))
     item = {"k": f"COALESCE(c.`_inspire_key`, CAST(d.{quote(records['key'])} AS STRING))", "label": f"d.{quote(records['label'])}",
             "n": "COUNT(*) OVER ()"}

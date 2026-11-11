@@ -152,7 +152,7 @@ function Feedback({ page, app, genie }) {
             <span>{question?.text || 'Answer'}</span>
             <span role="group" aria-label={`Rate the answer to ${question?.text || 'this question'}`}>
               {RATINGS.map((r) => (
-                <SaveButton key={r.id} write={`rate:${answer.n}:${r.id}`} className={`btn btn--sm ${sent[answer.n] === r.id ? 'btn--pri' : ''}`} disabled={!on} aria-pressed={sent[answer.n] === r.id}
+                <SaveButton key={r.id} write={`rate:${answer.n}:${r.id}`} className={`btn btn--sm ${sent[answer.n] === r.id ? 'btn--pri' : ''}`} disabled={!on} why={on ? '' : 'Genie is not on for this page, so the rating cannot be sent.'} aria-pressed={sent[answer.n] === r.id}
                   data-rating={r.id} onClick={() => rate(answer, r.id)}>{r.label}</SaveButton>
               ))}
             </span>

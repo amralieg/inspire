@@ -48,20 +48,20 @@ const Alerts = lazy(() => import('./Alerts.jsx'));
 const TrendCards = lazy(() => import('./Trends.jsx'));
 const Waiting = ({ height = 180 }) => <section className="card" role="status" aria-label="Loading"><Skeleton height={height} /></section>;
 
-export function usePageData(pageId, state, ready, nonce = 0, sorts = null) {
+export function usePageData(pageId, state, ready, nonce = 0, sorts = null, searches = {}) {
   const [data, setData] = useState(null);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
   const [waiting, setWaiting] = useState(null);
   const seq = useRef(0);
-  const key = JSON.stringify({ filters: apiValues(state), tables: apiTables(state), sorts: sorts || {} });
+  const key = JSON.stringify({ filters: apiValues(state), tables: apiTables(state), sorts: sorts || {}, searches });
   useEffect(() => {
     if (!ready) return undefined;
     const mine = ++seq.current;
     setBusy(true);
     const timer = setTimeout(() => {
       const asked = JSON.parse(key);
-      getPage(pageId, asked.filters, asked.tables, asked.sorts)
+      getPage(pageId, asked.filters, asked.tables, asked.sorts, asked.searches)
         .then((d) => { if (mine === seq.current) { setData(d); setError(''); setWaiting(null); } })
         .catch((e) => {
           if (mine !== seq.current) return;
@@ -122,7 +122,8 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     window.addEventListener(AGENT_CHANGED, changed);
     return () => window.removeEventListener(AGENT_CHANGED, changed);
   }, [page.id]);
-  const { data, busy, error, waiting: waitingFor, recheck } = usePageData(page.id, state, ready, nonce, sorts);
+  const [searches, setSearches] = useState({});
+  const { data, busy, error, waiting: waitingFor, recheck } = usePageData(page.id, state, ready, nonce, sorts, searches);
   useEffect(() => { onTourFacts?.(page.id, tourFacts(page, data?.kpis, queue?.data)); }, [page, data?.kpis, queue?.data]);
   const live = usePageHub(page.id, state, ready, nonce, listed);
   const laidOut = isLaidOut(page);
@@ -233,7 +234,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     <TableCard key={table.id} table={table} result={data?.tables?.[table.id]} error={errors[`table:${table.id}`]} loading={loading} onFilter={pick}
       pageId={page.id} filters={meta?.columns?.tables?.[table.id]} values={columnValuesIn(state, table.id, aliases)}
       onColumn={(column, value) => onState(setColumnValueIn(state, table.id, column, value, aliases))} onClear={() => onState(clearColumnValuesIn(state, table.id, aliases))}
-      sort={sorts[table.id]} onSort={sortBy(table.id)} />
+      sort={sorts[table.id]} onSort={sortBy(table.id)} search={searches[table.id] || ''} onSearch={(text) => setSearches((s) => ({ ...s, [table.id]: text }))} />
   );
   const kpisOf = (kpis, main = true, label) => <Kpis page={{ ...page, kpis }} data={data?.kpis} errors={errors} loading={loading} plan={main ? plan : null} scope={data?.scope} label={label} />;
   const records = (extra = {}) => (page.records && !unreliable ? (

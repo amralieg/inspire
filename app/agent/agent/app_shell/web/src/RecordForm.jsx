@@ -103,7 +103,8 @@ export default function RecordForm({ mode, target, meta, pageId, rows, onClose, 
         </div>
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <SaveButton write={`record:${mode}`} type="submit" className="btn btn--pri" disabled={load.busy || !data || gone || !fields.length}>
+          <SaveButton write={`record:${mode}`} type="submit" className="btn btn--pri" disabled={load.busy || !data || gone || !fields.length}
+            why={gone ? 'This record is no longer current, so it cannot change.' : data && !fields.length ? 'The result table has no column people can change here.' : ''}>
             {adding ? <><Icon name="plus" size={14} />Add record</> : <><Icon name="check" size={14} />Save</>}
           </SaveButton>
         </footer>
@@ -155,7 +156,8 @@ export function DeleteDialog({ target, pageId, label, onClose, onSaved }) {
         </Failure>
         <footer>
           <button type="button" className="btn" onClick={onClose}>Cancel</button>
-          <SaveButton write="record:delete" type="submit" className="btn btn--danger" disabled={load.busy || !data || gone}><Icon name="trash" size={14} />Delete</SaveButton>
+          <SaveButton write="record:delete" type="submit" className="btn btn--danger" disabled={load.busy || !data || gone}
+            why={gone ? 'This record is no longer current, so it cannot be deleted.' : ''}><Icon name="trash" size={14} />Delete</SaveButton>
         </footer>
       </form>
     </dialog>

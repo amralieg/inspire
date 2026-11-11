@@ -2243,7 +2243,7 @@ class Shell:
                 return 200, self.defaults(headers, query.get("page"))
             if route == ("POST", "page"):
                 return 200, self.page_data(headers, data.get("page"), data.get("filters"), tables=data.get("table_filters"),
-                                           sorts=data.get("table_sorts"))
+                                           sorts=data.get("table_sorts"), searches=data.get("table_search"))
             if route == ("POST", "records"):
                 return 200, self.records(headers, data)
             if route == ("POST", "records/act"):
@@ -2562,9 +2562,10 @@ class Shell:
         return dict({"filter": ident, "q": text, "options": [r.get("v") for r in rows]},
                     **({} if column is None else {"column": ident, "table": table}))
 
-    def page_data(self, headers: dict, ident, values, probe=None, tables=None, sorts=None) -> dict:
+    def page_data(self, headers: dict, ident, values, probe=None, tables=None, sorts=None, searches=None) -> dict:
         page = self.page(ident)
-        problems = shell_sql.filter_values_problems(page, values) + shell_sql.table_sorts_problems(page, sorts)
+        problems = (shell_sql.filter_values_problems(page, values) + shell_sql.table_sorts_problems(page, sorts)
+                    + shell_sql.table_search_problems(page, searches))
         if not problems and tables is not None and not isinstance(tables, dict):
             problems = shell_sql.table_values_problems(page, tables)
         if problems:
@@ -2582,7 +2583,7 @@ class Shell:
         except (QueryError, HttpError) as error:
             previous, failed = {}, {key: getattr(error, "message", None) or str(error) for key in compared}
         jobs, sqls = {}, {}
-        for kind, item_id, sql, params in shell_sql.page_queries(page, values or {}, tables, previous, types, sorts):
+        for kind, item_id, sql, params in shell_sql.page_queries(page, values or {}, tables, previous, types, sorts, searches):
             sqls[(kind, item_id)] = sql
             if (kind, item_id) not in failed:
                 limit = shell_sql.CAPS["kpi_rows" if kind == "kpi" else "table_rows" if kind == "table" else "chart_rows"]

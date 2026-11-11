@@ -148,6 +148,8 @@ function AddNote({ action }) {
   );
 }
 
+const ACT_OFF = 'This record cannot be acted on here: it is deleted, held, or this App keeps no action tracker.';
+
 function WorkBar({ work, action, tomorrow, canAct }) {
   const [until, setUntil] = useState(tomorrow);
   const run = async (kind, values) => {
@@ -157,9 +159,11 @@ function WorkBar({ work, action, tomorrow, canAct }) {
   return (
     <div className="work-f" role="group" aria-label="Work through the list">
       <span className="work-k" data-work-k>{work.text}</span>
-      <SaveButton write="work:done" className="btn btn--pri" onClick={() => run('done', { action_status: DONE })} disabled={!canAct} data-key="d"><Icon name="check" size={15} />Done and next</SaveButton>
+      <SaveButton write="work:done" className="btn btn--pri" onClick={() => run('done', { action_status: DONE })} disabled={!canAct} data-key="d"
+        why={canAct ? '' : ACT_OFF}><Icon name="check" size={15} />Done and next</SaveButton>
       <label className="work-snz"><span className="sr">Snooze until</span><input type="date" name="work_snooze" min={tomorrow} value={until} onChange={(e) => setUntil(e.target.value)} /></label>
-      <SaveButton write="work:snoozed" onClick={() => run('snoozed', { snooze_until: until })} disabled={!canAct || !until || until < tomorrow} data-key="s">Snooze and next</SaveButton>
+      <SaveButton write="work:snoozed" onClick={() => run('snoozed', { snooze_until: until })} disabled={!canAct || !until || until < tomorrow} data-key="s"
+        why={!canAct ? ACT_OFF : !until ? missingWhy(['a date']) : 'Pick a date after today to snooze.'}>Snooze and next</SaveButton>
       <button className="btn" onClick={() => run('skipped', null)} disabled={action.saving} data-key="skip">Skip</button>
     </div>
   );
