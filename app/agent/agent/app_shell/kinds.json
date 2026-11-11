@@ -3438,12 +3438,12 @@
     },
     {
      "id": "review_later",
-     "label": "Needs review",
+     "label": "Review later",
      "status": "In progress"
     },
     {
      "id": "not_duplicate",
-     "label": "Keep separate",
+     "label": "Not a duplicate",
      "status": "Dismissed",
      "reasons": [
       "Different company",
@@ -5251,8 +5251,8 @@
    "genie": "the Ask Genie button, to ask questions about the data in plain words",
    "alerts": "the alerts entry, to get an email when a new run finds something",
    "performance": "the performance entry, which shows what was promised and what the actions delivered",
-   "runs": "the runs entry, the history of each refresh of this use case and what it found",
-   "settings": "the settings entry, where the target, the measurement and the flagging rules are set"
+  "runs": "the runs entry, the history of each refresh of this use case and what it found",
+  "settings": "the settings entry, where the target, the measurement and the flagging rules are set"
   },
   "must_name": {
     "actions": ["side panel", "choice"]
@@ -5484,11 +5484,7 @@
      "record": "record",
      "filters": "the filters",
      "choices": "the choices on the list",
-     "choice": {
-      "done": "counts as fixed",
-      "dismissed": "counts as not an issue",
-      "open": "stays on the list"
-     }
+     "choice": {"done": "counts as fixed", "dismissed": "counts as not an issue", "open": "stays on the list"}
     },
     "steps": {
      "decision": {

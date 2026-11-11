@@ -87,12 +87,12 @@ def test_the_app_says_plainly_that_the_page_shows_only_the_decision_list_and_why
     from v198_kind_layouts_test import _layout_inspire
     warnings = []
     inst = _layout_inspire(agent_ns, tmp_path, {})
-    got = inst._implement_app_layout("N01-U01", {"use_case_kind": "anomaly"}, {}, RESULT, warnings, inst._implement_schema_reader(),
-                                     {"__signal": "fewer than 2 bill months"})
-    assert got == ("decision_queue", {})
-    assert len(warnings) == 1 and f"{RESULT}__signal does not exist (the run printed: fewer than 2 bill months)" in warnings[0]
+    got = inst._implement_app_layout("N01-U01", {"use_case_kind": "forecast"}, {}, RESULT, warnings, inst._implement_schema_reader(),
+                                     {"__series": "fewer than 2 bill months"})
+    assert got == ("decision_queue", {}), "a forecast layout with no series table falls back to the decision list"
+    assert len(warnings) == 1 and f"{RESULT}__series does not exist (the run printed: fewer than 2 bill months)" in warnings[0]
     assert "so the App page shows only the decision list, without the" in warnings[0]
-    assert "[APP-LAYOUT FIRED] N01-U01: monitor_triage -> decision_queue, missing=1" in capsys.readouterr().out
+    assert "[APP-LAYOUT FIRED] N01-U01: forecast_cockpit -> decision_queue, missing=1" in capsys.readouterr().out
 
 
 def test_the_decision_queue_kind_keeps_its_companion_tables(agent_ns, tmp_path):

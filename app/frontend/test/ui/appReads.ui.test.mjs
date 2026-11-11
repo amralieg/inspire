@@ -10,6 +10,9 @@ const PERSON = 'person-tok';
 const SP = 'app-sp-2';
 const CATALOG = 'GRANT USE CATALOG ON CATALOG `main` TO `app-sp-2`';
 const SCHEMA = 'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-2`';
+const METADATA = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-2`';
+const SELECT_RETURNS = 'GRANT SELECT ON TABLE `main`.`s`.`returns` TO `app-sp-2`';
+const METADATA_RETURNS = 'GRANT READ METADATA ON TABLE `main`.`s`.`returns` TO `app-sp-2`';
 const SELECT = 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-2`';
 const DENIED = "[PERMISSION_DENIED] User does not have MANAGE on Catalog 'main'.";
 
@@ -39,6 +42,11 @@ function grantsWorkspace(catalogMine) {
       ...STUDIO_STATE,
       history: [unreadBuild()],
       forwardedToken: PERSON,
+      tokenKind: 'app',
+      abacUnreadable: true,
+      workspace: ({ token, path }) => (path.includes('/scim/v2/Me')
+        ? [token === 'tok' ? { displayName: 'inspire-manual', applicationId: SP } : { userName: 'owner@example.com', displayName: 'Owner' }]
+        : undefined),
       statements: {
         'system.information_schema.catalogs': () => ({ rows: rows() }),
         'GRANT ': (sql, _p, token) => {
@@ -54,7 +62,7 @@ function grantsWorkspace(catalogMine) {
 
 const allowClipboard = async (page, origin) => { await page.context().grantPermissions(['clipboard-read', 'clipboard-write'], { origin }); };
 
-test('a build whose App cannot read its data ends as action needed and the Build page offers grant, copy and check again', async () => {
+test('a build whose App cannot read its data ends as action needed; a person who cannot grant gets copy and check, never a grant button', async () => {
   const w = grantsWorkspace(false);
   const ui = await openUi('implement', w.state, '', { init: allowClipboard });
   const { page } = ui;
@@ -63,25 +71,16 @@ test('a build whose App cannot read its data ends as action needed and the Build
     await expandBuild(page);
     const card = page.getByRole('region', { name: 'The App cannot read part of its data' });
     await card.waitFor();
-    assert.match(await card.innerText(), /cannot read main\.s\.orders \(owner data-eng\), so its pages show no data from them yet/);
-    assert.deepEqual(await card.getByRole('list', { name: 'Grants the App needs' }).getByRole('listitem').allInnerTexts(), [CATALOG, SCHEMA, SELECT]);
-    assert.deepEqual(await card.locator('[data-app-reads-choice]').evaluateAll((els) => els.map((e) => e.dataset.appReadsChoice)), ['grant', 'copy', 'check']);
-    await card.getByRole('button', { name: 'Copy the grant SQL to send to data-eng' }).waitFor();
+    assert.match(await card.innerText(), /cannot read 2 tables, so its pages show no data from them yet/, 'the card counts the tables; their names sit under Details');
+    assert.deepEqual(await card.locator('[data-app-reads-choice]').evaluateAll((els) => els.map((e) => e.dataset.appReadsChoice)), ['copy', 'check']);
+    assert.equal(await card.getByRole('button', { name: 'Grant access with my permissions' }).count(), 0, 'no grant button when the live verdict says it cannot grant');
+    await card.getByRole('button', { name: 'Copy the grant SQL to send to your data owner' }).waitFor();
     assert.equal(await page.getByText(APP_READS_LABEL, { exact: true }).count() > 0, true, 'the build reads as action needed, not plain Done');
     assert.equal(await page.locator('[data-app-reads]').getByText(/^Done$/).count(), 0);
 
-    await card.getByRole('button', { name: 'Copy the grant SQL to send to data-eng' }).click();
-    await card.getByText('The grant SQL is copied. Send it to data-eng.').waitFor();
-    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), `${CATALOG};\n${SCHEMA};\n${SELECT};`);
-
-    await card.getByRole('button', { name: 'Grant access with my permissions' }).click();
-    const result = card.locator('[data-app-reads-result="refused"]');
-    await result.waitFor();
-    assert.match(await result.innerText(), /Your grant was refused/);
-    assert.deepEqual(w.grants, [[CATALOG, PERSON], [SCHEMA, PERSON], [SELECT, PERSON]], 'exactly the listed grants run, as the person');
-    assert.deepEqual(await card.getByRole('list', { name: 'Grants the App needs' }).getByRole('listitem').allInnerTexts(), [CATALOG], 'what is left stays listed');
-    assert.deepEqual(await card.locator('[data-app-reads-choice]').evaluateAll((els) => els.map((e) => e.dataset.appReadsChoice)), ['grant', 'copy', 'check'],
-      'a refused grant keeps every choice');
+    await card.getByRole('button', { name: 'Copy the grant SQL to send to your data owner' }).click();
+    await card.getByText('The grant SQL is copied.', { exact: false }).first().waitFor();
+    assert.equal(await page.evaluate(() => navigator.clipboard.readText()), [CATALOG, SCHEMA, SELECT, METADATA, SELECT_RETURNS, METADATA_RETURNS].map((g) => `${g};`).join('\n'));
 
     w.grants.length = 0;
     await card.getByRole('button', { name: 'Check again' }).click();
@@ -101,10 +100,10 @@ test('when the person can grant everything the card says the App reads its data 
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await expandBuild(page);
     const card = page.locator('[data-app-reads]');
-    await card.getByRole('button', { name: 'Grant access with my permissions' }).click();
     await card.getByText('The App can read all its data now', { exact: true }).first().waitFor();
-    assert.equal(await card.locator('[data-app-reads-choice]').count(), 0);
-    assert.deepEqual(w.grants.map(([sql]) => sql), [CATALOG, SCHEMA, SELECT]);
+    assert.equal(await card.locator('[data-app-reads-choice]').count(), 0, 'the choices are dropped once the grants ran');
+    assert.deepEqual([...new Set(w.grants.map(([sql]) => sql))].sort(), [CATALOG, SCHEMA, SELECT, METADATA, SELECT_RETURNS, METADATA_RETURNS].sort(),
+      'the App grants run once, as the person, because the person can grant everything');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

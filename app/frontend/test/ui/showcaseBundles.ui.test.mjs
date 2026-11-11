@@ -76,7 +76,7 @@ async function openKindsDemo() {
 
 async function openMvpFromBuild(page, settle, u) {
   await tabButton(page, 'implement').click();
-  const item = page.locator('nav[aria-label="Use cases"] section button').filter({ hasText: u.Name });
+  const item = page.locator('nav[aria-label="Use cases"] section button').filter({ hasText: u.name });
   await item.first().waitFor({ timeout: 60000 });
   await item.first().click();
   await settle();
