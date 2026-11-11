@@ -56,7 +56,7 @@ test('a table typed into the picker is checked with the person’s sign-in: a re
     await goToStep(page, 'Data');
     const orders = tableRow(page, 'main.s.orders');
     await orders.getByRole('button', { name: 'Change', exact: true }).click();
-    const find = page.getByLabel('Find a table to use for main.s.orders');
+    const find = page.getByLabel('Search for another table instead of main.s.orders', { exact: true });
     await find.fill(FOREIGN);
     await page.getByRole('button', { name: 'Use this table', exact: true }).click();
     const note = orders.locator('[data-find-note]');

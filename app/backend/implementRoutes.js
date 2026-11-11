@@ -941,7 +941,7 @@ function registerImplementRoutes(app, deps) {
       const checkSpec = I.withResultTable(sent, moved ? moved.to : (resultTable || (sent.config && sent.config.result_table) || ''));
       const verdict = await sourceCheckOf(req, warehouseId, useCaseNow, checkSpec, historyNow);
       checks.sources = verdict.refusal
-        ? { ok: false, detail: verdict.refusal.message }
+        ? { ok: false, detail: verdict.refusal.message, ...(verdict.refusal.details?.missing_tables ? { missing: true } : {}) }
         : { ok: true, detail: 'the App can read every source of this use case' };
       if (shares) checks.result_grant = I.shareCheck(output ? output.grant : null);
       if (appName) {
