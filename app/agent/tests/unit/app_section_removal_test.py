@@ -99,7 +99,7 @@ def test_the_app_settings_carry_the_screen_off_and_the_removed_label(agent_ns):
     inst = build_inspire(agent_ns)
     inst.business_name = "Acme"
     uc = make_uc(**{"Analytics Technique": "Forecasting", "app_layout": FORECAST})
-    context = {"uc_id": "N01-U01", "use_case": uc, "job_id": 77, "spec": {"outputs": {"app_vibes": "Remove the Accuracy page"}},
+    context = {"uc_id": "N01-U01", "use_case": uc, "key": (5150, "N01-U01", 1), "job_id": 77, "spec": {"outputs": {"app_vibes": "Remove the Accuracy page"}},
                "urls": {}}
     core = type("Core", (), {"SETTINGS_VERSION": 1})
     outputs = {"app_access": "sp", "app_vibes": "Remove the Accuracy page", "app_options": {"alerts": False}}
