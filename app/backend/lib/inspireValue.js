@@ -1,6 +1,6 @@
 const VALUE_LEDGER_TABLE = '__inspire_value_ledger';
 const INSPIRE_SESSION_TABLE = '__inspire_session';
-const LEDGER_SELECT = 'session_id, result_table, use_case_id, run_id, record_key, kind, currency, unit, at_stake, saved, recorded_at';
+const LEDGER_COLUMNS = 'session_id, result_table, use_case_id, run_id, record_key, kind, currency, unit, at_stake, saved, recorded_at';
 const TIME_UNITS = ['minutes', 'hours', 'days', 'weeks'];
 const KIND_ORDER = ['money', 'time', 'count'];
 
@@ -8,16 +8,50 @@ const qualified = (parsedDb, table) => `\`${parsedDb.catalog}\`.\`${parsedDb.sch
 const valueLedgerTable = (parsedDb) => qualified(parsedDb, VALUE_LEDGER_TABLE);
 const inspireSessionTable = (parsedDb) => qualified(parsedDb, INSPIRE_SESSION_TABLE);
 
+const ledgerRows = (table, where) => `ledger_rows AS (SELECT ${LEDGER_COLUMNS} FROM ${table}${where ? ` WHERE ${where}` : ''})`;
+
 function valueSessionSql(table, sessionId) {
-  return `SELECT ${LEDGER_SELECT} FROM ${table} WHERE session_id = '${sessionId}'`;
+  return `WITH ${ledgerRows(table, `session_id = '${sessionId}'`)}, `
+    + 'stake AS (SELECT use_case_id, kind, currency, unit, at_stake, ROW_NUMBER() OVER (PARTITION BY result_table, use_case_id '
+    + 'ORDER BY recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NULL), '
+    + 'saved AS (SELECT use_case_id, kind, currency, unit, saved, ROW_NUMBER() OVER (PARTITION BY result_table, use_case_id, record_key '
+    + 'ORDER BY recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NOT NULL) '
+    + "SELECT 'stake' AS part, use_case_id, kind, currency, unit, SUM(at_stake) AS amount, "
+    + 'MAX(CASE WHEN at_stake IS NOT NULL THEN 1 ELSE 0 END) AS measured FROM stake WHERE rn = 1 GROUP BY use_case_id, kind, currency, unit '
+    + "UNION ALL SELECT 'saved' AS part, use_case_id, kind, currency, unit, SUM(saved) AS amount, 0 AS measured "
+    + 'FROM saved WHERE rn = 1 AND saved IS NOT NULL GROUP BY use_case_id, kind, currency, unit';
 }
 
-function valueOverallSql(table) {
-  return `SELECT ${LEDGER_SELECT} FROM ${table}`;
+function valueRunsSql(table) {
+  return `WITH ${ledgerRows(table, '')}, `
+    + 'stake AS (SELECT session_id, use_case_id, kind, currency, unit, at_stake, ROW_NUMBER() OVER (PARTITION BY session_id, result_table, '
+    + 'use_case_id ORDER BY recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NULL), '
+    + 'saved AS (SELECT session_id, kind, currency, unit, saved, ROW_NUMBER() OVER (PARTITION BY session_id, result_table, use_case_id, '
+    + 'record_key ORDER BY recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NOT NULL) '
+    + "SELECT 'stake' AS part, session_id, kind, currency, unit, SUM(at_stake) AS amount FROM stake WHERE rn = 1 "
+    + 'GROUP BY session_id, kind, currency, unit '
+    + "UNION ALL SELECT 'saved' AS part, session_id, kind, currency, unit, SUM(saved) AS amount FROM saved WHERE rn = 1 "
+    + 'AND saved IS NOT NULL GROUP BY session_id, kind, currency, unit '
+    + "UNION ALL SELECT 'measured' AS part, session_id, NULL AS kind, NULL AS currency, NULL AS unit, "
+    + 'COUNT(DISTINCT use_case_id) AS amount FROM stake WHERE rn = 1 AND at_stake IS NOT NULL GROUP BY session_id';
 }
 
-function sessionsSql(table) {
-  return `SELECT session_id, business_name, create_at FROM ${table}`;
+function valueOverallSql(table, sessionsTable) {
+  return `WITH latest_sessions AS (SELECT CAST(session_id AS STRING) AS session_id FROM (SELECT session_id, ROW_NUMBER() OVER `
+    + `(PARTITION BY COALESCE(business_name, '') ORDER BY create_at DESC, session_id DESC) AS rn FROM ${sessionsTable}) ranked WHERE rn = 1), `
+    + `${ledgerRows(table, '')}, `
+    + 'stake AS (SELECT kind, currency, unit, at_stake, ROW_NUMBER() OVER (PARTITION BY session_id, result_table, use_case_id '
+    + 'ORDER BY recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NULL '
+    + 'AND session_id IN (SELECT session_id FROM latest_sessions)), '
+    + 'saved AS (SELECT kind, currency, unit, saved, ROW_NUMBER() OVER (PARTITION BY session_id, result_table, use_case_id, record_key '
+    + 'ORDER BY recorded_at DESC, run_id DESC) AS rn FROM ledger_rows WHERE record_key IS NOT NULL) '
+    + "SELECT 'stake' AS part, kind, currency, unit, SUM(at_stake) AS amount FROM stake WHERE rn = 1 GROUP BY kind, currency, unit "
+    + "UNION ALL SELECT 'saved' AS part, kind, currency, unit, SUM(saved) AS amount FROM saved WHERE rn = 1 AND saved IS NOT NULL "
+    + 'GROUP BY kind, currency, unit';
+}
+
+function sessionCountsSql(sessionsTable) {
+  return `SELECT COUNT(*) AS runs, COUNT(DISTINCT COALESCE(business_name, '')) AS businesses FROM ${sessionsTable}`;
 }
 
 function finite(value) {
@@ -26,30 +60,9 @@ function finite(value) {
   return Number.isFinite(number) ? number : null;
 }
 
-function partOf(row, measure) {
+function partOf(row) {
   const kind = String(row.kind || '');
-  return { kind, unit: kind === 'money' ? String(row.currency || '') : String(row.unit || ''), amount: finite(row[measure]) };
-}
-
-function moment(value) {
-  const time = Date.parse(String(value || '').replace(' ', 'T'));
-  return Number.isNaN(time) ? 0 : time;
-}
-
-function newerThan(a, b) {
-  if (a.at !== b.at) return a.at > b.at;
-  return String(a.tie).padStart(24, '0') > String(b.tie).padStart(24, '0');
-}
-
-function latestBy(rows, keyOf) {
-  const latest = new Map();
-  for (const row of rows) {
-    const key = keyOf(row);
-    const candidate = { at: moment(row.recorded_at), tie: row.run_id, row };
-    const current = latest.get(key);
-    if (!current || newerThan(candidate, current)) latest.set(key, candidate);
-  }
-  return [...latest.values()].map((c) => c.row);
+  return { kind, unit: kind === 'money' ? String(row.currency || '') : String(row.unit || ''), amount: finite(row.amount) };
 }
 
 function round(value) {
@@ -89,79 +102,72 @@ function totalOf(parts) {
   return entries.sort((a, b) => KIND_ORDER.indexOf(a.kind) - KIND_ORDER.indexOf(b.kind));
 }
 
-function valueParts(rows) {
-  const stakeRows = rows.filter((r) => r.record_key == null);
-  const savedRows = rows.filter((r) => r.record_key != null);
-  const useCaseStakes = new Map();
-  const useCaseSaves = new Map();
-  const bucket = (map, id) => {
-    if (!map.has(id)) map.set(id, []);
-    return map.get(id);
-  };
+function valueOfSession(rows) {
+  const useCases = new Map();
   const stakeParts = [];
   const savedParts = [];
-  const stakeLatest = latestBy(stakeRows, (r) => `${r.result_table}\u0000${r.use_case_id}`);
-  for (const row of stakeLatest) {
-    const part = partOf(row, 'at_stake');
+  const useCaseOf = (id) => {
+    if (!useCases.has(id)) useCases.set(id, { stake: [], saved: [], measured: false });
+    return useCases.get(id);
+  };
+  for (const row of rows) {
     const id = String(row.use_case_id);
-    bucket(useCaseStakes, id);
-    if (part.amount != null) {
-      useCaseStakes.get(id).push(part);
-      stakeParts.push(part);
+    const part = partOf(row);
+    if (row.part === 'stake') {
+      const current = useCaseOf(id);
+      if (Number(row.measured) === 1) current.measured = true;
+      if (part.amount != null) {
+        current.stake.push(part);
+        stakeParts.push(part);
+      }
+    } else if (row.part === 'saved' && part.amount != null) {
+      useCaseOf(id).saved.push(part);
+      savedParts.push(part);
     }
   }
-  const savedLatest = latestBy(savedRows, (r) => `${r.result_table}\u0000${r.use_case_id}\u0000${r.record_key}`);
-  for (const row of savedLatest) {
-    const part = partOf(row, 'saved');
-    if (part.amount == null) continue;
-    const id = String(row.use_case_id);
-    bucket(useCaseSaves, id).push(part);
-    savedParts.push(part);
-  }
-  const ids = new Set([...useCaseStakes.keys(), ...useCaseSaves.keys()]);
   const use_cases = {};
   let mvps_measured = 0;
-  for (const id of [...ids].sort()) {
-    const stake = useCaseStakes.get(id) || [];
-    const measured = stake.length > 0;
-    if (measured) mvps_measured += 1;
-    use_cases[id] = { at_stake: totalOf(stake), saved: totalOf(useCaseSaves.get(id) || []), measured };
+  for (const id of [...useCases.keys()].sort()) {
+    const current = useCases.get(id);
+    if (current.measured) mvps_measured += 1;
+    use_cases[id] = { at_stake: totalOf(current.stake), saved: totalOf(current.saved), measured: current.measured };
   }
-  return { use_cases, run: { at_stake: totalOf(stakeParts), saved: totalOf(savedParts), mvps_measured }, stakeParts, savedParts };
+  return { use_cases, run: { at_stake: totalOf(stakeParts), saved: totalOf(savedParts), mvps_measured } };
 }
 
-function valueOfSession(rows) {
-  const { use_cases, run } = valueParts(rows);
-  return { use_cases, run };
-}
-
-function newerSession(a, b) {
-  return newerThan({ at: moment(a.create_at), tie: a.session_id }, { at: moment(b.create_at), tie: b.session_id });
-}
-
-function overallValue(sessions, rows) {
-  const bySession = new Map();
+function valueOfRuns(rows) {
+  const runs = new Map();
+  const bucket = (id) => {
+    if (!runs.has(id)) runs.set(id, { stake: [], saved: [], mvps_measured: 0 });
+    return runs.get(id);
+  };
   for (const row of rows) {
     const id = String(row.session_id);
-    if (!bySession.has(id)) bySession.set(id, []);
-    bySession.get(id).push(row);
+    const part = partOf(row);
+    if (row.part === 'measured') bucket(id).mvps_measured = finite(row.amount) || 0;
+    else if (part.amount != null && row.part === 'stake') bucket(id).stake.push(part);
+    else if (part.amount != null && row.part === 'saved') bucket(id).saved.push(part);
   }
-  const latestOfBusiness = new Map();
-  for (const session of sessions) {
-    const business = String(session.business_name ?? '');
-    const current = latestOfBusiness.get(business);
-    if (!current || newerSession(session, current)) latestOfBusiness.set(business, session);
+  const out = {};
+  for (const id of [...runs.keys()].sort()) {
+    const current = runs.get(id);
+    out[id] = { at_stake: totalOf(current.stake), saved: totalOf(current.saved), mvps_measured: current.mvps_measured };
   }
-  const atStake = [];
-  const saved = [];
-  for (const session of sessions) {
-    const value = valueParts(bySession.get(String(session.session_id)) || []);
-    if (latestOfBusiness.get(String(session.business_name ?? '')) === session) atStake.push(...value.stakeParts);
-    saved.push(...value.savedParts);
-  }
-  return { at_stake: totalOf(atStake), saved: totalOf(saved), runs: sessions.length, businesses: latestOfBusiness.size };
+  return { runs: out };
+}
+
+function overallValue(rows, counts) {
+  const stake = rows.filter((r) => r.part === 'stake').map(partOf);
+  const saved = rows.filter((r) => r.part === 'saved').map(partOf);
+  return {
+    at_stake: totalOf(stake),
+    saved: totalOf(saved),
+    runs: Number((counts || {}).runs) || 0,
+    businesses: Number((counts || {}).businesses) || 0,
+  };
 }
 
 module.exports = {
-  valueLedgerTable, inspireSessionTable, valueSessionSql, valueOverallSql, sessionsSql, valueOfSession, overallValue, totalOf,
+  valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql,
+  valueOfSession, valueOfRuns, overallValue, totalOf,
 };

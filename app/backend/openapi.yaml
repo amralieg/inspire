@@ -1405,6 +1405,44 @@ paths:
           description: A parameter is missing or malformed
         '401':
           $ref: '#/components/responses/PersonSignInRequired'
+  /api/inspire/value/runs:
+    get:
+      tags: [Monitor]
+      summary: Value at stake, saved and measured use cases of each run
+      description: |
+        One entry per run that recorded value in the database, keyed by session id. Each run follows the same
+        money, time and count rules as `/api/inspire/value`. A run with no measured use case has no at-stake entries.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+        - $ref: '#/components/parameters/InspireDatabase'
+        - $ref: '#/components/parameters/WarehouseId'
+      responses:
+        '200':
+          description: Value of each run
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  runs:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        at_stake:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/ValueEntry'
+                        saved:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/ValueEntry'
+                        mvps_measured:
+                          type: integer
+        '400':
+          description: A parameter is missing or malformed
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
   /api/inspire/steps:
     get:
       tags: [Monitor]

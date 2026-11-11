@@ -132,6 +132,7 @@ const ROUTE_POLICY = {
   'GET /api/inspire/session': tracked('read a session'),
   'GET /api/inspire/value': tracked('read the value at stake and saved of a run'),
   'GET /api/inspire/value/overall': tracked('read the value at stake and saved across the runs of a database'),
+  'GET /api/inspire/value/runs': tracked('read the value at stake and saved of each run in a database'),
   'GET /api/inspire/sessions': tracked('list sessions'),
   'GET /api/inspire/steps': tracked('read the steps of a session'),
   'GET /api/inspire/step-results': tracked('read the step results of a session'),

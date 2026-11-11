@@ -25,8 +25,6 @@ const NOT_WALKED = {
   'POST /api/grouping/profile': 'reads the use case table with the person token only and changes nothing; the grouping route tests walk it',
   'GET /api/inspire/implement/diagnostics': 'reads the build through the same loadStatus read and person token as GET /api/inspire/implement/status, which the harness walks; no non-owner harness row walks it yet',
   'GET /api/inspire/log': 'reads the run log only for its launcher or an App manager; no non-owner harness row walks it yet, and the route samples prove the launcher refusal',
-  'GET /api/inspire/value': 'reads the value ledger of one run with the App token in the App database; the value unit tests cover the totals, and no non-owner harness row walks it yet',
-  'GET /api/inspire/value/overall': 'reads the value ledger and the session table of an App database with the App token; the value unit tests cover the totals, and no non-owner harness row walks it yet',
   'POST /api/run/:runId/again': 'launches a run again only for its launcher or an App manager; no non-owner harness row walks it yet, and the route samples and runAgain tests prove the launcher refusal',
 };
 const LITERAL = /\bapp\.(get|post|put|patch|delete|all)\(\s*(['"`])(.*?)\2([^\n]*)/g;

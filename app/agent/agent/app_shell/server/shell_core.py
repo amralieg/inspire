@@ -109,7 +109,6 @@ def waiting_for_access_body(error) -> dict:
     return {"state": "waiting_for_access", "message": WAITING_FOR_ACCESS, "tables": tables, "detail": str(error)}
 VERSION_US = re.compile(r"^\d{1,19}$")
 RECORD_KEY_CHARS = 512
-LEDGER_CHUNK = 500
 MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "time_zone", "exclude", "choice", "focus")
 RANKED_SORT = "stake"
 BOUNDS_KEY = ("bounds", "dates")
@@ -4104,13 +4103,13 @@ class Shell:
             out = self.act_on_reviewed(ws, writer, who, page, fields, keys, seen, similar, editor, values, batch)
         else:
             out = self.act_on_keys(ws, writer, page, fields, keys, seen, editor, values, batch)
-        out = dict(out, **self.record_value_saves(ws, page, batch["id"], values, editor))
+        out = dict(out, **self.record_value_saves(ws, page, batch["id"], values, "realized_value" in (data.get("values") or {}), editor))
         notice = self.alerts.assigned(headers, page, values.get("action_owner"), editor) if values.get("action_owner") else ""
         return dict(out, **({"notice": notice} if notice else {}))
 
-    def record_value_saves(self, ws, page: dict, batch: str, values: dict, editor: str) -> dict:
-        """Counts a realized value the act saved in the value ledger, one row per record, with the App's own identity."""
-        if "realized_value" not in values:
+    def record_value_saves(self, ws, page: dict, batch: str, values: dict, sent: bool, editor: str) -> dict:
+        """Counts a realized value the request named, in the value ledger: one statement, with the App's own identity."""
+        if not sent:
             return {}
         value, table = values["realized_value"], page.get("value_ledger")
         if not table or not page.get("result_table") or not page.get("use_case_id"):
@@ -4118,9 +4117,6 @@ class Shell:
                                                               "names no ledger; rebuild the App so it does"}
         writer = ws if self.inside else self.service()
         try:
-            sql, params = shell_sql.batch_keys_query(page, batch)
-            keys = [str(r["record_key"]) for r in self.execute(ws, sql, params, shell_sql.CAPS["act_match"], delta=True)["rows"]
-                    if r.get("record_key") is not None]
             stake = self.execute(writer, shell_facts.ledger_latest_stake_sql(table, page["result_table"], page["use_case_id"]), [], 1,
                                  delta=True)["rows"]
         except QueryError as error:
@@ -4129,16 +4125,13 @@ class Shell:
         if found is None:
             return {} if value is None else {"value_warning": "the saved value is not counted in the value ledger, because this use case "
                                                               "has no measured value at stake yet"}
-        rows = [shell_facts.ledger_saved_row(found["session_id"], page["result_table"], page["use_case_id"], found["run_id"], key,
-                                             found.get("kind"), found.get("currency"), found.get("unit"), value, editor) for key in keys]
-        if not rows:
-            return {}
+        sql = shell_facts.ledger_saved_from_batch_sql(table, page["result_table"], shell_sql.BATCH_COLUMN, batch, found,
+                                                      page["use_case_id"], value, editor)
         try:
-            for start in range(0, len(rows), LEDGER_CHUNK):
-                self.execute(writer, shell_facts.ledger_insert_sql(table, rows[start:start + LEDGER_CHUNK]), [], 1, delta=True)
+            written = (self.execute(writer, sql, [], 1, delta=True)["rows"] or [{}])[0]
         except QueryError as error:
             return {"value_warning": f"the saved value is not counted in the value ledger: {shell_sql.error_text(error)}"}
-        return {"value_recorded": len(rows)}
+        return {"value_recorded": int(written.get("num_inserted_rows", written.get("num_affected_rows")) or 0)}
 
     def replayed_act(self, ws, page: dict, request: str, editor: str, keys) -> dict:
         sql, params = shell_sql.batches_query(page, 1, batch_id=request)
