@@ -133,6 +133,8 @@ const PIPELINE_STAGES = [
   'Executive Readout',
 ];
 
+import { BuildNextPanel } from '../components/BuildNext';
+
 export default function ResultsPage({
   settings,
   update,
@@ -1111,6 +1113,12 @@ export default function ResultsPage({
             Change run
           </button>
         </section>
+      )}
+      {!embedded && results && selectedSessionId && inspireDb && warehouseId && (
+        <div className="mb-3">
+          <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId}
+            onStart={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId) : undefined} />
+        </div>
       )}
       {embedded && filteredUseCases.length > 0 && (
         <div className="flex items-center gap-2 mb-4">

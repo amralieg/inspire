@@ -117,6 +117,7 @@ _REGISTRY = {}
 RECORDS_DATASET = "records"
 IDENT = shell_facts.IDENT
 REVIEW_LINK = re.compile(r"^https://[a-z0-9.-]{1,253}/\?review=[A-Za-z0-9%._~-]{1,600}&uc=[A-Za-z0-9%._~-]{1,600}$")
+RUN_REVIEW_LINK = re.compile(r"^https://[a-z0-9.-]{1,253}/\?review=[A-Za-z0-9%._~-]{1,600}$")
 TABLE_PART = shell_facts.TABLE_PART
 HISTORY_COLUMNS = ("record_key", "valid_from", "valid_to", "is_current", "change_source", "changed_by")
 RUN_COLUMNS = ("run_id", "use_case_id", "as_of_date")
@@ -689,6 +690,11 @@ def _count_problem(key: str, items: list, low=None) -> list:
     if not low <= len(items) <= high:
         return [f"the page has {shown_number(len(items))} {key}; it needs {shown_number(low)} to {shown_number(high)}"]
     return []
+
+
+def run_review_link(value) -> str:
+    text = value if isinstance(value, str) else ""
+    return text if RUN_REVIEW_LINK.match(text) else ""
 
 
 def review_problems(page: dict) -> list:

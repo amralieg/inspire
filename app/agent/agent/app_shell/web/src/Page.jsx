@@ -48,6 +48,7 @@ const WorkPage = lazy(() => import('./WorkPage.jsx'));
 const Records = lazy(() => import('./Records.jsx'));
 const MoneyRule = lazy(() => import('./MoneyRule.jsx').then((m) => ({ default: m.MoneyRule })));
 const Runs = lazy(() => import('./Runs.jsx'));
+const ValueStrip = lazy(() => import('./ValueStrip.jsx'));
 const Alerts = lazy(() => import('./Alerts.jsx'));
 const TrendCards = lazy(() => import('./Trends.jsx'));
 const Waiting = ({ height = 180 }) => <section className="card" role="status" aria-label="Loading"><Skeleton height={height} /></section>;
@@ -284,6 +285,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           </FreshBar>
         </div>
       </div>
+      {!hubPage && <Suspense fallback={null}><ValueStrip page={page} data={data} app={app} /></Suspense>}
       {shown !== 'dashboard' && <p className="ph-sec" data-section-title>{sectionTitle(page, shown)}</p>}
       {shown === 'dashboard' && !hubPage && <p className="ph-q">{page.question}</p>}
       {shown === 'dashboard' && !hubPage && page.promised?.estimate && (

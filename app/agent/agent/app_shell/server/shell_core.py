@@ -2535,7 +2535,7 @@ class Shell:
             "is_owner": self.is_owner(headers), "pages": pages, "built_at": s.get("built_at") or "", "backend": self.backend_status(),
             "alerts": {k: v for k, v in (s.get("alerts") or {}).items() if k in self.by_id},
             "alerts_home": f"{host}{ALERTS_HOME}" if host else "", "alerting": self.alerts.status(), "held_meaning": shell_sql.HELD_MEANING,
-            "siblings": self.siblings(headers),
+            "siblings": self.siblings(headers), "review_run": shell_sql.run_review_link(s.get("review_run")),
             "no_access": {table: owner for table, owner in (s.get("unread_owners") or {}).items() if table in (s.get("unread") or {})},
         }
 
@@ -3631,7 +3631,8 @@ class Shell:
             history = [dict(row, value=shell_sql.as_number(row.get("value")), kind=kinds[row["name"]])
                        for row in self.assumption_rows(ws, who, page) if row.get("name") in kinds]
         refusal = self.assumption_refusal(headers, page, model)
-        return {"model": shell_sql.public_money(model), "history": history, "editable": not refusal, "why": refusal, "held": held}
+        return {"model": shell_sql.public_money(model), "history": history, "editable": not refusal, "why": refusal, "held": held,
+                "saved": self.saved_value(ws, page)}
 
     def change_assumption(self, headers: dict, data: dict) -> dict:
         page = self.page(data.get("page"))
@@ -4349,6 +4350,20 @@ class Shell:
     def ledger_writer(self, ws):
         """The value ledger is written with the signed-in person's token in per-user mode (the build grants no App principal on it), with the App's identity otherwise."""
         return ws if self.inside or self.settings["auth"] == "user" else self.service()
+
+    def saved_value(self, ws, page: dict) -> dict:
+        since = str(self.settings.get("built_at") or "")
+        if not page.get("value_ledger") or not page.get("result_table") or not page.get("use_case_id"):
+            return {"since": since, "lines": [], "warning": ""}
+        try:
+            sql = shell_facts.ledger_saved_since_sql(page["value_ledger"], page["result_table"], page["use_case_id"], since)
+        except ValueError:
+            return {"since": "", "lines": [], "warning": f"the App has no go-live date, so the saved total has no start; {shell_sql.rebuild_action('the App')}"}
+        try:
+            lines = self.execute(self.ledger_writer(ws), sql, [], 50, delta=True)["rows"]
+        except QueryError as error:
+            return {"since": since, "lines": [], "warning": f"the saved total could not be read from the value ledger: {shell_sql.error_text(error)}"}
+        return {"since": since, "lines": lines, "warning": ""}
 
     def ledger_warning(self, error, cleared: bool = False) -> str:
         what = "the cleared value is still counted in the value ledger" if cleared else "the saved value is not counted in the value ledger"

@@ -430,3 +430,6 @@ button.hb:hover,button.hb.is-on{background:var(--well)}
 .fb-list li{display:flex;flex-direction:column;gap:2px;padding:8px 10px;border:1px solid var(--line);border-radius:8px}
 .fb-list small{color:var(--muted)}
 
+
+.value-strip{display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 18px;margin:10px 0 0;font-size:14px;color:var(--ink)}
+.value-strip b{font-weight:700}

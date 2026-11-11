@@ -731,6 +731,20 @@ def ledger_latest_stake_sql(table: str, result_table: str, use_case_id: str) -> 
             f"AND use_case_id = {ledger_literal(use_case_id)} AND record_key IS NULL ORDER BY recorded_at DESC LIMIT 1")
 
 
+GO_LIVE_TIME = re.compile(r"^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}Z$")
+
+
+def ledger_saved_since_sql(table: str, result_table: str, use_case_id: str, since: str) -> str:
+    if not GO_LIVE_TIME.match(str(since or "")):
+        raise ValueError("the go-live time is an ISO timestamp such as 2026-11-10T20:00:00Z")
+    latest = ("SELECT kind, currency, unit, saved, ROW_NUMBER() OVER (PARTITION BY session_id, result_table, use_case_id, record_key "
+              "ORDER BY recorded_at DESC, run_id DESC) AS rn "
+              f"FROM {table} WHERE result_table = {ledger_literal(result_table)} AND use_case_id = {ledger_literal(str(use_case_id))} "
+              f"AND record_key IS NOT NULL AND recorded_at >= CAST({ledger_literal(since)} AS TIMESTAMP)")
+    return ("SELECT kind, currency, unit, CAST(SUM(saved) AS DOUBLE) AS amount, CAST(COUNT(*) AS INT) AS records "
+            f"FROM ({latest}) latest WHERE rn = 1 AND saved IS NOT NULL GROUP BY kind, currency, unit")
+
+
 def rebuild_action(what: str, first: bool = False, page: str = "the Build page") -> str:
     text = f"build {what} again with Vibe/Add/Remove Features on {page}"
     return text[:1].upper() + text[1:] if first else text
