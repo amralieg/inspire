@@ -81,3 +81,24 @@ def test_writes_keep_their_current_refusal_and_non_permission_errors_stay_502(tm
     s.runs = broken
     status, body = call(s, "GET", "runs", {"page": PAGE["id"]})
     assert status == 502 and "error" in body
+
+
+def test_a_page_body_with_a_per_card_no_access_becomes_the_waiting_state_even_beside_data(tmp_path):
+    s, _sp_ws, _user_ws, _made = shell(tmp_path, pages=[reading_page()])
+    s.settings["unread_owners"] = {"main.s.orders": "data-eng", "main.s.other": "a@example.com"}
+    s.settings["unread"] = {"main.s.orders": ["GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp`"]}
+    partial = {"kpis": {"k1": {"value": 4}}, "charts": {}, "tables": {}, "errors": {"chart:pareto": "No access to main.s.orders"}}
+    s.page_data = lambda *args, **kwargs: partial
+    status, body = s.handle("POST", "page", {}, {}, b'{"page": "%s"}' % PAGE["id"].encode())
+    assert status == 200, (status, body)
+    assert body["state"] == "waiting_for_access", "the card text is replaced by the one waiting view, not shown beside the data"
+    assert body["owners"] == ["data-eng"], "the owner is the one who can grant it, never an email address"
+    assert "kpis" not in body and "@" not in json.dumps(body)
+
+
+def test_a_card_text_on_a_route_outside_the_card_routes_keeps_its_data(tmp_path):
+    s, _sp_ws, _user_ws, _made = shell(tmp_path, pages=[reading_page()])
+    partial = {"kpis": {"k1": {"value": 4}}, "errors": {"chart:pareto": "No access to main.s.orders"}}
+    s.overview = lambda *args, **kwargs: partial
+    status, body = s.handle("POST", "overview", {}, {}, b'{"page": "%s"}' % PAGE["id"].encode())
+    assert status == 200 and body.get("kpis") == {"k1": {"value": 4}}, "the overview keeps its readable cards (existing contract)"

@@ -104,9 +104,15 @@ def is_write_route(method: str, name: str) -> bool:
 WAITING_FOR_ACCESS = "This App is waiting for access to its data. Your data owner needs to grant the App access; the exact grant is under Details."
 
 
-def waiting_for_access_body(error) -> dict:
-    tables = list(dict.fromkeys(m.replace("`", "").strip("'") for m in shell_sql.ACCESS_ON.findall(str(error))))
-    return {"state": "waiting_for_access", "message": WAITING_FOR_ACCESS, "tables": tables, "detail": str(error)}
+NO_ACCESS_LIST = re.compile(r"No access to ([^;]+)")
+
+
+def waiting_for_access_body(error, owners=()) -> dict:
+    listed = [part for match in NO_ACCESS_LIST.findall(str(error)) for part in match.split(",")]
+    named = [m for m in shell_sql.ACCESS_ON.findall(str(error))] + [part.strip() for part in listed]
+    tables = list(dict.fromkeys(m.replace("`", "").strip("'").strip() for m in named if m.strip()))
+    return {"state": "waiting_for_access", "message": WAITING_FOR_ACCESS, "tables": tables, "owners": list(owners), "detail": str(error)}
+ACCESS_CARD_ROUTES = ("page", "defaults", "runs", "filters")
 VERSION_US = re.compile(r"^\d{1,19}$")
 RECORD_KEY_CHARS = 512
 LEDGER_CHUNK = 500
@@ -2206,9 +2212,15 @@ class Shell:
         refused = [text for text in list(errors.values()) + listed + ([answer["error"]] if isinstance(answer.get("error"), str) else [])
                    if isinstance(text, str) and text]
         if refused and all(NO_ACCESS.search(text) or text.startswith("No access to ") for text in refused) \
-                and not any(answer.get(k) for k in ("kpis", "charts", "rows", "runs")):
-            return 200, waiting_for_access_body("; ".join(refused))
+                and (name in ACCESS_CARD_ROUTES or not any(answer.get(k) for k in ("kpis", "charts", "rows", "runs"))):
+            return 200, waiting_for_access_body("; ".join(refused), self.access_owners(refused))
         return status, answer
+
+    def access_owners(self, texts) -> list:
+        text = " ".join(texts).replace("`", "").lower()
+        owners = self.settings.get("unread_owners") or {}
+        return list(dict.fromkeys(str(owner) for table, owner in owners.items()
+                                  if owner and str(table).replace("`", "").lower() in text and "@" not in str(owner)))
 
     def dispatch(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
         status, answer = self.answer(method, path, query, headers, body)

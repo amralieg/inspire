@@ -32,7 +32,7 @@ def test_access_gap_and_app_warnings_name_no_ids_or_owners(agent_ns):
     assert_no_ids(agent_ns["implement_access_gap_message"]("app-x1y2z3 sample-app", gaps))
     assert_no_ids(agent_ns["implement_app_write_warning"]("the App cannot write", "app-x1y2z3", "reason"))
     unread = {"main.s.orders": {"grants": ["GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-x1y2z3`"], "owner": "owner@example.com"}}
-    warning = agent_ns["implement_app_unread_warning"]("app-x1y2z3", unread)
+    warning = agent_ns["implement_app_unread_block"]("app-x1y2z3", unread)
     assert_no_ids(warning)
     assert "owner@example.com" not in warning
 

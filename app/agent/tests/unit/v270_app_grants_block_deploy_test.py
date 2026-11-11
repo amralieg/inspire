@@ -1,0 +1,30 @@
+"""REQ-039: a new App service principal gets every read grant on deploy, or the deploy blocks. A live App never answers with unread sources."""
+import pytest
+
+from v140_implement_test import READS, SHELL_FILES, _deploy_inspire, sdk_stub  # noqa: F401
+from v150_app_owners_access_test import NEW_APP
+
+CREATED = {"compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-1"}
+DEPLOYED = [{"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}]
+UNREAD = {"main.s.orders": {"grants": ["GRANT SELECT ON TABLE `main`.`s`.`orders` TO `sp-1`"], "refused": "", "owner": "owner@example.com"}}
+
+
+def test_a_source_the_new_app_cannot_be_granted_blocks_the_deploy_and_the_app_is_never_deployed(agent_ns, sdk_stub):
+    inst, context, calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [CREATED] + DEPLOYED)
+    inst._implement_app_read_grants = lambda tables, access, client_id, ran, sources=(): UNREAD
+    with pytest.raises(agent_ns["ImplementBlocked"]) as blocked:
+        inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
+    text = str(blocked.value)
+    assert text.startswith("the App's service principal sp-1 could not be given read access to 1 source table")
+    assert "GRANT SELECT ON TABLE `main`.`s`.`orders` TO `sp-1`" in text
+    assert "owner@example.com" not in text, "an email owner is shown as your data owner"
+    assert not any(method == "POST" and path.endswith("/deployments") for method, path, _body in calls), \
+        "the App is not deployed while a source is unread, so no live App answers with 502"
+
+
+def test_a_fully_granted_new_app_deploys_with_no_block(agent_ns, sdk_stub):
+    inst, context, calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [CREATED] + DEPLOYED)
+    inst._implement_app_read_grants = lambda tables, access, client_id, ran, sources=(): {}
+    fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
+    assert fields["app_url"] == "https://churn-desk.example"
+    assert any(method == "POST" and path.endswith("/deployments") for method, path, _body in calls)

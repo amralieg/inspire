@@ -3012,9 +3012,10 @@ function builtInSampleTable(name) {
 
 function builtInSampleMessage(tables) {
   const one = tables.length === 1;
-  return `${one ? 'A source table is' : `${tables.length} source tables are`} in a built-in sample catalog that Databricks owns (System user), so nobody can grant `
-    + `the App read metadata on ${one ? 'it' : 'them'}. Copy ${one ? 'the table' : 'each table'} into a catalog you own, `
-    + `with CREATE TABLE ... AS SELECT, and use the copy`;
+  const subject = one ? tables[0] : `${tables.length} source tables`;
+  const verb = one ? 'is in' : 'are in';
+  return `${subject} ${verb} a built-in sample catalog that Databricks owns, so nobody can grant the App access to ${one ? 'it' : 'them'}: `
+    + `copy ${one ? 'the table' : 'each table'} into a catalog you own with CREATE TABLE ... AS SELECT, and use the ${one ? 'copy' : 'copies'}`;
 }
 
 function appReadGrantsOffer(tables, plans, app) {
