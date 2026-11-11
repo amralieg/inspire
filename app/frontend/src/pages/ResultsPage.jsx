@@ -94,6 +94,8 @@ import { liveCountText } from '../lib/liveUseCases';
 import { saveBlob } from '../lib/download';
 import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
+import DocumentActions from '../components/DocumentActions';
+import { englishCatalogPath } from '../lib/documentActions';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
@@ -1594,6 +1596,15 @@ export default function ResultsPage({
               </div>
             );
           })()}
+
+          {generationPath && !showcase && selectedSessionId && (
+            <DocumentActions
+              apiFetch={apiFetch}
+              session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), generationPath }}
+              catalogPath={englishCatalogPath(artifactsRootFiles, artifactTree)}
+              onFinished={() => loadArtifacts(generationPath)}
+            />
+          )}
 
           {/* Quick Access — always visible, PDF/Excel/CSV files from artifacts */}
           {(() => {

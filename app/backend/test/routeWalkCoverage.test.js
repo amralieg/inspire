@@ -28,6 +28,7 @@ const NOT_WALKED = {
   'GET /api/inspire/implement/diagnostics': 'reads the build through the same loadStatus read and person token as GET /api/inspire/implement/status, which the harness walks; no non-owner harness row walks it yet',
   'GET /api/inspire/log': 'reads the run log only for its launcher or an App manager; no non-owner harness row walks it yet, and the route samples prove the launcher refusal',
   'POST /api/run/:runId/again': 'launches a run again only for its launcher or an App manager; no non-owner harness row walks it yet, and the route samples and runAgain tests prove the launcher refusal',
+  'POST /api/documents': 'rebuilds a session\'s documents only for its launcher or an App manager; the documentJob and launcher-refusal tests prove it',
 };
 const LITERAL = /\bapp\.(get|post|put|patch|delete|all)\(\s*(['"`])(.*?)\2([^\n]*)/g;
 const ANY = /\bapp\.(get|post|put|patch|delete|all)\(/g;
