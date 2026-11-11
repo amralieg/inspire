@@ -4,6 +4,7 @@ const P = require('./requestPerson');
 const RP = require('./routePolicy');
 const { DEFAULT_GENERATION_PATH } = require('./inspireJobParams');
 const { fsApiPath } = require('./workspacePaths');
+const { redactSecrets } = require('./redact');
 
 const RUN_NO_SIGN_IN = "Inspire needs your sign-in to check what you can read. Reload the App and try again.";
 const UNREADABLE_SHOWN = 10;
@@ -492,6 +493,9 @@ async function ownFolderShareable(dbFetch, req, folder, appId) {
   return { ok: false, scope: scopeMissing(acl), details: [answered(`GET /api/2.0/permissions/directories/${id}`, acl), grantLine(appId, at === folder ? id : '<folder id>')] };
 }
 
+const grantAnswer = (folder, got) => console.log(`output write check: the App's grant on ${folder} answered HTTP ${got.status}`
+  + (got.ok ? '' : `: ${redactSecrets(String(got.data.message || got.data.error || got.data.raw || '')).slice(0, 300)}`));
+
 async function shareOwnFolder(dbFetch, req, folder, appId) {
   const grant = (id) => grantLine(appId, id);
   const { call, refusal } = ownFolderCall(dbFetch, req, folder, appId);
@@ -503,6 +507,7 @@ async function shareOwnFolder(dbFetch, req, folder, appId) {
   const id = directoryId(got);
   if (!id) return failed(got, [got.ok ? `${folder} is not a folder` : answered(`GET /api/2.0/workspace/get-status ${folder}`, got), grant('<folder id>')]);
   const shared = await call(`/api/2.0/permissions/directories/${encodeURIComponent(id)}`, json('PATCH', appGrant(appId)));
+  grantAnswer(folder, shared);
   if (!shared.ok) return failed(shared, [answered(grant(id), shared)]);
   return { ok: true, scope: false, details: [grant(id)] };
 }

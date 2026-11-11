@@ -1,4 +1,4 @@
-import base64, difflib, hashlib, json, os, re, requests, shutil, tarfile, tempfile, time, urllib.parse, zipfile
+import base64, difflib, hashlib, json, os, posixpath, re, requests, shutil, tarfile, tempfile, time, urllib.parse, zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.sql import StatementState
@@ -1381,6 +1381,35 @@ def _app_folder_access(api, app_name, sp):
             f"A workspace admin can give {sp} Can Manage on that folder")
 
 
+SHARED_OUTPUT_GENERATION_PATH = "./../demos/"  # the App's default Generation Path, resolved from the notebook folder
+
+
+def _shared_output_folder(notebook_path):
+    return posixpath.normpath(posixpath.join(posixpath.dirname(notebook_path), SHARED_OUTPUT_GENERATION_PATH))
+
+
+def _shared_output_access(api, notebook_path, sp):
+    folder = _shared_output_folder(notebook_path)
+    made = api("POST", "/api/2.0/workspace/mkdirs", {"path": folder})
+    if made.status_code != 200:
+        return False, (f"{folder} could not be created ({made.text[:160]}), so a run has no folder the App can always write. "
+                       f"A workspace admin can create it and give {sp} Can Manage on it")
+    found = api("GET", f"/api/2.0/workspace/get-status?path={folder}")
+    object_id = found.json().get("object_id") if found.status_code == 200 else None
+    if not object_id:
+        return False, (f"Could not find {folder} ({found.text[:160]}), so a run has no folder the App can always write. "
+                       f"A workspace admin can give {sp} Can Manage on it")
+    resp = api(
+        "PATCH",
+        f"/api/2.0/permissions/directories/{object_id}",
+        {"access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_MANAGE"}]},
+    )
+    if resp.status_code == 200:
+        return True, f"CAN_MANAGE on {folder} for {sp}, the folder a run falls back to when a person's own folder cannot take the App: ✅"
+    return False, (f"{sp} cannot write {folder} ({resp.text[:160]}), so a run has no folder the App can always write. "
+                   f"A workspace admin can give {sp} Can Manage on it")
+
+
 def _scan_label(scan, catalog):
     if scan == SCAN_ALL:
         return "all: every catalog you can see and grant on"
@@ -1592,6 +1621,8 @@ def step_grant_permissions(ctx):
                                    f"Apps that Implement builds read Lakebase: project {lakebase['project']}, catalog `{lakebase['catalog']}` ✅")
         print(f"  {_app_folder_access(api, ctx['APP_NAME'], sp)}")
         print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp)}")
+        shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
+        print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
         scan_failed = _grant_scan_catalogs(ctx, sp, visible)
         blocking = _blocking_read_grants(failed, scan_failed)
         if blocking:
@@ -1600,6 +1631,9 @@ def step_grant_permissions(ctx):
             raise RuntimeError(f"{sp} could not be given read access to {_plural(len(blocking), 'grant')}: {shown}{more}. "
                                "Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
                                "A catalog owner can run the grant, then run this installer again.")
+        if not shared_ok:
+            raise RuntimeError(f"{shared_said}. Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
+                               "Then run this installer again.")
     elif not new_sp_app_id:
         print("⚠️ Skipped: SP not found. Grant manually after checking /api/health.")
     elif not warehouse_id:

@@ -228,3 +228,31 @@ test('a defaulted own folder the App still cannot write, with no writable shared
     assert.doesNotMatch(got.refused.message, /\/api\/|HTTP|service principal/, `${label}: the sentence holds no technical text`);
   }
 });
+
+test('a refused own-folder grant falls back to the shared output folder the installer prepared, in one line, and logs the grant answer once', async () => {
+  const folders = { ...SHARED_OPEN, '/Shared/demos': { id: 7, writers: [ME, APP_ID] }, [HOME]: { id: 12, writers: [ME] } };
+  const FAKE_TOKEN = `${'dapi'}${'0'.repeat(32)}`;
+  const ws = workspace(folders, { permissionsRefused: `no CAN_MANAGE on the folder for Inspire, see token=${FAKE_TOKEN}` });
+  const logs = [];
+  const log = console.log;
+  console.log = (...args) => logs.push(args.join(' '));
+  let got;
+  try { got = await plan(ws); } finally { console.log = log; }
+  assert.deepEqual([got.refused, got.folder, got.warnings], [null, '/Shared/demos', [SHARED_SENTENCE]]);
+  const grantLines = logs.filter((line) => line.startsWith('output write check: the App\'s grant on'));
+  assert.equal(grantLines.length, 1, 'the grant answer is logged once per launch');
+  assert.match(grantLines[0], new RegExp(`^output write check: the App's grant on ${OWN} answered HTTP 403: `));
+  assert.doesNotMatch(grantLines[0], new RegExp(FAKE_TOKEN), 'the token in the message is redacted');
+});
+
+test('the installer shared output folder is the same default the Launch page resolves, from the same notebook folder', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const { DEFAULT_GENERATION_PATH } = require('../lib/inspireJobParams');
+  const RP = require('../lib/routePolicy');
+  const installer = fs.readFileSync(path.join(__dirname, '..', '..', 'installer', 'inspire_setup.py'), 'utf8');
+  const literal = installer.match(/^SHARED_OUTPUT_GENERATION_PATH = "([^"]+)"/m);
+  assert.ok(literal, 'the installer names its shared output path constant');
+  assert.equal(literal[1], DEFAULT_GENERATION_PATH, 'the installer and the backend share one default Generation Path');
+  assert.equal(RP.outputFolderOf(DEFAULT_GENERATION_PATH, '/Shared/inspire-ai/dbx_inspire_ai_agent'), '/Shared/demos');
+});
