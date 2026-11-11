@@ -66,7 +66,7 @@ export const NOTEBOOK_STEPS = [
 ];
 
 const STEP_ALIASES = {
-  use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: RUN_STEP.id, fresh: DATA_STEP.id, vibes: SUMMARY_STEP.id,
+  use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: MEASURE_STEP.id, fresh: DATA_STEP.id, vibes: SUMMARY_STEP.id,
   settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: APP_STEP.id, app_features: APP_STEP.id, app_look: APP_LOOK_STEP.id,
   results: DATA_STEP.id, app_pages: WHERE_STEP.id,
 };

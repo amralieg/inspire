@@ -158,6 +158,8 @@ test('a run card with no measured KPI baseline says Value at stake: Not calculat
     assert.match(await panel.locator('[data-build-next-row="N02-U01"] [data-value-estimate]').innerText(), /AED 2,500/, 'a measured card still shows its estimate');
     await row.locator('[data-measure-value="N02-U02"]').click();
     await page.waitForFunction(() => window.location.hash.includes('/build/42/N02-U02'), null, { timeout: 20000 });
+    await page.getByRole('region', { name: 'Measure' }).waitFor({ timeout: 20000 });
+    assert.match(await page.locator('[data-wizard-header]').innerText(), /Step \d+ of \d+|Measure/, 'the wizard opens on its Measure step');
   } finally {
     await ui.close();
   }

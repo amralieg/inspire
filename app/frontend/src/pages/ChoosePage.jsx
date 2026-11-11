@@ -348,7 +348,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         {inspireDatabase && warehouseId && latestRun && (
           <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDatabase} warehouseId={warehouseId} sessionId={latestRun.session_id}
-            onStart={onOpenUseCase ? (useCaseId) => onOpenUseCase(String(latestRun.session_id), useCaseId) : undefined} />
+            onStart={onOpenUseCase ? (useCaseId) => onOpenUseCase(String(latestRun.session_id), useCaseId) : undefined}
+            onMeasure={onOpenUseCase ? (useCaseId) => onOpenUseCase(String(latestRun.session_id), useCaseId, 'measure') : undefined} />
         )}
 
         {/* ── Previous Experiments ── */}

@@ -344,7 +344,7 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
   );
 }
 
-export default function ImplementPage({ settings, sessionId, focusId = null, onFocus, onOpenRun = null, demoMvps = null, filter = null, onPickRun, onClearFilter }) {
+export default function ImplementPage({ settings, sessionId, focusId = null, focusStep = null, onFocus, onOpenRun = null, demoMvps = null, filter = null, onPickRun, onClearFilter }) {
   const { token, databricksHost, showcase = '' } = settings;
   const readOnly = Boolean(showcase);
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
@@ -443,6 +443,12 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
   const summary = useMemo(() => buildSummary(allItems), [allItems]);
   const shownId = chosenId || groups.flatMap((g) => g.items)[0]?.id || allItems[0]?.id || null;
   const selected = allItems.find((item) => item.id === shownId) || null;
+  const openedStep = useRef('');
+  useEffect(() => {
+    if (!focusStep || !selected?.uc || openedStep.current === `${focusStep}:${selected.id}`) return;
+    openedStep.current = `${focusStep}:${selected.id}`;
+    setWizard({ uc: selected.uc, focus: { step: focusStep }, live: false });
+  }, [focusStep, selected]);
   const paneRef = useRef(null);
   useLayoutEffect(() => {
     if (paneRef.current) paneRef.current.scrollTop = 0;
@@ -508,7 +514,12 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
           {selected && (
             <BuildNextStep apiFetch={apiFetch} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId} sessionId={sessionId}
               focusId={selected.id} live={IMPLEMENT_DONE_STATUSES.includes(String(selected.latest?.status || ''))}
-              onOpen={readOnly ? undefined : select} />
+              onOpen={readOnly ? undefined : select}
+              onMeasure={readOnly ? undefined : (id) => {
+                select(id);
+                const item = allItems.find((i) => i.id === id);
+                if (item?.uc) setWizard({ uc: item.uc, focus: { step: 'measure' }, live: false });
+              }} />
           )}
           {selected ? (
             <UseCaseDetail
