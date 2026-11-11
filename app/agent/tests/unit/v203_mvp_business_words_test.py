@@ -37,7 +37,7 @@ def test_the_shell_maps_every_statistics_code_the_rule_names_to_the_same_words(a
 
 def test_every_header_label_and_record_name_goes_through_the_one_formatter():
     assert "label: plainWords(c.label)" in _read("DataTable.jsx")
-    assert "label: plainWords(c.name)" in _read("Genie.jsx")
+    assert "label: answerLabel(c.name)" in _read("Genie.jsx")
     assert "const chart = plainChart(given);" in _read("charts.js")
     assert "wholeFormat(kpi.format, kpi.label, kpi.unit, kpi.id)" in _read("Kpis.jsx")
     records = _read("Records.jsx")

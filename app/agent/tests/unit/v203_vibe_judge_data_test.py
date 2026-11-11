@@ -362,4 +362,4 @@ def test_every_output_builder_and_its_checks_read_the_held_asks():
     assert source.count('held=(context.get("use_case") or {}).get("_implement_held"))') == 3
     assert source.count('"held_asks": ((context.get("use_case") or {}).get("_implement_held") or {}).get(asset) or {}') == 1
     assert "for asset, text in implement_held_vibes(spec).items()}" in source
-    assert ('if not held_row and (plan["refill"] or plan["build"] or plan["restyle"] or plan["refresh"]) else {})') in source
+    assert ('if (plan["refill"] or plan["build"] or plan["restyle"] or plan["refresh"]) else {})') in source
