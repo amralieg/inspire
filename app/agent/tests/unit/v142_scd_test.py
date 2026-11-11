@@ -743,10 +743,10 @@ HISTORY_OBJECTS = {"{inspire_table_name(table)}", "{inspire_table_name(inspire_r
 HISTORY_BOUND = {"target": "inspire_table_name(table)", "source": "inspire_table_name(stage)",
                  "log": "inspire_table_name(inspire_run_log_table(table))", "pinned": "f'{target} VERSION AS OF {int(version)}'"}
 FACTS_TABLES = {"target": "inspire_table_name(table)", "pinned": "f'{target} VERSION AS OF {int(version)}'",
-                "log": "inspire_run_log_table(table)"}
+                "log": "inspire_run_log_table(table)", "ledger": "inspire_shell_facts.ledger_table(database)"}
 FACTS_PLAIN = {"names", "tier", "scope", "version", "previous", "label", "history", "bool", "inspire_sql_literal", "inspire_table_name",
                "inspire_shell_facts", "floored", "int", "str", "table", "inspire_acted_table", "inspire_closed_table", "inspire_changes_table",
-               "inspire_closes_table", "order"}
+               "inspire_closes_table", "order", "row"}
 HISTORY_COUNTED = "{inspire_table_name(read_table)}"
 HISTORY_SCOPED = "{inspire_table_name(source_table)}"
 HISTORY_SCOPED_READS = ("SELECT CAST(", "WITH dated AS (SELECT CAST(")
