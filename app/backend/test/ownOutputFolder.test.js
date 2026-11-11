@@ -202,3 +202,29 @@ test('loading Start says the run falls back, and why, when the sign-in cannot re
   assert.equal(none.refused.status, 401);
   for (const ws of [scoped, locked, unsigned]) assert.deepEqual(ws.calls.filter((c) => WRITES.has(c.method)), []);
 });
+
+const LOCKED_SHARED = { '/Shared': { id: 2, writers: [] }, '/Shared/demos': { id: 7, writers: [] } };
+
+test('a defaulted own folder the App still cannot write, with no writable shared fallback, refuses before the run in one plain sentence (must-exclude: no run starts into a folder that saves no files)', async () => {
+  for (const [label, options] of [
+    ['the person cannot share it, Databricks refuses the grant', { permissionsRefused: 'workspace object ACLs are locked by an admin' }],
+    ['the grant lands but the App still cannot write', {}],
+  ]) {
+    const folders = { ...LOCKED_SHARED, [HOME]: { id: 12, writers: [ME] } };
+    const ws = workspace(folders, options);
+    if (!options.permissionsRefused) {
+      const real = ws.dbFetch;
+      ws.dbFetch = async (host, token, path, opts) => {
+        const got = await real(host, token, path, opts);
+        if (path.startsWith('/api/2.0/permissions/directories/')) ws.model.folders[OWN].writers = [ME];
+        return got;
+      };
+    }
+    const got = await plan(ws);
+    assert.equal(got.refused?.status, 403, `${label}: refused before the run`);
+    assert.equal(got.refused.message, `Inspire cannot save to your own folder ${OWN}, and the App cannot write there yet, so Inspire will not start a run that saves no files there: ask an App manager to give the App CAN MANAGE on ${OWN}, then launch again.`, label);
+    assert.deepEqual(got.generationPath, '', `${label}: no folder is handed to the run`);
+    assert.deepEqual(got.warnings, [], `${label}: a refusal carries no warning that would let Launch continue`);
+    assert.doesNotMatch(got.refused.message, /\/api\/|HTTP|service principal/, `${label}: the sentence holds no technical text`);
+  }
+});

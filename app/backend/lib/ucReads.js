@@ -562,9 +562,16 @@ async function outputPlan(dbFetch, req, writes, { manager = false, appToken = ''
   const { plan: own, details, scope } = await ownFolderPlan(dbFetch, req, home, { manager, appToken, appId });
   if (folderScore(own) === 2 || own.refused?.status === 401) return savedIn(own);
   const shared = await folderPlan(dbFetch, req, folders[0], { manager, appToken });
-  if (shared.refused) return own.refused ? planVerdict(shared) : savedIn(own, [], details);
-  if (folderScore(shared) <= folderScore(own)) return savedIn(own, [], details);
+  if (shared.refused) return own.refused ? planVerdict(shared) : unrunnableOwn(home, scope, details);
+  if (folderScore(shared) <= folderScore(own)) return unrunnableOwn(home, scope, details);
   return savedIn(shared, [sharedFallbackText(home, shared.folder, scope)], own.refused ? [own.refused.message] : details);
+}
+
+function unrunnableOwn(home, scope, details) {
+  const why = scope ? SCOPE_REASON : '';
+  const message = `Inspire cannot save to your own folder ${home}${why}, and the App cannot write there yet, so Inspire will not start a run that saves no files there: `
+    + `ask an App manager to give the App CAN MANAGE on ${home}, then launch again.`;
+  return { refused: { status: 403, message, unwritable: [home] }, folder: home, generationPath: '', warnings: [], details };
 }
 
 function writeRefusalBody(key, refused) {
