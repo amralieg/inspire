@@ -42,7 +42,7 @@ const mountPreflight = (handler) => ({ mount: (app) => app.post(PREFLIGHT, handl
 test('the walk route asks the App for its access verdict before the Summary shows anything', async () => {
   const ui = await walkToSummary({});
   try {
-    await ui.page.getByRole('button', { name: /Build it Now|Checking access|Could not check access/ }).first().waitFor({ timeout: 15000 }).catch(() => null);
+    for (let i = 0; i < 60 && ui.preflightLogs.length === 0; i += 1) await ui.page.waitForTimeout(250);
     assert.ok(ui.preflightLogs.length >= 1, 'a preflight request completes on the walk route and logs its shape');
     assert.match(ui.preflightLogs[0], /^\[preflight\] \{"ok":true|^\[preflight\] error:/);
     assert.deepEqual(ui.pageErrors, []);
@@ -73,7 +73,7 @@ test('a preflight that errors shows Could not check access with Try again, and n
     assert.match(await verdict.innerText(), /Could not check access/);
     assert.equal(await ui.page.locator('[data-access-retry]').count(), 1, 'Try again is offered');
     assert.equal(await ui.page.getByRole('button', { name: BUILD_IT, exact: true }).isDisabled(), true);
-    assert.deepEqual(ui.pageErrors, []);
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), [], 'only the injected 500 is expected');
   } finally {
     await ui.close();
   }
