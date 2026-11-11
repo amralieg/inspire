@@ -450,7 +450,7 @@ def answer_problems(text: str, rows: int = 0) -> tuple:
     return problems, far
 
 
-def answer_rows(turn: Turn) -> int:
+def answer_rows(turn: "Turn") -> int:
     return max(len((turn.genie or {}).get("rows") or []), len(turn.listed))
 
 

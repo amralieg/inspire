@@ -191,7 +191,7 @@ test('the MVP, App, dashboard, Genie Agent and alert cards open Build filtered t
   const ui = await openStart(TWO_RUNS);
   const { page, made } = ui;
   const strip = page.locator('[data-build-filter]');
-  const pressed = () => page.locator('[data-asset-filter][aria-pressed="true"]').evaluateAll((els) => els.map((el) => el.getAttribute('data-asset-filter')));
+  const pressed = () => page.locator('[data-asset-filter]:checked').evaluateAll((els) => els.map((el) => el.getAttribute('data-asset-filter')));
   const toStart = async () => {
     await page.locator('header nav button', { hasText: 'Start' }).click();
     await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
@@ -212,7 +212,7 @@ test('the MVP, App, dashboard, Genie Agent and alert cards open Build filtered t
       assert.equal(await strip.getAttribute('data-build-filter'), key);
       assert.equal(await strip.getByRole('status').innerText(), text);
       await page.locator('nav[aria-label="Use cases"] section button').first().waitFor();
-      assert.deepEqual(await pressed(), asset, `${key} presses its asset filter`);
+      assert.deepEqual(await pressed(), asset, `${key} ticks its asset box`);
       const listed = await page.locator('nav[aria-label="Use cases"] section button').evaluateAll((els) => els.map((el) => (el.querySelector('div') ?? el).textContent.trim()));
       assert.equal(listed.length, 1, `${key} lists only the use case that has one`);
       assert.notEqual(listed[0], '', `${key} names the use case it lists`);
@@ -237,7 +237,7 @@ test('the MVP, App, dashboard, Genie Agent and alert cards open Build filtered t
     await page.waitForFunction(() => document.querySelector('[data-build-filter] [role="status"]')?.textContent === 'Showing: use cases with an App in Beta Foods');
     assert.equal(await strip.locator('[data-build-run="50"]').getAttribute('aria-pressed'), 'true');
     await page.locator('nav[aria-label="Use cases"] section button').first().waitFor();
-    assert.deepEqual(await pressed(), ['app'], 'the other run opens with the same filter');
+    assert.deepEqual(await pressed(), ['app'], 'the other run opens with the same box ticked');
     assert.ok(made.sqlCalls.some((c) => (c.parameters || []).some((p) => String(p.value) === '50') || String(c.sql).includes('50')),
       'Build reads the run that was picked');
 
@@ -247,9 +247,9 @@ test('the MVP, App, dashboard, Genie Agent and alert cards open Build filtered t
     await toStart();
     await card(page, 'apps').click();
     await strip.waitFor({ timeout: 20000 });
-    await page.locator('[data-asset-filter="dashboard"]').click();
+    await page.locator('[data-asset-filter="dashboard"]').check();
     await strip.waitFor({ state: 'detached' });
-    assert.deepEqual(await pressed(), ['dashboard'], 'picking another asset leaves the filter from Start');
+    assert.deepEqual(await pressed(), ['app', 'dashboard'], 'ticking another asset adds to the box Start ticked');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
