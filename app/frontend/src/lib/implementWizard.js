@@ -164,8 +164,7 @@ export function enforceOf(offer) {
 
 export function perUserFastPages(offer) {
   const tables = Object.values(enforceOf(offer));
-  return offer?.state === 'available' && tables.length > 0 && tables.every((t) => t.enforced)
-    && tables.filter((t) => t.filtered).length <= 1;
+  return offer?.state === 'available' && tables.length > 0 && tables.every((t) => t.enforced);
 }
 
 export function perUserFallback(offer) {
@@ -173,7 +172,7 @@ export function perUserFallback(offer) {
   if (!tables.length) return LAKEBASE_PER_USER_REASON;
   const refused = tables.filter(([, t]) => !t.enforced).map(([name, t]) => `${name} uses Standard pages because ${t.reason}`);
   if (refused.length) return `Fast pages cannot keep each person to their own rows here: ${refused.join('; ')}.`;
-  return 'Fast pages can keep each person to their own rows only when one table has a row filter; this App has more than one, so it uses Standard pages.';
+  return LAKEBASE_PER_USER_REASON;
 }
 
 export function appBackendDefault(spec, offer) {

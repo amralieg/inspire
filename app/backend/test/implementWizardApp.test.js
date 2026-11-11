@@ -387,9 +387,8 @@ test('a per-user App defaults to Fast pages only when the check says every table
   assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced, 'main.s.returns': refused })), 'delta', 'one refused table keeps the App on Standard pages');
   assert.deepEqual(w.appBackendBlocks(spec, offer({ 'main.s.orders': enforced, 'main.s.returns': refused })),
     { lakebase: { why: 'Fast pages cannot keep each person to their own rows here: main.s.returns uses Standard pages because the row filter main.sec.fn is not a user-to-key mapping table.', details: '' } });
-  const twoFilters = { ...enforced };
-  assert.equal(w.appBackendOf(spec, offer({ 'main.s.a': twoFilters, 'main.s.b': twoFilters })), 'delta', 'two tables with filters cannot share one mapping (must-exclude)');
-  assert.match(w.appBackendBlocks(spec, offer({ 'main.s.a': twoFilters, 'main.s.b': twoFilters })).lakebase.why, /more than one table has a row filter|more than one/);
+  assert.equal(w.appBackendOf(spec, offer({ 'main.s.a': enforced, 'main.s.b': enforced })), 'lakebase', 'two filtered tables that both map are each ANDed into the view');
+  assert.deepEqual(w.appBackendBlocks(spec, offer({ 'main.s.a': enforced, 'main.s.b': enforced })), {});
   assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced }, 'absent')), 'delta');
   const picked = w.withAppBackend(spec, 'lakebase');
   assert.equal(w.appBackendOf(picked, offer({ 'main.s.orders': refused })), 'delta', 'a Fast pages pick the check refuses falls back to Delta');
