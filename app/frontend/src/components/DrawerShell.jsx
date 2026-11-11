@@ -61,7 +61,7 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
           aria-label={label}
           className={`relative flex w-full flex-col bg-surface shadow-elevated outline-none ${side ? 'pointer-events-auto' : ''} ${
             center ? 'max-h-[92dvh] max-w-[44rem] rounded-xl border border-border'
-              : 'h-full border-s border-border md:w-[var(--drawer-width)] md:max-w-[calc(100vw-3rem)]'}`}
+              : `h-full border-s border-border md:w-[var(--drawer-width)] ${side ? 'md:max-w-[40vw]' : 'md:max-w-[calc(100vw-3rem)]'}`}`}
           style={center ? undefined : { '--drawer-width': `${width}px` }}
         >
           {!center && (

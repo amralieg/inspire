@@ -1074,7 +1074,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const kept = keptVersions(history);
   const checklist = useMemo(() => vibeChecklist(status?.steps, latest), [status?.steps, latest]);
   const held = heldVersion(latest, status?.history ?? null);
-  const progressView = useProgressView(useCaseId, Boolean(held) || Boolean(checklist?.notDecided));
+  const progressView = useProgressView(useCaseId, progress.active);
   const alertAsset = latest?.asset_status?.alert || {};
   const notebookState = uninstalled ? item.notebook || null : item.notebook || (vibeTargets.some((c) => c.id === 'notebook') ? notebookStatus({ has_genie_code: 'Y' }, null) : null);
   const notebook = notebookState && {

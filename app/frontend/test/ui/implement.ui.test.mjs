@@ -1225,6 +1225,7 @@ test('a build that finishes bursts confetti from the bundled package, never for 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await page.getByRole('progressbar', { name: 'Build progress' }).waitFor();
+    await closeBuild(page);
     made.state.history = [built({ spec_version: 2 }), built()];
     await pollNow(page);
     await page.locator('[data-progress-card][data-progress-open="false"] [data-build-headline]', { hasText: /^Ready/ }).waitFor({ timeout: 15000 });
@@ -1695,6 +1696,33 @@ test('Edit of a version whose swapped secondary table and own table are both gon
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 15000 });
     assert.equal(await start.isDisabled(), false, 'a lost secondary table never blocks the build (must-exclude)');
     assert.equal(await page.getByText('the preview cannot run because', { exact: false }).count(), 0);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the Genie build panel opens by itself while a build runs, stays closed after a close and a reload in the same tab, and at 1280x800 keeps the use case list uncovered', async () => {
+  const run = { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } };
+  const building = built({ spec_version: 2, status: 'building_outputs', status_message: 'building outputs', implement_run_id: String(run.run_id), updated_at: new Date().toISOString() });
+  const ui = await openUi('implement', { ...STUDIO_STATE, history: [building, built()], implementRun: run }, '', FAKE_CLOCK);
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    const panel = page.locator('[data-progress-panel]');
+    await panel.waitFor();
+    assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', 'the Genie panel is open while the build runs');
+    const drawer = await panel.locator('[role="dialog"]').boundingBox();
+    const list = await page.locator('[data-implement-rail]').boundingBox();
+    assert.ok(drawer.width <= 1280 * 0.4 + 1, `the panel takes at most 40% of 1280px: ${Math.round(drawer.width)}px`);
+    assert.ok(list.x + list.width <= drawer.x + 1, `the use case list on the left is not under the panel: list ends ${Math.round(list.x + list.width)}, panel starts ${Math.round(drawer.x)}`);
+
+    await panel.getByRole('button', { name: 'Close', exact: true }).click();
+    await panel.waitFor({ state: 'detached' });
+    await page.reload();
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    assert.equal(await page.locator('[data-progress-panel]').count(), 0, 'after a close and a reload the panel stays closed');
+    assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'false');
   } finally {
     await ui.close();
   }
