@@ -17,6 +17,7 @@ import { ITEM_KINDS, fieldsOf, tableContext } from './explain.js';
 import './styles/kindparts.css';
 
 export const LIST_ROWS = 60;
+export const GROUP_MIN = 3;
 export const SEGMENT_CARDS = 12;
 export const EFFECT_CARDS = 6;
 export const SIGNIFICANT = 0.05;
@@ -39,6 +40,17 @@ export function suggestedChoice(choices, text) {
   const at = (c) => [c.id, ...wordsOf(c.label)].map((w) => words.indexOf(w)).filter((i) => i >= 0);
   const found = (choices || []).map((c) => [c, Math.min(...at(c))]).filter(([, i]) => Number.isFinite(i)).sort((a, b) => a[1] - b[1]);
   return found.length ? found[0][0] : null;
+}
+
+export function clustersOf(rows, column) {
+  const groups = new Map();
+  rows.forEach((row) => {
+    const name = String(row[column] ?? '');
+    if (!name) return;
+    if (!groups.has(name)) groups.set(name, []);
+    groups.get(name).push(row);
+  });
+  return [...groups].filter(([, items]) => items.length >= GROUP_MIN);
 }
 
 export function treatmentValues(treatment) {
@@ -289,6 +301,9 @@ export function ChoiceList({ page, app, filters, ready, nonce, onChanged, sectio
     <ListShell page={page} app={app} title={meta.title || 'Decide each one'} hint={meta.hint} section={section} list={list} error={decide.error}
       filters={filters} onChanged={onChanged} opened={opened}
       empty="Nothing to decide for these filters." actions={can && <TakeAll count={open} onClick={() => decide.takeAll(rows, suggest)} />}>
+      {meta.group && clustersOf(rows, meta.group.column).map(([name, items]) => (
+        <ClusterBar key={name} page={page} app={app} name={name} items={items} decide={decide} can={can} />
+      ))}
       <ol className="choice-list">
         {rows.map((row) => (
           <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can}
@@ -455,6 +470,39 @@ export function EffectCard({ page, data, filters, onPick }) {
         })}
       </div>
     </section>
+  );
+}
+
+function ClusterBar({ page, app, name, items, decide, can }) {
+  const [asking, setAsking] = useState('');
+  const group = page.records.group;
+  const choice = (page.choices || []).find((c) => c.id === group.choice);
+  const open = items.filter((r) => !isClosed(r) && r._inspire_version);
+  const batches = [...new Set(items.map((r) => undoBatchOf(r, app?.user?.email)))];
+  const undoable = items.every(isClosed) && batches.length === 1 && batches[0] ? batches[0] : '';
+  const merge = () => decide.run(`group:${name}`, { record_keys: open.map((r) => String(recordKeyOf(r))),
+    seen: Object.fromEntries(open.map((r) => [String(recordKeyOf(r)), String(r._inspire_version)])) },
+  choiceValues(choice, '', page.choices), `${choice.label}: ${open.length} records in ${name}`).then((out) => out && setAsking(''));
+  return (
+    <div className="cluster-bar" data-cluster={name}>
+      <span><b>{name}</b> · {plural(items.length, 'record')}</span>
+      {can && choice && open.length >= GROUP_MIN && !asking && <button type="button" className="btn btn--sm" data-group-merge onClick={() => setAsking('merge')}>{group.label}</button>}
+      {undoable && !asking && <button type="button" className="link" data-group-unmerge onClick={() => setAsking('undo')}><Icon name="undo" size={13} />{group.undo}</button>}
+      {asking === 'merge' && (
+        <div className="choice-why" role="group" aria-label={`Confirm ${group.label}`}>
+          <span>{`${choice.label} for the ${plural(open.length, 'open record')} in ${name}. The records stay in the list, and one Undo puts them back.`}</span>
+          <SaveButton write={`group:${name}`} className="btn btn--sm btn--pri" data-group-confirm onClick={merge}>{group.label}</SaveButton>
+          <button type="button" className="link" onClick={() => setAsking('')}>Keep them</button>
+        </div>
+      )}
+      {asking === 'undo' && (
+        <div className="choice-why" role="group" aria-label="Undo this decision">
+          <span>{UNDO_CLOSE}</span>
+          <SaveButton write={`undo:group:${name}`} className="btn btn--sm btn--pri" data-group-confirm onClick={async () => { if (await decide.undo(undoable, `undo:group:${name}`)) setAsking(''); }}>{group.undo}</SaveButton>
+          <button type="button" className="link" onClick={() => setAsking('')}>Keep it</button>
+        </div>
+      )}
+    </div>
   );
 }
 

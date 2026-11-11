@@ -1000,6 +1000,16 @@ def _records_problems(records, has_dataset: bool) -> list:
         if records.get(key) is not None:
             problems += column_problem(records.get(key), f"{where} {key} must be a column name")
     problems += _text_problem(where, records.get("undo"), "undo", required=False)
+    group = records.get("group")
+    if group is not None:
+        if not isinstance(group, dict):
+            problems.append(f"{where} group must be an object with a column, a choice, a label and an undo label")
+        else:
+            problems += column_problem(group.get("column"), f"{where} group needs a column name")
+            problems += _text_problem(f"{where} group", group.get("label"), "label")
+            problems += _text_problem(f"{where} group", group.get("undo"), "undo")
+            if not isinstance(group.get("choice"), str) or not group.get("choice"):
+                problems.append(f"{where} group needs the id of the choice it writes")
     for key, low, high in (("columns", 1, 8), ("detail", 0, 12)):
         items = records.get(key) if isinstance(records.get(key), list) else []
         if not low <= len(items) <= high:
