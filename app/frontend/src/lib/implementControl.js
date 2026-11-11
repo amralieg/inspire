@@ -803,9 +803,37 @@ export function assetFilterCounts(items) {
   return ASSET_FILTERS.map(([id, label]) => ({ id, label, count: list.filter((have) => have.has(id)).length }));
 }
 
-export function filterByAsset(groups, asset) {
-  if (!asset) return groups;
-  return (groups || []).map((group) => ({ ...group, items: group.items.filter((item) => itemAssets(item).has(asset)) }));
+export const ASSET_FILTER_STORAGE = 'inspire.build_asset_filters';
+
+export function assetFiltersFrom(value) {
+  const known = new Set(ASSET_FILTERS.map(([id]) => id));
+  return [...new Set(String(value ?? '').split(',').map((id) => id.trim()).filter((id) => known.has(id)))];
+}
+
+export function loadAssetFilters(storage = globalThis.localStorage) {
+  try {
+    return assetFiltersFrom(storage?.getItem(ASSET_FILTER_STORAGE));
+  } catch {
+    return [];
+  }
+}
+
+export function saveAssetFilters(assets, storage = globalThis.localStorage) {
+  try {
+    storage.setItem(ASSET_FILTER_STORAGE, assetFiltersFrom(assets.join(',')).join(','));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export function filterByAssets(groups, assets) {
+  const wanted = (assets || []).filter(Boolean);
+  if (!wanted.length) return groups;
+  return (groups || []).map((group) => ({ ...group, items: group.items.filter((item) => {
+    const have = itemAssets(item);
+    return wanted.some((asset) => have.has(asset));
+  }) }));
 }
 
 export function filterByMvp(groups, mvp) {
