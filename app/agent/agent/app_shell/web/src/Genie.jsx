@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { agentAsk, agentFeedback, agentStatus, agentTurn, askGenie, explainGenie, retryable, undoRecords, writeRecord } from './api.js';
+import { agentAsk, agentFeedback, agentStatus, agentTurn, askGenie, explainGenie, retryable, undoRecords, waitingOf, writeRecord } from './api.js';
+import WaitingForAccess from './WaitingForAccess.jsx';
 import { reducedMotion } from './theme.js';
 import { answerLabel, cellText, integer, isKeyColumn } from './format.js';
 import DataTable from './DataTable.jsx';
@@ -109,7 +110,7 @@ export function useGenie(app, current, onOpen, view = null) {
       if (msg) update(k, n, { state: 'done', answer: msg, ids: started, shown: reducedMotion() ? Infinity : 0 });
     } catch (error) {
       if (retryable(error)) retries.current[`${k}:${n}`] = () => send(k, you, start);
-      update(k, n, { state: 'failed', error: error.message, calm: !!error.calm });
+      update(k, n, { state: 'failed', error: error.message, calm: !!error.calm, waiting: waitingOf(error) });
     }
   }, []);
 
@@ -146,7 +147,7 @@ export function useGenie(app, current, onOpen, view = null) {
         ids: turn.genie ? { conversation_id: turn.genie.conversation_id, message_id: turn.genie.message_id } : null, shown: reducedMotion() ? Infinity : 0 });
     } catch (error) {
       if (retryable(error)) retries.current[`${k}:${n}`] = () => sendAgent(k, you, extra);
-      update(k, n, { state: 'failed', error: error.message, calm: !!error.calm });
+      update(k, n, { state: 'failed', error: error.message, calm: !!error.calm, waiting: waitingOf(error) });
     }
   }, [send]);
 
@@ -465,7 +466,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
           <div key={m.n} className="msg msg--genie">
             <span className="msg-av"><GenieMark size={14} /></span>
             {m.state === 'running' && <div className="msg-b"><AgentSteps steps={m.steps} /><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span><Pace since={m.n} /></div>}
-            {m.state === 'failed' && <div className="msg-b">{m.calm ? <PlainNote text={m.error} className="note" role="status" data-calm /> : <PlainNote text={m.error} className="g-err" onRetry={genie.canRetry?.(genie.key, m.n) ? () => genie.retry(genie.key, m.n) : null} />}</div>}
+            {m.state === 'failed' && <div className="msg-b">{m.waiting ? <WaitingForAccess waiting={m.waiting} compact /> : m.calm ? <PlainNote text={m.error} className="note" role="status" data-calm /> : <PlainNote text={m.error} className="g-err" onRetry={genie.canRetry?.(genie.key, m.n) ? () => genie.retry(genie.key, m.n) : null} />}</div>}
             {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} />}
           </div>
         )))}

@@ -1027,6 +1027,10 @@ TOOLS = {
                            "match": {"type": "object", "properties": {"filters": {"type": "object"}, "column_filters": {"type": "object"},
                                                                       "search": {"type": "string"}}},
                            "reason": {"type": "string"}, "until": {"type": "string"}, "owner": {"type": "string"}, "note": {"type": "string"}}}},
+    "app_access": {"description": "Explain why parts of the page are red or show no data because this App cannot read a table: it names each "
+                                  "table, its owner and the read access missing, and shows the person the page banner's buttons to grant it with "
+                                  "their own permissions, copy the grant SQL or check again. It never grants anything itself.",
+                   "parameters": {"type": "object", "properties": {}}},
 }
 RECORD_TOOLS = ("find_records", "read_record", "similar_records")
 
@@ -1044,6 +1048,8 @@ def tool_step(name: str, args: dict, result: dict) -> str:
         return f"Asked Genie: {cut(args.get('question'), 120)}"
     if name == "change_view":
         return "; ".join(view_text(a) for a in result.get("actions") or [])
+    if name == "app_access":
+        return f"Checked what this App cannot read: {', '.join(t['table'] for t in result.get('tables') or []) or 'nothing, it reads every table now'}"
     if name == "split_kpi":
         return f"Split {cut(result.get('kpi'), 80)} by {cut(result.get('filter'), 80)}"
     if name == "find_records":
@@ -1056,7 +1062,8 @@ def tool_step(name: str, args: dict, result: dict) -> str:
 
 
 STEP_WORDS = {"ask_genie": "Genie could not answer", "split_kpi": "Could not split the KPI", "change_view": "Could not change the view", "find_records": "Could not list records",
-              "read_record": "Could not read the record", "similar_records": "Could not compare records", "propose_action": "Could not prepare the change"}
+              "read_record": "Could not read the record", "similar_records": "Could not compare records", "propose_action": "Could not prepare the change",
+              "app_access": "Could not check what this App can read"}
 
 
 class Turn:
@@ -1373,6 +1380,8 @@ class Agent:
             names += list(RECORD_TOOLS)
             if self.shell.option("decisions") and page.get("result_table"):
                 names.append("propose_action")
+        if self.shell.settings.get("unread"):
+            names.append("app_access")
         return names
 
     def converse(self, turn: Turn, job: dict) -> None:
@@ -1590,6 +1599,15 @@ class Agent:
         turn.confirm = confirm
         return {"waiting": f"the person sees a card listing {shell_sql.plural(len(confirm['rows']), 'record')} and decides; nothing is saved yet",
                 "confirm": {"rows": confirm["rows"], "label": confirm["label"]}}
+
+    def tool_app_access(self, turn: Turn, job: dict, args: dict) -> dict:
+        access = self.shell.app_access(job["headers"], {"step": "diagnose"})
+        if access["tables"] and turn.confirm is None:
+            turn.confirm = {"kind": "access", "access": access, "rows": [], "label": "Give this App read access"}
+        return {"tables": [{"table": t["table"], "owner": t["owner"] or "unknown", "missing_reads": len(t["grants"])} for t in access["tables"]],
+                "can_grant": access["can_grant"],
+                "shown": "the person sees the page banner's buttons: Grant access with my permissions, Copy the grant SQL and Check again; "
+                         "nothing is granted until they press Grant and confirm"}
 
     def reopen(self, page: dict, ws, keys: list) -> dict:
         if len(keys) != 1:

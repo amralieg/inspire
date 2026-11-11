@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { deleteAlert, failureOf, getAlerts, pauseAlert, previewAlert, saveAlert } from './api.js';
+import { deleteAlert, failureOf, getAlerts, pauseAlert, previewAlert, saveAlert, waitingOf } from './api.js';
+import WaitingForAccess from './WaitingForAccess.jsx';
 import { formatValue } from './format.js';
 import { stampText } from './freshness.js';
 import { plural } from './hub.js';
@@ -15,12 +16,12 @@ import {
 } from './alerts.js';
 
 function useAlerts(pageId) {
-  const [out, setOut] = useState({ data: null, error: '' });
+  const [out, setOut] = useState({ data: null, error: '', waiting: null });
   const seq = useRef(0);
   const load = useCallback(() => {
     const mine = ++seq.current;
     getAlerts(pageId).then((data) => { if (mine === seq.current) setOut({ data, error: '' }); })
-      .catch((e) => { if (mine === seq.current) setOut((o) => ({ data: o.data, error: e.message })); });
+      .catch((e) => { if (mine === seq.current) setOut((o) => ({ data: o.data, error: e.message, waiting: waitingOf(e) })); });
   }, [pageId]);
   useEffect(() => { load(); }, [load]);
   return { ...out, load };
@@ -227,7 +228,7 @@ function alertFields(alert, columns, listing, meta) {
 }
 
 export default function Alerts({ app, page, meta, compose = false, onComposed }) {
-  const { data, error, load } = useAlerts(page.id);
+  const { data, error, waiting, load } = useAlerts(page.id);
   const [form, setForm] = useState(null);
   const listing = data;
   const full = capped(listing?.caps);
@@ -254,7 +255,8 @@ export default function Alerts({ app, page, meta, compose = false, onComposed })
         <AskGenie kind="table" title="Alerts" context={tableContext('The alerts of this use case.', listing?.alerts || [], fields)} />
       </header>
       {!listing && !error && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {error && <PlainNote text={error} prefix="The alerts could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={load} />}
+      {waiting && <WaitingForAccess waiting={waiting} compact onCheck={load} />}
+      {error && !waiting && <PlainNote text={error} prefix="The alerts could not load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={load} />}
       {listing && form && <AlertForm key={form.id || 'new'} listing={listing} meta={meta} page={page} start={form} onDone={done} onCancel={() => setForm(null)} />}
       {listing && (
         <>

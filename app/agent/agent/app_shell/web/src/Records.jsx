@@ -15,7 +15,8 @@ import { addCounts, addedParts, cap, compareValues, dayLabel, entityName, intege
 export const recordName = (row, meta) => entityName(row, meta?.label);
 import { hueVars, reducedMotion } from './theme.js';
 import { Failure, Popover, Skeleton, useDebounced, useDialog, useToast, PlainNote, toastFailure } from './ui.jsx';
-import { failureOf, getRecords } from './api.js';
+import { failureOf, getRecords, waitingOf } from './api.js';
+import WaitingForAccess from './WaitingForAccess.jsx';
 import { HistoryList, useHistory } from './History.jsx';
 import { SaveButton, savingLabel, useWrite } from './saving.jsx';
 import RecordForm, { DeleteDialog } from './RecordForm.jsx';
@@ -84,8 +85,8 @@ function useList(body, ready, nonce, plain = null) {
       .catch((e) => {
         if (mine !== seq.current) return;
         setState((s) => (s.key === key
-          ? { ...s, error: e.message, busy: false }
-          : { data: null, error: e.message, busy: false, at: 0, unwindowed: false, key }));
+          ? { ...s, error: e.message, waiting: waitingOf(e), busy: false }
+          : { data: null, error: e.message, waiting: waitingOf(e), busy: false, at: 0, unwindowed: false, key }));
       });
   }, [key, plainKey, ready, nonce]);
   return state;
@@ -1027,7 +1028,8 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           onDraft={() => setDrafted([...picked.keys()])} />
       )}
       {!data && list.busy && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3, 4].map((i) => <Skeleton key={i} height={22} />)}</div>}
-      {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={() => setRefresh((n) => n + 1)} />}
+      {list.waiting && <WaitingForAccess waiting={list.waiting} compact onCheck={() => setRefresh((n) => n + 1)} />}
+      {list.error && !list.waiting && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={() => setRefresh((n) => n + 1)} />}
       {data && (
         <>
           {claim && <div className="quiet-n" data-claim><Icon name="info" size={13} /><div><p>{claimText(claim.record_keys.length)}</p>

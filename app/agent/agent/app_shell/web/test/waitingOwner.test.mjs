@@ -19,3 +19,23 @@ test('the App root and the Home hub show the one waiting view for a refused read
   assert.match(app, /\{!admin && !page && hubWaiting && <WaitingForAccess waiting=\{hubWaiting\.detail\} onCheck=\{loadHub\} \/>\}/);
   assert.match(app, /\.catch\(\(e\) => \{ if \(mine === seq\.current\) setError\(e\); \}\);/, 'the hub keeps the error object, so its code survives');
 });
+
+test('the waiting view carries the one access action (grant with my permissions, copy the SQL, check again), not its own button (REQ-082)', () => {
+  const view = readFileSync(join(here, '..', 'src', 'WaitingForAccess.jsx'), 'utf8');
+  assert.match(view, /import \{ ACCESS_CHECKED, AccessActions \} from '\.\/ui\.jsx';/);
+  assert.match(view, /const actions = <AccessActions \/>;/);
+  assert.doesNotMatch(view, /data-check-again/, 'the view has no Check again button of its own');
+});
+
+test('Runs, Records, Alerts and Genie show the same waiting component when their read is refused (REQ-040, one implementation)', () => {
+  for (const name of ['Records.jsx', 'Alerts.jsx', 'Genie.jsx', 'Freshness.jsx']) {
+    const text = readFileSync(join(here, '..', 'src', name), 'utf8');
+    assert.match(text, /waitingOf/, `${name} keeps the waiting state of its refused read`);
+  }
+  assert.match(readFileSync(join(here, '..', 'src', 'Runs.jsx'), 'utf8'), /const \{ data, error, waiting, busy \} = runs;/, 'Runs reads the waiting state from its runs hook');
+  for (const name of ['Runs.jsx', 'Records.jsx', 'Alerts.jsx', 'Genie.jsx']) {
+    const text = readFileSync(join(here, '..', 'src', name), 'utf8');
+    assert.match(text, /<WaitingForAccess [^>]*compact/, `${name} renders the waiting component compact`);
+    assert.doesNotMatch(text, /WAITING_FOR_ACCESS_TITLE|waiting-access--/, `${name} does not restyle the waiting view itself`);
+  }
+});

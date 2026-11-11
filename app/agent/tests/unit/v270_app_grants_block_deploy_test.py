@@ -28,3 +28,9 @@ def test_a_fully_granted_new_app_deploys_with_no_block(agent_ns, sdk_stub):
     fields = inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
     assert fields["app_url"] == "https://churn-desk.example"
     assert any(method == "POST" and path.endswith("/deployments") for method, path, _body in calls)
+
+
+def test_the_build_policy_sentence_is_the_one_the_preflight_shows_for_the_same_identity_and_table(agent_ns):
+    denial = {"table": "main.s.orders", "principal": "amr@x", "label": "Amr", "statement": "", "owner": ""}
+    assert agent_ns["implement_abac_denied_sentence"](denial) == (
+        "Amr cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them")

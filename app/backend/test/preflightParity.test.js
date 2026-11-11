@@ -33,8 +33,10 @@ test('preflight refuses a source whose ABAC policies the App cannot read, even w
 });
 
 test('preflight offers the READ METADATA grant for a source the App cannot read the policies of, when the person can (must fail before the fix)', async () => {
-  const got = await preflight(baseOverrides({ abacUnreadable: true, forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE] },
-    me: { applicationId: 'app-sp-2', displayName: 'riverside-assets' } }));
+  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE] },
+    me: { applicationId: 'app-sp-2', displayName: 'riverside-assets' },
+    workspace: ({ token, path }) => (token !== PERSON && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)
+      ? [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403] : undefined) }));
   assert.equal(got.status, 200, JSON.stringify(got.data));
   assert.equal(got.data.checks.sources.ok, false);
   const offer = got.data.app_unreadable;
@@ -76,4 +78,17 @@ test('a built-in sample the App cannot read gets one plain sentence with the cop
   assert.deepEqual(offer.grants, []);
   assert.match(offer.text, /^samples\.bakehouse\.sales_transactions is in a built-in sample catalog that Databricks owns, so nobody can grant the App access to it: copy the table into a catalog you own with CREATE TABLE \.\.\. AS SELECT, and use the copy$/);
   assert.doesNotMatch(offer.text, /GRANT|PERMISSION_DENIED|READ METADATA/);
+});
+
+test('the preflight refuses when the person who starts the build cannot read a source policies, with the build\'s own sentence (REQ-037 parity, must fail before the fix)', async () => {
+  const got = await preflight({
+    useCase: { id: 'N01-U01', use_case: 'Assess water assets', primary_table: SOURCE, tables_involved: SOURCE },
+    tokenKind: 'app', forwardedToken: PERSON, me: { userName: 'amr@x', displayName: 'Amr' },
+    workspace: ({ token, path }) => (token === PERSON && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)
+      ? [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403] : undefined),
+  });
+  assert.equal(got.status, 200, JSON.stringify(got.data));
+  assert.equal(got.data.checks.sources.ok, false);
+  assert.equal(got.data.app_unreadable.text, 'Amr cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them');
+  assert.equal(got.data.app_unreadable.can_grant, false);
 });

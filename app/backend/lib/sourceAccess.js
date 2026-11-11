@@ -52,6 +52,14 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     const lost = probes.filter(Boolean);
     const person = P.personTokenOf(req);
     const policyLost = (await Promise.all(tables.map(async (t) => ((await abacUnreadable(req, app, t)) ? t : null)))).filter(Boolean);
+    const personPolicyLost = person && person !== app
+      ? (await Promise.all(tables.map(async (t) => ((await abacUnreadable(req, person, t)) ? t : null)))).filter(Boolean)
+      : [];
+    if (personPolicyLost.length) {
+      const label = (await appIdentity(req, person)).name;
+      return { missing: lost, app_unreadable: { tables: personPolicyLost, app: { name: '', id: '' }, grants: [], can_grant: false,
+        builtin: [], text: I.abacUnreadableSentence(label) } };
+    }
     if (!lost.length && !policyLost.length) return { missing: [], app_unreadable: null };
     if (!person || person === app) {
       if (!policyLost.length) return { missing: lost, app_unreadable: null };
