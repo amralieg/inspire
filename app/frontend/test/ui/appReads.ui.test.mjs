@@ -44,6 +44,7 @@ function grantsWorkspace(catalogMine) {
       forwardedToken: PERSON,
       tokenKind: 'app',
       abacUnreadable: true,
+      abacUnreadableAppOnly: true,
       workspace: ({ token, path }) => (path.includes('/scim/v2/Me')
         ? [token === 'tok' ? { displayName: 'inspire-manual', applicationId: SP } : { userName: 'owner@example.com', displayName: 'Owner' }]
         : undefined),
