@@ -120,16 +120,20 @@ def test_a_per_user_app_gets_a_service_principal_grant_only_on_the_table_it_reco
     spark = Catalog()
     _inst, fields = _deploy(agent_ns, spark, {"app_access": "user", "app_options": {"decisions": False}}, answers)
     assert fields["app_url"] == "https://churn-desk.example"
-    assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE"))] == _feedback_writes(agent_ns, fresh=True), \
+    ledger = agent_ns["inspire_shell_facts"].ledger_table("main.inspire")
+    assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE")) and ledger not in s] == _feedback_writes(agent_ns, fresh=True), \
         "a per-user App stores reported issues as its service principal, so the feedback table is all it gets"
     spark = Catalog()
     _inst, fields = _deploy(agent_ns, spark, {"app_access": "user"}, answers)
     assert "_warnings" not in fields
-    assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE"))] == [
+    ledger = agent_ns["inspire_shell_facts"].ledger_table("main.inspire")
+    assert [s for s in spark.statements if s.startswith(("GRANT", "CREATE TABLE", "DESCRIBE")) and ledger not in s] == [
         GRANT.format("USE CATALOG", "CATALOG `main`"), GRANT.format("USE SCHEMA", "SCHEMA `main`.`inspire`"),
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out`"), GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`")] + \
         _feedback_writes(agent_ns), \
         "a per-user App records decisions and reported issues as its service principal, so it gets the result and feedback tables only"
+    assert [s for s in spark.statements if ledger in s and s.startswith("CREATE TABLE")] and not [s for s in spark.statements if ledger in s and s.startswith("GRANT")], \
+        "the job identity creates the value ledger for a per-user App too, and grants it to no service principal"
 
 
 @pytest.mark.parametrize("fail,reason", [

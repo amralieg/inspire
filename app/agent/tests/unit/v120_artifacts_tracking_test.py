@@ -258,8 +258,8 @@ def test_inspire_database_identifier_is_quoted(agent_ns):
     obj = make_inspire(agent_ns, spark=spark, inspire_database="my-cat.my-schema")
     obj._ensure_inspire_database_exists()
     assert spark.statements == ["CREATE DATABASE IF NOT EXISTS `my-cat`.`my-schema`"]
-    assert agent_ns["quote_qualified_name"]("`a`.b.__c") == "`a`.`b`.`__c`"
-    assert agent_ns["quote_qualified_name"]("") == ""
+    assert agent_ns["inspire_quote_qualified_name"]("`a`.b.__c") == "`a`.`b`.`__c`"
+    assert agent_ns["inspire_quote_qualified_name"]("") == ""
 
 
 def test_step_payload_carries_quality_scores_and_elite_fields(agent_ns):

@@ -19,16 +19,16 @@ SCOPED_ORDERS = "(SELECT `order_id`, `customer_id`, `order_date` FROM `main`.`s`
 
 @pytest.fixture
 def scoped(agent_ns):
-    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["INSPIRE_TABLE_SCOPES"].clear()
     agent_ns["SCOPE_BYPASSES"].clear()
-    agent_ns["TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](SCOPE_JSON))
+    agent_ns["INSPIRE_TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](SCOPE_JSON))
     yield agent_ns
-    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["INSPIRE_TABLE_SCOPES"].clear()
     agent_ns["SCOPE_BYPASSES"].clear()
 
 
 def test_a_scope_names_the_columns_read_and_the_rows_kept_and_the_source_is_their_subquery(scoped):
-    scopes = scoped["TABLE_SCOPES"]
+    scopes = scoped["INSPIRE_TABLE_SCOPES"]
     entry = scopes["main.s.orders"]
     assert entry["columns"] == ["order_id", "customer_id", "order_date"]
     assert entry["source"] == SCOPED_ORDERS
@@ -105,7 +105,7 @@ def test_a_bypass_swallowed_by_a_check_still_fails_the_run_at_the_gate(scoped):
 
 
 def test_with_no_scope_the_gate_passes_every_read(agent_ns):
-    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["INSPIRE_TABLE_SCOPES"].clear()
     agent_ns["SCOPE_BYPASSES"].clear()
     sql = "SELECT COUNT(*) AS n FROM `main`.`s`.`orders`"
     assert agent_ns["assert_scoped_reads"](sql) == sql
@@ -139,7 +139,7 @@ def test_the_column_metadata_a_scoped_table_exposes_is_only_the_selected_columns
 
 
 def test_the_column_metadata_of_an_unscoped_table_is_untouched(agent_ns):
-    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["INSPIRE_TABLE_SCOPES"].clear()
     details = _details_loader(agent_ns, ORDER_COLUMNS)._get_table_details("main", "s", "orders", apply_sampling=False)
     assert [d[3] for d in details] == [n for n, _t in ORDER_COLUMNS]
 
@@ -233,15 +233,15 @@ def test_the_mvp_training_read_is_scoped_too(scoped):
 
 
 def test_a_table_without_a_scope_is_read_whole_by_the_mvp_helper(agent_ns):
-    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["INSPIRE_TABLE_SCOPES"].clear()
     calls = []
     agent_ns["inspire_read_source"]("main.s.customers", _ScopeSession(calls))
     assert calls == [("table", "`main`.`s`.`customers`")], calls
 
 
 def test_the_run_log_and_the_run_tables_report_a_columns_only_scope_as_scoped(scoped):
-    scoped["TABLE_SCOPES"].clear()
-    scoped["TABLE_SCOPES"].update(scoped["parse_table_scopes"](json.dumps({"main.s.orders": {"columns": ["order_id"], "rows": []}})))
+    scoped["INSPIRE_TABLE_SCOPES"].clear()
+    scoped["INSPIRE_TABLE_SCOPES"].update(scoped["parse_table_scopes"](json.dumps({"main.s.orders": {"columns": ["order_id"], "rows": []}})))
     log = {}
     ns_log = scoped.get("INSPIRE_RUN_LOG")
     scoped["INSPIRE_RUN_LOG"] = log
@@ -272,16 +272,16 @@ VIEW_SQL = ("CREATE OR REPLACE VIEW `main`.`insp`.`main_s_orders__scope` AS SELE
 
 @pytest.fixture
 def viewed(agent_ns):
-    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["INSPIRE_TABLE_SCOPES"].clear()
     agent_ns["SCOPE_BYPASSES"].clear()
-    agent_ns["TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](SCOPE_JSON, "main.insp"))
+    agent_ns["INSPIRE_TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](SCOPE_JSON, "main.insp"))
     yield agent_ns
-    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["INSPIRE_TABLE_SCOPES"].clear()
     agent_ns["SCOPE_BYPASSES"].clear()
 
 
 def test_one_scope_definition_builds_the_view_and_the_source_reads_the_view_once_it_exists(viewed):
-    scope = viewed["TABLE_SCOPES"]["main.s.orders"]
+    scope = viewed["INSPIRE_TABLE_SCOPES"]["main.s.orders"]
     assert scope["view_sql"] == VIEW_SQL, scope["view_sql"]
     assert viewed["scoped_source"]("main", "s", "orders") == SCOPED_ORDERS, "before the view exists, reads use the scoped subquery"
     spark = _RecordingSpark()
@@ -303,19 +303,19 @@ def test_the_genie_space_reads_the_view_and_a_base_table_is_refused(viewed):
 
 
 def test_a_view_is_never_created_without_a_database_and_the_gate_still_refuses_the_base_table(agent_ns):
-    agent_ns["TABLE_SCOPES"].clear()
-    agent_ns["TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](SCOPE_JSON))
+    agent_ns["INSPIRE_TABLE_SCOPES"].clear()
+    agent_ns["INSPIRE_TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](SCOPE_JSON))
     try:
         with pytest.raises(agent_ns["ScopeBypassError"]):
             agent_ns["scope_genie_space"]({"data_sources": {"tables": [{"identifier": "main.s.orders"}]}}, _RecordingSpark())
     finally:
-        agent_ns["TABLE_SCOPES"].clear()
+        agent_ns["INSPIRE_TABLE_SCOPES"].clear()
         agent_ns["SCOPE_BYPASSES"].clear()
 
 
 def test_the_metadata_drops_unselected_columns_and_the_foreign_keys_on_them(agent_ns):
-    agent_ns["TABLE_SCOPES"].clear()
-    agent_ns["TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](json.dumps({"main.s.orders": {"columns": ["order_id", "customer_id"], "rows": []}})))
+    agent_ns["INSPIRE_TABLE_SCOPES"].clear()
+    agent_ns["INSPIRE_TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](json.dumps({"main.s.orders": {"columns": ["order_id", "customer_id"], "rows": []}})))
     try:
         loader = _details_loader(agent_ns, ORDER_COLUMNS)
         loader.foreign_key_graph = defaultdict(list, {("main", "s", "orders"): [
@@ -326,7 +326,7 @@ def test_the_metadata_drops_unselected_columns_and_the_foreign_keys_on_them(agen
         assert [c["name"] for c in loader._table_columns[("main", "s", "orders")]] == ["order_id", "customer_id"]
         assert [r[3] for r in loader.foreign_key_graph[("main", "s", "orders")]] == ["customer_id"], "a key on an unselected column is gone"
     finally:
-        agent_ns["TABLE_SCOPES"].clear()
+        agent_ns["INSPIRE_TABLE_SCOPES"].clear()
 
 
 def test_every_use_case_on_a_scoped_table_states_the_scope_and_the_check_is_idempotent(viewed):
@@ -346,12 +346,12 @@ def test_dashboard_and_app_datasets_read_the_scope_view_and_a_base_table_is_refu
     assert viewed["scope_dataset_sql"](items, "the App") == []
     assert items[0]["sql"] == "SELECT COUNT(*) FROM `main`.`insp`.`main_s_orders__scope`"
     bad = [{"name": "d3", "sql": "SELECT * FROM `main`.`s`.`orders` o"}]
-    viewed["ready_backup"] = viewed["TABLE_SCOPES"]["main.s.orders"]["ready"]
-    viewed["TABLE_SCOPES"]["main.s.orders"]["ready"] = False
+    viewed["ready_backup"] = viewed["INSPIRE_TABLE_SCOPES"]["main.s.orders"]["ready"]
+    viewed["INSPIRE_TABLE_SCOPES"]["main.s.orders"]["ready"] = False
     try:
         problems = viewed["scope_dataset_sql"](bad, "the dashboard")
     finally:
-        viewed["TABLE_SCOPES"]["main.s.orders"]["ready"] = viewed["ready_backup"]
+        viewed["INSPIRE_TABLE_SCOPES"]["main.s.orders"]["ready"] = viewed["ready_backup"]
     assert problems and "dashboard dataset d3 reads main.s.orders" in problems[0]
 
 
@@ -403,17 +403,17 @@ def test_an_app_whose_second_page_reads_a_scoped_base_table_is_refused_and_a_vie
     assert kept == [ok_page, bad_page]
     assert bad_page["datasets"][0]["sql"] == "SELECT COUNT(*) FROM `main`.`insp`.`main_s_orders__scope`"
     fresh = {"id": "p2", "datasets": [{"name": "d2", "sql": "SELECT COUNT(*) FROM main.s.orders"}]}
-    viewed["TABLE_SCOPES"]["main.s.orders"]["ready"] = False
+    viewed["INSPIRE_TABLE_SCOPES"]["main.s.orders"]["ready"] = False
     try:
         with pytest.raises(viewed["ScopeBypassError"], match="the App page p2 dataset d2 reads main.s.orders"):
             viewed["scope_app_pages"]([ok_page, fresh], main_page)
     finally:
-        viewed["TABLE_SCOPES"]["main.s.orders"]["ready"] = True
+        viewed["INSPIRE_TABLE_SCOPES"]["main.s.orders"]["ready"] = True
 
 
 def test_the_app_data_note_names_each_scoped_table_with_its_columns_and_rows(viewed):
     note = viewed["scope_data_note"]()
     assert note == ("This App reads only the scope of main.s.orders: columns order_id, customer_id, order_date, "
                     "rows where `status` = gold.")
-    viewed["TABLE_SCOPES"].clear()
+    viewed["INSPIRE_TABLE_SCOPES"].clear()
     assert viewed["scope_data_note"]() == ""
