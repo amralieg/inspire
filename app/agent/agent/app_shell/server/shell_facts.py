@@ -636,6 +636,7 @@ LEDGER_COLUMNS = (("session_id", "STRING"), ("result_table", "STRING"), ("use_ca
                   ("record_key", "STRING"), ("kind", "STRING"), ("currency", "STRING"), ("unit", "STRING"), ("at_stake", "DOUBLE"),
                   ("saved", "DOUBLE"), ("recorded_at", "TIMESTAMP"), ("recorded_by", "STRING"))
 LEDGER_NAMES = tuple(name for name, _kind in LEDGER_COLUMNS)
+LEDGER_COLUMNS_DDL = ", ".join(f"`{name}` {kind}" for name, kind in LEDGER_COLUMNS)
 
 
 def ledger_table(inspire_database: str) -> str:
@@ -655,8 +656,7 @@ def ledger_literal(value) -> str:
 
 
 def ledger_create_sql(table: str) -> str:
-    columns = ", ".join(f"`{name}` {kind}" for name, kind in LEDGER_COLUMNS)
-    return f"CREATE TABLE IF NOT EXISTS {table} ({columns})"
+    return f"CREATE TABLE IF NOT EXISTS {table} ({LEDGER_COLUMNS_DDL})"
 
 
 LEDGER_GRANTS = ("SELECT", "MODIFY")

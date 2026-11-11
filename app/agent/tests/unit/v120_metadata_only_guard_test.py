@@ -17,6 +17,7 @@ import base64
 import json
 import os
 import re
+import functools
 import zlib
 
 import pytest
@@ -329,6 +330,24 @@ def statement_targets(sql):
     return targets
 
 
+AGGREGATE_PROBE_BUILDER = "implement_aggregate_probe_sql"
+AGGREGATE_PROBE_SHAPE = re.compile(r"^SELECT COUNT\(DISTINCT r\.\{[^{}]+\}\) AS outside FROM \{[^{}]+\} AS r LEFT ANTI JOIN \{[^{}]+\} AS s "
+                                   r"ON r\.\{[^{}]+\} = s\.\{[^{}]+\} WHERE r\.\{[^{}]+\} IS NOT NULL$")
+
+
+@functools.lru_cache(maxsize=None)
+def owned_name_builders():
+    """The one registry of Inspire-owned names: the notebook constant INSPIRE_OWNED_NAME_BUILDERS, read from its source."""
+    found = re.search(r"^INSPIRE_OWNED_NAME_BUILDERS = (\(.*\))$", agent_source(), re.M)
+    if not found:
+        raise AssertionError("the notebook names no INSPIRE_OWNED_NAME_BUILDERS registry")
+    return tuple(ast.literal_eval(found.group(1)))
+
+
+def is_aggregate_probe(arg):
+    return isinstance(arg, ast.Call) and isinstance(arg.func, ast.Name) and arg.func.id == AGGREGATE_PROBE_BUILDER
+
+
 def classify_target(target):
     plain = re.sub(r"\s+", "", target.replace("`", ""))
     if re.search(r"(^|\.)information_schema\.", plain, re.I):
@@ -338,6 +357,8 @@ def classify_target(target):
     if re.search(r"(^|\.)system\.access\.table_lineage$", plain, re.I):
         return "system_lineage"
     if OWNED_PLACEHOLDER.search(target):
+        return "inspire_owned"
+    if any(re.search(rf"(?<!\w){re.escape(name)}\(", target) for name in owned_name_builders()):
         return "inspire_owned"
     if re.match(r"^(_{1,2}inspire_|_ailogs$)", plain.split(".")[-1], re.I):
         return "inspire_owned"
@@ -384,7 +405,7 @@ def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None)
     add_shell_builders(index)
     runs = (lambda lineno: True) if scope is None else (lambda lineno: scope(lineno)[0])
     implement = (lambda lineno: None) if scope is None else (lambda lineno: scope(lineno)[1])
-    executed, unresolved, owned = [], [], []
+    executed, unresolved, owned, probe_bad = [], [], [], []
     for call, arg in index.sql_calls():
         if not runs(call.lineno):
             continue
@@ -392,12 +413,18 @@ def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None)
         templates, reasons = index.resolve(arg, scope_node)
         for template in templates:
             executed.append((call.lineno, template))
+            if is_aggregate_probe(arg):
+                if not AGGREGATE_PROBE_SHAPE.match(" ".join(template.split())):
+                    probe_bad.append((call.lineno, "probe", template, " ".join(template.split())[:160]))
+                continue
             owned.append((call.lineno, template, index.enclosing_class(call), scope_node.name if scope_node else ""))
         if reasons and not templates:
             unresolved.append((call.lineno, scope_node.name if scope_node else "<module>", ast.unparse(call)[:120], reasons))
-    bad, deep_reads, implement_reads = [], [], []
+    bad, deep_reads, implement_reads = list(probe_bad), [], []
     literals = [entry for entry in index.sql_literals() if runs(entry[0])]
     for lineno, sql, owner, function in owned + literals:
+        if function == AGGREGATE_PROBE_BUILDER:
+            continue
         for kind, target in violations_in(sql):
             entry = (lineno, kind, target, " ".join(sql.split())[:160])
             if implement_permits(function, kind, target, sql, implement(lineno)):
@@ -1019,3 +1046,35 @@ def test_guard_accepts_a_result_read_and_a_zero_row_probe_only_implement_code_re
 def test_only_qualified_postgres_catalog_reads_count_as_metadata(target, expected):
     assert classify_target(target) == expected
     assert violations_in(f"SELECT 1 FROM {target}") == ([] if expected else [("read", target)])
+
+
+PROBE_ANCHOR = "def implement_key_values(spark, key: dict):\n"
+
+
+@pytest.mark.parametrize("line,target", [
+    ('    spark.sql(f"SELECT {named} FROM {inspire_table_name(source_table)}").collect()\n', "{inspire_table_name(source_table)}"),
+    ('    spark.sql(f"SELECT count(*) AS n FROM {inspire_table_name(source_table)}").collect()\n', "{inspire_table_name(source_table)}"),
+    ('    spark.sql(f"SELECT {named}, count(*) AS n FROM {inspire_table_name(source_table)} GROUP BY {named}").collect()\n',
+     "{inspire_table_name(source_table)}"),
+])
+def test_an_aggregate_built_outside_the_probe_helper_or_a_value_read_still_fails_the_guard(line, target):
+    source = agent_source()
+    assert source.count(PROBE_ANCHOR) == 1
+    _, _, bad, _ = audit(source.replace(PROBE_ANCHOR, PROBE_ANCHOR + line))
+    assert any(t == target for _, _, t, _ in bad), bad
+
+
+def test_the_probe_helper_is_the_only_sql_the_key_check_may_send_to_a_user_table():
+    source = agent_source()
+    _, _, bad, _ = audit(source)
+    assert not [entry for entry in bad if "source_table" in entry[2]], bad
+    broken = source.replace("LEFT ANTI JOIN {inspire_table_name(source_table)} AS s", "LEFT ANTI JOIN {inspire_table_name(source_table)} AS s, {named} AS v", 1)
+    assert broken != source
+    _, _, probe_bad, _ = audit(broken)
+    assert any(kind == "probe" for _, kind, _, _ in probe_bad), probe_bad
+
+
+def test_a_user_table_read_is_not_owned_by_name():
+    assert "inspire_table_name" not in owned_name_builders()
+    assert classify_target("{inspire_table_name(source_table)}") is None
+    assert classify_target("{inspire_owned_table(stale)}") == "inspire_owned"

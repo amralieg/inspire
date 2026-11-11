@@ -106,9 +106,9 @@ class _Counting:
 
 def test_the_value_check_is_one_bounded_sql_over_the_distinct_key_values(agent_ns):
     key = {"table": SOURCE, "column": "region", "result_table": RESULT}
-    sql = agent_ns["implement_key_subset_sql"](RESULT, SOURCE, "region")
-    assert sql == ("SELECT count(*) AS outside FROM (SELECT DISTINCT `region` FROM `main`.`inspire`.`churn_out` WHERE `region` IS NOT NULL "
-                   "EXCEPT SELECT DISTINCT `region` FROM `main`.`sales`.`orders`)")
+    sql = agent_ns["implement_aggregate_probe_sql"](RESULT, SOURCE, "region")
+    assert sql == ("SELECT COUNT(DISTINCT r.`region`) AS outside FROM `main`.`inspire`.`churn_out` AS r "
+                   "LEFT ANTI JOIN `main`.`sales`.`orders` AS s ON r.`region` = s.`region` WHERE r.`region` IS NOT NULL")
     assert agent_ns["implement_key_values"](_Counting(outside=0), key) is None
 
 
