@@ -14,6 +14,7 @@ import {
   priorityPillClass,
 } from '../lib/useCaseFields';
 import ValueEstimateLine from './ValueEstimateLine';
+import ValueBadge from './ValueBadge';
 
 const s = (v) => (v == null ? '' : String(v));
 
@@ -30,6 +31,7 @@ export default function UseCaseCard({
   notebookUrl = '',
   v130 = null,
   feedbackCurrent,
+  useCaseValue = null,
   ...detailProps
 }) {
   const card = uc && typeof uc === 'object' ? uc : null;
@@ -96,6 +98,9 @@ export default function UseCaseCard({
                 )}
                 <QualityBarReason uc={u} className="mt-1" />
                 <ValueEstimateLine uc={u} className="mt-1" />
+                {useCaseValue && (
+                  <ValueBadge atStake={useCaseValue.at_stake} saved={useCaseValue.saved} measured={useCaseValue.measured} className="mt-2" />
+                )}
               </div>
               <InspireScoreBadge score={inspireScoreNum} />
             </div>
