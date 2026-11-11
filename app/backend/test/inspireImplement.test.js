@@ -368,6 +368,16 @@ test('job parameters target one use case and survive the widget allowlist', () =
   assert.equal(params.bogus, undefined);
 });
 
+test('an Implement job never inherits a docs JSON path from the session row, so it cannot switch to docs-only mode (must-exclude)', () => {
+  const { notebookParamsFromSessionForGenerateRun } = require('../lib/inspireSessionParams');
+  const session = { business_name: 'Acme', inspire_database_name: 'main.inspire', json_file_path: '/Workspace/Users/a/docs/acme.json', tables_str: 'main.s.orders' };
+  const params = implementJobParams(notebookParamsFromSessionForGenerateRun(session, '42'), 'N01-U01', 2);
+  assert.equal(params['15_operation'], 'Implement Use Cases');
+  assert.equal(params['01_uc_metadata'], '', 'Implement names its own tables, so a leftover docs path must not reach the job');
+  assert.equal(notebookParamsFromSessionForGenerateRun(session, '42')['01_uc_metadata'], '/Workspace/Users/a/docs/acme.json',
+    'the Generate run keeps the docs path it was built from');
+});
+
 test('the insert records the change classes as a bound parameter', () => {
   const insert = implementInsertStatement('`c`.`s`.`__inspire_implement`', {
     sessionId: '42', useCaseId: 'N01-U01', specVersion: 2, basedOnVersion: 1, spec: { a: 1 },
