@@ -7,7 +7,7 @@ const TABLE = 'main.pricing.items';
 const UNREAD = { [TABLE]: ['GRANT SELECT ON TABLE `main`.`pricing`.`items` TO `sp-1`'] };
 const OWNERS = { [TABLE]: 'data-eng' };
 const GRANTS = ['GRANT USE SCHEMA ON SCHEMA `main`.`pricing` TO `sp-1`', 'GRANT SELECT ON TABLE `main`.`pricing`.`items` TO `sp-1`'];
-const FOUND = { tables: [{ table: TABLE, owner: 'data-eng', grants: GRANTS }], can_grant: true, sql: GRANTS.map((g) => `${g};`).join('\n'), seen: 'a'.repeat(64) };
+const FOUND = { tables: [{ table: TABLE, owner: 'data-eng', grants: GRANTS, you_can_grant: true }], can_grant: true, you_can_grant: true, sql: GRANTS.map((g) => `${g};`).join('\n'), seen: 'a'.repeat(64) };
 const CLEAR = { tables: [], can_grant: false, sql: '', seen: 'b'.repeat(64) };
 const EVIL = 'GRANT ALL PRIVILEGES ON CATALOG `main` TO `attacker`';
 
@@ -128,6 +128,20 @@ test('Genie answers why there is no data with the banner\'s own buttons, and its
     await card.getByText('You granted 2 read permissions to this App.').waitFor();
     await until(() => seen.pages.length > asked, 10000);
     await page.locator('[data-no-access-banner]').waitFor({ state: 'detached' });
+  } finally {
+    await context.close();
+  }
+});
+
+test('a person who cannot grant sees Copy the grant SQL and the owner, and no grant button (REQ-082)', async () => {
+  const cannot = { ...FOUND, tables: [{ ...FOUND.tables[0], you_can_grant: false }], you_can_grant: false };
+  const routes = { access: ({ route, json }) => json(200, cannot) };
+  const { page, context } = await openApp(browser, served.base, appInfo({ unread: UNREAD, unread_owners: OWNERS }), { errors: { 'chart:pareto': `No access to ${TABLE}` }, routes });
+  try {
+    const banner = page.locator('[data-no-access-banner]');
+    await banner.getByRole('button', { name: 'Copy the grant SQL' }).waitFor();
+    assert.equal(await banner.getByRole('button', { name: 'Grant access with my permissions' }).count(), 0, 'no grant button the person cannot use');
+    assert.match(await banner.locator('[data-access-hint]').innerText(), /You cannot grant this access yourself.*data-eng/);
   } finally {
     await context.close();
   }

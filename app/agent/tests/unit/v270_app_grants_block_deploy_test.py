@@ -34,3 +34,9 @@ def test_the_build_policy_sentence_is_the_one_the_preflight_shows_for_the_same_i
     denial = {"table": "main.s.orders", "principal": "amr@x", "label": "Amr", "statement": "", "owner": ""}
     assert agent_ns["implement_abac_denied_sentence"](denial) == (
         "Amr cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them")
+
+
+def test_the_build_app_principal_sentence_is_the_one_the_App_side_refusal_shows(agent_ns):
+    denial = {"table": "main.s.orders", "principal": "app-sp-2", "label": "riverside-assets", "statement": "", "owner": ""}
+    assert agent_ns["implement_abac_denied_sentence"](denial) == (
+        "The App's service principal riverside-assets cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them")

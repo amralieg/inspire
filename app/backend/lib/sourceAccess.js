@@ -80,7 +80,8 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     }
     const rows = await Promise.all(grantable.map((t) => accessRowsOf(req, person, warehouseId, t)));
     const offer = I.appReadGrantsOffer(grantable, grantable.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs: I.IMPLEMENT_SOURCE_NEEDS })), who);
-    const text = I.appUnreadableMessage(offer, job) + (builtIn.length ? `. ${I.builtInSampleMessage(builtIn)}` : '');
+    const policy = policyLost.length ? `${I.abacUnreadableSentence(who.name || who.id, { app: true })}. ` : '';
+    const text = policy + I.appUnreadableMessage(offer, job) + (builtIn.length ? `. ${I.builtInSampleMessage(builtIn)}` : '');
     return { missing, app_unreadable: { ...offer, builtin: builtIn, text } };
   }
 

@@ -165,10 +165,13 @@ export function AccessActions({ access: given }) {
         </span>
       ) : (
         <span className="access-buttons">
-          {access?.can_grant && <button type="button" className="btn btn--pri" disabled={busy} onClick={() => setPhase('confirm')}>Grant access with my permissions</button>}
+          {access?.you_can_grant && <button type="button" className="btn btn--pri" disabled={busy} onClick={() => setPhase('confirm')}>Grant access with my permissions</button>}
           {access?.sql && <button type="button" className="btn" disabled={busy} onClick={copy}>Copy the grant SQL</button>}
           <button type="button" className="btn" disabled={busy} onClick={check}>Check again</button>
         </span>
+      )}
+      {access?.can_grant && !access.you_can_grant && !note && (
+        <small data-access-hint="">You cannot grant this access yourself, because you neither own the data nor hold MANAGE on it. Copy the grant SQL and send it to {access.tables.map((t) => t.owner).filter(Boolean).join(' or ') || 'the owner of that data'}.</small>
       )}
       {note && <small role="status" data-access-note="">{note}</small>}
       {error && <PlainNote text={error} as="small" className="g-err" role="alert" data-access-error="" />}

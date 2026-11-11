@@ -3014,8 +3014,10 @@ function builtInSampleMessage(tables) {
     + `copy ${one ? 'the table' : 'each table'} into a catalog you own with CREATE TABLE ... AS SELECT, and use the ${one ? 'copy' : 'copies'}`;
 }
 
-function abacUnreadableSentence(label) {
-  return `${str(label).trim() || 'The build'} cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them`;
+function abacUnreadableSentence(label, { app = false } = {}) {
+  const name = str(label).trim();
+  const who = app ? `The App's service principal ${name}` : (name || 'The build');
+  return `${who} cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them`;
 }
 
 function appReadGrantsOffer(tables, plans, app) {
