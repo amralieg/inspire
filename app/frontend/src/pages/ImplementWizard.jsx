@@ -1,6 +1,7 @@
 import { splitTechnical } from '../lib/plainText';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MONEY_PARTS } from '../lib/moneyParts.js';
 import { Check, Loader2, NotebookPen, X, ChevronLeft, ChevronRight, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
 import BodyPortal from '../components/BodyPortal';
 import VibesEditor, { VibePrevious } from '../components/VibesEditor';
@@ -402,6 +403,8 @@ function CheckLine({ check, label }) {
   );
 }
 
+const MONEY_PART_LABEL = { method: 'How it is found', direction: 'Which movement counts', currency: 'Currency', window: 'Periods and statuses', off: 'Turn it off' };
+
 export default function ImplementWizard({
   uc,
   sessionId,
@@ -429,6 +432,7 @@ export default function ImplementWizard({
   const [checking, setChecking] = useState('');
   const [advanced, setAdvanced] = useState({ data: false, results: false, fresh: false, delivery: false, app_place: false, app_access: false, app_options: false, app_pages: false, summary: false });
   const [details, setDetails] = useState(false);
+  const [moneyPart, setMoneyPart] = useState(0);
   const [lookView, setLookView] = useState({ tab: 'style', page: 'fix' });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
   const [columnsByTable, setColumnsByTable] = useState({});
@@ -528,6 +532,9 @@ export default function ImplementWizard({
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
   const shows = (panel) => steps[stepIndex].panels.includes(panel);
+  const moneyParts = spec.money?.off ? ['off'] : [...MONEY_PARTS.filter((p) => p !== 'off'), 'off'];
+  const moneyActive = Math.min(moneyPart, moneyParts.length - 1);
+  useEffect(() => { if (steps[stepIndex].id === 'stake') setMoneyPart(0); }, [stepIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   const resultsOn = shows('results');
   useEffect(() => {
     if (!context || !scopeSteps.grouping || context.latest || groupingDefaulted.current) return;
@@ -772,6 +779,7 @@ export default function ImplementWizard({
 
   const goNext = async () => {
     setErrors([]);
+    if (stepId === 'stake' && moneyActive < moneyParts.length - 1) { setMoneyPart(moneyActive + 1); return; }
     if (mode === 'notebook') {
       setStep(steps[stepIndex + 1].id);
       return;
@@ -1862,7 +1870,19 @@ export default function ImplementWizard({
               <h3 className="text-sm font-semibold text-text-primary">Money at stake</h3>
               <p className="text-[11px] text-text-secondary">{`Each record is counted in the ${stakeWords(sampleStake)}. Choose how the money totals are worked out.`}</p>
             </div>
-            <MoneyRuleEditor value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
+            <ol aria-label="Money decisions" className="flex flex-wrap gap-x-1 gap-y-1 text-[11px]">
+              {moneyParts.map((p, i) => (
+                <li key={p} data-money-current={i === moneyActive ? '' : undefined}
+                  className={`rounded-full ${i === moneyActive ? 'bg-db-red-50 text-db-red-fg font-semibold' : i < moneyActive ? 'text-text-primary' : 'text-text-tertiary'}`}>
+                  <button type="button" data-money-part={p} disabled={i > moneyActive} onClick={() => setMoneyPart(i)} className="px-2 py-1 glow-focus disabled:cursor-default">{i + 1}. {MONEY_PART_LABEL[p]}</button>
+                </li>
+              ))}
+            </ol>
+            <MoneyRuleEditor part={moneyParts[moneyActive]} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
+            <div className="flex items-center justify-between pt-1">
+              {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
+              {moneyActive < moneyParts.length - 1 && <button type="button" data-money-next="" onClick={() => setMoneyPart(moneyActive + 1)} className="text-xs font-medium text-db-red-fg">Next decision</button>}
+            </div>
           </section>
         )}
 
@@ -2098,7 +2118,7 @@ export default function ImplementWizard({
             type="button"
             className={`inline-flex items-center gap-1 text-xs text-text-secondary ${stepIndex === 0 ? 'invisible' : ''}`}
             disabled={stepIndex === 0 || busy}
-            onClick={() => { setErrors([]); setStep(steps[stepIndex - 1].id); }}
+            onClick={() => { setErrors([]); if (stepId === 'stake' && moneyActive > 0) setMoneyPart(moneyActive - 1); else setStep(steps[stepIndex - 1].id); }}
           >
             <ChevronLeft size={14} /> Back
           </button>
