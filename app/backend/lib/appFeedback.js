@@ -36,15 +36,15 @@ function feedbackTable(resultTable) {
   return quoteTable(`${String(resultTable).trim()}${FEEDBACK_SUFFIX}`);
 }
 
-function appFeedbackKey({ appName, useCaseId, hosted }) {
-  const name = hosted || !appName ? useCaseId : appName;
+function appFeedbackKey({ appName, useCaseId }) {
+  const name = appName || useCaseId;
   return str(name).toLowerCase().replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '');
 }
 
-function appFeedbackTable({ database, appName, useCaseId, hosted }) {
+function appFeedbackTable({ database, appName, useCaseId }) {
   const parts = str(database).trim().split('.');
   if (parts.length !== 2 || parts.some((p) => !p)) throw badRequest('the Inspire database must be catalog.schema');
-  const key = appFeedbackKey({ appName, useCaseId, hosted });
+  const key = appFeedbackKey({ appName, useCaseId });
   if (!key) throw badRequest('the App needs a name or a use case id before it can keep reported issues');
   return quoteTable(`${parts[0]}.${parts[1]}.${APP_FEEDBACK_PREFIX}${key}`);
 }

@@ -137,8 +137,12 @@ USE_CASE_OWNERS_MAX = OWNERS_MAX + 1
 NOTE_CHARS = 300
 FEEDBACK_SECTIONS = ("dashboard", "work", "performance", "runs", "alerts", "settings")
 FEEDBACK_WINDOW_S = 3600.0
-NO_FEEDBACK = ("Reports cannot be saved for this App yet, because it was built before it kept reported issues. Send the report to its owner, "
-               "or through Inspire's Build page for this use case, where the owner can rebuild the App so it keeps them")
+REPORTS_WHERE = "Your report goes to the owner of this use case, who sees it on its Build page in Inspire."
+NO_FEEDBACK = ("Reports cannot be saved for this App yet, because it was built before it kept reported issues. Send the report to the owner "
+               "of this use case, or through Inspire's Build page for it, where the owner can rebuild the App so it keeps them")
+def reports_view(page: dict, feedback_table: str) -> dict:
+    ready = bool(page.get("result_table") or feedback_table)
+    return {"ready": ready, "note": "" if ready else NO_FEEDBACK, "where": REPORTS_WHERE}
 NO_MONEY = f"this page puts no {shell_sql.stake_words(None)} on its records"
 NO_SETTINGS = "this use case has no settings the App can change"
 PREVIEW_UNACCEPTED = ("The next run works out which records this moves: no model passed acceptance in the last run, so every "
@@ -2398,7 +2402,8 @@ class Shell:
     def app_info(self, headers: dict) -> dict:
         s = self.settings
         host = self.host()
-        pages = [dict(public_page(p, self.tour_gaps(p)), genie=self.genie_info(p, host), is_owner=bool(self.signed_in(headers) & self.page_editors(p)))
+        pages = [dict(public_page(p, self.tour_gaps(p)), genie=self.genie_info(p, host), is_owner=bool(self.signed_in(headers) & self.page_editors(p)),
+                      reports=reports_view(p, self.settings.get("feedback_table", "")))
                  for p in (self.with_saved_money(page) for page in self.pages)]
         answering = any(p["genie"]["enabled"] for p in pages)
         genie = (pages[0]["genie"] if len(pages) == 1 else

@@ -251,23 +251,20 @@ test('a report from the App-level table is changed in that table, so a result-le
   });
 });
 
-test('each App has its own reports table, named from the App name, and an App placed inside Inspire is named by its use case', () => {
-  assert.equal(FB.appFeedbackTable({ database: 'main.inspire', appName: 'churn-desk', useCaseId: 'N01-U01', hosted: false }), APP_TABLE);
-  assert.equal(FB.appFeedbackTable({ database: 'main.inspire', appName: 'churn-desk', useCaseId: 'N01-U01', hosted: true }),
-    '`main`.`inspire`.`__inspire_app_feedback_n01_u01`');
-  assert.equal(FB.appFeedbackTable({ database: 'main.inspire', appName: '', useCaseId: 'N01-U01', hosted: false }),
+test('each App has its own reports table, named from the implement row app name, and an App without a name is named by its use case', () => {
+  assert.equal(FB.appFeedbackTable({ database: 'main.inspire', appName: 'churn-desk', useCaseId: 'N01-U01' }), APP_TABLE);
+  assert.equal(FB.appFeedbackTable({ database: 'main.inspire', appName: '', useCaseId: 'N01-U01' }),
     '`main`.`inspire`.`__inspire_app_feedback_n01_u01`');
   assert.throws(() => FB.appFeedbackTable({ database: 'main', appName: 'churn-desk', useCaseId: 'N01-U01' }), /catalog.schema/);
   assert.throws(() => FB.appFeedbackTable({ database: 'main..', appName: 'churn-desk', useCaseId: 'N01-U01' }), /catalog.schema/);
   assert.throws(() => FB.appFeedbackTable({ database: 'main.inspire', appName: '', useCaseId: '' }), /needs a name or a use case id/);
 });
 
-test('the table key is the same rule the notebook uses: lowercase, anything else but a-z0-9 becomes one underscore', () => {
-  const key = (appName, useCaseId, hosted) => FB.appFeedbackKey({ appName, useCaseId, hosted });
-  assert.equal(key('churn-desk', 'N01-U01', false), 'churn_desk');
-  assert.equal(key('Churn--Desk 2', 'N01-U01', false), 'churn_desk_2');
-  assert.equal(key('churn-desk', 'N01-U01', true), 'n01_u01');
-  assert.equal(key('', 'N09-U03', false), 'n09_u03');
+test('the table key is the one rule the notebook uses: lowercase, each run of other characters is one underscore, the App name first', () => {
+  const key = (appName, useCaseId) => FB.appFeedbackKey({ appName, useCaseId });
+  assert.equal(key('churn-desk', 'N01-U01'), 'churn_desk');
+  assert.equal(key('Churn--Desk 2', 'N01-U01'), 'churn_desk_2');
+  assert.equal(key('', 'N09-U03'), 'n09_u03');
 });
 
 test('the reports of both tables merge with open ones first and each group newest first', () => {

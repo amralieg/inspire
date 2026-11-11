@@ -1543,8 +1543,7 @@ function registerImplementRoutes(app, deps) {
     const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
     const [history, person] = await Promise.all([loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId), personOf(req)]);
     const table = String(history[0]?.spec_json?.config?.result_table || '').trim();
-    const hosted = String(history[0]?.spec_json?.outputs?.app_placement || '') === 'inspire';
-    const appTable = FB.appFeedbackTable({ database: `${catalog}.${schema}`, appName: history[0]?.app_name, useCaseId, hosted });
+    const appTable = FB.appFeedbackTable({ database: `${catalog}.${schema}`, appName: history[0]?.app_name, useCaseId });
     const before = I.previousBuilt(history);
     const refused = before ? I.implementSettingsOwnerRefusal(before, person.username) : { status: 409, message: I.IMPLEMENT_SETTINGS_NOT_BUILT };
     return { sid, warehouseId, catalog, schema, useCaseId, history, person, table, appTable, before, refused };

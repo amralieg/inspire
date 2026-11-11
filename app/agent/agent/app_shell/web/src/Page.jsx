@@ -274,7 +274,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <div className="ph-tools" data-section-tools>
           <FreshBar freshness={freshness}>
             {shown !== 'settings' && <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />}
-            {shown !== 'feedback' && shown !== 'reports' && <Suspense fallback={null}><FeedbackButton pageId={page.id} context={report} sections={sections} /></Suspense>}
+            {shown !== 'feedback' && shown !== 'reports' && <Suspense fallback={null}><FeedbackButton pageId={page.id} context={report} sections={sections} reports={page.reports} /></Suspense>}
           </FreshBar>
         </div>
       </div>
@@ -348,14 +348,14 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       )}
       {shown === 'alerts' && <Suspense fallback={<Waiting />}><Alerts app={app} page={page} meta={meta} compose={compose} onComposed={composed} /></Suspense>}
       {shown === 'impact' && <Suspense fallback={<Waiting />}><PromisedDelivered app={app} page={page} summary={summary} /></Suspense>}
-      {shown === 'feedback' && <Suspense fallback={<Waiting />}><FeedbackScreen pageId={page.id} context={report} sections={sections} /></Suspense>}
+      {shown === 'feedback' && <Suspense fallback={<Waiting />}><FeedbackScreen pageId={page.id} context={report} sections={sections} reports={page.reports} /></Suspense>}
       {shown === 'reports' && <Suspense fallback={<Waiting />}><ReportedIssues pageId={page.id} /></Suspense>}
       {shown === 'settings' && (
         <SettingsPanel pageId={page.id} data={settings} error={settingsError} onData={setSettings} onChanged={() => setNonce((n) => n + 1)} onRun={freshness.ask} running={freshness.busy}
           footer={(
             <SettingGroup id="feedback" title="App Feedback" why="Tell the owners of this use case what is wrong or what you would change. They see it on its Build page in Inspire.">
               <Suspense fallback={<Skeleton height={120} />}>
-                <FeedbackSettings pageId={page.id} context={{ ...report, section: 'settings' }} sections={sections} />
+                <FeedbackSettings pageId={page.id} context={{ ...report, section: 'settings' }} sections={sections} reports={page.reports} />
               </Suspense>
             </SettingGroup>
           )}>

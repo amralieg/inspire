@@ -49,7 +49,7 @@ test('an owner sees Impact, Feedback and Reported issues in the nav, and each op
   const items = await rail(page);
   assert.ok(items.includes('impact') && items.includes('feedback') && items.includes('reports'), `rail is ${items.join(', ')}`);
   await goRail(page, 'feedback');
-  await page.locator('[data-feedback-screen] [data-feedback-form]').waitFor();
+  await page.locator('[data-feedback-screen] [data-feedback-note]').waitFor();
   await goRail(page, 'reports');
   await page.locator('[data-reported-issues] [data-feedback-item="f1"]').waitFor();
   await goRail(page, 'impact');
@@ -80,15 +80,15 @@ test('Impact shows whenever the page has impact data, even with no promised text
   await context.close();
 });
 
-test('Report an issue opens the form on every page type, including a page with no results table', async () => {
+test('Report an issue opens on every page type; a page with no results table and no reports table says where to send the report', async () => {
   const info = appInfo({}, 1, { promised: PROMISED });
   const { page, context } = await openApp(browser, served.base, info);
   await page.locator('[data-feedback-open]').click();
-  await page.locator('[data-feedback-form]').waitFor();
+  await page.locator('[data-feedback-note]').waitFor();
   await page.keyboard.press('Escape');
   await goRail(page, 'impact');
   await page.locator('[data-section-title]', { hasText: 'Impact' }).waitFor();
   await page.locator('[data-feedback-open]').click();
-  await page.locator('[data-feedback-form]').first().waitFor();
+  await page.locator('[data-feedback-note]').first().waitFor();
   await context.close();
 });
