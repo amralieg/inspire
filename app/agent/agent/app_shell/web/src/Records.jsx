@@ -617,7 +617,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
   const quiet = quietList(rows, meta, aliases);
   const labelOf = (c) => {
     const row = rows.find((r) => keyOf(r) === String(c.record_key));
-    return row ? recordSentenceName(row, meta) : plainText(c.label ?? '') || 'This record';
+    return row ? recordSentenceName(row, meta) : plainText(c.label ?? '') || String(c.record_key ?? '');
   };
   const isNew = (r) => {
     const at = Number(r?._inspire_version) / 1000;
