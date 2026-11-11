@@ -41,5 +41,5 @@ def test_every_header_label_and_record_name_goes_through_the_one_formatter():
     assert "const chart = plainChart(given);" in _read("charts.js")
     assert "kpiText(kpi, data)" in _read("Kpis.jsx") and "wholeFormat(kpi.format, kpi.label, kpi.unit, kpi.id)" in _read("format.js")
     records = _read("Records.jsx")
-    assert "entityName(row, meta?.label)" in records
+    assert "export const recordName = (row, meta) => entityName(row, meta?.label);" in _read("records.js") and "recordName" in records
     assert not re.search(r"plainText\((r|row|doomed)\[meta\.label\]\)", records), "a record title shows its raw id"
