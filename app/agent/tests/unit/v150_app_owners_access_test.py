@@ -87,13 +87,16 @@ def test_a_shared_app_gets_select_and_modify_on_the_assumptions_table_it_writes(
     spark = Catalog()
     inst, fields = _deploy(agent_ns, spark)
     assert "_warnings" not in fields and fields["app_url"] == "https://churn-desk.example"
+    shell_facts = agent_ns["inspire_shell_facts"]
+    ledger = shell_facts.ledger_table("main.inspire")
+    ledger_sql = [shell_facts.ledger_create_sql(ledger)] + shell_facts.ledger_grant_sqls(ledger, "sp-1")
     assert _not_access_reads(spark.statements) == [
         GRANT.format("USE CATALOG", "CATALOG `main`"), GRANT.format("USE SCHEMA", "SCHEMA `main`.`inspire`"),
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out`"), GRANT.format("USE CATALOG", "CATALOG `main`"),
         GRANT.format("USE SCHEMA", "SCHEMA `main`.`s`"), GRANT.format("SELECT", "TABLE `main`.`s`.`orders`"),
         GRANT.format("READ METADATA", "TABLE `main`.`s`.`orders`"), GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out`"), "DESCRIBE TABLE `main`.`inspire`.`churn_out`", CREATE, "DESCRIBE TABLE `main`.`inspire`.`churn_out_assumptions`",
         GRANT.format("SELECT", "TABLE `main`.`inspire`.`churn_out_assumptions`"),
-        GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out_assumptions`")] + _feedback_writes(agent_ns), \
+        GRANT.format("MODIFY", "TABLE `main`.`inspire`.`churn_out_assumptions`")] + _feedback_writes(agent_ns) + ledger_sql, \
         "the assumptions and feedback tables are read after the result table's grants, so their catalog and schema are not granted again"
     reading = Catalog()
     _deploy(agent_ns, reading, {"app_options": {"modify": False, "decisions": False}})
@@ -105,8 +108,10 @@ def test_a_table_without_money_at_stake_gets_no_assumptions_table(agent_ns, sdk_
     spark = Catalog(schema=[("entity_id", "string"), ("priority_tier", "string")])
     _inst, fields = _deploy(agent_ns, spark, {"app_options": {"modify": False, "decisions": False}})
     assert "_warnings" not in fields
-    assert not any(s.startswith("CREATE TABLE") or "assumptions" in s or "MODIFY" in s for s in _without_feedback(spark.statements))
-    assert [s for s in spark.statements if s.startswith(("CREATE TABLE", "DESCRIBE TABLE `main`.`inspire`.`churn_out_f", "GRANT"))][-4:] == \
+    ledger = agent_ns["inspire_shell_facts"].ledger_table("main.inspire")
+    assert not any(s.startswith("CREATE TABLE") or "assumptions" in s or "MODIFY" in s for s in _without_feedback(spark.statements)
+                   if ledger not in s), "only the value ledger, which every App with a database gets, is created here"
+    assert [s for s in spark.statements if s.startswith(("CREATE TABLE", "DESCRIBE TABLE `main`.`inspire`.`churn_out_f", "GRANT")) and ledger not in s][-4:] == \
         _feedback_writes(agent_ns), "every App takes reported issues, so its feedback table is built and granted even with nothing at stake"
 
 
