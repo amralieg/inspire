@@ -44,6 +44,7 @@ function freshApp(rights) {
 test('a fresh App whose service principal cannot read its sources is granted automatically by the person who can grant, with no click', async () => {
   const { live, state } = freshApp({ rows: OWNS });
   state.abacUnreadable = true;
+  state.abacUnreadableAppOnly = true;
   const ui = await openUi('implement', state);
   const { page } = ui;
   try {
