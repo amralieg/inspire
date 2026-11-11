@@ -269,6 +269,6 @@ test('a person who cannot grant leaves the build needs-access: the App is kept, 
     assert.equal(got.data.app, SP);
     assert.deepEqual(got.data.tables[0].grants, RECORDED, 'the GRANTs stay listed, so the build view can copy them under Details');
     assert.equal(got.data.tables[0].owner, 'admins and data-eng', 'the owners are named');
-    assert.doesNotMatch(JSON.stringify(got.data), /amr@x|@databricks/, 'no internal email in the answer');
+    assert.doesNotMatch(JSON.stringify(got.data), /amr@x|[\w.+-]+@(?!example\.)[\w-]+\.[a-z]{2,}/i, 'no email but an example address in the answer');
   });
 });
