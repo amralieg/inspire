@@ -662,11 +662,14 @@ def ledger_create_sql(table: str) -> str:
 LEDGER_GRANTS = ("SELECT", "MODIFY")
 
 
+def quote_principal(principal) -> str:
+    return "`" + str(principal or "").strip().replace("`", "``") + "`"
+
+
 def ledger_grant_sqls(table: str, principal: str) -> list:
-    who = str(principal or "").strip()
-    if not who:
+    if not str(principal or "").strip():
         raise ValueError("the value ledger grant needs the App's service principal")
-    return [f"GRANT {privilege} ON TABLE {table} TO `{who.replace('`', '``')}`" for privilege in LEDGER_GRANTS]
+    return [f"GRANT {privilege} ON TABLE {table} TO {quote_principal(principal)}" for privilege in LEDGER_GRANTS]
 
 
 def ledger_stake_row(session_id, result_table, use_case_id, run_id, kind, currency, unit, at_stake, recorded_by="") -> dict:

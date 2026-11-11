@@ -398,17 +398,25 @@ def add_global_builders(index, source):
                 index.functions.setdefault(node.name, []).append(node)
 
 
-SHELL_SQL_PATH = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "agent", "app_shell", "server", "shell_sql.py")
+SERVER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "agent", "app_shell", "server")
+SHELL_SQL_PATH = os.path.join(SERVER_DIR, "shell_sql.py")
 SHELL_SQL_BUILDERS = ("siblings_query",)
+SHELL_FACTS_PATH = os.path.join(SERVER_DIR, "shell_facts.py")
+SHELL_FACTS_BUILDERS = ("ledger_grant_sqls",)
+
+
+def add_module_builders(index, path, names):
+    with open(path, encoding="utf-8") as handle:
+        tree = ast.parse(handle.read())
+    for node in tree.body:
+        if isinstance(node, ast.FunctionDef) and node.name in names:
+            index.functions.setdefault(node.name, []).append(node)
 
 
 def add_shell_builders(index):
-    """The notebook calls these shell_sql builders through modules["shell_sql"]; the guard reads them from the shipped module."""
-    with open(SHELL_SQL_PATH, encoding="utf-8") as handle:
-        tree = ast.parse(handle.read())
-    for node in tree.body:
-        if isinstance(node, ast.FunctionDef) and node.name in SHELL_SQL_BUILDERS:
-            index.functions.setdefault(node.name, []).append(node)
+    """The notebook calls these shell modules' builders through modules["shell_sql"] and inspire_shell_facts; the guard reads them from the shipped modules."""
+    add_module_builders(index, SHELL_SQL_PATH, SHELL_SQL_BUILDERS)
+    add_module_builders(index, SHELL_FACTS_PATH, SHELL_FACTS_BUILDERS)
 
 
 def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None):
@@ -779,6 +787,20 @@ def test_guard_flags_a_loop_variable_over_a_builder_that_returns_row_reads():
     assert not unresolved, unresolved
     flagged = {line for line, kind, target, _sql in bad if (kind, target) == ("read", "{table}")}
     assert set(_call_lines(leaky)) <= flagged, (bad, _call_lines(leaky))
+
+
+LEDGER_SHARE_SOURCE = '''
+def share_ledger(spark, table, client_id):
+    for statement in inspire_shell_facts.ledger_grant_sqls(table, client_id):
+        spark.sql(statement)
+'''
+
+
+def test_guard_follows_the_value_ledger_grant_builder_the_agent_reads_from_shell_facts():
+    executed, unresolved, bad, _frames = audit(LEDGER_SHARE_SOURCE)
+    assert not unresolved, unresolved
+    assert sorted(line for line, _sql in executed) == _call_lines(LEDGER_SHARE_SOURCE)
+    assert not bad, bad
 
 
 def test_guard_leaves_a_loop_over_an_unknown_sequence_unresolved():
