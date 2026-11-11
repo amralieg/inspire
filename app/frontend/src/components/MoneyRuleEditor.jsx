@@ -16,7 +16,7 @@ const METHODS = [
 ];
 const DIRECTIONS = [
   { id: 'losses', label: 'Losses only', hint: 'A loss counts, a gain counts as zero.' },
-  { id: 'gains', label: 'Gains only', hint: 'A gain counts, a loss counts as zero.' },
+  { id: 'gains', label: 'Gains only', hint: 'Needs a sign below: only the gain records count.' },
   { id: 'net', label: 'Losses and gains, netted', hint: 'Gains and losses cancel out inside each total.' },
 ];
 const SOURCE_TEXT = { today: 'today’s rate', average: 'ECB average, 2025', typed: 'typed in', base: 'reporting currency', missing: 'no rate yet, type it in' };
@@ -72,8 +72,9 @@ const shownAmount = (n) => Number(n).toLocaleString('en-US', { maximumFractionDi
 export function MoneyRuleEditor({ value, onChange, sample = null, table = '', columns = [], api = {}, part = null }) {
   const onlyPart = MONEY_PARTS.includes(part) ? part : null;
   const show = (name) => !onlyPart || onlyPart === name;
-  const [draft, setDraft] = useState(() => ({ ...draftOf({ currency: 'convert', base: value?.base || '', rates: value?.rates || {} }), mode: 'convert', rateSource: 'typed' }));
+  const [draft, setDraft] = useState(() => ({ ...draftOf({ ...(value || {}), currency: 'convert', base: value?.base || '', rates: value?.rates || {} }), mode: 'convert', rateSource: 'typed' }));
   const [pick, setPick] = useState(() => ({ ...pickOf(value?.value) }));
+  const [signPick, setSignPick] = useState(() => ({ kind: value?.sign?.kind || '', column: value?.sign?.column || '', value: value?.sign?.value || '' }));
   const [problems, setProblems] = useState([]);
   const [notice, setNotice] = useState('');
   const [preview, setPreview] = useState(null);
@@ -88,6 +89,13 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
     const all = [...found, ...picked.problems, ...gone.map((name) => `The column ${name} is not in this table, so the rule cannot use it.`)];
     setProblems(all);
     if (!all.length && rule) onChange(picked.value ? { ...rule, value: picked.value } : rule);
+  };
+  const pickSign = (patch) => {
+    const next = { ...signPick, ...patch };
+    setSignPick(next);
+    const column = next.column.trim();
+    const ready = COLUMN.test(column) && (next.kind === 'column' || (next.kind === 'status' && next.value.trim() !== ''));
+    setDraftPart({ sign: !ready ? null : next.kind === 'column' ? { kind: 'column', column } : { kind: 'status', column, value: next.value.trim() } });
   };
   const setDraftPart = (patch) => { const next = { ...draft, ...patch }; setDraft(next); save(next, pick); };
   const setPickPart = (patch) => { const next = { ...pick, ...patch }; setPick(next); save(draft, next); };
@@ -239,13 +247,34 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         <legend className="text-[13px] font-semibold text-text-primary">Which movement counts?</legend>
         {DIRECTIONS.map((d) => (
           <label key={d.id} className="flex items-start gap-2 cursor-pointer">
-            <input type="radio" name="measure-direction" className="mt-1" checked={(draft.rule || 'losses') === d.id} onChange={() => setDraftPart({ rule: d.id })} data-money-rule-kind={d.id} />
+            <input type="radio" name="measure-direction" className="mt-1" disabled={d.id === 'gains' && !draft.sign} checked={(draft.rule || 'losses') === d.id} onChange={() => setDraftPart({ rule: d.id })} data-money-rule-kind={d.id} />
             <span className="text-[12px]"><span className="font-medium text-text-primary">{d.label}</span><span className="block text-text-secondary">{d.hint}</span></span>
           </label>
         ))}
       </fieldset>
 
       </>)}
+        {show('direction') && (
+        <fieldset className="space-y-2 text-[12px]" data-measure-sign>
+          <legend className="text-[13px] font-semibold text-text-primary">Which records are gains?</legend>
+          <label className="flex items-start gap-2"><input type="radio" name="measure-sign" checked={signPick.kind === 'column'} onChange={() => setSignPick({ ...signPick, kind: 'column' })} data-money-sign-kind="column" /> <span>A column: its positive values are gains</span></label>
+          {signPick.kind === 'column' && (
+            <label className="block">Column <select className="ms-2" value={signPick.column} onChange={(e) => pickSign({ column: e.target.value })} data-money-sign-column>
+              <option value="">Pick a column</option>{columns.map((name) => <option key={name} value={name}>{name}</option>)}
+            </select></label>
+          )}
+          <label className="flex items-start gap-2"><input type="radio" name="measure-sign" checked={signPick.kind === 'status'} onChange={() => setSignPick({ ...signPick, kind: 'status' })} data-money-sign-kind="status" /> <span>A status value marks a gain</span></label>
+          {signPick.kind === 'status' && (
+            <div className="space-y-1">
+              <label className="block">Status column <select className="ms-2" value={signPick.column} onChange={(e) => pickSign({ column: e.target.value })} data-money-sign-status-column>
+                <option value="">Pick a column</option>{columns.map((name) => <option key={name} value={name}>{name}</option>)}
+              </select></label>
+              <label className="block">Status value that marks a gain <input className="ms-2 w-40" dir="auto" value={signPick.value} onChange={(e) => pickSign({ value: e.target.value })} data-money-sign-value /></label>
+            </div>
+          )}
+          {!draft.sign && <p className="text-text-secondary" data-money-sign-needed>Gains only needs a sign: name the column whose positive values are gains, or the status value that marks a gain.</p>}
+        </fieldset>
+        )}
       {show('currency') && (<>
       <div className="space-y-2" data-money-convert>
         <p className="text-[13px] font-semibold text-text-primary">Report every amount in one currency</p>

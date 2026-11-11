@@ -2462,6 +2462,7 @@ IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
 MONEY_TABLE_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}")
 MONEY_STATUS_RE = re.compile(r"^[A-Za-z0-9_ -]{1,40}$")
 MONEY_RULES = ("losses", "net", "gains")
+MONEY_SIGN_KINDS = ("column", "status")
 MONEY_PER = ("row", "group")
 MONEY_MAX_STATUSES = 20
 
@@ -2559,6 +2560,22 @@ def money_value_sql(value: dict):
     return None if equation is None else f"CAST({equation} AS DOUBLE)"
 
 
+def money_sign_problems(sign) -> list:
+    if not isinstance(sign, dict) or sign.get("kind") not in MONEY_SIGN_KINDS:
+        return [f"the gain sign is a column or a status: one of {', '.join(MONEY_SIGN_KINDS)}"]
+    if not (isinstance(sign.get("column"), str) and IDENT_RE.fullmatch(sign["column"])):
+        return ["the gain sign names a plain column name"]
+    if sign["kind"] == "status" and not (isinstance(sign.get("value"), str) and MONEY_STATUS_RE.fullmatch(sign["value"])):
+        return ["the gain status is a plain status word such as gain"]
+    return []
+
+
+def money_sign_clean(sign: dict) -> dict:
+    if sign["kind"] == "column":
+        return {"kind": "column", "column": sign["column"]}
+    return {"kind": "status", "column": sign["column"], "value": sign["value"]}
+
+
 def money_value_problems(value) -> list:
     if not isinstance(value, dict):
         return ["the value of each record is an object: its method, and its amount, column or equation"]
@@ -2630,6 +2647,10 @@ def _money_rule_problems(money) -> list:
                          if not isinstance(s, str) or not MONEY_STATUS_RE.match(s)]
     if "statuses" in money and not (isinstance(money.get("status_column"), str) and IDENT_RE.fullmatch(money["status_column"])):
         problems.append("statuses need status_column, the plain column name that holds each row status")
+    if money.get("rule") == "gains" and not isinstance(money.get("sign"), dict):
+        problems.append("gains needs a sign: the column whose positive values are gains, or the status value that marks a gain")
+    if "sign" in money:
+        problems += money_sign_problems(money["sign"])
     if "rule" in money and money["rule"] not in MONEY_RULES:
         problems.append(f"the money rule is one of {', '.join(MONEY_RULES)}")
     if "off" in money and not isinstance(money["off"], bool):
@@ -2688,15 +2709,29 @@ def money_scope(page: dict, dataset: str) -> dict:
             "base": str(money.get("base") or "") if convert else "", "window": window if period else 0,
             "per_group": money.get("group_column") if money.get("per") == "group" else "",
             "value": money.get("value") if isinstance(money.get("value"), dict) else None, "direction": money.get("rule", "losses"),
+            "sign": money.get("sign") if isinstance(money.get("sign"), dict) else None,
             "currency_filter": currency}
 
 
-def money_direction_amount(amount: str, direction: str) -> str:
-    """The amount a direction counts: losses and gains both count the positive magnitude of the saved value, and net keeps its sign.
-    A NULL amount stays NULL, so a row without a value is unrated rather than a zero."""
+def money_gain_predicate(sign) -> str:
+    if sign["kind"] == "column":
+        return f"CAST({quote(sign['column'])} AS DOUBLE) > 0"
+    return f"{quote(sign['column'])} = {sql_text(sign['value'])}"
+
+
+def money_direction_amount(amount: str, direction: str, sign=None) -> str:
+    """The amount a direction counts. The saved value is a magnitude; the sign says which rows are gains. Gains counts the magnitude of
+    the gain rows, losses counts the magnitude of the rows that are not gains (every row when no sign is set), and net keeps the value's
+    own sign. A NULL amount stays NULL, so a row without a value is unrated rather than a zero."""
     if direction == "net":
         return amount
-    return f"CASE WHEN {amount} IS NULL THEN NULL ELSE GREATEST({amount}, 0) END"
+    magnitude = f"GREATEST({amount}, 0)"
+    if sign is None:
+        return f"CASE WHEN {amount} IS NULL THEN NULL ELSE {magnitude} END"
+    gain = money_gain_predicate(sign)
+    counted = magnitude if direction == "gains" else "0"
+    other = "0" if direction == "gains" else magnitude
+    return f"CASE WHEN {amount} IS NULL THEN NULL WHEN {gain} THEN {counted} ELSE {other} END"
 
 
 def money_value_override(page: dict, dataset: str, sql: str) -> str:
@@ -2709,7 +2744,7 @@ def money_value_override(page: dict, dataset: str, sql: str) -> str:
     amount = money_value_sql(value)
     if amount is None:
         return sql
-    amount = money_direction_amount(amount, scope["direction"])
+    amount = money_direction_amount(amount, scope["direction"], scope["sign"])
     replaced = ["value_at_stake"]
     currency_part = ""
     if scope["currency_filter"] and ("currency" in value or "currency_column" in value):
@@ -2882,6 +2917,8 @@ def money_rule_clean(rule: dict) -> dict:
     if rule.get("per") == "group":
         out["per"] = "group"
         out["group_column"] = rule["group_column"]
+    if "sign" in rule:
+        out["sign"] = money_sign_clean(rule["sign"])
     if "value" in rule:
         out["value"] = money_value_clean(rule["value"])
     return out
@@ -2906,7 +2943,8 @@ def money_value_fallback(rule, columns):
     if not isinstance(value, dict):
         return rule, ""
     present = set(columns or [])
-    missing = [name for name in money_value_columns(value) if name not in present]
+    names = money_value_columns(value) + ([rule["sign"]["column"]] if isinstance(rule.get("sign"), dict) else [])
+    missing = [name for name in dict.fromkeys(names) if name not in present]
     if not missing:
         return rule, ""
     note = (f"The saved value uses {', '.join(missing)}, which the table no longer has, so the totals are Genie estimates "

@@ -25,9 +25,22 @@ const MAX_PERIODS = 60;
 const MAX_STATUSES = 20;
 const RATE_TABLE_KEYS = ['table', 'currency_column', 'base_column', 'date_column', 'rate_column', 'load_column'];
 const VALUE_METHODS = ['fixed', 'column', 'equation'];
+const SIGN_KINDS = ['column', 'status'];
+const STATUS_WORD = /^[A-Za-z0-9_ -]{1,40}$/;
 
 const isPlain = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 const { compileExpression } = require('../../agent/agent/app_shell/web/src/moneyValue.js');
+
+function signProblems(sign) {
+  if (!isPlain(sign) || !SIGN_KINDS.includes(sign.kind)) return [`the gain sign is a column or a status: one of ${SIGN_KINDS.join(', ')}`];
+  if (typeof sign.column !== 'string' || !COLUMN.test(sign.column)) return ['the gain sign names a plain column name'];
+  if (sign.kind === 'status' && (typeof sign.value !== 'string' || !STATUS_WORD.test(sign.value))) return ['the gain status is a plain status word such as gain'];
+  return [];
+}
+
+function signCleanOf(sign) {
+  return sign.kind === 'column' ? { kind: 'column', column: sign.column } : { kind: 'status', column: sign.column, value: sign.value };
+}
 
 function valueProblems(value) {
   if (!isPlain(value)) return ['the value of each record is an object: its method, and its amount, column or equation'];
@@ -113,6 +126,8 @@ function moneyRuleProblems(rule) {
   if (!PER.includes(per)) problems.push(`per is one of ${PER.join(', ')}`);
   if (per === 'group' && (typeof rule.group_column !== 'string' || !COLUMN.test(rule.group_column))) problems.push('per group needs group_column, the plain column name that identifies each group');
   if (mode === 'convert') problems = problems.concat(rateProblems(rule));
+  if (rule.rule === 'gains' && !isPlain(rule.sign)) problems.push('gains needs a sign: the column whose positive values are gains, or the status value that marks a gain');
+  if (rule.sign !== undefined) problems = problems.concat(signProblems(rule.sign));
   if (rule.value !== undefined) problems = problems.concat(valueProblems(rule.value));
   return problems;
 }
@@ -132,6 +147,7 @@ function moneyRuleClean(rule) {
   if (rule.statuses !== undefined) out.status_column = rule.status_column;
   if (rule.off === true) out.off = true;
   if (rule.per === 'group') { out.per = 'group'; out.group_column = rule.group_column; }
+  if (rule.sign !== undefined) out.sign = signCleanOf(rule.sign);
   if (rule.value !== undefined) out.value = valueClean(rule.value);
   return out;
 }

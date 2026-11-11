@@ -25,6 +25,19 @@ const MAX_STATUSES = 20;
 const RATE_TABLE_KEYS = ['table', 'currency_column', 'base_column', 'date_column', 'rate_column', 'load_column'];
 
 const VALUE_METHODS = ['fixed', 'column', 'equation'];
+const SIGN_KINDS = ['column', 'status'];
+const STATUS_WORD = /^[A-Za-z0-9_ -]{1,40}$/;
+
+function signProblemsOf(sign) {
+  if (!plain(sign) || !SIGN_KINDS.includes(sign.kind)) return [`the gain sign is a column or a status: one of ${SIGN_KINDS.join(', ')}`];
+  if (typeof sign.column !== 'string' || !COLUMN.test(sign.column)) return ['the gain sign names a plain column name'];
+  if (sign.kind === 'status' && (typeof sign.value !== 'string' || !STATUS_WORD.test(sign.value))) return ['the gain status is a plain status word such as gain'];
+  return [];
+}
+
+function signCleanOf(sign) {
+  return sign.kind === 'column' ? { kind: 'column', column: sign.column } : { kind: 'status', column: sign.column, value: sign.value };
+}
 const plain = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 
 function valueProblemsOf(value) {
@@ -59,7 +72,7 @@ export function draftOf(rule) {
   const base = {
     mode, window, statuses, statusColumn: rule?.status_column || '', rule: rule?.rule || 'losses', off: rule?.off === true, per: rule?.per || 'row', groupColumn: rule?.group_column || '',
     base: '', rates: [], rateSource: 'typed', rateColumn: '', rateTable: { table: '', currency_column: '', base_column: '', date_column: '', rate_column: '', load_column: '' },
-    both: false, value: rule?.value ?? null,
+    both: false, value: rule?.value ?? null, sign: rule?.sign ?? null,
   };
   if (mode !== 'convert') return base;
   const sources = [rule.rates !== undefined, rule.rate_column !== undefined, rule.rate_table !== undefined];
@@ -94,6 +107,12 @@ function ruleBaseOf(draft) {
   }
   if (!['losses', 'net', 'gains'].includes(draft.rule)) problems.push('The money rule is losses, gains or net.');
   if (draft.rule && draft.rule !== 'losses') out.rule = draft.rule;
+  if (draft.rule === 'gains' && !plain(draft.sign)) problems.push('gains needs a sign: the column whose positive values are gains, or the status value that marks a gain');
+  if (draft.sign) {
+    const signFound = signProblemsOf(draft.sign);
+    problems.push(...signFound);
+    if (!signFound.length) out.sign = signCleanOf(draft.sign);
+  }
   if (draft.off) out.off = true;
   if (draft.per === 'group') {
     out.per = 'group';
