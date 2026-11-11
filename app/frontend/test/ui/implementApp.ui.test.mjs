@@ -126,12 +126,12 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     await lookTab('Charts');
     await look.locator('[data-chart-kind="split"] input').check();
     await look.locator('[data-app-sample][data-sample-charts="trend,bars,split,pareto"]').waitFor();
-    await lookTab('Pages');
-    const alertsTile = look.locator('[data-app-page="alerts"]');
+    await goToStep(page, 'Where it lives');
+    const alertsTile = page.getByRole('region', { name: 'App pages' }).locator('[data-app-page="alerts"]');
     assert.deepEqual([await alertsTile.getByRole('switch').isChecked(), await alertsTile.getByRole('switch').isDisabled()], [false, true],
       'a per-user App has Alerts off and locked');
-    await look.getByText(/^Alerts are off: /).waitFor();
-    await look.locator('[data-app-page="runs"]').getByRole('switch').uncheck();
+    await page.getByRole('region', { name: 'App pages' }).getByText(/^Alerts are off: /).waitFor();
+    await page.getByRole('region', { name: 'App pages' }).locator('[data-app-page="runs"]').getByRole('switch').uncheck();
     await startWhenReady(page);
     const spec = submittedSpec(made);
     assert.deepEqual([spec.outputs.app, spec.outputs.genie_space, spec.outputs.app_access], [true, true, 'user']);
@@ -145,7 +145,7 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
   }
 });
 
-test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample page that follows every pick, lists only the pages this App gets, and fits the step whole with every App option on', async () => {
+test('App look has Style, Palette, Layout and Charts tabs over a sample page, App pages sit on Where it lives, that follows every pick, lists only the pages this App gets, and fits the step whole with every App option on', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
   const { page } = ui;
   try {
@@ -159,7 +159,7 @@ test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample p
     const sample = look.locator('[data-app-sample]');
     const shown = (attrs) => look.locator(`[data-app-sample]${Object.entries(attrs).map(([k, v]) => `[data-${k}="${v}"]`).join('')}`).waitFor();
     await look.locator('[data-swatch="mono"]').waitFor({ state: 'attached' });
-    assert.deepEqual(await tabs.getByRole('tab').allTextContents(), ['Style', 'Palette', 'Layout', 'Charts', 'Pages']);
+    assert.deepEqual(await tabs.getByRole('tab').allTextContents(), ['Style', 'Palette', 'Layout', 'Charts']);
     assert.equal(await tab('Style').getAttribute('aria-selected'), 'true');
     assert.equal(await look.getByRole('tabpanel').count(), 1, 'only the chosen tab panel shows');
     await shown({ 'app-sample': 'fix', 'sample-style': 'a', 'sample-layout': 'sidebar', 'sample-palette': 'default', 'sample-theme': 'light' });
@@ -186,11 +186,11 @@ test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample p
     assert.equal(await tab('Layout').getAttribute('aria-selected'), 'true');
     assert.equal(await page.evaluate(() => document.activeElement?.textContent), 'Layout', 'the arrow keys move focus with the tab');
     await page.keyboard.press('End');
-    assert.equal(await tab('Pages').getAttribute('aria-selected'), 'true');
+    assert.equal(await tab('Charts').getAttribute('aria-selected'), 'true');
     await page.keyboard.press('ArrowRight');
     assert.equal(await tab('Style').getAttribute('aria-selected'), 'true', 'the arrows wrap');
     await page.keyboard.press('ArrowLeft');
-    assert.equal(await tab('Pages').getAttribute('aria-selected'), 'true');
+    assert.equal(await tab('Charts').getAttribute('aria-selected'), 'true');
     await page.keyboard.press('Home');
     assert.equal(await tab('Style').getAttribute('aria-selected'), 'true');
 
@@ -230,11 +230,11 @@ test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample p
     await shown({ 'sample-charts': 'trend,bars,split,pareto,scatter' });
     assert.equal(await sample.getByText('Explain', { exact: true }).count(), 5);
 
-    await tab('Pages').click();
-    const pages = look.getByRole('group', { name: 'Pages of the App' });
+    await goToStep(page, 'Where it lives');
+    const pages = page.getByRole('region', { name: 'App pages' }).getByRole('group', { name: 'Pages of the App' });
     const pageNames = () => pages.getByRole('button').allTextContents();
-    const blurb = look.locator('[data-page-blurb]');
-    const pageState = () => look.locator('[data-app-page]').evaluateAll((els) => els.map((e) => {
+    const blurb = page.getByRole('region', { name: 'App pages' }).locator('[data-page-blurb]');
+    const pageState = () => page.getByRole('region', { name: 'App pages' }).locator('[data-app-page]').evaluateAll((els) => els.map((e) => {
       const toggle = e.querySelector('[role="switch"]');
       return [e.dataset.appPage, toggle ? (toggle.checked ? 'on' : 'off') : e.querySelector('p').textContent, e.querySelector('button').disabled];
     }));
@@ -244,40 +244,52 @@ test('App look has Style, Palette, Layout, Charts and Pages tabs over a sample p
     assert.equal(await pages.getByRole('button', { name: /^Things to fix/ }).getAttribute('aria-pressed'), 'true');
     assert.match(await blurb.textContent(), /^What needs action: the totals, the charts you pick, and every flagged record with the reason Inspire flagged it\. People own, track and dismiss each flagged record\.$/,
       'no edits while that App option is off, and the decisions that start on');
-    await look.locator('[data-app-page="impact"]').getByRole('switch').uncheck();
+    await page.getByRole('region', { name: 'App pages' }).locator('[data-app-page="impact"]').getByRole('switch').uncheck();
+    await goToStep(page, 'App look');
     await shown({ 'app-sample': 'fix' });
     assert.equal(await sample.getByText('Impact', { exact: true }).count(), 0, 'the sample drops Impact when it is off');
+    await goToStep(page, 'Where it lives');
     assert.equal(await pages.getByRole('button', { name: /^Impact/ }).isDisabled(), true);
-    await look.locator('[data-app-page="impact"]').getByRole('switch').check();
+    await page.getByRole('region', { name: 'App pages' }).locator('[data-app-page="impact"]').getByRole('switch').check();
+    await goToStep(page, 'App look');
     await sample.getByText('Impact', { exact: true }).first().waitFor();
-    await look.locator('[data-app-page="alerts"]').getByRole('switch').check();
+    await goToStep(page, 'Where it lives');
+    await page.getByRole('region', { name: 'App pages' }).locator('[data-app-page="alerts"]').getByRole('switch').check();
     assert.equal(await pages.getByRole('button', { name: /^Alerts/ }).isDisabled(), false, 'the Alerts switch turns on Send alerts');
-    await look.locator('[data-app-page="alerts"]').getByRole('switch').uncheck();
+    await page.getByRole('region', { name: 'App pages' }).locator('[data-app-page="alerts"]').getByRole('switch').uncheck();
     await pages.getByRole('button', { name: /^Runs/ }).click();
+    await goToStep(page, 'App look');
     await shown({ 'app-sample': 'runs' });
+    await goToStep(page, 'Where it lives');
     assert.equal(await blurb.textContent(), 'Every run of the notebook: when it ran, the data it read and the records it flagged.');
+    await goToStep(page, 'App look');
     await sample.getByText('What it covered', { exact: true }).waitFor();
+    await goToStep(page, 'Where it lives');
     await pages.getByRole('button', { name: /^Ask Genie/ }).click();
+    await goToStep(page, 'App look');
     await shown({ 'app-sample': 'genie' });
     await sample.getByText('Why is R-1042 flagged?', { exact: true }).waitFor();
     await tab('Style').click();
     await shown({ 'app-sample': 'fix' });
-    await tab('Pages').click();
+    await goToStep(page, 'Where it lives');
+    await goToStep(page, 'App look');
     await shown({ 'app-sample': 'genie' });
 
-    await goToStep(page, 'App features');
+    await goToStep(page, 'Who uses the App');
     await openRow(page, 'what people can do in the App');
     const features = page.getByRole('region', { name: 'App features' });
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
     await features.getByRole('checkbox', { name: /^Send alerts/ }).check();
-    await goToStep(page, 'App look');
-    await tab('Pages').click();
+    await goToStep(page, 'Where it lives');
     assert.deepEqual(await pageNames(), ['Things to fix', 'Runs', 'Alerts', 'Impact', 'Ask Genie']);
     assert.equal(await pages.getByRole('button', { name: /^Ask Genie/ }).getAttribute('aria-pressed'), 'true', 'the page picked stays picked while App features change');
     await pages.getByRole('button', { name: /^Things to fix/ }).click();
+    await goToStep(page, 'App look');
     await shown({ 'app-sample': 'fix' });
+    await goToStep(page, 'Where it lives');
     assert.match(await blurb.textContent(), /People own, track and dismiss each flagged record\.$/);
-    for (const name of ['Style', 'Palette', 'Layout', 'Charts', 'Pages']) {
+    for (const name of ['Style', 'Palette', 'Layout', 'Charts']) {
+      await goToStep(page, 'App look');
       await tab(name).click();
       const box = await measure(page, `app-look-all-options-${name.toLowerCase()}`);
       const height = await look.evaluate((el) => Math.round(el.getBoundingClientRect().height));
@@ -300,6 +312,7 @@ async function withEveryAppLookOption(check) {
     await toDelivery(page);
     await toSharedAccess(page);
     await goToStep(page, 'App features');
+    await goToStep(page, 'Who uses the App');
     await openRow(page, 'what people can do in the App');
     const features = page.getByRole('region', { name: 'App features' });
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
@@ -310,7 +323,9 @@ async function withEveryAppLookOption(check) {
     const tab = (name) => tabs.getByRole('tab', { name, exact: true });
     const sample = look.locator('[data-app-sample]');
     const shown = (attrs) => look.locator(`[data-app-sample]${Object.entries(attrs).map(([k, v]) => `[data-${k}="${v}"]`).join('')}`).waitFor();
-    const pages = look.getByRole('group', { name: 'Pages of the App' });
+    await goToStep(page, 'Where it lives');
+    const pages = page.getByRole('region', { name: 'App pages' }).getByRole('group', { name: 'Pages of the App' });
+    await goToStep(page, 'App look');
     await look.locator('[data-swatch="mono"]').waitFor({ state: 'attached' });
     await tab('Palette').click();
     await look.getByRole('group', { name: 'Light or dark' }).getByRole('button', { name: 'Dark' }).click();
@@ -318,7 +333,7 @@ async function withEveryAppLookOption(check) {
     await tab('Charts').click();
     for (const kind of ['split', 'scatter']) await look.locator(`[data-chart-kind="${kind}"] input`).check();
     await shown({ 'sample-charts': 'trend,bars,split,pareto,scatter' });
-    await tab('Pages').click();
+    await goToStep(page, 'Where it lives');
     assert.deepEqual(await pages.getByRole('button').allTextContents(), ['Things to fix', 'Runs', 'Alerts', 'Impact', 'Ask Genie']);
     assert.equal(await pages.getByRole('button', { name: /^Alerts/ }).isDisabled(), false, 'with Send alerts on, the Alerts page can be shown');
     await check({ page, look, tab, sample, shown, pages });
@@ -343,7 +358,7 @@ const clippedSample = (sample) => sample.evaluate((root) => {
 });
 
 for (const layout of LOOK_LAYOUTS) {
-  test(`App look in the ${layout} layout cuts off no sample text at the bottom, in any style or page`, () => withEveryAppLookOption(async ({ look, tab, sample, shown, pages }) => {
+  test(`App look in the ${layout} layout cuts off no sample text at the bottom, in any style or page`, () => withEveryAppLookOption(async ({ page, look, tab, sample, shown, pages }) => {
     const cut = [];
     for (const style of ['A', 'B', 'C']) {
       await tab('Style').click();
@@ -355,9 +370,10 @@ for (const layout of LOOK_LAYOUTS) {
       await tab('Charts').click();
       await shown({ 'app-sample': 'charts' });
       for (const line of await clippedSample(sample)) cut.push(`${layout}/${style}/charts ${line}`);
-      await tab('Pages').click();
+      await goToStep(page, 'Where it lives');
       for (const control of ['Runs', 'Alerts', 'Impact', 'Ask Genie', 'Things to fix']) {
         await pages.getByRole('button', { name: new RegExp(`^${control}`) }).click();
+        await goToStep(page, 'App look');
         await shown({ 'app-sample': { Runs: 'runs', Alerts: 'alerts', Impact: 'impact', 'Ask Genie': 'genie', 'Things to fix': 'fix' }[control] });
         for (const line of await clippedSample(sample)) cut.push(`${layout}/${style}/${control} ${line}`);
       }
@@ -383,9 +399,10 @@ for (const style of ['a', 'b', 'c']) {
         for (const [view, control] of LOOK_VIEWS) {
           if (view === 'charts') await tab('Charts').click();
           else if (view !== 'fix') {
-            if (await tab('Pages').getAttribute('aria-selected') !== 'true') await tab('Pages').click();
+            await goToStep(page, 'Where it lives');
             await pages.getByRole('button', { name: new RegExp(`^${control}`) }).click();
           }
+          await goToStep(page, 'App look');
           await shown({ 'app-sample': view, 'sample-style': style, 'sample-theme': theme, 'sample-palette': palette });
           const result = await lowContrast(page, ['[data-app-sample]']);
           measured += result.checked;
@@ -1067,7 +1084,7 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await goToStep(page, 'App look');
     await page.locator('[data-swatch="mono"]').waitFor({ state: 'attached' });
     const lookTabs = page.getByRole('tablist', { name: 'App look sections' });
-    for (const name of ['Palette', 'Layout', 'Charts', 'Pages']) {
+    for (const name of ['Palette', 'Layout', 'Charts']) {
       await lookTabs.getByRole('tab', { name, exact: true }).click();
       await readable(`app look ${name.toLowerCase()}`);
     }
