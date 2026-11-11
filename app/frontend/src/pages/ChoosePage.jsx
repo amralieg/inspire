@@ -7,7 +7,7 @@ import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import ValueBadge, { OverallValue } from '../components/ValueBadge';
 import { valueQuery } from '../lib/valueLedger';
-import { useRunValues, useValueRead } from '../lib/useValueLedger';
+import { useValueRead } from '../lib/useValueLedger';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runCounts, runLabel, runFilterText, runsOfCard } from '../lib/reviewFigures';
 import { sessionCountsLine, sessionStatus } from '../lib/monitorState';
@@ -183,7 +183,10 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const [runFilter, setRunFilter] = useState('');
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
   const { portfolio, error: portfolioError } = usePortfolio(apiFetch, inspireDatabase, warehouseId);
-  const overallValue = useValueRead(apiFetch, inspireDatabase && warehouseId ? `/api/inspire/value/overall?${valueQuery(inspireDatabase, warehouseId)}` : '');
+  const valueReady = Boolean(inspireDatabase && warehouseId && !showcase);
+  const overallValue = useValueRead(apiFetch, valueReady ? `/api/inspire/value/overall?${valueQuery(inspireDatabase, warehouseId)}` : '');
+  const runsValue = useValueRead(apiFetch, valueReady ? `/api/inspire/value/runs?${valueQuery(inspireDatabase, warehouseId)}` : '');
+  const runValues = runsValue?.runs || {};
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
@@ -268,9 +271,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
   const filtered = runFilter ? runsOfCard(runFilter, sessions, portfolio) : sessions;
   const listed = runFilter || showAll ? filtered : filtered.slice(0, 5);
-  const runValues = useRunValues(apiFetch, inspireDatabase, warehouseId, listed
-    .filter((s) => Number(portfolio?.sessions?.[String(s.session_id)]?.mvps_started) > 0)
-    .map((s) => String(s.session_id)));
 
   if (loading) {
     return (
@@ -342,7 +342,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
         )}
-        {inspireDatabase && warehouseId && <OverallValue value={overallValue} />}
+        {valueReady && <OverallValue value={overallValue} />}
 
         {/* ── Previous Experiments ── */}
         <div className="space-y-3">
@@ -388,7 +388,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
               const canQuickView = !!(legacySummary || listOverview?.total > 0);
               const counts = runCounts(listOverview, portfolio, session, { running: status === 'running' || status === 'quiet', mvpError: portfolioError });
               const buildingCount = Number(portfolio?.sessions?.[String(session.session_id)]?.mvps_building) || 0;
-              const buildingFilter = buildingCount ? buildFilterOf('mvps_started', [session], portfolio) : null;
+              const mvpsStarted = Number(portfolio?.sessions?.[String(session.session_id)]?.mvps_started) || 0;
+              const buildFilter = mvpsStarted ? buildFilterOf('mvps_started', [session], portfolio) : null;
 
               // Build a short text description from domain names and catalog
               const description = (() => {
@@ -443,7 +444,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="flex items-center gap-2 min-w-0">
-                        <span dir="auto" className="text-sm font-medium text-text-primary truncate">{name}</span>
+                        <span dir="auto" className="text-base font-semibold text-text-primary truncate">{name}</span>
                         <LatestRunBadge session={session} />
                       </p>
                       {description && (
@@ -479,7 +480,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                             </ul>
                           )}
                           {runValues[sidStr] && (
-                            <div data-run-value="" className="mt-2 border-t border-border pt-2">
+                            <div data-run-value="" className="mt-3 space-y-1.5">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Value of this run</p>
                               <ValueBadge
                                 atStake={runValues[sidStr].at_stake}
                                 saved={runValues[sidStr].saved}
@@ -509,18 +511,33 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                   </button>
 
                     <div className="flex-shrink-0 flex items-center gap-2">
-                      {buildingFilter && (
+                      {Number(portfolio?.sessions?.[sidStr]?.mvps_live) > 0 && (
+                        <span data-run-live="" className="rounded-lg border border-success/35 bg-success-bg px-2.5 py-1.5 text-[11px] font-semibold tabular-nums text-success-fg">
+                          {portfolio.sessions[sidStr].mvps_live.toLocaleString('en-US')} live
+                        </span>
+                      )}
+                      {buildFilter && buildingCount > 0 && (
                         <div data-run-building="" className="relative z-10 flex items-center gap-2 rounded-lg border border-db-red/30 bg-db-red-50 px-2.5 py-1.5 text-[11px] font-medium text-db-red-fg">
                           <Loader2 data-run-building-spinner="" size={12} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none" />
                           <span className="tabular-nums">{buildingCount.toLocaleString('en-US')} building</span>
                           <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildingFilter); }}
+                            onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildFilter); }}
                             className="inline-flex items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-0.5 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50"
                           >
                             Go to Build <ArrowRight size={11} aria-hidden />
                           </button>
                         </div>
+                      )}
+                      {buildFilter && !buildingCount && (
+                        <button
+                          type="button"
+                          data-run-go-build=""
+                          onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildFilter); }}
+                          className="relative z-10 inline-flex items-center gap-1 rounded-lg border border-db-red/30 bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50"
+                        >
+                          Go to Build <ArrowRight size={11} aria-hidden />
+                        </button>
                       )}
                       {status === 'running' && (
                         <div className="w-16 h-1.5 rounded-full bg-bg-subtle overflow-hidden">

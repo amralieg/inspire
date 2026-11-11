@@ -34,6 +34,9 @@ export function demoReads(withMvps, walk = null) {
 }
 
 export const NOT_IN_DEMO = {
+  'GET /api/inspire/value': 'the value at stake and saved of a run is read from the ledger of a workspace run; a demo has no ledger, so the Review card and the run header send no value read while the demo is open',
+  'GET /api/inspire/value/overall': 'the Start banner reads the value across the workspace runs; the demo has no ledger, so Start sends no value read while the demo is open',
+  'GET /api/inspire/value/runs': 'the Start run cards read each run value from the ledger of a workspace run; the demo has no ledger, so Start sends no value read while the demo is open',
   'GET /api/defaults': 'the App reads its workspace settings when it starts, before the demo opens, and never with the demo header',
   'GET /api/showcase': 'this is the list of demos itself, read from the demo files the App carries',
   'GET /api/warehouses': 'setup, Settings and the Start MVP wizard pick a warehouse; the demo has no setup and no wizard',
