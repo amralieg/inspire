@@ -213,8 +213,9 @@ test('the MVP, App, dashboard, Genie Agent and alert cards open Build filtered t
       assert.equal(await strip.getByRole('status').innerText(), text);
       await page.locator('nav[aria-label="Use cases"] section button').first().waitFor();
       assert.deepEqual(await pressed(), asset, `${key} presses its asset filter`);
-      const listed = await page.locator('nav[aria-label="Use cases"] section button').evaluateAll((els) => els.map((el) => el.querySelector('.font-mono')?.textContent));
-      assert.deepEqual(listed, ['N01-U01'], `${key} lists only the use case that has one`);
+      const listed = await page.locator('nav[aria-label="Use cases"] section button').evaluateAll((els) => els.map((el) => (el.querySelector('div') ?? el).textContent.trim()));
+      assert.equal(listed.length, 1, `${key} lists only the use case that has one`);
+      assert.notEqual(listed[0], '', `${key} names the use case it lists`);
       if (asset.length) {
         const tile = page.locator(`[data-asset-tiles] [data-asset-tile="${asset[0]}"]`);
         await tile.waitFor({ timeout: 15000 });

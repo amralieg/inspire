@@ -139,7 +139,7 @@ def test_a_good_mode_star_notebook_shows_its_verified_decision_and_schedules_its
             "the short card keeps the decision; the instruction carries the rest"
     spec = inst._genie_notebook_spec(other)
     other_card = inst._genie_card_markdown(other, spec)
-    assert spec["schedule_cron"] is None and "| **Decision** |" not in other_card and "not assessed" not in other_card
+    assert not spec["schedule_cron"] and "| **Decision** |" not in other_card and "not assessed" not in other_card
     skeleton = "".join(inst._build_use_case_details_markdown_source(star))
     assert "| **Decision Changed** | Reorder stock for each store every Monday |" in skeleton, "a skeleton has no card, so it keeps every row"
 

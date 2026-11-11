@@ -337,7 +337,7 @@ def test_a_per_user_decision_the_app_may_not_write_names_the_app_identity_not_th
     writer = DataWorkspace(fail={"merge": shell_db.QueryError("PERMISSION_DENIED: no MODIFY")})
     s, _made = person_shell(tmp_path, reader, writer)
     status, out = act(s, headers=dict(EDITOR, **TOKEN))
-    assert status == 403 and out["error"].startswith("Nothing was saved: this App's service principal may not change ")
+    assert status == 403 and out["error"] == "Nothing was saved: this App cannot write this change. Ask the App owner to check its access."
 
 
 def test_a_failed_list_query_is_a_502_and_a_failed_summary_query_is_reported_without_failing_the_list(tmp_path):
@@ -567,7 +567,7 @@ def test_a_concurrent_delta_conflict_during_an_act_reads_back_each_record(tmp_pa
     (tmp_path / "denied").mkdir()
     s, _ws, _made = shell(tmp_path / "denied", ws=DataWorkspace(fail={"merge": shell_db.QueryError("PERMISSION_DENIED: no MODIFY")}))
     status, out = act(s)
-    assert status == 403 and out["error"].startswith("Nothing was saved: this App's service principal may not change ")
+    assert status == 403 and out["error"] == "Nothing was saved: this App cannot write this change. Ask the App owner to check its access."
 
 
 def test_the_list_carries_owner_status_and_version_and_my_actions_filters_in_sql(tmp_path):

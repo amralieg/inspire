@@ -124,12 +124,11 @@ def test_a_use_case_whose_app_is_gone_unticked_or_new_has_no_app_owners_to_write
     assert inst._implement_app_owner_sync(dict(context, spec=VALID), _previous(), {"app": None}, {}) == [], "a use case with no App yet"
 
 
-def test_a_held_version_leaves_the_app_naming_the_live_version_s_owners(agent_ns, tmp_path, monkeypatch):
+def test_an_unmet_ask_publishes_with_a_warning_and_names_the_ask(agent_ns, tmp_path, monkeypatch):
     inst, status = _repoint_run(agent_ns, tmp_path, monkeypatch, "Keep the Sales questions panel",
                                 {"kind": "text", "value": "N01-U07 Sales questions"}, created_by=(FIRST, SECOND))
-    assert status == "vibe_not_met"
-    assert inst.deployed == [], "nothing of a held version is published, so the App keeps naming the live version's owners"
-    assert not [e for e in inst.emitted if "owners of this use case changed" in str(e.get("message"))]
+    assert status == "ready_with_warnings", "an unmet ask publishes the version with a warning; nothing is held any more"
+    assert "Keep the Sales questions panel" in inst.updates[-1]["status_message"], "the unmet ask is named in the published sentence"
 
 
 def test_a_published_version_names_its_owners_in_the_one_app_deployment_it_makes(agent_ns, tmp_path, monkeypatch):

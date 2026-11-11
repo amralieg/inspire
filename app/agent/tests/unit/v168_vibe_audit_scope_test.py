@@ -95,10 +95,11 @@ def test_round10_the_globe_version_is_held_and_never_published_with_its_stand_in
     _judge(inst, {U01["text"]: [GLOBE]}, [{"status": "done", "evidence": U01["checks"][0]["evidence"], "where": "takings_outlook"}])
     status = _run(inst, _vibed(previous, ["app:page:n01_u01"], **{"app:page:n01_u01_vibes": U01["text"]}))
     final = inst.updates[-1]["asset_status"]
-    assert status == "vibe_not_met", "round 10 published this version with the html stand-in"
+    assert status == "ready_with_warnings", "round 10 published this version with the html stand-in"
     [entry] = [e for e in final["checklist"] if e["requirement"] == GLOBE["ask"]]
     assert entry["status"] == "not_met" and entry["evidence"] == "the built App page n01_u01 has no Fourteen-day takings outlook chart"
-    assert "has no Fourteen-day takings outlook chart" in final["held"]["reason"]
+    assert "has no Fourteen-day takings outlook chart" in inst.updates[-1]["status_message"], \
+        "the unmet ask is named in the published sentence"
 
 
 OUTLOOK = {"id": "takings_outlook", "title": "Fourteen-day takings outlook", "type": "line", "dataset": "records", "span": 2,

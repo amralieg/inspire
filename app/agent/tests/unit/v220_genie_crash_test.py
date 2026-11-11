@@ -410,6 +410,9 @@ class _Frame:
         self.steps.append(("limit", n))
         return self
 
+    def count(self):
+        return 5000
+
 
 def test_a_first_run_on_some_records_spreads_them_across_the_whole_table_not_the_first_by_key(fresh_ns):
     steps = []

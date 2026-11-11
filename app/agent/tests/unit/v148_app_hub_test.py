@@ -276,7 +276,8 @@ def test_a_refused_read_under_the_service_principal_is_an_error_and_a_missing_ta
     ws = SqliteWorkspace(fail={"`invoice_out` LIMIT 0": denied})
     s, _ws, _made = hub_shell(tmp_path / "a", pages=pages, ws=ws)
     out = overview(s)[1]
-    assert out["errors"] == {"n02_u01": "PERMISSION_DENIED: User does not have SELECT on Table"} and "n02_u01" not in out["pages"]
+    assert out["state"] == "waiting_for_access" and out["detail"] == "PERMISSION_DENIED: User does not have SELECT on Table", \
+        "a refused read under the service principal holds the whole overview on the access screen"
     s, _ws, _made = hub_shell(tmp_path / "b", pages=pages)
     assert overview(s)[1]["pages"]["n02_u01"] == {"visible": True, "tracked": False, "empty": True,
                                                   "note": "no run of this use case has written its results yet"}

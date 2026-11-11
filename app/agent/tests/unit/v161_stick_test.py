@@ -256,7 +256,7 @@ def test_a_stopped_run_records_why_it_is_not_reliable_yet_for_the_app_the_alert_
 
 def test_the_run_controls_record_a_stop_right_after_the_use_case_returns(agent_ns):
     template = agent_ns["GENIE_RUN_CONTROLS_TEMPLATE"]
-    assert ("                try:\n                    outcome = use_case()\n                except InspireRunStop as stop:\n"
+    assert ("                try:\n                    outcome = inspire_run_use_case(use_case, globals().get(\"spark\"))\n                except InspireRunStop as stop:\n"
             "                    outcome = {\"status\": \"stopped\", \"stop_reason\": str(stop)}\n                    out(str(stop))\n"
             "                except Exception as caught:\n                    missing = inspire_failure_text(caught)\n"
             "                    out(f\"Use case outcome: {missing}.\")\n                    raise InspireOutcomeMissing(missing) from caught\n"
