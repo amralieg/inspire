@@ -99,7 +99,7 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     await goToStep(page, 'What to deliver');
     const notebook = page.locator('[data-output="notebook"] input');
     assert.deepEqual([await notebook.isChecked(), await notebook.isDisabled()], [true, true], 'the notebook is always built');
-    assert.equal(await page.getByRole('checkbox', { name: /^App / }).isChecked(), true);
+    assert.equal(await page.getByRole('checkbox', { name: /^App A Databricks/ }).isChecked(), true);
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       1, 'one Recommended on What to deliver');
     assert.equal(await page.getByRole('region', { name: 'App placement' }).count(), 0, 'where the App goes waits for Where it lives (must-exclude)');
@@ -159,7 +159,7 @@ test('a notebook-only build is Deliver with only Notebook ticked: no App step, a
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await goToStep(page, 'What to deliver');
-    for (const name of [/^App /, /^Genie Agent/, /^Dashboard/, /^Alert/]) {
+    for (const name of [/^App A Databricks/, /^Genie Agent/, /^Dashboard/, /^Alert/]) {
       const box = page.getByRole('checkbox', { name });
       if (await box.isChecked()) await box.uncheck();
     }
@@ -189,7 +189,7 @@ test('an App Inspire cannot afford is dimmed on Deliver with one plain reason an
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await goToStep(page, 'What to deliver');
-    const appBox = page.getByRole('checkbox', { name: /^App / });
+    const appBox = page.getByRole('checkbox', { name: /^App A Databricks/ });
     await page.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
     assert.deepEqual([await appBox.isDisabled(), await appBox.isChecked()], [true, false]);
     const blocked = page.locator('[data-blocked-reason="app"]');

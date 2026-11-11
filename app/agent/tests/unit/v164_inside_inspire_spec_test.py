@@ -184,7 +184,7 @@ def test_every_app_placement_keeps_the_inspire_address_as_its_host_alone(agent_n
 @pytest.mark.parametrize("placement", ["inspire", "use_case", "domain", "business", "dashboard alone"])
 @pytest.mark.parametrize("sent", [
     "", "   ", None, "https://inspire.example.com//", "https://inspire.example.com/app", "https://inspire.example.com?page=run",
-    "https://inspire.example.com#/run", "http://inspire.example.com", "https://inspire.example.com:8443", "https://me@inspire.example.com",
+    "https://inspire.example.com#/run", "http://inspire.example.com", "https://inspire.example.com:8443", "https://me:@inspire.example.com",
     "inspire.example.com", "https://", "https://-inspire.example.com", "https://inspire..example.com", "https://inspire example.com",
     "https://" + "a" * 64 + ".example.com", 5, ["https://inspire.example.com"],
 ], ids=["empty", "spaces", "missing", "two_slashes", "path", "query", "fragment", "http", "port", "user", "no_scheme", "no_host",

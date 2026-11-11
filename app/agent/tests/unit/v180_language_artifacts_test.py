@@ -135,7 +135,7 @@ def run_documents(ns, obj, pack=None):
 
 
 def test_every_requested_language_gets_markdown_csv_and_excel(ns):
-    obj = bilingual(ns, generate_choices=[])
+    obj = bilingual(ns, generate_choices=["Excel"])
     run_documents(ns, obj)
     names = sorted(path.rsplit("/", 1)[-1] for path in obj.w_client.workspace.files)
     assert names == ["Acme-dbx_inspire_ar.csv", "Acme-dbx_inspire_ar.json", "Acme-dbx_inspire_ar.xlsx", "Acme-dbx_inspire_en.csv",
@@ -147,7 +147,7 @@ def test_every_requested_language_gets_markdown_csv_and_excel(ns):
 
 
 def test_a_language_that_cannot_be_produced_is_recorded_in_steps_session_and_exit_value(ns):
-    obj = bilingual(ns, generate_choices=["PDF Catalog"])
+    obj = bilingual(ns, generate_choices=["PDF Catalog", "Excel"])
     statuses = run_documents(ns, obj, pack=lambda lang, *a, **k: (lang, "ar", None, None, None, None))
     gap_rows = [s for s in statuses if s.get("sub_step_name") == "Arabic" and s["status"] == "ended_error"]
     assert sorted(s["step_name"] for s in gap_rows) == ["CSV Catalog", "JSON Catalog", "Markdown Catalog", "PDF Catalog", "Use Case Excel"]
@@ -182,7 +182,7 @@ def test_a_failed_arabic_writer_is_a_recorded_gap_and_the_others_still_land(ns):
 
 
 def test_a_language_pack_without_use_cases_is_a_recorded_gap_never_a_silent_skip(ns):
-    obj = bilingual(ns, generate_choices=[])
+    obj = bilingual(ns, generate_choices=["Excel"])
     run_documents(ns, obj, pack=lambda lang, flat, grouped, name, batch_parallelism=1: (
         lang, "ar", arabic_labels(ns), {"المبيعات": []}, {"Executive": "<p>ملخص</p>"}, name))
     names = sorted(path.rsplit("/", 1)[-1] for path in obj.w_client.workspace.files)
@@ -225,12 +225,15 @@ def test_no_artifact_writer_skips_silently_on_empty_input():
 def test_requested_artifacts_name_only_what_the_user_asked_for(ns):
     obj = make_inspire(ns, generate_choices=[])
     assert [step for _s, step in obj._requested_language_artifacts("Arabic", ["English"])] == [
-        "Markdown Catalog", "CSV Catalog", "Use Case Excel", "JSON Catalog"]
+        "Markdown Catalog", "CSV Catalog", "JSON Catalog"]
+    obj.generate_choices = ["Excel", "PDF Catalog"]
+    assert [step for _s, step in obj._requested_language_artifacts("Arabic", ["English"])] == [
+        "Markdown Catalog", "CSV Catalog", "Use Case Excel", "PDF Catalog", "JSON Catalog"]
     assert [step for _s, step in obj._requested_language_artifacts("English", ["English"])] == [
         "Markdown Catalog", "CSV Catalog", "PDF Catalog"]
     obj.generate_choices = ["PDF Catalog", "Presentation"]
     assert [step for _s, step in obj._requested_language_artifacts("Arabic", [])] == [
-        "Markdown Catalog", "CSV Catalog", "Use Case Excel", "PDF Catalog", "Presentation", "JSON Catalog"]
+        "Markdown Catalog", "CSV Catalog", "PDF Catalog", "Presentation", "JSON Catalog"]
 
 
 def test_document_generation_is_gated_by_the_languages_only_never_by_pdf_or_slides_choices():
