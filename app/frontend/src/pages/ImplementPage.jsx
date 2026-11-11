@@ -1330,8 +1330,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   );
 
   const reads = readOnly ? null : liveReads(sourceNow);
-  const grantedAll = !readOnly && !reads && readsResult?.version === latest?.spec_version && readsResult.action === 'grant'
-    && !readsResult.refused && !readsResult.error;
+  const grantedAll = !readOnly && !reads && readsResult?.version === latest?.spec_version && readsResult?.action === 'grant'
+    && !readsResult?.refused && !readsResult?.error;
   const readsLeft = reads || (grantedAll ? { tables: [], canGrant: false } : null);
   const runReads = async (action) => {
     setReadsBusy(action);
