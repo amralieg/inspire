@@ -6,24 +6,22 @@ const path = require('node:path');
 const libUrl = pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'documentActions.js')).href;
 const load = () => import(libUrl);
 
-test('the English catalog is found in the loaded listing, inside a loaded folder, and never a translated copy (REQ-077)', async () => {
+test('the documents are rebuilt beside the session folder Discover wrote, never the business folder under it (REQ-077)', async () => {
   const lib = await load();
-  const tree = { 'out/docs': { files: [
-    { name: 'Acme-dbx_inspire.json', path: 'out/docs/Acme-dbx_inspire.json' },
-    { name: 'Acme-dbx_inspire_ar.json', path: 'out/docs/Acme-dbx_inspire_ar.json' },
-  ] } };
-  const root = [{ name: 'docs', path: 'out/docs', is_directory: true }, { name: 'Acme-dbx_inspire_ar.json', path: 'out/Acme-dbx_inspire_ar.json' }];
-  assert.equal(lib.englishCatalogPath(root, tree), 'out/docs/Acme-dbx_inspire.json');
-  assert.equal(lib.englishCatalogPath([{ name: 'Acme-dbx_inspire_ar.json', path: 'x' }], {}), null, 'nothing loaded: the buttons say so instead of guessing');
+  assert.equal(lib.documentBasePath({ generationPath: '/Workspace/Users/me/inspire_output', notebookPath: '' }), '/Workspace/Users/me/inspire_output');
+  assert.equal(lib.documentBasePath({ generationPath: '/Workspace/Users/me/inspire_output/', notebookPath: '' }), '/Workspace/Users/me/inspire_output', 'a trailing slash is not a second folder');
+  assert.equal(lib.documentBasePath({ generationPath: '../demos', notebookPath: '/Workspace/Users/me/app/agent/dbx_inspire_ai_agent' }), '/Workspace/Users/me/app/demos', 'a relative path resolves from the notebook, as Discover resolved it');
+  assert.equal(lib.documentBasePath({ generationPath: '', notebookPath: '' }), '', 'no stored folder: no base');
 });
 
-test('the request carries the session its documents are rebuilt beside (REQ-077)', async () => {
+test('the request carries the session base folder and no catalog path: the job finds the catalog itself (REQ-077)', async () => {
   const lib = await load();
   assert.deepEqual(lib.documentRunBody({ kind: 'strategy-document', format: 'PPTX', sessionId: 42, inspireDatabase: 'c.s',
-    businessName: 'Acme', generationPath: '/Workspace/out', catalogPath: '/Workspace/out/docs/Acme-dbx_inspire.json', outputLanguage: 'English,Arabic' }), {
+    businessName: 'Acme', generationPath: '/Workspace/out', outputLanguage: 'English,Arabic' }), {
     kind: 'strategy-document', format: 'PPTX', session_id: '42', inspire_database: 'c.s', business_name: 'Acme',
-    generation_path: '/Workspace/out', catalog_json_path: '/Workspace/out/docs/Acme-dbx_inspire.json', output_language: 'English,Arabic' });
+    generation_path: '/Workspace/out', output_language: 'English,Arabic' });
   assert.equal('format' in lib.documentRunBody({ kind: 'use-case-catalog', sessionId: 1 }), false);
+  assert.equal('catalog_json_path' in lib.documentRunBody({ kind: 'excel-workbook', sessionId: 1 }), false);
 });
 
 test('a document job reads running until its run ends, then done or failed (REQ-077)', async () => {
