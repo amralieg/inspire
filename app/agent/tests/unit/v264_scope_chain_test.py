@@ -108,3 +108,37 @@ def test_a_table_the_person_did_not_touch_is_read_as_before(agent_ns):
 def test_leave_out_and_keep_only_are_both_typed_into_sql(agent_ns):
     assert agent_ns["scope_where_sql"]([{"column": "brand", "op": "not in", "values": ["A", "B"]}]) == "`brand` NOT IN ('A', 'B')"
     assert agent_ns["scope_where_sql"]([{"column": "brand", "op": "in", "values": ["Golden Crumbs"]}]) == "`brand` IN ('Golden Crumbs')"
+
+
+def _kpi_spec(table, column="total_price"):
+    return {"table": table, "aggregation": "SUM", "column": column}
+
+
+def test_the_target_kpi_reads_only_the_wizard_scope_and_the_gate_refuses_a_base_table_read(agent_ns):
+    inst = build_inspire(agent_ns)
+    uc = make_uc()
+    table, data = _wizard_scope(inst, uc)
+    scopes = agent_ns["implement_table_scopes"](data, [table])
+    sql = agent_ns["DeepEvidence"].kpi_sql(_kpi_spec(table), scopes)
+    assert sql.startswith("SELECT CAST(SUM(`total_price`) AS DOUBLE) AS v FROM (SELECT `transaction_id`, `total_price` FROM ")
+    assert agent_ns["assert_scoped_reads"](sql, "the target KPI", scopes) == sql
+    base = agent_ns["build_fqn"](*table.split("."))
+    with pytest.raises(agent_ns["ScopeBypassError"], match="the target KPI reads"):
+        agent_ns["assert_scoped_reads"](f"SELECT CAST(SUM(`total_price`) AS DOUBLE) AS v FROM {base}", "the target KPI", scopes)
+
+
+def test_a_kpi_column_outside_the_wizard_scope_is_refused_not_read_whole(agent_ns):
+    inst = build_inspire(agent_ns)
+    uc = make_uc()
+    table, data = _wizard_scope(inst, uc)
+    scopes = agent_ns["implement_table_scopes"](data, [table])
+    with pytest.raises(ValueError, match="outside the Table Scope"):
+        agent_ns["DeepEvidence"].kpi_sql(_kpi_spec(table, column="store_name"), scopes)
+
+
+def test_a_kpi_on_an_unscoped_table_is_built_on_the_table_as_before(agent_ns):
+    inst = build_inspire(agent_ns)
+    uc = make_uc()
+    table = inst._genie_involved_tables(uc)[0]
+    sql = agent_ns["DeepEvidence"].kpi_sql(_kpi_spec(table), {})
+    assert sql == f"SELECT CAST(SUM(`total_price`) AS DOUBLE) AS v FROM {agent_ns['inspire_quote_qualified_name'](table)}"
