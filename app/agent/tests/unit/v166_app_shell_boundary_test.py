@@ -11,6 +11,11 @@ from v140_implement_test import _app_flow, _app_shell, _churn_page, _inspire
 from v141_app_shell_test import FakeWorkspace
 
 SHELL_LOADERS = ("_implement_app_shell", "implement_app_shell_modules")
+LAKEBASE_ENFORCEMENT_REVIEWED = {
+    ("_implement_lakebase_enforce_views", "shell_pg.enforcing_view_sql"): "REQ-060b per-user Lakebase enforcement: builds the enforcing view SQL",
+    ("_implement_lakebase_enforce_views", "shell_pg.pg_ident"): "REQ-060b per-user Lakebase enforcement: quotes the Postgres identity the views grant to",
+    ("_implement_lakebase_plans", "shell_pg.enforce_plan"): "REQ-060b per-user Lakebase enforcement: plans the enforced views for each copy",
+}
 SHELL_ENTRY_POINTS = {
     ("_implement_page_file", "shell_sql.money_page_problems"),
     ("_implement_siblings", "shell_sql.sibling_items"),
@@ -147,6 +152,8 @@ SHELL_ENTRY_POINTS = {
     ("implement_digest_body", "shell_sql.stake_words"),
     ("implement_driver_problems", "shell_sql.driver_charts"),
     ("implement_layout_brief", "shell_sql.layout_decides"),
+    *LAKEBASE_ENFORCEMENT_REVIEWED,
+
 }
 PURE_ENTRY_POINTS = {
     "shell_sql.impact_of": ("reads the impact kind, the unit and the currency the run's summary row names into one impact for the "
