@@ -70,6 +70,8 @@ export const NOT_IN_DEMO = {
   'POST /api/inspire/implement/readiness': 'the Start MVP wizard checks the tables of a new build; the demo offers no new build',
   'POST /api/inspire/implement/plan': 'the Start MVP wizard plans a new build; the demo offers no new build',
   'POST /api/inspire/implement/swaps': 'the Start MVP wizard and an editable tables panel look for other tables; the demo edits nothing',
+  'GET /api/inspire/value': 'the value at stake and saved is read from the value ledger outside the demo only; the demo shows the value it recorded and never calls the ledger',
+  'GET /api/inspire/value/overall': 'the value across all runs is read from the value ledger outside the demo only; the demo shows the value it recorded and never calls the ledger',
 };
 
 export function routeOf(method, url) {
