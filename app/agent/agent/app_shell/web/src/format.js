@@ -256,10 +256,11 @@ export function plainChart(chart) {
 
 const NAME_ENDINGS = ['name', 'label', 'title', 'description', 'desc'];
 
-export function entityName(row, column) {
+export function entityName(row, column, { ids = true } = {}) {
   const v = row?.[column];
   if (v == null || v === '') return '';
-  if (!isKeyColumn(column) || /[A-Za-z]/.test(String(v))) return plainText(v);
+  if (/[A-Za-z]/.test(String(v))) return plainText(v);
+  if (!isKeyColumn(column)) return ids ? plainText(v) : '';
   const stem = wordList(column).filter((w) => !KEY_WORDS.has(w) && !KEY_ENDINGS.test(w)).join('_');
   const norm = (k) => wordList(k).join('_');
   const wanted = stem ? [...NAME_ENDINGS.map((e) => `${stem}_${e}`), stem] : NAME_ENDINGS;
@@ -267,7 +268,7 @@ export function entityName(row, column) {
     .sort((a, b) => wanted.indexOf(norm(a)) - wanted.indexOf(norm(b)))
     .find((k) => /[A-Za-z]/.test(String(row[k] ?? '')));
   if (named) return plainText(row[named]);
-  return `${cap(stem.replace(/_/g, ' ') || 'item')} ${plainText(v)}`;
+  return ids ? `${cap(stem.replace(/_/g, ' ') || 'item')} ${plainText(v)}` : '';
 }
 
 export function fullNumber(v) {

@@ -1,6 +1,5 @@
 import { kpiValue } from './Kpis.jsx';
-import { recordName } from './Records.jsx';
-import { integer } from './format.js';
+import { entityName, integer } from './format.js';
 
 export const TOUR_PARAM = 'tour';
 const TOUR_PREFIX = 'inspire-tour:v1';
@@ -35,6 +34,6 @@ export function tourFacts(page, kpis, list) {
   return {
     kpis: values,
     open_count: list && list.total != null ? integer(list.total) : '',
-    top_record: rows.length && page?.records ? recordName(rows[0], page.records) || '' : '',
+    top_record: rows.length && page?.records ? entityName(rows[0], page.records.label, { ids: false }) || '' : '',
   };
 }

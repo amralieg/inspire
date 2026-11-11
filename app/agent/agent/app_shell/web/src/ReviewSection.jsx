@@ -4,6 +4,7 @@ import { usePlans } from './PlanSection.jsx';
 import { CYCLE_WORDS, REASON_MAX, VersionBar, statusWord, versionName } from './PlanVersions.jsx';
 import { Icon } from './icons.jsx';
 import { PlainNote, SaidNote, Skeleton, useToast } from './ui.jsx';
+import { SaveMissing } from './saving.jsx';
 import { formatValue, integer } from './format.js';
 import './styles/plan.css';
 
@@ -55,6 +56,7 @@ function SeriesRow({ page, row, cycle, can, look, onSaved }) {
             <label>Your forecast for {row.next_period}<input type="number" step="any" required value={value} onChange={(e) => setValue(e.target.value)} data-override-value /></label>
             <label className="grow">Why you override the model<input dir="auto" required maxLength={REASON_MAX} value={reason} onChange={(e) => setReason(e.target.value)} data-override-reason /></label>
             <button className="btn btn--sm btn--pri" type="submit" disabled={busy || value === '' || !reason.trim()} data-override-save>Save override</button>
+            <SaveMissing missing={[value === '' && 'your forecast', !reason.trim() && 'why you override the model'].filter(Boolean)} />
           </form>
         </td></tr>
       )}

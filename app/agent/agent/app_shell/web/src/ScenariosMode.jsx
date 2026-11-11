@@ -2,6 +2,7 @@ import { Suspense, lazy, useCallback, useEffect, useState } from 'react';
 import { chooseScenario, evaluateScenario, getSavedScenarios, saveScenario, shareScenario, toneOf } from './api.js';
 import { dayLabel, formatValue, integer } from './format.js';
 import { Icon } from './icons.jsx';
+import { SaveMissing } from './saving.jsx';
 import { PlainNote, Skeleton, useToast } from './ui.jsx';
 import { ModeEmpty } from './ModeParts.jsx';
 import { COMPARE_MAX, compareRows, decisionCounts, toggleCompared } from './scenarios.js';
@@ -49,7 +50,7 @@ function SaveForm({ page, result, onSaved }) {
       <label>Name this scenario<input dir="auto" required maxLength={NAME_CHARS} value={name} onChange={(e) => setName(e.target.value)} /></label>
       <label>Why, for whoever reads it<input dir="auto" maxLength={NOTE_CHARS} value={note} onChange={(e) => setNote(e.target.value)} /></label>
       <button className="btn btn--sm btn--pri" type="submit" disabled={busy || !name.trim()}>Save the scenario</button>
-      {!name.trim() && <p className="text-[12px] text-text-secondary" data-save-missing>Add a name to save the scenario.</p>}
+      <SaveMissing missing={[!name.trim() && 'a name'].filter(Boolean)} />
       {error && <PlainNote text={error} prefix="The scenario was not saved: " icon={<Icon name="info" size={12} />} className="tile-err" role="alert" />}
     </form>
   );

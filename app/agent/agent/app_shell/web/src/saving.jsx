@@ -47,3 +47,8 @@ export function SaveButton({ write, disabled, children, className = 'btn', type 
     </button>
   );
 }
+
+export function SaveMissing({ missing }) {
+  if (!missing.length) return null;
+  return <p className="text-[12px] text-text-secondary" data-save-missing>{`Add ${missing.join(' and ')} to save.`}</p>;
+}

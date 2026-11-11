@@ -407,6 +407,25 @@ test('the browser print keeps the title, the filters in words and the data date 
   await context.close();
 });
 
+test('at 1280 with a long use-case title beside a narrower page, the title wraps and the update note and Refresh now stay on its line', async () => {
+  const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'tabs' }, 2), { width: 1280, height: 800 });
+  await page.goto(`${base}#/n01_u05`);
+  await page.waitForFunction(chartsDrawn, 4);
+  await page.evaluate(() => {
+    document.querySelector('.pg-h h1').textContent = 'Price-loss decision desk for the Northeast and Mid-Atlantic regional sales teams, reviewed weekly';
+    document.querySelector('.pg-h').style.maxWidth = '700px';
+  });
+  const boxes = await page.evaluate(() => {
+    const top = (el) => { const r = el.getBoundingClientRect(); return { top: Math.round(r.top), bottom: Math.round(r.bottom), left: Math.round(r.left), right: Math.round(r.right) }; };
+    return { title: top(document.querySelector('.pg-h h1')), tools: top(document.querySelector('.ph-tools')), refresh: top(document.querySelector('.fresh-btn')) };
+  });
+  assert.ok(Math.abs(boxes.title.top - boxes.tools.top) < 12, `the header wraps: ${JSON.stringify(boxes)}`);
+  assert.ok(Math.abs(boxes.title.top - boxes.refresh.top) < 12, `Refresh now sits under the title: ${JSON.stringify(boxes)}`);
+  assert.ok(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth));
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});
+
 test('on a phone the page tools shrink to labelled icons and the page still fits', async () => {
   const { page, seen, context } = await openApp(browser, base, appInfo({ layout: 'tabs' }, 2), { width: 375 });
   await page.goto(`${base}#/n01_u05`);

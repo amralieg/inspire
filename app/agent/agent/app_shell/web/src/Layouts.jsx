@@ -6,7 +6,7 @@ import { Icon } from './icons.jsx';
 import { SaidNote, Skeleton, useToast, PlainNote, useRetry } from './ui.jsx';
 import { genieOn } from './genieAsk.js';
 import { ChartsReady, RowPanel, SECTION_PARTS, TAKE_ALL, TakeAll, decidedText, isClosed, useOpenRow } from './KindParts.jsx';
-import { SaveButton, runWrite } from './saving.jsx';
+import { SaveButton, SaveMissing, runWrite } from './saving.jsx';
 import { AskGenie } from './AskGenie.jsx';
 import { SectionHelp } from './SectionHelp.jsx';
 import { RowGenie } from './DataTable.jsx';
@@ -71,7 +71,7 @@ export function todoSteps(page, list, { modify = false, accept = false, plan = f
     steps.push({ id: 'so_what', text: 'Read the “So what” line under each chart: it says what to do with it.', action: null });
     if (page.filters?.length) steps.push({ id: 'filters', text: 'Use the filters at the top to narrow every chart to the part you own.', action: null });
   } else if (first) {
-    const name = entityName(first, label);
+    const name = entityName(first, label, { ids: false });
     const value = name ? ['Start with ', name, ': it is first in the list because it matters most.']
       : ['Start with the first record on the list: it is first in the list because it matters most.'];
     steps.push({ id: 'first', text: value.join(''), value, action: 'Show me', to });
@@ -212,7 +212,7 @@ function PlanRow({ page, app, plan, row, actions, onDecided, onOpen, first, plan
             <label>Your value<input type="number" step="any" required value={value} onChange={(e) => setValue(e.target.value)} /></label>
             <label className="grow">Why you override it<input dir="auto" required maxLength={300} value={reason} onChange={(e) => setReason(e.target.value)} /></label>
             <SaveButton write={`plan:${key}:override`} className="btn btn--sm btn--pri" type="submit" disabled={!value || !reason.trim()}>Save override</SaveButton>
-            {(!value || !reason.trim()) && <p className="text-[12px] text-text-secondary" data-save-missing>{`Add ${[!value && 'your value', !reason.trim() && 'why you override it'].filter(Boolean).join(' and ')} to save.`}</p>}
+            <SaveMissing missing={[!value && 'your value', !reason.trim() && 'why you override it'].filter(Boolean)} />
           </form>
         </td></tr>
       )}
