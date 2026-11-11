@@ -226,6 +226,7 @@ def test_the_agent_is_told_to_split_with_split_kpi_and_to_name_the_kpi_for_genie
 def test_a_page_whose_kpis_no_category_filter_narrows_offers_no_split(tmp_path):
     agent = shell_agent.Agent.__new__(shell_agent.Agent)
     agent.genie_on = lambda page: True
+    agent.shell = type("Shell", (), {"settings": {}, "option": lambda self, name: False})()
     page = copy.deepcopy(PAGE)
     page["filters"] = [f for f in page["filters"] if f["type"] in shell_sql.RANGE_EDGES]
     page.pop("records", None)

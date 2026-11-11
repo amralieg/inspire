@@ -485,7 +485,9 @@ def test_a_look_only_edit_rewrites_the_app_settings_and_redeploys_without_genie(
     settings = json.loads(deployed["inspire_app.json"])
     assert (name, settings["layout"], settings["palette"], settings["style"], settings["theme"]) == ("churn-desk", "tabs", "ocean", "a", "light")
     assert settings["pages"] == ["n01_u01", "n01_u02"] and settings["genie"]["space_id"] == "g1" and space_id == "g1"
-    assert json.loads(deployed["pages/n01_u01.json"]) == own_page and json.loads(deployed["pages/n01_u02.json"]) == merged_page
+    assert json.loads(deployed["pages/n01_u01.json"]) == dict(own_page, title="Predict churn"), (
+        "the App's own page carries the use case name, as implement_app_renamed sets it (names lane, rc7_app_rename_test)")
+    assert json.loads(deployed["pages/n01_u02.json"]) == merged_page
     assert inst.checked == [_without_requirements(deployed)] and deployed["requirements.txt"] == ""
     assert {"main.inspire.sales_out", "main.s.stores", "main.inspire.churn_out"} <= set(reads)
     messages = [e.get("message") for e in inst.emitted]

@@ -261,6 +261,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       </a>
     ) : null;
   const colors = paletteItems(chrome?.palette, chrome?.built, chrome?.theme, chrome?.onPalette || (() => {}));
+  const reporting = !!page.history;
   const promised = promisedView(page);
   const kpiRun = summary?.run;
   const kpiTargetSetting = settings?.settings?.find((s) => s.name === KPI_TARGET);

@@ -181,8 +181,10 @@ def test_a_per_user_app_is_created_with_its_scopes_and_its_service_principal_rea
     assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps"), ("GET", "/api/2.0/apps/churn-desk"),
                                       ("POST", "/api/2.0/apps/churn-desk/deployments"), ("GET", "/api/2.0/apps/churn-desk")]
     assert calls[1][2]["user_api_scopes"] == ["sql:restricted-query", "genie"]
-    assert _without_feedback(_not_access_reads(inst.spark.statements)) == [], \
-        "each viewer reads with their own grants, so the App's identity gets none beyond the feedback table"
+    assert _without_feedback(_not_access_reads(inst.spark.statements)) == [s for s in inst.spark.statements if VALUE_LEDGER in s
+                                                                              and s.startswith("CREATE TABLE")], \
+        "each viewer reads with their own grants, so the App's identity gets none beyond the feedback table (the job identity creates the value ledger)"
+    assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")] == []
     assert inst.genie_grants == []
 
 
@@ -403,3 +405,25 @@ def test_the_shell_server_offers_decisions_only_when_the_option_is_on(tmp_path):
     on, _sp, _user, _made = shell(tmp_path / "on", dict(SETTINGS, options=dict(SETTINGS["options"], decisions=True)))
     info = call(on, "GET", "app")[1]
     assert info["options"]["decisions"] is True and "download" not in info["options"] and info["image_export"] is True
+
+
+VALUE_LEDGER = "`main`.`inspire`.`__inspire_value_ledger`"
+
+
+def test_a_per_user_build_grants_the_value_ledger_to_no_service_principal_and_a_shared_build_does(agent_ns, sdk_stub):
+    created = {"compute_status": {"state": "ACTIVE"}, "service_principal_client_id": "sp-1"}
+    inst, context, _calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [created, dict(created, user_api_scopes=["sql:restricted-query", "genie"])] + DEPLOYED,
+                                                       access=[])
+    inst._implement_deploy_app(_user_context(agent_ns, context, decisions=False), "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
+    created_ledger = [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("CREATE TABLE")]
+    assert len(created_ledger) == 1, "the job identity creates Inspire's own value ledger for a per-user App too"
+    assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")] == [], (
+        "a per-user App works as the signed-in person, so the build grants the value ledger to no service principal")
+
+    inst, context, _calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [created] + DEPLOYED)
+    context["spec"]["outputs"]["app_options"]["decisions"] = False
+    inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
+    assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("CREATE TABLE")], "the shared build creates the ledger too"
+    assert {s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")} == {
+        f"GRANT SELECT ON TABLE {VALUE_LEDGER} TO `sp-1`", f"GRANT MODIFY ON TABLE {VALUE_LEDGER} TO `sp-1`"}, (
+        "a shared App's principal writes the value ledger, so the build grants it SELECT and MODIFY on that table only")

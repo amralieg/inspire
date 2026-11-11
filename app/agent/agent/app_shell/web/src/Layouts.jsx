@@ -262,6 +262,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged, planId 
     <section className="card card--table plan" aria-label={plan.title}>
       <header className="card-h"><div><h2>{plan.title}</h2>
         {locked ? <p className="muted" data-plan-locked>{locked}</p> : list.data && !can ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p> : plan.hint && <p>{plan.hint}</p>}
+        {can && rows.length > 0 && <p data-todo-count>{`${integer(open.length)} of ${integer(rows.length)} waiting for you`}</p>}
       </div>
       {open.length > 0 && <TakeAll count={open.length} onClick={acceptAll} />}
       <SectionHelp title={plan.title} steps={[{ title: plan.title, text: "The plan for this use case: each line with its suggested value, and what you change when you disagree." }]} /><AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>

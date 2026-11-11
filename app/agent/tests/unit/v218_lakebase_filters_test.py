@@ -220,13 +220,13 @@ def slow_shell(tmp_path, strict, slow_reads=None):
     s, ws, lb = lakebase_shell(tmp_path, strict=strict)
     answer, slowed = lb.run, {}
 
-    def run(sql, params, limit, queued=False):
+    def run(sql, params, limit, queued=False, viewer=""):
         if sql.startswith("SELECT v FROM"):
             slowed[sql] = slowed.get(sql, 0) + 1
             if slow_reads is None or slowed[sql] <= slow_reads:
                 lb.rendered.append(sql)
                 raise shell_pg.LakebaseSlow(f"{shell_pg.SLOW_LEAD} 2.5 s (canceling statement due to statement timeout)")
-        return answer(sql, params, limit, queued)
+        return answer(sql, params, limit, queued, viewer)
 
     lb.slowed = slowed
 

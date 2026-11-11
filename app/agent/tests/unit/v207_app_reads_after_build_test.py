@@ -3,6 +3,8 @@ import json
 import pathlib
 import symtable
 
+import pytest
+
 NOTEBOOK = pathlib.Path(__file__).resolve().parents[2] / "agent" / "dbx_inspire_ai_agent.ipynb"
 RESULT = "main.inspire.churn_out"
 SP = "1f0e-app-sp"
@@ -121,3 +123,73 @@ def test_the_build_writes_the_list_of_tables_the_app_reads_into_the_run():
     src = "".join(json.loads(NOTEBOOK.read_text())["cells"][1]["source"])
     assert ('"app_reads": implement_app_result_reads(".".join(inspire_table_parts(spec["result_table"]))),' in
             src[src.index("def _genie_run_controls_source("):src.index("def _assemble_genie_code_notebook(")])
+
+
+class ScopedFrame:
+    def __init__(self, name, log):
+        self.name, self.log = name, log
+        self.columns = ["order_id", "region", "amount"]
+
+    def where(self, condition):
+        self.log.append(("where", self.name, condition))
+        return self
+
+    def select(self, *columns):
+        self.log.append(("select", self.name, columns))
+        return self
+
+    def limit(self, n):
+        return self
+
+    def orderBy(self, *args):
+        return self
+
+
+class ScopedSpark:
+    def __init__(self):
+        self.reads = []
+        self.ops = []
+
+    def table(self, name):
+        self.reads.append(name)
+        return ScopedFrame(name, self.ops)
+
+
+SCOPED = "main.s.orders"
+SCOPE_VIEW = "main.inspire_scope.orders_scoped"
+
+
+def _scoped_run(agent_ns, **run):
+    notebook = {"__name__": "generated"}
+    exec(compile(_inlined(agent_ns), "<generated>", "exec"), notebook)
+    notebook["INSPIRE_RUN"] = dict(run)
+    return notebook
+
+
+def test_a_scoped_table_is_read_through_its_ready_scope_view_in_a_generated_notebook(agent_ns):
+    scope = {"table": SCOPED, "view": SCOPE_VIEW, "ready": True, "where": "region = 'EU'", "columns": ["order_id", "region"]}
+    notebook = _scoped_run(agent_ns, table_scopes={"main.s.orders": scope}, scoped_tables=["main.s.orders"])
+    spark = ScopedSpark()
+    frame = notebook["inspire_read_source"](SCOPED, spark, purpose=notebook["INSPIRE_READ_PURPOSES"][0])
+    assert spark.reads == ["`main`.`inspire_scope`.`orders_scoped`"], (
+        "the scoped read goes to the scope view, which already applies the Table Scope, never the whole base table")
+    assert frame is not None
+
+
+def test_a_scoped_table_whose_scope_is_missing_from_the_run_is_refused_and_never_read_whole(agent_ns):
+    notebook = _scoped_run(agent_ns, table_scopes={}, scoped_tables=["main.s.orders"])
+    spark = ScopedSpark()
+    with pytest.raises(ValueError, match="has a Table Scope, but this run does not carry its scope"):
+        notebook["inspire_read_source"](SCOPED, spark, purpose=notebook["INSPIRE_READ_PURPOSES"][0])
+    assert spark.reads == [], "a refused read never touches the base table"
+
+
+def test_a_scope_whose_view_is_not_ready_reads_the_base_table_with_its_rows_and_its_columns(agent_ns):
+    scope = {"table": SCOPED, "view": SCOPE_VIEW, "ready": False, "where": "region = 'EU'", "columns": ["order_id", "region"]}
+    notebook = _scoped_run(agent_ns, table_scopes={"main.s.orders": scope}, scoped_tables=["main.s.orders"])
+    spark = ScopedSpark()
+    notebook["inspire_read_source"](SCOPED, spark, purpose=notebook["INSPIRE_READ_PURPOSES"][0])
+    assert spark.reads == ["`main`.`s`.`orders`"], "a not-ready view falls back to the base table, never to a whole unfiltered read"
+    assert ("where", "`main`.`s`.`orders`", "region = 'EU'") in spark.ops, "the row filter of the scope is applied"
+    assert ("select", "`main`.`s`.`orders`", ("`order_id`", "`region`")) in spark.ops, (
+        "the column list of the scope is applied too (REQ-022: selected columns and rows)")

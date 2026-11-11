@@ -13,7 +13,7 @@ import {
 import { CONTRACT, NO_HUB, NO_IMPACT, NO_MONEY, NO_RUNS, NO_SETTINGS, NO_SUMMARY, appInfo } from '../agent/agent/app_shell/web/test/harness.mjs';
 import { closeBrowser, openUi } from '../frontend/test/ui/uiSupport.mjs';
 import { STUDIO_STATE, built } from '../frontend/test/ui/implementFixtures.js';
-import { defaultSpecFromUseCase } from '../frontend/src/lib/implementWizard.js';
+import { FRESHNESS_OPTIONS, FRESH_DEFAULT, defaultSpecFromUseCase } from '../frontend/src/lib/implementWizard.js';
 import { computeHighPriorityCount, qualityBarCountsOf } from '../frontend/src/lib/useCaseFields.js';
 import redact from '../backend/lib/redact.js';
 
@@ -147,7 +147,7 @@ function inspireState(useCases) {
       run_id: 9100 + i, start_time: Date.UTC(2026, 10, 2, 6, 0, 0), run_duration: 95000, trigger: 'PERIODIC',
       state: { life_cycle_state: 'TERMINATED', result_state: 'SUCCESS', state_message: '' }, run_page_url: `${WORKSPACE}/#job/${300 + i}/run/${9100 + i}`,
     }] }])),
-    job: { job_id: 300, settings: { tags: { dbx_inspire_ai_run_type: 'implement', dbx_inspire_ai_session_id: sid }, schedule: { quartz_cron_expression: '0 0 6 ? * MON', timezone_id: 'UTC', pause_status: 'UNPAUSED' } } },
+    job: { job_id: 300, settings: { tags: { dbx_inspire_ai_run_type: 'implement', dbx_inspire_ai_session_id: sid }, schedule: { quartz_cron_expression: FRESHNESS_OPTIONS.find((o) => o.id === FRESH_DEFAULT).cron, timezone_id: 'UTC', pause_status: 'UNPAUSED' } } },
     sessions: [run],
     portfolioRuns: [{ runs: '1', businesses: '1' }],
     portfolioUseCases: [{ sid: null, is_total: '1', ...counts }, { sid, is_total: '0', ...counts }],

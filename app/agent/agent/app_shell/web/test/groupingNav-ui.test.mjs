@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { FILTERS, appInfo, goRail, openApp, serveDist } from './harness.mjs';
+import { FILTERS, appInfo, goRail, openApp, reportIssue, serveDist } from './harness.mjs';
 
 let served;
 let browser;
@@ -83,12 +83,12 @@ test('Impact shows whenever the page has impact data, even with no promised text
 test('Report an issue opens on every page type; a page with no results table and no reports table says where to send the report', async () => {
   const info = appInfo({}, 1, { promised: PROMISED });
   const { page, context } = await openApp(browser, served.base, info);
-  await page.locator('[data-feedback-open]').click();
+  await reportIssue(page);
   await page.locator('[data-feedback-note]').waitFor();
   await page.keyboard.press('Escape');
   await goRail(page, 'impact');
   await page.locator('[data-section-title]', { hasText: 'Impact' }).waitFor();
-  await page.locator('[data-feedback-open]').click();
+  await reportIssue(page);
   await page.locator('[data-feedback-note]').first().waitFor();
   await context.close();
 });

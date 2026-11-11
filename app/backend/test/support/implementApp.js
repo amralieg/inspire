@@ -169,7 +169,8 @@ function makeApp(overrides = {}, { mount } = {}) {
       if (ucTable) {
         const name = decodeURIComponent(ucTable[1]).toLowerCase();
         const readable = !state.readableTables || (state.readableTables[token] || []).some((t) => t.toLowerCase() === name);
-        return readable ? json({ full_name: name }) : json({ error_code: 'PERMISSION_DENIED', message: `User does not have SELECT on Table '${name}'.` }, 403);
+        const rowFilter = (state.rowFilters || {})[name];
+        return readable ? json(rowFilter ? { full_name: name, row_filter: rowFilter } : { full_name: name }) : json({ error_code: 'PERMISSION_DENIED', message: `User does not have SELECT on Table '${name}'.` }, 403);
       }
       if (state.fetchThrows && Object.prototype.hasOwnProperty.call(state.fetchThrows, routed)) throw new Error(state.fetchThrows[routed]);
       if (state.responses && Object.prototype.hasOwnProperty.call(state.responses, routed)) {
