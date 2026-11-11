@@ -124,6 +124,7 @@ const IMPLEMENT_NOTEBOOK_TASK_KEY = 'inspire_task';
 const IMPLEMENT_PRINCIPAL_TYPES = ['user', 'group', 'service_principal'];
 const IMPLEMENT_USE_CASE_PARAM = 'inspire_implement_use_case';
 const IMPLEMENT_SPEC_VERSION_PARAM = 'inspire_implement_spec_version';
+const IMPLEMENT_INSPIRE_CLIENT_PARAM = 'inspire_app_client_id';
 const IMPLEMENT_RUN_ID_REFERENCE = '{{job.run_id}}';
 const IMPLEMENT_APP_NAME_RE = /^[a-z][a-z0-9-]{1,28}[a-z0-9]$/;
 const IMPLEMENT_WIDGET_NAME_RE = /^[A-Za-z][A-Za-z0-9_]{0,40}$/;
@@ -2095,12 +2096,13 @@ function refuseUnchanged(plan) {
   }
 }
 
-function implementJobParams(baseParams, useCaseId, specVersion) {
+function implementJobParams(baseParams, useCaseId, specVersion, inspireClientId = '') {
   return {
     ...baseParams,
     '15_operation': IMPLEMENT_OPERATION,
     [IMPLEMENT_USE_CASE_PARAM]: String(useCaseId),
     [IMPLEMENT_SPEC_VERSION_PARAM]: String(specVersion),
+    [IMPLEMENT_INSPIRE_CLIENT_PARAM]: String(inspireClientId || ''),
     [IMPLEMENT_RUN_ID_PARAM]: IMPLEMENT_RUN_ID_REFERENCE,
   };
 }
@@ -3650,6 +3652,7 @@ module.exports = {
   ownerLabel,
   IMPLEMENT_TRAVERSE_PRIVILEGES,
   IMPLEMENT_NOTEBOOK_TASK_KEY,
+  IMPLEMENT_INSPIRE_CLIENT_PARAM,
   IMPLEMENT_USE_CASE_PARAM,
   IMPLEMENT_SPEC_VERSION_PARAM,
   IMPLEMENT_RUN_ID_PARAM,

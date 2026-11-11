@@ -67,10 +67,10 @@ def impl_class(agent_ns):
     return next(v for v in agent_ns.values() if isinstance(v, type) and hasattr(v, "_implement_app_feedback_table"))
 
 
-def stub_agent(agent_ns, warnings=(), spark_error=None, principal="insp-sp", api=None):
+def stub_agent(agent_ns, warnings=(), spark_error=None, principal="insp-client-1"):
     cls = impl_class(agent_ns)
     inst = cls.__new__(cls)
-    calls = {"sql": [], "access": [], "api": []}
+    calls = {"sql": [], "access": [], "api": [], "params": []}
 
     def sql(statement):
         calls["sql"].append(statement)
@@ -84,12 +84,13 @@ def stub_agent(agent_ns, warnings=(), spark_error=None, principal="insp-sp", api
         calls["access"].append((table, client_id, needs, refused))
         return list(warnings)
 
-    def request(method, path, body=None, query=None):
-        calls["api"].append((method, path, query))
-        return api if api is not None else {"Resources": [{"applicationId": principal}]} if principal else {"Resources": []}
+    def param(name):
+        calls["params"].append(name)
+        return principal
 
     inst._implement_app_write_access = access
-    inst._implement_api = request
+    inst._implement_param = param
+    inst._implement_api = lambda method, path, body=None, query=None: calls["api"].append((method, path, query)) or {}
     inst.logger = types.SimpleNamespace(warning=lambda *a, **k: None)
     return inst, calls
 
@@ -123,27 +124,27 @@ def test_a_failed_create_blocks_a_new_app_and_only_warns_an_existing_one(agent_n
 
 
 def test_an_app_inside_inspire_gets_its_table_and_Inspires_own_identity_is_granted_on_it(agent_ns):
-    inst, calls = stub_agent(agent_ns, principal="insp-sp")
+    inst, calls = stub_agent(agent_ns, principal="insp-client-1")
     assert inst._implement_app_feedback_inside(INSIDE_TABLE, []) == []
     assert calls["sql"] == [agent_ns["inspire_app_feedback_create_sql"](INSIDE_TABLE)]
     [(table, principal, needs, refused)] = calls["access"]
-    assert (table, principal) == (INSIDE_TABLE, "insp-sp")
+    assert (table, principal) == (INSIDE_TABLE, "insp-client-1")
     assert needs == agent_ns["IMPLEMENT_READ_NEEDS"] + (agent_ns["IMPLEMENT_MODIFY_NEED"],)
-    [(method, path, query)] = calls["api"]
-    assert (method, path) == ("GET", "/api/2.0/preview/scim/v2/ServicePrincipals")
-    assert query["filter"] == 'displayName co "inspire-ai"'
+    assert calls["params"] == [agent_ns["IMPLEMENT_INSPIRE_CLIENT_PARAM"]]
+    assert calls["api"] == [], "the identity is the build parameter, never a lookup by name"
 
 
-def test_an_inside_app_whose_inspire_identity_cannot_be_found_gets_a_warning_not_a_grant(agent_ns):
+def test_an_inside_app_whose_inspire_identity_was_not_passed_gets_a_warning_and_no_grant(agent_ns):
     inst, calls = stub_agent(agent_ns, principal="")
     warnings = inst._implement_app_feedback_inside(INSIDE_TABLE, [])
-    assert calls["access"] == [] and warnings and "Inspire's service principal could not be found" in warnings[0]
+    assert calls["access"] == [], "no identity, so nothing is granted"
+    assert warnings and "did not receive Inspire's own App identity" in warnings[0] and INSIDE_TABLE in warnings[0]
 
 
-def test_inspires_identity_is_the_first_service_principal_with_an_application_id(agent_ns):
-    inst, _calls = stub_agent(agent_ns, api={"Resources": [{"displayName": "other"}, {"applicationId": "insp-sp"}]})
-    assert inst._implement_inspire_principal() == "insp-sp"
-    inst, _calls = stub_agent(agent_ns, api={"Resources": []})
+def test_inspires_identity_is_exactly_the_client_id_the_build_received(agent_ns):
+    inst, _calls = stub_agent(agent_ns, principal="insp-client-1")
+    assert inst._implement_inspire_principal() == "insp-client-1"
+    inst, _calls = stub_agent(agent_ns, principal="")
     assert inst._implement_inspire_principal() == ""
 
 
@@ -228,3 +229,23 @@ def test_inside_inspire_the_feedback_step_needs_no_results_table_and_the_other_s
 
 def test_feedback_is_an_inside_decision_step_so_Inspire_writes_it_with_its_own_identity():
     assert "feedback" in shell_core.CLI_ROUTES
+
+
+def test_the_hosted_branch_carries_its_warnings_into_the_build_output():
+    import _agentload
+    tree = ast.parse(_agentload.agent_source())
+    deploy = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_implement_deploy_app")
+    hosted = [n for n in ast.walk(deploy) if isinstance(n, ast.If) and isinstance(n.test, ast.Call)
+              and getattr(n.test.func, "id", "") == "implement_app_hosted"]
+    assert len(hosted) == 1
+    keys = [t.slice.value for n in ast.walk(hosted[0]) if isinstance(n, ast.Assign) for t in n.targets
+            if isinstance(t, ast.Subscript) and isinstance(t.slice, ast.Constant)]
+    assert "_warnings" in keys, "a hosted App's form warning reaches the build output"
+
+
+def test_the_inspire_identity_is_read_from_the_build_parameter_and_never_looked_up_by_name():
+    import _agentload
+    tree = ast.parse(_agentload.agent_source())
+    method = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_implement_inspire_principal")
+    calls = [n.func.attr for n in ast.walk(method) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)]
+    assert calls == ["_implement_param"]

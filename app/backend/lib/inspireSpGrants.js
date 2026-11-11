@@ -33,7 +33,12 @@ async function resolveInspireAppServicePrincipalId(dbFetch, host, token, explici
   return null;
 }
 
+function ownServicePrincipalId(env = process.env) {
+  return String(env.DATABRICKS_CLIENT_ID || env.SP_CLIENT_ID || '').trim();
+}
+
 module.exports = {
+  ownServicePrincipalId,
   resolveInspireAppServicePrincipalId,
   DEFAULT_APP_NAME,
 };

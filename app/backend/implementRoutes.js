@@ -9,6 +9,7 @@ const { moneyStatements, moneyView, moneyWithheld } = require('./lib/implementMo
 const FB = require('./lib/appFeedback');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
+const { ownServicePrincipalId } = require('./lib/inspireSpGrants');
 const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning } = require('./lib/inspireJobParams');
 const R = require('./lib/reviewFigures');
 const A = require('./lib/useCaseAlerts');
@@ -1292,7 +1293,7 @@ function registerImplementRoutes(app, deps) {
     I.refuseUnchanged(plan);
     const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
     const warnings = [...noted, ...outputWarnings];
-    const params = I.implementJobParams(notebookParamsFromSessionForGenerateRun(session, sid), useCaseId, plan.nextVersion);
+    const params = I.implementJobParams(notebookParamsFromSessionForGenerateRun(session, sid), useCaseId, plan.nextVersion, ownServicePrincipalId());
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
     if (!params['01_uc_metadata']) {
       const err = new Error('This session has no UC metadata stored on __inspire_session. Run Discover from this app first.');
