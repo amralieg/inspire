@@ -3,6 +3,8 @@ import assert from 'node:assert/strict';
 import { closeBrowser, lowContrast, openUi, setDark } from './uiSupport.mjs';
 import { REVIEW_RESULTS, REVIEW_STATE } from './reviewFixtures.js';
 import { valueChips } from '../../src/lib/valueLedger.js';
+import { SHOWCASE_NOTE } from '../../src/lib/showcase.js';
+import { openShowcase } from '../../../scripts/showcaseRecorder.mjs';
 
 test.after(closeBrowser);
 
@@ -40,11 +42,15 @@ const OVERALL = {
 
 const DEFAULTS = { envSkipsSetupWizard: true, isDatabricksApp: true, databricksHost: 'https://workspace.example.com', warehouseId: 'wh1',
   inspireDatabase: 'main.inspire', notebookPath: '/Shared/inspire_ai' };
+const RUNS = { runs: { 42: VALUE.run } };
+const valueHits = [];
 const mountValue = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json({}));
+  app.use('/api/inspire/value', (req, _res, next) => { valueHits.push(req.originalUrl); next(); });
   app.get('/api/inspire/value', (_req, res) => res.json(VALUE));
   app.get('/api/inspire/value/overall', (_req, res) => res.json(OVERALL));
+  app.get('/api/inspire/value/runs', (_req, res) => res.json(RUNS));
 };
 const withValue = (results, runs) => ({ ...REVIEW_STATE, results, ...runs });
 
@@ -107,6 +113,7 @@ test('Start shows one overall banner across runs with at stake and saved, and ea
   const ui = await openUi('app', { ...REVIEW_STATE }, '', { mount: mountValue });
   const { page } = ui;
   try {
+    valueHits.length = 0;
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
     const banner = page.locator('[data-value-overall]');
@@ -117,6 +124,9 @@ test('Start shows one overall banner across runs with at stake and saved, and ea
     assert.deepEqual(await banner.locator('[data-value-group="saved"] [data-value-chip]').evaluateAll((els) => els.map((el) => el.textContent.trim())), ['AED 1.5K']);
     const runValue = page.locator('[data-run="42"] [data-run-value]');
     await runValue.locator('[data-value-badge]').waitFor({ timeout: 15000 });
+    const runsCalls = valueHits.filter((u) => u.startsWith('/api/inspire/value/runs'));
+    assert.ok(runsCalls.length >= 1 && new Set(runsCalls).size === 1, `one runs read for every run on Start: ${runsCalls.length}`);
+    assert.equal(valueHits.filter((u) => u.startsWith('/api/inspire/value?')).length, 0, 'no per-run call on Start');
     assert.deepEqual(await runValue.locator('[data-value-chip]').evaluateAll((els) => els.map((el) => el.textContent.trim())), ['AED 9K', '$4K', '120 hours', 'AED 1.5K']);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -136,6 +146,28 @@ test('value chips and the overall banner keep 4.5:1 contrast in light and dark',
       assert.deepEqual(measured.low, [], `${dark ? 'dark' : 'light'} value text`);
     }
     assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('showcase mode never calls the value routes, because the demo has none', async () => {
+  const ui = await openUi('app', { ...REVIEW_STATE }, '', {
+    mount: (app) => {
+      app.get('/api/showcase', (_req, res) => res.json({ showcases: [{ id: 'acme', session_id: '42', title: 'Acme retail', business: 'Acme', summary: 'Demo' }] }));
+      mountValue(app);
+    },
+  });
+  const { page } = ui;
+  try {
+    valueHits.length = 0;
+    await openShowcase(page);
+    await page.getByRole('region', { name: 'Demo' }).getByText(SHOWCASE_NOTE).waitFor({ timeout: 20000 });
+    valueHits.length = 0;
+    await page.waitForLoadState('networkidle', { timeout: 20000 }).catch(() => null);
+    await page.locator('[data-run-heading], [data-portfolio]').first().waitFor({ timeout: 20000 }).catch(() => null);
+    assert.deepEqual(valueHits, [], 'no value request while the showcase is open');
+    assert.equal(await page.locator('[data-value-overall], [data-run-value]').count(), 0);
   } finally {
     await ui.close();
   }

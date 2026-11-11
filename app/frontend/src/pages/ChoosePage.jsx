@@ -7,7 +7,7 @@ import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import ValueBadge, { OverallValue } from '../components/ValueBadge';
 import { valueQuery } from '../lib/valueLedger';
-import { useRunValues, useValueRead } from '../lib/useValueLedger';
+import { useValueRead } from '../lib/useValueLedger';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runCounts, runLabel, runFilterText, runsOfCard } from '../lib/reviewFigures';
 import { sessionCountsLine, sessionStatus } from '../lib/monitorState';
@@ -183,7 +183,10 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const [runFilter, setRunFilter] = useState('');
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
   const { portfolio, error: portfolioError } = usePortfolio(apiFetch, inspireDatabase, warehouseId);
-  const overallValue = useValueRead(apiFetch, inspireDatabase && warehouseId ? `/api/inspire/value/overall?${valueQuery(inspireDatabase, warehouseId)}` : '');
+  const valueReady = Boolean(inspireDatabase && warehouseId && !showcase);
+  const overallValue = useValueRead(apiFetch, valueReady ? `/api/inspire/value/overall?${valueQuery(inspireDatabase, warehouseId)}` : '');
+  const runsValue = useValueRead(apiFetch, valueReady ? `/api/inspire/value/runs?${valueQuery(inspireDatabase, warehouseId)}` : '');
+  const runValues = runsValue?.runs || {};
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(null);
   const [deleteError, setDeleteError] = useState(null);
@@ -266,12 +269,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
     })();
   }, [token, databricksHost, warehouseId, inspireDatabase, showcase]);
 
-  const filtered = runFilter ? runsOfCard(runFilter, sessions, portfolio) : sessions;
-  const listed = runFilter || showAll ? filtered : filtered.slice(0, 5);
-  const runValues = useRunValues(apiFetch, inspireDatabase, warehouseId, listed
-    .filter((s) => Number(portfolio?.sessions?.[String(s.session_id)]?.mvps_started) > 0)
-    .map((s) => String(s.session_id)));
-
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
@@ -304,6 +301,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
     );
   }
 
+  const filtered = runFilter ? runsOfCard(runFilter, sessions, portfolio) : sessions;
+  const listed = runFilter || showAll ? filtered : filtered.slice(0, 5);
   const openCard = (key) => {
     if (portfolioCard(key)?.opens === 'build') {
       const filter = buildFilterOf(key, sessions, portfolio);
@@ -342,7 +341,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
         )}
-        {inspireDatabase && warehouseId && <OverallValue value={overallValue} />}
+        {valueReady && <OverallValue value={overallValue} />}
 
         {/* ── Previous Experiments ── */}
         <div className="space-y-3">
@@ -443,7 +442,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                     {/* Info */}
                     <div className="flex-1 min-w-0">
                       <p className="flex items-center gap-2 min-w-0">
-                        <span dir="auto" className="text-sm font-medium text-text-primary truncate">{name}</span>
+                        <span dir="auto" className="text-base font-semibold text-text-primary truncate">{name}</span>
                         <LatestRunBadge session={session} />
                       </p>
                       {description && (
@@ -479,7 +478,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                             </ul>
                           )}
                           {runValues[sidStr] && (
-                            <div data-run-value="" className="mt-2 border-t border-border pt-2">
+                            <div data-run-value="" className="mt-3 space-y-1.5">
+                              <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Value of this run</p>
                               <ValueBadge
                                 atStake={runValues[sidStr].at_stake}
                                 saved={runValues[sidStr].saved}
@@ -509,6 +509,11 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                   </button>
 
                     <div className="flex-shrink-0 flex items-center gap-2">
+                      {Number(portfolio?.sessions?.[sidStr]?.mvps_live) > 0 && (
+                        <span data-run-live="" className="rounded-lg border border-success/35 bg-success-bg px-2.5 py-1.5 text-[11px] font-semibold tabular-nums text-success-fg">
+                          {portfolio.sessions[sidStr].mvps_live.toLocaleString('en-US')} live
+                        </span>
+                      )}
                       {buildingFilter && (
                         <div data-run-building="" className="relative z-10 flex items-center gap-2 rounded-lg border border-db-red/30 bg-db-red-50 px-2.5 py-1.5 text-[11px] font-medium text-db-red-fg">
                           <Loader2 data-run-building-spinner="" size={12} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none" />

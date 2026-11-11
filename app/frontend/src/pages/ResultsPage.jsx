@@ -252,7 +252,7 @@ export default function ResultsPage({
 
   const [portfolioTick, setPortfolioTick] = useState(0);
   const { portfolio } = usePortfolio(apiFetch, inspireDb, warehouseId, portfolioTick);
-  const runValueUrl = selectedSessionId && inspireDb && warehouseId
+  const runValueUrl = selectedSessionId && inspireDb && warehouseId && !showcase
     ? `/api/inspire/value?${valueQuery(inspireDb, warehouseId, { session_id: String(selectedSessionId) })}`
     : '';
   const runValue = useValueRead(apiFetch, runValueUrl, implementRefresh);
