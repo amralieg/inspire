@@ -2620,6 +2620,7 @@ class Shell:
     def filters(self, headers: dict, ident, probe=None) -> dict:
         page = self.page(ident)
         ws, who = self.session(headers, probe)
+        page = self.live_grouping(ws, who, page)
         self.warm_open(ws, who, page)
         jobs = self.bounds_jobs(ws, who, page)
         chosen = len(jobs)
@@ -2663,6 +2664,14 @@ class Shell:
                 item["error"] = errors[key]
             (columns["list"] if table is None else columns["tables"].setdefault(table, [])).append(item)
         return {"filters": out, "columns": columns, "grouping": page.get("grouping") or {}}
+
+    def live_grouping(self, ws, who, page: dict) -> dict:
+        if not any(isinstance(s, dict) and s.get("name") == shell_sql.GROUP_BY_SETTING for s in page.get("settings") or []):
+            return page
+        saved = next((row for row in self.assumption_rows(ws, who, page) if row.get("name") == shell_sql.GROUP_BY_SETTING), None)
+        if saved is None or not isinstance(saved.get("text_value"), str):
+            return page
+        return dict(page, grouping=shell_sql.grouping_of(page, saved["text_value"]))
 
     def bounds_jobs(self, ws, who, page: dict, apart: bool = False) -> dict:
         dated = [f["id"] for f in page.get("filters") or [] if f["type"] == "date_range"]
@@ -3491,12 +3500,12 @@ class Shell:
 
     def feedback_page(self, ident) -> dict:
         page = self.page(ident)
-        if not page.get("result_table"):
+        if not page.get("result_table") and not self.settings.get("feedback_table"):
             raise HttpError(409, NO_FEEDBACK)
         return page
 
     def feedback_missing(self, page: dict, error) -> HttpError:
-        return HttpError(409, f"Nothing was saved: {shell_sql.feedback_table(page)} does not exist yet ({error}). Ask the person who built "
+        return HttpError(409, f"Nothing was saved: {shell_sql.feedback_table(page, self.settings.get('feedback_table', ''))} does not exist yet ({error}). Ask the person who built "
                               f"the App to {shell_sql.rebuild_action()}, so Inspire creates it")
 
     def feedback_list(self, headers: dict, ident) -> dict:
@@ -3504,7 +3513,7 @@ class Shell:
         editor = self.editor(headers)
         everyone = bool(self.signed_in(headers) & self.page_editors(page))
         ws, _who = self.workspace(headers)
-        sql, params = shell_sql.feedback_query(page, None if everyone else editor, shell_sql.CAPS["feedback_rows"])
+        sql, params = shell_sql.feedback_query(page, None if everyone else editor, shell_sql.CAPS["feedback_rows"], self.settings.get("feedback_table", ""))
         try:
             rows = self.execute(self.decision_writer(ws), sql, params, shell_sql.CAPS["feedback_rows"], delta=True)["rows"]
         except QueryError as error:
@@ -3543,11 +3552,13 @@ class Shell:
         self.feedback_allowed(editor)
         feedback_id = uuid.uuid4().hex
         try:
-            self.execute(writer, *shell_sql.feedback_write(page, feedback_id, section, record.strip(), text.strip(), editor, filters.strip()), 1,
+            self.execute(writer, *shell_sql.feedback_write(page, feedback_id, section, record.strip(), text.strip(), editor, filters.strip(),
+                                                           self.settings.get("feedback_table", "")), 1,
                          delta=True)
         except QueryError as error:
             if NOT_ALLOWED.search(str(error)):
-                raise self.write_refused(shell_sql.feedback_table(page), error, as_app=self.settings["auth"] == "user") from error
+                raise self.write_refused(shell_sql.feedback_table(page, self.settings.get("feedback_table", "")), error,
+                                         as_app=self.settings["auth"] == "user") from error
             if NO_TABLE.search(str(error)):
                 raise self.feedback_missing(page, error) from error
             raise

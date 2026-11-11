@@ -57,7 +57,7 @@ test('an owner sees Impact, Feedback and Reported issues in the nav, and each op
   await context.close();
 });
 
-test('a person who is not an owner sees Feedback but not Reported issues, and a page with no promised impact has no Impact entry', async () => {
+test('a person who is not an owner sees Feedback but not Reported issues, and a page with no impact data has no Impact entry', async () => {
   const info = appInfo({}, 1, {});
   info.pages[0].is_owner = false;
   const { page, context } = await openApp(browser, served.base, info);
@@ -65,7 +65,18 @@ test('a person who is not an owner sees Feedback but not Reported issues, and a 
   const items = await rail(page);
   assert.ok(items.includes('feedback'), `rail is ${items.join(', ')}`);
   assert.ok(!items.includes('reports'), 'Reported issues stays with the owners');
-  assert.ok(!items.includes('impact'), 'no promised impact, no Impact entry');
+  assert.ok(!items.includes('impact'), 'no results table and no promised impact, no Impact entry');
+  await context.close();
+});
+
+test('Impact shows whenever the page has impact data, even with no promised text', async () => {
+  const info = appInfo({}, 1, {});
+  info.pages[0].history = true;
+  const { page, context } = await openApp(browser, served.base, info);
+  await page.locator('[data-rail]').first().waitFor();
+  assert.ok((await rail(page)).includes('impact'), 'a page that keeps results has impact data');
+  await goRail(page, 'impact');
+  await page.locator('[data-section-title]', { hasText: 'Impact' }).waitFor();
   await context.close();
 });
 

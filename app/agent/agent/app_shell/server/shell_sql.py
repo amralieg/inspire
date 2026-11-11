@@ -1101,6 +1101,9 @@ def column_filters(entries, shown: dict, types=None) -> list:
     return out
 
 
+GROUP_BY_SETTING = "group_by"
+
+
 def page_grouping(page: dict, named) -> dict:
     records = page.get("records") if isinstance(page.get("records"), dict) else {}
     shown = {column.lower(): label for column, (label, _kind) in list_shown(records).items()}
@@ -1108,9 +1111,16 @@ def page_grouping(page: dict, named) -> dict:
     return {"mode": "columns", "group_by": group_by} if group_by else {}
 
 
-def grouping_columns(page: dict) -> set:
+def grouping_of(page: dict, text) -> dict:
+    names = [part.strip() for part in str("" if text is None else text).split(",") if part.strip()]
+    if not names or [name.lower() for name in names] == [SETTING_ALL] or any(name.lower() in ("all", "custom") for name in names[1:]):
+        return {}
+    return page_grouping(page, [] if any(name.lower() in ("all", "custom") for name in names) else names)
+
+
+def grouping_entries(page: dict) -> list:
     grouping = page.get("grouping") if isinstance(page.get("grouping"), dict) else {}
-    return {str(g["column"]).lower() for g in grouping.get("group_by") or [] if isinstance(g, dict) and isinstance(g.get("column"), str)}
+    return [g for g in grouping.get("group_by") or [] if isinstance(g, dict) and isinstance(g.get("column"), str)]
 
 
 def list_column_filters(page: dict, types=None, actions: bool = False) -> list:
@@ -1118,11 +1128,19 @@ def list_column_filters(page: dict, types=None, actions: bool = False) -> list:
     if not isinstance(records, dict):
         return []
     shown = list_shown(records)
-    wanted = grouping_columns(page)
+    entries = grouping_entries(page)
+    wanted = {g["column"].lower() for g in entries}
     found = [dict(f, grouping=True) if f["column"].lower() in wanted and f["type"] == "multi_select" else f
              for f in column_filters(records.get(COLUMN_FILTERS), shown, types)]
-    grouped = [{"column": column, "type": "multi_select", "label": label, "grouping": True}
-               for column, (label, _kind) in shown.items() if column.lower() in wanted and column not in {f["column"] for f in found}]
+    listed = {c.lower(): (label, c) for c, (label, _kind) in shown.items()}
+    grouped, seen = [], {f["column"].lower() for f in found}
+    for g in entries:
+        key = g["column"].lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        label, column = listed.get(key, (g.get("label") or _column_label(g["column"]), g["column"]))
+        grouped.append({"column": column, "type": "multi_select", "label": label, "grouping": True})
     taken = {f["column"] for f in found + grouped}
     offered = actions and records.get(COLUMN_FILTERS) is not False
     return found + grouped + [{"column": column, "type": "multi_select", "label": label, "implied": True, "action": True}
@@ -5070,22 +5088,22 @@ FEEDBACK_COLUMNS = ("feedback_id", "section", "record_key", "text", "filters", "
                     "handled_at")
 
 
-def feedback_table(page: dict) -> str:
-    return sibling_table(page, FEEDBACK_SUFFIX)
+def feedback_table(page: dict, app_table: str = "") -> str:
+    return sibling_table(page, FEEDBACK_SUFFIX) if page.get("result_table") else table_name(app_table)
 
 
-def feedback_write(page: dict, feedback_id: str, section: str, record_key: str, text: str, reporter: str, filters: str) -> tuple:
+def feedback_write(page: dict, feedback_id: str, section: str, record_key: str, text: str, reporter: str, filters: str, app_table: str = "") -> tuple:
     params = _Params()
     cells = [params.add(feedback_id), params.add(str(page.get("use_case_id") or "")), params.add(section), params.add(record_key or None),
              params.add(text), params.add(reporter), "current_timestamp()", params.add(FEEDBACK_NEW), params.add(filters or None)]
-    return (f"INSERT INTO {feedback_table(page)} (`feedback_id`, `use_case_id`, `section`, `record_key`, `text`, `reported_by`, `reported_at`, "
+    return (f"INSERT INTO {feedback_table(page, app_table)} (`feedback_id`, `use_case_id`, `section`, `record_key`, `text`, `reported_by`, `reported_at`, "
             f"`status`, `filters`) VALUES ({', '.join(cells)})", params.items)
 
 
-def feedback_query(page: dict, reporter=None, limit: int = 50) -> tuple:
+def feedback_query(page: dict, reporter=None, limit: int = 50, app_table: str = "") -> tuple:
     params = _Params()
     mine = f" AND lower(`reported_by`) = {params.add(str(reporter).lower())}" if reporter is not None else ""
-    return (f"SELECT {', '.join(f'`{c}`' for c in FEEDBACK_COLUMNS)} FROM {feedback_table(page)} WHERE `use_case_id` = "
+    return (f"SELECT {', '.join(f'`{c}`' for c in FEEDBACK_COLUMNS)} FROM {feedback_table(page, app_table)} WHERE `use_case_id` = "
             f"{params.add(str(page.get('use_case_id') or ''))}{mine} ORDER BY `reported_at` DESC LIMIT {int(limit)}", params.items)
 
 
