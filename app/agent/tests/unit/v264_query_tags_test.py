@@ -91,3 +91,18 @@ def test_two_pages_send_two_use_case_tags_and_no_request_carries_another_pages_t
     assert all(tags == ["UC-2"] for tags in sent[first:]), "page two's statements carry page two's use case, not page one's"
     assert shell_db.QUERY_USE_CASE.get() == "", "the use case does not outlive its request"
 
+
+
+def test_a_page_read_under_a_request_set_by_hand_leaves_no_use_case_tag_for_the_next_statement(tmp_path):
+    sent = []
+    ws = RecordingWorkspace(sent)
+    s = shell_core.Shell(app_dir(tmp_path, dict(SETTINGS, pages=["p1"]), [app_page(id="p1", use_case_id="UC-1")]),
+                         env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
+                         sp_factory=lambda: ws, user_factory=lambda host, token: ws)
+    token = shell_core.REQUEST.set({"headers": {}, "rules": {}, "money": False})
+    try:
+        s.page("p1")
+    finally:
+        shell_core.REQUEST.reset(token)
+    ws.run_sql("wh1", "SELECT 1", [], limit=5)
+    assert sent == [[]], "only a request answered by the App carries a page's use case tag"

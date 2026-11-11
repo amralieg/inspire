@@ -2005,7 +2005,8 @@ class Shell:
         page = self.by_id.get(str(ident or ""))
         if page is None:
             raise HttpError(404, f"the App has no page {ident!r}")
-        if REQUEST.get() is not None:
+        request = REQUEST.get()
+        if request is not None and request.get("use_case_scope"):
             shell_db.QUERY_USE_CASE.set(str(page.get("use_case_id") or ""))
         return self.with_saved_money(page)
 
@@ -2340,7 +2341,7 @@ class Shell:
 
     def answer(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
         money = (method, path.strip("/")) in MONEY_ROUTES
-        token = REQUEST.set({"headers": headers, "rules": {}, "money": money})
+        token = REQUEST.set({"headers": headers, "rules": {}, "money": money, "use_case_scope": True})
         use_case = shell_db.QUERY_USE_CASE.set("")
         try:
             return self.answer_request(method, path, query, headers, body)
