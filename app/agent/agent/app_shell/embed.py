@@ -163,6 +163,45 @@ def write_pins(path: str = NOTEBOOK, assets: dict = None) -> bool:
     return True
 
 
+REGISTRY_CONSTANTS = (("TECHNIQUE_EXECUTION_FAMILY", "execution_family"), ("GENIE_READINESS_THRESHOLDS", "readiness_thresholds"))
+
+
+def _constant_lines(name: str, value: dict) -> list:
+    return [f"{name} = {{\n"] + [f"    {json.dumps(key)}: {json.dumps(item)},\n" for key, item in value.items()] + ["}\n"]
+
+
+def _registry_block(lines: list, name: str) -> tuple:
+    starts = [i for i, line in enumerate(lines) if line.startswith(f"{name} = {{")]
+    if len(starts) != 1:
+        raise SystemExit(f"cells[{CELL}] must hold exactly one {name} literal; found {len(starts)}")
+    stop = next(j for j in range(starts[0] + 1, len(lines)) if lines[j].rstrip("\n") == "}")
+    return starts[0], stop + 1
+
+
+def registry_differences(lines: list, registry: dict) -> list:
+    out = []
+    for name, key in REGISTRY_CONSTANTS:
+        start, stop = _registry_block(lines, name)
+        if lines[start:stop] != _constant_lines(name, registry[key]):
+            out.append(f"{name} in the notebook differs from kinds.json {key}")
+    return out
+
+
+def write_registry_constants(path: str = NOTEBOOK, registry: dict = None) -> bool:
+    registry = kinds() if registry is None else registry
+    nb = _load(path)
+    lines = nb["cells"][CELL]["source"]
+    if not registry_differences(lines, registry):
+        return False
+    for name, key in REGISTRY_CONSTANTS:
+        start, stop = _registry_block(lines, name)
+        lines[start:stop] = _constant_lines(name, registry[key])
+    with open(path, "w", encoding="utf-8") as handle:
+        json.dump(nb, handle, indent=2, ensure_ascii=False)
+        handle.write("\n")
+    return True
+
+
 def differences(expected: dict, actual: dict, static: bool = True) -> list:
     out = []
     if actual.get("version") != expected["version"]:
@@ -207,9 +246,12 @@ def main(argv=None) -> int:
         changed = write_pins(args.notebook)
         named = ", ".join(f"{name} {spec['sha256'][:12]}" for name, spec in pins().items())
         print(f"{'pinned' if changed else 'already pinned'} in the notebook: {named}")
+        changed = write_registry_constants(args.notebook, registry)
+        print(f"{'rewrote' if changed else 'already current'} the notebook registry constants from kinds.json")
         return 0
     problems = differences(data, embedded())
     problems += [f"{name} is still embedded in the notebook" for name in legacy_lines(args.notebook)]
+    problems += registry_differences(_load(args.notebook)["cells"][CELL]["source"], kinds())
     held = notebook_pins(args.notebook)
     problems += [f"the notebook pins {name} at another build than {spec['repo']}" for name, spec in pins().items() if held.get(name) != spec]
     for problem in problems:

@@ -794,7 +794,7 @@ function registerImplementRoutes(app, deps) {
         window: req.body?.window || {},
       });
       const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
-      res.json({ skipped: false, ...I.readinessFromRow(rows[0] || {}, statement.columns) });
+      res.json({ skipped: false, ...I.readinessFromRow(rows[0] || {}, statement.columns), minimum_rows: I.analysisMinimumRows(req.body?.technique) });
     } catch (err) {
       sendError(res, err);
     }

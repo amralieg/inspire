@@ -44,6 +44,9 @@ import {
   setFilterValues,
   readinessScope,
   readinessText,
+  tooFewRowsText,
+  columnsReadOf,
+  scopeNarrowing,
   emptyScopeWarningOf,
   planLines,
   sharedHolding,
@@ -254,12 +257,14 @@ import {
 import ScopeSettings, { GroupingChosen } from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, useScopeProfiles } from '../lib/groupingProfile';
+import { fieldOf } from '../lib/useCaseFields.js';
 import { tableScopeSummary } from '../lib/tableScope';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
   FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
   withGroupingDefault, withScopeDefaults, GROUP_BY, groupingChoices, groupingCount, groupingCountText, groupingOf, firstRunSummaryText,
+  withScopedRows,
 } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
@@ -450,7 +455,6 @@ export default function ImplementWizard({
   const [missingTables, setMissingTables] = useState(() => focus?.missingTables || []);
   const lostReason = (table) => missingTables.find((m) => String(m.table).toLowerCase() === table.toLowerCase())?.reason;
   const [changing, setChanging] = useState({});
-  const [excludeRef, setExcludeRef] = useState('');
   const [swaps, setSwaps] = useState({});
   const [swapsWhy, setSwapsWhy] = useState({});
   const [values, setValues] = useState({});
@@ -529,6 +533,12 @@ export default function ImplementWizard({
   }, [scopeSteps.grouping, context, scopeProfile.profile]);
   const lastStep = stepIndex === steps.length - 1;
   const scopeReady = scopeProfile.state !== 'loading';
+  const scopeNow = readinessScope(spec, ucRow);
+  const scopedRows = readiness && !readiness.skipped && JSON.stringify(readiness.scope) === JSON.stringify(scopeNow) ? Number(readiness.row_count) : null;
+  const narrowed = scopedRows != null && scopeNarrowing(scopeNow).length > 0;
+  const scopedProfile = narrowed ? withScopedRows(scopeProfile.profile, scopedRows) : scopeProfile.profile;
+  const scopedFirstRun = narrowed && scopeProfile.firstRun ? { ...scopeProfile.firstRun, profile: withScopedRows(scopeProfile.firstRun.profile, scopedRows) } : scopeProfile.firstRun;
+  const tooFewRows = tooFewRowsText(readiness);
   const totalSteps = useMemo(() => steps.length, [scopeReady, Boolean(spec.outputs.app)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const q = useMemo(() => {
@@ -693,8 +703,6 @@ export default function ImplementWizard({
   }, [firstRunUnrecorded, scopeProfile.state, scopeProfile.profile]);
 
   const groups = context?.widget_groups || NO_WIDGET_GROUPS;
-  const segmentRef = spec.data.column_roles.segment || '';
-  const exclusionRefs = (spec.data.filters || []).filter((f) => f.op === 'not in').map((f) => `${f.table}.${f.column}`);
   const built = builtVersion(context?.history);
   const kpiOptions = useMemo(() => kpiTargetOptions(ucRow, context?.history), [ucRow, context?.history]);
   const scopeShown = withGroupingDefault(scopeValues((name) => spec.config.widgets?.[name]), scopeProfile.profile, spec.config.widgets?.[GROUP_BY]);
@@ -777,6 +785,7 @@ export default function ImplementWizard({
           const counted = await apiPostJson(`/api/inspire/implement/readiness?${q}`, {
             table: scope.table,
             discovery_type: discoveryType,
+            technique: fieldOf(ucRow, 'Analytics Technique', 'analytics_technique'),
             columns: scope.columns,
             filters: scope.filters,
             window: scope.window,
@@ -1265,8 +1274,8 @@ export default function ImplementWizard({
   const groupingNow = spec.config.widgets?.[GROUP_BY] || scopeShown[GROUP_BY];
   const groupingPicked = groupingOf(scopeProfile.profile, groupingNow);
   const summaryRows = pickedSummary(spec, sourceTables, {
-    grouping: scopeSteps.grouping && groupingPicked ? `${groupingPicked.label} · ${groupingCountText(groupingCount(groupingPicked, scopeProfile.firstRun?.profile || scopeProfile.profile))}` : '',
-    firstRun: scopeSteps.firstRun ? firstRunSummaryText(scopeProfile.firstRun?.state === 'ready' ? scopeProfile.firstRun.profile : scopeProfile.profile, sentScope) : '',
+    grouping: scopeSteps.grouping && groupingPicked ? `${groupingPicked.label} · ${groupingCountText(groupingCount(groupingPicked, scopedFirstRun?.profile || scopedProfile))}` : '',
+    firstRun: scopeSteps.firstRun ? firstRunSummaryText(scopedFirstRun?.state === 'ready' ? scopedFirstRun.profile : scopedProfile, sentScope) : '',
     settings: settingsList.length ? counted(settingsList.length, 'setting') : '',
     dropped: dropped.filter((d) => !spec.outputs[d.id]),
   }).filter((row) => steps.some((s) => s.id === row.step));
@@ -1374,6 +1383,8 @@ export default function ImplementWizard({
               />
             </section>
 
+            <SourceTableBlocks tables={sourceTables} spec={spec} columnsByTable={columnsByTable} values={values} setSpec={setSpec} loadValues={loadValues} />
+
             <Advanced open={advanced.data} onToggle={() => toggleAdvanced('data')} what="data settings" summary={dataSummary}>
               <RowSubjectCheck
                 check={grainCheck(spec, ucRow, columnsByTable, sourceTables)}
@@ -1419,34 +1430,6 @@ export default function ImplementWizard({
                 <Field label="Window end">
                   <input type="date" className={inputCls} value={spec.data.window.end} onChange={(e) => patch('data.window', { ...spec.data.window, end: e.target.value })} />
                 </Field>
-              </div>
-              {segmentRef && (
-                <ValuePicker
-                  label={`Segment filter (optional): keep only these ${segmentRef}`}
-                  values={values[segmentRef]}
-                  selected={filterValues(spec, refTable(segmentRef), refColumn(segmentRef), 'in')}
-                  onLoad={() => loadValues(refTable(segmentRef), refColumn(segmentRef))}
-                  onChange={(picked) => setSpec((prev) => setFilterValues(prev, refTable(segmentRef), refColumn(segmentRef), 'in', picked))}
-                />
-              )}
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Exclusions (optional)</span>
-                <select className={inputCls} value={excludeRef} onChange={(e) => setExcludeRef(e.target.value)}>
-                  <option value="">Pick a column to exclude values from</option>
-                  {sourceTables.flatMap((table) => (columnsByTable[table] || []).map((c) => (
-                    <option key={`${table}.${c.column_name}`} value={`${table}.${c.column_name}`}>{table}.{c.column_name}</option>
-                  )))}
-                </select>
-                {[...new Set([excludeRef, ...exclusionRefs].filter(Boolean))].map((ref) => (
-                  <ValuePicker
-                    key={ref}
-                    label={`Leave out these ${ref}`}
-                    values={values[ref]}
-                    selected={filterValues(spec, refTable(ref), refColumn(ref), 'not in')}
-                    onLoad={() => loadValues(refTable(ref), refColumn(ref))}
-                    onChange={(picked) => setSpec((prev) => setFilterValues(prev, refTable(ref), refColumn(ref), 'not in', picked))}
-                  />
-                ))}
               </div>
               <p className="text-[11px] text-text-tertiary">
                 Next counts the rows to work with before Genie starts.
@@ -1504,9 +1487,9 @@ export default function ImplementWizard({
           <section aria-label={shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE} data-scope-step={shows('first_run') ? 'first_run' : 'grouping'} className="space-y-3">
             <h3 className="text-sm font-semibold text-text-primary">{shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE}</h3>
             {shows('grouping') && <p data-grouping-example-plain="" className="text-[12px] text-text-secondary">{GROUPING_EXAMPLE}{groupingChoices(scopeProfile.profile).length > 1 ? ` ${GROUPING_PICK}` : ''}</p>}
-            {shows('first_run') && <GroupingChosen values={scopeShown} profile={scopeProfile.firstRun?.profile || scopeProfile.profile} />}
-            <ScopeSettings part={shows('first_run') ? 'first_run' : 'grouping'} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
-              groups={scopeProfile.firstRun} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
+            {shows('first_run') && <GroupingChosen values={scopeShown} profile={scopedFirstRun?.profile || scopedProfile} />}
+            <ScopeSettings part={shows('first_run') ? 'first_run' : 'grouping'} values={scopeShown} profile={scopedProfile} profileState={scopeProfile.state} profileError={scopeProfile.error}
+              groups={scopedFirstRun} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
               unrecorded={firstRunUnrecorded}
               groupingChosenBy={groupingChosenBy(spec.config.widgets?.[GROUP_BY], scopeProfile.profile)} />
           </section>
@@ -2062,6 +2045,9 @@ export default function ImplementWizard({
         {readiness?.warning && (
           <p role="note" aria-label="Rows to work with" data-empty-table-warning=""
             className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{readiness.warning}</p>
+        )}
+        {tooFewRows && (
+          <p role="note" data-too-few-rows="" className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{tooFewRows}</p>
         )}
         {schemaJob?.text && stepIndex > steps.findIndex((x) => x.id === 'data') && (
           <p role="status" data-schema-job={schemaJob.state} className="bg-bg-subtle border border-border rounded-md px-3 py-2 text-xs text-text-secondary">{schemaJob.text}</p>
@@ -3133,6 +3119,45 @@ function ValuePicker({ label, values, selected, onLoad, onChange }) {
       </div>
       {values && values.length >= VALUE_LIMIT && <p className="text-[11px] text-text-tertiary">Showing the first {VALUE_LIMIT} values.</p>}
     </div>
+  );
+}
+
+function SourceTableBlocks({ tables, spec, columnsByTable, values, setSpec, loadValues }) {
+  const [picked, setPicked] = useState({});
+  return (
+    <section className="space-y-3" aria-label="Table filters">
+      {tables.map((table) => {
+        const columns = columnsByTable[table] || [];
+        const first = (spec.data.filters || []).find((f) => f.table === table);
+        const column = Object.prototype.hasOwnProperty.call(picked, table) ? picked[table] : (first?.column || '');
+        const reads = columnsReadOf(spec, table);
+        return (
+          <div key={table} data-source-table={table} className="border border-border rounded-lg p-3 space-y-3">
+            <p className="text-[12px] font-semibold text-text-primary">{table}</p>
+            <p data-table-columns="" className="text-[11px] text-text-secondary">
+              Columns Inspire reads: {reads.length ? reads.join(', ') : 'Inspire\'s choice, from the use case\'s Genie Code instruction'}
+            </p>
+            <Field label="Filter rows by column">
+              <select aria-label={`Filter rows of ${table} by column`} className={inputCls} value={column}
+                onChange={(e) => setPicked((prev) => ({ ...prev, [table]: e.target.value }))}>
+                <option value="">Pick a column</option>
+                {columns.map((c) => <option key={c.column_name} value={c.column_name}>{c.column_name}</option>)}
+              </select>
+            </Field>
+            {column && (
+              <>
+                <ValuePicker label="Keep only these values" values={values[`${table}.${column}`]}
+                  selected={filterValues(spec, table, column, 'in')} onLoad={() => loadValues(table, column)}
+                  onChange={(list) => setSpec((prev) => setFilterValues(prev, table, column, 'in', list))} />
+                <ValuePicker label="Leave out these values" values={values[`${table}.${column}`]}
+                  selected={filterValues(spec, table, column, 'not in')} onLoad={() => loadValues(table, column)}
+                  onChange={(list) => setSpec((prev) => setFilterValues(prev, table, column, 'not in', list))} />
+              </>
+            )}
+          </div>
+        );
+      })}
+    </section>
   );
 }
 

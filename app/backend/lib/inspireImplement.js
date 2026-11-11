@@ -2285,6 +2285,15 @@ function readinessFromRow(row, columns) {
   };
 }
 
+const { execution_family: EXECUTION_FAMILY, readiness_thresholds: READINESS_THRESHOLDS } = require('../../agent/agent/app_shell/kinds.json');
+
+function analysisMinimumRows(technique) {
+  const wanted = str(technique).split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+  const label = Object.keys(EXECUTION_FAMILY).find((k) => k.toLowerCase() === wanted);
+  const minimum = label ? (READINESS_THRESHOLDS[EXECUTION_FAMILY[label]] || {}).min_rows : undefined;
+  return Number.isFinite(minimum) ? minimum : null;
+}
+
 function destinationsFromList(data) {
   return (Array.isArray(data && data.results) ? data.results : [])
     .filter((d) => d && IMPLEMENT_DESTINATION_ID_RE.test(str(d.id)))
@@ -3788,6 +3797,7 @@ module.exports = {
   columnValuesStatement,
   readinessStatement,
   readinessFromRow,
+  analysisMinimumRows,
   rerunParams,
   rerunWidgets,
   rerunOverrides,

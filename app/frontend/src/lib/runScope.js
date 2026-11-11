@@ -158,6 +158,18 @@ export function profileRecords(profile) {
   return finite(profile?.records);
 }
 
+export function withScopedRows(profile, rows) {
+  if (!isMap(profile) || !Number.isFinite(rows)) return profile;
+  const whole = { ...profile };
+  delete whole.recent;
+  return {
+    ...whole,
+    records: rows,
+    first_run: { ...(isMap(profile.first_run) ? profile.first_run : {}), all: rows, recent: null },
+    suggested_groups: Array.isArray(profile.suggested_groups) ? profile.suggested_groups.map((g) => (isMap(g) ? { ...g, records: null } : g)) : profile.suggested_groups,
+  };
+}
+
 export function firstRunDefault(profile) {
   if (!isMap(profile)) return '';
   return RUN_SCOPES.includes(profile.default_scope) && profile.default_scope !== GROUP_ALL ? profile.default_scope : FIRST_RUN_DEFAULT;

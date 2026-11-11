@@ -868,6 +868,11 @@ export function setFilterValues(spec, table, column, op, values) {
   return { ...spec, data: { ...spec.data, filters: values.length ? [...rest, { table, column, op, values }] : rest } };
 }
 
+export function columnsReadOf(spec, table) {
+  const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+  return Object.values(spec.data.column_roles || {}).filter((ref) => ref && same(tableOfRef(ref), table)).map((ref) => columnOfRef(ref));
+}
+
 export function readinessScope(spec, uc) {
   const original = primaryTableOf(uc) || tablesOf(uc)[0] || '';
   const table = spec.data.tables?.[original] || original;
@@ -909,6 +914,13 @@ export function readinessText(readiness, scope) {
   const left = scope.uncounted || [];
   if (!left.length) return found;
   return `${found} This count leaves out ${left.join(' and ')}; the preview run applies ${left.length === 1 ? 'it' : 'them'}.`;
+}
+
+export function tooFewRowsText(readiness) {
+  const rows = Number(readiness?.row_count);
+  const minimum = Number(readiness?.minimum_rows);
+  if (readiness?.skipped || !(rows > 0) || !(minimum > rows)) return '';
+  return `Only ${rows.toLocaleString('en-US')} rows are in this scope, fewer than the ${minimum.toLocaleString('en-US')} this use case needs; you can still go on.`;
 }
 
 export function scopeNarrowing(scope) {
