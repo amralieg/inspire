@@ -32,7 +32,7 @@ function grantsWorkspace(catalogMine) {
     { level: 'table', privilege: 'OWNER', principal: 'data-eng', mine: 'false', me: 'owner@example.com' },
     { level: 'schema', privilege: 'MANAGE', principal: 'owner@example.com', mine: 'true', me: 'owner@example.com' },
     ...[...held].map((sql) => {
-      const [, privilege, level] = /^GRANT (USE CATALOG|USE SCHEMA|SELECT) ON (\w+)/.exec(sql);
+      const [, privilege, level] = /^GRANT (USE CATALOG|USE SCHEMA|SELECT|READ METADATA) ON (\w+)/.exec(sql);
       return { level: level.toLowerCase(), privilege, principal: SP, mine: 'false', me: 'owner@example.com' };
     }),
   ];
@@ -43,8 +43,7 @@ function grantsWorkspace(catalogMine) {
       history: [unreadBuild()],
       forwardedToken: PERSON,
       tokenKind: 'app',
-      abacUnreadable: true,
-      abacUnreadableAppOnly: true,
+      abacUnreadable: (token) => token === 'tok' && !held.has(METADATA),
       workspace: ({ token, path }) => (path.includes('/scim/v2/Me')
         ? [token === 'tok' ? { displayName: 'inspire-manual', applicationId: SP } : { userName: 'owner@example.com', displayName: 'Owner' }]
         : undefined),
