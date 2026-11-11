@@ -213,6 +213,22 @@ test('Review lists the series at risk first, and an override needs a value and a
   await context.close();
 });
 
+test('a disabled Save override says which of its two fields is missing, and the hint goes once both are filled', async () => {
+  const sent = [];
+  const { page, context, errors } = await open('forecast', 'work', { ...forecastRoutes([]), ...reviewRoutes({ plan_id: PID, number: 1, label: 'Version 1', status: 'Draft', overrides: [] }, sent) });
+  await page.locator('[data-series="S1"]').waitFor();
+  await page.locator('[data-series="S1"] [data-override-open]').click();
+  const hint = page.locator('[data-override-form] [data-save-missing]');
+  assert.equal(await hint.textContent(), 'Add your forecast and why you override the model to save.');
+  await page.locator('[data-override-value]').fill('150');
+  assert.equal(await hint.textContent(), 'Add why you override the model to save.');
+  await page.locator('[data-override-reason]').fill('Promo week');
+  assert.equal(await hint.count(), 0);
+  assert.deepEqual(sent, []);
+  assert.deepEqual(errors, []);
+  await context.close();
+});
+
 test('Review locks overrides until a cycle is open, and signing off a cycle needs a reason', async () => {
   const sent = [];
   const { page, context, errors } = await open('forecast', 'work', { ...forecastRoutes([]), ...reviewRoutes(null, sent) });

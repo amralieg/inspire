@@ -63,3 +63,7 @@ def test_overdue_records_are_ordered_earliest_due_first_not_by_value(tmp_path):
 
 def test_the_overdue_tab_keeps_the_earliest_due_first_order(tmp_path):
     assert overdue_keys(tmp_path, due_first=True, focus="overdue") == ["k9", "k7"]
+
+
+def test_the_overdue_tab_keeps_the_earliest_due_first_order_when_the_list_does_not_ask_for_it(tmp_path):
+    assert overdue_keys(tmp_path, focus="overdue") == ["k9", "k7"]

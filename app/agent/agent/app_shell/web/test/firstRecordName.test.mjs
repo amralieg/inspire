@@ -44,3 +44,17 @@ test('a plan line with no label names itself by its rank, never by its raw key',
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+test('the first-record step never names a record by a numeric id stored in its label column', async () => {
+  const ex = EXAMPLES['network_explorer.json'];
+  const info = appInfo(ex.settings, 1, {}, 'examples/network_explorer.json');
+  const base = ex.routes();
+  const routes = { ...base, records: (arg) => base.records({ ...arg, json: (status, data) => arg.json(status, { ...data, rows: data.rows.map((row, i) => (i === 0 ? { ...row, entity_label: '4411' } : row)) }) }) };
+  const { page, context, seen } = await openApp(browser, served.base, info, { routes });
+  await ex.ready(page);
+  const todo = await page.locator('[data-section="todo"]').innerText();
+  assert.doesNotMatch(todo, /4411/, `the step names a raw id: ${todo.replace(/\n+/g, ' | ')}`);
+  assert.match(todo, /Start with the first record on the list/);
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});

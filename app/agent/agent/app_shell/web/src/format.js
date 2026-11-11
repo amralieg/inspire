@@ -259,7 +259,8 @@ const NAME_ENDINGS = ['name', 'label', 'title', 'description', 'desc'];
 export function entityName(row, column, { sentence = false } = {}) {
   const v = row?.[column];
   if (v == null || v === '') return '';
-  if (!isKeyColumn(column) || /[A-Za-z]/.test(String(v))) return plainText(v);
+  if (/[A-Za-z]/.test(String(v))) return plainText(v);
+  if (!isKeyColumn(column)) return sentence ? '' : plainText(v);
   const stem = wordList(column).filter((w) => !KEY_WORDS.has(w) && !KEY_ENDINGS.test(w)).join('_');
   const norm = (k) => wordList(k).join('_');
   const wanted = stem ? [...NAME_ENDINGS.map((e) => `${stem}_${e}`), stem] : NAME_ENDINGS;
