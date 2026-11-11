@@ -19,7 +19,7 @@ export function englishCatalogPath(files, tree = {}) {
   return null;
 }
 
-export function documentRunBody({ kind, format = '', sessionId, inspireDatabase, businessName, generationPath, catalogPath }) {
+export function documentRunBody({ kind, format = '', sessionId, inspireDatabase, businessName, generationPath, catalogPath, outputLanguage = '' }) {
   return {
     kind,
     ...(format ? { format } : {}),
@@ -28,6 +28,7 @@ export function documentRunBody({ kind, format = '', sessionId, inspireDatabase,
     business_name: String(businessName || ''),
     generation_path: String(generationPath || ''),
     catalog_json_path: String(catalogPath || ''),
+    output_language: String(outputLanguage || ''),
   };
 }
 

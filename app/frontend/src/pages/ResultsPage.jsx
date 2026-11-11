@@ -1584,7 +1584,8 @@ export default function ResultsPage({
           {generationPath && !showcase && selectedSessionId && (
             <DocumentActions
               apiFetch={apiFetch}
-              session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), generationPath }}
+              apiPostJson={apiPostJson}
+              session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), generationPath, outputLanguage: selectedSession?.output_language || '' }}
               catalogPath={englishCatalogPath(artifactsRootFiles, artifactTree)}
               onFinished={() => loadArtifacts(generationPath)}
             />

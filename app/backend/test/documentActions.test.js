@@ -20,9 +20,9 @@ test('the English catalog is found in the loaded listing, inside a loaded folder
 test('the request carries the session its documents are rebuilt beside (REQ-077)', async () => {
   const lib = await load();
   assert.deepEqual(lib.documentRunBody({ kind: 'strategy-document', format: 'PPTX', sessionId: 42, inspireDatabase: 'c.s',
-    businessName: 'Acme', generationPath: '/Workspace/out', catalogPath: '/Workspace/out/docs/Acme-dbx_inspire.json' }), {
+    businessName: 'Acme', generationPath: '/Workspace/out', catalogPath: '/Workspace/out/docs/Acme-dbx_inspire.json', outputLanguage: 'English,Arabic' }), {
     kind: 'strategy-document', format: 'PPTX', session_id: '42', inspire_database: 'c.s', business_name: 'Acme',
-    generation_path: '/Workspace/out', catalog_json_path: '/Workspace/out/docs/Acme-dbx_inspire.json' });
+    generation_path: '/Workspace/out', catalog_json_path: '/Workspace/out/docs/Acme-dbx_inspire.json', output_language: 'English,Arabic' });
   assert.equal('format' in lib.documentRunBody({ kind: 'use-case-catalog', sessionId: 1 }), false);
 });
 

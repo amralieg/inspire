@@ -45,3 +45,11 @@ test('an unknown kind, a path that is not the English catalog, and a session id 
 test('the kinds are exactly the two Review buttons', () => {
   assert.deepEqual(Object.keys(DOCUMENT_KINDS).sort(), ['strategy-document', 'use-case-catalog']);
 });
+
+test('the rebuild regenerates every language the session was created with, English first, and refuses a language the notebook does not offer (REQ-077)', () => {
+  const two = documentRunParams(body({ output_language: 'English,Arabic' }));
+  assert.equal(two.params['12_documents_languages'], 'English,Arabic');
+  assert.equal(documentRunParams(body({ output_language: 'Arabic, English' })).params['12_documents_languages'], 'English,Arabic', 'English is always first');
+  assert.equal(documentRunParams(body({ output_language: '' })).params['12_documents_languages'], 'English', 'no language stored: English');
+  assert.throws(() => documentRunParams(body({ output_language: 'Klingon' })), /Klingon/);
+});
