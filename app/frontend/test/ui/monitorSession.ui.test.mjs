@@ -1,6 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { closeBrowser, openUi, until, watchScrolls } from './uiSupport.mjs';
+import { aimWheel } from './wheelScroll.mjs';
 
 test.after(closeBrowser);
 
@@ -220,7 +221,7 @@ test('the steps list follows new steps only while the person is at its end; scro
     await page.getByRole('button', { name: /Detailed Steps/ }).click();
     await page.getByRole('button', { name: /Data Preparation/ }).last().click();
     await page.getByText('Inspire checked table 60').first().waitFor({ timeout: 10000 });
-    await page.mouse.move(640, 400);
+    await aimWheel(page, 640, 400);
     await page.mouse.wheel(0, 20000);
     await until(async () => (await view()).below <= 40, 'the wheel reaches the end of the steps', 10000);
     const first = await rows();
@@ -228,7 +229,7 @@ test('the steps list follows new steps only while the person is at its end; scro
     await page.waitForTimeout(300);
     assert.ok((await view()).below <= 40, 'at the end it follows each new step (must-exclude: never left behind while at the end)');
     assert.equal(await jump.count(), 0, 'no New steps button while following');
-    await page.mouse.move(640, 400);
+    await aimWheel(page, 640, 400);
     await page.mouse.wheel(0, -600);
     await page.waitForTimeout(400);
     const reading = await view();

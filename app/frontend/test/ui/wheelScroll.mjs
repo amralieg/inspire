@@ -54,7 +54,7 @@ async function reach(page, region) {
     });
     const seen = Math.min(r.bottom, r.h) - Math.max(r.top, 0);
     if (seen >= Math.min(160, r.bottom - r.top)) return;
-    await page.mouse.move(Math.max(r.left - 8, 4), r.h / 2);
+    await aimWheel(page, Math.max(r.left - 8, 4), r.h / 2);
     await page.mouse.wheel(0, r.top > 0 ? 300 : -300);
     await frames(page);
   }
@@ -67,7 +67,7 @@ export async function wheelToEnd(page, region, last, name, over = null) {
   assert.ok(at.scroll > at.client + 1, `${name}: the content does not overflow the region, so the wheel cannot be tested ${JSON.stringify(at)}`);
   assert.ok(at.seen >= 40, `${name}: the region shows ${at.seen} px on screen, too little to scroll ${JSON.stringify(at)}`);
   assert.ok(at.hit, `${name}: something covers the region where the pointer sits (${at.cover}) ${JSON.stringify(at)}`);
-  await page.mouse.move(at.x, at.y);
+  await aimWheel(page, at.x, at.y);
   const topBy = Date.now() + 4000;
   while (Date.now() < topBy && (await region.evaluate((el) => el.scrollTop)) > 0) {
     await page.mouse.wheel(0, -1000);
@@ -129,6 +129,12 @@ export async function wheelToEnd(page, region, last, name, over = null) {
   return after;
 }
 
+export async function aimWheel(page, x, y) {
+  await page.mouse.move(x, y);
+  await frames(page);
+  await new Promise((done) => { setTimeout(done, 100); });
+}
+
 export async function wheelReads(page, box, { lines = '', readable = 3, delta = 1200 } = {}) {
   await page.waitForFunction((el) => el.scrollHeight > el.clientHeight, await box.elementHandle(), { timeout: 15000 });
   await box.evaluate((el) => { el.scrollTop = 0; });
@@ -136,85 +142,17 @@ export async function wheelReads(page, box, { lines = '', readable = 3, delta = 
   const at = await where(box);
   assert.ok(at.seen > 0, `the scroll box is on screen ${JSON.stringify(at)}`);
   assert.ok(at.hit, `the scroll box is what the pointer lands on, nothing covers it ${JSON.stringify(at)}`);
-  await page.mouse.move(at.x, at.y);
-  const wheeledAt = Date.now();
-  const held = await box.elementHandle();
-  await box.evaluate((el) => {
-    el.dataset.wheelProbe = '1';
-    window.__wheelChurn = 0;
-    window.__wheelObs?.disconnect();
-    window.__wheelObs = new MutationObserver((records) => {
-      for (const r of records) if (r.type === 'childList') window.__wheelChurn += r.addedNodes.length + r.removedNodes.length;
-    });
-    window.__wheelObs.observe(document.body, { childList: true, subtree: true });
-  });
+  await aimWheel(page, at.x, at.y);
+  await box.evaluate((el) => { el.dataset.wheelProbe = '1'; });
   await page.mouse.wheel(0, delta);
   await page.waitForFunction((el) => el.scrollTop > 0, await box.elementHandle(), { timeout: 5000 }).catch(async (error) => {
-    const scrollTop = () => box.evaluate((el) => Math.round(el.scrollTop));
     const state = await box.evaluate((el, point) => {
       const hit = document.elementFromPoint(point.x, point.y);
-      const tagged = hit?.closest('[data-wheel-probe]') || null;
       return { boxTop: Math.round(el.scrollTop), boxScroll: el.scrollHeight, boxClient: el.clientHeight, pageTop: Math.round(document.scrollingElement.scrollTop),
-        hit: hit ? `${hit.tagName.toLowerCase()}.${String(hit.className).slice(0, 60)}` : '', innerHeight: window.innerHeight, innerWidth: window.innerWidth,
-        sameNode: tagged === el, boxConnected: el.isConnected, boxTagged: el.dataset.wheelProbe === '1', churn: window.__wheelChurn };
+        hit: hit ? `${hit.tagName.toLowerCase()}.${String(hit.className).slice(0, 60)}` : '', sameNode: hit?.closest('[data-wheel-probe]') === el };
     }, { x: at.x, y: at.y });
-    const original = await held.evaluate((el) => ({ connected: el.isConnected, tagged: el.dataset.wheelProbe === '1', top: Math.round(el.scrollTop) }));
-    const pause = (ms) => new Promise((done) => { setTimeout(done, ms); });
-    await page.mouse.wheel(0, delta);
-    await pause(1000);
-    const secondWheelTop = await scrollTop();
-    let firstMoveMs = null;
-    let lateTop = await scrollTop();
-    while (Date.now() - wheeledAt < 15000) {
-      await pause(100);
-      lateTop = await scrollTop();
-      if (firstMoveMs === null && lateTop > 0) firstMoveMs = Date.now() - wheeledAt;
-    }
-    const programmatic = await box.evaluate((el) => new Promise((done) => {
-      el.scrollTop = 300;
-      const at100 = [];
-      setTimeout(() => { at100.push(Math.round(el.scrollTop)); }, 100);
-      setTimeout(() => done({ set: 300, at100ms: at100[0], at1s: Math.round(el.scrollTop) }), 1000);
-    }));
-    const cdp = await page.context().newCDPSession(page);
-    const variants = {};
-    const attempt = async (name, act) => {
-      await box.evaluate((el) => { el.scrollTop = 0; });
-      await pause(100);
-      try {
-        await act();
-        await pause(1000);
-        variants[name] = await scrollTop();
-      } catch (failure) {
-        variants[name] = `error: ${failure.message.split('\n')[0]}`;
-      }
-    };
-    await attempt('1 mouse.move then wheel', async () => { await page.mouse.move(at.x, at.y); await page.mouse.wheel(0, delta); });
-    await attempt('2 hover then wheel', async () => { await box.hover(); await page.mouse.wheel(0, delta); });
-    await attempt('3 CDP Input.dispatchMouseEvent mouseWheel', async () => { await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: at.x, y: at.y, deltaX: 0, deltaY: delta }); });
-    await attempt('4 overscrollBehavior auto then wheel', async () => {
-      await box.evaluate((el) => { el.style.overscrollBehavior = 'auto'; });
-      await page.mouse.move(at.x, at.y);
-      await page.mouse.wheel(0, delta);
-      await box.evaluate((el) => { el.style.overscrollBehavior = ''; });
-    });
-    await box.evaluate((el) => { el.scrollTop = 0; });
-    const synthetic = await box.evaluate((el, dy) => {
-      const event = new WheelEvent('wheel', { deltaY: dy, bubbles: true, cancelable: true });
-      const notPrevented = el.dispatchEvent(event);
-      return { notPrevented, top: Math.round(el.scrollTop) };
-    }, delta);
-    variants['5 synthetic WheelEvent (listeners only)'] = synthetic;
-    const browserInfo = { version: page.context().browser()?.version() ?? null,
-      userAgent: await page.evaluate(() => navigator.userAgent), playwright: createRequire(import.meta.url)('playwright/package.json').version };
-    await cdp.detach().catch(() => {});
-    await box.evaluate(() => window.__wheelObs?.disconnect());
-    await held.dispose();
-    const detail = { at: { x: Math.round(at.x), y: Math.round(at.y) }, ...state, original, programmatic, secondWheelTop, lateTop, firstMoveMs, variants, browserInfo };
-    throw new Error(`the mouse wheel did not scroll the box, ${JSON.stringify(detail)}: ${error.message}`);
+    throw new Error(`the mouse wheel did not scroll the box, ${JSON.stringify({ at: { x: Math.round(at.x), y: Math.round(at.y) }, ...state })}: ${error.message}`);
   });
-  await box.evaluate(() => window.__wheelObs?.disconnect());
-  await held.dispose();
   if (!lines) return;
   await frames(page);
   const seen = await box.evaluate((el, sel) => {
@@ -328,7 +266,7 @@ export async function followsOnlyAtBottom(page, log, name) {
   assert.ok((await gap()) <= 40, `${name}: at the bottom it follows each new line (must-exclude: never left behind while at the bottom)`);
   assert.equal(await jump.count(), 0, `${name}: no New messages button while following`);
   const box = await log.boundingBox();
-  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await aimWheel(page, box.x + box.width / 2, box.y + box.height / 2);
   await page.mouse.wheel(0, -200);
   await page.waitForTimeout(250);
   const at = await top();

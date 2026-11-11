@@ -6,7 +6,7 @@ import { createRequire } from 'node:module';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 import { HARNESS_INSPIRE_URL, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB } from './implementFixtures.js';
 import { FAKE_CLOCK, closeAsset, closeBrowser, closeBuild, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, shot, steadyBox, until } from './uiSupport.mjs';
-import { wheelReads } from './wheelScroll.mjs';
+import { aimWheel, wheelReads } from './wheelScroll.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAGE = 'app:page:decisions';
@@ -1440,14 +1440,14 @@ test('Build progress opens as a full-height side panel whose 500-line log scroll
       const behind = await pane.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight }));
       const pb = await pane.boundingBox();
       if (behind.scroll > behind.client + 1) {
-        await page.mouse.move((pb.x + Math.min(pb.x + pb.width, box.x)) / 2, pb.y + pb.height / 2);
+        await aimWheel(page, (pb.x + Math.min(pb.x + pb.width, box.x)) / 2, pb.y + pb.height / 2);
         await page.mouse.wheel(0, 400);
         await page.waitForFunction(() => document.querySelector('section[aria-label="Use case"]').scrollTop > 0);
       }
       const list = page.getByRole('navigation', { name: 'Use cases' });
       await list.evaluate((el) => el.append(Object.assign(document.createElement('div'), { style: 'height:3000px' })));
       const nb = await list.boundingBox();
-      await page.mouse.move(nb.x + 20, nb.y + Math.min(nb.height, 200) / 2);
+      await aimWheel(page, nb.x + 20, nb.y + Math.min(nb.height, 200) / 2);
       await page.mouse.wheel(0, 300);
       await page.waitForFunction(() => document.querySelector('nav[aria-label="Use cases"]').scrollTop > 0, null, { timeout: 5000 });
       assert.ok(await log.evaluate((el) => el.scrollTop > 0), 'scrolling the page behind leaves the log where it was');
