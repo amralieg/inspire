@@ -3018,6 +3018,10 @@ function builtInSampleMessage(tables) {
     + `copy ${one ? 'the table' : 'each table'} into a catalog you own with CREATE TABLE ... AS SELECT, and use the ${one ? 'copy' : 'copies'}`;
 }
 
+function abacUnreadableSentence(label) {
+  return `${str(label).trim() || 'The build'} cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them`;
+}
+
 function appReadGrantsOffer(tables, plans, app) {
   const list = (tables || []).map((table, i) => ({ table, plan: plans[i] || { grants: [], gaps: [] } }));
   const gaps = list.flatMap((t) => t.plan.gaps);
@@ -3652,6 +3656,7 @@ module.exports = {
   IMPLEMENT_SOURCE_NEEDS,
   builtInSampleTable,
   builtInSampleMessage,
+  abacUnreadableSentence,
   ownerLabel,
   IMPLEMENT_TRAVERSE_PRIVILEGES,
   IMPLEMENT_NOTEBOOK_TASK_KEY,

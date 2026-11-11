@@ -53,6 +53,7 @@ async function send(method, path, body, again = readsOnly(method, path)) {
 
 export const WAITING_FOR_ACCESS_CODE = 'waiting_for_access';
 export const WAITING_FOR_ACCESS_TITLE = 'This App is waiting for access to its data';
+export const waitingOf = (error) => (error?.code === WAITING_FOR_ACCESS_CODE ? (error.detail || { tables: [] }) : null);
 export const waitingError = (data) => {
   const error = new Error(data.message || WAITING_FOR_ACCESS_TITLE);
   error.status = 200;
@@ -68,6 +69,7 @@ const json = async (method, path, body) => {
 };
 
 export const getApp = () => json('GET', 'app');
+export const appAccess = (step, body = {}) => json('POST', 'access', { ...body, step });
 export const getFilters = (page) => json('GET', `filters?page=${encodeURIComponent(page)}`);
 export const getDefaults = (page) => json('GET', `defaults?page=${encodeURIComponent(page)}`);
 export const getPage = (page, filters, tables, sorts, searches) => json('POST', 'page', { page, filters, ...(tables && Object.keys(tables).length ? { table_filters: tables } : {}),

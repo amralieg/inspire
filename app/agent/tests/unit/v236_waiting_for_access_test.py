@@ -83,7 +83,7 @@ def test_writes_keep_their_current_refusal_and_non_permission_errors_stay_502(tm
     assert status == 502 and "error" in body
 
 
-def test_a_page_body_with_a_per_card_no_access_becomes_the_waiting_state_even_beside_data(tmp_path):
+def test_a_card_the_App_cannot_read_beside_readable_cards_gets_the_plain_waiting_text_inline_and_the_page_keeps_working(tmp_path):
     s, _sp_ws, _user_ws, _made = shell(tmp_path, pages=[reading_page()])
     s.settings["unread_owners"] = {"main.s.orders": "data-eng", "main.s.other": "a@example.com"}
     s.settings["unread"] = {"main.s.orders": ["GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp`"]}
@@ -91,9 +91,18 @@ def test_a_page_body_with_a_per_card_no_access_becomes_the_waiting_state_even_be
     s.page_data = lambda *args, **kwargs: partial
     status, body = s.handle("POST", "page", {}, {}, b'{"page": "%s"}' % PAGE["id"].encode())
     assert status == 200, (status, body)
-    assert body["state"] == "waiting_for_access", "the card text is replaced by the one waiting view, not shown beside the data"
-    assert body["owners"] == ["data-eng"], "the owner is the one who can grant it, never an email address"
-    assert "kpis" not in body and "@" not in json.dumps(body)
+    assert "state" not in body and body["kpis"] == {"k1": {"value": 4}}, "readable cards are not replaced by the full-page view"
+    assert body["errors"]["chart:pareto"] == "This App is waiting for access to this data. Ask data-eng to grant it.", body
+    assert "@" not in json.dumps(body) and "GRANT" not in json.dumps(body)
+
+
+def test_a_page_with_no_readable_data_left_is_the_full_waiting_state_with_its_owner(tmp_path):
+    s, _sp_ws, _user_ws, _made = shell(tmp_path, pages=[reading_page()])
+    s.settings["unread_owners"] = {"main.s.orders": "data-eng"}
+    refused = {"kpis": {}, "charts": {}, "tables": {}, "errors": {"chart:pareto": "No access to main.s.orders"}}
+    s.page_data = lambda *args, **kwargs: refused
+    status, body = s.handle("POST", "page", {}, {}, b'{"page": "%s"}' % PAGE["id"].encode())
+    assert status == 200 and body["state"] == "waiting_for_access" and body["owners"] == ["data-eng"]
 
 
 def test_a_card_text_on_a_route_outside_the_card_routes_keeps_its_data(tmp_path):

@@ -105,6 +105,15 @@ WAITING_FOR_ACCESS = "This App is waiting for access to its data. Your data owne
 
 
 NO_ACCESS_LIST = re.compile(r"No access to ([^;]+)")
+CARD_WAITING = "This App is waiting for access to this data. Ask {owner} to grant it."
+
+
+def access_refusal(text: str) -> bool:
+    return bool(NO_ACCESS.search(text) or text.startswith("No access to "))
+
+
+def card_waiting_text(owners) -> str:
+    return CARD_WAITING.format(owner=" or ".join(owners) if owners else "your data owner")
 
 
 def waiting_for_access_body(error, owners=()) -> dict:
@@ -113,6 +122,11 @@ def waiting_for_access_body(error, owners=()) -> dict:
     tables = list(dict.fromkeys(m.replace("`", "").strip("'").strip() for m in named if m.strip()))
     return {"state": "waiting_for_access", "message": WAITING_FOR_ACCESS, "tables": tables, "owners": list(owners), "detail": str(error)}
 ACCESS_CARD_ROUTES = ("page", "defaults", "runs", "filters")
+ACCESS_STEPS = ("diagnose", "check", "copy", "grant")
+ACCESS_READS = (("USE CATALOG", "CATALOG", 1), ("USE SCHEMA", "SCHEMA", 2), ("SELECT", "TABLE", 3))
+ACCESS_GRANT = re.compile(r"^GRANT (USE CATALOG|USE SCHEMA|SELECT) ON \w+ (\S+) TO ")
+APP_PRINCIPAL = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._@-]{0,127}$")
+NO_SCOPE = re.compile(r"scope", re.I)
 VERSION_US = re.compile(r"^\d{1,19}$")
 RECORD_KEY_CHARS = 512
 MATCH_VIEW = ("search", "mine", "changed", "ai", "column_filters", "window", "window_limit", "time_zone", "exclude", "choice", "focus")
@@ -417,6 +431,24 @@ def protected_problems(settings: dict) -> list:
 
 def blocked_tables(settings: dict) -> tuple:
     return tuple(sorted({str(t).replace("`", "").strip().lower() for t in settings.get("blocked") or () if str(t).strip()}))
+def access_grants(table: str, principal: str) -> list:
+    if not APP_PRINCIPAL.match(str(principal or "")):
+        return []
+    try:
+        parts = shell_sql.table_name(table).split(".")
+    except ValueError:
+        return []
+    return [f"GRANT {privilege} ON {level} {'.'.join(parts[:depth])} TO `{principal}`" for privilege, level, depth in ACCESS_READS]
+
+
+def access_said(statement: str) -> tuple:
+    privilege, target = ACCESS_GRANT.match(statement).groups()
+    return privilege, target.replace("`", "")
+
+
+def access_owners(tables: list) -> str:
+    owners = list(dict.fromkeys(t["owner"] for t in tables if t.get("owner")))
+    return " or ".join(owners) if owners else "the owner of that data"
 
 
 def settings_problems(settings: dict, pages: list) -> list:
@@ -2234,9 +2266,18 @@ class Shell:
         listed = [item.get("error") for item in answer.get("filters") or [] if isinstance(item, dict)]
         refused = [text for text in list(errors.values()) + listed + ([answer["error"]] if isinstance(answer.get("error"), str) else [])
                    if isinstance(text, str) and text]
-        if refused and all(NO_ACCESS.search(text) or text.startswith("No access to ") for text in refused) \
-                and (name in ACCESS_CARD_ROUTES or not any(answer.get(k) for k in ("kpis", "charts", "rows", "runs"))):
-            return 200, waiting_for_access_body("; ".join(refused), self.access_owners(refused))
+        if not refused or not all(access_refusal(text) for text in refused):
+            return status, answer
+        owners = self.access_owners(refused)
+        if not any(answer.get(k) for k in ("kpis", "charts", "rows", "runs", "tables")):
+            return 200, waiting_for_access_body("; ".join(refused), owners)
+        if name not in ACCESS_CARD_ROUTES:
+            return status, answer
+        card = card_waiting_text(owners)
+        if isinstance(answer.get("errors"), dict):
+            answer["errors"] = {key: card if isinstance(text, str) and access_refusal(text) else text for key, text in answer["errors"].items()}
+        answer["filters"] = [dict(item, error=card) if isinstance(item, dict) and item.get("error") and access_refusal(str(item.get("error")))
+                             else item for item in answer.get("filters") or []] if answer.get("filters") else answer.get("filters")
         return status, answer
 
     def access_owners(self, texts) -> list:
@@ -2317,6 +2358,8 @@ class Shell:
                 return 200, self.batches(headers, query.get("page"))
             if route == ("GET", "records/similar"):
                 return 200, self.similar(headers, query)
+            if route == ("POST", "access"):
+                return 200, self.app_access(headers, data)
             if route == ("POST", "genie/ask"):
                 return 200, self.genie_ask(headers, data)
             if route == ("POST", "genie/explain"):
@@ -2445,6 +2488,71 @@ class Shell:
             "siblings": self.siblings(headers),
             "no_access": {table: owner for table, owner in (s.get("unread_owners") or {}).items() if table in (s.get("unread") or {})},
         }
+
+    def app_access(self, headers: dict, data: dict) -> dict:
+        step = data.get("step")
+        if step not in ACCESS_STEPS:
+            raise HttpError(400, f"the access steps are {', '.join(ACCESS_STEPS)}")
+        found = self.access_found(headers)
+        return self.access_grant(headers, data, found) if step == "grant" else found
+
+    def access_found(self, headers: dict) -> dict:
+        principal = str(self.env.get("DATABRICKS_CLIENT_ID") or "") if self.settings["auth"] == "sp" else ""
+        owners, tables = self.settings.get("unread_owners") or {}, []
+        for table, recorded in (self.settings.get("unread") or {}).items():
+            if not self.app_uses(table):
+                print(f"[APP-ACCESS FIRED] skipped {table}: no page of the App reads it", file=sys.stderr, flush=True)
+                continue
+            if self.reads_now(headers, table):
+                continue
+            allowed = access_grants(table, principal)
+            tables.append({"table": table, "owner": str(owners.get(table) or ""), "grants": [g for g in allowed if g in recorded] or allowed})
+        statements = [g for t in tables for g in t["grants"]]
+        return {"tables": tables, "can_grant": bool(statements), "sql": "\n".join(f"{g};" for g in statements),
+                "seen": hashlib.sha256("\n".join(statements).encode("utf-8")).hexdigest()}
+
+    def app_uses(self, table: str) -> bool:
+        read = " ".join([str(d.get("sql") or "") for p in self.pages for d in p.get("datasets") or [] if isinstance(d, dict)] +
+                        [str(p.get("result_table") or "") for p in self.pages]).replace("`", "").lower()
+        return bool(re.search(rf"(?<![\w.]){re.escape(table.replace('`', '').lower())}(?![\w.])", read))
+
+    def reads_now(self, headers: dict, table: str) -> bool:
+        try:
+            self.execute(self.workspace(headers)[0], f"SELECT 1 FROM {shell_sql.table_name(table)} LIMIT 0", [], 1, delta=True)
+            return True
+        except (QueryError, HttpError, ValueError) as error:
+            if not NO_ACCESS.search(str(getattr(error, "message", None) or error)):
+                print(f"[APP-ACCESS FIRED] could not check {table}: {str(error)[:4000]}", file=sys.stderr, flush=True)
+            return False
+
+    def access_grant(self, headers: dict, data: dict, found: dict) -> dict:
+        statements = [g for t in found["tables"] for g in t["grants"]]
+        if not statements:
+            raise HttpError(409, "There is no access this App can be granted from here: each person reads its data with their own access, "
+                                 "or the App already reads everything", extra={"access": found})
+        if data.get("confirmed") is not True or data.get("seen") != found["seen"]:
+            raise HttpError(409, "What the App needs changed since you looked, or the grant was not confirmed. Press Check again, then grant.",
+                            extra={"access": found})
+        owner = access_owners(found["tables"])
+        token = headers.get("x-forwarded-access-token")
+        if not token:
+            raise HttpError(403, f"This App cannot act as you, so it cannot grant access with your permissions. Copy the grant SQL and run "
+                                 f"it, or send it to {owner}.", extra={"access": found})
+        ws, granted = self.user_factory(self.env.get("DATABRICKS_HOST", ""), token), []
+        for statement in statements:
+            try:
+                self.execute(ws, statement, [], 1, delta=True)
+            except QueryError as error:
+                print(f"[APP-ACCESS-GRANT FIRED] refused {statement}: {str(error)[:4000]}", file=sys.stderr, flush=True)
+                privilege, target = access_said(statement)
+                said = (f"This App may not run SQL as you, so it could not grant {privilege} on {target}" if NO_SCOPE.search(str(error)) else
+                        f"Unity Catalog did not let you grant {privilege} on {target}")
+                raise HttpError(403, f"{said}. Ask {owner} to grant it; Copy the grant SQL to send it.",
+                                extra={"access": self.access_found(headers), "granted": granted}) from error
+            granted.append(statement)
+        print(f"[APP-ACCESS-GRANT FIRED] granted {len(granted)} as {headers.get('x-forwarded-email') or 'the signed-in person'}",
+              file=sys.stderr, flush=True)
+        return dict(self.access_found(headers), granted=granted)
 
     def _timed(self, fn, key, probe):
         if probe is None:

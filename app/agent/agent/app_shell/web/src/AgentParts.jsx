@@ -3,7 +3,7 @@ import { Icon } from './icons.jsx';
 import { confirmText } from './agentView.js';
 import { SaveButton } from './saving.jsx';
 import './styles/agent.css';
-import { PlainNote } from './ui.jsx';
+import { AccessActions, PlainNote } from './ui.jsx';
 
 export const RATINGS = [{ id: 'POSITIVE', label: 'Helpful' }, { id: 'NEGATIVE', label: 'Not helpful' }];
 
@@ -158,8 +158,10 @@ export function AgentExtras({ message, genie, rating = true }) {
       <Offers message={message} genie={genie} />
       <NextSteps message={message} genie={genie} />
       <ViewUndo message={message} onUndo={() => genie.undoView(k, message.n)} />
-      <ConfirmCard confirm={message.confirm} write={confirmWrite(k, message.n)} onConfirm={() => genie.confirm(k, message.n)} onCancel={() => genie.cancel(k, message.n)}
-        onUndo={() => genie.undoSaved(k, message.n)} />
+      {message.confirm?.kind === 'access'
+        ? <div className="ag-confirm" data-confirm="access"><AccessActions access={message.confirm.access} /></div>
+        : <ConfirmCard confirm={message.confirm} write={confirmWrite(k, message.n)} onConfirm={() => genie.confirm(k, message.n)} onCancel={() => genie.cancel(k, message.n)}
+          onUndo={() => genie.undoSaved(k, message.n)} />}
       {rating && <Rate message={message} onRate={(r) => genie.rate(k, message.n, r)} />}
     </>
   );

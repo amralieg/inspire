@@ -353,6 +353,7 @@ export async function openApp(browser, base, info, { width = 1440, height = 900,
     if (path === 'feedback') return json(200, NO_FEEDBACK);
     if (path === 'records/batches') return json(200, { ...CONTRACT.batches.response, batches: [] });
     if (path === 'agent/status') return json(200, GENIE_ONLY);
+    if (path === 'access') return json(200, { tables: [], can_grant: false, sql: '', seen: '' });
     if (path === 'page') {
       const body = route.request().postDataJSON();
       seen.pages.push(body);

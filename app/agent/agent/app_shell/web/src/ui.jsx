@@ -25,6 +25,7 @@ function useFailureCauses() {
     };
   }, []);
 }
+import { appAccess } from './api.js';
 
 const ToastContext = createContext(() => {});
 
@@ -103,6 +104,79 @@ function NoAccessLine({ tables, as: Tag, icon, rest }) {
   return <Tag {...rest} data-no-access="">{icon}{tables.length ? `${NO_ACCESS_LEAD}${tables.join(', ')}` : `${NO_ACCESS_LEAD}this data`}</Tag>;
 }
 
+export const ACCESS_CHECKED = 'inspire:access-checked';
+const tablesOf = (found) => (found?.tables || []).map((t) => t.table).join(', ');
+
+export function AccessActions({ access: given }) {
+  const [access, setAccess] = useState(given || null);
+  const [phase, setPhase] = useState('idle');
+  const [note, setNote] = useState('');
+  const [error, setError] = useState('');
+  const [sql, setSql] = useState('');
+  useEffect(() => {
+    if (given) return undefined;
+    let live = true;
+    appAccess('diagnose').then((found) => { if (live) setAccess(found); }).catch((e) => { if (live) setError(e.message); });
+    return () => { live = false; };
+  }, [given]);
+  const settled = (found) => window.dispatchEvent(new CustomEvent(ACCESS_CHECKED, { detail: found }));
+  const step = async (name, body, done, always = false) => {
+    setPhase('busy');
+    setError('');
+    setNote('');
+    try {
+      const found = await appAccess(name, body);
+      setAccess(found);
+      await done(found);
+    } catch (e) {
+      setError(e.message);
+      if (e.detail?.access) setAccess(e.detail.access);
+      if (always) settled(null);
+    } finally {
+      setPhase('idle');
+    }
+  };
+  const check = () => step('check', {}, (found) => {
+    setNote(found.tables.length ? `This App still cannot read ${tablesOf(found)}.` : 'This App reads all its data now.');
+    settled(found);
+  }, true);
+  const grant = () => step('grant', { confirmed: true, seen: access?.seen }, (found) => {
+    setNote(`You granted ${found.granted.length} read permission${found.granted.length === 1 ? '' : 's'} to this App.`);
+    settled(found);
+  });
+  const copy = () => step('copy', {}, async (found) => {
+    setSql(found.sql);
+    try {
+      await navigator.clipboard.writeText(found.sql);
+      setNote('The grant SQL is copied. Send it to the owner of that data, or run it in the SQL editor if you own it.');
+    } catch {
+      setNote('Select the grant SQL below to copy it.');
+    }
+  });
+  const count = (access?.tables || []).reduce((n, t) => n + t.grants.length, 0);
+  const busy = phase === 'busy';
+  return (
+    <span className="access-actions" data-access-actions="">
+      {phase === 'confirm' ? (
+        <span className="access-confirm" role="group" aria-label="Confirm the grant">
+          <span>Run {count} grant{count === 1 ? '' : 's'} in Unity Catalog as you, so this App can read {tablesOf(access)}?</span>
+          <button type="button" className="btn btn--pri" onClick={grant}>Confirm grant</button>
+          <button type="button" className="btn" onClick={() => setPhase('idle')}>Cancel</button>
+        </span>
+      ) : (
+        <span className="access-buttons">
+          {access?.can_grant && <button type="button" className="btn btn--pri" disabled={busy} onClick={() => setPhase('confirm')}>Grant access with my permissions</button>}
+          {access?.sql && <button type="button" className="btn" disabled={busy} onClick={copy}>Copy the grant SQL</button>}
+          <button type="button" className="btn" disabled={busy} onClick={check}>Check again</button>
+        </span>
+      )}
+      {note && <small role="status" data-access-note="">{note}</small>}
+      {error && <PlainNote text={error} as="small" className="g-err" role="alert" data-access-error="" />}
+      {sql && <pre className="access-sql" data-access-sql="">{sql}</pre>}
+    </span>
+  );
+}
+
 export function NoAccessScope({ app, children }) {
   const [seen, setSeen] = useState({});
   const [round, setRound] = useState(0);
@@ -110,6 +184,11 @@ export function NoAccessScope({ app, children }) {
     const id = Symbol('no-access');
     setSeen((s) => ({ ...s, [id]: tables }));
     return () => setSeen((s) => { const next = { ...s }; delete next[id]; return next; });
+  }, []);
+  useEffect(() => {
+    const again = () => { setSeen({}); setRound((n) => n + 1); };
+    window.addEventListener(ACCESS_CHECKED, again);
+    return () => window.removeEventListener(ACCESS_CHECKED, again);
   }, []);
   const scope = useMemo(() => ({ report }), [report]);
   const lists = Object.getOwnPropertySymbols(seen).map((id) => seen[id]);
@@ -120,7 +199,7 @@ export function NoAccessScope({ app, children }) {
         <div className="note note--warn" role="alert" data-no-access-banner="">
           <Icon name="info" size={14} />
           <span>{noAccessBanner(tables, app?.no_access, app?.auth)}</span>
-          <button type="button" className="btn" onClick={() => { setSeen({}); setRound((n) => n + 1); }}>Check again</button>
+          <AccessActions />
         </div>
       )}
       <Fragment key={round}>{children}</Fragment>
