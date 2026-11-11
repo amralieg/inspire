@@ -1457,6 +1457,31 @@ def _grant_scan_catalogs(ctx, sp, visible):
     return failed
 
 
+VALUE_LEDGER_TABLE = "__inspire_value_ledger"
+VALUE_LEDGER_COLUMNS = (("session_id", "STRING"), ("result_table", "STRING"), ("use_case_id", "STRING"), ("run_id", "STRING"),
+                        ("record_key", "STRING"), ("kind", "STRING"), ("currency", "STRING"), ("unit", "STRING"), ("at_stake", "DOUBLE"),
+                        ("saved", "DOUBLE"), ("recorded_at", "TIMESTAMP"), ("recorded_by", "STRING"))
+
+
+def _value_ledger(catalog, schema):
+    return f"`{catalog}`.`{schema}`.`{VALUE_LEDGER_TABLE}`"
+
+
+def _value_ledger_grants(sp, catalog, schema):
+    table = _value_ledger(catalog, schema)
+    return [f"GRANT {privilege} ON TABLE {table} TO `{sp}`" for privilege in ("SELECT", "MODIFY")]
+
+
+def _ensure_value_ledger(w, warehouse_id, catalog, schema):
+    table = _value_ledger(catalog, schema)
+    columns = ", ".join(f"`{name}` {kind}" for name, kind in VALUE_LEDGER_COLUMNS)
+    sql = f"CREATE TABLE IF NOT EXISTS {table} ({columns})"
+    error = _grant_error(w, warehouse_id, sql)
+    if error:
+        raise RuntimeError(f"The installer could not create the value ledger {table}: {error[:160]}. "
+                           "Run this installer again once the schema is writable for you.")
+
+
 def _lakebase_grant(sp, lakebase_catalog):
     return f"GRANT ALL PRIVILEGES ON CATALOG `{lakebase_catalog}` TO `{sp}`"
 
@@ -1467,7 +1492,7 @@ def _grant_plan(sp, catalog, schema, visible, lakebase_catalog=""):
              for p in ("USE_SCHEMA", "CREATE_TABLE", "SELECT", "MODIFY", "CREATE MODEL", "CREATE VOLUME", "READ VOLUME", "WRITE VOLUME", "MANAGE")]
     if lakebase_catalog and lakebase_catalog in visible and lakebase_catalog != catalog:
         plan.append(_lakebase_grant(sp, lakebase_catalog))
-    return plan
+    return plan + _value_ledger_grants(sp, catalog, schema)
 
 
 def step_grant_permissions(ctx):
@@ -1505,6 +1530,7 @@ def step_grant_permissions(ctx):
             visible.add(lakebase["catalog"])
         else:
             ctx["LAKEBASE_NOTE"] = lakebase_said
+        _ensure_value_ledger(w, warehouse_id, catalog, schema)
         grants = _grant_plan(sp, catalog, schema, visible, lakebase.get("catalog", ""))
         lakebase_sql = _lakebase_grant(sp, lakebase["catalog"]) if lakebase else ""
         print(f"Grant plan for {sp}: {_plural(len(grants), 'statement')} on `{catalog}`.`{schema}`"
@@ -1519,6 +1545,10 @@ def step_grant_permissions(ctx):
                 failed[sql] = error
                 print(f"  ⚠️ {sql}: {error}")
         print(f"  Grants: {len(grants) - len(failed)} of {len(grants)} ran {'✅' if not failed else '⚠️'}")
+        ledger_failed = [failed[sql] for sql in _value_ledger_grants(sp, catalog, schema) if sql in failed]
+        if ledger_failed:
+            raise RuntimeError(f"The installer could not let {sp} read and change the value ledger {_value_ledger(catalog, schema)}: "
+                               f"{ledger_failed[0][:160]}. A catalog owner can run the GRANT, then run this installer again.")
         if lakebase_ready and lakebase_sql in failed:
             ctx["LAKEBASE_NOTE"] = (f"{sp} cannot use the catalog `{lakebase['catalog']}`, because {lakebase_sql} failed "
                                     f"({str(failed[lakebase_sql])[:160]}). Its owner can run that grant, or run this installer again; {LAKEBASE_DELTA}")
