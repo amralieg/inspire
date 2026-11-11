@@ -60,7 +60,7 @@ test('the forecast cockpit opens with What to do now and draws every section of 
     const n = await itemsIn(page, section);
     assert.ok(n >= low, `${section} holds ${n}, needs ${low}`);
   }
-  assert.equal(await page.locator('[data-section="todo"] [data-todo-count]').innerText(), '6 of 6 waiting for you');
+  assert.equal(await page.locator('[data-section="at_risk_series"] [data-todo-count]').innerText(), '6 of 6 waiting for you');
   assert.match(await page.locator('[data-so-what]').first().innerText(), /So what: Order to the forecast line/);
   assert.deepEqual(seen.errors, []);
   await context.close();
@@ -91,9 +91,9 @@ test('accepting and overriding a plan line go through plan/decide, and an overri
   const { page, seen, context } = await openApp(browser, base, info, { routes: forecastRoutes(decided, { keep: true }) });
   const first = page.locator('[data-plan-row="K1"]');
   await first.waitFor();
-  const waits = (text) => page.waitForFunction((t) => document.querySelector('[data-section="todo"] [data-todo-count]')?.textContent === t, text);
-  await page.locator('[data-section="todo"] [data-todo-count]').waitFor();
-  const [open0, all0] = (await page.locator('[data-section="todo"] [data-todo-count]').innerText()).match(/(\d+) of (\d+) waiting/).slice(1).map(Number);
+  const waits = (text) => page.waitForFunction((t) => document.querySelector('[data-section="at_risk_series"] [data-todo-count]')?.textContent === t, text);
+  await page.locator('[data-section="at_risk_series"] [data-todo-count]').waitFor();
+  const [open0, all0] = (await page.locator('[data-section="at_risk_series"] [data-todo-count]').innerText()).match(/(\d+) of (\d+) waiting/).slice(1).map(Number);
   assert.ok(open0 >= 2, 'lines are waiting');
   assert.match(await first.innerText(), /Oat bar\s+100\s+★ 120\s+\+20/);
   await first.getByRole('button', { name: 'Accept' }).click();
@@ -249,8 +249,8 @@ test('every plan line can be accepted, overridden with a reason or taken all at 
   assert.match(await plan.innerText(), /Accept a line, or override it with a reason/);
   assert.match(await page.locator('[data-step="plan"]').innerText(), /Take the ★ suggested line in the plan, or override it with a reason/);
   assert.equal(await plan.locator('[data-take-all]').innerText(), 'Take all 6 ★ suggestions');
-  const counter = page.locator('[data-section="todo"] [data-todo-count]');
-  const waits = (text) => page.waitForFunction((t) => document.querySelector('[data-section="todo"] [data-todo-count]')?.textContent === t, text);
+  const counter = page.locator('[data-section="plan_table"] [data-todo-count]');
+  const waits = (text) => page.waitForFunction((t) => document.querySelector('[data-section="plan_table"] [data-todo-count]')?.textContent === t, text);
   assert.equal(await counter.innerText(), '6 of 6 waiting for you');
   await line('K1').getByRole('button', { name: 'Accept' }).click();
   await line('K1').locator('[data-decided]').waitFor();
@@ -663,4 +663,21 @@ test('the Runs, Trends and Alerts sections load in their own chunks, not the mai
     assert.ok(readFileSync(join(ASSETS, chunk), 'utf8').includes(marker), `${chunk} carries ${marker}`);
   }
   assert.ok(!main.includes('run_timeline'), 'the run timeline chart stays out of app.js');
+});
+
+test('a plan page shows one count of what waits, on the plan card, and What to do now shows none', async () => {
+  for (const [file, section, routes] of [
+    ['examples/planner.json', 'plan_table', (decided) => plannerRoutes(decided, [], { keep: true })],
+    ['examples/forecast_cockpit.json', 'at_risk_series', (decided) => forecastRoutes(decided, { keep: true })],
+  ]) {
+    const info = appInfo(DECIDE, 1, {}, file);
+    const { page, seen, context } = await openApp(browser, base, info, { routes: routes([]) });
+    await page.locator('[data-plan-row="K1"]').waitFor();
+    await page.locator('[data-section="todo"] [data-step]').first().waitFor();
+    await page.locator(`[data-section="${section}"] [data-todo-count]`).waitFor();
+    assert.equal(await page.locator('[data-todo-count]').count(), 1, `${file}: one count on the page`);
+    assert.equal(await page.locator('[data-section="todo"] [data-todo-count]').count(), 0, `${file}: What to do now shows no count`);
+    assert.deepEqual(seen.errors, []);
+    await context.close();
+  }
 });
