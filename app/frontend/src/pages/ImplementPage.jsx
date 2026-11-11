@@ -50,7 +50,7 @@ import {
 } from '../lib/mvpProgress';
 import PaneResizer from '../components/PaneResizer';
 import { RAIL_WIDTH, loadPaneWidth, paneWidth, savePaneWidth } from '../lib/paneWidth';
-import MvpProgress, { ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
+import MvpProgress, { ProgressDock, ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
 import useBuildDiagnostics from '../components/useBuildDiagnostics';
 import ChoiceList from '../components/ChoiceList';
 import { useProgressView } from '../lib/progressView';
@@ -481,6 +481,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
     if (data?.mode === 'notebook') setListVersion((n) => n + 1);
     loadRail().catch((e) => setRailError(e.message));
   };
+  const [progressDock, setProgressDock] = useState(null);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
@@ -496,6 +497,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
       )}
       {buildNotes.length > 0 && buildDetails.length > 0 && <TechnicalDetails items={buildDetails} />}
       {railError && <PlainMessage text={railError} className={ERROR_BOX} onRetry={() => loadRail().catch((e) => setRailError(e.message))} copy />}
+      <ProgressDock.Provider value={progressDock}>
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
           className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] overflow-y-auto md:max-h-none md:min-h-0">
@@ -534,7 +536,9 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
             !listLoading && !listError && <p className={`${PANEL_CLASS} p-6 text-[12px] text-text-secondary`}>This session has no use cases yet.</p>
           )}
         </section>
+      <div ref={setProgressDock} data-progress-dock="" className="hidden empty:hidden md:flex md:self-stretch md:min-h-0 md:shrink-0" />
       </div>
+      </ProgressDock.Provider>
       {wizard && !readOnly && (
         <ImplementWizard
           uc={wizard.uc}
@@ -1075,7 +1079,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const kept = keptVersions(history);
   const checklist = useMemo(() => vibeChecklist(status?.steps, latest), [status?.steps, latest]);
   const held = heldVersion(latest, status?.history ?? null);
-  const progressView = useProgressView(useCaseId, progress.active);
+  const progressView = useProgressView(useCaseId, built);
   const alertAsset = latest?.asset_status?.alert || {};
   const notebookState = uninstalled ? item.notebook || null : item.notebook || (vibeTargets.some((c) => c.id === 'notebook') ? notebookStatus({ has_genie_code: 'Y' }, null) : null);
   const notebook = notebookState && {

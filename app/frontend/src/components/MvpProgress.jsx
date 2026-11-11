@@ -1,4 +1,4 @@
-import { useId } from 'react';
+import { createContext, useContext, useId } from 'react';
 import { AlertTriangle, ArrowRight, Check, CheckCircle2, Circle, Loader2, PanelRightOpen, X, XCircle } from 'lucide-react';
 import DrawerShell from './DrawerShell';
 import TechnicalDetails, { PlainMessage } from './TechnicalDetails';
@@ -34,6 +34,8 @@ const STATUS_CHIP = {
 };
 
 const SETTLED = ['done', 'warning'];
+
+export const ProgressDock = createContext(null);
 
 function StatusMark({ active, tone }) {
   if (active) {
@@ -163,6 +165,7 @@ export default function MvpProgress({
   stages, summary, chip, reason, reasonDetails = '', toneClass, version, sorted = null, stop = null, logRef = null, view, warnings = 0, attention = null, diagnostics = null, children,
 }) {
   const panelId = useId();
+  const dock = useContext(ProgressDock);
   const headline = summary.headline || chip?.label || '';
   const title = `Build progress${version ? ` · v${version}` : ''}`;
   const line = [headline, summary.span, warnings ? plural(warnings, 'warning') : ''].filter(Boolean).join(' · ');
@@ -191,7 +194,7 @@ export default function MvpProgress({
         {!view.open && attention && <div data-build-attention="" className="space-y-3">{attention}</div>}
       </section>
       {view.open && (
-        <DrawerShell side label={title} onClose={view.close} id={panelId} data-mvp-progress="" data-progress-panel=""
+        <DrawerShell side dock={dock} label={title} onClose={view.close} id={panelId} data-mvp-progress="" data-progress-panel=""
           bodyRef={logRef} bodyProps={{ 'data-build-log': '', className: 'min-h-0 flex-1 overflow-y-auto overscroll-contain px-5 py-4 space-y-4' }}
           title={<Heading title={title} active={summary.active} tone={chip?.tone} line={`${headline}${summary.span ? ` · ${summary.span}` : ''}`} lineClass={lineClass} />}
           actions={stop}
