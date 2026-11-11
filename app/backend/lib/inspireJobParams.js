@@ -249,10 +249,10 @@ const INSPIRE_GCP_TAG_VALUE_MAX = 63;
 function inspireTagValueMax(host = process.env.DATABRICKS_HOST) {
   return /\.gcp\./i.test(String(host || '')) ? INSPIRE_GCP_TAG_VALUE_MAX : INSPIRE_TAG_VALUE_MAX;
 }
-const TAG_LIST_SEP = ' ';
-const TAG_ITEM_BAD = /[^A-Za-z0-9+=.:/@_-]/g;
+const TAG_LIST_SEP = ',';
+const TAG_ITEM_BAD = /[^A-Za-z0-9+=.:@_-]/g;
 const RESOURCE_TAG_RULES = {
-  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: 127, value: /^[\d \w+\-=.:/@]*$/, valueBad: /[^A-Za-z0-9 +=.:/@_-]/g, get valueMax() { return inspireTagValueMax(); } },
+  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: 127, value: /^[\w+\-=.,:@]*$/, valueBad: /[^A-Za-z0-9+=.,:@_-]/g, get valueMax() { return inspireTagValueMax(); } },
   uc: { keyBad: /[^A-Za-z0-9_]/g, keyMax: 256, value: /^[\s\S]*$/, valueBad: null, valueMax: 256 },
 };
 
@@ -290,7 +290,7 @@ function inspireTagList(items) {
 }
 
 function inspireTagListItems(value, legacySep = '') {
-  const items = String(value ?? '').split(/\s+/).filter(Boolean);
+  const items = String(value ?? '').split(/[\s,]+/).filter(Boolean);
   return legacySep ? items.flatMap((item) => item.split(legacySep)).filter(Boolean) : items;
 }
 
