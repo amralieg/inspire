@@ -209,3 +209,44 @@ test('without user level names the card, detail and filters stay as they were (m
     await ui.close();
   }
 });
+
+const THREE_LEVELS = withUseCases({
+  ...REVIEW_RESULTS,
+  strategy_coverage: {
+    source: 'customer', levels: ['Pillar', 'Goal', 'Objective'], use_cases: 6, aligned: 3, not_aligned: 3,
+    entries: [
+      { id: 'S1', path: 'Grow', level: '', use_cases: 2, direct: 0 },
+      { id: 'S2', path: 'Grow > Keep customers', level: '', use_cases: 1, direct: 1 },
+      { id: 'S3', path: 'Grow > Sell more', level: '', use_cases: 1, direct: 1 },
+      { id: 'S4', path: 'Grow > Keep customers > Win repeat buyers', level: '', use_cases: 0, direct: 0 },
+    ],
+    gaps: [], priorities: [], priority_gaps: [],
+  },
+}, {
+  'N01-U01': { strategy_alignment: JSON.stringify([{ id: 'S2', path: 'Grow > Keep customers', evidence: 'orders' }]) },
+  'N01-U02': { strategy_alignment: JSON.stringify([{ id: 'S3', path: 'Grow > Sell more', evidence: 'basket' }]) },
+  'N02-U01': { strategy_alignment: '[]' },
+});
+
+test('a three-level strategy gets one filter per level the user named, the one nothing reaches included, and each narrows the list (REQ-075)', async () => {
+  const ui = await openUi('results', { ...REVIEW_STATE, results: THREE_LEVELS });
+  const { page } = ui;
+  try {
+    await ready(page);
+    for (const title of ['Pillar', 'Goal', 'Objective']) {
+      assert.equal(await panel(page, title).count(), 1, `a filter named ${title}`);
+    }
+    assert.equal(await page.getByRole('button', { name: /^Strategy\b/ }).count(), 0, 'no single Strategy tree next to the level filters');
+    await panel(page, 'Objective').click();
+    await page.getByRole('button', { name: /^Win repeat buyers\b/ }).waitFor();
+    await panel(page, 'Pillar').click();
+    await page.getByRole('button', { name: /^Grow\b/ }).click();
+    await card(page, 'Predict churn').waitFor();
+    assert.deepEqual(await shown(page), ['Predict churn', 'Score upsell']);
+    await page.getByRole('button', { name: /^All use cases\b/ }).first().click();
+    await card(page, 'Forecast stock').waitFor();
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

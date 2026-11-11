@@ -403,3 +403,35 @@ test('the KPI filter puts the user KPIs first, matches names whatever their case
   assert.equal(lib.matchesKpiFilter(infos[3], 'all'), true);
   assert.equal(lib.kpiOrigin({ source: 'other' }), '', 'an unknown source is not shown as either');
 });
+
+test('a level of the user strategy keeps its filter when no use case reaches it, with its entries at zero (REQ-075)', async () => {
+  const lib = await load();
+  const levels = ['Pillar', 'Goal', 'Objective'];
+  const entries = [
+    { id: 'S1', path: 'Grow', level: '', use_cases: 2 },
+    { id: 'S2', path: 'Grow > Keep customers', level: '', use_cases: 1 },
+    { id: 'S3', path: 'Grow > Sell more', level: '', use_cases: 1 },
+    { id: 'S4', path: 'Grow > Keep customers > Win repeat buyers', level: '', use_cases: 0 },
+  ];
+  const context = lib.strategyContext({ strategy_coverage: { source: 'customer', levels, entries } });
+  const infos = [
+    lib.v130View({ strategy_alignment: JSON.stringify([{ id: 'S2', path: 'Grow > Keep customers' }]) }),
+    lib.v130View({ strategy_alignment: JSON.stringify([{ id: 'S3', path: 'Grow > Sell more' }]) }),
+    lib.v130View({ strategy_alignment: '[]' }),
+  ];
+  const panels = lib.strategyLevelFilters(infos, entries, context);
+  assert.deepEqual(panels.map((p) => p.level), levels, 'one filter per level the user defined, in their order');
+  assert.deepEqual(panels[2].options.map((o) => [o.label, o.count]), [['Win repeat buyers', 0]],
+    'the objective nobody is aligned to is listed with zero, not dropped');
+  assert.deepEqual(panels[0].options.map((o) => [o.label, o.count]), [['Grow', 2]]);
+});
+
+test('a strategy one level deep gets one filter, and the default level names beyond its depth get none (REQ-075)', async () => {
+  const lib = await load();
+  const levels = ['Pillar', 'Goal', 'Objective', 'Priority'];
+  const entries = [{ id: 'S1', path: 'Grow', level: '', use_cases: 1 }, { id: 'S2', path: 'Run lean', level: '', use_cases: 0 }];
+  const context = lib.strategyContext({ strategy_coverage: { source: 'customer', levels, entries } });
+  const infos = [lib.v130View({ strategy_alignment: JSON.stringify([{ id: 'S1', path: 'Grow' }]) })];
+  assert.deepEqual(lib.strategyLevelFilters(infos, entries, context).map((p) => p.level), ['Pillar'],
+    'Goal, Objective and Priority name no entry in this strategy, so they are not filters');
+});

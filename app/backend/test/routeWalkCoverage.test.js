@@ -22,6 +22,7 @@ const NOT_WALKED = {
   'GET /api/inspire/implement/feedback': 'lists the issues reported from a built use case’s App, each person seeing only their own; no non-owner harness row walks it yet, and the feedback route tests prove the per-person view',
   'POST /api/inspire/implement/feedback/status': 'changes the status of a reported issue for owners only; no non-owner harness row walks it yet, and the route samples prove the owners refusal',
   'POST /api/inspire/implement/feedback/vibe': 'drafts a vibe from a reported issue for owners only; no non-owner harness row walks it yet, and the route samples prove the owners refusal',
+  'POST /api/inspire/usecase-name': 'renames a use case on its session row only, never the catalogue name or the result table; no non-owner harness row walks it yet, and the route samples and backend/test/useCaseName.test.js prove the input refusals',
   'POST /api/grouping/profile': 'reads the use case table with the person token only and changes nothing; the grouping route tests walk it',
   'POST /api/money/rate-sample': 'reads the rates of a money rule’s rate table with the person’s own sign-in and changes nothing; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'GET /api/inspire/implement/diagnostics': 'reads the build through the same loadStatus read and person token as GET /api/inspire/implement/status, which the harness walks; no non-owner harness row walks it yet',

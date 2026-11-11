@@ -5,11 +5,12 @@ import { START_MVP_LABEL } from '../lib/implementWizard';
 const PRIMARY = 'inline-flex items-center gap-1.5 px-3.5 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20 transition-smooth';
 const OUTLINE = 'inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle transition-smooth';
 
-export default function ImplementCardActions({ status = null, onImplement, onOpen, notebookUrl = '', className = 'px-5 pb-3', showStatus = true }) {
+export default function ImplementCardActions({ status = null, onImplement, onOpen, notebookUrl = '', links = [], className = 'px-5 pb-3', showStatus = true }) {
   const open = status?.kind === 'mvp' && typeof onOpen === 'function';
   const canStart = !open && typeof onImplement === 'function';
   const notebook = status?.kind === 'notebook' && status.group === 'ready' && notebookUrl ? notebookUrl : '';
-  if (!open && !canStart && !notebook && !(showStatus && status?.label)) return null;
+  const assets = status?.kind === 'mvp' && Array.isArray(links) ? links : [];
+  if (!open && !canStart && !notebook && !assets.length && !(showStatus && status?.label)) return null;
   return (
     <div className={`${className} flex flex-wrap items-center gap-2`} data-implement-actions="">
       {open && (
@@ -23,6 +24,11 @@ export default function ImplementCardActions({ status = null, onImplement, onOpe
           {START_MVP_LABEL}
         </button>
       )}
+      {assets.map((link) => (
+        <a key={link.id} href={link.url} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={OUTLINE} data-card-asset={link.id}>
+          {link.label} <ExternalLink size={12} />
+        </a>
+      ))}
       {notebook && (
         <a href={notebook} target="_blank" rel="noreferrer" onClick={(e) => e.stopPropagation()} className={OUTLINE}>
           Open notebook <ExternalLink size={12} />
