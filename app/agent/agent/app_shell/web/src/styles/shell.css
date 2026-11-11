@@ -318,6 +318,7 @@ dialog::backdrop{background:rgba(10,12,16,.45)}
 .pg-h{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;margin-bottom:4px}
 .pg-h>div,.pg-h>h1{flex:1 1 0;min-width:0}
 .pg-h>.ph-tools{flex:0 1 auto;min-width:0;max-width:100%}
+.pg-h.is-refreshing>h1{min-width:min(300px,100%)}
 .pg-h>div>p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
 .notify{flex:none;text-decoration:none}
 .kpis[data-n="2"]{grid-template-columns:repeat(2,minmax(0,1fr))}
