@@ -20,11 +20,12 @@ def ns():
     return load_agent_namespace()
 
 
-def ledger_grant_problems(function):
+def ledger_statement_problems(function):
     text = ast.unparse(function)
-    problems = [f"inline {verb}" for verb in re.findall(r"GRANT (?:SELECT|MODIFY)\b", text)]
-    if "ledger_grant_sqls" not in text:
-        problems.append("no ledger_grant_sqls call")
+    problems = [f"inline {verb}" for verb in re.findall(r"GRANT (?:SELECT|MODIFY)\b|CREATE TABLE IF NOT EXISTS", text)]
+    for builder in ("ledger_create_sql", "ledger_grant_sqls"):
+        if builder not in text:
+            problems.append(f"no {builder} call")
     return problems
 
 
@@ -54,13 +55,23 @@ def top_level_function(source, name):
     return next(n for n in ast.walk(ast.parse(source)) if isinstance(n, ast.FunctionDef) and n.name == name)
 
 
-def test_the_value_ledger_grants_come_only_from_the_shell_facts_builder():
-    assert ledger_grant_problems(method_node("DatabricksInspire", "_implement_ledger_access")) == []
+def test_the_value_ledger_statements_come_only_from_the_shell_facts_builders():
+    assert ledger_statement_problems(method_node("DatabricksInspire", "_implement_ledger_access")) == []
 
 
 def test_an_inline_grant_in_the_ledger_access_fails_the_one_helper_check():
     inline = ("class DatabricksInspire:\n"
               "    def _implement_ledger_access(self, database, client_id):\n"
+              "        self.spark.sql(inspire_shell_facts.ledger_create_sql(table))\n"
               "        self.spark.sql(f\"GRANT SELECT ON TABLE {table} TO {inspire_quote_principal(client_id)}\")\n")
     function = next(n for n in ast.walk(ast.parse(inline)) if isinstance(n, ast.FunctionDef))
-    assert ledger_grant_problems(function) == ["inline GRANT SELECT", "no ledger_grant_sqls call"]
+    assert ledger_statement_problems(function) == ["inline GRANT SELECT", "no ledger_grant_sqls call"]
+
+
+def test_an_inline_create_in_the_ledger_access_fails_the_one_helper_check():
+    inline = ("class DatabricksInspire:\n"
+              "    def _implement_ledger_access(self, database, client_id):\n"
+              "        self.spark.sql(f\"CREATE TABLE IF NOT EXISTS {table} (x STRING)\")\n"
+              "        self.spark.sql(inspire_shell_facts.ledger_grant_sqls(table, client_id))\n")
+    function = next(n for n in ast.walk(ast.parse(inline)) if isinstance(n, ast.FunctionDef))
+    assert ledger_statement_problems(function) == ["inline CREATE TABLE IF NOT EXISTS", "no ledger_create_sql call"]

@@ -77,6 +77,10 @@ def render(node):
     return None
 
 
+def callee_name(call):
+    return call.func.attr if isinstance(call.func, ast.Attribute) else call.func.id if isinstance(call.func, ast.Name) else None
+
+
 class SqlIndex:
     def __init__(self, tree):
         self.tree = tree
@@ -121,6 +125,16 @@ class SqlIndex:
                 if arg is not None:
                     yield node, arg
 
+    def bind_arguments(self, templates, builder, call, scope, depth):
+        """A `{param}` placeholder takes the call-site argument only when that argument is an Inspire-owned name, so the owned name stays owned.
+        Any other argument keeps its placeholder, which is checked as before."""
+        bound = list(templates)
+        for name, arg in zip([a.arg for a in builder.args.args], call.args):
+            values, _reasons = self.resolve(arg, scope, depth + 1)
+            if len(values) == 1 and classify_target(values[0]) == "inspire_owned":
+                bound = [t.replace("{" + name + "}", values[0]) for t in bound]
+        return bound
+
     def resolve(self, expr, scope, depth=0):
         """Return (templates, unresolved_reasons) for a SQL expression inside function `scope`."""
         text = render(expr)
@@ -139,16 +153,17 @@ class SqlIndex:
             return templates, ([] if templates else reasons)
         if isinstance(expr, ast.Name) and scope is not None:
             return self.resolve_name(expr.id, scope, depth + 1)
+        if isinstance(expr, ast.Call) and callee_name(expr) in owned_name_builders():
+            return ["{" + ast.unparse(expr) + "}"], []
         if isinstance(expr, ast.Call):
-            callee = expr.func.attr if isinstance(expr.func, ast.Attribute) else \
-                expr.func.id if isinstance(expr.func, ast.Name) else None
+            callee = callee_name(expr)
             builders = self.functions.get(callee) or []
             templates, reasons = [], []
             for builder in builders:
                 for node in ast.walk(builder):
                     if isinstance(node, ast.Return) and node.value is not None:
                         t, r = self.resolve(node.value, builder, depth + 1)
-                        templates += t
+                        templates += self.bind_arguments(t, builder, expr, scope, depth)
                         reasons += r
             if builders:
                 return templates, ([] if templates else reasons or [f"builder {callee} returns no SQL literal"])
@@ -235,15 +250,14 @@ class SqlIndex:
                     reasons += r
             return (templates, reasons) if found else ([], [f"sequence {expr.id} not bound in {scope.name}"])
         if isinstance(expr, ast.Call):
-            callee = expr.func.attr if isinstance(expr.func, ast.Attribute) else \
-                expr.func.id if isinstance(expr.func, ast.Name) else None
+            callee = callee_name(expr)
             builders = self.functions.get(callee) or []
             templates, reasons = [], []
             for builder in builders:
                 for node in ast.walk(builder):
                     if isinstance(node, ast.Return) and node.value is not None:
                         t, r = self.resolve_items(node.value, builder, depth + 1)
-                        templates += t
+                        templates += self.bind_arguments(t, builder, expr, scope, depth)
                         reasons += r
             if builders:
                 return templates, ([] if templates else reasons or [f"builder {callee} returns no SQL literal"])
@@ -402,7 +416,7 @@ SERVER_DIR = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", ".."
 SHELL_SQL_PATH = os.path.join(SERVER_DIR, "shell_sql.py")
 SHELL_SQL_BUILDERS = ("siblings_query",)
 SHELL_FACTS_PATH = os.path.join(SERVER_DIR, "shell_facts.py")
-SHELL_FACTS_BUILDERS = ("ledger_grant_sqls",)
+SHELL_FACTS_BUILDERS = ("ledger_grant_sqls", "ledger_create_sql")
 
 
 def add_module_builders(index, path, names):
@@ -413,16 +427,16 @@ def add_module_builders(index, path, names):
             index.functions.setdefault(node.name, []).append(node)
 
 
-def add_shell_builders(index):
+def add_shell_builders(index, facts_path=SHELL_FACTS_PATH):
     """The notebook calls these shell modules' builders through modules["shell_sql"] and inspire_shell_facts; the guard reads them from the shipped modules."""
     add_module_builders(index, SHELL_SQL_PATH, SHELL_SQL_BUILDERS)
-    add_module_builders(index, SHELL_FACTS_PATH, SHELL_FACTS_BUILDERS)
+    add_module_builders(index, facts_path, SHELL_FACTS_BUILDERS)
 
 
-def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None):
+def audit(source, with_deep_reads=False, with_implement_reads=False, scope=None, facts_path=SHELL_FACTS_PATH):
     index = SqlIndex(ast.parse(source))
     add_global_builders(index, source)
-    add_shell_builders(index)
+    add_shell_builders(index, facts_path)
     runs = (lambda lineno: True) if scope is None else (lambda lineno: scope(lineno)[0])
     implement = (lambda lineno: None) if scope is None else (lambda lineno: scope(lineno)[1])
     executed, unresolved, owned, probe_bad = [], [], [], []
@@ -644,9 +658,13 @@ def test_guard_extracts_the_agents_sql_surface(notebook_audit):
         assert expected in joined, f"extractor did not resolve the statement containing {expected!r}"
 
 
+def queued_worker_leftovers(unresolved):
+    return [u for u in unresolved if not (u[1] in QUEUED_SQL_WORKERS and u[2] == "self.spark.sql(sql)")]
+
+
 def test_every_executed_sql_call_site_is_resolved(notebook_audit):
     _, unresolved, _, _ = notebook_audit
-    leftovers = [u for u in unresolved if not (u[1] in QUEUED_SQL_WORKERS and u[2] == "self.spark.sql(sql)")]
+    leftovers = queued_worker_leftovers(unresolved)
     assert not leftovers, "SQL call sites whose statement cannot be traced to a literal:\n" + "\n".join(
         f"line {line} in {func}: {call} -> {reasons}" for line, func, call, reasons in leftovers)
     assert len(unresolved) - len(leftovers) <= 1, "only the single-writer queue worker may execute queued SQL"
@@ -801,6 +819,47 @@ def test_guard_follows_the_value_ledger_grant_builder_the_agent_reads_from_shell
     assert not unresolved, unresolved
     assert sorted(line for line, _sql in executed) == _call_lines(LEDGER_SHARE_SOURCE)
     assert not bad, bad
+
+
+LEDGER_CREATE_SOURCE = '''
+def make_ledger(spark, database):
+    table = inspire_shell_facts.ledger_table(database)
+    spark.sql(inspire_shell_facts.ledger_create_sql(table))
+'''
+
+
+def test_guard_traces_the_ledger_create_argument_to_the_owned_ledger_table():
+    executed, unresolved, bad, _frames = audit(LEDGER_CREATE_SOURCE)
+    assert not unresolved, unresolved
+    assert executed and all("{inspire_shell_facts.ledger_table(database)}" in sql for _line, sql in executed), executed
+    assert not bad, bad
+
+
+def test_guard_flags_a_ledger_create_whose_table_is_not_owned():
+    unowned = LEDGER_CREATE_SOURCE.replace("inspire_shell_facts.ledger_table(database)", "\"main.sales.orders\"")
+    _executed, unresolved, bad, _frames = audit(unowned)
+    assert not unresolved, unresolved
+    assert ("write", "{table}") in {(kind, target) for _line, kind, target, _sql in bad}, bad
+
+
+LEAKY_LEDGER_BUILDERS = (
+    ("return f\"CREATE TABLE IF NOT EXISTS {table} ({LEDGER_COLUMNS_DDL})\"",
+     "return f\"CREATE TABLE IF NOT EXISTS {table} ({LEDGER_COLUMNS_DDL}) AS SELECT * FROM samples.sales.orders\""),
+    ("return [f\"GRANT {privilege} ON TABLE {table} TO {quote_principal(principal)}\" for privilege in LEDGER_GRANTS]",
+     "return [f\"SELECT * FROM samples.sales.orders\" for privilege in LEDGER_GRANTS]"),
+)
+
+
+@pytest.mark.parametrize("old, new", LEAKY_LEDGER_BUILDERS, ids=["create", "grant"])
+def test_a_shell_facts_ledger_builder_that_reads_user_rows_fails_the_guard(tmp_path, old, new):
+    with open(SHELL_FACTS_PATH, encoding="utf-8") as handle:
+        text = handle.read()
+    assert text.count(old) == 1, old
+    leaky = tmp_path / "shell_facts.py"
+    leaky.write_text(text.replace(old, new), encoding="utf-8")
+    _executed, unresolved, bad, _frames = audit(agent_source(), facts_path=str(leaky))
+    assert not queued_worker_leftovers(unresolved), unresolved
+    assert ("read", "samples.sales.orders") in {(kind, target) for _line, kind, target, _sql in bad}, bad
 
 
 def test_guard_leaves_a_loop_over_an_unknown_sequence_unresolved():
