@@ -22,7 +22,7 @@ ROW_ANSWER = ("This row is for **franchise 3000046**, showing a sale of **$450 a
               "sales mainly from lower volume -- which is exactly what this use case tracks.")
 SHAPED_ROW = ("This row is for **franchise 3000046**, showing a sale of **$450 across 3 transactions** on **May 12, 2024** for **Golden Gate "
               "Ginger** (paid by Amex, in the Current 7-day window).\n\n"
-              "- It falls within the **current 7-day sales window** being reviewed (May 4-17, 2024).\n- Its **main sales driver is Volume**.\n"
+              "- It falls within **current 7-day sales window** being reviewed (May 4-17, 2024).\n- Its **main sales driver is Volume**.\n"
               "- It is tagged **Action tier: Monitor**.")
 SHORT_ROW = ("Franchise 3000046 sold **$450 across 3 transactions** on May 12, 2024, inside the current 7-day window.\n\n"
              "- Its main sales driver is Volume.\n- It is tagged Action tier: Monitor.")

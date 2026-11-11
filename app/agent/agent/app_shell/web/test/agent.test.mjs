@@ -343,3 +343,28 @@ test('opening Ask Genie shows the page top fact and three one-tap next steps', a
     await context.close();
   }
 });
+
+test('in Genie-only mode a record asked about gets the same buttons, and Mark done prepares the change through the confirm card', async () => {
+  const prepared = [];
+  const { acted, routes } = agentRoutes(DONE_TURN, {
+    'agent/status': ({ json }) => json(200, { mode: 'genie', note: '', page: 'n01_u05', genie: true, model: '' }),
+    'agent/prepare': ({ route, json }) => { prepared.push(route.request().postDataJSON()); return json(200, PREPARED); },
+  });
+  const { page, seen, context } = await openApp(browser, served.base, appInfo({ ...DECIDE }), { routes, hash: '#/n01_u05/work' });
+  try {
+    await page.evaluate(() => window.dispatchEvent(new CustomEvent('inspire:genie-ask',
+      { detail: { pageId: 'n01_u05', recordKey: 'R001', label: 'Item 1', question: 'fix this' } })));
+    const row = page.locator('[data-offer="R001"]');
+    await row.getByRole('button', { name: 'Mark done' }).click();
+    const card = page.getByRole('group', { name: 'Mark done: 1 record' });
+    await card.getByText('Item 1').waitFor();
+    assert.deepEqual(prepared, [{ page: 'n01_u05', action: 'done', record_keys: ['R001'] }]);
+    assert.equal(acted.acts.length, 0, 'nothing is written before Confirm');
+    await card.getByRole('button', { name: 'Confirm' }).click();
+    await card.getByText('Saved 1 record.').waitFor();
+    assert.deepEqual(acted.acts, [PREPARED.confirm.body]);
+    assert.deepEqual(seen.errors, []);
+  } finally {
+    await context.close();
+  }
+});

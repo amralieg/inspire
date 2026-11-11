@@ -144,3 +144,39 @@ def test_a_cut_bullet_never_leaves_a_bold_label_open_and_never_drops_a_number():
     assert out.count("**") % 2 == 0 and out.count("**") == 2, out
     numbered = "- " + " ".join(["word"] * 9) + " then 4,200 more words after the number."
     assert "4,200" in shell_agent.shape_answer("Lead.\n\n" + numbered)
+
+
+def test_a_bullet_keeps_its_number_and_cuts_the_words_around_it_to_twelve():
+    bullet = "It falls within the current 7-day sales window being reviewed for the May 4-17, 2024 period on the page."
+    cut = shell_agent.word_cut(bullet)
+    assert shell_agent.words_of(cut) <= shell_agent.BULLET_WORDS and "2024" in cut and "7-day" in cut, cut
+    assert cut.endswith("2024).") or cut.endswith("…"), cut
+
+
+def test_three_rows_still_written_as_bullets_after_the_rewrite_become_one_table(tmp_path):
+    llm = FakeLLM([tool_call("find_records", {}), said(BULLETS), said(BULLETS)], related=topic_of)
+    s, _ws, _made = agent_shell(tmp_path, ws=rows_ws(llm))
+    answer = ask(s, "Which records need action?")["answer"]
+    assert "| Item | Detail |" in answer and "| Item 1 is open. | |" in answer, answer
+    assert "\n- " not in "\n" + answer, answer
+
+
+def test_two_different_answers_get_different_next_steps(tmp_path):
+    llm = FakeLLM([tool_call("find_records", {}), said("Item 2 needs action first."), tool_call("find_records", {}),
+                   said("Item 3 is the largest.")], related=topic_of)
+    s, _ws, _made = agent_shell(tmp_path, ws=rows_ws(llm))
+    first = ask(s, "Which record needs action first?")["next"]
+    second = ask(s, "Which record is largest?")["next"]
+    assert [step["label"] for step in first] == ["Open Item 2"], first
+    assert [step["label"] for step in second] == ["Open Item 3"], second
+
+
+def test_a_chart_is_offered_as_bars_only_when_the_answer_names_it(tmp_path):
+    llm = FakeLLM([said("The chart shows the trend clearly.")], related=topic_of)
+    s, _ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
+    turn = ask(s, "What does the chart say?")
+    assert turn["next"] == [] or all("as bars" in step["label"] for step in turn["next"]), turn["next"]
+    (tmp_path / "second").mkdir()
+    llm = FakeLLM([said("Nothing about pictures here.")], related=topic_of)
+    s, _ws, _made = agent_shell(tmp_path / "second", ws=AgentWorkspace(llm=llm))
+    assert ask(s, "Anything else?")["next"] == []

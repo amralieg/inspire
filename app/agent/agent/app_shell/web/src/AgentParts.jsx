@@ -140,6 +140,16 @@ export function NextSteps({ message, genie }) {
   );
 }
 
+export function RecordOffers({ message, genie }) {
+  return (
+    <>
+      <Offers message={message} genie={genie} />
+      <ConfirmCard confirm={message.confirm} write={confirmWrite(message.k, message.n)} onConfirm={() => genie.confirm(message.k, message.n)}
+        onCancel={() => genie.cancel(message.k, message.n)} onUndo={() => genie.undoSaved(message.k, message.n)} />
+    </>
+  );
+}
+
 export function AgentExtras({ message, genie, rating = true }) {
   if (!message.agent) return null;
   const k = message.k;

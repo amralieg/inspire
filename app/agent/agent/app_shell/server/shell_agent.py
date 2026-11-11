@@ -312,12 +312,57 @@ def clause_cut(text: str, cap: int = BULLET_WORDS) -> str:
     return text
 
 
+FILLER_WORDS = frozenset("a an the of to in on at for and or with by is are was were be it its that this which as from".split())
+
+
 def word_cut(text: str, cap: int = BULLET_WORDS) -> str:
     words = text.split()
     if len(words) <= cap:
         return text
-    head = " ".join(words[:cap]).rstrip(",;:")
-    return text if digits_of(head) != digits_of(text) or head.count("**") % 2 else head + "…"
+    must = {i for i, w in enumerate(words) if any(ch.isdigit() for ch in w)}
+    kept = set(range(cap)) | must
+    excess = len(kept) - cap
+    droppable = sorted((i for i in kept if i not in must),
+                       key=lambda i: (words[i].lower().strip(",;:.()") not in FILLER_WORDS, -i))
+    if excess > len(droppable):
+        return text
+    kept -= set(droppable[:excess])
+    head = " ".join(words[i] for i in sorted(kept))
+    tail = "…" if max(kept) < len(words) - 1 else ""
+    return text if head.count("**") % 2 else head.rstrip(",;:") + tail
+
+
+def mentions(name: str, text: str) -> bool:
+    return bool(re.search(rf"(?<!\w){re.escape(name)}(?!\w)", text, re.I))
+
+
+def rows_as_bullets(text: str, rows: int) -> bool:
+    blocks = answer_blocks(text)
+    return rows >= ROW_TABLE_MIN and any(b["type"] == "item" for b in blocks) and not any(b["type"] == "table" for b in blocks)
+
+
+def bullets_to_table(text: str) -> str:
+    out, block = [], []
+
+    def flush():
+        if len(block) >= ROW_TABLE_MIN:
+            out.extend(["| Item | Detail |", "|---|---|"])
+            for bullet in block:
+                label, _, value = bullet.partition(":")
+                cells = [label.strip(), value.strip()]
+                out.append("| " + " | ".join(c.replace("|", "/") for c in cells) + " |")
+        else:
+            out.extend(f"- {bullet}" for bullet in block)
+        block.clear()
+
+    for line in text.split("\n"):
+        if line.startswith("- ") and line[2:].strip():
+            block.append(line[2:].strip())
+        else:
+            flush()
+            out.append(line)
+    flush()
+    return "\n".join(out)
 
 
 def dashless(line: str) -> str:
@@ -1428,7 +1473,7 @@ class Agent:
                 turn.answer = self.final_answer(ws, who, turn, job, messages, cut_lines(message.get("content") or "", ANSWER_CHARS)) or (
                     stop or "Genie had nothing to add.")
                 turn.refused = turn.answer.strip() == OFF_TOPIC
-                turn.next = [] if turn.refused else self.next_steps(page, turn)
+                turn.next = [] if turn.refused else self.next_steps(page, turn, turn.answer)
                 if stop and stop not in turn.answer:
                     turn.answer = f"{turn.answer}\n\n{stop}"
                 return
@@ -1462,6 +1507,8 @@ class Agent:
                 shorter = ""
             if shorter:
                 content, rewritten = shorter, True
+        if rows_as_bullets(content, answer_rows(turn)):
+            content = bullets_to_table(content)
         shaped = shape_answer(content)
         clashes, notes = number_scopes(shaped, job.get("question") or "", job.get("key_numbers"), job.get("genie") or [])
         print(f"[AGENT-ANSWER-SHAPE FIRED] page={turn.page_id} problems={len(problems)} rewritten={rewritten} "
@@ -1659,13 +1706,17 @@ class Agent:
         turn.offers = {"actions": list(OFFER_ACTIONS), "rows": rows}
         return {"rows": rows}
 
-    def next_steps(self, page: dict, turn: Turn) -> list:
+    def next_steps(self, page: dict, turn: Turn, answer: str) -> list:
         raw = []
-        if turn.listed and page.get("records"):
-            first = turn.listed[0]
-            raw.append((f"Open {first['label']}", {"type": "open_record", "record_key": first["record_key"]}))
+        if page.get("records"):
+            named = next((r for r in turn.listed if mentions(str(r.get("label") or ""), answer) and r.get("label")), None)
+            if named is not None:
+                raw.append((f"Open {named['label']}", {"type": "open_record", "record_key": named["record_key"]}))
         for chart in page.get("charts") or []:
-            if isinstance(chart, dict) and "bar" in chart_types(chart):
+            if not isinstance(chart, dict) or chart.get("type") == "bar" or "bar" not in chart_types(chart):
+                continue
+            names = [chart.get("title")] + [y.get("label") for y in (chart.get("y") or []) if isinstance(y, dict)]
+            if any(name and mentions(str(name), answer) for name in names):
                 raw.append((f"Show {chart.get('title') or chart['id']} as bars", {"type": "chart", "chart": chart["id"], "chart_type": "bar"}))
                 break
         out = []

@@ -9,8 +9,9 @@ import { BUSY_TITLE, explainBody } from './explain.js';
 import { GENIE_DEFAULT, GENIE_MIN, clampGenie, genieMax, keyWidth, rememberGenieWidth, storedGenieWidth } from './genieWidth.js';
 import { GENIE_ASK, genieAnswer, genieKey, genieOf, genieOn, paceText } from './genieAsk.js';
 import { AGENT_CHANGED, suggestions } from './agentView.js';
-import { AgentExtras, AgentSteps, confirmWrite } from './AgentParts.jsx';
+import { AgentExtras, AgentSteps, RecordOffers, confirmWrite } from './AgentParts.jsx';
 import { runWrite } from './saving.jsx';
+import { pageDecides } from './records.js';
 import { NewMessages, PlainNote, useFollowBottom } from './ui.jsx';
 
 const WORDS_PER_SECOND = 14;
@@ -411,6 +412,11 @@ function YouSent({ message }) {
   );
 }
 
+function recordOf(thread, m) {
+  const asked = thread.find((q) => q.n === m.n - 1);
+  return asked?.about?.recordKey ? { recordKey: asked.about.recordKey, label: asked.about.label || asked.about.recordKey } : null;
+}
+
 export default function GeniePanel({ app, genie, page, pages, onPick, onClose, tabs = null, full = false, fact = '' }) {
   const log = useRef(null);
   const input = useRef(null);
@@ -486,6 +492,10 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
             {m.state === 'running' && <div className="msg-b"><AgentSteps steps={m.steps} /><span className="g-step"><span className="dots"><i /><i /><i /></span>{m.step}…</span><Pace since={m.n} /></div>}
             {m.state === 'failed' && <div className="msg-b">{m.calm ? <PlainNote text={m.error} className="note" role="status" data-calm /> : <PlainNote text={m.error} className="g-err" onRetry={genie.canRetry?.(genie.key, m.n) ? () => genie.retry(genie.key, m.n) : null} />}</div>}
             {m.state === 'done' && <Answer message={m} url={info.url} onTick={tick} genie={genie} />}
+            {m.state === 'done' && !m.agent && recordOf(thread, m) && home && app.options?.decisions && pageDecides(home) && (
+              <div className="msg-b"><RecordOffers message={{ k: genie.key, n: m.n, confirm: m.confirm, offerError: m.offerError,
+                offers: { rows: [{ record_key: recordOf(thread, m).recordKey, label: recordOf(thread, m).label, status: '' }] } }} genie={genie} /></div>
+            )}
           </div>
         )))}
         <NewMessages follow={follow} />
