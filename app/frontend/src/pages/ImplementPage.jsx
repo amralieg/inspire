@@ -1330,7 +1330,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   );
 
   const reads = readOnly ? null : liveReads(sourceNow);
-  const readsLeft = reads;
+  const grantedAll = !readOnly && !reads && readsResult?.version === latest?.spec_version && readsResult.action === 'grant'
+    && !readsResult.refused && !readsResult.error;
+  const readsLeft = reads || (grantedAll ? { tables: [], canGrant: false } : null);
   const runReads = async (action) => {
     setReadsBusy(action);
     try {
@@ -1368,7 +1370,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     autoReads.current[key] = true;
     runReads('grant');
   }, [reads, readOnly, latest?.session_id, latest?.spec_version]);
-  const readsCard = reads && (
+  const readsCard = readsLeft && (
     <section aria-label={APP_READS_HEADING} data-app-reads="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
       <div className="flex items-start gap-2.5">
         <AlertTriangle size={16} className="mt-px shrink-0 text-warning-fg" aria-hidden />
