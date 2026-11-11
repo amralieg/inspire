@@ -86,7 +86,8 @@ def test_a_refused_ledger_write_is_reported_and_the_act_still_saves_the_record(t
     s, ws, _made = shell(tmp_path, settings=DECIDE, pages=[_page()], ws=ws)
     status, out = act(s, values={"action_status": "Done", "realized_value": 40})
     assert status == 200 and out["written"] == ["k1"]
-    assert "not counted in the value ledger" in out["value_warning"] and "PERMISSION_DENIED" in out["value_warning"]
+    assert "not counted in the value ledger" in out["value_warning"] and "PERMISSION_DENIED" not in out["value_warning"]
+    assert out["value_warning"].endswith("ask the App owner to check its access"), "a permission error reads as a plain note, not a raw code"
 
 
 def test_a_page_built_before_the_ledger_names_no_table_and_says_so_only_for_a_real_value(tmp_path):
@@ -99,16 +100,32 @@ def test_a_page_built_before_the_ledger_names_no_table_and_says_so_only_for_a_re
     assert status == 200 and "value_warning" not in out
 
 
-def test_the_ledger_write_uses_the_app_identity_not_the_person(tmp_path):
-    reader = LedgerWorkspace(current=[current("k1", "run", "run 7")], keys=("k1",))
+def _per_user_shell(tmp_path, reader, writer):
+    return shell_core.Shell(app_dir(tmp_path, settings=dict(DECIDE, auth="user"), pages=[_page()]),
+                            env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
+                            sp_factory=lambda: writer, user_factory=lambda host, token: reader)
+
+
+def test_a_per_user_app_writes_the_ledger_as_the_signed_in_person_and_never_as_its_principal(tmp_path):
+    reader = LedgerWorkspace(current=[current("k1", "run", "run 7")], stake=STAKE_EUR, keys=("k1",))
     writer = LedgerWorkspace(stake=STAKE_EUR, keys=("k1",))
-    s = shell_core.Shell(app_dir(tmp_path, settings=dict(DECIDE, auth="user"), pages=[_page()]),
-                         env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
-                         sp_factory=lambda: writer, user_factory=lambda host, token: reader)
-    status, out = act(s, values={"action_status": "Done", "realized_value": 40}, headers=dict(EDITOR, **TOKEN))
+    status, out = act(_per_user_shell(tmp_path, reader, writer), values={"action_status": "Done", "realized_value": 40},
+                      headers=dict(EDITOR, **TOKEN))
     assert status == 200 and out.get("value_recorded") == 1, out
-    assert len(writer.inserts) == 1, "the App's service principal writes the ledger row"
-    assert reader.inserts == [], "the person's own sign-in never writes the ledger"
+    assert len(reader.inserts) == 1, "the person's own sign-in writes the ledger row (the build grants the principal nothing on it)"
+    assert writer.inserts == [], "the App's service principal never writes the ledger in per-user mode"
+
+
+def test_a_per_user_person_who_cannot_write_the_ledger_sees_the_plain_note_and_the_save_stands(tmp_path):
+    refused = shell_db.QueryError("PERMISSION_DENIED: User does not have MODIFY on __inspire_value_ledger")
+    reader = LedgerWorkspace(current=[current("k1", "run", "run 7")], stake=STAKE_EUR, keys=("k1",), fail_insert=refused)
+    writer = LedgerWorkspace(stake=STAKE_EUR, keys=("k1",))
+    status, out = act(_per_user_shell(tmp_path, reader, writer), values={"action_status": "Done", "realized_value": 40},
+                      headers=dict(EDITOR, **TOKEN))
+    assert status == 200 and out["written"] == ["k1"], out
+    assert out["value_warning"] == ("the saved value is not counted in the value ledger, because you cannot write to the value ledger; "
+                                    "ask the App owner to check its access")
+    assert writer.inserts == [], "a refused person never falls back to the App's principal"
 
 
 def test_reopening_a_record_that_was_counted_writes_one_clearing_row_for_it(tmp_path):
