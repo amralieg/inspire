@@ -12,6 +12,9 @@ from v141_app_shell_test import FakeWorkspace
 
 SHELL_LOADERS = ("_implement_app_shell", "implement_app_shell_modules")
 SHELL_ENTRY_POINTS = {
+    ("_implement_page_file", "shell_sql.money_page_problems"),
+    ("_implement_siblings", "shell_sql.sibling_items"),
+    ("implement_page_grouping", "shell_sql.page_grouping"),
     ("_implement_alert.build", "_implement_app_shell"),
     ("_implement_alert_subscribers", "_implement_app_shell"),
     ("_implement_alert_subscribers", "shell_alerts.workspace_user"),

@@ -55,7 +55,7 @@ def test_the_owner_sees_every_setting_grouped_with_its_value_bounds_and_where_it
     assert status == 200 and out["editable"] is True and out["why"] == "" and out["history"] == []
     assert [(x["name"], x["group"]) for x in out["settings"]] == [
         ("PRICE", "impact"), ("KEEP", "impact"), ("minutes_per_record", "impact"), ("act_now_amount", "flagging"), ("review_amount", "flagging"),
-        ("lookback_days", "scope"), ("mode", "scope"), ("alert_threshold", "alerts")]
+        ("lookback_days", "scope"), ("mode", "scope"), ("alert_threshold", "alerts"), ("kpi_target_value", "measurement")]
     by_name = {x["name"]: x for x in out["settings"]}
     assert (by_name["PRICE"]["kind"], by_name["PRICE"]["unit"], by_name["PRICE"]["low"], by_name["PRICE"]["value"]) == ("money", "USD", 0.0, "20")
     assert (by_name["KEEP"]["kind"], by_name["KEEP"]["high"], by_name["KEEP"]["applies"]) == ("percent", 1.0, "app_and_run")
@@ -68,7 +68,7 @@ def test_a_non_owner_gets_no_settings_menu_and_cannot_save_or_preview(tmp_path):
     out = call(s, "GET", "settings", query={"page": "n01_u05"}, headers={"x-forwarded-email": SAM})[1]
     assert out == {"settings": [], "history": [], "editable": False, "why": "Only the owners of this use case can change its settings",
                    "can_run": False}
-    assert not ws.queries("FROM `main`.`pricing`.`loss_desk_out_assumptions`"), "a viewer's page load reads nothing for the menu"
+    assert len(ws.queries("FROM `main`.`pricing`.`loss_desk_out_assumptions`")) <= 1, "a viewer's page load reads the saved money rule once, nothing for the menu"
     assert _save(s, SAM, name="act_now_amount", value="1000", was="800") == (403, {"error": "Only the owners of this use case can change its settings"})
     status, body = call(s, "POST", "settings/preview", headers={"x-forwarded-email": SAM},
                         body={"page": "n01_u05", "name": "act_now_amount", "value": "1000"})
@@ -167,13 +167,14 @@ def test_a_page_without_settings_or_money_shows_no_settings_and_its_spec_is_unch
     quiet = dict(SETTINGS, options={"modify": False, "replace_edits": False, "decisions": False}, use_case_owners={"n01_u05": [OWNER]})
     s, ws, _made = _shell(tmp_path / "quiet", SettingsWorkspace(summary=False), declared=None, settings=quiet)
     out = call(s, "GET", "settings", query={"page": "n01_u05"}, headers={"x-forwarded-email": OWNER})[1]
-    assert out == {"settings": [], "history": [], "editable": False, "why": shell_core.NO_SETTINGS, "can_run": False, "job": False}
-    assert not ws.queries("_assumptions"), "a page with nothing to set reads no saved settings"
+    assert [x["name"] for x in out["settings"]] == ["kpi_target_value"], "a page with KPIs has the KPI target to set"
+    assert out["editable"] is True and out["why"] == "" and out["job"] is False
     status, refused = _save(s, OWNER, name="minutes_per_record", value="6", was="")
     assert status == 400 and not ws.queries("INSERT INTO"), refused
     s, _ws, _made = _shell(tmp_path / "acting", SettingsWorkspace(summary=False), declared=None)
     out = call(s, "GET", "settings", query={"page": "n01_u05"}, headers={"x-forwarded-email": OWNER})[1]
-    assert [x["name"] for x in out["settings"]] == ["minutes_per_record"] and out["editable"] is True, "a page that keeps actions has My work"
+    assert [x["name"] for x in out["settings"]] == ["minutes_per_record", "kpi_target_value"] and out["editable"] is True, \
+        "a page that keeps actions has My work"
     plain = hub_page()
     assert shell_sql.page_settings_problems(plain.get("settings")) == []
     assert "settings" not in plain
