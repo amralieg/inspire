@@ -1,4 +1,4 @@
-import { compareMeetsQualityBarFirst, subtitleOfUseCase } from './useCaseFields.js';
+import { compareMeetsQualityBarFirst, nameOfUseCase, subtitleOfUseCase } from './useCaseFields.js';
 import { placeholderWords } from './placeholderWords.js';
 import { briefList, plural } from './plural.js';
 import { PERSONAL_KEY_REASON, personalColumn } from './personalColumns.js';
@@ -731,16 +731,13 @@ export function caseIdOf(uc) {
   return String(uc?.id ?? uc?.No ?? uc?.use_case_id ?? '').trim();
 }
 
-export function caseNameOf(uc) {
-  return String(uc?.Name || uc?.use_case || uc?.name || '').trim();
-}
-
 export function domainOf(uc) {
   return String(uc?.business_domain || uc?._domain || uc?.['Business Domain'] || '').trim();
 }
 
 export function caseAppNameOf(uc) {
-  return appNameOf(uc?.short_name || caseNameOf(uc), caseIdOf(uc));
+  const renamed = String(uc?.user_use_case_name || '').trim();
+  return appNameOf(renamed || uc?.short_name || nameOfUseCase(uc), caseIdOf(uc));
 }
 
 function tableNames(text) {
@@ -1113,7 +1110,7 @@ export function defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessi
   const measures = listOf(uc?.measures_of_success || uc?._v130?.measuresOfSuccess).slice(0, 3).map(placeholderWords);
   const goal = placeholderWords(uc?.statement || uc?.Statement || uc?.business_value || '').trim().slice(0, 500);
   const decisionOwner = String(owner || uc?.sponsor || uc?.Sponsor || '').trim();
-  const useCaseName = caseNameOf(uc);
+  const useCaseName = nameOfUseCase(uc);
   return {
     use_case_id: id,
     use_case_name: useCaseName,
@@ -2344,7 +2341,7 @@ export function entityKeyOptions(columnsByTable, tables) {
 
 function subjectOfUseCase(uc, keys) {
   const nouns = [...new Set(keys.map((k) => k.noun))];
-  const texts = [eliteAssessmentOf(uc).decision, caseNameOf(uc), uc?.statement || uc?.Statement];
+  const texts = [eliteAssessmentOf(uc).decision, nameOfUseCase(uc), uc?.statement || uc?.Statement];
   for (const text of texts) {
     const words = nameTokens(text);
     let best = null;
@@ -2907,7 +2904,7 @@ export function implementGroups(useCases, latestRows, notebookRun, query = '') {
     const id = caseIdOf(uc);
     const latest = latestById.get(id) || null;
     const notebook = notebookStatus(uc, notebookRun);
-    return { id, name: caseNameOf(uc) || id, domain: domainOf(uc), uc, latest, notebook, state: implementState(latest, notebook) };
+    return { id, name: nameOfUseCase(uc) || id, domain: domainOf(uc), uc, latest, notebook, state: implementState(latest, notebook) };
   }).filter((item) => {
     const text = `${item.id} ${item.name} ${subtitleOfUseCase(item.uc, item.name)} ${item.domain}`.toLowerCase();
     return terms.every((t) => text.includes(t));

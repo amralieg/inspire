@@ -4,6 +4,7 @@ import {
   RotateCcw, StopCircle, Timer, Cpu, Trash2, FileText
 } from 'lucide-react';
 import DatabricksLogo from './DatabricksLogo';
+import { splitTechnical } from '../lib/plainText';
 import { PlainMessage } from './TechnicalDetails';
 import { formatDuration as formatSpan } from '../lib/formatWhen';
 import { runStateText } from '../lib/runState';
@@ -83,10 +84,10 @@ export default function RunStatus({ runId, onNewRun, apiFetch }) {
         console.error(`Poll error (${consecutiveErrors}/${MAX_ERRORS}):`, err.message);
         if (active) {
           if (consecutiveErrors >= MAX_ERRORS) {
-            setError(`Lost connection after ${MAX_ERRORS} retries: ${err.message}`);
+            setError(`Lost connection after ${MAX_ERRORS} retries: ${splitTechnical(err?.message).plain}`);
             clearInterval(intervalRef.current);
           } else {
-            setError(`Retrying... (${err.message})`);
+            setError(`Retrying... ${splitTechnical(err?.message).plain}`);
           }
         }
       }

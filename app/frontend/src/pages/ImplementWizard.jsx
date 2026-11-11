@@ -1,3 +1,5 @@
+import { splitTechnical } from '../lib/plainText';
+import { nameOfUseCase } from '../lib/useCaseFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { Check, Loader2, NotebookPen, X, ChevronLeft, ChevronRight, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
 import BodyPortal from '../components/BodyPortal';
@@ -31,7 +33,6 @@ import {
   useCaseSchemaTags as schemaTagsOf,
   ownSchemaFallbackNote,
   defaultSpecFromUseCase,
-  caseNameOf,
   specFromLatest,
   tablesOf,
   primaryTableOf,
@@ -282,6 +283,11 @@ const ACCESS_CHECKS = ['app_warehouse'];
 const TILE_CHECK_KEYS = [...Object.values(TILE_CHECKS).flat(), ...PLACE_CHECKS, ...ACCESS_CHECKS];
 
 const rowWithCard = (card, row) => ({ ...(card || {}), ...(row || {}) });
+
+const failureReasonOf = (error) => {
+  const plain = splitTechnical(error?.message).plain.replace(/[.\s]+$/, '');
+  return plain ? `Reason: ${plain}.` : '';
+};
 
 function Field({ label, children }) {
   return (
@@ -809,9 +815,9 @@ export default function ImplementWizard({
         }).catch((e) => {
           setSpec((prev) => withResultTable(prev, resultTableParts(inspireTable)));
           setOwnSchema((prev) => ({ ...(prev || {}), place: 'inspire', create: false }));
-          setPlaceNote(`${ownSchemaFallbackNote(own.catalog, context?.me?.username)} (${e.message})`);
+          setPlaceNote(`${ownSchemaFallbackNote(own.catalog, context?.me?.username)} ${failureReasonOf(e)}`);
           setOutputCheck(null);
-          setSchemaJob({ state: 'failed', text: `${ownSchemaFallbackNote(own.catalog, context?.me?.username)} (${e.message})` });
+          setSchemaJob({ state: 'failed', text: `${ownSchemaFallbackNote(own.catalog, context?.me?.username)} ${failureReasonOf(e)}` });
         });
       } else if (resultsOn) {
         setChecking('Checking you can write the result table');
@@ -1163,7 +1169,7 @@ export default function ImplementWizard({
     return () => clearTimeout(t);
   }, [principalQ, apiFetch, q]);
 
-  const title = caseNameOf(uc) || spec.use_case_name || spec.use_case_id;
+  const title = nameOfUseCase(ucRow) || spec.use_case_name || spec.use_case_id;
   const genieOff = genieCodeOff(features);
   const unavailable = Object.keys(blocks);
   const unavailableKey = unavailable.join(',');

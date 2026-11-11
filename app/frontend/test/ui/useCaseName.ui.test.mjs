@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { cardTitlesOfUseCase, favoriteKeyOf } from '../../src/lib/useCaseFields.js';
+import { cardTitlesOfUseCase, favoriteKeyOf, nameOfUseCase } from '../../src/lib/useCaseFields.js';
 import { buildUseCaseList } from '../../src/lib/useCaseList.js';
-import { caseNameOf, defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
+import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 
 const CATALOGUE = 'Predict churn risk';
 const RENAMED = 'Churn early warning';
@@ -21,9 +21,10 @@ test('a favourite survives a rename: the key is the catalogue name, so renaming 
 });
 
 test('the card title and the Build page name show the user name, not the technique name or the catalogue name', () => {
+  assert.equal(nameOfUseCase({ Name: CATALOGUE, use_case: CATALOGUE, user_use_case_name: RENAMED }), RENAMED, 'the Build name reads the user name even when Name still holds the catalogue name');
   const uc = { ...renamedRow, name_with_technique: 'Predict churn risk (classification)' };
   assert.equal(cardTitlesOfUseCase(uc).title, RENAMED);
-  assert.equal(caseNameOf(uc), RENAMED);
+  assert.equal(nameOfUseCase(uc), RENAMED);
   assert.equal(defaultSpecFromUseCase(uc, { warehouseId: 'wh', inspireDatabase: 'main.inspire', sessionId: 42 }).use_case_name, RENAMED,
     'the App title in the spec is the name the Build page showed');
   assert.equal(cardTitlesOfUseCase(base).title, CATALOGUE, 'an unnamed use case keeps its catalogue name');
@@ -86,4 +87,22 @@ test('a failed newer build never hides the stale name: the check reads the live 
   assert.equal(liveAppRenameStale(newestMatchesButLiveDiffers, RENAMED), true);
   const liveAlreadyRenamed = { spec_json: { use_case_name: CATALOGUE }, live_spec_json: { use_case_name: RENAMED } };
   assert.equal(liveAppRenameStale(liveAlreadyRenamed, RENAMED), false, 'the live App already shows the name');
+});
+
+test('the Build wizard header, App name default and Build list show the user name, not the catalogue name (must-exclude catalogue)', async () => {
+  const { openUi, closeBrowser, goToStep } = await import('./uiSupport.mjs');
+  const { HARNESS_USE_CASE } = await import('./implementFixtures.js');
+  const { caseAppNameOf } = await import('../../src/lib/implementWizard.js');
+  const renamed = { ...HARNESS_USE_CASE, user_use_case_name: RENAMED, Name: CATALOGUE, use_case: CATALOGUE };
+  assert.match(caseAppNameOf(renamed), /churn-early-warning/i, 'the App name default follows the user name');
+  const ui = await openUi('wizard', { me: { userName: ['owner', 'example.com'].join('@'), displayName: 'Owner' }, useCase: renamed });
+  try {
+    await ui.page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
+    const header = await ui.page.locator('[data-wizard-title], [data-wizard-header] h1, [data-wizard-header] h2').first().innerText();
+    assert.match(header, /Churn early warning/, 'the wizard header names the use case the way the person renamed it');
+    assert.doesNotMatch(header, /Predict churn/, 'the catalogue name is not shown');
+  } finally {
+    await ui.close();
+    await closeBrowser();
+  }
 });
