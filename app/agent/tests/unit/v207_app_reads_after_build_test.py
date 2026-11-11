@@ -128,12 +128,14 @@ def test_the_build_writes_the_list_of_tables_the_app_reads_into_the_run():
 class ScopedFrame:
     def __init__(self, name, log):
         self.name, self.log = name, log
-        self.columns = ["order_id", "region"]
+        self.columns = ["order_id", "region", "amount"]
 
     def where(self, condition):
+        self.log.append(("where", self.name, condition))
         return self
 
     def select(self, *columns):
+        self.log.append(("select", self.name, columns))
         return self
 
     def limit(self, n):
@@ -146,10 +148,11 @@ class ScopedFrame:
 class ScopedSpark:
     def __init__(self):
         self.reads = []
+        self.ops = []
 
     def table(self, name):
         self.reads.append(name)
-        return ScopedFrame(name, self.reads)
+        return ScopedFrame(name, self.ops)
 
 
 SCOPED = "main.s.orders"
@@ -179,3 +182,14 @@ def test_a_scoped_table_whose_scope_is_missing_from_the_run_is_refused_and_never
     with pytest.raises(ValueError, match="has a Table Scope, but this run does not carry its scope"):
         notebook["inspire_read_source"](SCOPED, spark, purpose=notebook["INSPIRE_READ_PURPOSES"][0])
     assert spark.reads == [], "a refused read never touches the base table"
+
+
+def test_a_scope_whose_view_is_not_ready_reads_the_base_table_with_its_rows_and_its_columns(agent_ns):
+    scope = {"table": SCOPED, "view": SCOPE_VIEW, "ready": False, "where": "region = 'EU'", "columns": ["order_id", "region"]}
+    notebook = _scoped_run(agent_ns, table_scopes={"main.s.orders": scope}, scoped_tables=["main.s.orders"])
+    spark = ScopedSpark()
+    notebook["inspire_read_source"](SCOPED, spark, purpose=notebook["INSPIRE_READ_PURPOSES"][0])
+    assert spark.reads == ["`main`.`s`.`orders`"], "a not-ready view falls back to the base table, never to a whole unfiltered read"
+    assert ("where", "`main`.`s`.`orders`", "region = 'EU'") in spark.ops, "the row filter of the scope is applied"
+    assert ("select", "`main`.`s`.`orders`", ("`order_id`", "`region`")) in spark.ops, (
+        "the column list of the scope is applied too (REQ-022: selected columns and rows)")
