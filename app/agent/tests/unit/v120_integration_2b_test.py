@@ -756,7 +756,8 @@ def test_atomic_replace_derives_the_staging_name_from_a_quoted_tracking_name(age
     obj._tracking_replace_session([make_uc("N01-U01"), make_uc("N01-U02")])
     stage = "`my-cat`.`my_sch`.`__inspire_usecases_stage_99`"
     assert [w["table"] for w in spark.writes] == [stage, "`my-cat`.`my_sch`.`__inspire_usecases`"]
-    assert spark.statements[0] == f"DROP TABLE IF EXISTS {stage}" == spark.statements[-1]
+    assert spark.statements[0].startswith("SELECT id, user_use_case_name FROM `my-cat`.`my_sch`.`__inspire_usecases` WHERE session_id = 99")
+    assert spark.statements[1] == f"DROP TABLE IF EXISTS {stage}" == spark.statements[-1]
     assert spark.writes[-1]["options"] == {"replaceWhere": "session_id = 99"}
 
 
