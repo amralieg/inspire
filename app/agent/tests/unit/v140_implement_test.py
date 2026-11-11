@@ -3232,7 +3232,7 @@ def test_app_deploy_imports_the_shell_as_files_and_grants_every_table_the_page_a
     assert calls[2][2] == {"source_code_path": "/W/acme_implemented/Sales/apps/churn-desk", "mode": "SNAPSHOT"}
     assert inst.spark.statements[0].startswith("SELECT level, privilege, principal")
     statements = _not_access_reads(inst.spark.statements)
-    feedback = [s for s in statements if "CREATE TABLE" in s or "MODIFY" in s]
+    feedback = [s for s in statements if ("CREATE TABLE" in s or "MODIFY" in s) and "__inspire_value_ledger" not in s]
     assert feedback and all("`churn_out_feedback`" in s or "`__inspire_app_feedback_churn_desk`" in s for s in feedback), (
         "the App only reads its tables; the tables Inspire creates and lets it change are where people report issues")
     assert GRANT_SELECT.format("sp-1") in statements and GRANT_ORDERS.format("sp-1") in statements
@@ -3368,10 +3368,9 @@ def test_an_existing_app_whose_service_principal_reads_through_a_group_is_redepl
     assert fields["app_url"] == "https://churn-desk.example"
     assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps/churn-desk/deployments"),
                                       ("GET", "/api/2.0/apps/churn-desk")]
-    grants = [s for s in inst.spark.statements if s.startswith("GRANT") and "__inspire_app_feedback_" not in s]
-    assert [s for s in inst.spark.statements if "__inspire_app_feedback_" in s and s.startswith("GRANT")] == [
-        "GRANT SELECT ON TABLE `main`.`inspire`.`__inspire_app_feedback_churn_desk` TO `sp-2`",
-        "GRANT MODIFY ON TABLE `main`.`inspire`.`__inspire_app_feedback_churn_desk` TO `sp-2`"], "the App's own reports table, for its principal only"
+    grants = [s for s in inst.spark.statements if s.startswith("GRANT") and "__inspire_app_feedback_" not in s and "__inspire_value_ledger" not in s]
+    assert [s for s in inst.spark.statements if "__inspire_app_feedback_" in s and s.startswith("GRANT")] == [], \
+        "a page with a results table reports into its own feedback table (A2c), so no App-level reports table is granted"
     assert grants == [GRANT_SELECT.format("sp-2"), GRANT_ORDERS.format("sp-2"), GRANT_ORDERS_METADATA.format("sp-2"),
                       "GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out` TO `sp-2`"] + _feedback_writes(agent_ns, "sp-2")[2:], (
         "record decisions starts on, so the App may write its decisions to the result table, and people may report issues into its feedback table")
@@ -3387,7 +3386,7 @@ def test_an_app_may_read_the_reasons_view_only_when_it_was_created(agent_ns, sdk
         {"deployment_id": "dep1", "status": {"state": "SUCCEEDED"}}, {"url": "https://churn-desk.example/"}])
     context["reasons_view"] = REASONS_VIEW
     inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, poll_s=0)
-    assert _not_access_reads(inst.spark.statements)[-1] == GRANT_REASONS.format("sp-1")
+    assert [s for s in _not_access_reads(inst.spark.statements) if "__inspire_value_ledger" not in s][-1] == GRANT_REASONS.format("sp-1")
 
 
 def test_sharing_lets_each_principal_read_the_reasons_view_and_says_when_it_cannot(agent_ns):
