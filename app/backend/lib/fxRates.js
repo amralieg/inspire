@@ -3,7 +3,8 @@ const FX_TIMEOUT_MS = 5000;
 const ISO = /^[A-Z]{3}$/;
 
 const SAVED = require('./fxAverages.json');
-const AVERAGE_PER_USD = SAVED.per_usd;
+const AVERAGE_PER_USD = { ...SAVED.per_usd, ...SAVED.pegged.per_usd };
+const PEGGED = new Set(Object.keys(SAVED.pegged.per_usd));
 const AVERAGE_PERIOD = SAVED.period;
 
 async function todayPerUsd(fetchImpl, codes) {
@@ -34,7 +35,7 @@ async function currencyRates({ base, codes, fetchImpl = fetch }) {
   }
   const rateOf = (code) => {
     if (live.perUsd[code] !== undefined) return { perUsd: live.perUsd[code], source: 'today' };
-    if (AVERAGE_PER_USD[code] !== undefined) return { perUsd: AVERAGE_PER_USD[code], source: 'average' };
+    if (AVERAGE_PER_USD[code] !== undefined) return { perUsd: AVERAGE_PER_USD[code], source: PEGGED.has(code) ? 'peg' : 'average' };
     return null;
   };
   const baseRate = base === 'USD' ? { perUsd: 1 } : rateOf(base);
@@ -48,9 +49,11 @@ async function currencyRates({ base, codes, fetchImpl = fetch }) {
     sources[code] = mine.source;
   }
   const averaged = Object.keys(sources).filter((c) => sources[c] === 'average');
+  const pegged = Object.keys(sources).filter((c) => sources[c] === 'peg');
   let message = '';
-  if (offline) message = `No internet: every rate is the ${AVERAGE_PERIOD.from.slice(0, 4)} average from the ECB${problem ? ` (${problem})` : ''}.`;
+  if (offline) message = `No internet: every rate is saved in Inspire, the ${AVERAGE_PERIOD.from.slice(0, 4)} ECB average or an official peg${problem ? ` (${problem})` : ''}.`;
   else if (averaged.length) message = `${averaged.join(', ')} ${averaged.length === 1 ? 'is' : 'are'} not in today's source, so ${averaged.length === 1 ? 'its rate is' : 'their rates are'} the ${AVERAGE_PERIOD.from.slice(0, 4)} average from the ECB.`;
+  if (pegged.length) message = `${message} ${pegged.join(', ')} ${pegged.length === 1 ? 'is' : 'are'} at the official peg to the US dollar.`.trim();
   if (missing.length) message = `${message} No rate is known for ${missing.join(', ')}; type it in.`.trim();
   return { base, rates, sources, missing, as_of: live.date, offline, message: message.trim() };
 }

@@ -62,6 +62,13 @@ def _value_page(money):
     return dict(PAGE, datasets=[{"name": "rows", "sql": "SELECT * FROM value_rows"}], money=money)
 
 
+def _sqlite_star_except(sql, columns):
+    def expand(found):
+        dropped = {name.strip().strip("`") for name in found.group(1).split(",")}
+        return "SELECT " + ", ".join(name for name in columns if name not in dropped) + ", "
+    return re.sub(r"SELECT \* EXCEPT \(([^)]*)\), ", expand, sql)
+
+
 def _run(sql, table="stake_rows", columns=STAKE_COLUMNS, rows=None):
     db = sqlite3.connect(":memory:")
 
@@ -72,7 +79,7 @@ def _run(sql, table="stake_rows", columns=STAKE_COLUMNS, rows=None):
 
     db.create_function("ADD_MONTHS", 2, add_months)
     _load(db, table, columns, rows if rows is not None else [(r["value_at_stake"], r["currency_code"], r["channel"], r["event_month"], r.get("fx_rate")) for r in ROWS])
-    text = sqlglot.transpile(sql, read="databricks", write="sqlite")[0]
+    text = sqlglot.transpile(_sqlite_star_except(sql, columns), read="databricks", write="sqlite")[0]
     text = re.sub(r"(TIMESTAMP_TRUNC|DATE_TRUNC)\(\s*(CURRENT_DATE\s*,\s*MONTH|'?MONTH'?\s*,\s*CURRENT_DATE)\s*\)",
                   "date('now', 'start of month')", text, flags=re.I)
     cursor = db.execute(text)
@@ -656,3 +663,32 @@ def test_a_gains_only_rule_counts_no_loss_and_a_net_rule_keeps_the_sign():
            "value": {"method": "column", "column": "amount", "currency_column": "currency_code"}}
     assert round(_value_total(net), 6) == 101.0
 
+
+
+def test_a_saved_column_the_table_lost_falls_back_to_the_genie_estimate_with_a_note():
+    rule = {"currency": "convert", "base": "USD", "rates": VALUE_RATES,
+            "value": {"method": "column", "column": "amount", "currency_column": "currency_code"}}
+    kept, note = shell_sql.money_value_fallback(rule, ["quantity", "currency_code"])
+    assert "value" not in kept, "the value is dropped, so no SQL reads a missing column"
+    assert kept["rates"] == VALUE_RATES, "the rest of the rule stands"
+    assert "amount" in note and "Genie estimates" in note
+
+
+def test_an_equation_checks_each_column_it_names_and_names_only_the_missing_ones():
+    rule = {"currency": "per_currency",
+            "value": {"method": "equation", "expression": "quantity * unit_price - discount", "currency": "USD"}}
+    kept, note = shell_sql.money_value_fallback(rule, ["quantity", "unit_price"])
+    assert "value" not in kept
+    assert "discount" in note and "quantity" not in note.split("uses", 1)[1].split(",")[0]
+
+
+def test_a_value_whose_columns_all_exist_is_kept_unchanged_without_a_note():
+    rule = {"currency": "per_currency", "value": {"method": "equation", "expression": "quantity * unit_price", "currency": "USD"}}
+    kept, note = shell_sql.money_value_fallback(rule, ["quantity", "unit_price", "channel"])
+    assert kept == rule and note == ""
+
+
+def test_a_fixed_value_needs_no_column_so_the_table_can_lose_any_column():
+    rule = {"currency": "per_currency", "value": {"method": "fixed", "amount": 120, "currency": "USD"}}
+    kept, note = shell_sql.money_value_fallback(rule, [])
+    assert kept == rule and note == ""

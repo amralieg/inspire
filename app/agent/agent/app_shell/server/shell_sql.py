@@ -2886,6 +2886,28 @@ def money_rule_of(page: dict) -> dict:
     return money_rule_clean(rule) if isinstance(rule, dict) and not money_rule_problems(rule) else {"currency": "per_currency"}
 
 
+def money_value_columns(value: dict) -> list:
+    names = [value[k] for k in ("column", "currency_column") if isinstance(value.get(k), str)]
+    if value.get("method") == "equation":
+        names += [text for kind, text in money_equation_tokens(value["expression"].strip()) or [] if kind == "column"]
+    return list(dict.fromkeys(names))
+
+
+def money_value_fallback(rule, columns):
+    """The saved value with the columns the table no longer has: the rule without its value, and a note saying why, so the totals fall
+    back to the Genie estimate and no SQL error reaches the App."""
+    value = rule.get("value") if isinstance(rule, dict) else None
+    if not isinstance(value, dict):
+        return rule, ""
+    present = set(columns or [])
+    missing = [name for name in money_value_columns(value) if name not in present]
+    if not missing:
+        return rule, ""
+    note = (f"The saved value uses {', '.join(missing)}, which the table no longer has, so the totals are Genie estimates "
+            "until the value is changed.")
+    return {k: v for k, v in rule.items() if k != "value"}, note
+
+
 def page_with_money(page: dict, rule) -> dict:
     """The page as this request reads it: the owner's saved money rule when one is saved, the spec's rule otherwise. Off, the money
     KPIs and money charts are removed from the page."""

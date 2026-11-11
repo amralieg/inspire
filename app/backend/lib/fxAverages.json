@@ -6,7 +6,7 @@
     "days": 256
   },
   "source": "https://api.frankfurter.dev/v1 (European Central Bank reference rates, daily, 2025)",
-  "generated_at": "2026-11-11T21:29:00.297Z",
+  "generated_at": "2026-11-11T21:42:48.665Z",
   "method": "arithmetic mean of the daily rates published in the period, units of each currency per 1 USD",
   "per_usd": {
     "AUD": 1.551789,
@@ -40,5 +40,16 @@
     "TRY": 39.553594,
     "ZAR": 17.882172,
     "USD": 1
+  },
+  "pegged": {
+    "source": "official peg to the US dollar, central rate",
+    "per_usd": {
+      "AED": 3.6725,
+      "SAR": 3.75,
+      "QAR": 3.64,
+      "OMR": 0.3845,
+      "BHD": 0.376,
+      "JOD": 0.709
+    }
   }
 }

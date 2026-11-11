@@ -52,6 +52,12 @@ function valueOf(pick) {
   return { value: { method: 'equation', expression: pick.expression.trim(), ...currency }, problems };
 }
 
+function columnsOf(value) {
+  if (value.method === 'column') return [value.column, value.currency_column].filter(Boolean);
+  if (value.method === 'equation') return [...compileExpression(value.expression).columns || [], value.currency_column].filter(Boolean);
+  return [value.currency_column].filter(Boolean);
+}
+
 function ruleTextOf(value) {
   if (!value) return '';
   const where = value.currency_column !== undefined ? `in the currency of ${value.currency_column}` : `in ${value.currency}`;
@@ -75,7 +81,8 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
   const save = (nextDraft, nextPick) => {
     const { rule, problems: found } = ruleOf(nextDraft);
     const picked = valueOf(effectiveOf(nextPick));
-    const all = [...found, ...picked.problems];
+    const gone = picked.value && columns.length ? columnsOf(picked.value).filter((name) => !columns.includes(name)) : [];
+    const all = [...found, ...picked.problems, ...gone.map((name) => `The column ${name} is not in this table, so the rule cannot use it.`)];
     setProblems(all);
     if (!all.length && rule) onChange(picked.value ? { ...rule, value: picked.value } : rule);
   };

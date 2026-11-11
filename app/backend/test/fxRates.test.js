@@ -11,7 +11,8 @@ test('the saved averages are the previous full calendar year of the ECB series, 
   assert.equal(AVERAGE_PERIOD.to, '2025-12-31');
   assert.ok(AVERAGE_PERIOD.days > 200, 'a year of publishing days');
   assert.equal(AVERAGE_PER_USD.USD, 1);
-  assert.equal(AVERAGE_PER_USD.AED, undefined, 'the ECB series does not list AED, so no average is invented for it');
+  assert.equal(AVERAGE_PER_USD.AED, 3.6725, 'AED is pegged to the US dollar, so its official peg stands in for the ECB series it is not in');
+  assert.equal(AVERAGE_PER_USD.SAR, 3.75);
 });
 
 test('today’s rate is the live rate, turned into units of the reporting currency', async () => {
@@ -35,7 +36,7 @@ test('with no internet every rate is the saved ECB average and the message says 
   assert.equal(out.offline, true);
   assert.equal(out.sources.USD, 'average');
   assert.equal(out.rates.USD, round6(AVERAGE_PER_USD.EUR / AVERAGE_PER_USD.USD));
-  assert.match(out.message, /^No internet: every rate is the 2025 average from the ECB/);
+  assert.match(out.message, /^No internet: every rate is saved in Inspire, the 2025 ECB average or an official peg/);
 });
 
 test('a source that answers with an error is treated as offline', async () => {
@@ -51,10 +52,17 @@ test('a code that neither source knows is returned as missing, never guessed', a
   assert.match(out.message, /No rate is known for XYZ; type it in\./);
 });
 
-test('AED, which the ECB does not publish, is missing when the source is offline and must be typed in', async () => {
+test('AED offline is the official peg: 1 AED is 1 / 3.6725 USD, and the message says so', async () => {
   const out = await currencyRates({ base: 'USD', codes: ['AED'], fetchImpl: offline });
-  assert.deepEqual(out.missing, ['AED']);
-  assert.equal(out.rates.AED, undefined);
+  assert.deepEqual(out.missing, []);
+  assert.equal(out.sources.AED, 'peg');
+  assert.equal(out.rates.AED, round6(1 / 3.6725));
+  assert.match(out.message, /AED is at the official peg to the US dollar\./);
+});
+
+test('an offline AED-based table uses the peg for the base, so 1 USD is 3.6725 AED', async () => {
+  const out = await currencyRates({ base: 'AED', codes: ['USD'], fetchImpl: offline });
+  assert.equal(out.rates.USD, round6(3.6725));
 });
 
 test('the base currency is never converted to itself and codes are read in capitals without duplicates', async () => {
