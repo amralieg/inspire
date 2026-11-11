@@ -392,3 +392,20 @@ def test_the_statement_check_covers_every_involved_table_not_only_the_primary(vi
     changed = viewed["ensure_scope_statements"](use_cases, lambda uc: ["main.s.orders"])
     assert changed == ["main.s.orders"]
     assert "Covers only the columns `order_id`, `customer_id`, `order_date` and the rows where `status` = gold of main.s.orders." in use_cases[0]["Statement"]
+
+
+def test_an_app_whose_second_page_reads_a_scoped_base_table_is_refused_and_a_view_read_passes(viewed):
+    ok_page = {"id": "p1", "datasets": [{"name": "d1", "sql": "SELECT 1"}]}
+    bad_page = {"id": "p2", "datasets": [{"name": "d2", "sql": "SELECT COUNT(*) FROM main.s.orders"}]}
+    viewed["create_scope_views"](_RecordingSpark())
+    main_page = {"id": "p1", "datasets": []}
+    kept = viewed["scope_app_pages"]([ok_page, bad_page], main_page)
+    assert kept == [ok_page, bad_page]
+    assert bad_page["datasets"][0]["sql"] == "SELECT COUNT(*) FROM `main`.`insp`.`main_s_orders__scope`"
+    fresh = {"id": "p2", "datasets": [{"name": "d2", "sql": "SELECT COUNT(*) FROM main.s.orders"}]}
+    viewed["TABLE_SCOPES"]["main.s.orders"]["ready"] = False
+    try:
+        with pytest.raises(viewed["ScopeBypassError"], match="the App page p2 dataset d2 reads main.s.orders"):
+            viewed["scope_app_pages"]([ok_page, fresh], main_page)
+    finally:
+        viewed["TABLE_SCOPES"]["main.s.orders"]["ready"] = True

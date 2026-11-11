@@ -10,7 +10,7 @@ const FB = require('./lib/appFeedback');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
 const { ownServicePrincipalId } = require('./lib/inspireSpGrants');
-const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning } = require('./lib/inspireJobParams');
+const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning, parseTableScopeText } = require('./lib/inspireJobParams');
 const R = require('./lib/reviewFigures');
 const A = require('./lib/useCaseAlerts');
 const P = require('./lib/requestPerson');
@@ -531,6 +531,7 @@ function registerImplementRoutes(app, deps) {
         session_id: sid,
         use_case: useCase,
         discovery_type: canonicalDiscoveryType(session.discovery_type),
+        table_scope: parseTableScopeText(session.table_scope).scopes,
         business_name: session.business_name || '',
         generation_path: session.generation_path || '',
         me: person,

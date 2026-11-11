@@ -444,6 +444,7 @@ function normalizeV130UseCaseFields(row) {
 
 module.exports = {
   INSPIRE_AGENT_VERSION,
+  parseTableScopeText,
   INSPIRE_ENVIRONMENT_VERSION,
   INSPIRE_NOTEBOOK_WIDGET_KEYS,
   IMPLEMENT_RUN_ID_PARAM,
