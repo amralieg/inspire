@@ -4,7 +4,7 @@ import { PlainMessage } from './TechnicalDetails';
 
 const POLL_MS = 15000;
 
-export default function DocumentActions({ apiFetch, apiPostJson, session, catalogPath, onFinished }) {
+export default function DocumentActions({ apiFetch, apiPostJson, session, onFinished }) {
   const [job, setJob] = useState(null);
   const [format, setFormat] = useState('PDF');
   const busy = job?.state === 'starting' || job?.state === 'running';
@@ -36,7 +36,6 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, catalo
         inspireDatabase: session.inspireDatabase,
         businessName: session.businessName,
         generationPath: session.generationPath,
-        catalogPath,
         outputLanguage: session.outputLanguage,
       });
       const out = await apiPostJson('/api/documents', body);
@@ -46,7 +45,7 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, catalo
     }
   };
 
-  const disabled = !catalogPath || busy;
+  const disabled = busy;
   return (
     <div data-document-actions="" className="mb-3 rounded-lg border border-border p-3">
       <div className="mb-2 text-sm font-medium">Documents</div>
@@ -68,9 +67,6 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, catalo
           {DOCUMENT_ACTIONS['excel-workbook'].label}
         </button>
       </div>
-      {!catalogPath && (
-        <p className="mt-2 text-xs text-muted-foreground">Open the artifacts folder so Inspire can see this session's catalog, then try again.</p>
-      )}
       {job?.state === 'running' && <p data-doc-status="running" className="mt-2 text-xs">Rebuilding the files for run {job.runId}. This page updates when they are ready.</p>}
       {job?.state === 'starting' && <p data-doc-status="starting" className="mt-2 text-xs">Starting the document job.</p>}
       {job?.state === 'done' && <p data-doc-status="done" className="mt-2 text-xs">The files are ready and listed below.</p>}
