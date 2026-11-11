@@ -14,7 +14,7 @@ test('the Review shows the two document buttons, and both wait for the catalog t
   try {
     await page.locator('[data-document-actions]').waitFor();
     assert.equal((await page.locator('[data-doc-action="strategy-document"]').innerText()).trim(), 'Create strategy document');
-    assert.equal((await page.locator('[data-doc-action="use-case-catalog"]').innerText()).trim(), 'Refresh use case catalog');
+    assert.equal((await page.locator('[data-doc-action="use-case-catalog"]').innerText()).trim(), 'Create use case catalog');
     assert.equal(await page.locator('[data-doc-action="strategy-document"]').isDisabled(), true, 'no catalog listed, so no job');
     assert.match(await page.locator('[data-document-actions]').innerText(), /Open the artifacts folder/);
     assert.deepEqual(ui.pageErrors, []);
@@ -32,7 +32,7 @@ function documentBackend() {
     app.post('/api/documents', (req, res) => { calls.body = req.body; calls.built = true; res.json({ run_id: 901, document: {} }); });
     app.get('/api/run/901', (_req, res) => {
       calls.polls += 1;
-      res.json({ run_id: 901, state: calls.finished ? { life_cycle_state: 'TERMINATED', result_state: 'SUCCESS' } : { life_cycle_state: 'RUNNING' } });
+      res.json({ run_id: 901, ...(calls.finished ? { life_cycle_state: 'TERMINATED', result_state: 'SUCCESS' } : { life_cycle_state: 'RUNNING', result_state: null }) });
     });
     app.get('/api/workspace/list', (_req, res) => {
       const files = [{ name: 'Acme-dbx_inspire.json', path: base, is_directory: false }];

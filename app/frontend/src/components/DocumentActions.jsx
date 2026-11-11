@@ -14,7 +14,7 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, catalo
     const timer = setInterval(async () => {
       try {
         const run = await apiFetch(`/api/run/${job.runId}`);
-        const state = documentJobState(run.state);
+        const state = documentJobState(run);
         if (state === 'running') return;
         clearInterval(timer);
         setJob((current) => ({ ...current, state, error: state === 'failed' ? 'The job ended without writing the files; open the run in Monitor for the reason.' : '' }));
