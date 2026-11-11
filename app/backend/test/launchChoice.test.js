@@ -46,7 +46,7 @@ test('Genie Code regeneration and a build use the same rule, so no route lets a 
   const path = require('node:path');
   const sources = ['server.js', 'implementRoutes.js'].map((f) => fs.readFileSync(path.join(__dirname, '..', f), 'utf8')).join('\n');
   const calls = [...sources.matchAll(/await triggerInspireNotebookJob\([^)]*?\{([\s\S]*?)\}\);/g)].map((m) => m[1]);
-  assert.equal(calls.length, 3, 'discover, Genie Code and build launch notebook jobs');
+  assert.equal(calls.length, 4, 'discover, Genie Code, build and document rebuilds launch notebook jobs');
   for (const call of calls) assert.match(call, /asker: req/, call);
 });
 

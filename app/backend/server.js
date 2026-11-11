@@ -63,6 +63,7 @@ const {
 } = require('./lib/inspireFeedback');
 const { createHostedRun, workspaceFiles } = require('./lib/hostedRun');
 const RP = require('./lib/routePolicy');
+const DJ = require('./lib/documentJob');
 const LC = require('./lib/launchChoice');
 const { crossSiteGuard } = require('./lib/crossSite');
 const L = require('./lib/launchLedger');
@@ -2123,6 +2124,26 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
     return res.status(code).json({ error: err.message });
+  }
+});
+
+app.post('/api/documents', requireToken, async (req, res) => {
+  try {
+    const { params, document } = DJ.documentRunParams(req.body || {});
+    const refused = await launchSessionProblem(req, params);
+    if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
+    const out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
+      params,
+      jobType: 'discovery',
+      launchedBy: RP.forwardedPerson(req.headers),
+      writeCheck: (writes) => outputWriteVerdict(req, writes),
+      asker: req,
+    });
+    res.json({ ...out, document });
+  } catch (err) {
+    if (err.writeRefusal) return res.status(err.writeRefusal.status).json(writeRefusalBody(req.policyKey, err.writeRefusal));
+    const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
+    res.status(code).json({ error: err.message });
   }
 });
 
