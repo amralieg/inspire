@@ -1,3 +1,4 @@
+import contextvars
 import json
 import os
 import sys
@@ -61,6 +62,8 @@ class Recorder:
 
     def submit(self, fn, *args):
         from concurrent.futures import Future
+        if isinstance(getattr(fn, "__self__", None), contextvars.Context):
+            fn, args = args[0], args[1:]
         self.jobs.append(args[1] if len(args) > 1 else None)
         done = Future()
         try:
