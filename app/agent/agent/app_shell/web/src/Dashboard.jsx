@@ -159,7 +159,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
       {!waiting && current?.truncated && <p className="more">These numbers count the {integer(current.items.length)} biggest of {current.total_more ? 'at least ' : ''}{integer(current.total)} open records.</p>}
       {!meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
       <Placed slots={slotsOf(plan, 'filters')}>
-        <FilterBar meta={meta?.filters} columns={meta?.columns} state={state || { range: {}, sel: {} }} onState={onState} pageId={pageId} reasons={reasons} view={view} onView={onView} />
+        <FilterBar meta={meta?.filters} columns={meta?.columns} grouping={meta?.grouping} state={state || { range: {}, sel: {} }} onState={onState} pageId={pageId} reasons={reasons} view={view} onView={onView} />
       </Placed>
       {hubChartsOnTop(entry, live, summary) && (
         <Placed slots={topSlots}>
@@ -195,7 +195,7 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
       {!hubPage && !meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
       {!hubPage && (
         <Placed slots={slotsOf(plan, 'filters')}>
-          <FilterBar meta={meta?.filters} columns={meta?.columns} state={state || { range: {}, sel: {} }} onState={onState} pageId={page.id} />
+          <FilterBar meta={meta?.filters} columns={meta?.columns} grouping={meta?.grouping} state={state || { range: {}, sel: {} }} onState={onState} pageId={page.id} />
         </Placed>
       )}
       {meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the page shows all its data: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={onRetryMeta} />}

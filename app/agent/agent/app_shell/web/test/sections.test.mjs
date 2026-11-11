@@ -270,7 +270,7 @@ test('the top bar holds the logo, the switcher, Ask Genie, the guided tour icon 
   assert.equal(await hashOf(page), '#/n01_u05/dashboard');
   assert.deepEqual(await page.locator('header.top > *').evaluateAll((els) => els.map((e) => e.className.split(' ')[0]).filter((c) => c !== 'avatar')),
     ['ibtn', 'mark', 'switch', 'sp', 'genie-btn', 'btn', 'ibtn'], 'the top bar holds the Use cases dropdown and the guided tour icon, next to the avatar');
-  assert.deepEqual(await railOf(page), [['dashboard', 'page'], ['work', ''], ['performance', ''], ['runs', ''], ['settings', '']]);
+  assert.deepEqual(await railOf(page), [['dashboard', 'page'], ['work', ''], ['performance', ''], ['runs', ''], ['feedback', ''], ['settings', '']]);
   await page.locator('[data-rail="runs"]').click();
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
   await page.locator('[data-rail="runs"][aria-current="page"]').waitFor();

@@ -18,7 +18,7 @@ function Work({ page, meta, state, onState, tableCard, views, notify }) {
   const tables = page.tables || [];
   return (
     <div className="mode-work mode-explore" data-mode-work="explore">
-      <FilterBar meta={meta?.filters} columns={meta?.columns} state={state || { range: {}, sel: {} }} onState={onState} pageId={page.id} />
+      <FilterBar meta={meta?.filters} columns={meta?.columns} grouping={meta?.grouping} state={state || { range: {}, sel: {} }} onState={onState} pageId={page.id} />
       <div className="mode-tools" data-explore-tools>
         {views}
         {notify}

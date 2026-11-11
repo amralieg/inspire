@@ -166,8 +166,13 @@ export function groupsOf(meta) {
       table: f.table ?? null, column: f.column, page: false }));
   const named = new Set(page.map((g) => String(g.label).trim().toLowerCase()));
   const all = [...page, ...columns.filter((g) => !named.has(String(g.label).trim().toLowerCase()))];
-  return all.map((g) => ({ ...g, high: !!g.filter.searchable || !!g.filter.lazy || (g.filter.options || []).length > HIGH_CARDINALITY }))
+  return all.map((g) => ({ ...g, high: !g.filter.grouping && (!!g.filter.searchable || !!g.filter.lazy || (g.filter.options || []).length > HIGH_CARDINALITY) }))
     .sort((a, b) => Number(a.high) - Number(b.high));
+}
+
+export function groupedByText(grouping) {
+  const names = (grouping?.group_by || []).map((g) => g.label).filter(Boolean);
+  return names.length ? `Grouped by ${names.join(', ')}` : '';
 }
 
 export function groupValues(state, group) {

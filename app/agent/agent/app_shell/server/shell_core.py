@@ -580,7 +580,7 @@ def public_page(page: dict, gaps=frozenset()) -> dict:
     records = page.get("records")
     out["records"] = dict(records, filters=by_column.get(shell_sql.RECORDS_DATASET, {})) if records else None
     out["history"] = bool(page.get("result_table"))
-    out["similar_by"] = [{"filter": f["id"], "label": f.get("label")} for f in shell_sql.similar_filters(page)]
+    out["similar_by"] =[{"filter": f["id"], "label": f.get("label")} for f in shell_sql.similar_filters(page)]
     out[shell_sql.BLOCKS] = shell_sql.public_blocks(page)
     out[TOUR] = public_tour(page, gaps)
     return out
@@ -2487,7 +2487,7 @@ class Shell:
             if key in errors:
                 item["error"] = errors[key]
             (columns["list"] if table is None else columns["tables"].setdefault(table, [])).append(item)
-        return {"filters": out, "columns": columns}
+        return {"filters": out, "columns": columns, "grouping": page.get("grouping") or {}}
 
     def bounds_jobs(self, ws, who, page: dict, apart: bool = False) -> dict:
         dated = [f["id"] for f in page.get("filters") or [] if f["type"] == "date_range"]
