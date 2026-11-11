@@ -3,6 +3,19 @@ import { ArrowRight } from 'lucide-react';
 import ValueEstimateLine from './ValueEstimateLine';
 import { buildItems, buildNextOf, moneyText, nextSharingTables } from '../lib/buildNext';
 
+function RunValue({ row, onMeasure }) {
+  if (row.uc && row.est) return <ValueEstimateLine uc={row.uc} />;
+  return (
+    <p data-value-estimate="not-calculated" className="text-xs leading-snug text-text-secondary">
+      Value at stake: Not calculated
+      {onMeasure && (
+        <button type="button" data-measure-value={row.id} onClick={() => onMeasure(row.id)}
+          className="ms-2 font-medium text-db-red-fg hover:underline glow-focus">Measure</button>
+      )}
+    </p>
+  );
+}
+
 export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId) {
   const [state, setState] = useState({ rows: null, error: '' });
   useEffect(() => {
@@ -59,7 +72,7 @@ export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, session
             <li key={row.id} data-build-next-row={row.id} className="flex flex-wrap items-center justify-between gap-3 py-2.5">
               <div className="min-w-0 flex-1">
                 <p className="truncate text-sm font-medium text-text-primary">{row.name || row.id}</p>
-                <ValueEstimateLine uc={row.uc} />
+                <RunValue row={row} onMeasure={onStart} />
               </div>
               {onStart && <StartButton id={row.id} onStart={onStart} />}
             </li>
@@ -86,7 +99,7 @@ export function BuildNextStep({ apiFetch, inspireDatabase, warehouseId, sessionI
             <div className="min-w-0 flex-1">
               <p className="truncate text-sm font-medium text-text-primary">{row.name || row.id}</p>
               <p className="text-[11px] text-text-secondary">Shares {row.shared.join(', ')}</p>
-              <ValueEstimateLine uc={row.uc} />
+              <RunValue row={row} onMeasure={onOpen} />
             </div>
             {onOpen && <StartButton id={row.id} onStart={onOpen} />}
           </li>
