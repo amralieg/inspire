@@ -67,7 +67,7 @@ def test_implement_table_ddl_has_every_column_and_variant_payloads(agent_ns):
         assert f"`{name}` VARIANT" in sql
     assert "CLUSTER BY (`session_id`, `use_case_id`)" in sql
     assert set(agent_ns["IMPLEMENT_STATUSES"]) == {"queued", "filling", "previewing", "building_outputs", "checking", "ready",
-                                                   "ready_with_warnings", "failed", "uninstalled", "vibe_not_met"}
+                                                   "ready_with_warnings", "failed", "uninstalled"}
 
 
 def test_valid_spec_normalizes(agent_ns):
@@ -3393,12 +3393,12 @@ def test_sharing_lets_each_principal_read_the_reasons_view_and_says_when_it_cann
     inst._implement_emit = lambda *a, **k: None
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}, {"type": "group", "name": "bad`name"}]})
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
-    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_REASONS.format("amr@x"), GRANT_SELECT.format("bad``name"), GRANT_REASONS.format("bad``name")]
+    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_REASONS.format("amr@x")], "a principal with a backtick never reaches a GRANT"
     inst = _inspire(agent_ns, _access_spark(LIVE_ACCESS_WITH_GROUP))
     inst._implement_api = lambda method, path, body=None, query=None: {}
     inst._implement_emit = lambda *a, **k: None
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
-    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_SELECT.format("bad``name")], "no view, no grant on it"
+    assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x")], "no view, no grant on it"
 
     def respond(statement):
         if statement == GRANT_REASONS.format("amr@x"):
@@ -3472,7 +3472,7 @@ def test_sharing_lets_each_principal_read_the_run_summary_the_app_shows(agent_ns
     spec = dict(_spec(agent_ns)[0], sharing={"principals": [{"type": "user", "name": "amr@x"}, {"type": "group", "name": "bad`name"}]})
     assert inst._implement_share("N01-U01", ACCESS_TABLE, spec, {}, None) == []
     assert _not_access_reads(inst.spark.statements) == [GRANT_SELECT.format("amr@x"), GRANT_SUMMARY.format("amr@x"),
-                                                         GRANT_REASONS.format("amr@x"), GRANT_SELECT.format("bad``name"), GRANT_SUMMARY.format("bad``name"), GRANT_REASONS.format("bad``name")]
+                                                         GRANT_REASONS.format("amr@x")], "a principal with a backtick never reaches a GRANT"
 
 
 def test_the_apps_service_principal_may_read_the_run_summary(agent_ns, sdk_stub):

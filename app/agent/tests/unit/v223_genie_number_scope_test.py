@@ -15,7 +15,7 @@ from v141_app_shell_test import call  # noqa: E402
 from v211_genie_agent_test import AgentWorkspace, FakeLLM, agent_shell, ask, said, tool_call, topic_of  # noqa: E402
 
 EAST = {"filters": {"region": ["East"]}}
-ITEMS_SCOPE = "the current rows; from the latest run; Region: East"
+ITEMS_SCOPE = "the current rows of the runs it picked; from the latest run; Region: East"
 GENIE_SQL = "SELECT COUNT(*) AS items FROM main.ops.items WHERE status = 'open'"
 
 
@@ -140,7 +140,7 @@ def test_the_kpi_carries_the_rows_its_query_counts(tmp_path):
     s, ws, _made = agent_shell(tmp_path, ws=AgentWorkspace(llm=llm))
     ask(s, "How many items are on the list?", view=EAST)
     context = llm.main_calls()[0]["messages"][1]["content"]
-    assert '"counts":"the current rows"' in context and '"counts":"every row of every run"' in context
+    assert '"counts":"the current rows of the runs it picked"' in context and '"counts":"the runs it picked"' in context
 
 
 def test_the_draft_and_the_answer_replace_every_dash_the_same_way():

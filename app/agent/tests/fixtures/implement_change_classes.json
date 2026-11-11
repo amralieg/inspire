@@ -9649,7 +9649,6 @@
       "ready",
       "ready_with_warnings",
       "failed",
-      "vibe_not_met",
       "uninstalled"
     ],
     "IMPLEMENT_DONE_STATUSES": [

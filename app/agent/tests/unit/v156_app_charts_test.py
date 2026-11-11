@@ -222,10 +222,10 @@ def _shell(tmp_path, settings):
 
 def test_the_shell_serves_the_screens_and_skips_the_impact_check_when_impact_is_off(tmp_path):
     on = _shell(tmp_path / "on", {})
-    assert call(on, "GET", "app")[1]["screens"] == {"runs": True, "impact": True}
+    assert call(on, "GET", "app")[1]["screens"] == {"runs": True, "impact": True, "performance": True}
     assert any("the Impact page failed" in p for p in on.check({})), "the check still runs Impact while it is on"
     off = _shell(tmp_path / "off", {"screens": {"impact": False}})
-    assert call(off, "GET", "app")[1]["screens"] == {"runs": True, "impact": False}
+    assert call(off, "GET", "app")[1]["screens"] == {"runs": True, "impact": False, "performance": True}
     assert not any("Impact" in p for p in off.check({})), "a hidden Impact screen never blocks the build"
 
 
@@ -242,7 +242,7 @@ def test_the_shell_rejects_screens_it_does_not_have(screens, ok):
     problems = [p for p in shell_core.settings_problems(dict(SETTINGS, screens=screens), [page]) if "screens" in p]
     assert (problems == []) is ok, problems
     if not ok:
-        assert problems == ["the App screens must set runs, impact to true or false, the screens the App shows"]
+        assert problems == ["the App screens must set runs, impact, performance to true or false, the screens the App shows"]
 
 
 def test_a_screens_only_edit_rewrites_the_settings_without_genie(agent_ns, tmp_path, monkeypatch):

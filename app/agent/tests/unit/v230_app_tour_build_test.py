@@ -1,9 +1,12 @@
 import json
+import os
 
 import pytest
 
 from v140_implement_test import _app_flow, _churn_page
 from v197_genie_question_rows_test import _logged
+
+TOUR = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "agent", "app_shell", "kinds.json"), encoding="utf-8"))["tour"]
 
 STEPS = [
     {"anchor": "decision", "title": "Keep the customers who are about to leave",
@@ -62,7 +65,7 @@ def test_the_prompt_carries_the_user_vibes_preamble_the_use_case_words_the_page_
     for kpi in page["kpis"]:
         assert f"`{{kpi:{kpi['id']}}}`" in prompt
     assert "{open_count}" in prompt and "{top_record}" in prompt
-    assert "5 to 8 steps" in prompt and "at most 60 characters" in prompt and "at most 220 characters" in prompt
+    assert f"{TOUR['least']} to {TOUR['most']} steps" in prompt and "at most 60 characters" in prompt and "at most 220 characters" in prompt
     assert "English, Arabic." in prompt
     assert agent_ns["NO_EM_DASH_RULE"] in prompt
 
@@ -119,7 +122,7 @@ def test_a_tour_the_model_never_writes_is_asked_again_without_the_cache_then_fal
     assert _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR-RETRY FIRED] N01-U01: the App tour was not written")
     assert _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR] N01-U01: the App tour was not written, so the App shows the template tour")
     steps = _deployed(seen)["tour"]["steps"]["English"]
-    assert len(steps) == 8 and steps[0]["anchor"] == "decision"
+    assert len(steps) == TOUR["most"] and steps[0]["anchor"] == "decision"
     assert steps[0] == _core(inst).tour_template("decision", "English", _deployed(seen))
 
 

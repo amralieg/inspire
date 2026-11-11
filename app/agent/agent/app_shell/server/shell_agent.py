@@ -1318,7 +1318,7 @@ class Agent:
         if not DATE.match(high):
             return None
         today = self.shell.now().date()
-        days = (today - datetime.date.fromisoformat(high)).days
+        days = (today - datetime.date(*map(int, high.split("-")))).days
         return {"date": high, "today": today.isoformat(), "days_old": days, "stale": days > DATA_STALE_DAYS, "ahead": days < 0}
 
     def view_values(self, page: dict, view: dict) -> dict:
