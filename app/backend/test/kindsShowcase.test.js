@@ -125,7 +125,7 @@ test('the Inspire App hosts each kinds demo MVP App: the shell, its reads and Ge
       assert.equal(said.status, 200, u.no);
       assert.ok(said.data.text.startsWith(u.genie[0].a), u.no);
       for (const [choice] of PERIODS) {
-        const work = await call(srv.url, `${base}/api/my_work`, { method: 'POST', body: periodBody(choice, PERIOD_PICK.from, PERIOD_PICK.to, 'Pacific/Auckland') });
+        const work = await call(srv.url, `${base}/api/my_work`, { method: 'POST', body: { page: id, ...periodBody(choice, PERIOD_PICK.from, PERIOD_PICK.to, 'Pacific/Auckland') } });
         assert.equal(work.status, 200, `${u.no} My work for ${choice} replays (no 404)`);
       }
       const change = await call(srv.url, `${base}/api/records/act`, { method: 'POST', body: { page: id, keys: ['K1'], action: 'fixed' } });
@@ -222,18 +222,18 @@ test('the demo plan lines take decisions: Accept, Override with a reason and Tak
   }
 });
 
-test('the kinds demo answers the App\'s own question, what to do first, for every list, with the first record by name', async () => {
-  const { FIRST_QUESTION } = await kinds();
+test('the kinds demo shows records in every list and answers a visitor\'s first suggested Genie question with its recorded answer', async () => {
+  const { USE_CASES } = await kinds();
   const lists = Object.entries(bundle().mvps).filter(([, mvp]) => Object.keys(mvp.api).some((k) => k.startsWith('POST /api/records ')));
   const empty = lists.flatMap(([slug, mvp]) => Object.entries(mvp.api).filter(([k, v]) => k.startsWith('POST /api/records ') && !(v.body?.rows || []).length).map(([k]) => `${slug} ${k}`));
   assert.deepEqual(empty, [], 'every list in the demo shows its records');
   assert.ok(lists.length >= 3, `${lists.length} lists`);
-  for (const [slug, mvp] of lists) {
-    const ask = Object.entries(mvp.api).find(([k]) => k.startsWith('POST /api/genie/ask ') && FIRST_QUESTION.test(JSON.parse(k.slice('POST /api/genie/ask '.length)).question || ''));
-    assert.ok(ask, `${slug} has no recorded answer to what to do first`);
-    const said = Object.entries(mvp.api).find(([k]) => k.startsWith('GET /api/genie/message') && k.includes(`message_id=${ask[1].body.message_id}&`));
-    assert.match(said?.[1]?.body?.text || '', /^Start with [^:.]*[A-Za-z]/, slug);
-    assert.doesNotMatch(said[1].body.text, /read-only/, slug);
+  for (const u of USE_CASES) {
+    const api = bundle().mvps[u.no].api;
+    const ask = Object.entries(api).find(([k]) => k.startsWith('POST /api/genie/ask ') && JSON.parse(k.slice('POST /api/genie/ask '.length)).question === u.genie[0].q);
+    assert.ok(ask, `${u.no} has no recorded answer to its first suggested question`);
+    const said = Object.entries(api).find(([k]) => k.startsWith('GET /api/genie/message') && k.includes(`message_id=${ask[1].body.message_id}&`));
+    assert.ok(said?.[1]?.body?.text?.startsWith(u.genie[0].a), `${u.no} answers its first suggested question with the recorded answer`);
   }
 });
 
