@@ -1181,22 +1181,12 @@ function filterOptions(u, page, rows) {
   });
 }
 
-export const FIRST_QUESTION = /^How do I fix .+\? Say what to do first and why\.$/;
-
 const hashOf = (text) => [...String(text)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) >>> 0, 7).toString(36);
 
 function answerFor(u, body, rows) {
   const question = String(body?.question || '').trim();
   const known = u.genie.find((x) => x.q === question);
   if (known) return { text: `${known.a}\n\n${DEMO_RECORDED}`, sql: known.sql };
-  const top = FIRST_QUESTION.test(question) ? rows[0] : null;
-  if (top) {
-    const why = (top.top_reasons || []).join('; ');
-    const said = [`Start with ${top.entity_label ?? top.record_key}${why ? `: ${why}` : ''}.`, top.recommended_action ? `Suggested: ${top.recommended_action}.` : '',
-      'Then work down the list in order.', u.story].filter(Boolean).join(' ');
-    return { text: `${said}\n\n${DEMO_RECORDED}`,
-      sql: `SELECT * FROM ${DEMO_CATALOG}.${u.result} ORDER BY rank LIMIT 5` };
-  }
   const about = body?.about || {};
   const row = rows.find((r) => r.record_key === about.recordKey);
   if (row) {

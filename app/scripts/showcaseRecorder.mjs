@@ -4,7 +4,7 @@ import { createRequire } from 'node:module';
 import { SHOWCASE_BUTTON } from '../frontend/src/lib/showcase.js';
 import { APP_TABS } from '../frontend/src/lib/tabs.js';
 import { RUN_BACK } from '../frontend/src/lib/runPages.js';
-import { CUSTOM, DEFAULT_PERIOD, PERIODS } from '../agent/agent/app_shell/web/src/mywork.js';
+import { CUSTOM, DEFAULT_PERIOD, PERIODS, periodBody } from '../agent/agent/app_shell/web/src/mywork.js';
 
 const require = createRequire(import.meta.url);
 const { SHOWCASE_GENIE_ASK, SHOWCASE_HEADER, SHOWCASE_READ_ONLY, showcaseCanRead } = require('../backend/lib/showcase.js');
@@ -541,16 +541,6 @@ async function walkScreen(page, settle, { rows, questions, log, where, home, goB
     for (let j = 0; j < r; j += 1) {
       await clickable.nth(j).click();
       await settle();
-      const fix = page.locator('[data-act="genie"]', { hasText: 'Ask Genie to fix' });
-      if (questions && (await fix.count())) {
-        await fix.first().click();
-        await page.waitForFunction(() => document.querySelectorAll('.msg--genie').length > 0
-          && !document.querySelector('.msg--genie .g-step'), null, { timeout: GENIE_WAIT_MS });
-        await settle();
-        log(`${where}: Genie answered the fix question on a record`);
-        const closeGenie = page.locator('.genie button[aria-label="Close Ask Genie"]');
-        if (await closeGenie.count()) await closeGenie.click();
-      }
       await page.keyboard.press('Escape');
       await settle();
       await back((await views.count()) ? i : -1);
@@ -625,7 +615,7 @@ export const PERIOD_PICK = { from: '2026-11-01', to: '2026-11-02' };
 
 export async function walkPerformance(page, settle, { log, where }) {
   const area = page.locator('[data-performance]');
-  if (!(await area.count())) return;
+  if (!(await area.count())) return false;
   for (const [choice, text] of PERIODS) {
     await area.getByRole('button', { name: text, exact: true }).click();
     if (choice === CUSTOM) {
@@ -642,6 +632,22 @@ export async function walkPerformance(page, settle, { log, where }) {
   await area.getByRole('button', { name: PERIODS.find(([choice]) => choice === DEFAULT_PERIOD)[1], exact: true }).click();
   await settle();
   log(`${where}: My work asked for ${PERIODS.length} periods`);
+  return true;
+}
+
+export async function requestMyWork(page, { log, where }) {
+  const bodies = PERIODS.map(([choice]) => periodBody(choice, PERIOD_PICK.from, PERIOD_PICK.to, 'UTC'));
+  const statuses = await page.evaluate(async (list) => {
+    const app = await (await fetch('/api/app')).json();
+    const out = [];
+    for (const body of list) {
+      const resp = await fetch('/api/my_work', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ page: app.pages[0].id, ...body }) });
+      out.push(resp.status);
+    }
+    return out;
+  }, bodies);
+  if (statuses.some((status) => status !== 200)) throw new Error(`${where}: My work answered ${statuses.join(', ')} for its periods`);
+  log(`${where}: no My work screen, so its ${PERIODS.length} periods were requested from the App's own route`);
 }
 
 export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, blocked, log = () => {}, rows = 2, questions = 4 }) {
@@ -664,6 +670,7 @@ export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, 
     await settle();
     const nav = page.locator('nav.side button');
     const n = await nav.count();
+    let performed = false;
     for (let i = 0; i < n; i += 1) {
       const title = (await nav.nth(i).innerText()).split('\n')[0].trim();
       const here = nav.nth(i);
@@ -674,8 +681,9 @@ export async function recordMvpApp(context, { url, authHeaders = {}, exchanges, 
       const hash = await page.evaluate(() => location.hash);
       const goBack = () => page.evaluate((h) => { location.hash = h; }, hash);
       await walkScreen(page, settle, { rows, questions: shared ? 0 : questions, log, where: title, home: await screenOf(page), goBack });
-      await walkPerformance(page, settle, { log, where: title });
+      performed = (await walkPerformance(page, settle, { log, where: title })) || performed;
     }
+    if (!performed) await requestMyWork(page, { log, where: origin });
     log(`MVP App ${origin}: walked ${n} screens`);
   } finally {
     await page.unrouteAll({ behavior: 'ignoreErrors' });

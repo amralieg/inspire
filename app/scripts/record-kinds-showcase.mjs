@@ -9,7 +9,7 @@ import { PERIOD_PICK, apiWatch, recordMvpApp, routeInspireDemo, walkInspireDemo 
 import { demoReads, unrecorded } from './showcaseRoutes.mjs';
 import { CUSTOM, PERIODS } from '../agent/agent/app_shell/web/src/mywork.js';
 import {
-  DEMO_CATALOG, DEMO_OWNER, FIRST_QUESTION, KINDS_DEMO, USE_CASES, exampleName, mvpApi, mvpPage, mvpSettings, rankedUseCases, scenarioEvaluate,
+  DEMO_CATALOG, DEMO_OWNER, KINDS_DEMO, USE_CASES, exampleName, mvpApi, mvpPage, mvpSettings, rankedUseCases, scenarioEvaluate,
 } from './kindsShowcase.mjs';
 import { CONTRACT, NO_HUB, NO_IMPACT, NO_MONEY, NO_RUNS, NO_SETTINGS, NO_SUMMARY, appInfo } from '../agent/agent/app_shell/web/test/harness.mjs';
 import { closeBrowser, openUi } from '../frontend/test/ui/uiSupport.mjs';
@@ -248,9 +248,8 @@ try {
     const asked = exchanges.filter((x) => x.url.endsWith('/api/my_work')).map((x) => JSON.parse(x.postData));
     const unasked = PERIODS.filter(([choice]) => !asked.some((b) => (choice === CUSTOM ? b.from === PERIOD_PICK.from && b.to === PERIOD_PICK.to : b.window === choice)));
     if (unasked.length) throw new Error(`${u.no} never recorded My work for ${unasked.map(([, text]) => text).join(', ')}, so its replay would answer 404`);
-    const lists = exchanges.some((x) => x.url.endsWith('/api/records') && (x.body?.rows || []).length);
-    const first = exchanges.some((x) => x.url.endsWith('/api/genie/ask') && FIRST_QUESTION.test(JSON.parse(x.postData).question || ''));
-    if (lists && !first) throw new Error(`${u.no} lists records but no what-to-do-first answer was recorded`);
+    const first = exchanges.some((x) => x.url.endsWith('/api/genie/ask') && JSON.parse(x.postData).question === u.genie[0].q);
+    if (!first) throw new Error(`${u.no} never recorded its first suggested Genie question, so a visitor's first click would find no answer`);
   }
 
   const recorder = makeRecorder({
