@@ -316,7 +316,7 @@ dialog::backdrop{background:rgba(10,12,16,.45)}
 .nav-t small.warn{color:var(--amber-ink)}
 .nav-t small.bad{color:var(--danger)}
 .pg-h{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;margin-bottom:4px}
-.pg-h>div,.pg-h>h1{flex:1 1 320px;min-width:0}
+.pg-h>div,.pg-h>h1{flex:1 1 0;min-width:0}
 .pg-h>.ph-tools{flex:0 0 auto}
 .pg-h>div>p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
 .notify{flex:none;text-decoration:none}
@@ -374,7 +374,7 @@ button.hb:hover,button.hb.is-on{background:var(--well)}
 @container main (max-width: 1000px){.tbl--work .c-uc{width:150px}.tbl--work .c-owner,.tbl--work .c-status{width:120px}}
 @container main (max-width: 820px){.tbl--work .c-owner,.tbl--work .c-status{display:none}}
 @container main (max-width: 760px){.charts{grid-template-columns:1fr}.card--wide{grid-column:auto}.kpis[data-n="4"]{grid-template-columns:repeat(2,minmax(0,1fr))}.vb:has(>.vb-c:nth-child(13)) .vb-c b{display:none}}
-@container main (max-width: 600px){.tbl--work .c-uc,.tbl--things .c-due{display:none}.tbl--work .c-ask{width:44px}.hb{grid-template-columns:minmax(0,110px) 1fr 80px}.pg-h{flex-wrap:wrap}}
+@container main (max-width: 600px){.tbl--work .c-uc,.tbl--things .c-due{display:none}.tbl--work .c-ask{width:44px}.hb{grid-template-columns:minmax(0,110px) 1fr 80px}.pg-h{flex-wrap:wrap}.pg-h>div,.pg-h>h1{flex-basis:100%}}
 @media print{.notify{display:none}}
 :focus-visible{outline:2px solid var(--brand);outline-offset:2px}
 @container app (max-width: 1100px){
