@@ -1,3 +1,4 @@
+import contextvars
 import datetime
 import json
 import random
@@ -156,6 +157,18 @@ def app_query_tags(app_name) -> list:
     return [{"key": QUERY_TAG_APP, "value": name}] if name else []
 
 
+QUERY_USE_CASE = contextvars.ContextVar("inspire_query_use_case", default="")
+
+
+def use_case_query_tags(use_case_id) -> list:
+    value = " ".join(str(use_case_id or "").split())[:128]
+    return [{"key": "dbx_inspire_ai_usecase_id", "value": value}] if value else []
+
+
+def submit_in_request(pool, fn, *args):
+    return pool.submit(contextvars.copy_context().run, fn, *args)
+
+
 class Workspace:
     def __init__(self, host: str, auth_headers, session=None, sleep=time.sleep, clock=time.time, query_tags=None):
         self.host = normalize_host(host)
@@ -214,8 +227,9 @@ class Workspace:
         body = {
             "statement": statement, "warehouse_id": warehouse_id, "parameters": parameters or [], "wait_timeout": "30s",
             "on_wait_timeout": "CONTINUE", "disposition": "INLINE", "format": "JSON_ARRAY", "row_limit": limit + 1}
-        if self.query_tags:
-            body["query_tags"] = self.query_tags
+        tags = self.query_tags + use_case_query_tags(QUERY_USE_CASE.get())
+        if tags:
+            body["query_tags"] = tags
         response = self.call("POST", "/api/2.0/sql/statements", body)
         statement_id = response.get("statement_id")
         while str((response.get("status") or {}).get("state")) not in TERMINAL:

@@ -8,7 +8,8 @@ import pytest
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, os.path.dirname(os.path.dirname(HERE)))
 sys.path.insert(0, HERE)
-from v141_app_shell_test import MANIFEST, SERVER, FakeResponse, FakeSession, workspace  # noqa: E402
+from v141_app_shell_test import MANIFEST, SERVER, SETTINGS, FakeResponse, FakeSession, app_dir, workspace  # noqa: E402
+from v141_app_shell_test import page as app_page  # noqa: E402
 
 if SERVER not in sys.path:
     sys.path.insert(0, SERVER)
@@ -58,3 +59,35 @@ def test_the_report_attributes_warehouse_dbus_by_the_query_tag_the_app_sends():
     report = open(os.path.join(HERE, "..", "..", "..", "docs", "inspire_usage_report.sql"), encoding="utf-8").read()
     assert "main.centralized_system_tables.query_history" in report and "try_element_at(query_tags, 'dbx_inspire_ai_app_name')" in report
     assert "ATTRIBUTED BY QUERY DURATION" in report and "history before that stays unattributed" in report
+
+
+class RecordingWorkspace(shell_db.Workspace):
+    def __init__(self, sent):
+        super().__init__("dbc-1.example.com", lambda: {"Authorization": "Bearer t"}, session=FakeSession([]), sleep=lambda s: None,
+                         clock=lambda: 0, query_tags=shell_db.app_query_tags("churn-desk"))
+        self.sent = sent
+
+    def call(self, method, path, body=None, params=None, timeout=60):
+        if method == "POST" and path == "/api/2.0/sql/statements":
+            self.sent.append([tag["value"] for tag in body.get("query_tags", []) if tag["key"] == "dbx_inspire_ai_usecase_id"])
+            return {"statement_id": "s", "status": {"state": "SUCCEEDED"}, "manifest": MANIFEST, "result": {"data_array": []}}
+        return {}
+
+
+def test_two_pages_send_two_use_case_tags_and_no_request_carries_another_pages_tag(tmp_path):
+    sent = []
+    ws = RecordingWorkspace(sent)
+    second = app_page(id="p2", use_case_id="UC-2")
+    second["kpis"][0]["expression"] = "SUM(loss) * 1"
+    pages = [app_page(id="p1", use_case_id="UC-1"), second]
+    s = shell_core.Shell(app_dir(tmp_path, dict(SETTINGS, pages=["p1", "p2"]), pages),
+                         env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
+                         sp_factory=lambda: ws, user_factory=lambda host, token: ws)
+    s.handle("POST", "page", {}, {}, json.dumps({"page": "p1"}).encode())
+    first = len(sent)
+    s.handle("POST", "page", {}, {}, json.dumps({"page": "p2"}).encode())
+    assert first > 0 and len(sent) > first
+    assert all(tags == ["UC-1"] for tags in sent[:first]), "every statement of page one, tile threads included, carries its use case"
+    assert all(tags == ["UC-2"] for tags in sent[first:]), "page two's statements carry page two's use case, not page one's"
+    assert shell_db.QUERY_USE_CASE.get() == "", "the use case does not outlive its request"
+
