@@ -40,15 +40,30 @@ test('a chart with a click filter sends its pick to the server after the lazy in
     await picked.waitFor();
     const drawn = await picked.evaluate((el) => el.width > 0 && el.height > 0);
     assert.ok(drawn, 'the click-filter chart is drawn');
-    const box = await picked.boundingBox();
+    await picked.scrollIntoViewIfNeeded();
+    const pick = await picked.evaluate(async (canvas) => {
+      const chart = await import('/assets/echarts.js');
+      const echarts = Object.values(chart).find((v) => v && typeof v.getInstanceByDom === 'function');
+      let container = canvas;
+      let inst = echarts.getInstanceByDom(container);
+      while (!inst && container.parentElement) { container = container.parentElement; inst = echarts.getInstanceByDom(container); }
+      if (!inst) throw new Error('no ECharts instance on the chart');
+      const option = inst.getOption();
+      const raw = option.series[0].data[0];
+      const value = typeof raw === 'object' && raw !== null ? raw.value : raw;
+      const axis = [].concat(option.xAxis, option.yAxis).find((a) => a && a.type === 'category');
+      const first = axis.data[0];
+      const label = String(typeof first === 'object' && first !== null ? first.value : first);
+      const [px, py] = inst.convertToPixel({ seriesIndex: 0 }, [value / 2, 0]);
+      const rect = container.getBoundingClientRect();
+      return { label, x: rect.left + px, y: rect.top + py };
+    });
+    assert.ok(pick.label.length > 0, 'the first bar has a category to pick');
     const before = urls.length;
-    for (const fx of [0.15, 0.3, 0.5, 0.7]) {
-      for (const fy of [0.3, 0.5, 0.7]) {
-        await picked.click({ position: { x: box.width * fx, y: box.height * fy } });
-      }
-    }
+    await page.mouse.click(pick.x, pick.y);
     await until(() => urls.length > before, 5000);
-    assert.ok(urls.slice(before).some((u) => /"category"|category/.test(u)), `the pick names its filter: ${urls.slice(before).join(' | ')}`);
+    const sent = urls.slice(before).join(' | ');
+    assert.ok(sent.includes(pick.label), `the pick sends the first bar's category "${pick.label}": ${sent}`);
     assert.deepEqual(seen.errors, [], 'no page error on click');
   } finally {
     await context.close();
