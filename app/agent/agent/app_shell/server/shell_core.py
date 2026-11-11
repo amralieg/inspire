@@ -732,6 +732,30 @@ def fit_tour(page: dict, languages=None, gaps=frozenset()) -> tuple:
     return {"languages": wanted, "steps": out}, notes
 
 
+TOUR_OPTIONAL_PARTS = ("alerts",)
+
+
+def tour_build_problems(page: dict, tour: dict) -> list:
+    reg = tour_registry()
+    gaps = set(TOUR_OPTIONAL_PARTS) | (set() if shell_sql.page_decides(page) else {"actions", "bulk"})
+    required = [a for a in tour_anchors(page) if a not in gaps]
+    generic = [str(p).lower() for p in reg.get("generic") or [] if str(p).strip()]
+    out = []
+    for language, steps in (tour.get("steps") or {}).items():
+        rows = [s for s in steps or [] if isinstance(s, dict)]
+        covered = {s.get("anchor") for s in rows}
+        out += [f"{language}: the part {anchor} has no step" for anchor in required if anchor not in covered]
+        for step in rows:
+            anchor, low = step.get("anchor"), str(step.get("text") or "").lower()
+            hit = next((p for p in generic if p in low), "")
+            if hit:
+                out.append(f"{language} {anchor}: the text is generic ({hit!r}) and names nothing of this use case")
+            missing = [w for w in reg.get("must_name", {}).get(anchor, []) if str(w).lower() not in low] if language == TOUR_FALLBACK else []
+            if missing:
+                out.append(f"{language} {anchor}: the text does not name {', '.join(missing)}")
+    return out
+
+
 def public_tour(page: dict, gaps=frozenset()):
     tour, _ = fit_tour(page, gaps=gaps)
     if not tour:

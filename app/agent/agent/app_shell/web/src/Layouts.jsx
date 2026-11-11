@@ -263,7 +263,7 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged, planId 
         {locked ? <p className="muted" data-plan-locked>{locked}</p> : list.data && !can ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p> : plan.hint && <p>{plan.hint}</p>}
       </div>
       {open.length > 0 && <TakeAll count={open.length} onClick={acceptAll} />}
-      <AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
+      <SectionHelp title={plan.title} steps={[{ title: plan.title, text: "The plan for this use case: each line with its suggested value, and what you change when you disagree." }]} /><AskGenie kind="table" title={plan.title} context={tableContext(plan.hint || '', rows, (row) => planFields(page, plan, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <PlainNote text={list.error} prefix="The plan could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={retry} />}
       {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}

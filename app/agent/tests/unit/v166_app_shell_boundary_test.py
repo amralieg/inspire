@@ -46,6 +46,7 @@ SHELL_ENTRY_POINTS = {
     ("_implement_app_tour", "shell_core.fit_tour"),
     ("_implement_app_tour", "shell_core.tour_anchors"),
     ("_implement_app_tour", "shell_core.tour_registry"),
+    ("_implement_app_tour.ask", "shell_core.tour_build_problems"),
     ("_implement_dashboard", "_implement_app_shell"),
     ("_implement_dashboard.deploy", "shell_sql.chart_date_problems"),
     ("_implement_dashboard.deploy", "shell_sql.chart_query"),
