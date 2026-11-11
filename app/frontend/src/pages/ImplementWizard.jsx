@@ -69,6 +69,7 @@ import {
   stepIndexOf,
   lostTablesText,
   APP_READ_ACTION,
+  SOURCE_REFUSED_REASON,
   NEW_APPS_ACCESS_ACTION,
   appGrantText,
   profileEstimate,
@@ -569,6 +570,11 @@ export default function ImplementWizard({
     }
   }, [apiPostJson, q]);
 
+  const searchTable = useCallback(async (original, table) => {
+    const data = await apiFetch(`/api/inspire/implement/table-lookup?${q}&source=${encodeURIComponent(original)}&table=${encodeURIComponent(table)}`);
+    return data;
+  }, [apiFetch, q]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -872,7 +878,7 @@ export default function ImplementWizard({
         principals: JSON.stringify((spec.sharing.principals || []).map((p) => p.name)),
       });
       const [pre, planned] = await Promise.allSettled([
-        apiFetch(`/api/inspire/implement/preflight?${q}&${checks.toString()}`),
+        apiPostJson(`/api/inspire/implement/preflight?${q}&${checks.toString()}`, { spec: sent }),
         planNow
           ? apiPostJson('/api/inspire/implement/plan', { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId), spec: sent })
           : Promise.resolve(null),
@@ -1237,7 +1243,7 @@ export default function ImplementWizard({
     [preflightError, checkAgain],
   ].filter(([e]) => e));
   const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
-  const sourceRefused = Boolean(appUnreadable) || (preflight?.checks?.sources && preflight.checks.sources.ok === false);
+  const sourceRefused = preflight?.checks?.sources ? preflight.checks.sources.ok === false : Boolean(appUnreadable);
   const implementBlocked = busy || checksBusy || !placeSettled || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))));
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
@@ -1363,6 +1369,7 @@ export default function ImplementWizard({
                   if (open && swaps[original] === undefined) loadSwaps(original);
                 }}
                 onPick={pickTable}
+                onSearch={searchTable}
                 onRestore={(original) => { setSpec((prev) => restoreTable(prev, original)); setNotice(''); }}
               />
             </section>
@@ -2078,7 +2085,7 @@ export default function ImplementWizard({
           </button>
           <div className="flex items-center gap-2">
             {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceRefused && (
-              <p data-source-refused="" className="text-[11px] text-warning-fg">The App cannot read its sources yet, so the build cannot start. Grant access first, then build.</p>
+              <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             )}
             {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceRefused && (
               <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
@@ -2105,6 +2112,8 @@ export default function ImplementWizard({
                 {busy && <Loader2 size={14} className="animate-spin" />}
                 {busy ? 'Starting…' : 'Generate notebook'}
               </button>
+            ) : sourceRefused ? (
+              <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             ) : (
               <button
                 type="button"

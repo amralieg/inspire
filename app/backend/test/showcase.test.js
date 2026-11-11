@@ -181,7 +181,7 @@ test('a hosted MVP serves the App shell under its own address and answers its AP
     assert.equal((await call(srv.url, '/showcase/other/mvp/N01-U01/')).status, 404);
 
     const base = '/showcase/taxi/mvp/N01-U01/api';
-    assert.deepEqual((await call(srv.url, `${base}/app`)).data, { title: 'Fare desk' });
+    assert.deepEqual((await call(srv.url, `${base}/app`)).data, { title: 'Fare desk', screens: { runs: false, impact: false, performance: false, feedback: false } });
     assert.deepEqual((await call(srv.url, `${base}/page`, { method: 'POST', body: { filters: {}, page: 'n01_u01' } })).data, { kpis: [1] });
     const other = await call(srv.url, `${base}/page`, { method: 'POST', body: { filters: { zone: ['A'] }, page: 'n01_u01' } });
     assert.equal(other.status, 404);

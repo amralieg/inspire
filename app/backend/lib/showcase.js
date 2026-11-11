@@ -14,7 +14,7 @@ const SHOWCASE_ID_RE = /^[a-z0-9][a-z0-9-]{0,39}$/;
 const SHOWCASE_FILE_RE = /\.json(\.gz)?$/;
 const SHOWCASE_IGNORED = new Set(['inspire_database', 'warehouse_id', 'conversation_id', 'time_zone']);
 const SHOWCASE_READ_ONLY = 'This is the demo, so nothing in it changes. Choose Get Started to find use cases and build MVPs on your own data.';
-const SHOWCASE_MISSING = 'The demo has no saved answer for this view. Choose Get Started to see it on your own data.';
+const SHOWCASE_MISSING = 'Not part of this demo.';
 const SHOWCASE_UNKNOWN = 'This demo is not in this Inspire App.';
 const SHOWCASE_GENIE = 'In the demo, Genie answers the questions it suggests. Ask your own questions in an MVP built on your data.';
 const SHOWCASE_GENIE_ASK = 'POST /api/genie/ask';
@@ -144,8 +144,24 @@ function showcaseWriteGuard(req, res, next) {
   return refuseChange(res);
 }
 
+const SCREEN_ROUTES = { runs: 'GET /api/runs', impact: 'GET /api/impact', performance: 'POST /api/my_work', feedback: 'GET /api/feedback' };
+const routeOf = (key) => key.replace(/\?.*$/, '').replace(/ \{.*$/, '');
+
+function gatedApp(app, answers) {
+  const routes = new Set(Object.keys(answers).map(routeOf));
+  const off = Object.entries(SCREEN_ROUTES).filter(([, route]) => !routes.has(route)).map(([screen]) => [screen, false]);
+  const alerting = isObject(app.alerting) && app.alerting.on && !routes.has('GET /api/alerts') ? { ...app.alerting, on: false } : app.alerting;
+  return {
+    ...app,
+    ...(off.length ? { screens: { ...(isObject(app.screens) ? app.screens : {}), ...Object.fromEntries(off) } } : {}),
+    ...(alerting !== app.alerting ? { alerting } : {}),
+  };
+}
+
 function replay(res, answers, method, pathname, query, body) {
-  const answer = answers[showcaseKey(method, pathname, query, body)];
+  const key = showcaseKey(method, pathname, query, body);
+  const found = answers[key];
+  const answer = found && key === 'GET /api/app' && isObject(found.body) ? { ...found, body: gatedApp(found.body, answers) } : found;
   res.set('Cache-Control', 'no-store');
   if (answer && answer.text) return res.status(answer.status).set('X-Content-Type-Options', 'nosniff').type('text/plain; charset=utf-8').send(answer.body);
   if (answer) return res.status(answer.status).json(answer.body);
@@ -263,6 +279,7 @@ module.exports = {
   showcaseLocal,
   showcaseMiss,
   showcaseProblem,
+  gatedApp,
   loadShowcases,
   showcaseSummary,
   showcaseMvpPath,

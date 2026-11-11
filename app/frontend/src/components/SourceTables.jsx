@@ -1,12 +1,46 @@
+import { useState } from 'react';
 import { Check } from 'lucide-react';
 import { REMOVE_TABLE } from '../lib/implementWizard';
 import { PlainMessage } from './TechnicalDetails';
 
 const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
 
+function FindTable({ original, locked, onSearch, onPick }) {
+  const [name, setName] = useState('');
+  const [note, setNote] = useState('');
+  const [busy, setBusy] = useState(false);
+  const use = async () => {
+    const table = name.trim();
+    if (!table) return;
+    setBusy(true);
+    setNote('');
+    try {
+      const got = await onSearch(original, table);
+      if (got.readable) onPick(original, table);
+      else setNote(got.reason);
+    } catch (e) {
+      setNote(e.message);
+    } finally {
+      setBusy(false);
+    }
+  };
+  return (
+    <div className="space-y-1">
+      <div className="flex items-center gap-2">
+        <input aria-label={`Find a table to use for ${original}`} placeholder="catalog.schema.table" value={name} disabled={locked || busy}
+          onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') use(); }}
+          className="min-w-0 flex-1 h-8 rounded-md border border-border bg-surface px-2 font-mono text-[12px] text-text-primary" />
+        <button type="button" disabled={locked || busy || !name.trim()} onClick={use}
+          className="text-[11px] text-db-red-fg shrink-0 disabled:opacity-50">Use this table</button>
+      </div>
+      {note && <PlainMessage as="p" text={note} data-find-note="" className="text-[11px] text-text-secondary" />}
+    </div>
+  );
+}
+
 export default function SourceTables({
   tables, spec, primary = '', swaps = {}, swapsWhy = {}, changing = {}, lostReason = () => '', blockerOf = () => '', readOnly = false,
-  locked = false, selectClass = '', onToggle, onPick, onRestore,
+  locked = false, selectClass = '', onToggle, onPick, onRestore, onSearch,
 }) {
   const removedTables = spec?.data?.removed_tables || [];
   return tables.map((original) => {
@@ -45,10 +79,11 @@ export default function SourceTables({
               {options === undefined && <option disabled value="">Finding similar tables…</option>}
               {options && options.length === 0 && !why && <option disabled value="">No similar table found</option>}
               {(options || []).filter((s) => s.table !== original).map((s) => (
-                <option key={s.table} value={s.table}>{s.table} ({s.matched} of {s.total} columns match)</option>
+                <option key={s.table} value={s.table}>{s.copy ? `Your copy of ${original} (${s.table})` : `${s.table} (${s.matched} of ${s.total} columns match)`}</option>
               ))}
               <option value={REMOVE_TABLE} disabled={Boolean(blocker)}>{blocker ? `Don't use this table (${blocker})` : "Don't use this table"}</option>
             </select>
+            {onSearch && <FindTable original={original} locked={locked} onSearch={onSearch} onPick={onPick} />}
             {why && <PlainMessage as="p" text={why} data-swaps-why="" className="text-[11px] text-text-secondary" />}
           </>
         )}

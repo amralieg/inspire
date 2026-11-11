@@ -62,6 +62,7 @@ const SAMPLES = [
   { key: 'POST /api/inspire/implement/swaps', rule: 'any', method: 'POST', path: '/api/inspire/implement/swaps', body: {} },
   { key: 'POST /api/inspire/implement/readiness', rule: 'any', method: 'POST', path: '/api/inspire/implement/readiness', body: {} },
   { key: 'POST /api/inspire/implement/grant-access', rule: 'any', method: 'POST', path: '/api/inspire/implement/grant-access?kind=source_tables', body: { tables: ['main.sales.orders'] } },
+  { key: 'POST /api/inspire/implement/preflight', rule: 'owners', method: 'POST', path: `/api/inspire/implement/preflight?${qs(UC)}&result_table=main.inspire.churn_out`, body: { spec: {} } },
   { key: 'POST /api/inspire/implement/app-reads', rule: 'any', method: 'POST', path: `/api/inspire/implement/app-reads?${qs(UC)}`, body: { action: 'check' } },
   { key: 'POST /api/inspire/implement/create-schema', rule: 'any', method: 'POST', path: '/api/inspire/implement/create-schema', body: { catalog: 'main', schema: 'new_place' } },
   { key: 'POST /api/inspire/implement/plan', rule: 'any', method: 'POST', path: '/api/inspire/implement/plan', body: {} },

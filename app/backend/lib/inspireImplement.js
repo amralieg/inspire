@@ -2165,6 +2165,22 @@ function primaryKeysStatement(name) {
   };
 }
 
+// Similar tables are searched in every catalog the person can see, not only the source's own catalog: a copy of a
+// built-in sample (CREATE TABLE ... AS SELECT into a catalog the person owns) lives elsewhere. system.information_schema
+// lists only objects the caller can see, and the candidates are then read with the person's token before they are offered.
+const COLUMNS_ALL = 'system.information_schema.columns';
+const SOURCE_COLUMNS = 'table_catalog = lower(:c) AND table_schema = lower(:s) AND table_name = lower(:t)';
+const OWNED_CATALOGS = 'SELECT catalog_name FROM system.information_schema.catalogs WHERE catalog_owner = current_user()';
+
+function columnMatchCtes(candidateWhere) {
+  return `WITH o AS (SELECT lower(column_name) AS c, upper(data_type) AS ty FROM ${COLUMNS_ALL} WHERE ${SOURCE_COLUMNS}), `
+    + 'n AS (SELECT COUNT(*) AS total FROM o), '
+    + `own AS (${OWNED_CATALOGS}), `
+    + 'k AS (SELECT k0.table_catalog, k0.table_schema, k0.table_name, lower(k0.column_name) AS c, upper(k0.data_type) AS ty, '
+    + `CASE WHEN own.catalog_name IS NULL THEN 0 ELSE 1 END AS owned FROM ${COLUMNS_ALL} k0 LEFT JOIN own ON k0.table_catalog = own.catalog_name `
+    + `WHERE k0.table_catalog <> 'system' AND k0.table_schema <> 'information_schema' AND NOT (${SOURCE_COLUMNS})${candidateWhere}) `;
+}
+
 function tableSwapStatement(name, requiredColumns = []) {
   const t = tableParts(name);
   const required = requiredColumns.map((c) => str(c).trim().toLowerCase()).filter(Boolean);
@@ -2173,17 +2189,27 @@ function tableSwapStatement(name, requiredColumns = []) {
   const requiredClause = required.length
     ? ` AND SUM(CASE WHEN o.c IN (${required.map((_, i) => `:r${i}`).join(', ')}) THEN 1 ELSE 0 END) = ${required.length}`
     : '';
-  const cols = `\`${t.catalog}\`.information_schema.columns`;
   return {
-    sql: `WITH o AS (SELECT lower(column_name) AS c, upper(data_type) AS ty FROM ${cols} WHERE table_schema = lower(:s) AND table_name = lower(:t)), `
-      + `n AS (SELECT COUNT(*) AS total FROM o), `
-      + `k AS (SELECT table_schema, table_name, lower(column_name) AS c, upper(data_type) AS ty FROM ${cols} `
-      + "WHERE table_schema <> 'information_schema' AND NOT (table_schema = lower(:s) AND table_name = lower(:t))) "
-      + `SELECT k.table_schema, k.table_name, COUNT(*) AS matched, MAX(n.total) AS total FROM k JOIN o ON k.c = o.c AND k.ty = o.ty `
-      + `CROSS JOIN n GROUP BY k.table_schema, k.table_name HAVING COUNT(*) >= GREATEST(2, CEIL(MAX(n.total) * 0.5))${requiredClause} `
-      + 'ORDER BY matched DESC, k.table_schema, k.table_name LIMIT 20',
-    parameters: [{ name: 's', value: t.schema, type: 'STRING' }, { name: 't', value: t.table, type: 'STRING' }, ...requiredParams],
-    catalog: t.catalog,
+    sql: `${columnMatchCtes('')}`
+      + 'SELECT k.table_catalog, k.table_schema, k.table_name, COUNT(*) AS matched, MAX(n.total) AS total, MAX(k.owned) AS owned '
+      + 'FROM k JOIN o ON k.c = o.c AND k.ty = o.ty CROSS JOIN n '
+      + `GROUP BY k.table_catalog, k.table_schema, k.table_name HAVING COUNT(*) >= GREATEST(2, CEIL(MAX(n.total) * 0.5))${requiredClause} `
+      + 'ORDER BY matched DESC, k.table_catalog, k.table_schema, k.table_name LIMIT 20',
+    parameters: [{ name: 'c', value: t.catalog, type: 'STRING' }, { name: 's', value: t.schema, type: 'STRING' },
+      { name: 't', value: t.table, type: 'STRING' }, ...requiredParams],
+  };
+}
+
+// One candidate's column match against the source, for the free table search. Always one row: matched 0 when none match.
+function tableMatchStatement(source, candidate) {
+  const s = tableParts(source);
+  const c = tableParts(candidate);
+  return {
+    sql: `${columnMatchCtes(' AND k0.table_catalog = lower(:oc) AND k0.table_schema = lower(:os) AND k0.table_name = lower(:ot)')}`
+      + 'SELECT COUNT(*) AS matched, (SELECT total FROM n) AS total FROM k JOIN o ON k.c = o.c AND k.ty = o.ty',
+    parameters: [{ name: 'c', value: s.catalog, type: 'STRING' }, { name: 's', value: s.schema, type: 'STRING' },
+      { name: 't', value: s.table, type: 'STRING' }, { name: 'oc', value: c.catalog, type: 'STRING' },
+      { name: 'os', value: c.schema, type: 'STRING' }, { name: 'ot', value: c.table, type: 'STRING' }],
   };
 }
 
@@ -2322,9 +2348,12 @@ function sourceTables(spec, involved) {
   return uniqueTables(sourcePicks(spec, involved).map((p) => p.chosen));
 }
 
+// A swapped-out original is checked too, except a built-in sample: nobody can grant the App read on it, so checking it
+// would block the build for good, even though the build never reads it once a copy or another table is picked.
 function checkedSourceTables(spec, involved) {
   const picks = sourcePicks(spec, involved);
-  return uniqueTables([...picks.map((p) => p.chosen), ...picks.filter((p) => p.chosen.toLowerCase() !== p.original.toLowerCase()).map((p) => p.original)]);
+  const swappedOut = picks.filter((p) => p.chosen.toLowerCase() !== p.original.toLowerCase() && !builtInSampleTable(p.original));
+  return uniqueTables([...picks.map((p) => p.chosen), ...swappedOut.map((p) => p.original)]);
 }
 
 const IMPLEMENT_TABLES_NO_SIGN_IN = 'Inspire reads the new tables with your own sign-in, and this request carries none, so it cannot tell whether the change rebuilds anything';
@@ -3754,6 +3783,7 @@ module.exports = {
   columnsStatement,
   primaryKeysStatement,
   tableSwapStatement,
+  tableMatchStatement,
   columnValuesStatement,
   readinessStatement,
   readinessFromRow,

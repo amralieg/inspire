@@ -18,8 +18,8 @@ const BUILT = {
   session_id: '42', use_case_id: 'N01-U01', spec_version: 1, status: 'ready', created_by: OWNER, updated_at: '2026-10-21T04:00:00Z',
   spec_json: JSON.stringify(SPEC), asset_status: JSON.stringify({ dashboard: { state: 'ready', spec_version: 1 } }),
 };
-const V2 = { table_schema: 's', table_name: 'orders_v2', matched: '4', total: '4' };
-const SECRET = { table_schema: 'hr', table_name: 'salaries', matched: '4', total: '4' };
+const V2 = { table_catalog: 'main', table_schema: 's', table_name: 'orders_v2', matched: '4', total: '4', owned: '0' };
+const SECRET = { table_catalog: 'main', table_schema: 'hr', table_name: 'salaries', matched: '4', total: '4', owned: '0' };
 const APP_ONLY = { me: SP, tokenKind: 'app', forwardedToken: '' };
 
 async function withApp(overrides, run) {
@@ -49,7 +49,7 @@ test('similar tables are looked up with the person\u2019s own token, so a table 
   await withApp({ swapRowsByToken: seen }, async (url, made) => {
     const got = await swaps(url);
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(got.data, { table: 'main.s.orders', swaps: [{ table: 'main.s.orders_v2', matched: 4, total: 4 }], why: '' });
+    assert.deepEqual(got.data, { table: 'main.s.orders', swaps: [{ table: 'main.s.orders_v2', matched: 4, total: 4, copy: false }], why: '' });
     assert.deepEqual(swapReads(made).map((c) => c.token), [PERSON_TOKEN], 'read once, as the person');
   });
   await withApp({ swapRowsByToken: seen, forwardedToken: '' }, async (url, made) => {
@@ -273,4 +273,60 @@ test('a personal result key Inspire picked itself never blocks the MVP run, beca
     assert.equal(made.jobs.length, 1, 'an untagged key Inspire picked is allowed (must-keep)');
   });
   assert.equal(I.resultKeyRef(SPEC, picked('main.s.returns.order_id')), 'main.s.returns_v2.order_id', 'the picked key follows a swapped table');
+});
+
+const COPY = { table_catalog: 'inspire_kinds_rc7', table_schema: 'walk_rc7e', table_name: 'nyctaxi_trips', matched: '4', total: '4', owned: '1' };
+const FOREIGN_COPY = { table_catalog: 'other', table_schema: 'x', table_name: 'trips_copy', matched: '4', total: '4', owned: '0' };
+const LITE = { table_catalog: 'main', table_schema: 's', table_name: 'orders_lite', matched: '3', total: '4', owned: '0' };
+const SAMPLE = 'samples.nyctaxi.trips';
+
+test('a built-in sample source lists the person’s own copy first, in any catalog they own; a copy in a catalog they do not own is only a similar table', async () => {
+  const seen = { [PERSON_TOKEN]: [FOREIGN_COPY, LITE, COPY] };
+  await withApp({ swapRowsByToken: seen }, async (url, made) => {
+    const got = await swaps(url, SAMPLE);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.swaps, [
+      { table: 'inspire_kinds_rc7.walk_rc7e.nyctaxi_trips', matched: 4, total: 4, copy: true },
+      { table: 'other.x.trips_copy', matched: 4, total: 4, copy: false },
+      { table: 'main.s.orders_lite', matched: 3, total: 4, copy: false },
+    ]);
+    assert.ok(swapReads(made).every((c) => c.token === PERSON_TOKEN));
+  });
+  await withApp({ swapRowsByToken: seen }, async (url) => {
+    const got = await swaps(url, 'main.s.orders');
+    assert.ok(got.data.swaps.every((s) => s.copy === false), 'a copy is only a copy of a built-in sample');
+  });
+});
+
+test('a similar table the person cannot read is never offered, even when the catalog lists its columns (must-exclude)', async () => {
+  const seen = { [PERSON_TOKEN]: [COPY, FOREIGN_COPY] };
+  await withApp({ swapRowsByToken: seen, probeErrors: { '`other`.`x`.`trips_copy`': '[PERMISSION_DENIED] User does not have SELECT on Table other.x.trips_copy' } }, async (url) => {
+    const got = await swaps(url, SAMPLE);
+    assert.deepEqual(got.data.swaps.map((s) => s.table), ['inspire_kinds_rc7.walk_rc7e.nyctaxi_trips']);
+  });
+});
+
+test('the free table search reads a table the person can read in any catalog, with the same column match as the suggestions', async () => {
+  await withApp({ swapRowsByToken: { [PERSON_TOKEN]: [{ matched: '4', total: '4' }] } }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/table-lookup?${Q}&source=${encodeURIComponent(SAMPLE)}&table=inspire_kinds_rc7.walk_rc7e.nyctaxi_trips`);
+    assert.deepEqual([got.status, got.data], [200, { table: 'inspire_kinds_rc7.walk_rc7e.nyctaxi_trips', readable: true, matched: 4, total: 4 }]);
+    const match = readsOf(made, /SELECT COUNT\(\*\) AS matched/)[0];
+    assert.equal(match.token, PERSON_TOKEN);
+    assert.equal(match.parameters.find((p) => p.name === 'oc').value, 'inspire_kinds_rc7');
+  });
+});
+
+test('the free table search refuses a table the person cannot read, with the reason, and reads no column match for it (must-exclude)', async () => {
+  await withApp({ probeErrors: { '`other`.`x`.`trips_copy`': '[PERMISSION_DENIED] User does not have SELECT on Table other.x.trips_copy' } }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/table-lookup?${Q}&source=${encodeURIComponent(SAMPLE)}&table=other.x.trips_copy`);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.readable, false);
+    assert.match(got.data.reason, /^You can't read other\.x\.trips_copy: no read access\./);
+    assert.equal(readsOf(made, /SELECT COUNT\(\*\) AS matched/).length, 0);
+  });
+  await withApp(APP_ONLY, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/table-lookup?${Q}&source=${encodeURIComponent(SAMPLE)}&table=main.s.orders`);
+    assert.deepEqual([got.status, got.data.error], [401, RP.NO_PERSON_TOKEN]);
+    assert.equal(made.sqlCalls.length, 0, 'nothing is read as the App');
+  });
 });

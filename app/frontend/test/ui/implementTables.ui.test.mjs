@@ -19,7 +19,7 @@ const COLUMNS = {
   'main.s.orders_lite': rows(ORDERS.slice(0, 3)),
   'main.s.returns': rows([['return_id', 'STRING'], ['order_id', 'STRING']]),
 };
-const SWAPS = [{ table_schema: 's', table_name: 'orders_v2', matched: '4', total: '4' }, { table_schema: 's', table_name: 'orders_lite', matched: '3', total: '4' }];
+const SWAPS = [{ table_catalog: 'main', table_schema: 's', table_name: 'orders_v2', matched: '4', total: '4' }, { table_catalog: 'main', table_schema: 's', table_name: 'orders_lite', matched: '3', total: '4' }];
 const VIEW = { settings: [], history: [], editable: true, why: '', can_run: false };
 const STATE = { history: [built()], forwardedToken: PERSON, columnsByTable: COLUMNS, swapRows: SWAPS, appApi: { 'GET /api/settings': [VIEW] } };
 const SETTINGS = 'The next run reads main.s.orders_v2. Nothing is rebuilt.';
@@ -29,7 +29,7 @@ const DROPPED = 'Inspire rebuilds this use case with Genie as version 2 and show
 const UNREAD = 'Inspire could not compare the tables: Inspire cannot read the columns of this table with your sign-in: the table does not exist or you '
   + 'cannot read it';
 const NO_SIGN_IN = 'Inspire looks for similar tables with your own sign-in, and this request carries none, so it suggests none';
-const SECRET = { table_schema: 'hr', table_name: 'salaries', matched: '4', total: '4' };
+const SECRET = { table_catalog: 'main', table_schema: 'hr', table_name: 'salaries', matched: '4', total: '4' };
 
 const tablesOf = async (page) => (await openAsset(page, 'notebook')).getByRole('region', { name: 'Settings', exact: true }).locator('[data-settings-tables]');
 

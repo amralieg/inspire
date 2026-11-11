@@ -44,6 +44,9 @@ function q(req, key) {
   return v == null ? '' : String(v).trim();
 }
 
+// A similar-table row from system.information_schema, as the catalog.schema.table name the picker shows.
+const candidateOf = (r) => `${r.table_catalog}.${r.table_schema}.${r.table_name}`;
+
 function principalsOf(req) {
   const raw = q(req, 'principals');
   if (!raw) return [];
@@ -700,16 +703,35 @@ function registerImplementRoutes(app, deps) {
       const token = P.personTokenOf(req);
       if (!token) return res.json({ table, swaps: [], why: I.IMPLEMENT_SWAPS_NO_SIGN_IN });
       const rows = await sqlRows(req.dbHost, token, warehouseId, statement);
-      const catalog = statement.catalog;
-      return res.json({
-        table,
-        swaps: rows.map((r) => ({
-          table: `${catalog}.${r.table_schema}.${r.table_name}`,
-          matched: Number(r.matched) || 0,
-          total: Number(r.total) || 0,
-        })),
-        why: '',
+      const readable = await Promise.all(rows.map((r) => sqlRows(req.dbHost, token, warehouseId, I.tableProbeStatement(candidateOf(r)))
+        .then(() => true, () => false)));
+      const copies = I.builtInSampleTable(table);
+      const swaps = rows.filter((_r, i) => readable[i]).map((r) => {
+        const matched = Number(r.matched) || 0;
+        const total = Number(r.total) || 0;
+        const copy = copies && Boolean(Number(r.owned)) && total > 0 && matched === total;
+        return { table: candidateOf(r), matched, total, copy };
       });
+      return res.json({ table, swaps: [...swaps.filter((s) => s.copy), ...swaps.filter((s) => !s.copy)], why: '' });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.get('/api/inspire/implement/table-lookup', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const table = q(req, 'table');
+      const source = q(req, 'source');
+      const token = personReadToken(req);
+      try {
+        await sqlRows(req.dbHost, token, warehouseId, I.tableProbeStatement(table));
+      } catch (err) {
+        const reason = I.tableAccessReason(table, err && err.message) || "Inspire cannot read this table with your sign-in";
+        return res.json({ table, readable: false, reason: `You can't read ${table}: ${reason}. Pick a table you can read` });
+      }
+      const [row] = await sqlRows(req.dbHost, token, warehouseId, I.tableMatchStatement(source, table));
+      return res.json({ table, readable: true, matched: Number(row?.matched) || 0, total: Number(row?.total) || 0 });
     } catch (err) {
       sendError(res, err);
     }
@@ -830,7 +852,40 @@ function registerImplementRoutes(app, deps) {
     return sourceAccess(req, warehouseId, I.checkedSourceTables(withOutput, I.useCaseTables(useCase || {})));
   }
 
-  app.get('/api/inspire/implement/preflight', requireToken, async (req, res) => {
+  const NO_READS = { refusal: null, skipped: [], uncheckedWarnings: [] };
+
+  async function sourceCheckOf(req, warehouseId, useCase, spec, history) {
+    if (!sourcesReadBy(spec, history)) return { refusal: null, reads: NO_READS, app_unreadable: null };
+    const sourced = await sourceAccess(req, warehouseId, I.sourceTables(spec, I.useCaseTables(useCase)));
+    const blocking = I.blockingMissingTables(sourced.missing, spec, useCase);
+    const reads = await U.runReadPlan(dbFetch, req, { tables: I.sourceTables(spec, I.useCaseTables(useCase)) });
+    const refusal = sourced.app_unreadable
+      ? Object.assign(I.badRequest(sourced.app_unreadable.text, 409), { details: { missing_tables: sourced.missing, app_unreadable: sourced.app_unreadable } })
+      : blocking.length
+        ? Object.assign(I.badRequest(I.missingTablesMessage(blocking), 409), { details: { missing_tables: blocking, app_unreadable: null } })
+        : unreadableOf(spec, useCase, reads);
+    return { refusal, reads, app_unreadable: sourced.app_unreadable || null };
+  }
+
+  function sourcesReadBy(spec, history) {
+    let refills = true;
+    try {
+      refills = I.planSubmission(history, spec, true).summary.refill;
+    } catch {
+      refills = true;
+    }
+    return refills || ['genie_space', 'app', 'alert'].some((name) => spec?.outputs?.[name] === true) || !I.previousBuilt(history);
+  }
+
+  function unreadableOf(spec, useCase, reads) {
+    if (reads.refusal) return unreadableRefusal(reads.refusal.message, reads.refusal.status, reads.refusal.unreadable);
+    const gone = new Set(reads.skipped.map((t) => t.toLowerCase()));
+    const picks = I.sourcePicks(spec, I.useCaseTables(useCase)).filter((p) => gone.has(p.chosen.toLowerCase()));
+    const main = picks.find((p) => p.original.toLowerCase() === I.primaryTableOf(useCase).toLowerCase());
+    return main ? unreadableRefusal(`${U.runUnreadableTablesText([main.chosen])}. It is the primary table, so Inspire cannot build without it.`, 403, [main.chosen]) : null;
+  }
+
+  async function preflightOf(req, res) {
     try {
       const sid = sessionIdOf(req);
       const warehouseId = warehouseOf(req);
@@ -882,13 +937,12 @@ function registerImplementRoutes(app, deps) {
         loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
         loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
       ]);
-      const sourced = await sourceVerdict(req, warehouseId, useCaseNow, historyNow[0] || null, resultTable);
-      const blocking = I.blockingMissingTables(sourced.missing, (historyNow[0] && historyNow[0].spec_json) || {}, useCaseNow);
-      checks.sources = sourced.app_unreadable
-        ? { ok: false, detail: sourced.app_unreadable.text }
-        : blocking.length
-          ? { ok: false, detail: I.missingTablesMessage(blocking) }
-          : { ok: true, detail: 'the App can read every source of this use case' };
+      const sent = req.body?.spec && typeof req.body.spec === 'object' ? req.body.spec : ((historyNow[0] && historyNow[0].spec_json) || {});
+      const checkSpec = I.withResultTable(sent, moved ? moved.to : (resultTable || (sent.config && sent.config.result_table) || ''));
+      const verdict = await sourceCheckOf(req, warehouseId, useCaseNow, checkSpec, historyNow);
+      checks.sources = verdict.refusal
+        ? { ok: false, detail: verdict.refusal.message }
+        : { ok: true, detail: 'the App can read every source of this use case' };
       if (shares) checks.result_grant = I.shareCheck(output ? output.grant : null);
       if (appName) {
         const name = I.appNameCheck(appName, existingApp && existingApp.ok ? existingApp.data : null, { useCaseId, sessionId: sid });
@@ -921,12 +975,14 @@ function registerImplementRoutes(app, deps) {
         ...(appName || mergeApp ? {} : { new_app: output ? output.app : unchecked }),
         features,
         ...(moved ? { result_table_moved: moved } : {}),
-        app_unreadable: sourced.app_unreadable || null,
+        app_unreadable: verdict.app_unreadable,
       });
     } catch (err) {
       sendError(res, err);
     }
-  });
+  }
+  app.get('/api/inspire/implement/preflight', requireToken, preflightOf);
+  app.post('/api/inspire/implement/preflight', requireToken, preflightOf);
 
   app.get('/api/inspire/implement/destinations', requireToken, async (req, res) => {
     try {
@@ -955,13 +1011,8 @@ function registerImplementRoutes(app, deps) {
   }
 
   async function refuseMissingSources(req, warehouseId, spec, useCase) {
-    const access = await sourceAccess(req, warehouseId, I.sourceTables(spec, I.useCaseTables(useCase)));
-    const { app_unreadable: appUnreadable } = access;
-    const missing = I.blockingMissingTables(access.missing, spec, useCase);
-    if (!missing.length && !appUnreadable) return;
-    const err = I.badRequest([missing.length ? I.missingTablesMessage(missing) : '', appUnreadable ? appUnreadable.text : ''].filter(Boolean).join('. '), 409);
-    err.details = { missing_tables: missing, app_unreadable: appUnreadable };
-    throw err;
+    const verdict = await sourceCheckOf(req, warehouseId, useCase, spec, []);
+    if (verdict.refusal) throw verdict.refusal;
   }
 
   async function grantNewAppsAccess(req, token, warehouseId, table) {
@@ -1158,14 +1209,9 @@ function registerImplementRoutes(app, deps) {
     if (!useCase) throw I.badRequest(`No use case ${useCaseId} in this session.`, 404);
     const problems = I.removedTableProblems(chosen, I.useCaseTables(useCase), I.primaryTableOf(useCase));
     if (problems.length) throw I.badRequest(problems.join('; '));
-    const rebuildsSources = ['genie_space', 'app', 'alert'].some((name) => chosen.outputs?.[name] === true);
-    const sourced = rebuildsSources ? await sourceVerdict(req, warehouseId, useCase, { spec_json: chosen }) : { app_unreadable: null, missing: [] };
-    if (sourced.app_unreadable) {
-      const err = I.badRequest(sourced.app_unreadable.text, 409);
-      err.details = { missing_tables: sourced.missing, app_unreadable: sourced.app_unreadable };
-      throw err;
-    }
-    const { spec, warnings: readWarnings, details: readDetails } = await dropPersonUnreadable(req, chosen, useCase);
+    const verdict = await sourceCheckOf(req, warehouseId, useCase, chosen, history);
+    if (verdict.refusal) throw verdict.refusal;
+    const { spec, warnings: readWarnings, details: readDetails } = await dropPersonUnreadable(req, chosen, useCase, verdict.reads);
     const kpiIssues = I.implementKpiTargetProblems(raw, I.implementKpiOptions(useCase, history), history);
     if (kpiIssues.length) throw I.badRequest(kpiIssues.join('; '));
     const keyRef = I.resultKeyRef(spec, useCase);
@@ -1191,7 +1237,6 @@ function registerImplementRoutes(app, deps) {
     if (moved) plan.summary.result_table_moved = moved;
     if (tables.change) plan.summary.table_change = tables.change;
     if (tables.error) plan.summary.table_change_error = tables.error;
-    if (plan.summary.refill || (tables.change && tables.change.class === 'settings')) await refuseMissingSources(req, warehouseId, spec, useCase);
     const appReadsWarning = I.newAppReadsWarning(unshared);
     const warnings = [asksWarning, ...readWarnings, empty, appReadsWarning, ...scopeIssues.carried.map((p) => `${I.FIRST_RUN_CARRIED}${p}.`)].filter(Boolean);
     const warningDetails = readDetails || [];
@@ -1217,16 +1262,11 @@ function registerImplementRoutes(app, deps) {
     if (refused) throw unreadableRefusal(refused.message, refused.status, refused.unreadable);
   }
 
-  async function dropPersonUnreadable(req, spec, useCase) {
+  async function dropPersonUnreadable(req, spec, useCase, reads) {
     const involved = I.useCaseTables(useCase);
-    const reads = await U.runReadPlan(dbFetch, req, { tables: I.sourceTables(spec, involved) });
-    if (reads.refusal) throw unreadableRefusal(reads.refusal.message, reads.refusal.status, reads.refusal.unreadable);
     if (!reads.skipped.length) return { spec, warnings: reads.uncheckedWarnings, details: [] };
     const gone = new Set(reads.skipped.map((t) => t.toLowerCase()));
     const picks = I.sourcePicks(spec, involved).filter((p) => gone.has(p.chosen.toLowerCase()));
-    const primary = I.primaryTableOf(useCase).toLowerCase();
-    const main = picks.find((p) => p.original.toLowerCase() === primary);
-    if (main) throw unreadableRefusal(`${U.runUnreadableTablesText([main.chosen])}. It is the primary table, so Inspire cannot build without it.`, 403, [main.chosen]);
     let next = spec;
     const notes = [];
     for (const pick of picks) {
