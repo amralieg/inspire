@@ -4,7 +4,7 @@ import { PlainMessage } from './TechnicalDetails';
 
 const POLL_MS = 15000;
 
-export default function DocumentActions({ apiFetch, session, catalogPath, onFinished }) {
+export default function DocumentActions({ apiFetch, apiPostJson, session, catalogPath, onFinished }) {
   const [job, setJob] = useState(null);
   const [format, setFormat] = useState('PDF');
   const busy = job?.state === 'starting' || job?.state === 'running';
@@ -37,8 +37,9 @@ export default function DocumentActions({ apiFetch, session, catalogPath, onFini
         businessName: session.businessName,
         generationPath: session.generationPath,
         catalogPath,
+        outputLanguage: session.outputLanguage,
       });
-      const out = await apiFetch('/api/documents', { method: 'POST', body: JSON.stringify(body) });
+      const out = await apiPostJson('/api/documents', body);
       setJob({ kind, state: 'running', runId: out.run_id, error: '' });
     } catch (err) {
       setJob({ kind, state: 'failed', runId: null, error: err.message || 'Inspire could not start the document job' });

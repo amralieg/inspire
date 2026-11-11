@@ -6,6 +6,16 @@ const DOCUMENT_KINDS = {
 };
 
 const ENGLISH_CATALOG = /-dbx_inspire\.json$/;
+const DOCUMENT_LANGUAGES = ['English', 'French', 'German', 'Spanish', 'Hindi', 'Chinese (Mandarin)', 'Japanese', 'Arabic', 'Portuguese', 'Russian',
+  'Swedish', 'Danish', 'Norwegian', 'Finnish', 'Italian', 'Polish', 'Romanian', 'Ukrainian', 'Dutch', 'Korean', 'Indonesian', 'Malay', 'Tamil'];
+
+function languagesOf(value) {
+  const named = [...new Set(String(value || '').split(',').map((part) => part.trim()).filter(Boolean))];
+  const unknown = named.filter((lang) => !DOCUMENT_LANGUAGES.includes(lang));
+  if (unknown.length) throw refuse(`output_language ${unknown.join(', ')} is not a language Inspire writes documents in`);
+  if (!named.length) return ['English'];
+  return named.includes('English') ? ['English', ...named.filter((lang) => lang !== 'English')] : named;
+}
 const NUMERIC_ID = /^\d{1,19}$/;
 
 function refuse(message) {
@@ -33,6 +43,7 @@ function documentRunParams(body) {
   if (!generationPath) throw refuse('generation_path is required: the documents are written beside the session');
   const inspireDatabase = String(body.inspire_database || '').trim();
   if (!inspireDatabase) throw refuse('inspire_database is required');
+  const languages = languagesOf(body.output_language);
   const businessName = String(body.business_name || '').trim();
   if (!businessName) throw refuse('business_name is required');
   const params = {
@@ -42,10 +53,10 @@ function documentRunParams(body) {
     '02_inspire_database': inspireDatabase,
     '09_generation_options': option,
     '11_generation_path': generationPath,
-    '12_documents_languages': 'English',
+    '12_documents_languages': languages.join(','),
     '14_session_id': sessionId,
   };
-  return { params, document: { kind, option, session_id: sessionId } };
+  return { params, document: { kind, option, session_id: sessionId, languages } };
 }
 
 module.exports = { documentRunParams, DOCUMENT_KINDS };
