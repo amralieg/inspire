@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { closeBrowser, goToStep, openUi, profileAt, startMvp, toSummary } from './uiSupport.mjs';
+import { closeBrowser, goToStep, onStep, openUi, profileAt, startMvp, toSummary } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -53,7 +53,7 @@ test('keeping one value counts that scope in review and submits the row filter w
     const orders = block(page, 'main.s.orders');
     await pickStatus(page, 'main.s.orders');
     await orders.getByRole('button', { name: 'Load values' }).first().click();
-    await orders.getByRole('checkbox', { name: 'gold', exact: true }).check();
+    await orders.getByRole('checkbox', { name: 'gold', exact: true }).first().check();
     await toSummary(page);
     await page.getByText('Inspire found 120 rows to work with in main.s.orders.').waitFor();
     await startMvp(page);
@@ -74,13 +74,33 @@ test('the First run sizes the scope from its own count, not the whole table', as
     await goToStep(page, 'Data');
     await pickStatus(page, 'main.s.orders');
     await block(page, 'main.s.orders').getByRole('button', { name: 'Load values' }).first().click();
-    await block(page, 'main.s.orders').getByRole('checkbox', { name: 'gold', exact: true }).check();
+    await block(page, 'main.s.orders').getByRole('checkbox', { name: 'gold', exact: true }).first().check();
     await goToStep(page, 'First run');
     const everything = page.locator('[data-first-run-choice="all"]');
     await everything.waitFor();
     const text = await everything.innerText();
     assert.match(text, /\b120 records\b/, text);
     assert.doesNotMatch(text, /48,210/, 'the whole table count is not shown for the narrowed scope');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a scope under the forecast minimum shows one plain warning on the data step, and a scope over it shows none', async () => {
+  const ui = await openUi('wizard&discovery=Deep', { columns: COLUMNS, readinessRows: [{ row_count: '30' }], useCase: { ...HARNESS_USE_CASE, analytics_technique: 'Forecasting' }, me: ME });
+  const { page, made, pageErrors } = ui;
+  try {
+    await goToStep(page, 'Data');
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.locator('[data-too-few-rows]').waitFor();
+    assert.equal(await page.locator('[data-too-few-rows]').innerText(), 'Only 30 rows are in this scope, fewer than the 60 this use case needs; you can still go on.');
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    await onStep(page, 'Data');
+    made.state.readinessRows = [{ row_count: '61' }];
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.locator('[aria-current="step"]', { hasText: /^\s*Data\s*$/ }).waitFor({ state: 'detached' });
+    assert.equal(await page.locator('[data-too-few-rows]').count(), 0);
+    assert.deepEqual(pageErrors, []);
   } finally {
     await ui.close();
   }

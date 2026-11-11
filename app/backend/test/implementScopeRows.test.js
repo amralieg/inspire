@@ -1,8 +1,8 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const kinds = require('../../agent/agent/app_shell/kinds.json');
-const { analysisMinimumRows } = require('../lib/inspireImplement');
-const { tooFewRowsText, columnsReadOf } = require('../../frontend/src/lib/implementWizard.js');
+const { analysisMinimumRows, groupCountsStatement } = require('../lib/inspireImplement');
+const { tooFewRowsText, columnsReadOf, filterTablesOutside, withoutTableFilters, groupPartColumns } = require('../../frontend/src/lib/implementWizard.js');
 const { withScopedRows } = require('../../frontend/src/lib/runScope.js');
 
 test('the analysis minimum for a use case comes from kinds.json readiness_thresholds through its execution family', () => {
@@ -52,7 +52,8 @@ test('a narrowed scope sizes the First run from its own count and drops whole-ta
   assert.equal(scoped.suggested_groups[0].value, 'Starbucks');
   assert.equal(profile.records, 3333, 'the whole-table profile is not changed');
   assert.equal(withScopedRows(null, 120), null);
-  assert.equal(withScopedRows(profile, NaN), profile);
+  assert.equal(withScopedRows(profile, NaN).records, null, 'a count that was not taken shows no number');
+  assert.equal(withScopedRows(profile, NaN).first_run.all, null);
 });
 
 test('the columns Inspire reads for one table come from the column roles that point into it', () => {
@@ -64,4 +65,53 @@ test('the columns Inspire reads for one table come from the column roles that po
   assert.deepEqual(columnsReadOf(spec, 'main.s.orders'), ['order_id', 'order_date']);
   assert.deepEqual(columnsReadOf(spec, 'MAIN.S.RETURNS'), ['amount'], 'table names match without case');
   assert.deepEqual(columnsReadOf(spec, 'main.s.other'), []);
+});
+
+test('each execution family carries the minimum rows the analysis needs, set in kinds.json', () => {
+  assert.equal(analysisMinimumRows('Classification'), 200);
+  assert.equal(analysisMinimumRows('Forecasting'), 60);
+  assert.equal(analysisMinimumRows('Anomaly Detection'), 100);
+  assert.equal(analysisMinimumRows('Clustering'), 50);
+  assert.equal(analysisMinimumRows('Entity Matching'), 2);
+  assert.equal(analysisMinimumRows('Trend Analysis'), 1, 'descriptive analyses need one row');
+});
+
+test('a scope under the forecast minimum warns, one over it does not', () => {
+  assert.match(tooFewRowsText({ row_count: 30, minimum_rows: analysisMinimumRows('Forecasting') }), /Only 30 rows/);
+  assert.equal(tooFewRowsText({ row_count: 61, minimum_rows: analysisMinimumRows('Forecasting') }), '');
+});
+
+test('group counts for a narrowed scope come from the scoped count per group, and a group with no rows in scope counts zero', () => {
+  const profile = { records: 3333, suggested_groups: [
+    { value: 'Starbucks', records: 900, parts: [{ column: 'brand', value: 'Starbucks' }] },
+    { value: 'Costa', records: 400, parts: [{ column: 'brand', value: 'Costa' }] },
+  ] };
+  const scoped = withScopedRows(profile, 2, [{ brand: 'Starbucks', records: '2' }]);
+  assert.deepEqual(scoped.suggested_groups.map((g) => g.records), [2, 0]);
+  assert.deepEqual(groupPartColumns(profile), ['brand']);
+});
+
+test('a group-count query groups by the named columns under the same scope as the readiness count', () => {
+  const statement = groupCountsStatement('main.s.orders', ['brand'], { filters: [{ table: 'main.s.orders', column: 'brand', op: 'in', values: ['Starbucks'] }] });
+  assert.match(statement.sql, /GROUP BY `brand`/);
+  assert.match(statement.sql, /COUNT\(\*\) AS records FROM `main`\.`s`\.`orders` WHERE /);
+  assert.equal(groupCountsStatement('main.s.orders', [], {}), null, 'no group columns, no query');
+});
+
+test('filters left on a table that is no longer a source are listed, and Remove drops only that table', () => {
+  const spec = { data: { filters: [
+    { table: 'main.s.orders', column: 'status', op: 'in', values: ['gold'] },
+    { table: 'main.s.gone', column: 'region', op: 'in', values: ['EU'] },
+  ] } };
+  assert.deepEqual(filterTablesOutside(spec.data.filters, ['main.s.orders']), ['main.s.gone']);
+  assert.deepEqual(filterTablesOutside(spec.data.filters, ['MAIN.S.ORDERS', 'main.s.gone']), []);
+  const after = withoutTableFilters(spec, 'main.s.gone');
+  assert.deepEqual(after.data.filters.map((f) => f.table), ['main.s.orders']);
+  assert.equal(spec.data.filters.length, 2, 'the original spec is not changed');
+});
+
+test('a technique named in technique_min_rows keeps its own minimum, and any other technique falls back to its family minimum', () => {
+  assert.equal(analysisMinimumRows('Regression Analysis'), 100, 'regression sits in family F (1) but keeps its own 100');
+  assert.equal(analysisMinimumRows('Trend Analysis'), kinds.readiness_thresholds[kinds.execution_family['Trend Analysis']].min_rows);
+  assert.equal(analysisMinimumRows('Entity Matching'), 2);
 });

@@ -2247,9 +2247,7 @@ function filterClause(filter, index) {
   return { sql: `CAST(${col} AS STRING) ${op} ${refs[0]}`, params };
 }
 
-function readinessStatement(name, { columns = [], filters = [], window = {} } = {}) {
-  const table = quoteTable(name);
-  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))].slice(0, 20);
+function scopeWhere(filters = [], window = {}) {
   const where = [];
   const parameters = [];
   filters.forEach((f, i) => {
@@ -2268,10 +2266,30 @@ function readinessStatement(name, { columns = [], filters = [], window = {} } = 
       parameters.push({ name: 'wend', value: str(window.end), type: 'STRING' });
     }
   }
+  return { where, parameters };
+}
+
+function readinessStatement(name, { columns = [], filters = [], window = {} } = {}) {
+  const table = quoteTable(name);
+  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))].slice(0, 20);
+  const { where, parameters } = scopeWhere(filters, window);
   const nulls = wanted.map((c, i) => `SUM(CASE WHEN ${quoteColumn(c)} IS NULL THEN 1 ELSE 0 END) AS null_${i}`);
   return {
     sql: `SELECT COUNT(*) AS row_count${nulls.length ? `, ${nulls.join(', ')}` : ''} FROM ${table}`
       + `${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
+    parameters: parameters.length ? parameters : null,
+    columns: wanted,
+  };
+}
+
+function groupCountsStatement(name, columns = [], { filters = [], window = {} } = {}) {
+  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))].slice(0, 4);
+  if (!wanted.length) return null;
+  const { where, parameters } = scopeWhere(filters, window);
+  const cols = wanted.map((c) => quoteColumn(c));
+  return {
+    sql: `SELECT ${cols.map((c) => `CAST(${c} AS STRING) AS ${c}`).join(', ')}, COUNT(*) AS records FROM ${quoteTable(name)}`
+      + `${where.length ? ` WHERE ${where.join(' AND ')}` : ''} GROUP BY ${cols.join(', ')} LIMIT 5000`,
     parameters: parameters.length ? parameters : null,
     columns: wanted,
   };
@@ -2285,11 +2303,14 @@ function readinessFromRow(row, columns) {
   };
 }
 
-const { execution_family: EXECUTION_FAMILY, readiness_thresholds: READINESS_THRESHOLDS } = require('../../agent/agent/app_shell/kinds.json');
+const { execution_family: EXECUTION_FAMILY, readiness_thresholds: READINESS_THRESHOLDS, technique_min_rows: TECHNIQUE_MIN_ROWS } = require('../../agent/agent/app_shell/kinds.json');
 
 function analysisMinimumRows(technique) {
   const wanted = str(technique).split(/\s+/).filter(Boolean).join(' ').toLowerCase();
-  const label = Object.keys(EXECUTION_FAMILY).find((k) => k.toLowerCase() === wanted);
+  const named = (table) => Object.keys(table).find((k) => k.toLowerCase() === wanted);
+  const own = TECHNIQUE_MIN_ROWS[named(TECHNIQUE_MIN_ROWS) || ''];
+  if (Number.isFinite(own)) return own;
+  const label = named(EXECUTION_FAMILY);
   const minimum = label ? (READINESS_THRESHOLDS[EXECUTION_FAMILY[label]] || {}).min_rows : undefined;
   return Number.isFinite(minimum) ? minimum : null;
 }
@@ -3796,6 +3817,7 @@ module.exports = {
   tableMatchStatement,
   columnValuesStatement,
   readinessStatement,
+  groupCountsStatement,
   readinessFromRow,
   analysisMinimumRows,
   rerunParams,

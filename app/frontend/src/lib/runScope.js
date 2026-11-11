@@ -158,15 +158,25 @@ export function profileRecords(profile) {
   return finite(profile?.records);
 }
 
-export function withScopedRows(profile, rows) {
-  if (!isMap(profile) || !Number.isFinite(rows)) return profile;
+function scopedGroupRecords(group, rows) {
+  if (!Array.isArray(rows)) return null;
+  const parts = Array.isArray(group.parts) ? group.parts : [];
+  const hit = rows.find((row) => parts.every((p) => String(row?.[p.column] ?? '') === String(p.value ?? '')));
+  const n = Number(hit?.records);
+  return hit && Number.isFinite(n) ? n : 0;
+}
+
+export function withScopedRows(profile, rows, groups = null) {
+  if (!isMap(profile)) return profile;
   const whole = { ...profile };
   delete whole.recent;
+  const count = Number.isFinite(rows) ? rows : null;
   return {
     ...whole,
-    records: rows,
-    first_run: { ...(isMap(profile.first_run) ? profile.first_run : {}), all: rows, recent: null },
-    suggested_groups: Array.isArray(profile.suggested_groups) ? profile.suggested_groups.map((g) => (isMap(g) ? { ...g, records: null } : g)) : profile.suggested_groups,
+    records: count,
+    first_run: { ...(isMap(profile.first_run) ? profile.first_run : {}), all: count, recent: null },
+    suggested_groups: Array.isArray(profile.suggested_groups)
+      ? profile.suggested_groups.map((g) => (isMap(g) ? { ...g, records: scopedGroupRecords(g, groups) } : g)) : profile.suggested_groups,
   };
 }
 

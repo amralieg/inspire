@@ -800,6 +800,21 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  app.post('/api/inspire/implement/group-counts', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const statement = I.groupCountsStatement(q(req, 'table'), req.body?.columns || [], {
+        filters: req.body?.filters || [],
+        window: req.body?.window || {},
+      });
+      if (!statement) return res.status(400).json({ error: 'name the group columns to count' });
+      const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
+      res.json({ groups: rows.map((r) => ({ ...r, records: Number(r.records) || 0 })) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
   app.get('/api/inspire/implement/serving-endpoints', requireToken, async (req, res) => {
     try {
       const got = await jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/serving-endpoints');

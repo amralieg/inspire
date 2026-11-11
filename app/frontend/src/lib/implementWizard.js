@@ -868,6 +868,23 @@ export function setFilterValues(spec, table, column, op, values) {
   return { ...spec, data: { ...spec.data, filters: values.length ? [...rest, { table, column, op, values }] : rest } };
 }
 
+const sameTableName = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
+
+export function filterTablesOutside(filters, tables) {
+  return [...new Set((filters || []).map((f) => f.table).filter((t) => t && !(tables || []).some((x) => sameTableName(x, t))))];
+}
+
+export function groupPartColumns(profile) {
+  const cols = (Array.isArray(profile?.suggested_groups) ? profile.suggested_groups : [])
+    .flatMap((g) => (Array.isArray(g?.parts) ? g.parts : []).map((p) => String(p?.column || '')));
+  return [...new Set(cols.filter(Boolean))];
+}
+
+export function withoutTableFilters(spec, table) {
+  const kept = (spec.data.filters || []).filter((f) => !sameTableName(f.table, table));
+  return { ...spec, data: { ...spec.data, filters: kept } };
+}
+
 export function columnsReadOf(spec, table) {
   const same = (a, b) => String(a || '').toLowerCase() === String(b || '').toLowerCase();
   return Object.values(spec.data.column_roles || {}).filter((ref) => ref && same(tableOfRef(ref), table)).map((ref) => columnOfRef(ref));

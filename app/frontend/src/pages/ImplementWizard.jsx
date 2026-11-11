@@ -46,6 +46,9 @@ import {
   readinessText,
   tooFewRowsText,
   columnsReadOf,
+  filterTablesOutside,
+  withoutTableFilters,
+  groupPartColumns,
   scopeNarrowing,
   emptyScopeWarningOf,
   planLines,
@@ -534,10 +537,13 @@ export default function ImplementWizard({
   const lastStep = stepIndex === steps.length - 1;
   const scopeReady = scopeProfile.state !== 'loading';
   const scopeNow = readinessScope(spec, ucRow);
-  const scopedRows = readiness && !readiness.skipped && JSON.stringify(readiness.scope) === JSON.stringify(scopeNow) ? Number(readiness.row_count) : null;
-  const narrowed = scopedRows != null && scopeNarrowing(scopeNow).length > 0;
-  const scopedProfile = narrowed ? withScopedRows(scopeProfile.profile, scopedRows) : scopeProfile.profile;
-  const scopedFirstRun = narrowed && scopeProfile.firstRun ? { ...scopeProfile.firstRun, profile: withScopedRows(scopeProfile.firstRun.profile, scopedRows) } : scopeProfile.firstRun;
+  const scopeKey = JSON.stringify(scopeNow);
+  const scopeCounted = Boolean(readiness && !readiness.skipped) && JSON.stringify(readiness?.scope) === scopeKey;
+  const narrowed = scopeNarrowing(scopeNow).length > 0;
+  const scopeCount = scopeCounted ? Number(readiness.row_count) : null;
+  const scopeGroups = scopeCounted ? readiness.groups || null : null;
+  const scopedProfile = narrowed ? withScopedRows(scopeProfile.profile, scopeCount, scopeGroups) : scopeProfile.profile;
+  const scopedFirstRun = narrowed && scopeProfile.firstRun ? { ...scopeProfile.firstRun, profile: withScopedRows(scopeProfile.firstRun.profile, scopeCount, scopeGroups) } : scopeProfile.firstRun;
   const tooFewRows = tooFewRowsText(readiness);
   const totalSteps = useMemo(() => steps.length, [scopeReady, Boolean(spec.outputs.app)]); // eslint-disable-line react-hooks/exhaustive-deps
 
@@ -770,6 +776,40 @@ export default function ImplementWizard({
     }
   };
 
+  const countScope = async (scope) => {
+    const counted = await apiPostJson(`/api/inspire/implement/readiness?${q}`, {
+      table: scope.table,
+      discovery_type: discoveryType,
+      technique: fieldOf(ucRow, 'Analytics Technique', 'analytics_technique'),
+      columns: scope.columns,
+      filters: scope.filters,
+      window: scope.window,
+    }).catch((e) => {
+      if (checkCallRefused(e)) throw e;
+      return uncountedReadiness(scope);
+    });
+    setCheckNotes((prev) => ({ ...prev, data: counted.unchecked || '' }));
+    let warning = '';
+    if (!counted.skipped && Number(counted.row_count) === 0) {
+      warning = await emptyScopeWarningOf(scope, sourceTables, (table) => apiPostJson(`/api/inspire/implement/readiness?${q}`, {
+        table, discovery_type: discoveryType, columns: [], filters: [], window: {},
+      }));
+    }
+    const groupColumns = scopeNarrowing(scope).length ? groupPartColumns(scopeProfile.profile) : [];
+    const groups = groupColumns.length && !counted.skipped
+      ? await apiPostJson(`/api/inspire/implement/group-counts?${q}`, { table: scope.table, columns: groupColumns, filters: scope.filters, window: scope.window })
+        .then((got) => got.groups || null).catch(() => null)
+      : null;
+    return { ...counted, scope, warning, groups };
+  };
+
+  useEffect(() => {
+    if (mode !== 'mvp' || !narrowed || scopeCounted || !shows('first_run') || !scopeNow.table) return undefined;
+    let live = true;
+    countScope(scopeNow).then((got) => { if (live) setReadiness(got); }).catch(() => {});
+    return () => { live = false; };
+  }, [scopeKey, stepId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const goNext = async () => {
     setErrors([]);
     if (mode === 'notebook') {
@@ -782,25 +822,7 @@ export default function ImplementWizard({
         const scope = readinessScope(spec, ucRow);
         if (scope.table) {
           setChecking('Checking the data');
-          const counted = await apiPostJson(`/api/inspire/implement/readiness?${q}`, {
-            table: scope.table,
-            discovery_type: discoveryType,
-            technique: fieldOf(ucRow, 'Analytics Technique', 'analytics_technique'),
-            columns: scope.columns,
-            filters: scope.filters,
-            window: scope.window,
-          }).catch((e) => {
-            if (checkCallRefused(e)) throw e;
-            return uncountedReadiness(scope);
-          });
-          setCheckNotes((prev) => ({ ...prev, data: counted.unchecked || '' }));
-          let warning = '';
-          if (!counted.skipped && Number(counted.row_count) === 0) {
-            warning = await emptyScopeWarningOf(scope, sourceTables, (table) => apiPostJson(`/api/inspire/implement/readiness?${q}`, {
-              table, discovery_type: discoveryType, columns: [], filters: [], window: {},
-            }));
-          }
-          setReadiness({ ...counted, scope, warning });
+          setReadiness(await countScope(scope));
         }
       }
       if (resultsOn && resultPlace === 'own') {
@@ -3157,6 +3179,14 @@ function SourceTableBlocks({ tables, spec, columnsByTable, values, setSpec, load
           </div>
         );
       })}
+      {filterTablesOutside(spec.data.filters, tables).map((table) => (
+        <div key={table} data-filters-outside={table} className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
+          <p className="text-[11px] text-text-secondary">Row filters on {table}, which is no longer a source table.</p>
+          <button type="button" className="text-[11px] text-db-red-fg shrink-0" onClick={() => setSpec((prev) => withoutTableFilters(prev, table))}>
+            Remove these filters
+          </button>
+        </div>
+      ))}
     </section>
   );
 }
