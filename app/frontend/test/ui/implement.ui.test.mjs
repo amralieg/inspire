@@ -612,7 +612,7 @@ test('Change swaps a table for a similar one or drops it, and never offers to dr
 
 const NOTEBOOK_PATH = '/Users/owner@example.com/inspire/Acme/N01-U01';
 
-test('the Build page shows one row of tiles in a fixed order, each tile opens its asset in a new tab, Versions opens its facts, and the job holds the runs and the history', async () => {
+test('the Build page shows its tiles in a fixed order, no label is clipped beside the open Genie panel at 1440, 1280 and 1024, and the tiles sit in one row with the panel closed at 1440', async () => {
   const ui = await openUi('implement', { ...STUDIO_STATE, job: MVP_JOB, useCase: { ...HARNESS_USE_CASE, has_genie_code: 'Y', notebook_path: NOTEBOOK_PATH } });
   const { page } = ui;
   try {
@@ -635,6 +635,9 @@ test('the Build page shows one row of tiles in a fixed order, each tile opens it
       assert.deepEqual(cut, [], `no state or action label of a tile is cut short at ${width} px`);
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await closeBuild(page);
+    const tops = await tiles.evaluateAll((els) => [...new Set(els.map((t) => Math.round(t.getBoundingClientRect().top)))]);
+    assert.equal(tops.length, 1, `one row of tiles with the panel closed at 1440px: ${tops.length} rows`);
     const rows = await tiles.evaluateAll((els) => els.map((t) => [t.dataset.assetTile, t.dataset.tileKind]));
     assert.deepEqual(rows.map(([, kind]) => kind), TILE_IDS.map(() => 'live'), JSON.stringify(rows));
     assert.equal(await page.getByRole('tablist', { name: 'MVP views' }).count(), 0, 'no tabs: the tiles replace them');

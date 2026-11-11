@@ -216,7 +216,7 @@ const FILTER_ICONS = { notebook: NotebookPen, ...OUTPUT_ICONS };
 function AssetFilters({ counts, assets, onToggle }) {
   const total = counts.reduce((most, entry) => Math.max(most, entry.count), 0);
   if (!total && !assets.length) return null;
-  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth has-disabled:opacity-40 ${
+  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth has-disabled:cursor-not-allowed has-disabled:border-dashed ${
     on ? 'border-db-red/40 bg-db-red-50 text-db-red-fg' : 'border-border bg-surface text-text-primary hover:bg-bg-subtle'}`;
   return (
     <div role="group" aria-label="Show use cases with" className="rounded-xl border border-border bg-surface px-3 py-2.5 shadow-sm space-y-1.5">
@@ -1658,7 +1658,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   };
 
   const tileRow = (
-    <ul aria-label="Assets" data-asset-tiles="" className="shrink-0 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 auto-rows-fr gap-2">
+    <ul aria-label="Assets" data-asset-tiles="" className="shrink-0 grid grid-cols-1 @[18rem]:grid-cols-2 @[30rem]:grid-cols-3 @[46rem]:grid-cols-6 auto-rows-fr gap-2">
       {ASSET_TILES.map(({ id, label }) => {
         if (id === 'notebook') {
           return (
@@ -1743,7 +1743,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   );
 
   return (
-    <div data-use-case-pane="" className={`flex flex-col gap-3 ${built ? 'md:h-full md:min-h-0' : ''}`}>
+    <div data-use-case-pane="" className={`@container flex flex-col gap-3 ${built ? 'md:h-full md:min-h-0' : ''}`}>
       {celebrations > 0 && <Celebration key={celebrations} trigger />}
       <header data-pinned-name="" className={`${PANEL_CLASS} shrink-0 px-4 py-3 space-y-2.5`}>
         <div className="flex items-start justify-between gap-3">
