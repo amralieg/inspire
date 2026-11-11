@@ -121,6 +121,9 @@ function makeApp(overrides = {}, { mount } = {}) {
         const column = (/SELECT DISTINCT CAST\(`([^`]+)`/.exec(sql) || [])[1] || '';
         return { rows: ((state.valuesByColumn || {})[column] || []).map((value) => ({ value })) };
       }
+      if (sql.includes('key_column_usage')) {
+        return { rows: (state.primaryKeys || []).map((column_name) => ({ column_name })) };
+      }
       if (sql.includes('information_schema.columns') && sql.includes('WITH o AS')) {
         return { rows: state.swapRowsByToken ? state.swapRowsByToken[token] || [] : state.swapRows || [] };
       }

@@ -89,3 +89,19 @@ test('a row filter that keeps 0 rows blocks Save Scope, and the run carries no s
     await ui.close();
   }
 });
+
+test('the scope wizard pre-selects the key columns and says why; a removed key says the MVP uses its own row key', async () => {
+  const ui = await openUi('launch', { ...STATE, primaryKeys: ['store_id'] });
+  const { page } = ui;
+  try {
+    await openScopeWizardOnOrders(page);
+    assert.equal(await page.locator('[data-scope-column="store_id"]').isChecked(), true, 'the key is pre-selected');
+    assert.match(await page.locator('[data-key-note="pre-selected"]').innerText(), /Key columns store_id are pre-selected: they are needed to identify each row/);
+    await page.locator('[data-scope-column="store_id"]').uncheck();
+    assert.match(await page.locator('[data-key-note="removed"]').innerText(), /not picked. The MVP then identifies each row by its own row key, and never reads the base table/);
+    assert.equal(await page.locator('[data-key-note="pre-selected"]').count(), 0);
+    await page.getByRole('button', { name: 'Cancel' }).click();
+  } finally {
+    await ui.close();
+  }
+});

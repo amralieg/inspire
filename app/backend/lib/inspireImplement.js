@@ -2150,6 +2150,18 @@ function columnsStatement(name) {
   };
 }
 
+function primaryKeysStatement(name) {
+  const t = tableParts(name);
+  return {
+    sql: `SELECT kcu.column_name FROM \`${t.catalog}\`.information_schema.key_column_usage kcu `
+      + `JOIN \`${t.catalog}\`.information_schema.table_constraints tc ON kcu.constraint_name = tc.constraint_name `
+      + 'AND kcu.table_schema = tc.table_schema AND kcu.table_name = tc.table_name '
+      + "WHERE tc.constraint_type = 'PRIMARY KEY' AND kcu.table_schema = lower(:s) AND kcu.table_name = lower(:t) "
+      + 'ORDER BY kcu.ordinal_position',
+    parameters: [{ name: 's', value: t.schema, type: 'STRING' }, { name: 't', value: t.table, type: 'STRING' }],
+  };
+}
+
 function tableSwapStatement(name, requiredColumns = []) {
   const t = tableParts(name);
   const required = requiredColumns.map((c) => str(c).trim().toLowerCase()).filter(Boolean);
@@ -3728,6 +3740,7 @@ module.exports = {
   implementWidgets,
   tableParts,
   columnsStatement,
+  primaryKeysStatement,
   tableSwapStatement,
   columnValuesStatement,
   readinessStatement,
