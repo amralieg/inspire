@@ -5,15 +5,16 @@ import path from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { createRequire } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { apiWatch, recordMvpApp, routeInspireDemo, walkInspireDemo } from './showcaseRecorder.mjs';
+import { PERIOD_PICK, apiWatch, recordMvpApp, routeInspireDemo, walkInspireDemo } from './showcaseRecorder.mjs';
 import { demoReads, unrecorded } from './showcaseRoutes.mjs';
+import { CUSTOM, PERIODS } from '../agent/agent/app_shell/web/src/mywork.js';
 import {
   DEMO_CATALOG, DEMO_OWNER, KINDS_DEMO, USE_CASES, exampleName, mvpApi, mvpPage, mvpSettings, rankedUseCases, scenarioEvaluate,
 } from './kindsShowcase.mjs';
 import { CONTRACT, NO_HUB, NO_IMPACT, NO_MONEY, NO_RUNS, NO_SETTINGS, NO_SUMMARY, appInfo } from '../agent/agent/app_shell/web/test/harness.mjs';
 import { closeBrowser, openUi } from '../frontend/test/ui/uiSupport.mjs';
 import { STUDIO_STATE, built } from '../frontend/test/ui/implementFixtures.js';
-import { FRESHNESS_OPTIONS, FRESH_DEFAULT, defaultSpecFromUseCase } from '../frontend/src/lib/implementWizard.js';
+import { defaultSpecFromUseCase } from '../frontend/src/lib/implementWizard.js';
 import { computeHighPriorityCount, qualityBarCountsOf } from '../frontend/src/lib/useCaseFields.js';
 import redact from '../backend/lib/redact.js';
 
@@ -79,14 +80,17 @@ function snakeRow(uc) {
   };
 }
 
+const specOf = (u, uc) => defaultSpecFromUseCase(snakeRow(uc), { warehouseId: WAREHOUSE, inspireDatabase: INSPIRE_DATABASE, sessionId: sid, owner: DEMO_OWNER });
+const scheduleOf = (spec) => ({ ...spec.schedule, enabled: true, timezone: 'UTC' });
+
 function historyRow(u, uc, i) {
-  const spec = defaultSpecFromUseCase(snakeRow(uc), { warehouseId: WAREHOUSE, inspireDatabase: INSPIRE_DATABASE, sessionId: sid, owner: DEMO_OWNER });
+  const spec = specOf(u, uc);
   const { app_access: _access, app_look: _look, app_options: _options, merge: _merge, ...outputs } = spec.outputs;
   const questions = u.genie.map((g) => g.q);
   const result = `${DEMO_CATALOG}.${u.result}`;
   return built({
     session_id: sid, use_case_id: u.no, job_id: String(300 + i), last_preview_run_id: String(9100 + i), result_rows: '120',
-    spec_json: JSON.stringify({ ...spec, schedule: { ...spec.schedule, enabled: true, timezone: 'UTC' }, outputs: { ...outputs, genie_space: true, app: true, app_name: slugOf(u), alert: true, alert_recipients: [DEMO_OWNER], genie_questions: questions } }),
+    spec_json: JSON.stringify({ ...spec, schedule: scheduleOf(spec), outputs: { ...outputs, genie_space: true, app: true, app_name: slugOf(u), alert: true, alert_recipients: [DEMO_OWNER], genie_questions: questions } }),
     dashboard_id: `d${i + 1}`, dashboard_url: `${WORKSPACE}/dashboardsv3/d${i + 1}/published`,
     genie_space_id: `g${i + 1}`, genie_space_url: `${WORKSPACE}/genie/rooms/g${i + 1}`,
     app_name: slugOf(u), app_url: appUrlOf(u), alert_id: `a${i + 1}`, alert_url: `${WORKSPACE}/sql/alerts-v2/a${i + 1}`,
@@ -108,6 +112,11 @@ const ALERTS = {
 };
 
 function inspireState(useCases) {
+  const schedules = USE_CASES.map((u, i) => scheduleOf(specOf(u, useCases[i])));
+  const [schedule] = schedules;
+  if (schedules.some((s) => s.cron !== schedule.cron || s.timezone !== schedule.timezone || s.enabled !== schedule.enabled)) {
+    throw new Error(`the MVP specs state ${new Set(schedules.map((s) => s.cron)).size} schedules, but the one job the demo serves answers with one`);
+  }
   const domains = [...new Set(useCases.map((uc) => uc['Business Domain']))];
   const rows = Object.fromEntries(useCases.map((uc) => [uc.No, snakeRow(uc)]));
   const history = USE_CASES.map((u, i) => historyRow(u, useCases[i], i));
@@ -147,7 +156,7 @@ function inspireState(useCases) {
       run_id: 9100 + i, start_time: Date.UTC(2026, 10, 2, 6, 0, 0), run_duration: 95000, trigger: 'PERIODIC',
       state: { life_cycle_state: 'TERMINATED', result_state: 'SUCCESS', state_message: '' }, run_page_url: `${WORKSPACE}/#job/${300 + i}/run/${9100 + i}`,
     }] }])),
-    job: { job_id: 300, settings: { tags: { dbx_inspire_ai_run_type: 'implement', dbx_inspire_ai_session_id: sid }, schedule: { quartz_cron_expression: FRESHNESS_OPTIONS.find((o) => o.id === FRESH_DEFAULT).cron, timezone_id: 'UTC', pause_status: 'UNPAUSED' } } },
+    job: { job_id: 300, settings: { tags: { dbx_inspire_ai_run_type: 'implement', dbx_inspire_ai_session_id: sid }, schedule: { quartz_cron_expression: schedule.cron, timezone_id: schedule.timezone, pause_status: schedule.enabled ? 'UNPAUSED' : 'PAUSED' } } },
     sessions: [run],
     portfolioRuns: [{ runs: '1', businesses: '1' }],
     portfolioUseCases: [{ sid: null, is_total: '1', ...counts }, { sid, is_total: '0', ...counts }],
@@ -232,6 +241,15 @@ try {
     servers.push(server);
     await recordMvpApp(context, { url: `${server.url}/`, exchanges: mvpExchanges[u.no], blocked, log: (line) => log(`${u.no} ${line.replace(server.url, u.app)}`) });
     mvpExchanges[u.no].push(...scenarioAnswers(u, infos[i], server.url));
+  }
+
+  for (const u of USE_CASES) {
+    const exchanges = mvpExchanges[u.no];
+    const asked = exchanges.filter((x) => x.url.endsWith('/api/my_work')).map((x) => JSON.parse(x.postData));
+    const unasked = PERIODS.filter(([choice]) => !asked.some((b) => (choice === CUSTOM ? b.from === PERIOD_PICK.from && b.to === PERIOD_PICK.to : b.window === choice)));
+    if (unasked.length) throw new Error(`${u.no} never recorded My work for ${unasked.map(([, text]) => text).join(', ')}, so its replay would answer 404`);
+    const first = exchanges.some((x) => x.url.endsWith('/api/genie/ask') && JSON.parse(x.postData).question === u.genie[0].q);
+    if (!first) throw new Error(`${u.no} never recorded its first suggested Genie question, so a visitor's first click would find no answer`);
   }
 
   const recorder = makeRecorder({
