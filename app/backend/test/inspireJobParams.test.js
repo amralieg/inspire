@@ -292,10 +292,10 @@ test('several use cases share one tag, deduplicated, and a list that does not fi
 test('tag values are cleaned exactly the way the agent cleans them, and the use case tags are the same on both sides', () => {
   const fs = require('fs');
   const path = require('path');
-  const { inspireJobTags, inspireTagValue } = require('../lib/inspireJobParams');
+  const { inspireJobTags, inspireTagValue, inspireTagValueMax } = require('../lib/inspireJobParams');
   const fixture = JSON.parse(fs.readFileSync(path.join(__dirname, '..', '..', 'agent', 'tests', 'fixtures', 'implement_change_classes.json'), 'utf8'));
   for (const [raw, cleaned] of fixture.tag_values) assert.equal(inspireTagValue(raw), cleaned, raw);
-  assert.equal(inspireTagValue('x'.repeat(300)).length, 255);
+  assert.equal(inspireTagValue('x'.repeat(300)).length, inspireTagValueMax(), 'no cloud in the test environment: the strictest limit');
   const tags = inspireJobTags({
     runType: 'implement', params: { '14_session_id': '42', inspire_implement_spec_version: '1' }, businessName: 'Acme', notebookFilename: 'nb',
     useCaseIds: ['N01-U01'],
@@ -303,12 +303,16 @@ test('tag values are cleaned exactly the way the agent cleans them, and the use 
   assert.deepEqual(fixture.use_case_tag_keys.filter((key) => !(key in tags)), []);
 });
 
-test('on a GCP workspace every tag value fits the 63 characters GCP allows, and other clouds keep 255', () => {
-  const { inspireJobTags, inspireTagValue, inspireTagValueMax } = require('../lib/inspireJobParams');
-  assert.equal(inspireTagValueMax('1234567890.gcp.example'), 63);
-  assert.equal(inspireTagValueMax('dbc-1.cloud.example'), 255);
-  assert.equal(inspireTagValueMax('adb-1.12.example.net'), 255);
-  assert.equal(inspireTagValueMax(''), 255);
+test('the tag value limit is per cloud (255 on AWS and Azure, 63 on GCP) and 63 when the cloud is unknown, one table shared with the notebook', () => {
+  const { inspireJobTags, inspireTagValue, inspireTagValueMax, inspireTagCloud } = require('../lib/inspireJobParams');
+  assert.equal(inspireTagValueMax('dbc-1.cloud.databricks.com'), 255);
+  assert.equal(inspireTagCloud('dbc-1.cloud.databricks.com'), 'aws');
+  assert.equal(inspireTagValueMax('adb-1.12.azuredatabricks.net'), 255);
+  assert.equal(inspireTagCloud('adb-1.12.azuredatabricks.net'), 'azure');
+  assert.equal(inspireTagValueMax('1234567890.gcp.databricks.com'), 63);
+  assert.equal(inspireTagCloud('1234567890.gcp.databricks.com'), 'gcp');
+  assert.equal(inspireTagValueMax('dbc-1.cloud.example'), 63, 'an unknown cloud takes the strictest limit');
+  assert.equal(inspireTagValueMax(''), 63, 'no host, no cloud, 63');
   const before = process.env.DATABRICKS_HOST;
   process.env.DATABRICKS_HOST = '1234567890.gcp.example';
   try {

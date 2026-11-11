@@ -243,16 +243,24 @@ function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateT
   return sanitizeInspireNotebookJobParams(raw);
 }
 
-const INSPIRE_TAG_VALUE_MAX = 255;
-const INSPIRE_GCP_TAG_VALUE_MAX = 63;
+const TAG_KEY_MAX = 127;
+const TAG_CLOUD_VALUE_MAX = { aws: 255, azure: 255, gcp: 63 };
+const TAG_UNKNOWN_VALUE_MAX = 63;
+const TAG_CLOUD_PATTERNS = [['gcp', /\.gcp\./i], ['azure', /azuredatabricks\.net|databricks\.azure/i], ['aws', /\.cloud\.databricks\.com/i]];
+
+function inspireTagCloud(host = process.env.DATABRICKS_HOST) {
+  const text = String(host || '').toLowerCase();
+  const hit = TAG_CLOUD_PATTERNS.find(([, pattern]) => pattern.test(text));
+  return hit ? hit[0] : '';
+}
 
 function inspireTagValueMax(host = process.env.DATABRICKS_HOST) {
-  return /\.gcp\./i.test(String(host || '')) ? INSPIRE_GCP_TAG_VALUE_MAX : INSPIRE_TAG_VALUE_MAX;
+  return TAG_CLOUD_VALUE_MAX[inspireTagCloud(host)] ?? TAG_UNKNOWN_VALUE_MAX;
 }
 const TAG_LIST_SEP = ',';
 const TAG_ITEM_BAD = /[^A-Za-z0-9+=.:@_-]/g;
 const RESOURCE_TAG_RULES = {
-  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: 127, value: /^[\w+\-=.,:@]*$/, valueBad: /[^A-Za-z0-9+=.,:@_-]/g, get valueMax() { return inspireTagValueMax(); } },
+  job: { keyBad: /[^A-Za-z0-9._-]/g, keyMax: TAG_KEY_MAX, value: /^[\w+\-=.,:@]*$/, valueBad: /[^A-Za-z0-9+=.,:@_-]/g, get valueMax() { return inspireTagValueMax(); } },
   uc: { keyBad: /[^A-Za-z0-9_]/g, keyMax: 256, value: /^[\s\S]*$/, valueBad: null, valueMax: 256 },
 };
 
@@ -464,6 +472,7 @@ module.exports = {
   buildDemoInspireDiscoveryParams,
   inspireTagValue,
   inspireTagValueMax,
+  inspireTagCloud,
   inspireTagList,
   inspireTagListItems,
   resourceTagKey,
