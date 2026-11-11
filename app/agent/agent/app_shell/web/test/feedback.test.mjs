@@ -4,7 +4,7 @@ import { readFileSync, readdirSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { HISTORY, PERSON, TABLE, appInfo, openApp, serveDist, toastSays, until } from './harness.mjs';
+import { HISTORY, PERSON, TABLE, appInfo, openApp, reportIssue, serveDist, toastSays, until } from './harness.mjs';
 import { FEEDBACK_CHARS, feedbackProblem, feedbackStatusText } from '../src/feedback.js';
 
 const ASSETS = join(dirname(fileURLToPath(import.meta.url)), '..', 'dist', 'assets');
@@ -93,7 +93,7 @@ test('Report an issue is offered on every page type; a page with a results table
   await bare.page.locator('[data-group="feedback"]').waitFor();
   await bare.page.locator('[data-rail="dashboard"]').click();
   await bare.page.locator('.ph h1').waitFor();
-  await bare.page.locator('[data-feedback-open]').click();
+  await reportIssue(bare.page);
   await bare.page.locator('[data-feedback-note]').waitFor();
   assert.equal(await bare.page.locator('[data-feedback-form]').count(), 0);
   await bare.context.close();
@@ -102,7 +102,7 @@ test('Report an issue is offered on every page type; a page with a results table
   await page.locator('[data-rail="runs"]').click();
   await page.waitForFunction(() => window.location.hash === '#/n01_u05/runs');
   await page.locator('[data-section-title]', { hasText: 'Runs' }).waitFor();
-  await page.locator('[data-feedback-open]').click();
+  await reportIssue(page);
   await page.locator('[data-feedback-form]').waitFor();
   assert.deepEqual(seen.errors, []);
   await context.close();
