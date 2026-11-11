@@ -4,7 +4,7 @@ import ValueEstimateLine from './ValueEstimateLine';
 import { AppReadAccess } from './AppReadAccess';
 import { PlainMessage } from './TechnicalDetails';
 import { buildItems, buildNextOf, moneyText, nextSharingTables } from '../lib/buildNext';
-import { appGrantText, preflightParams, specForSibling } from '../lib/implementWizard';
+import { appGrantText, moneyRuleColumns, preflightParams, primaryTableOf, specForSibling } from '../lib/implementWizard';
 
 const BUILD_NOW_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-white bg-db-red-solid shadow-sm shadow-db-red/20 hover:bg-db-red-solid-hover disabled:opacity-70';
 const BUILD_CUSTOM_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-text-primary hover:bg-bg-subtle';
@@ -84,16 +84,25 @@ export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehous
   const [builds, setBuilds] = useState({});
   if (!live || error || !next.length) return null;
   const canBuild = Boolean(onBuilt && onBuildCustom);
+  const canBuildNow = Boolean(liveSpecs[focusId]);
   const patch = (id, change) => setBuilds((prev) => ({ ...prev, [id]: { ...prev[id], ...change } }));
   const ucOf = (row) => caseOf?.(row.id) || row.uc;
 
   const scope = () => new URLSearchParams({ inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) });
 
+  const sourceColumnsOf = async (row) => {
+    const table = primaryTableOf(ucOf(row)) || row.tables[0] || '';
+    if (!table || !moneyRuleColumns(liveSpecs[focusId]?.money).length) return [];
+    const got = await apiFetch(`/api/inspire/implement/columns?${scope()}&table=${encodeURIComponent(table)}`);
+    return (got?.columns || []).map((column) => column.column_name);
+  };
+
   const buildNow = async (row) => {
     patch(row.id, { busy: true, error: '', refusal: null });
     try {
       const context = await apiFetch(`/api/inspire/implement/context?${scope()}&use_case_id=${encodeURIComponent(focusId)}`);
-      const spec = specForSibling(liveSpecs[focusId], ucOf(row), { warehouseId, inspireDatabase, sessionId, businessName: context?.business_name || '' });
+      const sourceColumns = await sourceColumnsOf(row);
+      const spec = specForSibling(liveSpecs[focusId], ucOf(row), { warehouseId, inspireDatabase, sessionId, businessName: context?.business_name || '', sourceColumns });
       const pre = await apiPostJson(`/api/inspire/implement/preflight?${scope()}&use_case_id=${encodeURIComponent(spec.use_case_id)}&${preflightParams(spec)}`, { spec });
       if (pre.app_unreadable) {
         patch(row.id, { busy: false, refusal: pre.app_unreadable });
@@ -150,10 +159,12 @@ export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehous
                 </div>
                 {canBuild && (
                   <div className="flex flex-wrap items-center gap-2">
-                    <button type="button" data-build-now={row.id} aria-busy={build.busy ? 'true' : 'false'} disabled={build.busy}
-                      onClick={() => buildNow(row)} className={BUILD_NOW_BUTTON}>
-                      {build.busy ? <><Loader2 size={13} className="animate-spin" aria-hidden data-build-spinner="" /> Building</> : 'Build Now'}
-                    </button>
+                    {canBuildNow && (
+                      <button type="button" data-build-now={row.id} aria-busy={build.busy ? 'true' : 'false'} disabled={build.busy}
+                        onClick={() => buildNow(row)} className={BUILD_NOW_BUTTON}>
+                        {build.busy ? <><Loader2 size={13} className="animate-spin" aria-hidden data-build-spinner="" /> Building</> : 'Build Now'}
+                      </button>
+                    )}
                     <button type="button" data-build-custom={row.id} onClick={() => onBuildCustom(ucOf(row))} className={BUILD_CUSTOM_BUTTON}>
                       Build custom <ArrowRight size={13} aria-hidden />
                     </button>

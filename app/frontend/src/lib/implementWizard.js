@@ -1253,8 +1253,16 @@ const PER_USE_CASE_OUTPUTS = {
   dashboard_name: '', dashboard_filters: [], dashboard_vibes: '', alert_name: '', alert_condition_text: '', alert_vibes: '',
 };
 
+// The source columns a money rule names: its status and group columns, and its rate column when it reads rates from the table.
+export function moneyRuleColumns(money) {
+  if (!money || typeof money !== 'object') return [];
+  return [money.status_column, money.group_column, money.rate_column].filter((name) => typeof name === 'string' && name);
+}
+
 // Build Now: the live App's settings carried to a sibling use case. Its own use case, tables, result table and names replace the App's.
+// The money rule travels only when the sibling's primary table has every column it names; the KPI target never travels.
 export function specForSibling(liveSpec, uc, ctx = {}) {
+  if (!liveSpec) return null;
   const app = withoutOneVersionKeys(structuredClone(liveSpec));
   const own = defaultSpecFromUseCase(uc, ctx);
   const { catalog, schema } = resultTableParts(app.config.result_table);
@@ -1263,6 +1271,8 @@ export function specForSibling(liveSpec, uc, ctx = {}) {
   const appName = placementAppName(app.outputs.app_placement, { business: ctx.businessName || '', domain: domainOf(uc), useCaseAppName: caseAppNameOf(uc) });
   const outputs = { ...own.outputs, ...app.outputs };
   for (const key of ['app_look', 'app_options', 'merge']) outputs[key] = { ...own.outputs[key], ...(app.outputs[key] || {}) };
+  const sourceColumns = new Set((ctx.sourceColumns || []).map((name) => String(name).toLowerCase()));
+  const money = moneyRuleColumns(app.money).every((name) => sourceColumns.has(name.toLowerCase())) ? app.money : null;
   return withMoneyRule(withKpiTarget({
     ...app,
     use_case_id: own.use_case_id,
@@ -1274,7 +1284,7 @@ export function specForSibling(liveSpec, uc, ctx = {}) {
     config: { ...app.config, widgets: {}, result_table: resultTable },
     outputs: { ...outputs, ...PER_USE_CASE_OUTPUTS, app_name: appName },
     removed_outputs: {},
-  }, ''), null);
+  }, ''), money);
 }
 
 export const ROLE_RULES = {

@@ -126,9 +126,16 @@ function mountBuilds(app, log, { refuse = null, gate = null, preflight = {} } = 
     log.granted = true;
     res.json({ ran: [GRANT], failed: [], app_unreadable: null });
   });
+  app.get('/api/inspire/implement/columns', (req, res, next) => {
+    const names = log.columns[String(req.query.table).toLowerCase()];
+    if (!names) return next();
+    return res.json({ table: req.query.table, columns: names.map((column_name) => ({ column_name, data_type: 'STRING', tags: {}, personal: false })) });
+  });
 }
 
-const newLog = () => ({ submits: [], grants: [], granted: false });
+const newLog = () => ({ submits: [], grants: [], granted: false, columns: {} });
+const MONEY = { status_column: 'order_status', statuses: ['used'] };
+const withSpec = (extra) => ({ ...STATE, history: [built({ spec_json: JSON.stringify({ ...builtSpec(), ...extra }) })] });
 const APP_NAME_TAKEN = 'inspire-acme-customer is already the name of another App, so this build cannot name its App that.';
 const sibling = (page, id) => page.locator(`[data-next-step-row="${id}"]`);
 const buildNowOf = (page, id) => sibling(page, id).getByRole('button', { name: 'Build Now', exact: true });
@@ -217,6 +224,56 @@ test('Build Now names the sibling App with the business prefix the wizard uses',
     await buildNowOf(page, 'N01-U02').click();
     await until(() => log.submits.length === 1, 'one build submitted');
     assert.equal(log.submits[0].spec.outputs.app_name, 'inspire-acme-customer');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Build Now carries the App money rule when the sibling has every column it names, and never carries the KPI target', async () => {
+  const log = newLog();
+  log.columns['main.s.orders'] = ['order_id', 'order_status'];
+  log.columns['main.s.customers'] = ['customer_id', 'order_status'];
+  const ui = await openUi('app', withSpec({ money: MONEY, kpi: { target: 'Churn rate' } }), '', { mount: (app) => mountBuilds(app, log) });
+  const { page } = ui;
+  try {
+    await go(page, '#/build/42/N01-U01');
+    await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await buildNowOf(page, 'N01-U02').click();
+    await until(() => log.submits.length === 1, 'one build submitted');
+    assert.deepEqual(log.submits[0].spec.money, MONEY);
+    assert.equal('kpi' in log.submits[0].spec, false, 'the KPI target belongs to its own use case');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Build Now drops the money rule when the sibling primary table lacks a column it names, even if another table has it', async () => {
+  const log = newLog();
+  log.columns['main.s.orders'] = ['order_id'];
+  log.columns['main.s.customers'] = ['customer_id', 'order_status'];
+  const ui = await openUi('app', withSpec({ money: MONEY }), '', { mount: (app) => mountBuilds(app, log) });
+  const { page } = ui;
+  try {
+    await go(page, '#/build/42/N01-U01');
+    await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await buildNowOf(page, 'N01-U02').click();
+    await until(() => log.submits.length === 1, 'one build submitted');
+    assert.equal('money' in log.submits[0].spec, false, 'a rule naming a missing column does not travel');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a live App with no saved spec shows Build custom and hides Build Now', async () => {
+  const log = newLog();
+  const ui = await openUi('app', { ...STATE, history: [built({ spec_json: null })] }, '', { mount: (app) => mountBuilds(app, log) });
+  const { page } = ui;
+  try {
+    await go(page, '#/build/42/N01-U01');
+    await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    assert.equal(await sibling(page, 'N01-U02').getByRole('button', { name: 'Build Now', exact: true }).count(), 0);
+    assert.equal(await sibling(page, 'N01-U02').getByRole('button', { name: 'Build custom', exact: true }).count(), 1);
+    assert.equal(log.submits.length, 0);
   } finally {
     await ui.close();
   }
