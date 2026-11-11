@@ -350,7 +350,7 @@ test('a kinds demo plan takes Accept, Override with a reason, refuses an Overrid
     const line = (key) => plan().locator(`tr[data-plan-row="${key}"]`);
     const takeAll = () => plan().locator('[data-take-all]');
     assert.equal((await takeAll().innerText()).trim(), `Take all ${keys.length} ★ suggestions`);
-    const counter = () => frame.locator('[data-todo-count]');
+    const counter = () => plan().locator('[data-todo-count]');
     const total = Number((await counter().innerText()).match(/of (\d+) waiting/)[1]);
     assert.equal(total, keys.length, 'the counter counts the plan lines');
     const waits = (n) => until(async () => (await counter().innerText()).trim() === `${n} of ${total} waiting for you`, `${n} of ${total} waiting`);

@@ -239,7 +239,7 @@ try {
   for (const [i, u] of USE_CASES.entries()) {
     const server = await serveMvp(u, infos[i], shell);
     servers.push(server);
-    await recordMvpApp(context, { url: `${server.url}/`, exchanges: mvpExchanges[u.no], blocked, log: (line) => log(`${u.no} ${line.replace(server.url, u.app)}`) });
+    await recordMvpApp(context, { url: `${server.url}/`, exchanges: mvpExchanges[u.no], blocked, periods: true, log: (line) => log(`${u.no} ${line.replace(server.url, u.app)}`) });
     mvpExchanges[u.no].push(...scenarioAnswers(u, infos[i], server.url));
   }
 
