@@ -174,3 +174,166 @@ def _loader_for_evidence():
     graph = {("main", "s", "orders"): [("main", "s", "orders", "customer_id", "main", "s", "customers", "customer_id")]}
     return types.SimpleNamespace(foreign_key_graph=graph, _column_tags={}, _lkey=lambda c, s, t: (c.lower(), s.lower(), t.lower()),
                                  metadata_unavailable_report=lambda: {"count": 0, "tables": []})
+
+
+def test_the_scope_reaches_every_prompt_as_a_directive_that_each_statement_must_honour(scoped):
+    obj = make_inspire(scoped, spark=FakeSpark(responder=_deep_responder), discovery_type="Standard", data_loader=_loader_for_evidence())
+    block = obj._get_generation_instruction_for_prompt("USE_CASE_GENERATION_PROMPT")
+    assert "- TABLE SCOPE of `main.s.orders`: Inspire reads only the columns `order_id`, `customer_id`, `order_date`, and only the rows where " in block
+    assert "`status` = gold" in block, block
+    assert "MUST say in its statement that it covers only that scope" in block
+
+
+def test_the_scope_is_saved_on_the_session_row_so_a_generate_run_keeps_it(scoped):
+    writer = object.__new__(scoped["AtomicWriter"])
+    writer.widget_values = {"table_scope": SCOPE_JSON}
+    assert writer._widget_to_columns_map()["table_scope"] == SCOPE_JSON
+    writer.widget_values = {}
+    assert writer._widget_to_columns_map()["table_scope"] == ""
+    import _agentload
+    text = _agentload.agent_source(_agentload.agent_notebook_path())
+    assert "generation_instructions_section STRING,\n            table_scope STRING\n        ) USING DELTA" in text, "the session table is created with the column"
+    assert '            ("table_scope", "STRING"),' in text, "a session table made before this version gets the column"
+
+
+class _ScopeFrame:
+    def __init__(self, columns, calls):
+        self.columns, self.calls = columns, calls
+
+    def where(self, condition):
+        self.calls.append(("where", condition))
+        return self
+
+    def select(self, *columns):
+        self.calls.append(("select", columns))
+        return self
+
+
+class _ScopeSession:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def table(self, name):
+        self.calls.append(("table", name))
+        return _ScopeFrame(["order_id", "customer_id", "order_date", "status", "amount"], self.calls)
+
+
+def test_the_mvp_source_read_applies_the_scope_before_anything_else_and_selects_only_the_columns(scoped):
+    calls = []
+    read = scoped["inspire_read_source"]
+    read("main.s.orders", _ScopeSession(calls))
+    assert calls == [("table", "`main`.`s`.`orders`"), ("where", "`status` = 'gold'"),
+                     ("select", ("`order_id`", "`customer_id`", "`order_date`"))], calls
+
+
+def test_the_mvp_training_read_is_scoped_too(scoped):
+    calls = []
+    scoped["inspire_read_source"]("main.s.orders", _ScopeSession(calls), scoped["INSPIRE_READ_PURPOSES"][1])
+    assert ("where", "`status` = 'gold'") in calls and ("select", ("`order_id`", "`customer_id`", "`order_date`")) in calls, calls
+
+
+def test_a_table_without_a_scope_is_read_whole_by_the_mvp_helper(agent_ns):
+    agent_ns["TABLE_SCOPES"].clear()
+    calls = []
+    agent_ns["inspire_read_source"]("main.s.customers", _ScopeSession(calls))
+    assert calls == [("table", "`main`.`s`.`customers`")], calls
+
+
+def test_the_run_log_and_the_run_tables_report_a_columns_only_scope_as_scoped(scoped):
+    scoped["TABLE_SCOPES"].clear()
+    scoped["TABLE_SCOPES"].update(scoped["parse_table_scopes"](json.dumps({"main.s.orders": {"columns": ["order_id"], "rows": []}})))
+    log = {}
+    ns_log = scoped.get("INSPIRE_RUN_LOG")
+    scoped["INSPIRE_RUN_LOG"] = log
+    try:
+        scoped["inspire_read_source"]("main.s.orders", _ScopeSession([]))
+    finally:
+        scoped["INSPIRE_RUN_LOG"] = ns_log
+    assert log["reads"]["main.s.orders"] == {"where": "", "limit": None, "columns": ["order_id"]}
+
+
+def test_a_generated_mvp_cell_that_reads_a_scoped_table_without_the_helper_is_refused(scoped):
+    refused = scoped["implement_source_read_problems"]([("cell 1", "df = spark.table('main.s.orders')\n")], ["main.s.orders"])
+    assert refused, "a direct read of a scoped table skips the Table Scope and must be refused"
+    assert scoped["implement_source_read_problems"]([("cell 1", "df = inspire_read_source('main.s.orders')\n")], ["main.s.orders"]) == []
+
+
+class _RecordingSpark:
+    def __init__(self):
+        self.statements = []
+
+    def sql(self, statement):
+        self.statements.append(" ".join(str(statement).split()))
+
+
+VIEW_SQL = ("CREATE OR REPLACE VIEW `main`.`insp`.`main_s_orders__scope` AS SELECT `order_id`, `customer_id`, `order_date` "
+            "FROM `main`.`s`.`orders` WHERE `status` = 'gold'")
+
+
+@pytest.fixture
+def viewed(agent_ns):
+    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["SCOPE_BYPASSES"].clear()
+    agent_ns["TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](SCOPE_JSON, "main.insp"))
+    yield agent_ns
+    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["SCOPE_BYPASSES"].clear()
+
+
+def test_one_scope_definition_builds_the_view_and_the_source_reads_the_view_once_it_exists(viewed):
+    scope = viewed["TABLE_SCOPES"]["main.s.orders"]
+    assert scope["view_sql"] == VIEW_SQL, scope["view_sql"]
+    assert viewed["scoped_source"]("main", "s", "orders") == SCOPED_ORDERS, "before the view exists, reads use the scoped subquery"
+    spark = _RecordingSpark()
+    assert viewed["create_scope_views"](spark) == ["main.insp.main_s_orders__scope"]
+    assert spark.statements == [VIEW_SQL]
+    assert viewed["scoped_source"]("main", "s", "orders") == "`main`.`insp`.`main_s_orders__scope`"
+    assert viewed["create_scope_views"](spark) == ["main.insp.main_s_orders__scope"] and len(spark.statements) == 1, "created once"
+
+
+def test_the_genie_space_reads_the_view_and_a_base_table_is_refused(viewed):
+    spark = _RecordingSpark()
+    space = {"data_sources": {"tables": [{"identifier": "main.s.orders"}, {"identifier": "main.insp.other"}]}}
+    rewritten = viewed["scope_genie_space"](space, spark)
+    assert [t["identifier"] for t in rewritten["data_sources"]["tables"]] == ["main.insp.main_s_orders__scope", "main.insp.other"]
+    with pytest.raises(viewed["ScopeBypassError"], match="the Genie space names main.s.orders"):
+        viewed["assert_scope_sources"](["main.s.orders"], "the Genie space")
+    unscoped = {"data_sources": {"tables": [{"identifier": "main.insp.other"}]}}
+    assert viewed["scope_genie_space"](unscoped, spark) is unscoped and len(spark.statements) == 1
+
+
+def test_a_view_is_never_created_without_a_database_and_the_gate_still_refuses_the_base_table(agent_ns):
+    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](SCOPE_JSON))
+    try:
+        with pytest.raises(agent_ns["ScopeBypassError"]):
+            agent_ns["scope_genie_space"]({"data_sources": {"tables": [{"identifier": "main.s.orders"}]}}, _RecordingSpark())
+    finally:
+        agent_ns["TABLE_SCOPES"].clear()
+        agent_ns["SCOPE_BYPASSES"].clear()
+
+
+def test_the_metadata_drops_unselected_columns_and_the_foreign_keys_on_them(agent_ns):
+    agent_ns["TABLE_SCOPES"].clear()
+    agent_ns["TABLE_SCOPES"].update(agent_ns["parse_table_scopes"](json.dumps({"main.s.orders": {"columns": ["order_id", "customer_id"], "rows": []}})))
+    try:
+        loader = _details_loader(agent_ns, ORDER_COLUMNS)
+        loader.foreign_key_graph = defaultdict(list, {("main", "s", "orders"): [
+            ("main", "s", "orders", "customer_id", "main", "s", "customers", "customer_id"),
+            ("main", "s", "orders", "status", "main", "s", "statuses", "code"),
+        ]})
+        loader._prune_scoped_metadata()
+        assert [c["name"] for c in loader._table_columns[("main", "s", "orders")]] == ["order_id", "customer_id"]
+        assert [r[3] for r in loader.foreign_key_graph[("main", "s", "orders")]] == ["customer_id"], "a key on an unselected column is gone"
+    finally:
+        agent_ns["TABLE_SCOPES"].clear()
+
+
+def test_every_use_case_on_a_scoped_table_states_the_scope_and_the_check_is_idempotent(viewed):
+    use_cases = [{"Primary Table": "main.s.orders", "Statement": "Find late orders."},
+                 {"Primary Table": "main.s.customers", "Statement": "Count customers."}]
+    assert viewed["ensure_scope_statements"](use_cases) == ["main.s.orders"]
+    sentence = "Covers only the columns `order_id`, `customer_id`, `order_date` and the rows where `status` = gold of main.s.orders."
+    assert use_cases[0]["Statement"] == "Find late orders. " + sentence
+    assert use_cases[1]["Statement"] == "Count customers.", "a table with no scope is untouched"
+    assert viewed["ensure_scope_statements"](use_cases) == [], "a statement that already states the scope is not changed again"

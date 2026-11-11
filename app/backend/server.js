@@ -635,8 +635,9 @@ async function fetchInspireSessionWidgetRow(host, token, warehouseId, catalog, s
   const widgetColsBase = `business_name, inspire_database_name, operation_mode, table_election_mode, use_cases_quality, strategic_goals, business_priorities, business_domains, catalogs, schemas_str, tables_str, generate_choices, generation_path, output_language, sql_generation_per_domain, technical_exclusion_strategy, json_file_path`;
   const widgetColsV08 = `${widgetColsBase}, enriched_business_context, enriched_strategic_goals, enriched_business_priorities, enriched_strategic_initiative, enriched_value_chain, enriched_revenue_model, generation_instructions_section`;
   const widgetColsV13 = `${widgetColsV08}, discovery_type, strategic_context`;
+  const widgetColsV14 = `${widgetColsV13}, table_scope`;
   const baseCols = `session_id, processing_status, completed_percent, create_at, last_updated, completed_on, inspire_json, results_json`;
-  const columnSets = [widgetColsV13, widgetColsV08, widgetColsBase];
+  const columnSets = [widgetColsV14, widgetColsV13, widgetColsV08, widgetColsBase];
   for (let i = 0; i < columnSets.length; i++) {
     const sql = `SELECT ${baseCols}, ${columnSets[i]} FROM ${table} WHERE session_id = ${sessionIdStr} LIMIT 1`;
     try {
@@ -645,7 +646,7 @@ async function fetchInspireSessionWidgetRow(host, token, warehouseId, catalog, s
       return rows[0] || null;
     } catch (e1) {
       const msg = String(e1.message || e1);
-      const missingColumn = /discovery_type|strategic_context|enriched_|generation_instructions_section|UNRESOLVED_COLUMN|FIELD_NOT_FOUND|cannot resolve/i.test(msg);
+      const missingColumn = /discovery_type|strategic_context|table_scope|enriched_|generation_instructions_section|UNRESOLVED_COLUMN|FIELD_NOT_FOUND|cannot resolve/i.test(msg);
       if (!missingColumn || i === columnSets.length - 1) throw e1;
     }
   }
@@ -2339,19 +2340,20 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
     const widgetColsBase = `business_name, inspire_database_name, operation_mode, table_election_mode, use_cases_quality, strategic_goals, business_priorities, business_domains, catalogs, schemas_str, tables_str, generate_choices, generation_path, output_language, sql_generation_per_domain, technical_exclusion_strategy, json_file_path`;
     const widgetColsV08 = `${widgetColsBase}, enriched_business_context, enriched_strategic_goals, enriched_business_priorities, enriched_strategic_initiative, enriched_value_chain, enriched_revenue_model, generation_instructions_section`;
     const widgetColsV13 = `${widgetColsV08}, discovery_type, strategic_context`;
+    const widgetColsV14 = `${widgetColsV13}, table_scope`;
     const baseCols = `session_id, processing_status, completed_percent, create_at, last_updated, completed_on, inspire_json, results_json`;
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
     const where = session_id ? `WHERE session_id = ${String(session_id).trim()} LIMIT 1` : 'ORDER BY create_at DESC LIMIT 1';
 
     let result;
-    const columnSets = [widgetColsV13, widgetColsV08, widgetColsBase];
+    const columnSets = [widgetColsV14, widgetColsV13, widgetColsV08, widgetColsBase];
     for (let i = 0; i < columnSets.length; i++) {
       try {
         result = await executeSql(req.dbHost, req.dbToken, warehouse_id, `SELECT ${baseCols}, ${columnSets[i]} FROM ${table} ${where}`);
         break;
       } catch (e1) {
         const msg = String(e1.message || e1);
-        const missingColumn = /discovery_type|strategic_context|enriched_|generation_instructions_section|UNRESOLVED_COLUMN|FIELD_NOT_FOUND|cannot resolve/i.test(msg);
+        const missingColumn = /discovery_type|strategic_context|table_scope|enriched_|generation_instructions_section|UNRESOLVED_COLUMN|FIELD_NOT_FOUND|cannot resolve/i.test(msg);
         if (!missingColumn || i === columnSets.length - 1) throw e1;
       }
     }
