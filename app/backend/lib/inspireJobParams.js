@@ -175,12 +175,12 @@ function tableIsPicked(table, metadata) {
 }
 
 function normalizeGenerationOptionsParams(params) {
-  const allowed = new Set(['PDF Catalog', 'Presentation']);
+  const allowed = new Set(['PDF Catalog', 'Presentation', 'Excel']);
   const normalized = String(params['09_generation_options'] || '')
     .split(',')
     .map((value) => value.trim())
     .filter((value) => allowed.has(value));
-  params['09_generation_options'] = [...new Set(normalized)].join(',') || 'PDF Catalog';
+  params['09_generation_options'] = [...new Set(normalized)].join(',');
   return params;
 }
 

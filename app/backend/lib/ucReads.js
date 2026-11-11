@@ -4,6 +4,7 @@ const P = require('./requestPerson');
 const RP = require('./routePolicy');
 const { DEFAULT_GENERATION_PATH } = require('./inspireJobParams');
 const { fsApiPath } = require('./workspacePaths');
+const { redactSecrets } = require('./redact');
 
 const RUN_NO_SIGN_IN = "Inspire needs your sign-in to check what you can read. Reload the App and try again.";
 const UNREADABLE_SHOWN = 10;
@@ -492,6 +493,9 @@ async function ownFolderShareable(dbFetch, req, folder, appId) {
   return { ok: false, scope: scopeMissing(acl), details: [answered(`GET /api/2.0/permissions/directories/${id}`, acl), grantLine(appId, at === folder ? id : '<folder id>')] };
 }
 
+const grantAnswer = (folder, got) => console.log(`output write check: the App's grant on ${folder} answered HTTP ${got.status}`
+  + (got.ok ? '' : `: ${redactSecrets(String(got.data.message || got.data.error || got.data.raw || '')).slice(0, 300)}`));
+
 async function shareOwnFolder(dbFetch, req, folder, appId) {
   const grant = (id) => grantLine(appId, id);
   const { call, refusal } = ownFolderCall(dbFetch, req, folder, appId);
@@ -503,6 +507,7 @@ async function shareOwnFolder(dbFetch, req, folder, appId) {
   const id = directoryId(got);
   if (!id) return failed(got, [got.ok ? `${folder} is not a folder` : answered(`GET /api/2.0/workspace/get-status ${folder}`, got), grant('<folder id>')]);
   const shared = await call(`/api/2.0/permissions/directories/${encodeURIComponent(id)}`, json('PATCH', appGrant(appId)));
+  grantAnswer(folder, shared);
   if (!shared.ok) return failed(shared, [answered(grant(id), shared)]);
   return { ok: true, scope: false, details: [grant(id)] };
 }
@@ -562,9 +567,16 @@ async function outputPlan(dbFetch, req, writes, { manager = false, appToken = ''
   const { plan: own, details, scope } = await ownFolderPlan(dbFetch, req, home, { manager, appToken, appId });
   if (folderScore(own) === 2 || own.refused?.status === 401) return savedIn(own);
   const shared = await folderPlan(dbFetch, req, folders[0], { manager, appToken });
-  if (shared.refused) return own.refused ? planVerdict(shared) : savedIn(own, [], details);
-  if (folderScore(shared) <= folderScore(own)) return savedIn(own, [], details);
+  if (shared.refused) return own.refused ? planVerdict(shared) : unrunnableOwn(home, scope, details);
+  if (folderScore(shared) <= folderScore(own)) return unrunnableOwn(home, scope, details);
   return savedIn(shared, [sharedFallbackText(home, shared.folder, scope)], own.refused ? [own.refused.message] : details);
+}
+
+function unrunnableOwn(home, scope, details) {
+  const why = scope ? SCOPE_REASON : '';
+  const message = `Inspire cannot save to your own folder ${home}${why}, and the App cannot write there yet, so Inspire will not start a run that saves no files there: `
+    + `ask an App manager to give the App CAN MANAGE on ${home}, then launch again.`;
+  return { refused: { status: 403, message, unwritable: [home] }, folder: home, generationPath: '', warnings: [], details };
 }
 
 function writeRefusalBody(key, refused) {

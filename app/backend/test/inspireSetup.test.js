@@ -71,10 +71,10 @@ import ast, sys, types
 path = sys.argv[1]
 tree = ast.parse(open(path, encoding="utf-8").read())
 wanted = {"step_grant_permissions", "_catalog_access_for_new_apps", "_lakebase_project_access", "_app_folder_access", "_assets_folder_access",
-          "_workspace_api_path", "_grant_plan", "_scan_label", "_plural", "_privilege_word", "_can_grant", "_below_catalog_sql", "_real_grants",
+          "_workspace_api_path", "_shared_output_folder", "_shared_output_access", "_grant_plan", "_scan_label", "_plural", "_privilege_word", "_can_grant", "_below_catalog_sql", "_real_grants",
           "_new_apps_catalog_decision", "_run_statement", "_statement_rows", "_wait_statement", "_scan_split", "_person_privileges",
           "_grant_refusal", "agent_lakebase"}
-consts = {"LAKEBASE_CONSTANTS", "LAKEBASE_DELTA", "LAKEBASE_POLLS", "LAKEBASE_POLL_S", "ASSETS_PARENT", "SCAN_ALL", "SCAN_NONE_SAID", "SCAN_SKIPPED", "SCAN_GRANTS", "NEW_APPS_ACCOUNT_USERS", "NEW_APPS_OFF",
+consts = {"SHARED_OUTPUT_GENERATION_PATH", "LAKEBASE_CONSTANTS", "LAKEBASE_DELTA", "LAKEBASE_POLLS", "LAKEBASE_POLL_S", "ASSETS_PARENT", "SCAN_ALL", "SCAN_NONE_SAID", "SCAN_SKIPPED", "SCAN_GRANTS", "NEW_APPS_ACCOUNT_USERS", "NEW_APPS_OFF",
           "SYSTEM_SCHEMA", "BELOW_CATALOG_VIEWS", "REAL_GRANTS_SHOWN"}
 module = ast.Module(body=[n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted)
                           or (isinstance(n, ast.Assign) and [t.id for t in n.targets if isinstance(t, ast.Name)][:1] in [[c] for c in consts])],
@@ -119,20 +119,24 @@ def run(catalog_grants, owner="amr@x", show_fails=False, lakebase=(200, ""), lak
             return types.SimpleNamespace(status_code=200, text="", json=lambda: {"name": "projects/inspire-apps"})
         if "/database-projects/" in url:
             return types.SimpleNamespace(status_code=lakebase[0], text=lakebase[1])
+        if "/workspace/get-status" in url and "path=/Shared/demos" in url:
+            return types.SimpleNamespace(status_code=200, text="", json=lambda: {"object_id": 99})
         if "/workspace/get-status" in url:
             return types.SimpleNamespace(status_code=folder[0], text="" if folder[0] == 200 else str(folder[1]),
                                          json=lambda: {"object_id": folder[1]})
+        if url.endswith("/permissions/directories/99"):
+            return types.SimpleNamespace(status_code=200, text="")
         if "/permissions/directories/" in url:
             return types.SimpleNamespace(status_code=folder_grant[0], text=folder_grant[1])
         return types.SimpleNamespace(status_code=200, text="")
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    ns = {"StatementState": StatementState, "time": time, "json": json, "urllib": urllib, "ThreadPoolExecutor": ThreadPoolExecutor, "as_completed": as_completed,
+    ns = {"StatementState": StatementState, "time": time, "json": json, "urllib": urllib, "posixpath": __import__("posixpath"), "ThreadPoolExecutor": ThreadPoolExecutor, "as_completed": as_completed,
           "_catalog_privileges": lambda ctx, catalog: (catalog in grantable, set())}
     load_installer(tree, module.body, ns, path)
     ctx = {"LAKEBASE": LAKEBASE, "NEW_SP_APP_ID": "SP", "APP_NAME": "inspire-ai", "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "available_catalogs": ["main"],
            "USER_EMAIL": "amr@x",
            "w": types.SimpleNamespace(statement_execution=Statements(), catalogs=Catalogs()), "api": api,
-           "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0"}
+           "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
     if scan is not None:
         ctx["SCAN_CATALOGS"] = scan
     out = io.StringIO()
@@ -171,6 +175,8 @@ assert [(m, u) for m, u, b in patched if "/postgres/" in u] == [
     ("GET", f"/api/2.0/postgres/{LAKEBASE['endpoint']}"), ("POST", f"/api/2.0/postgres/catalogs?catalog_id={LAKEBASE['catalog']}")], patched
 assert "Databricks refused to create the catalog \x60inspire_lakebase\x60 on the Lakebase project inspire-apps for you" in said, said
 patched = [p for p in patched if "/postgres/" not in p[1]]
+shared_calls = [p for p in patched if "/Shared/demos" in p[1] or p[1] == "/api/2.0/permissions/directories/99" or p[1] == "/api/2.0/workspace/mkdirs" and p[2] == {"path": "/Shared/demos"}]
+patched = [p for p in patched if p not in shared_calls]
 assert patched == [("PATCH", "/api/2.0/permissions/sql/warehouses/wh", manage),
                    ("PATCH", "/api/2.0/permissions/database-projects/inspire-apps", manage),
                    ("GET", "/api/2.0/workspace/get-status?path=/Shared/inspire-ai", None),
@@ -178,11 +184,14 @@ assert patched == [("PATCH", "/api/2.0/permissions/sql/warehouses/wh", manage),
                    ("GET", "/api/2.0/workspace/get-status?path=/Shared/inspire-ai/assets", None),
                    ("PATCH", "/api/2.0/permissions/directories/77", {"access_control_list": [
                        {"service_principal_name": "SP", "permission_level": "CAN_READ"}, {"group_name": "users", "permission_level": "CAN_READ"}]})], patched
+assert shared_calls == [("POST", "/api/2.0/workspace/mkdirs", {"path": "/Shared/demos"}),
+                        ("GET", "/api/2.0/workspace/get-status?path=/Shared/demos", None),
+                        ("PATCH", "/api/2.0/permissions/directories/99", manage)], shared_calls
 assert not [p for p in patched if "/permissions/apps/" in p[1]], patched
 assert "CAN_READ on /Shared/inspire-ai/assets for SP and the users group, so every run reads the Inspire assets: ✅" in said, said
 assert "CAN_MANAGE on /Shared/inspire-ai, so Implement can save every MVP there: ✅" in said, said
 missing = run([], folder=(404, '{"error_code":"RESOURCE_DOES_NOT_EXIST"}'))
-assert not [p for p in missing[1] if "/permissions/directories/" in p[1]], missing[1]
+assert not [p for p in missing[1] if "/permissions/directories/" in p[1] and not p[1].endswith("/directories/99")], missing[1]
 assert ("⚠️ Could not find /Shared/inspire-ai ({\"error_code\":\"RESOURCE_DOES_NOT_EXIST\"}), so SP may not be able to save MVPs there. "
         "A workspace admin can give SP Can Manage on that folder") in missing[2], missing[2]
 refused = run([], folder_grant=(403, '{"error_code":"PERMISSION_DENIED"}'))[2]
@@ -297,7 +306,7 @@ const DEPLOY_PROBE = String.raw`${INSTALLER_LOADER}
 import ast, os, sys, types
 path = sys.argv[1]
 tree = ast.parse(open(path, encoding="utf-8").read())
-wanted = {"step_deploy_and_find_sp", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
+wanted = {"step_create_app_and_find_sp", "step_deploy_source", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
           "_is_own_service_principal", "_create_app", "_apply_user_scopes", "_scope_refused", "_merged_scopes", "_plural", "_app_url", "_noted_app_url"}
 consts = {"INSPIRE_APP_OWN_SCOPES", "USER_SCOPES_REFUSED"}
 module = ast.Module(body=[n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted)
@@ -330,7 +339,8 @@ def run(list_apps):
            "NOTEBOOK_PATH": "/Shared/inspire-ai-implement/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-implement-sp",
            "APP_NAME": "inspire-ai-implement", "CATALOG": "main", "BUNDLE_ROOT": "/Workspace/Users/me/InspireAI", "w": w,
            "RELEASE_VERSION": "v1.3.0"}
-    ns["step_deploy_and_find_sp"](ctx)
+    ns["step_create_app_and_find_sp"](ctx)
+    ns["step_deploy_source"](ctx)
     assert ctx["NEW_SP_APP_ID"] == "SPNEW" and ctx["app_url"] == "https://app", ctx
     return deleted
 apps = {"apps": [{"name": "inspire-ai-v130", "active_deployment": {"source_code_path": "/Workspace/Users/me/InspireAI/bundle_old"}},
@@ -396,7 +406,7 @@ const START_PROBE = String.raw`${INSTALLER_LOADER}
 import ast, os, sys, types
 path = sys.argv[1]
 tree = ast.parse(open(path, encoding="utf-8").read())
-wanted = {"step_deploy_and_find_sp", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
+wanted = {"step_create_app_and_find_sp", "step_deploy_source", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
           "_is_own_service_principal", "_create_app", "_apply_user_scopes", "_scope_refused", "_merged_scopes", "_plural", "_app_url", "_noted_app_url"}
 consts = {"INSPIRE_APP_OWN_SCOPES", "USER_SCOPES_REFUSED"}
 module = ast.Module(body=[n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted)
@@ -433,7 +443,8 @@ def run(first_state):
            "NOTEBOOK_PATH": "/Shared/inspire-ai-implement/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-implement-sp",
            "APP_NAME": "inspire-ai-implement", "CATALOG": "main", "BUNDLE_ROOT": "/Workspace/Users/me/InspireAI", "w": w,
            "RELEASE_VERSION": "v1.3.0"}
-    ns["step_deploy_and_find_sp"](ctx)
+    ns["step_create_app_and_find_sp"](ctx)
+    ns["step_deploy_source"](ctx)
     assert ctx["NEW_SP_APP_ID"] == "SPKEPT", ctx
     return started
 assert run("STOPPED") == ["POST"]
@@ -453,7 +464,7 @@ class HTTPError(Exception):
 def failing_context(env):
     raise RuntimeError("Deploy FAILED: app did not start")
 steps = {name: (lambda ctx, n=name: ran.append(n)) for name in ("step_preflight", "step_bundle", "step_assets", "step_cleanup", "step_schema_and_notebooks",
-                                                                  "step_deploy_and_find_sp", "step_grant_permissions", "step_render_done")}
+                                                                  "step_create_app_and_find_sp", "step_grant_permissions", "step_deploy_source", "step_render_done")}
 ns = dict(steps, build_runtime_context=failing_context, show_warning_banner=lambda title, detail: shown.append((title, detail)),
           requests=types.SimpleNamespace(exceptions=types.SimpleNamespace(HTTPError=HTTPError)))
 load_installer(tree, entry, ns, path)
@@ -616,7 +627,7 @@ const INSPIRE_SCOPES_PROBE = String.raw`${INSTALLER_LOADER}
 import ast, json, os, sys, types
 path, notebook = sys.argv[1], sys.argv[2]
 tree = ast.parse(open(path, encoding="utf-8").read())
-wanted = {"step_deploy_and_find_sp", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
+wanted = {"step_create_app_and_find_sp", "step_deploy_source", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
           "_is_own_service_principal", "_create_app", "_apply_user_scopes", "_scope_refused", "_merged_scopes", "app_user_scopes", "_plural", "_app_url", "_noted_app_url",
           "_update_app", "_apply_description", "app_description"}
 consts = {"INSPIRE_APP_OWN_SCOPES", "USER_SCOPES_REFUSED", "USER_SCOPE_CONSTANTS", "APP_DESCRIPTION_NOT_UPDATED"}
@@ -649,7 +660,8 @@ def deploy(create, held=None, notebook_scopes=None, described=""):
     ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/b", "INSPIRE_DB": "main._inspire", "WAREHOUSE_ID": "wh",
            "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai", "CATALOG": "main",
            "APP_USER_SCOPES": notebook_scopes or [], "w": types.SimpleNamespace(), "RELEASE_VERSION": "v1.3.0"}
-    ns["step_deploy_and_find_sp"](ctx)
+    ns["step_create_app_and_find_sp"](ctx)
+    ns["step_deploy_source"](ctx)
     return {"apps": [c for c in calls if c[1] in ("/api/2.0/apps", "/api/2.0/apps/inspire-ai/update")], "note": ctx.get("USER_SCOPES_NOTE", "")}
 built = ns["app_user_scopes"](open(notebook, encoding="utf-8").read())
 out = {"inspire": list(ns["INSPIRE_APP_OWN_SCOPES"]), "built": built}

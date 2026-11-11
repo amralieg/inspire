@@ -32,9 +32,9 @@ function notebookParamsFromSessionForGenerateRun(session, targetSessionIdStr) {
     ? genChoices
         .split(',')
         .map((x) => x.trim())
-        .filter((g) => g === 'PDF Catalog' || g === 'Presentation')
+        .filter((g) => g === 'PDF Catalog' || g === 'Presentation' || g === 'Excel')
         .join(',')
-    : 'PDF Catalog';
+    : '';
   const outLang = String(session.output_language || 'English').trim() || 'English';
   const priorities = String(session.business_priorities || 'Increase Revenue').trim() || 'Increase Revenue';
   const instruct = String(session.generation_instructions_section || '').trim();
@@ -53,7 +53,7 @@ function notebookParamsFromSessionForGenerateRun(session, targetSessionIdStr) {
     '06_business_domains': String(session.business_domains || '').trim(),
     '07_business_priorities': priorities,
     '08_generation_instructions': instruct,
-    '09_generation_options': genOptions || 'PDF Catalog',
+    '09_generation_options': genOptions,
     '10_strategic_context': String(session.strategic_context || '').trim(),
     '11_generation_path': genPath,
     '12_documents_languages': outLang,

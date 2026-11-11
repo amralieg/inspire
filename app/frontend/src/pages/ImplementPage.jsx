@@ -1339,6 +1339,10 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const grantedAll = !readOnly && !reads && readsResult?.version === latest?.spec_version && readsResult?.action === 'grant'
     && !readsResult?.refused && !readsResult?.error;
   const readsLeft = reads || (grantedAll ? { tables: [], canGrant: false } : null);
+  const refreshSourceNow = async () => {
+    const fresh = await apiFetch(`/api/inspire/implement/context?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`);
+    setSourceNow(liveSourceNow(fresh));
+  };
   const runReads = async (action) => {
     setReadsBusy(action);
     try {
@@ -1347,12 +1351,12 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables });
         const failed = [...(got.failed || []), ...(got.abac_gaps || []).flatMap((g) => g.grants.map((sql) => `${sql}: not yours to grant`))];
         setReadsResult({ text: abacGrantText(got), failed, refused: failed.length > 0, version: latest?.spec_version, action });
-        const fresh = await apiFetch(`/api/inspire/implement/context?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`);
-        setSourceNow(liveSourceNow(fresh));
+        await refreshSourceNow();
         return;
       }
       const got = await apiPostJson(`/api/inspire/implement/app-reads?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, { action });
       setReadsResult({ ...got, version: latest?.spec_version, action });
+      if (action === 'check' || action === 'grant') await refreshSourceNow();
     } catch (e) {
       setReadsResult({ error: e.message, version: latest?.spec_version, action });
     } finally {

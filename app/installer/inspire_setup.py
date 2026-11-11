@@ -1,4 +1,4 @@
-import base64, difflib, hashlib, json, os, re, requests, shutil, tarfile, tempfile, time, urllib.parse, zipfile
+import base64, difflib, hashlib, json, os, posixpath, re, requests, shutil, tarfile, tempfile, time, urllib.parse, zipfile
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from databricks.sdk import WorkspaceClient
 from databricks.sdk.service.sql import StatementState
@@ -967,7 +967,7 @@ def _deploy_once(api, api_get, app_name, source_folder, app_url):
     raise RuntimeError(f"The App {app_name} was still deploying after 5 minutes. Check Compute → Apps → {app_name}, then run the installer again.")
 
 
-def step_deploy_and_find_sp(ctx):
+def step_create_app_and_find_sp(ctx):
     api = ctx["api"]
     api_get = ctx["api_get"]
     source_folder = ctx["SOURCE_FOLDER"]
@@ -1041,36 +1041,6 @@ def step_deploy_and_find_sp(ctx):
             f"Start it manually: Compute → Apps → {app_name} → Start, then re-run."
         )
 
-    unread = unasked = None
-    for attempt in range(1, APP_DEPLOY_TRIES + 1):
-        _put_app_yaml(api, app_yaml_path, wanted_yaml)
-        deploy_id, app_url = _deploy_once(api, api_get, app_name, source_folder, app_url)
-        problem, unread = _deployed_settings_problem(api, api_get, app_name, deploy_id, wanted_yaml)
-        if not problem:
-            problem, unasked = _app_defaults_problem(ctx, app_url)
-        if not problem:
-            break
-        if attempt == APP_DEPLOY_TRIES:
-            raise RuntimeError(f"Deployed {APP_DEPLOY_TRIES} times, and each time {problem}. Run the installer again; if it fails the same "
-                               f"way, check that you can manage the App {app_name}.")
-        print(f"  ⚠️ Deploy {attempt} of {APP_DEPLOY_TRIES}: {problem}. Deploying again.")
-        time.sleep(10)
-
-    print("Deployed ✅")
-    if not unasked:
-        print("App settings: ✅ the App reports its warehouse and database, so it opens past the setup wizard")
-    elif not unread:
-        print("App settings: ✅ the deployed app.yaml holds the warehouse and database")
-    else:
-        print(f"  ⚠️ Could not confirm the App's settings: {unread}, and {unasked}. Open the App: if it asks for a workspace "
-              f"connection, run the installer again.")
-    if ctx.get("BUNDLE_ROOT"):
-        try:
-            in_use = _app_source_paths(api_get)
-        except Exception as exc:
-            print(f"  ⚠️ Could not list apps ({_error_words(exc)}); no older bundle is removed")
-            in_use = None
-        _remove_old_bundles(ctx["w"], ctx["BUNDLE_ROOT"], source_folder, in_use)
     print("\nFinding new service principal...")
     time.sleep(5)
 
@@ -1123,6 +1093,50 @@ def step_deploy_and_find_sp(ctx):
 
     ctx["app_url"] = app_url
     ctx["NEW_SP_APP_ID"] = new_sp_app_id
+    ctx["APP_YAML_PATH"] = app_yaml_path
+    ctx["WANTED_YAML"] = wanted_yaml
+
+
+def step_deploy_source(ctx):
+    api = ctx["api"]
+    api_get = ctx["api_get"]
+    source_folder = ctx["SOURCE_FOLDER"]
+    app_name = ctx["APP_NAME"]
+    app_yaml_path = ctx["APP_YAML_PATH"]
+    wanted_yaml = ctx["WANTED_YAML"]
+    app_url = ctx.get("app_url", "")
+
+    unread = unasked = None
+    for attempt in range(1, APP_DEPLOY_TRIES + 1):
+        _put_app_yaml(api, app_yaml_path, wanted_yaml)
+        deploy_id, app_url = _deploy_once(api, api_get, app_name, source_folder, app_url)
+        problem, unread = _deployed_settings_problem(api, api_get, app_name, deploy_id, wanted_yaml)
+        if not problem:
+            problem, unasked = _app_defaults_problem(ctx, app_url)
+        if not problem:
+            break
+        if attempt == APP_DEPLOY_TRIES:
+            raise RuntimeError(f"Deployed {APP_DEPLOY_TRIES} times, and each time {problem}. Run the installer again; if it fails the same "
+                               f"way, check that you can manage the App {app_name}.")
+        print(f"  ⚠️ Deploy {attempt} of {APP_DEPLOY_TRIES}: {problem}. Deploying again.")
+        time.sleep(10)
+
+    print("Deployed ✅")
+    if not unasked:
+        print("App settings: ✅ the App reports its warehouse and database, so it opens past the setup wizard")
+    elif not unread:
+        print("App settings: ✅ the deployed app.yaml holds the warehouse and database")
+    else:
+        print(f"  ⚠️ Could not confirm the App's settings: {unread}, and {unasked}. Open the App: if it asks for a workspace "
+              f"connection, run the installer again.")
+    if ctx.get("BUNDLE_ROOT"):
+        try:
+            in_use = _app_source_paths(api_get)
+        except Exception as exc:
+            print(f"  ⚠️ Could not list apps ({_error_words(exc)}); no older bundle is removed")
+            in_use = None
+        _remove_old_bundles(ctx["w"], ctx["BUNDLE_ROOT"], source_folder, in_use)
+    ctx["app_url"] = app_url
 
 
 def _new_apps_setting(value):
@@ -1367,6 +1381,35 @@ def _app_folder_access(api, app_name, sp):
             f"A workspace admin can give {sp} Can Manage on that folder")
 
 
+SHARED_OUTPUT_GENERATION_PATH = "./../demos/"  # the App's default Generation Path, resolved from the notebook folder
+
+
+def _shared_output_folder(notebook_path):
+    return posixpath.normpath(posixpath.join(posixpath.dirname(notebook_path), SHARED_OUTPUT_GENERATION_PATH))
+
+
+def _shared_output_access(api, notebook_path, sp):
+    folder = _shared_output_folder(notebook_path)
+    made = api("POST", "/api/2.0/workspace/mkdirs", {"path": folder})
+    if made.status_code != 200:
+        return False, (f"{folder} could not be created ({made.text[:160]}), so a run has no folder the App can always write. "
+                       f"A workspace admin can create it and give {sp} Can Manage on it")
+    found = api("GET", f"/api/2.0/workspace/get-status?path={folder}")
+    object_id = found.json().get("object_id") if found.status_code == 200 else None
+    if not object_id:
+        return False, (f"Could not find {folder} ({found.text[:160]}), so a run has no folder the App can always write. "
+                       f"A workspace admin can give {sp} Can Manage on it")
+    resp = api(
+        "PATCH",
+        f"/api/2.0/permissions/directories/{object_id}",
+        {"access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_MANAGE"}]},
+    )
+    if resp.status_code == 200:
+        return True, f"CAN_MANAGE on {folder} for {sp}, the folder a run falls back to when a person's own folder cannot take the App: ✅"
+    return False, (f"{sp} cannot write {folder} ({resp.text[:160]}), so a run has no folder the App can always write. "
+                   f"A workspace admin can give {sp} Can Manage on it")
+
+
 def _scan_label(scan, catalog):
     if scan == SCAN_ALL:
         return "all: every catalog you can see and grant on"
@@ -1495,6 +1538,20 @@ def _grant_plan(sp, catalog, schema, visible, lakebase_catalog=""):
     return plan + _value_ledger_grants(sp, catalog, schema)
 
 
+READ_PRIVILEGES = ("USE_CATALOG", "BROWSE", "USE_SCHEMA", "SELECT", "READ_VOLUME")
+
+
+def _blocking_read_grants(failed, scan_failed):
+    """The failed grants a new App needs to read its data (REQ-039): every GRANT that carries a read privilege, plus every failed catalog scan grant."""
+    blocking = {}
+    for sql, error in failed.items():
+        privileges = sql[len("GRANT "):sql.index(" ON ")].replace(" ", "_").split(", ")
+        if any(privilege in READ_PRIVILEGES for privilege in privileges):
+            blocking[sql] = error
+    blocking.update(scan_failed)
+    return blocking
+
+
 def step_grant_permissions(ctx):
     new_sp_app_id = ctx.get("NEW_SP_APP_ID")
     warehouse_id = ctx["WAREHOUSE_ID"]
@@ -1564,7 +1621,19 @@ def step_grant_permissions(ctx):
                                    f"Apps that Implement builds read Lakebase: project {lakebase['project']}, catalog `{lakebase['catalog']}` ✅")
         print(f"  {_app_folder_access(api, ctx['APP_NAME'], sp)}")
         print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp)}")
-        _grant_scan_catalogs(ctx, sp, visible)
+        shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
+        print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
+        scan_failed = _grant_scan_catalogs(ctx, sp, visible)
+        blocking = _blocking_read_grants(failed, scan_failed)
+        if blocking:
+            shown = "; ".join(f"{sql}: {str(error)[:160]}" for sql, error in list(blocking.items())[:3])
+            more = f" and {len(blocking) - 3} more" if len(blocking) > 3 else ""
+            raise RuntimeError(f"{sp} could not be given read access to {_plural(len(blocking), 'grant')}: {shown}{more}. "
+                               "Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
+                               "A catalog owner can run the grant, then run this installer again.")
+        if not shared_ok:
+            raise RuntimeError(f"{shared_said}. Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
+                               "Then run this installer again.")
     elif not new_sp_app_id:
         print("⚠️ Skipped: SP not found. Grant manually after checking /api/health.")
     elif not warehouse_id:
@@ -1870,8 +1939,8 @@ def run(env):
         ctx = build_runtime_context(env)
         if not ctx.get("ready"):
             return None
-        for step in (step_preflight, step_bundle, step_assets, step_cleanup, step_schema_and_notebooks, step_deploy_and_find_sp,
-                     step_grant_permissions, step_render_done):
+        for step in (step_preflight, step_bundle, step_assets, step_cleanup, step_schema_and_notebooks, step_create_app_and_find_sp,
+                     step_grant_permissions, step_deploy_source, step_render_done):
             step(ctx)
         return ctx
     except (FileNotFoundError, RuntimeError, requests.exceptions.HTTPError) as exc:

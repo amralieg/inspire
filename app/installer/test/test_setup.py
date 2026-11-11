@@ -111,8 +111,8 @@ def app_exists(manage=True, apps_listed=True, mkdirs=200):
     return script
 
 
-INSTALL_STEPS = ("step_bundle", "step_assets", "step_cleanup", "step_schema_and_notebooks", "step_deploy_and_find_sp",
-                 "step_grant_permissions", "step_render_done")
+INSTALL_STEPS = ("step_bundle", "step_assets", "step_cleanup", "step_schema_and_notebooks", "step_create_app_and_find_sp",
+                 "step_grant_permissions", "step_deploy_source", "step_render_done")
 
 
 class PreflightTest(unittest.TestCase):
@@ -439,7 +439,8 @@ class AppYamlTest(unittest.TestCase):
                    "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai",
                    "CATALOG": "main", "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "RELEASE_VERSION": "v1.3.0", **extra}
             with contextlib.redirect_stdout(io.StringIO()):
-                setup.step_deploy_and_find_sp(ctx)
+                setup.step_create_app_and_find_sp(ctx)
+                setup.step_deploy_source(ctx)
         finally:
             setup.write_app_yaml_deploy, setup.time = saved, clock
         return written[0]
@@ -677,7 +678,8 @@ class GrantPlanTest(unittest.TestCase):
         ctx = {"NEW_SP_APP_ID": "SP", "WAREHOUSE_ID": "wh", "w": w, "CATALOG": "main", "SCHEMA": "_inspire", "APP_NAME": "inspire-ai",
                "api": api, "available_catalogs": [n for n in listed if n != "system"],
                "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "SCAN_CATALOGS": scan, "api_get": api_get,
-               "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": lakebase}
+               "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": lakebase,
+               "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
         with contextlib.redirect_stdout(out), mock.patch.object(setup, "LAKEBASE_POLL_S", 0):
             setup.step_grant_permissions(ctx)
         self.ctx = ctx
@@ -772,19 +774,61 @@ class GrantPlanTest(unittest.TestCase):
         self.assertNotIn("https://", said)
         self.assertNotIn("adb-", said)
 
-    def test_a_failed_grant_prints_its_whole_cause_without_the_workspace_url(self):
+    def test_a_failed_read_grant_stops_the_install_before_the_new_app_is_deployed_and_names_its_cause(self):
         cause = ("PERMISSION_DENIED: User does not have MANAGE on Catalog 'sales'. The catalog owner must grant MANAGE before this principal "
                  "can receive USE CATALOG, USE SCHEMA, SELECT or BROWSE on it, see " + HOST + "/docs for the privilege model")
         sql = scan_grants("sales")[0]
-        grants, _, _, said = self.grant(["sales"], listed=("main", "sales"), fail={sql: RuntimeError(cause)})
-        self.assertIn(sql, grants)
-        shown = cause.replace(HOST + "/docs", "the workspace")
-        self.assertGreater(len(shown), 160)
-        self.assertIn(f"  ⚠️ {sql}: {shown}\n", said)
-        self.assertIn("Catalog grants: 0 of 1 ran ⚠️", said)
-        self.assertIn(f"Grants: {len(essentials(grants))} of {len(essentials(grants))} ran ✅", said)
-        self.assertNotIn("https://", said)
-        self.assertNotIn("adb-", said)
+        with self.assertRaises(RuntimeError) as raised:
+            self.grant(["sales"], listed=("main", "sales"), fail={sql: RuntimeError(cause)})
+        message = str(raised.exception)
+        self.assertIn(sql, message)
+        self.assertIn("PERMISSION_DENIED: User does not have MANAGE on Catalog 'sales'", message)
+        self.assertIn("so the App keeps its last working version", message)
+        self.assertNotIn("https://", message)
+        self.assertNotIn("adb-", message)
+
+    def test_a_failed_read_grant_on_the_installs_own_catalog_stops_the_install_before_the_deploy(self):
+        with self.assertRaises(RuntimeError) as raised:
+            self.grant([], listed=("main",), fail={"GRANT USE_CATALOG ON CATALOG `main`": RuntimeError("PERMISSION_DENIED: not the owner")})
+        self.assertIn("GRANT USE_CATALOG ON CATALOG `main` TO `SP`", str(raised.exception))
+        self.assertIn("could not be given read access", str(raised.exception))
+        self.assertIn("the App keeps its last working version", str(raised.exception))
+
+    def test_a_failed_write_grant_only_warns_and_does_not_stop_the_install(self):
+        grants, _, _, said = self.grant([], listed=("main",), fail={"GRANT MANAGE ON SCHEMA": RuntimeError("PERMISSION_DENIED: not the owner")})
+        self.assertIn("Grants:", said)
+        self.assertIn("GRANT MANAGE ON SCHEMA", said)
+
+    def test_the_install_creates_the_shared_output_folder_and_gives_the_app_can_manage_on_it(self):
+        api, calls = lakebase_api(catalog=((404, {}),), make_catalog=REFUSED_CATALOG)
+        self.grant([], listed=("main",), api=api)
+        self.assertIn(("POST", "/api/2.0/workspace/mkdirs", {"path": "/Shared/demos"}), calls)
+        self.assertIn(("GET", "/api/2.0/workspace/get-status?path=/Shared/demos", None), calls)
+        self.assertIn(("PATCH", "/api/2.0/permissions/directories/1",
+                       {"access_control_list": [{"service_principal_name": "SP", "permission_level": "CAN_MANAGE"}]}), calls)
+
+    def test_a_refused_shared_output_grant_stops_the_install_before_the_deploy_and_names_the_folder(self):
+        base, _calls = lakebase_api(catalog=((404, {}),), make_catalog=REFUSED_CATALOG)
+
+        def refusing(method, path, body=None):
+            if method == "PATCH" and path.startswith("/api/2.0/permissions/directories/"):
+                return Resp(403, {}, '{"message":"no CAN_MANAGE on /Shared/demos"}')
+            return base(method, path, body)
+
+        with self.assertRaises(RuntimeError) as raised:
+            self.grant([], listed=("main",), api=refusing)
+        message = str(raised.exception)
+        self.assertIn("SP cannot write /Shared/demos", message)
+        self.assertIn("Inspire stopped before it deploys the new App version", message)
+        self.assertIn("so the App keeps its last working version", message)
+
+    def test_the_shared_output_folder_is_the_default_generation_path_resolved_from_the_notebook_folder(self):
+        self.assertEqual(setup._shared_output_folder("/Shared/inspire-ai/dbx_inspire_ai_agent"), "/Shared/demos")
+        self.assertEqual(setup._shared_output_folder("/Shared/other-app/dbx_inspire_ai_agent"), "/Shared/demos")
+
+    def test_the_install_order_grants_read_access_before_the_source_is_deployed(self):
+        self.assertLess(INSTALL_STEPS.index("step_grant_permissions"), INSTALL_STEPS.index("step_deploy_source"),
+                        "REQ-039: a failed read grant stops the install before the new App version is deployed")
 
     def test_error_words_keep_the_status_and_drop_every_url_and_workspace_host(self):
         self.assertEqual(setup._error_words(http_error(403, {"message": f"denied by {HOST}/api"})), "HTTP 403: denied by the workspace")
@@ -866,7 +910,8 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
             return base(method, path, body)
         ctx = {"NEW_SP_APP_ID": "SP", "WAREHOUSE_ID": "wh", "w": w, "CATALOG": "main", "SCHEMA": "_inspire", "APP_NAME": "inspire-ai",
                "api": api, "available_catalogs": [n for n in names if n != "system"], "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0",
-               "SCAN_CATALOGS": "all", "api_get": api_get, "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": LAKEBASE}
+               "SCAN_CATALOGS": "all", "api_get": api_get, "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": LAKEBASE,
+               "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
         out = io.StringIO()
         started = time.monotonic()
         with contextlib.redirect_stdout(out), mock.patch.object(setup, "LAKEBASE_POLL_S", 0):
@@ -1158,7 +1203,8 @@ class DeployedSettingsTest(unittest.TestCase):
         out, error = io.StringIO(), None
         try:
             with contextlib.redirect_stdout(out):
-                setup.step_deploy_and_find_sp(ctx)
+                setup.step_create_app_and_find_sp(ctx)
+                setup.step_deploy_source(ctx)
         except RuntimeError as exc:
             error = str(exc)
         finally:
@@ -1185,7 +1231,8 @@ class DeployedSettingsTest(unittest.TestCase):
                    "RELEASE_VERSION": "v1.4.0"}
             try:
                 with self.assertRaises(RuntimeError) as caught, contextlib.redirect_stdout(io.StringIO()):
-                    setup.step_deploy_and_find_sp(ctx)
+                    setup.step_create_app_and_find_sp(ctx)
+                    setup.step_deploy_source(ctx)
             finally:
                 setup.write_app_yaml_deploy, setup.time = saved, clock
             message = str(caught.exception)
@@ -1306,7 +1353,8 @@ class AppUrlTest(unittest.TestCase):
         out = io.StringIO()
         try:
             with contextlib.redirect_stdout(out):
-                setup.step_deploy_and_find_sp(ctx)
+                setup.step_create_app_and_find_sp(ctx)
+                setup.step_deploy_source(ctx)
         finally:
             setup.write_app_yaml_deploy, setup.time = saved, clock
         return ctx, out.getvalue()

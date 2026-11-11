@@ -938,10 +938,13 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
       key: '_actions', label: 'Actions', hideLabel: true, fixed: true, className: 'act',
       render: (r) => {
         const name = recordName(r, meta);
+        if (everything && isClosed(r)) {
+          return <span className="row-acts"><button className="btn btn--sm" onClick={stop(() => setOpen(r))} aria-label={`Reopen ${name}`}>Reopen</button></span>;
+        }
         return (
           <span className="row-acts">
-            {!(everything && isClosed(r)) && <button className="ibtn ibtn--sm" onClick={stop(() => edit(r))} aria-label={`Edit ${name}`} title="Edit"><Icon name="edit" size={15} /></button>}
-            {!(everything && isClosed(r)) && <button className="ibtn ibtn--sm" onClick={stop(() => setDoomed(r))} aria-label={`Delete ${name}`} title="Delete"><Icon name="trash" size={15} /></button>}
+            <button className="ibtn ibtn--sm" onClick={stop(() => edit(r))} aria-label={`Edit ${name}`} title="Edit"><Icon name="edit" size={15} /></button>
+            <button className="ibtn ibtn--sm" onClick={stop(() => setDoomed(r))} aria-label={`Delete ${name}`} title="Delete"><Icon name="trash" size={15} /></button>
             <button className="ibtn ibtn--sm" onClick={stop(() => setOpen(r))} aria-label={`History of ${name}`} title="History"><Icon name="history" size={15} /></button>
           </span>
         );

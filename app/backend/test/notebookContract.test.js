@@ -48,8 +48,14 @@ test('backend widget allowlist matches the notebook contract', () => {
   assert.deepEqual(notebookKeys, INSPIRE_NOTEBOOK_WIDGET_KEYS);
 });
 
-test('v1.2.0 generation widget only offers PDF and Presentation', () => {
+test('the generation widget offers PDF, Presentation and Excel, and defaults to no documents (REQ-077)', () => {
   assert.match(source, /dbutils\.widgets\.multiselect\(\s*"09_generation_options"/);
+  assert.match(source, /generation_options = \[[\s\S]{0,200}"Excel"/);
+  const widget = source.match(/dbutils\.widgets\.multiselect\(\s*"09_generation_options",\s*\n\s*"([^"]*)",/);
+  const choices = [...source.match(/generation_options = \[([^\]]*)\]/)[1].matchAll(/"([^"]+)"/g)].map((m) => m[1]);
+  assert.ok(widget, 'the generation widget has a default');
+  assert.ok(choices.includes(widget[1]), `the widget default "${widget[1]}" must be one of its choices ${JSON.stringify(choices)}`);
+  assert.ok(choices.includes('Excel'));
   assert.doesNotMatch(source, /dbutils\.widgets\.multiselect\(\s*"09_generation_options"[\s\S]{0,400}Genie Code Instructions/);
 });
 
@@ -106,7 +112,7 @@ test('launch UI exposes v1.2.0 quality modes and Auto-Genie widget 13', () => {
   );
   assert.doesNotMatch(launchPage, /key:\s*['"]Genie Code Instructions['"]/);
   assert.doesNotMatch(launchPage, /discover_auto_genie_top_n/);
-  assert.match(launchPage, /'09_generation_options':\s*'PDF Catalog'/);
+  assert.match(launchPage, /'09_generation_options':\s*''/);
   assert.match(
     launchPage,
     /QUALITY_OPTIONS\s*=\s*\['Good', 'High', 'Ultra High'\]/,

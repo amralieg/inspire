@@ -67,6 +67,15 @@ test('normalizes quality aliases to v1.2.0 canonical modes', () => {
   }
 });
 
+test('no documents: an empty generation choice sends no document formats, and a picked format is still built (REQ-077)', () => {
+  const none = sanitizeInspireNotebookJobParams({ '00_business_name': 'Retail', '09_generation_options': '' });
+  assert.equal(none['09_generation_options'], '');
+  const pptx = sanitizeInspireNotebookJobParams({ '00_business_name': 'Retail', '09_generation_options': 'Presentation' });
+  assert.equal(pptx['09_generation_options'], 'Presentation');
+  const excel = sanitizeInspireNotebookJobParams({ '00_business_name': 'Retail', '09_generation_options': 'Excel' });
+  assert.equal(excel['09_generation_options'], 'Excel', 'the Excel workbook is a choice the person can pick');
+});
+
 test('sanitizer forwards only notebook widget keys and valid generation choices', () => {
   const params = sanitizeInspireNotebookJobParams({
     '00_business_name': 'Retail',
@@ -87,7 +96,7 @@ test('sanitizer forwards only notebook widget keys and valid generation choices'
   ]);
   assert.equal(params['03_discovery_type'], 'Standard Discovery');
   assert.equal(params['10_strategic_context'], '');
-  assert.equal(params['09_generation_options'], 'PDF Catalog');
+  assert.equal(params['09_generation_options'], '', 'an invalid choice is dropped and no document is added back');
   assert.equal(params['13_generate_genie_code_for'], 'all');
   assert.equal(params['05_use_cases_quality'], 'Good');
   assert.ok(!INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('legacy_widget'));

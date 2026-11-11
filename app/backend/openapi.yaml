@@ -335,7 +335,7 @@ components:
               example: fact_sales,dim_customer
             generate_choices:
               type: string
-              description: 'Comma-separated document artifacts from `09_generation_options`; valid values are `PDF Catalog` and `Presentation`. Genie generation is controlled by operation mode and `13_generate_genie_code_for`.'
+              description: 'Comma-separated document artifacts from `09_generation_options`; valid values are `PDF Catalog`, `Presentation` and `Excel`. An empty value means no documents in this run; create them later from Review. Genie generation is controlled by operation mode and `13_generate_genie_code_for`.'
               example: PDF Catalog,Presentation
             generation_path:
               type: string

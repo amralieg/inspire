@@ -16,6 +16,13 @@ const v121Session = {
   business_priorities: 'Reduce Cost',
 };
 
+test('a session with no generation choice starts its Generate run with no documents, and a picked format is kept (REQ-077)', () => {
+  const none = notebookParamsFromSessionForGenerateRun({ ...v121Session, generate_choices: '' }, '42');
+  assert.equal(none['09_generation_options'], '');
+  const picked = notebookParamsFromSessionForGenerateRun({ ...v121Session, generate_choices: 'Presentation' }, '42');
+  assert.equal(picked['09_generation_options'], 'Presentation');
+});
+
 test('Route 1 on a v1.2.1 session falls back to Standard Discovery and no strategy', () => {
   const params = notebookParamsFromSessionForGenerateRun({ ...v121Session }, '42');
   assert.equal(params['15_operation'], 'Generate Use Cases');

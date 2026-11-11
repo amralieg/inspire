@@ -14,7 +14,7 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, catalo
     const timer = setInterval(async () => {
       try {
         const run = await apiFetch(`/api/run/${job.runId}`);
-        const state = documentJobState(run.state);
+        const state = documentJobState(run);
         if (state === 'running') return;
         clearInterval(timer);
         setJob((current) => ({ ...current, state, error: state === 'failed' ? 'The job ended without writing the files; open the run in Monitor for the reason.' : '' }));
@@ -62,6 +62,10 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, catalo
         <button type="button" data-doc-action="use-case-catalog" disabled={disabled}
           onClick={() => start('use-case-catalog')} className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50">
           {DOCUMENT_ACTIONS['use-case-catalog'].label}
+        </button>
+        <button type="button" data-doc-action="excel-workbook" disabled={disabled}
+          onClick={() => start('excel-workbook')} className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50">
+          {DOCUMENT_ACTIONS['excel-workbook'].label}
         </button>
       </div>
       {!catalogPath && (

@@ -1,8 +1,27 @@
 const I = require('./inspireImplement');
 const P = require('./requestPerson');
 const { parseExactJson } = require('./exactJson');
+const { redactSecrets } = require('./redact');
 
-function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken = async () => '' }) {
+const POLICY_PRIVILEGE_DENIED_RE = /does not have .+ on /i;
+
+function policyPath(table) {
+  return `/api/2.1/unity-catalog/policies/table/${encodeURIComponent(table)}`;
+}
+
+function policyDenialOf(status, body) {
+  return status === 403 && POLICY_PRIVILEGE_DENIED_RE.test(String(body || ''));
+}
+
+function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken = async () => '', logger = console }) {
+  const fallbackLogged = new Set();
+
+  function logFallback(table, status, detail) {
+    if (fallbackLogged.has(table)) return;
+    fallbackLogged.add(table);
+    logger.warn(`[SOURCE-ACCESS] the ABAC policies of ${table} could not be read with the person's sign-in (HTTP ${status}), so the App's own read decides: ${redactSecrets(String(detail || '')).slice(0, 300)}`);
+  }
+
   const sqlRows = async (host, token, warehouseId, statement) =>
     sqlResultToObjects(await executeSql(host, token, warehouseId, statement.sql, statement.parameters));
 
@@ -26,10 +45,28 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
 
   async function abacUnreadable(req, app, table) {
     try {
-      const resp = await dbFetch(req.dbHost, app, `/api/2.1/unity-catalog/policies/table/${encodeURIComponent(table)}`);
-      return !resp.ok && resp.status !== 404;
-    } catch {
+      const resp = await dbFetch(req.dbHost, app, policyPath(table));
+      if (resp.ok || resp.status === 404) return false;
+      const body = await resp.text().catch(() => '');
+      logger.warn(`[SOURCE-ACCESS] the App could not read the ABAC policies of ${table} (HTTP ${resp.status}): ${redactSecrets(body).slice(0, 300)}`);
       return true;
+    } catch (error) {
+      logger.warn(`[SOURCE-ACCESS] the App could not read the ABAC policies of ${table}: ${redactSecrets(String((error && error.message) || error)).slice(0, 300)}`);
+      return true;
+    }
+  }
+
+  async function personAbacUnreadable(req, person, table) {
+    try {
+      const resp = await dbFetch(req.dbHost, person, policyPath(table));
+      if (resp.ok || resp.status === 404) return false;
+      const body = await resp.text().catch(() => '');
+      if (policyDenialOf(resp.status, body)) return true;
+      logFallback(table, resp.status, body);
+      return false;
+    } catch (error) {
+      logFallback(table, 0, (error && error.message) || error);
+      return false;
     }
   }
 
@@ -53,7 +90,7 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     const person = P.personTokenOf(req);
     const policyLost = (await Promise.all(tables.map(async (t) => ((await abacUnreadable(req, app, t)) ? t : null)))).filter(Boolean);
     const personPolicyLost = person && person !== app
-      ? (await Promise.all(tables.map(async (t) => ((await abacUnreadable(req, person, t)) ? t : null)))).filter(Boolean)
+      ? (await Promise.all(tables.map(async (t) => ((await personAbacUnreadable(req, person, t)) ? t : null)))).filter(Boolean)
       : [];
     if (personPolicyLost.length) {
       const label = (await appIdentity(req, person)).name;
