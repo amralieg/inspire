@@ -74,6 +74,7 @@ def test_the_key_verdicts_of_a_build_name_only_the_keys_a_result_misses(agent_ns
     assert list(verdicts) == agent_ns["implement_key_asks"](keys)
     assert verdicts[agent_ns["implement_key_asks"](keys)[0]][0] == "missing"
     monkeypatch.setitem(agent_ns, "inspire_table_schema", lambda spark, table: [("region", "string")])
+    inst.spark = _Counting(outside=0)
     assert inst._implement_key_verdicts(keys) == {}
 
 
@@ -89,3 +90,51 @@ def test_a_missed_key_ask_goes_back_as_unmet_and_the_judge_is_never_asked_about_
     found = inst._implement_vibes_round({}, [item], "test round")
     assert all(ask not in names for names in asked), "a deterministic miss is not sent to the judge"
     assert "no region column" in str(found)
+
+
+class _Counting:
+    def __init__(self, outside=None, error=None):
+        self.outside, self.error, self.statements = outside, error, []
+
+    def sql(self, statement):
+        self.statements.append(statement)
+        if self.error:
+            raise self.error
+        rows = [{"outside": self.outside}]
+        return type("Frame", (), {"collect": lambda _self: rows})()
+
+
+def test_the_value_check_is_one_bounded_sql_over_the_distinct_key_values(agent_ns):
+    key = {"table": SOURCE, "column": "region", "result_table": RESULT}
+    sql = agent_ns["implement_key_subset_sql"](RESULT, SOURCE, "region")
+    assert sql == ("SELECT count(*) AS outside FROM (SELECT DISTINCT `region` FROM `main`.`inspire`.`churn_out` WHERE `region` IS NOT NULL "
+                   "EXCEPT SELECT DISTINCT `region` FROM `main`.`sales`.`orders`)")
+    assert agent_ns["implement_key_values"](_Counting(outside=0), key) is None
+
+
+def test_a_result_value_that_is_not_a_source_value_is_a_miss_and_names_the_count(agent_ns):
+    key = {"table": SOURCE, "column": "region", "result_table": RESULT}
+    assert agent_ns["implement_key_values"](_Counting(outside=1), key) == (
+        "missing", "1 value of region in main.inspire.churn_out is not values of main.sales.orders")
+    assert agent_ns["implement_key_values"](_Counting(outside=3), key)[1] == (
+        "3 values of region in main.inspire.churn_out are not values of main.sales.orders")
+
+
+def test_a_value_check_that_cannot_run_fails_closed_with_its_reason(agent_ns):
+    key = {"table": SOURCE, "column": "region", "result_table": RESULT}
+    verdict = agent_ns["implement_key_values"](_Counting(error=RuntimeError("PERMISSION_DENIED on main.sales.orders")), key)
+    assert verdict[0] == "missing" and "could not compare region" in verdict[1] and "PERMISSION_DENIED" in verdict[1]
+
+
+def test_the_key_round_checks_values_only_when_the_column_is_there(agent_ns, monkeypatch):
+    inst = _inst(agent_ns, [FILTER])
+    keys = [{"table": SOURCE, "column": "region", "result_table": RESULT}]
+    ask = agent_ns["implement_key_asks"](keys)[0]
+    inst.spark = _Counting(outside=2)
+    monkeypatch.setitem(agent_ns, "inspire_table_schema", lambda spark, table: [("region", "string")])
+    assert inst._implement_key_verdicts(keys)[ask][0] == "missing"
+    assert inst.spark.statements, "the value check ran once the column was present"
+    monkeypatch.setitem(agent_ns, "inspire_table_schema", lambda spark, table: [("value", "double")])
+    inst.spark = _Counting(outside=2)
+    assert inst._implement_key_verdicts(keys)[ask][0] == "missing"
+    assert inst.spark.statements == [], "a missing column is a miss without any value SQL"
