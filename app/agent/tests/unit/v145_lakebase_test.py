@@ -198,7 +198,7 @@ def test_render_refuses_forms_of_served_functions_that_postgres_cannot_match(exp
 
 DELTA_ONLY_BUILDERS = {"_changed_since": {"array_sort", "to_json"}, "uncached_sql": {"rand"}, "change_text_sql": {"format_string"},
                        "reason_wording": {"regexp_replace"}, "_digest_money": {"format_number"}, "run_status_query": {"format_number"},
-                       "_covered_sql": {"transform", "filter"}}
+                       "_covered_sql": {"transform", "filter"}, "person_can_grant": {"current_user", "is_account_group_member"}}
 SQL_TYPES = {"DECIMAL", "VARCHAR", "CHAR"}
 
 
