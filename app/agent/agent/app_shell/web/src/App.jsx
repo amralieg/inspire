@@ -107,7 +107,7 @@ function SectionRail({ sections, on, onGo, open, page, counts = {}, alerting }) 
   );
 }
 
-function Shell({ app }) {
+function Shell({ app, onRefreshSiblings }) {
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem(THEME_KEY) || app.theme; } catch { return app.theme; }
   });
@@ -303,7 +303,7 @@ function Shell({ app }) {
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
           <button className="genie-btn" data-tour="genie" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
-          <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} siblings={app.siblings || []} />
+          <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={() => { loadHub(); onRefreshSiblings?.(); }} siblings={app.siblings || []} />
           {page && !admin && page.tour && <button type="button" className="ibtn tour-top" onClick={takeTour} data-tour-top aria-label="Take the guided tour" title="Take the guided tour"><Icon name="info" size={16} /></button>}
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
         </header>
@@ -353,11 +353,12 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [error, setError] = useState(null);
   const boot = useCallback(() => getApp().then((got) => { setError(null); setApp(got); }).catch(setError), []);
+  const refreshSiblings = useCallback(() => getApp().then((got) => setApp((a) => (a ? { ...a, siblings: got.siblings || [] } : a))).catch(() => {}), []);
   useEffect(() => { boot(); }, [boot]);
   useLayoutEffect(() => { if (!app) applyTheme('default', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', 'a'); }, [app]);
   return (
     <ToastProvider>
-      {error ? <Fatal error={error} onRetry={boot} /> : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} /></MyViewProvider>
+      {error ? <Fatal error={error} onRetry={boot} /> : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} onRefreshSiblings={refreshSiblings} /></MyViewProvider>
         : <div className="boot" role="status"><span className="ring" /><span>Opening the App…</span></div>}
     </ToastProvider>
   );
