@@ -3,8 +3,8 @@
 -- Where your principal is granted system.*, replace the table names with system.lakeflow.jobs and system.billing.usage.
 -- Window: 90 days (edit the INTERVAL in each usage_date filter).
 -- EXACT: every DBU below is joined on the id Inspire tagged on the job (job_id, app_id, project UID, warehouse_id).
--- NOT ATTRIBUTABLE: the share of a shared warehouse an Inspire App used. The App queries leave executed_by empty in query history, so no per-App split exists.
--- Counts are the assets live on each job's latest tags. An asset a rebuild removed stops counting.
+-- ATTRIBUTED BY QUERY DURATION (statement 5): the warehouse DBUs an Inspire App used. Only statements sent after the App shipped the query tag carry it, so history before that stays unattributed.
+-- Counts are the assets live on each job's latest tags. An asset a rebuild removed stops counting. Alerts are the sum of each job's alert count, since the alert id tag holds only the first id at the 63-character limit.
 -- Jobs come from lakeflow_jobs rows changed in the last 365 days (a full-history window scan does not finish on the shared warehouse).
 
 -- 1. Per account: live Inspire assets and exact DBUs. Billing is read once (stack fans out the four id kinds).
@@ -38,20 +38,20 @@ asset_ids AS (
   UNION ALL
   SELECT ws.account_id, 'genie_space', try_element_at(j.tags, 'dbx_inspire_ai_genie_space_id')
   FROM jobs_latest j JOIN ws ON j.workspace_id = ws.workspace_id
-  UNION ALL
-  SELECT ws.account_id, 'alert', alert_id
-  FROM jobs_latest j JOIN ws ON j.workspace_id = ws.workspace_id
-  LATERAL VIEW explode(split(coalesce(try_element_at(j.tags, 'dbx_inspire_ai_alert_ids'), ''), ',')) a AS alert_id
 ),
 asset_counts AS (
   SELECT account_id,
          COUNT(DISTINCT CASE WHEN asset = 'app' THEN asset_id END) AS apps,
          COUNT(DISTINCT CASE WHEN asset = 'dashboard' THEN asset_id END) AS dashboards,
-         COUNT(DISTINCT CASE WHEN asset = 'genie_space' THEN asset_id END) AS genie_spaces,
-         COUNT(DISTINCT CASE WHEN asset = 'alert' THEN asset_id END) AS alerts
+         COUNT(DISTINCT CASE WHEN asset = 'genie_space' THEN asset_id END) AS genie_spaces
   FROM asset_ids
   WHERE coalesce(asset_id, '') <> ''
   GROUP BY account_id
+),
+alert_counts AS (
+  SELECT ws.account_id, SUM(CAST(coalesce(try_element_at(j.tags, 'dbx_inspire_ai_alert_count'), '0') AS INT)) AS alerts
+  FROM jobs_latest j JOIN ws ON j.workspace_id = ws.workspace_id
+  GROUP BY ws.account_id
 ),
 keys AS (
   SELECT DISTINCT ws.account_id, j.workspace_id, kind, id, run_type
@@ -101,7 +101,7 @@ dbu_by_account AS (
 )
 SELECT ws.account_name,
        coalesce(ac.apps, 0) AS apps, coalesce(ac.dashboards, 0) AS dashboards,
-       coalesce(ac.genie_spaces, 0) AS genie_spaces, coalesce(ac.alerts, 0) AS alerts,
+       coalesce(ac.genie_spaces, 0) AS genie_spaces, coalesce(alc.alerts, 0) AS alerts,
        round(d.discover_job_dbu, 2) AS discover_job_dbu_exact,
        round(d.mvp_job_dbu, 2) AS mvp_job_dbu_exact,
        round(d.app_dbu, 2) AS app_dbu_exact,
@@ -109,8 +109,9 @@ SELECT ws.account_name,
        round(d.shared_warehouse_dbu, 2) AS shared_warehouse_dbu_all_workloads
 FROM (SELECT DISTINCT account_id, account_name FROM ws) ws
 LEFT JOIN asset_counts ac ON ws.account_id = ac.account_id
+LEFT JOIN alert_counts alc ON ws.account_id = alc.account_id
 LEFT JOIN dbu_by_account d ON ws.account_id = d.account_id
-WHERE coalesce(ac.apps, 0) + coalesce(ac.dashboards, 0) + coalesce(ac.genie_spaces, 0) + coalesce(ac.alerts, 0) > 0
+WHERE coalesce(ac.apps, 0) + coalesce(ac.dashboards, 0) + coalesce(ac.genie_spaces, 0) + coalesce(alc.alerts, 0) > 0
    OR d.account_id IS NOT NULL
 ORDER BY ws.account_name;
 
@@ -151,3 +152,39 @@ WHERE u.billing_origin_product = 'LAKEBASE' AND u.usage_unit = 'DBU' AND u.usage
   AND u.usage_date >= current_date() - INTERVAL 90 DAYS
 GROUP BY u.workspace_id, u.usage_metadata.project_id, u.sku_name
 ORDER BY lakebase_dbu DESC;
+
+-- 5. ATTRIBUTED BY QUERY DURATION: warehouse DBUs an Inspire App used. App statements carry query tag dbx_inspire_ai_app_name
+-- (Statement Execution API query_tags). Share = the App's statement duration / all statement duration on that warehouse, times the warehouse's billed DBUs.
+WITH app_ms AS (
+  SELECT workspace_id, compute.warehouse_id AS warehouse_id, try_element_at(query_tags, 'dbx_inspire_ai_app_name') AS app_name,
+         SUM(total_duration_ms) AS ms
+  FROM main.centralized_system_tables.query_history
+  WHERE compute.type = 'WAREHOUSE' AND start_time >= current_timestamp() - INTERVAL 7 DAYS
+    AND try_element_at(query_tags, 'dbx_inspire_ai_app_name') IS NOT NULL
+  GROUP BY workspace_id, compute.warehouse_id, try_element_at(query_tags, 'dbx_inspire_ai_app_name')
+),
+app_warehouses AS (
+  SELECT DISTINCT workspace_id, warehouse_id FROM app_ms
+),
+wh_ms AS (
+  SELECT q.workspace_id, q.compute.warehouse_id AS warehouse_id, SUM(q.total_duration_ms) AS ms
+  FROM main.centralized_system_tables.query_history q
+  JOIN app_warehouses a ON q.workspace_id = a.workspace_id AND q.compute.warehouse_id = a.warehouse_id
+  WHERE q.compute.type = 'WAREHOUSE' AND q.start_time >= current_timestamp() - INTERVAL 7 DAYS
+  GROUP BY q.workspace_id, q.compute.warehouse_id
+),
+wh_dbu AS (
+  SELECT u.workspace_id, u.usage_metadata.warehouse_id AS warehouse_id, SUM(u.usage_quantity) AS dbu
+  FROM main.centralized_system_tables.billing_usage u
+  JOIN app_warehouses a ON u.workspace_id = a.workspace_id AND u.usage_metadata.warehouse_id = a.warehouse_id
+  WHERE u.usage_unit = 'DBU' AND u.usage_date >= current_date() - INTERVAL 7 DAYS
+  GROUP BY u.workspace_id, u.usage_metadata.warehouse_id
+)
+SELECT a.workspace_id, a.app_name, a.warehouse_id,
+       round(w.dbu * a.ms / nullif(t.ms, 0), 2) AS app_attributed_warehouse_dbu,
+       round(w.dbu, 2) AS warehouse_dbu_all_workloads,
+       round(a.ms / nullif(t.ms, 0), 4) AS app_duration_share
+FROM app_ms a
+JOIN wh_ms t ON a.workspace_id = t.workspace_id AND a.warehouse_id = t.warehouse_id
+JOIN wh_dbu w ON a.workspace_id = w.workspace_id AND a.warehouse_id = w.warehouse_id
+ORDER BY app_attributed_warehouse_dbu DESC;

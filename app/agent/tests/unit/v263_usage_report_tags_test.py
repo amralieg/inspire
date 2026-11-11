@@ -149,5 +149,5 @@ def test_the_report_reads_the_centralized_tables_by_the_ids_inspire_tags_and_say
     for table in ("main.centralized_system_tables.lakeflow_jobs", "main.centralized_system_tables.billing_usage", "main.certified.workspaces_latest"):
         assert table in sql
     assert "usage_metadata.project_id" in sql and "usage_metadata.app_id" in sql and "usage_metadata.warehouse_id" in sql
-    assert "EXACT" in sql and "NOT ATTRIBUTABLE" in sql and "system.query.history" not in sql.split("NOT ATTRIBUTABLE")[0]
+    assert "EXACT" in sql and "ATTRIBUTED BY QUERY DURATION" in sql and "unattributed" in sql
     assert "tags[" not in sql, "a missing map key must read as NULL through try_element_at, never raise"

@@ -1107,14 +1107,18 @@ def genie_ids(data: dict) -> tuple:
     return conversation, message
 
 
+def app_query_tags() -> list:
+    return shell_db.app_query_tags(os.environ.get("DATABRICKS_APP_NAME"))
+
+
 def sp_workspace_factory():
     from databricks.sdk.core import Config
     config = Config()
-    return Workspace(config.host, config.authenticate)
+    return Workspace(config.host, config.authenticate, query_tags=app_query_tags())
 
 
 def user_workspace_factory(host: str, token: str):
-    return Workspace(host, lambda: {"Authorization": f"Bearer {token}"})
+    return Workspace(host, lambda: {"Authorization": f"Bearer {token}"}, query_tags=app_query_tags())
 
 
 class OnWarehouse:
@@ -1974,6 +1978,8 @@ class Shell:
         page = self.by_id.get(str(ident or ""))
         if page is None:
             raise HttpError(404, f"the App has no page {ident!r}")
+        if REQUEST.get() is not None:
+            shell_db.QUERY_USE_CASE.set(str(page.get("use_case_id") or ""))
         return self.with_saved_money(page)
 
     def saved_money_page(self, page: dict, ws, who) -> dict:
@@ -2079,7 +2085,7 @@ class Shell:
                         running = self.lookups[key] = Future()
                         self.heads[key] = Future()
                 if ahead:
-                    self.stamp_pool.submit(self.settle_state, ws, page, key, running)
+                    shell_db.submit_in_request(self.stamp_pool, self.settle_state, ws, page, key, running)
             return held
         with self.stamp_lock:
             held = self.cache.get(key)
@@ -2102,7 +2108,7 @@ class Shell:
                 if held is None and head is None and key not in self.lookups:
                     running = self.lookups[key] = Future()
                     head = self.heads[key] = Future()
-                    self.head_pool.submit(self.settle_state, ws, page, key, running)
+                    shell_db.submit_in_request(self.head_pool, self.settle_state, ws, page, key, running)
             if head is not None:
                 return head.result()
             held = held or self.page_state(ws, who, page)
@@ -2131,7 +2137,7 @@ class Shell:
     def read_state(self, ws, page: dict, head: Future = None) -> dict:
         if not page.get("result_table"):
             return {"row": None, "facts": None, "stamp": None, "error": ""}
-        ahead = None if page["id"] in self.factless else self.state_pool.submit(self.execute, ws, *shell_sql.changed_ahead_query(page), 1, True)
+        ahead = None if page["id"] in self.factless else shell_db.submit_in_request(self.state_pool, self.execute, ws, *shell_sql.changed_ahead_query(page), 1, True)
         try:
             rows = self.execute(ws, *shell_sql.summary_query(page), 1, delta=True)["rows"]
         except QueryError as error:
@@ -2181,7 +2187,7 @@ class Shell:
 
     def warm_state(self, ws, who, page: dict) -> None:
         if who is not None and page.get("result_table"):
-            self.stamp_pool.submit(self.page_state, ws, who, page)
+            shell_db.submit_in_request(self.stamp_pool, self.page_state, ws, who, page)
 
     def warm_money(self, ws, who, page: dict) -> None:
         if who is not None and page.get("records") and page.get("result_table"):
@@ -2306,9 +2312,11 @@ class Shell:
     def answer(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
         money = (method, path.strip("/")) in MONEY_ROUTES
         token = REQUEST.set({"headers": headers, "rules": {}, "money": money})
+        use_case = shell_db.QUERY_USE_CASE.set("")
         try:
             return self.answer_request(method, path, query, headers, body)
         finally:
+            shell_db.QUERY_USE_CASE.reset(use_case)
             REQUEST.reset(token)
 
     def answer_request(self, method: str, path: str, query: dict, headers: dict, body: bytes) -> tuple:
@@ -2606,7 +2614,7 @@ class Shell:
             probe.seconds[key] = round(probe.timer() - started, 3)
 
     def _parallel(self, jobs: dict, probe=None, pool=None) -> tuple:
-        futures = {key: (pool or self.pool).submit(self._timed, fn, key, probe) for key, fn in jobs.items()}
+        futures = {key: shell_db.submit_in_request((pool or self.pool), self._timed, fn, key, probe) for key, fn in jobs.items()}
         done, errors = {}, {}
         for key, future in futures.items():
             try:
@@ -2887,7 +2895,7 @@ class Shell:
         ws, who = self.session(headers, probe)
         self.warm_state(ws, who, page)
         if page.get("result_table") and who is not None:
-            self.stamp_pool.submit(self.table_meta, ws, who, shell_pg.uc_key(page["result_table"]))
+            shell_db.submit_in_request(self.stamp_pool, self.table_meta, ws, who, shell_pg.uc_key(page["result_table"]))
         read, unread = self._parallel(self.list_reads(ws, who, page), probe, self.list_pool)
         if ("list", "columns") in unread:
             raise HttpError(502, unread[("list", "columns")])
@@ -3088,7 +3096,7 @@ class Shell:
 
     def prefetch(self, *jobs) -> None:
         for job in jobs:
-            self.stamp_pool.submit(job)
+            shell_db.submit_in_request(self.stamp_pool, job)
 
     def overview_page(self, ws, who, page: dict, values: dict, ai, today: datetime.date, quarter: datetime.date,
                       since: datetime.date, window=None, editor: str = "", between: tuple = (), viewers: frozenset = frozenset()) -> dict:
@@ -3201,7 +3209,7 @@ class Shell:
             if early is not None and (early[0].cancelled() or (early[0].done() and early[0].exception() is not None)):
                 early = self.early.pop(key) and None
             if early is None and start:
-                early = self.early[key] = (self.state_pool.submit(self.execute, ws, *shell_sql.assumptions_query(page, limit), limit, True), now)
+                early = self.early[key] = (shell_db.submit_in_request(self.state_pool, self.execute, ws, *shell_sql.assumptions_query(page, limit), limit, True), now)
         return early
 
     def money_model(self, ws, who, page: dict, fields: list):

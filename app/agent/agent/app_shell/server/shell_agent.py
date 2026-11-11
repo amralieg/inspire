@@ -8,6 +8,7 @@ import unicodedata
 import uuid
 from concurrent.futures import ThreadPoolExecutor
 
+import shell_db
 import shell_pg
 import shell_sql
 from shell_db import HttpError, QueryError
@@ -1247,7 +1248,7 @@ class Agent:
         self.keep(turn)
         job = {"page": page, "question": question, "history": history, "view": view, "visible": visible, "selected": selected,
                "headers": dict(headers), "ws": ws}
-        self.executor.submit(self.run, turn, job)
+        shell_db.submit_in_request(self.executor, self.run, turn, job)
         return turn.view()
 
     def draft(self, headers: dict, data: dict) -> dict:
