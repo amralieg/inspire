@@ -490,6 +490,7 @@ export default function ImplementWizard({
   const appNameTyped = useRef(false);
   const [appRenamed, setAppRenamed] = useState(null);
   const [lastNameShown, setLastNameShown] = useState(false);
+  const [appNameRefusal, setAppNameRefusal] = useState(null);
   const [placeSet, setPlaceSet] = useState('');
   const [draftBack, setDraftBack] = useState(false);
   const draftStamp = useRef('');
@@ -879,6 +880,9 @@ export default function ImplementWizard({
       if (cancelled) return;
       setPreflight(pre.status === 'fulfilled' ? pre.value : null);
       setPreflightError(pre.status === 'fulfilled' ? '' : pre.reason.message);
+      if (pre.status === 'fulfilled' && pre.value?.checks?.app_name?.ok === false) {
+        setAppNameRefusal({ name: spec.outputs.app_name, check: pre.value.checks.app_name });
+      }
       if (pre.status === 'fulfilled') setAppUnreadable(pre.value.app_unreadable || null);
       setPlan(planned.status === 'fulfilled' ? planned.value : null);
       setPlanError(planned.status === 'fulfilled' ? '' : planned.reason.message);
@@ -896,6 +900,7 @@ export default function ImplementWizard({
     patch('outputs.app_name', value);
   };
   const appNameCheck = spec.outputs.app && !spec.outputs.merge?.app ? preflight?.checks?.app_name || null : null;
+  const appNameShown = appNameCheck || (appNameRefusal?.name === spec.outputs.app_name ? appNameRefusal.check : null);
   useEffect(() => {
     const check = appNameCheck;
     if (!check || check.ok !== false || !check.suggested || appNameTyped.current || check.name !== spec.outputs.app_name) return;
@@ -2030,7 +2035,7 @@ export default function ImplementWizard({
         )}
         {lastStep && lastNameShown && spec.outputs.app && !spec.outputs.merge?.app && (
           <div data-last-app-name="" className="bg-bg-subtle border border-border rounded-md px-3 py-2">
-            <AppNameField name={spec.outputs.app_name || ''} nameCheck={appNameCheck} onName={nameApp} />
+            <AppNameField name={spec.outputs.app_name || ''} nameCheck={appNameShown} onName={nameApp} />
           </div>
         )}
         {lastStep && moveNote && (

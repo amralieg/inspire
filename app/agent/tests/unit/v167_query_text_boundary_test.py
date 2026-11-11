@@ -1,4 +1,5 @@
 import json
+import time
 import types
 
 import pytest
@@ -446,3 +447,16 @@ def test_a_dashboard_error_keeps_the_column_names_of_the_page(agent_ns, tmp_path
     with pytest.raises(RuntimeError) as raised:
         inst._implement_dashboard(context, runner)
     assert message in runner.prompts[1] and message in str(raised.value)
+
+
+def test_the_words_redaction_checks_against_leave_out_embedded_payloads(agent_ns):
+    assert len(agent_ns["implement_own_words"]()) < 1_000_000, "the notebook's own words hold its embedded payloads"
+
+
+def test_repeated_redactions_of_one_error_stay_within_a_bound(agent_ns):
+    inst = _inspire(agent_ns, FakeSpark())
+    inst._implement_redacted(CAST)
+    began = time.perf_counter()
+    for _ in range(300):
+        inst._implement_redacted(CAST)
+    assert time.perf_counter() - began < 1.0
