@@ -67,4 +67,6 @@ function documentRunParams(body) {
   return { params, document: { kind, option, session_id: sessionId, languages } };
 }
 
-module.exports = { documentRunParams, englishCatalogPath, DOCUMENT_KINDS };
+const CATALOG_MISSING_TEXT = "This run's catalog file is missing, so documents can't be made from it. Run Discover again to make them.";
+
+module.exports = { documentRunParams, englishCatalogPath, DOCUMENT_KINDS, CATALOG_MISSING_TEXT };

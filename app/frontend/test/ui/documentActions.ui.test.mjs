@@ -80,3 +80,24 @@ test('a strategy document shows its progress while the job runs, then the refres
     await ui.close();
   }
 });
+
+const MISSING = "This run's catalog file is missing, so documents can't be made from it. Run Discover again to make them.";
+
+test('a finished run whose catalog file is missing says so in plain words, with no path or stack (REQ-077)', async () => {
+  const mount = (app) => {
+    app.post('/api/documents', (_req, res) => res.status(409).json({ error: MISSING }));
+  };
+  const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount });
+  const { page } = ui;
+  try {
+    await page.locator('[data-doc-action="use-case-catalog"]').waitFor();
+    await page.locator('[data-doc-action="use-case-catalog"]').click();
+    await page.getByText(MISSING).first().waitFor({ timeout: 20000 });
+    const panel = await page.locator('[data-document-actions]').innerText();
+    assert.equal(/\/Workspace|Traceback|at .*\(/.test(panel), false, panel);
+    assert.equal(await page.locator('[data-doc-action="use-case-catalog"]').isDisabled(), false, 'the buttons stay live to try again');
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 409/.test(e)), [], 'the 409 is the intended answer; no other page error');
+  } finally {
+    await ui.close();
+  }
+});
