@@ -145,6 +145,10 @@ def _indexed_problem(name: str, entry: dict) -> list:
 def _enforce_problem(name: str, entry) -> list:
     enforce = entry.get("enforce") if isinstance(entry, dict) else None
     base = str(entry.get("base") or "") if isinstance(entry, dict) else ""
+    if isinstance(entry, dict) and "enforce" in entry and enforce is None:
+        parts = base.split(".")
+        return [] if len(parts) == 2 and all(PG_NAME.match(p) for p in parts) else [
+            f"the enforced Lakebase copy of {name} needs a base that is a Postgres schema.table"]
     if (not isinstance(enforce, dict) or set(enforce) != set(ENFORCE_KEYS)
             or any(not isinstance(enforce[k], str) or not enforce[k].strip() for k in ENFORCE_KEYS)):
         return [f"the Lakebase copy of {name} is not enforced: it must name the column its row filter reads, the mapping table, "
@@ -161,6 +165,8 @@ def _enforce_problem(name: str, entry) -> list:
 
 def enforcing_view_sql(entry: dict) -> str:
     enforce, view, base = entry["enforce"], entry["pg"], entry["base"]
+    if enforce is None:
+        return f"CREATE OR REPLACE VIEW {_qualified(view)} AS SELECT t.* FROM {_qualified(base)} AS t"
     mapping = (f"SELECT m.{pg_ident(enforce['key'])} FROM {_qualified(enforce['map'])} AS m "
                f"WHERE lower(m.{pg_ident(enforce['principal'])}) = ANY(string_to_array(current_setting('{VIEWER_SETTING}', true), ','))")
     return (f"CREATE OR REPLACE VIEW {_qualified(view)} WITH (security_barrier = true) AS SELECT t.* FROM {_qualified(base)} AS t "
@@ -168,11 +174,16 @@ def enforcing_view_sql(entry: dict) -> str:
 
 
 def base_read_probe(backend: dict) -> tuple:
-    bases = sorted({str(name) for entry in (backend.get("tables") or {}).values() if isinstance(entry, dict) and entry.get("enforce")
-                    for name in (entry["base"], entry["enforce"]["map"])})
+    bases = set()
+    for entry in (backend.get("tables") or {}).values():
+        if not isinstance(entry, dict) or "base" not in entry:
+            continue
+        bases.add(str(entry["base"]))
+        if isinstance(entry.get("enforce"), dict):
+            bases.add(str(entry["enforce"]["map"]))
     return ("SELECT bool_or(has_table_privilege(current_user, c.oid, 'SELECT')) FROM pg_catalog.pg_class AS c "
             "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname || '.' || c.relname = ANY(%(bases)s::text[])",
-            {"bases": bases})
+            {"bases": sorted(bases)})
 
 
 def _qualified(name: str) -> str:
@@ -185,6 +196,100 @@ def viewer_principals(email: str, groups=()) -> str:
     if not str(email or "").strip() or any("," in n or any(c.isspace() for c in n) for n in names):
         raise ValueError("the viewer needs a signed-in email, and no principal may hold a comma or a space")
     return ",".join(sorted(names))
+
+
+_PG_ID = r"(?:`[^`]+`|[A-Za-z_][A-Za-z0-9_]*)"
+_PG_MAP = rf"{_PG_ID}(?:\.{_PG_ID}){{2}}"
+_PLAIN = r"[A-Za-z_][A-Za-z0-9_]*"
+_EXISTS_SHAPE = re.compile(rf"^exists\s*\(\s*select\s+1\s+from\s+({_PG_MAP})\s+({_PLAIN})\s+where\s+\2\.({_PLAIN})\s*=\s*({_PLAIN})"
+                            rf"\s+and\s+(.+?)\s*\)$", re.I)
+_IN_SHAPE = re.compile(rf"^({_PLAIN})\s+in\s*\(\s*select\s+({_PLAIN})\.({_PLAIN})\s+from\s+({_PG_MAP})\s+({_PLAIN})"
+                        rf"\s+where\s+(.+?)\s*\)$", re.I)
+
+
+def _unquoted(name) -> str:
+    return str(name).replace("`", "").strip()
+
+
+def _stripped(expr) -> str:
+    text = " ".join(str(expr or "").split()).rstrip(";").strip()
+    text = re.sub(r"^return\s+", "", text, flags=re.I)
+    while text.startswith("(") and text.endswith(")") and _balanced(text[1:-1]):
+        text = text[1:-1].strip()
+    return text
+
+
+def _balanced(text: str) -> bool:
+    depth = 0
+    for ch in text:
+        depth += (ch == "(") - (ch == ")")
+        if depth < 0:
+            return False
+    return depth == 0
+
+
+def _principal_column(expr: str, alias: str) -> str:
+    columns = set()
+    for part in (_stripped(p) for p in re.split(r"\s+or\s+", _stripped(expr), flags=re.I)):
+        found = (re.match(rf"^{alias}\.({_PLAIN})\s*=\s*current_user\(\)$", part, re.I)
+                 or re.match(rf"^is_account_group_member\(\s*{alias}\.({_PLAIN})\s*\)$", part, re.I))
+        if not found:
+            return ""
+        columns.add(found.group(1).lower())
+    return columns.pop() if len(columns) == 1 else ""
+
+
+def row_filter_mapping(body, column: str, parameter: str):
+    """The user-to-key mapping of a Unity Catalog row filter body, or None when the body is not that shape."""
+    text, parameter = _stripped(body), parameter.lower()
+    found = _EXISTS_SHAPE.match(text)
+    if found:
+        map_name, alias, key, param, principal = found.groups()
+        if _unquoted(param).lower() != parameter:
+            return None
+        principal_name = _principal_column(principal, alias)
+        key_name = key
+    else:
+        found = _IN_SHAPE.match(text)
+        if not found:
+            return None
+        param, key_alias, key_name, map_name, alias, principal = found.groups()
+        if _unquoted(param).lower() != parameter or key_alias != alias:
+            return None
+        principal_name = _principal_column(principal, alias)
+    if not principal_name:
+        return None
+    return {"map": _unquoted(map_name), "key": _unquoted(key_name), "principal": principal_name, "column": column}
+
+
+def enforce_plan(filters: list, result_columns, masked=()) -> dict:
+    """Whether the database can keep each viewer to their rows of one result table, from its source tables' row filters.
+
+    filters: one entry per source table, {"table", "column", "parameter", "body", "unreadable"} (body None when not readable).
+    result_columns: the columns the copy of the result table holds. masked: the result columns a column mask hides."""
+    result = {str(c).lower() for c in result_columns or ()}
+    hidden = sorted({str(c) for c in masked or ()})
+    if not filters:
+        return {"enforced": True, "enforce": None, "masked": hidden, "reason": ""}
+    if len(filters) > 1:
+        names = ", ".join(sorted(f["table"] for f in filters))
+        return {"enforced": False, "enforce": None, "masked": hidden,
+                "reason": f"more than one source table has a row filter ({names}), and one mapping cannot carry them all"}
+    row = filters[0]
+    if row.get("unreadable") or row.get("body") is None:
+        return {"enforced": False, "enforce": None, "masked": hidden,
+                "reason": f"Inspire could not read the row filter of {row['table']}"}
+    mapping = row_filter_mapping(row["body"], row["column"], row["parameter"])
+    if mapping is None:
+        return {"enforced": False, "enforce": None, "masked": hidden,
+                "reason": f"the row filter of {row['table']} is not a user-to-key mapping table"}
+    if row["column"].lower() not in result:
+        return {"enforced": False, "enforce": None, "masked": hidden,
+                "reason": f"the result table has no {row['column']} column to carry the row filter of {row['table']}"}
+    if row["column"] in hidden:
+        return {"enforced": False, "enforce": None, "masked": hidden,
+                "reason": f"a column mask hides {row['column']}, the column the row filter of {row['table']} reads"}
+    return {"enforced": True, "enforce": {k: mapping[k] for k in ENFORCE_KEYS}, "masked": hidden, "reason": ""}
 
 
 def backend_problems(backend, auth: str, pages: list) -> list:
