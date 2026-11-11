@@ -138,3 +138,25 @@ def test_the_key_round_checks_values_only_when_the_column_is_there(agent_ns, mon
     inst.spark = _Counting(outside=2)
     assert inst._implement_key_verdicts(keys)[ask][0] == "missing"
     assert inst.spark.statements == [], "a missing column is a miss without any value SQL"
+
+
+def _plans(agent_ns, inst, filters, columns, values_outside):
+    import shell_pg
+    context = {"spec": _spec_of(agent_ns, **PER_USER), "use_case": _use_case()}
+    inst.spark = _Counting(outside=values_outside)
+    inst._implement_lakebase_find = lambda path: {}
+    inst._implement_lakebase_filter = lambda table: next((f for f in filters if f["table"] == table), None)
+    agent_ns["inspire_table_schema"] = lambda spark, table: [(c, "string") for c in columns]
+    return inst._implement_lakebase_plans(context, [{"result_table": RESULT}], shell_pg)
+
+
+def test_the_build_falls_back_only_the_table_whose_key_values_are_not_source_values_and_says_why(agent_ns):
+    body = (f"EXISTS (SELECT 1 FROM main.sec.map m WHERE m.region = region_key AND m.user_email = current_user())")
+    filters = [{"table": SOURCE, "column": "region", "parameter": "region_key", "body": body}]
+    inst = _inst(agent_ns, filters)
+    plans = _plans(agent_ns, inst, filters, ["region", "value"], 2)
+    plan = plans["main.inspire.churn_out"]
+    assert plan["enforced"] is False and plan["enforce"] is None
+    assert plan["reason"] == "2 values of region in main.inspire.churn_out are not values of main.sales.orders"
+    plans = _plans(agent_ns, inst, filters, ["region", "value"], 0)
+    assert plans["main.inspire.churn_out"]["enforced"] is True
