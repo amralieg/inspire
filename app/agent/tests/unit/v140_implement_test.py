@@ -3233,8 +3233,8 @@ def test_app_deploy_imports_the_shell_as_files_and_grants_every_table_the_page_a
     assert inst.spark.statements[0].startswith("SELECT level, privilege, principal")
     statements = _not_access_reads(inst.spark.statements)
     feedback = [s for s in statements if "CREATE TABLE" in s or "MODIFY" in s]
-    assert feedback and all("`churn_out_feedback`" in s for s in feedback), (
-        "the App only reads its tables; the one table Inspire creates and lets it change is where people report issues")
+    assert feedback and all("`churn_out_feedback`" in s or "`__inspire_app_feedback_churn_desk`" in s for s in feedback), (
+        "the App only reads its tables; the tables Inspire creates and lets it change are where people report issues")
     assert GRANT_SELECT.format("sp-1") in statements and GRANT_ORDERS.format("sp-1") in statements
     assert inst.genie_grants == [("genie", "g1", [{"type": "service_principal", "name": "sp-1"}], "CAN_RUN")]
     assert sorted(imported) == [f"/W/acme_implemented/Sales/apps/churn-desk/{name}" for name in sorted(SHELL_FILES)]
@@ -3313,7 +3313,7 @@ def test_an_existing_app_whose_service_principal_cannot_read_its_tables_is_deplo
     result = [GRANT_CATALOG.format("sp-2"), GRANT_SCHEMA.format("sp-2")]
     orders = [GRANT_CATALOG.format("sp-2"), "GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `sp-2`"]
     reported = [w for w in fields["_warnings"] if w.startswith("App: people cannot report issues")]
-    assert len(reported) == 1 and reported[0].startswith("App: people cannot report issues about this use case from the App until its service principal sp-2")
+    assert len(reported) == 2 and all(r.startswith("App: people cannot report issues about this use case from the App until its service principal sp-2") for r in reported)
     assert reported[0].endswith(f"{GRANT_CATALOG.format('sp-2')}; {GRANT_SCHEMA.format('sp-2')}")
     assert [w for w in fields["_warnings"] if w not in reported] == [
         "App: its service principal sp-2 cannot read 2 source tables, so the tiles that query them show no data "
@@ -3368,7 +3368,10 @@ def test_an_existing_app_whose_service_principal_reads_through_a_group_is_redepl
     assert fields["app_url"] == "https://churn-desk.example"
     assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps/churn-desk/deployments"),
                                       ("GET", "/api/2.0/apps/churn-desk")]
-    grants = [s for s in inst.spark.statements if s.startswith("GRANT")]
+    grants = [s for s in inst.spark.statements if s.startswith("GRANT") and "__inspire_app_feedback_" not in s]
+    assert [s for s in inst.spark.statements if "__inspire_app_feedback_" in s and s.startswith("GRANT")] == [
+        "GRANT SELECT ON TABLE `main`.`inspire`.`__inspire_app_feedback_churn_desk` TO `sp-2`",
+        "GRANT MODIFY ON TABLE `main`.`inspire`.`__inspire_app_feedback_churn_desk` TO `sp-2`"], "the App's own reports table, for its principal only"
     assert grants == [GRANT_SELECT.format("sp-2"), GRANT_ORDERS.format("sp-2"), GRANT_ORDERS_METADATA.format("sp-2"),
                       "GRANT MODIFY ON TABLE `main`.`inspire`.`churn_out` TO `sp-2`"] + _feedback_writes(agent_ns, "sp-2")[2:], (
         "record decisions starts on, so the App may write its decisions to the result table, and people may report issues into its feedback table")

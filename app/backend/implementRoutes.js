@@ -9,6 +9,7 @@ const { moneyStatements, moneyView, moneyWithheld } = require('./lib/implementMo
 const FB = require('./lib/appFeedback');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
+const { ownServicePrincipalId } = require('./lib/inspireSpGrants');
 const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning } = require('./lib/inspireJobParams');
 const R = require('./lib/reviewFigures');
 const A = require('./lib/useCaseAlerts');
@@ -1296,7 +1297,7 @@ function registerImplementRoutes(app, deps) {
     if (!rebuildAsIs) I.refuseUnchanged(plan);
     const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
     const warnings = [...noted, ...outputWarnings];
-    const params = I.implementJobParams(notebookParamsFromSessionForGenerateRun(session, sid), useCaseId, plan.nextVersion);
+    const params = I.implementJobParams(notebookParamsFromSessionForGenerateRun(session, sid), useCaseId, plan.nextVersion, ownServicePrincipalId());
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
     if (!params['01_uc_metadata']) {
       const err = new Error('This session has no UC metadata stored on __inspire_session. Run Discover from this app first.');
@@ -1547,14 +1548,14 @@ function registerImplementRoutes(app, deps) {
     const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
     const [history, person] = await Promise.all([loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId), personOf(req)]);
     const table = String(history[0]?.spec_json?.config?.result_table || '').trim();
+    const appTable = FB.appFeedbackTable({ database: `${catalog}.${schema}`, appName: history[0]?.app_name, useCaseId });
     const before = I.previousBuilt(history);
     const refused = before ? I.implementSettingsOwnerRefusal(before, person.username) : { status: 409, message: I.IMPLEMENT_SETTINGS_NOT_BUILT };
-    return { sid, warehouseId, catalog, schema, useCaseId, history, person, table, before, refused };
+    return { sid, warehouseId, catalog, schema, useCaseId, history, person, table, appTable, before, refused };
   }
 
   function feedbackTables(ctx) {
-    const app = FB.appFeedbackTable(`${ctx.catalog}.${ctx.schema}`);
-    return ctx.table ? [FB.feedbackTable(ctx.table), app] : [app];
+    return ctx.table ? [FB.feedbackTable(ctx.table), ctx.appTable] : [ctx.appTable];
   }
 
   function feedbackOwnerOnly(ctx) {

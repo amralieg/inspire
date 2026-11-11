@@ -14,7 +14,7 @@ function useFeedback(pageId) {
   return { data, failure, setData };
 }
 
-function FeedbackForm({ pageId, context, sections, onSent, autoFocus = false }) {
+function FeedbackForm({ pageId, context, sections, onSent, autoFocus = false, reports = null }) {
   const [text, setText] = useState('');
   const [about, setAbout] = useState(context.section);
   const [failure, setFailure] = useState(null);
@@ -40,8 +40,10 @@ function FeedbackForm({ pageId, context, sections, onSent, autoFocus = false }) 
       setSending(false);
     }
   };
+  if (reports?.ready === false) return <p className="why" data-feedback-note>{reports.note}</p>;
   return (
     <form className="fb-form" onSubmit={send} data-feedback-form>
+      {reports?.where && <p className="why" data-feedback-where>{reports.where}</p>}
       {picks.length > 1 && context.section === 'settings' && (
         <label className="fb-about">About
           <select value={about} onChange={(e) => setAbout(e.target.value)} name="feedback_section">
@@ -85,7 +87,7 @@ function FeedbackList({ data, failure }) {
   );
 }
 
-export function FeedbackButton({ pageId, context, sections }) {
+export function FeedbackButton({ pageId, context, sections, reports = null }) {
   const [open, setOpen] = useState(false);
   const anchor = useRef(null);
   const close = useCallback(() => setOpen(false), []);
@@ -97,17 +99,17 @@ export function FeedbackButton({ pageId, context, sections }) {
       </button>
       {open && (
         <Popover anchor={anchor.current} onClose={close} label="Report an issue" width={340}>
-          <FeedbackForm pageId={pageId} context={context} sections={sections} onSent={close} autoFocus />
+          <FeedbackForm pageId={pageId} context={context} sections={sections} onSent={close} autoFocus reports={reports} />
         </Popover>
       )}
     </>
   );
 }
 
-export function FeedbackScreen({ pageId, context, sections }) {
+export function FeedbackScreen({ pageId, context, sections, reports = null }) {
   return (
     <section className="card" aria-label="Feedback" data-feedback-screen>
-      <FeedbackForm pageId={pageId} context={context} sections={sections} />
+      <FeedbackForm pageId={pageId} context={context} sections={sections} reports={reports} />
     </section>
   );
 }
@@ -123,11 +125,11 @@ export function ReportedIssues({ pageId }) {
   );
 }
 
-export function FeedbackSettings({ pageId, context, sections }) {
+export function FeedbackSettings({ pageId, context, sections, reports = null }) {
   const feedback = useFeedback(pageId);
   return (
     <>
-      <FeedbackForm pageId={pageId} context={context} sections={sections} onSent={(out) => feedback.setData(out)} />
+      <FeedbackForm pageId={pageId} context={context} sections={sections} onSent={(out) => feedback.setData(out)} reports={reports} />
       <FeedbackList data={feedback.data} failure={feedback.failure} />
     </>
   );

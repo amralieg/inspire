@@ -88,13 +88,14 @@ test('the Settings section holds App Feedback, picks the section it is about, li
   await limited.context.close();
 });
 
-test('Report an issue is offered on every page type, with or without a result table, and it opens the form', async () => {
+test('Report an issue is offered on every page type; a page with a results table opens the form, and an older App without a reports table says where to send the report', async () => {
   const bare = await openApp(browser, served.base, appInfo(), { hash: '#/n01_u05/settings', ready: '[data-group="look"]' });
   await bare.page.locator('[data-group="feedback"]').waitFor();
   await bare.page.locator('[data-rail="dashboard"]').click();
   await bare.page.locator('.ph h1').waitFor();
   await bare.page.locator('[data-feedback-open]').click();
-  await bare.page.locator('[data-feedback-form]').waitFor();
+  await bare.page.locator('[data-feedback-note]').waitFor();
+  assert.equal(await bare.page.locator('[data-feedback-form]').count(), 0);
   await bare.context.close();
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), {});
   await page.locator('[data-head-more]').waitFor({ state: 'attached' });
