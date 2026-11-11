@@ -3,7 +3,7 @@ const assert = require('node:assert/strict');
 const { documentRunParams, DOCUMENT_KINDS } = require('../lib/documentJob');
 
 const SESSION = {
-  session_id: '1527863599011743540',
+  session_id: '9000000000000009',
   inspire_database: 'inspire_kinds._inspire',
   business_name: 'v15 Water Utility rc7',
   generation_path: '/Workspace/Users/me@example.com/inspire_out',
