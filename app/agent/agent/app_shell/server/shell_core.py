@@ -160,7 +160,8 @@ FEEDBACK_SECTIONS = ("dashboard", "work", "performance", "runs", "alerts", "sett
 FEEDBACK_WINDOW_S = 3600.0
 REPORTS_WHERE = "Your report goes to the owner of this use case, who sees it on its Build page in Inspire."
 NO_FEEDBACK = ("Reports cannot be saved for this App yet, because it was built before it kept reported issues. Send the report to the owner "
-               "of this use case, or through Inspire's Build page for it, where the owner can rebuild the App so it keeps them")
+               "of this use case, or through Inspire's Build page for it, where the owner can " + shell_sql.rebuild_action("the App")
+               + " so it keeps them")
 def reports_view(page: dict, feedback_table: str) -> dict:
     ready = bool(page.get("result_table") or feedback_table)
     return {"ready": ready, "note": "" if ready else NO_FEEDBACK, "where": REPORTS_WHERE}
@@ -4362,7 +4363,7 @@ class Shell:
         value, table = values["realized_value"], page.get("value_ledger")
         if not table or not page.get("result_table") or not page.get("use_case_id"):
             return {} if value is None else {"value_warning": "the saved value is not counted in the value ledger, because this App's page "
-                                                              "names no ledger; rebuild the App so it does"}
+                                                              f"names no ledger; {shell_sql.rebuild_action('the App')} so it does"}
         writer = self.ledger_writer(ws)
         try:
             stake = self.execute(writer, shell_facts.ledger_latest_stake_sql(table, page["result_table"], page["use_case_id"]), [], 1,

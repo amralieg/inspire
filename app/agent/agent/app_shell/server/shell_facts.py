@@ -729,3 +729,8 @@ def ledger_clear_from_batch_sql(table: str, result_table: str, use_case_id: str,
 def ledger_latest_stake_sql(table: str, result_table: str, use_case_id: str) -> str:
     return (f"SELECT session_id, run_id, kind, currency, unit FROM {table} WHERE result_table = {ledger_literal(result_table)} "
             f"AND use_case_id = {ledger_literal(use_case_id)} AND record_key IS NULL ORDER BY recorded_at DESC LIMIT 1")
+
+
+def rebuild_action(what: str, first: bool = False, page: str = "the Build page") -> str:
+    text = f"build {what} again with Vibe/Add/Remove Features on {page}"
+    return text[:1].upper() + text[1:] if first else text
