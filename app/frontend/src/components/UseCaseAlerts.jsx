@@ -13,6 +13,7 @@ import {
 } from '../lib/useCaseAlerts';
 import { OPEN_ALL_SETTINGS } from '../lib/implementWizard';
 import { PlainMessage } from './TechnicalDetails';
+import SaveButton from './SaveButton';
 
 const BUTTON = 'inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-medium disabled:opacity-50';
 const PRIMARY = `${BUTTON} font-semibold text-white bg-db-red-solid hover:opacity-90`;
@@ -142,9 +143,9 @@ function AlertForm({ listing, start, post, onDone, onCancel }) {
         </button>
         <span className="flex-1" />
         <button type="button" className={OUTLINE} onClick={onCancel} disabled={busy === 'save'}>Cancel</button>
-        <button type="submit" className={PRIMARY} disabled={Boolean(busy) || !measure}>
-          {busy === 'save' ? <Loader2 size={11} className="animate-spin" /> : <Check size={11} />} {busy === 'save' ? 'Saving' : form.id ? 'Save the alert' : 'Set up the alert'}
-        </button>
+        <SaveButton type="submit" className={PRIMARY} busy={busy === 'save'} disabled={Boolean(busy) || !measure}>
+          <Check size={11} /> {form.id ? 'Save the alert' : 'Set up the alert'}
+        </SaveButton>
       </div>
     </form>
   );

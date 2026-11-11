@@ -15,7 +15,7 @@ import {
 } from '../lib/useCaseFields';
 import ValueEstimateLine from './ValueEstimateLine';
 import ValueBadge from './ValueBadge';
-import UseCaseNameEditor from './UseCaseNameEditor';
+import UseCaseNameEditor, { UseCaseNameNotes } from './UseCaseNameEditor';
 
 const s = (v) => (v == null ? '' : String(v));
 
@@ -84,9 +84,7 @@ export default function UseCaseCard({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <h3 dir="auto" className="text-lg sm:text-xl font-bold text-text-primary leading-snug">
-                    {titlePlain}
-                  </h3>
+                  <UseCaseNameEditor text={titlePlain} value={s(u.Name) || titlePlain} onSave={onRename} />
                   {v130?.bestOfBest && (
                     <span
                       className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] px-2 py-0.5 rounded-md border shrink-0 leading-none text-warning-fg border-warning/35 bg-warning-bg"
@@ -174,7 +172,7 @@ export default function UseCaseCard({
       <ImplementCardActions status={implementStatus} onImplement={onImplement} onOpen={onOpenMvp} notebookUrl={notebookUrl} links={assetLinks} />
 
       {expanded && typeof onRename === 'function' && (
-        <UseCaseNameEditor name={s(u.Name)} originalName={s(u.original_name)} onSave={onRename} liveAppStale={liveAppStale} onUpdateLiveApp={onUpdateLiveApp} />
+        <UseCaseNameNotes name={s(u.Name)} originalName={s(u.original_name)} onSave={onRename} liveAppStale={liveAppStale} onUpdateLiveApp={onUpdateLiveApp} />
       )}
       {expanded && (
         <UseCaseDetailBody

@@ -43,12 +43,12 @@ test('after a rename, the live App offers one Update button; clicking it posts t
     await cardOf(page, 'N01-U01').locator('[aria-expanded]').first().waitFor();
     await idle(page);
     await cardOf(page, 'N01-U01').locator('[aria-expanded]').first().click();
-    const editor = cardOf(page, 'N01-U01').locator('[data-use-case-name-editor]');
-    await editor.waitFor();
     assert.equal(await page.getByRole('button', { name: UPDATE }).count(), 0, 'no rename, no update button');
 
-    await editor.locator('input').fill(RENAMED);
-    await editor.getByRole('button', { name: 'Save name' }).click();
+    const before = await cardOf(page, 'N01-U01').locator('h3').innerText();
+    await page.getByRole('button', { name: `Rename ${before}` }).click();
+    await cardOf(page, 'N01-U01').getByRole('textbox', { name: `Use case name for ${before}` }).fill(RENAMED);
+    await cardOf(page, 'N01-U01').getByRole('textbox', { name: `Use case name for ${before}` }).press('Enter');
     await until(async () => posted.rename.length === 1);
     assert.deepEqual(posted.rename[0], { inspire_database: posted.rename[0].inspire_database, warehouse_id: posted.rename[0].warehouse_id, session_id: '42', use_case_id: 'N01-U01', name: RENAMED });
 

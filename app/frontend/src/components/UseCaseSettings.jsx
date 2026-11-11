@@ -5,6 +5,7 @@ import { ScopeSections } from './ScopeSettings';
 import { SETTINGS_NEXT_RUN, SETTINGS_SAVED, SETTING_GROUPS, settingGroupTitle, settingHistoryLine, settingValueText } from '../lib/useCaseSettings';
 import { isScopeSetting } from '../lib/runScope';
 import { PlainMessage } from './TechnicalDetails';
+import SaveButton from './SaveButton';
 
 const BUTTON = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50';
 const INPUT = 'px-2 py-1 text-[12px] border border-border rounded-md bg-surface text-text-primary w-28';
@@ -115,9 +116,9 @@ export default function UseCaseSettings({ view, error = '', readOnly = false, im
             <div className="flex flex-wrap items-center gap-2">
               <input dir="auto" aria-label="Note for the change" placeholder="Why, for the history (optional)" maxLength={300} className={`${INPUT} w-64`} value={note}
                 onChange={(e) => setNote(e.target.value)} />
-              <button type="button" disabled={busy !== ''} onClick={save} className={`${BUTTON} text-white bg-db-red-solid`}>
-                {busy === 'save' ? <Loader2 size={12} className="animate-spin" /> : null}Save {draft.label}
-              </button>
+              <SaveButton busy={busy === 'save'} disabled={busy !== ''} onClick={save} className={`${BUTTON} text-white bg-db-red-solid`}>
+                Save {draft.label}
+              </SaveButton>
             </div>
           </div>
         )}
