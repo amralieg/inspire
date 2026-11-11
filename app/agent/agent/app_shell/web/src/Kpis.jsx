@@ -120,7 +120,6 @@ export function Story({ page, data }) {
       {pieces.map((piece, i) => (piece.strong
         ? <b key={i} className={piece.tone || ''}>{piece.text}</b>
         : <span key={i}>{piece.text}</span>))}
-      <AskGenie kind="text" title="Page summary" context={{ hint: pieces.map((piece) => piece.text).join('') }} />
     </p>
   );
 }

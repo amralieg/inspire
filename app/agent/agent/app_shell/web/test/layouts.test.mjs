@@ -464,7 +464,7 @@ test('the dashboard is read only: What to do now, a So what line and Ask Genie o
   const widgets = info.pages[0].charts.length + info.pages[0].tables.length;
   assert.equal(await page.locator('[data-section="charts"] [data-so-what], [data-section="tables"] [data-so-what]').count(), widgets);
   assert.equal(await page.locator('[data-section="charts"] [data-ask], [data-section="tables"] [data-ask="table"]').count(), widgets);
-  assert.deepEqual(await page.locator('[data-section="todo"] [data-step]').evaluateAll((n) => n.map((s) => s.dataset.step)), ['read', 'so_what', 'filters']);
+  assert.deepEqual(await page.locator('[data-section="todo"] [data-step]').evaluateAll((n) => n.map((s) => s.dataset.step)), ['so_what', 'filters']);
   assert.equal(await page.locator('[data-todo-count]').count(), 0);
   assert.equal(await page.getByRole('button', { name: 'Accept' }).count(), 0);
   assert.equal(info.pages[0].layout.informational, true);

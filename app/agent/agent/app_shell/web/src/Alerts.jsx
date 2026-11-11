@@ -13,6 +13,7 @@ import {
   blankForm, capText, capped, defaultName, filtersText, formFrom, formProblem, measureOf, operatorLabel, operatorsOf, parseEmails,
   previewText, reachable, ruleText, stateFlag, watchOf,
 } from './alerts.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 function useAlerts(pageId) {
   const [out, setOut] = useState({ data: null, error: '' });
@@ -246,6 +247,7 @@ export default function Alerts({ app, page, meta, compose = false, onComposed })
           <h2>Alerts</h2>
           <p>Get an email when what this page shows crosses a line you set. Each alert checks on its own schedule.</p>
         </div>
+        <SectionHelp title="Alerts" steps={[{ title: 'Get an email when a line is crossed', text: 'Set a line on a number this page shows, pick who gets the email, and it checks on its own schedule.' }]} />
         {listing && !form && listing.measures.length > 0 && (
           <button className="btn btn--pri" onClick={() => setForm(blankForm(listing, app.user))} disabled={full} title={full ? capText(listing.caps) : undefined}>
             <Icon name="plus" size={14} />New alert

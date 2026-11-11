@@ -13,6 +13,7 @@ import {
   triggerText,
 } from './freshness.js';
 import { timelineChart } from './trends.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 function RunNow({ onRun, running }) {
   return (
@@ -167,6 +168,7 @@ export default function Runs({ page, runs, offset, onOffset, onExplain, genieBus
             <h2>Runs</h2>
             <p>Newest first. Click a run to see the tables it used. Refresh now updates all the data.</p>
           </div>
+          <SectionHelp title="Runs" steps={[{ title: 'Each refresh of this use case', text: 'Each row is one refresh: when it ran, what it found and the figures it reached. Click a run to see which tables it read.' }]} />
           <AskGenie kind="table" title="Runs" context={tableContext('The runs of this use case, newest first.', list, (run) => fieldsOf(run, columns), total)} />
         </header>
         {busy && !data && <div style={{ padding: 16, display: 'grid', gap: 10 }}>{[1, 2, 3].map((i) => <Skeleton key={i} height={22} />)}</div>}

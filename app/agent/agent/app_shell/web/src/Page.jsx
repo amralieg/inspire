@@ -8,7 +8,7 @@ import { hueVars } from './theme.js';
 import { DEFAULT_TAB, buildHash, describeFilters, fixThis, parseHash, sectionHash, workTabs } from './links.js';
 import { Block } from './Blocks.jsx';
 import { blockPlan, gridSpans, slotsOf, withBlocks } from './blocks.js';
-import { GenieMark, Icon } from './icons.jsx';
+import { Icon } from './icons.jsx';
 import Kpis, { Story } from './Kpis.jsx';
 import ChartCard from './ChartCard.jsx';
 import Records from './Records.jsx';
@@ -143,7 +143,6 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     query.set('tab', tabNow);
     window.history.replaceState(window.history.state, '', sectionHash(page.id, 'work', query));
   }, [tabbed, tab, tabNow, shown, page.id]);
-  const [question, setQuestion] = useState('');
   const [opened, setOpened] = useState(() => parseHash(window.location.hash).rec || '');
   const [seeChanged, setSeeChanged] = useState(() => (parseHash(window.location.hash).changed ? 1 : 0));
   const runsOn = sections.includes('runs');
@@ -271,23 +270,21 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
         <div className="ph-tools" data-section-tools>
           <FreshBar freshness={freshness}>
             {shown !== 'settings' && <PageLink pageId={page.id} meta={meta} state={state} view={shown} address={address} />}
-            {reporting && (shown === 'dashboard' || shown === 'work') && <Suspense fallback={null}><FeedbackButton pageId={page.id} context={report} sections={sections} /></Suspense>}
+            {reporting && (shown === 'dashboard' || shown === 'work') && (
+              <details className="head-more" data-head-more>
+                <summary className="btn" aria-label="More actions">More</summary>
+                <div className="head-more-menu"><Suspense fallback={null}><FeedbackButton pageId={page.id} context={report} sections={sections} /></Suspense></div>
+              </details>
+            )}
           </FreshBar>
         </div>
       </div>
       {shown !== 'dashboard' && <p className="ph-sec" data-section-title>{sectionTitle(page, shown)}</p>}
       {shown === 'dashboard' && !hubPage && <p className="ph-q">{page.question}</p>}
       {shown === 'dashboard' && !hubPage && page.promised?.estimate && (
-        <p className="ph-value" data-value-estimate="">{valueLine(page.promised.estimate)} <button type="button" className="link" onClick={() => go('settings')}>How it is measured in Settings</button></p>
+        <p className="ph-value ph-chip" data-value-estimate="">{valueLine(page.promised.estimate)} <button type="button" className="link" onClick={() => go('settings')}>How it is measured in Settings</button></p>
       )}
       {shown === 'dashboard' && !hubPage && data && <Story page={page} data={data.kpis} />}
-      {shown === 'dashboard' && app.style === 'c' && genieOn(app, page.id) && (
-        <form className="ask" onSubmit={(e) => { e.preventDefault(); if (question.trim()) { onAsk(question); setQuestion(''); } }}>
-          <span className="ask-ic"><GenieMark size={18} /></span>
-          <input dir="auto" value={question} onChange={(e) => setQuestion(e.target.value)} placeholder={`Ask Genie about ${page.title.toLowerCase()}…`} aria-label="Ask Genie" maxLength={1000} />
-          <button className="btn btn--pri" type="submit"><Icon name="send" size={14} />Ask</button>
-        </form>
-      )}
       {shown === 'dashboard' && (
         <div className="ph-meta">
           <Icon name="calendar" size={13} />

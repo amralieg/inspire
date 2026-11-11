@@ -425,7 +425,7 @@ export async function openBundle(browser, bundle, props, routes = {}, { width = 
 export const ASK_GROUPS = {
   card: '[data-card], [data-bars], section.card--table, section.money, .main .card:has(> .card-h)',
   kpi: '.kpi',
-  text: '.story, .blk--text, .blk--html, .sum',
+  text: '.blk--text, .blk--html, .sum',
   controls: '.fbar',
   row: '.main tbody tr, .main .choice-row',
   group: '.main .rec-entity',
