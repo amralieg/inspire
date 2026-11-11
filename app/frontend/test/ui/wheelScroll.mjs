@@ -137,14 +137,27 @@ export async function wheelReads(page, box, { lines = '', readable = 3, delta = 
   assert.ok(at.hit, `the scroll box is what the pointer lands on, nothing covers it ${JSON.stringify(at)}`);
   await page.mouse.move(at.x, at.y);
   const wheeledAt = Date.now();
+  const held = await box.elementHandle();
+  await box.evaluate((el) => {
+    el.dataset.wheelProbe = '1';
+    window.__wheelChurn = 0;
+    window.__wheelObs?.disconnect();
+    window.__wheelObs = new MutationObserver((records) => {
+      for (const r of records) if (r.type === 'childList') window.__wheelChurn += r.addedNodes.length + r.removedNodes.length;
+    });
+    window.__wheelObs.observe(document.body, { childList: true, subtree: true });
+  });
   await page.mouse.wheel(0, delta);
   await page.waitForFunction((el) => el.scrollTop > 0, await box.elementHandle(), { timeout: 5000 }).catch(async (error) => {
     const scrollTop = () => box.evaluate((el) => Math.round(el.scrollTop));
     const state = await box.evaluate((el, point) => {
       const hit = document.elementFromPoint(point.x, point.y);
+      const tagged = hit?.closest('[data-wheel-probe]') || null;
       return { boxTop: Math.round(el.scrollTop), boxScroll: el.scrollHeight, boxClient: el.clientHeight, pageTop: Math.round(document.scrollingElement.scrollTop),
-        hit: hit ? `${hit.tagName.toLowerCase()}.${String(hit.className).slice(0, 60)}` : '', innerHeight: window.innerHeight, innerWidth: window.innerWidth };
+        hit: hit ? `${hit.tagName.toLowerCase()}.${String(hit.className).slice(0, 60)}` : '', innerHeight: window.innerHeight, innerWidth: window.innerWidth,
+        sameNode: tagged === el, boxConnected: el.isConnected, boxTagged: el.dataset.wheelProbe === '1', churn: window.__wheelChurn };
     }, { x: at.x, y: at.y });
+    const original = await held.evaluate((el) => ({ connected: el.isConnected, tagged: el.dataset.wheelProbe === '1', top: Math.round(el.scrollTop) }));
     const pause = (ms) => new Promise((done) => { setTimeout(done, ms); });
     await page.mouse.wheel(0, delta);
     await pause(1000);
@@ -156,9 +169,19 @@ export async function wheelReads(page, box, { lines = '', readable = 3, delta = 
       lateTop = await scrollTop();
       if (firstMoveMs === null && lateTop > 0) firstMoveMs = Date.now() - wheeledAt;
     }
-    const detail = { at: { x: Math.round(at.x), y: Math.round(at.y) }, ...state, secondWheelTop, lateTop, firstMoveMs };
+    const programmatic = await box.evaluate((el) => new Promise((done) => {
+      el.scrollTop = 300;
+      const at100 = [];
+      setTimeout(() => { at100.push(Math.round(el.scrollTop)); }, 100);
+      setTimeout(() => done({ set: 300, at100ms: at100[0], at1s: Math.round(el.scrollTop) }), 1000);
+    }));
+    await box.evaluate(() => window.__wheelObs?.disconnect());
+    await held.dispose();
+    const detail = { at: { x: Math.round(at.x), y: Math.round(at.y) }, ...state, original, programmatic, secondWheelTop, lateTop, firstMoveMs };
     throw new Error(`the mouse wheel did not scroll the box, ${JSON.stringify(detail)}: ${error.message}`);
   });
+  await box.evaluate(() => window.__wheelObs?.disconnect());
+  await held.dispose();
   if (!lines) return;
   await frames(page);
   const seen = await box.evaluate((el, sel) => {
