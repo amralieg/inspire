@@ -153,15 +153,15 @@ test('an uninstalled MVP says what is kept, offers Start again with no Uninstall
     assert.equal(await page.locator('[data-vibe-box]').count(), 0, 'and nothing to vibe');
 
     const filters = page.getByRole('group', { name: 'Show use cases with' });
-    const counts = await filters.locator('[data-asset-filter]').evaluateAll((chips) => chips.map((c) => [c.dataset.assetFilter, c.textContent.trim(), c.disabled]));
+    const counts = await filters.locator('[data-asset-filter]').evaluateAll((boxes) => boxes.map((c) => [c.dataset.assetFilter, c.closest('label').textContent.trim(), c.disabled]));
     assert.deepEqual(counts, [['notebook', 'Notebook 2', false], ['app', 'App 0', true], ['dashboard', 'Dashboard 0', true], ['genie_space', 'Genie Agent 0', true],
       ['alert', 'Alert 0', true]], 'the removed assets no longer count, and the notebooks Discover wrote still do');
     const nav = page.getByRole('navigation', { name: 'Use cases' });
-    await filters.getByRole('button', { name: /^Notebook/ }).click();
+    await filters.getByRole('checkbox', { name: /^Notebook/ }).check();
     await nav.getByText('Forecast demand').waitFor({ state: 'detached' });
-    assert.equal(await filters.getByRole('button', { name: /^Notebook/ }).getAttribute('aria-pressed'), 'true');
+    assert.equal(await filters.getByRole('checkbox', { name: /^Notebook/ }).isChecked(), true);
     await nav.getByText('Score suppliers').waitFor();
-    await filters.getByRole('button', { name: 'All', exact: true }).click();
+    await filters.getByRole('checkbox', { name: /^Notebook/ }).uncheck();
     await nav.getByText('Forecast demand').waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -181,19 +181,58 @@ test('the asset filters count a built MVP\'s outputs and show only the use cases
     const filters = page.getByRole('group', { name: 'Show use cases with' });
     const nav = page.getByRole('navigation', { name: 'Use cases' });
     await filters.waitFor();
-    assert.deepEqual(await filters.locator('[data-asset-filter]').evaluateAll((chips) => chips.map((c) => c.textContent.trim())),
+    assert.deepEqual(await filters.locator('[data-asset-filter]').evaluateAll((boxes) => boxes.map((c) => c.closest('label').textContent.trim())),
       ['Notebook 2', 'App 1', 'Dashboard 1', 'Genie Agent 1', 'Alert 1']);
-    await filters.getByRole('button', { name: /^App/ }).click();
+    await filters.getByRole('checkbox', { name: /^App/ }).check();
     await nav.getByText('Score suppliers').waitFor({ state: 'detached' });
     await nav.getByText('Forecast demand').waitFor({ state: 'detached' });
     await nav.getByText('Predict churn').waitFor();
-    await filters.getByRole('button', { name: /^App/ }).click();
-    assert.equal(await filters.getByRole('button', { name: 'All', exact: true }).getAttribute('aria-pressed'), 'true', 'a second click lets the filter go');
+    await filters.getByRole('checkbox', { name: /^App/ }).uncheck();
+    assert.equal(await filters.getByRole('checkbox', { name: /^App/ }).isChecked(), false, 'a second click lets the filter go');
     await nav.getByText('Forecast demand').waitFor();
-    await filters.getByRole('button', { name: /^Dashboard/ }).click();
+    await filters.getByRole('checkbox', { name: /^Dashboard/ }).check();
     await nav.getByText('Forecast demand').waitFor({ state: 'detached' });
     await page.getByLabel('Search use cases').fill('forecast');
     await nav.getByText('No use case matching "forecast" has a Dashboard yet.').waitFor();
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('ticking the asset boxes filters the list, ticking two shows the builds with either, unticking all shows every use case, and the ticks survive a reload', async () => {
+  const useCases = [
+    { ...HARNESS_USE_CASE, _domain: 'Retention' },
+    { id: 'N02-U01', Name: 'Score suppliers', use_case: 'Score suppliers', _domain: 'Supply', has_genie_code: 'Y', notebook_path: '/Users/owner@example.com/inspire/Acme/N02-U01' },
+    { id: 'N01-U02', Name: 'Forecast demand', use_case: 'Forecast demand', _domain: 'Supply', primary_table: 'main.s.orders', tables_involved: 'main.s.orders' },
+  ];
+  const dashboardOnly = versionRow(1, { ...GONE, assets: { dashboard: ready(1, { snapshot: true }) }, use_case_id: 'N02-U01',
+    dashboard_id: 'd2', dashboard_url: 'https://workspace.example.com/dashboardsv3/d2/published' });
+  const ui = await openBuild({ ...STATE, useCases, history: [versionRow(3), dashboardOnly] });
+  const { page } = ui;
+  try {
+    const filters = page.getByRole('group', { name: 'Show use cases with' });
+    const nav = page.getByRole('navigation', { name: 'Use cases' });
+    const box = (name) => filters.getByRole('checkbox', { name: new RegExp(`^${name}`) });
+    await filters.waitFor();
+    await box('App').check();
+    await nav.getByText('Score suppliers').waitFor({ state: 'detached' });
+    await nav.getByText('Forecast demand').waitFor({ state: 'detached' });
+    await nav.getByText('Predict churn').waitFor();
+    await box('Dashboard').check();
+    await nav.getByText('Score suppliers').waitFor();
+    assert.equal(await nav.getByText('Predict churn').count(), 1, 'a build with both ticked shows once');
+    await nav.getByText('Forecast demand').waitFor({ state: 'detached' });
+    await page.reload();
+    await filters.waitFor();
+    assert.deepEqual(await filters.locator('[data-asset-filter]:checked').evaluateAll((boxes) => boxes.map((c) => c.dataset.assetFilter)), ['app', 'dashboard'],
+      'the two ticks come back after a reload');
+    await nav.getByText('Score suppliers').waitFor();
+    await nav.getByText('Forecast demand').waitFor({ state: 'detached' });
+    await box('App').uncheck();
+    await box('Dashboard').uncheck();
+    await nav.getByText('Forecast demand').waitFor();
+    assert.equal(await filters.locator('[data-asset-filter]:checked').count(), 0, 'no tick shows every use case');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

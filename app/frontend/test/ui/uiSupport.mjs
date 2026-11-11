@@ -9,6 +9,7 @@ import { createServer } from 'vite';
 import { chromium } from 'playwright';
 import { HARNESS_USE_CASE } from './implementFixtures.js';
 import { expandBuild } from '../../../scripts/showcaseRecorder.mjs';
+import { ASSET_FILTER_STORAGE } from '../../src/lib/implementControl.js';
 
 export { expandBuild };
 
@@ -112,6 +113,11 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
     opened.push(async () => { backends.delete(id); });
     const { origin } = await sharedServers();
     const page = await browser.newPage({ viewport: { width: 1440, height: 1000 }, extraHTTPHeaders: { [UI_HEADER]: id } });
+    await page.addInitScript((key) => {
+      if (sessionStorage.getItem('inspire.ui_fresh_page')) return;
+      sessionStorage.setItem('inspire.ui_fresh_page', '1');
+      localStorage.removeItem(key);
+    }, ASSET_FILTER_STORAGE);
     opened.push(async () => { await page.unrouteAll({ behavior: 'ignoreErrors' }); await page.close(); });
     const asking = new Set();
     ASKING.set(page, asking);

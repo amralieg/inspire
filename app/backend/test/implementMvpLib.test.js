@@ -75,10 +75,26 @@ test('the rail filter counts and keeps only use cases that have the asset, and a
   assert.deepEqual(C.assetFilterCounts(items).map((f) => [f.id, f.count]),
     [['notebook', 3], ['app', 1], ['dashboard', 1], ['genie_space', 0], ['alert', 0]]);
   const groups = [{ id: 'ready', items: [full, notebookOnly] }, { id: 'not_started', items: [requested, gone, goneKeepsDiscovery] }];
-  assert.equal(C.filterByAsset(groups, ''), groups, 'no filter changes nothing');
-  assert.deepEqual(C.filterByAsset(groups, 'dashboard').map((g) => g.items.map((i) => i.id)), [['A'], []]);
-  assert.deepEqual(C.filterByAsset(groups, 'notebook').map((g) => g.items.map((i) => i.id)), [['A', 'B'], ['E']]);
-  assert.deepEqual(C.filterByAsset(groups, 'genie_space').map((g) => g.items.length), [0, 0]);
+  assert.equal(C.filterByAssets(groups, []), groups, 'no ticked asset changes nothing');
+  assert.deepEqual(C.filterByAssets(groups, ['dashboard']).map((g) => g.items.map((i) => i.id)), [['A'], []]);
+  assert.deepEqual(C.filterByAssets(groups, ['notebook']).map((g) => g.items.map((i) => i.id)), [['A', 'B'], ['E']]);
+  assert.deepEqual(C.filterByAssets(groups, ['genie_space']).map((g) => g.items.length), [0, 0]);
+  assert.deepEqual(C.filterByAssets(groups, ['dashboard', 'notebook']).map((g) => g.items.map((i) => i.id)), [['A', 'B'], ['E']],
+    'two ticked assets show the union, not the builds that have both');
+});
+
+test('the build panel filter is a set of the four asset ids, kept across reloads and ignoring unknown ids', async () => {
+  const C = await lib('implementControl.js');
+  const store = new Map();
+  const storage = { getItem: (key) => store.get(key) ?? null, setItem: (key, value) => store.set(key, String(value)) };
+  assert.deepEqual(C.loadAssetFilters(storage), [], 'nothing saved means every use case shows');
+  assert.equal(C.saveAssetFilters(['app', 'alert', 'app', 'bogus'], storage), true);
+  assert.equal(store.get(C.ASSET_FILTER_STORAGE), 'app,alert', 'duplicates and unknown ids are dropped before saving');
+  assert.deepEqual(C.loadAssetFilters(storage), ['app', 'alert'], 'the choice comes back after a reload');
+  store.set(C.ASSET_FILTER_STORAGE, 'genie_space,retired_asset');
+  assert.deepEqual(C.loadAssetFilters(storage), ['genie_space'], 'a stored id that no longer exists is ignored');
+  assert.deepEqual(C.loadAssetFilters({ getItem() { throw new Error('blocked'); } }), [], 'blocked storage falls back to showing all');
+  assert.equal(C.saveAssetFilters(['app'], { setItem() { throw new Error('blocked'); } }), false);
 });
 
 test('an uninstalled MVP reads as uninstalled and goes back to Start, and only a built MVP is an MVP to open', async () => {
