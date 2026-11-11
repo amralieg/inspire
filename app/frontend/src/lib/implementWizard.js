@@ -2747,6 +2747,18 @@ export const APP_READ_ACTION = 'Let Inspire read these tables';
 
 export const SOURCE_REFUSED_REASON = 'The App cannot read its sources yet, so the build cannot start. Grant access first, then build.';
 
+export const ACCESS_CHECKING = 'Checking access';
+export const ACCESS_UNKNOWN = 'Could not check access';
+
+export function accessVerdictOf({ preflight = null, error = '', busy = false, unread = null } = {}) {
+  if (unread) return 'refused';
+  if (error) return 'error';
+  if (busy || !preflight) return 'pending';
+  const sources = preflight.checks?.sources;
+  if (!sources || typeof sources.ok !== 'boolean') return 'unknown';
+  return sources.ok ? 'ok' : 'refused';
+}
+
 export function abacGrantText(got) {
   const gaps = got?.abac_gaps || [];
   if (gaps.length) {
