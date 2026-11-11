@@ -306,16 +306,18 @@ function resolveHost(req) {
 async function dbFetch(host, token, apiPath, options = {}) {
   if (!host) throw new Error('Databricks host not configured.');
   const url = `${host}${apiPath}`;
+  const { idempotent = false, ...init } = options;
+  const method = init.method || 'GET';
   let resp;
   try {
     resp = await withBusyRetry(() => fetch(url, {
-      ...options,
+      ...init,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...init.headers,
       },
-    }), { method: options.method || 'GET', signal: options.signal });
+    }), { method, signal: init.signal, retryNetwork: idempotent || method === 'GET' });
   } catch (e) {
     throw new Error(unreachableMessage(host, e, policyEnforced()));
   }
