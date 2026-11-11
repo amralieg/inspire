@@ -102,7 +102,9 @@ def test_a_page_inside_inspire_is_the_app_source_written_to_its_version_folder_w
     settings = json.loads(written[f"{FOLDER}/v2/inspire_app.json"])
     assert settings["auth"] == "user" and settings["backend"] == {"kind": "delta"} and settings["host"] == "inspire"
     assert "host" not in _settings(own), "only a page inside Inspire says where it runs; an App of its own keeps its service principal"
-    assert {k: v for k, v in settings.items() if k != "built_at"} == dict(_settings(own), host="inspire")
+    same = {k: v for k, v in settings.items() if k not in ("built_at", "feedback_table")}
+    assert same == dict({k: v for k, v in _settings(own).items() if k != "feedback_table"}, host="inspire")
+    assert settings["feedback_table"] == "main.inspire.__inspire_app_feedback_n01_u01", "an App inside Inspire has no name, so its reports table is named for its use case"
     assert (fields["app_name"], fields["app_url"]) == ("", "")
     hosted = fields["_asset"]["hosted"]
     assert fields["_asset"] == {"placement": "inspire", "hosted": hosted, "app_name": "", "app_url": ""}
