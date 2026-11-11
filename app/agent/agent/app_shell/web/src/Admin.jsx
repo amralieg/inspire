@@ -3,7 +3,7 @@ import { getUsage } from './api.js';
 import { Icon } from './icons.jsx';
 import DataTable from './DataTable.jsx';
 import { PlainNote } from './ui.jsx';
-import { NO_PEOPLE, USAGE_RECORDED, USAGE_UNRECORDED, usageView } from './admin.js';
+import { ADMIN_ROUTE, NO_PEOPLE, USAGE_RECORDED, USAGE_UNRECORDED, usageView } from './admin.js';
 
 const REFUSED = [401, 403];
 

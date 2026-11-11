@@ -46,14 +46,6 @@ const MoneyRule = lazy(() => import('./MoneyRule.jsx').then((m) => ({ default: m
 const Runs = lazy(() => import('./Runs.jsx'));
 const Alerts = lazy(() => import('./Alerts.jsx'));
 const TrendCards = lazy(() => import('./Trends.jsx'));
-function AdminLink({ on }) {
-  return (
-    <a className={`admin-link top-ic ${on ? 'is-on' : ''}`} data-more="tight" href={`#/${ADMIN_ROUTE}`} aria-current={on ? 'page' : undefined} aria-label="Admin" title="Admin">
-      <Icon name="lock" size={13} /><span>Admin</span>
-    </a>
-  );
-}
-
 const Waiting = ({ height = 180 }) => <section className="card" role="status" aria-label="Loading"><Skeleton height={height} /></section>;
 
 export function usePageData(pageId, state, ready, nonce = 0, sorts = null) {
