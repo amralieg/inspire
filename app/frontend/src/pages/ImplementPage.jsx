@@ -1296,7 +1296,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       {protectionFailed.length > 0 && (
         <details data-protection-failed="" className="text-[11px] text-error-fg">
           <summary className="cursor-pointer">Details</summary>
-          <ul className="mt-1 space-y-0.5">{protectionFailed.map((line) => <li key={line} className="font-mono break-all">{line}</li>)}</ul>
+          <ul className="mt-1 space-y-0.5">{protectionFailed.map((line, i) => <li key={`${i}-${line}`} className="font-mono break-all">{line}</li>)}</ul>
         </details>
       )}
       {buildAgain && !protection && <p className="text-error-fg">{dataStop ? DATA_STOP_HINT : terminal ? TERMINAL_STOP_HINT : buildAgainHint(latest)}</p>}
@@ -1394,7 +1394,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {!readsResult.error && readsResult.failed?.length > 0 && (
             <details data-app-reads-failed="" className="text-[11px]">
               <summary className="cursor-pointer">Details</summary>
-              <ul className="space-y-0.5 mt-1">{readsResult.failed.map((line) => <li key={line} className="font-mono break-all">{line}</li>)}</ul>
+              <ul className="space-y-0.5 mt-1">{readsResult.failed.map((line, i) => <li key={`${i}-${line}`} className="font-mono break-all">{line}</li>)}</ul>
             </details>
           )}
           {readsResult.copied && <p>The grant SQL is copied. Send it to {readsLeft.tables.map((t) => t.owner).filter(Boolean)[0] || 'the table owner'}.</p>}
@@ -1540,7 +1540,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
               <div>v{entry.spec_version} · {historyStatus(entry, latest, stalled)} · {isAppUpdate(history, entry) ? APP_UPDATED_TEXT : entry.change_classes || 'initial'}</div>
               <div className="text-text-secondary">{entry.created_by} · {entry.updated_at}</div>
               <VibeChecklist compact checklist={vibeChecklist(null, entry)} assets={entry.asset_status} />
-              {notDoneLines(entry).map((line) => <p key={line} data-not-done-line="" className="text-error-fg">{line}</p>)}
+              {notDoneLines(entry).map((line, i) => <p key={`${i}-${line}`} data-not-done-line="" className="text-error-fg">{line}</p>)}
             </div>
           ))}
           <div className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-secondary pt-2">Job runs</div>
