@@ -1090,6 +1090,9 @@ def column_filters(entries, shown: dict, types=None) -> list:
     return out
 
 
+GROUP_BY_SETTING = "group_by"
+
+
 def page_grouping(page: dict, named) -> dict:
     records = page.get("records") if isinstance(page.get("records"), dict) else {}
     shown = {column.lower(): label for column, (label, _kind) in list_shown(records).items()}
@@ -1097,9 +1100,16 @@ def page_grouping(page: dict, named) -> dict:
     return {"mode": "columns", "group_by": group_by} if group_by else {}
 
 
-def grouping_columns(page: dict) -> set:
+def grouping_of(page: dict, text) -> dict:
+    names = [part.strip() for part in str("" if text is None else text).split(",") if part.strip()]
+    if not names or [name.lower() for name in names] == [SETTING_ALL] or any(name.lower() in ("all", "custom") for name in names[1:]):
+        return {}
+    return page_grouping(page, [] if any(name.lower() in ("all", "custom") for name in names) else names)
+
+
+def grouping_entries(page: dict) -> list:
     grouping = page.get("grouping") if isinstance(page.get("grouping"), dict) else {}
-    return {str(g["column"]).lower() for g in grouping.get("group_by") or [] if isinstance(g, dict) and isinstance(g.get("column"), str)}
+    return [g for g in grouping.get("group_by") or [] if isinstance(g, dict) and isinstance(g.get("column"), str)]
 
 
 def list_column_filters(page: dict, types=None, actions: bool = False) -> list:
@@ -1107,11 +1117,19 @@ def list_column_filters(page: dict, types=None, actions: bool = False) -> list:
     if not isinstance(records, dict):
         return []
     shown = list_shown(records)
-    wanted = grouping_columns(page)
+    entries = grouping_entries(page)
+    wanted = {g["column"].lower() for g in entries}
     found = [dict(f, grouping=True) if f["column"].lower() in wanted and f["type"] == "multi_select" else f
              for f in column_filters(records.get(COLUMN_FILTERS), shown, types)]
-    grouped = [{"column": column, "type": "multi_select", "label": label, "grouping": True}
-               for column, (label, _kind) in shown.items() if column.lower() in wanted and column not in {f["column"] for f in found}]
+    listed = {c.lower(): (label, c) for c, (label, _kind) in shown.items()}
+    grouped, seen = [], {f["column"].lower() for f in found}
+    for g in entries:
+        key = g["column"].lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        label, column = listed.get(key, (g.get("label") or _column_label(g["column"]), g["column"]))
+        grouped.append({"column": column, "type": "multi_select", "label": label, "grouping": True})
     taken = {f["column"] for f in found + grouped}
     offered = actions and records.get(COLUMN_FILTERS) is not False
     return found + grouped + [{"column": column, "type": "multi_select", "label": label, "implied": True, "action": True}

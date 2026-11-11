@@ -2445,6 +2445,7 @@ class Shell:
     def filters(self, headers: dict, ident, probe=None) -> dict:
         page = self.page(ident)
         ws, who = self.session(headers, probe)
+        page = self.live_grouping(ws, who, page)
         self.warm_open(ws, who, page)
         jobs = self.bounds_jobs(ws, who, page)
         chosen = len(jobs)
@@ -2488,6 +2489,14 @@ class Shell:
                 item["error"] = errors[key]
             (columns["list"] if table is None else columns["tables"].setdefault(table, [])).append(item)
         return {"filters": out, "columns": columns, "grouping": page.get("grouping") or {}}
+
+    def live_grouping(self, ws, who, page: dict) -> dict:
+        if not any(isinstance(s, dict) and s.get("name") == shell_sql.GROUP_BY_SETTING for s in page.get("settings") or []):
+            return page
+        saved = next((row for row in self.assumption_rows(ws, who, page) if row.get("name") == shell_sql.GROUP_BY_SETTING), None)
+        if saved is None or not isinstance(saved.get("text_value"), str):
+            return page
+        return dict(page, grouping=shell_sql.grouping_of(page, saved["text_value"]))
 
     def bounds_jobs(self, ws, who, page: dict, apart: bool = False) -> dict:
         dated = [f["id"] for f in page.get("filters") or [] if f["type"] == "date_range"]
