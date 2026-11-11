@@ -53,7 +53,7 @@ const SAMPLES = [
   { key: 'POST /api/run', rule: 'any', method: 'POST', path: '/api/run', body: { params: {} } },
   { key: 'POST /api/output-folder/check', rule: 'any', method: 'POST', path: '/api/output-folder/check', body: { generation_path: './../demos/' } },
   { key: 'POST /api/inspire/ack', rule: 'any', method: 'POST', path: '/api/inspire/ack', body: {} },
-  { key: 'POST /api/inspire/usecase-name', rule: 'any', method: 'POST', path: '/api/inspire/usecase-name', body: {} },
+  { key: 'POST /api/inspire/usecase-name', rule: 'managers', method: 'POST', path: '/api/inspire/usecase-name', body: {} },
   { key: 'POST /api/inspire/feedback', rule: 'any', method: 'POST', path: '/api/inspire/feedback', body: {} },
   { key: 'POST /api/auth/sp-token', rule: 'any', method: 'POST', path: '/api/auth/sp-token', body: {} },
   { key: 'POST /api/setup/verify', rule: 'managers', method: 'POST', path: '/api/setup/verify', body: {} },

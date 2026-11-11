@@ -54,3 +54,38 @@ def test_the_genie_code_notebook_shows_the_renamed_use_case_and_the_stored_table
     assert f"# {uc['No']}: {RENAMED}" in text
     assert ORIGINAL not in text
     assert RESULT in json.dumps(spec, default=str)
+
+
+def test_a_discover_rewrite_keeps_the_stored_name_of_the_same_use_case(agent_ns):
+    uc = {"No": "N01-U01", "Name": ORIGINAL}
+    other = {"No": "N01-U02", "Name": "Other"}
+    carried = agent_ns["DatabricksInspire"].carry_user_use_case_names([uc, other], {"N01-U01": RENAMED, "N99-U99": "Gone"})
+    assert carried == 1
+    assert uc["user_use_case_name"] == RENAMED
+    assert "user_use_case_name" not in other
+
+
+def test_a_name_set_on_the_use_case_is_not_overwritten_by_the_stored_one(agent_ns):
+    uc = {"No": "N01-U01", "Name": ORIGINAL, "user_use_case_name": "Fresh name"}
+    assert agent_ns["DatabricksInspire"].carry_user_use_case_names([uc], {"N01-U01": RENAMED}) == 0
+    assert uc["user_use_case_name"] == "Fresh name"
+
+
+def test_the_display_name_is_the_user_name_else_the_catalogue_name(agent_ns):
+    display = agent_ns["inspire_uc_display_name"]
+    assert display({"Name": ORIGINAL, "user_use_case_name": RENAMED}) == RENAMED
+    assert display({"Name": ORIGINAL, "user_use_case_name": "  "}) == ORIGINAL
+    assert display({"Name": ORIGINAL}) == ORIGINAL
+
+
+def test_the_catalogue_view_every_writer_reads_shows_the_user_name(agent_ns):
+    from v120_artifacts_support import make_inspire, make_uc
+    from v120_docs_design_test import labels, portfolio, summary
+    inst = make_inspire(agent_ns)
+    grouped = portfolio()
+    uc = grouped["Sales"][0]
+    uc["user_use_case_name"] = RENAMED
+    model = inst._document_model("English", labels(agent_ns), summary(), grouped, "Acme")
+    view = inst._use_case_view(uc, model, labels(agent_ns))
+    assert view["title"] == RENAMED
+    assert ORIGINAL not in str(view)
