@@ -142,35 +142,47 @@ def _indexed_problem(name: str, entry: dict) -> list:
     return []
 
 
-def _enforce_problem(name: str, entry) -> list:
-    enforce = entry.get("enforce") if isinstance(entry, dict) else None
-    base = str(entry.get("base") or "") if isinstance(entry, dict) else ""
-    if isinstance(entry, dict) and "enforce" in entry and enforce is None:
-        parts = base.split(".")
-        return [] if len(parts) == 2 and all(PG_NAME.match(p) for p in parts) else [
-            f"the enforced Lakebase copy of {name} needs a base that is a Postgres schema.table"]
+def _one_enforce_problem(name: str, enforce, columns) -> list:
     if (not isinstance(enforce, dict) or set(enforce) != set(ENFORCE_KEYS)
             or any(not isinstance(enforce[k], str) or not enforce[k].strip() for k in ENFORCE_KEYS)):
-        return [f"the Lakebase copy of {name} is not enforced: it must name the column its row filter reads, the mapping table, "
+        return [f"the Lakebase copy of {name} is not enforced: each row filter must name the column it reads, the mapping table, "
                 "the mapping key and the principal column"]
-    if isinstance(entry, dict) and enforce["column"] not in {c.get("name") for c in entry.get("columns") or []}:
+    if enforce["column"] not in {c.get("name") for c in columns or []}:
         return [f"the enforced Lakebase copy of {name} filters on {enforce['column']}, which the copy does not hold"]
-    problems = []
-    for label, qualified in (("base", base), ("mapping table", enforce["map"])):
-        parts = qualified.split(".")
-        if len(parts) != 2 or not all(PG_NAME.match(p) for p in parts):
-            problems.append(f"the enforced Lakebase copy of {name} needs a {label} that is a Postgres schema.table")
+    parts = enforce["map"].split(".")
+    if len(parts) != 2 or not all(PG_NAME.match(p) for p in parts):
+        return [f"the enforced Lakebase copy of {name} needs a mapping table that is a Postgres schema.table"]
+    return []
+
+
+def _enforce_problem(name: str, entry) -> list:
+    base = str(entry.get("base") or "") if isinstance(entry, dict) else ""
+    parts = base.split(".")
+    problems = [] if len(parts) == 2 and all(PG_NAME.match(p) for p in parts) else [
+        f"the enforced Lakebase copy of {name} needs a base that is a Postgres schema.table"]
+    enforce = entry.get("enforce") if isinstance(entry, dict) else None
+    if "enforce" not in (entry if isinstance(entry, dict) else {}):
+        return problems + [f"the Lakebase copy of {name} is not enforced: it must list its row filters, or null when it has none"]
+    if enforce is None:
+        return problems
+    if not isinstance(enforce, list) or not enforce:
+        return problems + [f"the enforced Lakebase copy of {name} must list its row filters, or be null when it has none"]
+    for one in enforce:
+        problems += _one_enforce_problem(name, one, entry.get("columns"))
     return problems
 
 
 def enforcing_view_sql(entry: dict) -> str:
-    enforce, view, base = entry["enforce"], entry["pg"], entry["base"]
-    if enforce is None:
+    enforces, view, base = entry["enforce"], entry["pg"], entry["base"]
+    if enforces is None:
         return f"CREATE OR REPLACE VIEW {_qualified(view)} AS SELECT t.* FROM {_qualified(base)} AS t"
-    mapping = (f"SELECT m.{pg_ident(enforce['key'])} FROM {_qualified(enforce['map'])} AS m "
-               f"WHERE lower(m.{pg_ident(enforce['principal'])}) = ANY(string_to_array(current_setting('{VIEWER_SETTING}', true), ','))")
+    kept = []
+    for enforce in enforces:
+        mapping = (f"SELECT m.{pg_ident(enforce['key'])} FROM {_qualified(enforce['map'])} AS m "
+                   f"WHERE lower(m.{pg_ident(enforce['principal'])}) = ANY(string_to_array(current_setting('{VIEWER_SETTING}', true), ','))")
+        kept.append(f"t.{pg_ident(enforce['column'])} IN ({mapping})")
     return (f"CREATE OR REPLACE VIEW {_qualified(view)} WITH (security_barrier = true) AS SELECT t.* FROM {_qualified(base)} AS t "
-            f"WHERE t.{pg_ident(enforce['column'])} IN ({mapping})")
+            f"WHERE {' AND '.join(kept)}")
 
 
 def base_read_probe(backend: dict) -> tuple:
@@ -179,8 +191,8 @@ def base_read_probe(backend: dict) -> tuple:
         if not isinstance(entry, dict) or "base" not in entry:
             continue
         bases.add(str(entry["base"]))
-        if isinstance(entry.get("enforce"), dict):
-            bases.add(str(entry["enforce"]["map"]))
+        for enforce in entry.get("enforce") or ():
+            bases.add(str(enforce["map"]))
     return ("SELECT bool_or(has_table_privilege(current_user, c.oid, 'SELECT')) FROM pg_catalog.pg_class AS c "
             "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname || '.' || c.relname = ANY(%(bases)s::text[])",
             {"bases": sorted(bases)})
@@ -265,31 +277,30 @@ def row_filter_mapping(body, column: str, parameter: str):
 def enforce_plan(filters: list, result_columns, masked=()) -> dict:
     """Whether the database can keep each viewer to their rows of one result table, from its source tables' row filters.
 
-    filters: one entry per source table, {"table", "column", "parameter", "body", "unreadable"} (body None when not readable).
-    result_columns: the columns the copy of the result table holds. masked: the result columns a column mask hides."""
+    filters: one entry per source table with a row filter: {"table", "column", "parameter", "body", "unreadable"}.
+    result_columns: the columns the copy of the result table holds. masked: the result columns a column mask hides.
+    Every filter must translate, and every key column must be on the copy; the view then keeps a row only when each mapping does."""
     result = {str(c).lower() for c in result_columns or ()}
     hidden = sorted({str(c) for c in masked or ()})
+
+    def refuse(reason):
+        return {"enforced": False, "enforce": None, "masked": hidden, "reason": reason}
+
     if not filters:
         return {"enforced": True, "enforce": None, "masked": hidden, "reason": ""}
-    if len(filters) > 1:
-        names = ", ".join(sorted(f["table"] for f in filters))
-        return {"enforced": False, "enforce": None, "masked": hidden,
-                "reason": f"more than one source table has a row filter ({names}), and one mapping cannot carry them all"}
-    row = filters[0]
-    if row.get("unreadable") or row.get("body") is None:
-        return {"enforced": False, "enforce": None, "masked": hidden,
-                "reason": f"Inspire could not read the row filter of {row['table']}"}
-    mapping = row_filter_mapping(row["body"], row["column"], row["parameter"])
-    if mapping is None:
-        return {"enforced": False, "enforce": None, "masked": hidden,
-                "reason": f"the row filter of {row['table']} is not a user-to-key mapping table"}
-    if row["column"].lower() not in result:
-        return {"enforced": False, "enforce": None, "masked": hidden,
-                "reason": f"the result table has no {row['column']} column to carry the row filter of {row['table']}"}
-    if row["column"] in hidden:
-        return {"enforced": False, "enforce": None, "masked": hidden,
-                "reason": f"a column mask hides {row['column']}, the column the row filter of {row['table']} reads"}
-    return {"enforced": True, "enforce": {k: mapping[k] for k in ENFORCE_KEYS}, "masked": hidden, "reason": ""}
+    enforce = []
+    for row in filters:
+        if row.get("unreadable") or row.get("body") is None:
+            return refuse(f"Inspire could not read the row filter of {row['table']}")
+        mapping = row_filter_mapping(row["body"], row["column"], row["parameter"])
+        if mapping is None:
+            return refuse(f"the row filter of {row['table']} is not a user-to-key mapping table")
+        if row["column"].lower() not in result:
+            return refuse(f"the result table has no {row['column']} column to carry the row filter of {row['table']}")
+        if row["column"] in hidden:
+            return refuse(f"a column mask hides {row['column']}, the column the row filter of {row['table']} reads")
+        enforce.append({k: mapping[k] for k in ENFORCE_KEYS})
+    return {"enforced": True, "enforce": enforce, "masked": hidden, "reason": ""}
 
 
 def backend_problems(backend, auth: str, pages: list) -> list:

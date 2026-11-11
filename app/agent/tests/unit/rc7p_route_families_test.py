@@ -24,7 +24,7 @@ def enforced_backend():
         names = [col["name"] for col in entry["columns"]]
         column = next((c for c in ("region", "category", "channel") if c in names), names[0])
         entry["base"] = entry["pg"].replace(PG_SCHEMA, f"{PG_SCHEMA}_base", 1)
-        entry["enforce"] = {"column": column, "map": f"{PG_SCHEMA}_base.access", "key": column, "principal": "principal"}
+        entry["enforce"] = [{"column": column, "map": f"{PG_SCHEMA}_base.access", "key": column, "principal": "principal"}]
     held["enforced"] = True
     return held
 

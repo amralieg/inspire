@@ -34,7 +34,7 @@ SQL = "SELECT `order_id` FROM `main`.`sales`.`orders` ORDER BY `order_id`"
 
 
 def orders_entry(view="app.orders"):
-    return {"pg": view, "base": "base.orders", "columns": COLUMNS, "enforce": ENFORCE}
+    return {"pg": view, "base": "base.orders", "columns": COLUMNS, "enforce": [ENFORCE]}
 
 
 def backend(extra_tables=None):
@@ -259,13 +259,23 @@ def test_backend_problems_refuse_a_per_user_lakebase_app_unless_every_table_is_e
     bare["tables"][ORDERS] = {"pg": "app.orders", "base": "base.orders", "columns": COLUMNS}
     assert any("is not enforced" in p for p in shell_pg.backend_problems(bare, "user", pages))
     filtered_missing = copy.deepcopy(backend())
-    filtered_missing["tables"][ORDERS]["enforce"] = dict(ENFORCE, column="country")
+    filtered_missing["tables"][ORDERS]["enforce"] = [dict(ENFORCE, column="country")]
     assert any("filters on country" in p for p in shell_pg.backend_problems(filtered_missing, "user", pages))
     bad_map = copy.deepcopy(backend())
-    bad_map["tables"][ORDERS]["enforce"] = dict(ENFORCE, map="base.orders-access")
+    bad_map["tables"][ORDERS]["enforce"] = [dict(ENFORCE, map="base.orders-access")]
     assert any("needs a mapping table that is a Postgres schema.table" in p for p in shell_pg.backend_problems(bad_map, "user", pages))
 
 
 def test_settings_accept_a_per_user_lakebase_app_that_enforces_its_tables():
     settings = dict(SETTINGS, auth="user", backend=backend())
     assert shell_core.settings_problems(settings, [PAGE]) == []
+
+
+def test_a_service_principal_builder_resolves_its_viewer_from_its_application_id(tmp_path, enforced_pg):
+    service_principal = Viewer("unused", "unused")
+    service_principal.call = lambda method, path, body=None, params=None: {"applicationId": "11111111-2222-3333-4444-555555555555",
+                                                                          "displayName": "builder"}
+    s, _sp, users = shell_for(tmp_path, enforced_pg)
+    ws = service_principal
+    ws.token_digest = "builder-check"
+    assert s.viewer_of(ws) == "11111111-2222-3333-4444-555555555555"

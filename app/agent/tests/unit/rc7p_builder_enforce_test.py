@@ -25,7 +25,7 @@ def test_a_row_filter_on_a_key_the_result_carries_is_enforced_and_names_its_mapp
     plan = shell_pg.enforce_plan([{"table": "main.sec.sales", "column": "region", "parameter": "region_key",
                                    "body": f"EXISTS (SELECT 1 FROM {MAP} m WHERE m.region = region_key AND m.user_email = current_user())"}],
                                  ["region", "value"], [])
-    assert plan == {"enforced": True, "enforce": {"column": "region", "map": MAP, "key": "region", "principal": "user_email"},
+    assert plan == {"enforced": True, "enforce": [{"column": "region", "map": MAP, "key": "region", "principal": "user_email"}],
                     "masked": [], "reason": ""}
 
 
@@ -51,10 +51,28 @@ def _plan_filters():
              "body": f"EXISTS (SELECT 1 FROM {MAP} m WHERE m.region = region_key AND m.user_email = current_user())"}]
 
 
-def test_two_source_filters_fall_back_to_delta_because_one_mapping_cannot_carry_both():
-    filters = _plan_filters() + [dict(_plan_filters()[0], table="main.sec.other")]
+def test_two_filtered_source_tables_are_each_anded_into_the_view_through_their_own_mapping():
+    filters = _plan_filters() + [dict(_plan_filters()[0], table="main.sec.other", body=f"EXISTS (SELECT 1 FROM {GROUP_MAP} m WHERE m.region = region_key AND m.grp = current_user())")]
     plan = shell_pg.enforce_plan(filters, ["region"], [])
-    assert plan["enforced"] is False and "more than one source table has a row filter" in plan["reason"]
+    assert plan["enforced"] is True
+    assert [e["map"] for e in plan["enforce"]] == [MAP, GROUP_MAP]
+
+
+def test_a_second_filter_whose_key_the_result_lacks_refuses_the_whole_result_table_with_its_reason():
+    filters = _plan_filters() + [dict(_plan_filters()[0], table="main.sec.other", column="brand", parameter="brand_key",
+                                      body=f"EXISTS (SELECT 1 FROM {GROUP_MAP} m WHERE m.brand = brand_key AND m.grp = current_user())")]
+    plan = shell_pg.enforce_plan(filters, ["region"], [])
+    assert plan["enforced"] is False and "no brand column to carry the row filter of main.sec.other" in plan["reason"]
+
+
+def test_a_dataset_that_reads_a_masked_column_is_named_so_it_can_run_on_delta(agent_ns):
+    copies = [{"key": "k1", "dataset": "trend", "page": "p", "enforced": True, "masked": ["ssn"],
+               "body": "SELECT region, ssn FROM main.inspire.churn_out"},
+              {"key": "k2", "dataset": "other", "page": "p", "enforced": True, "masked": ["ssn"],
+               "body": "SELECT region, SUM(value) AS v FROM main.inspire.churn_out GROUP BY region"},
+              {"key": "k3", "dataset": "", "page": "p", "enforced": True, "masked": ["ssn"], "body": "SELECT ssn FROM t"}]
+    named = agent_ns["implement_lakebase_masked_datasets"](copies)
+    assert [c["key"] for c in named] == ["k1"] and named[0]["reads_masked"] == ["ssn"]
 
 
 def test_an_unreadable_row_filter_is_refused_not_guessed():
@@ -78,7 +96,7 @@ def test_the_builder_copies_an_enforced_result_into_base_views_and_a_mapping_cop
     enforced = agent_ns["implement_lakebase_enforced"](copies, plans, ROW)
     mapping = [c for c in enforced if c.get("role") == "mapping"]
     data = [c for c in enforced if c.get("role") != "mapping"]
-    assert data and all(c["enforced"] and c["masked"] == ["ssn"] and c["enforce"]["mapping"] == mapping[0]["key"] for c in data)
+    assert data and all(c["enforced"] and c["masked"] == ["ssn"] and c["enforce"][0]["mapping"] == mapping[0]["key"] for c in data)
     assert len(mapping) == 1 and mapping[0]["body"] == f"SELECT * FROM `main`.`sec`.`user_region`"
 
 
@@ -110,7 +128,7 @@ def test_the_backend_lists_app_views_with_their_base_copies_and_never_the_mappin
     mapping_pg = next(c["pg"] for c in copies if c.get("role") == "mapping")
     for key, entry in backend["tables"].items():
         assert entry["pg"].startswith("churn_desk.") and entry["base"].startswith("churn_desk_base.")
-        assert entry["enforce"] == {"column": "region", "map": mapping_pg, "key": "region", "principal": "user_email"}
+        assert entry["enforce"] == [{"column": "region", "map": mapping_pg, "key": "region", "principal": "user_email"}]
     assert not any(e["pg"].startswith("churn_desk_base.") for e in backend["tables"].values())
 
 
@@ -164,7 +182,7 @@ class _Inst:
 
 def test_the_enforced_view_sql_the_builder_emits_runs_on_postgres_and_keeps_each_viewer_to_their_rows(enforced_pg, agent_ns):
     entry = {"pg": "bapp.orders", "base": "bbase.orders",
-             "enforce": {"column": "region", "map": "bbase.user_region", "key": "region", "principal": "user_email"}}
+             "enforce": [{"column": "region", "map": "bbase.user_region", "key": "region", "principal": "user_email"}]}
     with psycopg.connect(host=enforced_pg["host"], port=enforced_pg["port"], dbname="postgres", user="inspire", autocommit=True) as conn:
         conn.execute("CREATE SCHEMA IF NOT EXISTS bbase AUTHORIZATION inspire_owner")
         conn.execute("CREATE SCHEMA IF NOT EXISTS bapp AUTHORIZATION inspire_owner")

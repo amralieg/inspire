@@ -1851,7 +1851,7 @@ class Shell:
         try:
             me = ws.call("GET", SCIM_ME_PATH)
             groups = [str(g.get("display") or "") for g in me.get("groups") or [] if isinstance(g, dict)]
-            viewer = shell_pg.viewer_principals(str(me.get("userName") or ""), groups)
+            viewer = shell_pg.viewer_principals(str(me.get("userName") or me.get("applicationId") or ""), groups)
         except (QueryError, ValueError) as error:
             raise HttpError(401, UNKNOWN_VIEWER) from error
         with self.viewers_lock:
