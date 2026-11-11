@@ -3322,8 +3322,9 @@ def test_an_existing_app_whose_service_principal_cannot_read_its_tables_is_deplo
     result = [GRANT_CATALOG.format("sp-2"), GRANT_SCHEMA.format("sp-2")]
     orders = [GRANT_CATALOG.format("sp-2"), "GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `sp-2`"]
     reported = [w for w in fields["_warnings"] if w.startswith("App: people cannot report issues")]
-    assert len(reported) == 2 and all(r.startswith("App: people cannot report issues about this use case from the App until its service principal sp-2") for r in reported)
-    assert reported[0].endswith(f"{GRANT_CATALOG.format('sp-2')}; {GRANT_SCHEMA.format('sp-2')}")
+    assert len(reported) == 1 and reported[0].startswith("App: people cannot report issues about this use case from the App until its service principal sp-2")
+    assert reported[0].endswith(f"{GRANT_CATALOG.format('sp-2')}; {GRANT_SCHEMA.format('sp-2')}"), (
+        "a page with a results table reports into its own feedback table (A2c), so the one refused report grant is that table's")
     assert [w for w in fields["_warnings"] if w not in reported] == [
         "App: its service principal sp-2 cannot read 2 source tables, so the tiles that query them show no data "
         "and name the grants they need, and Inspire could not grant them itself: for source table 1, ask your data owner to "
