@@ -2325,6 +2325,7 @@ class Shell:
             answer["errors"] = {key: card if isinstance(text, str) and access_refusal(text) else text for key, text in answer["errors"].items()}
         answer["filters"] = [dict(item, error=card) if isinstance(item, dict) and item.get("error") and access_refusal(str(item.get("error")))
                              else item for item in answer.get("filters") or []] if answer.get("filters") else answer.get("filters")
+        answer.setdefault("detail", "; ".join(refused))
         return status, answer
 
     def access_owners(self, texts) -> list:
