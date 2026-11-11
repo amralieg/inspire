@@ -14,6 +14,8 @@ from shell_sql import error_text
 
 KINDS = ("lakebase", "delta")
 LAKEBASE = "lakebase"
+VIEWER_SETTING = "inspire.viewer"
+ENFORCE_KEYS = ("column", "map", "key", "principal")
 PG_NAME = re.compile(r"^[A-Za-z0-9_]{1,63}$")
 PG_QUOTED = re.compile(r'"((?:[^"]|"")+)"')
 PIPELINE_ID = re.compile(r"^[A-Za-z0-9-]{1,64}$")
@@ -140,15 +142,63 @@ def _indexed_problem(name: str, entry: dict) -> list:
     return []
 
 
+def _enforce_problem(name: str, entry) -> list:
+    enforce = entry.get("enforce") if isinstance(entry, dict) else None
+    base = str(entry.get("base") or "") if isinstance(entry, dict) else ""
+    if (not isinstance(enforce, dict) or set(enforce) != set(ENFORCE_KEYS)
+            or any(not isinstance(enforce[k], str) or not enforce[k].strip() for k in ENFORCE_KEYS)):
+        return [f"the Lakebase copy of {name} is not enforced: it must name the column its row filter reads, the mapping table, "
+                "the mapping key and the principal column"]
+    if isinstance(entry, dict) and enforce["column"] not in {c.get("name") for c in entry.get("columns") or []}:
+        return [f"the enforced Lakebase copy of {name} filters on {enforce['column']}, which the copy does not hold"]
+    problems = []
+    for label, qualified in (("base", base), ("mapping table", enforce["map"])):
+        parts = qualified.split(".")
+        if len(parts) != 2 or not all(PG_NAME.match(p) for p in parts):
+            problems.append(f"the enforced Lakebase copy of {name} needs a {label} that is a Postgres schema.table")
+    return problems
+
+
+def enforcing_view_sql(entry: dict) -> str:
+    enforce, view, base = entry["enforce"], entry["pg"], entry["base"]
+    mapping = (f"SELECT m.{pg_ident(enforce['key'])} FROM {_qualified(enforce['map'])} AS m "
+               f"WHERE lower(m.{pg_ident(enforce['principal'])}) = ANY(string_to_array(current_setting('{VIEWER_SETTING}', true), ','))")
+    return (f"CREATE OR REPLACE VIEW {_qualified(view)} WITH (security_barrier = true) AS SELECT t.* FROM {_qualified(base)} AS t "
+            f"WHERE t.{pg_ident(enforce['column'])} IN ({mapping})")
+
+
+def base_read_probe(backend: dict) -> tuple:
+    bases = sorted({str(name) for entry in (backend.get("tables") or {}).values() if isinstance(entry, dict) and entry.get("enforce")
+                    for name in (entry["base"], entry["enforce"]["map"])})
+    return ("SELECT bool_or(has_table_privilege(current_user, c.oid, 'SELECT')) FROM pg_catalog.pg_class AS c "
+            "JOIN pg_catalog.pg_namespace AS n ON n.oid = c.relnamespace WHERE n.nspname || '.' || c.relname = ANY(%(bases)s::text[])",
+            {"bases": bases})
+
+
+def _qualified(name: str) -> str:
+    schema, table = str(name).split(".")
+    return f"{pg_ident(schema)}.{pg_ident(table)}"
+
+
+def viewer_principals(email: str, groups=()) -> str:
+    names = {str(n).strip().lower() for n in (email, *groups) if str(n or "").strip()}
+    if not str(email or "").strip() or any("," in n or any(c.isspace() for c in n) for n in names):
+        raise ValueError("the viewer needs a signed-in email, and no principal may hold a comma or a space")
+    return ",".join(sorted(names))
+
+
 def backend_problems(backend, auth: str, pages: list) -> list:
     if not isinstance(backend, dict) or backend.get("kind") not in KINDS:
         return [f"the App backend must be an object whose kind is one of {', '.join(KINDS)}"]
     if backend["kind"] != LAKEBASE:
         return []
     problems = []
-    if auth != "sp":
-        problems.append("only an App that reads through its service principal can read Lakebase, because Lakebase does not carry "
-                        "Unity Catalog row filters, column masks or grants to each viewer")
+    enforced = backend.get("enforced") is True
+    if auth == "user" and not enforced:
+        problems.append("an App where each viewer sees only their own rows reads Lakebase only when the database enforces every table "
+                        "it holds: each table is a view on the viewer's access, and the App's role cannot read the synced table")
+    if enforced and auth != "user":
+        problems.append("only an App where each viewer signs in as themselves can read enforced Lakebase tables")
     if not isinstance(backend.get("pipeline_id"), str) or not PIPELINE_ID.match(backend["pipeline_id"]):
         problems.append("the Lakebase backend needs pipeline_id, the id of the pipeline that syncs its tables")
     tables = backend.get("tables")
@@ -165,6 +215,8 @@ def backend_problems(backend, auth: str, pages: list) -> list:
         if len(parts) != 2 or not all(PG_NAME.match(p) for p in parts):
             problems.append(f"the Lakebase copy of {name} must be a Postgres schema.table of letters, digits and underscores")
         problems += _columns_problem(name, entry) or _indexed_problem(name, entry)
+        if enforced:
+            problems += _enforce_problem(name, entry)
     held = {uc_key(n) for n in tables}
     datasets = backend.get("datasets")
     if not isinstance(datasets, dict):
@@ -975,6 +1027,7 @@ class Lakebase:
         self.overlays, self.stuck, self.queued, self.overlayer = {}, {}, queue.Queue(), None
         self.note, self.noted_at, self.synced_at = "", 0.0, None
         self.synced_iso, self.synced_read = None, float("-inf")
+        self.enforced = backend.get("enforced") is True
 
     def secrets(self) -> tuple:
         return self.host, self.user, self.token
@@ -1008,6 +1061,12 @@ class Lakebase:
                 cur.execute(f"SET statement_timeout = {STATEMENT_TIMEOUT_MS}")
                 cur.execute("SET default_transaction_read_only = on")
                 cur.execute("SET TIME ZONE 'UTC'")
+                if self.enforced:
+                    cur.execute(*base_read_probe({"tables": self.tables}))
+                    if cur.fetchone()[0]:
+                        conn.close()
+                        raise LakebaseError("the App's Postgres role can read a synced base table, so the App refuses to read each "
+                                            "viewer's rows through it: it must read only the views")
         except psycopg.Error as error:
             raise LakebaseError(f"the App could not connect to Lakebase: {error_text(error, self.secrets())}") from error
         return conn
@@ -1052,19 +1111,23 @@ class Lakebase:
             return False
         return isinstance(error, (psycopg.OperationalError, psycopg.InterfaceError))
 
-    def query(self, text: str, values: dict, limit: int, queued: bool = False) -> tuple:
+    def query(self, text: str, values: dict, limit: int, queued: bool = False, viewer: str = "") -> tuple:
+        if self.enforced and not viewer:
+            raise LakebaseError("the App could not tell who is signed in, so it reads no rows from Lakebase")
         if not queued:
-            return self._query(text, values, limit)
+            return self._query(text, values, limit, viewer)
         with self.reads:
-            return self._query(text, values, limit)
+            return self._query(text, values, limit, viewer)
 
-    def _query(self, text: str, values: dict, limit: int) -> tuple:
+    def _query(self, text: str, values: dict, limit: int, viewer: str = "") -> tuple:
         for attempt in (0, 1):
             conn = self._take()
             try:
                 with conn.transaction():
                     with conn.cursor() as setup:
                         setup.execute(f"SET LOCAL statement_timeout = {READ_TIMEOUT_MS}")
+                        if self.enforced:
+                            setup.execute("SELECT set_config(%s, %s, true)", (VIEWER_SETTING, viewer))
                     with conn.cursor(name=READ_CURSOR) as cur:
                         cur.execute(text, values)
                         rows = cur.fetchmany(limit + 1)
@@ -1091,7 +1154,7 @@ class Lakebase:
             return names, types, rows
         raise LakebaseError("Lakebase did not answer")
 
-    def run(self, sql: str, params, limit: int, queued: bool = False) -> dict:
+    def run(self, sql: str, params, limit: int, queued: bool = False, viewer: str = "") -> dict:
         with self.lock:
             held = set(self.held)
             overlays = {table: {"column": entry["column"], "keys": list(entry["rows"]),
@@ -1102,7 +1165,7 @@ class Lakebase:
         for key in sorted(read):
             for column in self.tables[key]["columns"]:
                 known.setdefault(column["name"], column)
-        names, types, rows = self.query(text, values, limit, queued)
+        names, types, rows = self.query(text, values, limit, queued, viewer)
         return {"columns": columns_of(names, types, known), "rows": [{n: cell(v) for n, v in zip(names, row)} for row in rows[:limit]],
                 "truncated": len(rows) > limit}
 

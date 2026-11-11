@@ -75,7 +75,7 @@ class RenderingLakebase:
         self.answers = answers if answers is not None else FakeWorkspace()
         self.rendered, self.held, self.writes, self.plans, self.fail, self.note = [], set(), [], [], None, ""
 
-    def run(self, sql, params, limit, queued=False):
+    def run(self, sql, params, limit, queued=False, viewer=""):
         text, _values, _read = shell_pg.render(sql, params, self.tables, self.held)
         self.rendered.append(text)
         if self.fail:
@@ -290,7 +290,7 @@ def test_backend_problems_accept_a_whole_backend_and_name_every_broken_part():
     assert shell_pg.backend_problems({"kind": "postgres"}, "sp", pages) == [
         "the App backend must be an object whose kind is one of lakebase, delta"]
     assert shell_pg.backend_problems(None, "sp", pages)
-    assert any("only an App that reads through its service principal" in p for p in shell_pg.backend_problems(backend(True), "user", pages))
+    assert any("reads Lakebase only when the database enforces" in p for p in shell_pg.backend_problems(backend(True), "user", pages))
     broken = copy.deepcopy(backend(True))
     broken["pipeline_id"] = "x y"
     broken["tables"]["main.bad"] = {"pg": "s.t", "columns": [{"name": "a", "type": "STRING"}]}
@@ -316,7 +316,7 @@ def test_backend_problems_accept_a_whole_backend_and_name_every_broken_part():
 def test_settings_refuse_a_lakebase_app_that_reads_as_each_viewer(tmp_path):
     good = dict(SETTINGS, backend=backend())
     assert shell_core.settings_problems(good, [PAGE]) == []
-    assert any("only an App that reads through its service principal" in p
+    assert any("reads Lakebase only when the database enforces" in p
                for p in shell_core.settings_problems(dict(good, auth="user"), [PAGE]))
     with pytest.raises(ValueError, match="do not hold together"):
         shell_core.load_app(app_dir(tmp_path, dict(good, backend={"kind": "lakebase"})))

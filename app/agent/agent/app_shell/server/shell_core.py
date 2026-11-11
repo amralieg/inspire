@@ -1762,6 +1762,11 @@ def list_cursors(request: dict, context: dict, rows: list, total: int) -> dict:
             "prev": cursor(rows[0], "prev") if request["offset"] > 0 and rows[0].get(fields["tie"]) is not None else None}
 
 
+UNKNOWN_VIEWER = "the App could not confirm who is signed in, so it shows no rows; sign in to the workspace and reload"
+SCIM_ME_PATH = "/api/2.0/preview/scim/v2/Me"
+VIEWER_TTL_S = 60
+
+
 class Shell:
     def __init__(self, root: str, env=None, sp_factory=sp_workspace_factory, user_factory=user_workspace_factory, clock=time.time,
                  timer=time.monotonic, lakebase_factory=shell_pg.Lakebase, strict: bool = False, writer_factory=None):
@@ -1797,6 +1802,8 @@ class Shell:
         self.factless, self.heads, self.early = set(), {}, {}
         self.opening, self.opened = {}, threading.Condition()
         self.uncached = False
+        self.enforced = self.backend.get("enforced") is True
+        self.viewers, self.viewers_lock = {}, threading.Lock()
         self.hub_pool = ThreadPoolExecutor(max_workers=HUB_WORKERS)
         self.warehouse = str(self.env.get("DATABRICKS_WAREHOUSE_ID") or "")
         self.job_locks, self.job_locks_guard = {}, threading.Lock()
@@ -1829,8 +1836,27 @@ class Shell:
             who = headers.get("x-forwarded-email") or hashlib.sha256(token.encode()).hexdigest()[:16]
             ws = self.user_factory(self.env.get("DATABRICKS_HOST", ""), token)
             ws.blocked = blocked_tables(self.settings)
+            ws.token_digest = hashlib.sha256(token.encode()).hexdigest()
             return ws, f"user:{who}"
         return self.service(), "sp"
+
+    def viewer_of(self, ws) -> str:
+        digest = getattr(ws, "token_digest", "")
+        if not digest:
+            raise HttpError(401, UNKNOWN_VIEWER)
+        with self.viewers_lock:
+            cached = self.viewers.get(digest)
+            if cached and self.clock() < cached[1]:
+                return cached[0]
+        try:
+            me = ws.call("GET", SCIM_ME_PATH)
+            groups = [str(g.get("display") or "") for g in me.get("groups") or [] if isinstance(g, dict)]
+            viewer = shell_pg.viewer_principals(str(me.get("userName") or ""), groups)
+        except (QueryError, ValueError) as error:
+            raise HttpError(401, UNKNOWN_VIEWER) from error
+        with self.viewers_lock:
+            self.viewers[digest] = (viewer, self.clock() + VIEWER_TTL_S)
+        return viewer
 
     def service(self):
         if self.inside:
@@ -1919,14 +1945,15 @@ class Shell:
 
     def execute(self, ws, sql: str, params: list, limit: int, delta: bool = False, queued: bool = False) -> dict:
         if self.lakebase is not None and not delta:
+            viewer = self.viewer_of(ws) if self.enforced else ""
             try:
-                return dict(self.lakebase.run(sql, params, limit, queued), served=shell_pg.LAKEBASE)
+                return dict(self.lakebase.run(sql, params, limit, queued, viewer), served=shell_pg.LAKEBASE)
             except shell_pg.NotServed as reason:
                 if self.strict and reason.table not in self.on_delta:
                     raise QueryError(f"Lakebase cannot serve it: {shell_sql.error_text(reason)}") from reason
             except QueryError as error:
                 if self.strict and isinstance(error, shell_pg.LakebaseSlow):
-                    return dict(self.lakebase.run(sql, params, limit, queued), served=shell_pg.LAKEBASE)
+                    return dict(self.lakebase.run(sql, params, limit, queued, viewer), served=shell_pg.LAKEBASE)
                 if self.strict:
                     raise QueryError(f"Lakebase could not run it: {error}") from error
                 self.lakebase.noted(f"Lakebase could not run a query, so the App read Delta tables instead: {error}")

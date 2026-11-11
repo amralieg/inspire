@@ -767,16 +767,16 @@ test('a workspace that has Lakebase switched off hides it whatever status says s
 
 test('the Lakebase route asks Databricks once, as the person, and answers with the offer', async () => {
   const cases = [
-    [{ responses: { 'GET /api/2.0/postgres/projects': [{ projects: [] }, 200] } }, { state: 'available', detail: '' }],
-    [{ responses: { 'GET /api/2.0/postgres/projects': [{ message: 'not allowed' }, 403] } }, { state: 'denied', detail: 'not allowed' }],
-    [{ responses: { 'GET /api/2.0/postgres/projects': [{ error_code: 'ENDPOINT_NOT_FOUND' }, 404] } }, { state: 'absent', detail: 'this workspace does not have Lakebase' }],
-    [{ fetchThrows: { 'GET /api/2.0/postgres/projects': 'getaddrinfo ENOTFOUND' } }, { state: 'unknown', detail: 'getaddrinfo ENOTFOUND' }],
+    [{ responses: { 'GET /api/2.0/postgres/projects': [{ projects: [] }, 200] } }, { state: 'available', detail: '', enforce: {} }],
+    [{ responses: { 'GET /api/2.0/postgres/projects': [{ message: 'not allowed' }, 403] } }, { state: 'denied', detail: 'not allowed', enforce: {} }],
+    [{ responses: { 'GET /api/2.0/postgres/projects': [{ error_code: 'ENDPOINT_NOT_FOUND' }, 404] } }, { state: 'absent', detail: 'this workspace does not have Lakebase', enforce: {} }],
+    [{ fetchThrows: { 'GET /api/2.0/postgres/projects': 'getaddrinfo ENOTFOUND' } }, { state: 'unknown', detail: 'getaddrinfo ENOTFOUND', enforce: {} }],
   ];
   for (const [overrides, expected] of cases) {
     await withApp(overrides, async (base, made) => {
       const got = await call(base, '/api/inspire/implement/lakebase');
       assert.equal(got.status, 200);
-      assert.deepEqual(got.data, expected);
+      assert.deepEqual(got.data, expected, 'the offer answers with the table judgements too, empty when none are named');
       assert.deepEqual(made.fetches.map((f) => `${f.opts.method || 'GET'} ${f.path}`), ['GET /api/2.0/postgres/projects?page_size=1']);
     });
   }
@@ -799,5 +799,39 @@ test('a build whose run was cancelled before the notebook wrote a status shows n
     const got = await call(url, `/api/inspire/implement/live?${Q}`);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.targets.build, '901');
+  });
+});
+
+test('the Lakebase route judges each named table for per-user Fast pages, from its row filter and mask, as the person (must-exclude)', async () => {
+  const mapped = 'EXISTS (SELECT 1 FROM main.sec.user_region m WHERE m.region = region_key AND m.user_email = current_user())';
+  const tableInfo = {
+    'main.s.orders': { full_name: 'main.s.orders', row_filter: { function_name: 'main.s.orders_fn', input_column_names: ['region'] }, columns: [] },
+    'main.s.returns': { full_name: 'main.s.returns', row_filter: { function_name: 'main.s.returns_fn', input_column_names: ['region'] }, columns: [] },
+    'main.s.ssn': { full_name: 'main.s.ssn', columns: [{ name: 'ssn', mask: { function_name: 'main.s.mask' } }] },
+  };
+  const routines = {
+    '/api/2.1/unity-catalog/functions/main.s.orders_fn': [{ routine_definition: mapped, input_params: { parameters: [{ name: 'region_key' }] } }, 200],
+    '/api/2.1/unity-catalog/functions/main.s.returns_fn': [{ routine_definition: "region_key = 'EU'", input_params: { parameters: [{ name: 'region_key' }] } }, 200],
+  };
+  const workspace = ({ path }) => {
+    const name = /^\/api\/2\.1\/unity-catalog\/tables\/(.+)$/.exec(path);
+    if (name && tableInfo[decodeURIComponent(name[1])]) return [tableInfo[decodeURIComponent(name[1])], 200];
+    return routines[path];
+  };
+  await withApp({ workspace, responses: { 'GET /api/2.0/postgres/projects': [{ projects: [] }, 200] } }, async (base, made) => {
+    const got = await call(base, '/api/inspire/implement/lakebase?tables=main.s.orders,main.s.returns,main.s.ssn,not-a-table,main.s.gone');
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.state, 'available');
+    assert.equal(got.data.enforce['main.s.orders'].enforced, true);
+    assert.equal(got.data.enforce['main.s.orders'].mapping.principal, 'user_email');
+    assert.equal(got.data.enforce['main.s.returns'].enforced, false);
+    assert.match(got.data.enforce['main.s.returns'].reason, /is not a user-to-key mapping table, so the table reads Delta/);
+    assert.equal(got.data.enforce['main.s.ssn'].enforced, false);
+    assert.equal(got.data.enforce['not-a-table'], undefined, 'a name that is not catalog.schema.table is never sent to Unity Catalog');
+    assert.equal(made.fetches.some((f) => f.path.includes('not-a-table')), false);
+  });
+  await withApp({ responses: { 'GET /api/2.0/postgres/projects': [{ projects: [] }, 200] } }, async (base) => {
+    const got = await call(base, '/api/inspire/implement/lakebase');
+    assert.deepEqual(got.data, { state: 'available', detail: '', enforce: {} }, 'no tables named, nothing to judge');
   });
 });
