@@ -83,6 +83,7 @@ export const agentStatus = (page) => json('GET', `agent/status?page=${encodeURIC
 export const agentAsk = (body) => json('POST', 'agent/ask', body);
 export const agentTurn = (turnId) => json('GET', `agent/turn?turn_id=${encodeURIComponent(turnId)}`);
 export const agentFeedback = (turnId, rating) => json('POST', 'agent/feedback', { turn_id: turnId, rating });
+export const agentPrepare = (body) => json('POST', 'agent/prepare', body);
 export const getHistory = (page, ref) => json('GET', `records/history?${new URLSearchParams({ page, ...ref })}`);
 export const getFields = (page) => json('GET', `records/fields?page=${encodeURIComponent(page)}`);
 const DEMO_DECIDED = 'inspire-demo-decisions';
