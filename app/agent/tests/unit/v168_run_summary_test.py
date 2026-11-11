@@ -191,9 +191,9 @@ def test_the_pipeline_and_the_docs_only_run_record_the_summary_where_they_make_i
                          r"[^\n]*\n\s+\(summary_dict, _\) = self\._get_salesy_summary\(english_grouped_data[^\n]*\n"
                          r"(\s+)self\._record_executive_summary\(summary_dict\)\n", src)
     assert discover, "the pipeline records the summary right after Phase 2 makes it"
-    docs = re.search(r"summary_dict = self\._refresh_english_summary\(english_grouped_data, summary_dict\)\n"
-                     r"\s+self\._record_executive_summary\(summary_dict\)\n", src)
-    assert docs, "a docs-only run records the summary it refreshed"
+    load = src.index("(final_consolidated_use_cases, summary_dict, english_grouped_data) = self._load_usecases_catalog_json(self.json_file_path)")
+    branch = src[load:src.index("self.logger.critical(f\"Failed to process in docs-only mode", load)]
+    assert "_record_executive_summary" not in branch, "a documents-only run never rewrites the session's results"
 
 
 def test_results_json_has_exactly_three_writers():

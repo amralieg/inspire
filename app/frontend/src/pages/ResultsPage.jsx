@@ -95,7 +95,7 @@ import { saveBlob } from '../lib/download';
 import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import DocumentActions from '../components/DocumentActions';
-import { englishCatalogPath } from '../lib/documentActions';
+import { documentBasePath } from '../lib/documentActions';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
@@ -1622,8 +1622,7 @@ export default function ResultsPage({
             <DocumentActions
               apiFetch={apiFetch}
               apiPostJson={apiPostJson}
-              session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), generationPath, outputLanguage: selectedSession?.output_language || '' }}
-              catalogPath={englishCatalogPath(artifactsRootFiles, artifactTree)}
+              session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), outputLanguage: selectedSession?.output_language || '', generationPath: documentBasePath({ generationPath: selectedSession?.generation_path || selectedSession?.widget_values?.generation_path || '', notebookPath: settings?.notebookPath || '' }) }}
               onFinished={() => loadArtifacts(generationPath)}
             />
           )}
