@@ -164,38 +164,82 @@ test('a page whose tables carry no column filters draws no filter control and se
   await context.close();
 });
 
-test('an extra table on the page gets the same column filter, which narrows only that table', async () => {
-  const info = appInfo({}, 1, { tables: [WORST] });
-  const columns = { list: [], tables: { worst: [{ column: 'category', type: 'multi_select', label: 'Category', options: CATS, searchable: false }] } };
+const SEGMENTS = { id: 'segments', title: 'Segments', dataset: 'trend', columns: [{ column: 'segment', label: 'Segment', format: 'text' },
+  { column: 'loss', label: 'Loss', format: 'currency', currency: 'USD' }], column_filters: [{ column: 'segment' }] };
+const SEGS = ['Alpha', 'Beta', 'Gamma'];
+const SHARES = { id: 'shares', title: 'Shares by category', dataset: 'trend', columns: [{ column: 'category', label: 'Category', format: 'text' },
+  { column: 'loss', label: 'Loss', format: 'currency', currency: 'USD' }], column_filters: [{ column: 'category' }] };
+const picksOf = (body, id, column) => (column === 'category' ? body.filters?.category : undefined) || body.table_filters?.[id]?.[column];
+const tableRows = (body, id, column, values) => {
+  const picked = picksOf(body, id, column);
+  return values.filter((v) => !picked || picked.includes(v)).map((v, i) => ({ [column]: v, loss: 9000 - i * 100 }));
+};
+const pagedTables = (route, json, seen, tables) => {
+  const body = route.request().postDataJSON();
+  seen.pages.push(body);
+  return json(200, { ...pageData(body.filters), tables: Object.fromEntries(Object.entries(tables).map(([id, [column, values]]) =>
+    [id, { columns: [], rows: tableRows(body, id, column, values), truncated: false }])), errors: {} });
+};
+
+test('a table column with no top filter of its label narrows only that table, and the top bar and the other tables stay as they were', async () => {
+  const info = appInfo({}, 1, { tables: [WORST, SEGMENTS] });
+  const columns = { list: [], tables: { worst: [{ column: 'category', type: 'multi_select', label: 'Category', options: CATS, searchable: false }],
+    segments: [{ column: 'segment', type: 'multi_select', label: 'Segment', options: SEGS, searchable: false }] } };
   const opened = await openApp(browser, base, info, {
-    routes: {
-      ...routes(columns),
-      page: ({ route, json, seen }) => {
-        const body = route.request().postDataJSON();
-        seen.pages.push(body);
-        const picked = body.table_filters?.worst?.category;
-        const rows = CATS.filter((c) => !picked || picked.includes(c)).map((c, i) => ({ category: c, loss: 9000 - i * 100 }));
-        return json(200, { ...pageData(body.filters), tables: { worst: { columns: [], rows, truncated: false } }, errors: {} });
-      },
-    },
+    routes: { ...routes(columns), page: ({ route, json, seen: s }) => pagedTables(route, json, s, { worst: ['category', CATS], segments: ['segment', SEGS] }) },
   });
   const { page, seen, context } = opened;
-  const worst = card(page, 'Worst categories');
-  await worst.locator('tbody tr').first().waitFor();
-  assert.equal(await worst.locator('tbody tr').count(), 6);
-  assert.equal(await card(page, LIST).locator('.cf-b').count(), 0, 'the decision list has no column filters of its own here');
-  await worst.getByRole('button', { name: 'Filter Category' }).click();
-  await page.getByRole('listbox', { name: 'Category' }).getByText('Toys').click();
-  await page.keyboard.press('Escape');
-  await until(() => JSON.stringify(seen.pages.at(-1).table_filters) === JSON.stringify({ worst: { category: ['Toys'] } }));
-  await page.waitForFunction(() => [...document.querySelectorAll('section.card--table')].some((s) => s.querySelector('h2')?.textContent === 'Worst categories'
-    && s.querySelectorAll('tbody tr').length === 1));
-  assert.equal(await worst.locator('tbody tr td').first().innerText(), 'Toys');
-  assert.equal(await worst.locator('.cf-n').innerText(), '1 column filter on');
-  assert.ok(seen.records.every((b) => !('column_filters' in b)), 'a table filter never reaches the decision list');
-  assert.deepEqual(linkOf(page), { c: { t: { worst: { category: ['Toys'] } } } });
-  await worst.getByRole('button', { name: 'Clear filters' }).click();
-  await until(() => !('table_filters' in seen.pages.at(-1)));
-  assert.deepEqual(seen.errors, []);
-  await context.close();
+  try {
+    const worst = card(page, 'Worst categories');
+    const segments = card(page, 'Segments');
+    await segments.locator('tbody tr').first().waitFor();
+    assert.equal(await segments.locator('tbody tr').count(), 3);
+    assert.equal(await worst.locator('tbody tr').count(), 6);
+    await segments.getByRole('button', { name: 'Filter Segment' }).click();
+    await page.getByRole('listbox', { name: 'Segment' }).getByText('Beta').click();
+    await page.keyboard.press('Escape');
+    await until(() => JSON.stringify(seen.pages.at(-1).table_filters) === JSON.stringify({ segments: { segment: ['Beta'] } }));
+    await page.waitForFunction(() => [...document.querySelectorAll('section.card--table')].some((s) => s.querySelector('h2')?.textContent === 'Segments'
+      && s.querySelectorAll('tbody tr').length === 1));
+    assert.equal(await segments.locator('tbody tr td').first().innerText(), 'Beta');
+    assert.equal(await worst.locator('tbody tr').count(), 6, 'the other table keeps every row');
+    assert.equal(seen.pages.at(-1).filters.category, undefined, 'a column with no top filter never moves the top bar');
+    assert.ok(seen.records.every((b) => !('column_filters' in b)), 'a table filter never reaches the decision list');
+    assert.deepEqual(linkOf(page), { c: { t: { segments: { segment: ['Beta'] } } } });
+    assert.deepEqual(seen.errors, []);
+  } finally {
+    await context.close();
+  }
+});
+
+test('a column with the same label as a top filter moves the top bar and every table that has it, and they all show the same values', async () => {
+  const info = appInfo({}, 1, { tables: [WORST, SHARES] });
+  const columns = { list: [], tables: { worst: [{ column: 'category', type: 'multi_select', label: 'Category', options: CATS, searchable: false }],
+    shares: [{ column: 'category', type: 'multi_select', label: 'Category', options: CATS, searchable: false }] } };
+  const opened = await openApp(browser, base, info, {
+    routes: { ...routes(columns), page: ({ route, json, seen: s }) => pagedTables(route, json, s, { worst: ['category', CATS], shares: ['category', CATS] }) },
+  });
+  const { page, seen, context } = opened;
+  try {
+    const worst = card(page, 'Worst categories');
+    const shares = card(page, 'Shares by category');
+    await worst.locator('tbody tr').first().waitFor();
+    await shares.locator('tbody tr').first().waitFor();
+    await worst.getByRole('button', { name: 'Filter Category' }).click();
+    await page.getByRole('listbox', { name: 'Category' }).getByText('Toys').click();
+    await page.keyboard.press('Escape');
+    await until(() => JSON.stringify(seen.pages.at(-1).filters.category) === JSON.stringify(['Toys']));
+    await page.waitForFunction(() => [...document.querySelectorAll('section.card--table')].every((s) => s.querySelectorAll('tbody tr').length === 1));
+    assert.equal(seen.pages.at(-1).table_filters?.worst?.category, undefined, 'the shared column never also goes to the table store');
+    assert.equal(await worst.locator('tbody tr td').first().innerText(), 'Toys');
+    assert.equal(await shares.locator('tbody tr td').first().innerText(), 'Toys');
+    assert.equal(await page.locator('.fld').filter({ hasText: /^Category/ }).locator('.msel b').innerText(), 'Toys', 'the top bar shows the same pick');
+    assert.deepEqual(linkOf(page), { s: { category: ['Toys'] } });
+    await worst.getByRole('button', { name: 'Clear filters' }).click();
+    await until(() => !('category' in (seen.pages.at(-1).filters || {})));
+    assert.equal(await page.locator('.fld').filter({ hasText: /^Category/ }).locator('.msel b').innerText(), 'All', 'clearing from a table clears the top bar');
+    assert.deepEqual(seen.errors, []);
+  } finally {
+    await context.close();
+  }
 });
