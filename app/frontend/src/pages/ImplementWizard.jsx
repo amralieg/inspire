@@ -451,6 +451,7 @@ export default function ImplementWizard({
   const lostReason = (table) => missingTables.find((m) => String(m.table).toLowerCase() === table.toLowerCase())?.reason;
   const [changing, setChanging] = useState({});
   const [excludeRef, setExcludeRef] = useState('');
+  const [includeRef, setIncludeRef] = useState('');
   const [swaps, setSwaps] = useState({});
   const [swapsWhy, setSwapsWhy] = useState({});
   const [values, setValues] = useState({});
@@ -695,6 +696,7 @@ export default function ImplementWizard({
   const groups = context?.widget_groups || NO_WIDGET_GROUPS;
   const segmentRef = spec.data.column_roles.segment || '';
   const exclusionRefs = (spec.data.filters || []).filter((f) => f.op === 'not in').map((f) => `${f.table}.${f.column}`);
+  const inclusionRefs = (spec.data.filters || []).filter((f) => f.op === 'in' && `${f.table}.${f.column}` !== segmentRef).map((f) => `${f.table}.${f.column}`);
   const built = builtVersion(context?.history);
   const kpiOptions = useMemo(() => kpiTargetOptions(ucRow, context?.history), [ucRow, context?.history]);
   const scopeShown = withGroupingDefault(scopeValues((name) => spec.config.widgets?.[name]), scopeProfile.profile, spec.config.widgets?.[GROUP_BY]);
@@ -1429,6 +1431,25 @@ export default function ImplementWizard({
                   onChange={(picked) => setSpec((prev) => setFilterValues(prev, refTable(segmentRef), refColumn(segmentRef), 'in', picked))}
                 />
               )}
+              <div className="space-y-2">
+                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Keep only (optional)</span>
+                <select className={inputCls} value={includeRef} onChange={(e) => setIncludeRef(e.target.value)}>
+                  <option value="">Pick a column to keep only some values of</option>
+                  {sourceTables.flatMap((table) => (columnsByTable[table] || []).map((c) => (
+                    <option key={`${table}.${c.column_name}`} value={`${table}.${c.column_name}`}>{table}.{c.column_name}</option>
+                  )))}
+                </select>
+                {[...new Set([includeRef, ...inclusionRefs].filter(Boolean))].map((ref) => (
+                  <ValuePicker
+                    key={ref}
+                    label={`Keep only these ${ref}`}
+                    values={values[ref]}
+                    selected={filterValues(spec, refTable(ref), refColumn(ref), 'in')}
+                    onLoad={() => loadValues(refTable(ref), refColumn(ref))}
+                    onChange={(picked) => setSpec((prev) => setFilterValues(prev, refTable(ref), refColumn(ref), 'in', picked))}
+                  />
+                ))}
+              </div>
               <div className="space-y-2">
                 <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Exclusions (optional)</span>
                 <select className={inputCls} value={excludeRef} onChange={(e) => setExcludeRef(e.target.value)}>
