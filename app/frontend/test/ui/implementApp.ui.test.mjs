@@ -398,7 +398,7 @@ for (const style of ['a', 'b', 'c']) {
   }
 }
 
-test('a shared App reads Lakebase by default when the workspace has it, the default per-user App reads Delta tables, a 403 says why, and a 404 says why with no choice', async () => {
+test('a shared App reads Lakebase by default; a per-user App keeps Fast pages when every filtered table enforces each person to their rows, and reads Delta with the reason when one does not; a 403 says why, and a 404 says why with no choice', async () => {
   const probe = (data, status) => ({ me: { userName: OWNER, displayName: 'Owner' }, responses: { 'GET /api/2.0/postgres/projects': [data, status] } });
   const toAccess = async (page) => {
     await toDelivery(page);
@@ -421,18 +421,26 @@ test('a shared App reads Lakebase by default when the workspace has it, the defa
     await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
     await group.getByText('Delta', { exact: true }).waitFor();
     assert.equal(await access.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true, 'the App signs each viewer in with no click');
-    assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'the default per-user App reads Delta tables');
+    assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a per-user App over tables that enforce each person to their rows keeps Fast pages');
     await access.getByRole('radio', { name: /^Internal data/ }).check();
     assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a shared App reads Lakebase by default, with no other click');
     await access.getByRole('radio', { name: /^Sensitive data/ }).check();
-    assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'a per-user App reads Delta tables');
-    assert.equal(await group.locator('[data-blocked-reason="app-backend"] p').textContent(), LAKEBASE_PER_USER_REASON);
-    assert.doesNotMatch(await group.locator('[data-blocked-reason="app-backend"]').innerText(), /Lakebase|service principal|Delta/, 'the person sees no Lakebase internals in the reason (must-exclude)');
     await access.getByRole('radio', { name: /^Internal data/ }).check();
     assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'back to a shared App, Lakebase comes back');
     await toStart(ui.page);
     assert.equal(submittedSpec(ui.made).outputs.app_backend, 'lakebase');
     assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+
+  ui = await openUi('wizard', { ...probe({ projects: [] }, 200), rowFilters: { 'main.s.orders': { function_name: 'main.s.hide', input_column_names: ['region'] } }, responses: { ...probe({ projects: [] }, 200).responses, 'GET /api/2.1/unity-catalog/functions/main.s.hide': [{ routine_definition: 'SELECT true', input_params: { parameters: [{ name: 'region' }] } }, 200] } });
+  try {
+    const access = await toAccess(ui.page);
+    const group = choice(access);
+    await group.getByRole('status').waitFor({ state: 'detached' });
+    assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'one filtered table that does not enforce each person to their rows reads Delta tables');
+    assert.match(await group.locator('[data-blocked-reason="app-backend"] p').textContent(), /row filter main\.s\.hide/, 'the reason names the row filter');
   } finally {
     await ui.close();
   }
