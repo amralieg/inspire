@@ -58,6 +58,7 @@ import {
   cronInWords,
   cronProblem,
   alertTriggerText,
+  sectionErrors,
   stepErrors,
   advancedErrors,
   freshnessOf,
@@ -1519,7 +1520,7 @@ export default function ImplementWizard({
         )}
 
         {resultsOn && (
-          <Advanced open={advanced.results} onToggle={() => toggleAdvanced('results')} what="result table"
+          <Advanced open={advanced.results || sectionErrors('results', spec, extras).length > 0 || Boolean(placeNote) || outputCheck?.write?.ok === false} onToggle={() => toggleAdvanced('results')} what="result table"
             summary={`Result table: ${spec.config.result_table || 'not set yet'}`}>
             <ResultTableStep
               table={spec.config.result_table}
@@ -1548,7 +1549,7 @@ export default function ImplementWizard({
         )}
 
         {shows('fresh') && (
-          <Advanced open={advanced.fresh} onToggle={() => toggleAdvanced('fresh')} what="Keep it fresh"
+          <Advanced open={advanced.fresh || sectionErrors('schedule', spec, extras).length > 0} onToggle={() => toggleAdvanced('fresh')} what="Keep it fresh"
             summary={`Keep it fresh: ${FRESHNESS_OPTIONS.find((o) => o.id === freshness)?.label || 'Custom'}`}>
             <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
             <section className="space-y-2">

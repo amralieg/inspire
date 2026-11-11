@@ -33,6 +33,25 @@ test('Data and results opens on the source tables, and the result table and Keep
   }
 });
 
+test('a result table problem keeps its row open, so the message sits beside the field it is about', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Data');
+    await openRow(page, 'result table');
+    const place = page.getByRole('region', { name: 'Where the result table lives' });
+    await place.getByLabel('Table name').fill('bad name!');
+    await page.getByRole('button', { name: 'Close result table', exact: true }).click();
+    await place.getByLabel('Table name').waitFor();
+    assert.equal(await page.getByRole('button', { name: 'Close result table', exact: true }).count(), 1, 'the row stays open while its table name is not valid');
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.getByText('can only use catalog, schema and table names', { exact: false }).waitFor();
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('Where it lives opens the App placement, and App pages sit behind a Change row', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
