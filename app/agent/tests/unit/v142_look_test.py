@@ -181,8 +181,10 @@ def test_a_per_user_app_is_created_with_its_scopes_and_its_service_principal_rea
     assert [c[:2] for c in calls] == [("GET", "/api/2.0/apps/churn-desk"), ("POST", "/api/2.0/apps"), ("GET", "/api/2.0/apps/churn-desk"),
                                       ("POST", "/api/2.0/apps/churn-desk/deployments"), ("GET", "/api/2.0/apps/churn-desk")]
     assert calls[1][2]["user_api_scopes"] == ["sql:restricted-query", "genie"]
-    assert _without_feedback(_not_access_reads(inst.spark.statements)) == [], \
-        "each viewer reads with their own grants, so the App's identity gets none beyond the feedback table"
+    assert _without_feedback(_not_access_reads(inst.spark.statements)) == [s for s in inst.spark.statements if VALUE_LEDGER in s
+                                                                              and s.startswith("CREATE TABLE")], \
+        "each viewer reads with their own grants, so the App's identity gets none beyond the feedback table (the job identity creates the value ledger)"
+    assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")] == []
     assert inst.genie_grants == []
 
 
