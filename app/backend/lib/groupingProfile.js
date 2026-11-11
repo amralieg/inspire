@@ -2,7 +2,7 @@ const G = require('../../frontend/src/lib/tableName.js');
 const R = require('./groupingRule');
 const { parseExactJson } = require('./exactJson');
 const { plural } = require('./plural');
-const { compileExpression } = require('../../frontend/src/lib/moneyValue.js');
+const { compileExpression } = require('../../agent/agent/app_shell/web/src/moneyValue.js');
 
 const PROFILE_MS = 60000;
 const PROFILE_DAYS_MAX = 3650;

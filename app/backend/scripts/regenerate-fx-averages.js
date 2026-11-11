@@ -42,7 +42,7 @@ async function main() {
   const out = {
     base: BASE,
     period: { from, to, days },
-    source: `${SERIES_URL} (European Central Bank reference rates, daily, ${year})`,
+    source: `European Central Bank reference rates, daily, ${year}, via the Frankfurter API`,
     generated_at: new Date().toISOString(),
     method: 'arithmetic mean of the daily rates published in the period, units of each currency per 1 USD',
     per_usd: perUsd,

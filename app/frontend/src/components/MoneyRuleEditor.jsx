@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { draftOf, ruleOf, ruleSentence } from '../../../agent/agent/app_shell/web/src/moneyRule.js';
 import '../../../agent/agent/app_shell/web/src/styles/moneyRule.css';
-import { compileExpression } from '../lib/moneyValue.js';
+import { compileExpression } from '../../../agent/agent/app_shell/web/src/moneyValue.js';
 import { PlainMessage } from './TechnicalDetails.jsx';
 
 const ISO = /^[A-Z]{3}$/;
@@ -111,9 +111,10 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
   }, [table, sample?.currency]);
 
   const { value: picked, problems: pickProblems } = valueOf(effective);
-  const previewKey = JSON.stringify(pickProblems.length ? null : picked);
+  const gone = picked && columns.length ? columnsOf(picked).filter((name) => !columns.includes(name)) : [];
+  const previewKey = JSON.stringify(pickProblems.length || gone.length ? null : picked);
   useEffect(() => {
-    if (!picked || pickProblems.length || !table || !api.preview) { setPreview(null); return undefined; }
+    if (!picked || pickProblems.length || gone.length || !table || !api.preview) { setPreview(null); return undefined; }
     let live = true;
     api.preview({ table, value: picked }).then((data) => { if (live) setPreview({ rows: data.rows || [] }); })
       .catch((err) => { if (live) setPreview({ error: err?.message || 'The example rows could not be read.' }); });
@@ -202,7 +203,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         </div>
       )}
 
-      {effective.method && !pickProblems.length && (
+      {effective.method && !pickProblems.length && !gone.length && (
         <div className="space-y-1 text-[12px]" data-money-value-preview>
           <p className="font-semibold text-text-primary">Value of three example rows</p>
           {preview?.error && <PlainMessage text={preview.error} className="text-[12px] text-danger" />}

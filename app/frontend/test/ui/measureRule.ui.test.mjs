@@ -47,12 +47,12 @@ async function openMeasure({ rates = LIVE_RATES, calls = { preview: [], currency
   return { ...ui, calls };
 }
 
-test('the Measure step asks how the value of each record is measured, with three choices and no old fields', async () => {
+test('the Measure step asks how the value of each record is measured, with four choices and no old fields', async () => {
   const ui = await openMeasure();
   const { page } = ui;
   try {
     assert.match(await page.locator('[data-measure-value] legend').innerText(), /How does your business measure the value of each record\?/);
-    assert.equal(await page.locator('[data-money-method]').count(), 3);
+    assert.equal(await page.locator('[data-money-method]').count(), 4);
     assert.equal(await page.locator('[data-money-mode]').count(), 0, 'the old per-currency and convert radios are gone');
     assert.equal(await page.locator('[data-money-more] summary').innerText(), 'More options');
   } finally {
@@ -129,7 +129,7 @@ test('with no internet the rates are the saved averages, and one line says so', 
   const { page } = ui;
   try {
     assert.match(await page.locator('[data-money-rates-notice]').innerText(), /No internet: every rate is the saved historical average/);
-    assert.match(await page.locator('[data-money-rate-row="EUR"] [data-money-rate-source]').innerText(), /saved average/);
+    assert.match(await page.locator('[data-money-rate-row="EUR"] [data-money-rate-source]').innerText(), /ECB average, 2025/);
   } finally {
     await page.context().close();
   }

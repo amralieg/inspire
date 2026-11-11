@@ -1,7 +1,7 @@
 const { parseExactJson } = require('./exactJson');
 const { valueProblems } = require('./moneyRule');
 const { replyContent } = require('./appFeedback');
-const { compileExpression } = require('../../frontend/src/lib/moneyValue.js');
+const { compileExpression } = require('../../agent/agent/app_shell/web/src/moneyValue.js');
 
 const DESCRIBE_MAX_CHARS = 600;
 const COLUMN_LIMIT = 200;

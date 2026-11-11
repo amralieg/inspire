@@ -27,7 +27,7 @@ const RATE_TABLE_KEYS = ['table', 'currency_column', 'base_column', 'date_column
 const VALUE_METHODS = ['fixed', 'column', 'equation'];
 
 const isPlain = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
-const { compileExpression } = require('../../frontend/src/lib/moneyValue.js');
+const { compileExpression } = require('../../agent/agent/app_shell/web/src/moneyValue.js');
 
 function valueProblems(value) {
   if (!isPlain(value)) return ['the value of each record is an object: its method, and its amount, column or equation'];

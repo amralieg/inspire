@@ -5,8 +5,8 @@
     "to": "2025-12-31",
     "days": 256
   },
-  "source": "https://api.frankfurter.dev/v1 (European Central Bank reference rates, daily, 2025)",
-  "generated_at": "2026-11-11T21:42:48.665Z",
+  "source": "European Central Bank reference rates, daily, 2025, via the Frankfurter API",
+  "generated_at": "2026-11-11T22:04:20.447Z",
   "method": "arithmetic mean of the daily rates published in the period, units of each currency per 1 USD",
   "per_usd": {
     "AUD": 1.551789,
