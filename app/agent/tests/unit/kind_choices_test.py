@@ -38,7 +38,7 @@ def test_entity_matching_and_network_dependency_offer_their_own_words(ns):
 
 def test_duplicate_choices_read_as_duplicate_decisions(ns):
     labels = _labels(_kinds()["entity_matching"]["choices"])
-    assert labels == {"Merge", "Review later", "Not a duplicate"}
+    assert labels == {"Merge", "Needs review", "Keep separate"}
 
 
 def test_generated_page_carries_its_kind_choices(ns):

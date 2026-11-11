@@ -1,7 +1,7 @@
 import { Suspense, lazy, useEffect, useState } from 'react';
 import { getRecords } from './api.js';
 import { cellText, formatValue, integer, isKeyColumn, numberOf } from './format.js';
-import { IN_PROGRESS, NEW, isClosed, statusKind, actError, canDecide, choiceLabel, choiceValues, listAsOf, matchOf, noDecisionText, pageDecides, recordKeyOf, statusChoices } from './records.js';
+import { IN_PROGRESS, NEW, UNDO_CLOSE, isClosed, statusKind, actError, canDecide, choiceLabel, choiceValues, listAsOf, matchOf, noDecisionText, pageDecides, recordKeyOf, statusChoices, undoBatchOf } from './records.js';
 import { QueueBulk, useActs } from './Work.jsx';
 import { RecordPanel } from './Records.jsx';
 import { useList } from './Layouts.jsx';
@@ -134,13 +134,15 @@ function useChoices(page, onChanged) {
         choiceValues(choice, 'the ★ suggestion'), `${choice.label} on ${plural(keys.length, '★ suggestion')}`, true))) return;
     }
   });
-  return { choose, takeAll, error, run };
+  return { choose, takeAll, undo: acts.undo, error, run };
 }
 
-function ChoiceRow({ page, app, row, choices, suggested, canAct, onChoose, onOpen, detail, ask, children }) {
+function ChoiceRow({ page, app, row, choices, suggested, canAct, onChoose, onOpen, onUndo, detail, ask, children }) {
   const [skipping, setSkipping] = useState(null);
+  const [undoing, setUndoing] = useState(false);
   const key = String(recordKeyOf(row));
   const closed = isClosed(row);
+  const batch = closed ? undoBatchOf(row, app?.user?.email) : '';
   return (
     <li className="choice-row" data-choice-row={key}>
       <div className="choice-main">
@@ -152,6 +154,7 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, onChoose, onOpe
       </div>
       <div className="choice-act" role="group" aria-label={`Decide ${row[page.records?.label] ?? key}`}>
         {closed && <span className="choice-done" data-decided><Icon name="check" size={13} />{decidedText(row, statusChoices(page))}</span>}
+        {batch && !undoing && <button type="button" className="link" data-unmerge onClick={() => setUndoing(true)}><Icon name="undo" size={13} />Unmerge</button>}
         {!closed && canAct && choices.map((c) => (
           <SaveButton key={c.id} write={`choice:${key}:${c.id}`} className={`btn btn--sm ${suggested?.id === c.id ? 'btn--pri' : ''}`} data-choice={c.id}
             onClick={() => (statusKind(c.status) === 'dismissed' ? setSkipping(c) : onChoose(row, c))}>
@@ -162,6 +165,13 @@ function ChoiceRow({ page, app, row, choices, suggested, canAct, onChoose, onOpe
         <RowGenie about={!ask && genieOn(app, page.id) ? { pageId: page.id, recordKey: key, label: nameOf(page, row) } : null}
           element={{ kind: ask, title: nameOf(page, row), page: page.id, context: { hint: `A line of ${page.records?.title || page.title}.`, fields: choiceFields(page, row) } }} />
       </div>
+      {undoing && (
+        <div className="choice-why" role="group" aria-label="Undo this decision">
+          <span>{UNDO_CLOSE}</span>
+          <SaveButton write={`undo:${key}`} className="btn btn--sm btn--pri" onClick={async () => { if (await onUndo(batch, `undo:${key}`)) setUndoing(false); }}>Undo it</SaveButton>
+          <button type="button" className="link" onClick={() => setUndoing(false)}>Keep it</button>
+        </div>
+      )}
       {skipping && (
         <div className="choice-why" role="group" aria-label={`Why ${skipping.label.toLowerCase()}`}>
           <span>Why?</span>
@@ -254,7 +264,7 @@ export function RecList({ page, app, filters, ready, nonce, onChanged }) {
           <ol className="choice-list">
             {items.map((row) => (
               <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can}
-                onChoose={decide.choose} onOpen={opened.open}
+                onChoose={decide.choose} onUndo={decide.undo} onOpen={opened.open}
                 detail={row[recs.score] != null && <span className="choice-score">{scoreMeta?.label || 'Score'} {shown(scoreMeta || { format: 'number' }, row[recs.score])}</span>}>
                 {reasonsOf(row[meta.reasons]).length > 0 && <div className="reasons">{reasonsOf(row[meta.reasons]).map((t) => <span key={t} className="chip chip--static">{t}</span>)}</div>}
               </ChoiceRow>
@@ -283,7 +293,7 @@ export function ChoiceList({ page, app, filters, ready, nonce, onChanged, sectio
       <ol className="choice-list">
         {rows.map((row) => (
           <ChoiceRow key={recordKeyOf(row)} page={page} app={app} row={row} choices={choices} suggested={suggest(row)} canAct={can}
-            onChoose={decide.choose} onOpen={opened.open} ask={ITEM_KINDS[section]}
+            onChoose={decide.choose} onUndo={decide.undo} onOpen={opened.open} ask={ITEM_KINDS[section]}
             detail={<span className="choice-cols">{(meta.columns || []).slice(0, 4).map((c) => <span key={c.column}>{c.label} <b>{shown(c, row[c.column])}</b></span>)}</span>}>
             {row[meta.action] && <p className="choice-why-text">{row[meta.action]}</p>}
           </ChoiceRow>
