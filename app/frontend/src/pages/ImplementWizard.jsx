@@ -246,6 +246,7 @@ import {
 import ScopeSettings, { GroupingChosen } from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, useScopeProfiles } from '../lib/groupingProfile';
+import { tableScopeSummary } from '../lib/tableScope';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
   FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
@@ -1989,6 +1990,16 @@ export default function ImplementWizard({
         {lastStep && moveNote && (
           <p role="note" aria-label="Before you start" data-plan-move-note=""
             className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{moveNote}</p>
+        )}
+        {stepId === 'data' && Object.keys(context?.table_scope || {}).length > 0 && (
+          <div aria-label="Table scope" data-table-scope-notes="" className="bg-bg-subtle border border-border rounded-md px-3 py-2 text-xs text-text-secondary space-y-1">
+            <p className="font-semibold text-text-primary">Inspire reads only the scope of these tables</p>
+            <ul className="list-disc ps-4">
+              {Object.entries(context.table_scope).map(([table, entry]) => (
+                <li key={table} data-scope-table={table}>{table}: {tableScopeSummary(entry)}</li>
+              ))}
+            </ul>
+          </div>
         )}
         {readiness?.warning && (
           <p role="note" aria-label="Rows to work with" data-empty-table-warning=""

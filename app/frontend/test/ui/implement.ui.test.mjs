@@ -2351,3 +2351,19 @@ test('every asset drawer, Build progress and the Uninstall dialog read at 4.5:1 
     await ui.close();
   }
 });
+
+test('the Data step of Build names each table Inspire reads only in scope, with its columns and rows (must-exclude: other steps do not show it)', async () => {
+  const TABLE_SCOPE = JSON.stringify({ 'main.s.orders': { columns: ['order_id', 'status'], rows: [{ column: 'status', op: '=', values: ['gold'] }] } });
+  const ui = await openUi('wizard&discovery=Deep', { session: { business_name: 'Acme', discovery_type: 'Deep', catalogs: 'main', schemas_str: 's', tables_str: 'main.s.orders', generation_path: '/tmp/out', inspire_database_name: 'main.inspire', table_scope: TABLE_SCOPE } });
+  const { page } = ui;
+  try {
+    await toData(page);
+    const note = page.locator('[data-table-scope-notes]');
+    await note.waitFor({ timeout: 15000 });
+    assert.match(await note.innerText(), /main\.s\.orders: 2 columns, rows where status is gold/);
+    await goToStep(page, 'What to build').catch(() => null);
+    assert.equal(await page.locator('[data-table-scope-notes]').count(), 0, 'the note is shown on the Data step only');
+  } finally {
+    await ui.close();
+  }
+});
