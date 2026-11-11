@@ -5249,8 +5249,8 @@
    "genie": "the Ask Genie button, to ask questions about the data in plain words",
    "alerts": "the alerts entry, to get an email when a new run finds something",
    "performance": "the performance entry, which shows what was promised and what the actions delivered",
-  "runs": "the runs entry, the history of each refresh of this use case and what it found",
-  "settings": "the settings entry, where the target, the measurement and the flagging rules are set"
+   "runs": "the runs entry, the history of each refresh of this use case and what it found",
+   "settings": "the settings entry, where the target, the measurement and the flagging rules are set"
   },
   "rail": [
    "genie",
@@ -5473,7 +5473,11 @@
      "record": "record",
      "filters": "the filters",
      "choices": "the choices on the list",
-     "choice": {"done": "counts as fixed", "dismissed": "counts as not an issue", "open": "stays on the list"}
+     "choice": {
+      "done": "counts as fixed",
+      "dismissed": "counts as not an issue",
+      "open": "stays on the list"
+     }
     },
     "steps": {
      "decision": {
@@ -5588,6 +5592,14 @@
      "performance": {
       "title": "شاهد النتائج",
       "text": "يعرض قسم الأداء ما وعدت به حالة الاستخدام هذه وما حققته الإجراءات المتخذة حتى الآن."
+     },
+     "runs": {
+      "title": "كل تشغيل",
+      "text": "كل تحديث لحالة الاستخدام هذه هو تشغيل. افتح التشغيلات لترى ما وجده كل واحد، ووقت تشغيله، وهل اكتمل."
+     },
+     "settings": {
+      "title": "الإعدادات",
+      "text": "تحفظ الإعدادات الهدف وطريقة قياس القيمة والقواعد التي تحدد السجلات. يُحفظ كل تغيير مع ملاحظته."
      }
     }
    },
@@ -5649,6 +5661,14 @@
      "performance": {
       "title": "Vea lo conseguido",
       "text": "Rendimiento muestra lo que prometía este caso de uso y lo que han logrado hasta ahora las acciones tomadas."
+     },
+     "runs": {
+      "title": "Cada ejecución",
+      "text": "Cada actualización de este caso de uso es una ejecución. Abre Ejecuciones para ver qué encontró cada una, cuándo se ejecutó y si terminó."
+     },
+     "settings": {
+      "title": "Ajustes",
+      "text": "Los ajustes guardan el objetivo, cómo se mide el valor y las reglas que marcan los registros. Cada cambio queda guardado con su nota."
      }
     }
    },
@@ -5710,6 +5730,14 @@
      "performance": {
       "title": "Voyez les résultats",
       "text": "Performance montre ce que ce cas d'usage promettait et ce que les actions menées ont apporté jusqu'ici."
+     },
+     "runs": {
+      "title": "Chaque exécution",
+      "text": "Chaque actualisation de ce cas d'usage est une exécution. Ouvrez Exécutions pour voir ce que chacune a trouvé, quand elle a eu lieu et si elle a abouti."
+     },
+     "settings": {
+      "title": "Paramètres",
+      "text": "Les paramètres contiennent la cible, la façon de mesurer la valeur et les règles qui signalent les enregistrements. Chaque modification est conservée avec sa note."
      }
     }
    },
@@ -5771,6 +5799,14 @@
      "performance": {
       "title": "Ergebnisse sehen",
       "text": "Leistung zeigt, was dieser Anwendungsfall versprochen hat und was die ergriffenen Maßnahmen bisher erreicht haben."
+     },
+     "runs": {
+      "title": "Jeder Lauf",
+      "text": "Jede Aktualisierung dieses Use Cases ist ein Lauf. Öffne Läufe, um zu sehen, was jeder gefunden hat, wann er lief und ob er fertig wurde."
+     },
+     "settings": {
+      "title": "Einstellungen",
+      "text": "Die Einstellungen enthalten das Ziel, die Messung des Werts und die Regeln, die Datensätze markieren. Jede Änderung wird mit ihrer Notiz gespeichert."
      }
     }
    },
@@ -5832,6 +5868,14 @@
      "performance": {
       "title": "Veja os resultados",
       "text": "Desempenho mostra o que este caso de uso prometia e o que as ações tomadas já alcançaram."
+     },
+     "runs": {
+      "title": "Cada execução",
+      "text": "Cada atualização deste caso de uso é uma execução. Abra Execuções para ver o que cada uma encontrou, quando rodou e se terminou."
+     },
+     "settings": {
+      "title": "Configurações",
+      "text": "As configurações guardam a meta, como o valor é medido e as regras que sinalizam registros. Cada mudança fica guardada com a sua nota."
      }
     }
    },
@@ -5893,6 +5937,14 @@
      "performance": {
       "title": "Guarda i risultati",
       "text": "Prestazioni mostra cosa prometteva questo caso d'uso e cosa hanno ottenuto finora le azioni intraprese."
+     },
+     "runs": {
+      "title": "Ogni esecuzione",
+      "text": "Ogni aggiornamento di questo caso d'uso è un'esecuzione. Apri Esecuzioni per vedere cosa ha trovato ciascuna, quando è partita e se è terminata."
+     },
+     "settings": {
+      "title": "Impostazioni",
+      "text": "Le impostazioni contengono l'obiettivo, il modo in cui si misura il valore e le regole che segnalano i record. Ogni modifica viene salvata con la sua nota."
      }
     }
    },
@@ -5954,6 +6006,14 @@
      "performance": {
       "title": "查看成效",
       "text": "绩效部分展示该用例的预期成效，以及目前已采取的行动实际带来的成果。"
+     },
+     "runs": {
+      "title": "每次运行",
+      "text": "此用例的每次刷新都是一次运行。打开“运行”可查看每次发现了什么、何时运行以及是否完成。"
+     },
+     "settings": {
+      "title": "设置",
+      "text": "设置包含目标、数值的衡量方式以及标记记录的规则。每次更改都会连同备注一起保存。"
      }
     }
    },
@@ -6015,6 +6075,14 @@
      "performance": {
       "title": "成果を見る",
       "text": "パフォーマンスには、このユースケースが約束したことと、これまでの対応で実際に得られた成果が表示されます。"
+     },
+     "runs": {
+      "title": "各実行",
+      "text": "このユースケースの更新はそれぞれ一回の実行です。実行画面で、各回が何を見つけたか、いつ実行されたか、完了したかを確認できます。"
+     },
+     "settings": {
+      "title": "設定",
+      "text": "設定では、目標、値の測定方法、レコードにフラグを付けるルールを指定します。変更はすべてメモとともに保存されます。"
      }
     }
    },
@@ -6076,6 +6144,14 @@
      "performance": {
       "title": "성과 보기",
       "text": "성과에서는 이 사용 사례가 약속한 내용과 지금까지 취한 조치로 얻은 결과를 보여 줍니다."
+     },
+     "runs": {
+      "title": "각 실행",
+      "text": "이 유스케이스를 새로 고칠 때마다 실행이 하나씩 생깁니다. 실행을 열면 각 실행이 무엇을 찾았는지, 언제 실행됐는지, 완료됐는지 볼 수 있습니다."
+     },
+     "settings": {
+      "title": "설정",
+      "text": "설정에는 목표, 값을 측정하는 방식, 레코드를 표시하는 규칙이 들어 있습니다. 모든 변경은 메모와 함께 저장됩니다."
      }
     }
    },
@@ -6137,6 +6213,14 @@
      "performance": {
       "title": "नतीजे देखें",
       "text": "परफ़ॉर्मेंस दिखाता है कि इस उपयोग के मामले ने क्या वादा किया था और अब तक की गई कार्रवाइयों से क्या हासिल हुआ।"
+     },
+     "runs": {
+      "title": "हर रन",
+      "text": "इस यूज़ केस का हर रीफ़्रेश एक रन है। रन खोलकर देखें कि हर एक ने क्या पाया, कब चला और पूरा हुआ या नहीं।"
+     },
+     "settings": {
+      "title": "सेटिंग्स",
+      "text": "सेटिंग्स में लक्ष्य, मान कैसे मापा जाता है, और वे नियम रखे जाते हैं जो रिकॉर्ड चिह्नित करते हैं। हर बदलाव उसके नोट के साथ सहेजा जाता है।"
      }
     }
    },
@@ -6198,6 +6282,14 @@
      "performance": {
       "title": "Посмотрите результат",
       "text": "Раздел «Эффективность» показывает, что обещал этот сценарий и чего уже добились принятые меры."
+     },
+     "runs": {
+      "title": "Каждый запуск",
+      "text": "Каждое обновление этого сценария — это запуск. Откройте «Запуски», чтобы увидеть, что нашёл каждый, когда он шёл и завершился ли."
+     },
+     "settings": {
+      "title": "Настройки",
+      "text": "В настройках заданы цель, способ измерения значения и правила, по которым помечаются записи. Каждое изменение сохраняется вместе с заметкой."
      }
     }
    },
@@ -6259,6 +6351,14 @@
      "performance": {
       "title": "Se resultatet",
       "text": "Prestanda visar vad användningsfallet lovade och vad de åtgärder som vidtagits har gett hittills."
+     },
+     "runs": {
+      "title": "Varje körning",
+      "text": "Varje uppdatering av det här användningsfallet är en körning. Öppna Körningar för att se vad varje körning hittade, när den gick och om den blev klar."
+     },
+     "settings": {
+      "title": "Inställningar",
+      "text": "Inställningarna innehåller målet, hur värdet mäts och reglerna som flaggar poster. Varje ändring sparas med sin anteckning."
      }
     }
    },
@@ -6320,6 +6420,14 @@
      "performance": {
       "title": "Se resultatet",
       "text": "Ydeevne viser, hvad denne use case lovede, og hvad de handlinger, der er taget, har givet indtil nu."
+     },
+     "runs": {
+      "title": "Hver kørsel",
+      "text": "Hver opdatering af dette use case er en kørsel. Åbn Kørsler for at se, hvad hver enkelt fandt, hvornår den kørte, og om den blev færdig."
+     },
+     "settings": {
+      "title": "Indstillinger",
+      "text": "Indstillingerne rummer målet, hvordan værdien måles, og reglerne der markerer poster. Hver ændring gemmes med sin note."
      }
     }
    },
@@ -6381,6 +6489,14 @@
      "performance": {
       "title": "Se resultatet",
       "text": "Ytelse viser hva dette brukstilfellet lovet, og hva tiltakene som er gjort, har gitt så langt."
+     },
+     "runs": {
+      "title": "Hver kjøring",
+      "text": "Hver oppdatering av dette bruksområdet er en kjøring. Åpne Kjøringer for å se hva hver enkelt fant, når den kjørte og om den ble ferdig."
+     },
+     "settings": {
+      "title": "Innstillinger",
+      "text": "Innstillingene inneholder målet, hvordan verdien måles og reglene som markerer poster. Hver endring lagres med notatet sitt."
      }
     }
    },
@@ -6442,6 +6558,14 @@
      "performance": {
       "title": "Katso tulokset",
       "text": "Suorituskyky näyttää, mitä tämä käyttötapaus lupasi ja mitä tehdyt toimet ovat tähän mennessä tuottaneet."
+     },
+     "runs": {
+      "title": "Jokainen ajo",
+      "text": "Tämän käyttötapauksen jokainen päivitys on ajo. Avaa Ajot nähdäksesi, mitä kukin löysi, milloin se ajettiin ja valmistuiko se."
+     },
+     "settings": {
+      "title": "Asetukset",
+      "text": "Asetuksissa määritetään tavoite, arvon mittaustapa ja säännöt, joilla tietueet merkitään. Jokainen muutos tallentuu muistiinpanoineen."
      }
     }
    },
@@ -6503,6 +6627,14 @@
      "performance": {
       "title": "Zobacz efekty",
       "text": "Wydajność pokazuje, co obiecywał ten przypadek użycia i co dotąd dały podjęte działania."
+     },
+     "runs": {
+      "title": "Każde uruchomienie",
+      "text": "Każde odświeżenie tego przypadku użycia to uruchomienie. Otwórz Uruchomienia, aby zobaczyć, co każde znalazło, kiedy ruszyło i czy się zakończyło."
+     },
+     "settings": {
+      "title": "Ustawienia",
+      "text": "Ustawienia zawierają cel, sposób mierzenia wartości i reguły oznaczające rekordy. Każda zmiana jest zapisywana z notatką."
      }
     }
    },
@@ -6564,6 +6696,14 @@
      "performance": {
       "title": "Vezi rezultatele",
       "text": "Performanța arată ce a promis acest caz de utilizare și ce au adus până acum acțiunile luate."
+     },
+     "runs": {
+      "title": "Fiecare rulare",
+      "text": "Fiecare actualizare a acestui caz de utilizare este o rulare. Deschide Rulările ca să vezi ce a găsit fiecare, când a rulat și dacă a terminat."
+     },
+     "settings": {
+      "title": "Setări",
+      "text": "Setările țin ținta, modul în care se măsoară valoarea și regulile care marchează înregistrările. Fiecare modificare se păstrează cu nota ei."
      }
     }
    },
@@ -6625,6 +6765,14 @@
      "performance": {
       "title": "Перегляньте результат",
       "text": "Розділ «Ефективність» показує, що обіцяв цей сценарій і чого вже досягли вжиті заходи."
+     },
+     "runs": {
+      "title": "Кожен запуск",
+      "text": "Кожне оновлення цього сценарію — це запуск. Відкрийте «Запуски», щоб побачити, що знайшов кожен, коли він відбувся і чи завершився."
+     },
+     "settings": {
+      "title": "Налаштування",
+      "text": "У налаштуваннях задано ціль, спосіб вимірювання значення та правила, за якими позначаються записи. Кожна зміна зберігається з приміткою."
      }
     }
    },
@@ -6686,6 +6834,14 @@
      "performance": {
       "title": "Bekijk het resultaat",
       "text": "Prestaties toont wat deze use case beloofde en wat de genomen acties tot nu toe hebben opgeleverd."
+     },
+     "runs": {
+      "title": "Elke run",
+      "text": "Elke vernieuwing van deze use case is een run. Open Runs om te zien wat elke run vond, wanneer hij draaide en of hij klaar was."
+     },
+     "settings": {
+      "title": "Instellingen",
+      "text": "In de instellingen staan het doel, hoe de waarde wordt gemeten en de regels die records markeren. Elke wijziging wordt bewaard met de notitie erbij."
      }
     }
    },
@@ -6747,6 +6903,14 @@
      "performance": {
       "title": "Lihat hasilnya",
       "text": "Kinerja menunjukkan apa yang dijanjikan kasus penggunaan ini dan apa yang telah dicapai oleh tindakan yang diambil sejauh ini."
+     },
+     "runs": {
+      "title": "Setiap run",
+      "text": "Setiap penyegaran kasus penggunaan ini adalah satu run. Buka Run untuk melihat apa yang ditemukan tiap run, kapan dijalankan, dan apakah selesai."
+     },
+     "settings": {
+      "title": "Pengaturan",
+      "text": "Pengaturan memuat target, cara nilai diukur, dan aturan yang menandai rekaman. Setiap perubahan disimpan beserta catatannya."
      }
     }
    },
@@ -6808,6 +6972,14 @@
      "performance": {
       "title": "Lihat hasilnya",
       "text": "Prestasi menunjukkan apa yang dijanjikan oleh kes penggunaan ini dan apa yang telah dicapai oleh tindakan yang diambil setakat ini."
+     },
+     "runs": {
+      "title": "Setiap larian",
+      "text": "Setiap penyegaran kes guna ini ialah satu larian. Buka Larian untuk melihat apa yang ditemui setiap larian, bila ia dijalankan dan sama ada ia selesai."
+     },
+     "settings": {
+      "title": "Tetapan",
+      "text": "Tetapan memuatkan sasaran, cara nilai diukur dan peraturan yang menandakan rekod. Setiap perubahan disimpan bersama notanya."
      }
     }
    },
@@ -6869,6 +7041,14 @@
      "performance": {
       "title": "முடிவுகளைப் பாருங்கள்",
       "text": "இந்தப் பயன்பாட்டு நிகழ்வு எதை உறுதியளித்தது, இதுவரை எடுத்த நடவடிக்கைகள் எதைச் சாதித்தன என்பதை செயல்திறன் காட்டுகிறது."
+     },
+     "runs": {
+      "title": "ஒவ்வொரு இயக்கமும்",
+      "text": "இந்த பயன்பாட்டு நிகழ்வின் ஒவ்வொரு புதுப்பிப்பும் ஓர் இயக்கம். ஒவ்வொன்றும் என்ன கண்டறிந்தது, எப்போது இயங்கியது, முடிந்ததா என்பதைப் பார்க்க இயக்கங்களைத் திறக்கவும்."
+     },
+     "settings": {
+      "title": "அமைப்புகள்",
+      "text": "அமைப்புகளில் இலக்கு, மதிப்பு அளக்கப்படும் முறை, பதிவுகளைக் குறிக்கும் விதிகள் உள்ளன. ஒவ்வொரு மாற்றமும் அதன் குறிப்புடன் சேமிக்கப்படும்."
      }
     }
    }
