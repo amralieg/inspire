@@ -59,28 +59,29 @@ function rowFilterMapping(body, filter) {
 }
 
 function tableEnforcement(name, tableInfo, routine) {
-  const masks = (tableInfo.columns || []).filter((c) => c && c.mask).map((c) => c.name);
-  if (masks.length) {
-    return { table: name, enforced: false, reason: `a column mask hides ${masks.join(', ')}, so Fast pages would copy the values it hides` };
-  }
+  const masked = (tableInfo.columns || []).filter((c) => c && c.mask && c.mask.function_name).map((c) => c.name);
   const filter = tableInfo.row_filter;
-  if (!filter || !filter.function_name) return { table: name, enforced: true, mapping: null, column: '', reason: '' };
+  const filtered = Boolean(filter && filter.function_name);
+  if (!filter || !filter.function_name) return { table: name, enforced: true, mapping: null, column: '', masked, filtered, reason: '' };
   const fn = filter.function_name;
-  if (!routine) return { table: name, enforced: false, reason: `Inspire could not read the row filter ${fn}` };
+  if (!routine) return { table: name, enforced: false, masked, filtered, reason: `Inspire could not read the row filter ${fn}` };
   const inputs = filter.input_column_names || [];
   const parameters = routine.parameters || [];
   if (inputs.length !== 1 || parameters.length !== 1) {
-    return { table: name, enforced: false, reason: `the row filter ${fn} reads more than one column, which is not a user-to-key mapping` };
+    return { table: name, enforced: false, masked, filtered, reason: `the row filter ${fn} reads more than one column, which is not a user-to-key mapping` };
   }
   const mapping = rowFilterMapping(routine.body, { column: inputs[0], parameter: parameters[0] });
   if (!mapping) {
-    return { table: name, enforced: false, reason: `the row filter ${fn} is not a user-to-key mapping table, so the table reads Delta` };
+    return { table: name, enforced: false, masked, filtered, reason: `the row filter ${fn} is not a user-to-key mapping table` };
   }
-  return { table: name, enforced: true, mapping, column: inputs[0], reason: '' };
+  if (masked.includes(inputs[0])) {
+    return { table: name, enforced: false, masked, filtered, reason: `the row filter ${fn} reads ${inputs[0]}, which a column mask hides` };
+  }
+  return { table: name, enforced: true, mapping, column: inputs[0], masked, filtered, reason: '' };
 }
 
 async function oneEnforcement(name, fetchJson) {
-  const unreadable = { table: name, enforced: false, reason: `Inspire could not read the table ${name}` };
+  const unreadable = { table: name, enforced: false, masked: [], filtered: false, reason: `Inspire could not read the table ${name}` };
   try {
     const table = await fetchJson(`/api/2.1/unity-catalog/tables/${encodeURIComponent(name)}`);
     if (!table.ok) return unreadable;

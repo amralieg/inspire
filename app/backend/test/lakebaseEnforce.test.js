@@ -28,12 +28,27 @@ test('a row filter that is not the mapping shape is refused, so that table reads
   for (const body of refused) assert.equal(LE.rowFilterMapping(body, REGION), null, body);
 });
 
-test('a table with no row filter and no mask is enforced with no mapping; a masked table is not, whatever its filter', () => {
-  assert.deepEqual(LE.tableEnforcement('main.s.t', {}, null), { table: 'main.s.t', enforced: true, mapping: null, column: '', reason: '' });
-  const masked = { row_filter: { function_name: 'main.s.fn', input_column_names: ['region'] }, columns: [{ name: 'ssn', mask: { function_name: 'm' } }] };
-  const got = LE.tableEnforcement('main.s.t', masked, { body: MAPPED, parameters: ['region_key'] });
-  assert.equal(got.enforced, false);
-  assert.match(got.reason, /a column mask hides ssn/);
+test('a table with no row filter is enforced with no mapping, and its masked columns are left out of the copy, never the table', () => {
+  assert.deepEqual(LE.tableEnforcement('main.s.t', {}, null), { table: 'main.s.t', enforced: true, mapping: null, column: '', masked: [], filtered: false, reason: '' });
+  const empty = { columns: [{ name: 'region', mask: {} }, { name: 'email', mask: null }] };
+  assert.deepEqual(LE.tableEnforcement('main.s.t', empty, null).masked, [], 'an empty mask object is no mask');
+  const masked = { columns: [{ name: 'ssn', mask: { function_name: 'main.s.mask' } }, { name: 'region' }] };
+  assert.deepEqual(LE.tableEnforcement('main.s.t', masked, null), { table: 'main.s.t', enforced: true, mapping: null, column: '', masked: ['ssn'], filtered: false, reason: '' });
+});
+
+test('a masked column that is not the filter column leaves the table enforced; a masked filter column does not (must-exclude)', () => {
+  const info = (maskedColumn) => ({
+    row_filter: { function_name: 'main.s.fn', input_column_names: ['region'] },
+    columns: [{ name: maskedColumn, mask: { function_name: 'main.s.mask', using_column_names: [] } }],
+  });
+  const routine = { body: MAPPED, parameters: ['region_key'] };
+  const other = LE.tableEnforcement('main.s.t', info('ssn'), routine);
+  assert.equal(other.enforced, true);
+  assert.deepEqual(other.masked, ['ssn']);
+  assert.equal(other.mapping.principal, 'user_email');
+  const filtered = LE.tableEnforcement('main.s.t', info('region'), routine);
+  assert.equal(filtered.enforced, false);
+  assert.match(filtered.reason, /reads region, which a column mask hides/);
 });
 
 test('a row filter Inspire cannot read, or that reads more than one column, is not enforced and says why', () => {
@@ -79,6 +94,13 @@ test('a fetch that throws marks that table unreadable and leaves the others judg
     return { ok: true, status: 200, data: {} };
   };
   const got = await LE.tablesEnforcement(['main.s.bad', 'main.s.good'], fetchJson);
-  assert.deepEqual(got['main.s.bad'], { table: 'main.s.bad', enforced: false, reason: 'Inspire could not read the table main.s.bad' });
+  assert.deepEqual(got['main.s.bad'], { table: 'main.s.bad', enforced: false, masked: [], filtered: false, reason: 'Inspire could not read the table main.s.bad' });
   assert.equal(got['main.s.good'].enforced, true);
+});
+
+test('the wizard classifier and the builder classify the shared row-filter cases the same way (must-exclude: a shape only one side accepts)', () => {
+  const cases = require('../../agent/tests/fixtures/row_filter_cases.json');
+  for (const c of cases) {
+    assert.deepEqual(LE.rowFilterMapping(c.body, { column: c.column, parameter: c.parameter }), c.expect, c.name);
+  }
 });

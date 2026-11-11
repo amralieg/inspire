@@ -825,8 +825,9 @@ test('the Lakebase route judges each named table for per-user Fast pages, from i
     assert.equal(got.data.enforce['main.s.orders'].enforced, true);
     assert.equal(got.data.enforce['main.s.orders'].mapping.principal, 'user_email');
     assert.equal(got.data.enforce['main.s.returns'].enforced, false);
-    assert.match(got.data.enforce['main.s.returns'].reason, /is not a user-to-key mapping table, so the table reads Delta/);
-    assert.equal(got.data.enforce['main.s.ssn'].enforced, false);
+    assert.match(got.data.enforce['main.s.returns'].reason, /is not a user-to-key mapping table/);
+    assert.equal(got.data.enforce['main.s.ssn'].enforced, true, 'a masked column is left out of the copy, the table stays on Fast pages');
+    assert.deepEqual(got.data.enforce['main.s.ssn'].masked, ['ssn']);
     assert.equal(got.data.enforce['not-a-table'], undefined, 'a name that is not catalog.schema.table is never sent to Unity Catalog');
     assert.equal(made.fetches.some((f) => f.path.includes('not-a-table')), false);
   });

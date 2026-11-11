@@ -374,3 +374,23 @@ test('the wizard\'s chart kinds, Inspire\'s pick and the pages it can turn off a
     assert.equal(kind.label, m[1], `the wizard calls ${kind.id} what Genie is told`);
   }
 });
+
+test('a per-user App defaults to Fast pages only when the check says every table keeps each person to their rows, and names each table that reads Delta (must-exclude)', async () => {
+  const { w, spec } = await appSpec({ app_access: 'user' });
+  const offer = (enforce, state = 'available') => ({ state, detail: '', enforce });
+  const enforced = { mapping: { map: 'main.sec.map' }, column: 'region', enforced: true, filtered: true, reason: '' };
+  const plain = { enforced: true, filtered: false, reason: '' };
+  const refused = { enforced: false, filtered: true, reason: 'the row filter main.sec.fn is not a user-to-key mapping table' };
+  assert.equal(w.appBackendDefault(spec, offer({ 'main.s.orders': enforced, 'main.s.plain': plain })), 'lakebase');
+  assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced, 'main.s.plain': plain })), 'lakebase');
+  assert.deepEqual(w.appBackendBlocks(spec, offer({ 'main.s.orders': enforced, 'main.s.plain': plain })), {});
+  assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced, 'main.s.returns': refused })), 'delta', 'one refused table keeps the App on Standard pages');
+  assert.deepEqual(w.appBackendBlocks(spec, offer({ 'main.s.orders': enforced, 'main.s.returns': refused })),
+    { lakebase: { why: 'Fast pages cannot keep each person to their own rows here: main.s.returns uses Standard pages because the row filter main.sec.fn is not a user-to-key mapping table.', details: '' } });
+  const twoFilters = { ...enforced };
+  assert.equal(w.appBackendOf(spec, offer({ 'main.s.a': twoFilters, 'main.s.b': twoFilters })), 'delta', 'two tables with filters cannot share one mapping (must-exclude)');
+  assert.match(w.appBackendBlocks(spec, offer({ 'main.s.a': twoFilters, 'main.s.b': twoFilters })).lakebase.why, /more than one table has a row filter|more than one/);
+  assert.equal(w.appBackendOf(spec, offer({ 'main.s.orders': enforced }, 'absent')), 'delta');
+  const picked = w.withAppBackend(spec, 'lakebase');
+  assert.equal(w.appBackendOf(picked, offer({ 'main.s.orders': refused })), 'delta', 'a Fast pages pick the check refuses falls back to Delta');
+});
