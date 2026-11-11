@@ -29,8 +29,7 @@ RAW_ERROR = re.compile(r"SQLSTATE|\[[A-Z][A-Z0-9_]{3,}(?:\.[A-Z0-9_]+)*\]|Traceb
 
 
 def rebuild_action(what: str = "it", first: bool = False) -> str:
-    text = f"build {what} again with Vibe/Add/Remove Features on Inspire's Build page"
-    return text[:1].upper() + text[1:] if first else text
+    return shell_facts.rebuild_action(what, first, "Inspire's Build page")
 
 
 NO_ACCESS_LEAD = "No access to "
