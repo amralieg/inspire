@@ -85,12 +85,12 @@ def test_switching_only_the_backend_redeploys_the_app_without_asking_genie(agent
 @pytest.mark.parametrize("outputs,host,kind,note", [
     ({"app_backend": "lakebase", "app_access": "sp"}, {}, "lakebase", ""),
     ({"app_backend": "delta", "app_access": "sp"}, {}, "delta", ""),
-    ({"app_backend": "lakebase", "app_access": "user"}, {}, "delta", SP_NOTE),
+    ({"app_backend": "lakebase", "app_access": "user"}, {}, "lakebase", ""),
     ({"app_backend": "delta", "app_access": "sp"}, {"merged": True, "settings": {"auth": "sp", "backend": BACKEND}}, "lakebase", ""),
     ({"app_backend": "lakebase", "app_access": "sp"}, {"merged": True, "settings": {"auth": "sp", "backend": {"kind": "delta"}}},
      "delta", ""),
-    ({"app_backend": "lakebase", "app_access": "sp"}, {"merged": True, "settings": {"auth": "user", "backend": BACKEND}}, "delta",
-     SP_NOTE),
+    ({"app_backend": "lakebase", "app_access": "sp"}, {"merged": True, "settings": {"auth": "user", "backend": BACKEND}}, "lakebase",
+     ""),
     ({"app_backend": "lakebase", "app_access": "sp"}, {"merged": True, "settings": {"auth": "sp"}}, "delta", ""),
 ], ids=["sp_lakebase", "sp_delta", "per_user", "merged_keeps_host_lakebase", "merged_keeps_host_delta", "merged_per_user_host",
         "merged_host_before_lakebase"])
@@ -445,7 +445,7 @@ def _app_lakebase(ns, tmp_path, outputs=None, host=None, rounds=("COMPLETED",), 
     inst._assets = type("Assets", (), {"app_files": staticmethod(lambda: dict(VENDORED))})()
     inst._implement_lakebase_ready = ready or (lambda deadline: dict(ENV))
 
-    def views(pages, row, schema, shell_sql):
+    def views(pages, row, schema, shell_sql, plans=None):
         seen["views"] += 1
         copies = ns["implement_lakebase_copies"](pages, row, shell_sql, {"main.inspire.churn_out": [*shell_sql.HISTORY_COLUMNS, "run_id"]})
         for copy in copies:
@@ -497,9 +497,10 @@ def test_an_app_on_delta_gets_its_delta_files_and_lakebase_is_never_asked(agent_
     assert seen["views"] == 0 and reader.calls == 0 and inst.emitted == []
 
 
-def test_a_per_user_app_stays_on_delta_and_says_why(agent_ns, tmp_path):
-    _inst, out, seen, _reader, _pg = _app_lakebase(agent_ns, tmp_path, outputs={"app_backend": "lakebase", "app_access": "user"})
-    assert out["kind"] == "delta" and out["notes"] == [SP_NOTE] and out["warnings"] == [] and seen["views"] == 0
+def test_a_per_user_app_whose_result_table_cannot_be_read_stays_on_delta_and_says_why(agent_ns, tmp_path):
+    inst, out, seen, _reader, _pg = _app_lakebase(agent_ns, tmp_path, outputs={"app_backend": "lakebase", "app_access": "user"})
+    assert out["kind"] == "delta" and out["warnings"] == [] and seen["views"] == 0
+    assert out["notes"] and out["notes"][0].startswith("App: main.inspire.churn_out uses Standard pages, not Fast pages, because Inspire could not read main.inspire.churn_out")
 
 
 def test_a_lakebase_app_copies_its_data_syncs_it_checks_every_query_on_lakebase_and_returns_the_lakebase_files(agent_ns, tmp_path):

@@ -368,7 +368,7 @@ def test_a_strict_lakebase_check_reads_the_history_lakebase_does_not_copy_from_d
         def __init__(self, table):
             self.table = table
 
-        def run(self, sql, params, limit, queued=False):
+        def run(self, sql, params, limit, queued=False, viewer=""):
             raise shell_pg.NotHeld(self.table) if self.table else shell_pg.NotServed("the query uses FOO, which Lakebase cannot run")
 
         def status(self):

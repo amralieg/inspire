@@ -162,21 +162,42 @@ export const APP_BACKEND_GUIDE = [
   'Fast pages (Lakebase) is the default and the recommended choice for Apps: pages read a Postgres copy that is synced from your tables, so most pages open at once without waiting for a SQL warehouse. Pages are as fresh as the last sync.',
   'Pick Delta when Lakebase is not available here, the tables are very large, or instant pages do not matter.',
 ];
-export const LAKEBASE_PER_USER_REASON = 'Fast pages need a shared App. Each person signs in as themselves here, so pages read your tables directly.';
+export const LAKEBASE_PER_USER_REASON = 'Each person signs in as themselves. Inspire checks which tables Fast pages can keep to each person\'s rows, '
+  + 'and this App uses Standard pages until it has checked them.';
 export const PER_USER_GUIDE = 'Each person signs in as themselves, so pages read your tables directly. Pick Delta here.';
 export const LAKEBASE_CHECKING = 'Inspire is still checking whether fast pages are possible here';
+
+export function enforceOf(offer) {
+  const enforce = offer?.enforce;
+  return enforce && typeof enforce === 'object' && !Array.isArray(enforce) ? enforce : {};
+}
+
+export function perUserFastPages(offer) {
+  const tables = Object.values(enforceOf(offer));
+  return offer?.state === 'available' && tables.length > 0 && tables.every((t) => t.enforced);
+}
+
+export function perUserFallback(offer) {
+  const tables = Object.entries(enforceOf(offer));
+  if (!tables.length) return LAKEBASE_PER_USER_REASON;
+  const refused = tables.filter(([, t]) => !t.enforced).map(([name, t]) => `${name} uses Standard pages because ${t.reason}`);
+  if (refused.length) return `Fast pages cannot keep each person to their own rows here: ${refused.join('; ')}.`;
+  return LAKEBASE_PER_USER_REASON;
+}
 
 export function appBackendDefault(spec, offer) {
   const outputs = spec?.outputs || {};
   if (!outputs.app) return '';
-  return insideInspire(spec) || outputs.merge?.app || outputs.app_access === 'user' || offer?.state !== 'available' ? 'delta' : 'lakebase';
+  const ready = outputs.app_access === 'user' ? perUserFastPages(offer) : offer?.state === 'available';
+  return insideInspire(spec) || outputs.merge?.app || !ready ? 'delta' : 'lakebase';
 }
 
 export function appBackendOf(spec, offer) {
   const outputs = spec?.outputs || {};
   if (!outputs.app) return '';
   const picked = APP_BACKENDS.includes(outputs.app_backend) ? outputs.app_backend : '';
-  if (insideInspire(spec) || outputs.app_access === 'user' || offer?.state === 'absent') return 'delta';
+  if (insideInspire(spec) || offer?.state === 'absent') return 'delta';
+  if (outputs.app_access === 'user' && picked === 'lakebase' && !perUserFastPages(offer)) return 'delta';
   return picked || appBackendDefault(spec, offer);
 }
 
@@ -185,7 +206,9 @@ export const LAKEBASE_UNCHECKED = 'Inspire could not check whether fast pages ar
 
 export function appBackendBlocks(spec, offer) {
   if (insideInspire(spec)) return { lakebase: blockOf(INSIDE_BACKEND_REASON) };
-  if (spec?.outputs?.app_access === 'user') return { lakebase: blockOf(LAKEBASE_PER_USER_REASON) };
+  if (spec?.outputs?.app_access === 'user' && !['denied', 'absent'].includes(offer?.state)) {
+    return perUserFastPages(offer) ? {} : { lakebase: blockOf(perUserFallback(offer)) };
+  }
   if (offer?.state === 'denied') return { lakebase: blockOf(needsAccess(offer.detail), offer.detail) };
   if (offer?.state === 'absent') return { lakebase: blockOf(LAKEBASE_ABSENT, offer.detail) };
   return {};

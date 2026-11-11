@@ -4,6 +4,7 @@ const I = require('./lib/inspireImplement');
 const { createGenieJobGuard } = require('./lib/genieJobGuard');
 const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNotebookJob');
 const C = require('./lib/implementControl');
+const LE = require('./lib/lakebaseEnforce');
 const { appShellCatalog, bundledBuildStamp } = require('./lib/appShell');
 const { moneyStatements, moneyView, moneyWithheld } = require('./lib/implementMoney');
 const FB = require('./lib/appFeedback');
@@ -93,6 +94,7 @@ async function rowsOf(executeSql, sqlResultToObjects, host, token, warehouseId, 
 }
 
 const FREE_APP_NAME_TRIES = 5;
+const LAKEBASE_ENFORCE_TABLES = 50;
 
 async function freeAppName(dbFetch, host, token, taken) {
   let name = taken;
@@ -647,7 +649,9 @@ function registerImplementRoutes(app, deps) {
     } catch (err) {
       got = { ok: false, status: 0, data: { message: err.message } };
     }
-    return res.json(C.lakebaseOffer(got, catalog.backends));
+    const tables = String(q(req, 'tables') || '').split(',').map((t) => t.trim()).filter((t) => /^[^`.\s]+\.[^`.\s]+\.[^`.\s]+$/.test(t));
+    const enforce = await LE.tablesEnforcement(tables.slice(0, LAKEBASE_ENFORCE_TABLES), fetchJsonFor(req));
+    return res.json({ ...C.lakebaseOffer(got, catalog.backends), enforce });
   });
 
   app.get('/api/inspire/implement/merge-targets', requireToken, async (req, res) => {

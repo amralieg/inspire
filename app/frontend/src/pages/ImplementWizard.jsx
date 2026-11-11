@@ -992,14 +992,15 @@ export default function ImplementWizard({
     return () => { cancelled = true; };
   }, [spec.outputs.app, stepId, warehouses, warehousesError, apiFetch]);
 
+  const sourceTablesParam = sourceTables.join(',');
   useEffect(() => {
     if (!spec.outputs.app || lakebase !== null) return undefined;
     let cancelled = false;
-    apiFetch('/api/inspire/implement/lakebase')
+    apiFetch(`/api/inspire/implement/lakebase?tables=${encodeURIComponent(sourceTablesParam)}`)
       .then((data) => { if (!cancelled) setLakebase(data); })
       .catch((e) => { if (!cancelled) setLakebase({ state: 'unknown', detail: e.message }); });
     return () => { cancelled = true; };
-  }, [spec.outputs.app, lakebase, apiFetch]);
+  }, [spec.outputs.app, lakebase, apiFetch, sourceTablesParam]);
 
   const resultParts = resultTableParts(spec.config.result_table);
   const ownTable = ownSchema?.own_table ?? nameOrEmpty(() => defaultResultTable(inspireDatabase, spec.use_case_id, sessionId, context?.business_name));
