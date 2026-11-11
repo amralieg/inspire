@@ -1160,24 +1160,38 @@ def test_the_reach_check_fails_when_the_sibling_helper_is_taken_out_of_the_scann
         assert_guard_reaches_sibling_and_summary(runtime_report, drop={"inspire_ensure_sibling"})
 
 
-EMITTER_BUILDERS = ("inspire_owned_table", "inspire_lakebase_view_ref", "ledger_table")
+OWNED_TARGET_PLACEHOLDER = re.compile(r"^\{((?:self\.)?[A-Za-z_]\w*)\}$")
+NOT_OWNED_TARGET_ROOTS = {"result_table"}
+
+
+def owned_target_roots(source):
+    """Plain-name placeholders of every write the notebook executes that name an Inspire tracking object (not calls, not result tables)."""
+    index = SqlIndex(ast.parse(source))
+    roots = set()
+    for _lineno, sql, _owner, _function in index.sql_literals():
+        for kind, target in statement_targets(sql):
+            found = OWNED_TARGET_PLACEHOLDER.match(target.strip())
+            if kind == "write" and found:
+                root = found.group(1).split(".")[-1].lstrip("_")
+                if root not in NOT_OWNED_TARGET_ROOTS and re.search(r"(table|view)", root):
+                    roots.add(root)
+    return roots
 
 
 def registry_missing(source):
     found = re.search(r"^INSPIRE_OWNED_NAME_BUILDERS = (\(.*\))$", source, re.M)
     if not found:
-        return list(EMITTER_BUILDERS)
+        return sorted(owned_target_roots(source))
     names = set(ast.literal_eval(found.group(1)))
-    return [name for name in EMITTER_BUILDERS if name not in names]
+    return sorted(root for root in owned_target_roots(source) if not any(name in root for name in names))
 
 
-def test_the_owned_registry_keeps_every_builder_the_emitters_use():
+def test_the_owned_registry_names_every_builder_an_owned_write_target_uses():
     assert registry_missing(agent_source()) == [], "a merge shrank INSPIRE_OWNED_NAME_BUILDERS"
 
 
-def test_a_registry_that_lost_an_emitter_builder_fails_the_check():
+def test_a_registry_that_lost_a_tracking_builder_fails_the_check():
     source = agent_source()
-    shrunk = re.sub(r"^(INSPIRE_OWNED_NAME_BUILDERS = .*)$", lambda m: m.group(1).replace(", \"ledger_table\"", ""), source, count=1, flags=re.M)
+    shrunk = re.sub(r"^(INSPIRE_OWNED_NAME_BUILDERS = .*)$", lambda m: m.group(1).replace(", \"tracking_table\"", ""), source, count=1, flags=re.M)
     assert shrunk != source
-    assert registry_missing(shrunk) == ["ledger_table"]
-
+    assert any("tracking_table" in root for root in registry_missing(shrunk)), registry_missing(shrunk)
