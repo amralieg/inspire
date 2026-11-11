@@ -147,9 +147,11 @@ def test_alert_ids_that_do_not_fit_keep_the_first_id_and_the_full_count(ns):
     assert len(ns["implement_asset_tags"]({"dashboard": "d" * 400}, {})["dbx_inspire_ai_dashboard_id"]) == 63
 
 
-def test_job_tag_values_and_keys_fit_the_strictest_cloud_limit(ns):
+def test_job_tag_values_and_keys_fit_the_limit_of_their_cloud_and_the_strictest_when_unknown(ns, monkeypatch):
+    # fix-py decision 3 (2026-11-11): one per-cloud table shared with the backend (127 keys; 255 AWS and Azure, 63 GCP, 63 unknown)
+    monkeypatch.delenv("DATABRICKS_HOST", raising=False)
     launcher = ns["JobLauncher"]
-    assert launcher.TAG_VALUE_MAX == 63 and launcher.TAG_RULES["job"]["key_max"] == 63
+    assert launcher.TAG_UNKNOWN_VALUE_MAX == 63 and launcher.TAG_RULES["job"]["key_max"] == launcher.TAG_KEY_MAX == 127
     title = "N02-U01 - win back the high value travelers who have stopped booking"
     assert launcher._sanitize_tag(title) == "N02-U01_-_win_back_the_high_value_travelers_who_have_stopped_booking"[:63]
     assert len(launcher._sanitize_tag("x" * 300)) == 63
@@ -480,7 +482,7 @@ def test_a_tag_list_keeps_whole_items_inside_the_length_limit(ns):
     launcher = ns["JobLauncher"]
     assert launcher.tag_list(["a,b", "c d", "", "a,b", "e"]) == "a_b,c_d,e"
     joined = launcher.tag_list(["x" * 63, "y" * 60, "z" * 10])
-    assert joined == "x" * 63 and len(launcher.tag_list(["x" * 31, "y" * 31, "z" * 2])) == launcher.TAG_VALUE_MAX
+    assert joined == "x" * 63 and len(launcher.tag_list(["x" * 31, "y" * 31, "z" * 2])) == launcher.TAG_UNKNOWN_VALUE_MAX
     assert launcher.TAG_LIST_SEP not in launcher.TAG_ITEM_CHARS and JOB_TAG_VALUE.fullmatch(launcher.TAG_LIST_SEP)
 
 
@@ -525,7 +527,7 @@ def test_an_app_tag_key_the_entity_tag_api_refuses_is_cleaned_for_apps_but_a_job
     assert launcher.tag_key("dbx.inspire-ai", "job") == "dbx.inspire-ai" and launcher.tag_key("dbx.inspire-ai", "app") == "dbx_inspire_ai"
 
 
-@pytest.mark.parametrize("kind,raw,limit", [("job", "k" * 300, 63), ("app", "k" * 300, 256)])
+@pytest.mark.parametrize("kind,raw,limit", [("job", "k" * 300, 127), ("app", "k" * 300, 256)])
 def test_a_tag_key_is_cut_to_the_limit_of_its_resource_kind(ns, kind, raw, limit):
     assert len(ns["JobLauncher"].tag_key(raw, kind)) == limit
 
