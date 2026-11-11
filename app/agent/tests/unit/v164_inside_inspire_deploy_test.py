@@ -413,18 +413,15 @@ def _folders(*versions, extra=()):
     return {FOLDER: [{"path": f"{FOLDER}/v{v}", "object_type": "DIRECTORY"} for v in versions] + list(extra)}
 
 
-def test_a_publish_deletes_every_version_folder_but_the_live_one_and_a_held_one_newer_than_it(agent_ns):
+def test_a_publish_deletes_every_version_folder_but_the_live_one(agent_ns):
     live = dict(LIVE_RECORD, spec_version=5, hosted=dict(LIVE_HOSTED, source=f"{FOLDER}/v5", version=5))
     others = [{"path": f"{FOLDER}/static", "object_type": "DIRECTORY"}, {"path": f"{FOLDER}/v9.json", "object_type": "FILE"}]
-    inst, deleted, _calls, asked = _pruning(agent_ns, _folders(1, 2, 3, 4, 5, 6, extra=others), held=[3, 6])
+    inst, deleted, _calls, asked = _pruning(agent_ns, _folders(1, 2, 3, 4, 5, 6, extra=others))
     inst._implement_app_hosted_prune((5150, "N01-U01", 5), live)
-    assert deleted == [(f"{FOLDER}/v1", True), (f"{FOLDER}/v2", True), (f"{FOLDER}/v3", True), (f"{FOLDER}/v4", True)]
-    assert (f"{FOLDER}/v3", True) in deleted, "a held folder older than the live one was replaced or published anyway, so it goes"
-    assert (f"{FOLDER}/v6", True) not in deleted, "a held folder newer than the live one waits to be published, so it stays"
+    assert sorted(deleted) == sorted((f"{FOLDER}/v{n}", True) for n in (1, 2, 3, 4, 6)), "every older and newer version folder goes"
     assert (f"{FOLDER}/v5", True) not in deleted, "the live folder survives"
     assert not any(path.endswith(("/static", "/v9.json")) for path, _r in deleted), "only version folders are ever deleted"
-    assert asked == [("session_id = :sid AND use_case_id = :uc AND status = :status",
-                      {"sid": 5150, "uc": "N01-U01", "status": "vibe_not_met"})]
+    assert asked == [], "no version is held any more, so no held row is read"
 
 
 def test_a_held_version_published_anyway_loses_its_folder_to_the_version_that_published_it(agent_ns):
@@ -438,11 +435,15 @@ def test_a_page_not_published_in_this_version_or_whose_held_versions_cannot_be_r
     live = dict(LIVE_RECORD, spec_version=5, hosted=dict(LIVE_HOSTED, source=f"{FOLDER}/v5", version=5))
     for record, key in ((live, (5150, "N01-U01", 6)), (dict(live, state="failed"), (5150, "N01-U01", 5)),
                         ({"state": "ready", "spec_version": 5, "backend": "delta"}, (5150, "N01-U01", 5)),
-                        (dict(live, hosted=dict(LIVE_HOSTED, source="/W/elsewhere/v5")), (5150, "N01-U01", 5))):
+                        ):
         inst, deleted, calls, asked = _pruning(agent_ns, _folders(1, 5))
         inst._implement_app_hosted_prune(key, record)
-        assert deleted == [] and calls == [] and asked == [], record
-    inst, deleted, calls, _asked = _pruning(agent_ns, _folders(1, 5), broken=RuntimeError("TABLE_OR_VIEW_NOT_FOUND"))
+        assert deleted == [] and calls == [], record
+    inst, deleted, _calls, _asked = _pruning(agent_ns, _folders(1, 5))
+    inst._implement_app_hosted_prune((5150, "N01-U01", 5), dict(live, hosted=dict(LIVE_HOSTED, source="/W/elsewhere/v5")))
+    assert not any(path.startswith(FOLDER) for path, _r in deleted), "a page published elsewhere never prunes this page's folder"
+    inst, deleted, calls, _asked = _pruning(agent_ns, _folders(1, 5))
+    inst._implement_folder_objects = lambda folder: (_ for _ in ()).throw(RuntimeError("PERMISSION_DENIED: no LIST on the folder"))
     inst.logger = CapturingLogger()
     inst._implement_app_hosted_prune((5150, "N01-U01", 5), live)
     assert deleted == [] and calls == []

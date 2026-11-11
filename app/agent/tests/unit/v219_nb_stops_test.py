@@ -159,7 +159,8 @@ def test_a_missing_secondary_table_is_dropped_with_a_warning_and_only_the_primar
     spec, use_case = {"data": {}}, {"Primary Table": "main.s.orders"}
     inst._implement_source_checks((5150, "N01-U01", 1), spec, use_case, {})
     assert spec["data"]["dropped_tables"] == ["main.s.returns"] and inst.minimum
-    assert "main.s.returns is missing or unreadable, so the build leaves it out" in use_case["_implement_source_note"]
+    assert "this source table is missing or unreadable, so the build leaves it out and keeps the primary table" in use_case["_implement_source_note"]
+    assert "main.s.returns" not in use_case["_implement_source_note"], "table names sit under Details, never in the sentence"
     inst._implement_source_checks((5150, "N01-U01", 1), spec, use_case, {})
     assert spec["data"]["dropped_tables"] == ["main.s.returns"], "a rebuild never lists a dropped table twice"
     inst = _source_inspire(agent_ns, ["main.s.orders"])

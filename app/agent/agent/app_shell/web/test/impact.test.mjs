@@ -161,6 +161,8 @@ test('Performance shows estimated, reported and measured apart, promised against
   await page.evaluate(() => { window.location.hash = '#/n02_u01/performance'; });
   const other = page.locator('.imp[data-page="n02_u01"]');
   await other.waitFor();
+  await other.locator('.card-h p', { hasText: 'no run of this use case has written its results yet' }).first().waitFor();
+  await other.locator('.imp-figs b', { hasText: 'Not measured yet' }).nth(3).waitFor();
   assert.equal(await other.locator('.card-h p').first().innerText(), 'no run of this use case has written its results yet');
   assert.deepEqual(await other.locator('.imp-figs b').allInnerTexts(), Array(4).fill('Not measured yet'));
   assert.equal(await other.locator('.imp-hold').count(), 0);

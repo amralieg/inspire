@@ -196,8 +196,8 @@ def test_a_concurrent_delta_conflict_is_a_409_and_other_failures_stay_502(tmp_pa
     (tmp_path / "denied").mkdir()
     s, _ws, _made = shell(tmp_path / "denied", ws=TableWorkspace(fail=shell_db.QueryError("PERMISSION_DENIED: no MODIFY")))
     status, out = call(s, "POST", "records/edit", headers=EDITOR, body=edit_body())
-    assert status == 403 and out["error"].startswith("Nothing was saved: this App's service principal may not change "
-                                                     f"{shell_sql.table_name(TABLE)} in Unity Catalog (PERMISSION_DENIED")
+    assert status == 403 and out["error"] == "Nothing was saved: this App cannot write this change. Ask the App owner to check its access."
+    assert out["details"].startswith(f"{shell_sql.table_name(TABLE)}: PERMISSION_DENIED"), "the table names sit under Details, never in the sentence"
 
 
 @pytest.mark.parametrize("column", ["valid_from", "valid_to", "is_current", "change_source", "changed_by", "record_key", "run_id",

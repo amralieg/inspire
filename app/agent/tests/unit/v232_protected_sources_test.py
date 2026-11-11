@@ -129,7 +129,8 @@ def test_a_mask_whose_using_column_is_missing_is_refused(agent_ns):
 def test_two_sources_with_different_row_filters_are_refused(agent_ns):
     sources = dict(_source(agent_ns), **{"main.s.other": _protection(agent_ns, ["team"], filters=[("main.sec.team_rows", "team")])})
     plan = _plan(agent_ns)(sources, {RESULT: _protection(agent_ns, ["owner", "team", "ssn", "region"])})
-    assert any("which have different row filters, and a table keeps only one row filter" in r for r in plan["refuse"])
+    assert any("reads 2 source tables with 2 different row filters, and a table keeps only one row filter, so it cannot keep all of those" in r
+               for r in plan["refuse"]), plan["refuse"]
 
 
 def test_a_masked_column_the_notebook_reads_but_no_result_carries_is_refused(agent_ns):

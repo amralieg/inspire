@@ -113,7 +113,7 @@ test('a reload, or a deep link opened in a new tab, shows the page the address n
   try {
     await page.goto(`${origin}/test/ui/implement.html?open=app#/build/42/N01-U02`);
     await SHOWN['#/build/42'](page);
-    await page.locator('nav[aria-label="Use cases"] button[aria-current="true"]').filter({ hasText: 'N01-U02' }).waitFor({ timeout: 20000 });
+    await page.locator('nav[aria-label="Use cases"] button[aria-current="true"]').filter({ hasText: 'Score upsell' }).waitFor({ timeout: 20000 });
     assert.equal(await hash(page), '#/build/42/N01-U02', 'a Build link keeps the use case it names');
     await page.evaluate(() => { window.location.hash = '#/nowhere'; });
     await at(page, '#/build/42/N01-U02');

@@ -360,8 +360,8 @@ def test_a_lakebase_error_reads_delta_and_says_so_and_strict_mode_fails_instead(
     s, ws, lb = lakebase_shell(tmp_path / "strict", strict=True)
     lb.fail = shell_db.QueryError("permission denied for schema n01_u05_app")
     status, data = call(s, "POST", "page", body={"page": "n01_u05"})
-    assert status == 200 and ws.sql == [] and data["served"] == []
-    assert set(data["errors"].values()) == {"Lakebase could not run it: permission denied for schema n01_u05_app"}
+    assert status == 200 and ws.sql == [] and data["state"] == "waiting_for_access" and data["tables"] == []
+    assert "Lakebase could not run it: permission denied for schema n01_u05_app" in data["detail"]
 
 
 def test_a_dataset_lakebase_does_not_hold_reads_delta_without_a_warning(tmp_path):

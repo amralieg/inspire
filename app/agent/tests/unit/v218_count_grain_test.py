@@ -203,7 +203,7 @@ def test_the_agent_context_carries_the_page_kpis_at_the_persons_filters(tmp_path
     context = json.loads(llm.main_calls()[0]["messages"][1]["content"].split("<data>\n", 1)[1].rsplit("\n</data>", 1)[0])
     numbers = {k["id"]: k for k in context["key_numbers"]}
     assert {k: v for k, v in numbers["items"].items() if k != "scope"} == {"id": "items", "label": "Items on the list", "format": "integer",
-                                                                          "counts": "the current rows", "value": 120.0}
+                                                                          "counts": "the current rows of the runs it picked", "value": 120.0}
     assert "East" in numbers["items"]["scope"], "each KPI states the rows it counts"
     assert {"total_loss", "loss_rate"} <= set(numbers)
     kpi_sql = [(sql, params) for sql, params, _limit in ws.sql if "'now' AS period" in sql and "COUNT(*) AS value" in sql]
