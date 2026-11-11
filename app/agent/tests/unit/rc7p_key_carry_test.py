@@ -57,3 +57,35 @@ def test_the_key_ask_is_a_forced_ask_of_the_notebook_round_word_for_word(agent_n
         [{"table": SOURCE, "column": "region", "result_table": RESULT}]), "retry": None, "asked_before": None, "impact": None}
     asks = inst._implement_round_asks({}, item)
     assert [a["ask"] for a in asks] == agent_ns["implement_key_asks"]([{"table": SOURCE, "column": "region", "result_table": RESULT}])
+
+
+def test_a_result_without_the_key_column_is_a_deterministic_miss_and_a_present_one_is_left_to_the_judge(agent_ns):
+    key = {"table": SOURCE, "column": "region", "result_table": RESULT}
+    verdict = agent_ns["implement_key_presence"](["value", "channel"], key)
+    assert verdict == ("missing", "main.inspire.churn_out has no region column, so it cannot carry the row filter of main.sales.orders")
+    assert agent_ns["implement_key_presence"](["value", "REGION"], key) is None
+
+
+def test_the_key_verdicts_of_a_build_name_only_the_keys_a_result_misses(agent_ns, monkeypatch):
+    inst = _inst(agent_ns, [FILTER])
+    monkeypatch.setitem(agent_ns, "inspire_table_schema", lambda spark, table: [("value", "double")])
+    keys = [{"table": SOURCE, "column": "region", "result_table": RESULT}]
+    verdicts = inst._implement_key_verdicts(keys)
+    assert list(verdicts) == agent_ns["implement_key_asks"](keys)
+    assert verdicts[agent_ns["implement_key_asks"](keys)[0]][0] == "missing"
+    monkeypatch.setitem(agent_ns, "inspire_table_schema", lambda spark, table: [("region", "string")])
+    assert inst._implement_key_verdicts(keys) == {}
+
+
+def test_a_missed_key_ask_goes_back_as_unmet_and_the_judge_is_never_asked_about_it(agent_ns, monkeypatch):
+    inst = _inst(agent_ns, [FILTER])
+    keys = [{"table": SOURCE, "column": "region", "result_table": RESULT}]
+    ask = agent_ns["implement_key_asks"](keys)[0]
+    asked = []
+    inst._implement_vibes_asks = lambda cache, asset, text, impact=None: []
+    inst._implement_vibes_judge = lambda parts, where: asked.append([a["ask"] for p in parts for a in p["asks"]]) or {"checks": []}
+    item = {"asset": agent_ns["IMPLEMENT_NOTEBOOK"], "text": "", "forced": [ask], "retry": None, "asked_before": None, "impact": None,
+            "artifact": [{"x": 1}], "failure": "", "key_verdicts": {ask: ("missing", "no region column")}, "tools": {}, "held_asks": {}}
+    found = inst._implement_vibes_round({}, [item], "test round")
+    assert all(ask not in names for names in asked), "a deterministic miss is not sent to the judge"
+    assert "no region column" in str(found)
