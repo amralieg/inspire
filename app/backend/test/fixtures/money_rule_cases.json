@@ -502,7 +502,7 @@
       "valid": false
     },
     {
-      "name": "gains only with a column value",
+      "name": "gains without a sign",
       "rule": {
         "currency": "per_currency",
         "rule": "gains",
@@ -510,6 +510,23 @@
           "method": "column",
           "column": "amount",
           "currency_column": "currency"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gains with a column sign",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "column",
+          "column": "discount"
         }
       },
       "valid": true,
@@ -520,8 +537,79 @@
           "method": "column",
           "column": "amount",
           "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "column",
+          "column": "discount"
         }
       }
+    },
+    {
+      "name": "gains with a status sign",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "status",
+          "column": "channel",
+          "value": "gain"
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "status",
+          "column": "channel",
+          "value": "gain"
+        }
+      }
+    },
+    {
+      "name": "sign of an unknown kind",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "sign",
+          "column": "discount"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "status sign with a quoted value",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "status",
+          "column": "channel",
+          "value": "gain' OR 1=1"
+        }
+      },
+      "valid": false
     }
   ]
 }

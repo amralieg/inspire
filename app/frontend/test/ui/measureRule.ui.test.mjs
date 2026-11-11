@@ -182,18 +182,6 @@ test('Describe it: the App proposes the rule from the words, the person sees it 
   }
 });
 
-test('gains only is one of the three direction choices and names itself in the sentence', async () => {
-  const ui = await openMeasure();
-  const { page } = ui;
-  try {
-    assert.equal(await page.locator('[data-money-rule-kind]').count(), 3);
-    await page.locator('[data-money-rule-kind="gains"]').check();
-    await page.waitForFunction(() => /Only gains count/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
-  } finally {
-    await page.context().close();
-  }
-});
-
 test('an equation that names a column the table does not have is refused before it saves, and nothing is saved', async () => {
   const ui = await openMeasure();
   const { page, calls } = ui;
@@ -245,6 +233,24 @@ test('an older Describe it proposal that answers late does not replace the newer
     await page.waitForTimeout(3000);
     assert.equal(await page.locator('[data-money-describe-explanation]').innerText(), 'second reading');
     assert.match(await page.locator('[data-money-describe-rule]').innerText(), /quantity \* discount/);
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('Gains only is disabled with its reason until a sign is named, and a status sign enables it', async () => {
+  const ui = await openMeasure();
+  const { page } = ui;
+  try {
+    assert.equal(await page.locator('[data-money-rule-kind="gains"]').isDisabled(), true);
+    assert.match(await page.locator('[data-money-sign-needed]').innerText(), /Gains only needs a sign/);
+    await page.locator('[data-money-sign-kind="status"]').check();
+    await page.locator('[data-money-sign-status-column]').selectOption('currency');
+    await page.locator('[data-money-sign-value]').fill('gain');
+    await page.waitForFunction(() => !document.querySelector('[data-money-rule-kind="gains"]')?.disabled, null, { timeout: 15000 });
+    assert.equal(await page.locator('[data-money-sign-needed]').count(), 0);
+    await page.locator('[data-money-rule-kind="gains"]').check();
+    await page.waitForFunction(() => /Only gains count/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
   } finally {
     await page.context().close();
   }

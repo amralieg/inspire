@@ -656,13 +656,11 @@ def test_an_equation_value_over_columns_converts_each_row_in_its_currency():
     assert round(_value_total(money), 6) == 139.7, "AED 110 at 0.27 + EUR 50 at 1.1 + USD 55"
 
 
-def test_a_gains_only_rule_counts_no_loss_and_a_net_rule_keeps_the_sign():
-    gains = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "gains",
-             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"}}
-    assert round(_value_total(gains), 6) == 101.0, "gains counts the positive magnitude of each saved value, as losses does"
+def test_a_net_rule_keeps_the_value_sign_and_gains_needs_a_sign():
     net = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "net",
            "value": {"method": "column", "column": "amount", "currency_column": "currency_code"}}
     assert round(_value_total(net), 6) == 101.0
+    assert shell_sql.money_rule_problems({"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "gains"})
 
 
 
@@ -745,3 +743,38 @@ def test_the_app_and_the_server_list_the_same_currency_codes():
     py_block = py_block[:py_block.index("split())")]
     assert set(re.findall(r"[A-Z]{3}", js_block)) == set(re.findall(r"[A-Z]{3}", py_block[len("MONEY_CODES = frozenset(("):]))
 
+
+
+def test_gains_counts_the_magnitude_of_the_rows_a_status_marks_as_gains():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "gains",
+             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+             "sign": {"kind": "status", "column": "channel", "value": "agent"}}
+    assert round(_value_total(money), 6) == 30.0, "only the agent row, USD 30, is a gain"
+
+
+def test_losses_with_a_status_sign_counts_the_other_rows_and_never_the_gains():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "losses",
+             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+             "sign": {"kind": "status", "column": "channel", "value": "agent"}}
+    assert round(_value_total(money), 6) == 71.0, "AED 100 at 0.27 + EUR 40 at 1.1; the agent row is a gain, not a loss"
+
+
+def test_gains_by_a_positive_column_counts_the_rows_where_that_column_is_positive():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "gains",
+             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+             "sign": {"kind": "column", "column": "discount"}}
+    assert round(_value_total(money), 6) == 57.0, "discount is positive on AED and USD: AED 100 at 0.27 + USD 30"
+
+
+def test_a_null_saved_amount_stays_unrated_under_a_sign():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "gains",
+             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+             "sign": {"kind": "status", "column": "channel", "value": "agent"}}
+    sql, _params = shell_sql.money_left_out(_value_page_plain(money), {"dataset": "rows", "id": "exposure"}, {})
+    counted = _run(sql, "value_rows", VALUE_COLUMNS, _value_rows([ZERO_PRICE_ROW]))[0]
+    assert counted["unrated"] == 1, "the NULL amount is unrated under a sign, not a zero gain"
+
+
+def test_gains_without_a_sign_is_refused_by_the_server_with_a_plain_reason():
+    problems = shell_sql.money_rule_problems({"currency": "per_currency", "rule": "gains"})
+    assert problems and "gains needs a sign" in problems[0]
