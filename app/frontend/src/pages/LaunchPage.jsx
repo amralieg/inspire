@@ -164,7 +164,7 @@ const defaultParams = (inspireDatabase) => ({
   '06_business_domains': '',
   '07_business_priorities': '',
   '08_generation_instructions': '',
-  '09_generation_options': 'PDF Catalog',
+  '09_generation_options': '',
   '10_strategic_context': '',
   '11_generation_path': '',
   '12_documents_languages': 'English',
@@ -175,7 +175,7 @@ const defaultParams = (inspireDatabase) => ({
 const DRAFT_PARAMS = ['00_business_name', '03_discovery_type', '04_table_election', '05_use_cases_quality', '06_business_domains', '08_generation_instructions',
   '11_generation_path', '12_documents_languages', '13_generate_genie_code_for', '15_operation', '16_best_of_best_count'];
 const FORM_DEFAULTS = {
-  genChecks: { 'PDF Catalog': true, Presentation: false }, priorityChecks: {}, customPriorities: [], strategyBase: '',
+  genChecks: { 'PDF Catalog': false, Presentation: false }, priorityChecks: {}, customPriorities: [], strategyBase: '',
   selectedCatalogs: [], selectedSchemas: [], selectedTables: [], tableScopes: {},
   electionTouched: false, discoveryTouched: false, strategyTouched: false, prioritiesTouched: false,
 };
@@ -1610,7 +1610,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               <Field
                 label="Generation Options"
                 icon={Layers}
-                hint="PDF / Presentation artifacts. Auto-Genie is configured separately below."
+                hint="Pick the documents this run builds. None picked means no documents now. Auto-Genie is configured separately below."
               >
                 <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                   {GENERATION_OPTIONS.map((opt) => {
@@ -1645,6 +1645,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     );
                   })}
                 </div>
+                {!params['09_generation_options'] && (
+                  <p data-no-documents className="text-[11px] text-text-tertiary mt-2">
+                    No documents in this run. Create the strategy document or the use case catalog later from Review.
+                  </p>
+                )}
               </Field>
 
               {/* Generation Path + Languages side by side */}

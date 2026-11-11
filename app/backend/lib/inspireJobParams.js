@@ -180,7 +180,7 @@ function normalizeGenerationOptionsParams(params) {
     .split(',')
     .map((value) => value.trim())
     .filter((value) => allowed.has(value));
-  params['09_generation_options'] = [...new Set(normalized)].join(',') || 'PDF Catalog';
+  params['09_generation_options'] = [...new Set(normalized)].join(',');
   return params;
 }
 

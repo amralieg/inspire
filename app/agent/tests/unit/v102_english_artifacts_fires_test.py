@@ -111,12 +111,11 @@ def test_weasyprint_install_gate_honours_english_force(source):
     the PDF branch fires but the dependency is absent and the writer
     fails at runtime."""
     m = re.search(
-        r'if "PDF Catalog" in self\.generate_choices or "Use Cases Catalog PDF" in self\.generate_choices'
-        r' or \("English" in \(target_languages or \[\]\)\):',
+        r'if self\._pdf_requested\(\) or \("English" in \(target_languages or \[\]\) and self\._documents_requested\(\)\):',
         source,
     )
     assert m is not None, (
-        "weasyprint install gate must OR the English-in-target_languages force rule")
+        "weasyprint install gate must OR the English force rule, which only applies when a document format is picked")
 
 
 def test_force_pdf_sentinel_fires_unconditional_on_force_english_pdf(source):
