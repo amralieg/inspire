@@ -48,6 +48,7 @@ test('the Dashboard shows the one waiting view in place of the page when the App
     state.waiting = false;
     await page.getByRole('button', { name: 'Check again' }).click();
     await until(async () => (await view(page).count()) === 0, 15000);
+    await page.locator('[data-page-section]').first().waitFor({ timeout: 15000 });
     assert.ok(await page.locator('[data-page-section]').count() > 0, 'the page content returns after Check again');
   } finally {
     await context.close();
