@@ -12,6 +12,7 @@ import { INBOX_ROWS } from '../src/inbox.js';
 const HERE = dirname(fileURLToPath(import.meta.url));
 const DIST = join(HERE, '..', 'dist');
 export const SRC = join(HERE, '..', 'src');
+export const APP_JS = join(HERE, '..', 'dist', 'assets', 'app.js');
 export const fileNames = (dir) => readdirSync(dir, { withFileTypes: true }).filter((e) => e.isFile()).map((e) => e.name);
 const REPO = join(HERE, '..', '..', '..', '..');
 const TYPES = { '.html': 'text/html', '.js': 'text/javascript', '.css': 'text/css', '.woff2': 'font/woff2' };
