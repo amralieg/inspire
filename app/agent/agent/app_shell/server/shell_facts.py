@@ -633,8 +633,8 @@ def facts_problem(facts) -> str:
 
 LEDGER_TABLE = "__inspire_value_ledger"
 LEDGER_COLUMNS = (("session_id", "STRING"), ("result_table", "STRING"), ("use_case_id", "STRING"), ("run_id", "STRING"),
-                  ("record_key", "STRING"), ("currency", "STRING"), ("unit", "STRING"), ("at_stake", "DOUBLE"), ("saved", "DOUBLE"),
-                  ("recorded_at", "TIMESTAMP"), ("recorded_by", "STRING"))
+                  ("record_key", "STRING"), ("kind", "STRING"), ("currency", "STRING"), ("unit", "STRING"), ("at_stake", "DOUBLE"),
+                  ("saved", "DOUBLE"), ("recorded_at", "TIMESTAMP"), ("recorded_by", "STRING"))
 LEDGER_NAMES = tuple(name for name, _kind in LEDGER_COLUMNS)
 
 
@@ -659,51 +659,42 @@ def ledger_create_sql(table: str) -> str:
     return f"CREATE TABLE IF NOT EXISTS {table} ({columns})"
 
 
-def ledger_grant_sql(table: str, principal: str) -> str:
+LEDGER_GRANTS = ("SELECT", "MODIFY")
+
+
+def ledger_grant_sqls(table: str, principal: str) -> list:
     who = str(principal or "").strip()
     if not who:
         raise ValueError("the value ledger grant needs the App's service principal")
-    return f"GRANT MODIFY ON TABLE {table} TO `{who.replace('`', '``')}`"
+    return [f"GRANT {privilege} ON TABLE {table} TO `{who.replace('`', '``')}`" for privilege in LEDGER_GRANTS]
 
 
-def ledger_stake_row(session_id, result_table, use_case_id, run_id, currency, unit, at_stake, recorded_by="") -> dict:
+def ledger_stake_row(session_id, result_table, use_case_id, run_id, kind, currency, unit, at_stake, recorded_by="") -> dict:
     return {"session_id": str(session_id), "result_table": result_table, "use_case_id": str(use_case_id), "run_id": str(run_id),
-            "record_key": None, "currency": currency or None, "unit": unit or None, "at_stake": at_stake, "saved": None,
+            "record_key": None, "kind": kind, "currency": currency or None, "unit": unit or None, "at_stake": at_stake, "saved": None,
             "recorded_by": recorded_by or None}
 
 
-def ledger_saved_row(session_id, result_table, use_case_id, run_id, record_key, currency, unit, saved, recorded_by="") -> dict:
+def ledger_saved_row(session_id, result_table, use_case_id, run_id, record_key, kind, currency, unit, saved, recorded_by="") -> dict:
     return {"session_id": str(session_id), "result_table": result_table, "use_case_id": str(use_case_id), "run_id": str(run_id),
-            "record_key": str(record_key), "currency": currency or None, "unit": unit or None, "at_stake": None, "saved": saved,
-            "recorded_by": recorded_by or None}
+            "record_key": str(record_key), "kind": kind, "currency": currency or None, "unit": unit or None, "at_stake": None,
+            "saved": saved, "recorded_by": recorded_by or None}
 
 
-def ledger_insert_sql(table: str, row: dict) -> str:
-    unknown = set(row) - set(LEDGER_NAMES) - {"recorded_at"}
-    if unknown:
-        raise ValueError(f"the value ledger has no column {', '.join(sorted(unknown))}")
+def ledger_insert_sql(table: str, rows: list) -> str:
+    if not rows:
+        raise ValueError("the value ledger insert has no rows")
     names = [name for name in LEDGER_NAMES if name != "recorded_at"]
-    values = ", ".join(ledger_literal(row.get(name)) for name in names)
-    return f"INSERT INTO {table} ({', '.join(f'`{name}`' for name in names + ['recorded_at'])}) VALUES ({values}, current_timestamp())"
+    tuples = []
+    for row in rows:
+        unknown = set(row) - set(LEDGER_NAMES)
+        if unknown:
+            raise ValueError(f"the value ledger has no column {', '.join(sorted(unknown))}")
+        tuples.append("(" + ", ".join(ledger_literal(row.get(name)) for name in names) + ", current_timestamp())")
+    columns = ", ".join(f"`{name}`" for name in names + ["recorded_at"])
+    return f"INSERT INTO {table} ({columns}) VALUES {', '.join(tuples)}"
 
 
 def ledger_latest_stake_sql(table: str, result_table: str, use_case_id: str) -> str:
-    return (f"SELECT session_id, run_id, currency, unit FROM {table} WHERE result_table = {ledger_literal(result_table)} "
+    return (f"SELECT session_id, run_id, kind, currency, unit FROM {table} WHERE result_table = {ledger_literal(result_table)} "
             f"AND use_case_id = {ledger_literal(use_case_id)} AND record_key IS NULL ORDER BY recorded_at DESC LIMIT 1")
-
-
-def ledger_totals_sql(table: str, session_ids) -> str:
-    ids = ", ".join(ledger_literal(str(s)) for s in session_ids)
-    scope = f"session_id IN ({ids})"
-    return (
-        "WITH stake AS (SELECT session_id, result_table, use_case_id, currency, unit, at_stake, ROW_NUMBER() OVER "
-        "(PARTITION BY session_id, result_table, use_case_id ORDER BY recorded_at DESC, run_id DESC) AS rn "
-        f"FROM {table} WHERE record_key IS NULL AND {scope}), "
-        "saved AS (SELECT session_id, result_table, use_case_id, record_key, currency, unit, saved, ROW_NUMBER() OVER "
-        "(PARTITION BY session_id, result_table, use_case_id, record_key ORDER BY recorded_at DESC) AS rn "
-        f"FROM {table} WHERE record_key IS NOT NULL AND {scope}) "
-        "SELECT session_id, use_case_id, 'stake' AS kind, currency, unit, at_stake AS amount, CAST(1 AS INT) AS records FROM stake WHERE rn = 1 "
-        "UNION ALL "
-        "SELECT session_id, use_case_id, 'saved' AS kind, currency, unit, SUM(saved) AS amount, CAST(COUNT(*) AS INT) AS records "
-        "FROM saved WHERE rn = 1 AND saved IS NOT NULL GROUP BY session_id, use_case_id, currency, unit"
-    )

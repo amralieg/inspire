@@ -490,6 +490,7 @@ INSPIRE_GRANTS = [f"GRANT {p} ON CATALOG `main` TO `SP`" for p in ("USE_CATALOG"
     f"GRANT {p} ON SCHEMA `main`.`_inspire` TO `SP`" for p in ("USE_SCHEMA", "CREATE_TABLE", "SELECT", "MODIFY", "CREATE MODEL",
                                                                "CREATE VOLUME", "READ VOLUME", "WRITE VOLUME", "MANAGE")]
 LAKEBASE_GRANT = "GRANT ALL PRIVILEGES ON CATALOG `inspire_lakebase` TO `SP`"
+VALUE_LEDGER_GRANTS = [f"GRANT {p} ON TABLE `main`.`_inspire`.`__inspire_value_ledger` TO `SP`" for p in ("SELECT", "MODIFY")]
 
 
 SCAN_PREFIX = "GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG "
@@ -685,31 +686,39 @@ class GrantPlanTest(unittest.TestCase):
         printed = [line.strip() for line in out.getvalue().splitlines() if line.startswith("  GRANT ")]
         return grants, printed, executed, out.getvalue()
 
+    def test_a_failed_value_ledger_grant_blocks_the_install_and_names_the_table_and_the_principal(self):
+        with self.assertRaises(RuntimeError) as raised:
+            self.grant([], listed=("main",), fail={"GRANT SELECT ON TABLE": RuntimeError("PERMISSION_DENIED: only the owner can grant")})
+        message = str(raised.exception)
+        self.assertIn("`main`.`_inspire`.`__inspire_value_ledger`", message)
+        self.assertIn("SP", message)
+        self.assertIn("PERMISSION_DENIED", message)
+
     def test_all_keeps_the_grants_on_every_catalog_the_installer_can_see(self):
         grants, printed, _, said = self.grant("all")
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + scan_grants("finance", "inspire_lakebase", "sales"))
+        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS + scan_grants("finance", "inspire_lakebase", "sales"))
         self.assertEqual(printed, essentials(grants))
         self.assertIn("SCAN_CATALOGS = all", said)
 
     def test_a_list_grants_only_those_catalogs_plus_the_inspire_catalog_and_lakebase(self):
         grants, printed, _, said = self.grant(["sales", "main"])
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + scan_grants("sales"))
+        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS + scan_grants("sales"))
         self.assertFalse([g for g in grants if "`finance`" in g or "`samples`" in g], grants)
         self.assertEqual(printed, essentials(grants))
         self.assertIn("SCAN_CATALOGS = sales, main", said)
         grants, printed, _, said = self.grant([])
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT])
+        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS)
         self.assertIn("SCAN_CATALOGS = none yet: the App reads only `main`", said)
         self.assertIn(setup.SCAN_NONE_SAID.format(catalog="main"), said)
         self.assertNotIn(setup.SCAN_NONE_SAID.format(catalog="main"), self.grant(["sales"])[3])
         grants, _, _, _ = self.grant(["sales"], listed=("main", "sales", "finance"))
-        self.assertEqual(grants, INSPIRE_GRANTS + scan_grants("sales"))
+        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS + scan_grants("sales"))
 
     def test_all_grants_only_the_catalogs_the_person_can_grant_on_and_names_the_skipped_ones_before_the_first_grant(self):
         listed = ("main", "sales", "finance", "owned", "shared", "samples", "system", "inspire_lakebase")
         rights = {"main": ("MANAGE",), "sales": ("MANAGE",), "finance": ("USE_CATALOG", "SELECT"), "owned": (), "inspire_lakebase": ("USE_CATALOG",)}
         grants, printed, executed, said = self.grant("all", listed=listed, rights=rights, owners={"owned": "someone@example.com"})
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + scan_grants("owned", "sales"))
+        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS + scan_grants("owned", "sales"))
         self.assertEqual(printed, essentials(grants))
         self.assertFalse([g for g in grants if "`finance`" in g or "`shared`" in g], grants)
         before_first = before_scan(executed)
@@ -724,7 +733,7 @@ class GrantPlanTest(unittest.TestCase):
         self.assertIn(f"Grants: {len(essentials(grants))} of {len(essentials(grants))} ran ✅", said)
         self.assertNotIn("Note: you can grant on no catalog", said)
         grants, _, _, said = self.grant("all", listed=listed, rights=rights, admin="admins")
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + scan_grants("finance", "inspire_lakebase", "owned", "sales", "shared"))
+        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS + scan_grants("finance", "inspire_lakebase", "owned", "sales", "shared"))
         self.assertNotIn("Skipped catalog", said)
         self.assertFalse([p for p in self.reads if "effective-permissions" in p], "a metastore admin's rights are not read per catalog")
 
@@ -732,7 +741,7 @@ class GrantPlanTest(unittest.TestCase):
         listed = ("main", "sales", "finance", "owned")
         rights = {"main": ("MANAGE",), "sales": ("MANAGE",), "finance": ("ALL_PRIVILEGES",), "owned": ("ALL_PRIVILEGES",)}
         grants, printed, executed, said = self.grant("all", listed=listed, rights=rights, owners={"owned": "someone@example.com"})
-        self.assertEqual(grants, INSPIRE_GRANTS + scan_grants("owned", "sales"))
+        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS + scan_grants("owned", "sales"))
         self.assertEqual(printed, essentials(grants))
         before_first = before_scan(executed)
         self.assertIn("Skipped catalog `finance`, so the Inspire App will not read it: you are not its owner or a metastore admin and hold no "
@@ -741,7 +750,7 @@ class GrantPlanTest(unittest.TestCase):
         self.assertNotIn("Skipped catalog `owned`", said)
         self.assertNotIn("Skipped catalog `sales`", said)
         grants, _, _, said = self.grant("all", listed=listed, rights=rights, admin="admins")
-        self.assertEqual(grants, INSPIRE_GRANTS + scan_grants("finance", "owned", "sales"))
+        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS + scan_grants("finance", "owned", "sales"))
         self.assertNotIn("Skipped catalog", said)
 
     def test_a_rights_lookup_http_error_skips_the_catalog_in_plain_words_with_its_status_and_no_workspace_url(self):
@@ -749,7 +758,7 @@ class GrantPlanTest(unittest.TestCase):
         rights = {"main": ("MANAGE",), "sales": ("MANAGE",), "broken": http_error(500),
                   "locked": http_error(403, {"error_code": "PERMISSION_DENIED", "message": f"denied, see {HOST}/docs"})}
         grants, _, executed, said = self.grant("all", listed=listed, rights=rights)
-        self.assertEqual(grants, INSPIRE_GRANTS + scan_grants("sales"))
+        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS + scan_grants("sales"))
         before_first = before_scan(executed)
         self.assertIn("Skipped catalog `locked`, so the Inspire App will not read it: you cannot see who can grant on catalog `locked` (HTTP 403). "
                       "A catalog owner can run GRANT MANAGE ON CATALOG `locked` TO `someone@example.com`. Run this installer again", before_first)
@@ -790,14 +799,14 @@ class GrantPlanTest(unittest.TestCase):
     def test_all_with_no_grantable_catalog_besides_the_inspire_catalog_installs_with_a_clear_note(self):
         grants, printed, _, said = self.grant("all", listed=("main", "sales", "finance"), rights={"main": ("MANAGE",), "sales": ("USE_CATALOG",),
                                                                                                     "finance": ()})
-        self.assertEqual(grants, INSPIRE_GRANTS)
+        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS)
         self.assertEqual(printed, essentials(grants))
         self.assertIn("Skipped catalog `sales`", said)
         self.assertIn("Skipped catalog `finance`", said)
         self.assertIn("Note: you can grant on no catalog besides `main`, so the Inspire App reads only `main` for now.", said)
         self.assertIn(f"Grants: {len(essentials(grants))} of {len(essentials(grants))} ran ✅", said)
         grants, _, _, said = self.grant(["sales"], listed=("main", "sales", "finance"), rights={"main": ("MANAGE",)})
-        self.assertEqual(grants, INSPIRE_GRANTS + scan_grants("sales"))
+        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS + scan_grants("sales"))
         self.assertNotIn("Skipped catalog", said)
         self.assertNotIn("Note: you can grant on no catalog", said)
 
@@ -969,7 +978,7 @@ class LakebaseSetupTest(unittest.TestCase):
             ("POST", f"/api/2.0/postgres/projects?project_id={LAKEBASE['project']}", {"spec": LAKEBASE["project_spec"]}),
             ("POST", f"/api/2.0/postgres/catalogs?catalog_id={LAKEBASE['catalog']}",
              {"spec": {"branch": LAKEBASE["branch"], "postgres_database": LAKEBASE["database"]}})])
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT])
+        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS)
         self.assertIn(f"Lakebase for the Apps Implement builds: created the Lakebase project {LAKEBASE['project']} and created the catalog "
                       f"`{LAKEBASE['catalog']}` on it ✅", said)
         self.assertNotIn("LAKEBASE_NOTE", self.ctx)
@@ -983,14 +992,14 @@ class LakebaseSetupTest(unittest.TestCase):
         api, calls = lakebase_api(catalog=((200, {"status": BOUND["spec"]}),))
         grants, _, _, said = self.grant([], listed=("main",), api=api)
         self.assertEqual(postgres_posts(calls), [])
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT])
+        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS)
         self.assertIn(f"project {LAKEBASE['project']} and catalog `{LAKEBASE['catalog']}` are there ✅", said)
         self.assertNotIn(ENDPOINT_PATH, [c[1] for c in calls])
 
     def test_a_person_without_create_catalog_is_told_the_one_grant_and_the_install_completes_on_delta(self):
         api, calls = lakebase_api(make_catalog=REFUSED_CATALOG)
         grants, _, _, said = self.grant([], listed=("main",), api=api)
-        self.assertEqual(grants, INSPIRE_GRANTS)
+        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS)
         note = self.ctx["LAKEBASE_NOTE"]
         self.assertIn(f"Databricks refused to create the catalog `{LAKEBASE['catalog']}` on the Lakebase project {LAKEBASE['project']} for you "
                       "(403 PERMISSION_DENIED: User does not have CREATE CATALOG on Metastore): "
@@ -1028,7 +1037,7 @@ class LakebaseSetupTest(unittest.TestCase):
             self.assertIn(needle, said)
             self.assertTrue(said.endswith("until then the Apps that Implement builds read Delta tables"), said)
             grants, _, _, printed = self.grant([], listed=("main",), api=api)
-            self.assertEqual(grants, INSPIRE_GRANTS, needle)
+            self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS, needle)
             self.assertIn(f"⚠️ {needle}", printed)
         ready, said = self.setup_only(None, lakebase=None)
         self.assertEqual((ready, said), (False, "Inspire knows no Lakebase project or catalog to set up: until then the Apps that Implement "

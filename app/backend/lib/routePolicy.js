@@ -130,6 +130,8 @@ const ROUTE_POLICY = {
   'POST /api/run/:runId/again': { rule: 'launcher', action: 'run it again', target: runTarget, identity: 'app', why: GATED, outputWrite: true, scopes: OUTPUT_WRITE_SCOPES },
   'GET /api/run/pages': anyone('list the hosted pages', 'lists the MVP pages Inspire hosts'),
   'GET /api/inspire/session': tracked('read a session'),
+  'GET /api/inspire/value': tracked('read the value at stake and saved of a run'),
+  'GET /api/inspire/value/overall': tracked('read the value at stake and saved across the runs of a database'),
   'GET /api/inspire/sessions': tracked('list sessions'),
   'GET /api/inspire/steps': tracked('read the steps of a session'),
   'GET /api/inspire/step-results': tracked('read the step results of a session'),

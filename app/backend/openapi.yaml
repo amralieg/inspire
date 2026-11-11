@@ -400,6 +400,18 @@ components:
         run_name:
           type: string
 
+    ValueEntry:
+      type: object
+      required: [kind, unit, amount]
+      properties:
+        kind:
+          type: string
+          enum: [money, time, count]
+        unit:
+          type: string
+          description: ISO currency for money, hours, days or minutes for time, and the count unit for count
+        amount:
+          type: number
     Session:
       type: object
       properties:
@@ -1304,6 +1316,95 @@ paths:
               schema:
                 $ref: '#/components/schemas/Error'
 
+  /api/inspire/value:
+    get:
+      tags: [Monitor]
+      summary: Value at stake and saved for one run
+      description: |
+        Returns the value the latest MVP run of each use case put at stake, and the value people saved on its records.
+        Money stays per currency. Time totals convert minutes to hours, and days to hours only when hours are in the
+        same total. Weeks become days. Count units never combine. A use case with no measured stake has no entry and
+        `measured: false`, never 0.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+        - $ref: '#/components/parameters/InspireDatabase'
+        - $ref: '#/components/parameters/WarehouseId'
+        - $ref: '#/components/parameters/SessionId'
+      responses:
+        '200':
+          description: Value of the run
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  use_cases:
+                    type: object
+                    additionalProperties:
+                      type: object
+                      properties:
+                        at_stake:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/ValueEntry'
+                        saved:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/ValueEntry'
+                        measured:
+                          type: boolean
+                  run:
+                    type: object
+                    properties:
+                      at_stake:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ValueEntry'
+                      saved:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/ValueEntry'
+                      mvps_measured:
+                        type: integer
+        '400':
+          description: A parameter is missing or malformed
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
+  /api/inspire/value/overall:
+    get:
+      tags: [Monitor]
+      summary: Value at stake and saved across the runs of a database
+      description: |
+        At stake counts the latest run of each business only. Saved counts every run. Totals follow the same
+        money, time and count rules as `/api/inspire/value`.
+      parameters:
+        - $ref: '#/components/parameters/DatabricksHost'
+        - $ref: '#/components/parameters/InspireDatabase'
+        - $ref: '#/components/parameters/WarehouseId'
+      responses:
+        '200':
+          description: Value across the runs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  at_stake:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ValueEntry'
+                  saved:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ValueEntry'
+                  runs:
+                    type: integer
+                  businesses:
+                    type: integer
+        '400':
+          description: A parameter is missing or malformed
+        '401':
+          $ref: '#/components/responses/PersonSignInRequired'
   /api/inspire/steps:
     get:
       tags: [Monitor]
