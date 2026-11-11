@@ -246,16 +246,30 @@ function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateT
 const TAG_KEY_MAX = 127;
 const TAG_CLOUD_VALUE_MAX = { aws: 255, azure: 255, gcp: 63 };
 const TAG_UNKNOWN_VALUE_MAX = 63;
-const TAG_CLOUD_PATTERNS = [['gcp', /\.gcp\./i], ['azure', /azuredatabricks\.net|databricks\.azure/i], ['aws', /\.cloud\.databricks\.com/i]];
+const TAG_CLOUD_DISCOVERY_TIMEOUT_MS = 5000;
+let tagCloud = '';
 
-function inspireTagCloud(host = process.env.DATABRICKS_HOST) {
-  const text = String(host || '').toLowerCase();
-  const hit = TAG_CLOUD_PATTERNS.find(([, pattern]) => pattern.test(text));
-  return hit ? hit[0] : '';
+async function loadInspireTagCloud(host, fetchImpl = fetch) {
+  tagCloud = '';
+  const base = String(host || '').trim().replace(/\/+$/, '');
+  if (!base) return tagCloud;
+  try {
+    const resp = await fetchImpl(`${base}/.well-known/databricks-config`, { signal: AbortSignal.timeout(TAG_CLOUD_DISCOVERY_TIMEOUT_MS) });
+    if (!resp.ok) return tagCloud;
+    const cloud = String((await resp.json()).cloud || '').trim().toLowerCase();
+    if (Object.hasOwn(TAG_CLOUD_VALUE_MAX, cloud)) tagCloud = cloud;
+  } catch {
+    tagCloud = '';
+  }
+  return tagCloud;
 }
 
-function inspireTagValueMax(host = process.env.DATABRICKS_HOST) {
-  return TAG_CLOUD_VALUE_MAX[inspireTagCloud(host)] ?? TAG_UNKNOWN_VALUE_MAX;
+function inspireTagCloud() {
+  return tagCloud;
+}
+
+function inspireTagValueMax() {
+  return TAG_CLOUD_VALUE_MAX[tagCloud] ?? TAG_UNKNOWN_VALUE_MAX;
 }
 const TAG_LIST_SEP = ',';
 const TAG_ITEM_BAD = /[^A-Za-z0-9+=.:@_-]/g;
@@ -473,6 +487,7 @@ module.exports = {
   inspireTagValue,
   inspireTagValueMax,
   inspireTagCloud,
+  loadInspireTagCloud,
   inspireTagList,
   inspireTagListItems,
   resourceTagKey,

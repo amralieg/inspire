@@ -277,7 +277,7 @@ test('in the real App every demo change gets the read-only answer before its bod
     assert.doesNotMatch(await plain.text(), /This is the demo/);
     const read = await fetch(`${inspire.url}/api/inspire/results?session_id=1001`, { headers: DEMO });
     assert.deepEqual([read.status, (await read.json()).error], [404, S.SHOWCASE_UNKNOWN], 'a demo read still goes to the replay');
-    assert.deepEqual(workspace.calls, [], 'no demo request reached the workspace');
+    assert.deepEqual(workspace.calls.filter((call) => call.path !== '/.well-known/databricks-config'), [], 'no demo request reached the workspace; the startup cloud read is the only call');
   } finally {
     if (inspire) await inspire.stop();
     await workspace.close();

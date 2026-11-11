@@ -303,27 +303,52 @@ test('tag values are cleaned exactly the way the agent cleans them, and the use 
   assert.deepEqual(fixture.use_case_tag_keys.filter((key) => !(key in tags)), []);
 });
 
-test('the tag value limit is per cloud (255 on AWS and Azure, 63 on GCP) and 63 when the cloud is unknown, one table shared with the notebook', () => {
-  const { inspireJobTags, inspireTagValue, inspireTagValueMax, inspireTagCloud } = require('../lib/inspireJobParams');
-  assert.equal(inspireTagValueMax('dbc-1.cloud.databricks.com'), 255);
-  assert.equal(inspireTagCloud('dbc-1.cloud.databricks.com'), 'aws');
-  assert.equal(inspireTagValueMax('adb-1.12.azuredatabricks.net'), 255);
-  assert.equal(inspireTagCloud('adb-1.12.azuredatabricks.net'), 'azure');
-  assert.equal(inspireTagValueMax('1234567890.gcp.databricks.com'), 63);
-  assert.equal(inspireTagCloud('1234567890.gcp.databricks.com'), 'gcp');
-  assert.equal(inspireTagValueMax('dbc-1.cloud.example'), 63, 'an unknown cloud takes the strictest limit');
-  assert.equal(inspireTagValueMax(''), 63, 'no host, no cloud, 63');
-  const before = process.env.DATABRICKS_HOST;
-  process.env.DATABRICKS_HOST = '1234567890.gcp.example';
+test('the tag value limit follows the cloud the workspace reports in its discovery document: 255 on AWS and Azure, 63 on GCP and when unknown', async () => {
+  const http = require('node:http');
+  const { loadInspireTagCloud, inspireTagCloud, inspireTagValue, inspireTagValueMax, inspireJobTags } = require('../lib/inspireJobParams');
+  let served = null;
+  const discovery = http.createServer((req, res) => {
+    if (req.url !== '/.well-known/databricks-config' || served === null) {
+      res.writeHead(404).end();
+      return;
+    }
+    res.writeHead(200, { 'Content-Type': 'application/json' }).end(JSON.stringify({ cloud: served }));
+  });
+  await new Promise((resolve) => discovery.listen(0, '127.0.0.1', resolve));
+  const host = `http://127.0.0.1:${discovery.address().port}`;
+  const useCaseIds = Array.from({ length: 20 }, (_, i) => `N${String(i + 1).padStart(2, '0')}-U01`);
+  const launch = () => inspireJobTags({ runType: 'implement', params: { '14_session_id': '42' }, businessName: 'b'.repeat(90), notebookFilename: 'n'.repeat(90), useCaseIds });
   try {
+    served = 'AWS';
+    assert.equal(await loadInspireTagCloud(host), 'aws');
+    assert.equal(inspireTagCloud(), 'aws');
+    assert.equal(inspireTagValueMax(), 255);
+    assert.equal(inspireTagValue('x'.repeat(300)).length, 255);
+    served = 'AZURE';
+    assert.equal(await loadInspireTagCloud(host), 'azure');
+    assert.equal(inspireTagValueMax(), 255);
+    served = 'GCP';
+    assert.equal(await loadInspireTagCloud(host), 'gcp');
+    assert.equal(inspireTagValueMax(), 63, 'a GCP workspace never takes a 255 value');
     assert.equal(inspireTagValue('x'.repeat(300)).length, 63);
-    const ids = Array.from({ length: 20 }, (_, i) => `N${String(i + 1).padStart(2, '0')}-U01`);
-    const tags = inspireJobTags({ runType: 'implement', params: { '14_session_id': '42' }, businessName: 'b'.repeat(90), notebookFilename: 'n'.repeat(90), useCaseIds: ids });
-    assert.deepEqual(Object.entries(tags).filter(([, value]) => value.length > 63), []);
-    assert.equal(tags.dbx_inspire_ai_usecase_id.split(',')[0], 'N01-U01');
-    assert.equal(tags.dbx_inspire_ai_usecases, '20');
+    const gcpTags = launch();
+    assert.deepEqual(Object.entries(gcpTags).filter(([, value]) => value.length > 63), []);
+    assert.equal(gcpTags.dbx_inspire_ai_usecase_id.split(',')[0], 'N01-U01');
+    assert.equal(gcpTags.dbx_inspire_ai_usecases, '20');
+    served = 'AWS';
+    await loadInspireTagCloud(host);
+    assert.equal(inspireTagValueMax(), 255, 'a reload reads the workspace again, the GCP limit does not stay behind');
+    served = 'OTHER';
+    assert.equal(await loadInspireTagCloud(host), '', 'a cloud this table does not know takes the strictest limit');
+    assert.equal(inspireTagValueMax(), 63);
+    served = null;
+    assert.equal(await loadInspireTagCloud(host), '', 'a discovery document that is missing takes the strictest limit');
+    assert.equal(inspireTagValueMax(), 63);
+    assert.equal(await loadInspireTagCloud(''), '', 'no host, no cloud, 63');
+    assert.equal(inspireTagValueMax(), 63);
   } finally {
-    if (before === undefined) delete process.env.DATABRICKS_HOST; else process.env.DATABRICKS_HOST = before;
+    await loadInspireTagCloud('');
+    await new Promise((resolve) => discovery.close(resolve));
   }
 });
 
