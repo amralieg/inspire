@@ -60,13 +60,15 @@ test('What to deliver is the first step, Data and results is one page, and Where
 
     await goToStep(page, 'Where it lives');
     await page.getByRole('region', { name: 'App placement' }).waitFor();
-    await page.getByRole('region', { name: 'App features' }).waitFor();
-    assert.equal(await page.getByRole('region', { name: 'App features' }).count(), 1, 'App pages are picked on Where it lives');
+    await page.getByRole('region', { name: 'App pages' }).waitFor();
+    assert.equal(await page.getByRole('region', { name: 'App features' }).count(), 0, 'the App pages are picked on Where it lives, not with who uses the App');
+    assert.equal(await page.getByRole('tab', { name: 'Pages', exact: true }).count(), 0, 'App look no longer holds a Pages tab');
     await snap(page, 'restructure-where');
 
     await goToStep(page, 'Who uses the App');
     await page.getByRole('region', { name: 'App access' }).waitFor();
-    assert.equal(await page.getByRole('region', { name: 'App features' }).count(), 0, 'Who uses the App no longer holds the pages');
+    await page.getByRole('region', { name: 'App features' }).waitFor();
+    assert.equal(await page.getByRole('region', { name: 'App pages' }).count(), 0, 'Who uses the App no longer holds the pages');
     await snap(page, 'restructure-who');
 
     await goToStep(page, 'App look');
@@ -121,6 +123,21 @@ test('Rebuild as is: an unchanged version is refused until the person picks Rebu
     const body = JSON.parse((await submit).postData() || '{}');
     assert.equal(body.rebuild_as_is, true, 'the build sends rebuild_as_is');
     assert.deepEqual(ui.pageErrors.filter((e) => !/409|Conflict/.test(e)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Keep it fresh sits on Data & results, and Run it keeps the Measure impact and schedule settings', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Data & results');
+    await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
+    await goToStep(page, 'Run it');
+    assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Run it no longer holds Keep it fresh');
+    await page.getByRole('group', { name: 'Measure impact' }).waitFor();
+    assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }

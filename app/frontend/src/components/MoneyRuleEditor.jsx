@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react';
 import { draftOf, formulaLine, ruleOf, ruleSentence, workedExample } from '../../../agent/agent/app_shell/web/src/moneyRule.js';
-import { MoneyCountFields, MoneyRowsFields } from '../../../agent/agent/app_shell/web/src/MoneyRuleFields.jsx';
+import { MoneyRuleFields } from '../../../agent/agent/app_shell/web/src/MoneyRuleFields.jsx';
 import { PlainMessage } from './TechnicalDetails.jsx';
 
 const DEFAULT_RULE = { currency: 'per_currency' };
@@ -33,14 +33,10 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', lo
   }, [bodyKey]);
 
   return (
-    <div className="money-rule" data-money-rule-editor>
+    <div className="space-y-3" data-money-rule-editor>
       <p className="text-[12px] text-text-primary bg-bg border border-border rounded-md p-3" data-money-sentence>{ruleSentence(shown)}</p>
       <p className="text-[12px] text-text-secondary" data-money-formula>{formulaLine(shown)}</p>
-      <MoneyCountFields draft={draft} set={set} setRate={setRate} />
-      <details data-money-rows-details>
-        <summary>Rows and how they add up</summary>
-        <MoneyRowsFields draft={draft} set={set} />
-      </details>
+      <MoneyRuleFields draft={draft} set={set} setRate={setRate} />
       {sample && workedExample(shown, { ...sample, rates }).length > 0 && (
         <div className="space-y-1 text-[12px]" data-money-example>
           <p className="font-semibold text-text-primary">Worked example on the first rows of the table</p>

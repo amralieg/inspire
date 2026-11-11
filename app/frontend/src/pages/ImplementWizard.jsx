@@ -1913,6 +1913,11 @@ export default function ImplementWizard({
           />
         )}
 
+        {shows('app_pages') && (
+          <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView}
+            onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
+        )}
+
         {shows('app_look') && (
           <AppLookStep
             spec={spec}
@@ -1926,7 +1931,6 @@ export default function ImplementWizard({
             dates={chartDates}
             onChart={(id, on) => setSpec((prev) => withAppChart(prev, id, on, look, chartDates))}
             onInspireCharts={() => setSpec((prev) => withInspireCharts(prev))}
-            onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))}
             best={{ layout: best.layout }}
             view={lookView}
             onView={setLookView}
@@ -2929,20 +2933,57 @@ function LookCard({ name, value, checked, onChange, label, best = null, blurb = 
   );
 }
 
-function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake, dates = null, onLook, onChart, onInspireCharts, onPage, best = {}, view: lookView, onView }) {
+function AppPagesStep({ spec, look, onPage, view: lookView, onView }) {
+  const pages = appPagesOf(spec);
+  const pageId = lookView.page;
+  const shownPage = pages.some((p) => p.id === pageId && p.on) ? pageId : 'fix';
+  const setPageId = (next) => onView({ ...lookView, page: next });
+  const pickable = Array.isArray(look?.chart_kinds) && Array.isArray(look?.screens);
+  const perUserAlerts = pages.find((p) => p.id === 'alerts')?.off;
+  return (
+    <section className="space-y-2" aria-label="App pages">
+        <fieldset className="space-y-2">
+          <legend className={LEGEND}>Pages</legend>
+          <p className="text-[11px] text-text-secondary">{APP_PAGES_NOTE} Pick a page to see it in the App look sample.</p>
+          <div role="group" aria-label="Pages of the App" className="grid grid-cols-5 gap-2">
+            {pages.map((p) => {
+              const locked = Boolean(p.off) || (!pickable && !p.option);
+              return (
+                <div key={p.id} data-app-page={p.id} className={`rounded-lg border p-2 ${shownPage === p.id ? 'border-db-red bg-db-red-50' : 'border-border'}`}>
+                  <button type="button" aria-pressed={shownPage === p.id} disabled={!p.on} onClick={() => setPageId(p.id)}
+                    className="block w-full text-start text-[12px] font-semibold text-text-primary disabled:text-text-tertiary glow-focus">
+                    {p.label}
+                  </button>
+                  {p.fixed ? <p className="mt-1 text-[11px] text-text-tertiary">{APP_ALWAYS_ON}</p> : (
+                    <label className={`mt-1 flex items-center gap-1.5 text-[11px] text-text-secondary ${locked ? '' : 'cursor-pointer'}`}>
+                      <input type="checkbox" role="switch" checked={p.on} disabled={locked} aria-label={`${p.label} page`}
+                        onChange={(e) => onPage(p.id, e.target.checked)} />
+                      {p.on ? 'On' : 'Off'}
+                    </label>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p data-page-blurb="" className="text-[11px] leading-snug text-text-secondary">{pages.find((p) => p.id === shownPage).blurb}</p>
+          {perUserAlerts && <p className="text-[11px] leading-snug text-text-tertiary">Alerts are off: {PER_USER_REASON}</p>}
+        </fieldset>
+    </section>
+  );
+}
+
+function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake, dates = null, onLook, onChart, onInspireCharts, best = {}, view: lookView, onView }) {
   const chosen = spec.outputs.app_look;
   const palettes = look?.palette_colors || [];
   const tab = lookView.tab;
   const setTab = (next) => onView({ ...lookView, tab: next });
   const pageId = lookView.page;
-  const setPageId = (next) => onView({ ...lookView, page: next });
   const pages = appPagesOf(spec);
   const shownPage = pages.some((p) => p.id === pageId && p.on) ? pageId : 'fix';
   const charts = appChartsOf(spec, look, dates);
   const picked = appChartsPicked(spec);
   const pickable = Array.isArray(look?.chart_kinds) && Array.isArray(look?.screens);
-  const perUserAlerts = pages.find((p) => p.id === 'alerts')?.off;
-  const view = tab === 'charts' ? 'charts' : tab === 'pages' ? shownPage : 'fix';
+  const view = tab === 'charts' ? 'charts' : shownPage;
   const named = (list, id) => list.find((x) => x.id === id)?.label || id;
   const viewLabel = view === 'charts' ? 'Charts' : named(pages, view);
   const sampleLabel = `Sample App page: ${viewLabel}, in ${lookText(chosen)}`;
@@ -3050,34 +3091,6 @@ function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake
             <p id="app-charts-min" className="text-[11px] text-text-tertiary">{picked ? APP_CHARTS_MIN_NOTE : appChartPickText(look, dates)}</p>
             {picked && <button type="button" className="text-[11px] font-medium text-db-red-fg glow-focus" onClick={onInspireCharts}>{APP_CHARTS_RESET}</button>}
           </div>
-        </fieldset>
-      </div>
-      <div {...panel('pages')}>
-        <fieldset className="space-y-2">
-          <legend className={LEGEND}>Pages</legend>
-          <p className="text-[11px] text-text-secondary">{APP_PAGES_NOTE} Pick a page to see it in the sample below.</p>
-          <div role="group" aria-label="Pages of the App" className="grid grid-cols-5 gap-2">
-            {pages.map((p) => {
-              const locked = Boolean(p.off) || (!pickable && !p.option);
-              return (
-                <div key={p.id} data-app-page={p.id} className={`rounded-lg border p-2 ${shownPage === p.id ? 'border-db-red bg-db-red-50' : 'border-border'}`}>
-                  <button type="button" aria-pressed={shownPage === p.id} disabled={!p.on} onClick={() => setPageId(p.id)}
-                    className="block w-full text-start text-[12px] font-semibold text-text-primary disabled:text-text-tertiary glow-focus">
-                    {p.label}
-                  </button>
-                  {p.fixed ? <p className="mt-1 text-[11px] text-text-tertiary">{APP_ALWAYS_ON}</p> : (
-                    <label className={`mt-1 flex items-center gap-1.5 text-[11px] text-text-secondary ${locked ? '' : 'cursor-pointer'}`}>
-                      <input type="checkbox" role="switch" checked={p.on} disabled={locked} aria-label={`${p.label} page`}
-                        onChange={(e) => onPage(p.id, e.target.checked)} />
-                      {p.on ? 'On' : 'Off'}
-                    </label>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <p data-page-blurb="" className="text-[11px] leading-snug text-text-secondary">{pages.find((p) => p.id === shownPage).blurb}</p>
-          {perUserAlerts && <p className="text-[11px] leading-snug text-text-tertiary">Alerts are off: {PER_USER_REASON}</p>}
         </fieldset>
       </div>
       <AppSample palette={palette} look={chosen} appName={spec.outputs.app_name || 'Your App'} title={title}
