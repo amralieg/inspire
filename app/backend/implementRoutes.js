@@ -597,7 +597,7 @@ function registerImplementRoutes(app, deps) {
       for (const row of history) (versionsByUc[row.use_case_id] || (versionsByUc[row.use_case_id] = [])).push(row);
       const latest = Object.values(versionsByUc).map((rows) => {
         const live = I.previousBuilt(rows);
-        return Object.assign(rows[0], { live_version: live ? live.spec_version : null });
+        return Object.assign(rows[0], { live_version: live ? live.spec_version : null, live_spec_json: live ? live.spec_json : null });
       });
       const [notebook] = await Promise.all([
         latestGenieNotebookRun(fetchJsonFor(req), sid).then((run) => ({ run, error: '' }), (err) => ({ run: null, error: err.message })),

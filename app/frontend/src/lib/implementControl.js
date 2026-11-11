@@ -814,7 +814,7 @@ export function filterByMvp(groups, mvp) {
 }
 
 export function liveAppBuiltName(latest) {
-  return String(latest?.spec_json?.use_case_name || '').trim();
+  return String(latest?.live_spec_json?.use_case_name || '').trim();
 }
 
 export function liveAppRenameStale(latest, name) {
