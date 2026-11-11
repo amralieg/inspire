@@ -9,6 +9,7 @@ import { categoryLabels } from './layout.js';
 import { Skeleton, useDebounced, useToast, PlainNote } from './ui.jsx';
 import { SaveButton, runWrite } from './saving.jsx';
 import { AskGenie } from './AskGenie.jsx';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const STEPS = 100;
 
@@ -122,7 +123,7 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved, saver 
       <section key={section} className="card scenario" data-section={section} aria-label={scenario.title}>
         <header className="card-h"><div><h2>{scenario.title}</h2>{scenario.hint && <p>{scenario.hint}</p>}</div>
           <button type="button" className="btn btn--sm" onClick={() => setValues({})} disabled={!Object.keys(values).length}>Back to the base case</button>
-          <AskGenie kind="scenario" title={scenario.title} context={{ hint: scenario.hint || '', fields: { ...levers, ...outcomeFields(result) } }} />
+          <SectionHelp title={scenario.title} steps={[{ title: scenario.title, text: "The scenario you are planning on: move the levers and watch its outcome change." }]} /><AskGenie kind="scenario" title={scenario.title} context={{ hint: scenario.hint || '', fields: { ...levers, ...outcomeFields(result) } }} />
         </header>
         {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={() => setAgain((n) => n + 1)} />}
         {!result && !error && <div style={{ padding: 16 }}><Skeleton height={120} /></div>}
@@ -151,12 +152,12 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved, saver 
         <article className="card card--wide" data-card="outcome">
           <header className="card-h"><div><h2>{outcome.label}</h2>
             {result && <p data-quantiles>P10 {fmt(result.outcome.p10)} · P50 {fmt(result.outcome.p50)} · P90 {fmt(result.outcome.p90)}</p>}</div>
-            <AskGenie kind="chart" title={outcome.label} context={{ hint: `The range of the ${outcome.label?.toLowerCase() || 'outcome'} for the levers as set.`, fields: outcomeFields(result) }} /></header>
+            <SectionHelp title={outcome.label} steps={[{ title: outcome.label, text: "The result this scenario reaches, with the range of outcomes it could land in." }]} /><AskGenie kind="chart" title={outcome.label} context={{ hint: `The range of the ${outcome.label?.toLowerCase() || 'outcome'} for the levers as set.`, fields: outcomeFields(result) }} /></header>
           <div className="chart"><div ref={dist} style={{ position: 'absolute', inset: 0 }} /></div>
         </article>
         <article className="card" data-card="lever_effect">
           <header className="card-h"><div><h2>What each lever moves</h2><p>Change in the P50 {outcome.label?.toLowerCase()} from the base case</p></div>
-            <AskGenie kind="chart" title="What each lever moves" context={{ hint: `Change in the P50 ${outcome.label?.toLowerCase() || 'outcome'} from the base case.`, rows: moves, row_count: moves.length }} /></header>
+            <SectionHelp title={'What each lever moves'} steps={[{ title: 'What each lever moves', text: "Each bar shows how far the outcome moves when you move that one lever on its own." }]} /><AskGenie kind="chart" title="What each lever moves" context={{ hint: `Change in the P50 ${outcome.label?.toLowerCase() || 'outcome'} from the base case.`, rows: moves, row_count: moves.length }} /></header>
           <div className="chart"><div ref={sens} style={{ position: 'absolute', inset: 0 }} /></div>
         </article>
       </section>
@@ -165,7 +166,7 @@ export default function ScenarioPanel({ page, app, ready, order, onSaved, saver 
       <section key={section} className="charts" data-section={section}>
         <article className="card" data-card="chance">
           <header className="card-h"><div><h2>Chance of reaching the target</h2><p>Target {fmt(result.outcome.target)}</p></div>
-            <AskGenie kind="chart" title="Chance of reaching the target" context={{ hint: `The chance the ${outcome.label?.toLowerCase() || 'outcome'} reaches its target.`, fields: outcomeFields(result) }} /></header>
+            <SectionHelp title={'Chance of reaching the target'} steps={[{ title: 'Chance of reaching the target', text: "The chance the outcome reaches your target, given the ranges you set on the levers." }]} /><AskGenie kind="chart" title="Chance of reaching the target" context={{ hint: `The chance the ${outcome.label?.toLowerCase() || 'outcome'} reaches its target.`, fields: outcomeFields(result) }} /></header>
           <div className="chart chart--gauge"><div ref={gauge} style={{ position: 'absolute', inset: 0 }} /></div>
         </article>
       </section>

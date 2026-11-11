@@ -6,12 +6,18 @@ from v140_implement_test import _app_flow, _churn_page
 from v197_genie_question_rows_test import _logged
 
 STEPS = [
-    {"anchor": "decision", "title": "Keep the customers who are about to leave",
-     "text": "This desk lists the customers most likely to leave next month. {open_count} wait for a call."},
+    {"anchor": "decision", "title": "Keep the customers who are about to leave", "text": "This desk lists the customers most likely to leave next month. {open_count} wait for a call."},
     {"anchor": "kpis", "title": "How much is at risk", "text": "The first tile is the revenue at risk, {kpi:total_loss} today."},
+    {"anchor": "view", "title": "Where the risk sits", "text": "This view shows which customer groups carry the most revenue at risk. Click a group to see its customers."},
+    {"anchor": "filters", "title": "Narrow the call list", "text": "Use Region and Segment to see only the customers you call."},
     {"anchor": "records", "title": "Your call list", "text": "Each customer here needs a retention call or a reason to skip it."},
     {"anchor": "top_record", "title": "Call this one first", "text": "Start with {top_record}, the most likely to leave."},
+    {"anchor": "actions", "title": "Log each call", "text": "Open a customer to see the side panel and pick a choice: call made, retained or not reachable."},
+    {"anchor": "bulk", "title": "Log many calls at once", "text": "Select several customers and log the same outcome for all of them in one step."},
     {"anchor": "genie", "title": "Ask why they leave", "text": "Ask Genie why a customer is likely to leave, in your own words."},
+    {"anchor": "performance", "title": "See what the calls saved", "text": "Performance shows the revenue the retention calls promised and the revenue they kept."},
+    {"anchor": "runs", "title": "Each run", "text": "Every refresh of this use case is a run. Open Runs to see what each one found."},
+    {"anchor": "settings", "title": "Settings", "text": "Settings hold the target, how the value is measured and the rules that flag customers."},
 ]
 
 
@@ -95,7 +101,7 @@ def test_the_app_ships_the_tour_written_for_its_use_case(agent_ns, tmp_path):
     page = _deployed(seen)
     assert page["tour"] == {"languages": ["English"], "steps": {"English": STEPS}}
     assert not _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR FIXED]")
-    assert _logged(inst, "INFO", "[IMPLEMENT-APP-TOUR] N01-U01: the App tour has 5 steps in English")
+    assert _logged(inst, "INFO", "[IMPLEMENT-APP-TOUR] N01-U01: the App tour has 12 steps in English")
     assert context["artifacts"]["app"]["tour"] == page["tour"]
 
 

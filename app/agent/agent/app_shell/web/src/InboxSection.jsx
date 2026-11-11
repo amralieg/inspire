@@ -2,6 +2,7 @@ import { PlainNote } from './ui.jsx';
 import { shortDay } from './hub.js';
 import { NOT_IN_RUN } from './records.js';
 import { CHANGED_GROUP, INBOX_GROUPS } from './inbox.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const EMPTY = {
   fix: 'Nothing to fix right now.', runs: 'No run failed since the last one that finished.', reports: 'No new report waits for you.',
@@ -41,7 +42,7 @@ export default function InboxSection({ page, inbox, onOpen }) {
           <h2>Inbox</h2>
           <p>Everything that waits for you on {page.title}. Each item opens the page where you deal with it. {since}</p>
         </div>
-      </header>
+      <SectionHelp title={'Inbox'} steps={[{ title: 'Inbox', text: "Everything that waits for you on this use case. Each item opens the page where you deal with it." }]} /></header>
       {inbox.errors.records && <PlainNote text={inbox.errors.records} prefix="Your records could not load: " className="tile-err" role="alert" />}
       {inbox.errors.reports && <PlainNote text={inbox.errors.reports} prefix="The reported issues could not load: " className="tile-err" role="alert" />}
       {!inbox.ready && <p className="more" role="status">Loading…</p>}

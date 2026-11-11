@@ -3,6 +3,7 @@ import { movePlan } from './api.js';
 import { Icon } from './icons.jsx';
 import { PlainNote, SaidNote, useToast } from './ui.jsx';
 import './styles/plan.css';
+import { SectionHelp } from './SectionHelp.jsx';
 
 export const REASON_MAX = 500;
 export const PLAN_WORDS = {
@@ -78,7 +79,7 @@ export function VersionBar({ page, versions, access, words, onMoved, beforeMove 
       <header className="card-h"><div><h2>{latest ? `${versionName(latest, words)} · ${statusWord(latest.status, words)}` : `No ${words.noun.toLowerCase()} yet`}</h2>
         {latest && <p data-version-meta>{latest.changed_by ? `Last change by ${latest.changed_by}` : ''}{latest.overrides?.length ? ` · ${latest.overrides.length} override${latest.overrides.length === 1 ? '' : 's'}` : ''}</p>}
         {!can && access?.why && <p className="muted" data-no-decisions>{access.why}</p>}
-      </div></header>
+      </div><SectionHelp title={'Plan versions'} steps={[{ title: 'Plan versions', text: "The versions of this plan, the latest first, with who changed each one and the overrides it holds." }]} /></header>
       {versions.length > 0 && (
         <ol className="plan-steps" aria-label={`${words.noun}s so far`}>
           {versions.slice(0, 6).map((v) => (

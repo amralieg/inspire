@@ -4,6 +4,7 @@ import { Icon } from './icons.jsx';
 import DataTable from './DataTable.jsx';
 import { PlainNote } from './ui.jsx';
 import { ADMIN_ROUTE, NO_PEOPLE, USAGE_RECORDED, USAGE_UNRECORDED, usageView } from './admin.js';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const REFUSED = [401, 403];
 
@@ -20,7 +21,7 @@ function usageColumns(first, lead, kinds) {
 function UsageTable({ label, first, kinds, rows, lead }) {
   return (
     <section className="card card--table" aria-label={label}>
-      <header className="card-h"><div><h2>{label}</h2></div></header>
+      <header className="card-h"><div><h2>{label}</h2></div><SectionHelp title={label} steps={[{ title: label, text: "The owners' controls for this use case: who sees it and how it is set up." }]} /></header>
       <DataTable label={label} tableClass="tbl--usage" columns={usageColumns(first, lead, kinds)} rows={rows} rowKey={(r) => r.key} grid={`admin:${first}`} />
     </section>
   );

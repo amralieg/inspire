@@ -15,6 +15,7 @@ import { CardFailure, useShared } from './PageFailure.jsx';
 import { RowGenie, columnOf } from './DataTable.jsx';
 import { ITEM_KINDS, fieldsOf, tableContext } from './explain.js';
 import './styles/kindparts.css';
+import { SectionHelp } from './SectionHelp.jsx';
 
 export const LIST_ROWS = 60;
 export const SEGMENT_CARDS = 12;
@@ -195,7 +196,7 @@ function ListShell({ page, app, title, hint, section, list, empty, actions, erro
   return (
     <section className="card card--table choices" aria-label={title} data-part={section}>
       <header className="card-h"><div><h2>{title}</h2>{off ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p> : hint && <p>{hint}</p>}</div>{actions}
-        <AskGenie kind="table" title={title} context={tableContext(hint || '', list.data?.rows || [], (row) => choiceFields(page, row), list.data?.total)} /></header>
+        <SectionHelp title={title} steps={[{ title: title, text: "Each record's decision: pick the choice that fits, and the record keeps its history." }]} /><AskGenie kind="table" title={title} context={tableContext(hint || '', list.data?.rows || [], (row) => choiceFields(page, row), list.data?.total)} /></header>
       {!list.data && !list.error && <div style={{ padding: 16 }}><Skeleton height={22} /></div>}
       {list.error && <PlainNote text={list.error} prefix="The list could not load: " icon={<Icon name="info" size={14} />} className="tile-err" onRetry={retry} />}
       {error && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" />}
@@ -358,7 +359,7 @@ export function SegmentCards({ page, app, ready, nonce, filters, onChanged, onPi
           {off ? <p className="muted" data-no-decisions>{noDecisionText(app, page)}</p>
             : <p>{table?.hint || 'Choose a treatment for each segment once: every member of the segment gets it.'}</p>}</div>
           {can && waiting.length > 0 && <TakeAll count={waiting.length} onClick={() => runWrite(TAKE_ALL, async () => { for (const r of waiting) if (!(await choose(r, suggestedOf(r), true))) return; })} />}
-          {!shared && <AskGenie kind="table" title={table?.title || 'Segments'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />}
+          <SectionHelp title={table?.title || 'Segments'} steps={[{ title: table?.title || 'Segments', text: "Each segment with the figures that set it apart. Pick a segment to narrow the page to it." }]} />{!shared && <AskGenie kind="table" title={table?.title || 'Segments'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />}
         </header>
         {!result && !failed && <div style={{ padding: 16 }}><Skeleton height={90} /></div>}
         <CardFailure text={failed} prefix="The segments could not load: " />
@@ -421,7 +422,7 @@ export function EffectCard({ page, data, filters, onPick }) {
     <section className="card effects" aria-label={table?.title || 'Effect'} data-part="effect_card">
       <header className="card-h"><div><h2>{table?.title || 'Effect'}</h2>{table?.hint && <p>{table.hint}</p>}
         {table?.so_what && <p className="so-what" data-so-what><b>So what:</b> {table.so_what}</p>}</div>
-        {!shared && <AskGenie kind="table" title={table?.title || 'Effect'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />}</header>
+        <SectionHelp title={table?.title || 'Effect'} steps={[{ title: table?.title || 'Effect', text: "What each intervention is expected to change, with the verdict on whether it pays." }]} />{!shared && <AskGenie kind="table" title={table?.title || 'Effect'} context={tableContext(table?.hint || '', rows, (row) => specFields(row, table?.columns))} />}</header>
       {!result && !failed && <div style={{ padding: 16 }}><Skeleton height={90} /></div>}
       <CardFailure text={failed} prefix="The effect could not load: " />
       {result && !rows.length && <p className="empty">No measured effect for these filters.</p>}

@@ -6,6 +6,7 @@ import { Icon } from './icons.jsx';
 import { PlainNote, SaidNote, Skeleton, useToast } from './ui.jsx';
 import { formatValue, integer } from './format.js';
 import './styles/plan.css';
+import { SectionHelp } from './SectionHelp.jsx';
 
 const mase = (v) => (v == null ? '' : formatValue(v, 'number', 'USD', 2));
 
@@ -94,7 +95,7 @@ export default function ReviewSection({ page }) {
           <div className="wchips" role="group" aria-label="Which series">
             <button type="button" className={`pick-i ${!all ? 'is-on' : ''}`} aria-pressed={!all} onClick={() => setAll(false)} data-show="risk">At risk</button>
             <button type="button" className={`pick-i ${all ? 'is-on' : ''}`} aria-pressed={all} onClick={() => setAll(true)} data-show="all">All series</button>
-          </div></header>
+          </div><SectionHelp title={'Series to review'} steps={[{ title: 'Series to review', text: "The series the forecast gets worse than a simple guess, worst first. Check them first, and override where you know better." }]} /></header>
           <SaidNote text={said} at="override" />
           {rows.length ? (
             <div className="tw"><table className="plan-t">

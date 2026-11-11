@@ -5252,6 +5252,15 @@
   "runs": "the runs entry, the history of each refresh of this use case and what it found",
   "settings": "the settings entry, where the target, the measurement and the flagging rules are set"
   },
+  "must_name": {
+    "actions": ["side panel", "choice"]
+  },
+  "generic": [
+    "Pick a date range or a group",
+    "Use the filters at the top",
+    "Click any row",
+    "Read the So what line"
+  ],
   "rail": [
    "genie",
    "alerts",
