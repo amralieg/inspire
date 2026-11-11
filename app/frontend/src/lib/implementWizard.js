@@ -933,6 +933,10 @@ export function readinessText(readiness, scope) {
   return `${found} This count leaves out ${left.join(' and ')}; the preview run applies ${left.length === 1 ? 'it' : 'them'}.`;
 }
 
+export function countedFor(readiness, scope) {
+  return readiness && !readiness.skipped && JSON.stringify(readiness.scope) === JSON.stringify(scope) ? readiness : null;
+}
+
 export function tooFewRowsText(readiness) {
   const rows = Number(readiness?.row_count);
   const minimum = Number(readiness?.minimum_rows);

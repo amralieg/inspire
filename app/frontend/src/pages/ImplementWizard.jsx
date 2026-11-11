@@ -44,6 +44,7 @@ import {
   setFilterValues,
   readinessScope,
   readinessText,
+  countedFor,
   tooFewRowsText,
   columnsReadOf,
   filterTablesOutside,
@@ -268,6 +269,7 @@ import {
   latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
   withGroupingDefault, withScopeDefaults, GROUP_BY, groupingChoices, groupingCount, groupingCountText, groupingOf, firstRunSummaryText,
   withScopedRows,
+  scopedGroupRows,
 } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
@@ -538,13 +540,14 @@ export default function ImplementWizard({
   const scopeReady = scopeProfile.state !== 'loading';
   const scopeNow = readinessScope(spec, ucRow);
   const scopeKey = JSON.stringify(scopeNow);
-  const scopeCounted = Boolean(readiness && !readiness.skipped) && JSON.stringify(readiness?.scope) === scopeKey;
+  const counted = countedFor(readiness, scopeNow);
+  const scopeCounted = Boolean(counted);
   const narrowed = scopeNarrowing(scopeNow).length > 0;
-  const scopeCount = scopeCounted ? Number(readiness.row_count) : null;
-  const scopeGroups = scopeCounted ? readiness.groups || null : null;
+  const scopeCount = scopeCounted ? Number(counted.row_count) : null;
+  const scopeGroups = scopeCounted ? counted.groups || null : null;
   const scopedProfile = narrowed ? withScopedRows(scopeProfile.profile, scopeCount, scopeGroups) : scopeProfile.profile;
   const scopedFirstRun = narrowed && scopeProfile.firstRun ? { ...scopeProfile.firstRun, profile: withScopedRows(scopeProfile.firstRun.profile, scopeCount, scopeGroups) } : scopeProfile.firstRun;
-  const tooFewRows = tooFewRowsText(readiness);
+  const tooFewRows = tooFewRowsText(counted);
   const totalSteps = useMemo(() => steps.length, [scopeReady, Boolean(spec.outputs.app)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const q = useMemo(() => {
@@ -798,7 +801,7 @@ export default function ImplementWizard({
     const groupColumns = scopeNarrowing(scope).length ? groupPartColumns(scopeProfile.profile) : [];
     const groups = groupColumns.length && !counted.skipped
       ? await apiPostJson(`/api/inspire/implement/group-counts?${q}`, { table: scope.table, columns: groupColumns, filters: scope.filters, window: scope.window })
-        .then((got) => got.groups || null).catch(() => null)
+        .then(scopedGroupRows).catch(() => null)
       : null;
     return { ...counted, scope, warning, groups };
   };

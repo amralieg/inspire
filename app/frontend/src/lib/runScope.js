@@ -161,9 +161,14 @@ export function profileRecords(profile) {
 function scopedGroupRecords(group, rows) {
   if (!Array.isArray(rows)) return null;
   const parts = Array.isArray(group.parts) ? group.parts : [];
-  const hit = rows.find((row) => parts.every((p) => String(row?.[p.column] ?? '') === String(p.value ?? '')));
-  const n = Number(hit?.records);
-  return hit && Number.isFinite(n) ? n : 0;
+  const hits = rows.filter((row) => parts.every((p) => String(row?.[p.column] ?? '') === String(p.value ?? '')));
+  if (!hits.length) return null;
+  const total = hits.reduce((sum, row) => sum + (Number(row.records) || 0), 0);
+  return Number.isFinite(total) ? total : null;
+}
+
+export function scopedGroupRows(answer) {
+  return answer && Array.isArray(answer.groups) && !answer.truncated ? answer.groups : null;
 }
 
 export function withScopedRows(profile, rows, groups = null) {

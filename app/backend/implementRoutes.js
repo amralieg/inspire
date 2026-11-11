@@ -807,9 +807,11 @@ function registerImplementRoutes(app, deps) {
         filters: req.body?.filters || [],
         window: req.body?.window || {},
       });
-      if (!statement) return res.status(400).json({ error: 'name the group columns to count' });
+      if (!statement) return res.status(400).json({ error: `name between 1 and ${I.GROUP_COUNT_MAX_COLUMNS} group columns to count` });
       const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
-      res.json({ groups: rows.map((r) => ({ ...r, records: Number(r.records) || 0 })) });
+      const truncated = rows.length > I.GROUP_COUNT_LIMIT;
+      const kept = truncated ? rows.slice(0, I.GROUP_COUNT_LIMIT) : rows;
+      res.json({ truncated, groups: kept.map((r) => ({ ...r, records: Number(r.records) || 0 })) });
     } catch (err) {
       sendError(res, err);
     }

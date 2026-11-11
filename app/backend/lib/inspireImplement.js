@@ -2236,7 +2236,8 @@ function filterClause(filter, index) {
   if (!IMPLEMENT_FILTER_OPS.includes(op)) throw badRequest(`filter operator '${op}' is not supported`);
   if (op === 'in' || op === 'not in') {
     if (!refs.length) throw badRequest(`filter ${filter.column} ${op} needs at least one value`);
-    return { sql: `CAST(${col} AS STRING) ${op.toUpperCase()} (${refs.join(', ')})`, params };
+    const list = `CAST(${col} AS STRING) ${op.toUpperCase()} (${refs.join(', ')})`;
+    return { sql: op === 'not in' ? `(${list} OR ${col} IS NULL)` : list, params };
   }
   if (op === 'between') {
     if (refs.length !== 2) throw badRequest(`filter ${filter.column} between needs two values`);
@@ -2282,14 +2283,17 @@ function readinessStatement(name, { columns = [], filters = [], window = {} } = 
   };
 }
 
+const GROUP_COUNT_MAX_COLUMNS = 8;
+const GROUP_COUNT_LIMIT = 5000;
+
 function groupCountsStatement(name, columns = [], { filters = [], window = {} } = {}) {
-  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))].slice(0, 4);
-  if (!wanted.length) return null;
+  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))];
+  if (!wanted.length || wanted.length > GROUP_COUNT_MAX_COLUMNS) return null;
   const { where, parameters } = scopeWhere(filters, window);
   const cols = wanted.map((c) => quoteColumn(c));
   return {
     sql: `SELECT ${cols.map((c) => `CAST(${c} AS STRING) AS ${c}`).join(', ')}, COUNT(*) AS records FROM ${quoteTable(name)}`
-      + `${where.length ? ` WHERE ${where.join(' AND ')}` : ''} GROUP BY ${cols.join(', ')} LIMIT 5000`,
+      + `${where.length ? ` WHERE ${where.join(' AND ')}` : ''} GROUP BY ${cols.join(', ')} LIMIT ${GROUP_COUNT_LIMIT + 1}`,
     parameters: parameters.length ? parameters : null,
     columns: wanted,
   };
@@ -3818,6 +3822,8 @@ module.exports = {
   columnValuesStatement,
   readinessStatement,
   groupCountsStatement,
+  GROUP_COUNT_MAX_COLUMNS,
+  GROUP_COUNT_LIMIT,
   readinessFromRow,
   analysisMinimumRows,
   rerunParams,

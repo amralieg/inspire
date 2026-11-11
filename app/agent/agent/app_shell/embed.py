@@ -163,7 +163,8 @@ def write_pins(path: str = NOTEBOOK, assets: dict = None) -> bool:
     return True
 
 
-REGISTRY_CONSTANTS = (("TECHNIQUE_EXECUTION_FAMILY", "execution_family"), ("GENIE_READINESS_THRESHOLDS", "readiness_thresholds"))
+REGISTRY_CONSTANTS = (("TECHNIQUE_EXECUTION_FAMILY", "execution_family"), ("GENIE_READINESS_THRESHOLDS", "readiness_thresholds"),
+                      ("TECHNIQUE_MIN_ROWS", "technique_min_rows"))
 
 
 def _constant_lines(name: str, value: dict) -> list:

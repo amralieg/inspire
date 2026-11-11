@@ -105,3 +105,26 @@ test('a scope under the forecast minimum shows one plain warning on the data ste
     await ui.close();
   }
 });
+
+test('a narrowed scope reads the row count of every Data group under the same scope, and the First run shows that scope', async () => {
+  const calls = [];
+  const grouped = { ...PROFILE, suggested_groups: [{ value: 'gold', records: 48210, kind: 'biggest', parts: [{ column: 'status', value: 'gold' }] }] };
+  const ui = await openUi('wizard', { me: ME, columns: COLUMNS, valuesByColumn: VALUES, readinessByFilter: { gold: '120' }, groupCounts: [{ status: 'gold', records: '120' }] },
+    '', { init: profileAt(calls, grouped) });
+  const { page, made, pageErrors } = ui;
+  try {
+    await goToStep(page, 'Data');
+    await block(page, 'main.s.orders').getByLabel('Filter rows of main.s.orders by column').selectOption('status');
+    await block(page, 'main.s.orders').getByRole('button', { name: 'Load values' }).first().click();
+    await block(page, 'main.s.orders').getByRole('checkbox', { name: 'gold', exact: true }).first().check();
+    await goToStep(page, 'First run');
+    await page.locator('[data-first-run-choice="all"]').waitFor();
+    const groupCounts = made.sqlCalls.filter((c) => /GROUP BY `status`/.test(String(c.sql)));
+    assert.equal(groupCounts.length, 1, 'one group-count read under the scope');
+    assert.match(String(groupCounts[0].sql), /WHERE CAST\(`status` AS STRING\) IN/, 'the group counts carry the same filter as the readiness count');
+    assert.match(await page.locator('[data-first-run-choice="all"]').innerText(), /\b120 records\b/);
+    assert.deepEqual(pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

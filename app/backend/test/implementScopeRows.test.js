@@ -1,9 +1,9 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const kinds = require('../../agent/agent/app_shell/kinds.json');
-const { analysisMinimumRows, groupCountsStatement } = require('../lib/inspireImplement');
-const { tooFewRowsText, columnsReadOf, filterTablesOutside, withoutTableFilters, groupPartColumns } = require('../../frontend/src/lib/implementWizard.js');
-const { withScopedRows } = require('../../frontend/src/lib/runScope.js');
+const { analysisMinimumRows, groupCountsStatement, readinessStatement } = require('../lib/inspireImplement');
+const { tooFewRowsText, columnsReadOf, filterTablesOutside, withoutTableFilters, groupPartColumns, countedFor } = require('../../frontend/src/lib/implementWizard.js');
+const { withScopedRows, scopedGroupRows } = require('../../frontend/src/lib/runScope.js');
 
 test('the analysis minimum for a use case comes from kinds.json readiness_thresholds through its execution family', () => {
   const technique = 'Classification';
@@ -81,13 +81,13 @@ test('a scope under the forecast minimum warns, one over it does not', () => {
   assert.equal(tooFewRowsText({ row_count: 61, minimum_rows: analysisMinimumRows('Forecasting') }), '');
 });
 
-test('group counts for a narrowed scope come from the scoped count per group, and a group with no rows in scope counts zero', () => {
+test('group counts for a narrowed scope come from the scoped count per group, and a group missing from the result is unknown', () => {
   const profile = { records: 3333, suggested_groups: [
     { value: 'Starbucks', records: 900, parts: [{ column: 'brand', value: 'Starbucks' }] },
     { value: 'Costa', records: 400, parts: [{ column: 'brand', value: 'Costa' }] },
   ] };
   const scoped = withScopedRows(profile, 2, [{ brand: 'Starbucks', records: '2' }]);
-  assert.deepEqual(scoped.suggested_groups.map((g) => g.records), [2, 0]);
+  assert.deepEqual(scoped.suggested_groups.map((g) => g.records), [2, null]);
   assert.deepEqual(groupPartColumns(profile), ['brand']);
 });
 
@@ -114,4 +114,43 @@ test('a technique named in technique_min_rows keeps its own minimum, and any oth
   assert.equal(analysisMinimumRows('Regression Analysis'), 100, 'regression sits in family F (1) but keeps its own 100');
   assert.equal(analysisMinimumRows('Trend Analysis'), kinds.readiness_thresholds[kinds.execution_family['Trend Analysis']].min_rows);
   assert.equal(analysisMinimumRows('Entity Matching'), 2);
+});
+
+test('a group-count query carries every column the wizard sends, up to eight, and reads one row past its limit to tell truncation', () => {
+  const six = ['a', 'b', 'c', 'd', 'e', 'f'];
+  const statement = groupCountsStatement('main.s.orders', six, {});
+  for (const column of six) assert.match(statement.sql, new RegExp(`GROUP BY .*\`${column}\``), `${column} is grouped`);
+  assert.match(statement.sql, /LIMIT 5001$/);
+  assert.equal(groupCountsStatement('main.s.orders', Array.from({ length: 9 }, (_, i) => `c${i}`), {}), null, 'nine columns are refused, not cut');
+});
+
+test('a group sums every row of the scoped result that matches its values, and a group with no matching row is unknown, never zero', () => {
+  const profile = { suggested_groups: [
+    { value: 'Starbucks', parts: [{ column: 'brand', value: 'Starbucks' }] },
+    { value: 'Costa', parts: [{ column: 'brand', value: 'Costa' }] },
+    { value: 'Nero', parts: [{ column: 'brand', value: 'Nero' }] },
+  ] };
+  const rows = [{ brand: 'Starbucks', size: 'S', records: 2 }, { brand: 'Starbucks', size: 'L', records: 3 }];
+  assert.deepEqual(withScopedRows(profile, 5, rows).suggested_groups.map((g) => g.records), [5, null, null]);
+});
+
+test('a truncated group-count answer makes every group unknown', () => {
+  assert.equal(scopedGroupRows({ truncated: true, groups: [{ brand: 'x', records: 1 }] }), null);
+  assert.deepEqual(scopedGroupRows({ truncated: false, groups: [{ brand: 'x', records: 1 }] }), [{ brand: 'x', records: 1 }]);
+  assert.equal(scopedGroupRows(null), null);
+});
+
+test('a Leave out filter keeps the rows whose value is NULL, because NULL is not in the list', () => {
+  const statement = readinessStatement('main.s.orders', { filters: [{ table: 'main.s.orders', column: 'status', op: 'not in', values: ['gold'] }] });
+  assert.match(statement.sql, /\(CAST\(`status` AS STRING\) NOT IN \(:f0_0\) OR `status` IS NULL\)/);
+  const keep = readinessStatement('main.s.orders', { filters: [{ table: 'main.s.orders', column: 'status', op: 'in', values: ['gold'] }] });
+  assert.doesNotMatch(keep.sql, /IS NULL/, 'a Keep only filter still drops NULL rows');
+});
+
+test('a too-few-rows sentence only quotes the count of the scope on screen, never another scope', () => {
+  const scopeA = { table: 'main.s.orders', columns: [], filters: [{ table: 'main.s.orders', column: 'status', op: 'in', values: ['gold'] }], window: {} };
+  const scopeB = { ...scopeA, filters: [{ table: 'main.s.orders', column: 'status', op: 'in', values: ['silver'] }] };
+  const readiness = { scope: scopeA, row_count: 12, minimum_rows: 30 };
+  assert.equal(tooFewRowsText(countedFor(readiness, scopeB)), '', 'the count of gold is not quoted for silver');
+  assert.match(tooFewRowsText(countedFor(readiness, scopeA)), /Only 12 rows/);
 });
