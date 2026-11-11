@@ -58,15 +58,19 @@ async function openList(routes, page = TABLE) {
 const spinnerWithin = (page, selector) => page.evaluate((sel) => new Promise((done) => {
   const button = document.querySelector(sel);
   const t0 = performance.now();
-  button.click();
-  button.click();
-  const look = () => {
+  const seen = () => {
     const on = document.querySelector('[data-saving]');
-    if (on && on.querySelector('.saving-ring') && /Saving…/.test(on.textContent)) done(performance.now() - t0);
-    else if (performance.now() - t0 > 2000) done(Infinity);
-    else requestAnimationFrame(look);
+    if (on && on.querySelector('.saving-ring') && /Saving…/.test(on.textContent)) {
+      observer.disconnect();
+      done(performance.now() - t0);
+    }
   };
-  look();
+  const observer = new MutationObserver(seen);
+  observer.observe(document.body, { subtree: true, childList: true, characterData: true, attributes: true });
+  button.click();
+  button.click();
+  seen();
+  setTimeout(() => { observer.disconnect(); done(Infinity); }, 2000);
 }), selector);
 
 const shot = async (page, name) => {

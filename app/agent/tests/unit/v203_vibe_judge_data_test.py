@@ -242,7 +242,7 @@ def test_the_hold_runs_before_the_notebook_is_written_and_reaches_its_instructio
     source = "".join(json.loads(NOTEBOOK.read_text())["cells"][1]["source"])
     hold = source.index('use_case["_implement_held"] = (self._implement_vibes_hold(uc_id, use_case, spec, vibes_split)')
     assert hold < source.index("notebook_path = self._implement_write_notebook(use_case, spec, basis, key")
-    assert 'held=use_case.get("_implement_held"))' in source
+    assert 'held=use_case.get("_implement_held"),' in source
     assert '"held_asks": ((use_case or {}).get("_implement_held") or {}).get(asset) or {}' in source
 
 

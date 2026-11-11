@@ -3438,12 +3438,12 @@
     },
     {
      "id": "review_later",
-     "label": "Review later",
+     "label": "Needs review",
      "status": "In progress"
     },
     {
      "id": "not_duplicate",
-     "label": "Not a duplicate",
+     "label": "Keep separate",
      "status": "Dismissed",
      "reasons": [
       "Different company",
