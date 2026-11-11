@@ -297,7 +297,7 @@ const DEPLOY_PROBE = String.raw`${INSTALLER_LOADER}
 import ast, os, sys, types
 path = sys.argv[1]
 tree = ast.parse(open(path, encoding="utf-8").read())
-wanted = {"step_deploy_and_find_sp", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
+wanted = {"step_create_app_and_find_sp", "step_deploy_source", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
           "_is_own_service_principal", "_create_app", "_apply_user_scopes", "_scope_refused", "_merged_scopes", "_plural", "_app_url", "_noted_app_url"}
 consts = {"INSPIRE_APP_OWN_SCOPES", "USER_SCOPES_REFUSED"}
 module = ast.Module(body=[n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted)
@@ -330,7 +330,8 @@ def run(list_apps):
            "NOTEBOOK_PATH": "/Shared/inspire-ai-implement/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-implement-sp",
            "APP_NAME": "inspire-ai-implement", "CATALOG": "main", "BUNDLE_ROOT": "/Workspace/Users/me/InspireAI", "w": w,
            "RELEASE_VERSION": "v1.3.0"}
-    ns["step_deploy_and_find_sp"](ctx)
+    ns["step_create_app_and_find_sp"](ctx)
+    ns["step_deploy_source"](ctx)
     assert ctx["NEW_SP_APP_ID"] == "SPNEW" and ctx["app_url"] == "https://app", ctx
     return deleted
 apps = {"apps": [{"name": "inspire-ai-v130", "active_deployment": {"source_code_path": "/Workspace/Users/me/InspireAI/bundle_old"}},
@@ -396,7 +397,7 @@ const START_PROBE = String.raw`${INSTALLER_LOADER}
 import ast, os, sys, types
 path = sys.argv[1]
 tree = ast.parse(open(path, encoding="utf-8").read())
-wanted = {"step_deploy_and_find_sp", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
+wanted = {"step_create_app_and_find_sp", "step_deploy_source", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
           "_is_own_service_principal", "_create_app", "_apply_user_scopes", "_scope_refused", "_merged_scopes", "_plural", "_app_url", "_noted_app_url"}
 consts = {"INSPIRE_APP_OWN_SCOPES", "USER_SCOPES_REFUSED"}
 module = ast.Module(body=[n for n in tree.body if (isinstance(n, ast.FunctionDef) and n.name in wanted)
@@ -433,7 +434,8 @@ def run(first_state):
            "NOTEBOOK_PATH": "/Shared/inspire-ai-implement/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-implement-sp",
            "APP_NAME": "inspire-ai-implement", "CATALOG": "main", "BUNDLE_ROOT": "/Workspace/Users/me/InspireAI", "w": w,
            "RELEASE_VERSION": "v1.3.0"}
-    ns["step_deploy_and_find_sp"](ctx)
+    ns["step_create_app_and_find_sp"](ctx)
+    ns["step_deploy_source"](ctx)
     assert ctx["NEW_SP_APP_ID"] == "SPKEPT", ctx
     return started
 assert run("STOPPED") == ["POST"]
@@ -453,7 +455,7 @@ class HTTPError(Exception):
 def failing_context(env):
     raise RuntimeError("Deploy FAILED: app did not start")
 steps = {name: (lambda ctx, n=name: ran.append(n)) for name in ("step_preflight", "step_bundle", "step_assets", "step_cleanup", "step_schema_and_notebooks",
-                                                                  "step_deploy_and_find_sp", "step_grant_permissions", "step_render_done")}
+                                                                  "step_create_app_and_find_sp", "step_grant_permissions", "step_deploy_source", "step_render_done")}
 ns = dict(steps, build_runtime_context=failing_context, show_warning_banner=lambda title, detail: shown.append((title, detail)),
           requests=types.SimpleNamespace(exceptions=types.SimpleNamespace(HTTPError=HTTPError)))
 load_installer(tree, entry, ns, path)
@@ -616,7 +618,7 @@ const INSPIRE_SCOPES_PROBE = String.raw`${INSTALLER_LOADER}
 import ast, json, os, sys, types
 path, notebook = sys.argv[1], sys.argv[2]
 tree = ast.parse(open(path, encoding="utf-8").read())
-wanted = {"step_deploy_and_find_sp", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
+wanted = {"step_create_app_and_find_sp", "step_deploy_source", "_workspace_api_path", "_list_apps", "_app_source_paths", "_remove_old_bundles",
           "_is_own_service_principal", "_create_app", "_apply_user_scopes", "_scope_refused", "_merged_scopes", "app_user_scopes", "_plural", "_app_url", "_noted_app_url",
           "_update_app", "_apply_description", "app_description"}
 consts = {"INSPIRE_APP_OWN_SCOPES", "USER_SCOPES_REFUSED", "USER_SCOPE_CONSTANTS", "APP_DESCRIPTION_NOT_UPDATED"}
@@ -649,7 +651,8 @@ def deploy(create, held=None, notebook_scopes=None, described=""):
     ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/b", "INSPIRE_DB": "main._inspire", "WAREHOUSE_ID": "wh",
            "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai", "CATALOG": "main",
            "APP_USER_SCOPES": notebook_scopes or [], "w": types.SimpleNamespace(), "RELEASE_VERSION": "v1.3.0"}
-    ns["step_deploy_and_find_sp"](ctx)
+    ns["step_create_app_and_find_sp"](ctx)
+    ns["step_deploy_source"](ctx)
     return {"apps": [c for c in calls if c[1] in ("/api/2.0/apps", "/api/2.0/apps/inspire-ai/update")], "note": ctx.get("USER_SCOPES_NOTE", "")}
 built = ns["app_user_scopes"](open(notebook, encoding="utf-8").read())
 out = {"inspire": list(ns["INSPIRE_APP_OWN_SCOPES"]), "built": built}
