@@ -58,3 +58,16 @@ test('every workspace call the App makes waits out a 429 instead of failing the 
     await workspace.close();
   }
 });
+
+test('a read whose request never got an answer is asked again, and a write is not (must-exclude)', async () => {
+  const drop = () => { throw new TypeError('fetch failed'); };
+  let calls = 0;
+  const got = await B.withBusyRetry(async () => { calls += 1; return calls === 1 ? drop() : reply(200, null); }, { method: 'GET', retryNetwork: true, sleep: async () => {} });
+  assert.deepEqual([got.status, calls], [200, 2], 'a dropped read is asked again');
+  let writes = 0;
+  await assert.rejects(B.withBusyRetry(async () => { writes += 1; return drop(); }, { method: 'POST', sleep: async () => {} }), /fetch failed/);
+  assert.equal(writes, 1, 'a dropped write is never sent twice');
+  let gives = 0;
+  await assert.rejects(B.withBusyRetry(async () => { gives += 1; return drop(); }, { method: 'GET', retryNetwork: true, sleep: async () => {} }), /fetch failed/);
+  assert.equal(gives, B.BUSY_ATTEMPTS, 'a read that keeps failing stops at the attempt limit');
+});
