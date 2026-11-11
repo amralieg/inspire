@@ -999,6 +999,7 @@ def _records_problems(records, has_dataset: bool) -> list:
     for key in ("sublabel", "tier", "reasons", "action"):
         if records.get(key) is not None:
             problems += column_problem(records.get(key), f"{where} {key} must be a column name")
+    problems += _text_problem(where, records.get("undo"), "undo", required=False)
     for key, low, high in (("columns", 1, 8), ("detail", 0, 12)):
         items = records.get(key) if isinstance(records.get(key), list) else []
         if not low <= len(items) <= high:
