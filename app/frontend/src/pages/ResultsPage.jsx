@@ -43,6 +43,9 @@ import { SkeletonCard, SkeletonStats } from '../components/SkeletonLoader';
 import { DataAccessBadge, InsightsGrid, SidebarFilterPanel } from '../components/ResultsInsights';
 import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
+import ValueBadge from '../components/ValueBadge';
+import { valueQuery } from '../lib/valueLedger';
+import { useValueRead } from '../lib/useValueLedger';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { executiveSummaryOf, runBusiness, runDate, runFigureParts, runFiguresOf } from '../lib/reviewFigures';
 import {
@@ -249,6 +252,10 @@ export default function ResultsPage({
 
   const [portfolioTick, setPortfolioTick] = useState(0);
   const { portfolio } = usePortfolio(apiFetch, inspireDb, warehouseId, portfolioTick);
+  const runValueUrl = selectedSessionId && inspireDb && warehouseId
+    ? `/api/inspire/value?${valueQuery(inspireDb, warehouseId, { session_id: String(selectedSessionId) })}`
+    : '';
+  const runValue = useValueRead(apiFetch, runValueUrl, implementRefresh);
 
   const resultsDiscoveryType = results?.discovery_type || '';
   const feedbackBusiness = useMemo(() => {
@@ -1034,6 +1041,15 @@ export default function ResultsPage({
               {runDate(selectedSession) && <span>· Updated {formatSessionDate(runDate(selectedSession))}</span>}
               <LatestRunBadge session={selectedSession} />
             </p>
+            {runValue?.run && (
+              <ValueBadge
+                atStake={runValue.run.at_stake}
+                saved={runValue.run.saved}
+                measured={Number(runValue.run.mvps_measured) > 0}
+                mvps={Number(runValue.run.mvps_measured) || 0}
+                className="mt-2"
+              />
+            )}
           </div>
           <button
             type="button"
@@ -2336,6 +2352,7 @@ export default function ResultsPage({
                         onToggleFavorite={() => toggleFavorite(uc)}
                         v130={uc._v130}
                         feedbackCurrent={feedbackCurrentFor(uc)}
+                        useCaseValue={runValue?.use_cases?.[trackingIdOf(uc)] ?? null}
                         implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}
                         onImplement={canImplement ? () => startImplement(uc) : undefined}
                         onOpenMvp={onOpenImplement && tid && selectedSessionId ? () => onOpenImplement(String(selectedSessionId), tid) : undefined}
