@@ -41,7 +41,7 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     .then(() => sqlRows(req.dbHost, token, warehouseId, I.outputAccessStatement(table)))
     .catch(() => []);
 
-  const appTokenOf = async (req) => (await appToken()) || req.dbToken;
+  const appTokenOf = async (req) => (await appToken()) || (req.dbTokenKind === P.PERSON_TOKEN ? '' : req.dbToken);
 
   async function abacUnreadable(req, app, table) {
     try {
@@ -70,6 +70,11 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     }
   }
 
+  function unverifiedOffer(tables) {
+    return { tables, app: { name: '', id: '' }, grants: [], can_grant: false, builtin: [],
+      text: 'Inspire cannot check what the App can read right now, so the build waits. Try again in a moment' };
+  }
+
   function noSignInOffer(tables, who) {
     const count = tables.length === 1 ? 'a source table' : `${tables.length} source tables`;
     const app = who.name && who.name !== who.id ? `${who.name} (application id ${who.id})` : `with application id ${who.id}`;
@@ -80,6 +85,7 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
 
   async function sourceAccess(req, warehouseId, tables, job = 'build') {
     const app = await appTokenOf(req);
+    if (!app) return { missing: [], app_unreadable: unverifiedOffer(tables) };
     const probes = await Promise.all(tables.map((table) => sqlRows(req.dbHost, app, warehouseId, I.tableProbeStatement(table))
       .then(() => null)
       .catch((err) => {

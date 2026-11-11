@@ -69,6 +69,7 @@ import {
   stepIndexOf,
   lostTablesText,
   APP_READ_ACTION,
+  SOURCE_REFUSED_REASON,
   NEW_APPS_ACCESS_ACTION,
   appGrantText,
   profileEstimate,
@@ -875,10 +876,9 @@ export default function ImplementWizard({
         dashboard: spec.outputs.dashboard ? '1' : '0',
         share: (spec.sharing.principals || []).length ? '1' : '0',
         principals: JSON.stringify((spec.sharing.principals || []).map((p) => p.name)),
-        picks: JSON.stringify({ tables: spec.data.tables, removed: spec.data.removed_tables || [] }),
       });
       const [pre, planned] = await Promise.allSettled([
-        apiFetch(`/api/inspire/implement/preflight?${q}&${checks.toString()}`),
+        apiPostJson(`/api/inspire/implement/preflight?${q}&${checks.toString()}`, { spec: sent }),
         planNow
           ? apiPostJson('/api/inspire/implement/plan', { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId), spec: sent })
           : Promise.resolve(null),
@@ -2085,7 +2085,7 @@ export default function ImplementWizard({
           </button>
           <div className="flex items-center gap-2">
             {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceRefused && (
-              <p data-source-refused="" className="text-[11px] text-warning-fg">The App cannot read its sources yet, so the build cannot start. Grant access first, then build.</p>
+              <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             )}
             {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceRefused && (
               <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
@@ -2112,6 +2112,8 @@ export default function ImplementWizard({
                 {busy && <Loader2 size={14} className="animate-spin" />}
                 {busy ? 'Starting…' : 'Generate notebook'}
               </button>
+            ) : sourceRefused ? (
+              <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             ) : (
               <button
                 type="button"

@@ -2723,6 +2723,8 @@ export function protectionChoices(stop) {
 
 export const APP_READ_ACTION = 'Let Inspire read these tables';
 
+export const SOURCE_REFUSED_REASON = 'The App cannot read its sources yet, so the build cannot start. Grant access first, then build.';
+
 export function abacGrantText(got) {
   const gaps = got?.abac_gaps || [];
   if (gaps.length) {

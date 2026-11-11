@@ -165,6 +165,7 @@ const ROUTE_POLICY = {
   'GET /api/inspire/implement/alerts': tracked('read its alerts'),
   'GET /api/inspire/implement/output-check': { ...builders('check the output table of a build'), why: BUILD_CHECK, appDatabase: true },
   'GET /api/inspire/implement/preflight': { ...builders('check a build before it starts'), why: BUILD_CHECK, appDatabase: true },
+  'POST /api/inspire/implement/preflight': { ...builders('check a build before it starts'), why: BUILD_CHECK, appDatabase: true },
   'GET /api/inspire/implement/lakebase': anyone('check Lakebase for a build', BUILD_CHECK),
   'GET /api/inspire/implement/principals': anyone('search people and groups', 'searches the workspace directory, which every workspace user can read'),
   'GET /api/inspire/implement/destinations': anyone('list notification destinations', 'lists the notification destinations every workspace user can pick for an alert'),
