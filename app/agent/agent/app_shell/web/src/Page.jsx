@@ -270,7 +270,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   const report = { section: feedbackSectionOf(shown), filters: describeFilters(state, meta?.filters, meta?.columns), recordKey: opened };
   const head = (
     <header className="ph" data-tour="decision">
-      <div className="pg-h">
+      <div className={freshness.busy ? 'pg-h is-refreshing' : 'pg-h'}>
         <h1>{page.title}</h1>
         <div className="ph-tools" data-section-tools>
           <FreshBar freshness={freshness}>
