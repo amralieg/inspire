@@ -32,6 +32,9 @@ class Locked(FakeWorkspace):
         self.readable, self.refuse = readable, set(refuse)
 
     def run_sql(self, warehouse, sql, params, limit=5000):
+        if "information_schema" in sql and "current_user()" in sql:
+            self.sql.append((sql, params, limit))
+            return {"columns": [], "rows": [], "truncated": False}
         if sql.startswith("GRANT "):
             self.sql.append((sql, params, limit))
             if sql in self.refuse or "*" in self.refuse:
@@ -47,7 +50,7 @@ class Locked(FakeWorkspace):
 
 
 def access_shell(tmp_path, settings=None, sp=None, person=None, env=None):
-    sp, person = sp or Locked(), person or Locked()
+    sp, person = sp or Locked(), person or Rights(can_grant=True)
     made = {"user": []}
 
     def user_factory(host, token):
@@ -67,7 +70,7 @@ def test_diagnose_names_the_unreadable_table_its_owner_and_only_the_allow_listed
     s, sp, person, _made = access_shell(tmp_path)
     status, out = access(s, "diagnose")
     assert status == 200, out
-    assert out["tables"] == [{"table": TABLE, "owner": "data-eng", "grants": [SCHEMA, SELECT]}]
+    assert out["tables"] == [{"table": TABLE, "owner": "data-eng", "grants": [SCHEMA, SELECT], "you_can_grant": True}]
     assert out["can_grant"] is True and out["sql"] == f"{SCHEMA};\n{SELECT};"
     assert re.fullmatch(r"[0-9a-f]{64}", out["seen"])
     assert person.grants() == [] and sp.grants() == [], "diagnosing never grants"
@@ -100,11 +103,11 @@ def test_grant_runs_only_the_server_statements_with_the_persons_token_after_the_
     for body in ({}, {"confirmed": False, "seen": seen}, {"confirmed": "yes", "seen": seen}, {"confirmed": True}):
         status, out = access(s, "grant", **body)
         assert status == 409, (body, out)
-    assert person.grants() == [] and made["user"] == []
+    assert person.grants() == []
     status, out = access(s, "grant", confirmed=True, seen=seen, statements=[EVIL], sql=EVIL, grants=[EVIL])
     assert status == 200, out
     assert person.grants() == [SCHEMA, SELECT], "statements sent by the browser are ignored"
-    assert made["user"] == ["tok-person"] and sp.grants() == []
+    assert set(made["user"]) == {"tok-person"} and sp.grants() == []
     assert out["granted"] == [SCHEMA, SELECT]
 
 
@@ -120,11 +123,11 @@ def test_grant_needs_the_persons_own_sign_in(tmp_path):
     seen = access(s, "diagnose")[1]["seen"]
     status, out = access(s, "grant", headers={"x-forwarded-email": "ana@example.com"}, confirmed=True, seen=seen)
     assert status == 403 and "Copy the grant SQL" in out["error"] and "data-eng" in out["error"]
-    assert person.grants() == [] and made["user"] == []
+    assert person.grants() == []
 
 
 def test_a_refused_grant_stops_names_the_owner_and_keeps_the_sql_to_copy(tmp_path, capsys):
-    person = Locked(refuse={SCHEMA})
+    person = Rights(refuse={SCHEMA})
     s, _sp, _person, _made = access_shell(tmp_path, person=person)
     seen = access(s, "diagnose")[1]["seen"]
     status, out = access(s, "grant", confirmed=True, seen=seen)
@@ -137,7 +140,7 @@ def test_a_refused_grant_stops_names_the_owner_and_keeps_the_sql_to_copy(tmp_pat
 
 
 def test_a_sign_in_without_the_sql_scope_says_the_app_may_not_run_sql_as_you(tmp_path):
-    class NoScope(Locked):
+    class NoScope(Rights):
         def run_sql(self, warehouse, sql, params, limit=5000):
             if sql.startswith("GRANT "):
                 self.sql.append((sql, params, limit))
@@ -212,7 +215,7 @@ def test_genie_explains_no_data_with_the_access_card_and_cannot_grant_even_when_
     assert turn["state"] == "done", turn
     assert sp_reads.grants() == [], "the Genie tool never grants"
     card = turn["confirm"]
-    assert card["kind"] == "access" and card["access"]["tables"] == [{"table": TABLE, "owner": "data-eng", "grants": [SCHEMA, SELECT]}]
+    assert card["kind"] == "access" and card["access"]["tables"] == [{"table": TABLE, "owner": "data-eng", "grants": [SCHEMA, SELECT], "you_can_grant": True}]
     assert card["access"] == call(s, "POST", "access", headers=PERSON, body={"step": "diagnose"})[1], "Genie shows what the banner shows"
     assert "app_access" in [t["function"]["name"] for t in llm.main_calls()[0]["tools"]]
     assert turn["steps"][0]["text"] == "Checked what this App cannot read: main.pricing.items"
@@ -241,3 +244,38 @@ def test_banner_and_genie_call_the_same_server_action_and_render_the_same_compon
     assert "<AccessActions" in web["AgentParts.jsx"] and "appAccess(" not in web["AgentParts.jsx"]
     assert sum(src.count("appAccess(") for src in web.values()) == sum(src.count("appAccess(") for src in (web["ui.jsx"], web["api.js"]))
     assert json.dumps(shell_agent.TOOLS["app_access"]["parameters"]) == json.dumps({"type": "object", "properties": {}})
+
+
+class Rights(Locked):
+    def __init__(self, can_grant=True, refuse=()):
+        super().__init__(refuse=refuse)
+        self.can_grant = can_grant
+
+    def run_sql(self, warehouse, sql, params, limit=5000):
+        if "information_schema" in sql and "current_user()" in sql:
+            self.sql.append((sql, params, limit))
+            return {"columns": ["1"], "rows": [["1"]] if self.can_grant else [], "truncated": False}
+        return super().run_sql(warehouse, sql, params, limit)
+
+
+def test_a_person_who_can_grant_is_offered_the_grant_button_and_the_grant_runs_as_them(tmp_path):
+    person = Rights(can_grant=True)
+    s, sp, _person, _made = access_shell(tmp_path, person=person)
+    found = access(s, "diagnose")[1]
+    assert found["you_can_grant"] is True and found["tables"][0]["you_can_grant"] is True
+    assert any("information_schema" in sql for sql, _p, _l in person.sql), "the check reads the person's own privileges"
+    status, body = access(s, "grant", confirmed=True, seen=found["seen"])
+    assert status == 200, body
+    assert person.grants() == [SCHEMA, SELECT] and sp.grants() == []
+
+
+def test_a_person_who_cannot_grant_is_offered_the_copy_sql_and_no_grant_runs(tmp_path):
+    person = Rights(can_grant=False)
+    s, sp, _person, _made = access_shell(tmp_path, person=person)
+    found = access(s, "diagnose")[1]
+    assert found["can_grant"] is True and found["you_can_grant"] is False
+    assert found["sql"], "the SQL to copy is still offered"
+    status, body = access(s, "grant", confirmed=True, seen=found["seen"])
+    assert status == 403, body
+    assert "You cannot grant this access yourself" in body["error"] and "Copy the grant SQL" in body["error"]
+    assert person.grants() == [] and sp.grants() == []

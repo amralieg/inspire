@@ -92,3 +92,11 @@ test('the preflight refuses when the person who starts the build cannot read a s
   assert.equal(got.data.app_unreadable.text, 'Amr cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them');
   assert.equal(got.data.app_unreadable.can_grant, false);
 });
+
+test('the App-side refusal for an unreadable policy opens with the same sentence the build uses for the App principal (REQ-037 parity, must fail before the fix)', async () => {
+  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE] },
+    me: { applicationId: 'app-sp-2', displayName: 'riverside-assets' },
+    workspace: ({ token, path }) => (token !== PERSON && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)
+      ? [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403] : undefined) }));
+  assert.equal(got.data.app_unreadable.text.startsWith("The App's service principal riverside-assets cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them. "), true, got.data.app_unreadable.text);
+});

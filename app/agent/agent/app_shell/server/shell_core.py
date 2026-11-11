@@ -2499,6 +2499,8 @@ class Shell:
     def access_found(self, headers: dict) -> dict:
         principal = str(self.env.get("DATABRICKS_CLIENT_ID") or "") if self.settings["auth"] == "sp" else ""
         owners, tables = self.settings.get("unread_owners") or {}, []
+        token = headers.get("x-forwarded-access-token")
+        ws = self.user_factory(self.env.get("DATABRICKS_HOST", ""), token) if token else None
         for table, recorded in (self.settings.get("unread") or {}).items():
             if not self.app_uses(table):
                 print(f"[APP-ACCESS FIRED] skipped {table}: no page of the App reads it", file=sys.stderr, flush=True)
@@ -2506,10 +2508,33 @@ class Shell:
             if self.reads_now(headers, table):
                 continue
             allowed = access_grants(table, principal)
-            tables.append({"table": table, "owner": str(owners.get(table) or ""), "grants": [g for g in allowed if g in recorded] or allowed})
+            tables.append({"table": table, "owner": str(owners.get(table) or ""), "grants": [g for g in allowed if g in recorded] or allowed,
+                           "you_can_grant": ws is not None and self.person_can_grant(ws, table)})
         statements = [g for t in tables for g in t["grants"]]
-        return {"tables": tables, "can_grant": bool(statements), "sql": "\n".join(f"{g};" for g in statements),
+        return {"tables": tables, "can_grant": bool(statements), "you_can_grant": bool(statements) and all(t["you_can_grant"] for t in tables),
+                "sql": "\n".join(f"{g};" for g in statements),
                 "seen": hashlib.sha256("\n".join(statements).encode("utf-8")).hexdigest()}
+
+    def person_can_grant(self, ws, table: str) -> bool:
+        try:
+            catalog, schema, name = (part.strip("`") for part in shell_sql.table_name(table).split("."))
+        except ValueError:
+            return False
+        holds = "privilege_type IN ('OWNER', 'MANAGE') AND (grantee = current_user() OR is_account_group_member(grantee))"
+        sql = (f"SELECT 1 FROM system.information_schema.table_privileges WHERE table_catalog = '{catalog}' AND table_schema = '{schema}' "
+               f"AND table_name = '{name}' AND {holds} "
+               f"UNION ALL SELECT 1 FROM system.information_schema.tables WHERE table_catalog = '{catalog}' AND table_schema = '{schema}' "
+               f"AND table_name = '{name}' AND (table_owner = current_user() OR is_account_group_member(table_owner)) "
+               f"UNION ALL SELECT 1 FROM system.information_schema.schema_privileges WHERE catalog_name = '{catalog}' AND schema_name = '{schema}' AND {holds} "
+               f"UNION ALL SELECT 1 FROM system.information_schema.schemata WHERE catalog_name = '{catalog}' AND schema_name = '{schema}' "
+               f"AND (schema_owner = current_user() OR is_account_group_member(schema_owner)) "
+               f"UNION ALL SELECT 1 FROM system.information_schema.catalog_privileges WHERE catalog_name = '{catalog}' AND {holds} "
+               f"UNION ALL SELECT 1 FROM system.information_schema.catalogs WHERE catalog_name = '{catalog}' "
+               f"AND (catalog_owner = current_user() OR is_account_group_member(catalog_owner))")
+        try:
+            return bool(self.execute(ws, sql, [], 1, delta=True).get("rows"))
+        except (QueryError, HttpError, ValueError):
+            return False
 
     def app_uses(self, table: str) -> bool:
         read = " ".join([str(d.get("sql") or "") for p in self.pages for d in p.get("datasets") or [] if isinstance(d, dict)] +
@@ -2535,6 +2560,9 @@ class Shell:
                             extra={"access": found})
         owner = access_owners(found["tables"])
         token = headers.get("x-forwarded-access-token")
+        if not found["you_can_grant"]:
+            raise HttpError(403, f"You cannot grant this access yourself: you need to own the data or hold MANAGE on it. "
+                                 f"Copy the grant SQL and send it to {owner}.", extra={"access": found})
         if not token:
             raise HttpError(403, f"This App cannot act as you, so it cannot grant access with your permissions. Copy the grant SQL and run "
                                  f"it, or send it to {owner}.", extra={"access": found})
