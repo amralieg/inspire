@@ -295,7 +295,7 @@ export function favoriteKeyOf(uc) {
   if (!uc || typeof uc !== 'object') return '';
   const domain = normalizeFavoritePart(uc._domain || uc['Business Domain'] || '');
   const sub = normalizeFavoritePart(uc.Subdomain || '');
-  const name = normalizeFavoritePart(uc.Name || uc.use_case || uc.short_name || uc.name || '');
+  const name = normalizeFavoritePart(uc.original_name || uc.Name || uc.use_case || uc.short_name || uc.name || '');
   const stmt = normalizeFavoritePart((uc.Statement || uc.description || '').slice(0, 220));
   const sql = normalizeFavoritePart((uc.SQL || uc.sql || uc.sql_query || '').slice(0, 120));
   const sig = name || stmt || sql;
@@ -347,7 +347,7 @@ export function subtitleOfUseCase(uc, titlePlain) {
 
 export function nameOfUseCase(uc) {
   const u = uc && typeof uc === 'object' ? uc : {};
-  return displayCleanText([u.name_with_technique, u.Name, u.use_case_name, u.name, u.title].map((v) => (v == null ? '' : String(v))).find(Boolean) || '');
+  return displayCleanText([u.user_use_case_name, u.name_with_technique, u.Name, u.use_case_name, u.name, u.title].map((v) => (v == null ? '' : String(v))).find(Boolean) || '');
 }
 
 export function cardTitlesOfUseCase(uc, index = 0) {
