@@ -114,6 +114,7 @@ const ROUTE_POLICY = {
   'GET /api/tables/:catalog/:schema': yours('list tables', ['catalog.tables:read', 'sql']),
   'GET /api/warehouses': yours('list SQL warehouses', ['sql']),
   'GET /api/inspire/implement/columns': yours('read the columns of a table', ['sql']),
+  'GET /api/inspire/implement/table-lookup': yours('look up one table and its column match', ['sql']),
   'GET /api/inspire/implement/values': yours('read the values of a column', ['sql']),
   'POST /api/inspire/implement/swaps': yours('look up table swaps', ['sql']),
   'POST /api/inspire/implement/readiness': yours('check data readiness', ['sql']),

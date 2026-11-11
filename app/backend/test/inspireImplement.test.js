@@ -472,7 +472,8 @@ test('column and swap SQL bind schema and table names', () => {
   assert.deepEqual(cols.parameters.map((p) => p.value), ['s', 'orders']);
   const swaps = tableSwapStatement('main.s.orders', ['order_id', 'region']);
   assert.ok(swaps.sql.includes(':r0') && swaps.sql.includes(':r1'));
-  assert.equal(swaps.catalog, 'main');
+  assert.ok(swaps.sql.includes('system.information_schema.columns'), 'similar tables are searched in every catalog the person can see');
+  assert.deepEqual(swaps.parameters.map((p) => p.name), ['c', 's', 't', 'r0', 'r1']);
   assert.throws(() => tableSwapStatement('main.s.orders', ["o'; drop"]), /plain column/);
 });
 
@@ -1123,6 +1124,13 @@ test('the tables a rebuild checks are its source tables plus the use case\'s own
   assert.deepEqual(I.checkedSourceTables({ data: { tables: { 'main.s.a': 'main.s.b', 'main.s.c': 'main.s.b' } } }, ['main.s.a', 'main.s.c']),
     ['main.s.b', 'main.s.a', 'main.s.c']);
   assert.deepEqual(I.checkedSourceTables(null, null), []);
+});
+
+test('a built-in sample swapped for a copy is not checked, because nobody can grant the App read on it; a swapped-out table the App can read still is', () => {
+  const spec = { data: { tables: { 'samples.nyctaxi.trips': 'inspire_kinds_rc7.walk_rc7e.nyctaxi_trips', 'main.s.orders': 'main.s.orders_v2' } } };
+  assert.deepEqual(I.checkedSourceTables(spec, ['samples.nyctaxi.trips', 'main.s.orders']),
+    ['inspire_kinds_rc7.walk_rc7e.nyctaxi_trips', 'main.s.orders_v2', 'main.s.orders']);
+  assert.deepEqual(I.checkedSourceTables({ data: { tables: { 'samples.nyctaxi.trips': 'x.y.z' } } }, ['samples.nyctaxi.trips']), ['x.y.z']);
 });
 
 test('a probe error counts as a lost table only when it says so and names that table\'s catalog', () => {

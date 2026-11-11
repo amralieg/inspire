@@ -107,7 +107,7 @@ function makeApp(overrides = {}, { mount } = {}) {
       if (sql.includes('__inspire_usecases')) return { rows: state.useCase ? [state.useCase] : [] };
       if (sql.includes('_summary` WHERE use_case_id = :uc')) return { rows: state.moneySummary || [] };
       if (sql.includes('_assumptions` WHERE use_case_id = :uc')) return { rows: state.moneyEdits || [] };
-      if (sql.includes('system.information_schema.catalogs')) {
+      if (sql.includes('system.information_schema.catalogs') && !sql.includes('WITH o AS')) {
         if (state.accessError) throw new Error(state.accessError);
         const asked = ((parameters || []).find((p) => p.name === 's') || {}).value;
         return { rows: (state.accessBySchema || {})[asked] || state.access };
@@ -124,6 +124,7 @@ function makeApp(overrides = {}, { mount } = {}) {
       if (sql.includes('key_column_usage')) {
         return { rows: (state.primaryKeys || []).map((column_name) => ({ column_name })) };
       }
+      if (sql.includes('SELECT COUNT(*) AS matched')) return { rows: state.matchRows || [{ matched: '4', total: '4' }] };
       if (sql.includes('information_schema.columns') && sql.includes('WITH o AS')) {
         return { rows: state.swapRowsByToken ? state.swapRowsByToken[token] || [] : state.swapRows || [] };
       }
@@ -146,7 +147,8 @@ function makeApp(overrides = {}, { mount } = {}) {
         const named = Object.entries(state.readinessByTable || {}).find(([t]) => sql.includes(t.split('.').map((p) => `\`${p}\``).join('.')));
         return { rows: named ? [{ row_count: named[1] }] : state.readinessRows || [{ row_count: '1200' }] };
       }
-      for (const [table, message] of Object.entries(state.probeErrors || {})) {
+      const appDenied = token === (state.dbToken || 'tok') ? state.appProbeErrors || {} : {};
+      for (const [table, message] of Object.entries({ ...(state.probeErrors || {}), ...appDenied })) {
         if (sql === `SELECT * FROM ${table} LIMIT 0`) throw new Error(message);
       }
       return { rows: [] };

@@ -569,6 +569,11 @@ export default function ImplementWizard({
     }
   }, [apiPostJson, q]);
 
+  const searchTable = useCallback(async (original, table) => {
+    const data = await apiFetch(`/api/inspire/implement/table-lookup?${q}&source=${encodeURIComponent(original)}&table=${encodeURIComponent(table)}`);
+    return data;
+  }, [apiFetch, q]);
+
   useEffect(() => {
     let cancelled = false;
     (async () => {
@@ -870,6 +875,7 @@ export default function ImplementWizard({
         dashboard: spec.outputs.dashboard ? '1' : '0',
         share: (spec.sharing.principals || []).length ? '1' : '0',
         principals: JSON.stringify((spec.sharing.principals || []).map((p) => p.name)),
+        picks: JSON.stringify({ tables: spec.data.tables, removed: spec.data.removed_tables || [] }),
       });
       const [pre, planned] = await Promise.allSettled([
         apiFetch(`/api/inspire/implement/preflight?${q}&${checks.toString()}`),
@@ -1237,7 +1243,7 @@ export default function ImplementWizard({
     [preflightError, checkAgain],
   ].filter(([e]) => e));
   const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
-  const sourceRefused = Boolean(appUnreadable) || (preflight?.checks?.sources && preflight.checks.sources.ok === false);
+  const sourceRefused = preflight?.checks?.sources ? preflight.checks.sources.ok === false : Boolean(appUnreadable);
   const implementBlocked = busy || checksBusy || !placeSettled || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))));
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
@@ -1363,6 +1369,7 @@ export default function ImplementWizard({
                   if (open && swaps[original] === undefined) loadSwaps(original);
                 }}
                 onPick={pickTable}
+                onSearch={searchTable}
                 onRestore={(original) => { setSpec((prev) => restoreTable(prev, original)); setNotice(''); }}
               />
             </section>

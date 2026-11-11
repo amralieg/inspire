@@ -44,6 +44,23 @@ function q(req, key) {
   return v == null ? '' : String(v).trim();
 }
 
+// A similar-table row from system.information_schema, as the catalog.schema.table name the picker shows.
+const candidateOf = (r) => `${r.table_catalog}.${r.table_schema}.${r.table_name}`;
+
+// The table picks in the wizard's draft, which the saved spec does not hold yet, so the preflight checks what Build would read.
+function draftPicksOf(req) {
+  const raw = q(req, 'picks');
+  if (!raw) return null;
+  let picks;
+  try {
+    picks = JSON.parse(raw);
+  } catch {
+    throw I.badRequest("'picks' must be JSON");
+  }
+  const tables = picks && picks.tables && typeof picks.tables === 'object' && !Array.isArray(picks.tables) ? picks.tables : {};
+  return { data: { tables, removed_tables: Array.isArray(picks?.removed) ? picks.removed : [] } };
+}
+
 function principalsOf(req) {
   const raw = q(req, 'principals');
   if (!raw) return [];
@@ -700,16 +717,35 @@ function registerImplementRoutes(app, deps) {
       const token = P.personTokenOf(req);
       if (!token) return res.json({ table, swaps: [], why: I.IMPLEMENT_SWAPS_NO_SIGN_IN });
       const rows = await sqlRows(req.dbHost, token, warehouseId, statement);
-      const catalog = statement.catalog;
-      return res.json({
-        table,
-        swaps: rows.map((r) => ({
-          table: `${catalog}.${r.table_schema}.${r.table_name}`,
-          matched: Number(r.matched) || 0,
-          total: Number(r.total) || 0,
-        })),
-        why: '',
+      const readable = await Promise.all(rows.map((r) => sqlRows(req.dbHost, token, warehouseId, I.tableProbeStatement(candidateOf(r)))
+        .then(() => true, () => false)));
+      const copies = I.builtInSampleTable(table);
+      const swaps = rows.filter((_r, i) => readable[i]).map((r) => {
+        const matched = Number(r.matched) || 0;
+        const total = Number(r.total) || 0;
+        const copy = copies && Boolean(Number(r.owned)) && total > 0 && matched === total;
+        return { table: candidateOf(r), matched, total, copy };
       });
+      return res.json({ table, swaps: [...swaps.filter((s) => s.copy), ...swaps.filter((s) => !s.copy)], why: '' });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.get('/api/inspire/implement/table-lookup', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const table = q(req, 'table');
+      const source = q(req, 'source');
+      const token = personReadToken(req);
+      try {
+        await sqlRows(req.dbHost, token, warehouseId, I.tableProbeStatement(table));
+      } catch (err) {
+        const reason = I.tableAccessReason(table, err && err.message) || "Inspire cannot read this table with your sign-in";
+        return res.json({ table, readable: false, reason: `You can't read ${table}: ${reason}. Pick a table you can read` });
+      }
+      const [row] = await sqlRows(req.dbHost, token, warehouseId, I.tableMatchStatement(source, table));
+      return res.json({ table, readable: true, matched: Number(row?.matched) || 0, total: Number(row?.total) || 0 });
     } catch (err) {
       sendError(res, err);
     }
@@ -882,8 +918,10 @@ function registerImplementRoutes(app, deps) {
         loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
         loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
       ]);
-      const sourced = await sourceVerdict(req, warehouseId, useCaseNow, historyNow[0] || null, resultTable);
-      const blocking = I.blockingMissingTables(sourced.missing, (historyNow[0] && historyNow[0].spec_json) || {}, useCaseNow);
+      const draft = draftPicksOf(req);
+      const latest = draft ? { spec_json: draft } : historyNow[0] || null;
+      const sourced = await sourceVerdict(req, warehouseId, useCaseNow, latest, resultTable);
+      const blocking = I.blockingMissingTables(sourced.missing, (latest && latest.spec_json) || {}, useCaseNow);
       checks.sources = sourced.app_unreadable
         ? { ok: false, detail: sourced.app_unreadable.text }
         : blocking.length

@@ -9,7 +9,7 @@ test('the wizard disables the build button while the source check refuses, with 
   const blocked = WIZARD.match(/const implementBlocked = ([\s\S]*?);\n/);
   assert.ok(blocked, 'implementBlocked is defined');
   assert.match(blocked[1], /sourceRefused/, 'implementBlocked includes the source refusal');
-  assert.match(WIZARD, /const sourceRefused = Boolean\(appUnreadable\)/);
+  assert.match(WIZARD, /const sourceRefused = preflight\?\.checks\?\.sources \? preflight\.checks\.sources\.ok === false : Boolean\(appUnreadable\)/, 'the preflight of the draft decides; the saved verdict only until it answers');
   assert.match(WIZARD, /data-source-refused=""/, 'a plain reason sits beside the build button');
   assert.doesNotMatch(WIZARD, /data-source-refused=""[^>]*>[^<]*(PERMISSION_DENIED|GRANT )/, 'the reason carries no raw error or GRANT');
 });
