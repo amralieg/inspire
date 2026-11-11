@@ -71,7 +71,7 @@ test('the storage guide says why fast pages are recommended for Apps and when De
 
 test('a per-user App never claims fast pages are recommended: it says why Lakebase is not possible and pre-selects Delta', async () => {
   const w = await load();
-  assert.equal(w.LAKEBASE_PER_USER_REASON, 'Fast pages need a shared App. Each person signs in as themselves here, so pages read your tables directly.');
+  assert.equal(w.LAKEBASE_PER_USER_REASON, "Each person signs in as themselves. Inspire checks which tables Fast pages can keep to each person's rows, and this App uses Standard pages until it has checked them."); // P c0c9a045 new contract
   assert.equal(w.PER_USER_GUIDE, 'Each person signs in as themselves, so pages read your tables directly. Pick Delta here.');
   const perUser = { outputs: { app: true, app_access: 'user' } };
   assert.equal(w.appBackendOf(perUser, { state: 'available' }), 'delta', 'the pre-selected choice is Delta');
