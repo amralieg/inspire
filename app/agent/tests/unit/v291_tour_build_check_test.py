@@ -1,5 +1,6 @@
 import copy
 import json
+import os
 
 from v140_implement_test import _churn_page
 from v197_genie_question_rows_test import _logged
@@ -80,3 +81,18 @@ def test_an_actions_step_that_does_not_name_the_side_panel_and_the_choices_is_re
     steps = _with(_complete(core, page, STEPS), "actions", "Open a customer and log what you did.")
     problems = core.tour_build_problems(page, {"steps": {"English": steps}})
     assert problems == ["English actions: the text does not name side panel, choice"]
+
+
+EXAMPLES = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "agent", "app_shell", "examples")
+
+
+def test_the_template_fallback_steps_pass_the_generic_and_coverage_check_on_every_example_layout(agent_ns, tmp_path):
+    inst, _context, _seen, _asked = _tour_flow(agent_ns, tmp_path, [{"tours": []}], page=_churn_page(agent_ns))
+    core = _core(inst)
+    names = sorted(n for n in os.listdir(EXAMPLES) if n.endswith(".json"))
+    assert len(names) >= 5
+    for name in names:
+        with open(os.path.join(EXAMPLES, name), encoding="utf-8") as handle:
+            page = json.load(handle)
+        problems = core.tour_build_problems(page, {"steps": {"English": _complete(core, page, [])}})
+        assert problems == [], f"{name}: {problems}"
