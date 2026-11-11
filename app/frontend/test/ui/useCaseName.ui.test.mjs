@@ -71,8 +71,19 @@ test('a renamed use case with a built App gets a restyle of the built spec under
 
 test('the Update button is offered only when the built App shows a different name than the use case (must-exclude)', async () => {
   const { liveAppRenameStale } = await import('../../src/lib/implementControl.js');
-  const latest = { spec_json: { use_case_name: CATALOGUE } };
+  const latest = { live_spec_json: { use_case_name: CATALOGUE } };
   assert.equal(liveAppRenameStale(latest, RENAMED), true);
   assert.equal(liveAppRenameStale(latest, CATALOGUE), false, 'the names match: no update');
   assert.equal(liveAppRenameStale(null, RENAMED), false);
+  assert.equal(liveAppRenameStale({ live_spec_json: null, spec_json: { use_case_name: CATALOGUE } }, RENAMED), false, 'no live App, no stale name');
+});
+
+test('a failed newer build never hides the stale name: the check reads the live row, not the newest one (must-exclude)', async () => {
+  const { liveAppRenameStale } = await import('../../src/lib/implementControl.js');
+  const newestFailed = { spec_json: { use_case_name: RENAMED }, live_spec_json: { use_case_name: CATALOGUE }, status: 'failed' };
+  assert.equal(liveAppRenameStale(newestFailed, RENAMED), true, 'the live App shows the catalogue name, so the update is still offered');
+  const newestMatchesButLiveDiffers = { spec_json: { use_case_name: RENAMED }, live_spec_json: { use_case_name: 'Predict churn' } };
+  assert.equal(liveAppRenameStale(newestMatchesButLiveDiffers, RENAMED), true);
+  const liveAlreadyRenamed = { spec_json: { use_case_name: CATALOGUE }, live_spec_json: { use_case_name: RENAMED } };
+  assert.equal(liveAppRenameStale(liveAlreadyRenamed, RENAMED), false, 'the live App already shows the name');
 });
