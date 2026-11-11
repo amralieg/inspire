@@ -136,14 +136,28 @@ export async function wheelReads(page, box, { lines = '', readable = 3, delta = 
   assert.ok(at.seen > 0, `the scroll box is on screen ${JSON.stringify(at)}`);
   assert.ok(at.hit, `the scroll box is what the pointer lands on, nothing covers it ${JSON.stringify(at)}`);
   await page.mouse.move(at.x, at.y);
+  const wheeledAt = Date.now();
   await page.mouse.wheel(0, delta);
   await page.waitForFunction((el) => el.scrollTop > 0, await box.elementHandle(), { timeout: 5000 }).catch(async (error) => {
+    const scrollTop = () => box.evaluate((el) => Math.round(el.scrollTop));
     const state = await box.evaluate((el, point) => {
       const hit = document.elementFromPoint(point.x, point.y);
       return { boxTop: Math.round(el.scrollTop), boxScroll: el.scrollHeight, boxClient: el.clientHeight, pageTop: Math.round(document.scrollingElement.scrollTop),
         hit: hit ? `${hit.tagName.toLowerCase()}.${String(hit.className).slice(0, 60)}` : '', innerHeight: window.innerHeight, innerWidth: window.innerWidth };
     }, { x: at.x, y: at.y });
-    throw new Error(`the mouse wheel did not scroll the box, ${JSON.stringify({ at: { x: Math.round(at.x), y: Math.round(at.y) }, ...state })}: ${error.message}`);
+    const pause = (ms) => new Promise((done) => { setTimeout(done, ms); });
+    await page.mouse.wheel(0, delta);
+    await pause(1000);
+    const secondWheelTop = await scrollTop();
+    let firstMoveMs = null;
+    let lateTop = await scrollTop();
+    while (Date.now() - wheeledAt < 15000) {
+      await pause(100);
+      lateTop = await scrollTop();
+      if (firstMoveMs === null && lateTop > 0) firstMoveMs = Date.now() - wheeledAt;
+    }
+    const detail = { at: { x: Math.round(at.x), y: Math.round(at.y) }, ...state, secondWheelTop, lateTop, firstMoveMs };
+    throw new Error(`the mouse wheel did not scroll the box, ${JSON.stringify(detail)}: ${error.message}`);
   });
   if (!lines) return;
   await frames(page);
