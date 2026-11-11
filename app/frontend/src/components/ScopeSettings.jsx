@@ -14,6 +14,7 @@ import {
 import { bestFirstRun, bestGrouping, isBest } from '../lib/recommended';
 import Recommended from './Recommended';
 import { PlainMessage } from './TechnicalDetails';
+import SaveButton from './SaveButton';
 
 const ROW = 'flex items-start gap-2 rounded-lg border border-border bg-surface px-3 py-2 text-[12px] text-text-primary';
 const NUMBER = 'w-24 px-2 py-1 text-[12px] border border-border rounded-md bg-surface text-text-primary';
@@ -342,10 +343,10 @@ export function ScopeSection({ settings, editable, scope = null, onSave, childre
           <div className="flex flex-wrap items-center gap-2">
             <input dir="auto" aria-label={`Note for the ${meta.title} change`} placeholder="Why, for the history (optional)" maxLength={300}
               className={`${NUMBER} w-64`} value={note} onChange={(e) => setNote(e.target.value)} />
-            <button type="button" disabled={saving || blocked} onClick={save}
+            <SaveButton busy={saving} disabled={blocked} onClick={save}
               className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50">
-              {saving ? <Loader2 size={12} className="animate-spin" /> : null}{meta.save}
-            </button>
+              {meta.save}
+            </SaveButton>
           </div>
         )}
         {message && <p role="status" data-scope-saved="" className="text-[12px] text-text-primary">{message}</p>}

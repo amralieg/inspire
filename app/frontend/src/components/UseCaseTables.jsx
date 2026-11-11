@@ -1,9 +1,9 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
-import { Loader2 } from 'lucide-react';
 import DemoNote from './DemoNote';
 import SourceTables from './SourceTables';
 import { nextSpecFrom, pickedTable, primaryTableOf, removalBlocker, restoreTable, tablesOf } from '../lib/implementWizard';
 import { PlainMessage } from './TechnicalDetails';
+import SaveButton from './SaveButton';
 
 const SELECT = 'w-full px-2.5 py-1.5 text-[12px] border border-border rounded-md bg-surface text-text-primary';
 const BUTTON = 'inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg text-xs font-semibold disabled:opacity-50';
@@ -91,9 +91,9 @@ export default function UseCaseTables({ uc, latest, view, readOnly = false, lock
           className={change.error ? 'text-error-fg' : 'text-text-primary'} />
       )}
       {editable && change && change.save && (
-        <button type="button" disabled={locked || busy} onClick={save} className={`${BUTTON} text-white bg-db-red-solid`}>
-          {busy ? <Loader2 size={12} className="animate-spin" /> : null}{change.save}
-        </button>
+        <SaveButton busy={busy} disabled={locked} onClick={save} className={`${BUTTON} text-white bg-db-red-solid`}>
+          {change.save}
+        </SaveButton>
       )}
     </div>
   );
