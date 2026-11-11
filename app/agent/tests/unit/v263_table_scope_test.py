@@ -409,3 +409,11 @@ def test_an_app_whose_second_page_reads_a_scoped_base_table_is_refused_and_a_vie
             viewed["scope_app_pages"]([ok_page, fresh], main_page)
     finally:
         viewed["TABLE_SCOPES"]["main.s.orders"]["ready"] = True
+
+
+def test_the_app_data_note_names_each_scoped_table_with_its_columns_and_rows(viewed):
+    note = viewed["scope_data_note"]()
+    assert note == ("This App reads only the scope of main.s.orders: columns order_id, customer_id, order_date, "
+                    "rows where `status` = gold.")
+    viewed["TABLE_SCOPES"].clear()
+    assert viewed["scope_data_note"]() == ""

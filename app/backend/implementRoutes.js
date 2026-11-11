@@ -678,13 +678,14 @@ function registerImplementRoutes(app, deps) {
       const table = q(req, 'table');
       const statement = I.columnsStatement(table);
       const token = personReadToken(req);
-      const [rows, read] = await Promise.all([sqlRows(req.dbHost, token, warehouseId, statement), readColumnTags(req, token, warehouseId, [table])]);
+      const [rows, read, keyRows] = await Promise.all([sqlRows(req.dbHost, token, warehouseId, statement), readColumnTags(req, token, warehouseId, [table]),
+        sqlRows(req.dbHost, token, warehouseId, I.primaryKeysStatement(table))]);
       const prefix = String(table).replace(/`/g, '').toLowerCase();
       const columns = rows.map((c) => {
         const tags = read.tags[`${prefix}.${String(c.column_name).toLowerCase()}`] || {};
         return { ...c, tags, personal: personalColumn(c.column_name, tags) };
       });
-      res.json({ table, columns, tags_read: !read.error, ...(read.error ? { tags_note: TAGS_UNREAD_NOTE } : {}) });
+      res.json({ table, columns, primary_keys: keyRows.map((r) => String(r.column_name)), tags_read: !read.error, ...(read.error ? { tags_note: TAGS_UNREAD_NOTE } : {}) });
     } catch (err) {
       sendError(res, err);
     }

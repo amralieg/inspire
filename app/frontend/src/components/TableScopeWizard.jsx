@@ -30,6 +30,7 @@ export default function TableScopeWizard({ table, entry = null, apiFetch, wareho
   const [picked, setPicked] = useState(() => normalizeTableScope(entry).columns);
   const [filters, setFilters] = useState(() => normalizeTableScope(entry).rows);
   const [topValues, setTopValues] = useState({});
+  const [keys, setKeys] = useState([]);
   const [counted, setCounted] = useState({ key: '', rows: null, error: '' });
   const requested = useRef(new Set());
 
@@ -44,7 +45,12 @@ export default function TableScopeWizard({ table, entry = null, apiFetch, wareho
   useEffect(() => {
     let cancelled = false;
     apiFetch(`/api/inspire/implement/columns?${q}`)
-      .then((data) => { if (!cancelled) setColumns(data.columns || []); })
+      .then((data) => {
+        if (cancelled) return;
+        setColumns(data.columns || []);
+        setKeys(data.primary_keys || []);
+        setPicked((prev) => (prev.length ? prev : data.primary_keys || []));
+      })
       .catch((e) => { if (!cancelled) setLoadError(e.message || 'The columns of this table could not be read.'); });
     return () => { cancelled = true; };
   }, [apiFetch, q]);
@@ -123,7 +129,7 @@ export default function TableScopeWizard({ table, entry = null, apiFetch, wareho
         {loadError && <PlainMessage role="alert" className="text-error-fg" text={loadError} />}
         {!columns && !loadError && <p className="text-text-tertiary">Reading the columns of {table}</p>}
         {columns && step === 1 && (
-          <Step1 names={names} columns={columns} picked={picked} onToggle={togglePicked}
+          <Step1 names={names} columns={columns} picked={picked} keys={keys} onToggle={togglePicked}
             onAll={() => setPicked(names)} onNone={() => setPicked([])} />
         )}
         {columns && step === 2 && (
@@ -140,14 +146,25 @@ export default function TableScopeWizard({ table, entry = null, apiFetch, wareho
   );
 }
 
-function Step1({ names, columns, picked, onToggle, onAll, onNone }) {
+function Step1({ names, columns, picked, keys, onToggle, onAll, onNone }) {
   const typeOf = (name) => (columns.find((c) => c.column_name === name) || {}).data_type || '';
+  const missing = keys.filter((k) => !picked.includes(k));
   return (
     <div className="space-y-2">
       <div className="flex gap-2">
         <button type="button" className={BUTTON} onClick={onAll}>Select all</button>
         <button type="button" className={BUTTON} onClick={onNone}>Clear</button>
       </div>
+      {keys.length > 0 && missing.length === 0 && (
+        <p data-key-note="pre-selected" className="text-text-secondary">
+          Key columns {keys.join(', ')} are pre-selected: they are needed to identify each row.
+        </p>
+      )}
+      {missing.length > 0 && (
+        <p data-key-note="removed" className="text-warning-fg">
+          Key columns {missing.join(', ')} are not picked. The MVP then identifies each row by its own row key, and never reads the base table to do it.
+        </p>
+      )}
       <ul aria-label="Columns of this table" className="grid gap-1 sm:grid-cols-2 max-h-64 overflow-y-auto">
         {names.map((name) => (
           <li key={name}>
