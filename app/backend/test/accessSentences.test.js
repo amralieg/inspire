@@ -42,5 +42,5 @@ test('no Build button sits beside a source refusal (REQ-042, MVP-ADP-08, must fa
   const button = WIZARD.indexOf('data-build-now=""');
   assert.ok(button > 0);
   const opening = WIZARD.lastIndexOf('{mode === \'mvp\' && stepIndex > 0 && !lastStep', button);
-  assert.match(WIZARD.slice(opening, button), /!sourceRefused/, 'the Build button is not rendered while the source is refused');
+  assert.match(WIZARD.slice(opening, button), /!sourceAccessRefused/, 'the Build button is not rendered while the source is refused');
 });

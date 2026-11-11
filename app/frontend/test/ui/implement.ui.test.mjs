@@ -579,7 +579,7 @@ test('an App name another App already uses is changed to the next free name, and
 test('Change swaps a table for a similar one or drops it, and never offers to drop the primary table', async () => {
   const ui = await openUi('wizard', {
     me: { userName: OWNER, displayName: 'Owner' },
-    swapRows: [{ table_schema: 's2', table_name: 'orders_v2', matched: '5', total: '6' }],
+    swapRows: [{ table_catalog: 'main', table_schema: 's2', table_name: 'orders_v2', matched: '5', total: '6' }],
   });
   const { page, made } = ui;
   try {

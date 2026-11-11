@@ -26,6 +26,7 @@ const {
   groupWidgets,
   columnsStatement,
   tableSwapStatement,
+  copySwapStatement,
   rerunParams,
   liveLogPath,
   useCaseLogLines,
@@ -485,6 +486,15 @@ test('column and swap SQL bind schema and table names', () => {
   assert.ok(swaps.sql.includes('system.information_schema.columns'), 'similar tables are searched in every catalog the person can see');
   assert.deepEqual(swaps.parameters.map((p) => p.name), ['c', 's', 't', 'r0', 'r1']);
   assert.throws(() => tableSwapStatement('main.s.orders', ["o'; drop"]), /plain column/);
+});
+
+test('the copy lookup scans only the catalogs the person owns, matches a copy by every column and never by its name (must-exclude)', () => {
+  const copy = copySwapStatement('samples.nyctaxi.trips');
+  assert.match(copy.sql, /own\.catalog_name IS NOT NULL/, 'only catalogs the person owns are scanned');
+  assert.match(copy.sql, /HAVING COUNT\(\*\) = MAX\(n\.total\)/, 'a copy has every column of the source');
+  assert.doesNotMatch(copy.sql, /GREATEST\(2/, 'the wider similar search is not part of the copy lookup');
+  assert.doesNotMatch(copy.sql, /k0\.table_name = lower/, 'a copy keeps its own name, so the name is not the key');
+  assert.deepEqual(copy.parameters.map((p) => p.value), ['samples', 'nyctaxi', 'trips']);
 });
 
 const INFO_SCHEMA_NAMES = '(catalog_name|schema_name|table_catalog|table_schema|table_name)';
