@@ -1375,7 +1375,9 @@ test('a build whose job ended before Inspire picked the version up says so in pl
   const reason = w.statusReason(latest, queued);
   assert.equal(reason, 'The build job ended before Inspire started building v2. Rebuild in Vibe/Add/Remove Features submits a new version.');
   assert.doesNotMatch(reason, /Finished|still queued/, 'the raw job state is not shown to the person');
-  const choices = w.stoppedChoices(latest, { stalled: queued, notebookUrl: '' });
+  const { newIssueUrl } = await import(pathToFileURL(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'lib', 'issues.js')).href);
+  assert.equal(w.stoppedChoices(latest, { stalled: queued }).find((c) => c.id === 'report').url, '', 'the wizard module names no internet host; the page supplies the link');
+  const choices = w.stoppedChoices(latest, { stalled: queued, notebookUrl: '', issueUrl: newIssueUrl });
   assert.deepEqual(choices.map((c) => c.id), ['scope', 'notebook', 'report']);
   assert.equal(choices.find((c) => c.id === 'notebook').url, '', 'without a notebook link the choice writes one');
   const report = new URL(choices.find((c) => c.id === 'report').url);

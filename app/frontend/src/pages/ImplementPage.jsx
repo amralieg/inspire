@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useId, useLayoutEffect, useMemo, useRef, useState } from 'react';
+import { newIssueUrl } from '../lib/issues';
 import {
   AlertTriangle, AppWindow, ArrowRight, BellRing, CheckCircle2, ChevronDown, CircleDashed, ExternalLink, FileText, Hammer, History, LayoutDashboard, Loader2,
   NotebookPen, Pencil, RefreshCw, Rocket, RotateCcw, Search, Settings2, Sparkles, Square, Trash2, XCircle,
@@ -1206,7 +1207,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const protection = readOnly ? null : liveProtection(sourceNow, protectionStopOf(latest));
   const choicesNow = protection ? protectionChoices(protection)
     : buildAgain && !dataStop && latest?.status === 'failed' ? (stopped
-      ? stoppedChoices(latest, { notebookUrl: notebook?.href || '' })
+      ? stoppedChoices(latest, { notebookUrl: notebook?.href || '', issueUrl: newIssueUrl })
       : failureChoices(latest, { technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '' })) : [];
   const writeNotebook = async () => {
     setWritingNotebook(true);

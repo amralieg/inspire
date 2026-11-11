@@ -6,7 +6,6 @@ import { specVibeAsks, vibeConflicts, vibeRefusalText, vibeRefusals } from './vi
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
 import { FIRST_RUN_LABEL, firstRunSent, latestRunScope, scopeProblems, scopeValues } from './runScope.js';
 import { PLACE_NAME_RE } from './tableName.js';
-import { newIssueUrl } from './issues.js';
 import {
   allowedRule, allowedText, isSettingWidget, numberText, settingsModelOf, settingsProblems, widgetProblems, widgetSetProblems, widgetValueProblem,
   wizardSettings, withSettingsNote,
@@ -2551,7 +2550,7 @@ export function stoppedWords(stalled) {
   return reason || 'its run stopped before it finished';
 }
 
-export function stoppedChoices(latest, { notebookUrl = '' } = {}) {
+export function stoppedChoices(latest, { notebookUrl = '', issueUrl = null } = {}) {
   const version = versionOf(latest);
   const useCase = String(latest?.use_case_id || '').trim();
   return [
@@ -2560,7 +2559,7 @@ export function stoppedChoices(latest, { notebookUrl = '' } = {}) {
       detail: notebookUrl ? 'Open the Genie Code notebook Inspire wrote for this use case and run it yourself.'
         : 'Inspire writes the Genie Code notebook for this use case, and you run it yourself.' },
     { id: 'report', label: 'Report the issue', detail: 'Open a report with this version and the reason. It holds no workspace details.',
-      url: newIssueUrl({ title: `Build of ${useCase} v${version} stopped`, body: `Use case ${useCase}, version v${version}: the build stopped. Add what you tried.` }) },
+      url: issueUrl ? issueUrl({ title: `Build of ${useCase} v${version} stopped`, body: `Use case ${useCase}, version v${version}: the build stopped. Add what you tried.` }) : '' },
   ];
 }
 
