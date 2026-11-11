@@ -140,7 +140,7 @@ const ROUTE_POLICY = {
   'POST /api/inspire/ack': tracked('acknowledge a step'),
   'POST /api/inspire/feedback': tracked('send feedback'),
   'POST /api/inspire/sync-genie-flags': managers('change the Genie flags of use cases'),
-  'POST /api/inspire/usecase-name': tracked('rename a use case'),
+  'POST /api/inspire/usecase-name': managers('rename a use case'),
   'DELETE /api/inspire/session': { rule: 'launcher', action: 'delete it', target: sessionTarget, identity: 'app', why: GATED },
   'GET /api/inspire/log': { rule: 'launcher', action: 'read its run log', target: sessionTarget, identity: 'app', why: GATED },
   'POST /api/inspire/generate-genie': owners('add a Genie Code instruction', { target: genieTarget, launcherOwnsUnbuilt: true }),
