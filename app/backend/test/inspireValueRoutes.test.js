@@ -5,27 +5,41 @@ const { startInspire } = require('./support/serverProcess');
 
 const LEDGER = '`c`.`s`.`__inspire_value_ledger`';
 const SESSIONS = '`c`.`s`.`__inspire_session`';
-const LEDGER_COLUMNS = ['session_id', 'result_table', 'use_case_id', 'run_id', 'record_key', 'kind', 'currency', 'unit', 'at_stake', 'saved', 'recorded_at'];
-const SESSION_COLUMNS = ['session_id', 'business_name', 'create_at'];
-const SESSION_QUERY = 'inspire_database=c.s&warehouse_id=w1';
+const QUERY = 'inspire_database=c.s&warehouse_id=w1';
+const SESSION_COLUMNS = ['part', 'use_case_id', 'kind', 'currency', 'unit', 'amount', 'measured'];
+const RUN_COLUMNS = ['part', 'session_id', 'kind', 'currency', 'unit', 'amount'];
+const TOTAL_COLUMNS = ['part', 'kind', 'currency', 'unit', 'amount'];
+const COUNT_COLUMNS = ['runs', 'businesses'];
 
-const row = (session, uc, kind, unit, amount, at, run, key = null, result = 'main.out.queue') => [
-  session, result, uc, run, key, kind, kind === 'money' ? unit : null, kind === 'money' ? null : unit,
-  kind === 'money' && key != null ? null : amount, key != null ? amount : null, at,
+const SESSION_ROWS = [
+  ['stake', 'N01-U01', 'money', 'EUR', null, '1000', '1'],
+  ['stake', 'N02-U01', 'money', 'USD', null, '500', '1'],
+  ['stake', 'N03-U01', 'time', null, 'hours', '4', '1'],
+  ['stake', 'N04-U01', 'time', null, 'days', '2', '1'],
+  ['stake', 'N07-U01', 'money', 'EUR', null, null, '0'],
+  ['saved', 'N01-U01', 'money', 'EUR', null, '250', '0'],
+  ['saved', 'N02-U01', 'money', 'USD', null, '75', '0'],
 ];
+const RUN_ROWS = [
+  ['stake', '41', 'money', 'EUR', null, '100'],
+  ['stake', '42', 'money', 'USD', null, '300'],
+  ['stake', '42', 'time', null, 'hours', '2'],
+  ['saved', '42', 'time', null, 'hours', '1'],
+  ['measured', '41', null, null, null, '1'],
+  ['measured', '42', null, null, null, '2'],
+];
+const TOTAL_ROWS = [['stake', 'money', 'EUR', null, '350'], ['saved', 'money', 'EUR', null, '30']];
 
 function fakeWarehouse() {
-  const state = { statements: [], ledger: [], sessions: [], missingLedger: false };
+  const state = { statements: [], missingLedger: false };
   const answer = (sql) => {
-    if (sql.includes(`FROM ${LEDGER}`)) {
-      if (state.missingLedger) return { failed: `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${LEDGER} cannot be found.` };
-      const session = (sql.match(/WHERE session_id = '(\d+)'/) || [])[1];
-      const rows = session ? state.ledger.filter((r) => r[0] === session) : state.ledger;
-      return { columns: LEDGER_COLUMNS, rows };
+    if (sql.includes(`FROM ${LEDGER}`) && state.missingLedger) {
+      return { failed: `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${LEDGER} cannot be found.` };
     }
-    if (sql.startsWith(`SELECT session_id, business_name, create_at FROM ${SESSIONS}`)) {
-      return { columns: SESSION_COLUMNS, rows: state.sessions };
-    }
+    if (sql.includes("'measured' AS part")) return { columns: RUN_COLUMNS, rows: RUN_ROWS };
+    if (sql.includes("WHERE session_id = '")) return { columns: SESSION_COLUMNS, rows: SESSION_ROWS };
+    if (sql.includes('latest_sessions AS')) return { columns: TOTAL_COLUMNS, rows: TOTAL_ROWS };
+    if (sql.includes('COUNT(DISTINCT COALESCE')) return { columns: COUNT_COLUMNS, rows: [['3', '2']] };
     return { columns: ['x'], rows: [] };
   };
   const server = http.createServer((req, res) => {
@@ -65,77 +79,71 @@ test.after(async () => {
   if (warehouse) await new Promise((resolve) => warehouse.server.close(resolve));
 });
 
-const reset = ({ ledger = [], sessions = [], missingLedger = false } = {}) => {
+const reset = ({ missingLedger = false } = {}) => {
   warehouse.state.statements.length = 0;
-  warehouse.state.ledger = ledger;
-  warehouse.state.sessions = sessions;
   warehouse.state.missingLedger = missingLedger;
 };
+const statements = () => warehouse.state.statements.map((s) => s.statement);
 
-test('GET /api/inspire/value keeps two currencies and two time units of one run apart and answers the use case map and the run', async () => {
-  reset({ ledger: [
-    row('42', 'N01-U01', 'money', 'EUR', '1000', '2026-11-10 10:00:00', '9001'),
-    row('42', 'N02-U01', 'money', 'USD', '500', '2026-11-10 10:01:00', '9001'),
-    row('42', 'N03-U01', 'time', 'hours', '4', '2026-11-10 10:02:00', '9001'),
-    row('42', 'N04-U01', 'time', 'days', '2', '2026-11-10 10:03:00', '9001'),
-    row('42', 'N01-U01', 'money', 'EUR', '250', '2026-11-10 11:00:00', '9001', 'rec-1'),
-    row('42', 'N02-U01', 'money', 'USD', '75', '2026-11-10 11:00:00', '9001', 'rec-2'),
-  ] });
-  const { status, body } = await app.get(`/api/inspire/value?inspire_database=c.s&warehouse_id=w1&session_id=42`);
+test('GET /api/inspire/value answers the use case map and the run from the aggregated rows, keeping money and time apart', async () => {
+  reset();
+  const { status, body } = await app.get(`/api/inspire/value?${QUERY}&session_id=42`);
   assert.equal(status, 200, JSON.stringify(body));
   assert.deepEqual(body.run.at_stake, [
-    { kind: 'money', unit: 'EUR', amount: 1000 },
-    { kind: 'money', unit: 'USD', amount: 500 },
-    { kind: 'time', unit: 'hours', amount: 52 },
-  ], 'hours and days of one run convert to hours; money stays per currency');
-  assert.deepEqual(body.run.saved, [
-    { kind: 'money', unit: 'EUR', amount: 250 },
-    { kind: 'money', unit: 'USD', amount: 75 },
+    { kind: 'money', unit: 'EUR', amount: 1000 }, { kind: 'money', unit: 'USD', amount: 500 }, { kind: 'time', unit: 'hours', amount: 52 },
   ]);
+  assert.deepEqual(body.run.saved, [{ kind: 'money', unit: 'EUR', amount: 250 }, { kind: 'money', unit: 'USD', amount: 75 }]);
   assert.equal(body.run.mvps_measured, 4);
-  assert.deepEqual(body.use_cases['N01-U01'], {
-    at_stake: [{ kind: 'money', unit: 'EUR', amount: 1000 }], saved: [{ kind: 'money', unit: 'EUR', amount: 250 }], measured: true,
-  });
-});
-
-test('GET /api/inspire/value says a use case is not measured with no entry, and never reads a zero', async () => {
-  reset({ ledger: [row('42', 'N07-U01', 'money', 'EUR', null, '2026-11-10 10:00:00', '9001')] });
-  const { status, body } = await app.get(`/api/inspire/value?inspire_database=c.s&warehouse_id=w1&session_id=42`);
-  assert.equal(status, 200);
   assert.deepEqual(body.use_cases['N07-U01'], { at_stake: [], saved: [], measured: false });
-  assert.deepEqual(body.run, { at_stake: [], saved: [], mvps_measured: 0 });
+  assert.equal(statements().length, 1, 'one statement per route');
 });
 
-test('GET /api/inspire/value answers an empty run when the ledger table does not exist yet', async () => {
-  reset({ missingLedger: true });
-  const { status, body } = await app.get(`/api/inspire/value?inspire_database=c.s&warehouse_id=w1&session_id=42`);
-  assert.equal(status, 200);
-  assert.deepEqual(body, { use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } });
-});
-
-test('GET /api/inspire/value refuses a session id that is not numeric before any SQL is sent', async () => {
+test('GET /api/inspire/value/runs answers each run with its own totals and measured count', async () => {
   reset();
-  const { status, body } = await app.get(`/api/inspire/value?inspire_database=c.s&warehouse_id=w1&session_id=42;DROP`);
+  const { status, body } = await app.get(`/api/inspire/value/runs?${QUERY}`);
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body, {
+    runs: {
+      41: { at_stake: [{ kind: 'money', unit: 'EUR', amount: 100 }], saved: [], mvps_measured: 1 },
+      42: { at_stake: [{ kind: 'money', unit: 'USD', amount: 300 }, { kind: 'time', unit: 'hours', amount: 2 }],
+        saved: [{ kind: 'time', unit: 'hours', amount: 1 }], mvps_measured: 2 },
+    },
+  });
+  assert.equal(statements().length, 1);
+});
+
+test('GET /api/inspire/value/overall answers the latest-run totals, the saved totals and the run and business counts', async () => {
+  reset();
+  const { status, body } = await app.get(`/api/inspire/value/overall?${QUERY}`);
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(body, { at_stake: [{ kind: 'money', unit: 'EUR', amount: 350 }], saved: [{ kind: 'money', unit: 'EUR', amount: 30 }],
+    runs: 3, businesses: 2 });
+});
+
+test('no value route reads the raw ledger rows: every statement aggregates in SQL', async () => {
+  reset();
+  await app.get(`/api/inspire/value?${QUERY}&session_id=42`);
+  await app.get(`/api/inspire/value/runs?${QUERY}`);
+  await app.get(`/api/inspire/value/overall?${QUERY}`);
+  const sent = statements();
+  assert.equal(sent.length, 4);
+  for (const sql of sent) assert.match(sql, /GROUP BY|COUNT\(/);
+});
+
+test('a missing ledger table answers empty totals, not an error, on every value route', async () => {
+  reset({ missingLedger: true });
+  assert.deepEqual((await app.get(`/api/inspire/value?${QUERY}&session_id=42`)).body,
+    { use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } });
+  assert.deepEqual((await app.get(`/api/inspire/value/runs?${QUERY}`)).body, { runs: {} });
+  const overall = await app.get(`/api/inspire/value/overall?${QUERY}`);
+  assert.equal(overall.status, 200);
+  assert.deepEqual(overall.body, { at_stake: [], saved: [], runs: 3, businesses: 2 });
+});
+
+test('a session id that is not numeric is refused before any SQL is sent', async () => {
+  reset();
+  const { status, body } = await app.get(`/api/inspire/value?${QUERY}&session_id=42;DROP`);
   assert.equal(status, 400);
   assert.equal(body.error, 'session_id must be numeric.');
-  assert.equal(warehouse.state.statements.length, 0);
-});
-
-test('GET /api/inspire/value/overall counts at stake from the latest run of each business and saved from every run', async () => {
-  reset({
-    sessions: [['41', 'Acme', '2026-11-08 09:00:00'], ['42', 'Acme', '2026-11-10 09:00:00'], ['43', 'Globex', '2026-11-09 09:00:00']],
-    ledger: [
-      row('41', 'N01-U01', 'money', 'EUR', '100', '2026-11-08 10:00:00', '8001'),
-      row('42', 'N01-U01', 'money', 'EUR', '300', '2026-11-10 10:00:00', '9001'),
-      row('43', 'N09-U01', 'money', 'EUR', '50', '2026-11-09 10:00:00', '9002'),
-      row('41', 'N01-U01', 'money', 'EUR', '10', '2026-11-08 11:00:00', '8001', 'a'),
-      row('42', 'N01-U01', 'money', 'EUR', '20', '2026-11-10 11:00:00', '9001', 'b'),
-    ],
-  });
-  const { status, body } = await app.get(`/api/inspire/value/overall?${SESSION_QUERY}`);
-  assert.equal(status, 200, JSON.stringify(body));
-  assert.deepEqual(body.at_stake, [{ kind: 'money', unit: 'EUR', amount: 350 }]);
-  assert.deepEqual(body.saved, [{ kind: 'money', unit: 'EUR', amount: 30 }]);
-  assert.equal(body.runs, 3);
-  assert.equal(body.businesses, 2);
+  assert.equal(statements().length, 0);
 });

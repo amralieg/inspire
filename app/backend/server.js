@@ -32,7 +32,7 @@ const {
 } = require('./lib/inspireJobParams');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
-const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueOverallSql, sessionsSql, valueOfSession, overallValue } = require('./lib/inspireValue');
+const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql, valueOfSession, valueOfRuns, overallValue } = require('./lib/inspireValue');
 const { normalizeUseCaseName, renameStatement } = require('./lib/useCaseName');
 const { createExecuteSql, runWithRequestDeadline } = require('./lib/sqlStatements');
 const { plural } = require('./lib/plural');
@@ -2413,8 +2413,7 @@ app.get('/api/inspire/value', requireToken, async (req, res) => {
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
-    const rows = await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), String(session_id).trim()));
-    res.json(valueOfSession(rows));
+    res.json(valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), String(session_id).trim()))));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }
@@ -2428,9 +2427,23 @@ app.get('/api/inspire/value/overall', requireToken, async (req, res) => {
     }
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
-    const sessions = await readValueRows(req, warehouse_id, sessionsSql(inspireSessionTable(parsedDb)));
-    const rows = await readValueRows(req, warehouse_id, valueOverallSql(valueLedgerTable(parsedDb)));
-    res.json(overallValue(sessions, rows));
+    const totals = await readValueRows(req, warehouse_id, valueOverallSql(valueLedgerTable(parsedDb), inspireSessionTable(parsedDb)));
+    const [counts] = await readValueRows(req, warehouse_id, sessionCountsSql(inspireSessionTable(parsedDb)));
+    res.json(overallValue(totals, counts));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+app.get('/api/inspire/value/runs', requireToken, async (req, res) => {
+  try {
+    const { inspire_database, warehouse_id } = req.query;
+    if (!inspire_database || !warehouse_id) {
+      return res.status(400).json({ error: 'inspire_database and warehouse_id required.' });
+    }
+    const parsedDb = splitInspireDatabase(inspire_database);
+    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    res.json(valueOfRuns(await readValueRows(req, warehouse_id, valueRunsSql(valueLedgerTable(parsedDb)))));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

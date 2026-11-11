@@ -1,8 +1,6 @@
-"""The App records a realized value in the value ledger in the same request as the act that saved it, with the App's identity."""
-import json
-
+"""The App counts a realized value in the value ledger in the same request as the act that saved it, with the App's identity."""
 from v142_edits_test import edit_page
-from v144_app_data_test import DECIDE, EDITOR, TOKEN, DataWorkspace, act, app_dir, current, shell
+from v144_app_data_test import DECIDE, EDITOR, PERSON, TOKEN, DataWorkspace, act, app_dir, current, shell
 
 import shell_core  # noqa: E402  (sys.path is set by the harness import above)
 import shell_db  # noqa: E402
@@ -18,13 +16,11 @@ class LedgerWorkspace(DataWorkspace):
         self.stake, self.keys, self.fail_insert, self.inserts = stake, list(keys), fail_insert, []
 
     def answer(self, sql, params):
-        if sql.startswith("SELECT DISTINCT `record_key`"):
-            return {"columns": [], "rows": [{"record_key": k} for k in self.keys], "truncated": False}
         if LEDGER in sql and sql.startswith("INSERT INTO"):
             if self.fail_insert:
                 raise self.fail_insert
             self.inserts.append(sql)
-            return {"columns": [], "rows": [{"num_inserted_rows": 1}], "truncated": False}
+            return {"columns": [], "rows": [{"num_inserted_rows": len(self.keys)}], "truncated": False}
         if LEDGER in sql and "ORDER BY recorded_at DESC LIMIT 1" in sql:
             return {"columns": [], "rows": [self.stake] if self.stake else [], "truncated": False}
         return super().answer(sql, params)
@@ -34,50 +30,45 @@ def _page(**changes):
     return edit_page(use_case_id="N01-U05", value_ledger=LEDGER, **changes)
 
 
-def _tuples(sql):
-    body = sql.split(" VALUES ", 1)[1]
-    return [t.split(", ") for t in body[1:-1].split("), (")]
-
-
-def test_a_realized_value_is_counted_once_per_record_with_the_stake_currency_and_the_run(tmp_path):
-    ws = LedgerWorkspace(stake=STAKE_EUR, keys=("k1", "k2"))
+def test_a_realized_value_for_many_records_is_one_insert_that_selects_the_batch_keys_in_sql(tmp_path):
+    keys = [f"k{i}" for i in range(200)]
+    ws = LedgerWorkspace(stake=STAKE_EUR, keys=keys)
     s, ws, _made = shell(tmp_path, settings=DECIDE, pages=[_page()], ws=ws)
-    status, out = act(s, keys=("k1", "k2"), values={"action_status": "Done", "realized_value": 300}, seen={"k1": "101", "k2": "101"})
+    status, out = act(s, keys=keys, values={"action_status": "Done", "realized_value": 300},
+                      seen={k: "101" for k in keys})
     assert status == 200, out
-    assert out["value_recorded"] == 2 and "value_warning" not in out
-    assert len(ws.inserts) == 1
-    rows = _tuples(ws.inserts[0])
-    assert len(rows) == 2
-    assert [r[4] for r in rows] == ["'k1'", "'k2'"], "one saved row per record"
-    assert all(r[5] == "'money'" and r[6] == "'EUR'" and r[7] == "NULL" and r[8] == "NULL" and r[9] == "300.0" for r in rows)
-    assert all(r[0] == "'42'" and r[3] == "'9001'" and r[2] == "'N01-U05'" for r in rows)
+    assert out["value_recorded"] == 200 and "value_warning" not in out
+    assert len(ws.inserts) == 1, "one statement however many records the act saved"
+    (sql,) = ws.inserts
+    assert f"SELECT '42', 'main.pricing.loss_desk_out', 'N01-U05', '9001', `record_key`, 'money', 'EUR', NULL, NULL, 300.0, '{PERSON}', " in sql
+    assert f"`action_batch` = '{ws.batch}'" in sql and "`change_source` = 'action'" in sql
+    assert "k199" not in sql, "the keys stay in the warehouse, not in the statement"
 
 
-def test_hours_saved_on_a_time_stake_never_carry_a_currency(tmp_path):
+def test_a_saved_hours_value_on_a_time_stake_carries_its_unit_and_no_currency(tmp_path):
     ws = LedgerWorkspace(stake=STAKE_HOURS, keys=("k1",))
     s, ws, _made = shell(tmp_path, settings=DECIDE, pages=[_page()], ws=ws)
     status, out = act(s, values={"action_status": "Done", "realized_value": 2.5})
     assert status == 200 and out["value_recorded"] == 1
-    (row,) = _tuples(ws.inserts[0])
-    assert row[5] == "'time'" and row[6] == "NULL" and row[7] == "'hours'" and row[9] == "2.5"
+    (sql,) = ws.inserts
+    assert "'time', NULL, 'hours', NULL, 2.5, " in sql
 
 
-def test_clearing_a_saved_value_writes_a_NULL_row_that_takes_the_place_of_the_old_one(tmp_path):
+def test_clearing_a_saved_value_with_done_and_null_writes_a_NULL_saved_row(tmp_path):
     ws = LedgerWorkspace(stake=STAKE_EUR, keys=("k1",))
     s, ws, _made = shell(tmp_path, settings=DECIDE, pages=[_page()], ws=ws)
     status, out = act(s, values={"action_status": "Done", "realized_value": None})
     assert status == 200 and out["value_recorded"] == 1
-    (row,) = _tuples(ws.inserts[0])
-    assert row[9] == "NULL"
+    (sql,) = ws.inserts
+    assert f"NULL, NULL, '{PERSON}', current_timestamp()" in sql
 
 
-def test_moving_a_record_off_Done_clears_its_ledger_value_because_the_record_no_longer_carries_one(tmp_path):
+def test_a_status_change_that_does_not_name_realized_value_writes_no_ledger_row(tmp_path):
     ws = LedgerWorkspace(stake=STAKE_EUR, keys=("k1",))
     s, ws, _made = shell(tmp_path, settings=DECIDE, pages=[_page()], ws=ws)
     status, out = act(s, values={"action_status": "In progress"})
-    assert status == 200 and out["value_recorded"] == 1
-    (row,) = _tuples(ws.inserts[0])
-    assert row[9] == "NULL" and row[4] == "'k1'"
+    assert status == 200 and "value_recorded" not in out and "value_warning" not in out
+    assert ws.inserts == [] and ws.queries(LEDGER) == []
 
 
 def test_a_use_case_with_no_measured_stake_says_the_value_is_not_counted_and_the_save_still_stands(tmp_path):
@@ -115,6 +106,6 @@ def test_the_ledger_write_uses_the_app_identity_not_the_person(tmp_path):
                          env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
                          sp_factory=lambda: writer, user_factory=lambda host, token: reader)
     status, out = act(s, values={"action_status": "Done", "realized_value": 40}, headers=dict(EDITOR, **TOKEN))
-    assert status == 200 and out.get("value_recorded") == 1, json.dumps(out)
+    assert status == 200 and out.get("value_recorded") == 1, out
     assert len(writer.inserts) == 1, "the App's service principal writes the ledger row"
     assert reader.inserts == [], "the person's own sign-in never writes the ledger"

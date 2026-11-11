@@ -695,6 +695,19 @@ def ledger_insert_sql(table: str, rows: list) -> str:
     return f"INSERT INTO {table} ({columns}) VALUES {', '.join(tuples)}"
 
 
+def ledger_saved_from_batch_sql(table: str, result_table: str, batch_column: str, batch_id: str, found: dict, use_case_id: str,
+                                value, recorded_by: str) -> str:
+    keys = f"(SELECT DISTINCT `record_key` FROM {table_name(result_table)} WHERE `change_source` = 'action' AND `{batch_column}` = "
+    keys += f"{ledger_literal(str(batch_id))} AND `record_key` IS NOT NULL)"
+    select = [ledger_literal(str(found["session_id"])), ledger_literal(result_table), ledger_literal(str(use_case_id)),
+              ledger_literal(str(found["run_id"])), "`record_key`", ledger_literal(found.get("kind")),
+              ledger_literal(found.get("currency") or None), ledger_literal(found.get("unit") or None), "NULL",
+              ledger_literal(value), ledger_literal(recorded_by or None)]
+    names = [name for name in LEDGER_NAMES if name != "recorded_at"]
+    columns = ", ".join(f"`{name}`" for name in names + ["recorded_at"])
+    return (f"INSERT INTO {table} ({columns}) SELECT {', '.join(select)}, current_timestamp() FROM {keys} AS batch_keys")
+
+
 def ledger_latest_stake_sql(table: str, result_table: str, use_case_id: str) -> str:
     return (f"SELECT session_id, run_id, kind, currency, unit FROM {table} WHERE result_table = {ledger_literal(result_table)} "
             f"AND use_case_id = {ledger_literal(use_case_id)} AND record_key IS NULL ORDER BY recorded_at DESC LIMIT 1")
