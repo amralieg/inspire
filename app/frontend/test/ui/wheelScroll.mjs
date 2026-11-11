@@ -137,7 +137,14 @@ export async function wheelReads(page, box, { lines = '', readable = 3, delta = 
   assert.ok(at.hit, `the scroll box is what the pointer lands on, nothing covers it ${JSON.stringify(at)}`);
   await page.mouse.move(at.x, at.y);
   await page.mouse.wheel(0, delta);
-  await page.waitForFunction((el) => el.scrollTop > 0, await box.elementHandle(), { timeout: 5000 });
+  await page.waitForFunction((el) => el.scrollTop > 0, await box.elementHandle(), { timeout: 5000 }).catch(async (error) => {
+    const state = await box.evaluate((el, point) => {
+      const hit = document.elementFromPoint(point.x, point.y);
+      return { boxTop: Math.round(el.scrollTop), boxScroll: el.scrollHeight, boxClient: el.clientHeight, pageTop: Math.round(document.scrollingElement.scrollTop),
+        hit: hit ? `${hit.tagName.toLowerCase()}.${String(hit.className).slice(0, 60)}` : '', innerHeight: window.innerHeight, innerWidth: window.innerWidth };
+    }, { x: at.x, y: at.y });
+    throw new Error(`the mouse wheel did not scroll the box, ${JSON.stringify({ at: { x: Math.round(at.x), y: Math.round(at.y) }, ...state })}: ${error.message}`);
+  });
   if (!lines) return;
   await frames(page);
   const seen = await box.evaluate((el, sel) => {
