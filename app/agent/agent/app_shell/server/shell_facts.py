@@ -708,6 +708,24 @@ def ledger_saved_from_batch_sql(table: str, result_table: str, batch_column: str
     return (f"INSERT INTO {table} ({columns}) SELECT {', '.join(select)}, current_timestamp() FROM {keys} AS batch_keys")
 
 
+def ledger_clear_from_batch_sql(table: str, result_table: str, use_case_id: str, batch_column: str, batch_id: str,
+                                recorded_by: str) -> str:
+    keys = (f"(SELECT DISTINCT `record_key` FROM {table_name(result_table)} WHERE `change_source` = 'action' AND `{batch_column}` = "
+            f"{ledger_literal(str(batch_id))} AND `record_key` IS NOT NULL)")
+    latest = ("SELECT session_id, result_table, use_case_id, run_id, record_key, kind, currency, unit, saved, ROW_NUMBER() OVER "
+              "(PARTITION BY session_id, result_table, use_case_id, record_key ORDER BY recorded_at DESC, run_id DESC) AS rn "
+              f"FROM {table} WHERE result_table = {ledger_literal(result_table)} AND use_case_id = {ledger_literal(str(use_case_id))} "
+              "AND record_key IS NOT NULL")
+    counted = (f"(SELECT session_id, result_table, use_case_id, run_id, record_key, kind, currency, unit FROM ({latest}) latest "
+               "WHERE rn = 1 AND saved IS NOT NULL)")
+    names = [name for name in LEDGER_NAMES if name != "recorded_at"]
+    columns = ", ".join(f"`{name}`" for name in names + ["recorded_at"])
+    select = ("c.session_id, c.result_table, c.use_case_id, c.run_id, c.record_key, c.kind, c.currency, c.unit, NULL, NULL, "
+              f"{ledger_literal(recorded_by or None)}")
+    return (f"INSERT INTO {table} ({columns}) SELECT {select}, current_timestamp() FROM {counted} AS c "
+            f"JOIN {keys} AS k ON k.`record_key` = c.record_key")
+
+
 def ledger_latest_stake_sql(table: str, result_table: str, use_case_id: str) -> str:
     return (f"SELECT session_id, run_id, kind, currency, unit FROM {table} WHERE result_table = {ledger_literal(result_table)} "
             f"AND use_case_id = {ledger_literal(use_case_id)} AND record_key IS NULL ORDER BY recorded_at DESC LIMIT 1")

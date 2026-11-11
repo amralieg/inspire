@@ -4118,7 +4118,10 @@ class Shell:
             out = self.act_on_reviewed(ws, writer, who, page, fields, keys, seen, similar, editor, values, batch)
         else:
             out = self.act_on_keys(ws, writer, page, fields, keys, seen, editor, values, batch)
-        out = dict(out, **self.record_value_saves(ws, page, batch["id"], values, "realized_value" in (data.get("values") or {}), editor))
+        named = "realized_value" in (data.get("values") or {})
+        out = dict(out, **self.record_value_saves(ws, page, batch["id"], values, named, editor))
+        if not named and values.get("action_status") not in (None, shell_sql.DONE):
+            out = dict(out, **self.record_value_clears(ws, page, batch["id"], editor))
         notice = self.alerts.assigned(headers, page, values.get("action_owner"), editor) if values.get("action_owner") else ""
         return dict(out, **({"notice": notice} if notice else {}))
 
@@ -4147,6 +4150,19 @@ class Shell:
         except QueryError as error:
             return {"value_warning": f"the saved value is not counted in the value ledger: {shell_sql.error_text(error)}"}
         return {"value_recorded": int(written.get("num_inserted_rows", written.get("num_affected_rows")) or 0)}
+
+    def record_value_clears(self, ws, page: dict, batch: str, editor: str) -> dict:
+        """A record that leaves Done stops counting: its counted saved value is cleared, in one statement, with the App's identity."""
+        table = page.get("value_ledger")
+        if not table or not page.get("result_table") or not page.get("use_case_id"):
+            return {}
+        sql = shell_facts.ledger_clear_from_batch_sql(table, page["result_table"], page["use_case_id"], shell_sql.BATCH_COLUMN, batch, editor)
+        writer = ws if self.inside else self.service()
+        try:
+            written = (self.execute(writer, sql, [], 1, delta=True)["rows"] or [{}])[0]
+        except QueryError as error:
+            return {"value_warning": f"the cleared value is still counted in the value ledger: {shell_sql.error_text(error)}"}
+        return {"value_cleared": int(written.get("num_inserted_rows", written.get("num_affected_rows")) or 0)}
 
     def replayed_act(self, ws, page: dict, request: str, editor: str, keys) -> dict:
         sql, params = shell_sql.batches_query(page, 1, batch_id=request)
