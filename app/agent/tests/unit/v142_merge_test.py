@@ -10,7 +10,7 @@ from v140_implement_test import (FIXTURE, OURS_APP, READS, SHELL_FILES, TRUTH, V
                                  _deploy_inspire, _FileRunner, _inspire, _left_by, _NB_SPEC, _not_access_reads, _output_context,
                                  _without_feedback,
                                  _output_inspire, _space, _spec, _without_requirements, sdk_stub)
-from v142_look_test import DEPLOYED
+from v142_look_test import DEPLOYED, VALUE_LEDGER
 
 HOST_UC = "N01-U07"
 SOURCE = "/Workspace/Users/someone/sales/apps/sales-desk"
@@ -261,8 +261,10 @@ def test_a_shared_view_use_case_merged_into_a_per_user_app_keeps_the_hosts_scope
     fields = inst._implement_deploy_app(context, "sales-desk", SHELL_FILES, READS, "gA", poll_s=0)
     assert [c[0] for c in calls].count("PATCH") == 0, "the host keeps the user scopes its viewers sign in with"
     assert not any("could not remove" in w for w in fields.get("_warnings") or [])
-    assert _without_feedback(_not_access_reads(inst.spark.statements)) == [] and inst.genie_grants == [], \
-        "each viewer of the per-user host reads with their own grants, so its identity gets none beyond the feedback table"
+    ledger_creates = [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("CREATE TABLE")]
+    assert _without_feedback(_not_access_reads(inst.spark.statements)) == ledger_creates and len(ledger_creates) == 1 and inst.genie_grants == [], \
+        "each viewer of the per-user host reads with their own grants, so its identity gets none beyond the feedback table (the job identity creates the value ledger)"
+    assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")] == []
     assert inst.tagged == [], "the host keeps its own owner tag"
 
 def test_a_sensitive_use_case_is_never_merged_into_a_service_principal_app(agent_ns, tmp_path, monkeypatch):
