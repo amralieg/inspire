@@ -120,7 +120,7 @@ export function heldShare(entry) {
   return `${plural(current.held, 'record')} of ${grouped(current.records)} (${percentOf(current.held, current.records)}%) ${current.held === 1 ? 'is' : 'are'} held back now`;
 }
 
-const COLUMN_ID = /\b[a-z][a-z0-9]*(?:_[a-z0-9]+)+\b/g;
+const COLUMN_ID = /\b[A-Za-z][A-Za-z0-9]*(?:_[A-Za-z0-9]+)+\b/g;
 
 export const plainColumns = (text) => String(text || '').replace(COLUMN_ID, (id) => id.replaceAll('_', ' '));
 
