@@ -39,6 +39,8 @@ import DocumentLanguagesMultiselect from '../components/DocumentLanguagesMultise
 import StrategyEditor from '../components/StrategyEditor';
 import { parseStrategicContext, splitPriorities, validateStrategicContextText, withPriorities } from '../lib/strategyContext';
 import UcPermissionErrorHelp from '../components/UcPermissionErrorHelp';
+import TableScopeWizard from '../components/TableScopeWizard';
+import { scopesFromObject, serializeTableScopes, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
 import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { runBusiness } from '../lib/reviewFigures';
@@ -174,7 +176,7 @@ const DRAFT_PARAMS = ['00_business_name', '03_discovery_type', '04_table_electio
   '11_generation_path', '12_documents_languages', '13_generate_genie_code_for', '15_operation', '16_best_of_best_count'];
 const FORM_DEFAULTS = {
   genChecks: { 'PDF Catalog': true, Presentation: false }, priorityChecks: {}, customPriorities: [], strategyBase: '',
-  selectedCatalogs: [], selectedSchemas: [], selectedTables: [],
+  selectedCatalogs: [], selectedSchemas: [], selectedTables: [], tableScopes: {},
   electionTouched: false, discoveryTouched: false, strategyTouched: false, prioritiesTouched: false,
 };
 const FLAGS = ['electionTouched', 'discoveryTouched', 'strategyTouched', 'prioritiesTouched'];
@@ -182,7 +184,7 @@ const LISTS = ['customPriorities', 'selectedCatalogs', 'selectedSchemas', 'selec
 
 function draftFormOf(params, form) {
   const priorityChecks = Object.fromEntries(Object.entries(form.priorityChecks).filter(([, on]) => on === true));
-  return { ...form, priorityChecks, params: Object.fromEntries(DRAFT_PARAMS.map((key) => [key, params[key]])) };
+  return { ...form, priorityChecks, tableScopes: form.tableScopes, params: Object.fromEntries(DRAFT_PARAMS.map((key) => [key, params[key]])) };
 }
 
 const PRISTINE_FORM = JSON.stringify(draftFormOf(defaultParams(''), FORM_DEFAULTS));
@@ -199,6 +201,7 @@ function restoredForm(draft) {
     priorityChecks: checks(spec.priorityChecks, {}),
     strategyBase: typeof spec.strategyBase === 'string' ? spec.strategyBase : '',
     ...Object.fromEntries(LISTS.map((key) => [key, Array.isArray(spec[key]) ? spec[key].filter((x) => typeof x === 'string') : []])),
+    tableScopes: scopesFromObject(spec.tableScopes).scopes,
     ...Object.fromEntries(FLAGS.map((key) => [key, spec[key] === true])),
   };
 }
@@ -234,6 +237,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   // ── Table state ──
   const [tables, setTables] = useState([]);
   const [selectedTables, setSelectedTables] = useState(start.selectedTables);
+  const [tableScopes, setTableScopes] = useState(start.tableScopes);
+  const [scopingTable, setScopingTable] = useState('');
   const [loadingTables, setLoadingTables] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
 
@@ -590,9 +595,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [prioritiesTouched, setPrioritiesTouched] = useState(start.prioritiesTouched);
 
   const draftForm = useMemo(() => draftFormOf(params, {
-    genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables,
+    genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables, tableScopes,
     electionTouched, discoveryTouched, strategyTouched, prioritiesTouched,
-  }), [params, genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables,
+  }), [params, genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables, tableScopes,
     electionTouched, discoveryTouched, strategyTouched, prioritiesTouched]);
   useEffect(() => {
     if (JSON.stringify(draftForm) === PRISTINE_FORM) clearWizardDraft(draftKey);
@@ -610,6 +615,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     setSelectedCatalogs(FORM_DEFAULTS.selectedCatalogs);
     setSelectedSchemas(FORM_DEFAULTS.selectedSchemas);
     setSelectedTables(FORM_DEFAULTS.selectedTables);
+    setTableScopes(FORM_DEFAULTS.tableScopes);
     setElectionTouched(false);
     setDiscoveryTouched(false);
     setStrategyTouched(false);
@@ -717,6 +723,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     finalParams['12_documents_languages'] = formatDocumentLanguages(launchDocLanguages(params));
     // Always auto-generate session ID
     finalParams['14_session_id'] = newSessionId();
+    const tableScopeText = serializeTableScopes(tableScopes, selectedTables);
+    if (tableScopeText) finalParams['17_table_scope'] = tableScopeText;
 
     try {
       const data = await apiFetch('/api/run', {
@@ -1168,6 +1176,10 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           <Table2 size={9} />
                           {t.split('.').pop()}
                           <button aria-label={`Remove ${t}`} onClick={() => setSelectedTables((p) => p.filter((x) => x !== t))} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
+                          <button type="button" aria-label={`Filter ${t}`} data-table-scope-open={t} onClick={() => setScopingTable(t)}
+                            className="hover:text-db-red-fg ms-0.5 underline-offset-2 hover:underline">
+                            {tableScopeOf(tableScopes, t) ? tableScopeSummary(tableScopeOf(tableScopes, t)) : 'Filter rows and columns'}
+                          </button>
                         </span>
                       ))}
                       {selectedSchemas.map((s) => (
@@ -1185,6 +1197,15 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       ))}
                     </div>
                   </div>
+                )}
+
+                {scopingTable && (
+                  <TableScopeWizard table={scopingTable} entry={tableScopeOf(tableScopes, scopingTable)} apiFetch={apiFetch} warehouseId={warehouseId}
+                    onClose={() => setScopingTable('')}
+                    onSave={(entry) => {
+                      setTableScopes((prev) => ({ ...prev, [scopingTable]: entry }));
+                      setScopingTable('');
+                    }} />
                 )}
 
                 {tableSelectionWarning.show && (

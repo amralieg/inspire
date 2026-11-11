@@ -2182,9 +2182,12 @@ function columnValuesStatement(name, column, limit = 200) {
   };
 }
 
+const FILTER_RANGE_OPS = ['>', '>=', '<', '<='];
+
 function filterClause(filter, index) {
   const col = quoteColumn(filter.column);
   const op = str(filter.op).toLowerCase();
+  if (op === 'is null') return { sql: `${col} IS NULL`, params: [] };
   const values = (Array.isArray(filter.values) ? filter.values : []).map((v) => str(v));
   const params = values.map((v, i) => ({ name: `f${index}_${i}`, value: v, type: 'STRING' }));
   const refs = params.map((p) => `:${p.name}`);
@@ -2195,9 +2198,10 @@ function filterClause(filter, index) {
   }
   if (op === 'between') {
     if (refs.length !== 2) throw badRequest(`filter ${filter.column} between needs two values`);
-    return { sql: `CAST(${col} AS STRING) BETWEEN ${refs[0]} AND ${refs[1]}`, params };
+    return { sql: `${col} BETWEEN ${refs[0]} AND ${refs[1]}`, params };
   }
   if (refs.length !== 1) throw badRequest(`filter ${filter.column} ${op} needs one value`);
+  if (FILTER_RANGE_OPS.includes(op)) return { sql: `${col} ${op} ${refs[0]}`, params };
   return { sql: `CAST(${col} AS STRING) ${op} ${refs[0]}`, params };
 }
 

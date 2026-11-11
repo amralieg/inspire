@@ -37,6 +37,7 @@ const ALLOWED = [
   ['lib/showcaseRecord.js', 'JSON.parse(postData)', 'request bodies the recorder sees'],
   ['lib/inspireImplement.js', 'JSON.parse(`"${body}"`)', 'one JSON string literal'],
   ['lib/appShell.js', 'JSON.parse(literal.replace(', 'the App shell catalog literal'],
+  ['lib/inspireJobParams.js', 'JSON.parse(source)', 'the table scope the person picked in Data selection, read once at launch'],
   ['lib/exactJson.js', 'JSON.parse(', 'the exact reader itself'],
 ];
 
