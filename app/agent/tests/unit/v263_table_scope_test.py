@@ -174,3 +174,85 @@ def _loader_for_evidence():
     graph = {("main", "s", "orders"): [("main", "s", "orders", "customer_id", "main", "s", "customers", "customer_id")]}
     return types.SimpleNamespace(foreign_key_graph=graph, _column_tags={}, _lkey=lambda c, s, t: (c.lower(), s.lower(), t.lower()),
                                  metadata_unavailable_report=lambda: {"count": 0, "tables": []})
+
+
+def test_the_scope_reaches_every_prompt_as_a_directive_that_each_statement_must_honour(scoped):
+    obj = make_inspire(scoped, spark=FakeSpark(responder=_deep_responder), discovery_type="Standard", data_loader=_loader_for_evidence())
+    block = obj._get_generation_instruction_for_prompt("USE_CASE_GENERATION_PROMPT")
+    assert "- TABLE SCOPE of `main.s.orders`: Inspire reads only the columns `order_id`, `customer_id`, `order_date`, and only the rows where " in block
+    assert "`status` = gold" in block, block
+    assert "MUST say in its statement that it covers only that scope" in block
+
+
+def test_the_scope_is_saved_on_the_session_row_so_a_generate_run_keeps_it(scoped):
+    writer = object.__new__(scoped["AtomicWriter"])
+    writer.widget_values = {"table_scope": SCOPE_JSON}
+    assert writer._widget_to_columns_map()["table_scope"] == SCOPE_JSON
+    writer.widget_values = {}
+    assert writer._widget_to_columns_map()["table_scope"] == ""
+    import _agentload
+    text = _agentload.agent_source(_agentload.agent_notebook_path())
+    assert "generation_instructions_section STRING,\n            table_scope STRING\n        ) USING DELTA" in text, "the session table is created with the column"
+    assert '            ("table_scope", "STRING"),' in text, "a session table made before this version gets the column"
+
+
+class _ScopeFrame:
+    def __init__(self, columns, calls):
+        self.columns, self.calls = columns, calls
+
+    def where(self, condition):
+        self.calls.append(("where", condition))
+        return self
+
+    def select(self, *columns):
+        self.calls.append(("select", columns))
+        return self
+
+
+class _ScopeSession:
+    def __init__(self, calls):
+        self.calls = calls
+
+    def table(self, name):
+        self.calls.append(("table", name))
+        return _ScopeFrame(["order_id", "customer_id", "order_date", "status", "amount"], self.calls)
+
+
+def test_the_mvp_source_read_applies_the_scope_before_anything_else_and_selects_only_the_columns(scoped):
+    calls = []
+    read = scoped["inspire_read_source"]
+    read("main.s.orders", _ScopeSession(calls))
+    assert calls == [("table", "`main`.`s`.`orders`"), ("where", "`status` = 'gold'"),
+                     ("select", ("`order_id`", "`customer_id`", "`order_date`"))], calls
+
+
+def test_the_mvp_training_read_is_scoped_too(scoped):
+    calls = []
+    scoped["inspire_read_source"]("main.s.orders", _ScopeSession(calls), scoped["INSPIRE_READ_PURPOSES"][1])
+    assert ("where", "`status` = 'gold'") in calls and ("select", ("`order_id`", "`customer_id`", "`order_date`")) in calls, calls
+
+
+def test_a_table_without_a_scope_is_read_whole_by_the_mvp_helper(agent_ns):
+    agent_ns["TABLE_SCOPES"].clear()
+    calls = []
+    agent_ns["inspire_read_source"]("main.s.customers", _ScopeSession(calls))
+    assert calls == [("table", "`main`.`s`.`customers`")], calls
+
+
+def test_the_run_log_and_the_run_tables_report_a_columns_only_scope_as_scoped(scoped):
+    scoped["TABLE_SCOPES"].clear()
+    scoped["TABLE_SCOPES"].update(scoped["parse_table_scopes"](json.dumps({"main.s.orders": {"columns": ["order_id"], "rows": []}})))
+    log = {}
+    ns_log = scoped.get("INSPIRE_RUN_LOG")
+    scoped["INSPIRE_RUN_LOG"] = log
+    try:
+        scoped["inspire_read_source"]("main.s.orders", _ScopeSession([]))
+    finally:
+        scoped["INSPIRE_RUN_LOG"] = ns_log
+    assert log["reads"]["main.s.orders"] == {"where": "", "limit": None, "columns": ["order_id"]}
+
+
+def test_a_generated_mvp_cell_that_reads_a_scoped_table_without_the_helper_is_refused(scoped):
+    refused = scoped["implement_source_read_problems"]([("cell 1", "df = spark.table('main.s.orders')\n")], ["main.s.orders"])
+    assert refused, "a direct read of a scoped table skips the Table Scope and must be refused"
+    assert scoped["implement_source_read_problems"]([("cell 1", "df = inspire_read_source('main.s.orders')\n")], ["main.s.orders"]) == []

@@ -92,3 +92,13 @@ test('the readiness row count and the Filter rows share one builder: is-null and
     'SELECT COUNT(*) AS row_count FROM `main`.`sales`.`orders` WHERE `total_sales` BETWEEN :f0_0 AND :f0_1');
   assert.throws(() => sql([{ column: 'x', op: 'like', values: ['a'] }]), /operator 'like' is not supported/);
 });
+
+test('a Generate run rebuilt from a session carries the scope that session saved, and no scope key when it saved none', () => {
+  const { notebookParamsFromSessionForGenerateRun } = require('../lib/inspireSessionParams');
+  const session = { business_name: 'Acme', inspire_database_name: 'main.insp', tables_str: 'main.sales.orders', table_scope: JSON.stringify(SCOPE) };
+  const kept = notebookParamsFromSessionForGenerateRun(session, '42');
+  assert.equal(kept['17_table_scope'], JSON.stringify(SCOPE));
+  assert.equal(kept['15_operation'], 'Generate Use Cases');
+  const plain = notebookParamsFromSessionForGenerateRun({ business_name: 'Acme', tables_str: 'main.sales.orders' }, '42');
+  assert.equal('17_table_scope' in plain, false);
+});
