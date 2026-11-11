@@ -15,7 +15,7 @@ from v120_modes_main_test import FakeDbutils, widget_values  # noqa: E402
 from v140_implement_test import VALID, _probe_inspire, _tag_inspire  # noqa: E402
 
 VERSION_KEY = "dbx_inspire_ai_version"
-JOB_TAG_VALUE = re.compile(r"^[\d \w\+\-=\.:/@]*$", re.ASCII)
+JOB_TAG_VALUE = re.compile(r"^[\w\+\-=\.,:@]*$", re.ASCII)
 ALL_KINDS = {"dashboard": "01ef0a1b2c3d4e5f", "genie_space": "01ef9f8e7d6c5b4a", "app": "churn-desk", "alert": "a1b2c3d4-0000-1111-2222-333344445555"}
 
 
@@ -97,13 +97,14 @@ def test_asset_tags_name_one_tag_per_built_kind(ns):
         "dbx_inspire_ai_app_id": "a7f3c2e1-1111",
         "dbx_inspire_ai_genie_space_id": "01ef9f8e7d6c5b4a",
         "dbx_inspire_ai_dashboard_id": "01ef0a1b2c3d4e5f",
-        "dbx_inspire_ai_alert_ids": "a1b2c3d4-0000-1111-2222-333344445555 d9e8f7a6-0000-1111-2222-333344445555",
+        "dbx_inspire_ai_alert_ids": "a1b2c3d4-0000-1111-2222-333344445555,d9e8f7a6-0000-1111-2222-333344445555",
         "dbx_inspire_ai_alert_count": "2",
         "dbx_inspire_ai_agent_endpoint": "databricks-claude-sonnet",
         "dbx_inspire_ai_agent_endpoint_id": "ep-9f8e",
         "dbx_inspire_ai_lakebase_project": ns["IMPLEMENT_LAKEBASE_PROJECT"],
         "dbx_inspire_ai_lakebase_project_id": "pj-1a2b",
-        "dbx_inspire_ai_assets": "app genie dashboard alert agent_endpoint lakebase",
+        "dbx_inspire_ai_backend": "lakebase",
+        "dbx_inspire_ai_assets": "app,genie,dashboard,alert,agent_endpoint,lakebase",
     }
     assert set(tags) <= set(ns["JobLauncher"].ASSET_TAG_KEYS)
 
@@ -130,9 +131,9 @@ def test_asset_tags_skip_kinds_that_were_not_built_or_are_gone(ns, assets, statu
 def test_asset_tag_values_keep_only_the_characters_billing_allows(ns):
     tags = ns["implement_asset_tags"]({"app": "my app/v2", "alert": "id,with,commas", "genie_space": "g 1@x:y+z=w"},
                                       {"alert": {"state": "ready", "digest_id": "a b"}}, "end point/x")
-    assert tags["dbx_inspire_ai_app_name"] == "my_app/v2"
+    assert tags["dbx_inspire_ai_app_name"] == "my_app_v2"
     assert tags["dbx_inspire_ai_genie_space_id"] == "g_1@x:y+z=w"
-    assert tags["dbx_inspire_ai_alert_ids"] == "id_with_commas a_b" and tags["dbx_inspire_ai_alert_count"] == "2"
+    assert tags["dbx_inspire_ai_alert_ids"] == "id_with_commas,a_b" and tags["dbx_inspire_ai_alert_count"] == "2"
     assert "dbx_inspire_ai_agent_endpoint" not in tags
     assert all(JOB_TAG_VALUE.fullmatch(value) and len(value) <= 255 for value in tags.values())
     assert ns["JobLauncher"]._sanitize_tag("Acme, Inc.") == "Acme_Inc", "job names and the older tags keep the narrow set"
@@ -158,7 +159,7 @@ def test_tag_values_fit_the_cloud_of_the_workspace(ns, monkeypatch, host, cap):
     tags = launcher("/Users/someone@example.com/nb", {}, {"dbx_inspire_ai_usecase": "y" * 300, "dbx_inspire_ai_business": "z" * 300}).job_tags
     assert {len(value) for value in tags.values()} == {cap}
     alerts = ns["implement_asset_tags"]({"alert": "a" * 40}, {"alert": {"state": "ready", "digest_id": "b" * 40}})
-    assert alerts["dbx_inspire_ai_alert_ids"] == ("a" * 40 if cap == 63 else f"{'a' * 40} {'b' * 40}")
+    assert alerts["dbx_inspire_ai_alert_ids"] == ("a" * 40 if cap == 63 else f"{'a' * 40},{'b' * 40}")
 
 
 def test_on_serverless_with_no_host_variable_the_spark_workspace_url_names_the_cloud(ns, monkeypatch):
@@ -171,14 +172,14 @@ def test_on_serverless_with_no_host_variable_the_spark_workspace_url_names_the_c
     assert len(launcher._sanitize_tag("x" * 300)) == 63
 
 
-def test_the_tag_cap_keeps_twenty_and_drops_the_lowest_priority_inspire_tags(ns, capsys):
+def test_the_tag_cap_keeps_twenty_five_and_drops_the_lowest_priority_inspire_tags(ns, capsys):
     launcher = ns["JobLauncher"]
     inspire = {key: "v" for key in launcher.TAG_PRIORITY}
     user = {"team": "growth", "cost_center": "42"}
     kept = launcher.merged_tags(user, inspire)
-    assert len(kept) == 20 and set(user) <= set(kept)
+    assert launcher.TAG_LIMIT == 25 and len(kept) == 25 and set(user) <= set(kept)
     dropped = [key for key in launcher.TAG_PRIORITY if key not in kept]
-    assert dropped == list(launcher.TAG_PRIORITY[18:]), "the tail of the priority list goes first"
+    assert dropped == list(launcher.TAG_PRIORITY[23:]), "the tail of the priority list goes first"
     assert {"inspire_version", "dbx_inspire_ai_session"} <= set(dropped) and VERSION_KEY in kept
     out = capsys.readouterr().out
     assert "[JOB-TAG-CAP FIRED]" in out and all(key in out for key in dropped)
@@ -239,7 +240,7 @@ def test_the_asset_update_reads_the_app_id_and_skips_the_write_when_nothing_chan
     inst._implement_tag_job_assets("N01-U01", "77", {"app": "churn-desk"}, {"app": {"state": "ready", "backend": "delta"}})
     [update] = api.updates()
     assert update["new_settings"]["tags"] == {"dbx_inspire_ai_app_name": "churn-desk", "dbx_inspire_ai_app_id": "a7f3c2e1-1111",
-                                              "dbx_inspire_ai_assets": "app"}
+                                              "dbx_inspire_ai_backend": "delta", "dbx_inspire_ai_assets": "app"}
     assert ("GET", "/api/2.0/apps/churn-desk", None, None) in api.calls
     same = _Api(update["new_settings"]["tags"])
     _tagger(ns, same)._implement_tag_job_assets("N01-U01", 77, {"app": "churn-desk"}, {"app": {"state": "ready", "backend": "delta"}})
@@ -294,8 +295,8 @@ def test_a_recorded_app_id_tags_the_job_without_reading_the_app(ns):
 
 
 def test_the_id_already_on_the_job_is_kept_for_the_same_app_and_read_again_for_another(ns):
-    same = _Api({"dbx_inspire_ai_app_name": "churn-desk", "dbx_inspire_ai_app_id": "a7f3c2e1-1111", "dbx_inspire_ai_assets": "app"},
-                app={"id": "should-not-be-read"})
+    same = _Api({"dbx_inspire_ai_app_name": "churn-desk", "dbx_inspire_ai_app_id": "a7f3c2e1-1111", "dbx_inspire_ai_backend": "delta",
+                 "dbx_inspire_ai_assets": "app"}, app={"id": "should-not-be-read"})
     _tagger(ns, same)._implement_tag_job_assets("N01-U01", 77, {"app": "churn-desk"}, {"app": {"state": "ready", "backend": "delta"}})
     assert same.updates() == [] and _app_reads(same) == []
     moved = _Api({"dbx_inspire_ai_app_name": "old-desk", "dbx_inspire_ai_app_id": "0ld1d", "dbx_inspire_ai_assets": "app"})
@@ -347,9 +348,9 @@ def test_ids_outrank_names_when_the_tag_cap_bites(ns):
     ids = ("dbx_inspire_ai_app_id", "dbx_inspire_ai_agent_endpoint_id", "dbx_inspire_ai_lakebase_project_id")
     order = launcher.TAG_PRIORITY
     assert max(order.index(key) for key in ids) < min(order.index(key) for key in names)
-    user = {f"team_{n}": "x" for n in range(16)}
+    user = {f"team_{n}": "x" for n in range(21)}
     kept = launcher.merged_tags(user, dict({key: "v" for key in names + ids}, dbx_inspire_ai_assets="app"))
-    assert set(ids) <= set(kept) and not set(names) & set(kept) and len(kept) == 20
+    assert set(ids) <= set(kept) and not set(names) & set(kept) and len(kept) == 25
 
 
 def test_a_finished_build_records_the_app_id_and_tags_the_job_with_it(ns):
@@ -386,7 +387,7 @@ def test_a_finished_build_tags_the_use_case_job_with_its_assets(ns):
     assert tags["team"] == "growth" and tags["dbx_inspire_ai_run_type"] == "implement"
     assert tags["dbx_inspire_ai_dashboard_id"] == "d1" and tags["dbx_inspire_ai_genie_space_id"] == "g1"
     assert tags["dbx_inspire_ai_app_name"] == "churn-desk" and tags["dbx_inspire_ai_app_id"] == "a7f3c2e1-1111"
-    assert set(tags["dbx_inspire_ai_assets"].split(" ")) >= {"app", "genie", "dashboard"}
+    assert set(tags["dbx_inspire_ai_assets"].split(",")) >= {"app", "genie", "dashboard"}
     assert all(JOB_TAG_VALUE.fullmatch(value) for value in tags.values())
 
 
@@ -437,9 +438,9 @@ def test_a_relaunch_whose_job_cannot_be_read_still_launches_with_its_own_tags(ns
 def test_a_new_job_is_created_with_capped_tags(ns, cap_sdk):
     cap_sdk["jobs"] = jobs = _TagJobs({})
     jobs.existing_job_id = None
-    many = {f"dbx_inspire_ai_extra_{i:02d}": "v" for i in range(25)}
+    many = {f"dbx_inspire_ai_extra_{i:02d}": "v" for i in range(30)}
     assert _launch(ns, many)["success"] is True
-    assert len(jobs.settings[0].tags) == 20
+    assert len(jobs.settings[0].tags) == 25
 
 
 def test_the_scheduled_plan_merges_tags_too(ns, cap_sdk):
@@ -456,20 +457,19 @@ def test_closing_grep_every_job_write_in_the_launcher_goes_through_the_tag_merge
     launcher = src[start:src.index("\n'''", start)]
     assert launcher.count("tags=self.job_tags") == 0
     assert launcher.count("JobLauncher.merged_tags(") == 3
-    assert src.count("**INSPIRE_VERSION_TAGS") == 1 and src.count("**inspire_run_tags()") == 2
+    assert src.count("**INSPIRE_VERSION_TAGS") == 1 and src.count("**inspire_run_tags()") == 1 and src.count("**inspire_identity_tags(") == 2
     assert src.count("self._implement_tag_job_assets(") == 1
 
 
-@pytest.mark.parametrize("old", ["genie,agent_endpoint", "app,genie,dashboard,alert,agent_endpoint,lakebase",
-                                 "a1b2c3d4-0000-1111-2222-333344445555,d9e8f7a6-0000-1111-2222-333344445555"])
-def test_the_comma_lists_the_job_refused_fail_the_databricks_tag_value_rule(old):
-    assert JOB_TAG_VALUE.fullmatch(old) is None
+@pytest.mark.parametrize("value,allowed", [("genie,agent_endpoint", True), ("a1+b2=c3.d4:e5@f6_g7-h8", True), ("Acme, Inc.", False), ("my app/v2", False)])
+def test_the_documented_job_tag_characters_are_accepted_and_others_refused(value, allowed):
+    assert (JOB_TAG_VALUE.fullmatch(value) is not None) is allowed
 
 
 def test_the_live_genie_and_agent_endpoint_build_tags_the_job_with_values_the_rule_accepts(ns):
     tags = ns["implement_asset_tags"]({"genie_space": "01ef9f8e7d6c5b4a"},
                                       {"genie_space": {"state": "ready"}, "ai_reasoning": {"state": "ready"}}, "databricks-claude-sonnet")
-    assert tags["dbx_inspire_ai_assets"] == "genie agent_endpoint"
+    assert tags["dbx_inspire_ai_assets"] == "genie,agent_endpoint"
     assert all(JOB_TAG_VALUE.fullmatch(value) and len(value) <= 255 for value in tags.values())
 
 
@@ -486,12 +486,12 @@ def test_every_job_tag_value_the_merge_writes_meets_the_databricks_rule(ns, raw)
 
 def test_user_tags_already_on_the_job_pass_through_the_merge_untouched(ns):
     merged = ns["JobLauncher"].merged_tags({"team": "growth,ops"}, {"dbx_inspire_ai_assets": "app,genie"})
-    assert merged == {"team": "growth,ops", "dbx_inspire_ai_assets": "app_genie"}
+    assert merged == {"team": "growth,ops", "dbx_inspire_ai_assets": "app,genie"}
 
 
 def test_a_tag_list_keeps_whole_items_inside_the_length_limit(ns):
     launcher = ns["JobLauncher"]
-    assert launcher.tag_list(["a,b", "c d", "", "a,b", "e"]) == "a_b c_d e"
+    assert launcher.tag_list(["a,b", "c d", "", "a,b", "e"]) == "a_b,c_d,e"
     joined = launcher.tag_list(["x" * 200, "y" * 60, "z" * 10])
     assert joined == "x" * 200 and len(launcher.tag_list(["x" * 200, "y" * 54])) == launcher.TAG_VALUE_MAX
     assert launcher.TAG_LIST_SEP not in launcher.TAG_ITEM_CHARS and JOB_TAG_VALUE.fullmatch(launcher.TAG_LIST_SEP)
@@ -512,16 +512,16 @@ def test_the_generated_notebook_launcher_carries_the_same_tag_value_rule(ns):
     embedded = scope["JobLauncher"]
     merged = embedded.merged_tags({}, {"dbx_inspire_ai_assets": "genie,agent_endpoint"})
     assert JOB_TAG_VALUE.fullmatch(merged["dbx_inspire_ai_assets"])
-    assert embedded.tag_list(["genie", "agent_endpoint"]) == "genie agent_endpoint"
+    assert embedded.tag_list(["genie", "agent_endpoint"]) == "genie,agent_endpoint"
 
 
-def test_closing_grep_no_tag_value_is_joined_with_a_comma():
+def test_closing_grep_tag_lists_use_the_documented_separator():
     src = agent_source()
     assert '",".join(kinds)' not in src and 'f"{joined},{alert_id}"' not in src
-    assert src.count("JobLauncher.tag_list(") == 2
+    assert src.count("JobLauncher.tag_list(") == 3
     start = src.index("class JobLauncher:")
     launcher = src[start:src.index("\n'''", start)]
-    assert 'TAG_VALUE_CHARS = "A-Za-z0-9 +=.:/@_-"' in launcher and "," not in launcher.split("TAG_VALUE_CHARS = ")[1].split("\n")[0]
+    assert 'TAG_VALUE_CHARS = "A-Za-z0-9+=.,:@_-"' in launcher and 'TAG_LIST_SEP = ","' in launcher
 
 
 APP_TAG_KEY_BAD = re.compile(r"[,.:/\-=]|^\s|\s$")
@@ -546,7 +546,7 @@ def test_a_tag_key_is_cut_to_the_limit_of_its_resource_kind(ns, kind, raw, limit
 def test_an_app_tag_value_keeps_any_character_up_to_its_own_limit_and_never_an_edge_space(ns):
     launcher = ns["JobLauncher"]
     assert launcher.tag_value("genie,agent_endpoint", "app") == "genie,agent_endpoint"
-    assert launcher.tag_value("genie,agent_endpoint", "job") == "genie_agent_endpoint"
+    assert launcher.tag_value("genie,agent_endpoint", "job") == "genie,agent_endpoint"
     assert len(launcher.tag_value("v" * 1200, "app")) == 1000 and len(launcher.tag_value("v" * 1200, "job")) == 255
     assert launcher.tag_value("  padded  ", "app") == "padded"
     with pytest.raises(KeyError):
