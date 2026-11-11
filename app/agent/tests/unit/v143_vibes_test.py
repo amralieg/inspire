@@ -137,7 +137,7 @@ def test_rollback_outputs_become_whole_versions_and_every_bad_one_is_named(agent
 def test_rollback_is_the_change_class_after_retry_and_a_vibe_change_is_an_outputs_change(agent_ns):
     classify = agent_ns["classify_implement_change"]
     classes = agent_ns["IMPLEMENT_CHANGE_CLASSES"]
-    assert classes[classes.index("retry"):] == ("retry", "rollback", "vibe", "remove_kept", "uninstall")
+    assert classes[classes.index("retry"):] == ("retry", "rollback", "vibe", "remove_kept", "uninstall", "name")
     before = _vibed(agent_ns)[0]
     assert classify(before, _vibed(agent_ns, alert_vibes="Only on weekdays")[0]) == ["outputs"]
     assert classify(before, _spec(agent_ns, outputs=ALL, rollback_outputs={"alert": 1})[0]) == ["rollback"]
@@ -702,7 +702,8 @@ def test_the_app_rolls_back_to_its_saved_page_under_the_same_name_and_a_failed_c
     context["replay"] = {"app": _saved(page)}
     assert again._implement_app(context, _NoGenie())["app_name"] == "churn-desk"
     name, files, _reads, _space = again_seen["deployed"][0]
-    assert name == "churn-desk" and files["pages/n01_u01.json"] == seen["deployed"][0][1]["pages/n01_u01.json"]
+    assert name == "churn-desk" and json.loads(files["pages/n01_u01.json"]) == json.loads(seen["deployed"][0][1]["pages/n01_u01.json"]), (
+        "the rolled-back page is the saved page, compared by content (key order is not part of the page)")
     failing = lambda work, files, modules, warehouse: ["page n01_u01: chart:by_category failed: UNRESOLVED_COLUMN"]
     broken, broken_context, broken_seen = _flow(agent_ns, tmp_path / "broken", outputs={"dashboard": False},
                                                 assets={"app": "churn-desk"}, _implement_app_check=failing)
