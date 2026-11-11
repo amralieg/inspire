@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   statusChip, statusReason, statusDetails, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
-  runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
+  runProfileText, runStopped, cancelledByUser, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, stoppedChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
@@ -1209,8 +1209,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     return () => { live = false; };
   }, [qBase, latest?.session_id, latest?.spec_version, readOnly]);
   const protection = readOnly ? null : liveProtection(sourceNow, protectionStopOf(latest));
+  const userCancel = cancelledByUser(latest);
   const choicesNow = protection ? protectionChoices(protection)
-    : buildAgain && !dataStop && latest?.status === 'failed' ? (stopped
+    : buildAgain && !dataStop && latest?.status === 'failed' && !userCancel ? (stopped
       ? stoppedChoices(latest, { notebookUrl: notebook?.href || '', issueUrl: newIssueUrl })
       : failureChoices(latest, { technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '' })) : [];
   const writeNotebook = async () => {
