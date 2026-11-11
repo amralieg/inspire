@@ -67,7 +67,7 @@ export async function wheelToEnd(page, region, last, name, over = null) {
   assert.ok(at.scroll > at.client + 1, `${name}: the content does not overflow the region, so the wheel cannot be tested ${JSON.stringify(at)}`);
   assert.ok(at.seen >= 40, `${name}: the region shows ${at.seen} px on screen, too little to scroll ${JSON.stringify(at)}`);
   assert.ok(at.hit, `${name}: something covers the region where the pointer sits (${at.cover}) ${JSON.stringify(at)}`);
-  await aimWheel(page, at.x, at.y);
+  await aimCentre(page, over || region);
   const topBy = Date.now() + 4000;
   while (Date.now() < topBy && (await region.evaluate((el) => el.scrollTop)) > 0) {
     await page.mouse.wheel(0, -1000);
@@ -135,6 +135,19 @@ export async function aimWheel(page, x, y) {
   await new Promise((done) => { setTimeout(done, 100); });
 }
 
+export async function aimCentre(page, target) {
+  const point = await target.evaluate((el) => {
+    const r = el.getBoundingClientRect();
+    const left = Math.max(r.left, 0);
+    const right = Math.min(r.right, window.innerWidth);
+    const top = Math.max(r.top, 0);
+    const bottom = Math.min(r.bottom, window.innerHeight);
+    return { x: (left + right) / 2, y: (top + bottom) / 2 };
+  });
+  await aimWheel(page, point.x, point.y);
+  return point;
+}
+
 export async function wheelReads(page, box, { lines = '', readable = 3, delta = 1200 } = {}) {
   await page.waitForFunction((el) => el.scrollHeight > el.clientHeight, await box.elementHandle(), { timeout: 15000 });
   await box.evaluate((el) => { el.scrollTop = 0; });
@@ -142,7 +155,7 @@ export async function wheelReads(page, box, { lines = '', readable = 3, delta = 
   const at = await where(box);
   assert.ok(at.seen > 0, `the scroll box is on screen ${JSON.stringify(at)}`);
   assert.ok(at.hit, `the scroll box is what the pointer lands on, nothing covers it ${JSON.stringify(at)}`);
-  await aimWheel(page, at.x, at.y);
+  const aimed = await aimCentre(page, box);
   await box.evaluate((el) => { el.dataset.wheelProbe = '1'; });
   await page.mouse.wheel(0, delta);
   await page.waitForFunction((el) => el.scrollTop > 0, await box.elementHandle(), { timeout: 5000 }).catch(async (error) => {
@@ -150,8 +163,8 @@ export async function wheelReads(page, box, { lines = '', readable = 3, delta = 
       const hit = document.elementFromPoint(point.x, point.y);
       return { boxTop: Math.round(el.scrollTop), boxScroll: el.scrollHeight, boxClient: el.clientHeight, pageTop: Math.round(document.scrollingElement.scrollTop),
         hit: hit ? `${hit.tagName.toLowerCase()}.${String(hit.className).slice(0, 60)}` : '', sameNode: hit?.closest('[data-wheel-probe]') === el };
-    }, { x: at.x, y: at.y });
-    throw new Error(`the mouse wheel did not scroll the box, ${JSON.stringify({ at: { x: Math.round(at.x), y: Math.round(at.y) }, ...state })}: ${error.message}`);
+    }, aimed);
+    throw new Error(`the mouse wheel did not scroll the box, ${JSON.stringify({ at: { x: Math.round(aimed.x), y: Math.round(aimed.y) }, ...state })}: ${error.message}`);
   });
   if (!lines) return;
   await frames(page);
