@@ -387,7 +387,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
               const canQuickView = !!(legacySummary || listOverview?.total > 0);
               const counts = runCounts(listOverview, portfolio, session, { running: status === 'running' || status === 'quiet', mvpError: portfolioError });
               const buildingCount = Number(portfolio?.sessions?.[String(session.session_id)]?.mvps_building) || 0;
-              const buildingFilter = buildingCount ? buildFilterOf('mvps_started', [session], portfolio) : null;
+              const mvpsStarted = Number(portfolio?.sessions?.[String(session.session_id)]?.mvps_started) || 0;
+              const buildFilter = mvpsStarted ? buildFilterOf('mvps_started', [session], portfolio) : null;
 
               // Build a short text description from domain names and catalog
               const description = (() => {
@@ -514,18 +515,28 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                           {portfolio.sessions[sidStr].mvps_live.toLocaleString('en-US')} live
                         </span>
                       )}
-                      {buildingFilter && (
+                      {buildFilter && buildingCount > 0 && (
                         <div data-run-building="" className="relative z-10 flex items-center gap-2 rounded-lg border border-db-red/30 bg-db-red-50 px-2.5 py-1.5 text-[11px] font-medium text-db-red-fg">
                           <Loader2 data-run-building-spinner="" size={12} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none" />
                           <span className="tabular-nums">{buildingCount.toLocaleString('en-US')} building</span>
                           <button
                             type="button"
-                            onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildingFilter); }}
+                            onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildFilter); }}
                             className="inline-flex items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-0.5 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50"
                           >
                             Go to Build <ArrowRight size={11} aria-hidden />
                           </button>
                         </div>
+                      )}
+                      {buildFilter && !buildingCount && (
+                        <button
+                          type="button"
+                          data-run-go-build=""
+                          onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildFilter); }}
+                          className="relative z-10 inline-flex items-center gap-1 rounded-lg border border-db-red/30 bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50"
+                        >
+                          Go to Build <ArrowRight size={11} aria-hidden />
+                        </button>
                       )}
                       {status === 'running' && (
                         <div className="w-16 h-1.5 rounded-full bg-bg-subtle overflow-hidden">
