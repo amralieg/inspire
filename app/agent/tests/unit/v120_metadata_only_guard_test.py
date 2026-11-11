@@ -961,6 +961,11 @@ def runtime_report():
     return runtime_audit(agent_source())
 
 
+def assert_guard_reaches_sibling_and_summary(report, drop=()):
+    reached = ({entry[-1] for entry in report["implement"]} | report["executes"]) - set(drop)
+    assert {"inspire_ensure_summary", "inspire_ensure_sibling"} <= reached, sorted(reached)
+
+
 def test_guard_reads_every_source_the_agent_compiles_at_runtime(runtime_report):
     assert not runtime_report["unreadable"], runtime_report["unreadable"]
     assert all(other in SHARED_SOURCES for _name, other, _names in runtime_report["crossed"]), \
@@ -972,9 +977,8 @@ def test_guard_reads_every_source_the_agent_compiles_at_runtime(runtime_report):
     for name, text in runtime_report["sources"].items():
         assert runtime_sources(text) == ({}, []), f"{name} compiles a source of its own, which the guard does not read"
     assert runtime_report["checked"]["IMPLEMENT_RESULT_HISTORY_SOURCE"] >= 3, runtime_report["checked"]
-    reached = {entry[-1] for entry in runtime_report["implement"]} | runtime_report["executes"]
-    assert {"inspire_ensure_summary", "inspire_ensure_sibling"} <= reached
-    assert not {"inspire_ensure_history", "inspire_ensure_actions"} & reached, "the build migrates no result table"
+    assert_guard_reaches_sibling_and_summary(runtime_report)
+    assert not {"inspire_ensure_history", "inspire_ensure_actions"} & ({e[-1] for e in runtime_report["implement"]} | runtime_report["executes"]), "the build migrates no result table"
 
 
 def test_the_one_gate_into_the_shared_column_helper_refuses_every_table_inspire_does_not_own():
@@ -1148,3 +1152,32 @@ def test_a_body_literal_passed_anywhere_other_than_the_owned_emitter_flags():
               '    return helper("v", body)\n')
     bad = audit(source)[2]
     assert {(kind, target) for _line, kind, target, _sql in bad} == {("read", "{build_fqn(cat, 's', 't')}")}, bad
+
+
+def test_the_reach_check_fails_when_the_sibling_helper_is_taken_out_of_the_scanned_set(runtime_report):
+    assert_guard_reaches_sibling_and_summary(runtime_report)
+    with pytest.raises(AssertionError, match="inspire_ensure_sibling"):
+        assert_guard_reaches_sibling_and_summary(runtime_report, drop={"inspire_ensure_sibling"})
+
+
+EMITTER_BUILDERS = ("inspire_owned_table", "inspire_lakebase_view_ref", "ledger_table")
+
+
+def registry_missing(source):
+    found = re.search(r"^INSPIRE_OWNED_NAME_BUILDERS = (\(.*\))$", source, re.M)
+    if not found:
+        return list(EMITTER_BUILDERS)
+    names = set(ast.literal_eval(found.group(1)))
+    return [name for name in EMITTER_BUILDERS if name not in names]
+
+
+def test_the_owned_registry_keeps_every_builder_the_emitters_use():
+    assert registry_missing(agent_source()) == [], "a merge shrank INSPIRE_OWNED_NAME_BUILDERS"
+
+
+def test_a_registry_that_lost_an_emitter_builder_fails_the_check():
+    source = agent_source()
+    shrunk = re.sub(r"^(INSPIRE_OWNED_NAME_BUILDERS = .*)$", lambda m: m.group(1).replace(", \"ledger_table\"", ""), source, count=1, flags=re.M)
+    assert shrunk != source
+    assert registry_missing(shrunk) == ["ledger_table"]
+
