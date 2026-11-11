@@ -8,7 +8,8 @@ import { DECIDE, appInfo, goRail, idle, openApp, serveDist } from './harness.mjs
 import { LAYOUT_B_CASES, kindRoutes } from './exampleRoutes.mjs';
 
 const HERE = dirname(fileURLToPath(import.meta.url));
-const PAGE = JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', 'network_explorer.json'), 'utf8'));
+const ENTITY_FILE = 'entity_matching.json';
+const PAGE = JSON.parse(readFileSync(join(HERE, '..', '..', 'examples', ENTITY_FILE), 'utf8'));
 const CASE = LAYOUT_B_CASES.network_explorer;
 
 let served;
@@ -23,6 +24,8 @@ after(async () => {
   await browser?.close();
   served?.close();
 });
+
+const batchId = (n) => String(n).padStart(32, '0');
 
 function listing(state, { failAfterAct = false } = {}) {
   const acts = [];
@@ -41,11 +44,19 @@ function listing(state, { failAfterAct = false } = {}) {
     acts.push(body);
     const hit = state.rows.filter((r) => body.record_keys.includes(String(r.record_key)));
     hit.forEach((r) => Object.assign(r, { _inspire_status: body.values.action_status, _inspire_version: String(Number(r._inspire_version) + 1),
-      _inspire_closed_note: body.values.note || body.values.dismiss_reason || '' }));
+      _inspire_closed_note: body.values.note || body.values.dismiss_reason || '', _inspire_closed_batch: batchId(acts.length), _inspire_closed_can_undo: true }));
     if (failAfterAct) broken = true;
     return json(200, { written: body.record_keys, conflicts: [], batch_id: `b${acts.length}` });
   };
-  return { acts, records, act, setBroken: (v) => { broken = v; } };
+  const undos = [];
+  const undo = ({ route, json }) => {
+    const body = route.request().postDataJSON();
+    undos.push(body);
+    const restored = state.rows.filter((r) => r._inspire_closed_batch === body.batch_id);
+    restored.forEach((r) => { delete r._inspire_status; delete r._inspire_closed_note; delete r._inspire_closed_batch; r._inspire_closed_can_undo = false; });
+    return json(200, { restored: restored.map((r) => String(r.record_key)), skipped: [], left_out: 0 });
+  };
+  return { acts, undos, records, act, undo, setBroken: (v) => { broken = v; } };
 }
 
 function freshRows() {
@@ -53,7 +64,7 @@ function freshRows() {
 }
 
 async function open(routes) {
-  const info = appInfo(DECIDE, 1, {}, 'examples/network_explorer.json');
+  const info = appInfo(DECIDE, 1, {}, `examples/${ENTITY_FILE}`);
   const opened = await openApp(browser, served.base, info, { routes });
   await opened.page.locator('[data-choice-row]').first().waitFor();
   await idle(opened.page);
@@ -62,6 +73,44 @@ async function open(routes) {
 
 const rowCount = (page) => page.locator('[data-choice-row]').count();
 
+test('entity matching: the page offers Merge, Needs review and Keep separate, never the fraud words', async () => {
+  const state = { rows: freshRows() };
+  const base = kindRoutes(CASE.data(), state.rows, [], PAGE);
+  const { page, context, seen } = await open(base);
+  const words = await page.locator('[data-choice-row="K1"] [data-choice]').allInnerTexts();
+  assert.deepEqual(words.map((w) => w.replace('★ ', '').trim()), ['Merge', 'Needs review', 'Keep separate'], 'the pair offers matching words');
+  const fraud = (await page.locator('[data-choice]').allInnerTexts()).filter((w) => /Block|Investigate|Not a ring/.test(w));
+  assert.deepEqual(fraud, [], 'no fraud words on a duplicate-accounts page');
+  await context.close();
+  assert.deepEqual(seen.errors.filter((e) => !/Failed to load resource/.test(e)), []);
+});
+
+test('entity matching: a merged pair offers Unmerge, which asks first and puts the pair back with its decision buttons', async () => {
+  const state = { rows: freshRows() };
+  const h = listing(state);
+  const base = kindRoutes(CASE.data(), state.rows, [], PAGE);
+  const { page, context, seen } = await open({ ...base, records: h.records, 'records/act': h.act, 'records/undo': h.undo });
+  const before = await rowCount(page);
+  await page.locator('[data-choice-row="K1"] [data-choice="merge"]').click();
+  await idle(page);
+  assert.equal(await page.locator('[data-choice-row="K1"] [data-decided]').count(), 1, 'the merged pair shows its outcome');
+  assert.equal(await page.locator('[data-choice-row="K1"] [data-unmerge]').count(), 1, 'the merged pair offers Unmerge');
+  await page.locator('[data-choice-row="K1"] [data-unmerge]').click();
+  const ask = page.locator('[role="group"][aria-label="Undo this decision"]');
+  await ask.waitFor();
+  assert.equal(h.undos.length, 0, 'nothing is undone before the person confirms');
+  await ask.getByRole('button', { name: 'Undo it' }).click();
+  await idle(page);
+  await page.waitForTimeout(300);
+  assert.deepEqual(h.undos.map((u) => u.batch_id), [batchId(1)], 'the merge batch is undone once');
+  assert.equal(await rowCount(page), before, 'no row disappears after unmerge');
+  assert.equal(await page.locator('[data-choice-row="K1"] [data-decided]').count(), 0, 'the pair is open again');
+  assert.equal(await page.locator('[data-choice-row="K1"] [data-choice]').count(), 3, 'the pair shows its three decision buttons again');
+  assert.ok(await page.locator('[data-choice-row="K2"] [data-choice]').count() > 0, 'an untouched pair keeps its actions');
+  await context.close();
+  assert.deepEqual(seen.errors.filter((e) => !/Failed to load resource/.test(e)), []);
+});
+
 test('entity matching: deciding a pair keeps every row and its actions in the list', async () => {
   const state = { rows: freshRows() };
   const h = listing(state);
@@ -69,7 +118,7 @@ test('entity matching: deciding a pair keeps every row and its actions in the li
   const { page, context, seen } = await open({ ...base, records: h.records, 'records/act': h.act });
   const before = await rowCount(page);
   assert.ok(before >= 5, `list shows ${before} rows`);
-  await page.locator('[data-choice-row="K1"] [data-choice="block"]').click();
+  await page.locator('[data-choice-row="K1"] [data-choice="merge"]').click();
   await idle(page);
   assert.equal(h.acts.length, 1);
   assert.deepEqual(h.acts[0].record_keys, ['K1']);
@@ -87,7 +136,7 @@ test('entity matching: a refresh that fails after an act keeps every row and its
   const base = kindRoutes(CASE.data(), state.rows, [], PAGE);
   const { page, context } = await open({ ...base, records: h.records, 'records/act': h.act });
   const before = await rowCount(page);
-  await page.locator('[data-choice-row="K3"] [data-choice="investigate"]').click();
+  await page.locator('[data-choice-row="K3"] [data-choice="review"]').click();
   await idle(page);
   await page.waitForTimeout(300);
   assert.equal(h.acts.length, 1);
@@ -96,13 +145,13 @@ test('entity matching: a refresh that fails after an act keeps every row and its
   await context.close();
 });
 
-test('entity matching: "not a ring" (dismissal) needs a reason before it is written', async () => {
+test('entity matching: "keep separate" (dismissal) needs a reason before it is written', async () => {
   const state = { rows: freshRows() };
   const h = listing(state);
   const base = kindRoutes(CASE.data(), state.rows, [], PAGE);
   const { page, context } = await open({ ...base, records: h.records, 'records/act': h.act });
-  await page.locator('[data-choice-row="K2"] [data-choice="not_ring"]').click();
-  const reasons = page.locator('[role="group"][aria-label^="Why"] .chip');
+  await page.locator('[data-choice-row="K2"] [data-choice="separate"]').click();
+  const reasons = page.locator('[role="group"][aria-label="Why keep separate"] .chip');
   await reasons.first().waitFor();
   assert.equal(h.acts.length, 0, 'nothing is written before a reason is picked');
   await context.close();
