@@ -1,7 +1,7 @@
 import { test, before, after } from 'node:test';
 import assert from 'node:assert/strict';
 import { chromium } from 'playwright';
-import { appInfo, goRail, openApp, serveDist } from './harness.mjs';
+import { appInfo, goRail, openApp, reportIssue, serveDist } from './harness.mjs';
 
 let served;
 let browser;
@@ -15,7 +15,7 @@ test('Report an issue shows where the report goes before Send, when the App keep
   const info = appInfo({}, 1, {});
   info.pages[0].reports = READY;
   const { page, context } = await openApp(browser, served.base, info);
-  await page.locator('[data-feedback-open]').click();
+  await reportIssue(page);
   await page.locator('[data-feedback-form]').waitFor();
   assert.match(await page.locator('[data-feedback-where]').textContent(), /goes to the owner of this use case/);
   assert.equal(await page.locator('[data-feedback-note]').count(), 0);
@@ -26,7 +26,7 @@ test('an App that cannot keep reports shows the plain note in place of the form,
   const info = appInfo({}, 1, {});
   info.pages[0].reports = NOT_READY;
   const { page, context } = await openApp(browser, served.base, info);
-  await page.locator('[data-feedback-open]').click();
+  await reportIssue(page);
   const note = page.locator('[data-feedback-note]');
   await note.waitFor();
   assert.match(await note.textContent(), /Send the report to the owner of this use case/);

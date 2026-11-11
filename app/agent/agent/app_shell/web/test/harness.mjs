@@ -117,6 +117,12 @@ export async function holdClock(page) {
   await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1000));
 }
 
+export async function reportIssue(page) {
+  const more = page.locator('[data-head-more]');
+  if (!(await more.evaluate((d) => d.open))) await more.locator('> summary').click();
+  await page.locator('[data-feedback-open]').click();
+}
+
 export async function goRail(page, id) {
   const menu = page.getByRole('button', { name: 'Open the sections' });
   if (await menu.isVisible()) await menu.click();
