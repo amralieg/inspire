@@ -15,6 +15,7 @@ if SERVER not in sys.path:
 
 import shell_db  # noqa: E402
 import shell_facts  # noqa: E402
+import shell_core  # noqa: E402
 import shell_sql  # noqa: E402
 from v141_app_shell_test import SETTINGS, call  # noqa: E402
 from v144_app_data_test import DECIDE, EDITOR, DataWorkspace, shell  # noqa: E402
@@ -263,7 +264,8 @@ def test_a_missing_plans_table_says_rebuild_on_reads_and_refuses_writes(tmp_path
 def test_a_refused_plans_write_names_the_table_and_the_grant(tmp_path):
     s, _ws, _made = planner_shell(tmp_path, ws=PlanWorkspace(refuse=True))
     status, out = move(s, "new")
-    assert status == 403 and "production_out_plans" in out["error"] and "MODIFY" in out["error"]
+    assert status == 403 and out["error"] == shell_core.REFUSED_WRITE
+    assert "production_out_plans" in out["details"] and "MODIFY" in out["details"], out
 
 
 def test_plan_decide_with_a_version_records_the_line_on_it_and_refuses_a_closed_or_unknown_version(tmp_path, capsys):
