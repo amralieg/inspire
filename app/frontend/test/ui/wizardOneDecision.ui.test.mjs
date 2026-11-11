@@ -171,11 +171,11 @@ test('App pages sit on Where it lives with the App placement, and App look is it
     const labels = await stepLabels(page);
     assert.ok(labels.includes('Where it lives') && labels.includes('App look'), labels.join(' | '));
     assert.equal(labels.includes('App pages'), false, 'App pages is no step of its own (must-exclude)');
-    await page.getByRole('region', { name: 'App features' }).waitFor();
+    await page.getByRole('region', { name: 'App pages' }).waitFor();
     assert.equal(await page.getByRole('tab', { name: 'Palette', exact: true }).count(), 0, 'the look is not on the pages step (must-exclude)');
     await goToStep(page, 'App look');
     await page.getByText('How should the App look?', { exact: true }).waitFor();
-    assert.equal(await page.getByText('What people can do in the App', { exact: false }).count(), 0, 'the pages are not on the look step (must-exclude)');
+    assert.equal(await page.getByRole('region', { name: 'App pages' }).count(), 0, 'the pages are not on the look step (must-exclude)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -259,3 +259,26 @@ test('the App access step shows the SQL warehouse as one line with its own Chang
   }
 });
 
+
+test('a schema that cannot be created says why in plain words on the Results step, never the raw Failed to fetch text', async () => {
+  const ui = await openUi('wizard', {
+    me: { userName: OWNER, displayName: 'Owner' }, forwardedToken: 'person-tok', dbToken: 'person-tok', catalogs: ['main'], schemas: { main: ['inspire'] },
+    statements: { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }] }) },
+  });
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Results');
+    await page.locator('[data-option="own"] [data-recommended]').waitFor();
+    await page.locator('input[name="result-place"][value="own"]').waitFor();
+    await page.route('**/api/inspire/implement/create-schema**', (route) => route.abort('failed'));
+    await page.getByRole('button', { name: 'Next' }).click();
+    const note = page.locator('[data-schema-job="failed"]');
+    await note.waitFor({ timeout: 20000 });
+    const text = await note.innerText();
+    assert.match(text, /lost its connection to Databricks/, 'the reason is plain language');
+    assert.doesNotMatch(text, /Failed to fetch|\(Failed|TypeError/, 'the raw browser text is not shown (must-exclude)');
+    assert.deepEqual(ui.pageErrors.filter((e) => !/Failed to load resource|create-schema|ERR_FAILED|404|500/.test(e)), []);
+  } finally {
+    await ui.close();
+  }
+});
