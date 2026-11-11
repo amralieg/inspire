@@ -6,6 +6,7 @@ import { BUILD_IT, closeBrowser, expandBuild, openSettings, openUi, toSummary } 
 test.after(closeBrowser);
 
 const PERSON = 'person-tok';
+const PREFLIGHT = '/api/inspire/implement/preflight';
 const VIBE = 'Answer in euros\nCount returns by week';
 
 const publishedRow = () => ({
@@ -19,8 +20,8 @@ const scim = ({ token, path }) => (path.includes('/scim/v2/Me')
 
 const base = (extra = {}) => ({ ...STUDIO_STATE, me: { userName: OWNER, displayName: 'Owner' }, history: [publishedRow()], workspace: scim, ...extra });
 
-async function walkToSummary(overrides, { change = false } = {}) {
-  const ui = await openUi('implement', base(overrides));
+async function walkToSummary(overrides, { change = false, mount } = {}) {
+  const ui = await openUi('implement', base(overrides), '', mount ? { mount } : {});
   const preflightLogs = [];
   ui.page.on('console', (m) => { if (m.text().startsWith('[preflight]')) preflightLogs.push(m.text()); });
   try {
@@ -65,7 +66,7 @@ test('the Summary shows Checking access while the verdict is pending, never Noth
 });
 
 test('a preflight that errors shows Could not check access with Try again, and no Build (fails before the fix)', async () => {
-  const ui = await walkToSummary(mountPreflight((req, res) => res.status(500).json({ error: 'Cannot reach the Databricks workspace (fetch failed)' })));
+  const ui = await walkToSummary({}, mountPreflight((req, res) => res.status(500).json({ error: 'Cannot reach the Databricks workspace (fetch failed)' })));
   try {
     const verdict = ui.page.locator('[data-access-verdict="error"]');
     await verdict.waitFor({ timeout: 15000 });
@@ -79,7 +80,7 @@ test('a preflight that errors shows Could not check access with Try again, and n
 });
 
 test('a preflight without a sources check is unknown, never ok, so no Build (fails before the fix)', async () => {
-  const ui = await walkToSummary(mountPreflight((req, res) => res.json({
+  const ui = await walkToSummary({}, mountPreflight((req, res) => res.json({
     ok: true, identity: 'owner', checks: { warehouse: { ok: true, detail: 'ran' }, output: { ok: true, detail: 'written' } },
   })));
   try {

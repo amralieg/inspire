@@ -295,3 +295,13 @@ test('a SELECT is sent so a dropped request may be asked again, and a write neve
   await executeSql('https://h', 't', 'wh1', 'INSERT INTO main.s.t VALUES (1)');
   assert.deepEqual(sent.map((s) => [s.sql.slice(0, 6), s.idempotent]), [['SELECT', true], ['INSERT', false]]);
 });
+
+test('a WITH that writes is never sent again after a dropped response, and a read-only WITH may be (must-exclude)', async () => {
+  const { isIdempotentSql } = require('../lib/sqlStatements');
+  assert.equal(isIdempotentSql('WITH x AS (SELECT 1 AS a) SELECT * FROM x'), true, 'a read-only WITH is idempotent');
+  assert.equal(isIdempotentSql('WITH x AS (SELECT 1 AS a) INSERT INTO main.s.t SELECT * FROM x'), false, 'WITH ... INSERT is a write');
+  assert.equal(isIdempotentSql('WITH x AS (SELECT 1 AS a) MERGE INTO main.s.t USING x ON true WHEN MATCHED THEN DELETE'), false);
+  assert.equal(isIdempotentSql('SELECT replace(name, "a", "b") FROM main.s.t'), true, 'the replace() function is not a write');
+  assert.equal(isIdempotentSql('REPLACE TABLE main.s.t AS SELECT 1'), false);
+  assert.equal(isIdempotentSql('DELETE FROM main.s.t'), false);
+});
