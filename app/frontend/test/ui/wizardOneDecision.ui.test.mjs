@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, onStep, openAdvanced, openUi, profileAt } from './uiSupport.mjs';
+import { closeBrowser, goToStep, onStep, openAdvanced, openRow, openUi, profileAt } from './uiSupport.mjs';
 import { GROUPING_PROFILE } from './implementFixtures.js';
 
 test.after(closeBrowser);
@@ -66,6 +66,7 @@ test('Build with these choices is on every step after What to deliver and not on
     await goToStep(page, 'What to deliver');
     assert.equal(await buildNow(page).count(), 0, 'not on What to deliver (must-exclude)');
     await goToStep(page, 'Results');
+    await openRow(page, 'result table');
     await buildNow(page).waitFor();
     await page.waitForFunction(() => {
       const b = document.querySelector('[data-build-now]');
@@ -149,6 +150,7 @@ test('Next on Data and results does not wait for the own schema to be created: t
   const { page } = ui;
   try {
     await goToStep(page, 'Results');
+    await openRow(page, 'result table');
     await page.locator('[data-option="own"] [data-recommended]').waitFor();
     await page.locator('input[name="result-place"][value="own"]').waitFor();
     const started = Date.now();
@@ -168,6 +170,7 @@ test('App pages sit on Where it lives with the App placement, and App look is it
   const { page } = ui;
   try {
     await goToStep(page, 'App pages');
+    await openRow(page, 'App pages');
     const labels = await stepLabels(page);
     assert.ok(labels.includes('Where it lives') && labels.includes('App look'), labels.join(' | '));
     assert.equal(labels.includes('App pages'), false, 'App pages is no step of its own (must-exclude)');
@@ -268,6 +271,7 @@ test('a schema that cannot be created says why in plain words on the Results ste
   const { page } = ui;
   try {
     await goToStep(page, 'Results');
+    await openRow(page, 'result table');
     await page.locator('[data-option="own"] [data-recommended]').waitFor();
     await page.locator('input[name="result-place"][value="own"]').waitFor();
     await page.route('**/api/inspire/implement/create-schema**', (route) => route.abort('failed'));

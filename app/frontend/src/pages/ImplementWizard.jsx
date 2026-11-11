@@ -426,7 +426,7 @@ export default function ImplementWizard({
   const [errors, setErrors] = useState([]);
   const [attempted, setAttempted] = useState({ data: false, delivery: false });
   const [checking, setChecking] = useState('');
-  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false });
+  const [advanced, setAdvanced] = useState({ data: false, results: false, fresh: false, delivery: false, app_place: false, app_access: false, app_options: false, app_pages: false, summary: false });
   const [details, setDetails] = useState(false);
   const [lookView, setLookView] = useState({ tab: 'style', page: 'fix' });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -1519,7 +1519,8 @@ export default function ImplementWizard({
         )}
 
         {resultsOn && (
-          <>
+          <Advanced open={advanced.results} onToggle={() => toggleAdvanced('results')} what="result table"
+            summary={`Result table: ${spec.config.result_table || 'not set yet'}`}>
             <ResultTableStep
               table={spec.config.result_table}
               ownTable={ownTable}
@@ -1543,12 +1544,13 @@ export default function ImplementWizard({
                 onCreate={createPlace}
               />
             </ResultTableStep>
-          </>
+          </Advanced>
         )}
 
-        {shows('fresh') && <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>}
         {shows('fresh') && (
-          <>
+          <Advanced open={advanced.fresh} onToggle={() => toggleAdvanced('fresh')} what="Keep it fresh"
+            summary={`Keep it fresh: ${FRESHNESS_OPTIONS.find((o) => o.id === freshness)?.label || 'Custom'}`}>
+            <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
             <section className="space-y-2">
               <h3 className="text-sm font-semibold text-text-primary">{FRESH_LABEL}</h3>
               <p className="text-[11px] text-text-secondary">{FRESH_HELP}</p>
@@ -1576,8 +1578,7 @@ export default function ImplementWizard({
                   : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first run works. Cost: ${costHint(spec, { scheduleSaid: true })}`}
               </p>
             </section>
-
-          </>
+          </Advanced>
         )}
 
         {shows('measure') && (
@@ -1906,16 +1907,22 @@ export default function ImplementWizard({
         )}
 
         {shows('app_features') && (
-          <AppFeaturesStep
-            spec={spec}
-            onOption={(key, value) => setSpec((prev) => withAppOption(prev, key, value))}
-            best={{ option: best.appOption, replace: best.replaceEdits }}
-          />
+          <Advanced open={advanced.app_options} onToggle={() => toggleAdvanced('app_options')} what="what people can do in the App"
+            summary={`What people can do: ${APP_OPTIONS.filter((o) => spec.outputs.app_options[o.id]).map((o) => o.label).join(', ') || 'nothing'}`}>
+            <AppFeaturesStep
+              spec={spec}
+              onOption={(key, value) => setSpec((prev) => withAppOption(prev, key, value))}
+              best={{ option: best.appOption, replace: best.replaceEdits }}
+            />
+          </Advanced>
         )}
 
         {shows('app_pages') && (
-          <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView}
-            onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
+          <Advanced open={advanced.app_pages} onToggle={() => toggleAdvanced('app_pages')} what="App pages"
+            summary={`Pages on: ${appPagesOf(spec).filter((p) => p.on).map((p) => p.label).join(', ') || 'none'}`}>
+            <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView}
+              onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
+          </Advanced>
         )}
 
         {shows('app_look') && (
@@ -3213,14 +3220,6 @@ function UseCaseDrawer({ title, ucRow, spec, patch, onOwner, onClose }) {
 }
 
 function Overlay({ title, uc, steps, total = steps.length, step, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
-  const stepsRef = useRef(null);
-  useEffect(() => {
-    const list = stepsRef.current;
-    const current = list?.querySelector('[aria-current="step"]');
-    if (!list || !current) return;
-    const left = current.offsetLeft - list.offsetLeft;
-    if (left < list.scrollLeft || left + current.offsetWidth > list.scrollLeft + list.clientWidth) list.scrollLeft = Math.max(0, left - 8);
-  }, [step, steps.length]);
   const row = uc ? catalogRow(uc, 0) : null;
   const facts = row ? [['Domain', row.domain], ['Subdomain', row.subdomain], ['Technique', row.technique]].filter(([, v]) => v) : [];
   return (
@@ -3251,7 +3250,7 @@ function Overlay({ title, uc, steps, total = steps.length, step, reach = [], don
                 <X size={16} />
               </button>
             </div>
-            <ol ref={stepsRef} aria-label="Steps" className="flex flex-nowrap items-center gap-0.5 overflow-x-auto text-[11px] [scrollbar-width:none]">
+            <ol aria-label="Steps" className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px]">
               {steps.map((item, i) => {
                 const label = <>{done[i] && <Check size={11} className="text-success-fg" aria-hidden="true" />}{i + 1}. {item.label}</>;
                 return (

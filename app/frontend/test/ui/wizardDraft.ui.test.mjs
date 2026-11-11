@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { DRAFT_BACK_NOTE, WIZARD_DRAFT_PREFIX } from '../../src/lib/wizardDraft.js';
-import { BUILD_IT, closeBrowser, goToStep, onStep, openUi, profileAt, settleChoices, stepsAre } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, goToStep, onStep, openRow, openUi, profileAt, settleChoices, stepsAre } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -44,9 +44,9 @@ const PICKS = {
     pick: (page) => pickOther(page, 'app-style'),
     read: (page) => checked(page, 'input[type="radio"][name="app-style"]'),
   },
-  'Run it': {
-    pick: async (page) => { await page.locator('[data-choice="freshness"] [data-option="weekly"]').click(); return 'weekly'; },
-    read: (page) => pressed(page, 'freshness'),
+  'Data & results': {
+    pick: async (page) => { await openRow(page, 'Keep it fresh'); await page.locator('[data-choice="freshness"] [data-option="weekly"]').click(); return 'weekly'; },
+    read: async (page) => { await openRow(page, 'Keep it fresh'); return pressed(page, 'freshness'); },
   },
   'Review & build': {
     pick: async (page) => { await page.getByRole('region', { name: 'Vibes' }).locator('textarea').first().fill('keep the draft words'); return 'keep the draft words'; },

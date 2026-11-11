@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE } from '../../src/lib/runScope.js';
 import { RUN_IT_TITLE, WIZARD_STEPS_MAX } from '../../src/lib/implementWizard.js';
-import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openUi, profileAt, settleChoices, shot, stepsAre } from './uiSupport.mjs';
+import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openRow, openUi, profileAt, settleChoices, shot, stepsAre } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -123,17 +123,20 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     assert.ok((await page.locator('[role="dialog"]').innerText()).split(/could not check/i).length <= 2, 'one sentence says what Inspire could not check');
     await shot(page, '07-who-uses-the-app', false);
     await goToStep(page, 'App pages');
-    await page.getByRole('region', { name: 'App features' }).waitFor();
+    await openRow(page, 'App pages');
+    await page.getByRole('region', { name: 'App pages' }).waitFor();
     assert.ok(await page.locator('input[name="app-place"]').count() > 0, 'the App placement sits on Where it lives, with the App pages (the pages are on the same step)');
     assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'and access on Who uses the App (must-exclude)');
     await onePerQuestion(page, 'App pages');
     await shot(page, '08-app-pages', false);
     await goToStep(page, 'App look');
     await onePerQuestion(page, 'App look');
-    await goToStep(page, 'Run it');
-    assert.equal(await page.locator('[data-run-it]').innerText(), RUN_IT_TITLE);
+    await goToStep(page, 'Data & results');
+    await openRow(page, 'Keep it fresh');
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
     assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh is on, Daily, by default');
+    await goToStep(page, 'Run it');
+    assert.equal(await page.locator('[data-run-it]').count(), 0, 'Run it no longer carries the Keep it fresh question');
     assert.equal(await page.getByRole('checkbox', { name: /^Hold back/ }).count(), 1, 'Measure impact sits on Run it');
     await onePerQuestion(page, 'Run it');
     await shot(page, '09-run-it', false);
