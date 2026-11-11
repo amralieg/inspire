@@ -8,7 +8,6 @@ import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import ValueBadge, { OverallValue } from '../components/ValueBadge';
 import { valueQuery } from '../lib/valueLedger';
 import { useValueRead } from '../lib/useValueLedger';
-import { BuildNextPanel } from '../components/BuildNext';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runCounts, runLabel, runFilterText, runsOfCard } from '../lib/reviewFigures';
 import { sessionCountsLine, sessionStatus } from '../lib/monitorState';
@@ -173,7 +172,7 @@ function getListRowOverview(session) {
   return null;
 }
 
-export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo, onViewResults, onOpenBuild, onOpenUseCase }) {
+export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo, onViewResults, onOpenBuild }) {
   const { token, databricksHost, warehouseId, inspireDatabase, showcase = '' } = settings;
   const [loading, setLoading] = useState(true);
   const [sessions, setSessions] = useState([]);
@@ -305,7 +304,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
     );
   }
 
-  const latestRun = sessions.find((session) => !session.starting && sessionStatus(session, loadedAt) === 'finished');
   const openCard = (key) => {
     if (portfolioCard(key)?.opens === 'build') {
       const filter = buildFilterOf(key, sessions, portfolio);
@@ -345,11 +343,6 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
         )}
         {valueReady && <OverallValue value={overallValue} />}
-
-        {inspireDatabase && warehouseId && latestRun && (
-          <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDatabase} warehouseId={warehouseId} sessionId={latestRun.session_id}
-            onStart={onOpenUseCase ? (useCaseId) => onOpenUseCase(String(latestRun.session_id), useCaseId) : undefined} />
-        )}
 
         {/* ── Previous Experiments ── */}
         <div className="space-y-3">
