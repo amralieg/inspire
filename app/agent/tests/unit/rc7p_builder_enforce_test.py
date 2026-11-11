@@ -26,7 +26,7 @@ def test_a_row_filter_on_a_key_the_result_carries_is_enforced_and_names_its_mapp
                                    "body": f"EXISTS (SELECT 1 FROM {MAP} m WHERE m.region = region_key AND m.user_email = current_user())"}],
                                  ["region", "value"], [])
     assert plan == {"enforced": True, "enforce": [{"column": "region", "map": MAP, "key": "region", "principal": "user_email"}],
-                    "masked": [], "reason": ""}
+                    "masked": [], "reason": "", "ask": ""}
 
 
 def test_a_key_the_result_does_not_carry_falls_back_to_delta_with_the_reason_shown():
@@ -35,6 +35,8 @@ def test_a_key_the_result_does_not_carry_falls_back_to_delta_with_the_reason_sho
                                  ["region", "value"], [])
     assert plan["enforced"] is False and plan["enforce"] is None
     assert plan["reason"] == "the result table has no brand column to carry the row filter of main.sec.sales"
+    assert plan["ask"] == ("the result table must carry the column brand from main.sec.sales unchanged, because its row filter keeps "
+                           "each person to their rows through that column")
 
 
 def test_a_masked_key_column_is_never_enforced_on_its_copy():
@@ -81,7 +83,7 @@ def test_an_unreadable_row_filter_is_refused_not_guessed():
 
 
 def test_no_row_filter_anywhere_is_enforced_with_no_mapping():
-    assert shell_pg.enforce_plan([], ["region"], ["ssn"]) == {"enforced": True, "enforce": None, "masked": ["ssn"], "reason": ""}
+    assert shell_pg.enforce_plan([], ["region"], ["ssn"]) == {"enforced": True, "enforce": None, "masked": ["ssn"], "reason": "", "ask": ""}
 
 
 def _page(agent_ns):

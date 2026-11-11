@@ -283,11 +283,11 @@ def enforce_plan(filters: list, result_columns, masked=()) -> dict:
     result = {str(c).lower() for c in result_columns or ()}
     hidden = sorted({str(c) for c in masked or ()})
 
-    def refuse(reason):
-        return {"enforced": False, "enforce": None, "masked": hidden, "reason": reason}
+    def refuse(reason, ask=""):
+        return {"enforced": False, "enforce": None, "masked": hidden, "reason": reason, "ask": ask}
 
     if not filters:
-        return {"enforced": True, "enforce": None, "masked": hidden, "reason": ""}
+        return {"enforced": True, "enforce": None, "masked": hidden, "reason": "", "ask": ""}
     enforce = []
     for row in filters:
         if row.get("unreadable") or row.get("body") is None:
@@ -296,11 +296,13 @@ def enforce_plan(filters: list, result_columns, masked=()) -> dict:
         if mapping is None:
             return refuse(f"the row filter of {row['table']} is not a user-to-key mapping table")
         if row["column"].lower() not in result:
-            return refuse(f"the result table has no {row['column']} column to carry the row filter of {row['table']}")
+            return refuse(f"the result table has no {row['column']} column to carry the row filter of {row['table']}",
+                          f"the result table must carry the column {row['column']} from {row['table']} unchanged, because its row "
+                          "filter keeps each person to their rows through that column")
         if row["column"] in hidden:
             return refuse(f"a column mask hides {row['column']}, the column the row filter of {row['table']} reads")
         enforce.append({k: mapping[k] for k in ENFORCE_KEYS})
-    return {"enforced": True, "enforce": enforce, "masked": hidden, "reason": ""}
+    return {"enforced": True, "enforce": enforce, "masked": hidden, "reason": "", "ask": ""}
 
 
 def backend_problems(backend, auth: str, pages: list) -> list:
