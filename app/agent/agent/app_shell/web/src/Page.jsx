@@ -240,7 +240,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       onColumn={(column, value) => onState(setColumnValueIn(state, table.id, column, value, aliases))} onClear={() => onState(clearColumnValuesIn(state, table.id, aliases))}
       sort={sorts[table.id]} onSort={sortBy(table.id)} search={searches[table.id] || ''} onSearch={(text) => setSearches((s) => ({ ...s, [table.id]: text }))} />
   );
-  const kpisOf = (kpis, main = true, label) => <Kpis page={{ ...page, kpis }} data={data?.kpis} errors={errors} loading={loading} plan={main ? plan : null} scope={data?.scope} label={label} />;
+  const kpisOf = (kpis, main = true, label) => <Kpis page={{ ...page, kpis }} data={data?.kpis} errors={errors} loading={loading} plan={main ? plan : null} scope={data?.scope} moneyNote={data?.money_note} label={label} />;
   const records = (extra = {}) => (page.records && !unreliable ? (
     <Suspense fallback={<Skeleton height={160} />}><Records meta={page.records} app={app} pageId={page.id} filters={filters} ready={ready} nonce={nonce} onFilter={pick} history={!!page.history} onList={setQueue}
       similarBy={page.similar_by} keepsActions={hubEntry ? !!(hubEntry.tracked && hubEntry.actions) : undefined}

@@ -406,6 +406,15 @@ class AppYamlTest(unittest.TestCase):
         finally:
             shutil.rmtree(folder)
 
+    def test_every_install_writes_the_live_rate_source_into_the_app_environment(self):
+        folder = pathlib.Path(tempfile.mkdtemp())
+        try:
+            path = folder / "app.yaml"
+            setup.write_app_yaml_deploy(str(path), "main._inspire", "wh", "/Shared/x", "sp")
+            self.assertIn('  - name: "INSPIRE_FX_URL"\n    value: "https://api.frankfurter.dev/v1/latest"\n', path.read_text())
+        finally:
+            shutil.rmtree(folder)
+
     def test_only_a_test_install_writes_the_test_tag_into_the_app_environment(self):
         folder = pathlib.Path(tempfile.mkdtemp())
         try:

@@ -1,4 +1,5 @@
 import { plainColumns } from './impact.js';
+import { compileExpression } from './moneyValue.js';
 // ISO 4217 codes, the same list as shell_sql.MONEY_CODES; the parity test runs the shared fixture through both.
 const CURRENCY_CODES = new Set([
   'AED', 'AFN', 'ALL', 'AMD', 'ANG', 'AOA', 'ARS', 'AUD', 'AWG', 'AZN', 'BAM', 'BBD', 'BDT',
@@ -23,6 +24,34 @@ const MAX_PERIODS = 60;
 const MAX_STATUSES = 20;
 const RATE_TABLE_KEYS = ['table', 'currency_column', 'base_column', 'date_column', 'rate_column', 'load_column'];
 
+const VALUE_METHODS = ['fixed', 'column', 'equation'];
+const plain = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+
+function valueProblemsOf(value) {
+  if (!plain(value)) return ['the value of each record is an object: its method, and its amount, column or equation'];
+  if (!VALUE_METHODS.includes(value.method)) return [`the value method is one of ${VALUE_METHODS.join(', ')}`];
+  const problems = [];
+  const byCode = value.currency !== undefined;
+  const byColumn = value.currency_column !== undefined;
+  if (byCode === byColumn) problems.push('the value names one currency: a code such as USD (currency), or the column that holds it (currency_column)');
+  else if (byCode && !isCode(value.currency)) problems.push('the value currency is an ISO 4217 code such as USD');
+  else if (byColumn && !COLUMN.test(value.currency_column)) problems.push('the value currency_column is a plain column name');
+  if (value.method === 'fixed' && !(Number.isFinite(value.amount) && value.amount > 0 && value.amount <= 1e12)) problems.push('a fixed value is a positive amount per record');
+  if (value.method === 'column' && !(typeof value.column === 'string' && COLUMN.test(value.column))) problems.push('a column value names the plain column that holds each amount');
+  if (value.method === 'equation') { const compiled = compileExpression(value.expression); if (compiled.problem) problems.push(compiled.problem); }
+  return problems;
+}
+
+function valueCleanOf(value) {
+  const out = { method: value.method };
+  if (value.method === 'fixed') out.amount = Number(value.amount);
+  if (value.method === 'column') out.column = value.column;
+  if (value.method === 'equation') out.expression = String(value.expression).trim();
+  if (value.currency !== undefined) out.currency = value.currency;
+  else out.currency_column = value.currency_column;
+  return out;
+}
+
 export function draftOf(rule) {
   const window = rule?.window ? String(rule.window.periods) : '';
   const mode = rule?.currency === undefined ? 'per_currency' : rule.currency;
@@ -30,7 +59,7 @@ export function draftOf(rule) {
   const base = {
     mode, window, statuses, statusColumn: rule?.status_column || '', rule: rule?.rule || 'losses', off: rule?.off === true, per: rule?.per || 'row', groupColumn: rule?.group_column || '',
     base: '', rates: [], rateSource: 'typed', rateColumn: '', rateTable: { table: '', currency_column: '', base_column: '', date_column: '', rate_column: '', load_column: '' },
-    both: false,
+    both: false, value: rule?.value ?? null,
   };
   if (mode !== 'convert') return base;
   const sources = [rule.rates !== undefined, rule.rate_column !== undefined, rule.rate_table !== undefined];
@@ -45,7 +74,7 @@ export function draftOf(rule) {
   };
 }
 
-export function ruleOf(draft) {
+function ruleBaseOf(draft) {
   const problems = [];
   const windowText = String(draft.window ?? '').trim();
   const window = windowText === '' ? null : Number(windowText);
@@ -63,7 +92,7 @@ export function ruleOf(draft) {
     out.statuses = statuses;
     out.status_column = String(draft.statusColumn || '').trim();
   }
-  if (!['losses', 'net'].includes(draft.rule)) problems.push('The money rule is losses or net.');
+  if (!['losses', 'net', 'gains'].includes(draft.rule)) problems.push('The money rule is losses, gains or net.');
   if (draft.rule && draft.rule !== 'losses') out.rule = draft.rule;
   if (draft.off) out.off = true;
   if (draft.per === 'group') {
@@ -103,13 +132,20 @@ export function ruleOf(draft) {
   return { rule: out, problems };
 }
 
+export function ruleOf(draft) {
+  const base = ruleBaseOf(draft);
+  if (draft.value === undefined || draft.value === null) return base;
+  const found = valueProblemsOf(draft.value);
+  return { rule: base.rule && !found.length ? { ...base.rule, value: valueCleanOf(draft.value) } : base.rule, problems: [...base.problems, ...found] };
+}
+
 export function ruleSentence(rule) {
   const periods = rule?.window?.periods;
   const window = periods ? ` over the last ${periods} closed ${periods === 1 ? 'period' : 'periods'}` : ' over every closed period';
   if (rule?.off) return 'Money is off for this use case: no money total, chart or Genie money answer is shown.';
   const counted = rule?.per === 'group' ? `Each ${plainColumns(rule.group_column)} counts once, with its largest row. ` : '';
   const statuses = rule?.statuses ? ` Only rows whose status is ${rule.statuses.join(', ')} count.` : '';
-  const losses = (rule?.rule || 'losses') === 'losses' ? 'Only losses count' : 'Gains and losses are netted';
+  const losses = (rule?.rule || 'losses') === 'losses' ? 'Only losses count' : rule?.rule === 'gains' ? 'Only gains count' : 'Gains and losses are netted';
   const tail = `${counted}${losses}.${statuses}`;
   if (rule?.currency !== 'convert') return `Each currency is totalled on its own${window}. Amounts in different currencies are never added together. ${tail}`;
   if (rule.rate_table) return `Every amount is converted to ${rule.base} at the rate in ${plainColumns(rule.rate_table.table)} for its currency, base and date, then added up${window}. ${tail}`;

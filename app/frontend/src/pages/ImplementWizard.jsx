@@ -1861,7 +1861,7 @@ export default function ImplementWizard({
               <h3 className="text-sm font-semibold text-text-primary">Money at stake</h3>
               <p className="text-[11px] text-text-secondary">{`Each record is counted in the ${stakeWords(sampleStake)}. Choose how the money totals are worked out.`}</p>
             </div>
-            <MoneyRuleEditor value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} loadRates={(body) => apiPostJson('/api/money/rate-sample', body)} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
+            <MoneyRuleEditor value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
           </section>
         )}
 

@@ -2014,7 +2014,8 @@ class Shell:
         """The page with the owner's saved money rule, read now: for a money answer computed outside a request that carries the flag."""
         if not page.get("result_table") or not shell_sql.page_has_money(page):
             return page
-        return shell_sql.page_with_money(page, shell_sql.saved_money_rule(self.assumption_rows(ws, who, page)))
+        rule, note = self.checked_money_rule(ws, who, page, (shell_sql.saved_money_rule(self.assumption_rows(ws, who, page)) or page.get("money")))
+        return self.with_money_note(shell_sql.page_with_money(page, rule), note)
 
     def with_saved_money(self, page: dict) -> dict:
         """The one injection point: a page with money reads the owner's saved money rule, loaded once per request."""
@@ -2024,8 +2025,19 @@ class Shell:
         key = str(page.get("id"))
         if key not in request["rules"]:
             ws, who = self.workspace(request["headers"])
-            request["rules"][key] = shell_sql.saved_money_rule(self.assumption_rows(ws, who, page))
-        return shell_sql.page_with_money(page, request["rules"][key])
+            request["rules"][key] = self.checked_money_rule(ws, who, page, (shell_sql.saved_money_rule(self.assumption_rows(ws, who, page)) or page.get("money")))
+        rule, note = request["rules"][key]
+        return self.with_money_note(shell_sql.page_with_money(page, rule), note)
+
+    def checked_money_rule(self, ws, who, page: dict, rule):
+        """The saved rule, minus its value when the table has lost a column the value uses; the note says so on the page."""
+        if not isinstance(rule, dict) or not isinstance(rule.get("value"), dict):
+            return rule, ""
+        dataset = next((k.get("dataset") for k in page.get("kpis") or [] if k.get("format") == "currency"), shell_sql.RECORDS_DATASET)
+        return shell_sql.money_value_fallback(rule, list(self.list_columns(ws, who, page, dataset)))
+
+    def with_money_note(self, page: dict, note: str) -> dict:
+        return dict(page, money_note=note) if note else page
 
     def execute(self, ws, sql: str, params: list, limit: int, delta: bool = False, queued: bool = False) -> dict:
         if self.lakebase is not None and not delta:
@@ -2835,7 +2847,7 @@ class Shell:
         errors.pop(("scope", "runs"), None)
         errors.update(failed)
         out = {"kpis": {}, "charts": {}, "tables": {}, "errors": {}, "served": served_by(done), "catching_up": self.catching_up(),
-               "scope": shell_sql.scope_view(scoped) if scoped is not None else None}
+               "scope": shell_sql.scope_view(scoped) if scoped is not None else None, "money_note": page.get("money_note") or ""}
         for (kind, item_id), result in done.items():
             if kind == "kpi":
                 out["kpis"][item_id] = shell_sql.kpi_values(result["rows"])
