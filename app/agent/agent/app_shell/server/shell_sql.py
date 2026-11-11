@@ -5055,22 +5055,22 @@ FEEDBACK_COLUMNS = ("feedback_id", "section", "record_key", "text", "filters", "
                     "handled_at")
 
 
-def feedback_table(page: dict) -> str:
-    return sibling_table(page, FEEDBACK_SUFFIX)
+def feedback_table(page: dict, app_table: str = "") -> str:
+    return sibling_table(page, FEEDBACK_SUFFIX) if page.get("result_table") else table_name(app_table)
 
 
-def feedback_write(page: dict, feedback_id: str, section: str, record_key: str, text: str, reporter: str, filters: str) -> tuple:
+def feedback_write(page: dict, feedback_id: str, section: str, record_key: str, text: str, reporter: str, filters: str, app_table: str = "") -> tuple:
     params = _Params()
     cells = [params.add(feedback_id), params.add(str(page.get("use_case_id") or "")), params.add(section), params.add(record_key or None),
              params.add(text), params.add(reporter), "current_timestamp()", params.add(FEEDBACK_NEW), params.add(filters or None)]
-    return (f"INSERT INTO {feedback_table(page)} (`feedback_id`, `use_case_id`, `section`, `record_key`, `text`, `reported_by`, `reported_at`, "
+    return (f"INSERT INTO {feedback_table(page, app_table)} (`feedback_id`, `use_case_id`, `section`, `record_key`, `text`, `reported_by`, `reported_at`, "
             f"`status`, `filters`) VALUES ({', '.join(cells)})", params.items)
 
 
-def feedback_query(page: dict, reporter=None, limit: int = 50) -> tuple:
+def feedback_query(page: dict, reporter=None, limit: int = 50, app_table: str = "") -> tuple:
     params = _Params()
     mine = f" AND lower(`reported_by`) = {params.add(str(reporter).lower())}" if reporter is not None else ""
-    return (f"SELECT {', '.join(f'`{c}`' for c in FEEDBACK_COLUMNS)} FROM {feedback_table(page)} WHERE `use_case_id` = "
+    return (f"SELECT {', '.join(f'`{c}`' for c in FEEDBACK_COLUMNS)} FROM {feedback_table(page, app_table)} WHERE `use_case_id` = "
             f"{params.add(str(page.get('use_case_id') or ''))}{mine} ORDER BY `reported_at` DESC LIMIT {int(limit)}", params.items)
 
 
