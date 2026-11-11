@@ -31,7 +31,7 @@ export default function ValueBadge({ atStake, saved, measured = true, mvps = nul
         <div data-value-side="saved">
           <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Saved</p>
           <p data-value-headline="saved" className={`mt-0.5 text-xl font-bold tabular-nums leading-none ${headSaved ? 'text-success-fg' : 'text-text-secondary'}`}>
-            {headSaved ? `${headSaved.text} saved` : 'none saved yet'}
+            {headSaved ? headSaved.text : 'none saved yet'}
           </p>
         </div>
       </div>

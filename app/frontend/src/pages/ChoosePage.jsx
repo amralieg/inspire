@@ -517,13 +517,13 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                         </span>
                       )}
                       {buildFilter && buildingCount > 0 && (
-                        <div data-run-building="" className="relative z-10 flex items-center gap-2 rounded-lg border border-db-red/30 bg-db-red-50 px-2.5 py-1.5 text-[11px] font-medium text-db-red-fg">
-                          <Loader2 data-run-building-spinner="" size={12} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none" />
+                        <div data-run-building="" className="relative z-10 flex items-center gap-2 rounded-lg border border-border bg-bg-subtle px-2.5 py-1.5 text-[11px] font-medium text-text-primary">
+                          <Loader2 data-run-building-spinner="" size={12} aria-hidden className="shrink-0 animate-spin motion-reduce:animate-none text-text-secondary" />
                           <span className="tabular-nums">{buildingCount.toLocaleString('en-US')} building</span>
                           <button
                             type="button"
                             onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildFilter); }}
-                            className="inline-flex items-center gap-1 rounded-md border border-db-red/30 bg-surface px-2 py-0.5 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50"
+                            className="inline-flex items-center gap-1 rounded-md border border-border bg-surface px-2 py-0.5 text-[11px] font-semibold text-text-primary hover:bg-bg-subtle"
                           >
                             Go to Build <ArrowRight size={11} aria-hidden />
                           </button>
@@ -534,7 +534,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                           type="button"
                           data-run-go-build=""
                           onClick={(e) => { e.stopPropagation(); onOpenBuild?.(buildFilter); }}
-                          className="relative z-10 inline-flex items-center gap-1 rounded-lg border border-db-red/30 bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-db-red-fg hover:bg-db-red-50"
+                          className="relative z-10 inline-flex items-center gap-1 rounded-lg border border-border bg-surface px-2.5 py-1.5 text-[11px] font-semibold text-text-primary hover:bg-bg-subtle"
                         >
                           Go to Build <ArrowRight size={11} aria-hidden />
                         </button>
