@@ -79,7 +79,6 @@ export function buildUseCaseList(results, usecases) {
           uc.original_name = uc.original_name || uc.Name || '';
           uc.user_use_case_name = row.user_use_case_name;
           uc.Name = row.Name;
-          uc.short_name = row.short_name || uc.short_name;
         }
         const copyScore = (field) => {
           const v = row[field];

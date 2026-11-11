@@ -10,7 +10,7 @@ const base = { No: 'N01-U01', Name: CATALOGUE, use_case: CATALOGUE, 'Business Do
   Statement: 'Flag customers likely to leave.', Solution: 'A weekly score.' };
 const renamedRow = {
   id: 'N01-U01', No: 'N01-U01', session_id: 42, use_case: CATALOGUE, user_use_case_name: RENAMED,
-  original_name: CATALOGUE, Name: RENAMED, short_name: RENAMED, 'Business Domain': 'Sales', Subdomain: 'Retention',
+  original_name: CATALOGUE, Name: RENAMED, short_name: CATALOGUE, 'Business Domain': 'Sales', Subdomain: 'Retention',
   Statement: 'Flag customers likely to leave.', Solution: 'A weekly score.',
 };
 
@@ -41,6 +41,7 @@ test('the Results list overlays the user name on results that come from the run 
   assert.equal(uc.Name, RENAMED);
   assert.equal(uc.original_name, CATALOGUE);
   assert.equal(uc.user_use_case_name, RENAMED);
+  assert.equal(uc.short_name, CATALOGUE, 'the App name stays on the catalogue name, so a rebuild never creates a new App');
   const [beforeRename] = buildUseCaseList(results, []);
   assert.equal(favoriteKeyOf(uc), favoriteKeyOf(beforeRename), 'the favourite made before the rename still matches');
 });
