@@ -75,7 +75,7 @@ test('the use case card headlines the largest at stake amount, the saved amount 
     const badge = card('Predict churn').locator('[data-value-badge]');
     await badge.waitFor({ timeout: 15000 });
     assert.equal((await badge.locator('[data-value-headline="at stake"]').innerText()).trim(), 'AED 3K');
-    assert.equal((await badge.locator('[data-value-headline="saved"]').innerText()).trim(), 'AED 900 saved');
+    assert.equal((await badge.locator('[data-value-headline="saved"]').innerText()).trim(), 'AED 900');
     assert.deepEqual(await badge.locator('[data-value-secondary] [data-value-chip]').evaluateAll((els) => els.map((el) => el.textContent.trim())),
       ['$1.2K', '40 hours', '12 hours saved']);
     assert.equal((await badge.locator('[data-value-mvps]').innerText()).trim(), '300 records', 'a count is not money and goes on the meta line');
@@ -101,7 +101,7 @@ test('the run header totals the run across its MVPs, with the headline numbers a
     const header = page.locator('[data-run-heading]');
     await header.locator('[data-value-badge]').waitFor({ timeout: 15000 });
     assert.equal((await header.locator('[data-value-headline="at stake"]').innerText()).trim(), 'AED 9K');
-    assert.equal((await header.locator('[data-value-headline="saved"]').innerText()).trim(), 'AED 1.5K saved');
+    assert.equal((await header.locator('[data-value-headline="saved"]').innerText()).trim(), 'AED 1.5K');
     assert.deepEqual(await header.locator('[data-value-secondary] [data-value-chip]').evaluateAll((els) => els.map((el) => el.textContent.trim())), ['$4K', '120 hours']);
     assert.equal((await header.locator('[data-value-mvps]').innerText()).trim(), 'from 2 MVPs');
     assert.deepEqual(ui.pageErrors, []);
@@ -122,10 +122,10 @@ test('Start shows one overall banner across runs with headline numbers, and each
     assert.match(await banner.innerText(), /across 6 runs, 3 businesses/);
     assert.match(await banner.innerText(), /reported by owners/);
     assert.equal((await banner.locator('[data-value-headline="at stake"]').innerText()).trim(), 'AED 12K');
-    assert.equal((await banner.locator('[data-value-headline="saved"]').innerText()).trim(), 'AED 1.5K saved');
+    assert.equal((await banner.locator('[data-value-headline="saved"]').innerText()).trim(), 'AED 1.5K');
     const runValue = page.locator('[data-run="42"] [data-run-value]');
     await runValue.locator('[data-value-badge]').waitFor({ timeout: 15000 });
-    assert.deepEqual(await runValue.locator('[data-value-headline]').evaluateAll((els) => els.map((el) => el.textContent.trim())), ['AED 9K', 'AED 1.5K saved']);
+    assert.deepEqual(await runValue.locator('[data-value-headline]').evaluateAll((els) => els.map((el) => el.textContent.trim())), ['AED 9K', 'AED 1.5K']);
     assert.equal(await page.locator('[data-run="42"] [data-run-go-build]').count(), 1, 'a run with MVPs and none building shows Go to Build');
     const runsCalls = valueHits.filter((u) => u.startsWith('/api/inspire/value/runs'));
     assert.ok(runsCalls.length >= 1 && new Set(runsCalls).size === 1, `one runs read for every run on Start: ${runsCalls.length}`);
