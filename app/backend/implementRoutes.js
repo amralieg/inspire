@@ -1345,9 +1345,10 @@ function registerImplementRoutes(app, deps) {
     if (!rebuildAsIs) I.refuseUnchanged(plan);
     const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
     const warnings = [...noted, ...outputWarnings];
-    const params = I.implementJobParams(notebookParamsFromSessionForGenerateRun(session, sid), useCaseId, plan.nextVersion, ownServicePrincipalId());
+    const sessionParams = notebookParamsFromSessionForGenerateRun(session, sid);
+    const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, ownServicePrincipalId());
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
-    if (!params['01_uc_metadata']) {
+    if (!sessionParams['01_uc_metadata']) {
       const err = new Error('This session has no UC metadata stored on __inspire_session. Run Discover from this app first.');
       err.statusCode = 400;
       throw err;
