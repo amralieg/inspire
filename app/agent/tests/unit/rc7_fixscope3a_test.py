@@ -188,3 +188,14 @@ def test_the_dashboard_definition_check_refuses_a_base_table_dataset_and_accepts
     dashboard = {"datasets": [_dataset(f"SELECT COUNT(*) AS n FROM {BASE}", name="decision")], "pages": []}
     _, errors = clean["check_dashboard_definition"](json.dumps(dashboard), [], "", None, scopes)
     assert not any("reads main.s.orders" in e for e in errors), errors
+
+
+def test_the_tracked_kpi_reads_through_the_wizard_scope_when_it_is_handed_the_use_case(clean):
+    use_case = {"No": "N01-U03", "_implement_data": _gold()}
+    kpi = {"name": "Revenue", "table": TABLE, "aggregation": "SUM", "column": "total_price", "computable": True,
+           "unit": "", "direction": "up", "kpi_id": "k1"}
+    record = clean["implement_tracked_kpi"](kpi, "inspire", "inspire", None, use_case)
+    assert record["computable"] is True, record["reason"]
+    assert "WHERE `status` = 'gold'" in record["query"] and "`order_id`, `total_price`" in record["query"], record["query"]
+    assert _unready_subqueries(record["query"]) == [], record["query"]
+    assert " FROM (SELECT " in record["query"], "the KPI must read the scoped subquery, not the base table"
