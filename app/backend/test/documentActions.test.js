@@ -34,3 +34,10 @@ test('a document job reads running until its run ends, then done or failed (REQ-
   assert.equal(lib.documentJobState({ life_cycle_state: 'TERMINATED', result_state: 'FAILED' }), 'failed');
   assert.equal(lib.documentJobState({ life_cycle_state: 'INTERNAL_ERROR' }), 'failed');
 });
+
+test('the catalog button is named Create, the way Amr asked, because the button rebuilds the catalog on demand (REQ-077)', async () => {
+  const lib = await load();
+  assert.equal(lib.DOCUMENT_ACTIONS['use-case-catalog'].label, 'Create use case catalog');
+  assert.equal(lib.DOCUMENT_ACTIONS['strategy-document'].label, 'Create strategy document');
+  assert.deepEqual(lib.DOCUMENT_ACTIONS['strategy-document'].formats, ['PDF', 'PPTX']);
+});
