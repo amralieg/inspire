@@ -1,6 +1,7 @@
 import { Suspense, lazy, useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { AGENT_CHANGED, EMPTY_LOOK, lookChart } from './agentView.js';
 import { WAITING_FOR_ACCESS_CODE, getOverview, getPage } from './api.js';
+import { ADMIN_ROUTE } from './admin.js';
 import { apiTables, apiValues, clearColumnValues, clearColumnValuesIn, clearSelections, columnValuesIn, groupAliases, setColumnValueIn, toggleValue } from './filters.js';
 import { dayLabel } from './format.js';
 import { filterWords } from './explain.js';
@@ -11,7 +12,6 @@ import { blockPlan, gridSpans, slotsOf, withBlocks } from './blocks.js';
 import { Icon } from './icons.jsx';
 import Kpis, { Story } from './Kpis.jsx';
 import ChartCard from './ChartCard.jsx';
-import Records from './Records.jsx';
 import { ReviewLink, hubExplain, reviewItem } from './Home.jsx';
 import { genieOn } from './genieAsk.js';
 import PageLink, { usePageAddress } from './PageLink.jsx';
@@ -19,7 +19,6 @@ import { FreshBar, FreshDetail, runCounts, useFreshness, useRuns, useTrends } fr
 import { backendText, dataThroughText, lastRunText, latestRunText } from './freshness.js';
 import SettingsPanel, { SettingGroup, useSettings } from './Settings.jsx';
 import { paletteItems } from './Palette.jsx';
-import { AdminLink } from './Admin.jsx';
 import { FoldScope, useMyView } from './MyView.jsx';
 import { isLaidOut, isQueue, pageSections } from './Layouts.jsx';
 import { windowParams } from './prefs.js';
@@ -31,8 +30,6 @@ import { FIX_TIERS, hubView, reasonFilters, useCaseState } from './hub.js';
 import { inboxOn } from './inbox.js';
 import { useInbox } from './Inbox.jsx';
 import Dashboard, { NO_SLOTS, TableCard, chartSlots, hubChartsOnTop } from './Dashboard.jsx';
-import WaitingForAccess from './WaitingForAccess.jsx';
-import WorkPage from './WorkPage.jsx';
 import { RetryProvider, Skeleton } from './ui.jsx';
 import ModeView from './ModeView.jsx';
 import { pageMode, sectionTitle } from './modes.js';
@@ -42,6 +39,9 @@ import { KPI_TARGET, MEASURES, kpiGap, kpiGapText, promisedView, valueLine } fro
 const FeedbackButton = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackButton })));
 const FeedbackSettings = lazy(() => import('./Feedback.jsx').then((m) => ({ default: m.FeedbackSettings })));
 const InboxSection = lazy(() => import('./InboxSection.jsx'));
+const WaitingForAccess = lazy(() => import('./WaitingForAccess.jsx'));
+const WorkPage = lazy(() => import('./WorkPage.jsx'));
+const Records = lazy(() => import('./Records.jsx'));
 const MoneyRule = lazy(() => import('./MoneyRule.jsx').then((m) => ({ default: m.MoneyRule })));
 const Runs = lazy(() => import('./Runs.jsx'));
 const Alerts = lazy(() => import('./Alerts.jsx'));
@@ -236,14 +236,14 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
   );
   const kpisOf = (kpis, main = true, label) => <Kpis page={{ ...page, kpis }} data={data?.kpis} errors={errors} loading={loading} plan={main ? plan : null} scope={data?.scope} label={label} />;
   const records = (extra = {}) => (page.records && !unreliable ? (
-    <Records meta={page.records} app={app} pageId={page.id} filters={filters} ready={ready} nonce={nonce} onFilter={pick} history={!!page.history} onList={setQueue}
+    <Suspense fallback={<Skeleton height={160} />}><Records meta={page.records} app={app} pageId={page.id} filters={filters} ready={ready} nonce={nonce} onFilter={pick} history={!!page.history} onList={setQueue}
       similarBy={page.similar_by} keepsActions={hubEntry ? !!(hubEntry.tracked && hubEntry.actions) : undefined}
       onChanged={() => setNonce((n) => n + 1)} onExplain={explain} genieBusy={genieBusy} ai={state?.ai} openKey={parseHash(window.location.hash).rec}
       sort={look.sorts?.records || null} onSort={sortBy('records')}
       columnMeta={meta?.columns?.list} columnValues={columnValuesIn(state, null, aliases)}
       onColumn={(column, value) => onState(setColumnValueIn(state, null, column, value, aliases))} onClearColumns={() => onState(clearColumnValuesIn(state, null, aliases))}
       onClearFilters={() => onState(clearColumnValues({ ...clearSelections(state), ai: {} }, null))} seeChanged={seeChanged} onShowRuns={showRuns}
-      onOpen={setOpened} {...extra} />
+      onOpen={setOpened} {...extra} /></Suspense>
   ) : null);
   const hubCharts = (bars) => chartCards(trendChart ? [trendChart] : [], [{ key: 'by_reason', item: { id: 'by_reason' }, span: 1, node: bars }], true);
   const review = reviewItem(page, app);
@@ -301,7 +301,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     </header>
   );
   if (waitingFor) {
-    return <WaitingForAccess waiting={waitingFor} onCheck={() => { recheck(); setNonce((n) => n + 1); }} />;
+    return <Suspense fallback={null}><WaitingForAccess waiting={waitingFor} onCheck={() => { recheck(); setNonce((n) => n + 1); }} /></Suspense>;
   }
   const body = (
     <div className={`page ${busy && data ? 'is-busy' : ''}`} style={hueVars(page.hue || 'blue')} aria-busy={busy} data-page-section={shown}>
@@ -328,10 +328,10 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
           onRun={freshness.ask} running={freshness.busy} />
       )}
       {shown === 'work' && mode.queue && (
-        <WorkPage meta={meta} state={state} onState={onState} onRetryMeta={onRetryMeta} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
+        <Suspense fallback={<Waiting />}>        <WorkPage meta={meta} state={state} onState={onState} onRetryMeta={onRetryMeta} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
           {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, docked: true, section: 'records' })}
-        </WorkPage>
+        </WorkPage></Suspense>
       )}
       {shown === 'runs' && (
         <Suspense fallback={<Waiting />}>
@@ -394,4 +394,12 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
     </div>
   );
   return <GenieScope.Provider value={scope}><RetryProvider value={retry}><SharedFailureScope value={shown === 'dashboard' ? failures.shared : ''}><FoldScope pageId={page.id}>{body}</FoldScope></SharedFailureScope></RetryProvider></GenieScope.Provider>;
+}
+
+function AdminLink({ on }) {
+  return (
+    <a className={`admin-link top-ic ${on ? 'is-on' : ''}`} data-more="tight" href={`#/${ADMIN_ROUTE}`} aria-current={on ? 'page' : undefined} aria-label="Admin" title="Admin">
+      <Icon name="lock" size={13} /><span>Admin</span>
+    </a>
+  );
 }

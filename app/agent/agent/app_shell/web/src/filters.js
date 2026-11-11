@@ -188,10 +188,12 @@ export const groupsOn = (state, groups) => groups.some((g) => groupValues(state,
 export function groupAliases(meta) {
   const pages = new Map((meta?.filters || []).filter((f) => f.type === 'multi_select').map((f) => [String(f.label).trim().toLowerCase(), f.id]));
   const out = {};
-  (meta?.columns?.list || []).filter((f) => f.type === 'multi_select' && !f.action).forEach((f) => {
+  const link = (table, columns) => (columns || []).filter((f) => f.type === 'multi_select' && !f.action).forEach((f) => {
     const id = pages.get(String(f.label).trim().toLowerCase());
-    if (id) out[`|${f.column}`] = id;
+    if (id) out[`${table}|${f.column}`] = id;
   });
+  link('', meta?.columns?.list);
+  Object.entries(meta?.columns?.tables || {}).forEach(([table, columns]) => link(table, columns));
   return out;
 }
 

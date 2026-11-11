@@ -3,7 +3,7 @@ import { getRecords } from './api.js';
 import { cellText, formatValue, integer, isKeyColumn, numberOf } from './format.js';
 import { IN_PROGRESS, NEW, UNDO_CLOSE, isClosed, statusKind, actError, canDecide, choiceLabel, choiceValues, listAsOf, matchOf, noDecisionText, pageDecides, recordKeyOf, statusChoices, undoBatchOf } from './records.js';
 import { QueueBulk, useActs } from './Work.jsx';
-import { RecordPanel } from './Records.jsx';
+const RecordPanel = lazy(() => import('./Records.jsx').then((m) => ({ default: m.RecordPanel })));
 import { useList } from './Layouts.jsx';
 import { Icon } from './icons.jsx';
 import { Skeleton, PlainNote, useRetry } from './ui.jsx';
@@ -194,7 +194,7 @@ export function RowPanel({ page, app, list, opened, filters, view, onChanged }) 
     <>
       {canDecide(app, list) && <QueueBulk choices={statusChoices(page)} pageId={page.id} list={list} asked={{ page: page.id, filters: filters || {}, ...(view || {}) }} person={app.user?.email || ''}
         onChanged={onChanged} />}
-      <RecordPanel meta={page.records} app={app} pageId={page.id} row={opened.row} list={list} onClose={opened.close} onChanged={onChanged} similarBy={page.similar_by} />
+      {opened.row && <Suspense fallback={null}><RecordPanel meta={page.records} app={app} pageId={page.id} row={opened.row} list={list} onClose={opened.close} onChanged={onChanged} similarBy={page.similar_by} /></Suspense>}
     </>
   );
 }

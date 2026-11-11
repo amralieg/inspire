@@ -10,7 +10,7 @@ import { isQueue, pageSections } from './Layouts.jsx';
 import { pageMode, performanceOn, sectionTitle } from './modes.js';
 import ModeView from './ModeView.jsx';
 import { inboxOn } from './inbox.js';
-import Admin from './Admin.jsx';
+const Admin = lazy(() => import('./Admin.jsx'));
 import { ADMIN_ROUTE } from './admin.js';
 import GeniePanel, { useGenie } from './Genie.jsx';
 import { GenieScope, GenieState } from './AskGenie.jsx';
@@ -107,7 +107,7 @@ function SectionRail({ sections, on, onGo, open, page, counts = {}, alerting }) 
   );
 }
 
-function Shell({ app }) {
+function Shell({ app, onRefreshSiblings }) {
   const [theme, setTheme] = useState(() => {
     try { return localStorage.getItem(THEME_KEY) || app.theme; } catch { return app.theme; }
   });
@@ -303,7 +303,7 @@ function Shell({ app }) {
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
           <button className="genie-btn" data-tour="genie" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>
-          <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} siblings={app.siblings || []} />
+          <UseCases pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={() => { loadHub(); onRefreshSiblings?.(); }} siblings={app.siblings || []} />
           {(app.user.email || app.user.name) && <span className="avatar" title={app.user.email || app.user.name} aria-hidden="true">{initials(app.user)}</span>}
           {page && !admin && <button type="button" className="ibtn tour-top" onClick={takeTour} disabled={!page.tour} data-tour-top aria-label="Take the guided tour again" title="Take the guided tour again"><Icon name="info" size={16} /></button>}
         </header>
@@ -314,7 +314,7 @@ function Shell({ app }) {
           <main className="main" tabIndex={-1}>
             <NoAccessScope key={page ? `page:${page.id}` : admin ? 'admin' : 'home'} app={app}>
             <RetryProvider value={loadHub}>
-            {admin && <Admin />}
+            {admin && <Suspense fallback={null}><Admin /></Suspense>}
             {!admin && page && section === 'performance' && (
               <GenieScope.Provider value={perfScope}>
                 <ModeView key={page.id} mode={mode.id} part="Performance" app={app} page={page} genie={genie}
@@ -353,11 +353,12 @@ export default function App() {
   const [app, setApp] = useState(null);
   const [error, setError] = useState(null);
   const boot = useCallback(() => getApp().then((got) => { setError(null); setApp(got); }).catch(setError), []);
+  const refreshSiblings = useCallback(() => getApp().then((got) => setApp((a) => (a ? { ...a, siblings: got.siblings || [] } : a))).catch(() => {}), []);
   useEffect(() => { boot(); }, [boot]);
   useLayoutEffect(() => { if (!app) applyTheme('default', window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light', 'a'); }, [app]);
   return (
     <ToastProvider>
-      {error ? <Fatal error={error} onRetry={boot} /> : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} /></MyViewProvider>
+      {error ? <Fatal error={error} onRetry={boot} /> : app ? <MyViewProvider person={app.user?.email || app.user?.name}><Shell app={app} onRefreshSiblings={refreshSiblings} /></MyViewProvider>
         : <div className="boot" role="status"><span className="ring" /><span>Opening the App…</span></div>}
     </ToastProvider>
   );
