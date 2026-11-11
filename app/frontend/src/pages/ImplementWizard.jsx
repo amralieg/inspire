@@ -69,7 +69,6 @@ import {
   initialStepId,
   stepIndexOf,
   lostTablesText,
-  APP_READ_ACTION,
   SOURCE_REFUSED_REASON,
   NEW_APPS_ACCESS_ACTION,
   appGrantText,
@@ -246,6 +245,7 @@ import { personalColumn } from '../lib/personalColumns';
 import { PLACE_RIGHTS, placeNameProblem } from '../lib/tableName';
 import { BlockedReason, ClearsChoice, DigestChoice, RowSubjectCheck } from '../components/WizardStickParts';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
+import { AppReadAccess, GrantList } from '../components/AppReadAccess';
 import { placeholderWords } from '../lib/placeholderWords';
 import {
   KPI_CHANGE_NOTE, KPI_INSPIRE_PICKS, KPI_NONE_YET, KPI_PICK_RULE, kpiKey, kpiOptionLabel, kpiTargetOf, kpiTargetOptions, kpiTargetProblems, trackedKpiOf,
@@ -3122,38 +3122,6 @@ function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake
       <AppSample palette={palette} look={chosen} appName={spec.outputs.app_name || 'Your App'} title={title}
         view={view} shared={spec.outputs.app_access !== 'user'} label={sampleLabel} charts={charts} impact={appScreensOf(spec).impact} stake={stake} />
       <p className="text-[11px] text-text-tertiary">{APP_SAMPLE_NOTE}</p>
-    </section>
-  );
-}
-
-function GrantList({ label, items }) {
-  if (!items?.length) return null;
-  return (
-    <ul aria-label={label} className="space-y-0.5">
-      {items.map((sql) => <li key={sql} className="font-mono text-[11px] text-text-primary break-all">{sql}</li>)}
-    </ul>
-  );
-}
-
-function AppReadAccess({ offer, result, busy, onGrant }) {
-  return (
-    <section aria-label="App read access" data-app-read="" className="space-y-1.5 text-[11px] bg-bg border border-border rounded-md px-3 py-2">
-      {offer && <PlainMessage text={offer.text} className="text-text-secondary" />}
-      {offer?.can_grant && (
-        <button type="button" disabled={busy} onClick={onGrant}
-          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70">
-          {busy ? 'Granting with your sign-in' : APP_READ_ACTION}
-        </button>
-      )}
-      {offer?.grants?.length > 0 && <TechnicalDetails items={offer.grants} />}
-      {result && (
-        <div role="status" aria-label="Grant result" className="space-y-1">
-          {result.error ? <PlainMessage text={`Your grant was refused: ${result.error}`} onRetry={offer?.can_grant ? onGrant : null} copy className="text-text-secondary" /> : <p className="text-text-secondary">{result.text}</p>}
-          {(result.ran?.length > 0 || result.failed?.length > 0) && (
-            <TechnicalDetails items={[...(result.ran || []).map((sql) => `Ran: ${sql}`), ...(result.failed || []).map((sql) => `Failed: ${sql}`)]} />
-          )}
-        </div>
-      )}
     </section>
   );
 }
