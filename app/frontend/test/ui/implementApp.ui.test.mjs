@@ -398,7 +398,7 @@ for (const style of ['a', 'b', 'c']) {
   }
 }
 
-test('a shared App reads Lakebase by default; a per-user App keeps Fast pages when every filtered table enforces each person to their rows, and reads Delta with the reason when one does not; a 403 says why, and a 404 says why with no choice', async () => {
+test('a shared App reads Lakebase by default; a per-user App keeps Fast pages when every filtered table enforces each person to their rows, and reads Delta with the reason when one does not; a 403 says why, and a 404 says why with no choice', async (t) => {
   const probe = (data, status) => ({ me: { userName: OWNER, displayName: 'Owner' }, responses: { 'GET /api/2.0/postgres/projects': [data, status] } });
   const toAccess = async (page) => {
     await toDelivery(page);
@@ -413,37 +413,61 @@ test('a shared App reads Lakebase by default; a per-user App keeps Fast pages wh
     await startWhenReady(page);
   };
 
-  let ui = await openUi('wizard', probe({ projects: [] }, 200));
-  try {
-    const access = await toAccess(ui.page);
-    const group = choice(access);
-    await group.getByRole('status').waitFor({ state: 'detached' });
-    await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
-    await group.getByText('Delta', { exact: true }).waitFor();
-    assert.equal(await access.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true, 'the App signs each viewer in with no click');
-    assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a per-user App over tables that enforce each person to their rows keeps Fast pages');
-    await access.getByRole('radio', { name: /^Internal data/ }).check();
-    assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a shared App reads Lakebase by default, with no other click');
-    await access.getByRole('radio', { name: /^Sensitive data/ }).check();
-    await access.getByRole('radio', { name: /^Internal data/ }).check();
-    assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'back to a shared App, Lakebase comes back');
-    await toStart(ui.page);
-    assert.equal(submittedSpec(ui.made).outputs.app_backend, 'lakebase');
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
+  let ui;
+  const filtered = (fn, body) => ({
+    ...probe({ projects: [] }, 200),
+    rowFilters: { 'main.s.orders': { function_name: fn, input_column_names: ['region'] } },
+    responses: { ...probe({ projects: [] }, 200).responses, [`GET /api/2.1/unity-catalog/functions/${fn}`]: [{ routine_definition: body, input_params: { parameters: [{ name: 'region' }] } }, 200] },
+  });
 
-  ui = await openUi('wizard', { ...probe({ projects: [] }, 200), rowFilters: { 'main.s.orders': { function_name: 'main.s.hide', input_column_names: ['region'] } }, responses: { ...probe({ projects: [] }, 200).responses, 'GET /api/2.1/unity-catalog/functions/main.s.hide': [{ routine_definition: 'SELECT true', input_params: { parameters: [{ name: 'region' }] } }, 200] } });
-  try {
-    const access = await toAccess(ui.page);
-    const group = choice(access);
-    await group.getByRole('status').waitFor({ state: 'detached' });
-    assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'one filtered table that does not enforce each person to their rows reads Delta tables');
-    assert.match(await group.locator('[data-blocked-reason="app-backend"] p').textContent(), /row filter main\.s\.hide/, 'the reason names the row filter');
-  } finally {
-    await ui.close();
-  }
+  await t.test('every table enforces each person to their rows (no row filter): a per-user App keeps Fast pages, and a shared App reads Lakebase', async () => {
+    ui = await openUi('wizard', probe({ projects: [] }, 200));
+    try {
+      const access = await toAccess(ui.page);
+      const group = choice(access);
+      await group.getByRole('status').waitFor({ state: 'detached' });
+      await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
+      await group.getByText('Delta', { exact: true }).waitFor();
+      assert.equal(await access.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true, 'the App signs each viewer in with no click');
+      assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a per-user App over tables that enforce each person to their rows keeps Fast pages');
+      await access.getByRole('radio', { name: /^Internal data/ }).check();
+      assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a shared App reads Lakebase by default, with no other click');
+      await access.getByRole('radio', { name: /^Sensitive data/ }).check();
+      await access.getByRole('radio', { name: /^Internal data/ }).check();
+      assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'back to a shared App, Lakebase comes back');
+      await toStart(ui.page);
+      assert.equal(submittedSpec(ui.made).outputs.app_backend, 'lakebase');
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+
+  await t.test('every filtered table enforces each person to their rows (a row filter that maps users to keys): a per-user App keeps Fast pages with no reason', async () => {
+    ui = await openUi('wizard', filtered('main.s.own_rows', 'RETURN exists(select 1 from main.s.region_access r where r.region = region and r.email = current_user())'));
+    try {
+      const access = await toAccess(ui.page);
+      const group = choice(access);
+      await group.getByRole('status').waitFor({ state: 'detached' });
+      assert.deepEqual(await radios(group), [['lakebase', true, false], ['delta', false, false]], 'a per-user App over a row filter that keeps each person to their rows keeps Fast pages');
+      assert.equal(await group.locator('[data-blocked-reason="app-backend"]').count(), 0, 'no reason is shown while Fast pages stay on');
+    } finally {
+      await ui.close();
+    }
+  });
+
+  await t.test('one filtered table does not enforce each person to their rows: a per-user App reads Delta tables and the reason names the table and its row filter', async () => {
+    ui = await openUi('wizard', filtered('main.s.hide', 'SELECT true'));
+    try {
+      const access = await toAccess(ui.page);
+      const group = choice(access);
+      await group.getByRole('status').waitFor({ state: 'detached' });
+      assert.deepEqual(await radios(group), [['lakebase', false, true], ['delta', true, false]], 'one filtered table that does not enforce each person to their rows reads Delta tables');
+      assert.equal(await group.locator('[data-blocked-reason="app-backend"] p').textContent(), 'Fast pages cannot keep each person to their own rows here: main.s.orders uses Standard pages because the row filter main.s.hide is not a user-to-key mapping table.', 'the reason names the table and its row filter');
+    } finally {
+      await ui.close();
+    }
+  });
 
   ui = await openUi('wizard', probe({ projects: [] }, 200));
   try {
