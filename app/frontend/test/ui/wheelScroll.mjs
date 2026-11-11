@@ -1,4 +1,5 @@
 import assert from 'node:assert/strict';
+import { createRequire } from 'node:module';
 
 export const WHEEL_SCREENS = [[1280, 800], [1024, 700]];
 
@@ -175,9 +176,41 @@ export async function wheelReads(page, box, { lines = '', readable = 3, delta = 
       setTimeout(() => { at100.push(Math.round(el.scrollTop)); }, 100);
       setTimeout(() => done({ set: 300, at100ms: at100[0], at1s: Math.round(el.scrollTop) }), 1000);
     }));
+    const cdp = await page.context().newCDPSession(page);
+    const variants = {};
+    const attempt = async (name, act) => {
+      await box.evaluate((el) => { el.scrollTop = 0; });
+      await pause(100);
+      try {
+        await act();
+        await pause(1000);
+        variants[name] = await scrollTop();
+      } catch (failure) {
+        variants[name] = `error: ${failure.message.split('\n')[0]}`;
+      }
+    };
+    await attempt('1 mouse.move then wheel', async () => { await page.mouse.move(at.x, at.y); await page.mouse.wheel(0, delta); });
+    await attempt('2 hover then wheel', async () => { await box.hover(); await page.mouse.wheel(0, delta); });
+    await attempt('3 CDP Input.dispatchMouseEvent mouseWheel', async () => { await cdp.send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: at.x, y: at.y, deltaX: 0, deltaY: delta }); });
+    await attempt('4 overscrollBehavior auto then wheel', async () => {
+      await box.evaluate((el) => { el.style.overscrollBehavior = 'auto'; });
+      await page.mouse.move(at.x, at.y);
+      await page.mouse.wheel(0, delta);
+      await box.evaluate((el) => { el.style.overscrollBehavior = ''; });
+    });
+    await box.evaluate((el) => { el.scrollTop = 0; });
+    const synthetic = await box.evaluate((el, dy) => {
+      const event = new WheelEvent('wheel', { deltaY: dy, bubbles: true, cancelable: true });
+      const notPrevented = el.dispatchEvent(event);
+      return { notPrevented, top: Math.round(el.scrollTop) };
+    }, delta);
+    variants['5 synthetic WheelEvent (listeners only)'] = synthetic;
+    const browserInfo = { version: page.context().browser()?.version() ?? null,
+      userAgent: await page.evaluate(() => navigator.userAgent), playwright: createRequire(import.meta.url)('playwright/package.json').version };
+    await cdp.detach().catch(() => {});
     await box.evaluate(() => window.__wheelObs?.disconnect());
     await held.dispose();
-    const detail = { at: { x: Math.round(at.x), y: Math.round(at.y) }, ...state, original, programmatic, secondWheelTop, lateTop, firstMoveMs };
+    const detail = { at: { x: Math.round(at.x), y: Math.round(at.y) }, ...state, original, programmatic, secondWheelTop, lateTop, firstMoveMs, variants, browserInfo };
     throw new Error(`the mouse wheel did not scroll the box, ${JSON.stringify(detail)}: ${error.message}`);
   });
   await box.evaluate(() => window.__wheelObs?.disconnect());
