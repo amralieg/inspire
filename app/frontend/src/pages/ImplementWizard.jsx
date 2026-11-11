@@ -227,6 +227,8 @@ import {
   MEASURE_LABEL,
   withMoneyRule,
   BUILD_IT_LABEL,
+  mergeSwaps,
+  swapParts,
   BACK_TO_SUMMARY,
   SUMMARY_STEP,
   nextStepAfter,
@@ -560,12 +562,14 @@ export default function ImplementWizard({
   };
 
   const loadSwaps = useCallback(async (table) => {
+    const post = (part, body) => apiPostJson(`/api/inspire/implement/swaps?${q}${part ? `&part=${part}` : ''}`, body);
     try {
-      const data = await apiPostJson(`/api/inspire/implement/swaps?${q}`, { table, required_columns: [] });
-      setSwaps((prev) => ({ ...prev, [table]: data.swaps || [] }));
-      setSwapsWhy((prev) => ({ ...prev, [table]: data.why || '' }));
+      await swapParts(post, table, (list, why) => {
+        setSwaps((prev) => ({ ...prev, [table]: mergeSwaps(prev[table], list) }));
+        if (why !== null) setSwapsWhy((prev) => ({ ...prev, [table]: why }));
+      });
     } catch (e) {
-      setSwaps((prev) => ({ ...prev, [table]: [] }));
+      setSwaps((prev) => ({ ...prev, [table]: prev[table] || [] }));
       setErrors([e.message]);
     }
   }, [apiPostJson, q]);

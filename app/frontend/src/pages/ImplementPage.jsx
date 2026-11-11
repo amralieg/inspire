@@ -11,6 +11,7 @@ import {
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, stoppedChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
   unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices, abacGrantText, liveSourceNow, liveProtection, liveReads,
+  swapParts,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -906,8 +907,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       .catch((e) => { if (live) setTablesView({ editable: false, why: `Inspire could not tell who may change the tables: ${e.message}` }); });
     return () => { live = false; };
   }, [hasMvp, apiFetch, qBase, useCaseId, moneyKey, refreshKey]);
-  const tableSwaps = useCallback((table) => apiPostJson(`/api/inspire/implement/swaps?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`,
-    { table, required_columns: [] }).then((data) => ({ swaps: data.swaps || [], why: data.why || '' })), [apiPostJson, qBase, useCaseId]);
+  const tableSwaps = useCallback((table, onPart) => swapParts((part, body) => apiPostJson(
+    `/api/inspire/implement/swaps?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}${part ? `&part=${part}` : ''}`, body), table, onPart),
+  [apiPostJson, qBase, useCaseId]);
   const tableChange = useCallback((next) => apiPostJson(`/api/inspire/implement/table-change?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`,
     { spec: next }), [apiPostJson, qBase, useCaseId]);
   const chip = statusChip(latest?.status, stalled, latest);
