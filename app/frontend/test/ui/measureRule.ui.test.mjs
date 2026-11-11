@@ -20,6 +20,7 @@ const OFFLINE_RATES = {
   ...LIVE_RATES, sources: { USD: 'average', EUR: 'average' }, offline: true,
   message: 'No internet: every rate is the saved historical average (fetch failed).',
 };
+const DESCRIBED = { value: { method: 'equation', expression: 'quantity * unit_price - discount', currency_column: 'currency' }, explanation: 'Units times price, less discount.' };
 const PREVIEW = (currency) => ({ rows: [{ stake: 120, currency }, { stake: 120, currency }, { stake: 120, currency }] });
 
 function stub(path, answerOf, calls) {
@@ -32,12 +33,13 @@ function stub(path, answerOf, calls) {
   };
 }
 
-async function openMeasure({ rates = LIVE_RATES, calls = { preview: [], currency: [] } } = {}) {
+async function openMeasure({ rates = LIVE_RATES, calls = { preview: [], currency: [], describe: [] } } = {}) {
   const ui = await openUi('wizard', ME, '', {
     init: async (page) => {
       await profileAt([], MONEY_PROFILE)(page);
       await stub('currency-rates', () => rates, calls.currency)(page);
       await stub('value-preview', () => PREVIEW('USD'), calls.preview)(page);
+      await stub('describe-value', () => DESCRIBED, calls.describe)(page);
     },
   });
   await goToStep(ui.page, 'Measure');
@@ -140,6 +142,38 @@ test('which movement counts is one plain question, and both gains and losses net
     await page.locator('[data-money-rule-kind="net"]').check();
     await page.waitForFunction(() => /netted/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
     assert.equal(await page.locator('[data-money-rule-kind="net"]').isChecked(), true);
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('Describe it: the App proposes the rule from the words, the person sees it with its rows and uses it', async () => {
+  const ui = await openMeasure();
+  const { page, calls } = ui;
+  try {
+    await page.locator('[data-money-method="describe"]').check();
+    await page.locator('[data-money-describe-text]').fill('each booking loses its price less the discount');
+    await page.locator('[data-money-describe-propose]').click();
+    await page.waitForSelector('[data-money-describe-proposal]', { timeout: 15000 });
+    assert.match(await page.locator('[data-money-describe-rule]').innerText(), /quantity \* unit_price - discount, in the currency of currency/);
+    assert.equal(calls.describe.at(-1).text, 'each booking loses its price less the discount');
+    assert.ok(calls.describe.at(-1).columns.includes('unit_price'), 'the model is told the table columns');
+    assert.deepEqual(calls.preview.at(-1).value, DESCRIBED.value, 'the proposal is previewed on its three rows before it is used');
+    await page.locator('[data-money-describe-use]').click();
+    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
+    assert.deepEqual(calls.preview.at(-1).value, { method: 'equation', expression: 'quantity * unit_price - discount', currency_column: 'currency' });
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('gains only is one of the three direction choices and names itself in the sentence', async () => {
+  const ui = await openMeasure();
+  const { page } = ui;
+  try {
+    assert.equal(await page.locator('[data-money-rule-kind]').count(), 3);
+    await page.locator('[data-money-rule-kind="gains"]').check();
+    await page.waitForFunction(() => /Only gains count/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
   } finally {
     await page.context().close();
   }

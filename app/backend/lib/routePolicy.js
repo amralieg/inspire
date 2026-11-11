@@ -185,6 +185,8 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/feedback/vibe': owners('draft a vibe from an issue reported in its App'),
   'POST /api/money/currency-rates': tracked('read the currencies of the use case table and their rates to the reporting currency',
     'reads the use case table with your own sign-in; the rates come from a public rate source or the averages saved with Inspire'),
+  'POST /api/money/describe-value': tracked('turn a description of a money value into a value rule with a chat model',
+    'calls the chat model with your own sign-in and reads nothing else'),
   'POST /api/money/value-preview': tracked('read three rows of the use case table through the value a money rule names',
     'reads the use case table with your own sign-in'),
   'POST /api/money/rate-sample': tracked('read the rates of the rate table a money rule names',

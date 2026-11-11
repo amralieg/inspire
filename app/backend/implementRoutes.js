@@ -21,6 +21,7 @@ const G = require('../frontend/src/lib/tableName.js');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const FX = require('./lib/fxRates');
+const MD = require('./lib/moneyDescribe');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
 const {
   clearedText, emptyScopeWarningOf, nextAppName, ownSchemaClashNote, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks,
@@ -1855,9 +1856,10 @@ function registerImplementRoutes(app, deps) {
       if (!sql || (asked && !/^[A-Z]{3}$/.test(asked))) throw I.badRequest('Name the use case table and its currency column, and the reporting currency as a three-letter code such as USD.');
       const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.CURRENCY_SPREAD_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
       const currencies = sqlResultToObjects(found).map((r) => ({ code: String(r.currency ?? '').trim().toUpperCase(), records: Number(r.records) }));
+      const capped = currencies.length >= GP.CURRENCY_SPREAD_ROWS;
       const base = asked || (currencies[0] ? currencies[0].code : 'USD');
       const rates = await FX.currencyRates({ base, codes: currencies.map((c) => c.code) });
-      return res.json({ ...rates, currencies });
+      return res.json({ ...rates, currencies, capped });
     } catch (err) {
       return sendError(res, sqlFailure(err, profileFailures(String(req.body?.table || 'the use case table'))));
     }
@@ -1873,6 +1875,30 @@ function registerImplementRoutes(app, deps) {
       return res.json({ rows: sqlResultToObjects(found).map((r) => ({ stake: Number(r.stake), currency: String(r.currency ?? '') })) });
     } catch (err) {
       return sendError(res, sqlFailure(err, profileFailures(String(req.body?.table || 'the use case table'))));
+    }
+  });
+
+  app.post('/api/money/describe-value', requireToken, async (req, res) => {
+    const token = P.personTokenOf(req);
+    if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
+    try {
+      const text = String(req.body?.text ?? '').trim();
+      const columns = Array.isArray(req.body?.columns) ? req.body.columns.map((c) => String(c)).slice(0, MD.COLUMN_LIMIT) : [];
+      if (!text || text.length > MD.DESCRIBE_MAX_CHARS || !columns.length) throw I.badRequest('Describe how the value of each record works, in up to ' + MD.DESCRIBE_MAX_CHARS + ' characters, and name the table.');
+      const listed = await jsonOf(dbFetch, req.dbHost, token, '/api/2.0/serving-endpoints');
+      if (!listed.ok) throw I.badRequest(`Inspire could not list the serving endpoints with your sign-in: ${listed.data.message || listed.data.error || `HTTP ${listed.status}`}`, listed.status);
+      const endpoint = FB.chatEndpoint({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
+      if (!endpoint) throw I.badRequest('no chat model you can use is ready on this workspace, so Inspire cannot turn the description into a value; choose the value yourself', 409);
+      const messages = MD.describeMessages({ text, columns, currencyColumn: String(req.body?.currency_column ?? '') });
+      const got = await jsonOf(dbFetch, req.dbHost, token, `/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, max_tokens: 400, temperature: 0 }),
+      });
+      if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
+      const described = MD.parseDescription(got.data, columns);
+      if (described.problems.length) return res.status(422).json({ error: described.problems.join(' '), problems: described.problems, model: endpoint });
+      return res.json({ value: described.value, explanation: described.explanation, model: endpoint });
+    } catch (err) {
+      return sendError(res, err);
     }
   });
 

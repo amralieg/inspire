@@ -70,6 +70,7 @@ const SAMPLES = [
     path: `/api/inspire/implement/submit?${qs({ ...UC, use_case_id: 'N09-U09' })}`, body: { spec: { use_case_id: 'N09-U09' } } },
   { key: 'POST /api/grouping/profile', rule: 'any', method: 'POST', path: '/api/grouping/profile', body: { ...UC } },
   { key: 'POST /api/money/currency-rates', rule: 'any', method: 'POST', path: '/api/money/currency-rates', body: { ...UC, base: 'USD' } },
+  { key: 'POST /api/money/describe-value', rule: 'any', method: 'POST', path: '/api/money/describe-value', body: { ...UC, text: 'x', columns: ['a'] } },
   { key: 'POST /api/money/value-preview', rule: 'any', method: 'POST', path: '/api/money/value-preview', body: { ...UC, value: { method: 'fixed', amount: 120, currency: 'USD' } } },
   { key: 'POST /api/money/rate-sample', rule: 'any', method: 'POST', path: '/api/money/rate-sample', body: { ...UC, base: 'USD' } },
   { key: 'ALL /run/:id/{*rest}', rule: 'delegated', method: 'POST', path: '/run/missing-page/api/refresh', body: {} },

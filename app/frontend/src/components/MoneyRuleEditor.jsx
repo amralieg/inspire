@@ -1,28 +1,35 @@
 import { useEffect, useState } from 'react';
 import { draftOf, ruleOf, ruleSentence } from '../../../agent/agent/app_shell/web/src/moneyRule.js';
+import '../../../agent/agent/app_shell/web/src/styles/moneyRule.css';
 import { compileExpression } from '../lib/moneyValue.js';
 import { PlainMessage } from './TechnicalDetails.jsx';
 
 const ISO = /^[A-Z]{3}$/;
 const COLUMN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
-const EMPTY_PICK = { method: '', amount: '', column: '', expression: '', currencyBy: 'code', code: '', currencyColumn: '' };
+const EMPTY_PICK = { method: '', amount: '', column: '', expression: '', currencyBy: 'code', code: '', currencyColumn: '', text: '', proposal: null, explanation: '', error: '', used: null };
 const METHODS = [
   { id: 'fixed', label: 'A fixed amount for each record', hint: 'Every record is worth the same amount, for example each lost booking costs 120.' },
   { id: 'column', label: 'A value from a data column', hint: 'The column already holds the amount each record is worth.' },
   { id: 'equation', label: 'An equation over columns', hint: 'Work the value out from columns, for example quantity * unit_price - discount.' },
+  { id: 'describe', label: 'Describe it', hint: 'Write how the value works in your words; the App proposes the rule for you to check.' },
 ];
 const DIRECTIONS = [
   { id: 'losses', label: 'Losses only', hint: 'A loss counts, a gain counts as zero.' },
+  { id: 'gains', label: 'Gains only', hint: 'A gain counts, a loss counts as zero.' },
   { id: 'net', label: 'Losses and gains, netted', hint: 'Gains and losses cancel out inside each total.' },
 ];
-const SOURCE_TEXT = { today: 'today’s rate', average: 'saved average', typed: 'typed in', base: 'reporting currency', missing: 'no rate yet, type it in' };
+const SOURCE_TEXT = { today: 'today’s rate', average: 'ECB average, 2025', typed: 'typed in', base: 'reporting currency', missing: 'no rate yet, type it in' };
 
 function pickOf(value) {
-  if (!value || !METHODS.some((m) => m.id === value.method)) return { ...EMPTY_PICK };
+  if (!value || !['fixed', 'column', 'equation'].includes(value.method)) return { ...EMPTY_PICK };
   return {
-    method: value.method, amount: value.amount == null ? '' : String(value.amount), column: value.column || '', expression: value.expression || '',
+    ...EMPTY_PICK, method: value.method, amount: value.amount == null ? '' : String(value.amount), column: value.column || '', expression: value.expression || '',
     currencyBy: value.currency_column !== undefined ? 'column' : 'code', code: value.currency || '', currencyColumn: value.currency_column || '',
   };
+}
+
+function effectiveOf(pick) {
+  return pick.method === 'describe' ? (pick.used || { ...EMPTY_PICK }) : pick;
 }
 
 function valueOf(pick) {
@@ -45,19 +52,29 @@ function valueOf(pick) {
   return { value: { method: 'equation', expression: pick.expression.trim(), ...currency }, problems };
 }
 
+function ruleTextOf(value) {
+  if (!value) return '';
+  const where = value.currency_column !== undefined ? `in the currency of ${value.currency_column}` : `in ${value.currency}`;
+  if (value.method === 'fixed') return `${value.amount} ${where}, for each record`;
+  if (value.method === 'column') return `the amount in ${value.column}, ${where}`;
+  return `${value.expression}, ${where}`;
+}
+
 const shownAmount = (n) => Number(n).toLocaleString('en-US', { maximumFractionDigits: 2 });
 
 export function MoneyRuleEditor({ value, onChange, sample = null, table = '', columns = [], api = {} }) {
   const [draft, setDraft] = useState(() => ({ ...draftOf({ currency: 'convert', base: value?.base || '', rates: value?.rates || {} }), mode: 'convert', rateSource: 'typed' }));
-  const [pick, setPick] = useState(() => pickOf(value?.value));
+  const [pick, setPick] = useState(() => ({ ...pickOf(value?.value) }));
   const [problems, setProblems] = useState([]);
   const [notice, setNotice] = useState('');
   const [preview, setPreview] = useState(null);
+  const [proposalRows, setProposalRows] = useState(null);
   const hasCurrencyColumn = Boolean(sample?.currency);
+  const effective = effectiveOf(pick);
 
   const save = (nextDraft, nextPick) => {
     const { rule, problems: found } = ruleOf(nextDraft);
-    const picked = valueOf(nextPick);
+    const picked = valueOf(effectiveOf(nextPick));
     const all = [...found, ...picked.problems];
     setProblems(all);
     if (!all.length && rule) onChange(picked.value ? { ...rule, value: picked.value } : rule);
@@ -76,7 +93,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
       }))];
       const next = { ...draft, mode: 'convert', base: data.base, rates: rows };
       setDraft(next);
-      setNotice(data.offline || data.message ? (data.message || '') : '');
+      setNotice(data.message || '');
       save(next, pick);
     }).catch((err) => setNotice(err?.message || 'The rates could not be read; type them in.'));
   };
@@ -86,7 +103,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [table, sample?.currency]);
 
-  const { value: picked, problems: pickProblems } = valueOf(pick);
+  const { value: picked, problems: pickProblems } = valueOf(effective);
   const previewKey = JSON.stringify(pickProblems.length ? null : picked);
   useEffect(() => {
     if (!picked || pickProblems.length || !table || !api.preview) { setPreview(null); return undefined; }
@@ -97,11 +114,26 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [previewKey, table]);
 
+  const propose = () => {
+    const text = pick.text.trim();
+    setProposalRows(null);
+    setPick((p) => ({ ...p, error: '', proposal: null, explanation: '' }));
+    api.describe({ table, text, columns, currency_column: sample?.currency || '' }).then((data) => {
+      setPick((p) => ({ ...p, proposal: data.value, explanation: data.explanation || '', error: '' }));
+      return api.preview({ table, value: data.value }).then((pv) => setProposalRows(pv.rows || []));
+    }).catch((err) => setPick((p) => ({ ...p, proposal: null, error: err?.message || 'The rule could not be proposed; choose one of the other ways.' })));
+  };
+
+  const useProposal = () => {
+    const used = pickOf(pick.proposal);
+    setPickPart({ used, method: 'describe' });
+  };
+
   const shown = ruleOf(draft).rule;
   const sentence = shown ? ruleSentence(shown) : '';
 
   return (
-    <div className="space-y-4" data-money-rule-editor>
+    <div className="money-rule space-y-4" data-money-rule-editor>
       <fieldset className="space-y-2" data-measure-value>
         <legend className="text-[13px] font-semibold text-text-primary">How does your business measure the value of each record?</legend>
         {METHODS.map((m) => (
@@ -111,6 +143,24 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
           </label>
         ))}
       </fieldset>
+
+      {pick.method === 'describe' && (
+        <div className="space-y-2 text-[12px]" data-money-describe>
+          <label>How does the value of each record work?
+            <textarea rows={3} dir="auto" className="block mt-1 w-full" value={pick.text} onChange={(e) => setPickPart({ text: e.target.value, proposal: null })} data-money-describe-text />
+          </label>
+          <button type="button" className="lnk" disabled={!pick.text.trim()} onClick={propose} data-money-describe-propose>Turn into a rule</button>
+          {pick.error && <PlainMessage text={pick.error} className="text-[12px] text-danger" data-money-describe-error />}
+          {pick.proposal && (
+            <div className="space-y-1" data-money-describe-proposal>
+              <p className="text-text-primary" data-money-describe-explanation>{pick.explanation}</p>
+              <p className="text-text-secondary" data-money-describe-rule>{`Proposed rule: ${ruleTextOf(pick.proposal)}`}</p>
+              {proposalRows && <ol className="list-decimal ps-5" data-money-describe-rows>{proposalRows.map((row, i) => <li key={i}>{`${shownAmount(row.stake)} ${row.currency}`}</li>)}</ol>}
+              <button type="button" className="lnk" onClick={useProposal} data-money-describe-use>Use this rule</button>
+            </div>
+          )}
+        </div>
+      )}
 
       {pick.method === 'fixed' && (
         <label className="block text-[12px]">Amount for each record
@@ -133,7 +183,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         </label>
       )}
 
-      {pick.method && (
+      {pick.method && pick.method !== 'describe' && (
         <div className="space-y-2 text-[12px]" data-money-value-currency>
           <p className="font-medium text-text-primary">Currency of those values</p>
           {hasCurrencyColumn && (
@@ -145,7 +195,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         </div>
       )}
 
-      {pick.method && !pickProblems.length && (
+      {effective.method && !pickProblems.length && (
         <div className="space-y-1 text-[12px]" data-money-value-preview>
           <p className="font-semibold text-text-primary">Value of three example rows</p>
           {preview?.error && <PlainMessage text={preview.error} className="text-[12px] text-danger" />}
@@ -207,7 +257,8 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         </div>
       </details>
 
-      {sentence && <p className="text-[12px] text-text-primary bg-bg border border-border rounded-md p-3" data-money-sentence>{sentence}</p>}
+      {!effective.method && <p className="text-[12px] text-text-secondary" data-money-genie-estimate>Until you choose how to measure value, the totals are Genie estimate, not your rule.</p>}
+      {sentence && <p className="sentence text-[12px] text-text-primary" data-money-sentence>{sentence}</p>}
       {problems.length > 0 && <PlainMessage text={problems.join(' ')} className="text-[12px] text-danger" data-money-error />}
     </div>
   );

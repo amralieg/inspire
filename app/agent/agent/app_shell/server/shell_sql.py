@@ -2461,7 +2461,7 @@ MONTHS_PER_PERIOD = {"month": 1, "quarter": 3, "year": 12}
 IDENT_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]{0,63}$")
 MONEY_TABLE_RE = re.compile(r"^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}$")
 MONEY_STATUS_RE = re.compile(r"^[A-Za-z0-9_ -]{1,40}$")
-MONEY_RULES = ("losses", "net")
+MONEY_RULES = ("losses", "net", "gains")
 MONEY_PER = ("row", "group")
 MONEY_MAX_STATUSES = 20
 
@@ -2490,15 +2490,15 @@ def money_equation_tokens(text: str):
     return tokens
 
 
-def money_equation_ok(expression) -> bool:
+def money_equation_sql(expression):
     if not isinstance(expression, str):
-        return False
+        return None
     text = expression.strip()
     if not text or len(text) > MONEY_EQUATION_MAX_CHARS:
-        return False
+        return None
     tokens = money_equation_tokens(text)
     if not tokens:
-        return False
+        return None
     at = 0
 
     def peek_op(*ops):
@@ -2510,37 +2510,52 @@ def money_equation_ok(expression) -> bool:
             raise ValueError("equation")
         kind, value = tokens[at]
         at += 1
-        if kind in ("number", "column"):
-            return True
+        if kind == "number":
+            return value
+        if kind == "column":
+            return quote(value)
         if value == "-":
-            return factor()
+            return f"(-{factor()})"
         if value == "(":
-            sum_()
+            inner = sum_()
             if not peek_op(")"):
                 raise ValueError("equation")
             at += 1
-            return True
+            return f"({inner})"
         raise ValueError("equation")
 
     def product():
         nonlocal at
-        factor()
+        left = factor()
         while peek_op("*", "/"):
+            op = tokens[at][1]
             at += 1
-            factor()
+            left = f"({left} {op} {factor()})"
+        return left
 
     def sum_():
         nonlocal at
-        product()
+        left = product()
         while peek_op("+", "-"):
+            op = tokens[at][1]
             at += 1
-            product()
+            left = f"({left} {op} {product()})"
+        return left
 
     try:
-        sum_()
+        sql = sum_()
     except ValueError:
-        return False
-    return at == len(tokens)
+        return None
+    return sql if at == len(tokens) else None
+
+
+def money_value_sql(value: dict):
+    if value["method"] == "fixed":
+        return repr(float(value["amount"]))
+    if value["method"] == "column":
+        return f"CAST({quote(value['column'])} AS DOUBLE)"
+    equation = money_equation_sql(value["expression"])
+    return None if equation is None else f"CAST({equation} AS DOUBLE)"
 
 
 def money_value_problems(value) -> list:
@@ -2563,7 +2578,7 @@ def money_value_problems(value) -> list:
             problems.append("a fixed value is a positive amount per record")
     if method == "column" and not (isinstance(value.get("column"), str) and IDENT_RE.match(value["column"])):
         problems.append("a column value names the plain column that holds each amount")
-    if method == "equation" and not money_equation_ok(value.get("expression")):
+    if method == "equation" and money_equation_sql(value.get("expression")) is None:
         problems.append(MONEY_EQUATION_HELP)
     return problems
 
@@ -2670,7 +2685,32 @@ def money_scope(page: dict, dataset: str) -> dict:
     return {"currency": "" if (rates or rate_column or rate_table) else currency, "currency_column": currency, "period": period,
             "grain": grain, "rates": rates or {}, "rate_column": rate_column or "", "rate_table": rate_table or {},
             "base": str(money.get("base") or "") if convert else "", "window": window if period else 0,
-            "per_group": money.get("group_column") if money.get("per") == "group" else ""}
+            "per_group": money.get("group_column") if money.get("per") == "group" else "",
+            "value": money.get("value") if isinstance(money.get("value"), dict) else None, "direction": money.get("rule", "losses"),
+            "currency_filter": currency}
+
+
+def money_value_override(page: dict, dataset: str, sql: str) -> str:
+    """The value the person saved for each record replaces the Genie value_at_stake in every money total: the rule's direction
+    decides which sign counts, and a currency the value names replaces the currency column of the page."""
+    scope = money_scope(page, dataset)
+    value = scope["value"]
+    if not value or money_value_problems(value):
+        return sql
+    amount = money_value_sql(value)
+    if amount is None:
+        return sql
+    if scope["direction"] == "losses":
+        amount = f"GREATEST({amount}, 0)"
+    elif scope["direction"] == "gains":
+        amount = f"GREATEST(-({amount}), 0)"
+    replaced = ["value_at_stake"]
+    currency_part = ""
+    if scope["currency_filter"] and ("currency" in value or "currency_column" in value):
+        source = sql_text(value["currency"]) if "currency" in value else quote(value["currency_column"])
+        replaced.append(scope["currency_filter"])
+        currency_part = f", {source} AS {quote(scope['currency_filter'])}"
+    return f"SELECT * EXCEPT ({', '.join(quote(c) for c in replaced)}), {amount} AS value_at_stake{currency_part} FROM ({sql}) AS v"
 
 def money_joined(page: dict, dataset: str, sql: str) -> str:
     """Every row of the dataset, with its converted amount in CONVERTED: no row is dropped here, so a row with no rate shows as NULL."""
@@ -2699,6 +2739,7 @@ def money_joined(page: dict, dataset: str, sql: str) -> str:
 def money_source(page: dict, dataset: str, sql: str) -> str:
     """Rows a money total may add: a dated row in a period that has closed, in the window the rule sets, converted when the rule converts,
     and one row per group when the rule counts each group once."""
+    sql = money_value_override(page, dataset, sql)
     scope = money_scope(page, dataset)
     inner = money_joined(page, dataset, sql) if (scope["rates"] or scope["rate_column"] or scope["rate_table"]) else sql
     if scope["per_group"]:

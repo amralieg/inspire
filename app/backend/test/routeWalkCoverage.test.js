@@ -27,6 +27,7 @@ const NOT_WALKED = {
   'POST /api/inspire/usecase-name': 'renames a use case on its session row only, never the catalogue name or the result table; no non-owner harness row walks it yet, and the route samples and backend/test/useCaseName.test.js prove the input refusals',
   'POST /api/grouping/profile': 'reads the use case table with the person token only and changes nothing; the grouping route tests walk it',
   'POST /api/money/currency-rates': 'reads the currencies of a use case table and their rates with the person’s own sign-in and changes nothing; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
+  'POST /api/money/describe-value': 'turns a description into a value rule with a chat model the person can use, changes nothing; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'POST /api/money/value-preview': 'reads three rows of a use case table through a money value with the person’s own sign-in and changes nothing; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'POST /api/money/rate-sample': 'reads the rates of a money rule’s rate table with the person’s own sign-in and changes nothing; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'GET /api/inspire/implement/diagnostics': 'reads the build through the same loadStatus read and person token as GET /api/inspire/implement/status, which the harness walks; no non-owner harness row walks it yet',

@@ -34,7 +34,8 @@ test('a column value reads that column, and a table name that is not a plain nam
 test('the currency spread lists each currency of the table once, most rows first', () => {
   const sql = GP.currencySpreadSql(TABLE, 'currency');
   assert.match(sql, /SELECT `currency` AS currency, COUNT\(\*\) AS records FROM `main`\.`sales`\.`orders`/);
-  assert.match(sql, /GROUP BY `currency` ORDER BY records DESC LIMIT 50$/);
+  assert.match(sql, /GROUP BY `currency` ORDER BY records DESC$/, 'no cap: a currency beyond 50 is never dropped');
+  assert.doesNotMatch(sql, /LIMIT/);
   assert.equal(GP.currencySpreadSql('bad name!', 'currency'), null);
 });
 

@@ -204,6 +204,7 @@ module.exports = {
   FEEDBACK_STATUSES,
   VIBE_MAX_TOKENS,
   chatEndpoint,
+  replyContent,
   feedbackId,
   appFeedbackKey,
   appFeedbackTable,

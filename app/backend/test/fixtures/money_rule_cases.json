@@ -500,6 +500,28 @@
         }
       },
       "valid": false
+    },
+    {
+      "name": "gains only with a column value",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        }
+      }
     }
   ]
 }

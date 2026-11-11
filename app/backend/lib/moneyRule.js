@@ -19,7 +19,7 @@ const COLUMN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const TABLE = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}$/;
 const STATUS = /^[A-Za-z0-9_ -]{1,40}$/;
 const MODES = ['per_currency', 'convert'];
-const RULES = ['losses', 'net'];
+const RULES = ['losses', 'net', 'gains'];
 const PER = ['row', 'group'];
 const MAX_PERIODS = 60;
 const MAX_STATUSES = 20;
@@ -136,4 +136,4 @@ function moneyRuleClean(rule) {
   return out;
 }
 
-module.exports = { moneyRuleProblems, moneyRuleClean };
+module.exports = { moneyRuleProblems, moneyRuleClean, valueProblems };

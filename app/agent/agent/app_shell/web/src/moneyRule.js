@@ -63,7 +63,7 @@ export function ruleOf(draft) {
     out.statuses = statuses;
     out.status_column = String(draft.statusColumn || '').trim();
   }
-  if (!['losses', 'net'].includes(draft.rule)) problems.push('The money rule is losses or net.');
+  if (!['losses', 'net', 'gains'].includes(draft.rule)) problems.push('The money rule is losses, gains or net.');
   if (draft.rule && draft.rule !== 'losses') out.rule = draft.rule;
   if (draft.off) out.off = true;
   if (draft.per === 'group') {
@@ -109,7 +109,7 @@ export function ruleSentence(rule) {
   if (rule?.off) return 'Money is off for this use case: no money total, chart or Genie money answer is shown.';
   const counted = rule?.per === 'group' ? `Each ${plainColumns(rule.group_column)} counts once, with its largest row. ` : '';
   const statuses = rule?.statuses ? ` Only rows whose status is ${rule.statuses.join(', ')} count.` : '';
-  const losses = (rule?.rule || 'losses') === 'losses' ? 'Only losses count' : 'Gains and losses are netted';
+  const losses = (rule?.rule || 'losses') === 'losses' ? 'Only losses count' : rule?.rule === 'gains' ? 'Only gains count' : 'Gains and losses are netted';
   const tail = `${counted}${losses}.${statuses}`;
   if (rule?.currency !== 'convert') return `Each currency is totalled on its own${window}. Amounts in different currencies are never added together. ${tail}`;
   if (rule.rate_table) return `Every amount is converted to ${rule.base} at the rate in ${plainColumns(rule.rate_table.table)} for its currency, base and date, then added up${window}. ${tail}`;

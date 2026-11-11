@@ -110,7 +110,7 @@ const RATE_TABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,
 const RATE_COLUMN_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const RATE_SAMPLE_ROWS = 3;
 
-const CURRENCY_SPREAD_ROWS = 50;
+const CURRENCY_SPREAD_ROWS = 10000;
 const MONEY_VALUE_ROWS = 3;
 const ISO_CODE = /^[A-Z]{3}$/;
 
@@ -118,7 +118,7 @@ const ISO_CODE = /^[A-Z]{3}$/;
 function currencySpreadSql(table, currencyColumn) {
   if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(currencyColumn || ''))) return null;
   return `SELECT ${q(currencyColumn)} AS currency, COUNT(*) AS records FROM ${G.groupingMainTable(table).sql} `
-    + `WHERE ${q(currencyColumn)} IS NOT NULL GROUP BY ${q(currencyColumn)} ORDER BY records DESC LIMIT ${CURRENCY_SPREAD_ROWS}`;
+    + `WHERE ${q(currencyColumn)} IS NOT NULL GROUP BY ${q(currencyColumn)} ORDER BY records DESC`;
 }
 
 // Three rows of the use case table through a value definition: the amount each row is worth, and its currency.
