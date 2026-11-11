@@ -873,7 +873,7 @@ export default function ImplementWizard({
         principals: JSON.stringify((spec.sharing.principals || []).map((p) => p.name)),
       });
       const [pre, planned] = await Promise.allSettled([
-        apiFetch(`/api/inspire/implement/preflight?${q}&${checks.toString()}`),
+        apiPostJson(`/api/inspire/implement/preflight?${q}&${checks.toString()}`, { spec: sent }),
         planNow
           ? apiPostJson('/api/inspire/implement/plan', { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId), spec: sent })
           : Promise.resolve(null),

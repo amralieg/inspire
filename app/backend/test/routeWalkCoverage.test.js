@@ -12,6 +12,7 @@ const WALK = require('./support/harnessWalk.json');
 const NOT_WALKED = {
   'GET /api-docs': 'the static page that renders the API description, with no workspace data',
   'GET /api/openapi.json': 'the static API description file, with no workspace data',
+  'POST /api/inspire/implement/preflight': 'the wizard posts the spec it is about to send to the same check the GET runs; the GET walk rows cover the check, and the parity route tests post the spec',
   'POST /api/inspire/implement/settings/preview': 'previews a settings change and changes nothing; no non-owner harness row walks it yet',
   'GET /api/inspire/implement/runs': 'reads the last two runs of a built use case from its App with the person\u2019s own sign-in; no non-owner harness row walks it yet',
   'POST /api/inspire/implement/alerts/preview': 'previews an alert and changes nothing; no non-owner harness row walks it yet',
