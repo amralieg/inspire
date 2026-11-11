@@ -2,6 +2,7 @@ const G = require('../../frontend/src/lib/tableName.js');
 const R = require('./groupingRule');
 const { parseExactJson } = require('./exactJson');
 const { plural } = require('./plural');
+const { compileExpression } = require('../../frontend/src/lib/moneyValue.js');
 
 const PROFILE_MS = 60000;
 const PROFILE_DAYS_MAX = 3650;
@@ -105,8 +106,39 @@ function moneySampleSql(main, pick) {
 }
 
 const RATE_TABLE_PATTERN = /^[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}$/;
+
 const RATE_COLUMN_PATTERN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const RATE_SAMPLE_ROWS = 3;
+
+const CURRENCY_SPREAD_ROWS = 50;
+const MONEY_VALUE_ROWS = 3;
+const ISO_CODE = /^[A-Z]{3}$/;
+
+// Every currency the use case table holds, with its row count, most rows first: the Measure step lists one rate per currency.
+function currencySpreadSql(table, currencyColumn) {
+  if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(currencyColumn || ''))) return null;
+  return `SELECT ${q(currencyColumn)} AS currency, COUNT(*) AS records FROM ${G.groupingMainTable(table).sql} `
+    + `WHERE ${q(currencyColumn)} IS NOT NULL GROUP BY ${q(currencyColumn)} ORDER BY records DESC LIMIT ${CURRENCY_SPREAD_ROWS}`;
+}
+
+// Three rows of the use case table through a value definition: the amount each row is worth, and its currency.
+function moneyValueSampleSql(table, value) {
+  if (!RATE_TABLE_PATTERN.test(String(table || '')) || !value || typeof value !== 'object') return null;
+  let amount = null;
+  if (value.method === 'fixed' && Number.isFinite(Number(value.amount)) && Number(value.amount) > 0) amount = String(Number(value.amount));
+  else if (value.method === 'column' && RATE_COLUMN_PATTERN.test(String(value.column || ''))) amount = q(value.column);
+  else if (value.method === 'equation') {
+    const compiled = compileExpression(value.expression, q);
+    if (!compiled.problem) amount = compiled.sql;
+  }
+  if (amount === null) return null;
+  let currency = null;
+  if (value.currency !== undefined && ISO_CODE.test(String(value.currency))) currency = `'${value.currency}'`;
+  else if (value.currency_column !== undefined && RATE_COLUMN_PATTERN.test(String(value.currency_column))) currency = q(value.currency_column);
+  if (currency === null) return null;
+  return `SELECT CAST(${amount} AS DOUBLE) AS stake, ${currency} AS currency FROM ${G.groupingMainTable(table).sql} `
+    + `WHERE ${amount} IS NOT NULL LIMIT ${MONEY_VALUE_ROWS}`;
+}
 
 // The latest rate loaded for up to three currencies, into the base currency: the example reads real numbers from the rate table.
 function rateSampleSql(rateTable, base) {
@@ -417,6 +449,10 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
 }
 
 module.exports = {
+  currencySpreadSql,
+  moneyValueSampleSql,
+  CURRENCY_SPREAD_ROWS,
+  MONEY_VALUE_ROWS,
   rateColumnSampleSql,
   rateSampleSql,
   RATE_SAMPLE_ROWS,

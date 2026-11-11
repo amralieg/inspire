@@ -20,6 +20,7 @@ const U = require('./lib/ucReads');
 const G = require('../frontend/src/lib/tableName.js');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
+const FX = require('./lib/fxRates');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
 const {
   clearedText, emptyScopeWarningOf, nextAppName, ownSchemaClashNote, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks,
@@ -1842,6 +1843,35 @@ function registerImplementRoutes(app, deps) {
       return res.json({ rates: sqlResultToObjects(found).map((r) => ({ currency: String(r.currency ?? ''), rate: Number(r.rate) })) });
     } catch (err) {
       return sendError(res, sqlFailure(err, profileFailures(String(req.body?.rate_table?.table || 'the rate table'))));
+    }
+  });
+
+  app.post('/api/money/currency-rates', requireToken, async (req, res) => {
+    const token = P.personTokenOf(req);
+    if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
+    const base = String(req.body?.base || '').trim().toUpperCase();
+    try {
+      const sql = GP.currencySpreadSql(req.body?.table, req.body?.currency_column);
+      if (!sql || !/^[A-Z]{3}$/.test(base)) throw I.badRequest('Name the use case table and its currency column, and the reporting currency as a three-letter code such as USD.');
+      const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.CURRENCY_SPREAD_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
+      const currencies = sqlResultToObjects(found).map((r) => ({ code: String(r.currency ?? '').trim().toUpperCase(), records: Number(r.records) }));
+      const rates = await FX.currencyRates({ base, codes: currencies.map((c) => c.code) });
+      return res.json({ ...rates, currencies });
+    } catch (err) {
+      return sendError(res, sqlFailure(err, profileFailures(String(req.body?.table || 'the use case table'))));
+    }
+  });
+
+  app.post('/api/money/value-preview', requireToken, async (req, res) => {
+    const token = P.personTokenOf(req);
+    if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
+    try {
+      const sql = GP.moneyValueSampleSql(req.body?.table, req.body?.value);
+      if (!sql) throw I.badRequest('Name the use case table, and the value: a fixed amount, one column, or an equation over its columns, with one currency.');
+      const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.MONEY_VALUE_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
+      return res.json({ rows: sqlResultToObjects(found).map((r) => ({ stake: Number(r.stake), currency: String(r.currency ?? '') })) });
+    } catch (err) {
+      return sendError(res, sqlFailure(err, profileFailures(String(req.body?.table || 'the use case table'))));
     }
   });
 

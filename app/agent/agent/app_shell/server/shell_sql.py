@@ -2466,7 +2466,131 @@ MONEY_PER = ("row", "group")
 MONEY_MAX_STATUSES = 20
 
 
+MONEY_VALUE_METHODS = ("fixed", "column", "equation")
+MONEY_EQUATION_MAX_CHARS = 200
+MONEY_EQUATION_MAX_TOKENS = 60
+MONEY_EQUATION_TOKEN = re.compile(r"\s*(?:([A-Za-z_][A-Za-z0-9_]{0,63})|([0-9]+(?:\.[0-9]+)?)|([-+*/()]))")
+MONEY_EQUATION_HELP = ("The equation adds, subtracts, multiplies and divides column names and numbers, with brackets, "
+                       "such as quantity * unit_price - discount.")
+
+
+def money_equation_tokens(text: str):
+    tokens, at = [], 0
+    while at < len(text):
+        if not text[at:].strip():
+            break
+        found = MONEY_EQUATION_TOKEN.match(text, at)
+        if not found:
+            return None
+        tokens.append(("column", found.group(1)) if found.group(1) else ("number", found.group(2)) if found.group(2)
+                      else ("op", found.group(3)))
+        at = found.end()
+        if len(tokens) > MONEY_EQUATION_MAX_TOKENS:
+            return None
+    return tokens
+
+
+def money_equation_ok(expression) -> bool:
+    if not isinstance(expression, str):
+        return False
+    text = expression.strip()
+    if not text or len(text) > MONEY_EQUATION_MAX_CHARS:
+        return False
+    tokens = money_equation_tokens(text)
+    if not tokens:
+        return False
+    at = 0
+
+    def peek_op(*ops):
+        return at < len(tokens) and tokens[at][0] == "op" and tokens[at][1] in ops
+
+    def factor():
+        nonlocal at
+        if at >= len(tokens):
+            raise ValueError("equation")
+        kind, value = tokens[at]
+        at += 1
+        if kind in ("number", "column"):
+            return True
+        if value == "-":
+            return factor()
+        if value == "(":
+            sum_()
+            if not peek_op(")"):
+                raise ValueError("equation")
+            at += 1
+            return True
+        raise ValueError("equation")
+
+    def product():
+        nonlocal at
+        factor()
+        while peek_op("*", "/"):
+            at += 1
+            factor()
+
+    def sum_():
+        nonlocal at
+        product()
+        while peek_op("+", "-"):
+            at += 1
+            product()
+
+    try:
+        sum_()
+    except ValueError:
+        return False
+    return at == len(tokens)
+
+
+def money_value_problems(value) -> list:
+    if not isinstance(value, dict):
+        return ["the value of each record is an object: its method, and its amount, column or equation"]
+    if value.get("method") not in MONEY_VALUE_METHODS:
+        return [f"the value method is one of {', '.join(MONEY_VALUE_METHODS)}"]
+    problems = []
+    by_code, by_column = "currency" in value, "currency_column" in value
+    if by_code == by_column:
+        problems.append("the value names one currency: a code such as USD (currency), or the column that holds it (currency_column)")
+    elif by_code and value["currency"] not in MONEY_CODES:
+        problems.append("the value currency is an ISO 4217 code such as USD")
+    elif by_column and not (isinstance(value["currency_column"], str) and IDENT_RE.match(value["currency_column"])):
+        problems.append("the value currency_column is a plain column name")
+    method = value["method"]
+    if method == "fixed":
+        amount = value.get("amount")
+        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not 0 < amount <= 1e12:
+            problems.append("a fixed value is a positive amount per record")
+    if method == "column" and not (isinstance(value.get("column"), str) and IDENT_RE.match(value["column"])):
+        problems.append("a column value names the plain column that holds each amount")
+    if method == "equation" and not money_equation_ok(value.get("expression")):
+        problems.append(MONEY_EQUATION_HELP)
+    return problems
+
+
+def money_value_clean(value: dict) -> dict:
+    out = {"method": value["method"]}
+    if value["method"] == "fixed":
+        out["amount"] = float(value["amount"])
+    if value["method"] == "column":
+        out["column"] = value["column"]
+    if value["method"] == "equation":
+        out["expression"] = str(value["expression"]).strip()
+    if "currency" in value:
+        out["currency"] = value["currency"]
+    else:
+        out["currency_column"] = value["currency_column"]
+    return out
+
+
 def money_rule_problems(money) -> list:
+    problems = _money_rule_problems(money)
+    if isinstance(money, dict) and "value" in money:
+        problems += money_value_problems(money["value"])
+    return problems
+
+
+def _money_rule_problems(money) -> list:
     """The money rule, the same rules as the Inspire backend (app/backend/lib/moneyRule.js), checked against one fixture."""
     if money is None:
         return []
@@ -2711,6 +2835,8 @@ def money_rule_clean(rule: dict) -> dict:
     if rule.get("per") == "group":
         out["per"] = "group"
         out["group_column"] = rule["group_column"]
+    if "value" in rule:
+        out["value"] = money_value_clean(rule["value"])
     return out
 
 def money_rule_of(page: dict) -> dict:

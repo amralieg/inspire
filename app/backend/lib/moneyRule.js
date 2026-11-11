@@ -24,8 +24,35 @@ const PER = ['row', 'group'];
 const MAX_PERIODS = 60;
 const MAX_STATUSES = 20;
 const RATE_TABLE_KEYS = ['table', 'currency_column', 'base_column', 'date_column', 'rate_column', 'load_column'];
+const VALUE_METHODS = ['fixed', 'column', 'equation'];
 
 const isPlain = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
+const { compileExpression } = require('../../frontend/src/lib/moneyValue.js');
+
+function valueProblems(value) {
+  if (!isPlain(value)) return ['the value of each record is an object: its method, and its amount, column or equation'];
+  if (!VALUE_METHODS.includes(value.method)) return [`the value method is one of ${VALUE_METHODS.join(', ')}`];
+  const problems = [];
+  const byCode = value.currency !== undefined;
+  const byColumn = value.currency_column !== undefined;
+  if (byCode === byColumn) problems.push('the value names one currency: a code such as USD (currency), or the column that holds it (currency_column)');
+  else if (byCode && !CODE.test(value.currency)) problems.push('the value currency is an ISO 4217 code such as USD');
+  else if (byColumn && !COLUMN.test(value.currency_column)) problems.push('the value currency_column is a plain column name');
+  if (value.method === 'fixed' && !(Number.isFinite(value.amount) && value.amount > 0 && value.amount <= 1e12)) problems.push('a fixed value is a positive amount per record');
+  if (value.method === 'column' && !(typeof value.column === 'string' && COLUMN.test(value.column))) problems.push('a column value names the plain column that holds each amount');
+  if (value.method === 'equation') { const compiled = compileExpression(value.expression); if (compiled.problem) problems.push(compiled.problem); }
+  return problems;
+}
+
+function valueClean(value) {
+  const out = { method: value.method };
+  if (value.method === 'fixed') out.amount = Number(value.amount);
+  if (value.method === 'column') out.column = value.column;
+  if (value.method === 'equation') out.expression = String(value.expression).trim();
+  if (value.currency !== undefined) out.currency = value.currency;
+  else out.currency_column = value.currency_column;
+  return out;
+}
 
 function windowProblems(window) {
   if (window == null) return [];
@@ -86,6 +113,7 @@ function moneyRuleProblems(rule) {
   if (!PER.includes(per)) problems.push(`per is one of ${PER.join(', ')}`);
   if (per === 'group' && (typeof rule.group_column !== 'string' || !COLUMN.test(rule.group_column))) problems.push('per group needs group_column, the plain column name that identifies each group');
   if (mode === 'convert') problems = problems.concat(rateProblems(rule));
+  if (rule.value !== undefined) problems = problems.concat(valueProblems(rule.value));
   return problems;
 }
 
@@ -104,6 +132,7 @@ function moneyRuleClean(rule) {
   if (rule.statuses !== undefined) out.status_column = rule.status_column;
   if (rule.off === true) out.off = true;
   if (rule.per === 'group') { out.per = 'group'; out.group_column = rule.group_column; }
+  if (rule.value !== undefined) out.value = valueClean(rule.value);
   return out;
 }
 
