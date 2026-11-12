@@ -95,7 +95,7 @@ def run(catalog_grants, owner="amr@x", show_fails=False, lakebase=(200, ""), lak
     class Statements:
         def execute_statement(self, warehouse_id, statement, wait_timeout):
             executed.append(statement)
-            if statement.startswith("GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG ") and not any(
+            if statement.startswith("GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE ON CATALOG ") and not any(
                     f"CATALOG \x60{name}\x60 TO" in statement for name in grantable):
                 raise RuntimeError("PERMISSION_DENIED: User does not have MANAGE on the catalog")
             if statement.startswith("SHOW GRANTS ON CATALOG"):
@@ -154,7 +154,7 @@ assert volume == sorted(f"GRANT {p} VOLUME ON SCHEMA \x60main\x60.\x60_inspire\x
 assert "GRANT MODIFY ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60SP\x60" in executed, executed
 assert "GRANT CREATE MODEL ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60SP\x60" in executed, executed
 assert "GRANT MANAGE ON SCHEMA \x60main\x60.\x60_inspire\x60 TO \x60SP\x60" in executed, executed
-assert [s for s in executed if "\x60sales\x60" in s] == ["GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG \x60sales\x60 TO \x60SP\x60"], executed
+assert [s for s in executed if "\x60sales\x60" in s] == ["GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE ON CATALOG \x60sales\x60 TO \x60SP\x60"], executed
 assert "Inspire's App will get read access (USE CATALOG, USE SCHEMA, SELECT, BROWSE) on: sales\n" in said, said
 assert not [s for s in executed if "samples" in s], executed
 assert not [s for s in executed if "\x60account users\x60" in s], executed
@@ -165,11 +165,11 @@ assert not [s for s in empty_sql if "\x60sales\x60" in s or "samples" in s], emp
 assert "Inspire's App gets read access on no catalog besides \x60main\x60" in empty_said and "pick the catalogs in 02_data_catalogs_inspire_may_read" in empty_said, empty_said
 refused_sql, _, refused_said = run([], grantable=())
 assert "Permission Required: ask your admin to grant this permission:" in refused_said.splitlines(), refused_said
-assert "GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG \x60sales\x60 TO \x60SP\x60" in refused_said.splitlines(), refused_said
+assert "GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE ON CATALOG \x60sales\x60 TO \x60SP\x60" in refused_said.splitlines(), refused_said
 assert "Catalog grants: 0 of 1 ran \u26a0\ufe0f" in refused_said, refused_said
 lakebase_sql = [s for s in run([], lakebase_catalog=True, grantable=("sales", "inspire_lakebase"), data=("sales", "inspire_lakebase"))[0] if "inspire_lakebase" in s]
 assert lakebase_sql == ["GRANT ALL PRIVILEGES ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60",
-                        "GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60"], lakebase_sql
+                        "GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE ON CATALOG \x60inspire_lakebase\x60 TO \x60SP\x60"], lakebase_sql
 manage = {"access_control_list": [{"service_principal_name": "SP", "permission_level": "CAN_MANAGE"}]}
 assert [(m, u) for m, u, b in patched if "/postgres/" in u] == [
     ("GET", f"/api/2.0/postgres/projects/{LAKEBASE['project']}"), ("GET", f"/api/2.0/postgres/catalogs/{LAKEBASE['catalog']}"),

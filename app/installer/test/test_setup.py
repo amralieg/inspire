@@ -452,14 +452,14 @@ class AssetsAccessTest(unittest.TestCase):
         self.assertEqual(calls, [])
 
 
-INSPIRE_GRANTS = [f"GRANT {p} ON CATALOG `main` TO `SP`" for p in ("USE_CATALOG", "BROWSE", "CREATE SCHEMA")] + [
-    f"GRANT {p} ON SCHEMA `main`.`_inspire` TO `SP`" for p in ("USE_SCHEMA", "CREATE_TABLE", "SELECT", "MODIFY", "CREATE MODEL",
+INSPIRE_GRANTS = [f"GRANT {p} ON CATALOG `main` TO `SP`" for p in ("USE CATALOG", "BROWSE", "CREATE SCHEMA")] + [
+    f"GRANT {p} ON SCHEMA `main`.`_inspire` TO `SP`" for p in ("USE SCHEMA", "CREATE TABLE", "SELECT", "MODIFY", "CREATE MODEL",
                                                                "CREATE VOLUME", "READ VOLUME", "WRITE VOLUME", "MANAGE")]
 LAKEBASE_GRANT = "GRANT ALL PRIVILEGES ON CATALOG `inspire_lakebase` TO `SP`"
 VALUE_LEDGER_GRANTS = [f"GRANT {p} ON TABLE `main`.`_inspire`.`__inspire_value_ledger` TO `SP`" for p in ("SELECT", "MODIFY")]
 
 
-SCAN_PREFIX = "GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG "
+SCAN_PREFIX = "GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE ON CATALOG "
 
 
 def scan_grants(*catalogs):
@@ -663,8 +663,8 @@ class GrantPlanTest(unittest.TestCase):
 
     def test_a_failed_read_grant_on_the_installs_own_catalog_stops_the_install_before_the_deploy(self):
         with self.assertRaises(RuntimeError) as raised:
-            self.grant([], listed=("main",), fail={"GRANT USE_CATALOG ON CATALOG `main`": RuntimeError("PERMISSION_DENIED: not the owner")})
-        self.assertIn("GRANT USE_CATALOG ON CATALOG `main` TO `SP`", str(raised.exception))
+            self.grant([], listed=("main",), fail={"GRANT USE CATALOG ON CATALOG `main`": RuntimeError("PERMISSION_DENIED: not the owner")})
+        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `SP`", str(raised.exception))
         self.assertIn("could not be given read access", str(raised.exception))
         self.assertIn("the App keeps its last working version", str(raised.exception))
 

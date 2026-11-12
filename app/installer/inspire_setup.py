@@ -10,7 +10,7 @@ APPS_PARENT = "/Workspace/Shared/inspire-ai/apps"
 ASSETS_MANIFEST = "manifest.json"
 ASSETS_FORMAT = 1
 SCAN_SKIPPED = ("samples", "system", "__databricks_internal", "information_schema")
-SCAN_GRANTS = ("USE_CATALOG", "USE_SCHEMA", "SELECT", "BROWSE")
+SCAN_GRANTS = ("USE CATALOG", "USE SCHEMA", "SELECT", "BROWSE")
 CONSENT_PRIVILEGES = "USE CATALOG, USE SCHEMA, SELECT, BROWSE"
 SCAN_GRANT_WORKERS = 8
 SCAN_PROGRESS_FROM = 50
@@ -1146,7 +1146,7 @@ def step_create_app_and_find_sp(ctx):
     if not new_sp_app_id:
         print("\n⚠️  COULD NOT FIND SP. You need to grant manually:")
         print("    Run: fetch('/api/health').then(r=>r.json()).then(d=>console.log(d.envVars.SP_CLIENT_ID_resolved))")
-        print(f"    Then: GRANT USE_CATALOG ON CATALOG `{catalog}` TO `<applicationId>`")
+        print(f"    Then: GRANT USE CATALOG ON CATALOG `{catalog}` TO `<applicationId>`")
     else:
         print(f"\n✅ Runtime SP applicationId: {new_sp_app_id}")
 
@@ -1563,9 +1563,9 @@ def _lakebase_grant(sp, lakebase_catalog):
 
 
 def _grant_plan(sp, catalog, schema, visible, lakebase_catalog=""):
-    plan = [f"GRANT {p} ON CATALOG `{catalog}` TO `{sp}`" for p in ("USE_CATALOG", "BROWSE", "CREATE SCHEMA")]
+    plan = [f"GRANT {p} ON CATALOG `{catalog}` TO `{sp}`" for p in ("USE CATALOG", "BROWSE", "CREATE SCHEMA")]
     plan += [f"GRANT {p} ON SCHEMA `{catalog}`.`{schema}` TO `{sp}`"
-             for p in ("USE_SCHEMA", "CREATE_TABLE", "SELECT", "MODIFY", "CREATE MODEL", "CREATE VOLUME", "READ VOLUME", "WRITE VOLUME", "MANAGE")]
+             for p in ("USE SCHEMA", "CREATE TABLE", "SELECT", "MODIFY", "CREATE MODEL", "CREATE VOLUME", "READ VOLUME", "WRITE VOLUME", "MANAGE")]
     if lakebase_catalog and lakebase_catalog in visible and lakebase_catalog != catalog:
         plan.append(_lakebase_grant(sp, lakebase_catalog))
     return plan + _value_ledger_grants(sp, catalog, schema)
@@ -1707,7 +1707,7 @@ def step_render_done(ctx):
     granted, refused = ctx.get("READ_GRANTED") or [], ctx.get("READ_REFUSED") or []
     print(f"  Read access: {_plain_list(granted) + ' ✅' if granted else 'none granted'}")
     if refused:
-        print(f"  Permission Required on {_plural(len(refused), 'catalog', 'catalogs')}: ask a catalog admin to run these, then run this installer again:")
+        print(f"Permission Required on {_plural(len(refused), 'catalog', 'catalogs')}: ask your admin to grant these permissions:")
         for sql in refused:
             print(sql)
     print(f"  SP:          {new_sp_app_id or 'NOT FOUND'}")

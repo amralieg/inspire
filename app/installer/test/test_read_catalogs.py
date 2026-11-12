@@ -7,6 +7,7 @@ the person cannot grant on. A refused grant never fails the install.
 """
 import contextlib
 import io
+import re
 import types
 import unittest
 from unittest import mock
@@ -15,7 +16,7 @@ import support
 import test_setup as ts
 
 setup = support.load_setup()
-READ = "GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG `{0}` TO `SP`"
+READ = "GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE ON CATALOG `{0}` TO `SP`"
 DATA_KEY = "02_data_catalogs_inspire_may_read"
 ALL = "All catalogs you can use (default)"
 CONSENT = "Inspire's App will get read access (USE CATALOG, USE SCHEMA, SELECT, BROWSE) on: {0}\n"
@@ -150,7 +151,7 @@ class ConsentAndGrantTest(unittest.TestCase):
 
     def test_each_picked_catalog_gets_one_read_grant_to_the_app_and_the_inspire_catalog_is_not_granted_twice(self):
         grants, _, _, _ = self.grant_read(["main", "ops", "sales"], listed=("ops", "main", "sales"))
-        read = [g for g in grants if g.startswith("GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG ")]
+        read = [g for g in grants if g.startswith("GRANT USE CATALOG, USE SCHEMA, SELECT, BROWSE ON CATALOG ")]
         self.assertEqual(read, [READ.format("main"), READ.format("sales")])
 
     def test_the_consent_line_names_the_catalogs_and_the_read_privileges_in_one_line(self):
@@ -159,7 +160,7 @@ class ConsentAndGrantTest(unittest.TestCase):
 
     def test_no_data_catalog_picked_says_so_in_the_consent_line_and_grants_none(self):
         grants, _, _, said = self.grant_read([])
-        self.assertFalse([g for g in grants if g.startswith("GRANT USE_CATALOG, USE_SCHEMA")], grants)
+        self.assertFalse([g for g in grants if g.startswith("GRANT USE CATALOG, USE SCHEMA")], grants)
         self.assertIn("Inspire's App gets read access on no catalog besides `ops`", said)
 
     def test_a_refused_grant_is_printed_as_a_plain_statement_line_and_the_rest_still_runs(self):
@@ -173,6 +174,13 @@ class ConsentAndGrantTest(unittest.TestCase):
     def test_a_refused_grant_never_stops_the_install_before_the_deploy(self):
         self.grant_read(["finance"], listed=("ops", "finance"), fail={"CATALOG `finance`": RuntimeError("PERMISSION_DENIED: not the owner")})
         self.assertEqual(self.ctx["READ_REFUSED"], [READ.format("finance")])
+
+    def test_every_statement_uses_the_documented_privilege_spelling_with_spaces(self):
+        """The Databricks GRANT reference writes USE CATALOG, USE SCHEMA, CREATE TABLE with spaces; underscore names are not documented."""
+        _, _, executed, _ = self.grant_read(["sales"], listed=("ops", "sales", "main"))
+        grants = [sql for sql, _ in executed if sql.startswith("GRANT ")]
+        self.assertTrue(grants)
+        self.assertFalse([g for g in grants if re.search(r"USE_CATALOG|USE_SCHEMA|CREATE_TABLE|CREATE_SCHEMA", g)], grants)
 
     def test_system_and_samples_get_no_read_grant_even_when_the_plan_lists_them(self):
         grants, _, _, _ = self.grant_read(["sales"], listed=("ops", "sales", "samples", "system"))
@@ -195,7 +203,7 @@ class JourneyTest(unittest.TestCase):
                 continue  # a refused statement grants nothing
             if sql.startswith("GRANT ") and " ON CATALOG `" in sql:
                 privileges, target = sql[len("GRANT "):].split(" ON CATALOG `", 1)
-                held.setdefault(target.split("`")[0], set()).update(p.strip() for p in privileges.split(","))
+                held.setdefault(target.split("`")[0], set()).update(p.strip().replace(" ", "_") for p in privileges.split(","))
         return held, said
 
     @staticmethod
