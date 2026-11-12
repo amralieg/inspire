@@ -298,7 +298,7 @@ export async function openRow(page, what) {
 }
 
 export async function openAllRows(page) {
-  const closed = page.locator('[data-wizard-body] button[aria-expanded="false"][aria-label^="Change "]');
+  const closed = page.locator('[data-wizard-body] button[aria-expanded="false"][aria-label^="Change "]:not([data-fold-open])');
   for (let i = 0; i < 20 && await closed.count(); i += 1) await closed.first().click();
 }
 
