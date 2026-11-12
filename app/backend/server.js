@@ -2123,6 +2123,7 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
     }
     const again = LC.runAgainOf(parseExactJson(await response.text()), req.params.runId, sessionId);
     if (again.problem) return res.status(409).json({ error: `${again.problem}.` });
+    if (samplesNeedChoice(again.params, req.body.samples_choice)) return res.status(409).json({ error: SAMPLES_CHOICE_TEXT });
     return launchDiscover(req, res, again);
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;

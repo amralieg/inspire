@@ -33,3 +33,19 @@ test('a mixed pick is refused when any samples entry has no choice, and a sample
   const other = await S.request('POST', '/api/run', { person: ME, body: body({ '01_uc_metadata': 'samples.bakehouse.trips' }, { samples_choice: 'copied' }) });
   assert.equal(other.status, 409, other.text);
 });
+
+test('re-running a samples run from Monitor needs the choice too, and a choice from Start runs it (fail-pre: it ran with none)', async () => {
+  S.reset({ notebookPresent: true, runStates: {} });
+  const params = { '00_business_name': 'Acme', '02_inspire_database': S.APP_DB, '14_session_id': '7302', '01_uc_metadata': 'samples.bakehouse.trips' };
+  const first = await S.request('POST', '/api/run', { person: ME, body: { params, samples_choice: 'descriptions' } });
+  assert.equal(first.status, 200, first.text);
+  S.state.runStates[first.data.run_id] = { life_cycle_state: 'TERMINATED', result_state: 'FAILED' };
+  S.state.launchers[first.data.run_id] = ME;
+  const before = S.state.calls.filter((c) => c.path === '/api/2.1/jobs/create').length;
+  const noChoice = await S.request('POST', `/api/run/${first.data.run_id}/again`, { person: ME, body: { session_id: '7303' } });
+  assert.equal(noChoice.status, 409, noChoice.text);
+  assert.match(noChoice.data.error, /Copy the samples tables into a schema you own, or use descriptions only/);
+  assert.equal(S.state.calls.filter((c) => c.path === '/api/2.1/jobs/create').length, before, 'no job is created without the choice');
+  const withChoice = await S.request('POST', `/api/run/${first.data.run_id}/again`, { person: ME, body: { session_id: '7304', samples_choice: 'descriptions' } });
+  assert.equal(withChoice.status, 200, withChoice.text);
+});
