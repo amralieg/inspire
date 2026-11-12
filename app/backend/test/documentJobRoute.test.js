@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const S = require('./support/serverApp');
-const { CATALOG_MISSING_TEXT, CATALOG_CHECK_FAILED_TEXT } = require('../lib/documentJob');
+const { CATALOG_MISSING_TEXT, CATALOG_CHECK_FAILED_TEXT, CATALOG_UNSAVED_TEXT } = require('../lib/documentJob');
 const frontendLib = require('node:url');
 const path = require('node:path');
 
@@ -147,6 +147,16 @@ test('a failed read of the stored catalog path says so in plain words and starts
   assert.equal(got.status, 503, got.text.slice(0, 300));
   assert.equal(got.data.error, CATALOG_CHECK_FAILED_TEXT);
   assert.equal(got.text.includes('PERMISSION_DENIED'), false, 'no raw SQL error reaches the person');
+  assert.equal(creates().length, 0);
+});
+
+test('a session whose catalog could not be saved, and recorded why, says so in plain words and starts no job, even when a derived catalog exists (REQ-077)', async () => {
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+    catalogPaths: { 7300: null }, catalogReasons: { 7300: 'workspace refused the write' } });
+  const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
+  assert.equal(got.status, 409, got.text.slice(0, 300));
+  assert.equal(got.data.error, CATALOG_UNSAVED_TEXT);
+  assert.equal(got.text.includes('workspace refused'), false, 'the raw reason is not shown');
   assert.equal(creates().length, 0);
 });
 
