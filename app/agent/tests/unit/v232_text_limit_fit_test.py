@@ -148,3 +148,73 @@ def _app_page_build(ns, tmp_path, change):
         return inst._implement_page_file(context, "app", str(work), shell_sql_module, False)
 
     return inst, build
+
+
+LONG_EXPRESSION = "SUM(forecast) + " + " + ".join(f"SUM(plan_{index})" for index in range(60))
+
+
+def test_a_kpi_over_the_expression_limit_is_dropped_with_a_logged_note_and_the_rest_stay():
+    page = _forecast()
+    assert len(page["kpis"]) >= 3
+    page["kpis"][0]["expression"] = LONG_EXPRESSION
+    assert any("expression is longer than 600 characters" in p for p in shell_sql.spec_problems(page))
+    notes = shell_sql.drop_long_expressions(page)
+    assert len(notes) == 1
+    assert re.fullmatch(rf"\[EXPRESSION-LIMIT FIRED\] dropped kpi .+: {len(LONG_EXPRESSION)} characters", notes[0]), notes[0]
+    assert all(len(k["expression"]) <= 600 for k in page["kpis"])
+    assert not any("expression is longer than 600" in p for p in shell_sql.spec_problems(page))
+
+
+def test_dropping_a_long_kpi_relaxes_only_the_minimum_kpi_count_by_the_drops():
+    page = _forecast()
+    floor = shell_sql.CAPS["kpis"][0]
+    page["kpis"] = page["kpis"][:floor]
+    page["kpis"][0]["expression"] = LONG_EXPRESSION
+    assert any("expression is longer than 600" in p for p in shell_sql.spec_problems(page))
+    shell_sql.drop_long_expressions(page)
+    assert [p for p in shell_sql.spec_problems(page) if "the page has" in p and "kpis" in p] == []
+
+
+def test_a_chart_over_the_expression_limit_is_dropped_and_its_tables_stay_when_nothing_else_is_left():
+    page = _forecast()
+    page["kpis"] = []
+    page["charts"] = [dict(page["charts"][0], y=[dict(page["charts"][0]["y"][0], expression=LONG_EXPRESSION)])]
+    tables = copy.deepcopy(page.get("tables"))
+    notes = shell_sql.drop_long_expressions(page)
+    assert page["charts"] == [] and page["kpis"] == []
+    assert any(note.startswith("[EXPRESSION-LIMIT FIRED] dropped chart ") for note in notes)
+    assert any(note == "[EXPRESSION-LIMIT FIRED] no KPI or chart is left, so the page shows its tables" for note in notes)
+    assert page.get("tables") == tables
+
+
+def test_a_single_long_token_with_no_safe_word_cut_is_hard_cut_outside_its_quote():
+    token = "x" * 100
+    assert shell_sql.fit_text(token, 80) == "x" * 80
+    quoted = '"' + "y" * 100 + '"'
+    fitted = shell_sql.fit_text(quoted, 80)
+    assert len(fitted) <= 80 and '"' not in fitted and fitted == "y" * 80
+
+
+def test_a_quoted_value_longer_than_the_limit_falls_back_to_a_safe_form_with_a_label_when_there_is_one():
+    text = '"' + "z" * 120 + '" Data Filters'
+    assert shell_sql.fit_text(text, 80, labels=("Data Filters",)) == "Data Filters"
+
+
+def test_the_last_round_drops_an_over_limit_kpi_and_publishes_with_the_rest(agent_ns, tmp_path):
+    page = _page(agent_ns)
+    page["kpis"][0]["expression"] = LONG_EXPRESSION
+    inst, build = _app_page_build(agent_ns, tmp_path, dict(kpis=page["kpis"]))
+    published, notes = build(3)
+    assert len(published["kpis"]) == len(page["kpis"]) - 1
+    assert all(len(k["expression"]) <= 600 for k in published["kpis"])
+    assert inst.logger.matching("[EXPRESSION-LIMIT FIRED] dropped kpi "), inst.logger.lines
+    assert any("[EXPRESSION-LIMIT FIRED] dropped kpi " in str(n) for n in notes)
+
+
+def test_a_round_that_is_not_the_last_still_sends_the_long_kpi_back_to_genie(agent_ns, tmp_path):
+    page = _page(agent_ns)
+    page["kpis"][0]["expression"] = LONG_EXPRESSION
+    inst, build = _app_page_build(agent_ns, tmp_path, dict(kpis=page["kpis"]))
+    with pytest.raises(RuntimeError, match="expression is longer than 600 characters"):
+        build(1)
+    assert not inst.logger.matching("[EXPRESSION-LIMIT FIRED]")
