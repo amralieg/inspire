@@ -52,7 +52,7 @@ const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase')
 const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
-const { discoverGrantedText, discoverUnreadText, isReadDenied, liveLogPath } = require('./lib/inspireImplement');
+const { discoverGrantedText, discoverUnreadText, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyName, sampleCopyStatement } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -2231,6 +2231,32 @@ async function discoverAppAccess(req, scope) {
     return [`Inspire could not check that the App can read the tables you picked (${String(err.message || err).slice(0, 200)}), so Discover reads them as picked`];
   }
 }
+
+app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
+  const person = personTokenOf(req);
+  if (!person) return res.status(401).json({ error: SAMPLE_COPY_NO_SIGN_IN });
+  try {
+    const body = req.body || {};
+    const destination = sampleCopyDestination(body.destination);
+    if (!DEFAULT_WAREHOUSE_ID) throw Object.assign(new Error('Inspire has no SQL warehouse, so it cannot copy the tables'), { statusCode: 503 });
+    const picked = (Array.isArray(body.entries) ? body.entries : []).map(String).filter(isBuiltInSampleEntry);
+    if (!picked.length) throw Object.assign(new Error('Pick samples tables to copy'), { statusCode: 400 });
+    const { tables, more } = await scopeTables(dbFetch, req.dbHost, person, picked);
+    if (more) throw Object.assign(new Error(`The samples you picked hold more tables than one copy can take (${tables.length} read). Pick fewer tables or schemas`), { statusCode: 409 });
+    const copies = [];
+    const failed = [];
+    for (const source of tables) {
+      const sql = sampleCopyStatement(source, destination);
+      const outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
+      if (outcome.ran.length) copies.push({ source, copy: sampleCopyName(source, destination) });
+      else failed.push({ source, reason: String(outcome.failed[0] || '').slice(sql.length + 2) });
+    }
+    res.json({ destination: `${destination.catalog}.${destination.schema}`, copies, failed });
+  } catch (err) {
+    const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
+    res.status(code).json({ error: err.message });
+  }
+});
 
 async function outputWriteVerdict(req, writes, { preview = false } = {}) {
   const manager = await routePolicy.managerOf(req).catch(() => ({ manager: false }));

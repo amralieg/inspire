@@ -37,7 +37,7 @@ const state = {
 function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
-    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
+    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
     createdJob: null, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
@@ -203,6 +203,11 @@ async function stubFetch(url, opts = {}) {
       return json({ userName: state.person || '', groups: state.personGroups.map((display) => ({ display, type: type(display) })) });
     }
     return json({ userName: APP_SP, applicationId: APP_SP, displayName: APP_NAME });
+  }
+  if (state.ucSchemas && u.pathname === '/api/2.1/unity-catalog/schemas') return json({ schemas: (state.ucSchemas[u.searchParams.get('catalog_name')] || []).map((name) => ({ name })) });
+  if (state.ucTables && u.pathname === '/api/2.1/unity-catalog/tables') {
+    const names = state.ucTables[`${u.searchParams.get('catalog_name')}.${u.searchParams.get('schema_name')}`] || [];
+    return json({ tables: names.map((name) => ({ name })) });
   }
   if (u.pathname === '/api/2.0/sql/statements') return json(answerSql(body));
   if (u.pathname === '/api/2.0/workspace/import') return json({ message: 'stubbed import refused' }, 400);
