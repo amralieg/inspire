@@ -9,12 +9,9 @@ ASSETS_PARENT = "/Workspace/Shared/inspire-ai/assets"
 APPS_PARENT = "/Workspace/Shared/inspire-ai/apps"
 ASSETS_MANIFEST = "manifest.json"
 ASSETS_FORMAT = 1
-SCAN_ALL = "all"
-SCAN_NONE_SAID = ("The Inspire App reads no catalog of yours yet, only `{catalog}`. To let it read your data, set SCAN_CATALOGS at the top of the "
-                  'installer to the catalogs it may read, such as ["main", "sales"], and run the installer again.')
 SCAN_SKIPPED = ("samples", "system", "__databricks_internal", "information_schema")
 SCAN_GRANTS = ("USE_CATALOG", "USE_SCHEMA", "SELECT", "BROWSE")
-SCAN_RIGHTS_WORKERS = 16
+CONSENT_PRIVILEGES = "USE CATALOG, USE SCHEMA, SELECT, BROWSE"
 SCAN_GRANT_WORKERS = 8
 SCAN_PROGRESS_FROM = 50
 SCAN_PROGRESS_STEPS = 10
@@ -41,6 +38,11 @@ W_WH_LABEL = "1) SQL warehouse for grants & app default"
 
 W_CAT = "01_inspire_catalog"
 W_CAT_LABEL = "2) Unity Catalog for Inspire tracking tables (_inspire)"
+
+
+W_DATA = "02_data_catalogs_inspire_may_read"
+W_DATA_LABEL = "3) Data catalogs the Inspire App may read (USE CATALOG, USE SCHEMA, SELECT, BROWSE)"
+DATA_ALL = "All catalogs you can use (default)"
 
 
 def _get_widget_value(name):
@@ -138,7 +140,53 @@ def show_warning_banner(title, message):
     )
 
 
-def ensure_parameter_widgets(warehouses, catalogs, own_catalogs=()):
+def _widget_text(name):
+    """The widget's value, or None when the notebook has no such widget yet."""
+    try:
+        return dbutils.widgets.get(name) or ""
+    except Exception:
+        return None
+
+
+def data_catalog_choices(catalogs):
+    """The catalogs the Inspire App may be offered to read: not system, samples, internal, Delta Sharing, or a name a list cannot hold.
+
+    `catalogs` is (name, catalog type) pairs. A GRANT is impossible on a Delta Sharing catalog, so it is never offered (REQ-132).
+    """
+    names = set()
+    for name, kind in catalogs:
+        if name in SCAN_SKIPPED or name.startswith("__") or "," in name or "`" in name or "DELTASHARING" in str(kind or "").upper():
+            continue
+        names.add(name)
+    return sorted(names)
+
+
+def _place_data_picker(choices):
+    """Creates the multi-select once. A later run keeps the widget as the user left it: re-creating it would reset the picks to ALL."""
+    if _widget_text(W_DATA) is not None:
+        return False
+    listed = [DATA_ALL] + choices[:WIDGET_CHOICE_LIMIT - 1]
+    if len(choices) > WIDGET_CHOICE_LIMIT - 1:
+        print(f"{W_DATA} lists {len(choices) - (WIDGET_CHOICE_LIMIT - 1)} fewer catalogs than you can use, because a notebook list holds at most "
+              f"{WIDGET_CHOICE_LIMIT} entries. {DATA_ALL} still reads all of them.")
+    dbutils.widgets.multiselect(W_DATA, DATA_ALL, listed, W_DATA_LABEL)
+    return True
+
+
+def resolve_data_catalogs(value, choices):
+    """The catalogs picked in the multi-select, in the order picked, or (None, why) when a name is not offered (REQ-132)."""
+    tokens = [token.strip() for token in str(value or "").split(",") if token.strip()]
+    if DATA_ALL in tokens:
+        return list(choices), None
+    names = list(dict.fromkeys(tokens))
+    unknown = [name for name in names if name not in choices]
+    if unknown:
+        return None, (f"{W_DATA} names {_shown(unknown)}, which the Inspire App cannot read here: it is a system, samples, internal or shared "
+                      f"catalog, or it is gone. Pick again from the list in {W_DATA}.")
+    return names, None
+
+
+def ensure_parameter_widgets(warehouses, catalogs, own_catalogs, data_choices):
     values = {W_WH: _get_widget_value(W_WH), W_CAT: _get_widget_value(W_CAT)}
     warehouse, warehouse_problem = resolve_warehouse(values[W_WH], warehouses)
     catalog, catalog_problem = resolve_catalog(values[W_CAT], catalogs)
@@ -147,9 +195,12 @@ def ensure_parameter_widgets(warehouses, catalogs, own_catalogs=()):
                       _warehouse_choice(warehouse) if warehouse else None, things="SQL warehouses"),
         _place_picker(W_CAT, W_CAT_LABEL, catalogs, values[W_CAT], catalog, first=sorted(own_catalogs), things="catalogs"),
     ]
+    created = _place_data_picker(data_choices)
+    picked = _widget_text(W_DATA)
+    data, data_problem = (None, f"Pick the catalogs the Inspire App may read in {W_DATA}.") if picked is None else resolve_data_catalogs(picked, data_choices)
     print("Notebook parameters are ready above: pick a value from each list or type it.")
     return {"warehouse": warehouse, "catalog": catalog, "warehouse_problem": warehouse_problem, "catalog_problem": catalog_problem,
-            "replaced": not all(placed)}
+            "data": data, "data_problem": data_problem, "replaced": not all(placed) or created}
 
 
 def _wh_sort_key(wh):
@@ -657,9 +708,10 @@ def build_runtime_context(env):
         raise RuntimeError(f"You cannot use any SQL warehouse in this workspace, and the installer needs one. A workspace admin can give "
                            f"{user_email} Can Use on a SQL warehouse, or create one; then run this installer again.")
 
-    available_catalogs, own_catalogs = [], set()
+    available_catalogs, own_catalogs, typed_catalogs = [], set(), []
     try:
         for cat in w.catalogs.list():
+            typed_catalogs.append((cat.name, getattr(cat, "catalog_type", "")))
             if cat.name not in ("system", "information_schema", "__databricks_internal"):
                 available_catalogs.append(cat.name)
                 if str(getattr(cat, "owner", "") or "").lower() == str(user_email or "").lower():
@@ -673,9 +725,11 @@ def build_runtime_context(env):
                            f"{user_email} USE CATALOG and CREATE SCHEMA on a catalog; then run this installer again.")
     available_catalogs = sorted(set(available_catalogs))
 
-    pickers = ensure_parameter_widgets(all_warehouses, available_catalogs, own_catalogs)
-    picked_wh, picked_cat = pickers["warehouse"], pickers["catalog"]
+    pickers = ensure_parameter_widgets(all_warehouses, available_catalogs, own_catalogs, data_catalog_choices(typed_catalogs))
+    picked_wh, picked_cat, picked_data = pickers["warehouse"], pickers["catalog"], pickers["data"]
     missing_messages = []
+    if picked_data is None:
+        missing_messages.append(pickers["data_problem"])
 
     if warehouse_override:
         picked_wh = next((wh for wh in all_warehouses if wh.id == warehouse_override), None)
@@ -774,7 +828,7 @@ def build_runtime_context(env):
         "RELEASE_VERSION": release_version,
         "SOURCE_ZIP": source_zip,
         "BUNDLE_ROOT": f"{APPS_PARENT}/{app_name}",
-        "SCAN_CATALOGS": env.get("scan_catalogs", SCAN_ALL),
+        "DATA_CATALOGS": picked_data or [],
         "NEW_APPS_CATALOG_ACCESS": _new_apps_setting(env.get("new_apps_catalog_access", NEW_APPS_ACCOUNT_USERS)),
         "ASSETS_TAR": assets_tar,
         "TEST_TAG": str(settings.get("test_tag") or "").strip(),
@@ -1415,32 +1469,6 @@ def _shared_output_access(api, notebook_path, sp):
                    f"A workspace admin can give {sp} Can Manage on it")
 
 
-def _scan_label(scan, catalog):
-    if scan == SCAN_ALL:
-        return "all: every catalog you can see and grant on"
-    return ", ".join(scan) if scan else f"none yet: the App reads only `{catalog}`"
-
-
-def _scan_split(ctx, catalog, scan, visible):
-    if scan != SCAN_ALL:
-        return list(scan), []
-    names = sorted(n for n in set(visible) - set(SCAN_SKIPPED) - {catalog} if not n.startswith("__"))
-    _metastore_admin(ctx)
-
-    def verdict(cat):
-        try:
-            full, held = _catalog_privileges(ctx, cat)
-            return cat, "" if _can_grant(_person_privileges(full, held)) else _grant_refusal(cat, ctx["USER_EMAIL"], held)
-        except Exception as exc:
-            return cat, _rights_unread(exc, cat, ctx["USER_EMAIL"])
-
-    if len(names) >= SCAN_PROGRESS_FROM:
-        print(f"  Checking your rights on {_plural(len(names), 'catalog')}...")
-    with ThreadPoolExecutor(max_workers=SCAN_RIGHTS_WORKERS) as pool:
-        checked = list(pool.map(verdict, names))
-    return [cat for cat, why in checked if not why], [(cat, why) for cat, why in checked if why]
-
-
 def _shown(names, limit=SCAN_SHOWN):
     names = list(names)
     head = ", ".join(f"`{n}`" for n in names[:limit])
@@ -1474,34 +1502,35 @@ def _run_scan_grants(w, warehouse_id, grants):
     return {sql: failed[sql] for sql in grants if sql in failed}
 
 
-def _grant_scan_catalogs(ctx, sp, visible):
+def _plain_list(names, limit=SCAN_SHOWN):
+    names = list(names)
+    return ", ".join(names[:limit]) + (f" and {len(names) - limit} more" if len(names) > limit else "")
+
+
+def _grant_data_catalogs(ctx, sp):
+    """The third setting (REQ-132): the consent line, one read GRANT per picked catalog, and a Permission Required block for refusals.
+
+    A refused grant is never an install failure: the statement is printed, copy-friendly, and the install goes on.
+    """
     w, warehouse_id, catalog = ctx["w"], ctx["WAREHOUSE_ID"], ctx["CATALOG"]
-    scan = ctx.get("SCAN_CATALOGS", SCAN_ALL)
-    scanned, skipped = _scan_split(ctx, catalog, scan, visible)
-    targets = [cat for cat in scanned if cat != catalog]
-    grants = [_scan_grant(sp, cat) for cat in targets]
-    print(f"Catalog grants for {sp}: {_plural(len(grants), 'catalog')} (SCAN_CATALOGS = {_scan_label(scan, catalog)}), "
-          f"each GRANT {', '.join(SCAN_GRANTS)}")
+    targets = [cat for cat in ctx.get("DATA_CATALOGS") or [] if cat != catalog]
     if targets:
-        print(f"  Catalogs: {_shown(targets)}")
-    for name, reason in skipped[:SCAN_SHOWN]:
-        print(f"  Skipped catalog `{name}`, so the Inspire App will not read it: {reason}. Run this installer again once you can grant on it.")
-    if len(skipped) > SCAN_SHOWN:
-        rest = [name for name, _ in skipped[SCAN_SHOWN:]]
-        print(f"  Skipped {_plural(len(rest), 'more catalog')} you cannot grant on, so the Inspire App will not read them: {_shown(rest)}. "
-              "Run this installer again once you can grant on them.")
-    if not scan:
-        print(f"  {SCAN_NONE_SAID.format(catalog=catalog)}")
-    if scan == SCAN_ALL and not targets:
-        print(f"  Note: you can grant on no catalog besides `{catalog}`, so the Inspire App reads only `{catalog}` for now. "
-              "Run this installer again once you can grant on the catalogs to scan.")
+        print(f"Inspire's App will get read access ({CONSENT_PRIVILEGES}) on: {_plain_list(targets)}")
+    else:
+        print(f"Inspire's App gets read access on no catalog besides `{catalog}`. To let it read your data, pick the catalogs in {W_DATA} "
+              "and run this installer again.")
+    grants = [_scan_grant(sp, cat) for cat in targets]
     failed = _run_scan_grants(w, warehouse_id, grants)
-    for sql, error in list(failed.items())[:SCAN_SHOWN]:
-        print(f"  ⚠️ {sql}: {error}")
-    if len(failed) > SCAN_SHOWN:
-        print(f"  ⚠️ {_plural(len(failed) - SCAN_SHOWN, 'more catalog grant')} failed the same way or another")
     if grants:
         print(f"  Catalog grants: {len(grants) - len(failed):,} of {len(grants):,} ran {'✅' if not failed else '⚠️'}")
+    ctx["READ_GRANTED"] = [cat for cat in targets if _scan_grant(sp, cat) not in failed]
+    ctx["READ_REFUSED"] = [sql for sql in grants if sql in failed]
+    if failed:
+        print(f"  Refused on {_plural(len(failed), 'catalog', 'catalogs')}, first reason: {next(iter(failed.values()))[:160]}")
+        print("Permission Required: ask a catalog owner, or someone with MANAGE on each catalog below, to run these statements, "
+              "then run this installer again:")
+        for sql in ctx["READ_REFUSED"]:
+            print(sql)
     return failed
 
 
@@ -1546,14 +1575,16 @@ def _grant_plan(sp, catalog, schema, visible, lakebase_catalog=""):
 READ_PRIVILEGES = ("USE_CATALOG", "BROWSE", "USE_SCHEMA", "SELECT", "READ_VOLUME")
 
 
-def _blocking_read_grants(failed, scan_failed):
-    """The failed grants a new App needs to read its data (REQ-039): every GRANT that carries a read privilege, plus every failed catalog scan grant."""
+def _blocking_read_grants(failed):
+    """The failed grants of the install's own plan that a new App needs to read its data (REQ-039).
+
+    The data catalogs are not in this list: a catalog the person cannot grant on is printed as a Permission Required statement (REQ-132).
+    """
     blocking = {}
     for sql, error in failed.items():
         privileges = sql[len("GRANT "):sql.index(" ON ")].replace(" ", "_").split(", ")
         if any(privilege in READ_PRIVILEGES for privilege in privileges):
             blocking[sql] = error
-    blocking.update(scan_failed)
     return blocking
 
 
@@ -1628,8 +1659,8 @@ def step_grant_permissions(ctx):
         print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp)}")
         shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
         print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
-        scan_failed = _grant_scan_catalogs(ctx, sp, visible)
-        blocking = _blocking_read_grants(failed, scan_failed)
+        _grant_data_catalogs(ctx, sp)
+        blocking = _blocking_read_grants(failed)
         if blocking:
             shown = "; ".join(f"{sql}: {str(error)[:160]}" for sql, error in list(blocking.items())[:3])
             more = f" and {len(blocking) - 3} more" if len(blocking) > 3 else ""
@@ -1674,6 +1705,12 @@ def step_render_done(ctx):
     )
     print(f"  Database:    {inspire_db}")
     print(f"  Warehouse:   {warehouse_name}")
+    granted, refused = ctx.get("READ_GRANTED") or [], ctx.get("READ_REFUSED") or []
+    print(f"  Read access: {_plain_list(granted) + ' ✅' if granted else 'none granted'}")
+    if refused:
+        print(f"  Permission Required on {_plural(len(refused), 'catalog', 'catalogs')}: ask a catalog admin to run these, then run this installer again:")
+        for sql in refused:
+            print(sql)
     print(f"  SP:          {new_sp_app_id or 'NOT FOUND'}")
     print(f"  Assets:      {ctx.get('ASSETS_PATH') or 'NOT INSTALLED'}")
     if ctx.get("USER_SCOPES_NOTE"):
@@ -1847,25 +1884,6 @@ def _grant_refusal(name, person, held):
             f"GRANT MANAGE ON CATALOG `{name}` TO `{person}`, or make you the owner of `{name}`")
 
 
-def _scan_catalogs(value, visible):
-    if value == SCAN_ALL:
-        return SCAN_ALL
-    if not isinstance(value, (list, tuple)) or not all(isinstance(name, str) for name in value):
-        raise ValueError(f'SCAN_CATALOGS must be the word "all" or a list of catalog names, such as ["main", "sales"], not {str(value)[:80]!r}.')
-    names = []
-    for raw in value:
-        name = raw.strip()
-        if not name or "`" in name:
-            raise ValueError(f"SCAN_CATALOGS holds {raw[:80]!r}, which is not a catalog name.")
-        if name not in names:
-            names.append(name)
-    unseen = [name for name in names if name not in visible]
-    if unseen:
-        raise ValueError(f"SCAN_CATALOGS names {', '.join(f'`{n}`' for n in unseen)}, which is not a catalog you can see. "
-                         "Fix the name, or take it out of SCAN_CATALOGS.")
-    return names
-
-
 def step_preflight(ctx):
     api, w = ctx["api"], ctx["w"]
     app_name, catalog, schema = ctx["APP_NAME"], ctx["CATALOG"], ctx["SCHEMA"]
@@ -1908,22 +1926,6 @@ def step_preflight(ctx):
                             f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{ctx['USER_EMAIL']}`.")
     except Exception as exc:
         problems.append(f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, catalog, ctx['USER_EMAIL'])}.")
-    scan = None
-    try:
-        scan = _scan_catalogs(ctx.get("SCAN_CATALOGS", SCAN_ALL), set(ctx["available_catalogs"]))
-        ctx["SCAN_CATALOGS"] = scan
-    except ValueError as exc:
-        problems.append(str(exc))
-    for name in scan if isinstance(scan, list) else []:
-        if name == catalog:
-            continue
-        try:
-            full, held = _catalog_privileges(ctx, name)
-            if not _can_grant(_person_privileges(full, held)):
-                problems.append(f"SCAN_CATALOGS names `{name}`, and you cannot grant on it, so the Inspire App could not read it: "
-                                f"{_grant_refusal(name, ctx['USER_EMAIL'], held)}, or take `{name}` out of SCAN_CATALOGS.")
-        except Exception as exc:
-            problems.append(f"Inspire cannot check catalog `{name}` in SCAN_CATALOGS: {_rights_unread(exc, name, ctx['USER_EMAIL'])}.")
     for folder in (f"/Shared/{app_name}", _workspace_api_path(ctx["BUNDLE_ROOT"]), _workspace_api_path(ASSETS_PARENT)):
         made = api("POST", "/api/2.0/workspace/mkdirs", {"path": folder})
         if made.status_code != 200:
@@ -1933,7 +1935,6 @@ def step_preflight(ctx):
         raise RuntimeError("Nothing was replaced: the installed Inspire App and its service principal are untouched. "
                            "Fix these, then run this installer again:\n" + "\n".join(f"  • {p}" for p in problems))
     print(f"  Rights: ✅ App {app_name}, warehouse {ctx['WAREHOUSE_NAME']}, catalog `{catalog}` and the workspace folders")
-    print(f"  The App may read catalogs: SCAN_CATALOGS = {_scan_label(scan, catalog)}")
 
 
 def run(env):

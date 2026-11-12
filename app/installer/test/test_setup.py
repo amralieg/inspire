@@ -83,7 +83,7 @@ def context(api, w=None, held=("USE_CATALOG", "MANAGE"), groups=("admins",), cat
     ctx = {"ready": True, "api": api, "api_get": api_get, "w": w or Workspace(), "APP_NAME": "inspire-ai", "SP_NAME": "inspire-ai-sp",
            "CATALOG": "main", "SCHEMA": "_inspire", "WAREHOUSE_ID": "wh", "WAREHOUSE_NAME": "Shared", "USER_EMAIL": "someone@example.com",
            "USER_GROUPS": list(groups), "INSPIRE_DB": "main._inspire", "RELEASE_VERSION": "v1.3.0",
-           "available_catalogs": sorted(held_on), "SCAN_CATALOGS": "all", "BUNDLE_ROOT": "/Workspace/Shared/inspire-ai/apps/inspire-ai"}
+           "available_catalogs": sorted(held_on), "BUNDLE_ROOT": "/Workspace/Shared/inspire-ai/apps/inspire-ai"}
     ctx.update(extra)
     return ctx
 
@@ -179,9 +179,7 @@ class PreflightTest(unittest.TestCase):
                 ("schema", dict(api=app_exists(), held=("USE_CATALOG", "MANAGE"), w=Workspace(schema=False)),
                  "You cannot create the schema `main`.`_inspire`"),
                 ("folder", dict(api=app_exists(mkdirs=403)), "You cannot write the workspace folder /Shared/inspire-ai/apps/inspire-ai "),
-                ("scan list", dict(api=app_exists(), SCAN_CATALOGS=["nope"]), "SCAN_CATALOGS names `nope`, which is not a catalog you can see"),
-                ("scan grant", dict(api=app_exists(), catalogs={"finance": ("USE_CATALOG",)}, SCAN_CATALOGS=["finance"]),
-                 "SCAN_CATALOGS names `finance`, and you cannot grant on it")):
+                ):
             api, calls = recording(ctx_args.pop("api"))
             steps, error, shown = self.run_install(context(api, **ctx_args))
             self.assertEqual(steps, [], name)
@@ -193,8 +191,8 @@ class PreflightTest(unittest.TestCase):
 
     def test_every_problem_is_named_at_once(self):
         api, _ = recording(app_exists(manage=False, mkdirs=403))
-        _, error, _ = self.run_install(context(api, w=Workspace(warehouse=FAILED, schema=False), held=(), SCAN_CATALOGS=["nope"]))
-        self.assertEqual(error.count("\n  • "), 8)
+        _, error, _ = self.run_install(context(api, w=Workspace(warehouse=FAILED, schema=False), held=()))
+        self.assertEqual(error.count("\n  • "), 7)
 
     def test_a_passed_preflight_runs_every_step_in_order_and_unpacks_the_app_only_after_it(self):
         api, calls = recording(app_exists())
@@ -203,38 +201,13 @@ class PreflightTest(unittest.TestCase):
         self.assertEqual(steps, list(INSTALL_STEPS))
         self.assertIn(("POST", "/api/2.0/workspace/mkdirs", {"path": "/Shared/inspire-ai/apps/inspire-ai"}), calls)
 
-    def test_scan_catalogs_must_be_the_word_all_or_a_list_of_names(self):
-        for value in ("sales", "ALL", "", None, 7, [""], ["  "], ["a`b"], [7], {"sales": 1}):
-            api, _ = recording(app_exists())
-            steps, error, _ = self.run_install(context(api, SCAN_CATALOGS=value))
-            self.assertEqual(steps, [], value)
-            self.assertIn("SCAN_CATALOGS", error, value)
-
-    def test_a_listed_catalog_you_cannot_grant_on_is_refused_before_any_change_and_all_skips_it_instead(self):
-        catalogs = {"sales": ("MANAGE",), "finance": ("USE_CATALOG", "SELECT")}
-        api, calls = recording(app_exists())
-        steps, error, _ = self.run_install(context(api, catalogs=catalogs, SCAN_CATALOGS=["sales", "finance"]))
-        self.assertEqual(steps, [])
-        self.assertIn("Nothing was replaced", error)
-        self.assertIn("SCAN_CATALOGS names `finance`, and you cannot grant on it", error)
-        self.assertNotIn("`sales`, and you cannot grant", error)
-        self.assertEqual([c for c in calls if c[0] in ("DELETE", "PATCH", "PUT") or (c[0] == "POST" and c[1] != "/api/2.0/workspace/mkdirs")], [])
-        api, _ = recording(app_exists())
-        ctx = context(api, catalogs=catalogs)
-        steps, error, _ = self.run_install(ctx)
-        self.assertIsNone(error)
-        self.assertEqual(steps, list(INSTALL_STEPS))
-        self.assertEqual(ctx["SCAN_CATALOGS"], "all")
-
     def test_all_privileges_alone_cannot_grant_so_the_inspire_catalog_and_a_listed_catalog_are_refused_before_any_change(self):
         ask = ("you are not its owner or a metastore admin and hold no MANAGE on it (ALL PRIVILEGES does not include MANAGE). The catalog "
                "owner can run GRANT MANAGE ON CATALOG `{0}` TO `someone@example.com`, or make you the owner of `{0}`")
         for name, ctx_args, words in (
                 ("inspire catalog", dict(held=("ALL_PRIVILEGES",)),
                  "You cannot grant on catalog `main`, and the Inspire App needs USE CATALOG on it: " + ask.format("main") + "."),
-                ("listed catalog", dict(catalogs={"finance": ("ALL_PRIVILEGES",)}, SCAN_CATALOGS=["finance"]),
-                 "SCAN_CATALOGS names `finance`, and you cannot grant on it, so the Inspire App could not read it: " + ask.format("finance")
-                 + ", or take `finance` out of SCAN_CATALOGS.")):
+                ):
             api, calls = recording(app_exists())
             steps, error, _ = self.run_install(context(api, **ctx_args))
             self.assertEqual(steps, [], name)
@@ -244,7 +217,6 @@ class PreflightTest(unittest.TestCase):
                              [], name)
         for name, ctx_args in (("owner", dict(held=("ALL_PRIVILEGES",), w=Workspace(owner="someone@example.com"))),
                                ("metastore admin", dict(held=("ALL_PRIVILEGES",), groups=("metastore-admins",))),
-                               ("manage", dict(held=("MANAGE",), catalogs={"finance": ("MANAGE",)}, SCAN_CATALOGS=["finance"])),
                                ("schema from all privileges", dict(held=("MANAGE", "ALL_PRIVILEGES"), w=Workspace(schema=False)))):
             api, _ = recording(app_exists())
             steps, error, _ = self.run_install(context(api, **ctx_args))
@@ -256,11 +228,7 @@ class PreflightTest(unittest.TestCase):
                 ("inspire catalog", dict(held=http_error(403)),
                  "Inspire cannot check catalog `main`: you cannot see who can grant on catalog `main` (HTTP 403). A catalog owner can run "
                  "GRANT MANAGE ON CATALOG `main` TO `someone@example.com`."),
-                ("listed catalog", dict(catalogs={"finance": http_error(403)}, SCAN_CATALOGS=["finance"]),
-                 "Inspire cannot check catalog `finance` in SCAN_CATALOGS: you cannot see who can grant on catalog `finance` (HTTP 403). "
-                 "A catalog owner can run GRANT MANAGE ON CATALOG `finance` TO `someone@example.com`."),
-                ("server error", dict(catalogs={"finance": http_error(500)}, SCAN_CATALOGS=["finance"]),
-                 "Inspire cannot check catalog `finance` in SCAN_CATALOGS: your rights on catalog `finance` could not be read (HTTP 500).")):
+                ):
             api, calls = recording(app_exists())
             steps, error, shown = self.run_install(context(api, **ctx_args))
             self.assertEqual(steps, [], name)
@@ -270,18 +238,6 @@ class PreflightTest(unittest.TestCase):
                 self.assertNotIn("adb-", text, name)
             self.assertEqual([c for c in calls if c[0] in ("DELETE", "PATCH", "PUT") or (c[0] == "POST" and c[1] != "/api/2.0/workspace/mkdirs")],
                              [], name)
-
-    def test_a_scan_list_is_checked_and_kept_without_repeats(self):
-        api, _ = recording(app_exists())
-        ctx = context(api, catalogs={"sales": ("MANAGE",), "finance": ("MANAGE", "SELECT")}, SCAN_CATALOGS=[" sales", "finance", "sales", "main"])
-        steps, error, _ = self.run_install(ctx)
-        self.assertIsNone(error)
-        self.assertEqual(steps, list(INSTALL_STEPS))
-        self.assertEqual(ctx["SCAN_CATALOGS"], ["sales", "finance", "main"])
-        api, _ = recording(app_exists())
-        ctx = context(api, SCAN_CATALOGS=[])
-        self.assertIsNone(self.run_install(ctx)[1])
-        self.assertEqual(ctx["SCAN_CATALOGS"], [])
 
     def test_a_new_app_needs_the_apps_api_and_an_owner_or_metastore_admin_can_grant(self):
         def no_app(method, path, body):
@@ -650,7 +606,7 @@ def postgres_posts(calls):
 
 
 class GrantPlanTest(unittest.TestCase):
-    def grant(self, scan, listed=("main", "sales", "finance", "samples", "system", "inspire_lakebase"), rights=None, owners=None,
+    def grant(self, data, listed=("main", "sales", "finance", "samples", "system", "inspire_lakebase"), rights=None, owners=None, catalog="main",
               admin="metastore-admins", fail=None, api=None, lakebase=LAKEBASE):
         out = io.StringIO()
         executed = []
@@ -684,9 +640,9 @@ class GrantPlanTest(unittest.TestCase):
         if api is None:
             there = LAKEBASE["catalog"] in listed
             api, _calls = lakebase_api(catalog=((200, BOUND),) if there else ((404, {}),), make_catalog=REFUSED_CATALOG)
-        ctx = {"NEW_SP_APP_ID": "SP", "WAREHOUSE_ID": "wh", "w": w, "CATALOG": "main", "SCHEMA": "_inspire", "APP_NAME": "inspire-ai",
+        ctx = {"NEW_SP_APP_ID": "SP", "WAREHOUSE_ID": "wh", "w": w, "CATALOG": catalog, "SCHEMA": "_inspire", "APP_NAME": "inspire-ai",
                "api": api, "available_catalogs": [n for n in listed if n != "system"],
-               "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "SCAN_CATALOGS": scan, "api_get": api_get,
+               "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "DATA_CATALOGS": list(data), "api_get": api_get,
                "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": lakebase,
                "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
         with contextlib.redirect_stdout(out), mock.patch.object(setup, "LAKEBASE_POLL_S", 0):
@@ -704,97 +660,6 @@ class GrantPlanTest(unittest.TestCase):
         self.assertIn("`main`.`_inspire`.`__inspire_value_ledger`", message)
         self.assertIn("SP", message)
         self.assertIn("PERMISSION_DENIED", message)
-
-    def test_all_keeps_the_grants_on_every_catalog_the_installer_can_see(self):
-        grants, printed, _, said = self.grant("all")
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS + scan_grants("finance", "inspire_lakebase", "sales"))
-        self.assertEqual(printed, essentials(grants))
-        self.assertIn("SCAN_CATALOGS = all", said)
-
-    def test_a_list_grants_only_those_catalogs_plus_the_inspire_catalog_and_lakebase(self):
-        grants, printed, _, said = self.grant(["sales", "main"])
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS + scan_grants("sales"))
-        self.assertFalse([g for g in grants if "`finance`" in g or "`samples`" in g], grants)
-        self.assertEqual(printed, essentials(grants))
-        self.assertIn("SCAN_CATALOGS = sales, main", said)
-        grants, printed, _, said = self.grant([])
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS)
-        self.assertIn("SCAN_CATALOGS = none yet: the App reads only `main`", said)
-        self.assertIn(setup.SCAN_NONE_SAID.format(catalog="main"), said)
-        self.assertNotIn(setup.SCAN_NONE_SAID.format(catalog="main"), self.grant(["sales"])[3])
-        grants, _, _, _ = self.grant(["sales"], listed=("main", "sales", "finance"))
-        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS + scan_grants("sales"))
-
-    def test_all_grants_only_the_catalogs_the_person_can_grant_on_and_names_the_skipped_ones_before_the_first_grant(self):
-        listed = ("main", "sales", "finance", "owned", "shared", "samples", "system", "inspire_lakebase")
-        rights = {"main": ("MANAGE",), "sales": ("MANAGE",), "finance": ("USE_CATALOG", "SELECT"), "owned": (), "inspire_lakebase": ("USE_CATALOG",)}
-        grants, printed, executed, said = self.grant("all", listed=listed, rights=rights, owners={"owned": "someone@example.com"})
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS + scan_grants("owned", "sales"))
-        self.assertEqual(printed, essentials(grants))
-        self.assertFalse([g for g in grants if "`finance`" in g or "`shared`" in g], grants)
-        before_first = before_scan(executed)
-        self.assertIn("Skipped catalog `finance`, so the Inspire App will not read it: you are not its owner or a metastore admin and hold no "
-                      "MANAGE on it. The catalog owner can run GRANT MANAGE ON CATALOG `finance` TO `someone@example.com`, or make you the owner "
-                      "of `finance`. Run this installer again once you can grant on it.", before_first)
-        self.assertIn("Skipped catalog `inspire_lakebase`, so the Inspire App will not read it: you are not its owner", before_first)
-        self.assertIn("Skipped catalog `shared`, so the Inspire App will not read it: your rights on catalog `shared` could not be read "
-                      "(PERMISSION_DENIED: cannot read shared)", before_first)
-        for name in ("main", "sales", "owned", "samples", "system"):
-            self.assertNotIn(f"Skipped catalog `{name}`", said, name)
-        self.assertIn(f"Grants: {len(essentials(grants))} of {len(essentials(grants))} ran ✅", said)
-        self.assertNotIn("Note: you can grant on no catalog", said)
-        grants, _, _, said = self.grant("all", listed=listed, rights=rights, admin="admins")
-        self.assertEqual(grants, INSPIRE_GRANTS + [LAKEBASE_GRANT] + VALUE_LEDGER_GRANTS + scan_grants("finance", "inspire_lakebase", "owned", "sales", "shared"))
-        self.assertNotIn("Skipped catalog", said)
-        self.assertFalse([p for p in self.reads if "effective-permissions" in p], "a metastore admin's rights are not read per catalog")
-
-    def test_all_skips_a_catalog_held_only_with_all_privileges_and_still_grants_on_owned_managed_and_admin_catalogs(self):
-        listed = ("main", "sales", "finance", "owned")
-        rights = {"main": ("MANAGE",), "sales": ("MANAGE",), "finance": ("ALL_PRIVILEGES",), "owned": ("ALL_PRIVILEGES",)}
-        grants, printed, executed, said = self.grant("all", listed=listed, rights=rights, owners={"owned": "someone@example.com"})
-        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS + scan_grants("owned", "sales"))
-        self.assertEqual(printed, essentials(grants))
-        before_first = before_scan(executed)
-        self.assertIn("Skipped catalog `finance`, so the Inspire App will not read it: you are not its owner or a metastore admin and hold no "
-                      "MANAGE on it (ALL PRIVILEGES does not include MANAGE). The catalog owner can run GRANT MANAGE ON CATALOG `finance` TO "
-                      "`someone@example.com`, or make you the owner of `finance`.", before_first)
-        self.assertNotIn("Skipped catalog `owned`", said)
-        self.assertNotIn("Skipped catalog `sales`", said)
-        grants, _, _, said = self.grant("all", listed=listed, rights=rights, admin="admins")
-        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS + scan_grants("finance", "owned", "sales"))
-        self.assertNotIn("Skipped catalog", said)
-
-    def test_a_rights_lookup_http_error_skips_the_catalog_in_plain_words_with_its_status_and_no_workspace_url(self):
-        listed = ("main", "sales", "locked", "broken")
-        rights = {"main": ("MANAGE",), "sales": ("MANAGE",), "broken": http_error(500),
-                  "locked": http_error(403, {"error_code": "PERMISSION_DENIED", "message": f"denied, see {HOST}/docs"})}
-        grants, _, executed, said = self.grant("all", listed=listed, rights=rights)
-        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS + scan_grants("sales"))
-        before_first = before_scan(executed)
-        self.assertIn("Skipped catalog `locked`, so the Inspire App will not read it: you cannot see who can grant on catalog `locked` (HTTP 403). "
-                      "A catalog owner can run GRANT MANAGE ON CATALOG `locked` TO `someone@example.com`. Run this installer again", before_first)
-        self.assertIn("Skipped catalog `broken`, so the Inspire App will not read it: your rights on catalog `broken` could not be read (HTTP 500).",
-                      before_first)
-        lines = [line for line in said.splitlines() if "Skipped catalog" in line or "GRANT " in line or "⚠️" in line]
-        self.assertEqual(len([line for line in lines if "Skipped catalog" in line]), 2)
-        for line in lines:
-            self.assertNotIn("https://", line)
-            self.assertNotIn("adb-", line)
-        self.assertNotIn("https://", said)
-        self.assertNotIn("adb-", said)
-
-    def test_a_failed_read_grant_stops_the_install_before_the_new_app_is_deployed_and_names_its_cause(self):
-        cause = ("PERMISSION_DENIED: User does not have MANAGE on Catalog 'sales'. The catalog owner must grant MANAGE before this principal "
-                 "can receive USE CATALOG, USE SCHEMA, SELECT or BROWSE on it, see " + HOST + "/docs for the privilege model")
-        sql = scan_grants("sales")[0]
-        with self.assertRaises(RuntimeError) as raised:
-            self.grant(["sales"], listed=("main", "sales"), fail={sql: RuntimeError(cause)})
-        message = str(raised.exception)
-        self.assertIn(sql, message)
-        self.assertIn("PERMISSION_DENIED: User does not have MANAGE on Catalog 'sales'", message)
-        self.assertIn("so the App keeps its last working version", message)
-        self.assertNotIn("https://", message)
-        self.assertNotIn("adb-", message)
 
     def test_a_failed_read_grant_on_the_installs_own_catalog_stops_the_install_before_the_deploy(self):
         with self.assertRaises(RuntimeError) as raised:
@@ -849,37 +714,20 @@ class GrantPlanTest(unittest.TestCase):
         self.assertEqual(setup._error_words(RuntimeError("x" * 300), None), "x" * 300)
         self.assertEqual(setup._error_words(ValueError("PERMISSION_DENIED: no MANAGE")), "PERMISSION_DENIED: no MANAGE")
 
-    def test_all_with_no_grantable_catalog_besides_the_inspire_catalog_installs_with_a_clear_note(self):
-        grants, printed, _, said = self.grant("all", listed=("main", "sales", "finance"), rights={"main": ("MANAGE",), "sales": ("USE_CATALOG",),
-                                                                                                    "finance": ()})
-        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS)
-        self.assertEqual(printed, essentials(grants))
-        self.assertIn("Skipped catalog `sales`", said)
-        self.assertIn("Skipped catalog `finance`", said)
-        self.assertIn("Note: you can grant on no catalog besides `main`, so the Inspire App reads only `main` for now.", said)
-        self.assertIn(f"Grants: {len(essentials(grants))} of {len(essentials(grants))} ran ✅", said)
-        grants, _, _, said = self.grant(["sales"], listed=("main", "sales", "finance"), rights={"main": ("MANAGE",)})
-        self.assertEqual(grants, INSPIRE_GRANTS + VALUE_LEDGER_GRANTS + scan_grants("sales"))
-        self.assertNotIn("Skipped catalog", said)
-        self.assertNotIn("Note: you can grant on no catalog", said)
-
     def test_the_whole_plan_is_printed_before_the_first_grant_runs(self):
-        for scan in ("all", ["sales"]):
-            grants, _, executed, _ = self.grant(scan)
-            before_first = next(text for s, text in executed if s.startswith("GRANT "))
-            self.assertIn(f"Grant plan for SP: {len(essentials(grants))} statements on `main`.`_inspire`", before_first, scan)
-            for sql in essentials(grants):
-                self.assertIn(f"  {sql}\n", before_first, scan)
-            catalogs = [g for g in grants if g.startswith(SCAN_PREFIX)]
-            self.assertIn(f"Catalog grants for SP: {len(catalogs)} catalog", before_scan(executed), scan)
+        grants, _, executed, _ = self.grant(["sales"])
+        before_first = next(text for s, text in executed if s.startswith("GRANT "))
+        self.assertIn(f"Grant plan for SP: {len(essentials(grants))} statements on `main`.`_inspire`", before_first)
+        for sql in essentials(grants):
+            self.assertIn(f"  {sql}\n", before_first)
+        self.assertIn("Inspire's App will get read access (USE CATALOG, USE SCHEMA, SELECT, BROWSE) on: sales", before_scan(executed))
 
 
 class LargeWorkspaceGrantTest(unittest.TestCase):
-    def install(self, count, admin="admins", rights=None, owners=None):
+    def install(self, count, refused=()):
         import threading
         lock, events, live, peak = threading.Lock(), [], [0], [0]
         names = ["main"] + [f"cat_{i:04d}" for i in range(count)] + ["__databricks_internal", "__replication_internal_x", "samples", "system"]
-        prefix = "/api/2.1/unity-catalog/effective-permissions/catalog/"
         reads = []
 
         class Statements:
@@ -891,16 +739,15 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
                 time.sleep(0.001)
                 with lock:
                     live[0] -= 1
+                if any(f"CATALOG `{name}` TO" in statement for name in refused):
+                    raise RuntimeError("PERMISSION_DENIED: User does not have MANAGE on the catalog")
                 return globals()["statement"](SUCCEEDED)
 
         def api_get(path):
             with lock:
                 reads.append(path)
             if path == "/api/2.1/unity-catalog/metastore_summary":
-                return {"owner": admin}
-            if path.startswith(prefix):
-                held = (rights or {}).get(path[len(prefix):].split("?")[0], ("MANAGE",))
-                return {"privilege_assignments": [{"privileges": [{"privilege": p} for p in held]}]}
+                return {"owner": "admins"}
             raise AssertionError(path)
 
         got = []
@@ -910,16 +757,17 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
             return types.SimpleNamespace(name=name, owner="x")
 
         w = types.SimpleNamespace(statement_execution=Statements(), catalogs=types.SimpleNamespace(
-            list=lambda: [types.SimpleNamespace(name=n, owner=(owners or {}).get(n, "data-owners")) for n in names], get=get))
+            list=lambda: [types.SimpleNamespace(name=n, owner="data-owners") for n in names], get=get))
         base, _calls = lakebase_api(catalog=((404, {}),), make_catalog=REFUSED_CATALOG)
 
         def api(method, path, body=None):
             with lock:
                 events.append(("api", f"{method} {path}"))
             return base(method, path, body)
+        data = [n for n in names if n not in ("main", "__databricks_internal", "__replication_internal_x", "samples", "system")]
         ctx = {"NEW_SP_APP_ID": "SP", "WAREHOUSE_ID": "wh", "w": w, "CATALOG": "main", "SCHEMA": "_inspire", "APP_NAME": "inspire-ai",
                "api": api, "available_catalogs": [n for n in names if n != "system"], "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0",
-               "SCAN_CATALOGS": "all", "api_get": api_get, "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": LAKEBASE,
+               "DATA_CATALOGS": data, "api_get": api_get, "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": LAKEBASE,
                "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
         out = io.StringIO()
         started = time.monotonic()
@@ -927,7 +775,7 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
             setup.step_grant_permissions(ctx)
         return types.SimpleNamespace(events=events, peak=peak[0], said=out.getvalue(), reads=reads, got=got, secs=time.monotonic() - started)
 
-    def test_thousands_of_catalogs_get_one_grant_each_in_a_bounded_pool_with_progress_after_the_warehouse_and_essentials(self):
+    def test_thousands_of_catalogs_get_one_read_grant_each_in_a_bounded_pool_with_progress_after_the_warehouse_and_essentials(self):
         run = self.install(3600)
         sql = [text for kind, text in run.events if kind == "sql"]
         scan = [text for text in sql if text.startswith(SCAN_PREFIX)]
@@ -946,28 +794,22 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
         self.assertLessEqual(run.peak, setup.SCAN_GRANT_WORKERS)
         self.assertIn("Catalog grants: 360 of 3,600\n", run.said)
         self.assertIn("Catalog grants: 3,600 of 3,600 ran ✅", run.said)
-        self.assertIn("Catalogs: `cat_0000`, `cat_0001`", run.said)
-        self.assertIn("and 3590 more", run.said)
-        self.assertLess(len(run.said.splitlines()), 80, "the output stays short on thousands of catalogs")
-        self.assertFalse([p for p in run.reads if "effective-permissions" in p], "a metastore admin's rights are not read per catalog")
+        self.assertIn("on: cat_0000, cat_0001, cat_0002, cat_0003, cat_0004, cat_0005, cat_0006, cat_0007, cat_0008, cat_0009 and 3590 more", run.said)
+        self.assertFalse([p for p in run.reads if "effective-permissions" in p], "no rights are read per catalog: the grant itself decides")
         self.assertEqual(run.got, ["main"], "owners come from the catalog listing; only the Inspire catalog is read again, for new Apps")
         self.assertLess(run.secs, 30)
+        self.assertLess(len(run.said.splitlines()), 80, "the output stays short on thousands of catalogs")
 
-    def test_a_person_who_is_not_admin_has_rights_read_in_a_bounded_pool_and_many_skips_are_summed_up(self):
-        rights = {f"cat_{i:04d}": () for i in range(0, 300, 2)}
-        run = self.install(300, admin="metastore-admins", rights=rights, owners={"cat_0001": "someone@example.com"})
-        scan = [text for kind, text in run.events if kind == "sql" and text.startswith(SCAN_PREFIX)]
-        self.assertEqual(len(scan), 150)
-        self.assertEqual(len([p for p in run.reads if "effective-permissions" in p and "/catalog/cat_" in p]), 299,
-                         "an owned catalog needs no rights read")
-        self.assertEqual(run.said.count("Skipped catalog `"), setup.SCAN_SHOWN)
-        self.assertIn("Skipped 140 more catalogs you cannot grant on, so the Inspire App will not read them: `cat_0020`", run.said)
-        self.assertIn("Checking your rights on 300 catalogs...", run.said)
-        self.assertLess(len(run.said.splitlines()), 80)
+    def test_refused_catalogs_print_each_statement_on_its_own_line_and_the_install_still_completes(self):
+        run = self.install(5, refused=("cat_0001", "cat_0004"))
+        block = run.said[run.said.index("Permission Required"):]
+        for name in ("cat_0001", "cat_0004"):
+            self.assertIn(f"\n{SCAN_PREFIX}`{name}` TO `SP`\n", block + "\n")
+        self.assertIn("Catalog grants: 3 of 5 ran ⚠️", run.said)
+        self.assertIn("Grants:", run.said)
 
     def test_a_handful_of_catalogs_prints_no_progress_lines(self):
         run = self.install(3)
-        self.assertNotIn("Checking your rights", run.said)
         self.assertEqual(run.said.count("Catalog grants: "), 1)
         self.assertIn("Catalog grants: 3 of 3 ran ✅", run.said)
 
@@ -1555,11 +1397,11 @@ class RuntimeContextTest(unittest.TestCase):
         widgets = support.FakeWidgets()
         setup.dbutils = types.SimpleNamespace(widgets=widgets)
         with contextlib.redirect_stdout(printed := io.StringIO()):
-            setup.ensure_parameter_widgets([self.warehouse()], list(self.many(3588)))
+            setup.ensure_parameter_widgets([self.warehouse()], list(self.many(3588)), (), [])
         self.assertIn("01_inspire_catalog lists 1022 of the 3588 catalogs you can use, the most likely first, because a notebook list "
                       "holds at most 1023 entries. Type the exact name of any other one.", printed.getvalue())
         with contextlib.redirect_stdout(printed := io.StringIO()):
-            setup.ensure_parameter_widgets([self.warehouse()], list(self.many(1022)))
+            setup.ensure_parameter_widgets([self.warehouse()], list(self.many(1022)), (), [])
         self.assertNotIn("lists 1022 of", printed.getvalue())
 
     def test_a_catalog_listing_that_fails_part_way_stops_with_its_reason_and_never_claims_the_typed_catalog_is_missing(self):
@@ -1673,7 +1515,8 @@ class RuntimeContextTest(unittest.TestCase):
             def remove(self, name):
                 self.calls.append(("remove", name))
                 raise ValueError("cannot remove")
-        widgets = Stuck({"00_sql_warehouse": {"kind": "combobox", "value": "Gone [STOPPED] wh9", "choices": []}})
+        widgets = Stuck({"00_sql_warehouse": {"kind": "combobox", "value": "Gone [STOPPED] wh9", "choices": []},
+                         "02_data_catalogs_inspire_may_read": {"kind": "multiselect", "value": "All catalogs you can use (default)", "choices": []}})
         self.assertEqual(self.context(dict(self.ENV), widgets)[0], {"ready": False})
         self.assertEqual([c for c in widgets.calls if "00_sql_warehouse" in c],
                          [("remove", "00_sql_warehouse"), ("create", "combobox", "00_sql_warehouse", "Pick from the list or type")])
@@ -1692,12 +1535,6 @@ class RuntimeContextTest(unittest.TestCase):
                          ("/tmp/r/inspire-app.zip", "/Workspace/Shared/inspire-ai/apps/inspire-ai", "/tmp/r/inspire-assets.tar",
                           "/Workspace/Shared/inspire-ai/assets/v1.3.0", "inspire-ai", ["admins"]))
         self.assertNotIn("/Users/", ctx["BUNDLE_ROOT"])
-
-    def test_scan_catalogs_comes_from_the_installer_and_is_all_when_an_installer_sends_none(self):
-        base = {"manifest": {"version": "v1.3.0"}, "files": {"inspire-app.zip": "/z", "inspire-assets.tar": "/t"}, "settings": {}}
-        self.assertEqual(self.context(base)[0]["SCAN_CATALOGS"], "all")
-        self.assertEqual(self.context(dict(base, scan_catalogs=["sales"]))[0]["SCAN_CATALOGS"], ["sales"])
-        self.assertEqual(self.context(dict(base, scan_catalogs="all"))[0]["SCAN_CATALOGS"], "all")
 
     def test_new_apps_catalog_access_comes_from_the_installer_and_is_account_users_when_an_installer_sends_none(self):
         base = {"manifest": {"version": "v1.3.0"}, "files": {"inspire-app.zip": "/z", "inspire-assets.tar": "/t"}, "settings": {}}
