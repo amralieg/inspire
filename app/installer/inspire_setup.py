@@ -1010,35 +1010,53 @@ def _deploy_once(api, api_get, app_name, source_folder, app_url):
     raise RuntimeError(f"The App {app_name} was still deploying after 5 minutes. Check Compute → Apps → {app_name}, then run the installer again.")
 
 
-JOB_ENVIRONMENT_KEY = "Default"  # must match INSPIRE_ENVIRONMENT_KEY in app/backend/lib/inspireJobParams.js
-JOB_ENVIRONMENT_VERSION = "4"  # must match INSPIRE_ENVIRONMENT_VERSION in app/backend/lib/inspireJobParams.js
-DISCOVERY_JOB_NAME = "Inspire AI - discovery"
-DISCOVERY_JOB_ENV = "INSPIRE_JOB_ID_DISCOVER"
+RUN_AS_SPEC = "installer/run_as_job_specs.json"  # written by app/scripts/emit-run-as-job-specs.js from the App's own job builders
+RUN_AS_JOBS = (  # (App variable that holds the id, job name, spec section)
+    ("INSPIRE_JOB_ID_DISCOVER", "Inspire AI - discovery", "single_task"),
+    ("INSPIRE_JOB_ID_IMPLEMENT", "Inspire AI - implement", "single_task"),
+    ("INSPIRE_JOB_ID_GENIE", "Inspire AI - genie code", "single_task"),
+    ("INSPIRE_JOB_ID_DEMO", "Inspire AI - demo pipeline", "demo_pipeline"),
+)
+RUN_AS_TAG_NOTE = ("[RUN-AS] per-use-case job tags are not applied in run-as mode; usage is attributed to the shared job {name}")
 RUN_AS_NEEDS_SCHEMA = ("RUN_AS_PERSON needs INSPIRE_SCHEMA: run-as-me installs into one schema the person owns, so set "
                        "INSPIRE_SCHEMA to catalog.schema and run the installer again.")
-
-
 TEST_TAG_JOB_KEY = "dbx_inspire_ai_test"  # INSPIRE_TEST_TAG in app/backend/lib/inspireJobParams.js
 TEST_TAG_SAFE = re.compile(r"[A-Za-z0-9+=.:@_-]{1,256}")
 
 
-def discovery_job_settings(notebook_path, person, test_tag=""):
-    """The discovery job the App starts with run-now. `run_as` is the person: Databricks runs a job as its run_as identity
-    whoever triggers it (Jobs API reference, Create a job, field run_as; the leak scan blocks the docs host, so the URL is not in code). The App's service principal
-    then needs only CAN_MANAGE_RUN on the job, so it never creates a job and never runs one as itself."""
-    return {
-        "name": DISCOVERY_JOB_NAME,
-        "run_as": {"user_name": person},
-        "tasks": [{
-            "task_key": "inspire_notebook",
-            "notebook_task": {"notebook_path": notebook_path, "base_parameters": {}, "source": "WORKSPACE"},
-            "environment_key": JOB_ENVIRONMENT_KEY,
-            "disable_auto_optimization": True,
-        }],
-        "environments": [{"environment_key": JOB_ENVIRONMENT_KEY, "spec": {"environment_version": JOB_ENVIRONMENT_VERSION}}],
-        "max_concurrent_runs": 1,
-        **({"tags": {TEST_TAG_JOB_KEY: test_tag}} if test_tag else {}),
-    }
+def _fill(value, marks):
+    if isinstance(value, dict):
+        return {key: _fill(item, marks) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_fill(item, marks) for item in value]
+    if isinstance(value, str):
+        for mark, text in marks.items():
+            value = value.replace(mark, text)
+    return value
+
+
+def run_as_job_settings(spec, section, name, person, notebook, generate_notebook, test_tag=""):
+    """One install-time job from the shared spec: run_as is the person, notebook marks are filled, the test tag is set when given."""
+    template = spec[section]
+    settings = _fill({key: value for key, value in template.items() if key != "parameters"},
+                     {"{{notebook.inspire}}": notebook, "{{notebook.generate}}": generate_notebook})
+    if "parameters" in template:
+        settings["parameters"] = template["parameters"]
+    settings["name"] = name
+    # Jobs API reference, Create a job, field run_as: the job runs as this identity whoever triggers a run.
+    settings["run_as"] = {"user_name": person}
+    if test_tag:
+        settings["tags"] = {TEST_TAG_JOB_KEY: test_tag}
+    return settings
+
+
+def _load_run_as_spec(ctx):
+    path = os.path.join(ctx["SOURCE_FOLDER"], RUN_AS_SPEC)
+    if not os.path.isfile(path):
+        raise RuntimeError(f"The run-as job spec {RUN_AS_SPEC} is missing from the App bundle, so the jobs cannot be made. "
+                           "Download the release again.")
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
 
 
 def _run_job_access(api, sp, job_ids):
@@ -1053,34 +1071,40 @@ def _run_job_access(api, sp, job_ids):
 
 
 def step_run_as_jobs(ctx):
-    """Run-as-me: create (or reset in place) the discovery job as the person, and record its id for app.yaml."""
+    """Run-as-me: create or reset each App job as the person, and record its id for app.yaml and the App's SP grant."""
     if not ctx.get("RUN_AS_PERSON"):
         return
     if not ctx.get("SCHEMA_MODE"):
         raise RuntimeError(RUN_AS_NEEDS_SCHEMA)
     api, api_get, person = ctx["api"], ctx["api_get"], ctx["USER_EMAIL"]
+    spec = _load_run_as_spec(ctx)
     test_tag = str(ctx.get("TEST_TAG") or "")
     if test_tag and not TEST_TAG_SAFE.fullmatch(test_tag):
         raise RuntimeError(f"The test tag {test_tag[:60]!r} has characters a job tag cannot hold. Use letters, digits and + = . : @ _ -.")
-    settings = discovery_job_settings(ctx["NOTEBOOK_PATH"], person, test_tag)
-    listed = api_get(f"/api/2.1/jobs/list?name={urllib.parse.quote(DISCOVERY_JOB_NAME)}&limit=100")
-    existing = [job for job in listed.get("jobs") or [] if (job.get("settings") or {}).get("name") == DISCOVERY_JOB_NAME
-                and ((job.get("settings") or {}).get("run_as") or {}).get("user_name") == person]
-    if existing:
-        job_id = str(existing[0]["job_id"])
-        resp = api("POST", "/api/2.1/jobs/reset", {"job_id": int(job_id), "new_settings": settings})
-        verb = "updated"
-    else:
-        resp = api("POST", "/api/2.1/jobs/create", settings)
-        verb = "created"
-    if resp.status_code != 200:
-        raise RuntimeError(f"The discovery job could not be {verb} as {person} ({resp.status_code} {resp.text[:160]}). "
-                           "Nothing of the App was replaced; fix the job rights, then run this installer again.")
-    if verb == "created":
-        job_id = str(resp.json()["job_id"])
-    ctx["JOB_IDS"] = {DISCOVERY_JOB_ENV: job_id}
-    ctx["APP_EXTRA_ENV"] = {"INSPIRE_RUN_AS_PERSON": "1", DISCOVERY_JOB_ENV: job_id}
-    print(f"Discovery job {verb} as {person}: {job_id} (App env {DISCOVERY_JOB_ENV}) ✅")
+    generate = ctx["GENERATE_DEMO_DEST"]
+    ids = {}
+    for env_name, name, section in RUN_AS_JOBS:
+        settings = run_as_job_settings(spec, section, name, person, ctx["NOTEBOOK_PATH"], generate, test_tag)
+        listed = api_get(f"/api/2.1/jobs/list?name={urllib.parse.quote(name)}&limit=100")
+        existing = [job for job in listed.get("jobs") or [] if (job.get("settings") or {}).get("name") == name
+                    and ((job.get("settings") or {}).get("run_as") or {}).get("user_name") == person]
+        if existing:
+            job_id = str(existing[0]["job_id"])
+            resp = api("POST", "/api/2.1/jobs/reset", {"job_id": int(job_id), "new_settings": settings})
+            verb = "updated"
+        else:
+            resp = api("POST", "/api/2.1/jobs/create", settings)
+            verb = "created"
+            if resp.status_code == 200:
+                job_id = str(resp.json()["job_id"])
+        if resp.status_code != 200:
+            raise RuntimeError(f"The job {name} could not be {verb} as {person} ({resp.status_code} {resp.text[:160]}). "
+                               "Nothing of the App was replaced; fix the job rights, then run this installer again.")
+        ids[env_name] = job_id
+        print(f"Job {name} {verb} as {person}: {job_id} (App env {env_name}) ✅")
+    ctx["JOB_IDS"] = ids
+    ctx["APP_EXTRA_ENV"] = {"INSPIRE_RUN_AS_PERSON": "1", **ids}
+    print(RUN_AS_TAG_NOTE.format(name=RUN_AS_JOBS[1][1]))
 
 
 def step_create_app_and_find_sp(ctx):

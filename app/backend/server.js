@@ -32,7 +32,7 @@ const {
   sanitizeInspireNotebookJobParams,
   normalizeV130UseCaseFields,
   runAsPerson,
-  discoveryLaunchPlan,
+  launchPlanFor,
 } = require('./lib/inspireJobParams');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
@@ -947,7 +947,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   const launchDatabase = String(params['02_inspire_database'] || '').trim();
   const openedSession = Boolean(launchedBy) && inspireRunType === 'discovery' && await sessionIsNew(host, launchDatabase, launchSession);
 
-  const launchPlan = discoveryLaunchPlan({ runAs: runAsPerson(), jobType, installedJobId: process.env.INSPIRE_JOB_ID_DISCOVER });
+  const launchPlan = launchPlanFor({ runAs: runAsPerson(), jobType });
   const createPayload = {
     name: jobName,
     tags: inspireJobTags({ runType: inspireRunType, params, businessName, notebookFilename, useCaseIds }),

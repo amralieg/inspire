@@ -1954,91 +1954,109 @@ class SchemaModeTest(unittest.TestCase):
 
 
 class RunAsTest(unittest.TestCase):
-    """RUN_AS_PERSON: the discovery job is created as the person, the App's principal may run it, and default mode creates nothing."""
+    """RUN_AS_PERSON: the four App jobs are made as the person from the shared spec, the App's principal may run them, default mode makes none."""
+    PERSON = "someone@example.com"
 
     def ctx(self, api, api_get, **extra):
         base = dict(RUN_AS_PERSON=True, SCHEMA_MODE=True, NOTEBOOK_PATH="/Users/someone@example.com/inspire-ai/inspire-ai/dbx_inspire_ai_agent",
-                    USER_EMAIL="someone@example.com", api=api, api_get=api_get)
+                    GENERATE_DEMO_DEST="/Users/someone@example.com/inspire-ai/inspire-ai/dbx_generate_demo_data",
+                    USER_EMAIL=self.PERSON, SOURCE_FOLDER=str(support.INSTALLER_DIR.parent), api=api, api_get=api_get)
         base.update(extra)
         return base
 
-    def test_run_as_creates_the_discovery_job_with_the_person_as_run_as_and_records_its_id(self):
-        calls = []
+    def creating_api(self, calls, first_id=71):
+        ids = iter(range(first_id, first_id + 10))
 
         def api(method, path, body=None):
             calls.append((method, path, body))
-            return Resp(200, {"job_id": 77})
-        ctx = self.ctx(api, lambda path: {"jobs": []})
-        with contextlib.redirect_stdout(io.StringIO()):
+            return Resp(200, {"job_id": next(ids)})
+        return api
+
+    def run_step(self, ctx):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
             setup.step_run_as_jobs(ctx)
+        return out.getvalue()
+
+    def test_run_as_creates_all_four_jobs_as_the_person_and_records_their_ids(self):
+        calls = []
+        ctx = self.ctx(self.creating_api(calls), lambda path: {"jobs": []})
+        out = self.run_step(ctx)
         creates = [c for c in calls if c[1] == "/api/2.1/jobs/create"]
-        self.assertEqual(len(creates), 1)
-        body = creates[0][2]
-        self.assertEqual(body["run_as"], {"user_name": "someone@example.com"})
-        self.assertEqual(body["tasks"][0]["notebook_task"]["notebook_path"], ctx["NOTEBOOK_PATH"])
-        self.assertEqual(ctx["JOB_IDS"], {"INSPIRE_JOB_ID_DISCOVER": "77"})
-        self.assertEqual(ctx["APP_EXTRA_ENV"], {"INSPIRE_RUN_AS_PERSON": "1", "INSPIRE_JOB_ID_DISCOVER": "77"})
+        self.assertEqual([c[2]["name"] for c in creates], [name for _, name, _ in setup.RUN_AS_JOBS])
+        self.assertTrue(all(c[2]["run_as"] == {"user_name": self.PERSON} for c in creates))
+        self.assertEqual(ctx["JOB_IDS"], {"INSPIRE_JOB_ID_DISCOVER": "71", "INSPIRE_JOB_ID_IMPLEMENT": "72",
+                                          "INSPIRE_JOB_ID_GENIE": "73", "INSPIRE_JOB_ID_DEMO": "74"})
+        self.assertEqual(ctx["APP_EXTRA_ENV"], dict({"INSPIRE_RUN_AS_PERSON": "1"}, **ctx["JOB_IDS"]))
+        self.assertIn("[RUN-AS] per-use-case job tags are not applied in run-as mode; usage is attributed to the shared job "
+                      "Inspire AI - implement", out)
 
-    def test_run_as_resets_the_job_already_made_for_the_same_person_instead_of_creating_another(self):
+    def test_each_job_is_filled_from_the_shared_spec_with_no_placeholder_left(self):
         calls = []
+        ctx = self.ctx(self.creating_api(calls), lambda path: {"jobs": []}, TEST_TAG="inspire-rc4")
+        self.run_step(ctx)
+        creates = {c[2]["name"]: c[2] for c in calls if c[1] == "/api/2.1/jobs/create"}
+        for name in ("Inspire AI - discovery", "Inspire AI - implement", "Inspire AI - genie code"):
+            body = creates[name]
+            self.assertEqual(body["tasks"][0]["notebook_task"]["notebook_path"], ctx["NOTEBOOK_PATH"])
+            self.assertEqual(body["environments"], [{"environment_key": "Default", "spec": {"environment_version": "4"}}])
+            self.assertEqual(body["tags"], {"dbx_inspire_ai_test": "inspire-rc4"})
+            self.assertEqual(body["max_concurrent_runs"], 20)
+        demo = creates["Inspire AI - demo pipeline"]
+        self.assertEqual(demo["tasks"][0]["notebook_task"]["notebook_path"], ctx["GENERATE_DEMO_DEST"])
+        self.assertEqual(demo["tasks"][1]["notebook_task"]["notebook_path"], ctx["NOTEBOOK_PATH"])
+        self.assertEqual(demo["tasks"][1]["notebook_task"]["base_parameters"]["03_discovery_type"], "{{job.parameters.discovery_type}}")
+        self.assertIn({"name": "session_id", "default": ""}, demo["parameters"])
+        self.assertNotIn("{{notebook", json.dumps(calls))
 
-        def api(method, path, body=None):
-            calls.append((method, path, body))
-            return Resp(200, {})
-        listed = {"jobs": [{"job_id": 5, "settings": {"name": setup.DISCOVERY_JOB_NAME, "run_as": {"user_name": "someone@example.com"}}},
-                           {"job_id": 6, "settings": {"name": setup.DISCOVERY_JOB_NAME, "run_as": {"user_name": "other@example.com"}}}]}
-        ctx = self.ctx(api, lambda path: listed)
-        with contextlib.redirect_stdout(io.StringIO()):
-            setup.step_run_as_jobs(ctx)
-        self.assertEqual([c[1] for c in calls], ["/api/2.1/jobs/reset"])
-        self.assertEqual(calls[0][2]["job_id"], 5)
-        self.assertEqual(ctx["JOB_IDS"], {"INSPIRE_JOB_ID_DISCOVER": "5"})
+    def test_an_existing_job_of_the_same_person_is_reset_and_no_duplicate_is_made(self):
+        calls = []
+        listed = {"jobs": [{"job_id": 5, "settings": {"name": "Inspire AI - discovery", "run_as": {"user_name": self.PERSON}}},
+                           {"job_id": 6, "settings": {"name": "Inspire AI - discovery", "run_as": {"user_name": "other@example.com"}}}]}
+        ctx = self.ctx(self.creating_api(calls), lambda path: listed if "discovery" in path else {"jobs": []})
+        self.run_step(ctx)
+        resets = [c for c in calls if c[1] == "/api/2.1/jobs/reset"]
+        self.assertEqual([c[2]["job_id"] for c in resets], [5])
+        self.assertEqual(ctx["JOB_IDS"]["INSPIRE_JOB_ID_DISCOVER"], "5")
+        self.assertEqual(len([c for c in calls if c[1] == "/api/2.1/jobs/create"]), 3)
 
     def test_run_as_refuses_without_schema_mode_and_default_mode_makes_no_job(self):
         calls = []
         api = lambda method, path, body=None: calls.append((method, path)) or Resp(200, {})
         with self.assertRaises(RuntimeError):
-            setup.step_run_as_jobs(self.ctx(api, lambda p: {}, SCHEMA_MODE=False))
-        setup.step_run_as_jobs(self.ctx(api, lambda p: {}, RUN_AS_PERSON=False))
+            self.run_step(self.ctx(api, lambda p: {}, SCHEMA_MODE=False))
+        self.run_step(self.ctx(api, lambda p: {}, RUN_AS_PERSON=False))
         self.assertEqual(calls, [])
 
-    def test_the_app_principal_gets_can_manage_run_on_each_installed_job(self):
+    def test_an_unsafe_test_tag_is_refused_before_any_job_is_written(self):
+        calls = []
+        api = lambda method, path, body=None: calls.append(path) or Resp(200, {})
+        with self.assertRaises(RuntimeError):
+            self.run_step(self.ctx(api, lambda p: {"jobs": []}, TEST_TAG="bad tag!"))
+        self.assertEqual(calls, [])
+
+    def test_the_app_principal_gets_can_manage_run_on_every_installed_job(self):
         calls = []
         api = lambda method, path, body=None: calls.append((method, path, body)) or Resp(200, {})
-        setup._run_job_access(api, "SP-ID", {"INSPIRE_JOB_ID_DISCOVER": "77"})
-        self.assertEqual(calls, [("PATCH", "/api/2.0/permissions/jobs/77",
-                                  {"access_control_list": [{"service_principal_name": "SP-ID", "permission_level": "CAN_MANAGE_RUN"}]})])
+        setup._run_job_access(api, "SP-ID", {"INSPIRE_JOB_ID_DISCOVER": "71", "INSPIRE_JOB_ID_DEMO": "74"})
+        self.assertEqual([c[1] for c in calls], ["/api/2.0/permissions/jobs/71", "/api/2.0/permissions/jobs/74"])
+        self.assertTrue(all(c[2] == {"access_control_list": [{"service_principal_name": "SP-ID", "permission_level": "CAN_MANAGE_RUN"}]}
+                            for c in calls))
 
     def test_a_refused_job_permission_stops_the_install_before_the_deploy(self):
         api = lambda method, path, body=None: Resp(403, {}, "denied")
         with self.assertRaises(RuntimeError) as raised:
-            setup._run_job_access(api, "SP-ID", {"INSPIRE_JOB_ID_DISCOVER": "77"})
-        self.assertIn("could not be given CAN_MANAGE_RUN on the job 77", str(raised.exception))
+            setup._run_job_access(api, "SP-ID", {"INSPIRE_JOB_ID_DISCOVER": "71"})
+        self.assertIn("could not be given CAN_MANAGE_RUN on the job 71", str(raised.exception))
 
-    def test_app_yaml_carries_the_job_id_only_in_run_as_mode(self):
+    def test_app_yaml_carries_the_run_as_flag_and_the_job_ids_only_in_run_as_mode(self):
         import tempfile as _t
         with _t.TemporaryDirectory() as folder:
             path = os.path.join(folder, "app.yaml")
-            with_jobs = setup.write_app_yaml_deploy(path, "my.inspire", "wh", "/n", "sp", None, None, {"INSPIRE_JOB_ID_DISCOVER": "77"})
+            with_jobs = setup.write_app_yaml_deploy(path, "my.inspire", "wh", "/n", "sp", None, None,
+                                                    {"INSPIRE_RUN_AS_PERSON": "1", "INSPIRE_JOB_ID_DISCOVER": "71"})
             without = setup.write_app_yaml_deploy(path, "my.inspire", "wh", "/n", "sp", None, None, None)
-        self.assertIn('  - name: "INSPIRE_JOB_ID_DISCOVER"\n    value: "77"', with_jobs)
-        self.assertNotIn("INSPIRE_JOB_ID_DISCOVER", without)
-
-
-class RunAsJobSettingsTest(unittest.TestCase):
-    """The installer sets what the App used to set on each run's job: the serverless environment, the notebook and the test tag."""
-
-    def test_the_discovery_job_carries_the_environment_notebook_and_test_tag(self):
-        settings = setup.discovery_job_settings("/Users/someone@example.com/n", "someone@example.com", "inspire-rc4")
-        self.assertEqual(settings["environments"], [{"environment_key": "Default", "spec": {"environment_version": "4"}}])
-        self.assertEqual(settings["tasks"][0]["notebook_task"]["notebook_path"], "/Users/someone@example.com/n")
-        self.assertEqual(settings["tags"], {"dbx_inspire_ai_test": "inspire-rc4"})
-        self.assertNotIn("tags", setup.discovery_job_settings("/n", "p", ""))
-
-    def test_an_unsafe_test_tag_is_refused_before_a_job_is_written(self):
-        calls = []
-        ctx = {"RUN_AS_PERSON": True, "SCHEMA_MODE": True, "NOTEBOOK_PATH": "/n", "USER_EMAIL": "p", "TEST_TAG": "bad tag!",
-               "api": lambda m, p, b=None: calls.append(p) or Resp(200, {}), "api_get": lambda p: {"jobs": []}}
-        with self.assertRaises(RuntimeError):
-            setup.step_run_as_jobs(ctx)
-        self.assertEqual(calls, [])
+        self.assertIn('  - name: "INSPIRE_JOB_ID_DISCOVER"\n    value: "71"', with_jobs)
+        self.assertIn('  - name: "INSPIRE_RUN_AS_PERSON"\n    value: "1"', with_jobs)
+        self.assertNotIn("INSPIRE_JOB_ID", without)
+        self.assertNotIn("INSPIRE_RUN_AS_PERSON", without)

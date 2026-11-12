@@ -9,6 +9,7 @@ const {
   inspireJobTags,
   inspireTaskCompute,
   runAsPerson,
+  launchPlanFor,
 } = require('./inspireJobParams');
 
 const { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, demoSchemaError, demoTablesPlanned } = require('../../frontend/src/lib/demoData.js');
@@ -181,6 +182,66 @@ async function resolvePipelineClusterId(dbFetch, host, token, clusterId) {
 /**
  * Two-task job: generate demo UC tables → run Inspire agent directly (no nested notebook.run).
  */
+/** Run-as-me: the install-time demo job reads these job parameters (names shared with the spec emitter). */
+function demoRunParameters(v) {
+  return {
+    description: v.description,
+    business_name: v.business,
+    inspire_catalog: v.catalog,
+    inspire_database: v.inspireDb,
+    session_id: v.sid,
+    demo_schema: v.demoSchema,
+    warehouse_id: v.warehouse,
+    app_sp_application_id: v.appSp,
+    plant_kind_signals: v.plantKindSignals,
+    discovery_type: v.discovery,
+    generation_path: v.generationPath,
+  };
+}
+
+/** The two notebook tasks of the demo pipeline. Used by the per-run job (default mode, literal values) and by the
+ * install-time job (run-as-me, values are {{job.parameters.*}} references), so the two cannot drift apart. */
+function demoPipelineSpec(values, { generateNotebookPath, inspireNotebookPath, clusterSpec }) {
+  const inspireParams = buildDemoInspireDiscoveryParams({
+    inspireDatabase: values.inspireDb,
+    sessionId: values.sid,
+    discoveryType: values.discovery,
+    generationPath: values.generationPath,
+  });
+  const tasks = [
+    {
+      task_key: 'generate_demo_data',
+      notebook_task: {
+        notebook_path: generateNotebookPath,
+        source: 'WORKSPACE',
+        base_parameters: {
+          user_description: values.description,
+          inspire_catalog: values.catalog,
+          inspire_database: values.inspireDb,
+          session_id: values.sid,
+          business_name: values.business,
+          demo_schema: values.demoSchema,
+          warehouse_id: values.warehouse,
+          app_sp_application_id: values.appSp,
+          plant_kind_signals: values.plantKindSignals,
+        },
+      },
+      ...clusterSpec,
+    },
+    {
+      task_key: 'inspire_discovery',
+      depends_on: [{ task_key: 'generate_demo_data' }],
+      notebook_task: {
+        notebook_path: inspireNotebookPath,
+        source: 'WORKSPACE',
+        base_parameters: inspireParams,
+      },
+      ...clusterSpec,
+    },
+  ];
+  return { tasks, inspireParams };
+}
+
 async function triggerDemoDataPipeline(
   dbFetch,
   databricksJobRunUrl,
@@ -214,10 +275,6 @@ async function triggerDemoDataPipeline(
   if (!inspireDb || !inspireDb.includes('.')) {
     throw new Error('inspire_database must be catalog._inspire');
   }
-  if (runAsPerson()) {
-    // The demo pipeline is made as a job per run (jobs/create), which run-as-me cannot do as you yet. Refused before any call.
-    throw Object.assign(new Error('Run-as-me: the demo pipeline job is not installed yet, so it cannot start in this mode.'), { statusCode: 409 });
-  }
 
   const discovery = String(discoveryType || '').trim() ? discoveryTypeOf(discoveryType) : DISCOVERY_RECOMMENDED;
   if (!discovery) throw Object.assign(new Error(`discovery_type must be one of Standard Discovery or AI Enhanced Discovery, not ${discoveryType}`), { statusCode: 400 });
@@ -242,12 +299,22 @@ async function triggerDemoDataPipeline(
   const resolvedClusterId = await resolvePipelineClusterId(dbFetch, host, token, cluster_id);
   const clusterSpec = inspireTaskCompute(resolvedClusterId);
 
-  const inspireParams = buildDemoInspireDiscoveryParams({
-    inspireDatabase: inspireDb,
-    sessionId: sid,
-    discoveryType: discovery,
-    generationPath,
-  });
+  const { tasks, inspireParams } = demoPipelineSpec(
+    {
+      description: desc,
+      business,
+      catalog,
+      inspireDb,
+      sid,
+      demoSchema,
+      warehouse: String(warehouse_id || '').trim(),
+      appSp: String(app_sp_application_id || '').trim(),
+      plantKindSignals: plantKindSignals ? 'yes' : 'no',
+      discovery,
+      generationPath,
+    },
+    { generateNotebookPath, inspireNotebookPath, clusterSpec },
+  );
 
   const createPayload = {
     name: `Inspire AI Demo Pipeline - ${business} - ${new Date().toISOString().slice(0, 19)}`,
@@ -257,60 +324,44 @@ async function triggerDemoDataPipeline(
       businessName: business,
       notebookFilename: String(inspireNotebookPath || '').split('/').pop(),
     }),
-    tasks: [
-      {
-        task_key: 'generate_demo_data',
-        notebook_task: {
-          notebook_path: generateNotebookPath,
-          source: 'WORKSPACE',
-          base_parameters: {
-            user_description: desc,
-            inspire_catalog: catalog,
-            inspire_database: inspireDb,
-            session_id: sid,
-            business_name: business,
-            demo_schema: demoSchema,
-            warehouse_id: String(warehouse_id || '').trim(),
-            app_sp_application_id: String(app_sp_application_id || '').trim(),
-            plant_kind_signals: plantKindSignals ? 'yes' : 'no',
-          },
-        },
-        ...clusterSpec,
-      },
-      {
-        task_key: 'inspire_discovery',
-        depends_on: [{ task_key: 'generate_demo_data' }],
-        notebook_task: {
-          notebook_path: inspireNotebookPath,
-          source: 'WORKSPACE',
-          base_parameters: inspireParams,
-        },
-        ...clusterSpec,
-      },
-    ],
+    tasks,
     ...inspireJobEnvironments(resolvedClusterId),
     max_concurrent_runs: 1,
   };
 
+  const plan = launchPlanFor({ runAs: runAsPerson(), jobType: 'demo_pipeline' });
   console.log(
-    `📋 Demo pipeline: ${generateNotebookPath} → ${inspireNotebookPath} (cluster=${resolvedClusterId || 'serverless'}, session=${sid})`,
+    `📋 Demo pipeline: ${generateNotebookPath} → ${inspireNotebookPath} (cluster=${resolvedClusterId || 'serverless'}, session=${sid}, ${plan.mode === 'create' ? 'new job' : `installed job ${plan.jobId}`})`,
   );
 
-  const createResp = await dbFetch(host, token, '/api/2.1/jobs/create', {
-    method: 'POST',
-    body: JSON.stringify(createPayload),
-  });
-  if (!createResp.ok) {
-    const errText = await createResp.text();
-    throw new Error(`Demo pipeline job create failed: ${errText}`);
+  let jobId;
+  let viewer;
+  if (plan.mode === 'create') {
+    const createResp = await dbFetch(host, token, '/api/2.1/jobs/create', {
+      method: 'POST',
+      body: JSON.stringify(createPayload),
+    });
+    if (!createResp.ok) {
+      const errText = await createResp.text();
+      throw new Error(`Demo pipeline job create failed: ${errText}`);
+    }
+    ({ job_id: jobId } = await createResp.json());
+    viewer = await grantJobViewer(dbFetch, host, token, jobId, launchedBy);
+    if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
+  } else {
+    jobId = plan.jobId;
+    viewer = { granted: false, note: 'run-as-me: the job runs as you, so it needs no viewer grant' };
   }
-  const { job_id: jobId } = await createResp.json();
-  const viewer = await grantJobViewer(dbFetch, host, token, jobId, launchedBy);
-  if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
 
   const runResp = await dbFetch(host, token, '/api/2.1/jobs/run-now', {
     method: 'POST',
-    body: JSON.stringify({ job_id: jobId }),
+    body: JSON.stringify(
+      plan.mode === 'create'
+        ? { job_id: jobId }
+        : { job_id: jobId, job_parameters: demoRunParameters({ description: desc, business, catalog, inspireDb, sid, demoSchema,
+          warehouse: String(warehouse_id || '').trim(), appSp: String(app_sp_application_id || '').trim(),
+          plantKindSignals: plantKindSignals ? 'yes' : 'no', discovery, generationPath: inspireParams['11_generation_path'] }) },
+    ),
   });
   if (!runResp.ok) {
     const errText = await runResp.text();
@@ -342,6 +393,8 @@ async function triggerDemoDataPipeline(
 
 module.exports = {
   GENERATE_NOTEBOOK_NAME,
+  demoPipelineSpec,
+  demoRunParameters,
   resolveInspireNotebookPath,
   generateNotebookDest,
   DEMO_GENERATED_TABLES,

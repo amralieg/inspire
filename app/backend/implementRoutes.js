@@ -12,7 +12,7 @@ const FB = require('./lib/appFeedback');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
 const { ownServicePrincipalId } = require('./lib/inspireSpGrants');
-const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning, parseTableScopeText, runAsPerson } = require('./lib/inspireJobParams');
+const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning, parseTableScopeText, runAsPerson, launchPlanFor } = require('./lib/inspireJobParams');
 const R = require('./lib/reviewFigures');
 const A = require('./lib/useCaseAlerts');
 const P = require('./lib/requestPerson');
@@ -119,12 +119,6 @@ async function jsonOf(dbFetch, host, token, path, opts = {}) {
     try { data = parseExactJson(text); } catch { data = { raw: text }; }
   }
   return { ok: resp.ok, status: resp.status, data };
-}
-
-/** Run-as-me: the installer owns the job's settings (the job runs as you), so the App does not change them on a rerun. */
-async function alignJobSettingsUnlessRunAs(align, host, token, jobId, env = process.env) {
-  if (runAsPerson(env)) return '';
-  return align(host, token, jobId);
 }
 
 function registerImplementRoutes(app, deps) {
@@ -2218,12 +2212,18 @@ function registerImplementRoutes(app, deps) {
       const useCase = await loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
       await refusePersonUnreadable(req, latest.spec_json, useCase);
       await refuseMissingSources(req, warehouseId, latest.spec_json, useCase);
-      const jobId = requireInt64Id(latest.job_id, 'job_id');
-      const warning = await alignJobSettingsUnlessRunAs(alignJobSettings, req.dbHost, req.dbToken, jobId);
-      const viewer = await grantJobViewer(dbFetch, req.dbHost, req.dbToken, jobId, (await personOf(req)).username);
+      const plan = launchPlanFor({ runAs: runAsPerson(), jobType: 'implement' });
+      // Run-as-me: the shared implement job (installed as you) takes the use case as parameters; the per-use-case job is not used.
+      const jobId = plan.mode === 'create' ? requireInt64Id(latest.job_id, 'job_id') : plan.jobId;
+      const warning = plan.mode === 'create' ? await alignJobSettings(req.dbHost, req.dbToken, jobId) : '';
+      const viewer = plan.mode === 'create'
+        ? await grantJobViewer(dbFetch, req.dbHost, req.dbToken, jobId, (await personOf(req)).username)
+        : { granted: false, note: 'run-as-me: the shared job runs as you, so it needs no viewer grant' };
       const resp = await dbFetch(req.dbHost, req.dbToken, '/api/2.1/jobs/run-now', {
         method: 'POST',
-        body: jsonWithInt64Ids({ job_id: jobId, notebook_params: notebookParams, only: [I.IMPLEMENT_NOTEBOOK_TASK_KEY] }, ['job_id']),
+        body: plan.mode === 'create'
+          ? jsonWithInt64Ids({ job_id: jobId, notebook_params: notebookParams, only: [I.IMPLEMENT_NOTEBOOK_TASK_KEY] }, ['job_id'])
+          : jsonWithInt64Ids({ job_id: jobId, notebook_params: notebookParams }, ['job_id']),
       });
       const text = await resp.text();
       let data = {};
@@ -2251,4 +2251,4 @@ function registerImplementRoutes(app, deps) {
   return { loadHistory };
 }
 
-module.exports = { jsonOf, registerImplementRoutes, alignJobSettingsUnlessRunAs };
+module.exports = { jsonOf, registerImplementRoutes };

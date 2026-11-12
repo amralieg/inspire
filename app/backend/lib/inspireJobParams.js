@@ -354,19 +354,30 @@ function runAsPerson(env = process.env) {
   return String(env.INSPIRE_RUN_AS_PERSON || '').trim() === '1';
 }
 
+/** Run-as-me: the installed job for each job type, and the App variable that holds its id (the installer writes them). */
+const RUN_AS_JOB_ENV = {
+  discovery: 'INSPIRE_JOB_ID_DISCOVER',
+  implement: 'INSPIRE_JOB_ID_IMPLEMENT',
+  genie_regen: 'INSPIRE_JOB_ID_GENIE',
+  demo_pipeline: 'INSPIRE_JOB_ID_DEMO',
+};
 /**
- * How one launch starts. Run-as-me never creates a job (jobs/create would run as the App's identity; the
- * installer creates the job as the person) and starts the installed job with run-now and the run's parameters.
- * Only the discovery job is installed; the other job types are refused in run-as-me mode, never created.
+ * Concurrent runs one shared run-as-me job allows. The App had no cap before: each run had its own job with max_concurrent_runs 1.
+ * A shared job needs this many, so the cap is set here and the installer reads it from the spec (run_as_job_specs.json).
  */
-function discoveryLaunchPlan({ runAs, jobType, installedJobId }) {
+const RUN_AS_CONCURRENT_RUNS = 20;
+
+/**
+ * How one launch starts. Run-as-me never creates a job (a job made by the App would run as the App's identity); it starts the
+ * job the installer made as the person, with run-now and the run's parameters.
+ */
+function launchPlanFor({ runAs, jobType, env = process.env }) {
   if (!runAs) return { mode: 'create' };
-  if (jobType !== 'discovery') {
-    throw Object.assign(new Error(`Run-as-me: the ${jobType} job is created per run and cannot be made as you, so it is not available in this mode yet.`), { statusCode: 409 });
-  }
-  const jobId = String(installedJobId || '').trim();
+  const variable = RUN_AS_JOB_ENV[jobType];
+  if (!variable) throw Object.assign(new Error(`Run-as-me: there is no installed job for ${jobType}.`), { statusCode: 500 });
+  const jobId = String(env[variable] || '').trim();
   if (!jobId) {
-    throw Object.assign(new Error('Run-as-me: INSPIRE_JOB_ID_DISCOVER is not set, so run the Inspire installer again to make the discovery job.'), { statusCode: 500 });
+    throw Object.assign(new Error(`Run-as-me: ${variable} is not set, so run the Inspire installer again to make the ${jobType} job.`), { statusCode: 500 });
   }
   return { mode: 'run-now', jobId };
 }
@@ -489,7 +500,9 @@ function normalizeV130UseCaseFields(row) {
 module.exports = {
   INSPIRE_AGENT_VERSION,
   runAsPerson,
-  discoveryLaunchPlan,
+  launchPlanFor,
+  RUN_AS_JOB_ENV,
+  RUN_AS_CONCURRENT_RUNS,
   parseTableScopeText,
   INSPIRE_ENVIRONMENT_VERSION,
   INSPIRE_NOTEBOOK_WIDGET_KEYS,
