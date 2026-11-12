@@ -101,7 +101,7 @@ test('a use case that is not live shows no next-step card', async () => {
 
 // The Build page's Build next step: Build Now submits the live App's settings for the sibling, Build custom opens the wizard.
 const WIZARD = /Start Use Case MVP with Genie/;
-const SIBLING_LIST_NAME = 'Score upsell';
+const SIBLING_LIST_NAME = 'Forecast weekly orders';
 const GRANT = 'GRANT SELECT ON TABLE `main`.`s`.`customers` TO `app-sp-id`';
 const CUSTOMERS_REFUSAL = {
   text: 'The App cannot read main.s.customers, so the build cannot start.', tables: ['main.s.customers'], can_grant: true, grants: [GRANT],
@@ -359,6 +359,8 @@ test('a run card with no measured KPI baseline says Value at stake: Not calculat
   const { page } = ui;
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
+    await go(page, '#/review/42');
     const panel = page.locator('[data-build-next]');
     await panel.waitFor({ timeout: 20000 });
     const row = panel.locator('[data-build-next-row="N02-U02"]');
@@ -381,6 +383,8 @@ test('the Measure step opens once from the Build next action; picking another us
   const { page } = ui;
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
+    await go(page, '#/review/42');
     const panel = page.locator('[data-build-next]');
     await panel.waitFor({ timeout: 20000 });
     await panel.locator('[data-build-next-row="N02-U02"] [data-measure-value="N02-U02"]').click();
