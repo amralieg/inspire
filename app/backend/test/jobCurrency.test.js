@@ -9,12 +9,12 @@ const live = (rates) => async () => ({ ok: true, status: 200, json: async () => 
 
 test('Implement sends the Measure rule currency and the exact rates the person saw or edited', () => {
   const money = { currency: 'convert', base: 'AED', rates: { EUR: 4.28, USD: 3.6725 } };
-  assert.deepEqual(implementCurrencyParams(money), { currency: 'AED', currency_rates: '{"EUR":4.28,"USD":3.6725}' });
+  assert.deepEqual(implementCurrencyParams(money), { currency: 'AED', currency_rates: '{"source":"typed","rates":{"EUR":4.28,"USD":3.6725}}' });
 });
 
 test('Implement drops a rate that is not a positive number for an ISO code, and sends nothing for a per-currency rule', () => {
   assert.deepEqual(implementCurrencyParams({ currency: 'convert', base: 'AED', rates: { EUR: 4.28, USD: 0, 'not-a-code': 2 } }),
-    { currency: 'AED', currency_rates: '{"EUR":4.28}' });
+    { currency: 'AED', currency_rates: '{"source":"typed","rates":{"EUR":4.28}}' });
   assert.deepEqual(implementCurrencyParams({ currency: 'per_currency' }), {});
   assert.deepEqual(implementCurrencyParams(null), {});
 });
@@ -22,14 +22,16 @@ test('Implement drops a rate that is not a positive number for an ISO code, and 
 test('Discover with no currency asked sends USD and today’s rates for every saved currency', async () => {
   const out = await discoverCurrencyParams({}, { sourceUrl: 'https://rates.example.test/v1/latest', fetchImpl: live({ EUR: 0.8, AED: 3.6725 }) });
   assert.equal(out.currency, 'USD');
-  const rates = JSON.parse(out.currency_rates);
+  const rates = JSON.parse(out.currency_rates).rates;
+  assert.equal(out.currency_rates.includes('"source":"live"'), true, 'a live answer is labelled live');
   assert.equal(rates.EUR, Number((1 / 0.8).toPrecision(10)), 'today’s rate, in USD per 1 EUR');
 });
 
 test('Discover offline sends the saved averages, so the run still converts', async () => {
   const out = await discoverCurrencyParams({ currency: 'aed' }, { sourceUrl: 'https://rates.example.test/v1/latest', fetchImpl: offline });
   assert.equal(out.currency, 'AED');
-  const rates = JSON.parse(out.currency_rates);
+  const rates = JSON.parse(out.currency_rates).rates;
+  assert.equal(JSON.parse(out.currency_rates).source, 'saved', 'an offline answer is labelled saved');
   assert.equal(rates.USD, Number((3.6725).toPrecision(10)), 'the AED peg: 1 USD is 3.6725 AED');
   assert.equal(Object.keys(rates).length, Object.keys(FX.AVERAGE_PER_USD).length - 1, 'every saved currency but the base gets a rate, none dropped');
   assert.ok(FX.AVERAGE_PER_USD.EUR > 0);
@@ -39,9 +41,9 @@ test('both launch keys survive the notebook parameter sanitizer, so the notebook
   assert.ok(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('currency'));
   assert.ok(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('currency_rates'));
   const out = sanitizeInspireNotebookJobParams({ '15_operation': 'Discover Use Cases', '00_business_name': 'x', '01_uc_metadata': 'a.b',
-    currency: 'AED', currency_rates: '{"EUR":4.28}' });
+    currency: 'AED', currency_rates: '{"source":"typed","rates":{"EUR":4.28}}' });
   assert.equal(out.currency, 'AED');
-  assert.equal(out.currency_rates, '{"EUR":4.28}');
+  assert.equal(out.currency_rates, '{"source":"typed","rates":{"EUR":4.28}}');
 });
 
 test('both launch paths send the currency params: Implement from its rule in startVersion, Discover from the run trigger', () => {
