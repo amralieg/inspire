@@ -1561,6 +1561,15 @@ function useCaseScopeStatement(catalog, schema, sessions) {
   };
 }
 
+function useCaseUserNamesStatement(catalog, schema, sessions) {
+  const at = (name) => `\`${catalog}\`.\`${schema}\`.\`${name}\``;
+  return {
+    sql: 'SELECT CAST(session_id AS STRING) AS session_id, id AS use_case_id, user_use_case_name '
+      + `FROM ${at('__inspire_usecases')} WHERE user_use_case_name IS NOT NULL AND session_id IN (${sessions.map((_, i) => `:s${i}`).join(', ')})`,
+    parameters: sessions.map((sid, i) => ({ name: `s${i}`, value: sid, type: 'BIGINT' })),
+  };
+}
+
 function withUseCaseScope(targets, rows) {
   const scope = new Map((rows || []).map((r) => [`${str(r.session_id)}|${str(r.use_case_id)}`, r]));
   return (targets || []).map((target) => ({
@@ -1927,7 +1936,7 @@ function appShellUpdateRefusal(history, spec, requester) {
   return { status: 403, message: `Only the owners of this App can update it: the person who asked for v${live.spec_version} and the App owners it names` };
 }
 
-function runPages(rows, scope = [], current = null) {
+function runPages(rows, scope = [], current = null, names = []) {
   const groups = new Map();
   for (const row of rows || []) {
     const key = `${str(row.session_id)}|${str(row.use_case_id)}`;
@@ -1935,6 +1944,7 @@ function runPages(rows, scope = [], current = null) {
     groups.get(key).push(row);
   }
   const where = new Map((scope || []).map((r) => [`${str(r.session_id)}|${str(r.use_case_id)}`, r]));
+  const renamed = new Map((names || []).map((r) => [`${str(r.session_id)}|${str(r.use_case_id)}`, str(r.user_use_case_name).trim()]));
   const pages = [];
   const byId = new Map();
   for (const [key, list] of groups) {
@@ -1944,7 +1954,8 @@ function runPages(rows, scope = [], current = null) {
     const outputs = isPlainObject(spec.outputs) ? spec.outputs : {};
     const scoped = where.get(key);
     const base = {
-      session_id: str(live.session_id), use_case_id: str(live.use_case_id), name: str(spec.use_case_name).trim() || str(live.use_case_id),
+      session_id: str(live.session_id), use_case_id: str(live.use_case_id),
+      name: renamed.get(key) || str(spec.use_case_name).trim() || str(live.use_case_id),
       domain: scoped ? str(scoped.domain).trim() : '', business: scoped ? str(scoped.business).trim() : '', version: live.spec_version,
       published_at: str(live.updated_at), owners: implementOwners(live), older_build: olderBuildNote(list.filter((r) => (r.spec_version || 0) <= (live.spec_version || 0)), current),
     };
@@ -3846,6 +3857,7 @@ module.exports = {
   sharedHolders,
   scopeSessions,
   useCaseScopeStatement,
+  useCaseUserNamesStatement,
   withUseCaseScope,
   mergeTargetPath,
   appSettingsPath,

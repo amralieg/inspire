@@ -106,8 +106,8 @@ class FakeWidgets:
         self.calls.append(("create", kind, name, default))
         if len(choices) >= 1024:
             raise ValueError(f"com.databricks.dbutils_v1.TooManyDefaultChoices: Too many default choices ({len(choices)}). Limit is 1024.")
-        if kind == "dropdown" and default not in choices:
-            raise ValueError(f"Default value {default!r} is not one of the choices of {name}")
+        if kind in ("dropdown", "multiselect") and default not in choices:
+            raise ValueError(f"DefaultValueNotInChoicesList: default {default!r} is not one of the choices of {name}")
         if name in self.removed_this_cell or name in self.state:
             return None
         self.state[name] = {"kind": kind, "value": default, "choices": list(choices), "label": label}
@@ -118,6 +118,9 @@ class FakeWidgets:
 
     def combobox(self, name, default, choices, label=None):
         return self._create("combobox", name, default, choices, label)
+
+    def multiselect(self, name, default, choices, label=None):
+        return self._create("multiselect", name, default, choices, label)
 
     def get(self, name):
         if name not in self.state:
@@ -134,6 +137,11 @@ class FakeWidgets:
     def pick(self, name, value):
         if self.state[name]["kind"] == "dropdown" and value not in self.state[name]["choices"]:
             raise ValueError(f"{value!r} is not a choice of the dropdown {name}")
+        if self.state[name]["kind"] == "multiselect":
+            picked = [v for v in value.split(",") if v]
+            unknown = [v for v in picked if v not in self.state[name]["choices"]]
+            if unknown:
+                raise ValueError(f"{unknown!r} is not a choice of the multiselect {name}")
         self.state[name]["value"] = value
 
 

@@ -601,21 +601,19 @@ class EntryTest(StarterCase):
         self.assertIs(failure, broken)
         self.assertEqual(self.ns["shown"][-1], "<p>banner</p>")
 
-    def test_scan_catalogs_sits_next_to_internet_blocked_and_reaches_the_install_steps(self):
+    def test_the_data_catalogs_are_a_notebook_widget_not_a_constant_and_no_constant_reaches_the_install_steps(self):
         lines = support.release.STARTER.read_text().splitlines()
-        self.assertEqual(lines[lines.index("INTERNET_BLOCKED = False") + 1], 'SCAN_CATALOGS = "all"')
-        self.assertEqual([line for line in lines if line.startswith("SCAN_CATALOGS")], ['SCAN_CATALOGS = "all"'])
+        self.assertEqual([line for line in lines if line.startswith("SCAN_CATALOGS")], [], "the third setting is a widget, not a constant")
         out = self.release()
         self.ns["open_trusted"] = support.FakeGitHub(LATEST, out)
         self.ns["installer_folder"] = lambda: (str(self.folder), "/n")
         self.ns["dbutils"] = types.SimpleNamespace()
         seen = []
         self.ns["load_entry"] = lambda release: seen.append
-        for value in ("all", ["sales", "finance"]):
-            self.ns["SCAN_CATALOGS"] = value
-            installed, failure = self.ns["inspire_install_main"]()
-            self.assertIsNone(failure)
-        self.assertEqual([env["scan_catalogs"] for env in seen], ["all", ["sales", "finance"]])
+        installed, failure = self.ns["inspire_install_main"]()
+        self.assertIsNone(failure)
+        self.assertNotIn("scan_catalogs", seen[0])
+        self.assertIn("new_apps_catalog_access", seen[0])
 
     def test_the_module_must_match_its_line_in_the_manifest(self):
         out = self.release()

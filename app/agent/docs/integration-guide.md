@@ -1,6 +1,6 @@
 # Inspire AI Integration Guide
 
-**Version:** v1.5.2
+**Version:** v1.5.3
 **Audience:** Application Developers And Services Consuming Inspire AI Outputs
 **Last Updated:** 2026-11-03
 

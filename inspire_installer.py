@@ -9,7 +9,7 @@
 # MAGIC
 # MAGIC After the first run, pick or type the **SQL warehouse** and the **Inspire catalog** in the widgets at the top, then run it again.
 # MAGIC
-# MAGIC **SCAN_CATALOGS** in the next cell picks the catalogs the Inspire App may read besides the Inspire catalog, with USE CATALOG, USE SCHEMA, SELECT and BROWSE, because builds run as the App and read their source tables: `"all"` grants it every catalog you can see and grant on (you own it, hold MANAGE on it, or are a metastore admin) and names the catalogs it skips (the first ten, then a count), and a list such as `["main", "sales"]` grants only those and stops before any change if you cannot grant on one. The installer gives the App the warehouse and the Inspire catalog first, then runs one grant per catalog, several at a time, and prints how far it got.
+# MAGIC The installer has three settings. **SQL warehouse** and **Inspire catalog** (where Inspire keeps its own schema and tables) are the first two widgets. The third, **Data catalogs the Inspire App may read**, is a multi-select. It lists every catalog you can see, except system, samples, internal and Delta Sharing catalogs, and it starts on "All catalogs you can use", which reads all of them. Pick fewer to narrow it. On install the installer asks for consent in one line, then grants the Inspire App USE CATALOG, USE SCHEMA, SELECT and BROWSE on each picked catalog. A catalog you cannot grant on is not a failure: the installer prints the exact GRANT statements under **Permission Required**, one per line, and carries on. Ask a catalog admin to run them, then run this installer again.
 # MAGIC
 # MAGIC **NEW_APPS_CATALOG_ACCESS** lets the Apps that Implement builds read their results: `"account users"` grants account users USE CATALOG on the Inspire catalog when nothing below it is granted to them, so it opens no data by itself, and `"off"` grants nothing and prints the statement for a catalog owner.
 
@@ -35,7 +35,6 @@ import zipfile
 STARTER_VERSION = 1
 RELEASE_REPO = "amralieg/inspire"
 INTERNET_BLOCKED = False
-SCAN_CATALOGS = "all"
 NEW_APPS_CATALOG_ACCESS = "account users"
 RELEASE_TAG = ""
 TAG = re.compile(r"v[0-9]\.[0-9]\.[0-9](-rc\.[0-9]+)?")
@@ -655,7 +654,6 @@ def install_redacted():
             "source": release["source"],
             "installer_folder": folder,
             "settings": settings,
-            "scan_catalogs": SCAN_CATALOGS,
             "new_apps_catalog_access": NEW_APPS_CATALOG_ACCESS,
         }), None
     except Exception as exc:

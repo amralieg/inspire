@@ -15,7 +15,8 @@ import {
 } from '../lib/useCaseFields';
 import ValueEstimateLine from './ValueEstimateLine';
 import ValueBadge from './ValueBadge';
-import { UseCaseNameNotes, UseCaseNameTitle, UseCaseRenameButton, useUseCaseRename } from './UseCaseNameEditor';
+import { UseCaseNameNotes, UseCaseNameTitle, UseCaseRenameButton } from './UseCaseNameEditor';
+import { useUseCaseRename } from '../lib/useCaseRename';
 
 const s = (v) => (v == null ? '' : String(v));
 
@@ -56,7 +57,7 @@ function UseCaseCardBody({
   const inspireScoreNum = inspireScoreFromUc(u);
   const showPriorityPill = !!(priority && inspireScoreNum == null && !isNumericPriorityString(priority));
   const kind = v130?.kind || null;
-  const rename = useUseCaseRename(s(u.Name) || titlePlain, onRename);
+  const rename = useUseCaseRename(titlePlain, onRename);
 
   return (
     <div className="bg-surface border border-border/70 rounded-xl overflow-hidden shadow-elevated lift-on-hover hover:border-db-red/25">
@@ -177,7 +178,7 @@ function UseCaseCardBody({
       <ImplementCardActions status={implementStatus} onImplement={onImplement} onOpen={onOpenMvp} notebookUrl={notebookUrl} links={assetLinks} />
 
       {expanded && typeof onRename === 'function' && (
-        <UseCaseNameNotes name={s(u.Name)} originalName={s(u.original_name)} onSave={onRename} liveAppStale={liveAppStale} onUpdateLiveApp={onUpdateLiveApp} />
+        <UseCaseNameNotes name={s(u.user_use_case_name) || s(u.Name)} originalName={s(u.original_name)} onSave={onRename} liveAppStale={liveAppStale} onUpdateLiveApp={onUpdateLiveApp} />
       )}
       {expanded && (
         <UseCaseDetailBody

@@ -16,7 +16,7 @@
 
 Infuse your Data with Databricks Genie Code AI capabilities to deliver business value.
 
-**Version:** v1.5.2 (Production Release)
+**Version:** v1.5.3 (Production Release)
 **Last Updated:** 2026-11-03
 
 Inspire AI reads your Unity Catalog metadata and uses a 7-phase multi-model AI agent pipeline to

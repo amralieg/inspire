@@ -1,71 +1,38 @@
-import { useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { Loader2, Pencil } from 'lucide-react';
 import { PlainMessage } from './TechnicalDetails';
 import SaveButton from './SaveButton';
-
-export const NAME_TEXT_CLASS = 'text-lg sm:text-xl font-bold text-text-primary leading-snug';
-const tidy = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
-
-export function useUseCaseRename(value, onSave) {
-  const [editing, setEditing] = useState(false);
-  const [busy, setBusy] = useState(false);
-  const [error, setError] = useState('');
-  const field = useRef(null);
-  const inFlight = useRef(false);
-  const skipBlur = useRef(false);
-
-  useEffect(() => { if (editing) field.current?.focus(); }, [editing]);
-
-  const leave = () => { skipBlur.current = true; setEditing(false); };
-  const start = () => { skipBlur.current = false; setError(''); setEditing(true); };
-  const commit = async (draft) => {
-    if (inFlight.current) return;
-    const next = tidy(draft);
-    if (!next || next === tidy(value)) { leave(); return; }
-    inFlight.current = true;
-    setBusy(true);
-    setError('');
-    try {
-      await onSave(next);
-      leave();
-    } catch (err) {
-      setError(err?.message || 'Could not save the name.');
-    } finally {
-      inFlight.current = false;
-      setBusy(false);
-    }
-  };
-  return { value, editing, busy, error, field, skipBlur, start, leave, commit, canRename: typeof onSave === 'function' };
-}
+import { NAME_TEXT_CLASS } from '../lib/useCaseRename';
 
 export function UseCaseNameTitle({ text, rename }) {
-  if (!rename.editing) return <h3 dir="auto" className={NAME_TEXT_CLASS}>{text}</h3>;
+  const { editing, value, busy, error, setField, blur, commit, leave } = rename;
+  if (!editing) return <h3 dir="auto" className={NAME_TEXT_CLASS}>{text}</h3>;
   return (
     <span className="flex flex-col gap-1 min-w-0 flex-1 basis-full sm:basis-auto" data-use-case-name-editor="">
       <span className="inline-flex items-center gap-2 min-w-0">
         <input
-          ref={rename.field}
+          ref={setField}
           dir="auto"
           aria-label={`Use case name for ${text}`}
-          defaultValue={rename.value}
+          defaultValue={value}
           maxLength={200}
-          disabled={rename.busy}
+          disabled={busy}
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             e.stopPropagation();
-            if (e.key === 'Enter') { e.preventDefault(); rename.commit(e.currentTarget.value); }
-            if (e.key === 'Escape') { e.preventDefault(); rename.leave(); }
+            if (e.key === 'Enter') { e.preventDefault(); commit(e.currentTarget.value); }
+            if (e.key === 'Escape') { e.preventDefault(); leave(); }
           }}
-          onBlur={(e) => { if (rename.skipBlur.current) { rename.skipBlur.current = false; return; } rename.commit(e.currentTarget.value); }}
+          onBlur={(e) => blur(e.currentTarget.value)}
           className={`${NAME_TEXT_CLASS} min-w-0 flex-1 bg-transparent border-b border-db-red-solid/60 outline-none disabled:opacity-60`}
         />
-        {rename.busy && (
+        {busy && (
           <span role="status" data-saving="" className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary shrink-0">
             <Loader2 size={12} className="animate-spin" aria-hidden />Saving…
           </span>
         )}
       </span>
-      {rename.error && <PlainMessage as="p" text={rename.error} role="alert" dir="auto" className="text-xs text-error-fg" />}
+      {error && <PlainMessage as="p" text={error} role="alert" dir="auto" className="text-xs text-error-fg" />}
     </span>
   );
 }

@@ -2,7 +2,7 @@ const { parseExactJson } = require('./exactJson');
 const { parseStrategicContext, validateStrategy } = require('../../frontend/src/lib/strategyContext.js');
 const { scopesFromObject, serializeTableScopes, scopeKeyOf } = require('../../frontend/src/lib/tableScope.js');
 
-const INSPIRE_AGENT_VERSION = 'v1.5.2';
+const INSPIRE_AGENT_VERSION = 'v1.5.3';
 const INSPIRE_ENVIRONMENT_KEY = 'Default';
 const INSPIRE_ENVIRONMENT_VERSION = '4';
 
@@ -233,7 +233,7 @@ function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateT
     '06_business_domains': '',
     '07_business_priorities': 'Increase Revenue',
     '08_generation_instructions': `{{tasks.${tk}.values.user_description}}`,
-    '09_generation_options': 'PDF Catalog',
+    '09_generation_options': 'PDF Catalog,Excel',
     '10_strategic_context': '',
     '11_generation_path': String(generationPath || '').trim() || DEFAULT_GENERATION_PATH,
     '12_documents_languages': 'English',

@@ -672,6 +672,161 @@ def _text_problem(where: str, value, key: str, required: bool = True) -> list:
     return [f"{where} {key} is longer than {plural(limit, 'character')}"] if len(text) > limit else []
 
 
+# Every page text _text_problem checks for length, by the key it sits under. label_title is checked against the label limit,
+# and each treatment in a list of treatments is a label. A text over its limit is shortened, never refused (see fit_text_limits).
+TEXT_FIT_KEYS = ("title", "question", "sponsor", "label", "label_title", "hint", "caption", "alt", "so_what", "undo")
+TEXT_FIT_LISTS = {"treatments": "label"}
+TEXT_FIT_ENDINGS = " ,;:-/(&+"
+_QUOTED_VALUE = re.compile(r"\"[^\"]*\"|'[^']*'|“[^”]*”")
+
+
+def _word_prefix(text: str, room: int) -> str:
+    """The longest run of whole words of text that fits in room characters. A space is the only cut point, so a number is
+    never split, and the cut moves in front of a quoted value rather than through it."""
+    if len(text) <= room:
+        return text.rstrip(TEXT_FIT_ENDINGS)
+    cut = room
+    while cut > 0 and not text[cut].isspace():
+        cut -= 1
+    for found in _QUOTED_VALUE.finditer(text):
+        if found.start() < cut < found.end():
+            cut = found.start()
+    kept = text[:cut].rstrip(TEXT_FIT_ENDINGS)
+    return kept if kept else _hard_cut(text, room)
+
+
+def _hard_cut(text: str, room: int) -> str:
+    """The longest cut of text within room characters that does not fall inside a quoted value, for a single token too long
+    to cut at a word. Empty when every cut would fall inside a quote."""
+    quoted = list(_QUOTED_VALUE.finditer(text))
+    for cut in range(room, 0, -1):
+        if not any(found.start() < cut < found.end() for found in quoted):
+            return text[:cut].rstrip(TEXT_FIT_ENDINGS)
+    return ""
+
+
+def _shortest_safe_form(text: str, room: int, labels) -> str:
+    """The shortest safe form of a text with no cut that fits: a page label alone when the text holds one, else the text
+    with its quote marks taken out, so no cut can fall inside a quoted value."""
+    for label in sorted(labels, key=len):
+        if len(label) <= room and re.search(r"(?<!\w)" + re.escape(label) + r"(?!\w)", text):
+            return label
+    unquoted = " ".join(text.replace('"', " ").replace("“", " ").replace("”", " ").split())
+    return _word_prefix(unquoted, room) or unquoted[:room]
+
+
+def fit_text(text: str, limit: int, question: bool = False, labels=()) -> str:
+    """Shorten text to at most limit characters. A question ends with a question mark. A label of the page that the cut would
+    drop is kept, with as many of the words before it as still fit."""
+    room = limit - 1 if question else limit
+    text = " ".join(str(text).split())
+    fitted = None
+    for label in sorted(labels, key=len, reverse=True):
+        found = re.search(r"(?<!\w)" + re.escape(label) + r"(?!\w)", text)
+        if found and found.end() > room and len(label) < room:
+            head = _word_prefix(text[:found.start()], max(0, room - len(label) - 1))
+            fitted = f"{head} {label}".strip()
+            break
+    if fitted is None:
+        fitted = _word_prefix(text, room)
+    if not fitted:
+        fitted = _shortest_safe_form(text, room, labels)
+    return f"{fitted.rstrip('?')}?" if question else fitted
+
+
+def page_text_labels(page) -> list:
+    found = set()
+
+    def walk(node):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                if key == "label" and isinstance(value, str) and len(value.strip()) >= 3:
+                    found.add(" ".join(value.split()))
+                walk(value)
+        elif isinstance(node, list):
+            for item in node:
+                walk(item)
+
+    walk(page)
+    return sorted(found)
+
+
+def fit_text_limits(page: dict) -> list:
+    """Shorten, in place, every page text longer than the limit its validator checks. Returns (field, was, now) for each cut, so the
+    caller can log it. Text under its limit is never touched. A generated text over its limit never blocks a publish."""
+    labels = page_text_labels(page)
+    cuts = []
+
+    def fit(field: str, value: str, limit_key: str, question: bool = False) -> str:
+        limit = TEXT_LIMITS.get(limit_key, 120)
+        if len(value.strip()) <= limit:
+            return value
+        fitted = fit_text(value, limit, question, labels)
+        cuts.append((field, len(value.strip()), len(fitted)))
+        return fitted
+
+    def walk(node, path: str):
+        if isinstance(node, dict):
+            for key, value in node.items():
+                here = f"{path}.{key}" if path else key
+                if key in TEXT_FIT_KEYS and isinstance(value, str):
+                    node[key] = fit(here, value, "label" if key == "label_title" else key, key == "question")
+                elif key in TEXT_FIT_LISTS and isinstance(value, list):
+                    node[key] = [fit(f"{here}[{index}]", item, TEXT_FIT_LISTS[key]) if isinstance(item, str) else item
+                                 for index, item in enumerate(value)]
+                else:
+                    walk(value, here)
+        elif isinstance(node, list):
+            for index, item in enumerate(node):
+                walk(item, f"{path}[{index}]")
+
+    walk(page, "")
+    return cuts
+
+
+EXPRESSION_DROPS = "dropped_expressions"
+
+
+def _item_expression_length(group: str, item: dict) -> int:
+    if group == "kpis":
+        return len(str(item.get("expression") or "").strip())
+    expressions = [y.get("expression") for y in item.get("y") or [] if isinstance(y, dict)]
+    if isinstance(item.get("x"), dict):
+        expressions.append(item["x"].get("expression"))
+    return max([len(str(text or "").strip()) for text in expressions] or [0])
+
+
+def drop_long_expressions(page: dict) -> list:
+    """Drop every KPI and chart whose SQL expression is over EXPRESSION_CHARS: a cut would break the SQL, so the item goes and the
+    page publishes with the rest. The drop count is kept on the page so the minimum KPI and chart counts relax by it, and the
+    tables stay. Returns the notes to log."""
+    page.pop(EXPRESSION_DROPS, None)
+    notes, counts = [], {}
+    for group, word in (("kpis", "kpi"), ("charts", "chart")):
+        items = page.get(group) if isinstance(page.get(group), list) else []
+        kept = []
+        for item in items:
+            length = _item_expression_length(group, item) if isinstance(item, dict) else 0
+            if length <= EXPRESSION_CHARS:
+                kept.append(item)
+                continue
+            title = item.get("label") or item.get("title") or item.get("id") or word
+            notes.append(f"[EXPRESSION-LIMIT FIRED] dropped {word} {title}: {length} characters")
+            counts[group] = counts.get(group, 0) + 1
+        if counts.get(group):
+            page[group] = kept
+    if counts:
+        page[EXPRESSION_DROPS] = counts
+        if not page.get("kpis") and not page.get("charts"):
+            notes.append("[EXPRESSION-LIMIT FIRED] no KPI or chart is left, so the page shows its tables")
+    return notes
+
+
+def dropped_count(page: dict, group: str) -> int:
+    drops = page.get(EXPRESSION_DROPS)
+    return int(drops.get(group, 0)) if isinstance(drops, dict) else 0
+
+
 def _ids(items, where: str, problems: list) -> set:
     seen = set()
     for item in items:
@@ -780,7 +935,7 @@ def spec_problems(page: dict, stored=None) -> list:
             if f.get("default", "12m") not in PRESET_IDS:
                 problems.append(f"{where} default must be one of {', '.join(PRESET_IDS)}")
     kpis = page.get("kpis") if isinstance(page.get("kpis"), list) else []
-    problems += _count_problem("kpis", kpis)
+    problems += _count_problem("kpis", kpis, max(0, CAPS["kpis"][0] - dropped_count(page, "kpis")))
     _ids(kpis, "KPI", problems)
     for kpi in kpis:
         where = f"KPI {kpi.get('id')}"
@@ -803,8 +958,9 @@ def spec_problems(page: dict, stored=None) -> list:
         if split:
             problems.append(f"{where} compares with the previous run, but {split}, or set no compare")
     charts = page.get("charts") if isinstance(page.get("charts"), list) else []
-    problems += _count_problem("charts", charts, 0 if not chart_sections(page) else 1 if asked_fewer(page, "fewer_charts") else
-                               max(1, layout_chart_least(page_layout(page)) - drawn_charts(page)))
+    chart_least = 0 if not chart_sections(page) else 1 if asked_fewer(page, "fewer_charts") else \
+        max(1, layout_chart_least(page_layout(page)) - drawn_charts(page))
+    problems += _count_problem("charts", charts, max(0, chart_least - dropped_count(page, "charts")))
     _ids(charts, "chart", problems)
     for chart in charts:
         problems += _chart_problems(chart, names)
