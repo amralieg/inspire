@@ -40,3 +40,12 @@ def test_the_build_app_principal_sentence_is_the_one_the_App_side_refusal_shows(
     denial = {"table": "main.s.orders", "principal": "app-sp-2", "label": "riverside-assets", "statement": "", "owner": ""}
     assert agent_ns["implement_abac_denied_sentence"](denial) == (
         "The App's service principal riverside-assets cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them")
+
+
+def test_a_blocked_app_keeps_its_unread_sources_on_the_context_so_the_build_saves_them_for_the_access_card(agent_ns, sdk_stub):
+    inst, context, calls, _imported = _deploy_inspire(agent_ns, NEW_APP + [CREATED] + DEPLOYED)
+    inst._implement_app_read_grants = lambda tables, access, client_id, ran, sources=(): UNREAD
+    with pytest.raises(agent_ns["ImplementBlocked"]):
+        inst._implement_deploy_app(context, "churn-desk", SHELL_FILES, READS, "g1", poll_s=0)
+    assert context["app_unread"] == {"app": "sp-1", "tables": [{
+        "table": "main.s.orders", "owner": "your data owner", "grants": ["GRANT SELECT ON TABLE `main`.`s`.`orders` TO `sp-1`"]}]}
