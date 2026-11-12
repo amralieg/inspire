@@ -1410,6 +1410,7 @@ function registerImplementRoutes(app, deps) {
     try {
       out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
         params,
+        scopePicks: sessionParams['01_uc_metadata'],
         notebook_path: req.body?.notebook_path,
         cluster_id: req.body?.cluster_id,
         jobType: 'implement',

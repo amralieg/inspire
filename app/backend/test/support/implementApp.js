@@ -242,6 +242,7 @@ function makeApp(overrides = {}, { mount } = {}) {
       '01_uc_metadata': state.ucMetadata === undefined ? 'main.s.orders' : state.ucMetadata,
       '02_inspire_database': 'main.inspire',
       '14_session_id': sid,
+      ...(session.table_scope ? { '17_table_scope': session.table_scope } : {}),
     }),
     triggerInspireNotebookJob: async (_h, _t, args) => {
       jobs.push(args);

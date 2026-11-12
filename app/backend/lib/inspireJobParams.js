@@ -155,10 +155,10 @@ function parseTableScopeText(text) {
   return scopesFromObject(parsed);
 }
 
-function validateTableScopeParams(params) {
+function validateTableScopeParams(params, picks = params['01_uc_metadata']) {
   const { scopes, problems, label } = parseTableScopeText(params['17_table_scope']);
   if (problems.length) throw paramError(`Table scope: ${problems.join(' ')}`);
-  const uncovered = Object.keys(scopes).filter((table) => !tableIsPicked(table, params['01_uc_metadata']));
+  const uncovered = Object.keys(scopes).filter((table) => !tableIsPicked(table, picks));
   if (uncovered.length) {
     throw paramError(`Table scope names ${uncovered.join(', ')}, which ${uncovered.length === 1 ? 'is' : 'are'} not picked under Unity Catalog Metadata.`);
   }
@@ -186,13 +186,13 @@ function normalizeGenerationOptionsParams(params) {
 
 const DEFAULT_GENERATION_PATH = './../demos/';
 
-function sanitizeInspireNotebookJobParams(params) {
+function sanitizeInspireNotebookJobParams(params, { scopePicks } = {}) {
   normalizeGenerationOptionsParams(params);
   normalizeUseCasesQualityParams(params);
   normalizeDiscoveryTypeParams(params);
   validateStrategicContextParams(params);
   validateBestOfBestCountParams(params);
-  validateTableScopeParams(params);
+  validateTableScopeParams(params, scopePicks ?? params['01_uc_metadata']);
   const out = {};
   for (const k of [...INSPIRE_NOTEBOOK_WIDGET_KEYS, ...INSPIRE_JOB_ONLY_PARAM_KEYS]) {
     if (!Object.prototype.hasOwnProperty.call(params, k)) continue;

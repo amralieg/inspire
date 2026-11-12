@@ -27,33 +27,33 @@ async function readyToLaunch(page) {
   await until(async () => !(await launchButton(page).isDisabled()), 'Get Started on');
 }
 
-test('the Launch page starts with no documents and sends no document formats, and picking PDF sends PDF (REQ-077)', async () => {
+test('the Launch page starts with the strategy PDF ticked, so the default launch builds it (REQ-077, REQ-121)', async () => {
   const { calls, mount } = launchBackend();
   const ui = await openUi('launch', {}, '', { mount, ...FAKE_CLOCK });
   const { page } = ui;
   try {
     await readyToLaunch(page);
-    await page.locator('[data-no-documents]').waitFor();
+    assert.equal(await page.locator('[data-no-documents]').count(), 0, 'no no-documents note while the PDF is ticked');
     await launchButton(page).click();
-    await until(() => calls.runs.length === 1, 'the launch with no documents');
-    assert.equal(calls.runs[0].params['09_generation_options'], '', 'the default launch builds no document');
+    await until(() => calls.runs.length === 1, 'the default launch');
+    assert.equal(calls.runs[0].params['09_generation_options'], 'PDF Catalog', 'the default launch builds the strategy PDF');
     assert.equal(ui.pageErrors.length, 0);
   } finally {
     await ui.close();
   }
 });
 
-test('picking PDF in the Launch page sends PDF and hides the no-documents note (REQ-077 must-exclude)', async () => {
+test('unticking the PDF in the Launch page shows the no-documents note and sends no document formats (REQ-077 must-exclude, REQ-121)', async () => {
   const { calls, mount } = launchBackend();
   const ui = await openUi('launch', {}, '', { mount, ...FAKE_CLOCK });
   const { page } = ui;
   try {
     await readyToLaunch(page);
     await pdfOption(page).click();
-    await page.locator('[data-no-documents]').waitFor({ state: 'detached' });
+    await page.locator('[data-no-documents]').waitFor();
     await launchButton(page).click();
-    await until(() => calls.runs.length === 1, 'the launch with PDF');
-    assert.equal(calls.runs[0].params['09_generation_options'], 'PDF Catalog');
+    await until(() => calls.runs.length === 1, 'the launch with no documents');
+    assert.equal(calls.runs[0].params['09_generation_options'], '', 'the person unticked every document');
   } finally {
     await ui.close();
   }

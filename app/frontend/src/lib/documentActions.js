@@ -11,6 +11,14 @@ export function documentBasePath({ generationPath, notebookPath }) {
   return generationFolder({ generationPath, notebookPath, businessName: '' });
 }
 
+// A PDF Catalog is made once per run: the strategy PDF and the use case catalog both write it, so a second one is refused
+// when the run folder already holds a PDF. The PPTX and the Excel workbook are never refused by this.
+export const PDF_MADE_TEXT = 'This run already made its PDF catalog in its folder. Create the PPTX or the Excel workbook instead, or open the PDF from the list.';
+export function documentBlockedText(kind, format, pdfMade) {
+  const writesPdf = kind === 'use-case-catalog' || (kind === 'strategy-document' && format === 'PDF');
+  return writesPdf && pdfMade ? PDF_MADE_TEXT : '';
+}
+
 export function documentRunBody({ kind, format = '', sessionId, inspireDatabase, businessName, generationPath, outputLanguage = '' }) {
   return {
     kind,

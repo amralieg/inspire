@@ -109,6 +109,23 @@ export function previewGrid(preview) {
   return { columns, rows };
 }
 
+// Every file of the artifact tree: the root listing plus the listed contents of each folder that has been opened.
+export function artifactTreeFiles(rootFiles, tree) {
+  const out = [];
+  const walk = (files) => {
+    for (const file of Array.isArray(files) ? files : []) {
+      if (!file) continue;
+      if (file.is_directory) walk(tree?.[file.path]?.files);
+      else out.push(file);
+    }
+  };
+  walk(rootFiles);
+  return out;
+}
+
+// The strategy PDF is the PDF Catalog: once a run has written a PDF into its folder, a second one must not be made.
+export const hasPdfArtifact = (files) => files.some((file) => fileExtension(file) === 'pdf');
+
 export function quickAccessFiles(files) {
   const shown = (Array.isArray(files) ? files : [])
     .filter((file) => file && !file.is_directory && QUICK_ACCESS_EXTENSIONS.includes(fileExtension(file)));

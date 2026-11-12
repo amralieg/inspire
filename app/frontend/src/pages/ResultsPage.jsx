@@ -93,7 +93,7 @@ import {
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText } from '../lib/liveUseCases';
 import { saveBlob } from '../lib/download';
-import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
+import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, artifactTreeFiles, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, hasPdfArtifact, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import DocumentActions from '../components/DocumentActions';
 import { documentBasePath } from '../lib/documentActions';
@@ -1624,6 +1624,7 @@ export default function ResultsPage({
             <DocumentActions
               apiFetch={apiFetch}
               apiPostJson={apiPostJson}
+              pdfMade={hasPdfArtifact(artifactTreeFiles(artifactsRootFiles, artifactTree))}
               session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), outputLanguage: selectedSession?.output_language || '', generationPath: documentBasePath({ generationPath: selectedSession?.generation_path || selectedSession?.widget_values?.generation_path || '', notebookPath: settings?.notebookPath || '' }) }}
               onFinished={() => loadArtifacts(generationPath)}
             />
@@ -1631,19 +1632,7 @@ export default function ResultsPage({
 
           {/* Quick Access — always visible, PDF/Excel/CSV files from artifacts */}
           {(() => {
-            const artifactFiles = [];
-            const collect = (files) => {
-              if (!files) return;
-              for (const f of files) {
-                if (f.is_directory) {
-                  const sub = artifactTree[f.path];
-                  if (sub?.files) collect(sub.files);
-                } else {
-                  artifactFiles.push(f);
-                }
-              }
-            };
-            collect(artifactsRootFiles);
+            const artifactFiles = artifactTreeFiles(artifactsRootFiles, artifactTree);
             const previewableFiles = quickAccessFiles(artifactFiles);
             if (previewableFiles.length === 0) return null;
 
