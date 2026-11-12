@@ -5251,7 +5251,7 @@
   "title_chars": 60,
   "text_chars": 220,
   "least": 5,
-  "most": 18,
+  "most": 16,
   "live": [
    "open_count",
    "top_record",
@@ -5625,7 +5625,7 @@
      },
      "settings": {
       "title": "Settings",
-      "text": "Settings hold the target, how the value is measured and the rules that flag records. Each change is kept with its note. Feedback is there too: report an issue, and the owners' Reported issues list shows every issue sent with its status."
+      "text": "Settings hold the target, how the value is measured and the flagging rules. Feedback reports an issue, and Reported issues lists every issue sent with its status."
      },
      "todo": {
       "title": "What to do now",
@@ -5706,8 +5706,11 @@
      },
      "settings": {
       "title": "الإعدادات",
-      "text": "تحفظ الإعدادات الهدف وطريقة قياس القيمة والقواعد التي تحدد السجلات. يُحفظ كل تغيير مع ملاحظته."
-     }
+      "text": "تحفظ الإعدادات الهدف وطريقة قياس القيمة وقواعد تمييز السجلات. يمكنك الإبلاغ عن مشكلة من Feedback، وتجد كل ما أُرسل مع حالته في Reported issues."
+     },
+     "todo": {"title": "ما يجب فعله الآن", "text": "يعرض هذا المربع خطواتك التالية بالترتيب وعدد السجلات التي ما زالت تنتظرك."},
+     "value": {"title": "سطر القيمة", "text": "هذا هو الرقم الذي يفترض أن يحركه هذا الاستخدام، وأين يقف الآن."},
+     "saved": {"title": "المحفوظ منذ الإطلاق", "text": "يجمع هذا السطر ما وفرته الإجراءات في هذه الصفحة منذ إطلاق التطبيق."}
     }
    },
    "Spanish": {
@@ -5775,8 +5778,11 @@
      },
      "settings": {
       "title": "Ajustes",
-      "text": "Los ajustes guardan el objetivo, cómo se mide el valor y las reglas que marcan los registros. Cada cambio queda guardado con su nota."
-     }
+      "text": "Los ajustes guardan el objetivo, cómo se mide el valor y las reglas que marcan los registros. Feedback sirve para reportar un problema, y Reported issues muestra cada envío con su estado."
+     },
+     "todo": {"title": "Qué hacer ahora", "text": "Este cuadro muestra tus próximos pasos en orden y cuántos registros siguen esperando tu decisión."},
+     "value": {"title": "La línea de valor", "text": "Es el número que este caso de uso debe mover, y cómo va ahora."},
+     "saved": {"title": "Ahorro desde el lanzamiento", "text": "Esta línea suma lo que las acciones de esta página han ahorrado desde que la App se publicó."}
     }
    },
    "French": {
@@ -5844,8 +5850,11 @@
      },
      "settings": {
       "title": "Paramètres",
-      "text": "Les paramètres contiennent la cible, la façon de mesurer la valeur et les règles qui signalent les enregistrements. Chaque modification est conservée avec sa note."
-     }
+      "text": "Les paramètres contiennent la cible, la façon de mesurer la valeur et les règles qui signalent les enregistrements. Feedback permet de signaler un problème, et Reported issues liste chaque envoi avec son statut."
+     },
+     "todo": {"title": "À faire maintenant", "text": "Ce bloc liste vos prochaines étapes, dans l'ordre, et le nombre d'enregistrements qui attendent encore."},
+     "value": {"title": "La ligne de valeur", "text": "C'est le chiffre que ce cas d'usage doit faire bouger, et où il en est aujourd'hui."},
+     "saved": {"title": "Économisé depuis la mise en service", "text": "Cette ligne additionne ce que les actions de cette page ont économisé depuis la mise en service de l'App."}
     }
    },
    "German": {
@@ -5913,8 +5922,11 @@
      },
      "settings": {
       "title": "Einstellungen",
-      "text": "Die Einstellungen enthalten das Ziel, die Messung des Werts und die Regeln, die Datensätze markieren. Jede Änderung wird mit ihrer Notiz gespeichert."
-     }
+      "text": "Die Einstellungen enthalten das Ziel, die Messung des Werts und die Regeln, die Datensätze markieren. Mit Feedback melden Sie ein Problem, Reported issues zeigt jede Meldung mit ihrem Status."
+     },
+     "todo": {"title": "Jetzt zu tun", "text": "Dieser Kasten listet Ihre nächsten Schritte in der Reihenfolge und wie viele Datensätze noch auf Sie warten."},
+     "value": {"title": "Die Wertzeile", "text": "Hier steht die Zahl, die dieser Anwendungsfall bewegen soll, und wo sie gerade steht."},
+     "saved": {"title": "Seit Start gespart", "text": "Diese Zeile summiert, was die Aktionen auf dieser Seite seit dem Start der App gespart haben."}
     }
    },
    "Portuguese": {
@@ -5982,8 +5994,11 @@
      },
      "settings": {
       "title": "Configurações",
-      "text": "As configurações guardam a meta, como o valor é medido e as regras que sinalizam registros. Cada mudança fica guardada com a sua nota."
-     }
+      "text": "As configurações guardam a meta, como o valor é medido e as regras que sinalizam os registros. Feedback serve para relatar um problema, e Reported issues lista cada envio com o status."
+     },
+     "todo": {"title": "O que fazer agora", "text": "Este bloco lista seus próximos passos em ordem e quantos registros ainda esperam por você."},
+     "value": {"title": "A linha de valor", "text": "É o número que este caso de uso deve mover e onde ele está agora."},
+     "saved": {"title": "Economizado desde o lançamento", "text": "Esta linha soma o que as ações desta página economizaram desde que o App entrou no ar."}
     }
    },
    "Italian": {
@@ -6051,8 +6066,11 @@
      },
      "settings": {
       "title": "Impostazioni",
-      "text": "Le impostazioni contengono l'obiettivo, il modo in cui si misura il valore e le regole che segnalano i record. Ogni modifica viene salvata con la sua nota."
-     }
+      "text": "Le impostazioni contengono l'obiettivo, come si misura il valore e le regole che segnalano i record. Feedback serve a segnalare un problema, e Reported issues elenca ogni segnalazione con il suo stato."
+     },
+     "todo": {"title": "Cosa fare ora", "text": "Questo riquadro elenca i prossimi passi in ordine e quanti record aspettano ancora di te."},
+     "value": {"title": "La riga del valore", "text": "È il numero che questo caso d'uso deve muovere e a che punto si trova adesso."},
+     "saved": {"title": "Risparmiato dal go-live", "text": "Questa riga somma quanto le azioni di questa pagina hanno risparmiato da quando l'App è online."}
     }
    },
    "Chinese (Mandarin)": {
@@ -6120,8 +6138,11 @@
      },
      "settings": {
       "title": "设置",
-      "text": "设置包含目标、数值的衡量方式以及标记记录的规则。每次更改都会连同备注一起保存。"
-     }
+      "text": "设置保存目标、价值的衡量方式以及标记记录的规则。Feedback 用于报告问题，Reported issues 列出所有已提交问题及其状态。"
+     },
+     "todo": {"title": "现在要做的事", "text": "此框按顺序列出你的下一步，以及仍在等你处理的记录数。"},
+     "value": {"title": "价值行", "text": "这里是本用例要推动的数字，以及它目前的进展。"},
+     "saved": {"title": "上线以来节省的金额", "text": "此行汇总本页操作自应用上线以来节省的金额。"}
     }
    },
    "Japanese": {
@@ -6189,8 +6210,11 @@
      },
      "settings": {
       "title": "設定",
-      "text": "設定では、目標、値の測定方法、レコードにフラグを付けるルールを指定します。変更はすべてメモとともに保存されます。"
-     }
+      "text": "設定では目標、価値の測定方法、レコードにフラグを付けるルールを管理します。Feedback では問題を報告でき、Reported issues で送信済みの問題と状態を確認できます。"
+     },
+     "todo": {"title": "今すべきこと", "text": "このボックスには、次にやることを順番に、まだ対応待ちのレコード数とともに表示します。"},
+     "value": {"title": "価値の行", "text": "このユースケースで動かしたい数値と、現在の進捗を示します。"},
+     "saved": {"title": "稼働後の節約額", "text": "この行は、アプリの稼働後にこのページの操作で節約できた金額を合計します。"}
     }
    },
    "Korean": {
@@ -6258,8 +6282,11 @@
      },
      "settings": {
       "title": "설정",
-      "text": "설정에는 목표, 값을 측정하는 방식, 레코드를 표시하는 규칙이 들어 있습니다. 모든 변경은 메모와 함께 저장됩니다."
-     }
+      "text": "설정에서는 목표, 가치를 측정하는 방법, 레코드를 표시하는 규칙을 관리합니다. Feedback에서 문제를 신고할 수 있고, Reported issues에서 보낸 문제와 상태를 볼 수 있습니다."
+     },
+     "todo": {"title": "지금 할 일", "text": "이 상자는 다음 단계를 순서대로 보여 주고, 아직 기다리는 레코드 수를 알려 줍니다."},
+     "value": {"title": "가치 줄", "text": "이 사용 사례로 움직여야 할 숫자와 현재 진행 상황을 보여 줍니다."},
+     "saved": {"title": "가동 이후 절감액", "text": "이 줄은 앱이 가동된 뒤 이 페이지의 조치로 절감한 금액을 합산합니다."}
     }
    },
    "Hindi": {
@@ -6327,8 +6354,11 @@
      },
      "settings": {
       "title": "सेटिंग्स",
-      "text": "सेटिंग्स में लक्ष्य, मान कैसे मापा जाता है, और वे नियम रखे जाते हैं जो रिकॉर्ड चिह्नित करते हैं। हर बदलाव उसके नोट के साथ सहेजा जाता है।"
-     }
+      "text": "सेटिंग्स में लक्ष्य, मूल्य मापने का तरीका और रिकॉर्ड चिह्नित करने के नियम होते हैं। Feedback से समस्या बताई जा सकती है, और Reported issues में भेजी गई हर समस्या और उसकी स्थिति दिखती है।"
+     },
+     "todo": {"title": "अभी क्या करना है", "text": "यह बॉक्स आपके अगले कदम क्रम से और उन रिकॉर्ड की संख्या दिखाता है जो अभी आपके इंतज़ार में हैं।"},
+     "value": {"title": "मूल्य की पंक्ति", "text": "यह वह संख्या है जिसे यह उपयोग-मामला आगे बढ़ाना चाहिए, और अभी वह कहाँ है।"},
+     "saved": {"title": "लाइव होने के बाद बचत", "text": "यह पंक्ति बताती है कि ऐप लाइव होने के बाद इस पृष्ठ की कार्रवाइयों से कितनी बचत हुई।"}
     }
    },
    "Russian": {
@@ -6396,8 +6426,11 @@
      },
      "settings": {
       "title": "Настройки",
-      "text": "В настройках заданы цель, способ измерения значения и правила, по которым помечаются записи. Каждое изменение сохраняется вместе с заметкой."
-     }
+      "text": "В настройках заданы цель, способ измерения ценности и правила отметки записей. Feedback позволяет сообщить о проблеме, а в Reported issues видны все отправленные проблемы и их статус."
+     },
+     "todo": {"title": "Что делать сейчас", "text": "Этот блок показывает следующие шаги по порядку и сколько записей ещё ждут вашего решения."},
+     "value": {"title": "Строка ценности", "text": "Это число, которое должен сдвинуть этот сценарий, и то, где оно находится сейчас."},
+     "saved": {"title": "Экономия с момента запуска", "text": "Эта строка суммирует, сколько сэкономили действия на этой странице с момента запуска приложения."}
     }
    },
    "Swedish": {
@@ -6465,8 +6498,11 @@
      },
      "settings": {
       "title": "Inställningar",
-      "text": "Inställningarna innehåller målet, hur värdet mäts och reglerna som flaggar poster. Varje ändring sparas med sin anteckning."
-     }
+      "text": "Inställningarna innehåller målet, hur värdet mäts och reglerna som flaggar poster. Feedback används för att rapportera ett problem, och Reported issues visar varje skickat problem med dess status."
+     },
+     "todo": {"title": "Att göra nu", "text": "Rutan visar dina nästa steg i ordning och hur många poster som fortfarande väntar på dig."},
+     "value": {"title": "Värderaden", "text": "Det här är talet som användningsfallet ska flytta, och var det står nu."},
+     "saved": {"title": "Sparat sedan lansering", "text": "Raden summerar vad åtgärderna på sidan har sparat sedan appen lanserades."}
     }
    },
    "Danish": {
@@ -6534,8 +6570,11 @@
      },
      "settings": {
       "title": "Indstillinger",
-      "text": "Indstillingerne rummer målet, hvordan værdien måles, og reglerne der markerer poster. Hver ændring gemmes med sin note."
-     }
+      "text": "Indstillingerne rummer målet, hvordan værdien måles og reglerne, der markerer poster. Feedback bruges til at melde et problem, og Reported issues viser hver indsendt sag med dens status."
+     },
+     "todo": {"title": "Hvad du skal gøre nu", "text": "Boksen viser dine næste trin i rækkefølge, og hvor mange poster der stadig venter på dig."},
+     "value": {"title": "Værdilinjen", "text": "Det er tallet, som denne use case skal flytte, og hvor det står lige nu."},
+     "saved": {"title": "Sparet siden lancering", "text": "Linjen samler, hvad handlingerne på denne side har sparet siden appen blev lanceret."}
     }
    },
    "Norwegian": {
@@ -6603,8 +6642,11 @@
      },
      "settings": {
       "title": "Innstillinger",
-      "text": "Innstillingene inneholder målet, hvordan verdien måles og reglene som markerer poster. Hver endring lagres med notatet sitt."
-     }
+      "text": "Innstillingene inneholder målet, hvordan verdien måles og reglene som flagger poster. Feedback brukes til å melde fra om et problem, og Reported issues viser hver sendt sak med status."
+     },
+     "todo": {"title": "Hva du skal gjøre nå", "text": "Boksen viser neste steg i rekkefølge og hvor mange poster som fortsatt venter på deg."},
+     "value": {"title": "Verdilinjen", "text": "Dette er tallet som denne bruksaken skal flytte, og hvor det står nå."},
+     "saved": {"title": "Spart siden lansering", "text": "Linjen summerer det handlingene på denne siden har spart siden appen ble lansert."}
     }
    },
    "Finnish": {
@@ -6672,8 +6714,11 @@
      },
      "settings": {
       "title": "Asetukset",
-      "text": "Asetuksissa määritetään tavoite, arvon mittaustapa ja säännöt, joilla tietueet merkitään. Jokainen muutos tallentuu muistiinpanoineen."
-     }
+      "text": "Asetuksissa ovat tavoite, arvon mittaustapa ja tietueiden merkitsemisen säännöt. Feedback-kohdasta voi ilmoittaa ongelmasta, ja Reported issues -listassa näkyy jokainen lähetetty ongelma ja sen tila."
+     },
+     "todo": {"title": "Tehtävät nyt", "text": "Tämä ruutu listaa seuraavat vaiheet järjestyksessä ja kertoo, montako tietuetta odottaa vielä sinua."},
+     "value": {"title": "Arvorivi", "text": "Tämä on luku, jonka tämän käyttötapauksen pitäisi liikuttaa, ja missä se on nyt."},
+     "saved": {"title": "Säästetty käynnistyksestä", "text": "Tämä rivi laskee yhteen, mitä tämän sivun toimet ovat säästäneet sovelluksen käynnistyksestä asti."}
     }
    },
    "Polish": {
@@ -6741,8 +6786,11 @@
      },
      "settings": {
       "title": "Ustawienia",
-      "text": "Ustawienia zawierają cel, sposób mierzenia wartości i reguły oznaczające rekordy. Każda zmiana jest zapisywana z notatką."
-     }
+      "text": "Ustawienia zawierają cel, sposób mierzenia wartości i reguły oznaczania rekordów. Feedback służy do zgłaszania problemu, a Reported issues pokazuje każde wysłane zgłoszenie wraz ze statusem."
+     },
+     "todo": {"title": "Co zrobić teraz", "text": "To pole pokazuje kolejne kroki w kolejności i liczbę rekordów, które wciąż czekają na Ciebie."},
+     "value": {"title": "Wiersz wartości", "text": "To liczba, którą ten przypadek użycia ma poprawić, i jej obecny stan."},
+     "saved": {"title": "Oszczędności od startu", "text": "Ten wiersz sumuje, ile działania na tej stronie zaoszczędziły od uruchomienia aplikacji."}
     }
    },
    "Romanian": {
@@ -6810,8 +6858,11 @@
      },
      "settings": {
       "title": "Setări",
-      "text": "Setările țin ținta, modul în care se măsoară valoarea și regulile care marchează înregistrările. Fiecare modificare se păstrează cu nota ei."
-     }
+      "text": "Setările conțin ținta, modul în care se măsoară valoarea și regulile care marchează înregistrările. Feedback servește la raportarea unei probleme, iar Reported issues listează fiecare problemă trimisă și starea ei."
+     },
+     "todo": {"title": "Ce ai de făcut acum", "text": "Caseta listează pașii următori, în ordine, și câte înregistrări mai așteaptă decizia ta."},
+     "value": {"title": "Rândul valorii", "text": "Este cifra pe care trebuie să o miște acest caz de utilizare și unde se află acum."},
+     "saved": {"title": "Economisit de la lansare", "text": "Rândul adună ce au economisit acțiunile din această pagină de la lansarea aplicației."}
     }
    },
    "Ukrainian": {
@@ -6879,8 +6930,11 @@
      },
      "settings": {
       "title": "Налаштування",
-      "text": "У налаштуваннях задано ціль, спосіб вимірювання значення та правила, за якими позначаються записи. Кожна зміна зберігається з приміткою."
-     }
+      "text": "У налаштуваннях задано ціль, спосіб вимірювання цінності та правила позначення записів. Feedback дозволяє повідомити про проблему, а Reported issues показує кожне надіслане повідомлення зі статусом."
+     },
+     "todo": {"title": "Що зробити зараз", "text": "Тут у порядку наведено наступні кроки та кількість записів, які ще чекають на вас."},
+     "value": {"title": "Рядок цінності", "text": "Це число, яке має зрушити цей випадок використання, і де воно зараз."},
+     "saved": {"title": "Заощаджено від запуску", "text": "Цей рядок підсумовує, скільки дій на цій сторінці заощадили від запуску застосунку."}
     }
    },
    "Dutch": {
@@ -6948,8 +7002,11 @@
      },
      "settings": {
       "title": "Instellingen",
-      "text": "In de instellingen staan het doel, hoe de waarde wordt gemeten en de regels die records markeren. Elke wijziging wordt bewaard met de notitie erbij."
-     }
+      "text": "Instellingen bevatten het doel, hoe de waarde wordt gemeten en de regels die records markeren. Met Feedback meld je een probleem, en Reported issues toont elk verstuurd probleem met de status."
+     },
+     "todo": {"title": "Nu te doen", "text": "Dit vak toont je volgende stappen in volgorde en hoeveel records nog op je wachten."},
+     "value": {"title": "De waarderegel", "text": "Dit is het getal dat deze use case moet verplaatsen, en waar het nu staat."},
+     "saved": {"title": "Bespaard sinds livegang", "text": "Deze regel telt op wat de acties op deze pagina sinds de livegang van de App hebben bespaard."}
     }
    },
    "Indonesian": {
@@ -7017,8 +7074,11 @@
      },
      "settings": {
       "title": "Pengaturan",
-      "text": "Pengaturan memuat target, cara nilai diukur, dan aturan yang menandai rekaman. Setiap perubahan disimpan beserta catatannya."
-     }
+      "text": "Pengaturan memuat target, cara nilai diukur, dan aturan yang menandai rekaman. Feedback dipakai untuk melaporkan masalah, dan Reported issues menampilkan setiap masalah yang dikirim beserta statusnya."
+     },
+     "todo": {"title": "Yang harus dilakukan sekarang", "text": "Kotak ini menampilkan langkah berikutnya secara berurutan dan berapa rekaman yang masih menunggu Anda."},
+     "value": {"title": "Baris nilai", "text": "Ini angka yang ingin digerakkan use case ini, dan posisinya saat ini."},
+     "saved": {"title": "Dihemat sejak peluncuran", "text": "Baris ini menjumlahkan penghematan dari tindakan di halaman ini sejak App diluncurkan."}
     }
    },
    "Malay": {
@@ -7086,8 +7146,11 @@
      },
      "settings": {
       "title": "Tetapan",
-      "text": "Tetapan memuatkan sasaran, cara nilai diukur dan peraturan yang menandakan rekod. Setiap perubahan disimpan bersama notanya."
-     }
+      "text": "Tetapan memuatkan sasaran, cara nilai diukur dan peraturan yang menandakan rekod. Feedback digunakan untuk melaporkan isu, dan Reported issues menyenaraikan setiap isu yang dihantar beserta statusnya."
+     },
+     "todo": {"title": "Perkara yang perlu dibuat sekarang", "text": "Kotak ini menyenaraikan langkah seterusnya mengikut urutan dan berapa rekod yang masih menunggu anda."},
+     "value": {"title": "Baris nilai", "text": "Ini nombor yang patut digerakkan oleh kes penggunaan ini, dan kedudukannya kini."},
+     "saved": {"title": "Dijimat sejak pelancaran", "text": "Baris ini menjumlahkan penjimatan daripada tindakan pada halaman ini sejak App dilancarkan."}
     }
    },
    "Tamil": {
@@ -7155,8 +7218,11 @@
      },
      "settings": {
       "title": "அமைப்புகள்",
-      "text": "அமைப்புகளில் இலக்கு, மதிப்பு அளக்கப்படும் முறை, பதிவுகளைக் குறிக்கும் விதிகள் உள்ளன. ஒவ்வொரு மாற்றமும் அதன் குறிப்புடன் சேமிக்கப்படும்."
-     }
+      "text": "அமைப்புகளில் இலக்கு, மதிப்பு அளக்கும் முறை, பதிவுகளைக் குறிக்கும் விதிகள் உள்ளன. Feedback மூலம் சிக்கலைத் தெரிவிக்கலாம்; Reported issues அனுப்பிய ஒவ்வொரு சிக்கலையும் அதன் நிலையுடன் காட்டும்."
+     },
+     "todo": {"title": "இப்போது செய்ய வேண்டியவை", "text": "இந்தப் பெட்டி அடுத்த படிகளை வரிசையாகவும், இன்னும் உங்களுக்காகக் காத்திருக்கும் பதிவுகளின் எண்ணிக்கையையும் காட்டும்."},
+     "value": {"title": "மதிப்பு வரி", "text": "இந்த பயன்பாட்டு நிகழ்வு நகர்த்த வேண்டிய எண்ணும், அது இப்போது எங்கே உள்ளது என்பதும் இது."},
+     "saved": {"title": "தொடங்கியதிலிருந்து சேமிப்பு", "text": "இந்தப் பக்கச் செயல்கள் ஆப் தொடங்கியதிலிருந்து சேமித்தவற்றை இந்த வரி கூட்டிக் காட்டுகிறது."}
     }
    }
   }
