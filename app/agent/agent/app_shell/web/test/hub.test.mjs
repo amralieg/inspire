@@ -142,7 +142,7 @@ test('the switcher lists each use case with its status and hides a use case the 
   assert.deepEqual(items, [['Price-loss decision desk', '3 to fix', ''], ['Second desk 1', '2 to fix', ''], ['Second desk 2', 'Not updated', 'bad'], ['Second desk 3', 'Not ready yet', 'warn']]);
   assert.equal(await page.locator('.switch-i[aria-selected="true"] .switch-t b').innerText(), 'Price-loss decision desk');
   await page.keyboard.press('Escape');
-  assert.deepEqual(await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail)), ['dashboard', 'work', 'performance', 'runs', 'impact', 'feedback', 'settings'], 'Impact is on the rail when the page has a history (bff5947e)');
+  assert.deepEqual(await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail)), ['dashboard', 'work', 'performance', 'runs', 'impact', 'settings'], 'Impact is on the rail when the page has a history; Feedback sits in Settings (REQ-110)');
   const zone = await page.evaluate(() => Intl.DateTimeFormat().resolvedOptions().timeZone);
   assert.deepEqual(seen.hub.find((body) => !body.page), { window: 'all', time_zone: zone }, 'the hub reads every use case in one request, in the All open window and the time zone of the browser');
   assert.deepEqual(seen.errors, []);

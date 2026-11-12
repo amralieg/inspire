@@ -550,7 +550,7 @@ test('a closed record undoes the change that closed it from its own page, after 
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('.done').waitFor();
   assert.equal(await drawer.locator('[data-closed-by]').innerText(), `By ${OTHER} on Oct 26, 2026, 03:20 PM UTC. Note: Repriced the shelf`);
-  await drawer.getByRole('button', { name: 'Undo this change' }).click();
+  await drawer.getByRole('button', { name: 'Reopen', exact: true }).click();
   const ask = drawer.getByRole('group', { name: 'Undo this change' });
   assert.equal(await ask.locator('span').innerText(), 'Undo puts back every record this change touched, as they were before it, and keeps both versions in their history.');
   assert.equal(calls.undos.length, 0, 'nothing is undone until the person says so');
@@ -561,7 +561,7 @@ test('a closed record undoes the change that closed it from its own page, after 
   await page.keyboard.press('Escape');
   await page.locator('.cell-t').nth(2).click();
   await drawer.locator('[data-closed-by]').waitFor();
-  assert.equal(await drawer.getByRole('button', { name: 'Undo this change' }).count(), 0, 'the close was itself an undo, so it is not undone from the record');
+  assert.equal(await drawer.getByRole('button', { name: 'Reopen', exact: true }).count(), 0, 'the close was itself an undo, so it is not undone from the record');
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
@@ -603,7 +603,7 @@ test('in Everything a closed record is read-only: its closure line, its history 
   assert.equal(await drawer.getByRole('region', { name: 'Next best action', exact: true }).count(), 1, 'what the AI advised stays readable');
   assert.equal(await drawer.locator('form').count(), 0, 'no form can change a closed record here');
   assert.equal(await drawer.locator('.dr-hist').count(), 1, 'its history stays');
-  assert.deepEqual(await drawer.locator('.panel-f button').allInnerTexts(), ['Undo this change', 'Close']);
+  assert.deepEqual(await drawer.locator('.panel-f button').allInnerTexts(), ['Reopen', 'Close'], 'a closed record offers Reopen (REQ-057)');
   for (const key of ['d', 's', 'a']) {
     await page.keyboard.press(key);
     await page.waitForFunction((text) => document.querySelector('.toast.is-on .toast-t')?.textContent === text, SKIPPED(1));
@@ -630,7 +630,7 @@ test('in Everything Reopen on a closed row opens that record at its Undo ask, an
   await page.locator('.card--table tbody .row-acts:not(.row-next-acts)').nth(1).getByRole('button', { name: /^Reopen / }).click();
   const drawer = page.locator('dialog.drawer');
   await drawer.locator('[data-read-only]').waitFor();
-  assert.deepEqual(await drawer.locator('.panel-f button').allInnerTexts(), ['Undo this change', 'Close'], 'the drawer offers the Undo that reopens the record');
+  assert.deepEqual(await drawer.locator('.panel-f button').allInnerTexts(), ['Reopen', 'Close'], 'the drawer offers the Reopen that reopens the record (REQ-057)');
   assert.equal(calls.undos.length, 0, 'Reopen itself sends no undo');
   assert.deepEqual(seen.errors, []);
   await context.close();

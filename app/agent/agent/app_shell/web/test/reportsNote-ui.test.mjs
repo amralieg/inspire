@@ -35,13 +35,16 @@ test('an App that cannot keep reports shows the plain note in place of the form,
   await context.close();
 });
 
-test('the Feedback section shows the same note on an App that cannot keep reports', async () => {
+test('Report an issue in Settings shows the same note on an App that cannot keep reports', async () => {
   const info = appInfo({}, 1, {});
   info.pages[0].reports = NOT_READY;
   info.pages[0].is_owner = false;
   const { page, context } = await openApp(browser, served.base, info);
-  await goRail(page, 'feedback');
-  await page.locator('[data-feedback-screen] [data-feedback-note]').waitFor();
-  assert.equal(await page.locator('[data-feedback-screen] [data-feedback-form]').count(), 0);
+  await goRail(page, 'settings');
+  const group = page.locator('[data-group="feedback"]');
+  await group.waitFor();
+  await group.getByRole('button', { name: 'Report an issue', exact: true }).click();
+  await page.locator('.pop [data-feedback-note]').waitFor();
+  assert.equal(await page.locator('.pop [data-feedback-form]').count(), 0);
   await context.close();
 });

@@ -39,7 +39,7 @@ test('a page built with no grouping shows no grouping chip and no grouping filte
   await context.close();
 });
 
-test('an owner sees Impact, Feedback and Reported issues in the nav, and each opens its screen', async () => {
+test('an owner sees Impact in the nav, and Feedback and Reported issues in Settings', async () => {
   const info = appInfo({}, 1, { promised: PROMISED });
   info.pages[0].is_owner = true;
   const reported = { items: [{ feedback_id: 'f1', text: 'Totals look wrong', section: 'work', reported_by: 'sam.roe', reported_at: '2026-11-10', status: 'new' }],
@@ -47,25 +47,28 @@ test('an owner sees Impact, Feedback and Reported issues in the nav, and each op
   const { page, context } = await openApp(browser, served.base, info, { routes: { feedback: ({ json }) => json(200, reported) } });
   await page.locator('[data-rail]').first().waitFor();
   const items = await rail(page);
-  assert.ok(items.includes('impact') && items.includes('feedback') && items.includes('reports'), `rail is ${items.join(', ')}`);
-  await goRail(page, 'feedback');
-  await page.locator('[data-feedback-screen] [data-feedback-note]').waitFor();
-  await goRail(page, 'reports');
-  await page.locator('[data-reported-issues] [data-feedback-item="f1"]').waitFor();
+  assert.ok(items.includes('impact') && !items.includes('feedback') && !items.includes('reports'), `rail is ${items.join(', ')}; Feedback and Reported issues sit in Settings (REQ-110)`);
+  await goRail(page, 'settings');
+  await page.locator('[data-group="feedback"]').getByRole('button', { name: 'Report an issue', exact: true }).click();
+  await page.locator('.pop [data-feedback-note]').waitFor();
+  await page.keyboard.press('Escape');
+  await page.locator('[data-group="reports"] [data-feedback-item="f1"]').waitFor();
   await goRail(page, 'impact');
   await page.locator('[data-section-title]', { hasText: 'Impact' }).waitFor();
   await context.close();
 });
 
-test('a person who is not an owner sees Feedback but not Reported issues, and a page with no impact data has no Impact entry', async () => {
+test('a person who is not an owner sees Feedback in Settings but not Reported issues, and a page with no impact data has no Impact entry', async () => {
   const info = appInfo({}, 1, {});
   info.pages[0].is_owner = false;
   const { page, context } = await openApp(browser, served.base, info);
   await page.locator('[data-rail]').first().waitFor();
   const items = await rail(page);
-  assert.ok(items.includes('feedback'), `rail is ${items.join(', ')}`);
-  assert.ok(!items.includes('reports'), 'Reported issues stays with the owners');
+  assert.ok(!items.includes('feedback') && !items.includes('reports'), `rail is ${items.join(', ')}; Feedback sits in Settings`);
   assert.ok(!items.includes('impact'), 'no results table and no promised impact, no Impact entry');
+  await goRail(page, 'settings');
+  await page.locator('[data-group="feedback"]').waitFor();
+  assert.equal(await page.locator('[data-group="reports"]').count(), 0, 'Reported issues stays with the owners');
   await context.close();
 });
 

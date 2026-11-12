@@ -35,6 +35,7 @@ import { recordName, recordSentenceName,
   CLOSED_PICK, ACCEPTED, acceptable, watchBreakdown, acceptedText, quietList, claimTarget, claimText, pageDecides, recordLine, recordDetails, choiceValues, rowChoice,
 } from './records.js';
 import { SectionHelp } from './SectionHelp.jsx';
+import { ClusterBar, useChoices } from './KindParts.jsx';
 
 const tierClass = (t) => `tier tier--${String(t).toLowerCase().replace(/[^a-z0-9]+/g, '-')}`;
 const CHANGE_TAGS = { edit: 'Edited', add: 'Added' };
@@ -265,7 +266,7 @@ function AskAbout({ meta, onAsk, busy }) {
 }
 
 function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners, app, pageId, nonce, aliases, onEdit, onDelete, acts, onExplain, genieBusy, model,
-  work, tomorrow, today, focusOwner, closedReadOnly, dock = null }) {
+  work, tomorrow, today, focusOwner, closedReadOnly, dock = null, clusterRows = [], onActed }) {
   const modal = useDialog(!dock && !!given, onClose);
   const docked = useRef(null);
   const ref = dock ? docked : modal;
@@ -276,6 +277,9 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
   const deleted = !!log.data?.deleted;
   const title = (row && recordName(row, meta)) || 'This record';
   const choices = pageChoices(app, pageId);
+  const groupPage = { id: pageId, records: meta, choices };
+  const decide = useChoices(groupPage, onActed);
+  const cluster = meta?.group && row ? clusterRows.filter((r) => String(r[meta.group.column] ?? '') === String(row[meta.group.column] ?? '')) : [];
   const action = useAction(log.data, person, acts, title, choices);
   const reason = useRef(null);
   const ownerInput = useRef(null);
@@ -421,6 +425,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               </section>
             )}
           </div>
+          {cluster.length > 0 && <ClusterBar page={groupPage} app={app} name={String(row[meta.group.column] ?? '')} items={cluster} decide={decide} can={!!tracker} />}
           <footer ref={setFoot} className="panel-f dr-f" data-toast-host data-narrow={narrow || undefined}>
             <Failure failure={action.failure} as="div" className="hint hint--box">
               <Icon name="info" size={14} /><span>{action.failure?.text}</span>
@@ -470,7 +475,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               );
             })()}
             {undoBatch && !work && !undoAsk && (
-              <button type="button" className="btn" onClick={() => setUndoAsk(true)} data-undo-close><Icon name="undo" size={14} />Undo this change</button>
+              <button type="button" className="btn" onClick={() => setUndoAsk(true)} data-undo-close><Icon name="undo" size={14} />{meta?.undo || 'Reopen'}</button>
             )}
             {undoBatch && undoAsk && (
               <div className="note note--flat undo-ask" role="group" aria-label="Undo this change">
@@ -504,7 +509,7 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
   const choices = pageChoices(app, pageId);
   return (
     <>
-      <Drawer meta={meta} row={row} onClose={onClose} history canModify={false} tracker={!!(decides && list?.actions)} owners={list?.summary?.owners || []} app={app}
+      <Drawer meta={meta} row={row} onClose={onClose} history canModify={false} tracker={!!(decides && list?.actions)} owners={list?.summary?.owners || []} app={app} onActed={acted} clusterRows={list?.rows || []}
         pageId={pageId} nonce={nonce} aliases={list?.ai?.columns || NO_ALIASES} acts={acts} onExplain={onExplain} genieBusy={genieBusy} model={list?.money}
         work={null} tomorrow={nextDay(today)} today={today} />
       <ConflictNote conflicts={acts.conflicts} labelOf={labelOf} onClose={acts.clearConflicts} />
@@ -1073,7 +1078,7 @@ export default function Records({ meta, app, pageId, filters, ai, onFilter, hist
           )}
         </>
       )}
-      <Drawer meta={meta} row={shown} onClose={work ? stopWork : close} history={history} canModify={canModify} tracker={tracker} owners={owners} app={app} pageId={pageId}
+      <Drawer meta={meta} row={shown} onClose={work ? stopWork : close} history={history} canModify={canModify} tracker={tracker} owners={owners} app={app} pageId={pageId} onActed={acted} clusterRows={data?.rows || []}
         nonce={drawerNonce} aliases={aliases} onEdit={edit} onDelete={setDoomed} acts={acts} onExplain={onExplain} genieBusy={genieBusy} model={data?.money}
         work={work && !work.ended && shown ? { text: workText, next: workNext } : null} tomorrow={tomorrow} today={today} focusOwner={ownerFocus}
         closedReadOnly={everything} dock={dock} />

@@ -12,7 +12,7 @@ export default function Switcher({ pages, page, hub, summaries, onPick, onOpen }
   const now = page ? useCaseState(hub?.pages?.[page.id], summaries?.[page.id]) : null;
   return (
     <>
-      <button ref={anchor} type="button" className="switch" style={hueVars(page?.hue || 'blue')} onClick={() => setOpen(!open)} disabled={single}
+      <button ref={anchor} type="button" className="switch" style={hueVars(page?.hue || 'blue')} onClick={() => setOpen(!open)} disabled={single} title={page?.title}
         aria-haspopup="dialog" aria-expanded={open} aria-label={page ? `Use case: ${page.title}${single ? '' : '. Switch use case'}` : 'Pick a use case'} data-switcher>
         {page && <span className="switch-ic"><Icon name={page.icon} size={14} /></span>}
         <span className="switch-t"><b>{page ? page.title : 'Pick a use case'}</b>{now?.text && <small className={CASE_TONES[now.kind] || ''}>{now.text}</small>}</span>

@@ -5251,7 +5251,7 @@
   "title_chars": 60,
   "text_chars": 220,
   "least": 5,
-  "most": 12,
+  "most": 18,
   "live": [
    "open_count",
    "top_record",
@@ -5292,7 +5292,10 @@
    "alerts": "the alerts entry, to get an email when a new run finds something",
    "performance": "the performance entry, which shows what was promised and what the actions delivered",
   "runs": "the runs entry, the history of each refresh of this use case and what it found",
-  "settings": "the settings entry, where the target, the measurement and the flagging rules are set"
+  "settings": "the settings entry, where the target, the measurement and the flagging rules are set, and where Feedback (report an issue) and Reported issues (every issue sent and its status) sit",
+  "todo": "the What to do now box, the next steps for you in order and how many records are still waiting",
+  "value": "the value line at the top of the page, the number this use case is meant to move and where it stands now",
+  "saved": "the Saved since go-live line, what the actions on this page have saved so far"
   },
   "must_name": {
     "actions": ["side panel", "choice"]
@@ -5308,7 +5311,9 @@
    "alerts",
    "performance",
    "runs",
-   "settings"
+   "settings",
+   "value",
+   "saved"
   ],
   "records": [
    "records",
@@ -5319,7 +5324,10 @@
   "layouts": {
    "decision_queue": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5334,7 +5342,10 @@
    ],
    "monitor_triage": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5349,7 +5360,10 @@
    ],
    "scenario_lab": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5364,7 +5378,10 @@
    ],
    "performance_explainer": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5379,7 +5396,10 @@
    ],
    "forecast_cockpit": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5393,7 +5413,10 @@
    ],
    "planner": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5407,7 +5430,10 @@
    ],
    "segment_explorer": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5420,7 +5446,10 @@
    ],
    "recommendation_desk": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5433,7 +5462,10 @@
    ],
    "lift_readout": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5446,7 +5478,10 @@
    ],
    "process_flow": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5459,7 +5494,10 @@
    ],
    "location_view": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5472,7 +5510,10 @@
    ],
    "network_explorer": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5485,7 +5526,10 @@
    ],
    "agent_chat": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "genie",
@@ -5496,12 +5540,16 @@
    ],
    "dashboard": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "settings"
    ]
   },
   "rtl": [
@@ -5577,7 +5625,19 @@
      },
      "settings": {
       "title": "Settings",
-      "text": "Settings hold the target, how the value is measured and the rules that flag records. Each change is kept with its note."
+      "text": "Settings hold the target, how the value is measured and the rules that flag records. Each change is kept with its note. Feedback is there too: report an issue, and the owners' Reported issues list shows every issue sent with its status."
+     },
+     "todo": {
+      "title": "What to do now",
+      "text": "This box lists your next steps in order and how many records are still waiting for you. Work through them from the top."
+     },
+     "value": {
+      "title": "The value line",
+      "text": "This is the number this use case is meant to move, and where it stands now. The owners set how it is measured in Settings."
+     },
+     "saved": {
+      "title": "Saved since go-live",
+      "text": "This line adds up what the actions on this page have saved since the App went live. It reads none recorded yet until the first saving is logged."
      }
     }
    },
