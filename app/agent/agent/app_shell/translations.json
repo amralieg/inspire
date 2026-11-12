@@ -313,7 +313,8 @@
   "value_recommendation": "التوصية",
   "value_time_series_analysis": "تحليل السلاسل الزمنية",
   "value_predictive_analytics": "التحليلات التنبؤية",
-  "value_descriptive_analytics": "التحليلات الوصفية"
+  "value_descriptive_analytics": "التحليلات الوصفية",
+  "key_measure_note": "المقياس الرئيسي"
  },
  "Spanish": {
   "main_title": "Generador de Casos de Uso Impulsado por Databricks Genie Code",
@@ -629,7 +630,8 @@
   "value_recommendation": "Recomendación",
   "value_time_series_analysis": "Análisis de Series Temporales",
   "value_predictive_analytics": "Analítica Predictiva",
-  "value_descriptive_analytics": "Analítica Descriptiva"
+  "value_descriptive_analytics": "Analítica Descriptiva",
+  "key_measure_note": "Medida clave"
  },
  "French": {
   "main_title": "Générateur de Cas d'Utilisation Propulsé par Databricks Genie Code",
@@ -945,7 +947,8 @@
   "value_recommendation": "Recommandation",
   "value_time_series_analysis": "Analyse de Séries Temporelles",
   "value_predictive_analytics": "Analytique Prédictive",
-  "value_descriptive_analytics": "Analytique Descriptive"
+  "value_descriptive_analytics": "Analytique Descriptive",
+  "key_measure_note": "Mesure clé"
  },
  "German": {
   "main_title": "Anwendungsfall-Generator Unterstützt von Databricks Genie Code",
@@ -1261,7 +1264,8 @@
   "value_recommendation": "Empfehlung",
   "value_time_series_analysis": "Zeitreihenanalyse",
   "value_predictive_analytics": "Prädiktive Analytik",
-  "value_descriptive_analytics": "Deskriptive Analytik"
+  "value_descriptive_analytics": "Deskriptive Analytik",
+  "key_measure_note": "Schlüsselkennzahl"
  },
  "Portuguese": {
   "main_title": "Gerador de Casos de Uso Impulsionado por Databricks Genie Code",
@@ -1577,7 +1581,8 @@
   "value_recommendation": "Recomendação",
   "value_time_series_analysis": "Análise de Séries Temporais",
   "value_predictive_analytics": "Análise Preditiva",
-  "value_descriptive_analytics": "Análise Descritiva"
+  "value_descriptive_analytics": "Análise Descritiva",
+  "key_measure_note": "Medida-chave"
  },
  "Italian": {
   "main_title": "Generatore di Casi d'Uso Alimentato da Databricks Genie Code",
@@ -1893,7 +1898,8 @@
   "value_recommendation": "Raccomandazione",
   "value_time_series_analysis": "Analisi delle Serie Temporali",
   "value_predictive_analytics": "Analisi Predittiva",
-  "value_descriptive_analytics": "Analisi Descrittiva"
+  "value_descriptive_analytics": "Analisi Descrittiva",
+  "key_measure_note": "Misura chiave"
  },
  "Chinese (Mandarin)": {
   "main_title": "由 达塔布里克斯 吉尼 科德 驱动的用例生成器",
@@ -2209,7 +2215,8 @@
   "value_recommendation": "推荐",
   "value_time_series_analysis": "时间序列分析",
   "value_predictive_analytics": "预测分析",
-  "value_descriptive_analytics": "描述性分析"
+  "value_descriptive_analytics": "描述性分析",
+  "key_measure_note": "关键指标"
  },
  "Japanese": {
   "main_title": "データブリックス ジーニー コード を活用したユースケースジェネレーター",
@@ -2525,7 +2532,8 @@
   "value_recommendation": "レコメンデーション",
   "value_time_series_analysis": "時系列分析",
   "value_predictive_analytics": "予測分析",
-  "value_descriptive_analytics": "記述的分析"
+  "value_descriptive_analytics": "記述的分析",
+  "key_measure_note": "主要指標"
  },
  "Korean": {
   "main_title": "데이터브릭스 지니 코드 기반의 유스케이스 생성기",
@@ -2841,7 +2849,8 @@
   "value_recommendation": "추천",
   "value_time_series_analysis": "시계열 분석",
   "value_predictive_analytics": "예측 분석",
-  "value_descriptive_analytics": "기술적 분석"
+  "value_descriptive_analytics": "기술적 분석",
+  "key_measure_note": "핵심 지표"
  },
  "Hindi": {
   "main_title": "डेटाब्रिक्स जीनी कोड द्वारा संचालित उपयोग केस जनरेटर",
@@ -3157,7 +3166,8 @@
   "value_recommendation": "अनुशंसा",
   "value_time_series_analysis": "समय श्रृंखला विश्लेषण",
   "value_predictive_analytics": "भविष्यवाणी विश्लेषण",
-  "value_descriptive_analytics": "वर्णनात्मक विश्लेषण"
+  "value_descriptive_analytics": "वर्णनात्मक विश्लेषण",
+  "key_measure_note": "मुख्य मापदंड"
  },
  "Russian": {
   "main_title": "Генератор бизнес-кейсов на базе Датабрикс Джини Код",
@@ -3473,7 +3483,8 @@
   "value_recommendation": "Рекомендация",
   "value_time_series_analysis": "Анализ Временных Рядов",
   "value_predictive_analytics": "Прогнозная Аналитика",
-  "value_descriptive_analytics": "Описательная Аналитика"
+  "value_descriptive_analytics": "Описательная Аналитика",
+  "key_measure_note": "Ключевой показатель"
  },
  "Swedish": {
   "main_title": "Användningsfallsgenerator Driven av Databricks Genie Code",
@@ -3789,7 +3800,8 @@
   "value_recommendation": "Rekommendation",
   "value_time_series_analysis": "Tidsserieanalys",
   "value_predictive_analytics": "Prediktiv analys",
-  "value_descriptive_analytics": "Deskriptiv analys"
+  "value_descriptive_analytics": "Deskriptiv analys",
+  "key_measure_note": "Nyckelmått"
  },
  "Danish": {
   "main_title": "Anvendelsescase-generator drevet af Databricks Genie Code",
@@ -4105,7 +4117,8 @@
   "value_recommendation": "Anbefaling",
   "value_time_series_analysis": "Tidsserieanalyse",
   "value_predictive_analytics": "Prædiktiv analyse",
-  "value_descriptive_analytics": "Deskriptiv analyse"
+  "value_descriptive_analytics": "Deskriptiv analyse",
+  "key_measure_note": "Nøgletal"
  },
  "Norwegian": {
   "main_title": "Brukscasegenerator drevet av Databricks Genie Code",
@@ -4421,7 +4434,8 @@
   "value_recommendation": "Anbefaling",
   "value_time_series_analysis": "Tidsserieanalyse",
   "value_predictive_analytics": "Prediktiv analyse",
-  "value_descriptive_analytics": "Deskriptiv analyse"
+  "value_descriptive_analytics": "Deskriptiv analyse",
+  "key_measure_note": "Nøkkeltall"
  },
  "Finnish": {
   "main_title": "Käyttötapausgeneraattori Databricks Genie Coden avulla",
@@ -4737,7 +4751,8 @@
   "value_recommendation": "Suositus",
   "value_time_series_analysis": "Aikasarja-analyysi",
   "value_predictive_analytics": "Prediktiivinen analytiikka",
-  "value_descriptive_analytics": "Deskriptiivinen analytiikka"
+  "value_descriptive_analytics": "Deskriptiivinen analytiikka",
+  "key_measure_note": "Avainmittari"
  },
  "Polish": {
   "main_title": "Generator przypadków użycia oparty na Databricks Genie Code",
@@ -5053,7 +5068,8 @@
   "value_recommendation": "Rekomendacja",
   "value_time_series_analysis": "Analiza szeregów czasowych",
   "value_predictive_analytics": "Analityka predykcyjna",
-  "value_descriptive_analytics": "Analityka opisowa"
+  "value_descriptive_analytics": "Analityka opisowa",
+  "key_measure_note": "Kluczowy miernik"
  },
  "Romanian": {
   "main_title": "Generator de cazuri de utilizare alimentat de Databricks Genie Code",
@@ -5369,7 +5385,8 @@
   "value_recommendation": "Recomandare",
   "value_time_series_analysis": "Analiza seriilor temporale",
   "value_predictive_analytics": "Analiză predictivă",
-  "value_descriptive_analytics": "Analiză descriptivă"
+  "value_descriptive_analytics": "Analiză descriptivă",
+  "key_measure_note": "Măsura cheie"
  },
  "Ukrainian": {
   "main_title": "Генератор бізнес-кейсів на базі Датабрікс Джіні Код",
@@ -5685,7 +5702,8 @@
   "value_recommendation": "Рекомендація",
   "value_time_series_analysis": "Аналіз часових рядів",
   "value_predictive_analytics": "Прогнозна аналітика",
-  "value_descriptive_analytics": "Описова аналітика"
+  "value_descriptive_analytics": "Описова аналітика",
+  "key_measure_note": "Ключовий показник"
  },
  "Dutch": {
   "main_title": "Gebruikscasegenerator aangedreven door Databricks Genie Code",
@@ -6001,7 +6019,8 @@
   "value_recommendation": "Aanbeveling",
   "value_time_series_analysis": "Tijdreeksanalyse",
   "value_predictive_analytics": "Voorspellende analyse",
-  "value_descriptive_analytics": "Beschrijvende analyse"
+  "value_descriptive_analytics": "Beschrijvende analyse",
+  "key_measure_note": "Kernmaatstaf"
  },
  "Indonesian": {
   "main_title": "Generator Kasus Penggunaan Didukung oleh Databricks Genie Code",
@@ -6317,7 +6336,8 @@
   "value_recommendation": "Rekomendasi",
   "value_time_series_analysis": "Analisis Deret Waktu",
   "value_predictive_analytics": "Analitik Prediktif",
-  "value_descriptive_analytics": "Analitik Deskriptif"
+  "value_descriptive_analytics": "Analitik Deskriptif",
+  "key_measure_note": "Ukuran kunci"
  },
  "Malay": {
   "main_title": "Penjana Kes Penggunaan Dikuasakan oleh Databricks Genie Code",
@@ -6633,7 +6653,8 @@
   "value_recommendation": "Cadangan",
   "value_time_series_analysis": "Analisis Siri Masa",
   "value_predictive_analytics": "Analitik Ramalan",
-  "value_descriptive_analytics": "Analitik Deskriptif"
+  "value_descriptive_analytics": "Analitik Deskriptif",
+  "key_measure_note": "Ukuran utama"
  },
  "Tamil": {
   "main_title": "Databricks Genie Code மூலம் இயக்கப்படும் பயன்பாட்டு வழக்கு உருவாக்கி",
@@ -6949,6 +6970,7 @@
   "value_recommendation": "பரிந்துரை",
   "value_time_series_analysis": "நேரத் தொடர் பகுப்பாய்வு",
   "value_predictive_analytics": "முன்கணிப்பு பகுப்பாய்வு",
-  "value_descriptive_analytics": "விளக்க பகுப்பாய்வு"
+  "value_descriptive_analytics": "விளக்க பகுப்பாய்வு",
+  "key_measure_note": "முக்கிய அளவீடு"
  }
 }

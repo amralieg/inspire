@@ -57,3 +57,21 @@ def test_the_zero_row_check_says_in_the_log_when_the_kpi_baseline_stage_did_not_
     inst._measure_kpi_baselines([{"No": "N01-U01", "KPIs": [{"name": "x", "computable": True, "query": "q"}]}])
     warnings = [c.args[0] for c in inst.logger.warning.call_args_list]
     assert any("[KEY-MEASURE CHECK SKIPPED]" in w and "zero-row check did not run" in w for w in warnings), warnings
+
+
+def test_the_spreadsheet_has_a_key_measure_column_that_holds_the_note_on_a_swapped_use_case_only(agent_ns):
+    inst = make_inspire(agent_ns)
+    grouped = portfolio()
+    swapped = grouped["Sales"][0]
+    swapped.update(_uc(name=swapped.get("Name") or "Follow up with first-time buyers", KPIs=[dict(SWAPPED_KPI)]))
+    inst._apply_measure_swap_text([swapped])
+    columns = {header: get for header, get, _numeric in inst._export_columns(False)}
+    assert "Key Measure" in columns
+    assert columns["Key Measure"](swapped, 1) == NOTE
+    assert columns["Key Measure"](grouped["Sales"][1], 2) == ""
+
+
+def test_the_key_measure_column_header_is_translated_in_a_non_english_export(agent_ns):
+    inst = make_inspire(agent_ns)
+    headers = [header for header, _get, _numeric in inst._export_columns(False, False, labels(agent_ns, "Arabic"), "Arabic")]
+    assert "المقياس الرئيسي" in headers and "Key Measure" not in headers
