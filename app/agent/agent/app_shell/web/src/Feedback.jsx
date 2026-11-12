@@ -109,7 +109,8 @@ export function FeedbackButton({ pageId, context, sections, reports = null }) {
 export function FeedbackScreen({ pageId, context, sections, reports = null }) {
   return (
     <section className="card" aria-label="Feedback" data-feedback-screen>
-      <FeedbackButton pageId={pageId} context={context} sections={sections} reports={reports} />
+      {reports?.ready === false ? <p className="why" data-feedback-note>{reports.note}</p>
+        : <FeedbackButton pageId={pageId} context={context} sections={sections} reports={reports} />}
     </section>
   );
 }

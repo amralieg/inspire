@@ -19,7 +19,7 @@ after(async () => {
 const genieOpen = (page) => page.locator('aside.genie.is-open').count();
 
 test('the Ask Genie panel opens on the first load of a browser session, and a close holds across a reload', async () => {
-  const { page, context } = await openApp(browser, served.base, appInfo(), {});
+  const { page, context } = await openApp(browser, served.base, appInfo(), { genie: 'open' });
   try {
     await page.locator('aside.genie.is-open').waitFor({ timeout: 20000 });
     assert.equal(await genieOpen(page), 1, 'the panel is open on the first load');
