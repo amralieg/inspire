@@ -119,16 +119,27 @@ test('the first page is What to deliver, and each step fits the screen at 1280x8
         }).length };
       });
       assert.deepEqual(list, { hidden: 0, outside: 0 }, `${width}x${height}: every step is on screen in the step list`);
-      for (const label of labels.filter((l) => l !== 'Measure' && l !== 'Review & build')) {
+      for (const label of labels.filter((l) => l !== 'Measure')) {
         if (!(await stepLabels(page)).includes(label)) continue;
         await goToStep(page, label);
         await wizardInScreen(page, `${label} ${width}x${height}`, height);
         const problems = await body(page).evaluate((el) => {
           const dialog = el.closest('[role="dialog"]').getBoundingClientRect();
+          const shown = (c) => {
+            let r = c.getBoundingClientRect();
+            for (let p = c.parentElement; p; p = p.parentElement) {
+              const o = getComputedStyle(p);
+              if (o.overflowX === 'visible' && o.overflowY === 'visible') continue;
+              const pr = p.getBoundingClientRect();
+              r = { left: Math.max(r.left, pr.left), right: Math.min(r.right, pr.right), top: Math.max(r.top, pr.top), bottom: Math.min(r.bottom, pr.bottom) };
+            }
+            return r;
+          };
           const items = [...el.querySelectorAll('button, input:not([type=hidden]), select, textarea')]
             .filter((c) => c.getClientRects().length > 0 && c.getBoundingClientRect().width > 2 && !c.closest('.sr-only'))
-            .map((c) => ({ name: (c.getAttribute('aria-label') || c.textContent || c.name || c.tagName).trim().slice(0, 40), r: c.getBoundingClientRect() }));
-          const clipped = items.filter(({ r }) => r.left < dialog.left - 1 || r.right > dialog.right + 1).map((i) => i.name);
+            .map((c) => ({ name: (c.getAttribute('aria-label') || c.textContent || c.name || c.tagName).trim().slice(0, 40), raw: c.getBoundingClientRect(), r: shown(c) }))
+            .filter((i) => i.r.right > i.r.left && i.r.bottom > i.r.top);
+          const clipped = items.filter(({ raw }) => raw.left < dialog.left - 1 || raw.right > dialog.right + 1).map((i) => i.name);
           const overlaps = [];
           for (let i = 0; i < items.length; i += 1) {
             for (let j = i + 1; j < items.length; j += 1) {
