@@ -7762,6 +7762,10 @@
     [
       "asset_snapshots",
       "STRING"
+    ],
+    [
+      "ended_by",
+      "STRING"
     ]
   ],
   "stale_after_seconds": 14400,

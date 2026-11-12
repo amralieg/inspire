@@ -2586,7 +2586,9 @@ export function runStopped(status, stalled = null) {
 }
 
 export function cancelledByUser(latest) {
-  return String(latest?.status || '') === 'failed' && /\(CANCELED(?::|\))/.test(String(latest?.status_message || ''));
+  if (String(latest?.status || '') !== 'failed') return false;
+  if (latest?.ended_by) return latest.ended_by === 'user';
+  return /\(CANCELED(?::|\))/.test(String(latest?.status_message || ''));
 }
 
 export function statusChip(status, stalled = null, latest = null) {

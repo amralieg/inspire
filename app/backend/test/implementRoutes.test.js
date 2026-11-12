@@ -251,8 +251,8 @@ test('a version whose run ended while it was still active is written failed once
       const writes = endedWrites(made);
       assert.equal(writes.length, 1, `${read} writes the ended run once`);
       const p = Object.fromEntries(writes[0].parameters.map((x) => [x.name, x.value]));
-      assert.deepEqual([p.message, p.was, p.run, p.v, p.uc], [reason, 'filling', '5555555555555555', '1', 'N01-U01'], read);
-      const stalled = { run_id: '5555555555555555', run_url: 'https://x/run/5555555555555555', reason, ended: true };
+      assert.deepEqual([p.message, p.endedBy, p.was, p.run, p.v, p.uc], [reason, 'user', 'filling', '5555555555555555', '1', 'N01-U01'], read);
+      const stalled = { run_id: '5555555555555555', run_url: 'https://x/run/5555555555555555', reason, ended: true, ended_by: 'user' };
       if (read.includes('/status')) {
         assert.deepEqual(got.data.stalled, stalled, 'the stopped build still reads as stopped, with its reason and its run');
         assert.deepEqual([got.data.latest.status, got.data.latest.status_message], ['failed', reason]);
@@ -271,10 +271,10 @@ test('a version whose run ended while it was still active is written failed once
     await call(url, `/api/inspire/implement/status?${Q}`);
     assert.equal(endedWrites(made).length, 0, 'a running build is never written as ended');
   });
-  const recorded = [{ ...fresh()[0], status: 'failed', status_message: reason }];
+  const recorded = [{ ...fresh()[0], status: 'failed', status_message: reason, ended_by: 'user' }];
   await withApp({ history: recorded, implementRun: ended }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/status?${Q}`);
-    assert.deepEqual(got.data.stalled, { run_id: '5555555555555555', run_url: 'https://x/run/5555555555555555', reason, ended: true },
+    assert.deepEqual(got.data.stalled, { run_id: '5555555555555555', run_url: 'https://x/run/5555555555555555', reason, ended: true, ended_by: 'user' },
       'read again after the write, it still reads as stopped');
     assert.equal(endedWrites(made).length, 0, 'and it is written only once');
   });

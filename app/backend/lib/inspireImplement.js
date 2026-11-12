@@ -143,7 +143,7 @@ const IMPLEMENT_COLUMNS = [
   ['app_name', 'STRING'], ['app_url', 'STRING'], ['genie_widgets', 'VARIANT'], ['data_profiles', 'VARIANT'],
   ['suggested_schedule', 'VARIANT'], ['asset_status', 'VARIANT'], ['created_by', 'STRING'], ['created_at', 'TIMESTAMP'],
   ['updated_at', 'TIMESTAMP'], ['alert_id', 'STRING'], ['alert_url', 'STRING'], ['implement_run_id', 'BIGINT'],
-  ['asset_snapshots', 'STRING'],
+  ['asset_snapshots', 'STRING'], ['ended_by', 'STRING'],
 ];
 const IMPLEMENT_UNREAD_COLUMNS = ['asset_snapshots'];
 const IMPLEMENT_VARIANT_COLUMNS = IMPLEMENT_COLUMNS.filter(([, t]) => t === 'VARIANT').map(([n]) => n);
@@ -1680,10 +1680,11 @@ function implementRunEndedStatement(table, row, stalled) {
   if (!row || !stalled || !stalled.ended || !IMPLEMENT_ACTIVE_STATUSES.includes(row.status)) return null;
   if (!/^\d{1,19}$/.test(str(row.implement_run_id)) || str(row.implement_run_id) !== str(stalled.run_id)) return null;
   return {
-    sql: `UPDATE ${table} SET status = 'failed', status_message = :message, updated_at = current_timestamp() `
+    sql: `UPDATE ${table} SET status = 'failed', status_message = :message, ended_by = :endedBy, updated_at = current_timestamp() `
       + 'WHERE session_id = :sid AND use_case_id = :uc AND spec_version = :v AND status = :was AND implement_run_id = :run',
     parameters: [
       { name: 'message', value: str(stalled.reason).slice(0, 2000), type: 'STRING' },
+      { name: 'endedBy', value: stalled.ended_by === 'user' ? 'user' : 'system', type: 'STRING' },
       { name: 'was', value: str(row.status), type: 'STRING' },
       { name: 'run', value: str(row.implement_run_id), type: 'BIGINT' },
       ...implementVersionParameters({ sessionId: row.session_id, useCaseId: row.use_case_id, specVersion: row.spec_version }),
@@ -1704,9 +1705,14 @@ function implementBuildRunId(row) {
   return runId;
 }
 
+function implementEndedBy(state, details) {
+  const userCancelled = str(state.result_state) === 'CANCELED' || ['USER_CANCELED', 'CANCELED'].includes(str(details.code));
+  return userCancelled ? 'user' : 'system';
+}
+
 function implementStalled(row, run, now = Date.now()) {
   if (implementEndedRecord(row)) {
-    return { run_id: str(row.implement_run_id), run_url: str(run && run.run_page_url) || null, reason: str(row.status_message), ended: true };
+    return { run_id: str(row.implement_run_id), run_url: str(run && run.run_page_url) || null, reason: str(row.status_message), ended: true, ended_by: str(row.ended_by) || null };
   }
   if (!row || !IMPLEMENT_ACTIVE_STATUSES.includes(row.status)) return null;
   const version = `v${row.spec_version}`;
@@ -1725,6 +1731,7 @@ function implementStalled(row, run, now = Date.now()) {
       run_url: str(run.run_page_url) || null,
       reason: `the run building ${version} ended (${how}) while ${version} was still ${doing}`,
       ended: true,
+      ended_by: implementEndedBy(state, details),
     };
   }
   const last = Date.parse(str(row.updated_at || row.created_at));

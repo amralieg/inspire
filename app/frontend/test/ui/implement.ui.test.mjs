@@ -1197,6 +1197,27 @@ test('a build that failed the same way twice lists what Inspire tried, drops Try
   }
 });
 
+test('the end state decides a cancel: a run the user cancelled shows no failure choices, a run the system stopped shows the stopped choices, and a row written before ended_by reads its text', async () => {
+  const stoppedWords = 'the run building v2 ended (Stopped: Run cancelled) while v2 was still filling';
+  const row = (extra) => built({ spec_version: 2, status: 'failed', implement_run_id: '5555555555555555', ...extra });
+  const cases = [
+    ['user', row({ status_message: stoppedWords, ended_by: 'user' }), 0],
+    ['system', row({ status_message: stoppedWords, ended_by: 'system' }), 3],
+    ['old row', row({ status_message: 'the run building v2 ended (CANCELED: Run cancelled) while v2 was still filling' }), 0],
+  ];
+  for (const [name, failed, expected] of cases) {
+    const ui = await openUi('implement', { ...STUDIO_STATE, history: [failed, built()] });
+    try {
+      const banner = ui.page.getByRole('region', { name: 'Build failed' });
+      await banner.waitFor();
+      assert.equal(await banner.locator('[data-failure-choice]').count(), expected, `${name}: failure choices`);
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  }
+});
+
 test('Try again on a failed build sends the version that failed again as the next one, with its asks, and a notebook edit keeps its own rebuild', async () => {
   const spec = builtSpec();
   const vibe = 'Put the riskiest customers first';
