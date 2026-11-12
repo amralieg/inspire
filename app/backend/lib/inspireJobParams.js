@@ -349,6 +349,28 @@ function resourceTags(kind, tags) {
   return Object.fromEntries(Object.entries(tags).map(([key, value]) => [resourceTagKey(kind, key), resourceTagValue(kind, value)]));
 }
 
+/** Run-as-me: the installer created the Inspire jobs as the person (jobs/create run_as), so the App only starts them. */
+function runAsPerson(env = process.env) {
+  return String(env.INSPIRE_RUN_AS_PERSON || '').trim() === '1';
+}
+
+/**
+ * How one launch starts. Run-as-me never creates a job (jobs/create would run as the App's identity; the
+ * installer creates the job as the person) and starts the installed job with run-now and the run's parameters.
+ * Only the discovery job is installed; the other job types are refused in run-as-me mode, never created.
+ */
+function discoveryLaunchPlan({ runAs, jobType, installedJobId }) {
+  if (!runAs) return { mode: 'create' };
+  if (jobType !== 'discovery') {
+    throw Object.assign(new Error(`Run-as-me: the ${jobType} job is created per run and cannot be made as you, so it is not available in this mode yet.`), { statusCode: 409 });
+  }
+  const jobId = String(installedJobId || '').trim();
+  if (!jobId) {
+    throw Object.assign(new Error('Run-as-me: INSPIRE_JOB_ID_DISCOVER is not set, so run the Inspire installer again to make the discovery job.'), { statusCode: 500 });
+  }
+  return { mode: 'run-now', jobId };
+}
+
 function inspireTaskCompute(clusterId) {
   return clusterId
     ? { existing_cluster_id: clusterId }
@@ -466,6 +488,8 @@ function normalizeV130UseCaseFields(row) {
 
 module.exports = {
   INSPIRE_AGENT_VERSION,
+  runAsPerson,
+  discoveryLaunchPlan,
   parseTableScopeText,
   INSPIRE_ENVIRONMENT_VERSION,
   INSPIRE_NOTEBOOK_WIDGET_KEYS,

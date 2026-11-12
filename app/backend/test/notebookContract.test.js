@@ -143,7 +143,8 @@ test(`deployment and API surfaces advertise ${INSPIRE_AGENT_VERSION} consistentl
 test('all app launch defaults use the installer notebook destination', () => {
   const canonicalPath = '/Shared/inspire-ai/dbx_inspire_ai_agent';
   const installer = fs.readFileSync(path.join(appRoot, 'installer', 'inspire_setup.py'), 'utf8');
-  assert.match(installer, /notebook_dest = f"\/Shared\/\{app_name\}\/dbx_inspire_ai_agent"/);
+  assert.match(installer, /notebook_dest = f"\{ctx\['APP_FOLDER'\]\}\/dbx_inspire_ai_agent"/);
+  assert.match(installer, /"APP_FOLDER": f"\/Shared\/\{app_name\}"/, 'the default install folder is /Shared/<app>');
   const files = [
     'backend/lib/demoDataPipeline.js',
     'databricks.yml',

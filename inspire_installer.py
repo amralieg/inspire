@@ -14,6 +14,8 @@
 # MAGIC **NEW_APPS_CATALOG_ACCESS** lets the Apps that Implement builds read their results: `"account users"` grants account users USE CATALOG on the Inspire catalog when nothing below it is granted to them, so it opens no data by itself, and `"off"` grants nothing and prints the statement for a catalog owner.
 # MAGIC
 # MAGIC **INSPIRE_SCHEMA** (empty by default) is schema mode for a catalog where you hold CREATE SCHEMA but not MANAGE, such as `"my_catalog.inspire"`: the installer creates that schema if it is missing, keeps Inspire inside it, puts the assets and the App under your own folder, and makes no catalog-level grant. It stops before any change if the App's service principal cannot use the catalog, and prints the one GRANT the catalog owner must run.
+# MAGIC
+# MAGIC **RUN_AS_PERSON** (off by default, needs INSPIRE_SCHEMA) makes the Inspire jobs run as you: the installer creates the discovery job with you as its run_as identity and gives the App CAN_MANAGE_RUN on it, so the App starts runs with run-now instead of creating jobs, and every run uses your rights.
 
 # COMMAND ----------
 
@@ -40,6 +42,7 @@ INTERNET_BLOCKED = False
 SCAN_CATALOGS = "all"
 NEW_APPS_CATALOG_ACCESS = "account users"
 INSPIRE_SCHEMA = ""
+RUN_AS_PERSON = False
 LATEST_BASE = f"https://github.com/{RELEASE_REPO}/releases/latest/download"
 TEST_BASE = re.compile(re.escape(f"https://github.com/{RELEASE_REPO}/releases/download/") + r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}")
 DOWNLOAD_HOSTS = ("github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
@@ -645,6 +648,7 @@ def install_redacted():
             "scan_catalogs": SCAN_CATALOGS,
             "new_apps_catalog_access": NEW_APPS_CATALOG_ACCESS,
             "inspire_schema": INSPIRE_SCHEMA,
+            "run_as_person": RUN_AS_PERSON,
         }), None
     except Exception as exc:
         return None, redact_failure(exc)

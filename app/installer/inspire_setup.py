@@ -193,7 +193,7 @@ def _yaml_quote(value):
     return f'"{s}"'
 
 
-def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_resource_name, assets_path=None, test_tag=None):
+def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_resource_name, assets_path=None, test_tag=None, extra_env=None):
     """Emit app.yaml without PyYAML (no extra pip on the cluster)."""
     lines = [
         "command:",
@@ -216,6 +216,8 @@ def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_reso
         lines += ["  - name: \"INSPIRE_ASSETS_PATH\"", f"    value: {_yaml_quote(assets_path)}"]
     if test_tag:
         lines += ["  - name: \"INSPIRE_TEST_TAG\"", f"    value: {_yaml_quote(test_tag)}"]
+    for name, value in sorted((extra_env or {}).items()):
+        lines += [f"  - name: \"{name}\"", f"    value: {_yaml_quote(str(value))}"]
     lines += [
         "",
         "resources:",
@@ -736,6 +738,9 @@ def build_runtime_context(env):
         raise ValueError(f"App name {app_name!r} must be 2-30 lowercase letters, digits or hyphens")
     sp_name = f"{app_name}-sp"
     folders = install_folders(user_email, app_name, bool(schema_pair))
+    run_as = bool(env.get("run_as_person", False))
+    if run_as and not schema_pair:
+        raise ValueError(RUN_AS_NEEDS_SCHEMA)
 
     print(f"Selected warehouse: {warehouse_name} ({warehouse_id})")
     print(f"Selected catalog:   {catalog}  →  {inspire_db}")
@@ -803,6 +808,7 @@ def build_runtime_context(env):
         "RELEASE_VERSION": release_version,
         "SOURCE_ZIP": source_zip,
         "SCHEMA_MODE": bool(schema_pair),
+        "RUN_AS_PERSON": run_as,
         "ASSETS_PARENT": folders["ASSETS_PARENT"],
         "APP_FOLDER": folders["APP_FOLDER"],
         "BUNDLE_ROOT": f"{folders['APPS_PARENT']}/{app_name}",
@@ -1004,6 +1010,71 @@ def _deploy_once(api, api_get, app_name, source_folder, app_url):
     raise RuntimeError(f"The App {app_name} was still deploying after 5 minutes. Check Compute → Apps → {app_name}, then run the installer again.")
 
 
+JOB_ENVIRONMENT_KEY = "Default"  # must match INSPIRE_ENVIRONMENT_KEY in app/backend/lib/inspireJobParams.js
+JOB_ENVIRONMENT_VERSION = "4"  # must match INSPIRE_ENVIRONMENT_VERSION in app/backend/lib/inspireJobParams.js
+DISCOVERY_JOB_NAME = "Inspire AI - discovery"
+DISCOVERY_JOB_ENV = "INSPIRE_JOB_ID_DISCOVER"
+RUN_AS_NEEDS_SCHEMA = ("RUN_AS_PERSON needs INSPIRE_SCHEMA: run-as-me installs into one schema the person owns, so set "
+                       "INSPIRE_SCHEMA to catalog.schema and run the installer again.")
+
+
+def discovery_job_settings(notebook_path, person):
+    """The discovery job the App starts with run-now. `run_as` is the person: Databricks runs a job as its run_as identity
+    whoever triggers it (Jobs API reference, Create a job, field run_as; the leak scan blocks the docs host, so the URL is not in code). The App's service principal
+    then needs only CAN_MANAGE_RUN on the job, so it never creates a job and never runs one as itself."""
+    return {
+        "name": DISCOVERY_JOB_NAME,
+        "run_as": {"user_name": person},
+        "tasks": [{
+            "task_key": "inspire_notebook",
+            "notebook_task": {"notebook_path": notebook_path, "base_parameters": {}, "source": "WORKSPACE"},
+            "environment_key": JOB_ENVIRONMENT_KEY,
+            "disable_auto_optimization": True,
+        }],
+        "environments": [{"environment_key": JOB_ENVIRONMENT_KEY, "spec": {"environment_version": JOB_ENVIRONMENT_VERSION}}],
+        "max_concurrent_runs": 1,
+    }
+
+
+def _run_job_access(api, sp, job_ids):
+    """Run-as-me: the App's service principal may start each installed job with run-now and see its runs; it owns none."""
+    for env_name, job_id in job_ids.items():
+        resp = api("PATCH", f"/api/2.0/permissions/jobs/{job_id}",
+                   {"access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_MANAGE_RUN"}]})
+        if resp.status_code != 200:
+            raise RuntimeError(f"{sp} could not be given CAN_MANAGE_RUN on the job {job_id} ({resp.status_code} {resp.text[:160]}). "
+                               "Inspire stopped before it deploys the new App version, so the App keeps its last working version.")
+        print(f"  CAN_MANAGE_RUN on the job {job_id} ({env_name}) for {sp}: ✅")
+
+
+def step_run_as_jobs(ctx):
+    """Run-as-me: create (or reset in place) the discovery job as the person, and record its id for app.yaml."""
+    if not ctx.get("RUN_AS_PERSON"):
+        return
+    if not ctx.get("SCHEMA_MODE"):
+        raise RuntimeError(RUN_AS_NEEDS_SCHEMA)
+    api, api_get, person = ctx["api"], ctx["api_get"], ctx["USER_EMAIL"]
+    settings = discovery_job_settings(ctx["NOTEBOOK_PATH"], person)
+    listed = api_get(f"/api/2.1/jobs/list?name={urllib.parse.quote(DISCOVERY_JOB_NAME)}&limit=100")
+    existing = [job for job in listed.get("jobs") or [] if (job.get("settings") or {}).get("name") == DISCOVERY_JOB_NAME
+                and ((job.get("settings") or {}).get("run_as") or {}).get("user_name") == person]
+    if existing:
+        job_id = str(existing[0]["job_id"])
+        resp = api("POST", "/api/2.1/jobs/reset", {"job_id": int(job_id), "new_settings": settings})
+        verb = "updated"
+    else:
+        resp = api("POST", "/api/2.1/jobs/create", settings)
+        verb = "created"
+    if resp.status_code != 200:
+        raise RuntimeError(f"The discovery job could not be {verb} as {person} ({resp.status_code} {resp.text[:160]}). "
+                           "Nothing of the App was replaced; fix the job rights, then run this installer again.")
+    if verb == "created":
+        job_id = str(resp.json()["job_id"])
+    ctx["JOB_IDS"] = {DISCOVERY_JOB_ENV: job_id}
+    ctx["APP_EXTRA_ENV"] = {"INSPIRE_RUN_AS_PERSON": "1", DISCOVERY_JOB_ENV: job_id}
+    print(f"Discovery job {verb} as {person}: {job_id} (App env {DISCOVERY_JOB_ENV}) ✅")
+
+
 def step_create_app_and_find_sp(ctx):
     api = ctx["api"]
     api_get = ctx["api_get"]
@@ -1026,7 +1097,7 @@ def step_create_app_and_find_sp(ctx):
 
     app_yaml_path = f"{source_folder}/app.yaml"
     wanted_yaml = write_app_yaml_deploy(app_yaml_path, inspire_db, warehouse_id, notebook_path, sp_name, ctx.get("ASSETS_PATH"),
-                                        ctx.get("TEST_TAG"))
+                                        ctx.get("TEST_TAG"), ctx.get("APP_EXTRA_ENV"))
     print("app.yaml: ✅")
 
     app_url = ""
@@ -1661,6 +1732,7 @@ def step_grant_permissions(ctx):
                                    f"Apps that Implement builds read Lakebase: project {lakebase['project']}, catalog `{lakebase['catalog']}` ✅")
         print(f"  {_app_folder_access(api, ctx['APP_FOLDER'], sp)}")
         print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp, ctx['ASSETS_PARENT'], not schema_mode)}")
+        _run_job_access(api, sp, ctx.get("JOB_IDS") or {})
         shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
         print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
         scan_failed = {} if schema_mode else _grant_scan_catalogs(ctx, sp, visible)
@@ -2028,8 +2100,8 @@ def run(env):
         ctx = build_runtime_context(env)
         if not ctx.get("ready"):
             return None
-        for step in (step_preflight, step_bundle, step_assets, step_cleanup, step_schema_and_notebooks, step_create_app_and_find_sp,
-                     step_grant_permissions, step_deploy_source, step_render_done):
+        for step in (step_preflight, step_bundle, step_assets, step_cleanup, step_schema_and_notebooks, step_run_as_jobs,
+                     step_create_app_and_find_sp, step_grant_permissions, step_deploy_source, step_render_done):
             step(ctx)
         return ctx
     except (FileNotFoundError, RuntimeError, requests.exceptions.HTTPError) as exc:

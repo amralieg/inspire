@@ -12,7 +12,7 @@ const FB = require('./lib/appFeedback');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
 const { ownServicePrincipalId } = require('./lib/inspireSpGrants');
-const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning, parseTableScopeText } = require('./lib/inspireJobParams');
+const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning, parseTableScopeText, runAsPerson } = require('./lib/inspireJobParams');
 const R = require('./lib/reviewFigures');
 const A = require('./lib/useCaseAlerts');
 const P = require('./lib/requestPerson');
@@ -2213,7 +2213,8 @@ function registerImplementRoutes(app, deps) {
       await refusePersonUnreadable(req, latest.spec_json, useCase);
       await refuseMissingSources(req, warehouseId, latest.spec_json, useCase);
       const jobId = requireInt64Id(latest.job_id, 'job_id');
-      const warning = await alignJobSettings(req.dbHost, req.dbToken, jobId);
+      // Run-as-me: the installer owns the job's settings (the job runs as you), so the App does not change them.
+      const warning = runAsPerson() ? '' : await alignJobSettings(req.dbHost, req.dbToken, jobId);
       const viewer = await grantJobViewer(dbFetch, req.dbHost, req.dbToken, jobId, (await personOf(req)).username);
       const resp = await dbFetch(req.dbHost, req.dbToken, '/api/2.1/jobs/run-now', {
         method: 'POST',

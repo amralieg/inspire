@@ -133,7 +133,7 @@ def run(catalog_grants, owner="amr@x", show_fails=False, lakebase=(200, ""), lak
     ns = {"StatementState": StatementState, "time": time, "json": json, "urllib": urllib, "posixpath": __import__("posixpath"), "ThreadPoolExecutor": ThreadPoolExecutor, "as_completed": as_completed,
           "_catalog_privileges": lambda ctx, catalog: (catalog in grantable, set())}
     load_installer(tree, module.body, ns, path)
-    ctx = {"LAKEBASE": LAKEBASE, "NEW_SP_APP_ID": "SP", "APP_NAME": "inspire-ai", "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "available_catalogs": ["main"],
+    ctx = {"LAKEBASE": LAKEBASE, "NEW_SP_APP_ID": "SP", "APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False, "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "available_catalogs": ["main"],
            "USER_EMAIL": "amr@x",
            "w": types.SimpleNamespace(statement_execution=Statements(), catalogs=Catalogs()), "api": api,
            "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}

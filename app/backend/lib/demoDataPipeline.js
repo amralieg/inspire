@@ -8,6 +8,7 @@ const {
   inspireJobEnvironments,
   inspireJobTags,
   inspireTaskCompute,
+  runAsPerson,
 } = require('./inspireJobParams');
 
 const { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, demoSchemaError, demoTablesPlanned } = require('../../frontend/src/lib/demoData.js');
@@ -212,6 +213,10 @@ async function triggerDemoDataPipeline(
   if (!business) throw new Error('business_name is required');
   if (!inspireDb || !inspireDb.includes('.')) {
     throw new Error('inspire_database must be catalog._inspire');
+  }
+  if (runAsPerson()) {
+    // The demo pipeline is made as a job per run (jobs/create), which run-as-me cannot do as you yet. Refused before any call.
+    throw Object.assign(new Error('Run-as-me: the demo pipeline job is not installed yet, so it cannot start in this mode.'), { statusCode: 409 });
   }
 
   const discovery = String(discoveryType || '').trim() ? discoveryTypeOf(discoveryType) : DISCOVERY_RECOMMENDED;

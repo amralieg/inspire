@@ -421,7 +421,7 @@ class AppYamlTest(unittest.TestCase):
             shutil.rmtree(folder)
 
     def test_the_deploy_step_writes_the_installed_assets_path(self):
-        self.assertEqual(self.deploy({})[5:], ("/Workspace/Shared/inspire-ai/assets/v1.3.0", None))
+        self.assertEqual(self.deploy({})[5:], ("/Workspace/Shared/inspire-ai/assets/v1.3.0", None, None))
 
     def test_the_deploy_step_writes_the_test_tag_of_a_test_install_only(self):
         self.assertEqual(self.deploy({"TEST_TAG": "inspire-rc0"})[6], "inspire-rc0")
@@ -1951,3 +1951,75 @@ class SchemaModeTest(unittest.TestCase):
                                            "/Workspace/Users/someone@example.com/inspire-ai/assets", False)
         self.assertEqual(seen, [{"access_control_list": [{"service_principal_name": "SP", "permission_level": "CAN_READ"}]}])
         self.assertIn("CAN_READ on /Users/someone@example.com/inspire-ai/assets for SP, so every run reads", said)
+
+
+class RunAsTest(unittest.TestCase):
+    """RUN_AS_PERSON: the discovery job is created as the person, the App's principal may run it, and default mode creates nothing."""
+
+    def ctx(self, api, api_get, **extra):
+        base = dict(RUN_AS_PERSON=True, SCHEMA_MODE=True, NOTEBOOK_PATH="/Users/someone@example.com/inspire-ai/inspire-ai/dbx_inspire_ai_agent",
+                    USER_EMAIL="someone@example.com", api=api, api_get=api_get)
+        base.update(extra)
+        return base
+
+    def test_run_as_creates_the_discovery_job_with_the_person_as_run_as_and_records_its_id(self):
+        calls = []
+
+        def api(method, path, body=None):
+            calls.append((method, path, body))
+            return Resp(200, {"job_id": 77})
+        ctx = self.ctx(api, lambda path: {"jobs": []})
+        with contextlib.redirect_stdout(io.StringIO()):
+            setup.step_run_as_jobs(ctx)
+        creates = [c for c in calls if c[1] == "/api/2.1/jobs/create"]
+        self.assertEqual(len(creates), 1)
+        body = creates[0][2]
+        self.assertEqual(body["run_as"], {"user_name": "someone@example.com"})
+        self.assertEqual(body["tasks"][0]["notebook_task"]["notebook_path"], ctx["NOTEBOOK_PATH"])
+        self.assertEqual(ctx["JOB_IDS"], {"INSPIRE_JOB_ID_DISCOVER": "77"})
+        self.assertEqual(ctx["APP_EXTRA_ENV"], {"INSPIRE_RUN_AS_PERSON": "1", "INSPIRE_JOB_ID_DISCOVER": "77"})
+
+    def test_run_as_resets_the_job_already_made_for_the_same_person_instead_of_creating_another(self):
+        calls = []
+
+        def api(method, path, body=None):
+            calls.append((method, path, body))
+            return Resp(200, {})
+        listed = {"jobs": [{"job_id": 5, "settings": {"name": setup.DISCOVERY_JOB_NAME, "run_as": {"user_name": "someone@example.com"}}},
+                           {"job_id": 6, "settings": {"name": setup.DISCOVERY_JOB_NAME, "run_as": {"user_name": "other@example.com"}}}]}
+        ctx = self.ctx(api, lambda path: listed)
+        with contextlib.redirect_stdout(io.StringIO()):
+            setup.step_run_as_jobs(ctx)
+        self.assertEqual([c[1] for c in calls], ["/api/2.1/jobs/reset"])
+        self.assertEqual(calls[0][2]["job_id"], 5)
+        self.assertEqual(ctx["JOB_IDS"], {"INSPIRE_JOB_ID_DISCOVER": "5"})
+
+    def test_run_as_refuses_without_schema_mode_and_default_mode_makes_no_job(self):
+        calls = []
+        api = lambda method, path, body=None: calls.append((method, path)) or Resp(200, {})
+        with self.assertRaises(RuntimeError):
+            setup.step_run_as_jobs(self.ctx(api, lambda p: {}, SCHEMA_MODE=False))
+        setup.step_run_as_jobs(self.ctx(api, lambda p: {}, RUN_AS_PERSON=False))
+        self.assertEqual(calls, [])
+
+    def test_the_app_principal_gets_can_manage_run_on_each_installed_job(self):
+        calls = []
+        api = lambda method, path, body=None: calls.append((method, path, body)) or Resp(200, {})
+        setup._run_job_access(api, "SP-ID", {"INSPIRE_JOB_ID_DISCOVER": "77"})
+        self.assertEqual(calls, [("PATCH", "/api/2.0/permissions/jobs/77",
+                                  {"access_control_list": [{"service_principal_name": "SP-ID", "permission_level": "CAN_MANAGE_RUN"}]})])
+
+    def test_a_refused_job_permission_stops_the_install_before_the_deploy(self):
+        api = lambda method, path, body=None: Resp(403, {}, "denied")
+        with self.assertRaises(RuntimeError) as raised:
+            setup._run_job_access(api, "SP-ID", {"INSPIRE_JOB_ID_DISCOVER": "77"})
+        self.assertIn("could not be given CAN_MANAGE_RUN on the job 77", str(raised.exception))
+
+    def test_app_yaml_carries_the_job_id_only_in_run_as_mode(self):
+        import tempfile as _t
+        with _t.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "app.yaml")
+            with_jobs = setup.write_app_yaml_deploy(path, "my.inspire", "wh", "/n", "sp", None, None, {"INSPIRE_JOB_ID_DISCOVER": "77"})
+            without = setup.write_app_yaml_deploy(path, "my.inspire", "wh", "/n", "sp", None, None, None)
+        self.assertIn('  - name: "INSPIRE_JOB_ID_DISCOVER"\n    value: "77"', with_jobs)
+        self.assertNotIn("INSPIRE_JOB_ID_DISCOVER", without)

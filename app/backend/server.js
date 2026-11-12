@@ -31,6 +31,8 @@ const {
   normalizeUseCasesQualityParams,
   sanitizeInspireNotebookJobParams,
   normalizeV130UseCaseFields,
+  runAsPerson,
+  discoveryLaunchPlan,
 } = require('./lib/inspireJobParams');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
@@ -420,6 +422,9 @@ function getToken(req) {
   }
 
   const forwardedClean = forwardedTokenOf(req);
+
+  // Run-as-me: requests act as the signed-in person, so their SQL, files, UC and Genie calls use the forwarded user token.
+  if (runAsPerson() && forwardedClean) return forwardedClean;
 
   // 3–5) Databricks App (production + SP): prefer static / SP token over x-forwarded-access-token.
   // Delegated user tokens expire; Inspire Results/SQL should keep working on the app service principal.
@@ -926,6 +931,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   const launchDatabase = String(params['02_inspire_database'] || '').trim();
   const openedSession = Boolean(launchedBy) && inspireRunType === 'discovery' && await sessionIsNew(host, launchDatabase, launchSession);
 
+  const launchPlan = discoveryLaunchPlan({ runAs: runAsPerson(), jobType, installedJobId: process.env.INSPIRE_JOB_ID_DISCOVER });
   const createPayload = {
     name: jobName,
     tags: inspireJobTags({ runType: inspireRunType, params, businessName, notebookFilename, useCaseIds }),
@@ -942,29 +948,39 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
     max_concurrent_runs: 1,
   };
 
-  console.log(`📋 Creating job: ${resolvedPath}`);
-  const createResp = await dbFetch(host, token, '/api/2.1/jobs/create', {
-    method: 'POST',
-    body: JSON.stringify(createPayload),
-  });
+  let job_id;
+  let viewer;
+  if (launchPlan.mode === 'create') {
+    console.log(`📋 Creating job: ${resolvedPath}`);
+    const createResp = await dbFetch(host, token, '/api/2.1/jobs/create', {
+      method: 'POST',
+      body: JSON.stringify(createPayload),
+    });
 
-  if (!createResp.ok) {
-    const errText = await createResp.text();
-    console.error(`❌ Job create failed (${createResp.status}): ${errText}`);
-    const err = new Error(`Job creation failed: ${errText}`);
-    err.statusCode = createResp.status;
-    throw err;
+    if (!createResp.ok) {
+      const errText = await createResp.text();
+      console.error(`❌ Job create failed (${createResp.status}): ${errText}`);
+      const err = new Error(`Job creation failed: ${errText}`);
+      err.statusCode = createResp.status;
+      throw err;
+    }
+
+    const created = parseExactJson(await createResp.text());
+    job_id = int64Id(created.job_id) ?? String(created.job_id);
+    console.log(`✅ Job created: ${job_id}`);
+    viewer = await grantJobViewer(dbFetch, host, token, job_id, launchedBy);
+    if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
+  } else {
+    job_id = launchPlan.jobId;
+    viewer = { granted: false, note: 'run-as-me: the job runs as you, so it needs no viewer grant' };
+    console.log(`📋 Run-as-me: starting the installed job ${job_id}; the run's parameters are passed to it`);
   }
-
-  const created = parseExactJson(await createResp.text());
-  const job_id = int64Id(created.job_id) ?? String(created.job_id);
-  console.log(`✅ Job created: ${job_id}`);
-  const viewer = await grantJobViewer(dbFetch, host, token, job_id, launchedBy);
-  if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
 
   const response = await dbFetch(host, token, '/api/2.1/jobs/run-now', {
     method: 'POST',
-    body: jsonWithInt64Ids({ job_id }, ['job_id']),
+    body: launchPlan.mode === 'create'
+      ? jsonWithInt64Ids({ job_id }, ['job_id'])
+      : jsonWithInt64Ids({ job_id, notebook_params: params }, ['job_id']),
   });
 
   if (!response.ok) {
@@ -3168,7 +3184,7 @@ if (fs.existsSync(STATIC_DIR)) {
 // Pre-warm SP token BEFORE listening so the first request already has a valid token.
 const PORT = process.env.PORT || 8080;
 
-module.exports = { app, registeredRoutes: routePolicyRoutes.registered };
+module.exports = { app, registeredRoutes: routePolicyRoutes.registered, getToken };
 
 if (require.main === module) (async () => {
   redactCrashes();
