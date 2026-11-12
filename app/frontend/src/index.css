@@ -133,9 +133,13 @@ body {
   :focus-visible {
     outline-style: solid;
   }
-  :is(.overflow-hidden, .overflow-auto, .overflow-x-auto, .overflow-y-auto, .overflow-x-hidden, .overflow-y-hidden, .overflow-clip) :not([type=checkbox], [type=radio]) {
+  :is(.overflow-hidden, .overflow-auto, .overflow-x-auto, .overflow-y-auto, .overflow-x-hidden, .overflow-y-hidden, .overflow-clip) :not([type=checkbox], [type=radio], a, button) {
     outline-color: currentColor;
     outline-offset: -4px;
+  }
+  :is(.overflow-hidden, .overflow-auto, .overflow-x-auto, .overflow-y-auto, .overflow-x-hidden, .overflow-y-hidden, .overflow-clip) :is(a, button) {
+    outline-color: currentColor;
+    outline-offset: -2px;
   }
   :where(p, li, dt, dd, h1, h2, h3, h4, h5, h6, caption, figcaption, blockquote, summary, legend, textarea) {
     unicode-bidi: plaintext;

@@ -81,7 +81,7 @@ export default function DomainSunburst({ domains = [], businessName = '', size =
 
       {/* Hover tooltip */}
       {hovered !== null && sectors[hovered] && (
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 translate-y-8 glass rounded-lg px-3 py-2 text-center z-10 whitespace-nowrap shadow-lg">
+        <div className="absolute top-1/2 start-1/2 -translate-x-1/2 translate-y-8 glass rounded-lg px-3 py-2 text-center z-10 whitespace-nowrap shadow-lg">
           <p className="text-[11px] font-bold" style={{ color: sectors[hovered].color }}>{sectors[hovered].domain_name}</p>
           <p className="text-[10px] text-text-secondary">{sectors[hovered].count} use cases</p>
         </div>

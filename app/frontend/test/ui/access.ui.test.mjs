@@ -182,6 +182,33 @@ for (const theme of ['light', 'dark']) {
   });
 }
 
+for (const theme of ['light', 'dark']) {
+  test(`the Change links on Review and build ring outside their text: each shows a ring of at least 3:1, and no link or button in a scrolling pane rings more than 2 px inside its box, ${theme} theme`, async () => {
+    const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } }, '',
+      { init: async (page) => { await sized(SCREEN, theme)(page); await profileAt([], GROUPING_PROFILE)(page); } });
+    try {
+      await goToStep(ui.page, 'Data');
+      await goToStep(ui.page, 'Review & build');
+      await idle(ui.page);
+      const links = ui.page.locator('[data-picked-change]');
+      assert.ok(await links.count() >= 5, `the Review step lists ${await links.count()} Change links`);
+      const insetRings = await ui.page.evaluate(() => [...document.querySelectorAll('a, button')]
+        .filter((el) => el.getClientRects().length && el.closest('.overflow-hidden, .overflow-auto, .overflow-x-auto, .overflow-y-auto, .overflow-x-hidden, .overflow-y-hidden, .overflow-clip')
+          && parseFloat(getComputedStyle(el).outlineOffset) < -2)
+        .map((el) => `${el.tagName.toLowerCase()} "${(el.getAttribute('aria-label') || el.innerText || '').trim().slice(0, 40)}"`));
+      assert.deepEqual(insetRings, [], `${theme}: links and buttons in a scrolling pane whose ring is drawn more than 2 px inside their box`);
+      const firstRun = ui.page.locator('[data-picked-change="first_run"]');
+      await firstRun.evaluate((el) => el.focus({ focusVisible: true }));
+      assert.ok(parseFloat(await firstRun.evaluate((el) => getComputedStyle(el).outlineOffset)) > 0, 'the First run Change link ring sits outside its box, not over its text');
+      const ring = await activeRing(ui.page);
+      assert.ok(ring && ring.ok, `${theme}: the First run Change link ring: ${JSON.stringify(ring)}`);
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}
+
 test('under right to left the arrows and chevrons point the reading way, an open chevron still points down, and a pane resizer moves with the arrow key pressed (must-exclude: left to right stays as is)', async () => {
   const review = await openAt('#/review/42', { width: 1280, height: 800 });
   try {

@@ -226,7 +226,7 @@ function textBoxesWithoutDir(files) {
     .map((tag) => `${path.relative(SRC, file)}:${tag.line}`));
 }
 
-const PHYSICAL = /(?<![\w-])(?:[a-z0-9-]+:)*-?(?:text-(?:left|right)|[mp][lr]-[\w.[\]/%-]+|border-[lr](?:-[\w.[\]/%-]+)?|rounded-(?:[lr]|[tb][lr])(?:-[\w.[\]/%-]+)?)(?![\w-])/g;
+const PHYSICAL = /(?<![\w-])(?:[a-z0-9-]+:)*-?(?:text-(?:left|right)|[mp][lr]-[\w.[\]/%-]+|border-[lr](?:-[\w.[\]/%-]+)?|rounded-(?:[lr]|[tb][lr])(?:-[\w.[\]/%-]+)?|(?:left|right)-[\w.[\]/%-]+)(?![\w-])/g;
 const PADDING = /(?:^|:)-?p[lr]-/;
 const PHYSICAL_STYLE = /\b(?:margin|padding|border)(?:Left|Right)(?=\s*:)|textAlign:\s*['"](?:left|right)['"]/g;
 
@@ -264,10 +264,11 @@ test('the source checks name a text box without dir and a physical class, and sp
       '<textarea className="w-full" />',
       '<p className="text-left ml-2 rounded-lg text-start ms-2 border-l-2 sm:text-right pl-7" />',
       '<input dir="auto" className="pl-9 pr-3 text-left" />',
+      '<span className="absolute start-3 end-3 left-3 right-0" />',
       '<p style={{ marginLeft: 4, paddingInlineStart: 2, textAlign: \'right\' }} />',
     ].join('\n'));
     assert.deepEqual(textBoxesWithoutDir([file]).map((s) => s.split(':').pop()), ['1', '4']);
-    assert.deepEqual(physicalClasses([file]).map((s) => s.split(' ').pop()), ['text-left', 'ml-2', 'border-l-2', 'sm:text-right', 'pl-7', 'text-left', 'marginLeft', "'right'"]);
+    assert.deepEqual(physicalClasses([file]).map((s) => s.split(' ').pop()), ['text-left', 'ml-2', 'border-l-2', 'sm:text-right', 'pl-7', 'text-left', 'left-3', 'right-0', 'marginLeft', "'right'"]);
   } finally {
     fs.rmSync(dir, { recursive: true, force: true });
   }

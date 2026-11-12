@@ -1179,7 +1179,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 value={params['00_business_name']}
                 onChange={(e) => updateParam('00_business_name', e.target.value)}
                 onBlur={(e) => setHeadlineBusiness((e.target.value || '').trim())}
-                className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
+                className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
               />
             </Field>
 
@@ -1429,7 +1429,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         )}
                       </span>
                       <p className="text-[10px] text-text-tertiary leading-snug mt-1">{opt.desc}</p>
-                      {active && <CheckCircle2 size={14} className="absolute top-2.5 right-2.5 text-success-fg" />}
+                      {active && <CheckCircle2 size={14} className="absolute top-2.5 end-2.5 text-success-fg" />}
                     </button>
                   );
                 })}
@@ -1460,13 +1460,13 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             {/* Generation Instructions — optional */}
             <FieldSection label="Generation Instructions" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
               <div className="relative">
-                <Target size={14} className="absolute left-3 top-3 text-text-tertiary" />
+                <Target size={14} className="absolute start-3 top-3 text-text-tertiary" />
                 <textarea dir="auto"
                   rows={3}
                   placeholder="Focus on fraud detection, join orders with customers on customer_id, exclude staging tables..."
                   value={params['08_generation_instructions']}
                   onChange={(e) => updateParam('08_generation_instructions', e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth resize-none"
+                  className="w-full ps-9 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth resize-none"
                 />
               </div>
             </FieldSection>
@@ -1525,7 +1525,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           <bp.icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
                           <span className="truncate">{bp.key}</span>
                         </span>
-                        {active && <CheckCircle2 size={12} className="absolute top-1.5 right-1.5 text-db-red-fg" />}
+                        {active && <CheckCircle2 size={12} className="absolute top-1.5 end-1.5 text-db-red-fg" />}
                       </button>
                     );
                   })}
@@ -1576,13 +1576,13 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               {/* Business Domains */}
               <FieldSection label="Business Domains" hint="Leave empty to auto-infer from data">
                 <div className="relative">
-                  <Layers size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                  <Layers size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
                   <input dir="auto"
                     type="text"
                     placeholder="Sales, Marketing, Finance, Operations, Supply Chain..."
                     value={params['06_business_domains']}
                     onChange={(e) => updateParam('06_business_domains', e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
+                    className="w-full ps-9 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
                   />
                 </div>
               </FieldSection>
@@ -1632,7 +1632,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   placeholder="e.g. my_catalog._inspire"
                   value={params['02_inspire_database']}
                   onChange={(e) => updateParam('02_inspire_database', e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth font-mono"
+                  className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth font-mono"
                 />
               </Field>
 
@@ -1677,7 +1677,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         </span>
                         <p className="text-[10px] text-text-tertiary leading-snug mt-0.5">{opt.desc}</p>
                         {active && (
-                          <CheckCircle2 size={14} className="absolute top-2.5 right-2.5 text-db-red-fg" />
+                          <CheckCircle2 size={14} className="absolute top-2.5 end-2.5 text-db-red-fg" />
                         )}
                       </button>
                     );
@@ -1700,7 +1700,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     placeholder="Your own folder: /Users/<you>/inspire_output"
                     aria-label="Generation Path"
                     aria-describedby="output-folder-check-field"
-                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"
+                    className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"
                   />
                   <OutputFolderCheck check={outputCheck} id="output-folder-check-field" />
                 </Field>
@@ -1771,7 +1771,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     value={params['13_generate_genie_code_for']}
                     onChange={(e) => updateParam('13_generate_genie_code_for', e.target.value)}
                     placeholder="0"
-                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"
+                    className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"
                   />
                 </Field>
                 <Field
@@ -1786,7 +1786,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     onChange={(e) => updateParam('16_best_of_best_count', e.target.value)}
                     placeholder="20"
                     aria-invalid={bestOfBestInvalid}
-                    className={`w-full pl-10 pr-4 py-2.5 text-sm border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono ${bestOfBestInvalid ? 'border-error' : 'border-border'}`}
+                    className={`w-full ps-10 pe-4 py-2.5 text-sm border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono ${bestOfBestInvalid ? 'border-error' : 'border-border'}`}
                   />
                   {bestOfBestInvalid && (
                     <p className="mt-1.5 text-xs text-error-fg">Use a whole number from 0 to 100, or leave it empty for 20.</p>
@@ -1954,10 +1954,10 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, searchValue, 
   return (
     <div className="rounded-lg border border-border bg-bg overflow-hidden flex flex-col min-h-0">
       <div className="relative shrink-0">
-        <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+        <Search size={12} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
         <input dir="auto"
           type="text"
-          className="w-full bg-transparent border-b border-border pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary"
+          className="w-full bg-transparent border-b border-border ps-8 pe-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary"
           placeholder={searchPlaceholder}
           value={searchValue}
           onChange={(e) => onSearch(e.target.value)}

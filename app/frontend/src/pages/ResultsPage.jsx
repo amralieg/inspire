@@ -1156,7 +1156,7 @@ export default function ResultsPage({
                     </div>
                     {i < 2 && (
                       <div className="w-8 h-px bg-border relative overflow-hidden mb-5">
-                        <div className="absolute inset-y-0 left-0 w-1/2 bg-db-red/40 animate-[shimmer_1.5s_ease-in-out_infinite]" style={{ animationDelay: `${i * 500}ms` }} />
+                        <div className="absolute inset-y-0 start-0 w-1/2 bg-db-red/40 animate-[shimmer_1.5s_ease-in-out_infinite]" style={{ animationDelay: `${i * 500}ms` }} />
                       </div>
                     )}
                   </div>
@@ -2118,14 +2118,14 @@ export default function ResultsPage({
                 <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
                   {/* Search */}
                   <div className="relative min-w-[14rem] flex-1">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                    <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
                     <input dir="auto"
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search use cases..."
                       aria-label="Search use cases"
-                      className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:border-db-red/30 transition-smooth"
+                      className="w-full ps-9 pe-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:border-db-red/30 transition-smooth"
                     />
                   </div>
 

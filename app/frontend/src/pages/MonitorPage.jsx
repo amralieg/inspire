@@ -684,13 +684,13 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
               <div className="flex items-center gap-3 px-4 py-3">
                 {/* Search */}
                 <div className="relative flex-1">
-                  <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                  <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
                   <input dir="auto"
                     type="text"
                     placeholder="Search steps, messages..."
                     value={searchQuery}
                     onChange={(e) => setSearchQuery(e.target.value)}
-                    className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:border-db-red/30 transition-smooth"
+                    className="w-full ps-9 pe-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:border-db-red/30 transition-smooth"
                   />
                 </div>
 
@@ -826,7 +826,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
                 })}
                 <div ref={follow.ref} data-steps-end="" />
                 {follow.unseen && (
-                  <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-40 pointer-events-none">
+                  <div className="fixed bottom-6 start-1/2 -translate-x-1/2 z-40 pointer-events-none">
                     <button type="button" onClick={follow.jump} className="pointer-events-auto inline-flex items-center gap-1 px-3 py-1.5 rounded-full text-[12px] font-semibold text-white bg-db-red-solid shadow-lg">
                       <ArrowDown size={12} /> New steps
                     </button>

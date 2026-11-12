@@ -2929,8 +2929,8 @@ function StylePreview({ style, palette, theme }) {
       <span className="grid grid-cols-3 gap-1">
         {[0, 1, 2].map((i) => (
           <span key={i} className="relative block h-[12px] overflow-hidden rounded-[3px]" style={{ ...card, boxShadow: '0 1px 2px rgba(0,0,0,.04)' }}>
-            <span className="absolute left-1 top-[3px] block h-[3px] w-1/2 rounded-sm" style={{ background: pv('muted') }} />
-            <span className="absolute bottom-0 left-1 right-1 block h-[2px] rounded-t-sm" style={{ background: pv(`h${i}-line`) }} />
+            <span className="absolute start-1 top-[3px] block h-[3px] w-1/2 rounded-sm" style={{ background: pv('muted') }} />
+            <span className="absolute bottom-0 start-1 end-1 block h-[2px] rounded-t-sm" style={{ background: pv(`h${i}-line`) }} />
           </span>
         ))}
       </span>

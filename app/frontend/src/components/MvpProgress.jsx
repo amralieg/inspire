@@ -71,7 +71,7 @@ export function ProgressLine({ chip, summary }) {
         >
           {summary.active && (
             <span
-              className="absolute inset-y-0 left-0 w-1/3 bg-gradient-to-r from-transparent via-white/45 to-transparent motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]"
+              className="absolute inset-y-0 start-0 w-1/3 bg-gradient-to-r from-transparent via-white/45 to-transparent motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]"
               aria-hidden
             />
           )}
