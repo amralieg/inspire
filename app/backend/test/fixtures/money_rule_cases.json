@@ -572,7 +572,8 @@
         "sign": {
           "kind": "status",
           "column": "channel",
-          "value": "gain"
+          "value": "gain",
+          "losses": []
         }
       }
     },
@@ -607,6 +608,52 @@
           "kind": "status",
           "column": "channel",
           "value": "gain' OR 1=1"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "status sign with listed loss statuses",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "sign": {
+          "kind": "status",
+          "column": "channel",
+          "value": "agent",
+          "losses": [
+            "web",
+            "phone"
+          ]
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "sign": {
+          "kind": "status",
+          "column": "channel",
+          "value": "agent",
+          "losses": [
+            "phone",
+            "web"
+          ]
+        }
+      }
+    },
+    {
+      "name": "a loss status that is also the gain status",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "sign": {
+          "kind": "status",
+          "column": "channel",
+          "value": "agent",
+          "losses": [
+            "agent"
+          ]
         }
       },
       "valid": false
