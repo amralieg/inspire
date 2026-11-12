@@ -64,3 +64,47 @@ test('getToken with no App credentials falls back to the forwarded token, and to
   assert.equal(tokenFor(req, { production: true, serviceToken: '', spCredentials: false, spTokenFresh: false, spTokenCached: '', runAs: false }), 'person-token-abc');
   assert.equal(tokenFor({ headers: {} }, { production: true, serviceToken: '', spCredentials: true, spTokenFresh: false, spTokenCached: '', runAs: false }), null);
 });
+
+test('run-as-me: the App has no token of its own for SQL, so an SQL call never gets the App principal', async () => {
+  const { appOwnToken } = require('../server');
+  const saved = process.env.INSPIRE_RUN_AS_PERSON;
+  process.env.INSPIRE_RUN_AS_PERSON = '1';
+  try {
+    assert.equal(await appOwnToken(), null);
+  } finally {
+    if (saved === undefined) delete process.env.INSPIRE_RUN_AS_PERSON;
+    else process.env.INSPIRE_RUN_AS_PERSON = saved;
+  }
+});
+
+test('run-as-me: source-access reads use the person\'s forwarded token; default mode keeps refusing a person token as the App', async () => {
+  const { createSourceAccess } = require('../lib/sourceAccess');
+  const { PERSON_TOKEN } = require('../lib/requestPerson');
+  const noApp = async () => null;
+  const access = createSourceAccess({ executeSql: async () => [], sqlResultToObjects: () => [], dbFetch: async () => ({}), appToken: noApp });
+  const req = { dbHost: 'h', dbToken: 'person-token', dbTokenKind: PERSON_TOKEN };
+  const saved = process.env.INSPIRE_RUN_AS_PERSON;
+  try {
+    process.env.INSPIRE_RUN_AS_PERSON = '1';
+    assert.equal(await access.appTokenOf(req), 'person-token');
+    delete process.env.INSPIRE_RUN_AS_PERSON;
+    assert.equal(await access.appTokenOf(req), '');
+  } finally {
+    if (saved === undefined) delete process.env.INSPIRE_RUN_AS_PERSON;
+    else process.env.INSPIRE_RUN_AS_PERSON = saved;
+  }
+});
+
+test('static: no SQL call in the backend takes the App\'s own token as its token argument', () => {
+  const fs = require('fs');
+  const path = require('path');
+  const files = ['server.js', 'implementRoutes.js', ...fs.readdirSync(path.join(__dirname, '..', 'lib')).filter((f) => f.endsWith('.js')).map((f) => path.join('lib', f))];
+  const offenders = [];
+  for (const file of files) {
+    const lines = fs.readFileSync(path.join(__dirname, '..', file), 'utf8').split('\n');
+    lines.forEach((line, i) => {
+      if (/(executeSql|launchSql|sqlRows|sqlStatement)\s*\(/.test(line) && /appOwnToken|appToken\(\)|appTokenOf/.test(line)) offenders.push(`${file}:${i + 1}`);
+    });
+  }
+  assert.deepEqual(offenders, []);
+});

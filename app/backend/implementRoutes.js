@@ -2034,7 +2034,7 @@ function registerImplementRoutes(app, deps) {
         throw Object.assign(new Error('this MVP names no result table in its settings, so Inspire cannot check which table its decisions belong to; '
           + 'pick the result table in Edit MVP and build it again'), { statusCode: 409 });
       }
-      const token = await appToken();
+      const token = (await appToken()) || (runAsPerson() ? req.dbToken : '');
       if (!token) {
         throw Object.assign(new Error('Inspire has no sign-in of its own here, so it cannot record decisions for this page; '
           + 'open the page from the Inspire App in Databricks'), { statusCode: 503 });

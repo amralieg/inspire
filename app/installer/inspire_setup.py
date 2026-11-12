@@ -2019,6 +2019,11 @@ def _schema_mode_problems(ctx, found_app):
         existing = ctx["w"].schemas.get(f"{catalog}.{schema}")
     except Exception:
         existing = None
+    run_as = bool(ctx.get("RUN_AS_PERSON"))
+    if run_as and not (full or {"USE_CATALOG", "ALL_PRIVILEGES"} & held):
+        # Run-as-me: the App acts as the person, so the person needs the catalog itself; the App's principal needs nothing.
+        problems.append(f"You cannot use catalog `{catalog}`, and run-as-me reads its tables as you. A catalog owner can run "
+                        f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `{person}`, then run this installer again.")
     if existing is not None:
         mine = {person.lower(), *[str(g).lower() for g in ctx.get("USER_GROUPS") or [] if g]}
         owner = str(getattr(existing, "owner", "") or "").lower()
@@ -2030,6 +2035,8 @@ def _schema_mode_problems(ctx, found_app):
     elif not (full or {"CREATE_SCHEMA", "ALL_PRIVILEGES"} & held):
         problems.append(f"You cannot create the schema `{catalog}`.`{schema}`. A catalog owner can run "
                         f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{person}`.")
+    if run_as:
+        return problems
     sp_id = str((found_app.json() or {}).get("service_principal_client_id") or "").lower() if found_app.status_code == 200 else ""
     try:
         rows = _statement_rows(ctx["w"], ctx["WAREHOUSE_ID"], f"SHOW GRANTS ON CATALOG `{catalog}`")

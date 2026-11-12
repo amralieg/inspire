@@ -2060,3 +2060,34 @@ class RunAsTest(unittest.TestCase):
         self.assertIn('  - name: "INSPIRE_RUN_AS_PERSON"\n    value: "1"', with_jobs)
         self.assertNotIn("INSPIRE_JOB_ID", without)
         self.assertNotIn("INSPIRE_RUN_AS_PERSON", without)
+
+
+class RunAsPreflightTest(unittest.TestCase):
+    """Run-as-me: the App acts as the person, so the preflight checks the person's catalog rights and never the App's principal."""
+
+    def setUp(self):
+        self.saved = {name: getattr(setup, name) for name in INSTALL_STEPS + ("build_runtime_context", "step_run_as_jobs")}
+        setup.step_run_as_jobs = lambda ctx: None
+
+    def tearDown(self):
+        for name, value in self.saved.items():
+            setattr(setup, name, value)
+
+    def run_as_ctx(self, api, held=("USE_CATALOG", "CREATE_SCHEMA"), **extra):
+        return context(api, w=Workspace(owner="someone-else", schema=False), held=held, RUN_AS_PERSON=True,
+                       SCHEMA_MODE=True, APP_FOLDER="/Users/someone@example.com/inspire-ai/inspire-ai",
+                       ASSETS_PARENT="/Workspace/Users/someone@example.com/inspire-ai/assets",
+                       BUNDLE_ROOT="/Workspace/Users/someone@example.com/inspire-ai/apps/inspire-ai", **extra)
+
+    def test_run_as_needs_no_app_principal_catalog_grant_and_reads_no_grant_table(self):
+        api, calls = recording(app_exists())
+        steps, error, _ = SchemaModeTest.preflight(self, self.run_as_ctx(api), [])
+        self.assertIsNone(error)
+        self.assertEqual(steps, list(INSTALL_STEPS))
+
+    def test_run_as_refuses_when_the_person_cannot_use_the_catalog(self):
+        api, _ = recording(app_exists())
+        ctx = self.run_as_ctx(api, held=("CREATE_SCHEMA",))
+        steps, error, _ = SchemaModeTest.preflight(self, ctx, [])
+        self.assertEqual(steps, [])
+        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `someone@example.com`", error)
