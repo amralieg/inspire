@@ -51,7 +51,7 @@ MANIFEST = "manifest.json"
 WHOLE_FILES = ("inspire-app.zip", "inspire-assets.tar")
 RELEASE_FILES = (MANIFEST, INSTALLER) + WHOLE_FILES
 SETTINGS = "inspire_installer_test.json"
-SETTING_KEYS = ("release", "app_name", "warehouse_id", "catalog", "test_tag")
+SETTING_KEYS = ("release", "app_name", "warehouse_id", "catalog", "test_tag", "inspire_schema", "run_as_person", "local_files")
 REACH_TIMEOUT_S = 10
 READ_TIMEOUT_S = 120
 MANIFEST_LIMIT_BYTES = 1 << 20
@@ -595,17 +595,21 @@ def acquire(folder, notebook, settings, opener=None, exporter=None):
     base, repo = release_source(settings)
     reasons, known, reached = [], None, False
     print(f"Inspire installer {STARTER_VERSION}: release {base}")
-    try:
-        return acquire_online(base, repo, folder, opener)
-    except InspireStarterTooOld as exc:
-        show(*stop_page("This installer is too old for the latest Inspire", str(exc)))
-        raise InspireNotInstalled(str(exc)) from None
-    except InspireDownloadCut as exc:
-        reasons.append(f"GitHub: {exc}")
-        known, reached = exc.manifest, True
-    except Exception as exc:
-        reasons.append(f"GitHub: {describe(exc)}")
-    print(f"  {reasons[-1].rstrip('.')}. Looking for the release files next to this installer in {folder}")
+    # Test setting local_files = "1": the installer never asks GitHub; it uses the complete release files next to it.
+    if str(settings.get("local_files") or "").strip() == "1":
+        reasons.append("GitHub was not asked, because the test setting local_files is 1")
+    else:
+        try:
+            return acquire_online(base, repo, folder, opener)
+        except InspireStarterTooOld as exc:
+            show(*stop_page("This installer is too old for the latest Inspire", str(exc)))
+            raise InspireNotInstalled(str(exc)) from None
+        except InspireDownloadCut as exc:
+            reasons.append(f"GitHub: {exc}")
+            known, reached = exc.manifest, True
+        except Exception as exc:
+            reasons.append(f"GitHub: {describe(exc)}")
+        print(f"  {reasons[-1].rstrip('.')}. Looking for the release files next to this installer in {folder}")
     try:
         return acquire_local(folder, exporter, base)
     except InspireMixedRelease as exc:
@@ -647,8 +651,8 @@ def install_redacted():
             "settings": settings,
             "scan_catalogs": SCAN_CATALOGS,
             "new_apps_catalog_access": NEW_APPS_CATALOG_ACCESS,
-            "inspire_schema": INSPIRE_SCHEMA,
-            "run_as_person": RUN_AS_PERSON,
+            "inspire_schema": settings.get("inspire_schema") or INSPIRE_SCHEMA,
+            "run_as_person": RUN_AS_PERSON or str(settings.get("run_as_person") or "").strip() == "1",
         }), None
     except Exception as exc:
         return None, redact_failure(exc)
