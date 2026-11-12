@@ -46,7 +46,7 @@ test('What to deliver is the first step, Data and results is one page, and Where
     await snap(page, 'restructure-deliver');
 
     await goToStep(page, 'Data & results');
-    await page.getByRole('heading', { name: 'Source tables' }).waitFor();
+    await page.getByRole('heading', { name: 'Source tables' }).or(page.locator('[data-fold-line="Source tables"]')).first().waitFor();
     await openRow(page, 'result table');
     await page.getByRole('region', { name: 'Where the result table lives' }).waitFor();
     assert.equal(await page.getByRole('region', { name: 'Where the result table lives' }).count(), 1, 'the result table sits on the same page as the data');
