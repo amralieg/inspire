@@ -282,3 +282,28 @@ test('the backend column-add sweep catches a raw ALTER written any way and leave
     'const sql = `ALTER TABLE ${t} SET TBLPROPERTIES (a = 1)`;',
   ]) assert.deepEqual(columnAddSites(clean), [], clean);
 });
+
+test('a statement run inside a use case carries its query tags, and one outside carries none', async () => {
+  const { createExecuteSql, runWithQueryTags } = require('../lib/sqlStatements');
+  const bodies = [];
+  const dbFetch = async (_h, _t, apiPath, options = {}) => {
+    if (options.method === 'POST') bodies.push(JSON.parse(options.body));
+    return { ok: true, json: async () => ({ statement_id: 's', status: { state: 'SUCCEEDED' }, result: { data_array: [] } }), text: async () => '' };
+  };
+  const executeSql = createExecuteSql(dbFetch, { sleep: async () => {} });
+  await runWithQueryTags({ dbx_inspire_ai_usecase_id: ' N01-U01 ', dbx_inspire_ai_session_id: '42', dbx_inspire_ai_app_name: '', dbx_inspire_ai_asset: 'x'.repeat(300) },
+    () => executeSql('h', 't', 'wh', 'SELECT 1'));
+  await executeSql('h', 't', 'wh', 'SELECT 2');
+  assert.deepEqual(bodies[0].query_tags, [
+    { key: 'dbx_inspire_ai_usecase_id', value: 'N01-U01' },
+    { key: 'dbx_inspire_ai_session_id', value: '42' },
+    { key: 'dbx_inspire_ai_asset', value: 'x'.repeat(128) },
+  ]);
+  assert.equal('query_tags' in bodies[1], false);
+});
+
+test('the implement routes run every statement inside their query-tag scope', () => {
+  const src = fs.readFileSync(path.join(__dirname, '..', 'implementRoutes.js'), 'utf8');
+  assert.match(src, /app\.use\('\/api\/inspire\/implement', \(req, res, next\) => runWithQueryTags\(\{/);
+  assert.match(src, /dbx_inspire_ai_usecase_id: q\(req, 'use_case_id'\)/);
+});
