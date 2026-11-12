@@ -164,7 +164,7 @@ empty_sql, _, empty_said = run([], data=[])
 assert not [s for s in empty_sql if "\x60sales\x60" in s or "samples" in s], empty_sql
 assert "Inspire's App gets read access on no catalog besides \x60main\x60" in empty_said and "pick the catalogs in 02_data_catalogs_inspire_may_read" in empty_said, empty_said
 refused_sql, _, refused_said = run([], grantable=())
-assert "Permission Required: ask a catalog owner, or someone with MANAGE on each catalog below, to run these statements, then run this installer again:" in refused_said.splitlines(), refused_said
+assert "Permission Required: ask your admin to grant this permission:" in refused_said.splitlines(), refused_said
 assert "GRANT USE_CATALOG, USE_SCHEMA, SELECT, BROWSE ON CATALOG \x60sales\x60 TO \x60SP\x60" in refused_said.splitlines(), refused_said
 assert "Catalog grants: 0 of 1 ran \u26a0\ufe0f" in refused_said, refused_said
 lakebase_sql = [s for s in run([], lakebase_catalog=True, grantable=("sales", "inspire_lakebase"), data=("sales", "inspire_lakebase"))[0] if "inspire_lakebase" in s]

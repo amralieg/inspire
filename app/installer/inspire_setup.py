@@ -1527,8 +1527,7 @@ def _grant_data_catalogs(ctx, sp):
     ctx["READ_REFUSED"] = [sql for sql in grants if sql in failed]
     if failed:
         print(f"  Refused on {_plural(len(failed), 'catalog', 'catalogs')}, first reason: {next(iter(failed.values()))[:160]}")
-        print("Permission Required: ask a catalog owner, or someone with MANAGE on each catalog below, to run these statements, "
-              "then run this installer again:")
+        print("Permission Required: ask your admin to grant this permission:")
         for sql in ctx["READ_REFUSED"]:
             print(sql)
     return failed

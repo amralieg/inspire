@@ -165,8 +165,7 @@ class ConsentAndGrantTest(unittest.TestCase):
     def test_a_refused_grant_is_printed_as_a_plain_statement_line_and_the_rest_still_runs(self):
         _, _, _, said = self.grant_read(["sales", "finance"], fail={"CATALOG `finance`": RuntimeError("PERMISSION_DENIED: not the owner")})
         lines = said.splitlines()
-        self.assertIn("Permission Required: ask a catalog owner, or someone with MANAGE on each catalog below, to run these statements, "
-                      "then run this installer again:", lines)
+        self.assertIn("Permission Required: ask your admin to grant this permission:", lines)
         self.assertIn(READ.format("finance"), lines, "the statement starts at the line start so it copies as is")
         self.assertIn("Catalog grants: 1 of 2 ran ⚠️", said)
         self.assertIn("Grants:", said, "the core plan still runs")
