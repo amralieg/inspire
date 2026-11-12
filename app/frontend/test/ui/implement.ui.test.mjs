@@ -1848,7 +1848,7 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     assert.equal(await never.page.locator('[data-wizard-header] h2').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
     for (const label of ['First run', 'Measure', 'Where it lives', 'Who uses the App', 'Page storage', 'App look', 'Run it']) {
-      await goToStep(never.page, label);
+      if (label !== 'Data') await goToStep(never.page, label);
       assert.equal(await header.getByRole('heading', { level: 2 }).innerText(), HARNESS_USE_CASE.Name, label);
       assert.doesNotMatch(await header.innerText(), /\bID\b|N01-U01/, `${label}: the header shows no use case id (must-exclude)`);
     }
