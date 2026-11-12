@@ -243,8 +243,8 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
             <label className="flex items-center gap-2"><input type="radio" name="value-currency-by" checked={pick.currencyBy === 'column'} onChange={() => setPickPart({ currencyBy: 'column', currencyColumn: pick.currencyColumn || sample.currency })} data-money-value-currency-by="column" /> Each record has its own currency column</label>
           )}
           <label className="flex items-center gap-2"><input type="radio" name="value-currency-by" checked={pick.currencyBy !== 'column'} onChange={() => setPickPart({ currencyBy: 'code' })} data-money-value-currency-by="code" /> One currency for all records</label>
-          {pick.currencyBy === 'column' && <label>Currency column <input className="ms-2" value={pick.currencyColumn} onChange={(e) => setPickPart({ currencyColumn: e.target.value })} data-money-value-currency-column /></label>}
-          {pick.currencyBy !== 'column' && <label>Currency code <input className="ms-2 w-24" value={pick.code} onChange={(e) => setPickPart({ code: e.target.value })} data-money-value-code /></label>}
+          {pick.currencyBy === 'column' && <label>Currency column <input dir="auto" className="ms-2" value={pick.currencyColumn} onChange={(e) => setPickPart({ currencyColumn: e.target.value })} data-money-value-currency-column /></label>}
+          {pick.currencyBy !== 'column' && <label>Currency code <input dir="auto" className="ms-2 w-24" value={pick.code} onChange={(e) => setPickPart({ code: e.target.value })} data-money-value-code /></label>}
         </div>
       )}
 
@@ -325,14 +325,14 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         <div className="space-y-2 pt-2">
           {show('window') && (<>
           <label className="block">Closed periods to total (empty for every closed period)
-            <input className="block mt-1 w-24" value={draft.window} onChange={(e) => setDraftPart({ window: e.target.value })} data-money-window />
+            <input dir="auto" className="block mt-1 w-24" value={draft.window} onChange={(e) => setDraftPart({ window: e.target.value })} data-money-window />
           </label>
           <label className="block">Statuses that count, comma-separated (empty for all)
-            <input className="block mt-1 w-full" value={draft.statuses} onChange={(e) => setDraftPart({ statuses: e.target.value })} data-money-statuses />
+            <input dir="auto" className="block mt-1 w-full" value={draft.statuses} onChange={(e) => setDraftPart({ statuses: e.target.value })} data-money-statuses />
           </label>
           {draft.statuses.trim() && (
             <label className="block">Status column
-              <input className="block mt-1 w-40" value={draft.statusColumn} onChange={(e) => setDraftPart({ statusColumn: e.target.value })} data-money-status-column />
+              <input dir="auto" className="block mt-1 w-40" value={draft.statusColumn} onChange={(e) => setDraftPart({ statusColumn: e.target.value })} data-money-status-column />
             </label>
           )}
           </>)}
