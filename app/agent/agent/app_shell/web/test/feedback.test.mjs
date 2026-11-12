@@ -64,14 +64,18 @@ test('Report an issue on Work sends the section, the filters and the open record
   await context.close();
 });
 
-test('the Settings section holds App Feedback, picks the section it is about, lists your reports and shows a refusal', async () => {
+test('the Settings section holds Feedback with a Report an issue button, picks the section it is about, lists your reports and shows a refusal', async () => {
   const sent = [];
   const { page, seen, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { hash: '#/n01_u05/settings', ready: '[data-group="feedback"]', routes: feedbackRoutes(sent) });
   const group = page.locator('[data-group="feedback"]');
-  assert.equal(await group.locator('h3').innerText(), 'App Feedback');
-  await group.locator('select[name="feedback_section"]').selectOption('dashboard');
-  await group.locator('textarea').fill('The money chart double counts returns');
-  await group.locator('[data-feedback-send]').click();
+  assert.equal(await group.locator('h3').innerText(), 'Feedback');
+  assert.equal(await page.locator('[data-feedback-form]').count(), 0, 'the report form waits behind the button');
+  await group.getByRole('button', { name: 'Report an issue', exact: true }).click();
+  const form = page.locator('.pop [data-feedback-form]');
+  await form.waitFor({ timeout: 10000 });
+  await form.locator('select[name="feedback_section"]').selectOption('dashboard');
+  await form.locator('textarea').fill('The money chart double counts returns');
+  await form.locator('[data-feedback-send]').click();
   await toastSays(page, THANKS);
   assert.equal(sent[0].section, 'dashboard');
   await group.locator('[data-feedback-item="f0"]').waitFor();
@@ -79,7 +83,8 @@ test('the Settings section holds App Feedback, picks the section it is about, li
   await context.close();
   const limited = await openApp(browser, served.base, appInfo({}, 1, TABLE), { hash: '#/n01_u05/settings', ready: '[data-group="feedback"]',
     routes: feedbackRoutes([], ({ json }) => json(429, { error: 'you reported 10 issues in the last hour, the most the App takes from one person; try again in 12 minutes' })) });
-  const box = limited.page.locator('[data-group="feedback"]');
+  await limited.page.locator('[data-group="feedback"]').getByRole('button', { name: 'Report an issue', exact: true }).click();
+  const box = limited.page.locator('.pop [data-feedback-form]');
   await box.locator('textarea').fill('again');
   await box.locator('[data-feedback-send]').click();
   await box.getByText('try again in 12 minutes', { exact: false }).waitFor();

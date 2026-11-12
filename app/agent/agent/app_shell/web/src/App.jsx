@@ -33,7 +33,7 @@ const THEME_KEY = 'inspire-app-theme';
 const GENIE_CLOSED = 'inspire-genie-closed';
 const genieClosedThisSession = () => { try { return window.sessionStorage.getItem(GENIE_CLOSED) === '1'; } catch { return false; } };
 const rememberGenie = (open) => { try { window.sessionStorage.setItem(GENIE_CLOSED, open ? '0' : '1'); } catch { /* private mode opens it on every load */ } };
-const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', impact: 'trend', feedback: 'info', reports: 'history', settings: 'sliders' };
+const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', impact: 'trend', settings: 'sliders' };
 
 function initials(user) {
   const source = user?.name || user?.email || '';
@@ -92,7 +92,7 @@ function railOf(app, page) {
 
 function SectionRail({ sections, on, onGo, open, page, counts = {}, alerting }) {
   const top = sections.filter((s) => s !== 'settings');
-  const toured = (s) => (s === 'runs' && alerting && !sections.includes('alerts') ? 'alerts' : ['performance', 'alerts', 'runs', 'feedback', 'reports', 'settings'].includes(s) ? s : undefined);
+  const toured = (s) => (s === 'runs' && alerting && !sections.includes('alerts') ? 'alerts' : ['performance', 'alerts', 'runs', 'settings'].includes(s) ? s : undefined);
   const item = (s) => (
     <button key={s} type="button" className={`nav-i rail-i ${on === s ? 'is-on' : ''}`} onClick={() => onGo(s)} aria-current={on === s ? 'page' : undefined} data-rail={s}
       data-tour={toured(s)}
@@ -306,6 +306,7 @@ function Shell({ app, onRefreshSiblings }) {
             <span className="mark-tile logo"><img src={logo} alt="Databricks" width="22" height="22" /></span>
             <span className="mark-t"><b>{app.title}</b><small>{crumb || app.subtitle || `${pages.length} use case${pages.length === 1 ? '' : 's'} · built by Inspire`}</small></span>
           </button>
+          <span className="sp" />
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
           <button className="genie-btn" data-tour="genie" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>

@@ -22,7 +22,7 @@ export { DEFAULT_LAYOUT, layoutOf, isLaidOut, isQueue };
 export const tabLabel = (page, fallback) => (isLaidOut(page) && page.layout?.tab_label) || fallback;
 export const impactOn = (app, page) => app?.screens?.impact !== false && (!!page?.history || !!page?.promised);
 export const pageSections = (app, page) => ['dashboard', ...(hasWork(page) ? ['work'] : []), ...(app?.screens?.runs !== false ? ['runs'] : []),
-  ...(app?.alerting?.on ? ['alerts'] : []), ...(impactOn(app, page) ? ['impact'] : []), ...(app?.screens?.feedback !== false ? ['feedback'] : []), ...(page?.is_owner === true ? ['reports'] : []), 'settings'];
+  ...(app?.alerting?.on ? ['alerts'] : []), ...(impactOn(app, page) ? ['impact'] : []), 'settings'];
 export const decides = pageDecides;
 const PLAN_ROWS = 50;
 const TOUR_HELD = ['todo', 'kpis', 'objective', 'records', 'plan', 'resolve'];
