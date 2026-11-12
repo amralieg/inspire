@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { INSIDE_WAREHOUSE_TOGGLE } from '../../src/lib/implementWizard.js';
-import { BUILD_IT, closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardInScreen, goToStep } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, goToMeasureImpact, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardInScreen, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Who uses the App', 'App look', 'Run it', 'Review & build'];
+const FULL_MVP_STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Who uses the App', 'Page storage', 'App look', 'Run it', 'Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));
@@ -32,7 +32,7 @@ test('a fresh MVP shows every step in the step bar, with no shortcut that hides 
     assert.equal(await page.getByRole('button', { name: 'Customize' }).count(), 0);
     await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
     await page.getByRole('checkbox', { name: /^App/ }).first().uncheck();
-    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS.filter((l) => !/App|Where it lives/.test(l)), 'with Apps unticked both App steps are hidden');
+    assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS.filter((l) => !/App|Where it lives|Page storage/.test(l)), 'with Apps unticked both App steps are hidden');
     await page.getByRole('checkbox', { name: /^App/ }).first().check();
     assert.deepEqual(await stepLabels(page), FULL_MVP_STEPS);
     await goToStep(page, 'Data');
@@ -60,11 +60,12 @@ test('Data & results, Run it and App show the business settings and keep the tec
     await onStep(page, 'First run');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Results holds only where the result table lives');
     assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Results holds only where the result table lives');
-    await goToStep(page, 'Run it');
-    await page.getByRole('checkbox', { name: /^Hold back/ }).check();
+    await goToMeasureImpact(page);
+    await page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back/ }).check();
     for (const label of ['Share of records held back', 'Cron (Quartz)']) await hidden(label);
     await page.getByRole('button', { name: 'Change hold back share', exact: true }).click();
     await shown('Share of records held back');
+    await goToStep(page, 'Run it');
     await page.getByRole('button', { name: 'Change schedule', exact: true }).click();
     await shown('Cron (Quartz)');
     await hidden('Rows the team can act on each run');

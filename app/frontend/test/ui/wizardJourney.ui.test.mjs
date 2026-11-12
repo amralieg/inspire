@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE } from '../../src/lib/runScope.js';
 import { RUN_IT_TITLE, WIZARD_STEPS_MAX } from '../../src/lib/implementWizard.js';
-import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openRow, openUi, profileAt, settleChoices, shot, stepsAre } from './uiSupport.mjs';
+import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openRow, openUi, profileAt, settleChoices, shot, stepsAre } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -137,9 +137,13 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh is on, Daily, by default');
     await goToStep(page, 'Run it');
     assert.equal(await page.locator('[data-run-it]').count(), 0, 'Run it no longer carries the Keep it fresh question');
-    assert.equal(await page.getByRole('checkbox', { name: /^Hold back/ }).count(), 1, 'Measure impact sits on Run it');
+    assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Measure impact is not on Run it (must-exclude)');
     await onePerQuestion(page, 'Run it');
     await shot(page, '09-run-it', false);
+    await goToMeasureImpact(page);
+    assert.equal(await page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back/ }).count(), 1, 'Measure impact sits on Measure');
+    await onePerQuestion(page, 'Measure impact');
+    await shot(page, '09-measure-impact', false);
     await goToStep(page, 'Review & build');
     assert.match(await builtLine(page), /^The MVP: .*App.*, the result table and the notebook that fills it\.$/);
     await page.getByRole('region', { name: 'Vibes' }).waitFor();

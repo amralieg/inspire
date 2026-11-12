@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { closeBrowser, goToStep, idle, onStep, openRow, openUi, profileAt } from './uiSupport.mjs';
+import { closeBrowser, goToMeasureImpact, goToStep, idle, onStep, openRow, openUi, profileAt } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -142,6 +142,7 @@ const uncheck = (name) => async (page) => page.getByRole('checkbox', { name }).f
 const radio = (name) => async (page) => page.getByRole('radio', { name }).first().check();
 const press = (name) => async (page) => page.getByRole('button', { name, exact: true }).first().click();
 const freshPress = (name) => async (page) => { await openRow(page, 'Keep it fresh'); await press(name)(page); };
+const impactUncheck = (name) => async (page) => { await goToMeasureImpact(page); await page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name }).uncheck(); };
 const both = (...fns) => async (page) => { for (const fn of fns) await fn(page); };
 
 const COMBOS = [
@@ -151,7 +152,7 @@ const COMBOS = [
   ['per-user-edit', { 'Who uses the App': radio(/^Sensitive data/), 'App pages': check(/^Let people edit data/) }],
   ['one-app-per-use-case', { 'Where it lives': radio(/^One App per use case/) }],
   ['inside-inspire', { 'Where it lives': radio(/^Inside Inspire/) }],
-  ['schedule-off-holdout-off', { 'Data & results': freshPress('Off'), 'Run it': uncheck(/^Hold back/) }],
+  ['schedule-off-holdout-off', { 'Data & results': freshPress('Off'), Measure: impactUncheck(/^Hold back/) }],
   ['schedule-weekly', { 'Data & results': freshPress('Weekly') }],
   ['first-run-everything', { 'First run': radio(/^Everything/) }],
   ['first-run-recent', { 'First run': radio(/^The last 30 days/) }],

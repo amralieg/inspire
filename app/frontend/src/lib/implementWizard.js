@@ -39,13 +39,15 @@ const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_i
 const WHERE_STEP = { id: 'where', label: WHERE_LABEL, sections: ['app_place', 'app_pages'], advanced: [], panels: ['app_place', 'app_pages'] };
 const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case', 'data', 'configure', 'results', 'fresh'], advanced: ['data', 'configure', 'results', 'fresh'], panels: ['data', 'results', 'fresh'] };
 export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
-export const MEASURE_STEP = { id: 'stake', label: MEASURE_LABEL, sections: [], advanced: [], panels: ['stake'] };
+export const MEASURE_STEP = { id: 'stake', label: MEASURE_LABEL, sections: ['kpi', 'holdout'], advanced: [], panels: ['stake'] };
+export const MEASURE_IMPACT_PART = 'impact';
+const IMPACT_FOCUS = ['kpi', 'holdout', MEASURE_IMPACT_PART];
 
 export function withMoneyRule(spec, money) {
   const { money: _previous, ...rest } = spec || {};
   return money ? { ...rest, money } : rest;
 }
-export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule', 'kpi', 'holdout'], advanced: ['schedule', 'holdout'], panels: ['measure'] };
+export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule'], advanced: ['schedule'], panels: ['schedule'] };
 
 export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP, RUN_STEP];
 
@@ -69,8 +71,9 @@ export const NOTEBOOK_STEPS = [
 const STEP_ALIASES = {
   use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: MEASURE_STEP.id, fresh: DATA_STEP.id, vibes: SUMMARY_STEP.id,
   settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: APP_STEP.id, app_features: APP_STEP.id, app_look: APP_LOOK_STEP.id,
-  results: DATA_STEP.id, app_pages: WHERE_STEP.id,
+  results: DATA_STEP.id, app_pages: WHERE_STEP.id, [MEASURE_IMPACT_PART]: MEASURE_STEP.id,
 };
+export const opensOnImpact = (focus) => IMPACT_FOCUS.includes(focus?.step);
 const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id, [APP_LOOK_STEP.id]: APP_STEP.id, [APP_STORAGE_STEP.id]: APP_STEP.id, [APP_STEP.id]: WHERE_STEP.id };
 
 function heldStepOf(steps, id) {
@@ -2532,6 +2535,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
   const joined = joinsApp(spec);
   const placement = APP_PLACEMENTS.find((p) => p.id === outputs.app_placement);
   const row = (id, step, label, value) => ({ id, step, label, value: String(value ?? '') });
+  const impactRow = (id, label, value) => ({ ...row(id, MEASURE_STEP.id, label, value), part: MEASURE_IMPACT_PART });
   return [
     row('outputs', 'delivery', 'What it builds', buildsText(built)),
     ...((more.dropped || []).length ? [row('dropped', 'delivery', 'Not built', more.dropped.map((d) => `${d.label}: ${d.why}`).join('; '))] : []),
@@ -2542,8 +2546,8 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
     ...(more.grouping ? [row('grouping', 'grouping', 'Data groups', more.grouping)] : []),
     ...(more.firstRun ? [row('first_run', 'first_run', FIRST_RUN_LABEL, more.firstRun)] : []),
     row('result', 'data', 'Result table', String(spec?.config?.result_table || '') || 'not named yet'),
-    row('kpi', 'run', 'Target KPI', kpiTargetOf(spec) || 'Inspire picks'),
-    row('holdout', 'run', HOLDOUT_LABEL, holdout.enabled ? `On, ${holdoutPercentText(spec) || '?'}% kept aside` : 'Off'),
+    impactRow('kpi', 'Target KPI', kpiTargetOf(spec) || 'Inspire picks'),
+    impactRow('holdout', HOLDOUT_LABEL, holdout.enabled ? `On, ${holdoutPercentText(spec) || '?'}% kept aside` : 'Off'),
     row('schedule', DATA_STEP.id, FRESH_LABEL, freshness === 'off' ? 'Off, it runs once'
       : `${freshness === 'custom' ? 'Custom' : FRESHNESS_OPTIONS.find((o) => o.id === freshness).label}, runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`),
     ...(principals.length ? [row('sharing', 'delivery', 'Shared with', principals.join(', '))] : []),

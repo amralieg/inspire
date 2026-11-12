@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, openAdvanced, openUi, onStep, startMvp, toAppAccess, goToStep } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, openAdvanced, openUi, onStep, startMvp, toAppAccess, goToStep, goToMeasureImpact } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAT = ['pat', 'example.com'].join('@');
@@ -53,12 +53,12 @@ test('a build left alone holds back 10% to measure impact and sends no App owner
   }
 });
 
-test('Measure impact, its own step, starts ticked with its badge, takes a share from 1% to 50% at 10% by default, and sends what the person typed', async () => {
+test('Measure impact, a screen of Measure, starts ticked with its badge, takes a share from 1% to 50% at 10% by default, and sends what the person typed', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
   try {
     await toResults(page);
-    await goToStep(page, 'Measure impact');
+    await goToMeasureImpact(page);
     const impact = page.getByRole('group', { name: 'Measure impact' });
     const box = impact.getByRole('checkbox', { name: /^Hold back a share of records to measure impact\./ });
     assert.equal(await box.isChecked(), true, 'it starts on, where its Recommended badge sits');
@@ -76,7 +76,7 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     await impact.getByText(SHARE_PROBLEM, { exact: true }).waitFor();
     await next(page);
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
-    assert.equal(await page.locator('[aria-current="step"]').textContent(), '8. Run it', 'a share above half the records keeps the person on Measure impact');
+    assert.equal(await page.locator('[data-money-part="impact"]').evaluate((el) => el.closest('li').hasAttribute('data-money-current')), true, 'a share above half the records keeps the person on Measure impact');
     await share.fill('');
     await page.locator('[role="alert"] p', { hasText: SHARE_PROBLEM }).waitFor();
     await box.uncheck();
@@ -85,6 +85,30 @@ test('Measure impact, its own step, starts ticked with its badge, takes a share 
     assert.equal(await share.inputValue(), '10', 'turning it back on starts again from the default');
     await share.fill('25');
     assert.equal(await impact.getByText(SHARE_PROBLEM).count(), 0);
+    await goToStep(page, 'What to build');
+    await startWhenReady(page);
+    assert.deepEqual(submittedSpec(made).holdout, { enabled: true, share: 0.25 });
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a Measure impact share set on Measure is still there after Run it, and the build sends it', async () => {
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
+  const { page, made } = ui;
+  const share = () => page.getByRole('spinbutton', { name: 'Share of records held back, in percent' });
+  const openShare = async () => { if (await share().count() === 0) await page.getByRole('button', { name: 'Change hold back share', exact: true }).click(); };
+  try {
+    await toResults(page);
+    await goToMeasureImpact(page);
+    await openShare();
+    await share().fill('25');
+    await goToStep(page, 'Run it');
+    assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Run it no longer shows Measure impact (must-exclude)');
+    await goToMeasureImpact(page);
+    await openShare();
+    assert.equal(await share().inputValue(), '25', 'the share typed on Measure impact is still there after Run it');
     await goToStep(page, 'What to build');
     await startWhenReady(page);
     assert.deepEqual(submittedSpec(made).holdout, { enabled: true, share: 0.25 });

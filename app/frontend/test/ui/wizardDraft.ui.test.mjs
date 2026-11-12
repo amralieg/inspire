@@ -132,10 +132,10 @@ test('Close and Start over drop the draft, and a draft from before the use case 
     assert.deepEqual(await drafts(page), [], 'Close clears the draft');
     await reloadOn(page, 'What to deliver');
     assert.equal(await draftNote(page).count(), 0, 'a closed wizard reopens fresh (must-exclude)');
-    await goToStep(page, 'Data');
-    await next(page);
-    await onStep(page, 'Data groups');
+    await goToStep(page, 'Review & build');
+    await page.getByRole('region', { name: 'Vibes' }).locator('textarea').first().fill('draft words');
     const [key] = await drafts(page);
+    assert.ok(key, 'a typed change keeps a draft to age');
     await page.evaluate((k) => { const d = JSON.parse(localStorage.getItem(k)); localStorage.setItem(k, JSON.stringify({ ...d, stamp: 'an-older-use-case' })); }, key);
     await reloadOn(page, 'What to deliver');
     assert.equal(await draftNote(page).count(), 0, 'a draft of the use case as it was before is ignored');

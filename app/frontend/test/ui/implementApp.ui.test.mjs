@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { goToStorage, assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openRow, openUi, painted, setDark, settled, startMvp, toAppAccess, toSharedAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
+import { goToStorage, assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openRow, openUi, painted, setDark, settled, startMvp, toAppAccess, toSharedAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep, goToMeasureImpact } from './uiSupport.mjs';
 import { LAKEBASE_ABSENT, LAKEBASE_PER_USER_REASON } from '../../src/lib/implementWizard.js';
 import { wheelScrolls } from './wheelScroll.mjs';
 
@@ -1122,9 +1122,12 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await goToStep(page, 'Keep it fresh');
     await openRow(page, 'Keep it fresh');
     await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
-    await goToStep(page, 'Run it');
+    await goToMeasureImpact(page);
     const holdout = page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back a share of records/ });
     await holdout.waitFor();
+    await fits('6-measure-impact');
+    await readable('measure impact');
+    await goToStep(page, 'Run it');
     await fits('6-run-it');
     await readable('run it');
     await goToStep(page, 'Review & build');

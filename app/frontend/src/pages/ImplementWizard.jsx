@@ -77,6 +77,8 @@ import {
   widgetValueProblem,
   profileFieldProblem,
   initialStepId,
+  MEASURE_IMPACT_PART,
+  opensOnImpact,
   stepIndexOf,
   lostTablesText,
   SOURCE_REFUSED_REASON,
@@ -420,7 +422,7 @@ function CheckLine({ check, label }) {
   );
 }
 
-const MONEY_PART_LABEL = { method: 'How it is found', direction: 'Which movement counts', currency: 'Currency', window: 'Periods and statuses', off: 'Turn it off' };
+const MONEY_PART_LABEL = { method: 'How it is found', direction: 'Which movement counts', currency: 'Currency', window: 'Periods and statuses', off: 'Turn it off', [MEASURE_IMPACT_PART]: 'Measure impact' };
 
 export default function ImplementWizard({
   uc,
@@ -450,6 +452,7 @@ export default function ImplementWizard({
   const [advanced, setAdvanced] = useState({ data: false, results: false, fresh: false, delivery: false, app_place: false, app_access: false, app_options: false, app_pages: false, summary: false });
   const [details, setDetails] = useState(false);
   const [moneyPart, setMoneyPart] = useState(0);
+  const openOnImpact = useRef(opensOnImpact(focus));
   const [lookView, setLookView] = useState({ tab: 'style', page: 'fix' });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
   const [columnsByTable, setColumnsByTable] = useState({});
@@ -548,9 +551,13 @@ export default function ImplementWizard({
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
   const shows = (panel) => steps[stepIndex].panels.includes(panel);
-  const moneyParts = spec.money?.off ? ['off'] : [...MONEY_PARTS.filter((p) => p !== 'off'), 'off'];
+  const moneyParts = [...(spec.money?.off ? ['off'] : [...MONEY_PARTS.filter((p) => p !== 'off'), 'off']), MEASURE_IMPACT_PART];
   const moneyActive = Math.min(moneyPart, moneyParts.length - 1);
-  useEffect(() => { if (steps[stepIndex].id === 'stake') setMoneyPart(0); }, [stepIndex]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => {
+    if (steps[stepIndex].id !== 'stake') return;
+    setMoneyPart(openOnImpact.current ? moneyParts.length - 1 : 0);
+    openOnImpact.current = false;
+  }, [stepIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   const resultsOn = shows('results');
   useEffect(() => {
     if (!context || !scopeSteps.grouping || context.latest || groupingDefaulted.current) return;
@@ -1111,7 +1118,7 @@ export default function ImplementWizard({
   };
 
   const markTouched = (e) => {
-    if (e.target?.closest?.('input, select, textarea, button, [data-option]')) touched.current = true;
+    if (e.target?.closest?.('input, select, textarea, [data-option], [data-draft-change]')) touched.current = true;
   };
 
   const startOver = () => {
@@ -1320,7 +1327,7 @@ export default function ImplementWizard({
     settings: settingsList.length ? counted(settingsList.length, 'setting') : '',
     dropped: dropped.filter((d) => !spec.outputs[d.id]),
   }).filter((row) => steps.some((s) => s.id === row.step));
-  const changeStep = (id) => { setErrors([]); setBackToSummary(true); setStep(id); };
+  const changeStep = (id, part) => { setErrors([]); setBackToSummary(true); openOnImpact.current = part === MEASURE_IMPACT_PART; setStep(id); };
   const nextIsSummary = backToSummary && nextStepAfter(steps, stepId, { backToSummary, visited }) === SUMMARY_STEP.id;
 
   const pickTable = (original, value) => {
@@ -1441,7 +1448,7 @@ export default function ImplementWizard({
                   only to override it.
                 </p>
                 {Object.values(spec.data.column_roles).some(Boolean) && (
-                  <button type="button" className="text-[11px] text-db-red-fg shrink-0" onClick={() => patch('data.column_roles', {})}>
+                  <button type="button" data-draft-change="" className="text-[11px] text-db-red-fg shrink-0" onClick={() => patch('data.column_roles', {})}>
                     {RESET_ROLES_LABEL}
                   </button>
                 )}
@@ -1598,22 +1605,9 @@ export default function ImplementWizard({
           </section>
         )}
 
-        {shows('measure') && (
+        {shows('schedule') && (
           <>
-            <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
-              <KpiTargetSetting
-                spec={spec}
-                best={best.kpi}
-                options={kpiOptions}
-                tracked={trackedKpi}
-                before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
-                onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
-              />
-            </HoldoutSetting>
             <div className="space-y-3">
-              <SettingRow label="Hold back" value={holdoutOf(spec).enabled ? `${holdoutPercentText(spec) || '10'}% of records` : 'off'} changeLabel="hold back share">
-                <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
-              </SettingRow>
               <SettingRow label="Schedule (Quartz cron)" value={cronInWords(spec.schedule.cron, spec.schedule.timezone)} changeLabel="schedule">
                 <Field label="Cron (Quartz)">
                   <input dir="auto" className={inputCls} value={spec.schedule.cron} onChange={(e) => patch('schedule.cron', e.target.value)} />
@@ -1885,7 +1879,25 @@ export default function ImplementWizard({
                 </li>
               ))}
             </ol>
-            <MoneyRuleEditor part={moneyParts[moneyActive]} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
+            {moneyParts[moneyActive] === MEASURE_IMPACT_PART ? (
+              <div className="space-y-3">
+                <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
+                  <KpiTargetSetting
+                    spec={spec}
+                    best={best.kpi}
+                    options={kpiOptions}
+                    tracked={trackedKpi}
+                    before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
+                    onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
+                  />
+                </HoldoutSetting>
+                <SettingRow label="Hold back" value={holdoutOf(spec).enabled ? `${holdoutPercentText(spec) || '10'}% of records` : 'off'} changeLabel="hold back share">
+                  <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
+                </SettingRow>
+              </div>
+            ) : (
+              <MoneyRuleEditor part={moneyParts[moneyActive]} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => { setSpec((prev) => withMoneyRule(prev, money)); if (Boolean(money?.off) !== Boolean(spec.money?.off)) setMoneyPart(money?.off ? 0 : MONEY_PARTS.indexOf('off')); }} />
+            )}
             <div className="flex items-center justify-between pt-1">
               {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
               {moneyActive < moneyParts.length - 1 && <button type="button" data-money-next="" onClick={() => setMoneyPart(moneyActive + 1)} className="text-xs font-medium text-db-red-fg">Following decision</button>}
@@ -1995,7 +2007,7 @@ export default function ImplementWizard({
                     <dd data-picked-value="" className="text-text-primary break-words">{row.value}</dd>
                     <dd>
                       {row.step !== SUMMARY_STEP.id && <button type="button" data-picked-change={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus"
-                        aria-label={`Change ${row.label}`} onClick={() => changeStep(row.step)}>Change</button>}
+                        aria-label={`Change ${row.label}`} onClick={() => changeStep(row.step, row.part)}>Change</button>}
                     </dd>
                   </div>
                 ))}
@@ -3224,7 +3236,7 @@ function SourceTableBlocks({ tables, spec, columnsByTable, values, setSpec, load
       {filterTablesOutside(spec.data.filters, tables).map((table) => (
         <div key={table} data-filters-outside={table} className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
           <p className="text-[11px] text-text-secondary">Row filters on {table}, which is no longer a source table.</p>
-          <button type="button" className="text-[11px] text-db-red-fg shrink-0" onClick={() => setSpec((prev) => withoutTableFilters(prev, table))}>
+          <button type="button" data-draft-change="" className="text-[11px] text-db-red-fg shrink-0" onClick={() => setSpec((prev) => withoutTableFilters(prev, table))}>
             Remove these filters
           </button>
         </div>
