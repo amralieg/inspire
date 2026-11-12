@@ -28,6 +28,7 @@ function ProfileNote({ state, error }) {
       </p>
     );
   }
+  if (state === 'no_table') return <p data-scope-profile="no-table" className={NOTE}>{error}</p>;
   if (state === 'error') return <PlainMessage text={`Inspire could not read the table for its suggestions: ${error}`} role="alert" data-scope-profile="error" className="text-[11px] text-error-fg" />;
   return null;
 }

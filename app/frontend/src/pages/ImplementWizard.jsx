@@ -272,7 +272,7 @@ import {
 } from '../lib/useCaseSettings';
 import ScopeSettings, { GroupingChosen } from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
-import { PROFILE_WAITING, useScopeProfiles } from '../lib/groupingProfile';
+import { PROFILE_WAITING, noMainTableText, useScopeProfiles } from '../lib/groupingProfile';
 import { fieldOf } from '../lib/useCaseFields.js';
 import { tableScopeSummary } from '../lib/tableScope';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
@@ -536,7 +536,8 @@ export default function ImplementWizard({
   const primaryOriginal = primaryTableOf(ucRow);
   const primaryChosen = spec.data.tables[primaryOriginal] || primaryOriginal;
   const scopeProfile = useScopeProfiles({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp',
-    groupBy: spec.config.widgets?.[GROUP_BY], defaultGrouping: true, table: primaryChosen });
+    groupBy: spec.config.widgets?.[GROUP_BY], defaultGrouping: true, table: primaryChosen,
+    noMainTable: tablesOf(ucRow).length ? '' : noMainTableText(nameOfUseCase(ucRow)) });
   const builtFirstRun = builtFirstRunOf(settingsModel);
   const firstRunUnrecorded = useMemo(() => latestRunScope(context?.latest).unrecorded, [context?.latest]);
   const ranBefore = builtFirstRun || Boolean(context?.latest && context.latest.status !== 'failed');
