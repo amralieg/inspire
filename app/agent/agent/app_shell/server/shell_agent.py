@@ -623,10 +623,12 @@ def number_scopes(answer: str, question: str, key_numbers: list, genie: list) ->
                            f"{kpi_shown(item, clash[1])} for {sql_scope(clash[0].get('sql'))}.")
         elif states(answer, value, label) and page_scope.casefold() not in answer.casefold():
             stated.append((label.casefold() in answer.casefold(), f"{label} {kpi_shown(item, value)} counts {page_scope}."))
+    if clashes:
+        return clashes[:1], []
     named = [note for by_name, note in stated if by_name]
-    notes = named or ([stated[0][1]] if len(stated) == 1 else [])
-    counted = genie_note(answer, genie[-1]) if genie and not clashes and not notes else ""
-    return clashes, notes + ([counted] if counted else [])
+    notes = named[:1] or ([stated[0][1]] if len(stated) == 1 else [])
+    counted = genie_note(answer, genie[-1]) if genie and not notes else ""
+    return [], notes + ([counted] if counted else [])
 
 
 def genie_note(answer: str, result: dict) -> str:
@@ -639,6 +641,13 @@ def genie_note(answer: str, result: dict) -> str:
 def with_scopes(answer: str, clashes: list, notes: list) -> str:
     parts = ["\n".join(clashes), answer, "\n".join(notes)]
     return "\n\n".join(p for p in parts if p.strip())
+
+
+def finish_text(text, question: str = "", key_numbers=None, genie=None, rows: int = 0) -> str:
+    content = bullets_to_table(text) if rows_as_bullets(text, rows) else text
+    shaped = shape_answer(content)
+    clashes, notes = number_scopes(shaped, question, key_numbers or [], genie or [])
+    return with_scopes(shaped, clashes, notes) if shaped else shaped
 
 
 INJECTION = re.compile(r"\b(?:ignore|disregard|forget|override|bypass)\b[^.?!]{0,40}\b(?:your|previous|prior|above|earlier|all|these|those|system)\b"
@@ -1519,11 +1528,10 @@ class Agent:
                 content, rewritten = shorter, True
         if rows_as_bullets(content, answer_rows(turn)):
             content = bullets_to_table(content)
-        shaped = shape_answer(content)
-        clashes, notes = number_scopes(shaped, job.get("question") or "", job.get("key_numbers"), job.get("genie") or [])
+        final = finish_text(content, job.get("question") or "", job.get("key_numbers"), job.get("genie") or [])
         print(f"[AGENT-ANSWER-SHAPE FIRED] page={turn.page_id} problems={len(problems)} rewritten={rewritten} "
-              f"words={words_of(content)}->{words_of(shaped)} scoped={len(notes)} clashes={len(clashes)}", flush=True)
-        return with_scopes(shaped, clashes, notes) if shaped else shaped
+              f"words={words_of(content)}->{words_of(final)}", flush=True)
+        return final
 
     def use_tool(self, turn: Turn, job: dict, names: list, name: str, raw_args) -> dict:
         try:
