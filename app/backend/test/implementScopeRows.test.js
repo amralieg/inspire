@@ -116,6 +116,13 @@ test('a technique named in technique_min_rows keeps its own minimum, and any oth
   assert.equal(analysisMinimumRows('Entity Matching'), 2);
 });
 
+test('the backend gives the same minimum as the notebook rule for every technique in kinds.json', () => {
+  for (const [technique, family] of Object.entries(kinds.execution_family)) {
+    const expected = kinds.technique_min_rows[technique] ?? kinds.readiness_thresholds[family].min_rows;
+    assert.equal(analysisMinimumRows(technique), expected, technique);
+  }
+});
+
 test('a group-count query carries every column the wizard sends, up to eight, and reads one row past its limit to tell truncation', () => {
   const six = ['a', 'b', 'c', 'd', 'e', 'f'];
   const statement = groupCountsStatement('main.s.orders', six, {});
