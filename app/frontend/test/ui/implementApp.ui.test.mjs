@@ -1049,8 +1049,14 @@ async function measure(page, name) {
   return box;
 }
 
+const accessRow = (level, privilege, principal, mine) => ({ level, privilege, principal, mine: String(mine), me: OWNER });
+const WRITABLE_RESULT = { rows: [accessRow('catalog', 'OWNER', OWNER, true), accessRow('schema', 'OWNER', OWNER, true)] };
+const CAN_CREATE_SCHEMA = { 'information_schema.schema_tags': () => ({ rows: [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }] }) };
+const UNWRITABLE_RESULT = { rows: [accessRow('catalog', 'OWNER', 'admins', false), accessRow('schema', 'OWNER', 'admins', false)] };
+
 test('every wizard step but the App steps, Deliver with the App and where it goes included, fits a 1440x900 screen with nothing to scroll, and every step reads at 4.5:1 in light and dark', async () => {
-  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' } });
+  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' },
+    statements: { ...CAN_CREATE_SCHEMA, 'SELECT level, privilege, principal': WRITABLE_RESULT } });
   const { page } = ui;
   const heights = {};
   const fits = async (name) => {
@@ -1078,6 +1084,7 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await fits('2-first-run');
     await readable('first run');
     await goToStep(page, 'Results');
+    await openRow(page, 'result table');
     await page.getByRole('region', { name: 'Where the result table lives' }).getByLabel('Table name').waitFor();
     await fits('3-results');
     await readable('results');
@@ -1355,6 +1362,20 @@ test('a use case added to another use case\'s App shows that App\'s SQL warehous
     await startWhenReady(page);
     const spec = submittedSpec(made);
     assert.deepEqual([spec.outputs.merge.app, spec.outputs.app_warehouse_id], ['ops-desk', '']);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a result table the person cannot write says why on Data, with the reason the write check gives', async () => {
+  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' },
+    statements: { ...CAN_CREATE_SCHEMA, 'SELECT level, privilege, principal': UNWRITABLE_RESULT } });
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Data');
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.getByText(/to write to |to create /).first().waitFor({ timeout: 15000 });
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

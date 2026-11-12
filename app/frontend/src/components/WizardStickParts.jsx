@@ -37,12 +37,12 @@ export function RowSubjectCheck({ check, options, chosen, tagNotes = [], inputCl
       {(check.state === 'mismatch' || check.state === 'personal') && (
         <div className="flex flex-wrap gap-3 text-[11px]">
           {check.suggest && (
-            <button type="button" className="text-db-red-fg font-medium" onClick={() => onPick(check.suggest.ref)}>
+            <button data-draft-change="" type="button" className="text-db-red-fg font-medium" onClick={() => onPick(check.suggest.ref)}>
               Group by {check.suggest.column}
             </button>
           )}
           {check.state === 'mismatch' && !check.row.chosen && (
-            <button type="button" className="text-text-secondary hover:text-text-primary" onClick={() => onPick(check.row.ref)}>
+            <button data-draft-change="" type="button" className="text-text-secondary hover:text-text-primary" onClick={() => onPick(check.row.ref)}>
               Keep one row per {check.rowNoun}
             </button>
           )}
