@@ -383,7 +383,7 @@ async function listTablesSql(host, token, warehouseId, catalog, schema) {
     const metricViewNames = new Set();
     try {
       const typed = await executeSql(host, token, warehouseId,
-        `SELECT table_name FROM ${quotedIdent(catalog)}.information_schema.tables WHERE table_schema = '${String(schema).replace(/'/g, "''")}' `
+        `SELECT table_name FROM ${quotedIdent(catalog)}.information_schema.tables WHERE table_schema = '${escapeSqlStringLiteral(schema)}' `
         + `AND table_type IN ('METRIC_VIEW', 'METRIC VIEW')`);
       for (const row of sqlResultToObjects(typed)) if (row.table_name) metricViewNames.add(row.table_name);
     } catch (err) {

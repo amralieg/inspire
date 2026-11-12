@@ -19,4 +19,9 @@ function metricViewSkipLine(names) {
   return `[METRIC-VIEW SKIPPED] ${names.length} metric views left out: ${names.join(', ')}`;
 }
 
-module.exports = { METRIC_VIEW_TABLE_TYPES, isMetricViewType, splitMetricViews, metricViewSkipLine };
+/** The one plain line a Data Filters read returns for a metric view, instead of a SQL error. */
+function metricViewRefusal(name) {
+  return `${name} is a metric view, so Inspire leaves it out of Data Filters; pick its source table instead`;
+}
+
+module.exports = { METRIC_VIEW_TABLE_TYPES, isMetricViewType, splitMetricViews, metricViewSkipLine, metricViewRefusal };

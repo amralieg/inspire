@@ -2161,6 +2161,16 @@ function columnsStatement(name) {
   };
 }
 
+/** The table type of one picked table, read before any read of its rows. */
+function tableTypeStatement(name) {
+  const t = tableParts(name);
+  return {
+    sql: `SELECT table_type FROM \`${t.catalog}\`.information_schema.tables `
+      + 'WHERE table_schema = lower(:s) AND table_name = lower(:t)',
+    parameters: [{ name: 's', value: t.schema, type: 'STRING' }, { name: 't', value: t.table, type: 'STRING' }],
+  };
+}
+
 function primaryKeysStatement(name) {
   const t = tableParts(name);
   return {
@@ -3689,6 +3699,7 @@ function implementJobName(useCaseId, useCaseName, specVersion) {
 }
 
 module.exports = {
+  tableTypeStatement,
   implementJobName,
   IMPLEMENT_RUN_STARTED_MESSAGE,
   RUN_SUMMARY_SUFFIX,

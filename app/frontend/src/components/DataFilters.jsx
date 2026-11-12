@@ -466,6 +466,8 @@ function UseCaseLabel({ scopes, tables, label, onLabel }) {
   );
 }
 
+const METRIC_VIEW_REFUSAL = /is a metric view, so Inspire leaves it out of Data Filters/;
+
 export default function DataFilters({ picks, scopes, onScopes, label, onLabel, apiFetch, warehouseId, onProblems }) {
   const [split, setSplit] = useState(readSplit);
   const rootRef = useRef(null);
@@ -500,7 +502,11 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
       requested.current.add(key);
       apiFetch(`/api/inspire/implement/columns?${browseQuery(warehouseId, table)}`)
         .then((d) => setColumnsOf((prev) => ({ ...prev, [table]: { columns: d.columns || [], keys: d.primary_keys || [] } })))
-        .catch((e) => setColumnsOf((prev) => ({ ...prev, [table]: { error: e.message || 'The columns of this table could not be read.' } })));
+        .catch((e) => setColumnsOf((prev) => ({ ...prev, [table]: {
+          error: e.message || 'The columns of this table could not be read.',
+          // A saved pick that is a metric view: the refusal line, acted on by the effect below.
+          refused: METRIC_VIEW_REFUSAL.test(e.message || '') ? e.message : '',
+        } })));
     });
   }, [wantedKey, apiFetch, warehouseId]);
 
@@ -579,6 +585,14 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
     if (entry) next[table] = entry;
     onScopes(next);
   };
+  // A saved pick that is a metric view is dropped from the scope on load, with a note. Idempotent: it acts only while the
+  // entry is still in the scope.
+  useEffect(() => {
+    for (const [table, info] of Object.entries(columnsOf)) {
+      if (!info.refused || !tableScopeOf(scopes, table)) continue;
+      onScopes(Object.fromEntries(Object.entries(scopes || {}).filter(([name]) => scopeKeyOf(name) !== scopeKeyOf(table))));
+    }
+  }, [columnsOf, scopes, onScopes]);
 
   const renderTable = (table) => (
     <TableLeaf key={table} level={3} table={table} summary={summaryOf(table)} selected={table === shownTable}
@@ -592,6 +606,11 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
 
   return (
     <div data-data-filters className="space-y-4 text-xs">
+      {[...new Set(Object.values(columnsOf).map((info) => info.refused).filter(Boolean))].map((note) => (
+        <p key={note} role="status" data-metric-view-note="" className="text-warning-fg">
+          {note} Its scope was dropped from Data Filters; the table is left out of the run.
+        </p>
+      ))}
       <p className="text-text-secondary">
         A table with no filters is read whole: every column, every row. Pick a table on the left to tick its columns and add row filters.
         Picked schemas and catalogs open to their tables.

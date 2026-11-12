@@ -130,6 +130,14 @@ function makeApp(overrides = {}, { mount } = {}) {
         return { rows: (state.primaryKeys || []).map((column_name) => ({ column_name })) };
       }
       if (sql.includes('SELECT COUNT(*) AS matched')) return { rows: state.matchRows || [{ matched: '4', total: '4' }] };
+      if (sql.includes('table_type FROM') && sql.includes('information_schema.tables')) {
+        // The table type of one picked table: a metric view when the test names it in metricViews, else a managed table.
+        const catalog = (/FROM `([^`]+)`\.information_schema\.tables/.exec(sql) || [])[1] || '';
+        const named = (key) => ((parameters || []).find((p) => p.name === key) || {}).value || '';
+        const name = `${catalog}.${named('s')}.${named('t')}`.toLowerCase();
+        const views = (state.metricViews || []).map((v) => String(v).toLowerCase());
+        return { rows: [{ table_type: views.includes(name) ? 'METRIC_VIEW' : 'MANAGED' }] };
+      }
       if (sql.includes('information_schema.columns') && sql.includes('WITH o AS')) {
         return { rows: state.swapRowsByToken ? state.swapRowsByToken[token] || [] : state.swapRows || [] };
       }

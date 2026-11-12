@@ -36,6 +36,7 @@ const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
 const GC = require('./lib/genieCodeCheck');
 const SA = require('./lib/sourceAccess');
 const D = require('./lib/buildDiagnostics');
+const MV = require('./lib/metricViews');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -168,6 +169,20 @@ function registerImplementRoutes(app, deps) {
     const { error, ...details } = RP.noPersonTokenBody(req.policyKey);
     throw Object.assign(I.badRequest(error, 401), { details });
   }
+
+  // A metric view is not a table: a route that reads a picked table's rows refuses it first, with one plain line.
+  // A failed type lookup does not block the read; the read then reports its own error.
+  async function refuseMetricView(req, warehouseId, table) {
+    if (!table) return;
+    let rows = [];
+    try {
+      rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, I.tableTypeStatement(table));
+    } catch {
+      return;
+    }
+    if (rows.some((r) => MV.isMetricViewType(r.table_type))) throw Object.assign(new Error(MV.metricViewRefusal(table)), { statusCode: 400 });
+  }
+
 
   async function buildsAsAnother(req) {
     const person = P.personTokenOf(req);
@@ -693,6 +708,7 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const table = q(req, 'table');
+      await refuseMetricView(req, warehouseId, table);
       const statement = I.columnsStatement(table);
       const token = personReadToken(req);
       const [rows, read, keyRows] = await Promise.all([sqlRows(req.dbHost, token, warehouseId, statement), readColumnTags(req, token, warehouseId, [table]),
@@ -798,6 +814,7 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const table = q(req, 'table');
+      await refuseMetricView(req, warehouseId, table);
       const statement = I.columnValuesStatement(table, q(req, 'column'), q(req, 'limit') || 200);
       const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
       res.json({ values: rows.map((r) => r.value).filter((v) => v != null && v !== '') });
@@ -810,6 +827,7 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const table = q(req, 'table');
+      await refuseMetricView(req, warehouseId, table);
       const statement = I.readinessStatement(table, {
         columns: req.body?.columns || [],
         filters: req.body?.filters || [],
@@ -829,6 +847,7 @@ function registerImplementRoutes(app, deps) {
       if (top && (!Number.isInteger(top) || top > GR.GROUP_MAX_GROUPS)) {
         return res.status(400).json({ error: `top must be a whole number up to ${GR.GROUP_MAX_GROUPS}` });
       }
+      await refuseMetricView(req, warehouseId, q(req, 'table'));
       const statement = I.groupCountsStatement(q(req, 'table'), req.body?.columns || [], {
         filters: req.body?.filters || [],
         window: req.body?.window || {},
