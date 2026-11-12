@@ -4,6 +4,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const WIZARD = fs.readFileSync(path.resolve(__dirname, '..', '..', 'frontend', 'src', 'pages', 'ImplementWizard.jsx'), 'utf8');
+const { accessVerdictOf } = require('../../frontend/src/lib/implementWizard.js');
 
 test('the wizard disables the build button while the source check refuses, with a plain reason beside it (must fail before the fix)', () => {
   const blocked = WIZARD.match(/const implementBlocked = ([\s\S]*?);\n/);
@@ -36,4 +37,15 @@ test('the wizard names the build output table on every context call, so the cont
   const calls = WIZARD.match(/implement\/context\?\$\{[a-zA-Z]+\}/g) || [];
   assert.ok(calls.length >= 2, 'the context is fetched on load and on Grant');
   assert.deepEqual(calls.filter((c) => !c.endsWith('contextQ}')), [], 'every context call carries the output table');
+});
+
+test('a saved source refusal plus a fresh ok preflight gives verdict ok, so Check again shows the current state (REQ-042, must fail before the fix)', () => {
+  const clear = { checks: { sources: { ok: true, detail: 'the App can read every source' } } };
+  const saved = { detail: 'an old refusal' };
+  assert.equal(accessVerdictOf({ preflight: clear, unread: saved }), 'ok');
+  assert.equal(accessVerdictOf({ preflight: { checks: { sources: { ok: false } } }, unread: null }), 'refused');
+  assert.equal(accessVerdictOf({ preflight: clear, busy: true, unread: saved }), 'refused', 'while the check runs, the saved refusal still holds');
+  assert.equal(accessVerdictOf({ preflight: { checks: {} }, unread: null }), 'unknown', 'a preflight without a sources check is never ok (must-exclude)');
+  assert.equal(accessVerdictOf({ error: 'Cannot reach the workspace' }), 'error');
+  assert.equal(accessVerdictOf({}), 'pending');
 });

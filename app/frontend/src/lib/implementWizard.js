@@ -2664,6 +2664,7 @@ export function lostTables(latest, rerunError) {
 
 export const APP_READS_LABEL = 'MVP built, the App needs read access';
 export const APP_READS_HEADING = 'The App cannot read part of its data';
+export const APP_READS_CLEARED = 'The App can read all its data now';
 export const APP_READS_GRANT = 'Grant access with my permissions';
 export const APP_READS_CHECK = 'Check again';
 
@@ -2751,12 +2752,14 @@ export const ACCESS_CHECKING = 'Checking access';
 export const ACCESS_UNKNOWN = 'Could not check access';
 
 export function accessVerdictOf({ preflight = null, error = '', busy = false, unread = null } = {}) {
+  if (preflight && !busy) {
+    const sources = preflight.checks?.sources;
+    if (sources && typeof sources.ok === 'boolean') return sources.ok ? 'ok' : 'refused';
+    return unread ? 'refused' : 'unknown';
+  }
   if (unread) return 'refused';
   if (error) return 'error';
-  if (busy || !preflight) return 'pending';
-  const sources = preflight.checks?.sources;
-  if (!sources || typeof sources.ok !== 'boolean') return 'unknown';
-  return sources.ok ? 'ok' : 'refused';
+  return 'pending';
 }
 
 export function abacGrantText(got) {

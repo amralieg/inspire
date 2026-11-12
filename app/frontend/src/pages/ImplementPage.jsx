@@ -10,7 +10,7 @@ import {
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, stoppedChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices, abacGrantText, liveSourceNow, liveProtection, liveReads,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, APP_READS_CLEARED, protectionStopOf, protectionChoices, abacGrantText, liveSourceNow, liveProtection, liveReads,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -1387,11 +1387,11 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     runReads('grant');
   }, [reads, readOnly, latest?.session_id, latest?.spec_version]);
   const readsCard = readsLeft && (
-    <section aria-label={APP_READS_HEADING} data-app-reads="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
+    <section aria-label={readsLeft.tables.length ? APP_READS_HEADING : APP_READS_CLEARED} data-app-reads="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
       <div className="flex items-start gap-2.5">
         <AlertTriangle size={16} className="mt-px shrink-0 text-warning-fg" aria-hidden />
         <div className="min-w-0 space-y-1 text-warning-fg">
-          <p className="text-[13px] font-semibold">{readsLeft.tables.length ? APP_READS_HEADING : 'The App can read all its data now'}</p>
+          <p className="text-[13px] font-semibold">{readsLeft.tables.length ? APP_READS_HEADING : APP_READS_CLEARED}</p>
           {readsLeft.tables.length > 0 && <p>{appReadsText(readsLeft, latest?.app_name || '')}</p>}
           {readsLeft.tables.length > 0 && (
             <details data-app-reads-details="" className="text-[11px]">
@@ -1404,7 +1404,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
       </div>
       {readsResult && readsResult.version === latest?.spec_version && (
-        <div role="status" data-app-reads-result={readsResult.refused || readsResult.error ? 'refused' : readsResult.action} className="space-y-0.5 text-text-primary">
+        <div role="status" aria-label="Grant result" data-app-reads-result={readsResult.refused || readsResult.error ? 'refused' : readsResult.action} className="space-y-0.5 text-text-primary">
           {readsResult.error && <p>Your grant could not be made. The error is under Details.</p>}
           {readsResult.error && <details data-app-reads-error="" className="text-[11px]"><summary className="cursor-pointer">Details</summary><PlainMessage text={readsResult.error} /></details>}
           {!readsResult.error && readsResult.action !== 'copy' && <p>{readsResult.text}</p>}
