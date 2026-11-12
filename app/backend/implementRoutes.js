@@ -45,6 +45,7 @@ function q(req, key) {
 }
 
 // A similar-table row from system.information_schema, as the catalog.schema.table name the picker shows.
+const SWAP_SEARCH_LIMIT_MS = 15000;
 const candidateOf = (r) => `${r.table_catalog}.${r.table_schema}.${r.table_name}`;
 
 function principalsOf(req) {
@@ -702,19 +703,27 @@ function registerImplementRoutes(app, deps) {
       const warehouseId = warehouseOf(req);
       const table = q(req, 'table');
       const required = Array.isArray(req.body?.required_columns) ? req.body.required_columns : [];
-      const statement = I.tableSwapStatement(table, required);
+      const copyOnly = q(req, 'part') === 'copy';
+      const statement = copyOnly ? I.copySwapStatement(table) : I.tableSwapStatement(table, required);
       const token = P.personTokenOf(req);
       if (!token) return res.json({ table, swaps: [], why: I.IMPLEMENT_SWAPS_NO_SIGN_IN });
-      const rows = await sqlRows(req.dbHost, token, warehouseId, statement);
-      const readable = await Promise.all(rows.map((r) => sqlRows(req.dbHost, token, warehouseId, I.tableProbeStatement(candidateOf(r)))
-        .then(() => true, () => false)));
-      const copies = I.builtInSampleTable(table);
-      const swaps = rows.filter((_r, i) => readable[i]).map((r) => {
-        const matched = Number(r.matched) || 0;
-        const total = Number(r.total) || 0;
-        const copy = copies && Boolean(Number(r.owned)) && total > 0 && matched === total;
-        return { table: candidateOf(r), matched, total, copy };
-      });
+      const search = (async () => {
+        const rows = await sqlRows(req.dbHost, token, warehouseId, statement);
+        const readable = await Promise.all(rows.map((r) => sqlRows(req.dbHost, token, warehouseId, I.tableProbeStatement(candidateOf(r)))
+          .then(() => true, () => false)));
+        const copies = I.builtInSampleTable(table);
+        const swaps = rows.filter((_r, i) => readable[i]).map((r) => {
+          const matched = Number(r.matched) || 0;
+          const total = Number(r.total) || 0;
+          const copy = copies && Boolean(Number(r.owned)) && total > 0 && matched === total;
+          return { table: candidateOf(r), matched, total, copy };
+        });
+        return copyOnly ? swaps.filter((s) => s.copy) : swaps;
+      })();
+      const timer = new Promise((resolve) => { setTimeout(() => resolve(null), SWAP_SEARCH_LIMIT_MS).unref(); });
+      const found = await Promise.race([search, timer]);
+      if (found === null) return res.json({ table, swaps: [], why: I.IMPLEMENT_SWAPS_TOO_SLOW });
+      const swaps = found;
       return res.json({ table, swaps: [...swaps.filter((s) => s.copy), ...swaps.filter((s) => !s.copy)], why: '' });
     } catch (err) {
       sendError(res, err);
@@ -944,7 +953,7 @@ function registerImplementRoutes(app, deps) {
       const checkSpec = I.withResultTable(sent, moved ? moved.to : (resultTable || (sent.config && sent.config.result_table) || ''));
       const verdict = await sourceCheckOf(req, warehouseId, useCaseNow, checkSpec, historyNow);
       checks.sources = verdict.refusal
-        ? { ok: false, detail: verdict.refusal.message }
+        ? { ok: false, detail: verdict.refusal.message, ...(verdict.refusal.details?.missing_tables ? { missing: true } : {}) }
         : { ok: true, detail: 'the App can read every source of this use case' };
       if (shares) checks.result_grant = I.shareCheck(output ? output.grant : null);
       if (appName) {

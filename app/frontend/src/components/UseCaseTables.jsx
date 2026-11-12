@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from 'react';
 import DemoNote from './DemoNote';
 import SourceTables from './SourceTables';
-import { nextSpecFrom, pickedTable, primaryTableOf, removalBlocker, restoreTable, tablesOf } from '../lib/implementWizard';
+import { mergeSwaps, nextSpecFrom, pickedTable, primaryTableOf, removalBlocker, restoreTable, tablesOf } from '../lib/implementWizard';
 import { PlainMessage } from './TechnicalDetails';
 import SaveButton from './SaveButton';
 
@@ -43,13 +43,10 @@ export default function UseCaseTables({ uc, latest, view, readOnly = false, lock
     const open = !changing[original];
     setChanging((prev) => ({ ...prev, [original]: open }));
     if (!open || swaps[original] !== undefined) return;
-    onSwaps(original).then(
-      (got) => {
-        setSwaps((prev) => ({ ...prev, [original]: got.swaps }));
-        setSwapsWhy((prev) => ({ ...prev, [original]: got.why }));
-      },
-      (e) => { setSwaps((prev) => ({ ...prev, [original]: [] })); setNotice(e.message); },
-    );
+    onSwaps(original, (list, why) => {
+      setSwaps((prev) => ({ ...prev, [original]: mergeSwaps(prev[original], list) }));
+      if (why !== null) setSwapsWhy((prev) => ({ ...prev, [original]: why }));
+    }).catch((e) => { setSwaps((prev) => ({ ...prev, [original]: prev[original] || [] })); setNotice(e.message); });
   };
   const pick = (original, value) => {
     const picked = pickedTable(draft, original, value);

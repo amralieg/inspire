@@ -216,7 +216,7 @@ const FILTER_ICONS = { notebook: NotebookPen, ...OUTPUT_ICONS };
 function AssetFilters({ counts, assets, onToggle }) {
   const total = counts.reduce((most, entry) => Math.max(most, entry.count), 0);
   if (!total && !assets.length) return null;
-  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth has-disabled:opacity-40 ${
+  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth has-disabled:border-dashed ${
     on ? 'border-db-red/40 bg-db-red-50 text-db-red-fg' : 'border-border bg-surface text-text-primary hover:bg-bg-subtle'}`;
   return (
     <div role="group" aria-label="Show use cases with" className="rounded-xl border border-border bg-surface px-3 py-2.5 shadow-sm space-y-1.5">
@@ -917,8 +917,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       .catch((e) => { if (live) setTablesView({ editable: false, why: `Inspire could not tell who may change the tables: ${e.message}` }); });
     return () => { live = false; };
   }, [hasMvp, apiFetch, qBase, useCaseId, moneyKey, refreshKey]);
-  const tableSwaps = useCallback((table) => apiPostJson(`/api/inspire/implement/swaps?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`,
-    { table, required_columns: [] }).then((data) => ({ swaps: data.swaps || [], why: data.why || '' })), [apiPostJson, qBase, useCaseId]);
+  const tableSwaps = useCallback((table, onPart) => swapParts((part, body) => apiPostJson(
+    `/api/inspire/implement/swaps?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}${part ? `&part=${part}` : ''}`, body), table, onPart),
+  [apiPostJson, qBase, useCaseId]);
   const tableChange = useCallback((next) => apiPostJson(`/api/inspire/implement/table-change?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`,
     { spec: next }), [apiPostJson, qBase, useCaseId]);
   const chip = statusChip(latest?.status, stalled, latest);

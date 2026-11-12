@@ -231,6 +231,8 @@ import {
   MEASURE_LABEL,
   withMoneyRule,
   BUILD_IT_LABEL,
+  mergeSwaps,
+  swapParts,
   BACK_TO_SUMMARY,
   SUMMARY_STEP,
   nextStepAfter,
@@ -570,12 +572,14 @@ export default function ImplementWizard({
   };
 
   const loadSwaps = useCallback(async (table) => {
+    const post = (part, body) => apiPostJson(`/api/inspire/implement/swaps?${q}${part ? `&part=${part}` : ''}`, body);
     try {
-      const data = await apiPostJson(`/api/inspire/implement/swaps?${q}`, { table, required_columns: [] });
-      setSwaps((prev) => ({ ...prev, [table]: data.swaps || [] }));
-      setSwapsWhy((prev) => ({ ...prev, [table]: data.why || '' }));
+      await swapParts(post, table, (list, why) => {
+        setSwaps((prev) => ({ ...prev, [table]: mergeSwaps(prev[table], list) }));
+        if (why !== null) setSwapsWhy((prev) => ({ ...prev, [table]: why }));
+      });
     } catch (e) {
-      setSwaps((prev) => ({ ...prev, [table]: [] }));
+      setSwaps((prev) => ({ ...prev, [table]: prev[table] || [] }));
       setErrors([e.message]);
     }
   }, [apiPostJson, q]);
@@ -1259,6 +1263,7 @@ export default function ImplementWizard({
   const accessVerdict = accessVerdictOf({ preflight, error: preflightError, busy: checksBusy, unread: appUnreadable });
   const unchanged = lastStep && accessVerdict === 'ok' && Boolean(plan?.unchanged);
   const sourceRefused = accessVerdict === 'refused';
+  const sourceAccessRefused = sourceRefused && !preflight?.checks?.sources?.missing;
   const implementBlocked = busy || checksBusy || !placeSettled || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
     || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))))
     || (lastStep && accessVerdict !== 'ok' && accessVerdict !== 'refused');
@@ -2128,10 +2133,10 @@ export default function ImplementWizard({
             <ChevronLeft size={14} /> Back
           </button>
           <div className="flex items-center gap-2">
-            {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceRefused && (
+            {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceAccessRefused && (
               <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             )}
-            {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceRefused && (
+            {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceAccessRefused && (
               <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-db-red-fg border border-db-red/50 disabled:opacity-50">
                 {BUILD_NOW_LABEL}
@@ -2156,7 +2161,7 @@ export default function ImplementWizard({
                 {busy && <Loader2 size={14} className="animate-spin" />}
                 {busy ? 'Starting…' : 'Generate notebook'}
               </button>
-            ) : sourceRefused ? (
+            ) : sourceAccessRefused ? (
               <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             ) : (
               <button
