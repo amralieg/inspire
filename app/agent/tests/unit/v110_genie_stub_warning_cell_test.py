@@ -51,6 +51,7 @@ def _assemble(ns):
     inst.logger = MagicMock()
     inst.notebook_output_dir = "/tmp/inspire_test_out"
     inst.max_retry_attempts = 0
+    inst.inspire_database = ""
     inst.w_client = MagicMock()
     inst._sanitize_name = lambda s: (s or "unknown").replace(" ", "_").replace("/", "_")
     captured = {}

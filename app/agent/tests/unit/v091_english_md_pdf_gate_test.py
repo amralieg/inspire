@@ -63,9 +63,9 @@ def test_vibe_lang_force_pdf_sentinel_present(ns):
         "must emit [VIBE-LANG FORCE-PDF FIRED] when PDF was forced (not user-selected)"
 
 
-def test_md_and_csv_are_scheduled_unconditionally_for_every_language(ns):
-    """Regression guard: Markdown and CSV are scheduled for every language of the
-    artifact-writing loop, with no language or choice gate before them."""
+def test_md_and_csv_are_scheduled_for_every_language_gated_only_by_docs_only(ns):
+    """REQ-077 (documents on demand): Markdown and CSV are scheduled for every language of a full run. The only guard
+    before them is the documents-only gate, never a language or choice gate."""
     body = _notebook_body()
     anchor = "Submitting writing jobs for {lang}..."
     pos = body.find(anchor)
@@ -75,8 +75,26 @@ def test_md_and_csv_are_scheduled_unconditionally_for_every_language(ns):
     csv_pos = region.find("writer_ctx.submit(self._generate_csv_catalog")
     assert md_pos != -1 and csv_pos != -1, "Markdown and CSV must be scheduled in the artifact-writing loop"
     prefix = region[:max(md_pos, csv_pos)]
-    assert prefix.count("if ") == prefix.count('if not getattr(self, "json_file_path", None):'), \
+    assert prefix.count("if ") == prefix.count('if not getattr(self, \\"json_file_path\\", None):'), \
         "the only guard before Markdown and CSV is the documents-only gate, never a language or choice gate"
+
+
+def test_docs_only_run_schedules_no_markdown_or_csv_and_a_full_run_schedules_both_for_every_language(ns):
+    """REQ-077: the artifact checker expects exactly what the writing loop schedules. A documents-only run builds only
+    the picked documents, so it must not expect Markdown or CSV (a gap would be recorded for files never written)."""
+    Klass = ns["DatabricksInspire"]
+    obj = Klass.__new__(Klass)
+    obj.generate_choices = ["Excel", "PDF Catalog"]
+
+    def steps(language):
+        return [step for _suffix, step in obj._requested_language_artifacts(language, [])]
+
+    obj.json_file_path = None
+    assert steps("English") == ["Markdown Catalog", "CSV Catalog", "Use Case Excel", "PDF Catalog"]
+    assert steps("Arabic") == ["Markdown Catalog", "CSV Catalog", "Use Case Excel", "PDF Catalog", "JSON Catalog"]
+    obj.json_file_path = "/Workspace/out/docs/Acme-dbx_inspire.json"
+    assert steps("English") == ["Use Case Excel", "PDF Catalog"]
+    assert steps("Arabic") == ["Use Case Excel", "PDF Catalog", "JSON Catalog"]
 
 
 def test_artifact_successes_set_declared(ns):
