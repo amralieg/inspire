@@ -29,6 +29,13 @@ const RUN_ROWS = [
   ['measured', '42', null, null, null, '2'],
 ];
 const TOTAL_ROWS = [['stake', 'money', 'EUR', null, '350'], ['saved', 'money', 'EUR', null, '30']];
+// REQ-078: the use cases of the session with their domains, and each built use case's latest spec (its Measure rule and result table).
+const USE_CASE_ROWS = [['N01-U01', 'Sales'], ['N01-U02', 'Sales'], ['N05-U01', 'Sales'], ['N07-U01', 'Finance']];
+const SALES_RULE = { use_case_name: 'Sales App', money: { currency: 'convert', base: 'AED', value: { method: 'fixed', amount: 50, currency: 'AED' } } };
+const SPEC_ROWS = [
+  ['N01-U01', JSON.stringify({ ...SALES_RULE, config: { result_table: 'c.s.orders' } })],
+  ['N05-U01', JSON.stringify({ use_case_name: 'Sales App', money: SALES_RULE.money, config: { result_table: 'c.s.orders' } })],
+];
 
 function fakeWarehouse() {
   const state = { statements: [], missingLedger: false };
@@ -36,6 +43,9 @@ function fakeWarehouse() {
     if (sql.includes(`FROM ${LEDGER}`) && state.missingLedger) {
       return { failed: `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${LEDGER} cannot be found.` };
     }
+    if (sql.includes('SELECT id, business_domain FROM')) return { columns: ['id', 'business_domain'], rows: USE_CASE_ROWS };
+    if (sql.includes('PARTITION BY use_case_id ORDER BY spec_version')) return { columns: ['use_case_id', 'spec'], rows: SPEC_ROWS };
+    if (sql.includes('_summary` WHERE use_case_id')) return { columns: ['kpi_baseline'], rows: [['120']] };
     if (sql.includes("'measured' AS part")) return { columns: RUN_COLUMNS, rows: RUN_ROWS };
     if (sql.includes("WHERE session_id = '")) return { columns: SESSION_COLUMNS, rows: SESSION_ROWS };
     if (sql.includes('latest_sessions AS')) return { columns: TOTAL_COLUMNS, rows: TOTAL_ROWS };
@@ -146,4 +156,17 @@ test('a session id that is not numeric is refused before any SQL is sent', async
   assert.equal(status, 400);
   assert.equal(body.error, 'session_id must be numeric.');
   assert.equal(statements().length, 0);
+});
+
+test('GET /api/inspire/value/estimates: measured use cases are never estimated, an unbuilt sibling gets no number, a built one gets its own baseline', async () => {
+  reset();
+  const { status, body } = await app.get(`/api/inspire/value/estimates?${QUERY}&session_id=42`);
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(body.use_cases['N01-U01'], null, 'measured');
+  assert.deepEqual(body.use_cases['N01-U02'], { status: 'no_baseline', app: 'Sales App' }, 'unbuilt sibling takes the App rule, no number');
+  assert.deepEqual(body.use_cases['N05-U01'], { status: 'estimated', app: 'Sales App', currency: 'AED', per_record: 50, baseline: 120, amount: 6000 });
+  assert.deepEqual(body.use_cases['N07-U01'], { status: 'set_rule' }, 'no rule in its domain: ask for one, no number');
+  assert.deepEqual(body.totals, { estimated: { AED: 6000 } }, 'estimates are totalled apart from measured money');
+  const baselineReads = statements().filter((sql) => sql.includes('_summary` WHERE use_case_id'));
+  assert.equal(baselineReads.length, 1, 'the baseline is read only for the built, unmeasured use case');
 });

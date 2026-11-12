@@ -135,6 +135,7 @@ const ROUTE_POLICY = {
   'GET /api/run/pages': anyone('list the hosted pages', 'lists the MVP pages Inspire hosts'),
   'GET /api/inspire/session': tracked('read a session'),
   'GET /api/inspire/value': tracked('read the value at stake and saved of a run'),
+  'GET /api/inspire/value/estimates': tracked('read the estimated value of the use cases with no measured value, from their money rules'),
   'GET /api/inspire/value/overall': tracked('read the value at stake and saved across the runs of a database'),
   'GET /api/inspire/value/runs': tracked('read the value at stake and saved of each run in a database'),
   'GET /api/inspire/sessions': tracked('list sessions'),
