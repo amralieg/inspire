@@ -341,7 +341,7 @@ export async function goToStep(page, part) {
   await onStep(page, label);
 }
 
-async function nextUntil(page, part) {
+export async function nextUntil(page, part) {
   const label = stepHolding(part);
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
