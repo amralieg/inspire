@@ -32,6 +32,7 @@ const {
   sanitizeInspireNotebookJobParams,
   normalizeV130UseCaseFields,
 } = require('./lib/inspireJobParams');
+const JC = require('./lib/jobCurrency');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
 const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql, valueOfSession, valueOfRuns, overallValue } = require('./lib/inspireValue');
@@ -857,6 +858,9 @@ async function recordLaunch(host, record) {
 
 async function triggerInspireNotebookJob(host, token, { params, notebook_path, cluster_id: askedClusterId, jobType = 'discovery', jobName: requestedJobName = '', useCaseIds = [], launchedBy = '', writeCheck = null, asker = null, scopePicks = undefined }) {
   normalizeUseCasesQualityParams(params);
+  // Discover has no Measure rule yet: it sends the reporting currency and today's rates (or the saved averages offline).
+  // Implement sends its own rule's currency and rates from startVersion, so this only fills a Discover launch.
+  if (jobType !== 'implement' && !('currency_rates' in params)) Object.assign(params, await JC.discoverCurrencyParams(params));
   const sanitized = sanitizeInspireNotebookJobParams(params, { scopePicks });
   for (const k of Object.keys(params)) delete params[k];
   Object.assign(params, sanitized);

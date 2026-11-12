@@ -18,6 +18,11 @@ const notebook = JSON.parse(notebookBytes.toString('utf8'));
 const source = notebook.cells.map((cell) => (cell.source || []).join('')).join('\n');
 
 test(`bundled notebook is a valid ${INSPIRE_AGENT_VERSION} Jupyter notebook`, () => {
+  // REQ-103: the App sends the reporting currency and its rates; the notebook must define both widgets to accept them.
+  assert.match(source, /dbutils\.widgets\.text\(\s*_name,\s*""/, 'widgets are created by name, with empty defaults');
+  assert.match(source, /\("currency", "Reporting currency \(ISO code\)"\)/);
+  assert.match(source, /\("currency_rates", "Reporting currency rates \(JSON\)"\)/);
+  assert.ok(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('currency') && INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('currency_rates'));
   assert.equal(notebook.nbformat, 4);
   assert.match(source, new RegExp(`__AGENT_VERSION__\\s*=\\s*["']${INSPIRE_AGENT_VERSION}["']`));
   assert.match(source, /\[AGENT_VERSION FIRED\]/);
