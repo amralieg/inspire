@@ -2463,7 +2463,7 @@ test('the Data step of Build names each table Inspire reads only in scope, with 
     await toData(page);
     const note = page.locator('[data-table-scope-notes]');
     await note.waitFor({ timeout: 15000 });
-    assert.match(await note.innerText(), /main\.s\.orders: 2 columns, rows where status is gold/);
+    assert.match(await note.innerText(), /main\.s\.orders: 2 columns, rows where status is gold \(columns: order_id, status\)/, 'the Data step names the kept columns and the row filter (REQ-100)');
     await goToStep(page, 'What to build').catch(() => null);
     assert.equal(await page.locator('[data-table-scope-notes]').count(), 0, 'the note is shown on the Data step only');
   } finally {

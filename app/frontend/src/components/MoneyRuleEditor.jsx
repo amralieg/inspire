@@ -320,7 +320,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
 
       </>)}
       {(!onlyPart || onlyPart === 'window') && (
-      <details className="text-[12px]" data-money-more>
+      <details className="text-[12px]" data-money-more open={onlyPart === 'window' || undefined}>
         <summary className="cursor-pointer text-text-secondary">More options</summary>
         <div className="space-y-2 pt-2">
           {show('window') && (<>

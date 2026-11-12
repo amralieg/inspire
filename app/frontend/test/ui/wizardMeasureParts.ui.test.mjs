@@ -68,3 +68,23 @@ test('a value typed on its decision survives moving to other decisions and back'
     await ui.close();
   }
 });
+
+test('Periods and statuses shows its two text boxes on screen, without opening More options, and takes a typed value (REQ-004)', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Measure');
+    await page.locator('[data-money-part="window"]').waitFor();
+    for (let i = 0; i < 3; i += 1) await page.locator('[data-money-next]').click();
+    assert.equal(await current(page, 'window'), true, 'Periods and statuses is the current decision');
+    const closed = page.locator('[data-money-window]');
+    await closed.waitFor();
+    assert.equal(await visible(page, '[data-money-window]'), true, 'the Closed periods box is on screen with More options closed (REQ-004)');
+    assert.equal(await visible(page, '[data-money-statuses]'), true, 'the Statuses box is on screen with More options closed (REQ-004)');
+    await closed.fill('2');
+    assert.equal(await closed.inputValue(), '2', 'the Closed periods box takes a typed value');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

@@ -162,6 +162,11 @@ export function filteredTablesOf(scopes, pickedTables = []) {
     .map(([table]) => table);
 }
 
+export function scopeEntryOf(scopes, table) {
+  const want = scopeKeyOf(table);
+  return Object.entries(scopes || {}).find(([name]) => scopeKeyOf(name) === want)?.[1];
+}
+
 export function tableScopeSummary(entry) {
   const scope = normalizeTableScope(entry);
   const cols = scope.columns.length;
