@@ -276,6 +276,8 @@ import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, noMainTableText, useScopeProfiles } from '../lib/groupingProfile';
 import { fieldOf } from '../lib/useCaseFields.js';
 import { tableScopeSummary } from '../lib/tableScope';
+import SamplesCopyOffer from '../components/SamplesCopyOffer';
+import { samplesTarget, validCopyTarget } from '../lib/samplesCopy';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
   FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
@@ -776,7 +778,7 @@ export default function ImplementWizard({
   const resultAuto = advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false;
   const errorBlock = stepId !== 'data' ? null : dataFilterProblems(spec).length ? 'filters' : resultTableProblems(spec.config.result_table).length ? 'results' : null;
   const builtInRefused = stepId === 'data' && Boolean(appUnreadable?.builtin?.length);
-  const copyTo = (copyTarget || inspireDatabase || '').trim();
+  const copyTo = samplesTarget(inspireDatabase, copyTarget);
   const dataFolded = dataChoice ?? errorBlock ?? (builtInRefused ? 'sources' : null) ?? (resultAuto ? 'results' : null);
   const resultsShown = dataFolded === 'results';
   const sourcesShown = dataFolded === null || dataFolded === 'sources' || dataFolded === 'closed';
@@ -1446,17 +1448,8 @@ export default function ImplementWizard({
         {(appUnreadable || appGrant) && <AppReadAccess offer={appUnreadable} result={appGrant} busy={granting} onGrant={grantAppRead} />}
 
         {builtInRefused && (
-          <section aria-label="Copy the samples" data-samples-copy-block="" className="space-y-2 text-[12px]">
-            <label className="flex flex-col gap-1 text-text-secondary">
-              <span>Copy into</span>
-              <input dir="auto" value={copyTarget} placeholder={inspireDatabase || 'catalog.schema you own'} onChange={(e) => setCopyTarget(e.target.value)} className={inputCls} />
-            </label>
-            <button type="button" data-samples-copy="" disabled={copying || !copyTo} onClick={() => copySamples()}
-              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70">
-              {copying ? 'Copying…' : 'Copy it now'}
-            </button>
-            {copyError && <p role="alert" className="text-error">{copyError}</p>}
-          </section>
+          <SamplesCopyOffer names={appUnreadable.builtin.join(', ')} target={copyTo} onTarget={setCopyTarget} canCopy={validCopyTarget(copyTo)}
+            copying={copying} error={copyError} onCopy={copySamples} copyLabel="Copy it now" />
         )}
 
         {stepId === 'data' && mode === 'mvp' && (

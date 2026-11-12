@@ -1,7 +1,7 @@
 import { SAMPLES_DESCRIPTIONS_SENTENCE } from '../lib/samplesCopy.js';
 import { PlainMessage } from './TechnicalDetails';
 
-export default function SamplesCopyOffer({ names, target, onTarget, canCopy, copying, choice, error, onCopy, onDescriptions }) {
+export default function SamplesCopyOffer({ names, target, onTarget, canCopy, copying, choice, error, onCopy, onDescriptions, copyLabel }) {
   return (
     <section data-samples-offer="" aria-label="Samples tables" className="mb-4 rounded-xl border border-warning/30 bg-warning-bg p-4 text-xs text-warning-fg">
       <p className="text-sm font-semibold">Samples cannot measure value</p>
@@ -22,14 +22,16 @@ export default function SamplesCopyOffer({ names, target, onTarget, canCopy, cop
       <div className="mt-3 flex flex-wrap gap-2">
         <button type="button" data-samples-copy="" disabled={!canCopy || copying} onClick={onCopy}
           className="rounded-lg bg-db-red-solid px-3 py-2 font-semibold text-white disabled:opacity-50">
-          {copying ? 'Copying…' : `Copy into ${target || 'a schema you own'}`}
+          {copying ? 'Copying…' : copyLabel || `Copy into ${target || 'a schema you own'}`}
         </button>
-        <button type="button" data-samples-descriptions="" disabled={copying} onClick={onDescriptions}
-          className="rounded-lg border border-border px-3 py-2 font-medium text-text-primary disabled:opacity-50">
-          Use descriptions only
-        </button>
+        {onDescriptions && (
+          <button type="button" data-samples-descriptions="" disabled={copying} onClick={onDescriptions}
+            className="rounded-lg border border-border px-3 py-2 font-medium text-text-primary disabled:opacity-50">
+            Use descriptions only
+          </button>
+        )}
       </div>
-      {choice === 'descriptions' && <p data-samples-sentence="" className="mt-3 text-text-primary">{SAMPLES_DESCRIPTIONS_SENTENCE}</p>}
+      {choice === 'descriptions' && onDescriptions && <p data-samples-sentence="" className="mt-3 text-text-primary">{SAMPLES_DESCRIPTIONS_SENTENCE}</p>}
       {error && <PlainMessage text={error} role="alert" data-samples-error="" className="mt-3 break-words text-error-fg" />}
     </section>
   );
