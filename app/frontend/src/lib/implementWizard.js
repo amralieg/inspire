@@ -1,4 +1,4 @@
-import { compareMeetsQualityBarFirst, subtitleOfUseCase } from './useCaseFields.js';
+import { compareMeetsQualityBarFirst, nameOfUseCase, subtitleOfUseCase } from './useCaseFields.js';
 import { placeholderWords } from './placeholderWords.js';
 import { briefList, plural } from './plural.js';
 import { PERSONAL_KEY_REASON, personalColumn } from './personalColumns.js';
@@ -36,8 +36,8 @@ export const BUILD_NOW_LABEL = 'Build with these choices';
 export const CHANGE_LABEL = 'Change';
 
 const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery'] };
-const WHERE_STEP = { id: 'where', label: WHERE_LABEL, sections: ['app_place', 'app_features'], advanced: [], panels: ['app_place', 'app_features'] };
-const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case', 'data', 'configure', 'results'], advanced: ['data', 'configure'], panels: ['data', 'results'] };
+const WHERE_STEP = { id: 'where', label: WHERE_LABEL, sections: ['app_place', 'app_pages'], advanced: [], panels: ['app_place', 'app_pages'] };
+const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case', 'data', 'configure', 'results', 'fresh'], advanced: ['data', 'configure', 'results', 'fresh'], panels: ['data', 'results', 'fresh'] };
 export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
 export const MEASURE_STEP = { id: 'stake', label: MEASURE_LABEL, sections: [], advanced: [], panels: ['stake'] };
 
@@ -45,12 +45,12 @@ export function withMoneyRule(spec, money) {
   const { money: _previous, ...rest } = spec || {};
   return money ? { ...rest, money } : rest;
 }
-export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['kpi', 'holdout'], advanced: ['schedule', 'holdout'], panels: ['fresh', 'measure'] };
+export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule', 'kpi', 'holdout'], advanced: ['schedule', 'holdout'], panels: ['measure'] };
 
 export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP, RUN_STEP];
 
-export const APP_PANELS = ['app_place', 'app_access', 'app_features', 'app_look'];
-export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_access'], advanced: [], panels: ['app_access'] };
+export const APP_PANELS = ['app_place', 'app_pages', 'app_access', 'app_features', 'app_look'];
+export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_access', 'app_features'], advanced: [], panels: ['app_access', 'app_features'] };
 export const APP_LOOK_STEP = { id: 'app_look', label: 'App look', sections: ['app_look'], advanced: [], panels: ['app_look'] };
 export const WIZARD_STEPS_MAX = 10;
 
@@ -66,8 +66,8 @@ export const NOTEBOOK_STEPS = [
 ];
 
 const STEP_ALIASES = {
-  use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: RUN_STEP.id, fresh: RUN_STEP.id, vibes: SUMMARY_STEP.id,
-  settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: APP_STEP.id, app_features: WHERE_STEP.id, app_look: APP_LOOK_STEP.id,
+  use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: MEASURE_STEP.id, fresh: DATA_STEP.id, vibes: SUMMARY_STEP.id,
+  settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: APP_STEP.id, app_features: APP_STEP.id, app_look: APP_LOOK_STEP.id,
   results: DATA_STEP.id, app_pages: WHERE_STEP.id,
 };
 const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id, [APP_LOOK_STEP.id]: APP_STEP.id, [APP_STEP.id]: WHERE_STEP.id };
@@ -350,7 +350,7 @@ export function joinedAppText(target) {
   return `It keeps the look of ${target.name}${look}, its sign-in and its data source, so ${rows}. For your own, choose Create new.`;
 }
 export const APP_LOOK_TABS = [
-  { id: 'style', label: 'Style' }, { id: 'palette', label: 'Palette' }, { id: 'layout', label: 'Layout' }, { id: 'charts', label: 'Charts' }, { id: 'pages', label: 'Pages' },
+  { id: 'style', label: 'Style' }, { id: 'palette', label: 'Palette' }, { id: 'layout', label: 'Layout' }, { id: 'charts', label: 'Charts' },
 ];
 export const APP_SAMPLE_NOTE = 'Sample data. Your App shows the records of this use case in the look you pick.';
 export const APP_CHARTS_MIN = 3;
@@ -731,16 +731,13 @@ export function caseIdOf(uc) {
   return String(uc?.id ?? uc?.No ?? uc?.use_case_id ?? '').trim();
 }
 
-export function caseNameOf(uc) {
-  return String(uc?.Name || uc?.use_case || uc?.name || '').trim();
-}
-
 export function domainOf(uc) {
   return String(uc?.business_domain || uc?._domain || uc?.['Business Domain'] || '').trim();
 }
 
 export function caseAppNameOf(uc) {
-  return appNameOf(uc?.short_name || caseNameOf(uc), caseIdOf(uc));
+  const renamed = String(uc?.user_use_case_name || '').trim();
+  return appNameOf(renamed || uc?.short_name || nameOfUseCase(uc), caseIdOf(uc));
 }
 
 function tableNames(text) {
@@ -1113,7 +1110,7 @@ export function defaultSpecFromUseCase(uc, { warehouseId, inspireDatabase, sessi
   const measures = listOf(uc?.measures_of_success || uc?._v130?.measuresOfSuccess).slice(0, 3).map(placeholderWords);
   const goal = placeholderWords(uc?.statement || uc?.Statement || uc?.business_value || '').trim().slice(0, 500);
   const decisionOwner = String(owner || uc?.sponsor || uc?.Sponsor || '').trim();
-  const useCaseName = caseNameOf(uc);
+  const useCaseName = nameOfUseCase(uc);
   return {
     use_case_id: id,
     use_case_name: useCaseName,
@@ -1814,8 +1811,11 @@ export function stepErrors(step, spec, extras = {}, mode = 'mvp') {
   return stepOf(step, mode, spec, extras.scopeSteps).sections.flatMap((section) => sectionErrors(section, spec, extras));
 }
 
-export function advancedErrors(step, spec, extras = {}, mode = 'mvp') {
-  return stepOf(step, mode, spec, extras.scopeSteps).advanced.flatMap((section) => sectionErrors(section, spec, extras));
+export const ADVANCED_WRAPPER = { configure: 'data', app_owners: 'delivery', alert: 'delivery' };
+
+export function advancedWithErrors(step, spec, extras = {}, mode = 'mvp') {
+  const hidden = stepOf(step, mode, spec, extras.scopeSteps).advanced.filter((section) => sectionErrors(section, spec, extras).length > 0);
+  return [...new Set(hidden.map((section) => ADVANCED_WRAPPER[section] || section))];
 }
 
 export const APP_LOOK_LISTS = { style: 'styles', layout: 'layouts', palette: 'palettes', theme: 'themes' };
@@ -2344,7 +2344,7 @@ export function entityKeyOptions(columnsByTable, tables) {
 
 function subjectOfUseCase(uc, keys) {
   const nouns = [...new Set(keys.map((k) => k.noun))];
-  const texts = [eliteAssessmentOf(uc).decision, caseNameOf(uc), uc?.statement || uc?.Statement];
+  const texts = [eliteAssessmentOf(uc).decision, nameOfUseCase(uc), uc?.statement || uc?.Statement];
   for (const text of texts) {
     const words = nameTokens(text);
     let best = null;
@@ -2453,7 +2453,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
     row('result', 'data', 'Result table', String(spec?.config?.result_table || '') || 'not named yet'),
     row('kpi', 'run', 'Target KPI', kpiTargetOf(spec) || 'Inspire picks'),
     row('holdout', 'run', HOLDOUT_LABEL, holdout.enabled ? `On, ${holdoutPercentText(spec) || '?'}% kept aside` : 'Off'),
-    row('schedule', 'run', FRESH_LABEL, freshness === 'off' ? 'Off, it runs once'
+    row('schedule', DATA_STEP.id, FRESH_LABEL, freshness === 'off' ? 'Off, it runs once'
       : `${freshness === 'custom' ? 'Custom' : FRESHNESS_OPTIONS.find((o) => o.id === freshness).label}, runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`),
     ...(principals.length ? [row('sharing', 'delivery', 'Shared with', principals.join(', '))] : []),
     ...(app ? [row('app', 'where', 'App', joined ? `Joins ${outputs.merge.app}`
@@ -2929,7 +2929,7 @@ export function implementGroups(useCases, latestRows, notebookRun, query = '') {
     const id = caseIdOf(uc);
     const latest = latestById.get(id) || null;
     const notebook = notebookStatus(uc, notebookRun);
-    return { id, name: caseNameOf(uc) || id, domain: domainOf(uc), uc, latest, notebook, state: implementState(latest, notebook) };
+    return { id, name: nameOfUseCase(uc) || id, domain: domainOf(uc), uc, latest, notebook, state: implementState(latest, notebook) };
   }).filter((item) => {
     const text = `${item.id} ${item.name} ${subtitleOfUseCase(item.uc, item.name)} ${item.domain}`.toLowerCase();
     return terms.every((t) => text.includes(t));
