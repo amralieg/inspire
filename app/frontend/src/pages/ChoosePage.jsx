@@ -316,8 +316,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   return (
     <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6 relative overflow-hidden">
       {/* Ambient background glows */}
-      <div className="absolute top-[-15%] left-[-5%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] pointer-events-none" />
-      <div className="absolute bottom-[-10%] right-[-5%] w-[35%] h-[35%] rounded-full bg-db-red/[0.02] blur-[100px] pointer-events-none" />
+      <div className="absolute top-[-15%] start-[-5%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] pointer-events-none" />
+      <div className="absolute bottom-[-10%] end-[-5%] w-[35%] h-[35%] rounded-full bg-db-red/[0.02] blur-[100px] pointer-events-none" />
 
       <div className="relative z-10 w-full max-w-[1600px] space-y-8">
 

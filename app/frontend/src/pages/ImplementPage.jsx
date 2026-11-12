@@ -107,14 +107,14 @@ function PageHeader({ summary, loading, query, onQuery }) {
         </div>
       </div>
       <label className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" aria-hidden />
+        <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" aria-hidden />
         <input dir="auto"
           type="search"
           aria-label="Search use cases"
           placeholder="Search by name, id or domain"
           value={query}
           onChange={(e) => onQuery(e.target.value)}
-          className="w-72 pl-9 pr-3 py-2.5 text-sm border border-border rounded-xl bg-surface text-text-primary shadow-sm glow-focus"
+          className="w-72 ps-9 pe-3 py-2.5 text-sm border border-border rounded-xl bg-surface text-text-primary shadow-sm glow-focus"
         />
       </label>
     </div>
@@ -245,8 +245,8 @@ function RailProgress({ item, progress }) {
     <div data-rail-progress={percent ?? ''} className="mt-1.5 space-y-1">
       <div className="relative h-1.5 rounded-full bg-bg-subtle overflow-hidden" aria-hidden>
         {percent == null
-          ? <span className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-db-red motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]" />
-          : <span className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-db-red-solid to-db-red transition-[width] duration-700" style={{ width: `${Math.max(percent, 4)}%` }} />}
+          ? <span className="absolute inset-y-0 start-0 w-1/3 rounded-full bg-db-red motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]" />
+          : <span className="absolute inset-y-0 start-0 rounded-full bg-gradient-to-r from-db-red-solid to-db-red transition-[width] duration-700" style={{ width: `${Math.max(percent, 4)}%` }} />}
       </div>
       <p className="flex items-center gap-1.5 text-[11px] text-text-secondary min-w-0">
         {percent != null && <span className="shrink-0 font-mono font-bold tabular-nums text-text-primary">{percent}%</span>}

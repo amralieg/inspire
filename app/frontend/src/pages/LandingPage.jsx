@@ -575,7 +575,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
   return (
     <div className="h-screen overflow-hidden relative" style={{ backgroundColor: C.pageBg, color: C.text }}>
       {/* ═══ Progress bar ═══ */}
-      <div className="fixed top-0 left-0 right-0 z-[100] h-[2px]">
+      <div className="fixed top-0 start-0 end-0 z-[100] h-[2px]">
         <div className="h-full bg-gradient-to-r from-db-red to-db-red-hover" style={{ width: `${progress * 100}%`, transition: 'width 0.15s' }} />
       </div>
 
@@ -583,7 +583,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
       <InspireOrb progress={progress} section={section} />
 
       {/* ═══ Nav — always visible ═══ */}
-      <nav className="fixed top-0 left-0 right-0 z-50 backdrop-blur-2xl" style={{ borderBottom: `1px solid ${C.navBorder}`, backgroundColor: C.navBg }}>
+      <nav className="fixed top-0 start-0 end-0 z-50 backdrop-blur-2xl" style={{ borderBottom: `1px solid ${C.navBorder}`, backgroundColor: C.navBg }}>
         <div className="max-w-7xl mx-auto px-6 py-4 flex items-center justify-between">
           <div className="flex items-center gap-3">
             <DatabricksLogo className="w-8 h-8" />
@@ -633,8 +633,8 @@ export default function LandingPage({ onStart, onOpenSetup }) {
         <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <FloatingSchemas opacity={0.03} />
           {/* Ambient glow */}
-          <div className="absolute top-[-20%] left-[-10%] w-[60%] h-[60%] rounded-full bg-db-red/[0.05] blur-[150px] animate-ambient-float" aria-hidden="true" />
-          <div className="absolute bottom-[-10%] right-[10%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] animate-ambient-float-delayed" aria-hidden="true" />
+          <div className="absolute top-[-20%] start-[-10%] w-[60%] h-[60%] rounded-full bg-db-red/[0.05] blur-[150px] animate-ambient-float" aria-hidden="true" />
+          <div className="absolute bottom-[-10%] end-[10%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] animate-ambient-float-delayed" aria-hidden="true" />
 
           <div className="relative z-10 max-w-7xl mx-auto px-6 w-full pt-20">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
@@ -706,7 +706,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
           </div>
 
           {/* Scroll hint */}
-          <div className="absolute bottom-8 left-1/2 -translate-x-1/2 flex flex-col items-center gap-2 [@media(max-height:820px)]:hidden">
+          <div className="absolute bottom-8 start-1/2 -translate-x-1/2 flex flex-col items-center gap-2 [@media(max-height:820px)]:hidden">
             <span className="text-[10px] font-medium text-text-tertiary uppercase tracking-[0.15em]">Scroll to explore</span>
             <ChevronDown size={16} className="text-text-tertiary animate-pulse" />
           </div>
@@ -752,7 +752,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
         {/* ═══ SECTION 3: How it works ═══ */}
         <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0" style={{ background: C.pageBg }} />
-          <div className="absolute top-[30%] right-[-5%] w-[30%] h-[30%] rounded-full bg-db-red/[0.03] blur-[100px]" aria-hidden="true" />
+          <div className="absolute top-[30%] end-[-5%] w-[30%] h-[30%] rounded-full bg-db-red/[0.03] blur-[100px]" aria-hidden="true" />
 
           <div className="relative z-10 max-w-6xl mx-auto px-6 w-full">
             <div className="text-center mb-12">
@@ -796,8 +796,8 @@ export default function LandingPage({ onStart, onOpenSetup }) {
         <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0" style={{ background: C.pageBg }} />
           {/* Subtle blue-ish glow to match the robot's lighting */}
-          <div className="absolute top-[20%] left-[30%] w-[40%] h-[50%] rounded-full bg-info/[0.06] blur-[120px]" aria-hidden="true" />
-          <div className="absolute bottom-[10%] right-[20%] w-[25%] h-[30%] rounded-full bg-db-red/[0.04] blur-[100px]" aria-hidden="true" />
+          <div className="absolute top-[20%] start-[30%] w-[40%] h-[50%] rounded-full bg-info/[0.06] blur-[120px]" aria-hidden="true" />
+          <div className="absolute bottom-[10%] end-[20%] w-[25%] h-[30%] rounded-full bg-db-red/[0.04] blur-[100px]" aria-hidden="true" />
 
           <div className="relative z-10 max-w-7xl mx-auto px-6 w-full">
             <div className="grid grid-cols-1 lg:grid-cols-2 gap-8 items-center">
@@ -865,7 +865,7 @@ export default function LandingPage({ onStart, onOpenSetup }) {
         {/* ═══ SECTION 6: CTA — "Start" ═══ */}
         <section className="h-screen relative flex items-center justify-center overflow-hidden">
           <div className="absolute inset-0" style={{ background: C.pageBg }} />
-          <div className="absolute top-[40%] left-[40%] w-[30%] h-[30%] rounded-full bg-db-red/[0.06] blur-[120px]" aria-hidden="true" />
+          <div className="absolute top-[40%] start-[40%] w-[30%] h-[30%] rounded-full bg-db-red/[0.06] blur-[120px]" aria-hidden="true" />
 
           <div className="relative z-10 text-center max-w-2xl mx-auto px-6">
             <h2 className={`text-4xl sm:text-5xl lg:text-6xl font-bold tracking-[-0.03em] leading-[1.1] mb-6 transition-all duration-1000 ${section >= 5 ? 'opacity-100 translate-y-0' : 'opacity-0 translate-y-8'}`}>

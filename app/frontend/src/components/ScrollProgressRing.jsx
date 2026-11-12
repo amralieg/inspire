@@ -21,7 +21,7 @@ export default function ScrollProgressRing() {
   const offset = circumference * (1 - progress);
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-10 h-10" title={`${Math.round(progress * 100)}%`}>
+    <div className="fixed bottom-6 end-6 z-50 w-10 h-10" title={`${Math.round(progress * 100)}%`}>
       <svg viewBox="0 0 40 40" className="w-full h-full scroll-progress-ring">
         <circle cx="20" cy="20" r={r} fill="none" stroke="var(--t-border)" strokeWidth="2" />
         <circle

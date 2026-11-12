@@ -72,7 +72,7 @@ function WarehouseSelector({ settings, update }) {
         <select
           value={settings.warehouseId || ''}
           onChange={(e) => update('warehouseId', e.target.value)}
-          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-surface text-text-primary glow-focus transition-smooth font-mono appearance-none pr-8"
+          className="w-full px-3 py-2 text-sm border border-border rounded-md bg-surface text-text-primary glow-focus transition-smooth font-mono appearance-none pe-8"
         >
           <option value="">Select a warehouse</option>
           {warehouses.map(w => (
@@ -81,7 +81,7 @@ function WarehouseSelector({ settings, update }) {
             </option>
           ))}
         </select>
-        <ChevronDown size={14} className="absolute right-2.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
+        <ChevronDown size={14} className="absolute end-2.5 top-1/2 -translate-y-1/2 text-text-tertiary pointer-events-none" />
       </div>
 
       {/* Status badge + refresh */}
@@ -129,7 +129,7 @@ export default function SettingsPanel({ settings, update, onClose }) {
       />
 
       {/* Panel */}
-      <div className="fixed top-0 right-0 h-full w-96 bg-surface border-s border-border shadow-xl z-50 flex flex-col">
+      <div className="fixed top-0 end-0 h-full w-96 bg-surface border-s border-border shadow-xl z-50 flex flex-col">
         {/* Header */}
         <div className="flex items-center justify-between px-5 py-4 border-b border-border">
           <div className="flex items-center gap-2.5">

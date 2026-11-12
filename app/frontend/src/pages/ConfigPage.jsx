@@ -150,7 +150,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
           </div>
           <div className="px-5 py-4">
             <div className="relative">
-              <Globe size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+              <Globe size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
               <input dir="auto"
                 type="text"
                 value={databricksHost}
@@ -160,7 +160,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
                 }}
                 placeholder="https://adb-xxxxxxxxxxxx.xx.azuredatabricks.net"
                 autoComplete="off"
-                className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-md bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth font-mono"
+                className="w-full ps-9 pe-3 py-2 text-sm border border-border rounded-md bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth font-mono"
               />
             </div>
             {step0Done && (
@@ -184,7 +184,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
           <div className="px-5 py-4">
             <div className="flex gap-3">
               <div className="relative flex-1">
-                <Key size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                <Key size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
           <input dir="auto"
             type="password"
                   value={token}
@@ -196,7 +196,7 @@ export default function ConfigPage({ settings, update, onConfigured }) {
                   autoComplete="off"
                   data-1p-ignore
                   data-lpignore="true"
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-md bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
+                  className="w-full ps-9 pe-3 py-2 text-sm border border-border rounded-md bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
                 />
         </div>
           <button
@@ -311,12 +311,12 @@ export default function ConfigPage({ settings, update, onConfigured }) {
 
             <div className="flex items-center gap-3">
               <div className="relative flex-1">
-                <Upload size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                <Upload size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
                 <input dir="auto"
                   type="text"
                   value={publishPath || notebookPath || DEFAULT_WORKSPACE_NOTEBOOK_PATH}
                   onChange={(e) => setPublishPath(e.target.value)}
-                  className="w-full pl-9 pr-3 py-2 text-sm border border-border rounded-md bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
+                  className="w-full ps-9 pe-3 py-2 text-sm border border-border rounded-md bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
                   placeholder={DEFAULT_WORKSPACE_NOTEBOOK_PATH}
                 />
       </div>

@@ -125,7 +125,7 @@ function RunControl({ page, pages, userAuthorization, note, onSwitch, onBack }) 
   const others = runFramedPages(pages);
   const busy = page.kind === APP_INSIDE && page.state !== 'ready';
   return (
-    <div className="absolute left-3 bottom-3 z-10 flex flex-col items-start gap-2" data-run-control="">
+    <div className="absolute start-3 bottom-3 z-10 flex flex-col items-start gap-2" data-run-control="">
       {open && (
         <div id="run-control-menu" aria-label={`${page.name}, ${pageDetail(page)}`} role="region"
           className="w-80 max-w-[calc(100vw-1.5rem)] max-h-[calc(100vh-5rem)] overflow-auto rounded-xl border border-border bg-surface p-3 space-y-2 shadow-elevated">

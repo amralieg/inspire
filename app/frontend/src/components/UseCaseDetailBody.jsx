@@ -177,7 +177,7 @@ export default function UseCaseDetailBody({
             <CopyButton text={sql} />
           </div>
           <div className="relative rounded-lg border border-border overflow-hidden">
-            <div className="absolute left-0 top-0 bottom-0 w-1 bg-info/30 rounded-s-lg" />
+            <div className="absolute start-0 top-0 bottom-0 w-1 bg-info/30 rounded-s-lg" />
             <pre className="text-[11px] text-text-primary bg-bg p-4 ps-5 overflow-x-auto max-h-60 overflow-y-auto font-mono leading-relaxed whitespace-pre-wrap">
               {sql}
             </pre>
