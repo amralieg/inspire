@@ -137,6 +137,7 @@ def test_E_batch_fallback_writer_produces_customer_appropriate_cell_zero(ns):
     inst.business_name = "test-biz"
     inst.max_retry_attempts = 0
     inst.max_parallelism = 2
+    inst.inspire_database = ""
     inst.w_client = MagicMock()
     inst._notebook_object_ids = {}
 
