@@ -123,9 +123,6 @@ export function artifactTreeFiles(rootFiles, tree) {
   return out;
 }
 
-// The strategy PDF is the PDF Catalog: once a run has written a PDF into its folder, a second one must not be made.
-export const hasPdfArtifact = (files) => files.some((file) => fileExtension(file) === 'pdf');
-
 export function quickAccessFiles(files) {
   const shown = (Array.isArray(files) ? files : [])
     .filter((file) => file && !file.is_directory && QUICK_ACCESS_EXTENSIONS.includes(fileExtension(file)));
