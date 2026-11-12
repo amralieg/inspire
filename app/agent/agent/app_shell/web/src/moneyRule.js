@@ -1,5 +1,5 @@
 import { plainColumns } from './impact.js';
-import { compileExpression } from './moneyValue.js';
+import { VALUE_METHODS, compileExpression } from './moneyValue.js';
 // ISO 4217 codes, the same list as shell_sql.MONEY_CODES; the parity test runs the shared fixture through both.
 const CURRENCY_CODES = new Set([
   'AED', 'AFN', 'ALL', 'AMD', 'ANG', 'AOA', 'ARS', 'AUD', 'AWG', 'AZN', 'BAM', 'BBD', 'BDT',
@@ -24,7 +24,6 @@ const MAX_PERIODS = 60;
 const MAX_STATUSES = 20;
 const RATE_TABLE_KEYS = ['table', 'currency_column', 'base_column', 'date_column', 'rate_column', 'load_column'];
 
-const VALUE_METHODS = ['fixed', 'column', 'equation'];
 const SIGN_KINDS = ['column', 'status'];
 const STATUS_WORD = /^[A-Za-z0-9_ -]{1,40}$/;
 
