@@ -808,7 +808,24 @@ function registerImplementRoutes(app, deps) {
         window: req.body?.window || {},
       });
       const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
-      res.json({ skipped: false, ...I.readinessFromRow(rows[0] || {}, statement.columns) });
+      res.json({ skipped: false, ...I.readinessFromRow(rows[0] || {}, statement.columns), minimum_rows: I.analysisMinimumRows(req.body?.technique) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/inspire/implement/group-counts', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const statement = I.groupCountsStatement(q(req, 'table'), req.body?.columns || [], {
+        filters: req.body?.filters || [],
+        window: req.body?.window || {},
+      });
+      if (!statement) return res.status(400).json({ error: `name between 1 and ${I.GROUP_COUNT_MAX_COLUMNS} group columns to count` });
+      const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
+      const truncated = rows.length > I.GROUP_COUNT_LIMIT;
+      const kept = truncated ? rows.slice(0, I.GROUP_COUNT_LIMIT) : rows;
+      res.json({ truncated, groups: kept.map((r) => ({ ...r, records: Number(r.records) || 0 })) });
     } catch (err) {
       sendError(res, err);
     }

@@ -2261,7 +2261,8 @@ function filterClause(filter, index) {
   if (!IMPLEMENT_FILTER_OPS.includes(op)) throw badRequest(`filter operator '${op}' is not supported`);
   if (op === 'in' || op === 'not in') {
     if (!refs.length) throw badRequest(`filter ${filter.column} ${op} needs at least one value`);
-    return { sql: `CAST(${col} AS STRING) ${op.toUpperCase()} (${refs.join(', ')})`, params };
+    const list = `CAST(${col} AS STRING) ${op.toUpperCase()} (${refs.join(', ')})`;
+    return { sql: op === 'not in' ? `(${list} OR ${col} IS NULL)` : list, params };
   }
   if (op === 'between') {
     if (refs.length !== 2) throw badRequest(`filter ${filter.column} between needs two values`);
@@ -2272,9 +2273,7 @@ function filterClause(filter, index) {
   return { sql: `CAST(${col} AS STRING) ${op} ${refs[0]}`, params };
 }
 
-function readinessStatement(name, { columns = [], filters = [], window = {} } = {}) {
-  const table = quoteTable(name);
-  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))].slice(0, 20);
+function scopeWhere(filters = [], window = {}) {
   const where = [];
   const parameters = [];
   filters.forEach((f, i) => {
@@ -2293,10 +2292,33 @@ function readinessStatement(name, { columns = [], filters = [], window = {} } = 
       parameters.push({ name: 'wend', value: str(window.end), type: 'STRING' });
     }
   }
+  return { where, parameters };
+}
+
+function readinessStatement(name, { columns = [], filters = [], window = {} } = {}) {
+  const table = quoteTable(name);
+  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))].slice(0, 20);
+  const { where, parameters } = scopeWhere(filters, window);
   const nulls = wanted.map((c, i) => `SUM(CASE WHEN ${quoteColumn(c)} IS NULL THEN 1 ELSE 0 END) AS null_${i}`);
   return {
     sql: `SELECT COUNT(*) AS row_count${nulls.length ? `, ${nulls.join(', ')}` : ''} FROM ${table}`
       + `${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
+    parameters: parameters.length ? parameters : null,
+    columns: wanted,
+  };
+}
+
+const GROUP_COUNT_MAX_COLUMNS = 8;
+const GROUP_COUNT_LIMIT = 5000;
+
+function groupCountsStatement(name, columns = [], { filters = [], window = {} } = {}) {
+  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))];
+  if (!wanted.length || wanted.length > GROUP_COUNT_MAX_COLUMNS) return null;
+  const { where, parameters } = scopeWhere(filters, window);
+  const cols = wanted.map((c) => quoteColumn(c));
+  return {
+    sql: `SELECT ${cols.map((c) => `CAST(${c} AS STRING) AS ${c}`).join(', ')}, COUNT(*) AS records FROM ${quoteTable(name)}`
+      + `${where.length ? ` WHERE ${where.join(' AND ')}` : ''} GROUP BY ${cols.join(', ')} LIMIT ${GROUP_COUNT_LIMIT + 1}`,
     parameters: parameters.length ? parameters : null,
     columns: wanted,
   };
@@ -2308,6 +2330,18 @@ function readinessFromRow(row, columns) {
     row_count: rows,
     null_share: Object.fromEntries(columns.map((c, i) => [c, rows ? (Number(row[`null_${i}`]) || 0) / rows : null])),
   };
+}
+
+const { execution_family: EXECUTION_FAMILY, readiness_thresholds: READINESS_THRESHOLDS, technique_min_rows: TECHNIQUE_MIN_ROWS } = require('../../agent/agent/app_shell/kinds.json');
+
+function analysisMinimumRows(technique) {
+  const wanted = str(technique).split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+  const named = (table) => Object.keys(table).find((k) => k.toLowerCase() === wanted);
+  const own = TECHNIQUE_MIN_ROWS[named(TECHNIQUE_MIN_ROWS) || ''];
+  if (Number.isFinite(own)) return own;
+  const label = named(EXECUTION_FAMILY);
+  const minimum = label ? (READINESS_THRESHOLDS[EXECUTION_FAMILY[label]] || {}).min_rows : undefined;
+  return Number.isFinite(minimum) ? minimum : null;
 }
 
 function destinationsFromList(data) {
@@ -3820,7 +3854,11 @@ module.exports = {
   tableMatchStatement,
   columnValuesStatement,
   readinessStatement,
+  groupCountsStatement,
+  GROUP_COUNT_MAX_COLUMNS,
+  GROUP_COUNT_LIMIT,
   readinessFromRow,
+  analysisMinimumRows,
   rerunParams,
   rerunWidgets,
   rerunOverrides,
