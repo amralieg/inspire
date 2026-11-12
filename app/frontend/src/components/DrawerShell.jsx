@@ -65,6 +65,12 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
     return () => document.removeEventListener('pointerdown', onDown, true);
   }, [onClose, side, docked]);
 
+  useEffect(() => {
+    if (!docked) return undefined;
+    document.documentElement.style.setProperty('--dock-w', `min(${width}px, 40vw)`);
+    return () => document.documentElement.style.removeProperty('--dock-w');
+  }, [docked, width]);
+
   const panel = (
     <>
       {!side && <button type="button" aria-label={closeLabel} className="absolute inset-0 bg-black/40 cursor-default" onClick={onClose} />}
@@ -93,7 +99,7 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
             </button>
           </div>
         </div>
-        {below}
+        {below && <div className={docked ? 'md:max-h-[12dvh] md:overflow-y-auto' : undefined}>{below}</div>}
       </div>
 
       <div ref={bodyRef} className="min-h-0 flex-1 overflow-y-auto overscroll-contain px-6 py-5" {...bodyProps}>
