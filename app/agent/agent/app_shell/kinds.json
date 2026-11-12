@@ -842,6 +842,7 @@
  "kinds": [
   {
    "id": "variance_to_plan",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 1,
    "family": "measure_explain",
    "label": "Variance to plan",
@@ -927,6 +928,7 @@
   },
   {
    "id": "driver_breakdown",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 2,
    "family": "measure_explain",
    "label": "Driver breakdown",
@@ -1011,6 +1013,7 @@
   },
   {
    "id": "peer_benchmarking",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 3,
    "family": "measure_explain",
    "label": "Peer benchmarking",
@@ -1093,6 +1096,7 @@
   },
   {
    "id": "leading_indicators",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 4,
    "family": "measure_explain",
    "label": "Leading indicators",
@@ -1178,6 +1182,7 @@
   },
   {
    "id": "forecast",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 5,
    "family": "predict",
    "label": "Forecast",
@@ -1266,6 +1271,7 @@
   },
   {
    "id": "risk_propensity",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 6,
    "family": "predict",
    "label": "Risk or propensity",
@@ -1345,6 +1351,7 @@
   },
   {
    "id": "time_to_event",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 7,
    "family": "predict",
    "label": "Time to event",
@@ -1421,6 +1428,7 @@
   },
   {
    "id": "next_event",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 8,
    "family": "predict",
    "label": "Next event or sequence",
@@ -1502,6 +1510,7 @@
   },
   {
    "id": "allocation",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 9,
    "family": "decide_optimize",
    "label": "Allocation",
@@ -1582,6 +1591,7 @@
   },
   {
    "id": "pricing",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 10,
    "family": "decide_optimize",
    "label": "Price, discount, markdown",
@@ -1664,6 +1674,7 @@
   },
   {
    "id": "inventory_replenishment",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 11,
    "family": "decide_optimize",
    "label": "Inventory and replenishment",
@@ -1748,6 +1759,7 @@
   },
   {
    "id": "staffing_queueing",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 12,
    "family": "decide_optimize",
    "label": "Staffing and queueing",
@@ -1833,6 +1845,7 @@
   },
   {
    "id": "site_territory",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 13,
    "family": "decide_optimize",
    "label": "Site and territory",
@@ -1914,6 +1927,7 @@
   },
   {
    "id": "threshold_tuning",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 14,
    "family": "decide_optimize",
    "label": "Threshold and policy tuning",
@@ -1990,6 +2004,7 @@
   },
   {
    "id": "assortment",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 15,
    "family": "decide_optimize",
    "label": "Assortment and cannibalization",
@@ -2073,6 +2088,7 @@
   },
   {
    "id": "driver_scenarios",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 16,
    "family": "simulate_plan",
    "label": "Driver-based scenarios",
@@ -2156,6 +2172,7 @@
   },
   {
    "id": "stress_test",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 17,
    "family": "simulate_plan",
    "label": "Stress test",
@@ -2235,6 +2252,7 @@
   },
   {
    "id": "capacity_planning",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 18,
    "family": "simulate_plan",
    "label": "Capacity planning",
@@ -2318,6 +2336,7 @@
   },
   {
    "id": "promotion_lift",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 19,
    "family": "measure_impact",
    "label": "Promotion or campaign lift",
@@ -2399,6 +2418,7 @@
   },
   {
    "id": "experiment_readout",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 20,
    "family": "measure_impact",
    "label": "Experiments and before/after",
@@ -2480,6 +2500,7 @@
   },
   {
    "id": "marketing_mix",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 21,
    "family": "measure_impact",
    "label": "Marketing mix and attribution",
@@ -2561,6 +2582,7 @@
   },
   {
    "id": "uplift_targeting",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 22,
    "family": "measure_impact",
    "label": "Uplift targeting",
@@ -2637,6 +2659,7 @@
   },
   {
    "id": "anomaly",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 23,
    "family": "detect_protect",
    "label": "Anomaly",
@@ -2716,6 +2739,7 @@
   },
   {
    "id": "leakage_reconciliation",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 24,
    "family": "detect_protect",
    "label": "Leakage and reconciliation",
@@ -2800,6 +2824,7 @@
   },
   {
    "id": "controls_testing",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 25,
    "family": "detect_protect",
    "label": "Controls tests",
@@ -2878,6 +2903,7 @@
   },
   {
    "id": "process_control",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 26,
    "family": "detect_protect",
    "label": "Statistical process control",
@@ -2957,6 +2983,7 @@
   },
   {
    "id": "fraud_rings",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 27,
    "family": "detect_protect",
    "label": "Fraud rings",
@@ -3037,6 +3064,7 @@
   },
   {
    "id": "segmentation",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 28,
    "family": "know_entities",
    "label": "Segmentation",
@@ -3116,6 +3144,7 @@
   },
   {
    "id": "lifetime_value",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 29,
    "family": "know_entities",
    "label": "Lifetime value",
@@ -3196,6 +3225,7 @@
   },
   {
    "id": "cost_to_serve",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 30,
    "family": "know_entities",
    "label": "Cost to serve",
@@ -3278,6 +3308,7 @@
   },
   {
    "id": "next_best_action",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 31,
    "family": "know_entities",
    "label": "Recommendation and next best action",
@@ -3355,6 +3386,7 @@
   },
   {
    "id": "entity_matching",
+   "nouns": {"record": ["pair", "pairs"], "kpi": ["profile", "profiles"]},
    "num": 32,
    "family": "know_entities",
    "label": "Entity matching",
@@ -3456,6 +3488,7 @@
   },
   {
    "id": "journey_path",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 33,
    "family": "know_entities",
    "label": "Journey and path",
@@ -3538,6 +3571,7 @@
   },
   {
    "id": "process_mining",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 34,
    "family": "run_processes",
    "label": "Process mining",
@@ -3616,6 +3650,7 @@
   },
   {
    "id": "sla_aging",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 35,
    "family": "run_processes",
    "label": "SLA, backlog and aging",
@@ -3705,6 +3740,7 @@
   },
   {
    "id": "working_capital",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 36,
    "family": "run_processes",
    "label": "Working capital and collections",
@@ -3787,6 +3823,7 @@
   },
   {
    "id": "location_intelligence",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 37,
    "family": "place_relationships",
    "label": "Location intelligence",
@@ -3864,6 +3901,7 @@
   },
   {
    "id": "network_dependency",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 38,
    "family": "place_relationships",
    "label": "Network dependency",
@@ -3964,6 +4002,7 @@
   },
   {
    "id": "reason_codes",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 39,
    "family": "text_agents",
    "label": "Reason codes from comments",
@@ -4046,6 +4085,7 @@
   },
   {
    "id": "data_agent",
+   "nouns": {"record": ["record", "records"], "kpi": ["record", "records"]},
    "num": 40,
    "family": "text_agents",
    "label": "Data agent",

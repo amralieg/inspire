@@ -337,7 +337,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {shown === 'work' && mode.queue && (
         <Suspense fallback={<Waiting />}>        <WorkPage meta={meta} state={state} onState={onState} onRetryMeta={onRetryMeta} pageId={page.id} reasons={reasonFilters(entry, summary)} plan={plan} tab={tabNow} choices={choices}
           counts={queue?.data?.status_counts} onTab={(id) => go('work', { tab: id, focus: focused })} focus={focused} onClearFocus={() => go('work', { tab: tabNow })}>
-          {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, docked: true, section: 'records' })}
+          {records({ ready: ready && (!listed || live.done), tab: tabNow || undefined, focus: focused || undefined, docked: true, section: 'records', onTab: (id) => go('work', { tab: id }) })}
         </WorkPage></Suspense>
       )}
       {shown === 'runs' && (

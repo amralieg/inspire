@@ -607,4 +607,11 @@ export function explainContext(meta, data, row, unit = '', kind = '') {
 }
 
 export const recordName = (row, meta) => entityName(row, meta?.label);
+export function watchBreakdown(counts) {
+  if (!counts || counts.open !== 0 || !(counts.watch > 0)) return '';
+  const done = counts.statuses?.[DONE] || 0;
+  const dismissed = counts.statuses?.[DISMISSED] || 0;
+  return `Nothing to fix right now: ${integer(counts.watch)} on watch (held back on purpose), ${integer(done)} done, ${integer(dismissed)} dismissed.`;
+}
+
 export const recordSentenceName = (row, meta) => entityName(row, meta?.label, { sentence: true }) || 'This record';
