@@ -778,3 +778,31 @@ def test_a_null_saved_amount_stays_unrated_under_a_sign():
 def test_gains_without_a_sign_is_refused_by_the_server_with_a_plain_reason():
     problems = shell_sql.money_rule_problems({"currency": "per_currency", "rule": "gains"})
     assert problems and "gains needs a sign" in problems[0]
+
+
+def test_on_mixed_data_gains_and_losses_are_different_totals_and_net_is_gains_minus_losses():
+    base = {"currency": "convert", "base": "USD", "rates": VALUE_RATES,
+            "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+            "sign": {"kind": "column", "column": "discount"}}
+    gains = _value_total(dict(base, rule="gains"))
+    losses = _value_total(dict(base, rule="losses"))
+    net = _value_total(dict(base, rule="net"))
+    assert gains == round(gains, 6) and round(gains, 6) == 57.0, "discount is positive on AED and USD: AED 100 at 0.27 + USD 30"
+    assert round(losses, 6) == 44.0, "the EUR row has no discount, so it is a loss: EUR 40 at 1.1"
+    assert gains != losses, "gains and losses are different totals on mixed data"
+    assert round(net, 6) == 13.0, "net is gains minus losses"
+
+
+def test_a_saved_value_with_no_currency_filter_is_converted_in_its_own_currency_and_never_dropped():
+    page = dict(PAGE, datasets=[{"name": "rows", "sql": "SELECT * FROM value_rows"}], filters=[],
+                money={"currency": "convert", "base": "USD", "rates": VALUE_RATES, "value": {"method": "fixed", "amount": 120, "currency": "AED"}})
+    rows = _value_rows()
+    total = shell_sql.kpi_values(_run(shell_sql.kpi_query(page, "exposure", {})[0], "value_rows", VALUE_COLUMNS, rows))["now"]
+    assert round(total, 6) == round(3 * 120 * 0.27, 6), "three records at AED 120, converted at 0.27, are one total in USD, not a dropped value"
+
+
+def test_every_money_dataset_is_checked_for_the_saved_value_columns():
+    page = dict(PAGE, kpis=[{"id": "a", "dataset": "rows", "format": "currency"}, {"id": "b", "dataset": "other", "format": "currency"}])
+    assert shell_sql.money_datasets(page) == ["rows", "other"]
+    charts_only = {"kpis": [], "charts": [{"id": "c", "dataset": "charted", "y": [{"format": "currency"}]}]}
+    assert shell_sql.money_datasets(charts_only) == ["charted"]

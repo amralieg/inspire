@@ -2033,8 +2033,11 @@ class Shell:
         """The saved rule, minus its value when the table has lost a column the value uses; the note says so on the page."""
         if not isinstance(rule, dict) or not isinstance(rule.get("value"), dict):
             return rule, ""
-        dataset = next((k.get("dataset") for k in page.get("kpis") or [] if k.get("format") == "currency"), shell_sql.RECORDS_DATASET)
-        return shell_sql.money_value_fallback(rule, list(self.list_columns(ws, who, page, dataset)))
+        for dataset in shell_sql.money_datasets(page):
+            rule, note = shell_sql.money_value_fallback(rule, list(self.list_columns(ws, who, page, dataset)))
+            if note:
+                return rule, note
+        return rule, ""
 
     def with_money_note(self, page: dict, note: str) -> dict:
         return dict(page, money_note=note) if note else page

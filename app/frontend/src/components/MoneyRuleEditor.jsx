@@ -3,6 +3,7 @@ import { draftOf, ruleOf, ruleSentence } from '../../../agent/agent/app_shell/we
 import '../../../agent/agent/app_shell/web/src/styles/moneyRule.css';
 import { compileExpression } from '../../../agent/agent/app_shell/web/src/moneyValue.js';
 import { MONEY_PARTS } from '../lib/moneyParts.js';
+import AVERAGES from '../../../backend/lib/fxAverages.json';
 import { PlainMessage } from './TechnicalDetails.jsx';
 
 const ISO = /^[A-Z]{3}$/;
@@ -19,7 +20,7 @@ const DIRECTIONS = [
   { id: 'gains', label: 'Gains only', hint: 'Needs a sign below: only the gain records count.' },
   { id: 'net', label: 'Losses and gains, netted', hint: 'Gains and losses cancel out inside each total.' },
 ];
-const SOURCE_TEXT = { today: 'today’s rate', average: 'ECB average, 2025', typed: 'typed in', base: 'reporting currency', missing: 'no rate yet, type it in' };
+const SOURCE_TEXT = { today: 'today’s rate', average: `ECB average, ${AVERAGES.period.from.slice(0, 4)}`, typed: 'typed in', base: 'reporting currency', missing: 'no rate yet, type it in' };
 
 function pickOf(value) {
   if (!value || !['fixed', 'column', 'equation'].includes(value.method)) return { ...EMPTY_PICK };
@@ -106,14 +107,18 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
   const ratesRequest = useRef(0);
   const proposalRequest = useRef(0);
 
+  const shownBase = useRef(value?.base || '');
   const mergedRates = (current, data) => {
     const rates = data.rates || {};
     const sources = data.sources || {};
     const fresh = [{ code: data.base, rate: '1', source: 'base' }, ...(data.currencies || []).filter((c) => c.code !== data.base).map((c) => ({
       code: c.code, rate: rates[c.code] !== undefined ? String(rates[c.code]) : '', source: sources[c.code] || 'missing',
     }))];
-    const typed = new Map((current.rates || []).filter((row) => row.source === 'typed').map((row) => [row.code, row]));
-    return fresh.map((row) => (typed.has(row.code) ? typed.get(row.code) : row));
+    const baseChanged = data.base !== shownBase.current;
+    const typedRows = (current.rates || []).filter((row) => row.source === 'typed');
+    const dropped = typedRows.filter((row) => baseChanged || row.code === data.base).map((row) => row.code);
+    const kept = new Map(typedRows.filter((row) => !baseChanged && row.code !== data.base).map((row) => [row.code, row]));
+    return { rows: fresh.map((row) => (kept.has(row.code) ? kept.get(row.code) : row)), dropped };
   };
 
   const loadRates = (asked) => {
@@ -124,9 +129,12 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
     api.currencies({ table: tableAt, currency_column: currencyAt, base: asked }).then((data) => {
       if (request !== ratesRequest.current || tableAt !== table || currencyAt !== sample?.currency) return;
       const current = latest.current;
-      const next = { ...current.draft, mode: 'convert', base: data.base, rates: mergedRates(current.draft, data) };
+      const merged = mergedRates(current.draft, data);
+      const next = { ...current.draft, mode: 'convert', base: data.base, rates: merged.rows };
+      shownBase.current = data.base;
       setDraft(next);
-      setNotice(data.message || '');
+      const droppedText = merged.dropped.length ? `Your typed rate for ${merged.dropped.join(', ')} was for the previous reporting currency, so it was dropped; check the rate.` : '';
+      setNotice([data.message, droppedText].filter(Boolean).join(' '));
       save(next, current.pick);
     }).catch((err) => { if (request === ratesRequest.current) setNotice(err?.message || 'The rates could not be read; type them in.'); });
   };
@@ -166,7 +174,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
   };
 
   const shown = ruleOf(draft).rule;
-  const sentence = shown ? ruleSentence(shown) : '';
+  const sentence = shown && draft.base ? ruleSentence(shown) : '';
 
   return (
     <div className="money-rule space-y-4" data-money-rule-editor>
@@ -292,7 +300,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
               {draft.rates.map((row, i) => (
                 <tr key={row.code || i} data-money-rate-row={row.code}>
                   <td className="pe-4" data-money-rate-code>{row.code}</td>
-                  <td className="pe-4"><input dir="auto" className="w-32" aria-label={`Rate for ${row.code}`} value={row.rate} onChange={(e) => setRate(i, { rate: e.target.value })} data-money-rate /></td>
+                  <td className="pe-4"><input dir="auto" className="w-32" aria-label={`Rate for ${row.code}`} value={row.rate} disabled={row.source === 'base'} onChange={(e) => setRate(i, { rate: e.target.value })} data-money-rate /></td>
                   <td className="text-text-secondary" data-money-rate-source={row.source}>{SOURCE_TEXT[row.source] || row.source}</td>
                 </tr>
               ))}
@@ -324,6 +332,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
       </details>
       )}
       {!effective.method && <p className="text-[12px] text-text-secondary" data-money-genie-estimate>Until you choose how to measure value, the totals are Genie estimate, not your rule.</p>}
+      {!draft.base && <p className="text-[12px] text-text-secondary" data-money-base-needed>Pick the reporting currency: every amount is reported in it.</p>}
       {sentence && <p className="sentence text-[12px] text-text-primary" data-money-sentence>{sentence}</p>}
       {problems.length > 0 && <PlainMessage text={problems.join(' ')} className="text-[12px] text-danger" data-money-error />}
     </div>

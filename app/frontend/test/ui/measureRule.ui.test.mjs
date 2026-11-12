@@ -199,20 +199,37 @@ test('an equation that names a column the table does not have is refused before 
   }
 });
 
-test('a slow rates reply does not overwrite a rate the person typed while it was on its way', async () => {
+test('a slow rates reply for the same reporting currency does not overwrite a rate typed while it was on its way', async () => {
   const calls = { preview: [], currency: [], describe: [] };
-  const usdRates = { ...LIVE_RATES, base: 'USD', rates: { AED: 3.6725, EUR: 0.9 }, sources: { AED: 'today', EUR: 'today' } };
-  const ui = await openMeasure({ calls, init: plannedStub('currency-rates', (n) => (n === 0 ? { answer: LIVE_RATES } : { answer: usdRates, delay: 2000 }), calls.currency) });
+  const ui = await openMeasure({ calls, init: plannedStub('currency-rates', (n) => (n <= 1 ? { answer: LIVE_RATES } : { answer: LIVE_RATES, delay: 2000 }), calls.currency) });
   const { page } = ui;
   try {
     await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').waitFor({ timeout: 15000 });
-    await page.locator('[data-money-base]').fill('USD');
     await page.locator('[data-money-base]').blur();
     await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').fill('0.5');
-    await page.waitForFunction(() => document.querySelector('[data-money-base]')?.value === 'USD' && /1 EUR = 0\.5 USD/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
     await page.waitForTimeout(2500);
-    assert.equal(await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').inputValue(), '0.5', 'the typed rate survives the reply');
-    assert.match(await page.locator('[data-money-sentence]').innerText(), /1 EUR = 0\.5 USD/);
+    assert.equal(await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').inputValue(), '0.5', 'the typed rate survives a reply for the same base');
+    assert.match(await page.locator('[data-money-sentence]').innerText(), /1 EUR = 0\.5 AED/);
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('a rate typed for one reporting currency is dropped when the reporting currency changes, and never saved as the new base rate', async () => {
+  const calls = { preview: [], currency: [], describe: [] };
+  const eurBase = { base: 'EUR', currencies: [{ code: 'EUR', records: 4 }, { code: 'AED', records: 40 }], rates: { AED: 0.24 }, sources: { AED: 'today' }, missing: [], as_of: '2026-11-11', offline: false, message: '' };
+  const ui = await openMeasure({ calls, init: plannedStub('currency-rates', (n) => (n <= 1 ? { answer: LIVE_RATES } : { answer: eurBase }), calls.currency) });
+  const { page } = ui;
+  try {
+    await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').waitFor({ timeout: 15000 });
+    await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').fill('4.10');
+    await page.locator('[data-money-base]').fill('EUR');
+    await page.locator('[data-money-base]').blur();
+    await page.waitForFunction(() => document.querySelector('[data-money-base]')?.value === 'EUR' && /dropped/.test(document.querySelector('[data-money-rates-notice]')?.textContent || ''), null, { timeout: 15000 });
+    assert.equal(await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').inputValue(), '1', 'EUR is the reporting currency, so its rate is 1');
+    assert.equal(await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').isDisabled(), true);
+    assert.doesNotMatch(await page.locator('[data-money-sentence]').innerText(), /EUR = 4\.1 /, 'the typed 4.10 is never saved as the EUR rate');
+    assert.match(await page.locator('[data-money-rates-notice]').innerText(), /Your typed rate for EUR was for the previous reporting currency, so it was dropped/);
   } finally {
     await page.context().close();
   }
