@@ -5,6 +5,7 @@ import { PERSONAL_KEY_REASON, personalColumn } from './personalColumns.js';
 import { specVibeAsks, vibeConflicts, vibeRefusalText, vibeRefusals } from './vibeLimits.js';
 import { kpiTargetOf, kpiTargetProblems, stakeWords, withKpiTarget } from './targetKpi.js';
 import { FIRST_RUN_LABEL, firstRunSent, latestRunScope, scopeProblems, scopeValues } from './runScope.js';
+import { normalizeTableScope, tableScopeOf } from './tableScope.js';
 import { PLACE_NAME_RE } from './tableName.js';
 import {
   allowedRule, allowedText, isSettingWidget, numberText, settingsModelOf, settingsProblems, widgetProblems, widgetSetProblems, widgetValueProblem,
@@ -891,7 +892,10 @@ export function columnsReadOf(spec, table) {
   return Object.values(spec.data.column_roles || {}).filter((ref) => ref && same(tableOfRef(ref), table)).map((ref) => columnOfRef(ref));
 }
 
-export function readinessScope(spec, uc) {
+// The rows and columns Inspire counts for a use case. The Data Filters the person set on the Launch page are the
+// ceiling: their row filters always apply, and their columns bound the columns the build reads. Without them the
+// count would read the whole table even though Discover read only the scope (REQ-021).
+export function readinessScope(spec, uc, launchScopes = {}) {
   const original = primaryTableOf(uc) || tablesOf(uc)[0] || '';
   const table = spec.data.tables?.[original] || original;
   const own = (ref) => sameTable(tableOfRef(ref), table);
@@ -904,10 +908,15 @@ export function readinessScope(spec, uc) {
   }
   const elsewhere = (spec.data.filters || []).filter((f) => !sameTable(f.table, table)).map((f) => f.table);
   for (const other of [...new Set(elsewhere)]) uncounted.push(`the filters on ${other}`);
+  const launch = tableScopeOf(launchScopes, table) ? normalizeTableScope(tableScopeOf(launchScopes, table)) : null;
+  const roleColumns = Object.values(roles).filter((ref) => ref && own(ref)).map((ref) => String(ref).split('.').pop());
+  const launchColumns = launch ? launch.columns : [];
+  const inScope = roleColumns.filter((c) => launchColumns.some((l) => l.toLowerCase() === c.toLowerCase()));
+  const launchRows = launch ? launch.rows.map((r) => ({ table, column: r.column, op: r.op, values: r.values })) : [];
   return {
     table,
-    columns: Object.values(roles).filter((ref) => ref && own(ref)).map((ref) => String(ref).split('.').pop()),
-    filters: (spec.data.filters || []).filter((f) => sameTable(f.table, table)),
+    columns: !launchColumns.length ? roleColumns : (inScope.length ? inScope : launchColumns),
+    filters: [...launchRows, ...(spec.data.filters || []).filter((f) => sameTable(f.table, table))],
     window: dateRef ? { column: dateRef.split('.').pop(), ...spec.data.window } : {},
     uncounted,
   };
