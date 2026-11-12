@@ -15,7 +15,7 @@ sys.path.insert(0, str(INSTALLER_DIR))
 import release
 
 VERSION = "v1.3.0"
-FORK_BASE = "https://github.com/amralieg/inspire/releases/download/v1.3.0-test"
+RELEASE_BASE = f"https://github.com/amralieg/inspire/releases/download/{VERSION}"
 FAKE_MODULE = (
     "def run(env):\n"
     "    env['displayHTML']('<p>installed</p>')\n"
@@ -71,7 +71,7 @@ def make_assets(folder, version=VERSION, files=None):
     return files
 
 
-def build_release(tmp, name="release", version=VERSION, module=FAKE_MODULE, assets=None, extra=None):
+def build_release(tmp, name="release", version=VERSION, module=FAKE_MODULE, assets=None, extra=None, tag=None):
     tmp = pathlib.Path(tmp)
     app_zip = tmp / f"{name}-app.zip"
     make_app_zip(app_zip, version, module, extra)
@@ -79,7 +79,7 @@ def build_release(tmp, name="release", version=VERSION, module=FAKE_MODULE, asse
     assets_dir.mkdir()
     make_assets(assets_dir, version, assets)
     out = tmp / name
-    release.build(str(app_zip), str(assets_dir), str(out))
+    release.build(str(app_zip), str(assets_dir), str(out), tag or version)
     return out
 
 
@@ -138,7 +138,11 @@ class FakeWidgets:
 
 
 def load_starter(stage):
-    ns = release.load_starter()
+    stage = pathlib.Path(stage)
+    stage.mkdir(parents=True, exist_ok=True)
+    stamped = stage / "inspire_installer_stamped.py"
+    stamped.write_text(release.stamp(release.STARTER, VERSION), encoding="utf-8")
+    ns = release.load_starter(stamped)
     ns["STAGE"] = str(stage)
     shown = []
     ns["displayHTML"] = shown.append

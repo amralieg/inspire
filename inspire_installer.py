@@ -2,7 +2,7 @@
 # MAGIC %md
 # MAGIC # Inspire installer
 # MAGIC
-# MAGIC **Run All.** The installer gets the latest Inspire release from GitHub, checks the size and sha256 of every file, and installs the Inspire App in this workspace.
+# MAGIC **Run All.** The installer gets the Inspire release it was built with from GitHub, checks the size and sha256 of every file, and installs the Inspire App in this workspace.
 # MAGIC
 # MAGIC - When this workspace cannot reach GitHub, it uses the release files imported next to this notebook.
 # MAGIC - When those are missing too, it shows the commands that download them on your computer and the folder to import them into.
@@ -37,8 +37,8 @@ RELEASE_REPO = "amralieg/inspire"
 INTERNET_BLOCKED = False
 SCAN_CATALOGS = "all"
 NEW_APPS_CATALOG_ACCESS = "account users"
-LATEST_BASE = f"https://github.com/{RELEASE_REPO}/releases/latest/download"
-TEST_BASE = re.compile(re.escape(f"https://github.com/{RELEASE_REPO}/releases/download/") + r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}")
+RELEASE_TAG = ""
+TAG = re.compile(r"v[0-9]\.[0-9]\.[0-9](-rc\.[0-9]+)?")
 DOWNLOAD_HOSTS = ("github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
 INSTALLER = "inspire_installer.py"
 MANIFEST = "manifest.json"
@@ -141,17 +141,22 @@ class InspireNotInstalled(RuntimeError):
     pass
 
 
+def release_base(tag):
+    return f"https://github.com/{RELEASE_REPO}/releases/download/{tag}"
+
+
 def release_source(settings):
-    base = str(settings.get("release") or "").rstrip("/")
-    if not base:
-        return LATEST_BASE, RELEASE_REPO
-    if not TEST_BASE.fullmatch(base):
-        raise InspireTrustError(f"The test setting release {base[:200]!r} is not a release of {RELEASE_REPO} on github.com, so it is refused.")
+    if not TAG.fullmatch(RELEASE_TAG):
+        raise InspireReleaseError("This installer carries no release tag, so it cannot name its release. Download the installer from a release again.")
+    base = release_base(RELEASE_TAG)
+    requested = str(settings.get("release") or "").rstrip("/")
+    if requested and requested != base:
+        raise InspireTrustError(f"The test setting release {requested[:200]!r} is not this installer's release {base}, so it is refused.")
     return base, RELEASE_REPO
 
 
 def release_page(base):
-    return base.replace("/releases/latest/download", "/releases/latest").replace("/releases/download/", "/releases/tag/")
+    return base.replace("/releases/download/", "/releases/tag/")
 
 
 def trusted_url(url, repo):
@@ -248,6 +253,8 @@ def check_manifest(manifest):
         raise bad("format")
     if not VERSION.fullmatch(str(manifest.get("version") or "")):
         raise bad("version")
+    if not TAG.fullmatch(str(manifest.get("tag") or "")):
+        raise bad("tag")
     if not isinstance(manifest.get("starter_min_version"), int):
         raise bad("starter_min_version")
     files = manifest.get("files")
@@ -277,11 +284,18 @@ def check_manifest(manifest):
     return manifest
 
 
-def check_starter(manifest, base=LATEST_BASE):
+def check_pinned(manifest):
+    if manifest["tag"] != RELEASE_TAG or manifest["version"] != RELEASE_TAG.split("-rc.")[0]:
+        raise InspireMixedRelease(
+            f"This installer belongs to {RELEASE_TAG}, but {MANIFEST} next to it is {manifest['tag']} (Inspire {manifest['version']}). "
+            "This installer installs only its own release, so it is refused. Download every file of one release again and import them here.")
+
+
+def check_starter(manifest):
     if manifest["starter_min_version"] > STARTER_VERSION:
         raise InspireStarterTooOld(
             f"Inspire {manifest['version']} needs a newer installer than this one (installer {STARTER_VERSION}, needed "
-            f"{manifest['starter_min_version']}). Download the latest installer from {base}/{INSTALLER}, import it in place "
+            f"{manifest['starter_min_version']}). Download the installer from {release_base(manifest['tag'])}/{INSTALLER}, import it in place "
             "of this notebook, and run it.")
 
 
@@ -370,7 +384,8 @@ def acquire_online(base, repo, folder, opener=open_trusted):
     if not github_reachable(base, repo, incoming, opener):
         raise InspireReleaseError("not tried, because INTERNET_BLOCKED is True in this installer.")
     manifest = check_manifest(read_json(incoming, MANIFEST))
-    check_starter(manifest, base)
+    check_pinned(manifest)
+    check_starter(manifest)
     version = manifest["version"]
     stage = os.path.join(STAGE, version)
     files = {}
@@ -397,12 +412,13 @@ def acquire_online(base, repo, folder, opener=open_trusted):
     return {"source": "online", "manifest": manifest, "files": files, "stage": stage}
 
 
-def acquire_local(folder, exporter=None, base=LATEST_BASE):
+def acquire_local(folder, exporter=None):
     path = os.path.join(folder, MANIFEST)
     if not os.path.isfile(path):
         raise InspireIncomplete(f"No {MANIFEST} is next to this installer in {folder}.")
     manifest = check_manifest(read_json(path, f"{MANIFEST} next to this installer"))
-    check_starter(manifest, base)
+    check_pinned(manifest)
+    check_starter(manifest)
     version = manifest["version"]
     stage = os.path.join(STAGE, version)
     files, absent, notes = {}, [], {}
@@ -592,7 +608,7 @@ def acquire(folder, notebook, settings, opener=None, exporter=None):
     try:
         return acquire_online(base, repo, folder, opener)
     except InspireStarterTooOld as exc:
-        show(*stop_page("This installer is too old for the latest Inspire", str(exc)))
+        show(*stop_page("This installer is too old for this Inspire release", str(exc)))
         raise InspireNotInstalled(str(exc)) from None
     except InspireDownloadCut as exc:
         reasons.append(f"GitHub: {exc}")
@@ -601,7 +617,7 @@ def acquire(folder, notebook, settings, opener=None, exporter=None):
         reasons.append(f"GitHub: {describe(exc)}")
     print(f"  {reasons[-1].rstrip('.')}. Looking for the release files next to this installer in {folder}")
     try:
-        return acquire_local(folder, exporter, base)
+        return acquire_local(folder, exporter)
     except InspireMixedRelease as exc:
         show(*stop_page("The files next to this installer are not one Inspire release", str(exc)))
         raise InspireNotInstalled(str(exc)) from None

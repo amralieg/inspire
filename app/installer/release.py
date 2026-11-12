@@ -5,7 +5,6 @@ import json
 import os
 import pathlib
 import re
-import shutil
 import subprocess
 import sys
 import tarfile
@@ -169,7 +168,14 @@ def four_files(manifest, starter):
     return manifest
 
 
-def build(app_zip, assets, out, starter_path=STARTER):
+def stamp(starter_path, tag):
+    text = pathlib.Path(starter_path).read_text(encoding="utf-8")
+    if text.count('RELEASE_TAG = ""') != 1:
+        raise ReleaseFailure(f"{starter_path} must carry one unstamped RELEASE_TAG line")
+    return text.replace('RELEASE_TAG = ""', f'RELEASE_TAG = "{tag}"')
+
+
+def build(app_zip, assets, out, tag, starter_path=STARTER):
     starter = load_starter(starter_path)
     if STARTER_MIN_VERSION > starter["STARTER_VERSION"]:
         raise ReleaseFailure(f"the installer is version {starter['STARTER_VERSION']}, the release needs {STARTER_MIN_VERSION}")
@@ -189,6 +195,8 @@ def build(app_zip, assets, out, starter_path=STARTER):
         pinned = notebook_assets(archive)
         module = module_member(archive)
         contents = zip_contents(archive, starter)
+    if not (tag == version or tag.startswith(version + "-rc.")):
+        raise ReleaseFailure(f"tag {tag} does not name the version the agent in {APP_ZIP} carries, {version}")
     tar_path = out / ASSETS_TAR
     asset_count = write_assets_tar(pathlib.Path(assets), version, tar_path, starter, pinned)
     files = []
@@ -196,9 +204,9 @@ def build(app_zip, assets, out, starter_path=STARTER):
         digest, size = starter["file_digest"](str(path))
         files.append({"name": path.name, "size": size, "sha256": digest, **extra})
     installer = out / starter["INSTALLER"]
-    shutil.copyfile(starter_path, installer)
+    installer.write_text(stamp(starter_path, tag), encoding="utf-8")
     digest, size = starter["file_digest"](str(installer))
-    manifest = {"format": 1, "version": version, "starter_min_version": STARTER_MIN_VERSION,
+    manifest = {"format": 1, "version": version, "tag": tag, "starter_min_version": STARTER_MIN_VERSION,
                 "installer": {"name": installer.name, "size": size, "sha256": digest},
                 "entry": {"file": APP_ZIP, "module": module, "function": "run"}, "files": files}
     four_files(starter["check_manifest"](manifest), starter)
@@ -221,10 +229,12 @@ def genie_walk(genie, run=subprocess.run):
     return [f"live Genie walk on {app}: exit {done.returncode}, see its FAIL lines above"] if done.returncode else []
 
 
-def check(base, opener=None, work=None, genie=None, run=subprocess.run):
+def check(tag, opener=None, work=None, genie=None, run=subprocess.run):
     starter = load_starter()
     opener = opener or starter["open_trusted"]
-    base, repo = starter["release_source"]({} if base.rstrip("/") == starter["LATEST_BASE"] else {"release": base})
+    if not starter["TAG"].fullmatch(tag):
+        raise ReleaseFailure(f"{tag} is not a release tag of Inspire")
+    base, repo = starter["release_base"](tag), starter["RELEASE_REPO"]
     work = pathlib.Path(work or tempfile.mkdtemp(prefix="inspire_release_check_"))
     download = starter["download"]
     rows, failures = [], []
@@ -235,6 +245,8 @@ def check(base, opener=None, work=None, genie=None, run=subprocess.run):
         four_files(manifest, starter)
     except ReleaseFailure as exc:
         failures.append(str(exc).removeprefix("release: "))
+    if manifest["tag"] != tag:
+        failures.append(f"{starter['MANIFEST']} names {manifest['tag']}, the release is {tag}")
     listed = [manifest.get("installer") or {}] + manifest["files"]
     sizes = {entry["name"]: (entry["size"], entry["sha256"]) for entry in listed if entry.get("name")}
     rows.append(f"OK    {starter['MANIFEST']}  {manifest_path.stat().st_size} bytes  read through its link")
@@ -261,6 +273,9 @@ def check(base, opener=None, work=None, genie=None, run=subprocess.run):
             failures.append(carried)
         except Exception as exc:
             failures.append(unknown % exc)
+    stamped = re.search(r'^RELEASE_TAG = "([^"]*)"$', (work / starter["INSTALLER"]).read_text(encoding="utf-8"), re.M)
+    if not stamped or stamped.group(1) != tag:
+        failures.append(f"{starter['INSTALLER']} is stamped {stamped.group(1) if stamped else 'with no tag'}, the release is {tag}")
     print("\n".join(rows))
     failures += genie_walk(genie, run)
     print(f"release check {base}: {len([r for r in rows if r.startswith('OK')])} of {len(starter['RELEASE_FILES'])} files OK, "
@@ -285,19 +300,20 @@ def command(argv):
     make = commands.add_parser("build")
     make.add_argument("--assets", required=True)
     make.add_argument("--out", required=True)
+    make.add_argument("--tag", required=True)
     make.add_argument("--app-zip")
     verify = commands.add_parser("check")
-    verify.add_argument("--base", default=load_starter()["LATEST_BASE"])
+    verify.add_argument("--tag", required=True)
     for name in ("app", "inspire", "profile"):
         verify.add_argument(f"--genie-{name}", default="")
     args = parser.parse_args(argv)
     if args.command == "build":
-        build(args.app_zip, args.assets, args.out)
+        build(args.app_zip, args.assets, args.out, args.tag)
         return 0
     genie = (args.genie_app, args.genie_inspire, args.genie_profile)
     if any(genie) and not all(genie):
         parser.error("the live Genie walk needs --genie-app, --genie-inspire and --genie-profile together")
-    return 1 if check(args.base, genie=genie if all(genie) else None) else 0
+    return 1 if check(args.tag, genie=genie if all(genie) else None) else 0
 
 
 if __name__ == "__main__":

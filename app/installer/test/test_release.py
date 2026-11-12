@@ -16,7 +16,7 @@ import zipfile
 import support
 
 release = support.release
-LATEST = "https://github.com/amralieg/inspire/releases/latest/download"
+LATEST = support.RELEASE_BASE
 
 
 class BuildTest(unittest.TestCase):
@@ -30,6 +30,16 @@ class BuildTest(unittest.TestCase):
         with contextlib.redirect_stdout(io.StringIO()):
             return support.build_release(self.tmp, **kwargs)
 
+    def test_the_build_stamps_its_tag_into_the_installer_and_the_manifest(self):
+        out = self.build(tag=f"{support.VERSION}-rc.6")
+        self.assertIn(f'RELEASE_TAG = "{support.VERSION}-rc.6"', (out / "inspire_installer.py").read_text())
+        self.assertEqual(json.loads((out / "manifest.json").read_text())["tag"], f"{support.VERSION}-rc.6")
+
+    def test_the_build_refuses_a_tag_that_does_not_name_its_version(self):
+        with self.assertRaises(SystemExit) as caught:
+            self.build(tag="v1.4.0-rc.1")
+        self.assertIn("does not name the version", str(caught.exception))
+
     def test_a_release_holds_exactly_the_four_files_and_its_manifest_lists_whole_files_without_parts(self):
         out = self.build()
         manifest = json.loads((out / "manifest.json").read_text())
@@ -37,8 +47,8 @@ class BuildTest(unittest.TestCase):
                          ["inspire-app.zip", "inspire-assets.tar", "inspire_installer.py", "manifest.json"])
         self.assertEqual((manifest["format"], manifest["version"], manifest["starter_min_version"]), (1, "v1.3.0", 1))
         self.assertEqual(manifest["entry"], {"file": "inspire-app.zip", "module": "installer/inspire_setup.py", "function": "run"})
-        self.assertEqual(manifest["installer"], {"name": "inspire_installer.py", "size": release.STARTER.stat().st_size,
-                                                 "sha256": support.sha(release.STARTER.read_bytes())})
+        stamped = release.stamp(release.STARTER, support.VERSION).encode("utf-8")
+        self.assertEqual(manifest["installer"], {"name": "inspire_installer.py", "size": len(stamped), "sha256": support.sha(stamped)})
         self.assertEqual([entry["name"] for entry in manifest["files"]], ["inspire-app.zip", "inspire-assets.tar"])
         for entry in manifest["files"]:
             whole = (out / entry["name"]).read_bytes()
@@ -106,20 +116,20 @@ class BuildTest(unittest.TestCase):
         app = self.tmp / "app.zip"
         support.make_app_zip(app)
         with self.assertRaises(SystemExit) as caught:
-            release.build(str(app), str(assets), str(self.tmp / "out1"))
+            release.build(str(app), str(assets), str(self.tmp / "out1"), support.VERSION)
         self.assertIn("does not match its size and sha256", str(caught.exception))
         other = self.tmp / "assets2"
         other.mkdir()
         support.make_assets(other, version="v1.3.1")
         with self.assertRaises(SystemExit) as caught:
-            release.build(str(app), str(other), str(self.tmp / "out2"))
+            release.build(str(app), str(other), str(self.tmp / "out2"), support.VERSION)
         self.assertIn("is for Inspire v1.3.1, the agent in inspire-app.zip is v1.3.0", str(caught.exception))
         twice = self.tmp / "twice.zip"
         support.make_app_zip(twice)
         with zipfile.ZipFile(twice, "a") as archive:
             archive.writestr("app/installer/inspire_setup.py", "def run(env):\n    return 1\n")
         with self.assertRaises(SystemExit) as caught:
-            release.build(str(twice), str(other), str(self.tmp / "out3"))
+            release.build(str(twice), str(other), str(self.tmp / "out3"), support.VERSION)
         self.assertIn("must hold one installer/inspire_setup.py, it holds 2", str(caught.exception))
 
     def test_a_release_ships_only_the_notebook_assets_build_the_agent_notebook_pins(self):
@@ -135,7 +145,7 @@ class BuildTest(unittest.TestCase):
             app = self.tmp / f"pinned{number}.zip"
             support.make_app_zip(app, extra={"dbx_inspire_ai_agent.ipynb": support.agent_notebook(pins=pins)})
             with self.assertRaises(SystemExit) as caught:
-                release.build(str(app), str(assets), str(self.tmp / f"pinned-out{number}"))
+                release.build(str(app), str(assets), str(self.tmp / f"pinned-out{number}"), support.VERSION)
             self.assertIn("the assets do not carry the build of app_shell", str(caught.exception))
             self.assertIn("run app/agent/release/build_assets.py again", str(caught.exception))
         bare = json.loads(support.agent_notebook())
@@ -143,7 +153,7 @@ class BuildTest(unittest.TestCase):
         app = self.tmp / "bare.zip"
         support.make_app_zip(app, extra={"dbx_inspire_ai_agent.ipynb": json.dumps(bare).encode("utf-8")})
         with self.assertRaises(SystemExit) as caught:
-            release.build(str(app), str(assets), str(self.tmp / "bare-out"))
+            release.build(str(app), str(assets), str(self.tmp / "bare-out"), support.VERSION)
         self.assertIn("must pin its assets on one INSPIRE_NOTEBOOK_ASSETS line, it has 0", str(caught.exception))
 
     def test_the_release_leaves_the_installer_tests_and_the_release_script_out_of_the_app_zip(self):
@@ -166,7 +176,7 @@ class BuildTest(unittest.TestCase):
         assets.mkdir()
         support.make_assets(assets)
         with contextlib.redirect_stdout(io.StringIO()):
-            release.build(str(app), str(assets), str(self.tmp / "dir-out"))
+            release.build(str(app), str(assets), str(self.tmp / "dir-out"), support.VERSION)
         with zipfile.ZipFile(self.tmp / "dir-out" / "inspire-app.zip") as archive:
             folders = sorted(i.filename for i in archive.infolist() if i.is_dir())
         self.assertEqual(folders, ["backend/", "frontend/", "frontend/dist/", "installer/"])
@@ -190,7 +200,7 @@ class BuildTest(unittest.TestCase):
                     archive.writestr(info, b"" if name.endswith("/") else files[name])
             out = self.tmp / f"same-out{number}"
             with contextlib.redirect_stdout(io.StringIO()):
-                release.build(str(packed), str(assets), str(out))
+                release.build(str(packed), str(assets), str(out), support.VERSION)
             outs.append(out)
         self.assertEqual((outs[0] / "inspire-app.zip").read_bytes(), (outs[1] / "inspire-app.zip").read_bytes())
         self.assertEqual((outs[0] / "manifest.json").read_bytes(), (outs[1] / "manifest.json").read_bytes())
@@ -216,10 +226,10 @@ class CheckTest(unittest.TestCase):
     def tearDown(self):
         shutil.rmtree(self.tmp, ignore_errors=True)
 
-    def check(self, github, base=LATEST):
+    def check(self, github, tag=support.VERSION):
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            failures = release.check(base, opener=github, work=self.tmp / "work")
+            failures = release.check(tag, opener=github, work=self.tmp / "work")
         return failures, out.getvalue()
 
     def test_a_good_release_passes_with_every_file_downloaded_through_its_link(self):
@@ -227,7 +237,7 @@ class CheckTest(unittest.TestCase):
         failures, said = self.check(github)
         self.assertEqual(failures, [])
         self.assertEqual(sorted(github.requested), sorted([path.name for path in self.out.iterdir()] + list(release.LEFT_OUT)))
-        self.assertIn("release check https://github.com/amralieg/inspire/releases/latest/download: 4 of 4 files OK, 0 failures", said)
+        self.assertIn(f"release check {LATEST}: 4 of 4 files OK, 0 failures", said)
 
     def test_a_changed_file_a_missing_tar_an_extra_part_extra_sums_and_a_manifest_with_parts_each_fail_the_check(self):
         manifest = json.loads((self.out / "manifest.json").read_text())
@@ -272,18 +282,20 @@ class CheckTest(unittest.TestCase):
         release.load_starter = starter
         try:
             with contextlib.redirect_stdout(io.StringIO()):
-                self.assertEqual(release.main(["check"]), 1)
+                self.assertEqual(release.main(["check", "--tag", support.VERSION]), 1)
                 github.files["inspire-app.zip"] = (self.out / "inspire-app.zip").read_bytes()
-                self.assertEqual(release.main(["check"]), 0)
+                self.assertEqual(release.main(["check", "--tag", support.VERSION]), 0)
         finally:
             release.load_starter = saved
 
-    def test_the_check_reads_only_the_latest_links_or_a_fork_pre_release(self):
-        github = support.FakeGitHub(support.FORK_BASE, self.out)
-        self.assertEqual(self.check(github, support.FORK_BASE)[0], [])
-        with self.assertRaises(RuntimeError) as caught:
-            self.check(github, "https://github.com/someone/else/releases/download/v1.3.0")
-        self.assertIn("is not a release of amralieg/inspire on github.com", str(caught.exception))
+    def test_the_check_reads_the_tag_it_is_given_and_refuses_a_release_built_with_another_tag(self):
+        github = support.FakeGitHub(support.RELEASE_BASE, self.out)
+        self.assertEqual(self.check(github, support.VERSION)[0], [])
+        other = support.FakeGitHub(support.RELEASE_BASE.replace(support.VERSION, "v1.3.0-rc.1"), self.out)
+        failures, said = self.check(other, "v1.3.0-rc.1")
+        self.assertIn("manifest.json names v1.3.0, the release is v1.3.0-rc.1", failures)
+        self.assertIn("installer.py is stamped", "".join(failures))
+        self.assertIn("FAIL", said)
 
     def test_the_check_runs_the_live_genie_walk_on_the_named_built_app_and_fails_when_any_answer_has_no_data(self):
         github = support.FakeGitHub(LATEST, self.out)
@@ -296,14 +308,14 @@ class CheckTest(unittest.TestCase):
             return run
         out = io.StringIO()
         with contextlib.redirect_stdout(out):
-            failures = release.check(LATEST, opener=github, work=self.tmp / "w1", genie=("pricing-desk", "inspire-test", "test-ws"), run=walk(1))
+            failures = release.check(support.VERSION, opener=github, work=self.tmp / "w1", genie=("pricing-desk", "inspire-test", "test-ws"), run=walk(1))
         self.assertEqual(failures, ["live Genie walk on pricing-desk: exit 1, see its FAIL lines above"])
         self.assertIn("1 failure", out.getvalue())
         self.assertEqual(calls[0][0], ["node", str(release.GENIE_WALK), "--app", "pricing-desk", "--inspire", "inspire-test", "--profile", "test-ws"])
         self.assertTrue(release.GENIE_WALK.is_file())
         self.assertEqual(calls[0][1], str(release.GENIE_WALK.parent.parent))
         with contextlib.redirect_stdout(io.StringIO()):
-            self.assertEqual(release.check(LATEST, opener=github, work=self.tmp / "w2", genie=("pricing-desk", "inspire-test", "test-ws"), run=walk(0)), [])
+            self.assertEqual(release.check(support.VERSION, opener=github, work=self.tmp / "w2", genie=("pricing-desk", "inspire-test", "test-ws"), run=walk(0)), [])
 
     def test_without_a_named_app_the_check_says_the_genie_walk_did_not_run_and_a_partial_name_is_refused(self):
         github = support.FakeGitHub(LATEST, self.out)
@@ -312,7 +324,7 @@ class CheckTest(unittest.TestCase):
         self.assertIn("NOT RUN  live Genie walk", said)
         with contextlib.redirect_stdout(io.StringIO()), contextlib.redirect_stderr(io.StringIO()) as err:
             with self.assertRaises(SystemExit) as caught:
-                release.main(["check", "--genie-app", "pricing-desk"])
+                release.main(["check", "--tag", support.VERSION, "--genie-app", "pricing-desk"])
         self.assertEqual(caught.exception.code, 2)
         self.assertIn("needs --genie-app, --genie-inspire and --genie-profile together", err.getvalue())
 

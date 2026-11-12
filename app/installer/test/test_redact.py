@@ -115,7 +115,7 @@ class InstallerRedactCase(unittest.TestCase):
         self.assertEqual(leaked(self.stderr), [])
 
 
-LATEST = "https://github.com/amralieg/inspire/releases/latest/download"
+LATEST = support.RELEASE_BASE
 
 
 class ReleaseRedactCase(unittest.TestCase):
@@ -148,7 +148,7 @@ class ReleaseRedactCase(unittest.TestCase):
         result = None
         with contextlib.redirect_stdout(out), contextlib.redirect_stderr(err):
             try:
-                result = release.main(["check"])
+                result = release.main(["check", "--tag", support.VERSION])
             except Exception as exc:
                 result = exc
         return result, out.getvalue(), err.getvalue()
