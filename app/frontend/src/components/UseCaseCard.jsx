@@ -15,11 +15,16 @@ import {
 } from '../lib/useCaseFields';
 import ValueEstimateLine from './ValueEstimateLine';
 import ValueBadge from './ValueBadge';
-import UseCaseNameEditor, { UseCaseNameNotes } from './UseCaseNameEditor';
+import { UseCaseNameNotes, UseCaseNameTitle, UseCaseRenameButton, useUseCaseRename } from './UseCaseNameEditor';
 
 const s = (v) => (v == null ? '' : String(v));
 
-export default function UseCaseCard({
+export default function UseCaseCard(props) {
+  if (!props.uc || typeof props.uc !== 'object') return null;
+  return <UseCaseCardBody {...props} />;
+}
+
+function UseCaseCardBody({
   uc,
   index,
   expanded,
@@ -41,9 +46,7 @@ export default function UseCaseCard({
   useCaseValue = null,
   ...detailProps
 }) {
-  const card = uc && typeof uc === 'object' ? uc : null;
-  if (!card) return null;
-  const u = card;
+  const u = uc;
   const { title: titlePlain, subtitle: subtitleText } = cardTitlesOfUseCase(u, index);
   const domain = s(u._domain || u['Business Domain'] || u.domain);
   const subdomain = s(u.Subdomain);
@@ -53,6 +56,7 @@ export default function UseCaseCard({
   const inspireScoreNum = inspireScoreFromUc(u);
   const showPriorityPill = !!(priority && inspireScoreNum == null && !isNumericPriorityString(priority));
   const kind = v130?.kind || null;
+  const rename = useUseCaseRename(s(u.Name) || titlePlain, onRename);
 
   return (
     <div className="bg-surface border border-border/70 rounded-xl overflow-hidden shadow-elevated lift-on-hover hover:border-db-red/25">
@@ -84,7 +88,7 @@ export default function UseCaseCard({
             <div className="flex items-start justify-between gap-3">
               <div className="min-w-0 flex-1">
                 <div className="flex flex-wrap items-baseline gap-x-2 gap-y-1">
-                  <UseCaseNameEditor text={titlePlain} value={s(u.Name) || titlePlain} onSave={onRename} />
+                  <UseCaseNameTitle text={titlePlain} rename={rename} />
                   {v130?.bestOfBest && (
                     <span
                       className="inline-flex items-center gap-1 text-[10px] sm:text-[11px] font-semibold uppercase tracking-[0.14em] px-2 py-0.5 rounded-md border shrink-0 leading-none text-warning-fg border-warning/35 bg-warning-bg"
@@ -155,6 +159,7 @@ export default function UseCaseCard({
             </div>
           </div>
         </div>
+        <UseCaseRenameButton text={titlePlain} rename={rename} />
         {typeof onToggleArchive === 'function' && (
           <button
             type="button"

@@ -38,7 +38,7 @@ function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
     launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
-    createdJob: null, presentPaths: [], runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
+    createdJob: null, presentPaths: [], statusErrors: {}, runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -208,6 +208,9 @@ async function stubFetch(url, opts = {}) {
     return { ok: true, status: range ? 206 : 200, headers: new Map([['content-length', String(method === 'HEAD' ? whole.length : part.length)]]),
       json: async () => JSON.parse(part.toString()), text: async () => (method === 'HEAD' ? '' : part.toString()), arrayBuffer: async () => part };
   }
+  const statusFailure = state.statusErrors && state.statusErrors[u.searchParams.get('path')];
+  if (u.pathname === '/api/2.0/workspace/get-status' && statusFailure === 'network') throw new Error('getaddrinfo ENOTFOUND workspace.internal.example');
+  if (u.pathname === '/api/2.0/workspace/get-status' && statusFailure) return json({ error_code: 'INTERNAL_ERROR', message: 'raw workspace detail' }, statusFailure);
   if (u.pathname === '/api/2.0/workspace/get-status' && (state.presentPaths || []).includes(u.searchParams.get('path'))) return json({ object_type: 'FILE', path: u.searchParams.get('path') });
   const folder = folderAnswer(state, { method, pathname: u.pathname, searchParams: u.searchParams, body, token }, writableBy);
   if (folder) return json(folder[1], folder[0]);

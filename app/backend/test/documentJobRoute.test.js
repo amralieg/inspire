@@ -1,7 +1,7 @@
 const test = require('node:test');
 const assert = require('node:assert/strict');
 const S = require('./support/serverApp');
-const { CATALOG_MISSING_TEXT } = require('../lib/documentJob');
+const { CATALOG_MISSING_TEXT, CATALOG_CHECK_FAILED_TEXT } = require('../lib/documentJob');
 const frontendLib = require('node:url');
 const path = require('node:path');
 
@@ -90,5 +90,26 @@ test('a session whose English catalog file is gone is told in plain words, with 
   assert.equal(got.status, 409, got.text.slice(0, 300));
   assert.equal(got.data.error, CATALOG_MISSING_TEXT);
   assert.equal(got.data.error.includes(OUT), false, 'no path in the words the person reads');
+  assert.equal(creates().length, 0);
+});
+
+test('a catalog check that answers an error other than missing says so in plain words, with no raw detail, and starts no job (REQ-077)', async () => {
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+    statusErrors: { [CATALOG]: 500 } });
+  const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
+  assert.equal(got.status, 503, got.text.slice(0, 300));
+  assert.equal(got.data.error, CATALOG_CHECK_FAILED_TEXT);
+  assert.equal(got.text.includes('raw workspace detail'), false, 'the workspace answer is not passed on');
+  assert.equal(got.text.includes('missing'), false, 'an error that is not a 404 is never reported as a missing catalog');
+  assert.equal(creates().length, 0);
+});
+
+test('a catalog check that cannot reach the workspace says so in plain words, with no raw host or error text, and starts no job (REQ-077)', async () => {
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+    statusErrors: { [CATALOG]: 'network' } });
+  const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
+  assert.equal(got.status, 503, got.text.slice(0, 300));
+  assert.equal(got.data.error, CATALOG_CHECK_FAILED_TEXT);
+  assert.equal(got.text.includes('ENOTFOUND'), false, 'no raw network error reaches the person');
   assert.equal(creates().length, 0);
 });

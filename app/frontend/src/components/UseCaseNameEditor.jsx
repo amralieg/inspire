@@ -6,7 +6,7 @@ import SaveButton from './SaveButton';
 export const NAME_TEXT_CLASS = 'text-lg sm:text-xl font-bold text-text-primary leading-snug';
 const tidy = (value) => String(value ?? '').replace(/\s+/g, ' ').trim();
 
-export default function UseCaseNameEditor({ text, value, onSave }) {
+export function useUseCaseRename(value, onSave) {
   const [editing, setEditing] = useState(false);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState('');
@@ -35,49 +35,48 @@ export default function UseCaseNameEditor({ text, value, onSave }) {
       setBusy(false);
     }
   };
+  return { value, editing, busy, error, field, skipBlur, start, leave, commit, canRename: typeof onSave === 'function' };
+}
 
-  if (!editing) {
-    return (
-      <span className="inline-flex items-center gap-2 min-w-0 max-w-full">
-        <h3 dir="auto" className={NAME_TEXT_CLASS}>{text}</h3>
-        {typeof onSave === 'function' && (
-          <button type="button" aria-label={`Rename ${text}`} title="Rename this use case"
-            onClick={(e) => { e.stopPropagation(); start(); }}
-            className="shrink-0 rounded-md p-1 text-text-tertiary hover:text-text-primary hover:bg-bg-subtle transition-smooth">
-            <Pencil size={14} aria-hidden />
-          </button>
-        )}
-      </span>
-    );
-  }
-
+export function UseCaseNameTitle({ text, rename }) {
+  if (!rename.editing) return <h3 dir="auto" className={NAME_TEXT_CLASS}>{text}</h3>;
   return (
     <span className="flex flex-col gap-1 min-w-0 flex-1 basis-full sm:basis-auto" data-use-case-name-editor="">
       <span className="inline-flex items-center gap-2 min-w-0">
         <input
-          ref={field}
+          ref={rename.field}
           dir="auto"
           aria-label={`Use case name for ${text}`}
-          defaultValue={value}
+          defaultValue={rename.value}
           maxLength={200}
-          disabled={busy}
+          disabled={rename.busy}
           onClick={(e) => e.stopPropagation()}
           onKeyDown={(e) => {
             e.stopPropagation();
-            if (e.key === 'Enter') { e.preventDefault(); commit(e.currentTarget.value); }
-            if (e.key === 'Escape') { e.preventDefault(); leave(); }
+            if (e.key === 'Enter') { e.preventDefault(); rename.commit(e.currentTarget.value); }
+            if (e.key === 'Escape') { e.preventDefault(); rename.leave(); }
           }}
-          onBlur={(e) => { if (skipBlur.current) { skipBlur.current = false; return; } commit(e.currentTarget.value); }}
+          onBlur={(e) => { if (rename.skipBlur.current) { rename.skipBlur.current = false; return; } rename.commit(e.currentTarget.value); }}
           className={`${NAME_TEXT_CLASS} min-w-0 flex-1 bg-transparent border-b border-db-red-solid/60 outline-none disabled:opacity-60`}
         />
-        {busy && (
+        {rename.busy && (
           <span role="status" data-saving="" className="inline-flex items-center gap-1.5 text-xs font-semibold text-text-secondary shrink-0">
             <Loader2 size={12} className="animate-spin" aria-hidden />Saving…
           </span>
         )}
       </span>
-      {error && <PlainMessage as="p" text={error} role="alert" dir="auto" className="text-xs text-error-fg" />}
+      {rename.error && <PlainMessage as="p" text={rename.error} role="alert" dir="auto" className="text-xs text-error-fg" />}
     </span>
+  );
+}
+
+export function UseCaseRenameButton({ text, rename }) {
+  if (!rename.canRename || rename.editing) return null;
+  return (
+    <button type="button" aria-label={`Rename ${text}`} title="Rename this use case" onClick={rename.start}
+      className="shrink-0 self-start mt-3 mx-1 rounded-md p-1 text-text-tertiary hover:text-text-primary hover:bg-bg-subtle transition-smooth">
+      <Pencil size={14} aria-hidden />
+    </button>
   );
 }
 

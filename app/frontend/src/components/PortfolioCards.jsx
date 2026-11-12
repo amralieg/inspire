@@ -57,12 +57,11 @@ export default function PortfolioCards({ portfolio, error, sessions, active = ''
             Across all runs in this Inspire Database
           </button>
         </h2>
+        {error && <PlainMessage text={`Inspire could not count across the runs: ${error}`} role="alert" className="text-[12px] text-error-fg" />}
         {portfolio?.truncated && <p className="text-[11px] text-text-secondary">The run list holds 1,000 runs; the totals count every run.</p>}
       </div>
       <div id={bodyId} hidden={!open}>
-      {error ? (
-        <PlainMessage text={`Inspire could not count across the runs: ${error}`} role="alert" className="px-4 py-3 text-[12px] text-error-fg" />
-      ) : (
+      {!error && (
         <div className="divide-y divide-border">
           {PORTFOLIO_GROUPS.map((group) => (
             <div key={group.id} role="group" aria-label={group.label} className="px-4 py-3">

@@ -554,3 +554,20 @@ test('REQ-096 every run card shows its value at stake, and Not calculated where 
     await ui.close();
   }
 });
+
+test('REQ-098 a stats count that fails stays visible in the header when the stats are collapsed', async () => {
+  const ui = await openUi('app', { ...REVIEW_STATE, sqlErrors: { 'AS businesses FROM': 'PERMISSION_DENIED: User does not have SELECT on __inspire_session' } }, '', { mount });
+  const { page } = ui;
+  try {
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await totals(page).getByRole('alert').waitFor({ timeout: 20000 });
+    const toggle = totals(page).getByRole('button', { name: RC10_STATS_TOGGLE });
+    await toggle.click();
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false', 'the stats are collapsed');
+    assert.equal(await totals(page).getByRole('alert').isVisible(), true, 'the error is still shown while the stats are collapsed');
+    assert.match(await totals(page).getByRole('alert').innerText(), /^Inspire could not count across the runs: User does not have SELECT on __inspire_session/);
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
+  } finally {
+    await ui.close();
+  }
+});

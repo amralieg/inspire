@@ -2134,7 +2134,11 @@ app.post('/api/documents', requireToken, async (req, res) => {
     const { params, document } = DJ.documentRunParams(req.body || {});
     const refused = await launchSessionProblem(req, params);
     if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
-    const catalog = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/workspace/get-status?path=${encodeURIComponent(params['01_uc_metadata'])}`);
+    const catalog = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/workspace/get-status?path=${encodeURIComponent(params['01_uc_metadata'])}`).catch((err) => {
+      console.warn(`document catalog check failed: ${err && err.message}`);
+      return null;
+    });
+    if (!catalog || (!catalog.ok && catalog.status !== 404)) return res.status(503).json({ error: DJ.CATALOG_CHECK_FAILED_TEXT });
     if (catalog.status === 404) return res.status(409).json({ error: DJ.CATALOG_MISSING_TEXT });
     const out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
       params,
