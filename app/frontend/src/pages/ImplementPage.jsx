@@ -492,7 +492,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   const [progressDock, setProgressDock] = useState(null);
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:has-[[data-progress-open=true]]:pr-[var(--dock-w,1.5rem)] md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
+    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:has-[[data-progress-open=true]]:pe-[var(--dock-w,1.5rem)] md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
