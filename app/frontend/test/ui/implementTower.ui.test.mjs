@@ -660,10 +660,17 @@ test('the use case list sits on the left; on the right the name, then Use case d
       assert.ok(buttons.every((b) => Math.abs(b.y - buttons[0].y) <= 1), 'the three buttons share one row');
       assert.ok(buttons[0].x < buttons[1].x && buttons[1].x < buttons[2].x, 'in the order Use case details, Vibe/Add/Remove Features, Uninstall all');
       assert.ok(heading.y < tiles.y && buttons[0].y + buttons[0].height <= tiles.y, 'the tiles sit below the header');
-      const rows = new Set(await pane.locator('[data-asset-tile]').evaluateAll((items) => items.map((li) => Math.round(li.getBoundingClientRect().top))));
-      assert.equal(rows.size, 1, `the six tiles share one row at ${width}`);
+      const spots = await pane.locator('[data-asset-tile]').evaluateAll((items) => items.map((li) => {
+        const b = li.getBoundingClientRect();
+        return { x: Math.round(b.left), y: Math.round(b.top), right: Math.round(b.right) };
+      }));
+      const cols = new Set(spots.map((s) => s.x)).size;
+      const rows = new Set(spots.map((s) => s.y)).size;
+      assert.ok(spots.every((s) => s.right <= right.x + right.width + 1), `the tiles fit the use case width at ${width}`);
+      assert.equal(rows, Math.ceil(spots.length / cols), `the six tiles reflow by width: ${cols} column(s), ${rows} row(s) at ${width}`);
       assert.ok(tiles.y + tiles.height <= progress.y, 'Build progress sits below the tiles');
-      assert.ok(progress.y + progress.height <= right.y + right.height + 1, `the Build progress card sits inside the pane (${Math.round(progress.y + progress.height)} vs ${Math.round(right.y + right.height)})`);
+      const reach = await pane.evaluate((el, bottom) => el.scrollHeight >= bottom - el.getBoundingClientRect().top - 1, progress.y + progress.height);
+      assert.ok(reach, `the Build progress card is reached by scrolling the use case pane at ${width}`);
       assert.equal(await page.evaluate(() => document.scrollingElement.scrollHeight <= window.innerHeight + 1), true, `no second page scrollbar at ${width}`);
     }
     assert.deepEqual(ui.pageErrors, []);
@@ -1357,7 +1364,7 @@ test('a finished build shows a compact card with its status, version, time, warn
   }
 });
 
-test('the progress panel opens at 640px, drags and arrow-keys to a new width that a reopen keeps, closes on a click outside it, and stays open on a click inside it (must-exclude: an inside click never closes it)', async () => {
+test('the progress panel opens at 640px, drags and arrow-keys to a new width that a reopen keeps, docked at md and up it shows at most 40% of the window, Close closes it, and a click outside never closes the docked column (must-exclude: an inside or outside click never closes it)', async () => {
   const ui = await openTower({ ...STATE, history: [finished('ready_with_warnings', WARNED), ...HISTORY], steps: doneSteps() }, { expand: false });
   const { page } = ui;
   try {
@@ -1365,39 +1372,46 @@ test('the progress panel opens at 640px, drags and arrow-keys to a new width tha
     const panel = page.locator('[data-mvp-progress]');
     const dialog = panel.getByRole('dialog');
     const widthOf = () => dialog.evaluate((el) => Math.round(el.getBoundingClientRect().width));
+    const storedOf = (h) => h.getAttribute('aria-valuenow').then(Number);
+    const capped = async (stored) => Math.min(stored, Math.floor((await page.evaluate(() => innerWidth)) * 0.4));
     await card.locator('[data-progress-show]').click();
     await panel.waitFor();
-    assert.equal(await widthOf(), 640, 'a smaller panel than before');
     const handle = panel.locator('[data-drawer-resizer]');
+    assert.equal(await storedOf(handle), 640, 'the panel opens at its 640px width');
+    assert.ok(Math.abs(await widthOf() - await capped(640)) <= 1, 'docked beside the use case, it shows at most 40% of the window');
     const hb = await handle.boundingBox();
     await page.mouse.move(hb.x + hb.width / 2, hb.y + 200);
     await page.mouse.down();
     await page.mouse.move(hb.x + hb.width / 2 - 160, hb.y + 200, { steps: 6 });
     await page.mouse.up();
-    assert.equal(await widthOf(), 800, 'dragging the left edge left widens it');
+    assert.equal(await storedOf(handle), 800, 'dragging the left edge left widens it');
+    assert.ok(Math.abs(await widthOf() - await capped(800)) <= 1, 'the shown width follows the 40% cap');
     await handle.focus();
     await page.keyboard.press('ArrowRight');
-    assert.equal(await widthOf(), 768, 'ArrowRight narrows it by one step');
+    assert.equal(await storedOf(handle), 768, 'ArrowRight narrows it by one step');
     await page.keyboard.press('Home');
-    assert.equal(await widthOf(), 400, 'Home goes to the smallest width');
+    assert.equal(await storedOf(handle), 400, 'Home goes to the smallest width');
     await page.keyboard.press('ArrowLeft');
-    assert.equal(await widthOf(), 432);
+    assert.equal(await storedOf(handle), 432);
+    assert.equal(await widthOf(), 432, 'under the cap the shown width is the chosen one');
     await panel.locator('[data-build-reason]').click();
     await painted(page);
     assert.equal(await panel.count(), 1, 'a click inside keeps it open');
     await page.mouse.click(40, 300);
+    assert.equal(await panel.count(), 1, 'docked as a column, a click outside does not close it');
+    await panel.getByRole('button', { name: 'Close', exact: true }).click();
     await panel.waitFor({ state: 'detached' });
-    assert.equal(await card.getAttribute('data-progress-open'), 'false', 'a click outside closes it');
+    assert.equal(await card.getAttribute('data-progress-open'), 'false', 'Close closes it');
     await card.locator('[data-progress-show]').click();
     await panel.waitFor();
-    assert.equal(await widthOf(), 432, 'the reopened panel keeps the chosen width');
+    assert.equal(await storedOf(panel.locator('[data-drawer-resizer]')), 432, 'the reopened panel keeps the chosen width');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
 });
 
-test('Build progress opens as a full-height side panel whose 500-line log scrolls on its own, the page behind keeps its own scroll, Esc and X close it, a reload keeps it open, and the reason names the threshold the run missed (must-exclude: the log never grows the page)', async () => {
+test('Build progress opens docked as a full-height column beside the use case whose 500-line log scrolls on its own, the page behind keeps its own scroll, Esc and X close it, a reload keeps it open, and the reason names the threshold the run missed (must-exclude: the log never grows the page)', async () => {
   const said = (i) => `Step ${i}: I checked the notebook instructions and the Databricks workflow before I built the dashboard.`;
   const line = (i, words) => `${agoIso(390 - Math.floor(i * 0.7)).slice(0, 19).replace('T', ' ')} - inspire - INFO - [GENIE N01-U01] [build] Genie: ${words}`;
   const last = 'Last I checked the alert query against the latest run.';
@@ -1428,8 +1442,10 @@ test('Build progress opens as a full-height side panel whose 500-line log scroll
       await page.setViewportSize({ width, height });
       await painted(page);
       const box = await dialog.boundingBox();
-      assert.ok(Math.abs(box.height - height) <= 1 && Math.abs(box.x + box.width - width) <= 1, `at ${width}x${height} the panel is full height on the right ${JSON.stringify(box)}`);
-      assert.ok(box.width >= 540, `at ${width}x${height} the panel is wide (${box.width} px)`);
+      const row = await page.locator('section[aria-label="Use case"]').boundingBox();
+      assert.ok(Math.abs(box.height - row.height) <= 2 && Math.abs(box.y - row.y) <= 2, `at ${width}x${height} the panel fills the height of the use case row ${JSON.stringify(box)} vs ${JSON.stringify(row)}`);
+      assert.ok(box.x >= row.x + row.width, `at ${width}x${height} the panel docks beside the use case ${JSON.stringify(box)}`);
+      assert.ok(box.width >= 400 && box.width <= Math.round(width * 0.4) + 1, `at ${width}x${height} the panel is 400px or more and at most 40% of the window (${box.width} px)`);
       const room = await log.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight, overflow: getComputedStyle(el).overflowY,
         page: document.scrollingElement.scrollHeight - window.innerHeight }));
       assert.ok(room.scroll > room.client && room.overflow === 'auto', `at ${width}x${height} the log scrolls inside the panel ${JSON.stringify(room)}`);
@@ -1583,7 +1599,9 @@ test('a Build page with short content ends where its content ends: the list and 
       await page.getByRole('region', { name: 'Use case', exact: true }).locator('[data-pinned-name]').waitFor({ timeout: 15000 });
       if (state.history) {
         await page.locator('[data-asset-tiles]').waitFor({ timeout: 15000 });
-        assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'false', `${name}: the progress panel starts closed`);
+        assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', `${name}: a built App opens its progress panel by default`);
+        await page.locator('[data-progress-card] [data-progress-show]').click();
+        assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'false', `${name}: the progress panel is folded`);
       }
       for (const [width, height] of [[1440, 900], [1920, 1080]]) {
         await page.setViewportSize({ width, height });
