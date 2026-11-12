@@ -32,10 +32,10 @@ test('a build whose App was not published says MVP incomplete in one plain sente
     await card.waitFor({ timeout: 15000 });
     assert.match(await card.locator('[data-build-headline]').textContent(), new RegExp(`^${UNDELIVERED_LABEL}`));
     assert.equal(await card.getByText(/^Warnings$/).count(), 0, 'an App that was not published is never a build done with warnings');
-    const said = card.locator('[data-build-summary-reason]');
+    const said = page.locator('[data-build-summary-reason], [data-build-reason]');
     assert.equal(await said.textContent(), 'The MVP is incomplete: Inspire could not build the App. Rebuild in Vibe/Add/Remove Features to try again.');
     assert.doesNotMatch(await said.textContent(), /page\.json|Genie rounds/);
-    const details = card.locator('[data-technical-details]');
+    const details = page.locator('[data-technical-details]');
     assert.equal(await details.locator('summary').textContent(), 'Details');
     await details.locator('summary').click();
     assert.equal((await details.locator('pre').textContent()).trim(), MESSAGE);
@@ -55,8 +55,8 @@ test('a build that delivered every output keeps its own words and has no MVP inc
     const card = page.locator('[data-progress-card]');
     await card.waitFor({ timeout: 15000 });
     assert.equal(await card.getByText(UNDELIVERED_LABEL).count(), 0);
-    assert.equal(await card.locator('[data-build-summary-reason]').textContent(), warned);
-    assert.equal(await card.locator('[data-technical-details]').count(), 0);
+    assert.equal(await page.locator('[data-build-summary-reason], [data-build-reason]').textContent(), warned);
+    assert.equal(await page.locator('[data-technical-details]').count(), 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
