@@ -5,6 +5,7 @@ const RP = require('./routePolicy');
 const { DEFAULT_GENERATION_PATH } = require('./inspireJobParams');
 const { fsApiPath } = require('./workspacePaths');
 const { redactSecrets } = require('./redact');
+const { splitMetricViews, metricViewSkipLine } = require('./metricViews');
 
 const RUN_NO_SIGN_IN = "Inspire needs your sign-in to check what you can read. Reload the App and try again.";
 const UNREADABLE_SHOWN = 10;
@@ -81,9 +82,15 @@ function listSchemas(dbFetch, host, token, catalog) {
   return pages(dbFetch, host, token, `${UC}/schemas`, [['catalog_name', catalog], ['max_results', '500']], 'schemas', 100);
 }
 
-function listTables(dbFetch, host, token, catalog, schema, { browse = false } = {}) {
+// Metric views are left out of every table listing: the App's table picker, the tree counts and the schema reads.
+// `metricViews` names what was left out, so the route can keep the same tables out of its SQL fallback.
+async function listTables(dbFetch, host, token, catalog, schema, { browse = false } = {}) {
   const params = [['catalog_name', catalog], ['schema_name', schema], ['max_results', '500'], ...(browse ? [['include_browse', 'true']] : [])];
-  return pages(dbFetch, host, token, `${UC}/tables`, params, 'tables', 200);
+  const got = await pages(dbFetch, host, token, `${UC}/tables`, params, 'tables', 200);
+  const { kept, skipped } = splitMetricViews(got.items, (t) => t && t.table_type);
+  if (skipped.length) console.log(metricViewSkipLine(skipped.map((t) => t.name || t.full_name || '?')));
+  const metricViews = skipped.map((t) => t.full_name || `${catalog}.${schema}.${t.name}`);
+  return { items: kept, truncated: got.truncated, metricViews };
 }
 
 const unseen = (err) => [403, 404].includes(Number(err && err.status));

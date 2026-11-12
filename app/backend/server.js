@@ -46,6 +46,7 @@ const {
   discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, outputPlan, runReadPlan, scopeTables, skippedTablesDetail, ucMetadataParts,
   writeRefusalBody,
 } = require('./lib/ucReads');
+const { metricViewSkipLine } = require('./lib/metricViews');
 const { createSourceAccess } = require('./lib/sourceAccess');
 const { withBusyRetry } = require('./lib/busyRetry');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
@@ -378,10 +379,21 @@ async function listTablesSql(host, token, warehouseId, catalog, schema) {
     const stmt = `SHOW TABLES IN ${quotedIdent(catalog)}.${quotedIdent(schema)}`;
     const result = await executeSql(host, token, warehouseId, stmt);
     const rows = sqlResultToObjects(result);
+    // SHOW TABLES does not say which names are metric views, so the catalog's own table types decide.
+    const metricViewNames = new Set();
+    try {
+      const typed = await executeSql(host, token, warehouseId,
+        `SELECT table_name FROM ${quotedIdent(catalog)}.information_schema.tables WHERE table_schema = '${String(schema).replace(/'/g, "''")}' `
+        + `AND table_type IN ('METRIC_VIEW', 'METRIC VIEW')`);
+      for (const row of sqlResultToObjects(typed)) if (row.table_name) metricViewNames.add(row.table_name);
+    } catch (err) {
+      console.warn(`   ⚠️ metric view check failed for ${catalog}.${schema}: ${err.message}`);
+    }
+    if (metricViewNames.size) console.log(metricViewSkipLine([...metricViewNames]));
     const out = [];
     for (const row of rows) {
       const tname = row.tableName ?? row.table_name ?? row.name;
-      if (!tname || typeof tname !== 'string') continue;
+      if (!tname || typeof tname !== 'string' || metricViewNames.has(tname)) continue;
       out.push({
         name: tname,
         full_name: `${catalog}.${schema}.${tname}`,
@@ -1740,8 +1752,9 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     let restCut = false;
     let restErr = null;
     let restStatus = 502;
+    let hiddenMetricViews = [];
     try {
-      ({ items: raw, truncated: restCut } = await listTables(dbFetch, req.dbHost, token, catalog, schema));
+      ({ items: raw, truncated: restCut, metricViews: hiddenMetricViews } = await listTables(dbFetch, req.dbHost, token, catalog, schema));
     } catch (e) {
       restErr = e.message || String(e);
       restStatus = restFailureStatus(e);
@@ -1769,8 +1782,9 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     const countAfterRest = byKey.size;
     if (warehouseId) {
       const sqlRows = await listTablesSql(req.dbHost, token, warehouseId, catalog, schema);
+      const hidden = new Set(hiddenMetricViews);
       for (const row of sqlRows) {
-        if (!byKey.has(row.full_name)) byKey.set(row.full_name, row);
+        if (!byKey.has(row.full_name) && !hidden.has(row.full_name)) byKey.set(row.full_name, row);
       }
     }
     const tables = [...byKey.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
