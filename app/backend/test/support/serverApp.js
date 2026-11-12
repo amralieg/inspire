@@ -37,8 +37,8 @@ const state = {
 function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
-    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
-    createdJob: null, runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
+    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
+    createdJob: null, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -59,6 +59,14 @@ function answerSql(body) {
   const sql = String(body.statement || '');
   const conflict = state.conflictOn ? state.conflictOn(sql) : '';
   if (conflict) return { statement_id: 's1', status: { state: 'FAILED', error: { message: conflict } } };
+  if (/^\s*SELECT catalog_json_path\b/i.test(sql)) {
+    if (state.catalogQueryError) return { statement_id: 's1', status: { state: 'FAILED', error: { message: state.catalogQueryError } } };
+    if (state.catalogColumnMissing) return { statement_id: 's1', status: { state: 'FAILED', error: { message: '[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column with name `catalog_json_path` cannot be resolved.' } } };
+    const sid = (sql.match(/session_id = (\d+)/) || [])[1];
+    const value = Object.hasOwn(state.catalogPaths || {}, sid) ? state.catalogPaths[sid] : undefined;
+    const reason = (state.catalogReasons || {})[sid] || null;
+    return sqlResult(['catalog_json_path', 'catalog_json_reason'], value === undefined ? [] : [[value, reason]]);
+  }
   if (/^\s*INSERT INTO\b/i.test(sql) && sql.includes('__inspire_launch')) {
     const row = Object.fromEntries((body.parameters || []).map((p) => [p.name, p.value]));
     state.launches.push(row);
@@ -196,6 +204,11 @@ async function stubFetch(url, opts = {}) {
     }
     return json({ userName: APP_SP, applicationId: APP_SP, displayName: APP_NAME });
   }
+  if (state.ucSchemas && u.pathname === '/api/2.1/unity-catalog/schemas') return json({ schemas: (state.ucSchemas[u.searchParams.get('catalog_name')] || []).map((name) => ({ name })) });
+  if (state.ucTables && u.pathname === '/api/2.1/unity-catalog/tables') {
+    const names = state.ucTables[`${u.searchParams.get('catalog_name')}.${u.searchParams.get('schema_name')}`] || [];
+    return json({ tables: names.map((name) => ({ name })) });
+  }
   if (u.pathname === '/api/2.0/sql/statements') return json(answerSql(body));
   if (u.pathname === '/api/2.0/workspace/import') return json({ message: 'stubbed import refused' }, 400);
   const file = u.pathname.startsWith('/api/2.0/fs/files/') ? decodeURIComponent(u.pathname.slice('/api/2.0/fs/files'.length)) : '';
@@ -208,9 +221,12 @@ async function stubFetch(url, opts = {}) {
     return { ok: true, status: range ? 206 : 200, headers: new Map([['content-length', String(method === 'HEAD' ? whole.length : part.length)]]),
       json: async () => JSON.parse(part.toString()), text: async () => (method === 'HEAD' ? '' : part.toString()), arrayBuffer: async () => part };
   }
+  const statusFailure = state.statusErrors && state.statusErrors[u.searchParams.get('path')];
+  if (u.pathname === '/api/2.0/workspace/get-status' && statusFailure === 'network') throw new Error('getaddrinfo ENOTFOUND workspace.internal.example');
+  if (u.pathname === '/api/2.0/workspace/get-status' && statusFailure) return json({ error_code: 'INTERNAL_ERROR', message: 'raw workspace detail' }, statusFailure);
+  if (u.pathname === '/api/2.0/workspace/get-status' && (state.presentPaths || []).includes(u.searchParams.get('path'))) return json({ object_type: 'FILE', path: u.searchParams.get('path') });
   const folder = folderAnswer(state, { method, pathname: u.pathname, searchParams: u.searchParams, body, token }, writableBy);
   if (folder) return json(folder[1], folder[0]);
-  if (u.pathname === '/api/2.0/workspace/get-status') return json({});
   if (token === PERSON_TOKEN && /^\/api\/2\.1\/unity-catalog\/(effective-permissions|permissions|volumes)\//.test(u.pathname)) {
     return json({ error_code: 403, message: 'Provided OAuth token does not have required scopes: unity-catalog' }, 403);
   }

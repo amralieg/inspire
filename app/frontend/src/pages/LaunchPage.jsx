@@ -46,6 +46,7 @@ import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { runBusiness } from '../lib/reviewFigures';
 import OutputFolderCheck from '../components/OutputFolderCheck';
+import SamplesCopyOffer from '../components/SamplesCopyOffer';
 import DiscoveryPromise from '../components/DiscoveryPromise';
 import { useOutputFolderCheck } from '../lib/outputFolderCheck';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, START_DRAFT_STAMP, START_DRAFT_STEP, clearWizardDraft, readWizardDraft, startDraftKey, writeWizardDraft } from '../lib/wizardDraft';
@@ -59,6 +60,7 @@ import { placeholderWords } from '../lib/placeholderWords';
 import { inspireScoreFromUc, nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
 import { catalogListNote, pickedScope, scopeSummary, typedCatalog } from '../lib/catalogList';
+import { SAMPLE_CATALOG, applySampleCopies, isSampleEntry, samplesTarget, validCopyTarget } from '../lib/samplesCopy';
 import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_PRIVACY, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
@@ -243,6 +245,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [scopingTable, setScopingTable] = useState('');
   const [loadingTables, setLoadingTables] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
+  const [samplesChoice, setSamplesChoice] = useState({ key: '', choice: '' });
+  const [samplesDestination, setSamplesDestination] = useState('');
+  const [samplesCopying, setSamplesCopying] = useState(false);
+  const [samplesError, setSamplesError] = useState('');
+  const [samplesCopied, setSamplesCopied] = useState('');
 
   // ── Launch state ──
   const [launching, setLaunching] = useState(false);
@@ -573,7 +580,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // Auto-populate inspire database when first catalog is selected
   useEffect(() => {
-    if (selectedCatalogs.length === 1 && !params['02_inspire_database']) {
+    if (selectedCatalogs.length === 1 && selectedCatalogs[0] !== SAMPLE_CATALOG && !params['02_inspire_database']) {
       const autoVal = `${selectedCatalogs[0]}._inspire`;
       setParams((p) => ({ ...p, '02_inspire_database': autoVal }));
       update('inspireDatabase', autoVal);
@@ -748,6 +755,30 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     }
   };
 
+  const copySamples = async () => {
+    setSamplesCopying(true);
+    setSamplesError('');
+    try {
+      const data = await apiFetch('/api/inspire/samples/copy', {
+        method: 'POST',
+        body: JSON.stringify({ entries: sampleEntries, destination: copyTarget }),
+      });
+      const copies = data.copies || [];
+      const failed = data.failed || [];
+      const picks = applySampleCopies({ catalogs: selectedCatalogs, schemas: selectedSchemas, tables: selectedTables }, { destination: data.destination, copies, failed });
+      setSelectedCatalogs(picks.catalogs);
+      setSelectedSchemas(picks.schemas);
+      setSelectedTables(picks.tables);
+      setSamplesChoice({ key: '', choice: '' });
+      setSamplesCopied(copies.length ? `Copied ${copies.length} ${copies.length === 1 ? 'table' : 'tables'} into ${data.destination}. The run reads your copies.` : '');
+      if (failed.length) setSamplesError(failed.map((f) => `Could not copy ${f.source}: ${f.reason}`).join('. '));
+    } catch (err) {
+      setSamplesError(parseApiErrorMessage(err.message));
+    } finally {
+      setSamplesCopying(false);
+    }
+  };
+
   // Derived
   const typedCatalogItem = typedCatalog(catalogs, catalogsCut, catalogSearch);
   const filteredCatalogs = [
@@ -780,12 +811,17 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // Validation state
   const effectiveDb = params['02_inspire_database'] || inspireDatabase;
+  const sampleEntries = scope.entries.filter(isSampleEntry);
+  const sampleKey = sampleEntries.join(',');
+  const samplesDecided = sampleEntries.length > 0 && samplesChoice.key === sampleKey && samplesChoice.choice !== '';
+  const copyTarget = samplesTarget(effectiveDb, samplesDestination);
   const bestOfBestText = String(params['16_best_of_best_count'] ?? '').trim();
   const bestOfBestInvalid = bestOfBestText !== '' && (!/^\d{1,3}$/.test(bestOfBestText) || Number(bestOfBestText) > 100);
   const launchBlock = !params['00_business_name'] ? 'Enter a Business Name to get started.'
     : !effectiveDb ? 'Set the Inspire Database in Advanced Settings to get started.'
       : !params['01_uc_metadata'] ? 'Pick at least one catalog, schema or table under Unity Catalog Metadata to get started.'
-        : strategyProblems.length ? `Fix the strategy first, in Advanced Settings under Strategy (optional): ${strategyProblems[0]}`
+        : sampleEntries.length > 0 && !samplesDecided ? 'Copy the samples tables into a schema you own, or use descriptions only, above Get Started.'
+          : strategyProblems.length ? `Fix the strategy first, in Advanced Settings under Strategy (optional): ${strategyProblems[0]}`
           : bestOfBestInvalid ? 'Best of Best stars takes a whole number from 0 to 100. Fix it in Advanced Settings.' : '';
   const canLaunch = !launchBlock;
   const liveRunNote = useMemo(() => {
@@ -1143,7 +1179,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 value={params['00_business_name']}
                 onChange={(e) => updateParam('00_business_name', e.target.value)}
                 onBlur={(e) => setHeadlineBusiness((e.target.value || '').trim())}
-                className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
+                className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
               />
             </Field>
 
@@ -1393,7 +1429,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         )}
                       </span>
                       <p className="text-[10px] text-text-tertiary leading-snug mt-1">{opt.desc}</p>
-                      {active && <CheckCircle2 size={14} className="absolute top-2.5 right-2.5 text-success-fg" />}
+                      {active && <CheckCircle2 size={14} className="absolute top-2.5 end-2.5 text-success-fg" />}
                     </button>
                   );
                 })}
@@ -1424,13 +1460,13 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             {/* Generation Instructions — optional */}
             <FieldSection label="Generation Instructions" hint="Optional. What the business does, what it wants this year, and anything Inspire should focus on or leave out">
               <div className="relative">
-                <Target size={14} className="absolute left-3 top-3 text-text-tertiary" />
+                <Target size={14} className="absolute start-3 top-3 text-text-tertiary" />
                 <textarea dir="auto"
                   rows={3}
                   placeholder="Focus on fraud detection, join orders with customers on customer_id, exclude staging tables..."
                   value={params['08_generation_instructions']}
                   onChange={(e) => updateParam('08_generation_instructions', e.target.value)}
-                  className="w-full pl-9 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth resize-none"
+                  className="w-full ps-9 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth resize-none"
                 />
               </div>
             </FieldSection>
@@ -1489,7 +1525,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           <bp.icon size={13} className={active ? 'text-db-red-fg' : 'text-text-tertiary'} />
                           <span className="truncate">{bp.key}</span>
                         </span>
-                        {active && <CheckCircle2 size={12} className="absolute top-1.5 right-1.5 text-db-red-fg" />}
+                        {active && <CheckCircle2 size={12} className="absolute top-1.5 end-1.5 text-db-red-fg" />}
                       </button>
                     );
                   })}
@@ -1540,13 +1576,13 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
               {/* Business Domains */}
               <FieldSection label="Business Domains" hint="Leave empty to auto-infer from data">
                 <div className="relative">
-                  <Layers size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                  <Layers size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
                   <input dir="auto"
                     type="text"
                     placeholder="Sales, Marketing, Finance, Operations, Supply Chain..."
                     value={params['06_business_domains']}
                     onChange={(e) => updateParam('06_business_domains', e.target.value)}
-                    className="w-full pl-9 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
+                    className="w-full ps-9 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth"
                   />
                 </div>
               </FieldSection>
@@ -1596,7 +1632,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                   placeholder="e.g. my_catalog._inspire"
                   value={params['02_inspire_database']}
                   onChange={(e) => updateParam('02_inspire_database', e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth font-mono"
+                  className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth font-mono"
                 />
               </Field>
 
@@ -1641,7 +1677,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         </span>
                         <p className="text-[10px] text-text-tertiary leading-snug mt-0.5">{opt.desc}</p>
                         {active && (
-                          <CheckCircle2 size={14} className="absolute top-2.5 right-2.5 text-db-red-fg" />
+                          <CheckCircle2 size={14} className="absolute top-2.5 end-2.5 text-db-red-fg" />
                         )}
                       </button>
                     );
@@ -1664,7 +1700,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     placeholder="Your own folder: /Users/<you>/inspire_output"
                     aria-label="Generation Path"
                     aria-describedby="output-folder-check-field"
-                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"
+                    className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"
                   />
                   <OutputFolderCheck check={outputCheck} id="output-folder-check-field" />
                 </Field>
@@ -1735,7 +1771,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     value={params['13_generate_genie_code_for']}
                     onChange={(e) => updateParam('13_generate_genie_code_for', e.target.value)}
                     placeholder="0"
-                    className="w-full pl-10 pr-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"
+                    className="w-full ps-10 pe-4 py-2.5 text-sm border border-border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono"
                   />
                 </Field>
                 <Field
@@ -1750,7 +1786,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                     onChange={(e) => updateParam('16_best_of_best_count', e.target.value)}
                     placeholder="20"
                     aria-invalid={bestOfBestInvalid}
-                    className={`w-full pl-10 pr-4 py-2.5 text-sm border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono ${bestOfBestInvalid ? 'border-error' : 'border-border'}`}
+                    className={`w-full ps-10 pe-4 py-2.5 text-sm border rounded-lg bg-surface text-text-primary glow-focus transition-smooth font-mono ${bestOfBestInvalid ? 'border-error' : 'border-border'}`}
                   />
                   {bestOfBestInvalid && (
                     <p className="mt-1.5 text-xs text-error-fg">Use a whole number from 0 to 100, or leave it empty for 20.</p>
@@ -1808,6 +1844,22 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           </div>
         )}
 
+        {sampleEntries.length > 0 && (
+          <SamplesCopyOffer
+            names={sampleEntries.join(', ')}
+            target={copyTarget}
+            onTarget={setSamplesDestination}
+            canCopy={validCopyTarget(copyTarget)}
+            copying={samplesCopying}
+            choice={samplesChoice.key === sampleKey ? samplesChoice.choice : ''}
+            error={samplesError}
+            onCopy={copySamples}
+            onDescriptions={() => setSamplesChoice({ key: sampleKey, choice: 'descriptions' })}
+          />
+        )}
+        {samplesCopied && sampleEntries.length === 0 && (
+          <p data-samples-copied="" role="status" className="mb-4 rounded-lg border border-success/30 bg-success-bg px-3 py-2 text-xs text-success-fg">{samplesCopied}</p>
+        )}
         {liveRunNote && (
           <p role="note" data-testid="launch-live-run" className="mb-4 flex items-start gap-2 rounded-lg border border-warning/30 bg-warning-bg px-3 py-2 text-xs text-warning-fg">
             <AlertTriangle size={14} className="shrink-0 mt-0.5" aria-hidden="true" />
@@ -1902,10 +1954,10 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, searchValue, 
   return (
     <div className="rounded-lg border border-border bg-bg overflow-hidden flex flex-col min-h-0">
       <div className="relative shrink-0">
-        <Search size={12} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+        <Search size={12} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
         <input dir="auto"
           type="text"
-          className="w-full bg-transparent border-b border-border pl-8 pr-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary"
+          className="w-full bg-transparent border-b border-border ps-8 pe-3 py-2 text-xs text-text-primary placeholder:text-text-tertiary"
           placeholder={searchPlaceholder}
           value={searchValue}
           onChange={(e) => onSearch(e.target.value)}

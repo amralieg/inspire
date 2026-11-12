@@ -168,9 +168,9 @@ test('the tour walks every step it can show, skips a missing anchor, fills live 
   const info = appInfo({}, 1, written());
   const { page, context, seen } = await openApp(browser, base, info, { watch: STILL, hash: '?tour=1' });
   const steps = await walk(page);
-  assert.deepEqual(steps.map((s) => s.anchor), ['decision', 'kpis', 'view', 'records', 'top_record', 'genie'], 'alerts is off in this App, so the tour writes no alerts step and the template fills the place with the view');
+  assert.deepEqual(steps.map((s) => s.anchor), ['decision', 'todo', 'kpis', 'records', 'top_record', 'genie'], 'alerts is off in this App, so the tour writes no alerts step and the template fills the place with the first unused stop, What to do now');
   assert.equal(steps[0].text, 'This desk ranks discounts by the margin they lose.', 'the open count had not loaded on the dashboard, so its sentence is dropped');
-  assert.match(steps[1].text, /^The first tile is the margin lost to discounts, \S+ in this window\.$/);
+  assert.match(steps[2].text, /^The first tile is the margin lost to discounts, \S+ in this window\.$/);
   assert.ok(!steps.some((s) => /[{}]/.test(s.text)));
   assert.equal(steps[3].text, `Each discount here needs a keep or stop decision. ${ROWS.length} wait for you now.`);
   assert.equal(steps[4].text, `Start with ${ROWS[0].entity_label}, it loses the most margin.`);
@@ -189,7 +189,7 @@ test('keys move, Tab stays in the popover, Esc closes and focus returns to Take 
   await stepNow(page);
   await page.waitForFunction(() => document.activeElement?.hasAttribute('data-tour-next'), null, { timeout: 3000 });
   await page.keyboard.press('ArrowRight');
-  assert.equal((await stepNow(page, 1)).anchor, 'kpis');
+  assert.equal((await stepNow(page, 1)).anchor, 'todo');
   await page.keyboard.press('ArrowLeft');
   assert.equal((await stepNow(page, 2)).anchor, 'decision');
   for (let i = 0; i < 5; i += 1) {

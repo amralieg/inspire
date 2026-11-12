@@ -189,7 +189,9 @@ test('Genie in a kinds demo MVP App answers a suggested question with the record
     const settle = apiWatch(page);
     const u = USE_CASES[0];
     const frame = await openMvpFromBuild(page, settle, u);
-    await frame.locator('header.top button.genie-btn').click();
+    const genieBtn = frame.locator('header.top button.genie-btn');
+    await genieBtn.waitFor();
+    assert.equal(await genieBtn.getAttribute('aria-expanded'), 'true', 'Ask Genie opens on first load of the App (REQ-092)');
     const ask = frame.locator('.genie .g-sugg button.sugg').filter({ hasText: u.genie[0].q });
     await ask.first().click();
     const answer = frame.locator('.msg--genie').last();

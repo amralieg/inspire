@@ -22,7 +22,7 @@ export { DEFAULT_LAYOUT, layoutOf, isLaidOut, isQueue };
 export const tabLabel = (page, fallback) => (isLaidOut(page) && page.layout?.tab_label) || fallback;
 export const impactOn = (app, page) => app?.screens?.impact !== false && (!!page?.history || !!page?.promised);
 export const pageSections = (app, page) => ['dashboard', ...(hasWork(page) ? ['work'] : []), ...(app?.screens?.runs !== false ? ['runs'] : []),
-  ...(app?.alerting?.on ? ['alerts'] : []), ...(impactOn(app, page) ? ['impact'] : []), ...(app?.screens?.feedback !== false ? ['feedback'] : []), ...(page?.is_owner === true ? ['reports'] : []), 'settings'];
+  ...(app?.alerting?.on ? ['alerts'] : []), ...(impactOn(app, page) ? ['impact'] : []), 'settings'];
 export const decides = pageDecides;
 const PLAN_ROWS = 50;
 const TOUR_HELD = ['todo', 'kpis', 'objective', 'records', 'plan', 'resolve'];
@@ -92,7 +92,7 @@ export function TodoNow({ page, app, ready, nonce, shared, onRecords, filters = 
   const waiting = !list.data ? null : Math.max(0, (list.data.total ?? 0) - (counted ? closed : 0));
   const all = (waiting ?? 0) + (counted ? summary?.done ?? 0 : 0);
   return (
-    <section className="todo card" aria-label="What to do now" data-section="todo">
+    <section className="todo card" aria-label="What to do now" data-section="todo" data-tour="todo">
       <header className="card-h"><div><h2>What to do now</h2>
         {decided && list.data && waiting != null && !(planCard && planDecided) && <p data-todo-count>{all ? `${integer(waiting)} of ${integer(all)} waiting for you` : 'Nothing is waiting for you right now'}</p>}
         {decided && !list.data && !list.error && <Skeleton height={14} width="40%" />}

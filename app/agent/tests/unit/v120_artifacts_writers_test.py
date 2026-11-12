@@ -348,7 +348,7 @@ class _Completed:
 
 def test_english_documents_reuse_the_run_summary_instead_of_asking_again(ranked):
     uc = make_uc("N01-U01")
-    obj = make_inspire(ranked, generate_choices=[])
+    obj = make_inspire(ranked, generate_choices=["PDF Catalog"])
     obj._python_package_status = {"weasyprint": (True, "")}
     calls, received = [], []
     obj._get_salesy_summary = lambda grouped, name, lang, t: calls.append(lang) or ({"Executive": "a second summary"}, name)

@@ -126,7 +126,7 @@ def test_upload_log_file_does_not_stop_daemon_first(ns):
 def test_docs_only_success_path_uploads_last(ns):
     body = _notebook_body()
     docs_success_match = re.search(
-        r'"                    f\\"✅ SUCCESS: All artifacts for \{self\.business_name\} generated successfully from JSON\\",\\n"'
+        r'"                    f\\"✅ SUCCESS: The documents for \{self\.business_name\} were rebuilt from the saved catalog\\",\\n"'
         r'[\s\S]{0,500}',
         body
     )

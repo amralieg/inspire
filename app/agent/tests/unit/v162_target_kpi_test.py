@@ -245,9 +245,9 @@ def test_the_target_is_a_plain_number_or_a_percent_change_and_otherwise_text(age
 
 def test_a_tracked_kpi_follows_the_user_s_table_swap_and_removal(agent_ns):
     tracked = agent_ns["implement_tracked_kpi"]
-    swapped = tracked(HOURS, "inspire", "inspire", [], {"tables": {ORDERS: "main.sales.orders_v2"}})
+    swapped = tracked(HOURS, "inspire", "inspire", [], {"_implement_data": {"tables": {ORDERS: "main.sales.orders_v2"}}})
     assert swapped["computable"] and "`main`.`sales`.`orders_v2`" in swapped["query"] and swapped["baseline"] == 1200.0
-    removed = tracked(HOURS, "inspire", "inspire", [], {"removed_tables": [ORDERS]})
+    removed = tracked(HOURS, "inspire", "inspire", [], {"_implement_data": {"removed_tables": [ORDERS]}})
     assert not removed["computable"] and removed["query"] is None
     assert removed["reason"] == f"it reads {ORDERS}, which you removed from this use case"
     text = tracked(TEXT_ONLY, "inspire", "inspire")
@@ -514,11 +514,11 @@ SWAP_REASON = (f"its baseline was measured on {ORDERS}, but it is measured now o
 
 def test_a_baseline_taken_on_a_table_the_person_swapped_is_flagged_and_the_kpi_step_says_why(agent_ns):
     tracked = agent_ns["implement_tracked_kpi"]
-    swapped = tracked(HOURS, "inspire", "inspire", [], {"tables": {ORDERS: "main.sales.orders_v2"}})
+    swapped = tracked(HOURS, "inspire", "inspire", [], {"_implement_data": {"tables": {ORDERS: "main.sales.orders_v2"}}})
     assert swapped["computable"] and swapped["baseline"] == 1200.0 and swapped["baseline_reason"] == SWAP_REASON
-    assert tracked(HOURS, "inspire", "inspire", [], {"tables": {ORDERS.upper(): ORDERS}})["baseline_reason"] == "", "a swap to itself is none"
+    assert tracked(HOURS, "inspire", "inspire", [], {"_implement_data": {"tables": {ORDERS.upper(): ORDERS}}})["baseline_reason"] == "", "a swap to itself is none"
     assert tracked(HOURS, "inspire", "inspire")["baseline_reason"] == ""
-    assert tracked(dict(HOURS, baseline=None), "inspire", "inspire", [], {"tables": {ORDERS: "main.sales.orders_v2"}})[
+    assert tracked(dict(HOURS, baseline=None), "inspire", "inspire", [], {"_implement_data": {"tables": {ORDERS: "main.sales.orders_v2"}}})[
         "baseline_reason"] == "", "with no baseline there is nothing to flag"
     assert agent_ns["implement_run_kpi"](swapped)["baseline_reason"] == SWAP_REASON
     query = _kpi()["query"]

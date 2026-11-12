@@ -26,10 +26,12 @@ test('the mouse wheel scrolls the use case list, the use case pane, the Build pr
     await wheelScrolls(page, list, () => list.locator('[data-wheel-copy]').last(), { name: 'use case list', ...copies(list, ':scope > section', 30) });
 
     const pane = page.locator('section[aria-label="Use case"]');
-    await wheelScrolls(page, pane, () => pane.locator(':scope > :last-child'), { name: 'use case pane', ...copies(pane, ':scope > *', 2) });
+    await wheelScrolls(page, pane, () => pane.locator('[data-progress-card]').last(), { name: 'use case pane', ...copies(pane, ':scope > *', 2) });
 
     await page.setViewportSize({ width: 1280, height: 800 });
-    await page.locator('[data-progress-card]').getByRole('button', { name: 'Show progress', exact: true }).click();
+    if ((await page.locator('[data-progress-card]').getAttribute('data-progress-open')) !== 'true') {
+      await page.locator('[data-progress-card]').getByRole('button', { name: 'Show progress', exact: true }).click();
+    }
     const log = page.locator('[data-mvp-progress] [data-build-log]');
     await log.getByText(LAST_LINE, { exact: true }).waitFor({ state: 'attached', timeout: 30000 });
     await wheelScrolls(page, log, () => log.getByText(LAST_LINE, { exact: true }), { name: 'Build progress log' });

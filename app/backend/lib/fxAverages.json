@@ -1,0 +1,55 @@
+{
+  "base": "USD",
+  "period": {
+    "from": "2025-01-01",
+    "to": "2025-12-31",
+    "days": 256
+  },
+  "source": "European Central Bank reference rates, daily, 2025, via the Frankfurter API",
+  "generated_at": "2026-11-11T22:04:20.447Z",
+  "method": "arithmetic mean of the daily rates published in the period, units of each currency per 1 USD",
+  "per_usd": {
+    "AUD": 1.551789,
+    "BGN": 1.734795,
+    "BRL": 5.5919,
+    "CAD": 1.398225,
+    "CHF": 0.83133,
+    "CNY": 7.187796,
+    "CZK": 21.911051,
+    "DKK": 6.619929,
+    "EUR": 0.887001,
+    "GBP": 0.759337,
+    "HKD": 7.796429,
+    "HUF": 353.095469,
+    "IDR": 16477.355469,
+    "ILS": 3.450857,
+    "INR": 87.160039,
+    "ISK": 128.333242,
+    "JPY": 149.683867,
+    "KRW": 1421.730469,
+    "MXN": 19.218771,
+    "MYR": 4.283174,
+    "NOK": 10.392078,
+    "NZD": 1.720091,
+    "PHP": 57.511063,
+    "PLN": 3.760038,
+    "RON": 4.470744,
+    "SEK": 9.821323,
+    "SGD": 1.30717,
+    "THB": 32.88375,
+    "TRY": 39.553594,
+    "ZAR": 17.882172,
+    "USD": 1
+  },
+  "pegged": {
+    "source": "official peg to the US dollar, central rate",
+    "per_usd": {
+      "AED": 3.6725,
+      "SAR": 3.75,
+      "QAR": 3.64,
+      "OMR": 0.3845,
+      "BHD": 0.376,
+      "JOD": 0.709
+    }
+  }
+}

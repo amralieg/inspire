@@ -3,12 +3,12 @@ import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE } from '../../src/lib/runScope.js';
 import { RUN_IT_TITLE, WIZARD_STEPS_MAX } from '../../src/lib/implementWizard.js';
-import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openUi, profileAt, settleChoices, shot, stepsAre } from './uiSupport.mjs';
+import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openRow, openUi, profileAt, settleChoices, shot, stepsAre, openFolded } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. App look', '9. Run it', '10. Review & build'];
+const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. Page storage', '9. App look', '10. Run it', '11. Review & build'];
 const NO_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Run it', '6. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const builtLine = (page) => page.locator('[data-built-sentence]').innerText();
@@ -44,7 +44,7 @@ async function summaryHasNoCapacity(page) {
   assert.equal(await page.getByText(/team capacity/i).count(), 0);
 }
 
-test('with the App picked the wizard reads Data, Data groups, First run, Results, What to deliver, Where it lives, Who uses the App, App pages, App look, Run it, Review and build, one decision a screen', async () => {
+test('with the App picked the wizard reads Data, Data groups, First run, Results, What to deliver, Where it lives, Who uses the App, Page storage, App look, Run it, Review and build, one decision a screen', async () => {
   const ui = await openUi('wizard', { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } }, '', { init: profileAt([], GROUPING_PROFILE) });
   const { page, made } = ui;
   try {
@@ -58,6 +58,7 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     await onePerQuestion(page, 'Use case');
     await shot(page, '01-use-case', false);
     await onStep(page, 'Data');
+    await openFolded(page, 'Source tables');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
     assert.equal(await page.getByRole('region', { name: GROUPING_TITLE, exact: true }).count(), 0, 'the groups are their own step, not on Data (must-exclude)');
     await onePerQuestion(page, 'Data');
@@ -99,7 +100,7 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     await goToStep(page, 'What to deliver');
     const notebook = page.locator('[data-output="notebook"] input');
     assert.deepEqual([await notebook.isChecked(), await notebook.isDisabled()], [true, true], 'the notebook is always built');
-    assert.equal(await page.getByRole('checkbox', { name: /^App / }).isChecked(), true);
+    assert.equal(await page.getByRole('checkbox', { name: /^App A Databricks/ }).isChecked(), true);
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       1, 'one Recommended on What to deliver');
     assert.equal(await page.getByRole('region', { name: 'App placement' }).count(), 0, 'where the App goes waits for Where it lives (must-exclude)');
@@ -123,20 +124,27 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     assert.ok((await page.locator('[role="dialog"]').innerText()).split(/could not check/i).length <= 2, 'one sentence says what Inspire could not check');
     await shot(page, '07-who-uses-the-app', false);
     await goToStep(page, 'App pages');
-    await page.getByRole('region', { name: 'App features' }).waitFor();
+    await openRow(page, 'App pages');
+    await page.getByRole('region', { name: 'App pages' }).waitFor();
     assert.ok(await page.locator('input[name="app-place"]').count() > 0, 'the App placement sits on Where it lives, with the App pages (the pages are on the same step)');
     assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'and access on Who uses the App (must-exclude)');
     await onePerQuestion(page, 'App pages');
     await shot(page, '08-app-pages', false);
     await goToStep(page, 'App look');
     await onePerQuestion(page, 'App look');
-    await goToStep(page, 'Run it');
-    assert.equal(await page.locator('[data-run-it]').innerText(), RUN_IT_TITLE);
+    await goToStep(page, 'Data & results');
+    await openRow(page, 'Keep it fresh');
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
     assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh is on, Daily, by default');
-    assert.equal(await page.getByRole('checkbox', { name: /^Hold back/ }).count(), 1, 'Measure impact sits on Run it');
+    await goToStep(page, 'Run it');
+    assert.equal(await page.locator('[data-run-it]').count(), 0, 'Run it no longer carries the Keep it fresh question');
+    assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Measure impact is not on Run it (must-exclude)');
     await onePerQuestion(page, 'Run it');
     await shot(page, '09-run-it', false);
+    await goToMeasureImpact(page);
+    assert.equal(await page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back/ }).count(), 1, 'Measure impact sits on Measure');
+    await onePerQuestion(page, 'Measure impact');
+    await shot(page, '09-measure-impact', false);
     await goToStep(page, 'Review & build');
     assert.match(await builtLine(page), /^The MVP: .*App.*, the result table and the notebook that fills it\.$/);
     await page.getByRole('region', { name: 'Vibes' }).waitFor();
@@ -159,7 +167,7 @@ test('a notebook-only build is Deliver with only Notebook ticked: no App step, a
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await goToStep(page, 'What to deliver');
-    for (const name of [/^App /, /^Genie Agent/, /^Dashboard/, /^Alert/]) {
+    for (const name of [/^App A Databricks/, /^Genie Agent/, /^Dashboard/, /^Alert/]) {
       const box = page.getByRole('checkbox', { name });
       if (await box.isChecked()) await box.uncheck();
     }
@@ -189,7 +197,7 @@ test('an App Inspire cannot afford is dimmed on Deliver with one plain reason an
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await goToStep(page, 'What to deliver');
-    const appBox = page.getByRole('checkbox', { name: /^App / });
+    const appBox = page.getByRole('checkbox', { name: /^App A Databricks/ });
     await page.locator('[data-blocked-reason="app"]').waitFor({ timeout: 15000 });
     assert.deepEqual([await appBox.isDisabled(), await appBox.isChecked()], [true, false]);
     const blocked = page.locator('[data-blocked-reason="app"]');

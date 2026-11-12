@@ -27,10 +27,10 @@ function FindTable({ original, locked, onSearch, onPick }) {
   return (
     <div className="space-y-1">
       <div className="flex items-center gap-2">
-        <input aria-label={`Find a table to use for ${original}`} placeholder="catalog.schema.table" value={name} disabled={locked || busy}
+        <input aria-label={`Search for another table instead of ${original}`} dir="auto" placeholder="catalog.schema.table" value={name} disabled={locked || busy}
           onChange={(e) => setName(e.target.value)} onKeyDown={(e) => { if (e.key === 'Enter') use(); }}
           className="min-w-0 flex-1 h-8 rounded-md border border-border bg-surface px-2 font-mono text-[12px] text-text-primary" />
-        <button type="button" disabled={locked || busy || !name.trim()} onClick={use}
+        <button data-draft-change="" type="button" disabled={locked || busy || !name.trim()} onClick={use}
           className="text-[11px] text-db-red-fg shrink-0 disabled:opacity-50">Use this table</button>
       </div>
       {note && <PlainMessage as="p" text={note} data-find-note="" className="text-[11px] text-text-secondary" />}
@@ -62,7 +62,7 @@ export default function SourceTables({
             {lost && <span className="text-[9px] uppercase tracking-[0.18em] text-error-fg">{lost}</span>}
           </div>
           {readOnly ? null : removed ? (
-            <button type="button" disabled={locked} className="text-[11px] text-db-red-fg shrink-0 disabled:opacity-50" onClick={() => onRestore(original)}>
+            <button data-draft-change="" type="button" disabled={locked} className="text-[11px] text-db-red-fg shrink-0 disabled:opacity-50" onClick={() => onRestore(original)}>
               Use it again
             </button>
           ) : (

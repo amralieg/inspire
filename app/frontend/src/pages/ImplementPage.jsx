@@ -6,11 +6,12 @@ import {
 } from 'lucide-react';
 import {
   statusChip, statusReason, statusDetails, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
-  runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
+  runProfileText, runStopped, cancelledByUser, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
+  swapParts,
   failureChoices, stoppedChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, protectionStopOf, protectionChoices, abacGrantText, liveSourceNow, liveProtection, liveReads,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, APP_READS_CLEARED, protectionStopOf, protectionChoices, abacGrantText, liveSourceNow, liveProtection, liveReads,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -50,7 +51,7 @@ import {
 } from '../lib/mvpProgress';
 import PaneResizer from '../components/PaneResizer';
 import { RAIL_WIDTH, loadPaneWidth, paneWidth, savePaneWidth } from '../lib/paneWidth';
-import MvpProgress, { ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
+import MvpProgress, { ProgressDock, ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
 import useBuildDiagnostics from '../components/useBuildDiagnostics';
 import ChoiceList from '../components/ChoiceList';
 import { useProgressView } from '../lib/progressView';
@@ -106,14 +107,14 @@ function PageHeader({ summary, loading, query, onQuery }) {
         </div>
       </div>
       <label className="relative">
-        <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" aria-hidden />
+        <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" aria-hidden />
         <input dir="auto"
           type="search"
           aria-label="Search use cases"
           placeholder="Search by name, id or domain"
           value={query}
           onChange={(e) => onQuery(e.target.value)}
-          className="w-72 pl-9 pr-3 py-2.5 text-sm border border-border rounded-xl bg-surface text-text-primary shadow-sm glow-focus"
+          className="w-72 ps-9 pe-3 py-2.5 text-sm border border-border rounded-xl bg-surface text-text-primary shadow-sm glow-focus"
         />
       </label>
     </div>
@@ -216,7 +217,7 @@ const FILTER_ICONS = { notebook: NotebookPen, ...OUTPUT_ICONS };
 function AssetFilters({ counts, assets, onToggle }) {
   const total = counts.reduce((most, entry) => Math.max(most, entry.count), 0);
   if (!total && !assets.length) return null;
-  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth has-disabled:opacity-40 ${
+  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth has-disabled:cursor-not-allowed has-disabled:border-dashed ${
     on ? 'border-db-red/40 bg-db-red-50 text-db-red-fg' : 'border-border bg-surface text-text-primary hover:bg-bg-subtle'}`;
   return (
     <div role="group" aria-label="Show use cases with" className="rounded-xl border border-border bg-surface px-3 py-2.5 shadow-sm space-y-1.5">
@@ -244,8 +245,8 @@ function RailProgress({ item, progress }) {
     <div data-rail-progress={percent ?? ''} className="mt-1.5 space-y-1">
       <div className="relative h-1.5 rounded-full bg-bg-subtle overflow-hidden" aria-hidden>
         {percent == null
-          ? <span className="absolute inset-y-0 left-0 w-1/3 rounded-full bg-db-red motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]" />
-          : <span className="absolute inset-y-0 left-0 rounded-full bg-gradient-to-r from-db-red-solid to-db-red transition-[width] duration-700" style={{ width: `${Math.max(percent, 4)}%` }} />}
+          ? <span className="absolute inset-y-0 start-0 w-1/3 rounded-full bg-db-red motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]" />
+          : <span className="absolute inset-y-0 start-0 rounded-full bg-gradient-to-r from-db-red-solid to-db-red transition-[width] duration-700" style={{ width: `${Math.max(percent, 4)}%` }} />}
       </div>
       <p className="flex items-center gap-1.5 text-[11px] text-text-secondary min-w-0">
         {percent != null && <span className="shrink-0 font-mono font-bold tabular-nums text-text-primary">{percent}%</span>}
@@ -345,7 +346,7 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
   );
 }
 
-export default function ImplementPage({ settings, sessionId, focusId = null, onFocus, onOpenRun = null, demoMvps = null, filter = null, onPickRun, onClearFilter }) {
+export default function ImplementPage({ settings, sessionId, focusId = null, focusStep = null, onStepOpened = null, onFocus, onOpenRun = null, demoMvps = null, filter = null, onPickRun, onClearFilter }) {
   const { token, databricksHost, showcase = '' } = settings;
   const readOnly = Boolean(showcase);
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
@@ -444,6 +445,13 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
   const summary = useMemo(() => buildSummary(allItems), [allItems]);
   const shownId = chosenId || groups.flatMap((g) => g.items)[0]?.id || allItems[0]?.id || null;
   const selected = allItems.find((item) => item.id === shownId) || null;
+  const openedStep = useRef('');
+  useEffect(() => {
+    if (!focusStep || !selected?.uc || openedStep.current === `${focusStep}:${selected.id}`) return;
+    openedStep.current = `${focusStep}:${selected.id}`;
+    setWizard({ uc: selected.uc, focus: { step: focusStep }, live: false });
+    onStepOpened?.();
+  }, [focusStep, selected]);
   const paneRef = useRef(null);
   useLayoutEffect(() => {
     if (paneRef.current) paneRef.current.scrollTop = 0;
@@ -481,9 +489,10 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
     if (data?.mode === 'notebook') setListVersion((n) => n + 1);
     loadRail().catch((e) => setRailError(e.message));
   };
+  const [progressDock, setProgressDock] = useState(null);
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
+    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:has-[[data-progress-open=true]]:pe-[var(--dock-w,1.5rem)] md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
@@ -496,6 +505,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
       )}
       {buildNotes.length > 0 && buildDetails.length > 0 && <TechnicalDetails items={buildDetails} />}
       {railError && <PlainMessage text={railError} className={ERROR_BOX} onRetry={() => loadRail().catch((e) => setRailError(e.message))} copy />}
+      <ProgressDock.Provider value={progressDock}>
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
           className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] overflow-y-auto md:max-h-none md:min-h-0">
@@ -507,9 +517,15 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
         <PaneResizer width={railPx} onWidth={(width) => setRailPx(paneWidth(RAIL_WIDTH, width))} limits={RAIL_WIDTH} label="Resize the use case list" data-rail-resizer="" className="self-stretch" />
         <section ref={paneRef} aria-label="Use case" className="relative flex-1 min-w-0 space-y-4 md:self-stretch md:min-h-0 md:overflow-y-auto">
           {selected && (
-            <BuildNextStep apiFetch={apiFetch} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId} sessionId={sessionId}
-              focusId={selected.id} live={IMPLEMENT_DONE_STATUSES.includes(String(selected.latest?.status || ''))}
-              onOpen={readOnly ? undefined : select} />
+            <BuildNextStep apiFetch={apiFetch} apiPostJson={apiPostJson} inspireDatabase={settings.inspireDatabase} warehouseId={settings.warehouseId} sessionId={sessionId}
+              notebookPath={settings.notebookPath} focusId={selected.id} live={IMPLEMENT_DONE_STATUSES.includes(String(selected.latest?.status || ''))}
+              caseOf={(id) => allItems.find((item) => item.id === id)?.uc}
+              onBuilt={readOnly ? undefined : onImplemented} onBuildCustom={readOnly ? undefined : (uc) => setWizard({ uc, focus: null, live: false })}
+              onMeasure={readOnly ? undefined : (id) => {
+                select(id);
+                const item = allItems.find((i) => i.id === id);
+                if (item?.uc) setWizard({ uc: item.uc, focus: { step: 'measure' }, live: false });
+              }} />
           )}
           {selected ? (
             <UseCaseDetail
@@ -534,7 +550,9 @@ export default function ImplementPage({ settings, sessionId, focusId = null, onF
             !listLoading && !listError && <p className={`${PANEL_CLASS} p-6 text-[12px] text-text-secondary`}>This session has no use cases yet.</p>
           )}
         </section>
+      <div ref={setProgressDock} data-progress-dock="" className="hidden empty:hidden md:flex md:fixed md:top-14 md:end-0 md:z-30 md:h-[calc(100dvh-3.5rem)]" />
       </div>
+      </ProgressDock.Provider>
       {wizard && !readOnly && (
         <ImplementWizard
           uc={wizard.uc}
@@ -906,8 +924,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       .catch((e) => { if (live) setTablesView({ editable: false, why: `Inspire could not tell who may change the tables: ${e.message}` }); });
     return () => { live = false; };
   }, [hasMvp, apiFetch, qBase, useCaseId, moneyKey, refreshKey]);
-  const tableSwaps = useCallback((table) => apiPostJson(`/api/inspire/implement/swaps?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`,
-    { table, required_columns: [] }).then((data) => ({ swaps: data.swaps || [], why: data.why || '' })), [apiPostJson, qBase, useCaseId]);
+  const tableSwaps = useCallback((table, onPart) => swapParts((part, body) => apiPostJson(
+    `/api/inspire/implement/swaps?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}${part ? `&part=${part}` : ''}`, body), table, onPart),
+  [apiPostJson, qBase, useCaseId]);
   const tableChange = useCallback((next) => apiPostJson(`/api/inspire/implement/table-change?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`,
     { spec: next }), [apiPostJson, qBase, useCaseId]);
   const chip = statusChip(latest?.status, stalled, latest);
@@ -1075,7 +1094,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const kept = keptVersions(history);
   const checklist = useMemo(() => vibeChecklist(status?.steps, latest), [status?.steps, latest]);
   const held = heldVersion(latest, status?.history ?? null);
-  const progressView = useProgressView(useCaseId, Boolean(held) || Boolean(checklist?.notDecided));
+  const progressView = useProgressView(useCaseId, built);
   const alertAsset = latest?.asset_status?.alert || {};
   const notebookState = uninstalled ? item.notebook || null : item.notebook || (vibeTargets.some((c) => c.id === 'notebook') ? notebookStatus({ has_genie_code: 'Y' }, null) : null);
   const notebook = notebookState && {
@@ -1205,8 +1224,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     return () => { live = false; };
   }, [qBase, latest?.session_id, latest?.spec_version, readOnly]);
   const protection = readOnly ? null : liveProtection(sourceNow, protectionStopOf(latest));
+  const userCancel = cancelledByUser(latest);
   const choicesNow = protection ? protectionChoices(protection)
-    : buildAgain && !dataStop && latest?.status === 'failed' ? (stopped
+    : buildAgain && !dataStop && latest?.status === 'failed' && !userCancel ? (stopped
       ? stoppedChoices(latest, { notebookUrl: notebook?.href || '', issueUrl: newIssueUrl })
       : failureChoices(latest, { technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '' })) : [];
   const writeNotebook = async () => {
@@ -1342,7 +1362,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   );
 
   const reads = readOnly ? null : liveReads(sourceNow);
-  const grantedAll = !readOnly && !reads && readsResult?.version === latest?.spec_version && readsResult?.action === 'grant'
+  const grantedAll = !readOnly && !reads && readsResult?.version === latest?.spec_version && (readsResult?.action === 'grant' || readsResult?.action === 'check')
     && !readsResult?.refused && !readsResult?.error;
   const readsLeft = reads || (grantedAll ? { tables: [], canGrant: false } : null);
   const refreshSourceNow = async () => {
@@ -1387,11 +1407,11 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     runReads('grant');
   }, [reads, readOnly, latest?.session_id, latest?.spec_version]);
   const readsCard = readsLeft && (
-    <section aria-label={APP_READS_HEADING} data-app-reads="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
+    <section aria-label={readsLeft.tables.length ? APP_READS_HEADING : APP_READS_CLEARED} data-app-reads="" className="rounded-lg border border-warning/30 bg-warning-bg px-3.5 py-3 text-[12px] space-y-2.5">
       <div className="flex items-start gap-2.5">
         <AlertTriangle size={16} className="mt-px shrink-0 text-warning-fg" aria-hidden />
         <div className="min-w-0 space-y-1 text-warning-fg">
-          <p className="text-[13px] font-semibold">{readsLeft.tables.length ? APP_READS_HEADING : 'The App can read all its data now'}</p>
+          <p className="text-[13px] font-semibold">{readsLeft.tables.length ? APP_READS_HEADING : APP_READS_CLEARED}</p>
           {readsLeft.tables.length > 0 && <p>{appReadsText(readsLeft, latest?.app_name || '')}</p>}
           {readsLeft.tables.length > 0 && (
             <details data-app-reads-details="" className="text-[11px]">
@@ -1404,7 +1424,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
       </div>
       {readsResult && readsResult.version === latest?.spec_version && (
-        <div role="status" data-app-reads-result={readsResult.refused || readsResult.error ? 'refused' : readsResult.action} className="space-y-0.5 text-text-primary">
+        <div role="status" aria-label="Grant result" data-app-reads-result={readsResult.refused || readsResult.error ? 'refused' : readsResult.action} className="space-y-0.5 text-text-primary">
           {readsResult.error && <p>Your grant could not be made. The error is under Details.</p>}
           {readsResult.error && <details data-app-reads-error="" className="text-[11px]"><summary className="cursor-pointer">Details</summary><PlainMessage text={readsResult.error} /></details>}
           {!readsResult.error && readsResult.action !== 'copy' && <p>{readsResult.text}</p>}
@@ -1658,7 +1678,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   };
 
   const tileRow = (
-    <ul aria-label="Assets" data-asset-tiles="" className="shrink-0 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 auto-rows-fr gap-2">
+    <ul aria-label="Assets" data-asset-tiles="" className="shrink-0 grid grid-cols-1 @[18rem]:grid-cols-2 @[30rem]:grid-cols-3 @[46rem]:grid-cols-6 auto-rows-fr gap-2">
       {ASSET_TILES.map(({ id, label }) => {
         if (id === 'notebook') {
           return (
@@ -1743,7 +1763,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   );
 
   return (
-    <div data-use-case-pane="" className={`flex flex-col gap-3 ${built ? 'md:h-full md:min-h-0' : ''}`}>
+    <div data-use-case-pane="" className={`@container flex flex-col gap-3 ${built ? 'md:h-full md:min-h-0' : ''}`}>
       {celebrations > 0 && <Celebration key={celebrations} trigger />}
       <header data-pinned-name="" className={`${PANEL_CLASS} shrink-0 px-4 py-3 space-y-2.5`}>
         <div className="flex items-start justify-between gap-3">

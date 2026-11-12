@@ -351,7 +351,7 @@ export function AssetPanel({
       </div>
       {busy && (
         <div className="relative h-1 rounded-full bg-bg-subtle overflow-hidden" aria-hidden>
-          <span className={`absolute inset-y-0 left-0 w-1/3 rounded-full ${busy.now ? 'bg-db-red motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]' : 'bg-border'}`} />
+          <span className={`absolute inset-y-0 start-0 w-1/3 rounded-full ${busy.now ? 'bg-db-red motion-safe:animate-[shimmer_1.8s_ease-in-out_infinite]' : 'bg-border'}`} />
         </div>
       )}
       {warned && (

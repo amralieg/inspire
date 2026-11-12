@@ -3,6 +3,7 @@ import { failureOf, getFeedback, sendFeedback } from './api.js';
 import { dayLabel } from './format.js';
 import { Icon } from './icons.jsx';
 import { Failure, Popover, useToast } from './ui.jsx';
+import { SettingGroup } from './Settings.jsx';
 import { FEEDBACK_CHARS, FEEDBACK_SECTIONS, feedbackChars, feedbackProblem, feedbackStatusText } from './feedback.js';
 
 function useFeedback(pageId) {
@@ -66,14 +67,14 @@ function FeedbackForm({ pageId, context, sections, onSent, autoFocus = false, re
   );
 }
 
-function FeedbackList({ data, failure }) {
+function FeedbackList({ data, failure, heading = true }) {
   if (failure?.text) return <Failure failure={failure} className="err">{failure.text}</Failure>;
   if (!data) return null;
   if (data.missing) return <p className="why" data-feedback-missing>This App was built before it kept reported issues. Ask an owner to rebuild it from the Build page in Inspire.</p>;
   if (!data.items?.length) return null;
   return (
     <div className="fb-list" data-feedback-list>
-      <b>{data.everyone ? 'Reported issues' : 'Your reports'}</b>
+      {heading && <b>{data.everyone ? 'Reported issues' : 'Your reports'}</b>}
       <ul>
         {data.items.map((item) => (
           <li key={item.feedback_id} data-feedback-item={item.feedback_id}>
@@ -87,10 +88,11 @@ function FeedbackList({ data, failure }) {
   );
 }
 
-export function FeedbackButton({ pageId, context, sections, reports = null }) {
+export function FeedbackButton({ pageId, context, sections, reports = null, onSent }) {
   const [open, setOpen] = useState(false);
   const anchor = useRef(null);
   const close = useCallback(() => setOpen(false), []);
+  const sent = useCallback((out) => { close(); onSent?.(out); }, [close, onSent]);
   return (
     <>
       <button ref={anchor} type="button" className="btn" onClick={() => setOpen(!open)} aria-expanded={open} data-feedback-open
@@ -99,38 +101,28 @@ export function FeedbackButton({ pageId, context, sections, reports = null }) {
       </button>
       {open && (
         <Popover anchor={anchor.current} onClose={close} label="Report an issue" width={340}>
-          <FeedbackForm pageId={pageId} context={context} sections={sections} onSent={close} autoFocus reports={reports} />
+          <FeedbackForm pageId={pageId} context={context} sections={sections} onSent={sent} autoFocus reports={reports} />
         </Popover>
       )}
     </>
   );
 }
 
-export function FeedbackScreen({ pageId, context, sections, reports = null }) {
-  return (
-    <section className="card" aria-label="Feedback" data-feedback-screen>
-      <FeedbackForm pageId={pageId} context={context} sections={sections} reports={reports} />
-    </section>
-  );
-}
-
-export function ReportedIssues({ pageId }) {
+export function FeedbackSettings({ pageId, context, sections, reports = null, owner = false }) {
   const feedback = useFeedback(pageId);
   const empty = !!feedback.data && !feedback.data.missing && !feedback.data.items?.length;
   return (
-    <section className="card" aria-label="Reported issues" data-reported-issues>
-      <FeedbackList data={feedback.data} failure={feedback.failure} />
-      {empty && <p className="why" data-feedback-empty>Nobody has reported an issue with this App yet.</p>}
-    </section>
-  );
-}
-
-export function FeedbackSettings({ pageId, context, sections, reports = null }) {
-  const feedback = useFeedback(pageId);
-  return (
     <>
-      <FeedbackForm pageId={pageId} context={context} sections={sections} onSent={(out) => feedback.setData(out)} reports={reports} />
-      <FeedbackList data={feedback.data} failure={feedback.failure} />
+      <SettingGroup id="feedback" title="Feedback" why="Tell the owners of this use case what is wrong or what you would change. They see it on its Build page in Inspire.">
+        <FeedbackButton pageId={pageId} context={context} sections={sections} reports={reports} onSent={(out) => feedback.setData(out)} />
+        {!owner && <FeedbackList data={feedback.data} failure={feedback.failure} />}
+      </SettingGroup>
+      {owner && (
+        <SettingGroup id="reports" title="Reported issues" why="Every issue sent about this use case, with its status, so you can see what the owners have already fixed.">
+          <FeedbackList data={feedback.data} failure={feedback.failure} heading={false} />
+          {empty && <p className="why" data-feedback-empty>Nobody has reported an issue with this App yet.</p>}
+        </SettingGroup>
+      )}
     </>
   );
 }

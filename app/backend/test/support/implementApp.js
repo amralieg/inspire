@@ -16,6 +16,7 @@ function makeApp(overrides = {}, { mount } = {}) {
   const flagged = [];
   const appCalls = [];
   const launches = [];
+  const sampleCopies = [];
   const catalogLists = [];
   const state = {
     implementColumns: IMPLEMENT_COLUMNS.map(([name]) => name),
@@ -104,7 +105,11 @@ function makeApp(overrides = {}, { mount } = {}) {
         return { rows: state.history };
       }
       if (sql.includes('u.business_domain AS domain')) return { rows: state.useCaseScope || [] };
-      if (sql.includes('__inspire_usecases')) return { rows: state.useCase ? [state.useCase] : [] };
+      if (sql.includes('__inspire_usecases')) {
+        const asked = ((parameters || []).find((p) => p.name === 'uc') || {}).value;
+        const listed = (state.useCases || []).find((row) => asked !== undefined && String(row.id) === String(asked));
+        return { rows: listed ? [listed] : (state.useCase ? [state.useCase] : []) };
+      }
       if (sql.includes('_summary` WHERE use_case_id = :uc')) return { rows: state.moneySummary || [] };
       if (sql.includes('_assumptions` WHERE use_case_id = :uc')) return { rows: state.moneyEdits || [] };
       if (sql.includes('system.information_schema.catalogs') && !sql.includes('WITH o AS')) {
@@ -140,6 +145,9 @@ function makeApp(overrides = {}, { mount } = {}) {
         const since = (parameters || []).find((p) => p.name === 'since');
         const steps = state.steps || [];
         return { rows: since ? steps.filter((s) => Date.parse(s.last_updated) > Date.parse(since.value)) : steps };
+      }
+      if (sql.includes(' GROUP BY ') && sql.includes(' AS records FROM ')) {
+        return { rows: state.groupCounts || [] };
       }
       if (sql.startsWith('SELECT COUNT(*) AS row_count')) {
         const filtered = (parameters || []).map((p) => String(p.value)).find((v) => state.readinessByFilter && Object.hasOwn(state.readinessByFilter, v));
@@ -315,6 +323,11 @@ function makeApp(overrides = {}, { mount } = {}) {
     const names = (state.schemas || { main: ['inspire', 's'] })[req.params.catalog] || [];
     return res.json({ schemas: names.map((name) => ({ name, full_name: `${req.params.catalog}.${name}` })) });
   });
+  app.post('/api/inspire/samples/copy', (req, res) => {
+    sampleCopies.push(req.body);
+    const [status, data] = state.sampleCopyAnswer || [200, { destination: String((req.body || {}).destination || ''), copies: (req.body.entries || []).map((source) => ({ source, copy: `${req.body.destination}.${source.split('.')[2]}` })), failed: [] }];
+    res.status(status).json(data);
+  });
   app.get('/api/inspire/feedback', (_req, res) => res.json(state.feedback || { available: false, latest: [], message: '' }));
   app.get('/api/inspire/session', (_req, res) => res.json({ session: state.inspireSession || null }));
   app.get('/api/inspire/steps', (_req, res) => res.json({ steps: state.runSteps || [], count: (state.runSteps || []).length }));
@@ -331,7 +344,7 @@ function makeApp(overrides = {}, { mount } = {}) {
   app.get('/api/inspire/value', (_req, res) => res.json(state.value || { use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } }));
   app.get('/api/inspire/value/overall', (_req, res) => res.json(state.valueOverall || { at_stake: [], saved: [], runs: 0, businesses: 0 }));
   app.get('/api/inspire/value/runs', (_req, res) => res.json(state.valueRuns || { runs: {} }));
-  return { app, sqlCalls, fetches, jobs, state, altered, flagged, appCalls, launches, catalogLists };
+  return { app, sqlCalls, fetches, jobs, state, altered, flagged, appCalls, launches, catalogLists, sampleCopies };
 }
 
 function json(data, status = 200) {

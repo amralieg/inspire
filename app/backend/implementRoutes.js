@@ -21,6 +21,8 @@ const U = require('./lib/ucReads');
 const G = require('../frontend/src/lib/tableName.js');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
+const FX = require('./lib/fxRates');
+const MD = require('./lib/moneyDescribe');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
 const {
   clearedText, emptyScopeWarningOf, nextAppName, ownSchemaClashNote, readinessScope, removeTable, skippedAsksText, withoutSkippedAsks,
@@ -46,6 +48,7 @@ function q(req, key) {
 }
 
 // A similar-table row from system.information_schema, as the catalog.schema.table name the picker shows.
+const SWAP_SEARCH_LIMIT_MS = 15000;
 const candidateOf = (r) => `${r.table_catalog}.${r.table_schema}.${r.table_name}`;
 
 function principalsOf(req) {
@@ -583,8 +586,11 @@ function registerImplementRoutes(app, deps) {
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
     const sid = sessionIdOf(req);
     const session = await loadSession(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid);
-    const place = await useCaseSchemaOf(req, warehouseId, `${catalog}.${schema}`, sid, useCaseId, session.business_name);
-    return Boolean(place && place.place === 'own' && place.create && I.sameSchema(place.table, table));
+    const own = I.useCaseOwnSchemas(`${catalog}.${schema}`, useCaseId, sid, session.business_name);
+    const asked = I.tableParts(table);
+    if (!own.includes(`${asked.catalog}.${asked.schema}`.toLowerCase())) return false;
+    const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [asked.schema]);
+    return Boolean(rows) && I.useCaseSchemaFacts(rows).canCreate;
   }
 
   async function useCaseSchemaOf(req, warehouseId, inspireDatabase, sid, useCaseId, businessName) {
@@ -707,19 +713,27 @@ function registerImplementRoutes(app, deps) {
       const warehouseId = warehouseOf(req);
       const table = q(req, 'table');
       const required = Array.isArray(req.body?.required_columns) ? req.body.required_columns : [];
-      const statement = I.tableSwapStatement(table, required);
+      const copyOnly = q(req, 'part') === 'copy';
+      const statement = copyOnly ? I.copySwapStatement(table) : I.tableSwapStatement(table, required);
       const token = P.personTokenOf(req);
       if (!token) return res.json({ table, swaps: [], why: I.IMPLEMENT_SWAPS_NO_SIGN_IN });
-      const rows = await sqlRows(req.dbHost, token, warehouseId, statement);
-      const readable = await Promise.all(rows.map((r) => sqlRows(req.dbHost, token, warehouseId, I.tableProbeStatement(candidateOf(r)))
-        .then(() => true, () => false)));
-      const copies = I.builtInSampleTable(table);
-      const swaps = rows.filter((_r, i) => readable[i]).map((r) => {
-        const matched = Number(r.matched) || 0;
-        const total = Number(r.total) || 0;
-        const copy = copies && Boolean(Number(r.owned)) && total > 0 && matched === total;
-        return { table: candidateOf(r), matched, total, copy };
-      });
+      const search = (async () => {
+        const rows = await sqlRows(req.dbHost, token, warehouseId, statement);
+        const readable = await Promise.all(rows.map((r) => sqlRows(req.dbHost, token, warehouseId, I.tableProbeStatement(candidateOf(r)))
+          .then(() => true, () => false)));
+        const copies = I.builtInSampleTable(table);
+        const swaps = rows.filter((_r, i) => readable[i]).map((r) => {
+          const matched = Number(r.matched) || 0;
+          const total = Number(r.total) || 0;
+          const copy = copies && Boolean(Number(r.owned)) && total > 0 && matched === total;
+          return { table: candidateOf(r), matched, total, copy };
+        });
+        return copyOnly ? swaps.filter((s) => s.copy) : swaps;
+      })();
+      const timer = new Promise((resolve) => { setTimeout(() => resolve(null), SWAP_SEARCH_LIMIT_MS).unref(); });
+      const found = await Promise.race([search, timer]);
+      if (found === null) return res.json({ table, swaps: [], why: I.IMPLEMENT_SWAPS_TOO_SLOW });
+      const swaps = found;
       return res.json({ table, swaps: [...swaps.filter((s) => s.copy), ...swaps.filter((s) => !s.copy)], why: '' });
     } catch (err) {
       sendError(res, err);
@@ -802,7 +816,24 @@ function registerImplementRoutes(app, deps) {
         window: req.body?.window || {},
       });
       const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
-      res.json({ skipped: false, ...I.readinessFromRow(rows[0] || {}, statement.columns) });
+      res.json({ skipped: false, ...I.readinessFromRow(rows[0] || {}, statement.columns), minimum_rows: I.analysisMinimumRows(req.body?.technique) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.post('/api/inspire/implement/group-counts', requireToken, async (req, res) => {
+    try {
+      const warehouseId = warehouseOf(req);
+      const statement = I.groupCountsStatement(q(req, 'table'), req.body?.columns || [], {
+        filters: req.body?.filters || [],
+        window: req.body?.window || {},
+      });
+      if (!statement) return res.status(400).json({ error: `name between 1 and ${I.GROUP_COUNT_MAX_COLUMNS} group columns to count` });
+      const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
+      const truncated = rows.length > I.GROUP_COUNT_LIMIT;
+      const kept = truncated ? rows.slice(0, I.GROUP_COUNT_LIMIT) : rows;
+      res.json({ truncated, groups: kept.map((r) => ({ ...r, records: Number(r.records) || 0 })) });
     } catch (err) {
       sendError(res, err);
     }
@@ -949,7 +980,7 @@ function registerImplementRoutes(app, deps) {
       const checkSpec = I.withResultTable(sent, moved ? moved.to : (resultTable || (sent.config && sent.config.result_table) || ''));
       const verdict = await sourceCheckOf(req, warehouseId, useCaseNow, checkSpec, historyNow);
       checks.sources = verdict.refusal
-        ? { ok: false, detail: verdict.refusal.message }
+        ? { ok: false, detail: verdict.refusal.message, ...(verdict.refusal.details?.missing_tables ? { missing: true } : {}) }
         : { ok: true, detail: 'the App can read every source of this use case' };
       if (shares) checks.result_grant = I.shareCheck(output ? output.grant : null);
       if (appName) {
@@ -1854,6 +1885,61 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  app.post('/api/money/currency-rates', requireToken, async (req, res) => {
+    const token = P.personTokenOf(req);
+    if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
+    const asked = String(req.body?.base || '').trim().toUpperCase();
+    try {
+      const sql = GP.currencySpreadSql(req.body?.table, req.body?.currency_column);
+      if (!sql || (asked && !/^[A-Z]{3}$/.test(asked))) throw I.badRequest('Name the use case table and its currency column, and the reporting currency as a three-letter code such as USD.');
+      const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.CURRENCY_SPREAD_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
+      const currencies = sqlResultToObjects(found).map((r) => ({ code: String(r.currency ?? '').trim().toUpperCase(), records: Number(r.records) }));
+      const capped = currencies.length >= GP.CURRENCY_SPREAD_ROWS;
+      const base = asked || (currencies[0] ? currencies[0].code : 'USD');
+      const rates = await FX.currencyRates({ base, codes: currencies.map((c) => c.code) });
+      return res.json({ ...rates, currencies, capped });
+    } catch (err) {
+      return sendError(res, sqlFailure(err, profileFailures(String(req.body?.table || 'the use case table'))));
+    }
+  });
+
+  app.post('/api/money/value-preview', requireToken, async (req, res) => {
+    const token = P.personTokenOf(req);
+    if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
+    try {
+      const sql = GP.moneyValueSampleSql(req.body?.table, req.body?.value);
+      if (!sql) throw I.badRequest('Name the use case table, and the value: a fixed amount, one column, or an equation over its columns, with one currency.');
+      const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.MONEY_VALUE_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
+      return res.json({ rows: sqlResultToObjects(found).map((r) => ({ stake: Number(r.stake), currency: String(r.currency ?? '') })) });
+    } catch (err) {
+      return sendError(res, sqlFailure(err, profileFailures(String(req.body?.table || 'the use case table'))));
+    }
+  });
+
+  app.post('/api/money/describe-value', requireToken, async (req, res) => {
+    const token = P.personTokenOf(req);
+    if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
+    try {
+      const text = String(req.body?.text ?? '').trim();
+      const columns = Array.isArray(req.body?.columns) ? req.body.columns.map((c) => String(c)).slice(0, MD.COLUMN_LIMIT) : [];
+      if (!text || text.length > MD.DESCRIBE_MAX_CHARS || !columns.length) throw I.badRequest('Describe how the value of each record works, in up to ' + MD.DESCRIBE_MAX_CHARS + ' characters, and name the table.');
+      const listed = await jsonOf(dbFetch, req.dbHost, token, '/api/2.0/serving-endpoints');
+      if (!listed.ok) throw I.badRequest(`Inspire could not list the serving endpoints with your sign-in: ${listed.data.message || listed.data.error || `HTTP ${listed.status}`}`, listed.status);
+      const endpoint = FB.chatEndpoint({}, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
+      if (!endpoint) throw I.badRequest('no chat model you can use is ready on this workspace, so Inspire cannot turn the description into a value; choose the value yourself', 409);
+      const messages = MD.describeMessages({ text, columns, currencyColumn: String(req.body?.currency_column ?? '') });
+      const got = await jsonOf(dbFetch, req.dbHost, token, `/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, {
+        method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ messages, max_tokens: 400, temperature: 0 }),
+      });
+      if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
+      const described = MD.parseDescription(got.data, columns);
+      if (described.problems.length) return res.status(422).json({ error: described.problems.join(' '), problems: described.problems, model: endpoint });
+      return res.json({ value: described.value, explanation: described.explanation, model: endpoint });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
   app.post('/api/grouping/profile', requireToken, async (req, res) => {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
@@ -1934,7 +2020,8 @@ function registerImplementRoutes(app, deps) {
           time, days, joined: profiledJoined, deep: deep ? deep.columns : [], groupBy, readAt: new Date().toISOString(), subject: text });
         const pick = GP.moneySampleColumns(columns);
         const example = pick ? await rows(GP.moneySampleSql(main, pick), null, GP.MONEY_SAMPLE_ROWS) : [];
-        const withExample = (view) => ({ ...view, money_sample: pick ? { ...pick, rows: example } : null });
+        const moneyColumns = (columns || []).map((c) => String(c.column_name ?? '')).filter(Boolean);
+        const withExample = (view) => ({ ...view, money_columns: moneyColumns, money_sample: pick ? { ...pick, rows: example } : null });
         const first = draft(null);
         const grouped = GR.groupByColumns(first.groups_for);
         if (grouped.length < 2) return withExample(first);

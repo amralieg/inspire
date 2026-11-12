@@ -46,6 +46,21 @@ test('preflight offers the READ METADATA grant for a source the App cannot read 
     `READ METADATA is among the grants: ${JSON.stringify(offer.grants)}`);
 });
 
+test('a source the App cannot read the metadata of is refused before the build in two plain sentences, with the App grant action (REQ-037 negative, must fail before the fix)', async () => {
+  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE] },
+    me: { applicationId: 'app-sp-2', displayName: 'riverside-assets' },
+    probeErrors: { '`main`.`s`.`orders`': "[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have USE SCHEMA on Schema 'main.s'." },
+    workspace: ({ token, path }) => (token !== PERSON && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)
+      ? [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403] : undefined) }));
+  assert.equal(got.status, 200, JSON.stringify(got.data));
+  assert.equal(got.data.ok, false, 'the build stops before it starts');
+  const detail = got.data.checks.sources.detail;
+  assert.match(detail, /^The App's service principal riverside-assets cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them\. The build cannot read a source table: /, detail);
+  assert.doesNotMatch(detail, /\. the build /, 'the second sentence starts with a capital, never a fragment');
+  assert.match(detail, /GRANT READ METADATA ON TABLE `main`\.`s`\.`orders` TO `app-sp-2`/, 'the App grant action is named');
+  assert.match(detail, /GRANT USE SCHEMA ON SCHEMA `main`\.`s` TO `app-sp-2`/);
+});
+
 test('preflight passes when the App reads the table and its policies (must-exclude control)', async () => {
   const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE] } }));
   assert.equal(got.data.checks.sources.ok, true);

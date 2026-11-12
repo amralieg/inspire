@@ -248,7 +248,7 @@ def test_every_session_id_the_agent_puts_in_its_json_goes_through_the_one_helper
     step_sites = [value for node in ast.walk(tree) if isinstance(node, ast.keyword) and node.arg == "result_json"
                   and isinstance(node.value, ast.Dict)
                   for key, value in zip(node.value.keys, node.value.values) if getattr(key, "value", None) == "session_id"]
-    assert len(step_sites) == 3 and all(_helper_call(value) for value in step_sites)
+    assert len(step_sites) == 4 and all(_helper_call(value) for value in step_sites)
     history = ast.get_source_segment(src, _agentload.method_node("DatabricksInspire", "_load_feedback"))
     assert '"session_id": inspire_session_id(row.session_id) or None' in history
 

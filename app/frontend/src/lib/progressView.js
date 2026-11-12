@@ -1,6 +1,7 @@
 import { useState } from 'react';
 
 export const PROGRESS_QUERY = 'progress';
+const CHOICE_KEY = (scope) => `inspire.progress.${scope}`;
 
 export function progressLinked(scope, search) {
   return scope != null && new URLSearchParams(search).get(PROGRESS_QUERY) === String(scope);
@@ -13,11 +14,21 @@ export function progressLink(scope, open, href) {
   return `${url.pathname}${url.search}${url.hash}`;
 }
 
+function rememberedChoice(scope) {
+  try { return globalThis.sessionStorage?.getItem(CHOICE_KEY(scope)) ?? null; } catch { return null; }
+}
+
+function saveChoice(scope, open) {
+  try { globalThis.sessionStorage?.setItem(CHOICE_KEY(scope), open ? 'open' : 'closed'); } catch { /* private mode: the panel opens again on the next load */ }
+}
+
 export function useProgressView(scope, openByDefault = false) {
   const [view, setView] = useState({ scope: null, open: null });
   const chosen = view.scope === scope ? view.open : null;
-  const open = chosen ?? (progressLinked(scope, window.location.search) || openByDefault);
+  const remembered = rememberedChoice(scope);
+  const open = chosen ?? (progressLinked(scope, window.location.search) || (remembered ? remembered === 'open' : openByDefault));
   const keep = (next) => {
+    saveChoice(scope, next);
     setView({ scope, open: next });
     const to = progressLink(scope, next, window.location.href);
     if (to !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, '', to);

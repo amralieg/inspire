@@ -283,7 +283,7 @@ test('a card with a count of 0 is shown, says why, and never navigates or filter
       assert.deepEqual(await rows(page), ['42', '41', '50', '51', '60']);
     }
     await page.clock.resume();
-    assert.equal(await totals(page).getByRole('button').count(), 9, 'the 9 cards with a count are buttons');
+    assert.equal(await totals(page).locator('button[data-portfolio-card]').count(), 9, 'the 9 cards with a count are buttons');
     for (const dark of [false, true]) {
       await setDark(page, dark);
       assert.deepEqual((await lowContrast(page, ['[data-card-off]'])).low, [], `${dark ? 'dark' : 'light'} reason text`);
@@ -338,7 +338,7 @@ test('Start offers three unmistakable ways in: your own data, sample data Inspir
       const [data, noData, demo] = [await box('data'), await box('no-data'), await box('demo')];
       assert.equal(Math.round(data.height), Math.round(noData.height), 'the two ways to run Inspire are the same size, side by side');
       assert.equal(Math.round(data.y), Math.round(noData.y));
-      assert.ok(demo.y >= noData.y + noData.height, 'the demo sits below them as the third, lighter way in');
+      assert.ok(demo.x > noData.x && Math.abs(demo.y - noData.y) < 2, 'the demo sits beside No data yet as the third, lighter way in');
       assert.deepEqual(ui.pageErrors, []);
       await choice(page, 'demo').click();
       await page.getByRole('region', { name: 'Demo' }).waitFor({ timeout: 20000 });
@@ -452,6 +452,121 @@ test('a Start run with MVPs building shows a spinner, its building count and a G
     assert.equal(await strip.getAttribute('data-build-filter'), 'mvps_started');
     assert.match(await strip.getByRole('status').innerText(), /^Showing: use cases with an MVP in Acme/, 'Build opens on this run, not the whole list');
     assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+const RC10_VALUE_OVERALL = { at_stake: [{ kind: 'money', unit: 'AED', amount: 12000 }], saved: [], runs: 6, businesses: 3 };
+const RC10_VALUE_RUNS = { runs: { 42: { at_stake: [{ kind: 'money', unit: 'AED', amount: 9000 }], saved: [], mvps_measured: 2 } } };
+const RC10_STATS_TOGGLE = 'Across all runs in this Inspire Database';
+const rc10Mount = (app) => {
+  app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
+  app.get('/api/showcase', (_req, res) => res.json(DEMO_LIST));
+  app.get('/api/inspire/value/overall', (_req, res) => res.json(RC10_VALUE_OVERALL));
+  app.get('/api/inspire/value/runs', (_req, res) => res.json(RC10_VALUE_RUNS));
+};
+const boxOf = (page, selector) => page.locator(selector).boundingBox();
+
+test('REQ-093 Start content uses the page width at 1280, 1440 and 1920 (no narrow centred column)', async () => {
+  const ui = await openStart();
+  const { page } = ui;
+  try {
+    for (const width of [1280, 1440, 1920]) {
+      await page.setViewportSize({ width, height: 900 });
+      const box = await boxOf(page, '[data-start-choices]');
+      assert.ok(box.width >= width * 0.8, `${width}px: the Start content is ${Math.round(box.width)}px wide, under 80% of the page`);
+      assert.ok(box.x <= width * 0.1, `${width}px: the left margin is ${Math.round(box.x)}px`);
+    }
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('REQ-094 No data yet has See Demo beside it on the same row, and See Demo opens the demo', async () => {
+  const ui = await openUi('app', REVIEW_STATE, '', { mount: rc10Mount });
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await choice(page, 'demo').waitFor({ timeout: 20000 });
+    const noData = await boxOf(page, '[data-start-choice="no-data"]');
+    const demo = await boxOf(page, '[data-start-choice="demo"]');
+    assert.ok(Math.abs(demo.y - noData.y) < 2, `See Demo is on the same row as No data yet (y ${Math.round(demo.y)} vs ${Math.round(noData.y)})`);
+    assert.ok(demo.x >= noData.x + noData.width - 1, 'See Demo sits to the right of No data yet');
+    assert.equal(await page.getByRole('button', { name: 'See Demo', exact: true }).count(), 1, 'one See Demo control, not a copy');
+    await choice(page, 'demo').click();
+    await page.getByRole('region', { name: 'Demo' }).waitFor({ timeout: 20000 });
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('REQ-095 Value across runs sits above the all-runs stats, and the stats collapse and expand from the keyboard', async () => {
+  const ui = await openUi('app', REVIEW_STATE, '', { mount: rc10Mount });
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    const overall = page.getByRole('region', { name: 'Value across runs' });
+    const stats = page.getByRole('region', { name: 'Across all runs' });
+    await overall.waitFor({ timeout: 20000 });
+    await stats.waitFor({ timeout: 20000 });
+    assert.ok((await overall.boundingBox()).y < (await stats.boundingBox()).y, 'the value banner is above the all-runs stats');
+    const toggle = stats.getByRole('button', { name: RC10_STATS_TOGGLE });
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'true', 'stats start expanded');
+    assert.equal(await page.locator('[data-portfolio-card="businesses"]').isVisible(), true);
+    await toggle.focus();
+    await page.keyboard.press('Enter');
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false', 'Enter collapses the stats');
+    assert.equal(await page.locator('[data-portfolio-card="businesses"]').isVisible(), false, 'the cards hide when collapsed');
+    await page.keyboard.press('Space');
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'true', 'Space expands the stats again');
+    await toggle.click();
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false');
+    await page.reload();
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click().catch(() => {});
+    await page.getByRole('button', { name: RC10_STATS_TOGGLE }).waitFor({ timeout: 20000 });
+    assert.equal(await page.getByRole('button', { name: RC10_STATS_TOGGLE }).getAttribute('aria-expanded'), 'false', 'the collapsed choice is remembered');
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('REQ-096 every run card shows its value at stake, and Not calculated where the run has none', async () => {
+  const ui = await openUi('app', REVIEW_STATE, '', { mount: rc10Mount });
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await page.locator('[data-run="42"] [data-value-headline="at stake"]').waitFor({ timeout: 20000 });
+    assert.notEqual((await page.locator('[data-run="42"] [data-value-headline="at stake"]').innerText()).trim(), 'none yet', 'run 42 shows its stake');
+    const without = page.locator('[data-run="41"] [data-run-value]');
+    assert.equal(await without.count(), 1, 'run 41 has a value line');
+    assert.equal((await page.locator('[data-run="41"] [data-run-value-state="not-calculated"]').innerText()).trim(), 'Not calculated', 'run 41 says Not calculated');
+    const lines = await page.locator('[data-run]').evaluateAll((els) => els.map((el) => el.querySelectorAll('[data-run-value]').length));
+    assert.ok(lines.length >= 5 && lines.every((n) => n === 1), `every run card has one value line: ${lines.join(',')}`);
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('REQ-098 a stats count that fails stays visible in the header when the stats are collapsed', async () => {
+  const ui = await openUi('app', { ...REVIEW_STATE, sqlErrors: { 'AS businesses FROM': 'PERMISSION_DENIED: User does not have SELECT on __inspire_session' } }, '', { mount });
+  const { page } = ui;
+  try {
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await totals(page).getByRole('alert').waitFor({ timeout: 20000 });
+    const toggle = totals(page).getByRole('button', { name: RC10_STATS_TOGGLE });
+    await toggle.click();
+    assert.equal(await toggle.getAttribute('aria-expanded'), 'false', 'the stats are collapsed');
+    assert.equal(await totals(page).getByRole('alert').isVisible(), true, 'the error is still shown while the stats are collapsed');
+    assert.match(await totals(page).getByRole('alert').innerText(), /^Inspire could not count across the runs: User does not have SELECT on __inspire_session/);
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
   } finally {
     await ui.close();
   }

@@ -15,6 +15,7 @@ SCOPE_JSON = json.dumps({"main.s.orders": {
     "rows": [{"column": "status", "op": "=", "values": ["gold"]}],
 }})
 SCOPED_ORDERS = "(SELECT `order_id`, `customer_id`, `order_date` FROM `main`.`s`.`orders` WHERE `status` = 'gold')"
+SCOPED_ORDERS_FROM = SCOPED_ORDERS + " AS `orders`"
 
 
 @pytest.fixture
@@ -32,7 +33,7 @@ def test_a_scope_names_the_columns_read_and_the_rows_kept_and_the_source_is_thei
     entry = scopes["main.s.orders"]
     assert entry["columns"] == ["order_id", "customer_id", "order_date"]
     assert entry["source"] == SCOPED_ORDERS
-    assert scoped["scoped_source"]("main", "s", "orders") == SCOPED_ORDERS
+    assert scoped["scoped_source"]("main", "s", "orders") == SCOPED_ORDERS_FROM
     assert scoped["scoped_source"]("main", "s", "customers") == "`main`.`s`.`customers`", "an unscoped table is read by its plain name"
 
 
@@ -192,7 +193,11 @@ def test_the_scope_is_saved_on_the_session_row_so_a_generate_run_keeps_it(scoped
     assert writer._widget_to_columns_map()["table_scope"] == ""
     import _agentload
     text = _agentload.agent_source(_agentload.agent_notebook_path())
-    assert "generation_instructions_section STRING,\n            table_scope STRING\n        ) USING DELTA" in text, "the session table is created with the column"
+    anchor = text.index("generation_instructions_section STRING,")
+    start = text.rindex("(", 0, anchor)
+    end = text.index(") USING DELTA", anchor)
+    columns = [c.strip() for c in text[start + 1:end].split(",") if c.strip()]
+    assert "table_scope STRING" in columns, ("the session table is created with the column", columns)
     assert '            ("table_scope", "STRING"),' in text, "a session table made before this version gets the column"
 
 
@@ -283,7 +288,7 @@ def viewed(agent_ns):
 def test_one_scope_definition_builds_the_view_and_the_source_reads_the_view_once_it_exists(viewed):
     scope = viewed["INSPIRE_TABLE_SCOPES"]["main.s.orders"]
     assert scope["view_sql"] == VIEW_SQL, scope["view_sql"]
-    assert viewed["scoped_source"]("main", "s", "orders") == SCOPED_ORDERS, "before the view exists, reads use the scoped subquery"
+    assert viewed["scoped_source"]("main", "s", "orders") == SCOPED_ORDERS_FROM, "before the view exists, reads use the scoped subquery"
     spark = _RecordingSpark()
     assert viewed["create_scope_views"](spark) == ["main.insp.main_s_orders__scope"]
     assert spark.statements == [VIEW_SQL]

@@ -511,7 +511,7 @@ def test_json_mode_banner_reports_failed_steps(agent_ns, tmp_path, quiet_root_lo
 def test_json_mode_banner_stays_a_success_when_nothing_failed(agent_ns, tmp_path, quiet_root_logger, monkeypatch):
     printed = _capture_log_print(agent_ns, monkeypatch)
     _json_mode(agent_ns, tmp_path, fail=False).run()
-    assert ("INFO", "✅ SUCCESS: All artifacts for SmokeCo generated successfully from JSON") in printed
+    assert ("INFO", "✅ SUCCESS: The documents for SmokeCo were rebuilt from the saved catalog") in printed
 
 
 class _FinalizeRecorder:

@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER, STUDIO_STATE, built, builtSpec } from './implementFixtures.js';
-import { closeBrowser, goToStep, onStep, openAdvanced, openUi, startMvp, toVibes, until, toSummary } from './uiSupport.mjs';
+import { closeBrowser, goToStep, goToStorage, onStep, openAdvanced, openUi, startMvp, toVibes, until, toSummary } from './uiSupport.mjs';
 import { wheelEveryRegion, wheelScrolls } from './wheelScroll.mjs';
 
 const HOSTED_NO_TOKEN = 'Inspire needs permission to act as you to show this page; a workspace admin turns on user authorization for Apps, then reopen Inspire';
@@ -226,6 +226,7 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
     assert.equal(await page.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true);
     assert.equal(await page.getByRole('radio', { name: /^Internal data/ }).isDisabled(), true);
     assert.equal(await page.getByRole('note', { name: 'Why each person signs in as themselves' }).textContent(), `${INSIDE_ACCESS_REASON}.`);
+    await goToStorage(page);
     assert.equal(await page.getByRole('radio', { name: /^Fast pages/ }).isDisabled(), true);
     assert.equal(await page.locator('[data-blocked-reason="app-backend"] p').textContent(), INSIDE_BACKEND_REASON);
     await page.locator('[data-inside-warehouse]').waitFor();

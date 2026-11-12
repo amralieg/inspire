@@ -115,13 +115,13 @@ export default function TableBrowser({
 
         {/* Search */}
         <div className="relative mb-2">
-          <Search size={14} className="absolute left-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
+          <Search size={14} className="absolute start-2.5 top-1/2 -translate-y-1/2 text-text-tertiary" />
           <input dir="auto"
             type="text"
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Search tables..."
-            className="w-full pl-8 pr-3 py-1.5 text-sm border border-border rounded-md bg-bg text-text-primary placeholder:text-text-tertiary transition-smooth"
+            className="w-full ps-8 pe-3 py-1.5 text-sm border border-border rounded-md bg-bg text-text-primary placeholder:text-text-tertiary transition-smooth"
           />
         </div>
 

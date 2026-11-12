@@ -248,10 +248,10 @@ def test_sentinel_fires_for_override_and_reinforce_scenarios():
     assert pre_fix_sentinel(_pdf_requested=True, _force_english_pdf=False) is None
 
 
-def test_md_writer_still_unconditional_for_every_language():
-    """Regression guard for Fix #4's original invariant, widened to every
-    language: MD is scheduled unconditionally in the artifact-writing loop,
-    never gated on a language or a generate_choices membership."""
+def test_md_writer_scheduled_for_every_language_gated_only_by_docs_only():
+    """Regression guard for Fix #4's invariant, widened to every language (REQ-077 keeps it for a full run): MD is
+    scheduled in the artifact-writing loop, and the only guard before it is the documents-only gate, never a
+    language or a generate_choices membership."""
     body = _notebook_body()
     anchor = "Submitting writing jobs for {lang}..."
     pos = body.find(anchor)
@@ -259,7 +259,9 @@ def test_md_writer_still_unconditional_for_every_language():
     region = body[pos:pos + 4000]
     md_pos = region.find("writer_ctx.submit(self._generate_markdown_catalog")
     assert md_pos != -1, "MD writer must still be scheduled in the artifact-writing loop"
-    assert "if " not in region[:md_pos], "no if-guard between the loop anchor and MD scheduling (regression guard)"
+    prefix = region[:md_pos]
+    assert prefix.count("if ") == prefix.count('if not getattr(self, \\"json_file_path\\", None):'), \
+        "the only guard before MD is the documents-only gate (regression guard)"
 
 
 def test_pdf_writer_scheduling_reachable_for_v101_widget_and_english(ns, source):

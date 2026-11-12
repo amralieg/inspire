@@ -30,7 +30,10 @@ const Tour = lazy(() => import('./Tour.jsx'));
 const Performance = lazy(() => import('./Performance.jsx'));
 
 const THEME_KEY = 'inspire-app-theme';
-const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', impact: 'trend', feedback: 'info', reports: 'history', settings: 'sliders' };
+const GENIE_CLOSED = 'inspire-genie-closed';
+const genieClosedThisSession = () => { try { return window.sessionStorage.getItem(GENIE_CLOSED) === '1'; } catch { return false; } };
+const rememberGenie = (open) => { try { window.sessionStorage.setItem(GENIE_CLOSED, open ? '0' : '1'); } catch { /* private mode opens it on every load */ } };
+const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', impact: 'trend', settings: 'sliders' };
 
 function initials(user) {
   const source = user?.name || user?.email || '';
@@ -160,7 +163,8 @@ function Shell({ app, onRefreshSiblings }) {
   }), []);
   const [navOpen, setNavOpen] = useState(false);
   const [railCounts, setRailCounts] = useState({});
-  const [genieOpen, setGenieOpen] = useState(false);
+  const [genieOpen, setGenieOpenNow] = useState(() => !genieClosedThisSession());
+  const setGenieOpen = (open) => { rememberGenie(open); setGenieOpenNow(open); };
   const [dockSlot, setDockSlot] = useState(null);
   const [showing, setShowing] = useState(false);
   const [view, setView] = useState(DEFAULT_VIEW);
@@ -283,9 +287,9 @@ function Shell({ app, onRefreshSiblings }) {
     wasWorking.current = working;
     if (working && genieOpen) {
       setDock('genie');
-      setGenieOpen(false);
+      setGenieOpenNow(false);
     } else if (!working && prefs.dock === 'genie') {
-      setGenieOpen(true);
+      setGenieOpenNow(true);
     }
   }, [working]);
   const genieProps = { app, genie, page, pages: shown, onPick: go, fact: page ? topFact(page, tourFacts[page.id]) : '' };
@@ -302,6 +306,7 @@ function Shell({ app, onRefreshSiblings }) {
             <span className="mark-tile logo"><img src={logo} alt="Databricks" width="22" height="22" /></span>
             <span className="mark-t"><b>{app.title}</b><small>{crumb || app.subtitle || `${pages.length} use case${pages.length === 1 ? '' : 's'} · built by Inspire`}</small></span>
           </button>
+          <span className="sp" />
           <Switcher pages={shown} page={page} hub={hub} summaries={summaries} onPick={go} onOpen={loadHub} />
           <span className="sp" />
           <button className="genie-btn" data-tour="genie" onClick={toggleGenie} aria-expanded={genieShown} aria-label="Ask Genie"><GenieMark size={15} /><span>Ask Genie</span></button>

@@ -169,6 +169,9 @@ def _yaml_quote(value):
     return f'"{s}"'
 
 
+FX_RATE_SOURCE = 'https://api.frankfurter.dev/v1/latest'
+
+
 def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_resource_name, assets_path=None, test_tag=None):
     """Emit app.yaml without PyYAML (no extra pip on the cluster)."""
     lines = [
@@ -183,6 +186,8 @@ def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_reso
         f"    value: {_yaml_quote(inspire_db)}",
         '  - name: "INSPIRE_AUTO_SETUP"',
         '    value: "true"',
+        '  - name: "INSPIRE_FX_URL"',
+        f'    value: {_yaml_quote(FX_RATE_SOURCE)}',
     ]
     if warehouse_id:
         lines += ["  - name: \"INSPIRE_WAREHOUSE_ID\"", f"    value: {_yaml_quote(warehouse_id)}"]

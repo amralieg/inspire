@@ -158,6 +158,33 @@ export function profileRecords(profile) {
   return finite(profile?.records);
 }
 
+function scopedGroupRecords(group, rows) {
+  if (!Array.isArray(rows)) return null;
+  const parts = Array.isArray(group.parts) ? group.parts : [];
+  const hits = rows.filter((row) => parts.every((p) => String(row?.[p.column] ?? '') === String(p.value ?? '')));
+  if (!hits.length) return null;
+  const total = hits.reduce((sum, row) => sum + (Number(row.records) || 0), 0);
+  return Number.isFinite(total) ? total : null;
+}
+
+export function scopedGroupRows(answer) {
+  return answer && Array.isArray(answer.groups) && !answer.truncated ? answer.groups : null;
+}
+
+export function withScopedRows(profile, rows, groups = null) {
+  if (!isMap(profile)) return profile;
+  const whole = { ...profile };
+  delete whole.recent;
+  const count = Number.isFinite(rows) ? rows : null;
+  return {
+    ...whole,
+    records: count,
+    first_run: { ...(isMap(profile.first_run) ? profile.first_run : {}), all: count, recent: null },
+    suggested_groups: Array.isArray(profile.suggested_groups)
+      ? profile.suggested_groups.map((g) => (isMap(g) ? { ...g, records: scopedGroupRecords(g, groups) } : g)) : profile.suggested_groups,
+  };
+}
+
 export function firstRunDefault(profile) {
   if (!isMap(profile)) return '';
   return RUN_SCOPES.includes(profile.default_scope) && profile.default_scope !== GROUP_ALL ? profile.default_scope : FIRST_RUN_DEFAULT;
@@ -691,7 +718,7 @@ export function scopeStepsOf(profileState, profile, builtFirstRun = false) {
   const ready = profileState === 'ready' && isMap(profile);
   const reading = profileState === 'loading';
   return { grouping: reading || (ready && (profile.applies === true || deepGrouping(profile).length > 0)),
-    firstRun: builtFirstRun !== true && (ready || reading || profileState === 'error') };
+    firstRun: builtFirstRun !== true && (ready || reading || profileState === 'error' || profileState === 'no_table') };
 }
 
 export function builtFirstRunOf(model) {

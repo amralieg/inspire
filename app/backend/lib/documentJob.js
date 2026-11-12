@@ -1,4 +1,4 @@
-/** Document-only runs: rebuild a finished session's documents from its stored English catalog (docs-only mode). */
+/** Document-only runs: rebuild the picked documents of a finished session from its saved English catalog. */
 
 const DOCUMENT_KINDS = {
   'strategy-document': { formats: { PDF: 'PDF Catalog', PPTX: 'Presentation' } },
@@ -6,7 +6,6 @@ const DOCUMENT_KINDS = {
   'excel-workbook': { fixed: 'Excel' },
 };
 
-const ENGLISH_CATALOG = /-dbx_inspire\.json$/;
 const DOCUMENT_LANGUAGES = ['English', 'French', 'German', 'Spanish', 'Hindi', 'Chinese (Mandarin)', 'Japanese', 'Arabic', 'Portuguese', 'Russian',
   'Swedish', 'Danish', 'Norwegian', 'Finnish', 'Italian', 'Polish', 'Romanian', 'Ukrainian', 'Dutch', 'Korean', 'Indonesian', 'Malay', 'Tamil'];
 
@@ -25,6 +24,15 @@ function refuse(message) {
   return err;
 }
 
+function businessFolder(businessName) {
+  const folder = String(businessName || '').toLowerCase().replace(/[^a-z0-9_]/g, '_').replace(/_+/g, '_').replace(/^_+|_+$/g, '');
+  return folder || '_';
+}
+
+function englishCatalogPath(sessionFolder, businessName) {
+  return `${sessionFolder.replace(/\/+$/, '')}/${businessFolder(businessName)}/docs/${businessName}-dbx_inspire.json`;
+}
+
 function documentRunParams(body) {
   const kind = String(body.kind || '').trim();
   const spec = DOCUMENT_KINDS[kind];
@@ -37,27 +45,31 @@ function documentRunParams(body) {
   }
   const sessionId = String(body.session_id || '').trim();
   if (!NUMERIC_ID.test(sessionId)) throw refuse('session_id must be a numeric Inspire session id');
-  const catalog = String(body.catalog_json_path || '').trim();
-  if (!catalog.startsWith('/')) throw refuse('catalog_json_path must be an absolute workspace path to the session catalog');
-  if (!ENGLISH_CATALOG.test(catalog)) throw refuse('catalog_json_path must be the English catalog (…-dbx_inspire.json), the input every document is rebuilt from');
-  const generationPath = String(body.generation_path || '').trim();
-  if (!generationPath) throw refuse('generation_path is required: the documents are written beside the session');
+  const sessionFolder = String(body.generation_path || '').trim();
+  if (!sessionFolder) throw refuse('generation_path is required: the documents are written beside the session');
+  if (!sessionFolder.startsWith('/')) throw refuse('generation_path must be the absolute session folder that Discover wrote the use cases into');
   const inspireDatabase = String(body.inspire_database || '').trim();
   if (!inspireDatabase) throw refuse('inspire_database is required');
   const languages = languagesOf(body.output_language);
   const businessName = String(body.business_name || '').trim();
   if (!businessName) throw refuse('business_name is required');
+  const catalog = englishCatalogPath(sessionFolder, businessName);
   const params = {
     '15_operation': 'Discover Use Cases',
     '00_business_name': businessName,
     '01_uc_metadata': catalog,
     '02_inspire_database': inspireDatabase,
     '09_generation_options': option,
-    '11_generation_path': generationPath,
+    '11_generation_path': sessionFolder,
     '12_documents_languages': languages.join(','),
     '14_session_id': sessionId,
   };
   return { params, document: { kind, option, session_id: sessionId, languages } };
 }
 
-module.exports = { documentRunParams, DOCUMENT_KINDS };
+const CATALOG_MISSING_TEXT = "This run's catalog file is missing, so documents can't be made from it. Run Discover again to make them.";
+
+const CATALOG_CHECK_FAILED_TEXT = 'Inspire could not check the catalog file, try again.';
+const CATALOG_UNSAVED_TEXT = "This run could not save its catalog file, so documents can't be made from it. Run Discover again.";
+
+module.exports = { documentRunParams, englishCatalogPath, DOCUMENT_KINDS, CATALOG_MISSING_TEXT, CATALOG_CHECK_FAILED_TEXT, CATALOG_UNSAVED_TEXT };

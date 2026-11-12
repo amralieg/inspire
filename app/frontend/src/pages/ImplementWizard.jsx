@@ -1,4 +1,7 @@
+import { splitTechnical } from '../lib/plainText';
+import { nameOfUseCase } from '../lib/useCaseFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MONEY_PARTS } from '../lib/moneyParts.js';
 import { Check, Loader2, NotebookPen, X, ChevronLeft, ChevronRight, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
 import BodyPortal from '../components/BodyPortal';
 import VibesEditor, { VibePrevious } from '../components/VibesEditor';
@@ -13,6 +16,7 @@ import {
   GENIE_CODE_OFF_TITLE,
   genieCodeOff,
   wizardSteps,
+  APP_STORAGE_STEP,
   contextSettings,
   IMPLEMENT_OUTPUTS,
   ALERT_TIER_HELP,
@@ -31,7 +35,6 @@ import {
   useCaseSchemaTags as schemaTagsOf,
   ownSchemaFallbackNote,
   defaultSpecFromUseCase,
-  caseNameOf,
   specFromLatest,
   tablesOf,
   primaryTableOf,
@@ -44,6 +47,13 @@ import {
   setFilterValues,
   readinessScope,
   readinessText,
+  countedFor,
+  tooFewRowsText,
+  columnsReadOf,
+  filterTablesOutside,
+  withoutTableFilters,
+  groupPartColumns,
+  scopeNarrowing,
   emptyScopeWarningOf,
   planLines,
   sharedHolding,
@@ -57,8 +67,9 @@ import {
   cronInWords,
   cronProblem,
   alertTriggerText,
+  sectionErrors,
   stepErrors,
-  advancedErrors,
+  advancedWithErrors,
   freshnessOf,
   withFreshness,
   nextAppName,
@@ -66,10 +77,14 @@ import {
   widgetValueProblem,
   profileFieldProblem,
   initialStepId,
+  MEASURE_IMPACT_PART,
+  opensOnImpact,
   stepIndexOf,
   lostTablesText,
-  APP_READ_ACTION,
   SOURCE_REFUSED_REASON,
+  ACCESS_CHECKING,
+  ACCESS_UNKNOWN,
+  accessVerdictOf,
   NEW_APPS_ACCESS_ACTION,
   appGrantText,
   profileEstimate,
@@ -180,6 +195,7 @@ import {
   VIBES_STEP_NOTE,
   vibesSkippedText,
   modelNameOf,
+  preflightParams,
   splitList,
   APP_OWNERS_LABEL,
   APP_OWNERS_HELP,
@@ -220,6 +236,7 @@ import {
   builtSentence,
   DELIVERY_QUESTION,
   resultTableProblems,
+  dataFilterProblems,
   REBUILD_AS_IS_NOTE,
   rebuildNeedsChoice,
   APP_BACKEND_GUIDE,
@@ -227,6 +244,8 @@ import {
   MEASURE_LABEL,
   withMoneyRule,
   BUILD_IT_LABEL,
+  mergeSwaps,
+  swapParts,
   BACK_TO_SUMMARY,
   SUMMARY_STEP,
   nextStepAfter,
@@ -243,6 +262,7 @@ import { personalColumn } from '../lib/personalColumns';
 import { PLACE_RIGHTS, placeNameProblem } from '../lib/tableName';
 import { BlockedReason, ClearsChoice, DigestChoice, RowSubjectCheck } from '../components/WizardStickParts';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
+import { AppReadAccess, GrantList } from '../components/AppReadAccess';
 import { placeholderWords } from '../lib/placeholderWords';
 import {
   KPI_CHANGE_NOTE, KPI_INSPIRE_PICKS, KPI_NONE_YET, KPI_PICK_RULE, kpiKey, kpiOptionLabel, kpiTargetOf, kpiTargetOptions, kpiTargetProblems, trackedKpiOf,
@@ -253,13 +273,16 @@ import {
 } from '../lib/useCaseSettings';
 import ScopeSettings, { GroupingChosen } from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
-import { PROFILE_WAITING, useScopeProfiles } from '../lib/groupingProfile';
+import { PROFILE_WAITING, noMainTableText, useScopeProfiles } from '../lib/groupingProfile';
+import { fieldOf } from '../lib/useCaseFields.js';
 import { tableScopeSummary } from '../lib/tableScope';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
   FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
   withGroupingDefault, withScopeDefaults, GROUP_BY, groupingChoices, groupingCount, groupingCountText, groupingOf, firstRunSummaryText,
+  withScopedRows,
+  scopedGroupRows,
 } from '../lib/runScope';
 
 const ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: Sparkles, app: AppWindow, alert: Bell };
@@ -282,6 +305,11 @@ const ACCESS_CHECKS = ['app_warehouse'];
 const TILE_CHECK_KEYS = [...Object.values(TILE_CHECKS).flat(), ...PLACE_CHECKS, ...ACCESS_CHECKS];
 
 const rowWithCard = (card, row) => ({ ...(card || {}), ...(row || {}) });
+
+const failureReasonOf = (error) => {
+  const plain = splitTechnical(error?.message).plain.replace(/[.\s]+$/, '');
+  return plain ? `Reason: ${plain}.` : '';
+};
 
 function Field({ label, children }) {
   return (
@@ -355,6 +383,18 @@ function WidgetInput({ widget, value, endpoints, onChange }) {
   );
 }
 
+function FoldLine({ label, what, summary, onOpen }) {
+  return (
+    <div className="border-t border-border pt-3 flex items-start justify-between gap-3">
+      <p data-fold-line={label} className="text-[12px] text-text-secondary min-w-0"><span className="font-semibold text-text-primary">{label}: </span>{summary}</p>
+      <button type="button" data-fold-open="" aria-expanded={false} aria-label={`${CHANGE_LABEL} ${what}`} onClick={onOpen}
+        className="shrink-0 text-xs font-medium text-db-red-fg hover:underline glow-focus">
+        {CHANGE_LABEL}
+      </button>
+    </div>
+  );
+}
+
 function Advanced({ open, onToggle, children, summary = '', what = 'settings' }) {
   return (
     <div className="border-t border-border pt-3 space-y-3">
@@ -388,12 +428,14 @@ function SettingRow({ label, value, children, changeLabel = label, help = '', de
 
 function CheckLine({ check, label }) {
   return (
-    <p className={`text-[11px] ${check.ok ? 'text-success-fg' : 'text-error-fg'}`}>
-      {label}: {check.detail}
+    <div className={`text-[11px] ${check.ok ? 'text-success-fg' : 'text-error-fg'}`}>
+      <PlainMessage text={`${label}: ${check.detail}`} className="text-[11px]" />
       {check.warn && <span className="block text-warning-fg">{check.warn}</span>}
-    </p>
+    </div>
   );
 }
+
+const MONEY_PART_LABEL = { method: 'How it is found', direction: 'Which movement counts', currency: 'Currency', window: 'Periods and statuses', off: 'Turn it off', [MEASURE_IMPACT_PART]: 'Measure impact' };
 
 export default function ImplementWizard({
   uc,
@@ -420,8 +462,10 @@ export default function ImplementWizard({
   const [errors, setErrors] = useState([]);
   const [attempted, setAttempted] = useState({ data: false, delivery: false });
   const [checking, setChecking] = useState('');
-  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false });
+  const [advanced, setAdvanced] = useState({ data: false, results: false, fresh: false, delivery: false, app_place: false, app_access: false, app_options: false, app_pages: false, summary: false });
   const [details, setDetails] = useState(false);
+  const [moneyPart, setMoneyPart] = useState(0);
+  const openOnImpact = useRef(opensOnImpact(focus));
   const [lookView, setLookView] = useState({ tab: 'style', page: 'fix' });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
   const [columnsByTable, setColumnsByTable] = useState({});
@@ -450,7 +494,6 @@ export default function ImplementWizard({
   const [missingTables, setMissingTables] = useState(() => focus?.missingTables || []);
   const lostReason = (table) => missingTables.find((m) => String(m.table).toLowerCase() === table.toLowerCase())?.reason;
   const [changing, setChanging] = useState({});
-  const [excludeRef, setExcludeRef] = useState('');
   const [swaps, setSwaps] = useState({});
   const [swapsWhy, setSwapsWhy] = useState({});
   const [values, setValues] = useState({});
@@ -494,6 +537,7 @@ export default function ImplementWizard({
   const [appNameRefusal, setAppNameRefusal] = useState(null);
   const [placeSet, setPlaceSet] = useState('');
   const [draftBack, setDraftBack] = useState(false);
+  const [dataChoice, setDataChoice] = useState(null);
   const draftStamp = useRef('');
   const touched = useRef(false);
   const loadedSpec = useRef(null);
@@ -506,7 +550,8 @@ export default function ImplementWizard({
   const primaryOriginal = primaryTableOf(ucRow);
   const primaryChosen = spec.data.tables[primaryOriginal] || primaryOriginal;
   const scopeProfile = useScopeProfiles({ apiPostJson, inspireDatabase, sessionId, useCaseId: spec.use_case_id, warehouseId, enabled: mode === 'mvp',
-    groupBy: spec.config.widgets?.[GROUP_BY], defaultGrouping: true, table: primaryChosen });
+    groupBy: spec.config.widgets?.[GROUP_BY], defaultGrouping: true, table: primaryChosen,
+    noMainTable: tablesOf(ucRow).length ? '' : noMainTableText(nameOfUseCase(ucRow)) });
   const builtFirstRun = builtFirstRunOf(settingsModel);
   const firstRunUnrecorded = useMemo(() => latestRunScope(context?.latest).unrecorded, [context?.latest]);
   const ranBefore = builtFirstRun || Boolean(context?.latest && context.latest.status !== 'failed');
@@ -521,6 +566,13 @@ export default function ImplementWizard({
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
   const shows = (panel) => steps[stepIndex].panels.includes(panel);
+  const moneyParts = [...(spec.money?.off ? ['off'] : [...MONEY_PARTS.filter((p) => p !== 'off'), 'off']), MEASURE_IMPACT_PART];
+  const moneyActive = Math.min(moneyPart, moneyParts.length - 1);
+  useEffect(() => {
+    if (steps[stepIndex].id !== 'stake') return;
+    setMoneyPart(openOnImpact.current ? moneyParts.length - 1 : 0);
+    openOnImpact.current = false;
+  }, [stepIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   const resultsOn = shows('results');
   useEffect(() => {
     if (!context || !scopeSteps.grouping || context.latest || groupingDefaulted.current) return;
@@ -529,6 +581,16 @@ export default function ImplementWizard({
   }, [scopeSteps.grouping, context, scopeProfile.profile]);
   const lastStep = stepIndex === steps.length - 1;
   const scopeReady = scopeProfile.state !== 'loading';
+  const scopeNow = readinessScope(spec, ucRow);
+  const scopeKey = JSON.stringify(scopeNow);
+  const readCounted = countedFor(readiness, scopeNow);
+  const scopeCounted = Boolean(readCounted);
+  const narrowed = scopeNarrowing(scopeNow).length > 0;
+  const scopeCount = scopeCounted ? Number(readCounted.row_count) : null;
+  const scopeGroups = scopeCounted ? readCounted.groups || null : null;
+  const scopedProfile = narrowed ? withScopedRows(scopeProfile.profile, scopeCount, scopeGroups) : scopeProfile.profile;
+  const scopedFirstRun = narrowed && scopeProfile.firstRun ? { ...scopeProfile.firstRun, profile: withScopedRows(scopeProfile.firstRun.profile, scopeCount, scopeGroups) } : scopeProfile.firstRun;
+  const tooFewRows = tooFewRowsText(readCounted);
   const totalSteps = useMemo(() => steps.length, [scopeReady, Boolean(spec.outputs.app)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const q = useMemo(() => {
@@ -560,12 +622,14 @@ export default function ImplementWizard({
   };
 
   const loadSwaps = useCallback(async (table) => {
+    const post = (part, body) => apiPostJson(`/api/inspire/implement/swaps?${q}${part ? `&part=${part}` : ''}`, body);
     try {
-      const data = await apiPostJson(`/api/inspire/implement/swaps?${q}`, { table, required_columns: [] });
-      setSwaps((prev) => ({ ...prev, [table]: data.swaps || [] }));
-      setSwapsWhy((prev) => ({ ...prev, [table]: data.why || '' }));
+      await swapParts(post, table, (list, why) => {
+        setSwaps((prev) => ({ ...prev, [table]: mergeSwaps(prev[table], list) }));
+        if (why !== null) setSwapsWhy((prev) => ({ ...prev, [table]: why }));
+      });
     } catch (e) {
-      setSwaps((prev) => ({ ...prev, [table]: [] }));
+      setSwaps((prev) => ({ ...prev, [table]: prev[table] || [] }));
       setErrors([e.message]);
     }
   }, [apiPostJson, q]);
@@ -613,7 +677,7 @@ export default function ImplementWizard({
         if (!next.config.warehouse_id) next.config.warehouse_id = warehouseId;
         setSpec(next);
         setMissingTables(missing);
-        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_pages', 'app_place', 'app_access', 'app_features', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
+        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_pages', 'app_place', 'app_access', 'app_features', 'app_storage', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
         loadedSpec.current = next;
         draftStamp.current = draftStampOf(data.use_case, data.latest);
         const draft = readWizardDraft(draftKey, draftStamp.current);
@@ -693,8 +757,6 @@ export default function ImplementWizard({
   }, [firstRunUnrecorded, scopeProfile.state, scopeProfile.profile]);
 
   const groups = context?.widget_groups || NO_WIDGET_GROUPS;
-  const segmentRef = spec.data.column_roles.segment || '';
-  const exclusionRefs = (spec.data.filters || []).filter((f) => f.op === 'not in').map((f) => `${f.table}.${f.column}`);
   const built = builtVersion(context?.history);
   const kpiOptions = useMemo(() => kpiTargetOptions(ucRow, context?.history), [ucRow, context?.history]);
   const scopeShown = withGroupingDefault(scopeValues((name) => spec.config.widgets?.[name]), scopeProfile.profile, spec.config.widgets?.[GROUP_BY]);
@@ -708,6 +770,12 @@ export default function ImplementWizard({
     lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps: stepScope, scopeProfile: scopeProfile.profile, outputBlocks: blocks };
   const chartDates = appInputDates(columnsByTable, sourceTables);
   const ownErrors = stepErrors(stepId, spec, extras, mode);
+  const resultAuto = advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false;
+  const errorBlock = stepId !== 'data' ? null : dataFilterProblems(spec).length ? 'filters' : resultTableProblems(spec.config.result_table).length ? 'results' : null;
+  const dataFolded = dataChoice ?? errorBlock ?? (resultAuto ? 'results' : null);
+  const resultsShown = dataFolded === 'results';
+  const sourcesShown = dataFolded === null || dataFolded === 'sources' || dataFolded === 'closed';
+  const filtersShown = dataFolded === null || dataFolded === 'filters' || dataFolded === 'closed';
   const reach = steps.map((s, i) => i <= stepIndex || steps.slice(0, i).every((p) => !stepErrors(p.id, spec, extras, mode).length));
   const done = steps.map((s, i) => i < stepIndex && !stepErrors(s.id, spec, extras, mode).length);
   const goTo = (id) => { setErrors([]); setStep(id); };
@@ -736,7 +804,8 @@ export default function ImplementWizard({
   const blockedBy = (id) => {
     setAttempted((prev) => ({ ...prev, [id]: true }));
     if (!stepErrors(id, spec, extras, mode).length) return false;
-    if (advancedErrors(id, spec, extras, mode).length) setAdvanced((prev) => ({ ...prev, [id]: true }));
+    const hidden = advancedWithErrors(id, spec, extras, mode);
+    if (hidden.length) setAdvanced((prev) => ({ ...prev, ...Object.fromEntries(hidden.map((section) => [section, true])) }));
     if (id === 'data' && (!String(spec.use_case.goal || '').trim() || !String(spec.use_case.decision_owner || '').trim())) setDetails(true);
     if (id === SUMMARY_STEP.id) {
       const where = vibesProblem('mvp', spec.vibes, 'MVP') ? '[data-vibes="mvp"] textarea' : vibePreviousProblem(spec, built) ? '[data-vibe-previous] input' : '';
@@ -762,36 +831,57 @@ export default function ImplementWizard({
     }
   };
 
+  const countScope = async (scope) => {
+    const counted = await apiPostJson(`/api/inspire/implement/readiness?${q}`, {
+      table: scope.table,
+      discovery_type: discoveryType,
+      technique: fieldOf(ucRow, 'Analytics Technique', 'analytics_technique'),
+      columns: scope.columns,
+      filters: scope.filters,
+      window: scope.window,
+    }).catch((e) => {
+      if (checkCallRefused(e)) throw e;
+      return uncountedReadiness(scope);
+    });
+    setCheckNotes((prev) => ({ ...prev, data: counted.unchecked || '' }));
+    let warning = '';
+    if (!counted.skipped && Number(counted.row_count) === 0) {
+      warning = await emptyScopeWarningOf(scope, sourceTables, (table) => apiPostJson(`/api/inspire/implement/readiness?${q}`, {
+        table, discovery_type: discoveryType, columns: [], filters: [], window: {},
+      }));
+    }
+    const groupColumns = scopeNarrowing(scope).length ? groupPartColumns(scopeProfile.profile) : [];
+    const groups = groupColumns.length && !counted.skipped
+      ? await apiPostJson(`/api/inspire/implement/group-counts?${q}`, { table: scope.table, columns: groupColumns, filters: scope.filters, window: scope.window })
+        .then(scopedGroupRows).catch(() => null)
+      : null;
+    return { ...counted, scope, warning, groups };
+  };
+
+  useEffect(() => {
+    if (mode !== 'mvp' || !narrowed || scopeCounted || !shows('first_run') || !scopeNow.table) return undefined;
+    let live = true;
+    countScope(scopeNow).then((got) => { if (live) setReadiness(got); }).catch(() => {});
+    return () => { live = false; };
+  }, [scopeKey, stepId]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const goNext = async () => {
     setErrors([]);
+    if (stepId === 'stake' && moneyActive < moneyParts.length - 1) { setMoneyPart(moneyActive + 1); return; }
     if (mode === 'notebook') {
       setStep(steps[stepIndex + 1].id);
       return;
     }
-    if (blockedBy(stepId)) return;
+    if (blockedBy(stepId)) {
+      if (stepId === 'data') setDataChoice(null);
+      return;
+    }
     try {
       if (stepId === 'data') {
         const scope = readinessScope(spec, ucRow);
         if (scope.table) {
           setChecking('Checking the data');
-          const counted = await apiPostJson(`/api/inspire/implement/readiness?${q}`, {
-            table: scope.table,
-            discovery_type: discoveryType,
-            columns: scope.columns,
-            filters: scope.filters,
-            window: scope.window,
-          }).catch((e) => {
-            if (checkCallRefused(e)) throw e;
-            return uncountedReadiness(scope);
-          });
-          setCheckNotes((prev) => ({ ...prev, data: counted.unchecked || '' }));
-          let warning = '';
-          if (!counted.skipped && Number(counted.row_count) === 0) {
-            warning = await emptyScopeWarningOf(scope, sourceTables, (table) => apiPostJson(`/api/inspire/implement/readiness?${q}`, {
-              table, discovery_type: discoveryType, columns: [], filters: [], window: {},
-            }));
-          }
-          setReadiness({ ...counted, scope, warning });
+          setReadiness(await countScope(scope));
         }
       }
       if (resultsOn && resultPlace === 'own') {
@@ -809,9 +899,9 @@ export default function ImplementWizard({
         }).catch((e) => {
           setSpec((prev) => withResultTable(prev, resultTableParts(inspireTable)));
           setOwnSchema((prev) => ({ ...(prev || {}), place: 'inspire', create: false }));
-          setPlaceNote(`${ownSchemaFallbackNote(own.catalog, context?.me?.username)} (${e.message})`);
+          setPlaceNote(`${ownSchemaFallbackNote(own.catalog, context?.me?.username)} ${failureReasonOf(e)}`);
           setOutputCheck(null);
-          setSchemaJob({ state: 'failed', text: `${ownSchemaFallbackNote(own.catalog, context?.me?.username)} (${e.message})` });
+          setSchemaJob({ state: 'failed', text: `${ownSchemaFallbackNote(own.catalog, context?.me?.username)} ${failureReasonOf(e)}` });
         });
       } else if (resultsOn) {
         setChecking('Checking you can write the result table');
@@ -864,19 +954,7 @@ export default function ImplementWizard({
     setPreflightError('');
     const timer = setTimeout(async () => {
       const planNow = lastStep && !ownErrorsKey && planReady && !appBlocked;
-      const mergeApp = spec.outputs.app ? spec.outputs.merge.app : '';
-      const checks = new URLSearchParams({
-        result_table: spec.config.result_table,
-        model_name: modelNameOf(spec),
-        app_name: spec.outputs.app && !mergeApp ? spec.outputs.app_name : '',
-        app_warehouse: spec.outputs.app && !mergeApp ? spec.outputs.app_warehouse_id || '' : '',
-        merge_app: mergeApp,
-        alert: spec.outputs.alert ? '1' : '0',
-        genie: spec.outputs.genie_space ? '1' : '0',
-        dashboard: spec.outputs.dashboard ? '1' : '0',
-        share: (spec.sharing.principals || []).length ? '1' : '0',
-        principals: JSON.stringify((spec.sharing.principals || []).map((p) => p.name)),
-      });
+      const checks = preflightParams(spec);
       const [pre, planned] = await Promise.allSettled([
         apiPostJson(`/api/inspire/implement/preflight?${q}&${checks.toString()}`, { spec: sent }),
         planNow
@@ -885,7 +963,7 @@ export default function ImplementWizard({
       ]);
       if (cancelled) return;
       setPreflight(pre.status === 'fulfilled' ? pre.value : null);
-      setPreflightError(pre.status === 'fulfilled' ? '' : pre.reason.message);
+      setPreflightError(pre.status === 'fulfilled' ? '' : (pre.reason?.message || 'Could not check access'));
       if (pre.status === 'fulfilled' && pre.value?.checks?.app_name?.ok === false) {
         setAppNameRefusal({ name: spec.outputs.app_name, check: pre.value.checks.app_name });
       }
@@ -994,7 +1072,7 @@ export default function ImplementWizard({
   }, [columnsByTable, spec]);
 
   useEffect(() => {
-    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where' || stepId === 'app'));
+    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where' || stepId === 'app' || stepId === APP_STORAGE_STEP.id));
     if (!wanted || warehouses !== null || warehousesError) return undefined;
     let cancelled = false;
     apiFetch('/api/warehouses')
@@ -1064,7 +1142,7 @@ export default function ImplementWizard({
   };
 
   const markTouched = (e) => {
-    if (e.target?.closest?.('input, select, textarea, [data-option]')) touched.current = true;
+    if (e.target?.closest?.('input, select, textarea, [data-option], [data-draft-change]')) touched.current = true;
   };
 
   const startOver = () => {
@@ -1163,7 +1241,7 @@ export default function ImplementWizard({
     return () => clearTimeout(t);
   }, [principalQ, apiFetch, q]);
 
-  const title = caseNameOf(uc) || spec.use_case_name || spec.use_case_id;
+  const title = nameOfUseCase(ucRow) || spec.use_case_name || spec.use_case_id;
   const genieOff = genieCodeOff(features);
   const unavailable = Object.keys(blocks);
   const unavailableKey = unavailable.join(',');
@@ -1209,7 +1287,7 @@ export default function ImplementWizard({
   const freshness = freshnessOf(spec.schedule);
   const checkStepOf = (k) => {
     if (PLACE_CHECKS.includes(k)) return 'where';
-    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'where' : 'app';
+    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'where' : APP_STORAGE_STEP.id;
     return CHOOSE_CHECKS.includes(k) || TILE_CHECK_KEYS.includes(k) ? 'delivery' : SUMMARY_STEP.id;
   };
   const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || SUMMARY_STEP.label;
@@ -1225,7 +1303,7 @@ export default function ImplementWizard({
     ...(attempted[stepId] ? ownErrors : []),
     ...errors,
     ...(stepId === 'data' ? Object.values(columnsErrors) : []),
-    ...(buildStep ? [lastStep ? planError : '', preflightError, ...deliveryChecks, ...earlierGaps] : []),
+    ...(buildStep ? [lastStep ? planError : '', lastStep ? '' : preflightError, ...deliveryChecks, ...earlierGaps] : []),
   ].filter(Boolean))];
   const checkAgain = async () => {
     try {
@@ -1242,10 +1320,13 @@ export default function ImplementWizard({
     [planError, checkAgain],
     [preflightError, checkAgain],
   ].filter(([e]) => e));
-  const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
-  const sourceRefused = preflight?.checks?.sources ? preflight.checks.sources.ok === false : Boolean(appUnreadable);
+  const accessVerdict = accessVerdictOf({ preflight, error: preflightError, busy: checksBusy, unread: appUnreadable });
+  const unchanged = lastStep && accessVerdict === 'ok' && Boolean(plan?.unchanged);
+  const sourceRefused = accessVerdict === 'refused';
+  const sourceAccessRefused = sourceRefused && !preflight?.checks?.sources?.missing;
   const implementBlocked = busy || checksBusy || !placeSettled || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
-    || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))));
+    || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))))
+    || (lastStep && accessVerdict !== 'ok' && accessVerdict !== 'refused');
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
   const best = oneBestPerStep({
     output: bestOutput(blocks),
@@ -1265,12 +1346,12 @@ export default function ImplementWizard({
   const groupingNow = spec.config.widgets?.[GROUP_BY] || scopeShown[GROUP_BY];
   const groupingPicked = groupingOf(scopeProfile.profile, groupingNow);
   const summaryRows = pickedSummary(spec, sourceTables, {
-    grouping: scopeSteps.grouping && groupingPicked ? `${groupingPicked.label} · ${groupingCountText(groupingCount(groupingPicked, scopeProfile.firstRun?.profile || scopeProfile.profile))}` : '',
-    firstRun: scopeSteps.firstRun ? firstRunSummaryText(scopeProfile.firstRun?.state === 'ready' ? scopeProfile.firstRun.profile : scopeProfile.profile, sentScope) : '',
+    grouping: scopeSteps.grouping && groupingPicked ? `${groupingPicked.label} · ${groupingCountText(groupingCount(groupingPicked, scopedFirstRun?.profile || scopedProfile))}` : '',
+    firstRun: scopeSteps.firstRun ? firstRunSummaryText(scopedFirstRun?.state === 'ready' ? scopedFirstRun.profile : scopedProfile, sentScope) : '',
     settings: settingsList.length ? counted(settingsList.length, 'setting') : '',
     dropped: dropped.filter((d) => !spec.outputs[d.id]),
   }).filter((row) => steps.some((s) => s.id === row.step));
-  const changeStep = (id) => { setErrors([]); setBackToSummary(true); setStep(id); };
+  const changeStep = (id, part) => { setErrors([]); setBackToSummary(true); openOnImpact.current = part === MEASURE_IMPACT_PART; setStep(id); };
   const nextIsSummary = backToSummary && nextStepAfter(steps, stepId, { backToSummary, visited }) === SUMMARY_STEP.id;
 
   const pickTable = (original, value) => {
@@ -1347,7 +1428,8 @@ export default function ImplementWizard({
 
         {stepId === 'data' && mode === 'mvp' && (
           <>
-            <section className="space-y-2">
+            {!sourcesShown && <FoldLine label="Source tables" what="Source tables" summary={`${sourceTables.length} ${sourceTables.length === 1 ? 'table' : 'tables'}: ${sourceTables.join(', ')}`} onOpen={() => setDataChoice('sources')} />}
+            {sourcesShown && <section className="space-y-2">
               <div>
                 <h3 className="text-sm font-semibold text-text-primary">Source tables</h3>
                 <p className="text-[11px] text-text-tertiary">Inspire picked these for this use case. Genie builds on them unless you change one.</p>
@@ -1372,7 +1454,10 @@ export default function ImplementWizard({
                 onSearch={searchTable}
                 onRestore={(original) => { setSpec((prev) => restoreTable(prev, original)); setNotice(''); }}
               />
-            </section>
+            </section>}
+
+            {!filtersShown && <FoldLine label="Table filters" what="Table filters" summary={`${(spec.data.filters || []).length} filter${(spec.data.filters || []).length === 1 ? '' : 's'} on ${sourceTables.length} ${sourceTables.length === 1 ? 'table' : 'tables'}`} onOpen={() => setDataChoice('filters')} />}
+            {filtersShown && <SourceTableBlocks tables={sourceTables} spec={spec} columnsByTable={columnsByTable} values={values} setSpec={setSpec} loadValues={loadValues} />}
 
             <Advanced open={advanced.data} onToggle={() => toggleAdvanced('data')} what="data settings" summary={dataSummary}>
               <RowSubjectCheck
@@ -1389,7 +1474,7 @@ export default function ImplementWizard({
                   only to override it.
                 </p>
                 {Object.values(spec.data.column_roles).some(Boolean) && (
-                  <button type="button" className="text-[11px] text-db-red-fg shrink-0" onClick={() => patch('data.column_roles', {})}>
+                  <button type="button" data-draft-change="" className="text-[11px] text-db-red-fg shrink-0" onClick={() => patch('data.column_roles', {})}>
                     {RESET_ROLES_LABEL}
                   </button>
                 )}
@@ -1419,34 +1504,6 @@ export default function ImplementWizard({
                 <Field label="Window end">
                   <input type="date" className={inputCls} value={spec.data.window.end} onChange={(e) => patch('data.window', { ...spec.data.window, end: e.target.value })} />
                 </Field>
-              </div>
-              {segmentRef && (
-                <ValuePicker
-                  label={`Segment filter (optional): keep only these ${segmentRef}`}
-                  values={values[segmentRef]}
-                  selected={filterValues(spec, refTable(segmentRef), refColumn(segmentRef), 'in')}
-                  onLoad={() => loadValues(refTable(segmentRef), refColumn(segmentRef))}
-                  onChange={(picked) => setSpec((prev) => setFilterValues(prev, refTable(segmentRef), refColumn(segmentRef), 'in', picked))}
-                />
-              )}
-              <div className="space-y-2">
-                <span className="text-[10px] font-bold uppercase tracking-[0.18em] text-text-tertiary">Exclusions (optional)</span>
-                <select className={inputCls} value={excludeRef} onChange={(e) => setExcludeRef(e.target.value)}>
-                  <option value="">Pick a column to exclude values from</option>
-                  {sourceTables.flatMap((table) => (columnsByTable[table] || []).map((c) => (
-                    <option key={`${table}.${c.column_name}`} value={`${table}.${c.column_name}`}>{table}.{c.column_name}</option>
-                  )))}
-                </select>
-                {[...new Set([excludeRef, ...exclusionRefs].filter(Boolean))].map((ref) => (
-                  <ValuePicker
-                    key={ref}
-                    label={`Leave out these ${ref}`}
-                    values={values[ref]}
-                    selected={filterValues(spec, refTable(ref), refColumn(ref), 'not in')}
-                    onLoad={() => loadValues(refTable(ref), refColumn(ref))}
-                    onChange={(picked) => setSpec((prev) => setFilterValues(prev, refTable(ref), refColumn(ref), 'not in', picked))}
-                  />
-                ))}
               </div>
               <p className="text-[11px] text-text-tertiary">
                 Next counts the rows to work with before Genie starts.
@@ -1504,16 +1561,17 @@ export default function ImplementWizard({
           <section aria-label={shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE} data-scope-step={shows('first_run') ? 'first_run' : 'grouping'} className="space-y-3">
             <h3 className="text-sm font-semibold text-text-primary">{shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE}</h3>
             {shows('grouping') && <p data-grouping-example-plain="" className="text-[12px] text-text-secondary">{GROUPING_EXAMPLE}{groupingChoices(scopeProfile.profile).length > 1 ? ` ${GROUPING_PICK}` : ''}</p>}
-            {shows('first_run') && <GroupingChosen values={scopeShown} profile={scopeProfile.firstRun?.profile || scopeProfile.profile} />}
-            <ScopeSettings part={shows('first_run') ? 'first_run' : 'grouping'} values={scopeShown} profile={scopeProfile.profile} profileState={scopeProfile.state} profileError={scopeProfile.error}
-              groups={scopeProfile.firstRun} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
+            {shows('first_run') && <GroupingChosen values={scopeShown} profile={scopedFirstRun?.profile || scopedProfile} />}
+            <ScopeSettings part={shows('first_run') ? 'first_run' : 'grouping'} values={scopeShown} profile={scopedProfile} profileState={scopeProfile.state} profileError={scopeProfile.error}
+              groups={scopedFirstRun} settings={scopeSettingList} onChange={(name, value) => setSpec((prev) => withSetting(prev, { name, source: 'widget' }, value))}
               unrecorded={firstRunUnrecorded}
               groupingChosenBy={groupingChosenBy(spec.config.widgets?.[GROUP_BY], scopeProfile.profile)} />
           </section>
         )}
 
         {resultsOn && (
-          <>
+          <Advanced open={resultsShown} onToggle={() => { if (resultsShown) { setAdvanced((prev) => ({ ...prev, results: false })); setDataChoice('closed'); } else setDataChoice('results'); }} what="result table"
+            summary={`Result table: ${spec.config.result_table || 'not set yet'}`}>
             <ResultTableStep
               table={spec.config.result_table}
               ownTable={ownTable}
@@ -1537,15 +1595,15 @@ export default function ImplementWizard({
                 onCreate={createPlace}
               />
             </ResultTableStep>
-          </>
+          </Advanced>
         )}
 
-        {shows('fresh') && <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>}
         {shows('fresh') && (
-          <>
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-text-primary">{FRESH_LABEL}</h3>
+          <section className="space-y-2" aria-label={FRESH_LABEL}>
+            <Advanced open={advanced.fresh || sectionErrors('schedule', spec, extras).length > 0} onToggle={() => toggleAdvanced('fresh')} what={FRESH_LABEL}
+              summary={freshness === 'off' ? 'Keep it fresh: off, it runs once now' : `Keep it fresh: runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`}>
               <p className="text-[11px] text-text-secondary">{FRESH_HELP}</p>
+              <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
               <div data-choice="freshness" className="space-y-2">
               <div role="group" aria-label="Keep it fresh" className="inline-flex rounded-lg border border-border overflow-hidden">
                 {[...FRESHNESS_OPTIONS, ...(freshness === 'custom' ? [{ id: 'custom', label: 'Custom' }] : [])].map((option) => (
@@ -1569,27 +1627,13 @@ export default function ImplementWizard({
                   ? 'It runs once now. Turn this on later to keep the results current.'
                   : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first run works. Cost: ${costHint(spec, { scheduleSaid: true })}`}
               </p>
-            </section>
-
-          </>
+            </Advanced>
+          </section>
         )}
 
-        {shows('measure') && (
+        {shows('schedule') && (
           <>
-            <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
-              <KpiTargetSetting
-                spec={spec}
-                best={best.kpi}
-                options={kpiOptions}
-                tracked={trackedKpi}
-                before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
-                onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
-              />
-            </HoldoutSetting>
             <div className="space-y-3">
-              <SettingRow label="Hold back" value={holdoutOf(spec).enabled ? `${holdoutPercentText(spec) || '10'}% of records` : 'off'} changeLabel="hold back share">
-                <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
-              </SettingRow>
               <SettingRow label="Schedule (Quartz cron)" value={cronInWords(spec.schedule.cron, spec.schedule.timezone)} changeLabel="schedule">
                 <Field label="Cron (Quartz)">
                   <input dir="auto" className={inputCls} value={spec.schedule.cron} onChange={(e) => patch('schedule.cron', e.target.value)} />
@@ -1818,7 +1862,7 @@ export default function ImplementWizard({
                   </Field>
                   <div className="flex flex-wrap gap-1">
                     {(spec.sharing.principals || []).map((p) => (
-                      <button
+                      <button data-draft-change=""
                         key={`${p.type}:${p.name}`}
                         type="button"
                         className="text-[11px] border border-border rounded-full px-2 py-0.5"
@@ -1829,7 +1873,7 @@ export default function ImplementWizard({
                     ))}
                   </div>
                   {principals.map((p) => (
-                    <button
+                    <button data-draft-change=""
                       key={`${p.type}:${p.name}`}
                       type="button"
                       className="block text-[11px] text-text-secondary hover:text-db-red-fg"
@@ -1853,7 +1897,37 @@ export default function ImplementWizard({
               <h3 className="text-sm font-semibold text-text-primary">Money at stake</h3>
               <p className="text-[11px] text-text-secondary">{`Each record is counted in the ${stakeWords(sampleStake)}. Choose how the money totals are worked out.`}</p>
             </div>
-            <MoneyRuleEditor value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} loadRates={(body) => apiPostJson('/api/money/rate-sample', body)} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
+            <ol aria-label="Money decisions" className="flex flex-wrap gap-x-1 gap-y-1 text-[11px]">
+              {moneyParts.map((p, i) => (
+                <li key={p} data-money-current={i === moneyActive ? '' : undefined}
+                  className={`rounded-full ${i === moneyActive ? 'bg-db-red-50 text-db-red-fg font-semibold' : i < moneyActive ? 'text-text-primary' : 'text-text-tertiary'}`}>
+                  <button type="button" data-money-part={p} disabled={i > moneyActive} onClick={() => setMoneyPart(i)} className="px-2 py-1 glow-focus disabled:cursor-default">{i + 1}. {MONEY_PART_LABEL[p]}</button>
+                </li>
+              ))}
+            </ol>
+            {moneyParts[moneyActive] === MEASURE_IMPACT_PART ? (
+              <div className="space-y-3">
+                <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
+                  <KpiTargetSetting
+                    spec={spec}
+                    best={best.kpi}
+                    options={kpiOptions}
+                    tracked={trackedKpi}
+                    before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
+                    onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
+                  />
+                </HoldoutSetting>
+                <SettingRow label="Hold back" value={holdoutOf(spec).enabled ? `${holdoutPercentText(spec) || '10'}% of records` : 'off'} changeLabel="hold back share">
+                  <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
+                </SettingRow>
+              </div>
+            ) : (
+              <MoneyRuleEditor part={moneyParts[moneyActive]} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => { setSpec((prev) => withMoneyRule(prev, money)); if (Boolean(money?.off) !== Boolean(spec.money?.off)) setMoneyPart(money?.off ? 0 : MONEY_PARTS.indexOf('off')); }} />
+            )}
+            <div className="flex items-center justify-between pt-1">
+              {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
+              {moneyActive < moneyParts.length - 1 && <button type="button" data-money-next="" onClick={() => setMoneyPart(moneyActive + 1)} className="text-xs font-medium text-db-red-fg">Following decision</button>}
+            </div>
           </section>
         )}
 
@@ -1888,23 +1962,38 @@ export default function ImplementWizard({
         {shows('app_access') && (
           <AppAccessStep
             spec={spec}
+            onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
+            best={{ access: best.appAccess }}
+          />
+        )}
+
+        {shows('app_storage') && (
+          <AppStorageStep
+            spec={spec}
             lakebase={lakebase}
             warehouses={warehouses}
             warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
             warehouseCheck={preflight?.checks?.app_warehouse || null}
-            onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
             onBackend={(backend) => setSpec((prev) => withAppBackend(prev, backend))}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
-            best={{ access: best.appAccess, backend: best.appBackend }}
+            best={{ backend: best.appBackend }}
           />
         )}
 
         {shows('app_features') && (
-          <AppFeaturesStep
-            spec={spec}
-            onOption={(key, value) => setSpec((prev) => withAppOption(prev, key, value))}
-            best={{ option: best.appOption, replace: best.replaceEdits }}
-          />
+          <Advanced open={advanced.app_options} onToggle={() => toggleAdvanced('app_options')} what="what people can do in the App"
+            summary={`What people can do: ${APP_OPTIONS.filter((o) => spec.outputs.app_options[o.id]).map((o) => o.label).join(', ') || 'nothing'}`}>
+            <AppFeaturesStep
+              spec={spec}
+              onOption={(key, value) => setSpec((prev) => withAppOption(prev, key, value))}
+              best={{ option: best.appOption, replace: best.replaceEdits }}
+            />
+          </Advanced>
+        )}
+
+        {shows('app_pages') && (
+          <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView} open={advanced.app_pages} onToggle={() => toggleAdvanced('app_pages')}
+            onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
         )}
 
         {shows('app_look') && (
@@ -1920,7 +2009,6 @@ export default function ImplementWizard({
             dates={chartDates}
             onChart={(id, on) => setSpec((prev) => withAppChart(prev, id, on, look, chartDates))}
             onInspireCharts={() => setSpec((prev) => withInspireCharts(prev))}
-            onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))}
             best={{ layout: best.layout }}
             view={lookView}
             onView={setLookView}
@@ -1944,8 +2032,8 @@ export default function ImplementWizard({
                     <dt className="text-text-tertiary">{row.label}</dt>
                     <dd data-picked-value="" className="text-text-primary break-words">{row.value}</dd>
                     <dd>
-                      {row.step !== SUMMARY_STEP.id && <button type="button" data-picked-change={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus"
-                        aria-label={`Change ${row.label}`} onClick={() => changeStep(row.step)}>Change</button>}
+                      {row.step !== SUMMARY_STEP.id && <button type="button" data-picked-change={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus outline-offset-2"
+                        aria-label={`Change ${row.label}`} onClick={() => changeStep(row.step, row.part)}>Change</button>}
                     </dd>
                   </div>
                 ))}
@@ -2063,12 +2151,24 @@ export default function ImplementWizard({
           <p role="note" aria-label="Rows to work with" data-empty-table-warning=""
             className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{readiness.warning}</p>
         )}
+        {tooFewRows && (
+          <p role="note" data-too-few-rows="" className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{tooFewRows}</p>
+        )}
         {schemaJob?.text && stepIndex > steps.findIndex((x) => x.id === 'data') && (
           <p role="status" data-schema-job={schemaJob.state} className="bg-bg-subtle border border-border rounded-md px-3 py-2 text-xs text-text-secondary">{schemaJob.text}</p>
         )}
         {Object.values(checkNotes).filter(Boolean).map((note) => (
           <p key={note} role="note" data-check-note="" className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs text-warning-fg">{note}</p>
         ))}
+        {lastStep && accessVerdict === 'pending' && (
+          <p role="status" data-access-verdict="pending" className="text-xs text-text-secondary">{ACCESS_CHECKING}</p>
+        )}
+        {lastStep && (accessVerdict === 'error' || accessVerdict === 'unknown') && (
+          <div role="alert" data-access-verdict={accessVerdict} className="flex items-center justify-between gap-3 bg-error-bg border border-error/20 rounded-md px-3 py-2 text-xs text-error-fg">
+            <span>{ACCESS_UNKNOWN}</span>
+            <button type="button" data-access-retry="" className="font-semibold underline" onClick={checkAgain}>Try again</button>
+          </div>
+        )}
         {footerErrors.length > 0 && (
           <div role="alert" className="bg-error-bg border border-error/20 rounded-md px-3 py-2 space-y-0.5">
             {footerErrors.map((e) => <PlainMessage key={e} text={e} onRetry={footerRetry.get(e) || null} copy={footerRetry.has(e)} className="text-xs text-error-fg" />)}
@@ -2079,15 +2179,15 @@ export default function ImplementWizard({
             type="button"
             className={`inline-flex items-center gap-1 text-xs text-text-secondary ${stepIndex === 0 ? 'invisible' : ''}`}
             disabled={stepIndex === 0 || busy}
-            onClick={() => { setErrors([]); setStep(steps[stepIndex - 1].id); }}
+            onClick={() => { setErrors([]); if (stepId === 'stake' && moneyActive > 0) setMoneyPart(moneyActive - 1); else setStep(steps[stepIndex - 1].id); }}
           >
             <ChevronLeft size={14} /> Back
           </button>
           <div className="flex items-center gap-2">
-            {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceRefused && (
+            {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceAccessRefused && (
               <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             )}
-            {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceRefused && (
+            {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceAccessRefused && (
               <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
                 className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-db-red-fg border border-db-red/50 disabled:opacity-50">
                 {BUILD_NOW_LABEL}
@@ -2112,7 +2212,7 @@ export default function ImplementWizard({
                 {busy && <Loader2 size={14} className="animate-spin" />}
                 {busy ? 'Starting…' : 'Generate notebook'}
               </button>
-            ) : sourceRefused ? (
+            ) : sourceAccessRefused ? (
               <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             ) : (
               <button
@@ -2185,7 +2285,7 @@ function AppNameField({ name, nameCheck, onName }) {
       ) : nameCheck?.ok === false ? (
         <p className="text-[11px] text-error-fg">
           {nameCheck.detail}.{' '}
-          <button type="button" className="text-db-red-fg underline" onClick={() => onName(nameCheck.suggested || nextAppName(name))}>Use {nameCheck.suggested || nextAppName(name)}</button>
+          <button data-draft-change="" type="button" className="text-db-red-fg underline" onClick={() => onName(nameCheck.suggested || nextAppName(name))}>Use {nameCheck.suggested || nextAppName(name)}</button>
         </p>
       ) : (
         <p className="text-[11px] text-text-tertiary">{nameCheck?.ok ? nameCheck.detail : 'Up to 30 lowercase letters, digits and dashes.'}</p>
@@ -2716,7 +2816,7 @@ function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, onWare
   );
 }
 
-function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onAccess, onBackend, onWarehouse, best = {} }) {
+function AppAccessStep({ spec, onAccess, best = {} }) {
   const access = spec.outputs.app_access;
   const inside = insideInspire(spec);
   return (
@@ -2748,6 +2848,14 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehous
           })}
         </div>
       </fieldset>
+    </section>
+  );
+}
+
+function AppStorageStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onBackend, onWarehouse, best = {} }) {
+  const inside = insideInspire(spec);
+  return (
+    <section className="space-y-4" aria-label={APP_STORAGE_STEP.label}>
       <AppBackendChoice spec={spec} lakebase={lakebase} onBackend={onBackend} best={best.backend}>
         {inside ? (
           <p data-inside-warehouse="" className="text-[11px] text-text-secondary">
@@ -2859,8 +2967,8 @@ function StylePreview({ style, palette, theme }) {
       <span className="grid grid-cols-3 gap-1">
         {[0, 1, 2].map((i) => (
           <span key={i} className="relative block h-[12px] overflow-hidden rounded-[3px]" style={{ ...card, boxShadow: '0 1px 2px rgba(0,0,0,.04)' }}>
-            <span className="absolute left-1 top-[3px] block h-[3px] w-1/2 rounded-sm" style={{ background: pv('muted') }} />
-            <span className="absolute bottom-0 left-1 right-1 block h-[2px] rounded-t-sm" style={{ background: pv(`h${i}-line`) }} />
+            <span className="absolute start-1 top-[3px] block h-[3px] w-1/2 rounded-sm" style={{ background: pv('muted') }} />
+            <span className="absolute bottom-0 start-1 end-1 block h-[2px] rounded-t-sm" style={{ background: pv(`h${i}-line`) }} />
           </span>
         ))}
       </span>
@@ -2923,20 +3031,60 @@ function LookCard({ name, value, checked, onChange, label, best = null, blurb = 
   );
 }
 
-function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake, dates = null, onLook, onChart, onInspireCharts, onPage, best = {}, view: lookView, onView }) {
+function AppPagesStep({ spec, look, onPage, view: lookView, onView, open = false, onToggle = null }) {
+  const pages = appPagesOf(spec);
+  const onPages = pages.filter((p) => p.on).map((p) => p.label);
+  const pageId = lookView.page;
+  const shownPage = pages.some((p) => p.id === pageId && p.on) ? pageId : 'fix';
+  const setPageId = (next) => onView({ ...lookView, page: next });
+  const pickable = Array.isArray(look?.chart_kinds) && Array.isArray(look?.screens);
+  const perUserAlerts = pages.find((p) => p.id === 'alerts')?.off;
+  return (
+    <section className="space-y-2" aria-label="App pages">
+      <Advanced open={open} onToggle={onToggle} what="App pages" summary={`${onPages.length} pages on: ${onPages.join(', ')}`}>
+        <fieldset className="space-y-2">
+          <legend className={LEGEND}>Pages</legend>
+          <p className="text-[11px] text-text-secondary">{APP_PAGES_NOTE} Pick a page to see it in the App look sample.</p>
+          <div role="group" aria-label="Pages of the App" className="grid grid-cols-5 gap-2">
+            {pages.map((p) => {
+              const locked = Boolean(p.off) || (!pickable && !p.option);
+              return (
+                <div key={p.id} data-app-page={p.id} className={`rounded-lg border p-2 ${shownPage === p.id ? 'border-db-red bg-db-red-50' : 'border-border'}`}>
+                  <button type="button" aria-pressed={shownPage === p.id} disabled={!p.on} onClick={() => setPageId(p.id)}
+                    className="block w-full text-start text-[12px] font-semibold text-text-primary disabled:text-text-tertiary glow-focus">
+                    {p.label}
+                  </button>
+                  {p.fixed ? <p className="mt-1 text-[11px] text-text-tertiary">{APP_ALWAYS_ON}</p> : (
+                    <label className={`mt-1 flex items-center gap-1.5 text-[11px] text-text-secondary ${locked ? '' : 'cursor-pointer'}`}>
+                      <input type="checkbox" role="switch" checked={p.on} disabled={locked} aria-label={`${p.label} page`}
+                        onChange={(e) => onPage(p.id, e.target.checked)} />
+                      {p.on ? 'On' : 'Off'}
+                    </label>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+          <p data-page-blurb="" className="text-[11px] leading-snug text-text-secondary">{pages.find((p) => p.id === shownPage).blurb}</p>
+          {perUserAlerts && <p className="text-[11px] leading-snug text-text-tertiary">Alerts are off: {PER_USER_REASON}</p>}
+        </fieldset>
+      </Advanced>
+    </section>
+  );
+}
+
+function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake, dates = null, onLook, onChart, onInspireCharts, best = {}, view: lookView, onView }) {
   const chosen = spec.outputs.app_look;
   const palettes = look?.palette_colors || [];
   const tab = lookView.tab;
   const setTab = (next) => onView({ ...lookView, tab: next });
   const pageId = lookView.page;
-  const setPageId = (next) => onView({ ...lookView, page: next });
   const pages = appPagesOf(spec);
   const shownPage = pages.some((p) => p.id === pageId && p.on) ? pageId : 'fix';
   const charts = appChartsOf(spec, look, dates);
   const picked = appChartsPicked(spec);
   const pickable = Array.isArray(look?.chart_kinds) && Array.isArray(look?.screens);
-  const perUserAlerts = pages.find((p) => p.id === 'alerts')?.off;
-  const view = tab === 'charts' ? 'charts' : tab === 'pages' ? shownPage : 'fix';
+  const view = tab === 'charts' ? 'charts' : shownPage;
   const named = (list, id) => list.find((x) => x.id === id)?.label || id;
   const viewLabel = view === 'charts' ? 'Charts' : named(pages, view);
   const sampleLabel = `Sample App page: ${viewLabel}, in ${lookText(chosen)}`;
@@ -3042,73 +3190,13 @@ function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake
           {dates === false && <p data-chart-trend-off="" className="text-[11px] text-text-secondary">{APP_TREND_NO_DATE}</p>}
           <div className="flex items-center gap-3">
             <p id="app-charts-min" className="text-[11px] text-text-tertiary">{picked ? APP_CHARTS_MIN_NOTE : appChartPickText(look, dates)}</p>
-            {picked && <button type="button" className="text-[11px] font-medium text-db-red-fg glow-focus" onClick={onInspireCharts}>{APP_CHARTS_RESET}</button>}
+            {picked && <button data-draft-change="" type="button" className="text-[11px] font-medium text-db-red-fg glow-focus" onClick={onInspireCharts}>{APP_CHARTS_RESET}</button>}
           </div>
-        </fieldset>
-      </div>
-      <div {...panel('pages')}>
-        <fieldset className="space-y-2">
-          <legend className={LEGEND}>Pages</legend>
-          <p className="text-[11px] text-text-secondary">{APP_PAGES_NOTE} Pick a page to see it in the sample below.</p>
-          <div role="group" aria-label="Pages of the App" className="grid grid-cols-5 gap-2">
-            {pages.map((p) => {
-              const locked = Boolean(p.off) || (!pickable && !p.option);
-              return (
-                <div key={p.id} data-app-page={p.id} className={`rounded-lg border p-2 ${shownPage === p.id ? 'border-db-red bg-db-red-50' : 'border-border'}`}>
-                  <button type="button" aria-pressed={shownPage === p.id} disabled={!p.on} onClick={() => setPageId(p.id)}
-                    className="block w-full text-start text-[12px] font-semibold text-text-primary disabled:text-text-tertiary glow-focus">
-                    {p.label}
-                  </button>
-                  {p.fixed ? <p className="mt-1 text-[11px] text-text-tertiary">{APP_ALWAYS_ON}</p> : (
-                    <label className={`mt-1 flex items-center gap-1.5 text-[11px] text-text-secondary ${locked ? '' : 'cursor-pointer'}`}>
-                      <input type="checkbox" role="switch" checked={p.on} disabled={locked} aria-label={`${p.label} page`}
-                        onChange={(e) => onPage(p.id, e.target.checked)} />
-                      {p.on ? 'On' : 'Off'}
-                    </label>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-          <p data-page-blurb="" className="text-[11px] leading-snug text-text-secondary">{pages.find((p) => p.id === shownPage).blurb}</p>
-          {perUserAlerts && <p className="text-[11px] leading-snug text-text-tertiary">Alerts are off: {PER_USER_REASON}</p>}
         </fieldset>
       </div>
       <AppSample palette={palette} look={chosen} appName={spec.outputs.app_name || 'Your App'} title={title}
         view={view} shared={spec.outputs.app_access !== 'user'} label={sampleLabel} charts={charts} impact={appScreensOf(spec).impact} stake={stake} />
       <p className="text-[11px] text-text-tertiary">{APP_SAMPLE_NOTE}</p>
-    </section>
-  );
-}
-
-function GrantList({ label, items }) {
-  if (!items?.length) return null;
-  return (
-    <ul aria-label={label} className="space-y-0.5">
-      {items.map((sql) => <li key={sql} className="font-mono text-[11px] text-text-primary break-all">{sql}</li>)}
-    </ul>
-  );
-}
-
-function AppReadAccess({ offer, result, busy, onGrant }) {
-  return (
-    <section aria-label="App read access" data-app-read="" className="space-y-1.5 text-[11px] bg-bg border border-border rounded-md px-3 py-2">
-      {offer && <PlainMessage text={offer.text} className="text-text-secondary" />}
-      {offer?.can_grant && (
-        <button type="button" disabled={busy} onClick={onGrant}
-          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70">
-          {busy ? 'Granting with your sign-in' : APP_READ_ACTION}
-        </button>
-      )}
-      {offer?.grants?.length > 0 && <TechnicalDetails items={offer.grants} />}
-      {result && (
-        <div role="status" aria-label="Grant result" className="space-y-1">
-          {result.error ? <PlainMessage text={`Your grant was refused: ${result.error}`} onRetry={offer?.can_grant ? onGrant : null} copy className="text-text-secondary" /> : <p className="text-text-secondary">{result.text}</p>}
-          {(result.ran?.length > 0 || result.failed?.length > 0) && (
-            <TechnicalDetails items={[...(result.ran || []).map((sql) => `Ran: ${sql}`), ...(result.failed || []).map((sql) => `Failed: ${sql}`)]} />
-          )}
-        </div>
-      )}
     </section>
   );
 }
@@ -3133,6 +3221,53 @@ function ValuePicker({ label, values, selected, onLoad, onChange }) {
       </div>
       {values && values.length >= VALUE_LIMIT && <p className="text-[11px] text-text-tertiary">Showing the first {VALUE_LIMIT} values.</p>}
     </div>
+  );
+}
+
+function SourceTableBlocks({ tables, spec, columnsByTable, values, setSpec, loadValues }) {
+  const [picked, setPicked] = useState({});
+  return (
+    <section className="space-y-3" aria-label="Table filters">
+      {tables.map((table) => {
+        const columns = columnsByTable[table] || [];
+        const first = (spec.data.filters || []).find((f) => f.table === table);
+        const column = Object.prototype.hasOwnProperty.call(picked, table) ? picked[table] : (first?.column || '');
+        const reads = columnsReadOf(spec, table);
+        return (
+          <div key={table} data-source-table={table} className="border border-border rounded-lg p-3 space-y-3">
+            <p className="text-[12px] font-semibold text-text-primary">{table}</p>
+            <p data-table-columns="" className="text-[11px] text-text-secondary">
+              Columns Inspire reads: {reads.length ? reads.join(', ') : 'Inspire\'s choice, from the use case\'s Genie Code instruction'}
+            </p>
+            <Field label="Filter rows by column">
+              <select aria-label={`Filter rows of ${table} by column`} className={inputCls} value={column}
+                onChange={(e) => setPicked((prev) => ({ ...prev, [table]: e.target.value }))}>
+                <option value="">Pick a column</option>
+                {columns.map((c) => <option key={c.column_name} value={c.column_name}>{c.column_name}</option>)}
+              </select>
+            </Field>
+            {column && (
+              <>
+                <ValuePicker label="Keep only these values" values={values[`${table}.${column}`]}
+                  selected={filterValues(spec, table, column, 'in')} onLoad={() => loadValues(table, column)}
+                  onChange={(list) => setSpec((prev) => setFilterValues(prev, table, column, 'in', list))} />
+                <ValuePicker label="Leave out these values" values={values[`${table}.${column}`]}
+                  selected={filterValues(spec, table, column, 'not in')} onLoad={() => loadValues(table, column)}
+                  onChange={(list) => setSpec((prev) => setFilterValues(prev, table, column, 'not in', list))} />
+              </>
+            )}
+          </div>
+        );
+      })}
+      {filterTablesOutside(spec.data.filters, tables).map((table) => (
+        <div key={table} data-filters-outside={table} className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
+          <p className="text-[11px] text-text-secondary">Row filters on {table}, which is no longer a source table.</p>
+          <button type="button" data-draft-change="" className="text-[11px] text-db-red-fg shrink-0" onClick={() => setSpec((prev) => withoutTableFilters(prev, table))}>
+            Remove these filters
+          </button>
+        </div>
+      ))}
+    </section>
   );
 }
 
@@ -3194,14 +3329,6 @@ function UseCaseDrawer({ title, ucRow, spec, patch, onOwner, onClose }) {
 }
 
 function Overlay({ title, uc, steps, total = steps.length, step, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
-  const stepsRef = useRef(null);
-  useEffect(() => {
-    const list = stepsRef.current;
-    const current = list?.querySelector('[aria-current="step"]');
-    if (!list || !current) return;
-    const left = current.offsetLeft - list.offsetLeft;
-    if (left < list.scrollLeft || left + current.offsetWidth > list.scrollLeft + list.clientWidth) list.scrollLeft = Math.max(0, left - 8);
-  }, [step, steps.length]);
   const row = uc ? catalogRow(uc, 0) : null;
   const facts = row ? [['Domain', row.domain], ['Subdomain', row.subdomain], ['Technique', row.technique]].filter(([, v]) => v) : [];
   return (
@@ -3232,7 +3359,7 @@ function Overlay({ title, uc, steps, total = steps.length, step, reach = [], don
                 <X size={16} />
               </button>
             </div>
-            <ol ref={stepsRef} aria-label="Steps" className="flex flex-nowrap items-center gap-0.5 overflow-x-auto text-[11px] [scrollbar-width:none]">
+            <ol aria-label="Steps" className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px]">
               {steps.map((item, i) => {
                 const label = <>{done[i] && <Check size={11} className="text-success-fg" aria-hidden="true" />}{i + 1}. {item.label}</>;
                 return (

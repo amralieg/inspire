@@ -329,9 +329,10 @@ export const moved = (page) => page.evaluate(() => Promise.all(document.getAnima
   .filter((a) => a.effect && a.effect.getComputedTiming().iterations !== Infinity).map((a) => a.finished.catch(() => null))));
 
 export async function openApp(browser, base, info, { width = 1440, height = 900, scheme = 'light', errors = {}, routes = {}, clock, watch, ready = '.kpi-v, .hcard, [data-page-section]:not([data-page-section="dashboard"])',
-  timezone, hash = '' } = {}) {
+  timezone, hash = '', genie = 'closed' } = {}) {
   const context = await browser.newContext({ viewport: { width, height }, colorScheme: scheme, acceptDownloads: true, ...(timezone ? { timezoneId: timezone } : {}) });
   const page = await context.newPage();
+  if (genie === 'closed') await page.addInitScript(() => { if (window.sessionStorage.getItem('inspire-genie-closed') === null) window.sessionStorage.setItem('inspire-genie-closed', '1'); });
   const seen = { pages: [], records: [], asks: [], errors: [] };
   page.on('pageerror', (e) => seen.errors.push(e.message));
   page.on('console', (m) => { if (m.type() === 'error') seen.errors.push(m.text()); });

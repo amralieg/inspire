@@ -256,7 +256,7 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 
 const STEP_HOLDING = {
   'Use case': 'Data & results', Data: 'Data & results', Results: 'Data & results', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Who uses the App', 'App placement': 'Where it lives', 'App access': 'Who uses the App',
-  'App features': 'Where it lives', 'App pages': 'Where it lives', 'App look': 'App look', Measure: 'Measure', 'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Review & build',
+  'App features': 'Who uses the App', 'App pages': 'Where it lives', 'App look': 'App look', Measure: 'Measure', 'Keep it fresh': 'Data & results', Vibes: 'Review & build',
 };
 const exactly = (label) => {
   const body = label === 'Data & results' ? 'Data(?: & results)?' : label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -290,6 +290,21 @@ export async function stepsAre(page, expected) {
 
 export async function openAdvanced(page, what = 'data settings') {
   await page.getByRole('button', { name: `Change ${what}`, exact: true }).click();
+}
+
+export async function openRow(page, what) {
+  const row = page.getByRole('button', { name: `Change ${what}`, exact: true });
+  if (await row.count()) await row.click();
+}
+
+export async function openFolded(page, what) {
+  const change = page.getByRole('button', { name: `Change ${what}`, exact: true });
+  if (await change.count()) await change.click();
+}
+
+export async function openAllRows(page) {
+  const closed = page.locator('[data-wizard-body] button[aria-expanded="false"][aria-label^="Change "]:not([data-fold-open])');
+  for (let i = 0; i < 20 && await closed.count(); i += 1) await closed.first().click();
 }
 
 export const BUILD_IT = 'All Good, Build it Now';
@@ -327,16 +342,18 @@ export async function goToStep(page, part) {
   const at = labels.findIndex((l) => l.trim() === now);
   if (target < 0) throw new Error(`the wizard has no "${label}" step: ${labels.join(' | ')}`);
   if (target >= at) return nextUntil(page, label);
-  for (let i = at; i > target; i -= 1) await page.getByRole('button', { name: 'Back', exact: true }).click();
+  for (let i = 0; i < 30 && !isStep(await current.innerText(), label); i += 1) await page.getByRole('button', { name: 'Back', exact: true }).click();
   await onStep(page, label);
 }
 
-async function nextUntil(page, part) {
+export async function nextUntil(page, part) {
   const label = stepHolding(part);
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const steps = page.locator('[data-wizard-header] ol li');
-  for (let i = 0; i < (await steps.count()) && !isStep(await current.innerText(), label); i += 1) {
+  for (let i = 0; i < 30 && !isStep(await current.innerText(), label); i += 1) {
+    const moneyNext = page.locator('[data-money-next]');
+    if (await moneyNext.count() && await moneyNext.isVisible()) { await moneyNext.click(); continue; }
     const from = await current.innerText();
     await page.getByRole('button', { name: 'Next' }).click({ timeout: 15000 });
     try {
@@ -581,4 +598,32 @@ export const profileAt = (calls, answer, { status = 200, after = 0 } = {}) => as
 export async function openDetails(page) {
   await page.locator('[data-use-case-details-open]').click();
   return page.getByRole('dialog', { name: /^Use case details: / });
+}
+
+export function stubMoney(path, answerOf, calls) {
+  return async (page) => {
+    await page.route(`**/api/money/${path}`, async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      calls.push(body);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(answerOf(body)) });
+    });
+  };
+}
+
+export async function goToStorage(page) {
+  await goToStep(page, 'Page storage');
+  return page.getByRole('group', { name: 'How fast do the App\'s pages open?' });
+}
+
+export async function onMoneyPart(page, part) {
+  const current = `li[data-money-current] [data-money-part="${part}"]`;
+  for (let i = 0; i < 5 && !(await page.locator(current).count()); i += 1) await page.locator('[data-money-next]').click();
+  await page.locator(current).waitFor({ timeout: 15000 });
+}
+
+export async function goToMeasureImpact(page) {
+  await goToStep(page, 'Measure');
+  const onImpact = () => page.locator('[data-money-part="impact"]').evaluate((el) => el.closest('li').hasAttribute('data-money-current'));
+  for (let i = 0; i < 6 && !(await onImpact()); i += 1) await page.locator('[data-money-next]').click();
+  await page.getByRole('group', { name: 'Measure impact' }).waitFor();
 }

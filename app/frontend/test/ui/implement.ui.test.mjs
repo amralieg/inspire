@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, V
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, openDetails, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
+import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, openDetails, openRow, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary, openFolded } from './uiSupport.mjs';
 import { wheelReads } from './wheelScroll.mjs';
 
 const gone = (table) => `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${table} cannot be found. Verify the spelling. SQLSTATE: 42P01`;
@@ -73,7 +73,7 @@ function submittedSpec(made) {
 test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
-  const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. App look', '8. Run it', '9. Review & build'];
+  const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build'];
   try {
     await goToStep(page, 'Data');
     await stepsAre(page, withApp);
@@ -87,14 +87,14 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     await page.getByRole('heading', { name: 'How will people use this use case?' }).waitFor();
     assert.equal(await page.locator('[data-output="notebook"] input').isChecked(), true, 'the notebook is always built');
     assert.equal(await page.locator('[data-output="notebook"] input').isDisabled(), true);
-    for (const name of [/^Genie Agent/, /^App /]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), true, String(name));
+    for (const name of [/^Genie Agent/, /^App A Databricks/]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), true, String(name));
     for (const name of [/^Dashboard/, /^Alert/]) assert.equal(await page.getByRole('checkbox', { name }).isChecked(), false, `${name} starts off but stays a choice`);
     assert.equal(await page.locator('[data-output="app"] [data-recommended]').count(), 1, 'the App tile is Recommended');
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       1, 'exactly one tile is Recommended');
-    await page.getByRole('checkbox', { name: /^App / }).uncheck();
+    await page.getByRole('checkbox', { name: /^App A Databricks/ }).uncheck();
     await stepsAre(page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Run it', '6. Review & build']);
-    await page.getByRole('checkbox', { name: /^App / }).check();
+    await page.getByRole('checkbox', { name: /^App A Databricks/ }).check();
     await stepsAre(page, withApp);
     await goToStep(page, 'Where it lives');
     await page.getByRole('region', { name: 'App placement' }).waitFor();
@@ -108,11 +108,13 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     assert.deepEqual(await comparison.locator('option').allInnerTexts(), ['at least', 'more than', 'equal to', 'not equal to', 'less than', 'at most'],
       'the alert comparison reads in words, never a symbol');
     await goToStep(page, 'Data');
+    await openFolded(page, 'Source tables');
     assert.deepEqual(await page.locator('[data-table]').evaluateAll((rows) => rows.map((r) => r.dataset.table)), ['main.s.orders', 'main.s.returns']);
     assert.equal(await advanced(page).getAttribute('aria-expanded'), 'false');
     assert.equal(await page.getByLabel('Goal sentence').count(), 0, 'every other setting waits behind its Change line');
     await dataToResults(page);
     await goToStep(page, 'Keep it fresh');
+    await openRow(page, 'Keep it fresh');
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
     assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh starts on Daily');
     await fresh.getByRole('button', { name: 'Weekly' }).click();
@@ -275,7 +277,7 @@ test('a new App that could not get access is disabled up front with the reason, 
   try {
     await toData(page);
     await toDelivery(page);
-    const appBox = page.getByRole('checkbox', { name: /^App / });
+    const appBox = page.getByRole('checkbox', { name: /^App A Databricks/ });
     await appBox.waitFor();
     assert.equal(await appBox.isDisabled(), true);
     const blocked = page.locator('[data-blocked-reason="app"]');
@@ -551,7 +553,7 @@ test('an App name another App already uses is changed to the next free name, and
   try {
     await toData(page);
     await toDelivery(page);
-    await page.getByRole('checkbox', { name: /^App / }).check();
+    await page.getByRole('checkbox', { name: /^App A Databricks/ }).check();
     await goToStep(page, 'App placement');
     await page.getByText("'inspire-hub-acme' is used by another App in this workspace, so Inspire named this App 'inspire-hub-acme-2'.").waitFor();
     assert.equal(await page.getByLabel('App name').inputValue(), 'inspire-hub-acme-2');
@@ -579,14 +581,15 @@ test('an App name another App already uses is changed to the next free name, and
 test('Change swaps a table for a similar one or drops it, and never offers to drop the primary table', async () => {
   const ui = await openUi('wizard', {
     me: { userName: OWNER, displayName: 'Owner' },
-    swapRows: [{ table_schema: 's2', table_name: 'orders_v2', matched: '5', total: '6' }],
+    swapRows: [{ table_catalog: 'main', table_schema: 's2', table_name: 'orders_v2', matched: '5', total: '6' }],
   });
   const { page, made } = ui;
   try {
     await toData(page);
+    await openFolded(page, 'Source tables');
     const row = (table) => page.locator(`[data-table="${table}"]`);
     await row('main.s.orders').getByRole('button', { name: 'Change' }).click();
-    const ordersPick = page.getByLabel('Table to use for main.s.orders');
+    const ordersPick = page.getByLabel('Table to use for main.s.orders', { exact: true });
     await page.waitForFunction(() => [...document.querySelectorAll('option')].some((o) => o.textContent === 'main.s2.orders_v2 (5 of 6 columns match)'));
     const drop = ordersPick.locator('option', { hasText: "Don't use this table" });
     assert.equal(await drop.textContent(), "Don't use this table (the primary table can be swapped, not removed)");
@@ -595,7 +598,7 @@ test('Change swaps a table for a similar one or drops it, and never offers to dr
     await row('main.s.orders').getByText('main.s2.orders_v2', { exact: true }).waitFor();
     await row('main.s.orders').getByText('instead of main.s.orders').waitFor();
     await row('main.s.returns').getByRole('button', { name: 'Change' }).click();
-    await page.getByLabel('Table to use for main.s.returns').selectOption('__remove__');
+    await page.getByLabel('Table to use for main.s.returns', { exact: true }).selectOption('__remove__');
     await page.getByText('Removed main.s.returns.', { exact: false }).waitFor();
     await row('main.s.returns').getByRole('button', { name: 'Use it again' }).waitFor();
     await toDelivery(page);
@@ -612,7 +615,7 @@ test('Change swaps a table for a similar one or drops it, and never offers to dr
 
 const NOTEBOOK_PATH = '/Users/owner@example.com/inspire/Acme/N01-U01';
 
-test('the Build page shows one row of tiles in a fixed order, each tile opens its asset in a new tab, Versions opens its facts, and the job holds the runs and the history', async () => {
+test('the Build page shows its tiles in a fixed order, no label is clipped beside the open Genie panel at 1440, 1280 and 1024, and the tiles sit in one row with the panel closed at 1440', async () => {
   const ui = await openUi('implement', { ...STUDIO_STATE, job: MVP_JOB, useCase: { ...HARNESS_USE_CASE, has_genie_code: 'Y', notebook_path: NOTEBOOK_PATH } });
   const { page } = ui;
   try {
@@ -635,6 +638,9 @@ test('the Build page shows one row of tiles in a fixed order, each tile opens it
       assert.deepEqual(cut, [], `no state or action label of a tile is cut short at ${width} px`);
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await closeBuild(page);
+    const tops = await tiles.evaluateAll((els) => [...new Set(els.map((t) => Math.round(t.getBoundingClientRect().top)))]);
+    assert.equal(tops.length, 1, `one row of tiles with the panel closed at 1440px: ${tops.length} rows`);
     const rows = await tiles.evaluateAll((els) => els.map((t) => [t.dataset.assetTile, t.dataset.tileKind]));
     assert.deepEqual(rows.map(([, kind]) => kind), TILE_IDS.map(() => 'live'), JSON.stringify(rows));
     assert.equal(await page.getByRole('tablist', { name: 'MVP views' }).count(), 0, 'no tabs: the tiles replace them');
@@ -1194,6 +1200,27 @@ test('a build that failed the same way twice lists what Inspire tried, drops Try
   }
 });
 
+test('the end state decides a cancel: a run the user cancelled shows no failure choices, a run the system stopped shows the stopped choices, and a row written before ended_by reads its text', async () => {
+  const stoppedWords = 'the run building v2 ended (Stopped: Run cancelled) while v2 was still filling';
+  const row = (extra) => built({ spec_version: 2, status: 'failed', implement_run_id: '5555555555555555', ...extra });
+  const cases = [
+    ['user', row({ status_message: stoppedWords, ended_by: 'user' }), 0],
+    ['system', row({ status_message: stoppedWords, ended_by: 'system' }), 3],
+    ['old row', row({ status_message: 'the run building v2 ended (CANCELED: Run cancelled) while v2 was still filling' }), 0],
+  ];
+  for (const [name, failed, expected] of cases) {
+    const ui = await openUi('implement', { ...STUDIO_STATE, history: [failed, built()] });
+    try {
+      const banner = ui.page.getByRole('region', { name: 'Build failed' });
+      await banner.waitFor();
+      assert.equal(await banner.locator('[data-failure-choice]').count(), expected, `${name}: failure choices`);
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  }
+});
+
 test('Try again on a failed build sends the version that failed again as the next one, with its asks, and a notebook edit keeps its own rebuild', async () => {
   const spec = builtSpec();
   const vibe = 'Put the riskiest customers first';
@@ -1252,6 +1279,7 @@ test('a build that finishes bursts confetti from the bundled package, never for 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await page.getByRole('progressbar', { name: 'Build progress' }).waitFor();
+    await closeBuild(page);
     made.state.history = [built({ spec_version: 2 }), built()];
     await pollNow(page);
     await page.locator('[data-progress-card][data-progress-open="false"] [data-build-headline]', { hasText: /^Ready/ }).waitFor({ timeout: 15000 });
@@ -1559,6 +1587,7 @@ test('a version saved while the App offered downloads retries its App and opens 
     await toDelivery(edit.page);
     await toAppAccess(edit.page);
     await goToStep(edit.page, 'App features');
+    await openRow(edit.page, 'what people can do in the App');
     const features = edit.page.getByRole('region', { name: 'App features' });
     assert.equal(await features.getByRole('checkbox', { name: /^Let people edit data/ }).isChecked(), true, 'the saved choices come back');
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
@@ -1598,10 +1627,10 @@ test('a dropped primary table stops the re-run with its name, and Edit opens the
     await lostRow.getByText('not found', { exact: true }).waitFor();
     assert.match(await lostRow.getAttribute('class'), /border-error\/50/);
     await lostRow.getByText('Primary', { exact: true }).waitFor();
-    await page.getByLabel('Table to use for main.s.orders').waitFor();
+    await page.getByLabel('Table to use for main.s.orders', { exact: true }).waitFor();
     const otherRow = wizard.locator('[data-table="main.s.returns"]');
     assert.doesNotMatch(await otherRow.getAttribute('class'), /border-error/);
-    assert.equal(await page.getByLabel('Table to use for main.s.returns').count(), 0, 'only the lost table opens its Change');
+    assert.equal(await page.getByLabel('Table to use for main.s.returns', { exact: true }).count(), 0, 'only the lost table opens its Change');
     assert.equal(made.sqlCalls.some((c) => /FROM `main`\.`inspire`\.`n01_u01_s42_out` WHERE as_of_date/.test(String(c.sql))), false, 'no result rows are read');
     assert.equal(made.jobs.length, 0);
     assert.deepEqual([...new Set(ui.pageErrors)], ['Failed to load resource: the server responded with a status of 409 (Conflict)'], 'the refused re-run is the only error (the same 409 can come from the check on What to deliver too)');
@@ -1688,7 +1717,7 @@ test('Edit of a version whose swapped primary table and own table are both gone 
       + 'Swap main.s.orders_old for a table with the same role, because the primary table can be swapped, not removed.', { exact: true }).waitFor();
     const row = page.locator('[data-table="main.s.orders"]');
     await row.getByText('not found', { exact: true }).waitFor();
-    await page.getByLabel('Table to use for main.s.orders').waitFor();
+    await page.getByLabel('Table to use for main.s.orders', { exact: true }).waitFor();
     await toDelivery(page);
     await toAppAccess(page);
     await goToStep(page, 'App look');
@@ -1713,7 +1742,7 @@ test('Edit of a version whose swapped secondary table and own table are both gon
     await page.getByRole('dialog').getByText(lostTablesText([{ table: 'main.s.returns_old', reason: 'not found' }])).waitFor();
     const row = page.locator('[data-table="main.s.returns"]');
     await row.getByText('not found', { exact: true }).waitFor();
-    await page.getByLabel('Table to use for main.s.returns').waitFor();
+    await page.getByLabel('Table to use for main.s.returns', { exact: true }).waitFor();
     await toDelivery(page);
     await toAppAccess(page);
     await goToStep(page, 'App look');
@@ -1722,6 +1751,57 @@ test('Edit of a version whose swapped secondary table and own table are both gon
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 15000 });
     assert.equal(await start.isDisabled(), false, 'a lost secondary table never blocks the build (must-exclude)');
     assert.equal(await page.getByText('the preview cannot run because', { exact: false }).count(), 0);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the Genie build panel is docked beside the use case on first load of a built App, and at 1280x800 and 1440x900 the asset tiles stay clickable with it open', async () => {
+  const ui = await openUi('implement', STUDIO_STATE);
+  const { page } = ui;
+  try {
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    for (const [width, height] of [[1280, 800], [1440, 900]]) {
+      await page.setViewportSize({ width, height });
+      const dialog = page.locator('[data-progress-dock] [data-progress-panel] [role="dialog"]');
+      await dialog.waitFor();
+      assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', `open on first load at ${width}px`);
+      const [rail, pane, box] = await Promise.all([
+        page.locator('[data-implement-rail]').boundingBox(),
+        page.locator('[data-use-case-pane]').boundingBox(),
+        dialog.boundingBox(),
+      ]);
+      assert.ok(rail.x + rail.width <= pane.x + 1, `the use case list is left of the use case at ${width}px`);
+      assert.ok(pane.x + pane.width <= box.x + 1, `the panel is a column beside the use case, not over it, at ${width}px (pane ends ${Math.round(pane.x + pane.width)}, panel starts ${Math.round(box.x)})`);
+      assert.ok(box.width <= width * 0.4 + 1, `the panel takes at most 40% of ${width}px: ${Math.round(box.width)}px`);
+      await page.locator('[data-asset-tiles] button').first().click({ timeout: 5000 });
+      if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
+      assert.equal(await dialog.count(), 1, `the panel stays open through the tile click at ${width}px`);
+    }
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the Genie build panel opens by itself while a build runs, and a close is remembered after a reload in the same tab', async () => {
+  const run = { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } };
+  const building = built({ spec_version: 2, status: 'building_outputs', status_message: 'building outputs', implement_run_id: String(run.run_id), updated_at: new Date().toISOString() });
+  const ui = await openUi('implement', { ...STUDIO_STATE, history: [building, built()], implementRun: run }, '', FAKE_CLOCK);
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    const panel = page.locator('[data-progress-panel]');
+    await panel.waitFor();
+    assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', 'the Genie panel is open while the build runs');
+    assert.ok((await panel.locator('[role="dialog"]').boundingBox()).width <= 1280 * 0.4 + 1, 'the panel takes at most 40% of 1280px');
+
+    await panel.getByRole('button', { name: 'Close', exact: true }).click();
+    await panel.waitFor({ state: 'detached' });
+    await page.reload();
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    assert.equal(await page.locator('[data-progress-panel]').count(), 0, 'after a close and a reload the panel stays closed');
+    assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'false');
   } finally {
     await ui.close();
   }
@@ -1743,7 +1823,7 @@ test('Use case details on the Implement page open the full use case in a drawer 
     await page.keyboard.press('Escape');
     await drawer.waitFor({ state: 'detached' });
     await page.locator('[data-progress-card]').waitFor();
-    assert.equal(await page.locator('[data-mvp-progress]').count(), 0, 'the click outside the progress panel closed it');
+    assert.equal(await page.locator('[data-mvp-progress]').count(), 1, 'the docked Genie panel stays open through a click outside it');
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'no asset drawer opened behind it');
     assert.equal(await focusedName(page), 'Use case details', 'the focus comes back to the button that opened it');
     await page.getByRole('button', { name: 'Use case details' }).click();
@@ -1769,11 +1849,8 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     await goToStep(never.page, 'Data');
     assert.equal(await never.page.locator('[data-wizard-header] h2').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
-    for (const label of ['First run', 'Measure', 'Where it lives', 'Who uses the App', 'App look', 'Run it']) {
-      if (label !== 'Data') {
-        await next(never.page);
-        await onStep(never.page, label);
-      }
+    for (const label of ['First run', 'Measure', 'Where it lives', 'Who uses the App', 'Page storage', 'App look', 'Run it']) {
+      if (label !== 'Data') await goToStep(never.page, label);
       assert.equal(await header.getByRole('heading', { level: 2 }).innerText(), HARNESS_USE_CASE.Name, label);
       assert.doesNotMatch(await header.innerText(), /\bID\b|N01-U01/, `${label}: the header shows no use case id (must-exclude)`);
     }
@@ -1923,7 +2000,7 @@ test('with a Genie Code route, the wizard walks the MVP steps and no note shows'
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
     await goToStep(ui.page, 'Data');
-    await stepsAre(ui.page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. App look', '8. Run it', '9. Review & build']);
+    await stepsAre(ui.page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build']);
     assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
   } finally {
     await ui.close();

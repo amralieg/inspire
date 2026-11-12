@@ -406,9 +406,9 @@ export default function App() {
     nav('monitor');
   }, [nav]);
 
-  const openImplement = useCallback((sid, useCaseId) => {
+  const openImplement = useCallback((sid, useCaseId, step = null) => {
     if (inDemo) setDemo((prev) => ({ ...prev, focus: useCaseId || null }));
-    else setImplement({ sessionId: String(sid), focus: useCaseId || null });
+    else setImplement({ sessionId: String(sid), focus: useCaseId || null, step });
     nav('implement');
   }, [nav, inDemo]);
 
@@ -548,7 +548,6 @@ export default function App() {
               nav('results');
             }}
             onOpenBuild={openBuildFilter}
-            onOpenUseCase={openImplement}
           />
         )}
 
@@ -620,6 +619,8 @@ export default function App() {
               settings={pageSettings}
               sessionId={implementSessionId}
               focusId={implementFocus}
+              focusStep={inDemo ? null : implement.step || null}
+              onStepOpened={inDemo ? null : () => setImplement((prev) => ({ ...prev, step: null }))}
               onFocus={inDemo ? onDemoFocus : onImplementFocus}
               onOpenRun={inDemo ? null : openRun}
               demoMvps={demoMvps}

@@ -44,9 +44,15 @@ async function openAt(hash, size, theme = 'light') {
   return ui;
 }
 
+async function focusTopOfPage(page) {
+  await page.evaluate(() => document.querySelector('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
+  await page.keyboard.press('Shift+Tab');
+}
+
 async function assertReachable(ui, where, theme, min = 5) {
   assert.equal(await ui.page.evaluate(() => document.documentElement.classList.contains('dark')), theme === 'dark', `${where} draws the ${theme} theme`);
   assert.deepEqual(await unnamedControls(ui.page), [], `${where}: controls a screen reader reads with no name`);
+  await focusTopOfPage(ui.page);
   const walk = await weakFocus(ui.page, { max: 45 });
   assert.ok(walk.checked >= min, `${where}: the keyboard reached ${walk.checked} controls`);
   assert.deepEqual(walk.weak, [], `${where}: controls with no visible focus`);
@@ -169,6 +175,33 @@ for (const theme of ['light', 'dark']) {
       assert.ok(labels.length >= 7, labels.join(' | '));
       assert.ok(reached >= 25, `the keyboard reached ${reached} wizard controls`);
       assert.deepEqual(missed, [], `${theme}: wizard steps with unnamed controls or no visible focus`);
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  });
+}
+
+for (const theme of ['light', 'dark']) {
+  test(`the Change links on Review and build ring outside their text: each shows a ring of at least 3:1, and no link or button in a scrolling pane rings more than 2 px inside its box, ${theme} theme`, async () => {
+    const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } }, '',
+      { init: async (page) => { await sized(SCREEN, theme)(page); await profileAt([], GROUPING_PROFILE)(page); } });
+    try {
+      await goToStep(ui.page, 'Data');
+      await goToStep(ui.page, 'Review & build');
+      await idle(ui.page);
+      const links = ui.page.locator('[data-picked-change]');
+      assert.ok(await links.count() >= 5, `the Review step lists ${await links.count()} Change links`);
+      const insetRings = await ui.page.evaluate(() => [...document.querySelectorAll('a, button')]
+        .filter((el) => el.getClientRects().length && el.closest('.overflow-hidden, .overflow-auto, .overflow-x-auto, .overflow-y-auto, .overflow-x-hidden, .overflow-y-hidden, .overflow-clip')
+          && parseFloat(getComputedStyle(el).outlineOffset) < -2)
+        .map((el) => `${el.tagName.toLowerCase()} "${(el.getAttribute('aria-label') || el.innerText || '').trim().slice(0, 40)}"`));
+      assert.deepEqual(insetRings, [], `${theme}: links and buttons in a scrolling pane whose ring is drawn more than 2 px inside their box`);
+      const firstRun = ui.page.locator('[data-picked-change="first_run"]');
+      await firstRun.evaluate((el) => el.focus({ focusVisible: true }));
+      assert.ok(parseFloat(await firstRun.evaluate((el) => getComputedStyle(el).outlineOffset)) > 0, 'the First run Change link ring sits outside its box, not over its text');
+      const ring = await activeRing(ui.page);
+      assert.ok(ring && ring.ok, `${theme}: the First run Change link ring: ${JSON.stringify(ring)}`);
       assert.deepEqual(ui.pageErrors, []);
     } finally {
       await ui.close();

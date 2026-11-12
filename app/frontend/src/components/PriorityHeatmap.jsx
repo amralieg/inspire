@@ -24,7 +24,7 @@ function HeatCell({ domain, priority, count, maxCount, hovered, setHovered }) {
         </span>
       )}
       {hovered === key && count > 0 && (
-        <div className="absolute -top-8 left-1/2 -translate-x-1/2 glass rounded-md px-2 py-1 text-[9px] text-text-primary font-medium whitespace-nowrap z-20 shadow-md">
+        <div className="absolute -top-8 start-1/2 -translate-x-1/2 glass rounded-md px-2 py-1 text-[9px] text-text-primary font-medium whitespace-nowrap z-20 shadow-md">
           {domain}: {count} {priority}
         </div>
       )}

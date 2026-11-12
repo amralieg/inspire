@@ -173,7 +173,7 @@ def test_stale_generation_options_widget_also_survives_the_cell_boundary(agent_n
     _, after_cell_1 = run_cells(agent_ns, monkeypatch, widgets)
     assert OPTIONS not in after_cell_1
     assert widgets.get(OPTIONS) == "PDF Catalog"
-    assert widgets.state[OPTIONS]["choices"] == ["PDF Catalog", "Presentation"]
+    assert widgets.state[OPTIONS]["choices"] == ["PDF Catalog", "Presentation", "Excel"]
     assert widgets.state[OPTIONS]["kind"] == "multiselect"
 
 

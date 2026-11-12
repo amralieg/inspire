@@ -136,7 +136,7 @@ test('ticking the App ticks the Genie Agent and locks it, and the lock refuses a
   assert.deepEqual([off.outputs.app, off.outputs.genie_space], [false, true], 'unticking the App leaves the Genie Agent as it is');
   assert.equal(w.withOutput(off, 'genie_space', false).outputs.genie_space, false);
   assert.deepEqual(w.withOutput(spec, 'alert', true).outputs.alert_recipients, w.defaultAlertRecipients(spec));
-  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['delivery', 'data', 'stake', 'where', 'app', 'app_look', 'run', 'summary']);
+  assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['delivery', 'data', 'stake', 'where', 'app', 'app_storage', 'app_look', 'run', 'summary']);
   assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['delivery', 'data', 'stake', 'run', 'summary'], 'with Apps unticked no App step shows');
   assert.deepEqual(w.stepErrors('delivery', { ...ticked, outputs: { ...ticked.outputs, genie_space: false } }), [w.GENIE_FOR_APP_NOTE]);
 });
@@ -178,12 +178,12 @@ test('a use case that joins an existing App skips App access and App look, shows
   assert.deepEqual([w.joinsApp(joined), w.joinsApp(fresh), w.joinsApp({ ...joined, outputs: { ...joined.outputs, app: false } }), w.joinsApp(null)], [true, false, false, false]);
   assert.equal(w.wizardSteps('mvp', joined).find((s) => s.id === 'app'), undefined, 'the existing App keeps its sign-in, data source and look');
   assert.deepEqual(w.wizardSteps('mvp', joined).find((s) => s.id === 'where').panels, ['app_place'], 'where it goes is still picked on Where it lives');
-  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app').panels, ['app_access']);
-  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'where').panels, ['app_place', 'app_features']);
-  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => id !== 'app' && id !== 'app_look'),
+  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app').panels, ['app_access', 'app_features']);
+  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'where').panels, ['app_place', 'app_pages']);
+  assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => !['app', 'app_storage', 'app_look'].includes(id)),
     'a joined App keeps its own pages, look and sign-in, so it has no App steps (must-exclude)');
   assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'no hidden App owner blocks Next');
-  assert.deepEqual(w.advancedErrors('delivery', joined, { mergeTargets: targets }), []);
+  assert.deepEqual(w.advancedWithErrors('delivery', joined, { mergeTargets: targets }), []);
   assert.deepEqual(w.stepErrors('delivery', fresh, { mergeTargets: targets }), ['App owners must be email addresses: nope'], 'a new App still checks its owners');
   assert.deepEqual(w.sentSpec(joined, null).outputs.app_owners, [], 'owners typed before picking the existing App are not sent');
   assert.deepEqual(w.sentSpec(fresh, null).outputs.app_owners, ['nope', 'lee@example.com']);
@@ -233,9 +233,9 @@ test('the App reads Lakebase by default when the workspace has it, Delta tables 
   assert.equal(served(sent).spec.outputs.app_backend, 'lakebase');
   assert.equal(served(w.specWithBackend(perUser, offer('available'))).spec.outputs.app_backend, 'delta');
 
-  assert.deepEqual(w.stepErrors('app', spec, { lakebase: null }), [w.LAKEBASE_CHECKING], 'Next waits for the Lakebase check');
-  assert.deepEqual(w.stepErrors('app', spec, { lakebase: offer('absent') }), []);
-  assert.deepEqual(w.stepErrors('app', perUser, { lakebase: null }), [], 'a per-user App does not wait: it reads Delta tables');
+  assert.deepEqual(w.stepErrors('app_storage', spec, { lakebase: null }), [w.LAKEBASE_CHECKING], 'Next waits for the Lakebase check');
+  assert.deepEqual(w.stepErrors('app_storage', spec, { lakebase: offer('absent') }), []);
+  assert.deepEqual(w.stepErrors('app_storage', perUser, { lakebase: null }), [], 'a per-user App does not wait: it reads Delta tables');
   assert.deepEqual(w.stepErrors('app', spec, {}), [], 'a caller that does not check Lakebase is not blocked');
 });
 

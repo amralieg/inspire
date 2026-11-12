@@ -93,7 +93,7 @@ test('removing an App another use case shares offers to take this use case\'s pa
     await goToStep(page, 'Data');
     await dataToResults(page);
     await goToStep(page, 'What to build');
-    await page.getByRole('checkbox', { name: /^App / }).uncheck();
+    await page.getByRole('checkbox', { name: /^App A Databricks/ }).uncheck();
     const tile = page.locator('[data-output="app"]');
     await tile.getByText('This use case already has an App. What should happen to it?').waitFor();
     const takeOut = tile.getByRole('radio', { name: TAKE_OUT });
@@ -134,7 +134,7 @@ test('Open all settings on the Build page hands the wizard its live check, so a 
     await (await openAsset(page, 'app')).getByRole('button', { name: 'Remove from churn-desk' }).waitFor({ timeout: 15000 });
     await openSettings(page);
     await goToStep(page, 'What to build');
-    await page.getByRole('checkbox', { name: /^App / }).uncheck();
+    await page.getByRole('checkbox', { name: /^App A Databricks/ }).uncheck();
     const tile = page.locator('[data-output="app"]');
     await tile.getByText('This use case already has an App. What should happen to it?').waitFor();
     assert.equal(await tile.getByRole('radio', { name: TAKE_OUT }).count(), 1, 'the live check already knows Forecast demand holds the App');

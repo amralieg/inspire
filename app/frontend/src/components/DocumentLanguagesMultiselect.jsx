@@ -45,14 +45,14 @@ export default function DocumentLanguagesMultiselect({
       </div>
 
       <div className="relative mb-3">
-        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary" />
+        <Search className="absolute start-3 top-1/2 -translate-y-1/2 w-3.5 h-3.5 text-text-tertiary" />
         <input dir="auto"
           type="text"
           value={search}
           onChange={(e) => setSearch(e.target.value)}
           placeholder="Search languages..."
           disabled={disabled}
-          className="w-full pl-9 pr-4 py-2 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth disabled:opacity-50"
+          className="w-full ps-9 pe-4 py-2 text-sm border border-border rounded-lg bg-surface text-text-primary placeholder:text-text-tertiary glow-focus transition-smooth disabled:opacity-50"
         />
       </div>
 

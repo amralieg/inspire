@@ -88,6 +88,7 @@ import {
   compareMeetsQualityBarFirst,
   qualityBarCountsOf,
   qualityBarFilterMatches,
+  nameOfUseCase,
 } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText } from '../lib/liveUseCases';
@@ -95,7 +96,7 @@ import { saveBlob } from '../lib/download';
 import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import DocumentActions from '../components/DocumentActions';
-import { englishCatalogPath } from '../lib/documentActions';
+import { documentBasePath } from '../lib/documentActions';
 import { generationFolder, workspaceNotebookUrl, workspaceWebUiHashPath } from '../lib/workspaceLinks';
 import ImplementWizard from './ImplementWizard';
 import { kindFilterLabel, kindFilterOptions, matchesKindFilter } from '../lib/useCaseKind';
@@ -305,7 +306,7 @@ export default function ResultsPage({
           session_id: String(selectedSessionId),
           use_case_key: info.useCaseKey,
           use_case_id: String(uc?.catalog_no || uc?.No || ''),
-          use_case_title: String(uc?.Name || ''),
+          use_case_title: nameOfUseCase(uc),
           status,
           reason,
         });
@@ -713,7 +714,7 @@ export default function ResultsPage({
   const describeUseCase = (id) => {
     const uc = useCaseById.get(String(id ?? '').trim());
     return uc
-      ? { name: String(uc.Name || id), domain: String(uc._domain || ''), score: inspireScoreFromUc(uc), useCase: uc.No ? uc : null }
+      ? { name: nameOfUseCase(uc) || id, domain: String(uc._domain || ''), score: inspireScoreFromUc(uc), useCase: uc.No ? uc : null }
       : null;
   };
   const feedbackLatest = useMemo(() => latestFeedbackMap(feedbackState.latest), [feedbackState.latest]);
@@ -1117,7 +1118,8 @@ export default function ResultsPage({
       {!embedded && results && selectedSessionId && inspireDb && warehouseId && (
         <div className="mb-3">
           <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId}
-            onStart={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId) : undefined} />
+            onStart={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId) : undefined}
+            onMeasure={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId, 'measure') : undefined} />
         </div>
       )}
       {embedded && filteredUseCases.length > 0 && (
@@ -1154,7 +1156,7 @@ export default function ResultsPage({
                     </div>
                     {i < 2 && (
                       <div className="w-8 h-px bg-border relative overflow-hidden mb-5">
-                        <div className="absolute inset-y-0 left-0 w-1/2 bg-db-red/40 animate-[shimmer_1.5s_ease-in-out_infinite]" style={{ animationDelay: `${i * 500}ms` }} />
+                        <div className="absolute inset-y-0 start-0 w-1/2 bg-db-red/40 animate-[shimmer_1.5s_ease-in-out_infinite]" style={{ animationDelay: `${i * 500}ms` }} />
                       </div>
                     )}
                   </div>
@@ -1622,8 +1624,7 @@ export default function ResultsPage({
             <DocumentActions
               apiFetch={apiFetch}
               apiPostJson={apiPostJson}
-              session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), generationPath, outputLanguage: selectedSession?.output_language || '' }}
-              catalogPath={englishCatalogPath(artifactsRootFiles, artifactTree)}
+              session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), outputLanguage: selectedSession?.output_language || '', generationPath: documentBasePath({ generationPath: selectedSession?.generation_path || selectedSession?.widget_values?.generation_path || '', notebookPath: settings?.notebookPath || '' }) }}
               onFinished={() => loadArtifacts(generationPath)}
             />
           )}
@@ -2117,14 +2118,14 @@ export default function ResultsPage({
                 <div className="flex items-center gap-3 px-4 py-3 flex-wrap">
                   {/* Search */}
                   <div className="relative min-w-[14rem] flex-1">
-                    <Search size={14} className="absolute left-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
+                    <Search size={14} className="absolute start-3 top-1/2 -translate-y-1/2 text-text-tertiary" />
                     <input dir="auto"
                       type="text"
                       value={searchQuery}
                       onChange={(e) => setSearchQuery(e.target.value)}
                       placeholder="Search use cases..."
                       aria-label="Search use cases"
-                      className="w-full pl-9 pr-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:border-db-red/30 transition-smooth"
+                      className="w-full ps-9 pe-3 py-1.5 text-xs border border-border rounded-lg bg-bg text-text-primary placeholder:text-text-tertiary focus:border-db-red/30 transition-smooth"
                     />
                   </div>
 

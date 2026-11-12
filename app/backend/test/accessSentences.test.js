@@ -21,7 +21,8 @@ test('the App read sentence on the Build page is one plain sentence with no GRAN
 });
 
 test('the Build page card renders the offer sentence through PlainMessage and keeps the grant SQL under Details (REQ-041)', () => {
-  const body = WIZARD.slice(WIZARD.indexOf('function AppReadAccess('), WIZARD.indexOf('function ValuePicker('));
+  const SHARED = fs.readFileSync(path.join(FRONT, 'components', 'AppReadAccess.jsx'), 'utf8');
+  const body = SHARED.slice(SHARED.indexOf('export function AppReadAccess('));
   assert.match(body, /<PlainMessage text=\{offer\.text\}/, 'the offer goes through PlainMessage, which moves statements and codes to Details');
   assert.doesNotMatch(body, /<p className="text-text-secondary">\{offer\.text\}<\/p>/, 'the raw offer text is not rendered as a paragraph');
   assert.match(body, /<TechnicalDetails items=\{offer\.grants\} \/>/, 'the grant SQL sits under Details');
@@ -42,5 +43,5 @@ test('no Build button sits beside a source refusal (REQ-042, MVP-ADP-08, must fa
   const button = WIZARD.indexOf('data-build-now=""');
   assert.ok(button > 0);
   const opening = WIZARD.lastIndexOf('{mode === \'mvp\' && stepIndex > 0 && !lastStep', button);
-  assert.match(WIZARD.slice(opening, button), /!sourceRefused/, 'the Build button is not rendered while the source is refused');
+  assert.match(WIZARD.slice(opening, button), /!sourceAccessRefused/, 'the Build button is not rendered while the source is refused');
 });

@@ -143,7 +143,7 @@ const IMPLEMENT_COLUMNS = [
   ['app_name', 'STRING'], ['app_url', 'STRING'], ['genie_widgets', 'VARIANT'], ['data_profiles', 'VARIANT'],
   ['suggested_schedule', 'VARIANT'], ['asset_status', 'VARIANT'], ['created_by', 'STRING'], ['created_at', 'TIMESTAMP'],
   ['updated_at', 'TIMESTAMP'], ['alert_id', 'STRING'], ['alert_url', 'STRING'], ['implement_run_id', 'BIGINT'],
-  ['asset_snapshots', 'STRING'],
+  ['asset_snapshots', 'STRING'], ['ended_by', 'STRING'],
 ];
 const IMPLEMENT_UNREAD_COLUMNS = ['asset_snapshots'];
 const IMPLEMENT_VARIANT_COLUMNS = IMPLEMENT_COLUMNS.filter(([, t]) => t === 'VARIANT').map(([n]) => n);
@@ -1680,10 +1680,11 @@ function implementRunEndedStatement(table, row, stalled) {
   if (!row || !stalled || !stalled.ended || !IMPLEMENT_ACTIVE_STATUSES.includes(row.status)) return null;
   if (!/^\d{1,19}$/.test(str(row.implement_run_id)) || str(row.implement_run_id) !== str(stalled.run_id)) return null;
   return {
-    sql: `UPDATE ${table} SET status = 'failed', status_message = :message, updated_at = current_timestamp() `
+    sql: `UPDATE ${table} SET status = 'failed', status_message = :message, ended_by = :endedBy, updated_at = current_timestamp() `
       + 'WHERE session_id = :sid AND use_case_id = :uc AND spec_version = :v AND status = :was AND implement_run_id = :run',
     parameters: [
       { name: 'message', value: str(stalled.reason).slice(0, 2000), type: 'STRING' },
+      { name: 'endedBy', value: stalled.ended_by === 'user' ? 'user' : 'system', type: 'STRING' },
       { name: 'was', value: str(row.status), type: 'STRING' },
       { name: 'run', value: str(row.implement_run_id), type: 'BIGINT' },
       ...implementVersionParameters({ sessionId: row.session_id, useCaseId: row.use_case_id, specVersion: row.spec_version }),
@@ -1704,9 +1705,14 @@ function implementBuildRunId(row) {
   return runId;
 }
 
+function implementEndedBy(state, details) {
+  const userCancelled = str(state.result_state) === 'CANCELED' || ['USER_CANCELED', 'CANCELED'].includes(str(details.code));
+  return userCancelled ? 'user' : 'system';
+}
+
 function implementStalled(row, run, now = Date.now()) {
   if (implementEndedRecord(row)) {
-    return { run_id: str(row.implement_run_id), run_url: str(run && run.run_page_url) || null, reason: str(row.status_message), ended: true };
+    return { run_id: str(row.implement_run_id), run_url: str(run && run.run_page_url) || null, reason: str(row.status_message), ended: true, ended_by: str(row.ended_by) || null };
   }
   if (!row || !IMPLEMENT_ACTIVE_STATUSES.includes(row.status)) return null;
   const version = `v${row.spec_version}`;
@@ -1725,6 +1731,7 @@ function implementStalled(row, run, now = Date.now()) {
       run_url: str(run.run_page_url) || null,
       reason: `the run building ${version} ended (${how}) while ${version} was still ${doing}`,
       ended: true,
+      ended_by: implementEndedBy(state, details),
     };
   }
   const last = Date.parse(str(row.updated_at || row.created_at));
@@ -2182,8 +2189,13 @@ function columnMatchCtes(candidateWhere) {
     + `WHERE k0.table_catalog <> 'system' AND k0.table_schema <> 'information_schema' AND NOT (${SOURCE_COLUMNS})${candidateWhere}) `;
 }
 
-function tableSwapStatement(name, requiredColumns = []) {
+function sourceParams(name) {
   const t = tableParts(name);
+  return [{ name: 'c', value: t.catalog, type: 'STRING' }, { name: 's', value: t.schema, type: 'STRING' },
+    { name: 't', value: t.table, type: 'STRING' }];
+}
+
+function tableSwapStatement(name, requiredColumns = []) {
   const required = requiredColumns.map((c) => str(c).trim().toLowerCase()).filter(Boolean);
   if (required.some((c) => !/^[a-z0-9_]{1,128}$/.test(c))) throw badRequest('required columns must be plain column names');
   const requiredParams = required.map((c, i) => ({ name: `r${i}`, value: c, type: 'STRING' }));
@@ -2196,8 +2208,21 @@ function tableSwapStatement(name, requiredColumns = []) {
       + 'FROM k JOIN o ON k.c = o.c AND k.ty = o.ty CROSS JOIN n '
       + `GROUP BY k.table_catalog, k.table_schema, k.table_name HAVING COUNT(*) >= GREATEST(2, CEIL(MAX(n.total) * 0.5))${requiredClause} `
       + 'ORDER BY matched DESC, k.table_catalog, k.table_schema, k.table_name LIMIT 20',
-    parameters: [{ name: 'c', value: t.catalog, type: 'STRING' }, { name: 's', value: t.schema, type: 'STRING' },
-      { name: 't', value: t.table, type: 'STRING' }, ...requiredParams],
+    parameters: [...sourceParams(name), ...requiredParams],
+  };
+}
+
+// The copy a person made of a built-in sample lives in a catalog they own, under any name (the walk's copy of
+// samples.nyctaxi.trips is nyctaxi_trips), so it is found by its columns. Only owned catalogs are scanned, which keeps
+// the lookup cheap on a large metastore; a copy has every column of the source.
+function copySwapStatement(name) {
+  return {
+    sql: `${columnMatchCtes(' AND own.catalog_name IS NOT NULL')}`
+      + 'SELECT k.table_catalog, k.table_schema, k.table_name, COUNT(*) AS matched, MAX(n.total) AS total, MAX(k.owned) AS owned '
+      + 'FROM k JOIN o ON k.c = o.c AND k.ty = o.ty CROSS JOIN n '
+      + 'GROUP BY k.table_catalog, k.table_schema, k.table_name HAVING COUNT(*) = MAX(n.total) '
+      + 'ORDER BY k.table_catalog, k.table_schema, k.table_name LIMIT 5',
+    parameters: sourceParams(name),
   };
 }
 
@@ -2236,7 +2261,8 @@ function filterClause(filter, index) {
   if (!IMPLEMENT_FILTER_OPS.includes(op)) throw badRequest(`filter operator '${op}' is not supported`);
   if (op === 'in' || op === 'not in') {
     if (!refs.length) throw badRequest(`filter ${filter.column} ${op} needs at least one value`);
-    return { sql: `CAST(${col} AS STRING) ${op.toUpperCase()} (${refs.join(', ')})`, params };
+    const list = `CAST(${col} AS STRING) ${op.toUpperCase()} (${refs.join(', ')})`;
+    return { sql: op === 'not in' ? `(${list} OR ${col} IS NULL)` : list, params };
   }
   if (op === 'between') {
     if (refs.length !== 2) throw badRequest(`filter ${filter.column} between needs two values`);
@@ -2247,9 +2273,7 @@ function filterClause(filter, index) {
   return { sql: `CAST(${col} AS STRING) ${op} ${refs[0]}`, params };
 }
 
-function readinessStatement(name, { columns = [], filters = [], window = {} } = {}) {
-  const table = quoteTable(name);
-  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))].slice(0, 20);
+function scopeWhere(filters = [], window = {}) {
   const where = [];
   const parameters = [];
   filters.forEach((f, i) => {
@@ -2268,10 +2292,33 @@ function readinessStatement(name, { columns = [], filters = [], window = {} } = 
       parameters.push({ name: 'wend', value: str(window.end), type: 'STRING' });
     }
   }
+  return { where, parameters };
+}
+
+function readinessStatement(name, { columns = [], filters = [], window = {} } = {}) {
+  const table = quoteTable(name);
+  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))].slice(0, 20);
+  const { where, parameters } = scopeWhere(filters, window);
   const nulls = wanted.map((c, i) => `SUM(CASE WHEN ${quoteColumn(c)} IS NULL THEN 1 ELSE 0 END) AS null_${i}`);
   return {
     sql: `SELECT COUNT(*) AS row_count${nulls.length ? `, ${nulls.join(', ')}` : ''} FROM ${table}`
       + `${where.length ? ` WHERE ${where.join(' AND ')}` : ''}`,
+    parameters: parameters.length ? parameters : null,
+    columns: wanted,
+  };
+}
+
+const GROUP_COUNT_MAX_COLUMNS = 8;
+const GROUP_COUNT_LIMIT = 5000;
+
+function groupCountsStatement(name, columns = [], { filters = [], window = {} } = {}) {
+  const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))];
+  if (!wanted.length || wanted.length > GROUP_COUNT_MAX_COLUMNS) return null;
+  const { where, parameters } = scopeWhere(filters, window);
+  const cols = wanted.map((c) => quoteColumn(c));
+  return {
+    sql: `SELECT ${cols.map((c) => `CAST(${c} AS STRING) AS ${c}`).join(', ')}, COUNT(*) AS records FROM ${quoteTable(name)}`
+      + `${where.length ? ` WHERE ${where.join(' AND ')}` : ''} GROUP BY ${cols.join(', ')} LIMIT ${GROUP_COUNT_LIMIT + 1}`,
     parameters: parameters.length ? parameters : null,
     columns: wanted,
   };
@@ -2283,6 +2330,18 @@ function readinessFromRow(row, columns) {
     row_count: rows,
     null_share: Object.fromEntries(columns.map((c, i) => [c, rows ? (Number(row[`null_${i}`]) || 0) / rows : null])),
   };
+}
+
+const { execution_family: EXECUTION_FAMILY, readiness_thresholds: READINESS_THRESHOLDS, technique_min_rows: TECHNIQUE_MIN_ROWS } = require('../../agent/agent/app_shell/kinds.json');
+
+function analysisMinimumRows(technique) {
+  const wanted = str(technique).split(/\s+/).filter(Boolean).join(' ').toLowerCase();
+  const named = (table) => Object.keys(table).find((k) => k.toLowerCase() === wanted);
+  const own = TECHNIQUE_MIN_ROWS[named(TECHNIQUE_MIN_ROWS) || ''];
+  if (Number.isFinite(own)) return own;
+  const label = named(EXECUTION_FAMILY);
+  const minimum = label ? (READINESS_THRESHOLDS[EXECUTION_FAMILY[label]] || {}).min_rows : undefined;
+  return Number.isFinite(minimum) ? minimum : null;
 }
 
 function destinationsFromList(data) {
@@ -2359,6 +2418,7 @@ function checkedSourceTables(spec, involved) {
 
 const IMPLEMENT_TABLES_NO_SIGN_IN = 'Inspire reads the new tables with your own sign-in, and this request carries none, so it cannot tell whether the change rebuilds anything';
 const IMPLEMENT_SWAPS_NO_SIGN_IN = 'Inspire looks for similar tables with your own sign-in, and this request carries none, so it suggests none';
+const IMPLEMENT_SWAPS_TOO_SLOW = 'The search for similar tables took too long. Use Search for another table to pick one.';
 
 const lowerName = (value) => str(value).trim().toLowerCase();
 const byLowerName = (a, b) => {
@@ -3063,6 +3123,33 @@ function builtInSampleMessage(tables) {
     + `copy ${one ? 'the table' : 'each table'} into a catalog you own with CREATE TABLE ... AS SELECT, and use the ${one ? 'copy' : 'copies'}`;
 }
 
+const SAMPLE_COPY_NO_SIGN_IN = 'Inspire copies with your own sign-in, and this request carries none, so it copies nothing';
+
+function isBuiltInSampleEntry(name) {
+  return BUILT_IN_SAMPLE_CATALOGS.includes(plainTable(name).split('.')[0]);
+}
+
+function schemaParts(name) {
+  const parts = plainTable(name).split('.');
+  if (parts.length !== 2 || parts.some((p) => !p || p.includes('`'))) throw badRequest(`'${str(name)}' must be catalog.schema`);
+  return { catalog: parts[0], schema: parts[1] };
+}
+
+function sampleCopyDestination(name) {
+  const to = schemaParts(name);
+  if (BUILT_IN_SAMPLE_CATALOGS.includes(to.catalog)) throw badRequest(`${to.catalog} is a built-in sample catalog that Databricks owns, so copy into a schema you own`);
+  return to;
+}
+
+function sampleCopyName(source, destination) {
+  return `${destination.catalog}.${destination.schema}.${tableParts(source).table}`;
+}
+
+function sampleCopyStatement(source, destination) {
+  const from = tableParts(source);
+  return `CREATE TABLE \`${destination.catalog}\`.\`${destination.schema}\`.\`${from.table}\` AS SELECT * FROM \`${from.catalog}\`.\`${from.schema}\`.\`${from.table}\``;
+}
+
 function abacUnreadableSentence(label, { app = false } = {}) {
   const name = str(label).trim();
   const who = app ? `The App's service principal ${name}` : (name || 'The build');
@@ -3374,6 +3461,12 @@ const USE_CASE_SCHEMA_CLASHES = [0, ...Array.from({ length: USE_CASE_SCHEMA_CLAS
 
 function useCaseSchemaCandidates(inspireDatabase, useCaseId, sessionId, businessName) {
   return USE_CASE_SCHEMA_CLASHES.map((clash) => defaultUseCaseResultTable(inspireDatabase, useCaseId, sessionId, businessName, { clash }));
+}
+
+function useCaseOwnSchemas(inspireDatabase, useCaseId, sessionId, businessName) {
+  return [...useCaseSchemaCandidates(inspireDatabase, useCaseId, sessionId, businessName),
+    ...useCaseSchemaCandidates(inspireDatabase, useCaseId, sessionId, '')]
+    .map((table) => { const t = tableParts(table); return `${t.catalog}.${t.schema}`.toLowerCase(); });
 }
 
 function useCaseSchemaOwner(held, { inspireDatabase, useCaseId, sessionId }) {
@@ -3703,6 +3796,12 @@ module.exports = {
   IMPLEMENT_SOURCE_NEEDS,
   builtInSampleTable,
   builtInSampleMessage,
+  isBuiltInSampleEntry,
+  schemaParts,
+  sampleCopyDestination,
+  sampleCopyName,
+  sampleCopyStatement,
+  SAMPLE_COPY_NO_SIGN_IN,
   abacUnreadableSentence,
   ownerLabel,
   IMPLEMENT_TRAVERSE_PRIVILEGES,
@@ -3784,10 +3883,15 @@ module.exports = {
   columnsStatement,
   primaryKeysStatement,
   tableSwapStatement,
+  copySwapStatement,
   tableMatchStatement,
   columnValuesStatement,
   readinessStatement,
+  groupCountsStatement,
+  GROUP_COUNT_MAX_COLUMNS,
+  GROUP_COUNT_LIMIT,
   readinessFromRow,
+  analysisMinimumRows,
   rerunParams,
   rerunWidgets,
   rerunOverrides,
@@ -3796,6 +3900,7 @@ module.exports = {
   checkedSourceTables,
   IMPLEMENT_TABLES_NO_SIGN_IN,
   IMPLEMENT_SWAPS_NO_SIGN_IN,
+  IMPLEMENT_SWAPS_TOO_SLOW,
   implementTableSwapChanges,
   implementTableChange,
   implementTableChangeText,
@@ -3846,6 +3951,7 @@ module.exports = {
   useCaseSchemaStatement,
   useCaseSchemaEnsure,
   useCaseSchemaCandidates,
+  useCaseOwnSchemas,
   useCaseSchemaFacts,
   useCaseSchemaOwner,
   useCaseSchemaPlace,

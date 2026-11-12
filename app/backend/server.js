@@ -52,7 +52,7 @@ const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase')
 const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
-const { discoverGrantedText, discoverUnreadText, isReadDenied, liveLogPath } = require('./lib/inspireImplement');
+const { discoverGrantedText, discoverUnreadText, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyName, sampleCopyStatement } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -306,16 +306,18 @@ function resolveHost(req) {
 async function dbFetch(host, token, apiPath, options = {}) {
   if (!host) throw new Error('Databricks host not configured.');
   const url = `${host}${apiPath}`;
+  const { idempotent = false, ...init } = options;
+  const method = init.method || 'GET';
   let resp;
   try {
     resp = await withBusyRetry(() => fetch(url, {
-      ...options,
+      ...init,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
-        ...options.headers,
+        ...init.headers,
       },
-    }), { method: options.method || 'GET', signal: options.signal });
+    }), { method, signal: init.signal, retryNetwork: idempotent || method === 'GET' });
   } catch (e) {
     throw new Error(unreachableMessage(host, e, policyEnforced()));
   }
@@ -2127,11 +2129,38 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
   }
 });
 
+async function storedCatalogPath(req, inspireDatabase, sessionId) {
+  const parsed = splitInspireDatabase(inspireDatabase);
+  if (!parsed || !DEFAULT_WAREHOUSE_ID) return null;
+  try {
+    const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, DEFAULT_WAREHOUSE_ID,
+      `SELECT catalog_json_path, catalog_json_reason FROM \`${parsed.catalog}\`.\`${parsed.schema}\`.\`__inspire_session\` WHERE session_id = ${sessionId} LIMIT 1`));
+    if (!rows.length) return { path: null, reason: null };
+    return { path: rows[0].catalog_json_path ? String(rows[0].catalog_json_path) : null, reason: rows[0].catalog_json_reason ? String(rows[0].catalog_json_reason) : null };
+  } catch (err) {
+    if (/UNRESOLVED_COLUMN/.test(String(err && err.message))) return { path: null, reason: null };
+    throw err;
+  }
+}
+
 app.post('/api/documents', requireToken, async (req, res) => {
   try {
     const { params, document } = DJ.documentRunParams(req.body || {});
     const refused = await launchSessionProblem(req, params);
     if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
+    const stored = await storedCatalogPath(req, params['02_inspire_database'], params['14_session_id']).catch((err) => {
+      console.warn(`document catalog path read failed: ${err && err.message}`);
+      return undefined;
+    });
+    if (stored === undefined) return res.status(503).json({ error: DJ.CATALOG_CHECK_FAILED_TEXT });
+    if (stored.path) params['01_uc_metadata'] = stored.path;
+    else if (stored.reason) return res.status(409).json({ error: DJ.CATALOG_UNSAVED_TEXT });
+    const catalog = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/workspace/get-status?path=${encodeURIComponent(params['01_uc_metadata'])}`).catch((err) => {
+      console.warn(`document catalog check failed: ${err && err.message}`);
+      return null;
+    });
+    if (!catalog || (!catalog.ok && catalog.status !== 404)) return res.status(503).json({ error: DJ.CATALOG_CHECK_FAILED_TEXT });
+    if (catalog.status === 404) return res.status(409).json({ error: DJ.CATALOG_MISSING_TEXT });
     const out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
       params,
       jobType: 'discovery',
@@ -2202,6 +2231,32 @@ async function discoverAppAccess(req, scope) {
     return [`Inspire could not check that the App can read the tables you picked (${String(err.message || err).slice(0, 200)}), so Discover reads them as picked`];
   }
 }
+
+app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
+  const person = personTokenOf(req);
+  if (!person) return res.status(401).json({ error: SAMPLE_COPY_NO_SIGN_IN });
+  try {
+    const body = req.body || {};
+    const destination = sampleCopyDestination(body.destination);
+    if (!DEFAULT_WAREHOUSE_ID) throw Object.assign(new Error('Inspire has no SQL warehouse, so it cannot copy the tables'), { statusCode: 503 });
+    const picked = (Array.isArray(body.entries) ? body.entries : []).map(String).filter(isBuiltInSampleEntry);
+    if (!picked.length) throw Object.assign(new Error('Pick samples tables to copy'), { statusCode: 400 });
+    const { tables, more } = await scopeTables(dbFetch, req.dbHost, person, picked);
+    if (more) throw Object.assign(new Error(`The samples you picked hold more tables than one copy can take (${tables.length} read). Pick fewer tables or schemas`), { statusCode: 409 });
+    const copies = [];
+    const failed = [];
+    for (const source of tables) {
+      const sql = sampleCopyStatement(source, destination);
+      const outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
+      if (outcome.ran.length) copies.push({ source, copy: sampleCopyName(source, destination) });
+      else failed.push({ source, reason: String(outcome.failed[0] || '').slice(sql.length + 2) });
+    }
+    res.json({ destination: `${destination.catalog}.${destination.schema}`, copies, failed });
+  } catch (err) {
+    const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
+    res.status(code).json({ error: err.message });
+  }
+});
 
 async function outputWriteVerdict(req, writes, { preview = false } = {}) {
   const manager = await routePolicy.managerOf(req).catch(() => ({ manager: false }));
