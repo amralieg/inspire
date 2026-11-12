@@ -2981,10 +2981,26 @@ def money_value_fallback(rule, columns):
     return {k: v for k, v in rule.items() if k != "value"}, note
 
 
+def in_reporting_currency(page: dict, base: str) -> dict:
+    """A converted rule makes every money figure one total in the reporting currency, so each money figure's currency is that code."""
+    def labelled(item):
+        return dict(item, currency=base) if item.get("format") == "currency" else item
+    out = dict(page)
+    if "kpis" in page:
+        out["kpis"] = [labelled(k) for k in page["kpis"] or []]
+    if "charts" in page:
+        out["charts"] = [dict(c, y=[labelled(y) for y in c.get("y") or []]) for c in page["charts"] or []]
+    if "tables" in page:
+        out["tables"] = [dict(t, columns=[labelled(c) for c in t.get("columns") or []]) for t in page["tables"] or []]
+    return out
+
+
 def page_with_money(page: dict, rule) -> dict:
     """The page as this request reads it: the owner's saved money rule when one is saved, the spec's rule otherwise. Off, the money
     KPIs and money charts are removed from the page."""
     out = dict(page, money=rule) if rule else page
+    if rule and rule.get("currency") == "convert":
+        out = in_reporting_currency(out, str(rule.get("base") or ""))
     if money_off(out):
         removed = {k["id"] for k in out.get("kpis") or [] if k.get("format") == "currency"}
         story = out.get("story")
