@@ -1437,6 +1437,10 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           {readsResult.copyError && <PlainMessage text={`The grant SQL could not be copied: ${readsResult.copyError}`} after="Select it above and copy it." />}
         </div>
       )}
+      {grantedAll && latest?.asset_status?.app?.state === 'failed' && (
+        <button type="button" data-app-publish="" onClick={rerun} disabled={rerunBusy}
+          className="rounded-md border border-warning/40 px-2.5 py-1 text-[12px] font-medium text-warning-fg hover:bg-warning-bg/70 disabled:opacity-60">Publish now</button>
+      )}
       {readsLeft.tables.length > 0 && (
         <ChoiceList heading={FAILURE_CHOICES_HEADING} choices={appReadsChoices(readsLeft).filter((c) => c.id !== 'grant' || readsLeft.canGrant === true)} mark="data-app-reads-choice" tone="text-warning-fg"
           disabled={readsBusy !== ''} busy={readsBusy} onPick={pickReads} />
