@@ -11,6 +11,7 @@ import pytest
 from v120_artifacts_support import FakeSpark, make_inspire
 from v130_evidence_test import Row
 from v130_feedback_test import fb, obj_with
+from v153_signal_check_test import FLAT_PRICE, SALES, deep_inspire, responder_for, uc
 
 TABLE = "main.s.orders"
 OTHER = "main.s.customers"
@@ -121,3 +122,26 @@ def test_a_table_the_person_left_unscoped_is_read_whole(clean):
     assert set(scopes) == {clean["inspire_table_scope_key"](TABLE)}
     sql = clean["DeepEvidence"].kpi_sql({"table": OTHER, "aggregation": "COUNT", "column": "customer_id"}, scopes)
     assert "FROM `main`.`s`.`customers`" in sql and "(SELECT" not in sql, sql
+
+
+def test_the_implement_recount_counts_only_the_rows_the_wizard_scope_keeps(agent_ns):
+    use_case = uc("N01-U02", "Optimization")
+    use_case["_implement_data"] = {"tables": {}, "removed_tables": [], "window": {}, "run_profile": "preview", "notes": "",
+                                   "column_roles": {"lever": f"{SALES}.sales_price", "outcome": f"{SALES}.quantity"},
+                                   "filters": [{"table": SALES, "column": "churned", "op": "=", "values": ["no"]}]}
+    inst, _agent, spark = deep_inspire(agent_ns, [], responder_for({"lever": FLAT_PRICE, "rows": 1000}))
+    inst.spark = spark
+    spec = {"check": "lever", "family": "H", "table": SALES, "roles": {"lever": "sales_price", "outcome": "quantity"}}
+    record = {"status": "passed", "check": "lever", "family": "H", "spec": spec, "measures": {"row_count": 1000}}
+    fresh = inst._implement_recount_signal(("k", "N01-U02"), use_case, record)
+    assert fresh.get("table") == SALES, fresh
+    reads = [s for s in spark.statements if "store_sales" in s]
+    assert len(reads) >= 2, spark.statements
+    assert all("WHERE `churned` = 'no'" in s for s in reads), reads
+
+
+def test_the_source_value_check_compares_against_the_wizard_scope_not_the_whole_table(clean):
+    scopes = clean["implement_table_scopes"](_gold(), [TABLE], DATABASE, "N01-U03")
+    sql = clean["implement_aggregate_probe_sql"]("main.inspire.churn_out", TABLE, "order_id", scopes)
+    assert GOLD in sql and "(SELECT" in sql, sql
+    assert "LEFT ANTI JOIN `main`.`s`.`orders` AS s" not in sql, sql
