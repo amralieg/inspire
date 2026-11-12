@@ -74,8 +74,9 @@ def test_md_and_csv_are_scheduled_unconditionally_for_every_language(ns):
     md_pos = region.find("writer_ctx.submit(self._generate_markdown_catalog")
     csv_pos = region.find("writer_ctx.submit(self._generate_csv_catalog")
     assert md_pos != -1 and csv_pos != -1, "Markdown and CSV must be scheduled in the artifact-writing loop"
-    assert "if " not in region[:max(md_pos, csv_pos)], \
-        "no `if` guard between the loop anchor and the Markdown and CSV scheduling"
+    prefix = region[:max(md_pos, csv_pos)]
+    assert prefix.count("if ") == prefix.count('if not getattr(self, "json_file_path", None):'), \
+        "the only guard before Markdown and CSV is the documents-only gate, never a language or choice gate"
 
 
 def test_artifact_successes_set_declared(ns):

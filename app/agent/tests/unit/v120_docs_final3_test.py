@@ -108,21 +108,13 @@ def test_summary_highlights_use_the_catalog_name_and_no_counts(docs):
     assert "\u2014" not in rendered and "\u2014" not in template
 
 
-def test_docs_only_mode_regenerates_the_english_narratives_and_keeps_the_stored_ones_on_fallback(docs):
-    obj = make_inspire(docs)
-    obj.translation_service = types.SimpleNamespace(get_translations=lambda language: {})
-    stored = {"Executive": "<p>Spanning thirteen use cases</p>", "Sales": "<p>Its four use cases</p>"}
-    obj._get_salesy_summary = lambda grouped, name, language, t: ({"Executive": "<p>E</p>", "Sales": "<p>S</p>"}, name)
-    assert obj._refresh_english_summary({"Sales": [make_uc("N01-U01")]}, stored) == {"Executive": "<p>E</p>", "Sales": "<p>S</p>"}
-    assert obj.logger.matching("[DOCS-SUMMARY refreshed]")
-    obj._get_salesy_summary = lambda grouped, name, language, t: ({"Executive": "<p>fallback</p>"}, name)
-    assert obj._refresh_english_summary({"Sales": [make_uc("N01-U01")]}, stored) is stored
-    assert obj.logger.matching("[DOCS-SUMMARY stored]")
+def test_docs_only_mode_writes_the_stored_narratives_and_calls_no_narrative_generation(docs):
     from _agentload import agent_source
     src = agent_source()
-    load = src.index("= self._load_usecases_catalog_json(self.json_file_path)")
-    assert src.index("self._refresh_english_summary(english_grouped_data, summary_dict)", load) < src.index(
-        "self._generate_documents_for_all_languages(", load)
+    assert "_refresh_english_summary" not in src, "a documents-only run rebuilds from the saved catalog, not a new narrative"
+    load = src.index("(final_consolidated_use_cases, summary_dict, english_grouped_data) = self._load_usecases_catalog_json(self.json_file_path)")
+    branch = src[load:src.index("self.logger.critical(f\"Failed to process in docs-only mode", load)]
+    assert "_get_salesy_summary" not in branch and "summary_dict=summary_dict" in branch
 
 
 @pytest.mark.parametrize("text, expected", [
