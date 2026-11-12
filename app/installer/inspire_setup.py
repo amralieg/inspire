@@ -20,6 +20,9 @@ SCAN_PROGRESS_FROM = 50
 SCAN_PROGRESS_STEPS = 10
 SCAN_SHOWN = 10
 NEW_APPS_ACCOUNT_USERS = "account users"
+INSPIRE_SCHEMA_OFF = ""
+SCHEMA_MODE_CATALOG_NOTE = ("catalog-level grants are skipped in schema mode: BROWSE, CREATE SCHEMA on the catalog, USE CATALOG for the App "
+                            "(checked, not granted), SCAN_CATALOGS and NEW_APPS_CATALOG_ACCESS")
 NEW_APPS_OFF = "off"
 SYSTEM_SCHEMA = "information_schema"
 BELOW_CATALOG_VIEWS = (("schema", "schema_privileges", "schema_name", "schema_name"),
@@ -150,6 +153,27 @@ def ensure_parameter_widgets(warehouses, catalogs, own_catalogs=()):
     print("Notebook parameters are ready above: pick a value from each list or type it.")
     return {"warehouse": warehouse, "catalog": catalog, "warehouse_problem": warehouse_problem, "catalog_problem": catalog_problem,
             "replaced": not all(placed)}
+
+
+def inspire_schema_setting(value):
+    """INSPIRE_SCHEMA names `catalog.schema` for schema mode, or is empty for the default mode."""
+    if not isinstance(value, str):
+        raise ValueError(f"INSPIRE_SCHEMA must be text, not {value!r}.")
+    text = value.strip()
+    if not text:
+        return None
+    parts = text.split(".")
+    if len(parts) != 2 or not all(part.strip() == part and part and "`" not in part for part in parts):
+        raise ValueError(f"INSPIRE_SCHEMA must be `catalog.schema`, such as `my_catalog.inspire`, not {text[:80]!r}.")
+    return parts[0], parts[1]
+
+
+def install_folders(user_email, app_name, schema_mode):
+    """Where the assets, the App bundle and the notebook folder go: /Shared by default, the person's own folder in schema mode."""
+    if not schema_mode:
+        return {"ASSETS_PARENT": ASSETS_PARENT, "APPS_PARENT": APPS_PARENT, "APP_FOLDER": f"/Shared/{app_name}"}
+    home = f"/Workspace/Users/{user_email}/inspire-ai"
+    return {"ASSETS_PARENT": f"{home}/assets", "APPS_PARENT": f"{home}/apps", "APP_FOLDER": f"/Users/{user_email}/inspire-ai/{app_name}"}
 
 
 def _wh_sort_key(wh):
@@ -680,7 +704,10 @@ def build_runtime_context(env):
     elif picked_wh is None:
         missing_messages.append(pickers["warehouse_problem"])
 
-    if catalog_override:
+    schema_pair = inspire_schema_setting(env.get("inspire_schema", INSPIRE_SCHEMA_OFF))
+    if schema_pair:
+        picked_cat = schema_pair[0]
+    elif catalog_override:
         picked_cat = resolve_catalog(catalog_override, available_catalogs)[0]
         if picked_cat is None:
             raise ValueError(f"catalog {catalog_override!r} in the test setting is not one of the {len(available_catalogs)} catalogs "
@@ -695,19 +722,26 @@ def build_runtime_context(env):
         show_warning_banner("Choose notebook parameter values first", steps + "\n\n" + "\n".join(missing_messages))
         return {"ready": False}
 
+    if schema_pair and picked_cat not in available_catalogs:
+        raise ValueError(f"INSPIRE_SCHEMA names catalog `{picked_cat}`, which is not a catalog you can see "
+                         f"(showing first 5): {available_catalogs[:5]}. Fix INSPIRE_SCHEMA, or leave it empty.")
     warehouse_id = picked_wh.id
     warehouse_name = picked_wh.name or warehouse_id
     catalog = picked_cat
 
-    schema = "_inspire"
+    schema = schema_pair[1] if schema_pair else "_inspire"
     inspire_db = f"{catalog}.{schema}"
     app_name = app_name_override or "inspire-ai"
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,28}[a-z0-9]", app_name):
         raise ValueError(f"App name {app_name!r} must be 2-30 lowercase letters, digits or hyphens")
     sp_name = f"{app_name}-sp"
+    folders = install_folders(user_email, app_name, bool(schema_pair))
 
     print(f"Selected warehouse: {warehouse_name} ({warehouse_id})")
     print(f"Selected catalog:   {catalog}  →  {inspire_db}")
+    if schema_pair:
+        print(f"Install mode: schema mode (INSPIRE_SCHEMA = {inspire_db}). The installer creates no catalog rights: "
+              f"{SCHEMA_MODE_CATALOG_NOTE}. Files go under {folders['APPS_PARENT'].rsplit('/', 1)[0]}.")
 
     release_version = str(env["manifest"]["version"])
     source_zip = (env.get("files") or {}).get(APP_ZIP, "")
@@ -768,12 +802,15 @@ def build_runtime_context(env):
         "USER_GROUPS": [str(getattr(g, "display", "") or "") for g in (getattr(current_user, "groups", None) or [])],
         "RELEASE_VERSION": release_version,
         "SOURCE_ZIP": source_zip,
-        "BUNDLE_ROOT": f"{APPS_PARENT}/{app_name}",
+        "SCHEMA_MODE": bool(schema_pair),
+        "ASSETS_PARENT": folders["ASSETS_PARENT"],
+        "APP_FOLDER": folders["APP_FOLDER"],
+        "BUNDLE_ROOT": f"{folders['APPS_PARENT']}/{app_name}",
         "SCAN_CATALOGS": env.get("scan_catalogs", SCAN_ALL),
         "NEW_APPS_CATALOG_ACCESS": _new_apps_setting(env.get("new_apps_catalog_access", NEW_APPS_ACCOUNT_USERS)),
         "ASSETS_TAR": assets_tar,
         "TEST_TAG": str(settings.get("test_tag") or "").strip(),
-        "ASSETS_ROOT": f"{ASSETS_PARENT}/{release_version}",
+        "ASSETS_ROOT": f"{folders['ASSETS_PARENT']}/{release_version}",
         "available_catalogs": available_catalogs,
         "api": api,
         "api_get": api_get,
@@ -837,7 +874,7 @@ def step_schema_and_notebooks(ctx):
         )
         print(f"Schema: {'✅' if stmt.status and stmt.status.state == StatementState.SUCCEEDED else '⚠️ ' + str(stmt.status)}")
 
-    notebook_dest = f"/Shared/{app_name}/dbx_inspire_ai_agent"
+    notebook_dest = f"{ctx['APP_FOLDER']}/dbx_inspire_ai_agent"
     notebook_path = None
 
     notebook_source = None
@@ -875,7 +912,7 @@ def step_schema_and_notebooks(ctx):
         print(f"  ⚠️ {ctx['LAKEBASE_NOTE']}")
 
     try:
-        api("POST", "/api/2.0/workspace/mkdirs", {"path": f"/Shared/{app_name}"})
+        api("POST", "/api/2.0/workspace/mkdirs", {"path": ctx["APP_FOLDER"]})
     except Exception:
         pass
     try:
@@ -908,7 +945,7 @@ def step_schema_and_notebooks(ctx):
     ctx["NOTEBOOK_PATH"] = notebook_path
     print(f"NOTEBOOK_PATH = {notebook_path}")
 
-    generate_demo_dest = f"/Shared/{app_name}/dbx_generate_demo_data"
+    generate_demo_dest = f"{ctx['APP_FOLDER']}/dbx_generate_demo_data"
     generate_source = None
     for candidate in [f"{source_folder}/dbx_generate_demo_data.py", f"{source_folder}/dbx_generate_demo_data"]:
         if os.path.exists(candidate):
@@ -920,7 +957,7 @@ def step_schema_and_notebooks(ctx):
         gen_b64 = export_workspace_b64(ctx, generate_source, export_formats=("SOURCE", "JUPYTER"))
         if gen_b64:
             try:
-                api("POST", "/api/2.0/workspace/mkdirs", {"path": f"/Shared/{app_name}"})
+                api("POST", "/api/2.0/workspace/mkdirs", {"path": ctx["APP_FOLDER"]})
             except Exception:
                 pass
             gen_resp = api(
@@ -1363,8 +1400,7 @@ def _lakebase_project_access(api, sp, project):
     )
 
 
-def _app_folder_access(api, app_name, sp):
-    folder = f"/Shared/{app_name}"
+def _app_folder_access(api, folder, sp):
     found = api("GET", f"/api/2.0/workspace/get-status?path={folder}")
     object_id = found.json().get("object_id") if found.status_code == 200 else None
     if not object_id:
@@ -1529,11 +1565,11 @@ def _lakebase_grant(sp, lakebase_catalog):
     return f"GRANT ALL PRIVILEGES ON CATALOG `{lakebase_catalog}` TO `{sp}`"
 
 
-def _grant_plan(sp, catalog, schema, visible, lakebase_catalog=""):
-    plan = [f"GRANT {p} ON CATALOG `{catalog}` TO `{sp}`" for p in ("USE_CATALOG", "BROWSE", "CREATE SCHEMA")]
+def _grant_plan(sp, catalog, schema, visible, lakebase_catalog="", catalog_level=True):
+    plan = [f"GRANT {p} ON CATALOG `{catalog}` TO `{sp}`" for p in ("USE_CATALOG", "BROWSE", "CREATE SCHEMA")] if catalog_level else []
     plan += [f"GRANT {p} ON SCHEMA `{catalog}`.`{schema}` TO `{sp}`"
              for p in ("USE_SCHEMA", "CREATE_TABLE", "SELECT", "MODIFY", "CREATE MODEL", "CREATE VOLUME", "READ VOLUME", "WRITE VOLUME", "MANAGE")]
-    if lakebase_catalog and lakebase_catalog in visible and lakebase_catalog != catalog:
+    if catalog_level and lakebase_catalog and lakebase_catalog in visible and lakebase_catalog != catalog:
         plan.append(_lakebase_grant(sp, lakebase_catalog))
     return plan + _value_ledger_grants(sp, catalog, schema)
 
@@ -1588,7 +1624,8 @@ def step_grant_permissions(ctx):
         else:
             ctx["LAKEBASE_NOTE"] = lakebase_said
         _ensure_value_ledger(w, warehouse_id, catalog, schema)
-        grants = _grant_plan(sp, catalog, schema, visible, lakebase.get("catalog", ""))
+        schema_mode = bool(ctx.get("SCHEMA_MODE"))
+        grants = _grant_plan(sp, catalog, schema, visible, lakebase.get("catalog", ""), catalog_level=not schema_mode)
         lakebase_sql = _lakebase_grant(sp, lakebase["catalog"]) if lakebase else ""
         print(f"Grant plan for {sp}: {_plural(len(grants), 'statement')} on `{catalog}`.`{schema}`"
               f"{' and the Lakebase catalog' if lakebase_sql in grants else ''}")
@@ -1611,7 +1648,10 @@ def step_grant_permissions(ctx):
                                     f"({str(failed[lakebase_sql])[:160]}). Its owner can run that grant, or run this installer again; {LAKEBASE_DELTA}")
             print(f"  ⚠️ {ctx['LAKEBASE_NOTE']}")
 
-        print(f"  {_catalog_access_for_new_apps(ctx, sp)}")
+        if schema_mode:
+            print(f"  Skipped in schema mode: {SCHEMA_MODE_CATALOG_NOTE}. USE CATALOG on `{catalog}` was checked before any change.")
+        else:
+            print(f"  {_catalog_access_for_new_apps(ctx, sp)}")
         if lakebase:
             granted, granted_said = _lakebase_project_access(api, sp, lakebase["project"])
             print(f"  {'' if granted else '⚠️ '}{granted_said}")
@@ -1619,11 +1659,11 @@ def step_grant_permissions(ctx):
                 ctx["LAKEBASE_NOTE"] = granted_said
         ctx["LAKEBASE_SUMMARY"] = (f"⚠️ {ctx['LAKEBASE_NOTE']}" if ctx.get("LAKEBASE_NOTE") else
                                    f"Apps that Implement builds read Lakebase: project {lakebase['project']}, catalog `{lakebase['catalog']}` ✅")
-        print(f"  {_app_folder_access(api, ctx['APP_NAME'], sp)}")
-        print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp)}")
+        print(f"  {_app_folder_access(api, ctx['APP_FOLDER'], sp)}")
+        print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp, ctx['ASSETS_PARENT'], not schema_mode)}")
         shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
         print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
-        scan_failed = _grant_scan_catalogs(ctx, sp, visible)
+        scan_failed = {} if schema_mode else _grant_scan_catalogs(ctx, sp, visible)
         blocking = _blocking_read_grants(failed, scan_failed)
         if blocking:
             shown = "; ".join(f"{sql}: {str(error)[:160]}" for sql, error in list(blocking.items())[:3])
@@ -1691,8 +1731,8 @@ def step_render_done(ctx):
     )
 
 
-def _assets_folder_access(api, assets_path, sp):
-    folder = _workspace_api_path(ASSETS_PARENT)
+def _assets_folder_access(api, assets_path, sp, assets_parent=ASSETS_PARENT, shared=True):
+    folder = _workspace_api_path(assets_parent)
     if not assets_path:
         return f"⚠️ No Inspire assets were installed in {folder}, so runs cannot read them. Run this installer again"
     found = api("GET", f"/api/2.0/workspace/get-status?path={folder}")
@@ -1703,9 +1743,11 @@ def _assets_folder_access(api, assets_path, sp):
     resp = api(
         "PATCH",
         f"/api/2.0/permissions/directories/{object_id}",
-        {"access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_READ"},
-                                 {"group_name": "users", "permission_level": "CAN_READ"}]},
+        {"access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_READ"}]
+         + ([{"group_name": "users", "permission_level": "CAN_READ"}] if shared else [])},
     )
+    if resp.status_code == 200 and not shared:
+        return f"CAN_READ on {folder} for {sp}, so every run reads the Inspire assets: ✅"
     if resp.status_code == 200:
         return f"CAN_READ on {folder} for {sp} and the users group, so every run reads the Inspire assets: ✅"
     return (f"⚠️ Runs may not read the Inspire assets in {folder} yet ({resp.text[:160]}). "
@@ -1861,6 +1903,45 @@ def _scan_catalogs(value, visible):
     return names
 
 
+def _schema_mode_problems(ctx, found_app):
+    """Schema mode checks, read only: the schema is creatable or its owner is you, and the App's principal may use the catalog."""
+    catalog, schema, person = ctx["CATALOG"], ctx["SCHEMA"], ctx["USER_EMAIL"]
+    problems = []
+    try:
+        full, held = _catalog_privileges(ctx, catalog)
+    except Exception as exc:
+        return [f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, catalog, person)}."]
+    try:
+        existing = ctx["w"].schemas.get(f"{catalog}.{schema}")
+    except Exception:
+        existing = None
+    if existing is not None:
+        mine = {person.lower(), *[str(g).lower() for g in ctx.get("USER_GROUPS") or [] if g]}
+        owner = str(getattr(existing, "owner", "") or "").lower()
+        admin = _metastore_admin(ctx)
+        if owner not in mine and not (admin and admin in mine):
+            problems.append(f"The schema `{catalog}`.`{schema}` exists and you are not its owner, so you cannot grant the Inspire App rights on it. "
+                            f"Its owner or a catalog owner can run GRANT MANAGE ON SCHEMA `{catalog}`.`{schema}` TO `{person}`, "
+                            "or make you the owner, then run this installer again.")
+    elif not (full or {"CREATE_SCHEMA", "ALL_PRIVILEGES"} & held):
+        problems.append(f"You cannot create the schema `{catalog}`.`{schema}`. A catalog owner can run "
+                        f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{person}`.")
+    sp_id = str((found_app.json() or {}).get("service_principal_client_id") or "").lower() if found_app.status_code == 200 else ""
+    try:
+        rows = _statement_rows(ctx["w"], ctx["WAREHOUSE_ID"], f"SHOW GRANTS ON CATALOG `{catalog}`")
+    except Exception as exc:
+        return problems + [f"Inspire cannot read the grants on catalog `{catalog}` to check the App's access: {_error_words(exc, 120)}."]
+    holders = {}
+    for row in rows:
+        holders.setdefault(str(row.get("principal") or "").strip().lower(), set()).add(_privilege_word(row.get("actiontype")))
+    usable = {NEW_APPS_ACCOUNT_USERS, sp_id} - {""}
+    if not any(holders.get(who, set()) & {"USE CATALOG", "ALL PRIVILEGES"} for who in usable):
+        problems.append(f"The Inspire App's service principal cannot use catalog `{catalog}`, and schema mode grants no catalog rights, so the App "
+                        f"could not read `{catalog}`.`{schema}`. A catalog owner must run GRANT USE CATALOG ON CATALOG `{catalog}` TO "
+                        f"`{NEW_APPS_ACCOUNT_USERS}` (or GRANT USE CATALOG to the App's service principal), then run this installer again.")
+    return problems
+
+
 def step_preflight(ctx):
     api, w = ctx["api"], ctx["w"]
     app_name, catalog, schema = ctx["APP_NAME"], ctx["CATALOG"], ctx["SCHEMA"]
@@ -1893,33 +1974,37 @@ def step_preflight(ctx):
     except Exception as exc:
         problems.append(f"The SQL warehouse {ctx['WAREHOUSE_NAME']} does not run a query for you ({_error_words(exc)}). "
                         "You need Can Use on it.")
-    try:
-        rights = _catalog_rights(ctx)
-        if not rights["grant"]:
-            problems.append(f"You cannot grant on catalog `{catalog}`, and the Inspire App needs USE CATALOG on it: "
-                            f"{_grant_refusal(catalog, ctx['USER_EMAIL'], rights['held'])}.")
-        if not rights["schema"]:
-            problems.append(f"You cannot create the schema `{catalog}`.`{schema}`. A catalog owner can run "
-                            f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{ctx['USER_EMAIL']}`.")
-    except Exception as exc:
-        problems.append(f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, catalog, ctx['USER_EMAIL'])}.")
     scan = None
-    try:
-        scan = _scan_catalogs(ctx.get("SCAN_CATALOGS", SCAN_ALL), set(ctx["available_catalogs"]))
-        ctx["SCAN_CATALOGS"] = scan
-    except ValueError as exc:
-        problems.append(str(exc))
-    for name in scan if isinstance(scan, list) else []:
-        if name == catalog:
-            continue
+    if ctx.get("SCHEMA_MODE"):
+        problems += _schema_mode_problems(ctx, found)
+        ctx["SCAN_CATALOGS"] = scan = []
+    else:
         try:
-            full, held = _catalog_privileges(ctx, name)
-            if not _can_grant(_person_privileges(full, held)):
-                problems.append(f"SCAN_CATALOGS names `{name}`, and you cannot grant on it, so the Inspire App could not read it: "
-                                f"{_grant_refusal(name, ctx['USER_EMAIL'], held)}, or take `{name}` out of SCAN_CATALOGS.")
+            rights = _catalog_rights(ctx)
+            if not rights["grant"]:
+                problems.append(f"You cannot grant on catalog `{catalog}`, and the Inspire App needs USE CATALOG on it: "
+                                f"{_grant_refusal(catalog, ctx['USER_EMAIL'], rights['held'])}.")
+            if not rights["schema"]:
+                problems.append(f"You cannot create the schema `{catalog}`.`{schema}`. A catalog owner can run "
+                                f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{ctx['USER_EMAIL']}`.")
         except Exception as exc:
-            problems.append(f"Inspire cannot check catalog `{name}` in SCAN_CATALOGS: {_rights_unread(exc, name, ctx['USER_EMAIL'])}.")
-    for folder in (f"/Shared/{app_name}", _workspace_api_path(ctx["BUNDLE_ROOT"]), _workspace_api_path(ASSETS_PARENT)):
+            problems.append(f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, catalog, ctx['USER_EMAIL'])}.")
+        try:
+            scan = _scan_catalogs(ctx.get("SCAN_CATALOGS", SCAN_ALL), set(ctx["available_catalogs"]))
+            ctx["SCAN_CATALOGS"] = scan
+        except ValueError as exc:
+            problems.append(str(exc))
+        for name in scan if isinstance(scan, list) else []:
+            if name == catalog:
+                continue
+            try:
+                full, held = _catalog_privileges(ctx, name)
+                if not _can_grant(_person_privileges(full, held)):
+                    problems.append(f"SCAN_CATALOGS names `{name}`, and you cannot grant on it, so the Inspire App could not read it: "
+                                    f"{_grant_refusal(name, ctx['USER_EMAIL'], held)}, or take `{name}` out of SCAN_CATALOGS.")
+            except Exception as exc:
+                problems.append(f"Inspire cannot check catalog `{name}` in SCAN_CATALOGS: {_rights_unread(exc, name, ctx['USER_EMAIL'])}.")
+    for folder in (ctx["APP_FOLDER"], _workspace_api_path(ctx["BUNDLE_ROOT"]), _workspace_api_path(ctx["ASSETS_PARENT"])):
         made = api("POST", "/api/2.0/workspace/mkdirs", {"path": folder})
         if made.status_code != 200:
             problems.append(f"You cannot write the workspace folder {folder} ({made.status_code} {made.text[:160]}). "
@@ -1928,7 +2013,10 @@ def step_preflight(ctx):
         raise RuntimeError("Nothing was replaced: the installed Inspire App and its service principal are untouched. "
                            "Fix these, then run this installer again:\n" + "\n".join(f"  • {p}" for p in problems))
     print(f"  Rights: ✅ App {app_name}, warehouse {ctx['WAREHOUSE_NAME']}, catalog `{catalog}` and the workspace folders")
-    print(f"  The App may read catalogs: SCAN_CATALOGS = {_scan_label(scan, catalog)}")
+    if ctx.get("SCHEMA_MODE"):
+        print(f"  Schema mode: the App reads only `{catalog}`.`{schema}`; {SCHEMA_MODE_CATALOG_NOTE}")
+    else:
+        print(f"  The App may read catalogs: SCAN_CATALOGS = {_scan_label(scan, catalog)}")
 
 
 def run(env):

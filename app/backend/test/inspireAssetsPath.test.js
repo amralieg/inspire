@@ -106,3 +106,18 @@ test('a run whose output folder the person cannot write is refused with 403 and 
   assert.match(run.text, /cannot write to \/Shared\/demos/);
   assert.deepEqual(run.created, []);
 });
+
+test('the agent notebook path comes from NOTEBOOK_PATH, which the installer writes, and falls back to /Shared only when it is unset', async () => {
+  const { resolveInspireNotebookPath } = require('../lib/demoDataPipeline');
+  const saved = process.env.NOTEBOOK_PATH;
+  try {
+    process.env.NOTEBOOK_PATH = ' /Users/someone@example.com/inspire-ai/inspire-ai/dbx_inspire_ai_agent ';
+    const echo = async (host, token, path) => path;
+    assert.equal(await resolveInspireNotebookPath('host', 'token', { resolveWorkspaceNotebookObjectPath: echo }), '/Users/someone@example.com/inspire-ai/inspire-ai/dbx_inspire_ai_agent');
+    delete process.env.NOTEBOOK_PATH;
+    assert.equal(await resolveInspireNotebookPath('host', 'token', { resolveWorkspaceNotebookObjectPath: echo }), '/Shared/inspire-ai/dbx_inspire_ai_agent');
+  } finally {
+    if (saved === undefined) delete process.env.NOTEBOOK_PATH;
+    else process.env.NOTEBOOK_PATH = saved;
+  }
+});

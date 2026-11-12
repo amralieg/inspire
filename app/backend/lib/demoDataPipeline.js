@@ -140,7 +140,7 @@ async function ensureDemoPipelineNotebookPublished(
 }
 
 async function resolveInspireNotebookPath(host, token, { ensureInspireNotebookPublished, resolveWorkspaceNotebookObjectPath }) {
-  let notebookPath = '/Shared/inspire-ai/dbx_inspire_ai_agent';
+  let notebookPath = (process.env.NOTEBOOK_PATH || '/Shared/inspire-ai/dbx_inspire_ai_agent').trim();
   if (ensureInspireNotebookPublished) {
     const pub = await ensureInspireNotebookPublished(host, token);
     if (pub?.path) notebookPath = pub.path;
@@ -337,6 +337,7 @@ async function triggerDemoDataPipeline(
 
 module.exports = {
   GENERATE_NOTEBOOK_NAME,
+  resolveInspireNotebookPath,
   generateNotebookDest,
   DEMO_GENERATED_TABLES,
   DEMO_KIND_SIGNAL_TABLES,

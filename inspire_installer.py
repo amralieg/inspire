@@ -12,6 +12,8 @@
 # MAGIC **SCAN_CATALOGS** in the next cell picks the catalogs the Inspire App may read besides the Inspire catalog, with USE CATALOG, USE SCHEMA, SELECT and BROWSE, because builds run as the App and read their source tables: `"all"` grants it every catalog you can see and grant on (you own it, hold MANAGE on it, or are a metastore admin) and names the catalogs it skips (the first ten, then a count), and a list such as `["main", "sales"]` grants only those and stops before any change if you cannot grant on one. The installer gives the App the warehouse and the Inspire catalog first, then runs one grant per catalog, several at a time, and prints how far it got.
 # MAGIC
 # MAGIC **NEW_APPS_CATALOG_ACCESS** lets the Apps that Implement builds read their results: `"account users"` grants account users USE CATALOG on the Inspire catalog when nothing below it is granted to them, so it opens no data by itself, and `"off"` grants nothing and prints the statement for a catalog owner.
+# MAGIC
+# MAGIC **INSPIRE_SCHEMA** (empty by default) is schema mode for a catalog where you hold CREATE SCHEMA but not MANAGE, such as `"my_catalog.inspire"`: the installer creates that schema if it is missing, keeps Inspire inside it, puts the assets and the App under your own folder, and makes no catalog-level grant. It stops before any change if the App's service principal cannot use the catalog, and prints the one GRANT the catalog owner must run.
 
 # COMMAND ----------
 
@@ -37,6 +39,7 @@ RELEASE_REPO = "amralieg/inspire"
 INTERNET_BLOCKED = False
 SCAN_CATALOGS = "all"
 NEW_APPS_CATALOG_ACCESS = "account users"
+INSPIRE_SCHEMA = ""
 LATEST_BASE = f"https://github.com/{RELEASE_REPO}/releases/latest/download"
 TEST_BASE = re.compile(re.escape(f"https://github.com/{RELEASE_REPO}/releases/download/") + r"[A-Za-z0-9][A-Za-z0-9._-]{0,80}")
 DOWNLOAD_HOSTS = ("github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
@@ -641,6 +644,7 @@ def install_redacted():
             "settings": settings,
             "scan_catalogs": SCAN_CATALOGS,
             "new_apps_catalog_access": NEW_APPS_CATALOG_ACCESS,
+            "inspire_schema": INSPIRE_SCHEMA,
         }), None
     except Exception as exc:
         return None, redact_failure(exc)
