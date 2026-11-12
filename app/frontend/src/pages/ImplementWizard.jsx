@@ -16,6 +16,7 @@ import {
   GENIE_CODE_OFF_TITLE,
   genieCodeOff,
   wizardSteps,
+  APP_STORAGE_STEP,
   contextSettings,
   IMPLEMENT_OUTPUTS,
   ALERT_TIER_HELP,
@@ -627,7 +628,7 @@ export default function ImplementWizard({
         if (!next.config.warehouse_id) next.config.warehouse_id = warehouseId;
         setSpec(next);
         setMissingTables(missing);
-        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_pages', 'app_place', 'app_access', 'app_features', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
+        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_pages', 'app_place', 'app_access', 'app_features', 'app_storage', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
         loadedSpec.current = next;
         draftStamp.current = draftStampOf(data.use_case, data.latest);
         const draft = readWizardDraft(draftKey, draftStamp.current);
@@ -1010,7 +1011,7 @@ export default function ImplementWizard({
   }, [columnsByTable, spec]);
 
   useEffect(() => {
-    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where' || stepId === 'app'));
+    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where' || stepId === 'app' || stepId === APP_STORAGE_STEP.id));
     if (!wanted || warehouses !== null || warehousesError) return undefined;
     let cancelled = false;
     apiFetch('/api/warehouses')
@@ -1225,7 +1226,7 @@ export default function ImplementWizard({
   const freshness = freshnessOf(spec.schedule);
   const checkStepOf = (k) => {
     if (PLACE_CHECKS.includes(k)) return 'where';
-    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'where' : 'app';
+    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'where' : APP_STORAGE_STEP.id;
     return CHOOSE_CHECKS.includes(k) || TILE_CHECK_KEYS.includes(k) ? 'delivery' : SUMMARY_STEP.id;
   };
   const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || SUMMARY_STEP.label;
@@ -1917,14 +1918,21 @@ export default function ImplementWizard({
         {shows('app_access') && (
           <AppAccessStep
             spec={spec}
+            onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
+            best={{ access: best.appAccess }}
+          />
+        )}
+
+        {shows('app_storage') && (
+          <AppStorageStep
+            spec={spec}
             lakebase={lakebase}
             warehouses={warehouses}
             warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
             warehouseCheck={preflight?.checks?.app_warehouse || null}
-            onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
             onBackend={(backend) => setSpec((prev) => withAppBackend(prev, backend))}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
-            best={{ access: best.appAccess, backend: best.appBackend }}
+            best={{ backend: best.appBackend }}
           />
         )}
 
@@ -2755,7 +2763,7 @@ function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, onWare
   );
 }
 
-function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onAccess, onBackend, onWarehouse, best = {} }) {
+function AppAccessStep({ spec, onAccess, best = {} }) {
   const access = spec.outputs.app_access;
   const inside = insideInspire(spec);
   return (
@@ -2787,6 +2795,14 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehous
           })}
         </div>
       </fieldset>
+    </section>
+  );
+}
+
+function AppStorageStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onBackend, onWarehouse, best = {} }) {
+  const inside = insideInspire(spec);
+  return (
+    <section className="space-y-4" aria-label={APP_STORAGE_STEP.label}>
       <AppBackendChoice spec={spec} lakebase={lakebase} onBackend={onBackend} best={best.backend}>
         {inside ? (
           <p data-inside-warehouse="" className="text-[11px] text-text-secondary">

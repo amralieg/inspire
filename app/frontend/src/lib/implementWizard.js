@@ -49,10 +49,11 @@ export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule', 'kp
 
 export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP, RUN_STEP];
 
-export const APP_PANELS = ['app_place', 'app_pages', 'app_access', 'app_features', 'app_look'];
+export const APP_PANELS = ['app_place', 'app_pages', 'app_access', 'app_features', 'app_storage', 'app_look'];
 export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_access', 'app_features'], advanced: [], panels: ['app_access', 'app_features'] };
+export const APP_STORAGE_STEP = { id: 'app_storage', label: 'Page storage', sections: ['app_storage'], advanced: [], panels: ['app_storage'] };
 export const APP_LOOK_STEP = { id: 'app_look', label: 'App look', sections: ['app_look'], advanced: [], panels: ['app_look'] };
-export const WIZARD_STEPS_MAX = 10;
+export const WIZARD_STEPS_MAX = 11;
 
 export const SUMMARY_STEP = { id: 'summary', label: 'Review & build', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
 
@@ -70,7 +71,7 @@ const STEP_ALIASES = {
   settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: APP_STEP.id, app_features: APP_STEP.id, app_look: APP_LOOK_STEP.id,
   results: DATA_STEP.id, app_pages: WHERE_STEP.id,
 };
-const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id, [APP_LOOK_STEP.id]: APP_STEP.id, [APP_STEP.id]: WHERE_STEP.id };
+const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id, [APP_LOOK_STEP.id]: APP_STEP.id, [APP_STORAGE_STEP.id]: APP_STEP.id, [APP_STEP.id]: WHERE_STEP.id };
 
 function heldStepOf(steps, id) {
   let want = id;
@@ -92,7 +93,7 @@ export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
     const app = Boolean(spec?.outputs?.app);
     const joined = joinsApp(spec);
     const where = app ? [{ ...WHERE_STEP, sections: joined ? ['app_place'] : WHERE_STEP.sections, panels: joined ? ['app_place'] : WHERE_STEP.panels }] : [];
-    const appSteps = app && !joined ? [APP_STEP, APP_LOOK_STEP] : [];
+    const appSteps = app && !joined ? [APP_STEP, APP_STORAGE_STEP, APP_LOOK_STEP] : [];
     return [DELIVERY_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), MEASURE_STEP,
       ...where, ...appSteps, RUN_STEP, SUMMARY_STEP];
   }
@@ -100,7 +101,7 @@ export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   throw new Error(`unknown implement mode '${mode}'`);
 }
 
-export const BUILD_STEP_IDS = [DELIVERY_STEP.id, WHERE_STEP.id, APP_STEP.id, APP_LOOK_STEP.id, SUMMARY_STEP.id];
+export const BUILD_STEP_IDS = [DELIVERY_STEP.id, WHERE_STEP.id, APP_STEP.id, APP_STORAGE_STEP.id, APP_LOOK_STEP.id, SUMMARY_STEP.id];
 
 export const APP_PLACEMENTS = [
   { id: 'domain', label: 'One App per business domain', blurb: 'Use cases of the same domain share one App, so the people of that domain find them in one place.' },
@@ -1709,6 +1710,8 @@ export function sectionErrors(section, spec, extras = {}) {
       errors.push('choose who sees which rows: everyone the same rows, or each person only their own');
     }
     if (insideInspire(spec) && spec.outputs.app_access !== 'user') errors.push(`${INSIDE_ACCESS_REASON}, so pick per-user`);
+  }
+  if (section === 'app_storage' && spec.outputs.app) {
     if (extras.lakebase === null && spec.outputs.app_access === 'sp' && !spec.outputs.merge?.app) errors.push(LAKEBASE_CHECKING);
     errors.push(...appWarehouseProblems(spec, extras.warehouses));
   }

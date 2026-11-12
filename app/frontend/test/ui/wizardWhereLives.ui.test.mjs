@@ -36,10 +36,14 @@ test('What to deliver only picks what gets built, Where it lives places the App 
 
     await goToStep(page, 'What to deliver');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    assert.deepEqual(await stepLabels(page), labels.filter((l) => l !== 'Where it lives' && !/App/.test(l)), 'with the App unticked, Where it lives is skipped too');
+    assert.deepEqual(await stepLabels(page), labels.filter((l) => !['Where it lives', 'Page storage'].includes(l) && !/App/.test(l)),
+      'with the App unticked, Where it lives and Page storage are skipped too');
     await page.getByRole('checkbox', { name: /^App / }).check();
 
     await goToStep(page, 'Who uses the App');
+    await page.getByRole('region', { name: 'App access' }).waitFor();
+    assert.equal(await storage(page).count(), 0, 'the storage choice waits for its own step, Page storage (must-exclude)');
+    await goToStep(page, 'Page storage');
     const group = storage(page);
     await group.getByRole('status').waitFor({ state: 'detached' });
     await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();
