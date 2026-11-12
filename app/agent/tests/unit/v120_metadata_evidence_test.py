@@ -1202,10 +1202,16 @@ def test_h13_save_failure_is_recorded_as_a_failed_step_not_success(catalog_obj, 
     obj = catalog_obj(fail=True)
     emitted = []
 
+    reasons = []
+
     class Writer:
         def emit_step(self, **kwargs):
             emitted.append(kwargs)
             return 1
+
+        def record_catalog_json_failure(self, reason):
+            reasons.append(reason)
+            return True
     obj.atomic_writer = Writer()
     before = len(agent_ns["NEXT_ACTIONS"].snapshot())
     summary = obj._save_usecases_catalog_json([catalog_uc()], {}, summary_dict={"Executive": "x"})
@@ -1214,6 +1220,7 @@ def test_h13_save_failure_is_recorded_as_a_failed_step_not_success(catalog_obj, 
     assert [a["rule_id"] for a in agent_ns["NEXT_ACTIONS"].snapshot()[before:]] == ["JSON_CATALOG_SAVE_FAILED"]
     assert len(emitted) == 1 and emitted[0]["status"] == "ended_error"
     assert "workspace import limit" in emitted[0]["result_json"]["error"]
+    assert len(reasons) == 1 and "workspace import limit" in reasons[0]
 
 
 @pytest.mark.parametrize("schema", ["sales", "Sales", "SALES"])

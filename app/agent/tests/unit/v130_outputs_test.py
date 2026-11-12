@@ -578,7 +578,7 @@ def test_measured_kpi_baselines_reject_non_finite_values(agent_ns):
     spec = kpi("Orders", query="SELECT 1 AS v")
     for answer, expected in ((float("nan"), None), (float("inf"), None), (decimal.Decimal("12.5"), 12.5), (None, None), (7, 7.0)):
         deep = cls.__new__(cls)
-        deep._read = lambda kind, table, sql, args=None, answer=answer: [{"v": answer}]
+        deep._read = lambda kind, table, sql, args=None, scopes=None, answer=answer: [{"v": answer}]
         assert deep.measure_kpi(spec) == expected, answer
 
 

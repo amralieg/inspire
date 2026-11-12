@@ -196,16 +196,18 @@ def test_every_docs_writer_routes_through_the_parent_ensuring_helper(agent_ns):
                 if isinstance(n, ast.Call)
                 and isinstance(n.func, ast.Attribute) and n.func.attr == "import_"]
 
-    def routes(method):
+    def calls(method, name):
         node = method_node("DatabricksInspire", method)
-        return any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)
-                   and n.func.attr == "_import_workspace_file" for n in ast.walk(node))
+        return any(isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute) and n.func.attr == name
+                   for n in ast.walk(node))
 
     for method in ("generate_catalog_pdf", "generate_presentation_pptx", "_save_excel",
                    "_generate_markdown_catalog", "_generate_csv_catalog",
-                   "_save_usecases_catalog_json", "_upload_log_file", "_write_genie_agents_file"):
+                   "_import_catalog_json", "_upload_log_file", "_write_genie_agents_file"):
         assert not direct_imports(method), method
-        assert routes(method), method
+        assert calls(method, "_import_workspace_file"), method
+    assert not direct_imports("_save_usecases_catalog_json")
+    assert calls("_save_usecases_catalog_json", "_import_catalog_json")
 
 
 def test_startup_no_longer_imports_four_bare_mkdirs(agent_ns):

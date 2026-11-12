@@ -499,7 +499,7 @@ def test_the_snapshot_column_is_added_to_old_tables_and_kept_out_of_every_defaul
         writer._session_writer.stop(drain_timeout=5.0)
     assert [s for s in spark.statements if " ADD COLUMN " in s] == [
         "ALTER TABLE `my-cat`.`inspire`.`__inspire_implement` ADD COLUMN `asset_snapshots` STRING"]
-    assert agent_ns["IMPLEMENT_COLUMNS"][-1] == ("asset_snapshots", "STRING")
+    assert agent_ns["IMPLEMENT_COLUMNS"].count(("asset_snapshots", "STRING")) == 1
     assert "asset_snapshots" not in agent_ns["DatabricksInspire"]._IMPLEMENT_READ_COLUMNS
     inst = _probe_inspire(agent_ns, lambda statement: [], {})
     inst._implement_select("session_id = :sid", {"sid": 1})
