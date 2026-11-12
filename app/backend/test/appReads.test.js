@@ -272,3 +272,10 @@ test('a person who cannot grant leaves the build needs-access: the App is kept, 
     assert.doesNotMatch(JSON.stringify(got.data), /amr@x|[\w.+-]+@(?!example\.)[\w-]+\.[a-z]{2,}/i, 'no email but an example address in the answer');
   });
 });
+
+test('the record a blocked build saves on a failed App still reads as the access card, so a person can grant it (must-keep)', () => {
+  const record = I.appReadsRecord([{ status: 'ready_with_warnings', app_name: 'riverside-assets',
+    asset_status: { app: { state: 'failed', error: 'the App could not be given read access to 1 source table', unread: RECORD } } }]);
+  assert.equal(record.app, SP);
+  assert.deepEqual(record.tables.map((t) => [t.table, t.grants]), [['main.s.orders', RECORDED]]);
+});

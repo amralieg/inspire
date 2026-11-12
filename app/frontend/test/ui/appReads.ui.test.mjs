@@ -16,10 +16,11 @@ const METADATA_RETURNS = 'GRANT READ METADATA ON TABLE `main`.`s`.`returns` TO `
 const SELECT = 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-2`';
 const DENIED = "[PERMISSION_DENIED] User does not have MANAGE on Catalog 'main'.";
 
-const unreadBuild = () => {
+const unreadBuild = ({ appFailed = false } = {}) => {
   const row = built({ status: 'ready_with_warnings' });
   const assets = JSON.parse(row.asset_status);
   assets.app.unread = { app: SP, tables: [{ table: 'main.s.orders', owner: 'data-eng', grants: [CATALOG, SCHEMA, SELECT] }] };
+  if (appFailed) assets.app = { ...assets.app, state: 'failed', error: 'the App could not be given read access to 1 source table' };
   return { ...row, asset_status: JSON.stringify(assets) };
 };
 
@@ -151,5 +152,21 @@ test('the wizard warns on Summary when Inspire cannot share a picked table with 
     } finally {
       await ui.close();
     }
+  }
+});
+
+test('a held App whose person grant succeeded offers Publish now, and the App is not left failed with no way out', async () => {
+  const w = grantsWorkspace(true);
+  w.state.history = [unreadBuild({ appFailed: true })];
+  const ui = await openUi('implement', w.state, '', { init: allowClipboard });
+  const { page } = ui;
+  try {
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await expandBuild(page);
+    const publish = page.locator('[data-app-publish]');
+    await publish.waitFor();
+    assert.equal(await publish.innerText(), 'Publish now');
+  } finally {
+    await ui.close();
   }
 });
