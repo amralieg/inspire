@@ -293,8 +293,17 @@ def test_a_user_named_use_case_keeps_the_persons_own_words(labelled):
 
 def test_the_fired_line_carries_the_counts_and_is_written_as_a_step_message(agent_ns):
     line = agent_ns["data_filter_label_line"]({"affected": 2, "carried": 1, "reasked": 1, "fallback": 0, "kept_user_named": 0}, "Contoso")
-    assert line.startswith('[DATA-FILTER-LABEL FIRED] 1 of 2 names carried the label "Contoso"')
-    assert "re-asked 1, deterministic rewrite 0" in line
+    assert line.startswith("[DATA-FILTER-LABEL FIRED] carried at generation 1 of 2; after repair 2 of 2")
+    assert "(re-asked 1, rewrite 0, kept 0 user-named)" in line and 'label "Contoso"' in line
+
+
+def test_the_fired_line_separates_the_generation_count_from_the_count_after_repair(agent_ns):
+    zero_at_generation = agent_ns["data_filter_label_line"]({"affected": 17, "carried": 0, "reasked": 17, "fallback": 0, "kept_user_named": 0}, "Tokyo Tidbits")
+    assert zero_at_generation.startswith("[DATA-FILTER-LABEL FIRED] carried at generation 0 of 17; after repair 17 of 17")
+    assert "(re-asked 17, rewrite 0, kept 0 user-named)" in zero_at_generation
+    mixed = agent_ns["data_filter_label_line"]({"affected": 4, "carried": 1, "reasked": 2, "fallback": 1, "kept_user_named": 3}, "Contoso")
+    assert mixed.startswith("[DATA-FILTER-LABEL FIRED] carried at generation 1 of 4; after repair 4 of 4")
+    assert "kept 3 user-named" in mixed
     import json as _json
     import os
     here = os.path.dirname(os.path.abspath(__file__))
@@ -336,3 +345,10 @@ def test_a_name_without_a_label_normalises_as_before(labelled):
     assert normalize("predict churn for members of the club", "") == "Predict Churn for Members of the Club"
     labelled["DATA_FILTER_LABEL"]["text"] = "iPhone"
     assert normalize("predict churn for members", "") == "Predict Churn for Members"
+
+
+def test_the_generation_directive_asks_for_the_label_in_both_the_title_and_the_name(labelled):
+    labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
+    labelled["DATA_FILTER_LABEL"]["text"] = "Tokyo Tidbits"
+    label_line = [line for line in labelled["table_scope_directive_lines"]() if "USE CASE LABEL" in line][0]
+    assert "in both its `usecase` and its `Name`" in label_line, "the App title the check reads is named, not only the Name"
