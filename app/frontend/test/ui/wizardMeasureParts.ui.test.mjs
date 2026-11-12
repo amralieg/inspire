@@ -52,3 +52,22 @@ test('Measure shows one money decision per screen, Following decision moves on, 
     await ui.close();
   }
 });
+
+test('a value typed on its decision survives moving to other decisions and back', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Measure');
+    await page.locator('[data-money-method="fixed"]').check({ force: true });
+    await page.locator('[data-money-fixed-amount]').fill('10');
+    await page.locator('[data-money-next]').click();
+    await page.locator('[data-money-next]').click();
+    await page.locator('[data-money-back]').click();
+    await page.locator('[data-money-back]').click();
+    assert.equal(await page.locator('[data-money-method="fixed"]').isChecked(), true, 'the fixed method is still chosen');
+    assert.equal(await page.locator('[data-money-fixed-amount]').inputValue(), '10', 'the amount typed is still there');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
