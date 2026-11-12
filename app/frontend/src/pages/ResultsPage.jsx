@@ -138,7 +138,6 @@ import { BuildNextPanel } from '../components/BuildNext';
 
 export default function ResultsPage({
   settings,
-  update,
   sessionId: propSessionId,
   embedded = false,
   onOpenImplement,
@@ -346,7 +345,7 @@ export default function ResultsPage({
       const id = String(uc?.No ?? '');
       const q = new URLSearchParams({ inspire_database: inspireDb, warehouse_id: warehouseId, session_id: String(selectedSessionId), use_case_id: id });
       const data = await apiFetch(`/api/inspire/implement/history?${q}`);
-      const spec = renameRestyleSpec(data.history, id, uc?.Name);
+      const spec = renameRestyleSpec(data.history, id, nameOfUseCase(uc));
       if (!spec) throw new Error('This use case has no built App to update.');
       await apiPostJson('/api/inspire/implement/submit', { spec });
       setImplementRefresh((n) => n + 1);
@@ -602,7 +601,7 @@ export default function ResultsPage({
       })
       .sort((a, b) => {
         const chosen = sortBy === 'domain' ? String(a._domain || '').localeCompare(String(b._domain || ''))
-          : sortBy === 'name' ? String(a.Name || '').localeCompare(String(b.Name || ''))
+          : sortBy === 'name' ? nameOfUseCase(a).localeCompare(nameOfUseCase(b))
             : sortBy === 'priority' ? priorityRank(priorityTierOf(a)) - priorityRank(priorityTierOf(b)) : 0;
         if (chosen !== 0) return chosen;
         const meetsFirst = compareMeetsQualityBarFirst(a, b);
@@ -612,7 +611,7 @@ export default function ResultsPage({
         const sa = inspireScoreFromUc(a) ?? -Infinity;
         const sb = inspireScoreFromUc(b) ?? -Infinity;
         if (sb !== sa) return sb - sa;
-        return String(a.Name || '').localeCompare(String(b.Name || ''));
+        return nameOfUseCase(a).localeCompare(nameOfUseCase(b));
       });
   } catch (err) {
     console.error('Error filtering/sorting use cases:', err);
@@ -2421,7 +2420,7 @@ export default function ResultsPage({
                         isFavorite={!!(favKey && favorites[favKey])}
                         onToggleFavorite={() => toggleFavorite(uc)}
                         onRename={inspireDb && warehouseId && selectedSessionId ? (name) => renameUseCase(uc, name) : undefined}
-                        liveAppStale={liveAppRenameStale(implementLatestById[trackingIdOf(uc)], uc.Name) && cardAssetLinks(implementLatestById[trackingIdOf(uc)]).some((l) => l.id === 'app')}
+                        liveAppStale={liveAppRenameStale(implementLatestById[trackingIdOf(uc)], nameOfUseCase(uc)) && cardAssetLinks(implementLatestById[trackingIdOf(uc)]).some((l) => l.id === 'app')}
                         onUpdateLiveApp={inspireDb && warehouseId && selectedSessionId ? () => updateLiveApp(uc) : undefined}
                         v130={uc._v130}
                         feedbackCurrent={feedbackCurrentFor(uc)}

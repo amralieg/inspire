@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { cardTitlesOfUseCase, favoriteKeyOf, nameOfUseCase } from '../../src/lib/useCaseFields.js';
 import { buildUseCaseList } from '../../src/lib/useCaseList.js';
-import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
+import { appNameOf, caseAppNameOf, defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
 
 const CATALOGUE = 'Predict churn risk';
 const RENAMED = 'Churn early warning';
@@ -105,4 +105,22 @@ test('the Build wizard header, App name default and Build list show the user nam
     await ui.close();
     await closeBrowser();
   }
+});
+
+test('a rename reaches the Build list when the run JSON and the tracking row disagree on the id (fallback match, must-exclude catalogue)', () => {
+  const results = { domains: [{ domain_name: 'Sales', use_cases: [{ No: 'N01-U01', Name: CATALOGUE, Statement: 'Flag customers likely to leave.' }] }] };
+  const tracked = [{ ...renamedRow, id: 'T-9', No: 'T-9' }];
+  const [uc] = buildUseCaseList(results, tracked);
+  assert.equal(uc.user_use_case_name, RENAMED, 'the overlay applies on the fallback path too');
+  assert.equal(nameOfUseCase(uc), RENAMED);
+  assert.equal(caseAppNameOf(uc), appNameOf(RENAMED, 'T-9'), 'the App name default follows the person');
+  assert.equal(defaultSpecFromUseCase(uc, { warehouseId: 'wh', inspireDatabase: 'main.inspire', sessionId: 42 }).use_case_name, RENAMED);
+});
+
+test('the rename overlay applies even when the run JSON already carries a score (must-exclude catalogue)', () => {
+  const results = { domains: [{ domain_name: 'Sales', use_cases: [{ No: 'N01-U01', Name: CATALOGUE, priority_score: 4, Statement: 'x' }] }] };
+  const tracked = [{ ...renamedRow, id: 'T-9', No: 'T-9', priority_score: 2 }];
+  const [uc] = buildUseCaseList(results, tracked);
+  assert.equal(nameOfUseCase(uc), RENAMED);
+  assert.equal(uc.priority_score, 4, 'the score the run wrote is kept');
 });

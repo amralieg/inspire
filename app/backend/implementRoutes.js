@@ -1569,7 +1569,11 @@ function registerImplementRoutes(app, deps) {
       ? await sqlRows(req.dbHost, req.dbToken, warehouseId, I.useCaseScopeStatement(catalog, schema, sessions))
         .catch((err) => { if (isMissingTableError(err) || I.isMissingColumnError(err)) return []; throw err; })
       : [];
-    return I.runPages(rows, scope, buildStamp());
+    const names = sessions.length
+      ? await sqlRows(req.dbHost, req.dbToken, warehouseId, I.useCaseUserNamesStatement(catalog, schema, sessions))
+        .catch((err) => { if (isMissingTableError(err) || I.isMissingColumnError(err)) return []; throw err; })
+      : [];
+    return I.runPages(rows, scope, buildStamp(), names);
   }
 
   const runContext = (req, warehouseId, catalog, schema) => ({ key: `${req.dbHost}|${catalog}.${schema}`, warehouseId, catalog, schema });

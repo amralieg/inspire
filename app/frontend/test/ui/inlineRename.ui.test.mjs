@@ -132,3 +132,32 @@ test('REQ-098 Tab to the pencil and press Enter or Space opens the rename field 
     await ui.close();
   }
 });
+
+test('an empty name is refused: the field stays open with a message, no write is sent, and Esc keeps the name (must-exclude)', async () => {
+  const posted = { rename: [] };
+  const ui = await openUi('results', REVIEW_STATE, '', { init: routes(posted) });
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await cardOf(page).locator('[aria-expanded]').first().waitFor();
+    await idle(page);
+    const before = await cardOf(page).locator('h3').innerText();
+    await page.getByRole('button', { name: `Rename ${before}` }).click();
+    const field = cardOf(page).getByRole('textbox', { name: `Use case name for ${before}` });
+    await field.waitFor();
+    await field.fill('   ');
+    await field.press('Enter');
+    const alert = cardOf(page).locator('[data-use-case-name-editor] [role="alert"]');
+    await alert.waitFor();
+    assert.match(await alert.innerText(), /A use case needs a name/);
+    assert.equal(await field.count(), 1, 'the field stays open so the person can type a name');
+    assert.equal(posted.rename.length, 0, 'an empty name sends no write');
+    await field.press('Escape');
+    await cardOf(page).locator('h3').waitFor();
+    assert.equal(await cardOf(page).locator('h3').innerText(), before, 'Esc keeps the current name');
+    assert.equal(posted.rename.length, 0);
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

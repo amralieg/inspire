@@ -17,6 +17,13 @@ function cloneDomainUseCaseForList(uc) {
   }
 }
 
+function overlayUserName(uc, row) {
+  if (!row?.user_use_case_name) return;
+  uc.original_name = uc.original_name || uc.Name || '';
+  uc.user_use_case_name = row.user_use_case_name;
+  uc.Name = row.Name;
+}
+
 export function buildUseCaseList(results, usecases) {
   let allUseCases = [];
   try {
@@ -75,11 +82,7 @@ export function buildUseCaseList(results, usecases) {
         if (desc && !uc.description) uc.description = desc;
         const sn = row.short_name || row.shortName;
         if (sn && !uc.short_name) uc.short_name = sn;
-        if (row.user_use_case_name) {
-          uc.original_name = uc.original_name || uc.Name || '';
-          uc.user_use_case_name = row.user_use_case_name;
-          uc.Name = row.Name;
-        }
+        overlayUserName(uc, row);
         const copyScore = (field) => {
           const v = row[field];
           if (v == null || v === '') return;
@@ -101,19 +104,20 @@ export function buildUseCaseList(results, usecases) {
         `${String(name || '').trim().toLowerCase().replace(/\s+/g, ' ')}|${String(domain || '').trim().toLowerCase().replace(/\s+/g, ' ')}`;
       const byNameDomain = new Map();
       for (const row of usecases) {
-        const nm = String(row.Name || '').trim();
-        if (!nm) continue;
-        const k = normKey(nm, row._domain || row['Business Domain'] || '');
-        byNameDomain.set(k, row);
+        const domain = row._domain || row['Business Domain'] || '';
+        for (const nm of new Set([String(row.Name || '').trim(), String(row.original_name || '').trim()].filter(Boolean))) {
+          byNameDomain.set(normKey(nm, domain), row);
+        }
       }
       for (const uc of allUseCases) {
         const nm = String(uc.Name || '').trim();
         if (!nm) continue;
+        const row = byNameDomain.get(normKey(nm, uc._domain || uc['Business Domain'] || ''));
+        if (!row) continue;
+        overlayUserName(uc, row);
         const hasScore =
           uc.priority_score != null && uc.priority_score !== '' && Number.isFinite(Number(uc.priority_score));
         if (hasScore) continue;
-        const row = byNameDomain.get(normKey(nm, uc._domain || uc['Business Domain'] || ''));
-        if (!row) continue;
         const copyScore2 = (field) => {
           const v = row[field];
           if (v == null || v === '') return;
