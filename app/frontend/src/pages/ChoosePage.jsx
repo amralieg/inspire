@@ -6,7 +6,7 @@ import { SkeletonCard } from '../components/SkeletonLoader';
 import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import ValueBadge, { OverallValue } from '../components/ValueBadge';
-import { valueQuery } from '../lib/valueLedger';
+import { valueChips, valueQuery } from '../lib/valueLedger';
 import { useValueRead } from '../lib/useValueLedger';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
 import { buildFilterOf, portfolioCard, runCounts, runLabel, runFilterText, runsOfCard } from '../lib/reviewFigures';
@@ -97,16 +97,16 @@ function StartChoices({ onNewExperiment, onNoData, onDemo }) {
   return (
     <section aria-label="How do you want to start?" data-start-choices="" className="space-y-3">
       <h2 className="text-center text-xs font-semibold uppercase tracking-[0.1em] text-text-secondary">How do you want to start?</h2>
-      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+      <div className={`grid grid-cols-1 gap-3 sm:grid-cols-2 ${onDemo ? 'lg:grid-cols-3' : ''}`}>
         <StartChoice choice="data" icon={Rocket} strong onClick={onNewExperiment} title="I have data in Unity Catalog"
           text="Pick the catalogs, schemas or tables Inspire reads. Inspire finds use cases in your own data." />
         <StartChoice choice="no-data" icon={Sparkles} onClick={onNoData} title="No data yet"
           text="Describe your business. Inspire creates sample tables for it and simulates a full run on them, so you see what Inspire does without your own data." />
+        {onDemo && (
+          <StartChoice choice="demo" icon={Eye} onClick={onDemo} title={SHOWCASE_BUTTON}
+            text="Open a finished run: its use cases and the MVPs built for them. Nothing in your workspace changes." />
+        )}
       </div>
-      {onDemo && (
-        <StartChoice choice="demo" icon={Eye} onClick={onDemo} title={SHOWCASE_BUTTON}
-          text="Open a finished run: its use cases and the MVPs built for them. Nothing in your workspace changes." />
-      )}
     </section>
   );
 }
@@ -275,7 +275,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   if (loading) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
-        <div className="max-w-3xl w-full space-y-6">
+        <div className="w-full max-w-[1600px] space-y-6">
           <div className="text-center space-y-3">
             <div className="skeleton w-40 h-5 mx-auto rounded-full" />
             <div className="skeleton w-64 h-9 mx-auto rounded-lg" />
@@ -293,7 +293,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   if (sessions.length === 0 && !error) {
     return (
       <div className="min-h-[calc(100vh-64px)] flex items-start justify-center pt-12 pb-16 px-6">
-        <div className="max-w-3xl w-full space-y-6 text-center">
+        <div className="w-full max-w-[1600px] space-y-6 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Get started with Inspire AI</h1>
           <p className="text-sm text-text-secondary">
             Start from your own Unity Catalog data, or let Inspire make sample data for you.
@@ -319,7 +319,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
       <div className="absolute top-[-15%] left-[-5%] w-[40%] h-[40%] rounded-full bg-db-red/[0.03] blur-[120px] pointer-events-none" />
       <div className="absolute bottom-[-10%] right-[-5%] w-[35%] h-[35%] rounded-full bg-db-red/[0.02] blur-[100px] pointer-events-none" />
 
-      <div className="relative z-10 max-w-3xl w-full space-y-8">
+      <div className="relative z-10 w-full max-w-[1600px] space-y-8">
 
         {/* ── Header ── */}
         <div className="text-center space-y-3">
@@ -339,10 +339,10 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
 
+        {valueReady && <OverallValue value={overallValue} />}
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
         )}
-        {valueReady && <OverallValue value={overallValue} />}
 
         {/* ── Previous Experiments ── */}
         <div className="space-y-3">
@@ -479,15 +479,19 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                               {isCompleted && session.completed_on && <li className="text-text-tertiary">Completed {formatCompletedDate(session.completed_on)}</li>}
                             </ul>
                           )}
-                          {runValues[sidStr] && (
+                          {runsValue && (
                             <div data-run-value="" className="mt-3 space-y-1.5">
                               <p className="text-[10px] font-semibold uppercase tracking-[0.14em] text-text-secondary">Value of this run</p>
-                              <ValueBadge
-                                atStake={runValues[sidStr].at_stake}
-                                saved={runValues[sidStr].saved}
-                                measured={Number(runValues[sidStr].mvps_measured) > 0}
-                                mvps={Number(runValues[sidStr].mvps_measured) || 0}
-                              />
+                              {valueChips(runValues[sidStr]?.at_stake, Infinity).shown.length > 0 ? (
+                                <ValueBadge
+                                  atStake={runValues[sidStr].at_stake}
+                                  saved={runValues[sidStr].saved}
+                                  measured={Number(runValues[sidStr].mvps_measured) > 0}
+                                  mvps={Number(runValues[sidStr].mvps_measured) || 0}
+                                />
+                              ) : (
+                                <p data-run-value-state="not-calculated" className="text-xs leading-snug text-text-secondary">Not calculated</p>
+                              )}
                             </div>
                           )}
                           {counts.note && <p data-run-counts-note="" className="mt-1.5 text-[11px] text-text-secondary">{counts.note}</p>}
