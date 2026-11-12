@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { closeBrowser, goToStep, idle, onStep, openUi, profileAt } from './uiSupport.mjs';
+import { closeBrowser, goToStep, idle, onStep, openRow, openUi, profileAt } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -141,6 +141,7 @@ const check = (name) => async (page) => page.getByRole('checkbox', { name }).fir
 const uncheck = (name) => async (page) => page.getByRole('checkbox', { name }).first().uncheck();
 const radio = (name) => async (page) => page.getByRole('radio', { name }).first().check();
 const press = (name) => async (page) => page.getByRole('button', { name, exact: true }).first().click();
+const freshPress = (name) => async (page) => { await openRow(page, 'Keep it fresh'); await press(name)(page); };
 const both = (...fns) => async (page) => { for (const fn of fns) await fn(page); };
 
 const COMBOS = [
@@ -150,8 +151,8 @@ const COMBOS = [
   ['per-user-edit', { 'Who uses the App': radio(/^Sensitive data/), 'App pages': check(/^Let people edit data/) }],
   ['one-app-per-use-case', { 'Where it lives': radio(/^One App per use case/) }],
   ['inside-inspire', { 'Where it lives': radio(/^Inside Inspire/) }],
-  ['schedule-off-holdout-off', { 'Run it': both(press('Off'), uncheck(/^Hold back/)) }],
-  ['schedule-weekly', { 'Run it': press('Weekly') }],
+  ['schedule-off-holdout-off', { 'Data & results': freshPress('Off'), 'Run it': uncheck(/^Hold back/) }],
+  ['schedule-weekly', { 'Data & results': freshPress('Weekly') }],
   ['first-run-everything', { 'First run': radio(/^Everything/) }],
   ['first-run-recent', { 'First run': radio(/^The last 30 days/) }],
   ['first-run-one-group', { 'First run': radio(/^One group/) }],
@@ -355,7 +356,7 @@ test('every question in the wizard shows at most one Recommended choice', async 
 });
 
 test('a build clears the draft, so the next wizard opens on the Use case with no "picks are back" note', async () => {
-  const { ui } = await scenario('draft-after-build', { profile: PROFILE, extra: counted(PROFILE), actions: { [RUN_IT]: press('Weekly') } });
+  const { ui } = await scenario('draft-after-build', { profile: PROFILE, extra: counted(PROFILE), actions: { 'Data & results': freshPress('Weekly') } });
   try {
     const { page, made } = ui;
     await page.getByRole('button', { name: 'All Good, Build it Now' }).click();
@@ -425,14 +426,15 @@ async function toSummary(page) {
 }
 
 test('Change on a Summary row opens that step, keeps every earlier answer and Back to Summary returns with the new answer', async () => {
-  const { ui } = await scenario('change-from-summary', { profile: PROFILE, extra: counted(PROFILE), actions: { [RUN_IT]: press('Weekly') } });
+  const { ui } = await scenario('change-from-summary', { profile: PROFILE, extra: counted(PROFILE), actions: { 'Data & results': freshPress('Weekly') } });
   try {
     const { page } = ui;
     assert.equal(await current(page), 'Review & build');
     assert.match(await page.locator('[role="dialog"]').innerText(), /Keep it fresh\nWeekly/);
     await page.getByRole('button', { name: 'Change Keep it fresh' }).click();
     await settle(page);
-    assert.equal(await current(page), RUN_IT);
+    assert.equal(await current(page), 'Data & results');
+    await openRow(page, 'Keep it fresh');
     assert.equal(await page.getByRole('button', { name: 'Weekly', exact: true }).getAttribute('aria-pressed'), 'true');
     await press('Off')(page);
     await page.getByRole('button', { name: 'Back to Summary' }).click();
