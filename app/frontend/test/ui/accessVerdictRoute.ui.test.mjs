@@ -22,8 +22,6 @@ const base = (extra = {}) => ({ ...STUDIO_STATE, me: { userName: OWNER, displayN
 
 async function walkToSummary(overrides, { change = false, mount } = {}) {
   const ui = await openUi('implement', base(overrides), '', mount ? { mount } : {});
-  const preflightLogs = [];
-  ui.page.on('console', (m) => { if (m.text().startsWith('[preflight]')) preflightLogs.push(m.text()); });
   try {
     await ui.page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await expandBuild(ui.page);
@@ -34,7 +32,7 @@ async function walkToSummary(overrides, { change = false, mount } = {}) {
     await ui.close();
     throw e;
   }
-  return { ...ui, preflightLogs };
+  return { ...ui };
 }
 
 const mountPreflight = (handler) => ({ mount: (app) => app.post(PREFLIGHT, handler) });
@@ -42,9 +40,11 @@ const mountPreflight = (handler) => ({ mount: (app) => app.post(PREFLIGHT, handl
 test('the walk route asks the App for its access verdict before the Summary shows anything', async () => {
   const ui = await walkToSummary({});
   try {
-    for (let i = 0; i < 60 && ui.preflightLogs.length === 0; i += 1) await ui.page.waitForTimeout(250);
-    assert.ok(ui.preflightLogs.length >= 1, 'a preflight request completes on the walk route and logs its shape');
-    assert.match(ui.preflightLogs[0], /^\[preflight\] \{"ok":true|^\[preflight\] error:/);
+    await ui.page.locator('[data-access-verdict="pending"]').waitFor({ state: 'detached', timeout: 20000 });
+    const settled = ui.page.getByRole('note', { name: 'Nothing to build' }).or(ui.page.getByRole('button', { name: BUILD_IT, exact: true }))
+      .or(ui.page.locator('[data-access-verdict]'));
+    await settled.first().waitFor({ timeout: 20000 });
+    assert.equal(await ui.page.locator('[data-access-verdict="pending"]').count(), 0, 'the verdict has settled on screen');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

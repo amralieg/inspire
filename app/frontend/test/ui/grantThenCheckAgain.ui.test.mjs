@@ -12,6 +12,7 @@ const SCHEMA = 'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-2`';
 const SELECT = 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-2`';
 const CARD = 'The App cannot read part of its data';
 const CLEARED = 'The App can read all its data now';
+const ACCESS = 'Let Inspire read these tables';
 
 const unreadBuild = () => {
   const row = built({ status: 'ready_with_warnings' });
@@ -20,11 +21,12 @@ const unreadBuild = () => {
   return { ...row, asset_status: JSON.stringify(assets) };
 };
 
-function grantableWorkspace() {
+function grantableWorkspace({ canGrant = true } = {}) {
   const fixed = { value: false };
   const grants = [];
+  const mine = canGrant ? 'true' : 'false';
   const rows = () => [
-    { level: 'catalog', privilege: 'OWNER', principal: 'owner@example.com', mine: 'true', me: 'owner@example.com' },
+    { level: 'catalog', privilege: 'OWNER', principal: canGrant ? 'owner@example.com' : 'admins', mine, me: 'owner@example.com' },
     { level: 'schema', privilege: 'OWNER', principal: 'data-eng', mine: 'false', me: 'owner@example.com' },
     { level: 'table', privilege: 'OWNER', principal: 'data-eng', mine: 'false', me: 'owner@example.com' },
   ];
@@ -63,6 +65,31 @@ test('a refused App read is granted with the person sign-in, and the card shows 
     assert.ok(w.grants.length >= 1, 'the grant route ran with the person sign-in');
     await page.getByRole('region', { name: CLEARED }).waitFor({ timeout: 15000 });
     assert.equal(await page.getByRole('region', { name: CARD }).count(), 0, 'the refusal card is replaced once the grant lands');
+    assert.equal(await page.getByText(CARD, { exact: false }).count(), 0, 'no stale refusal text stays on the page');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a refused App read the person cannot grant shows Check again, and after the owner grants it Check again clears the card (REQ-042)', async () => {
+  const w = grantableWorkspace({ canGrant: false });
+  const ui = await openUi('implement', w.state);
+  const { page } = ui;
+  try {
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await expandBuild(page);
+    const card = page.getByRole('region', { name: CARD });
+    await card.waitFor({ timeout: 15000 });
+    assert.equal(await card.getByRole('button', { name: ACCESS, exact: true }).count(), 0, 'no grant button the person cannot use');
+    assert.equal(w.grants.length, 0, 'nothing is granted by Inspire');
+    const check = card.getByRole('button', { name: 'Check again', exact: true });
+    await check.waitFor({ timeout: 15000 });
+    w.fixed.value = true;
+    await check.click();
+    await page.getByRole('region', { name: CLEARED }).waitFor({ timeout: 15000 });
+    assert.equal(await page.getByRole('region', { name: CARD }).count(), 0, 'the refusal is cleared by Check again');
+    assert.match(await page.getByRole('region', { name: CLEARED }).innerText(), /The App can read all its data now/, 'the cleared card says so');
     assert.equal(await page.getByText(CARD, { exact: false }).count(), 0, 'no stale refusal text stays on the page');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
