@@ -855,9 +855,9 @@ async function recordLaunch(host, record) {
   }
 }
 
-async function triggerInspireNotebookJob(host, token, { params, notebook_path, cluster_id: askedClusterId, jobType = 'discovery', jobName: requestedJobName = '', useCaseIds = [], launchedBy = '', writeCheck = null, asker = null }) {
+async function triggerInspireNotebookJob(host, token, { params, notebook_path, cluster_id: askedClusterId, jobType = 'discovery', jobName: requestedJobName = '', useCaseIds = [], launchedBy = '', writeCheck = null, asker = null, scopePicks = undefined }) {
   normalizeUseCasesQualityParams(params);
-  const sanitized = sanitizeInspireNotebookJobParams(params);
+  const sanitized = sanitizeInspireNotebookJobParams(params, { scopePicks });
   for (const k of Object.keys(params)) delete params[k];
   Object.assign(params, sanitized);
 
