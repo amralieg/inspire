@@ -3,7 +3,8 @@ import { X } from 'lucide-react';
 import { PlainMessage } from './TechnicalDetails';
 import { joinWords } from '../lib/implementWizard';
 import {
-  SCOPE_OPS, filterValuesOf, filteredTablesOf, normalizeTableScope, scopeKeyOf, scopeOpOf, scopeProblems, tableScopeOf,
+  SCOPE_OPS, filterValuesOf, filteredTablesOf, normalizeTableScope, pickedTableNames, scopeKeyOf, scopeOpOf, scopeProblems,
+  tableBrowseQuery, tableScopeOf,
 } from '../lib/tableScope';
 
 const VALUE_CHIPS = 40;
@@ -108,6 +109,7 @@ function TableFilterCard({ table, entry, onEntry, apiFetch, warehouseId, onRepor
   }, [entry, columns, names, count.state, count.rows, table]);
   const problemKey = problems.join('\n');
   useEffect(() => { onReport(table, problems); }, [table, problemKey, onReport]); // eslint-disable-line react-hooks/exhaustive-deps
+  useEffect(() => () => onReport(table, []), [table, onReport]);
 
   return (
     <div data-scope-table={table} className="rounded-xl border border-border bg-bg-subtle/40 p-3 space-y-3">
@@ -241,15 +243,87 @@ function UseCaseLabel({ scopes, tables, label, onLabel }) {
   );
 }
 
-// Advanced Settings > Data Filters. Replaces the old per-table wizard: this is the one place filters are set.
-export default function DataFilters({ tables, scopes, onScopes, label, onLabel, apiFetch, warehouseId, onProblems }) {
+// A picked schema, collapsed. Its tables are listed the first time it is opened, through the same table-list call the
+// picker uses, and each table gets the same filter card as a table picked one by one.
+function SchemaGroup({ catalog, schema, skip, apiFetch, warehouseId, renderTable }) {
+  const [open, setOpen] = useState(false);
+  const [listed, setListed] = useState(null);
+  const name = `${catalog}.${schema}`;
+  useEffect(() => {
+    if (!open || listed) return undefined;
+    let cancelled = false;
+    apiFetch(`/api/tables/${encodeURIComponent(catalog)}/${encodeURIComponent(schema)}${tableBrowseQuery(warehouseId)}`)
+      .then((d) => { if (!cancelled) setListed({ tables: (d.tables || []).map((t) => t.full_name || `${name}.${t.name}`) }); })
+      .catch((e) => { if (!cancelled) setListed({ error: e.message || `Inspire could not list the tables of ${name}.` }); });
+    return () => { cancelled = true; };
+  }, [open, listed, apiFetch, warehouseId, catalog, schema, name]);
+  const shown = listed?.tables ? listed.tables.filter((t) => !skip.has(scopeKeyOf(t))) : [];
+  return (
+    <div data-schema-group={name} className="rounded-xl border border-border">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-start hover:bg-bg-subtle/50">
+        <span className="font-mono text-text-primary">{name}</span>
+        <span className="ms-auto text-text-tertiary">
+          {listed?.tables ? `${listed.tables.length} table${listed.tables.length === 1 ? '' : 's'}` : open ? 'Listing its tables' : 'Open to list its tables'}
+        </span>
+      </button>
+      {open && (
+        <div className="space-y-3 border-t border-border p-3">
+          {listed?.error && <PlainMessage role="alert" className="text-error-fg" text={listed.error} />}
+          {open && !listed && <p className="text-text-tertiary">Listing the tables of {name}</p>}
+          {listed?.tables && listed.tables.length === 0 && <p className="text-text-secondary">{name} has no tables.</p>}
+          {shown.map(renderTable)}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// A picked catalog, collapsed. Opening it lists its schemas; each schema opens the same way as a picked schema.
+function CatalogGroup({ catalog, pickedSchemas, apiFetch, warehouseId, renderSchema }) {
+  const [open, setOpen] = useState(false);
+  const [listed, setListed] = useState(null);
+  useEffect(() => {
+    if (!open || listed) return undefined;
+    let cancelled = false;
+    apiFetch(`/api/catalogs/${encodeURIComponent(catalog)}/schemas${tableBrowseQuery(warehouseId)}`)
+      .then((d) => { if (!cancelled) setListed({ schemas: (d.schemas || []).map((s) => s.name) }); })
+      .catch((e) => { if (!cancelled) setListed({ error: e.message || `Inspire could not list the schemas of ${catalog}.` }); });
+    return () => { cancelled = true; };
+  }, [open, listed, apiFetch, warehouseId, catalog]);
+  const picked = new Set(pickedSchemas.map(scopeKeyOf));
+  return (
+    <div data-catalog-group={catalog} className="rounded-xl border border-border">
+      <button type="button" aria-expanded={open} onClick={() => setOpen(!open)}
+        className="w-full flex items-center gap-2 px-3 py-2 text-start hover:bg-bg-subtle/50">
+        <span className="font-mono text-text-primary">{catalog}</span>
+        <span className="ms-auto text-text-tertiary">{listed?.schemas ? `${listed.schemas.length} schemas` : open ? 'Listing its schemas' : 'Open to list its schemas'}</span>
+      </button>
+      {open && (
+        <div className="space-y-3 border-t border-border p-3">
+          {listed?.error && <PlainMessage role="alert" className="text-error-fg" text={listed.error} />}
+          {open && !listed && <p className="text-text-tertiary">Listing the schemas of {catalog}</p>}
+          {listed?.schemas && listed.schemas.filter((s) => !picked.has(scopeKeyOf(`${catalog}.${s}`)))
+            .map((schema) => renderSchema(catalog, schema))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+// Advanced Settings > Data Filters. The one place filters are set: tables picked one by one, then each picked schema
+// and catalog as a collapsed group that lists its tables when opened. Every filter lands in the same catalog.schema.table key.
+export default function DataFilters({ picks, scopes, onScopes, label, onLabel, apiFetch, warehouseId, onProblems }) {
   const [reports, setReports] = useState({});
   const onReport = useCallback((table, list) => {
     setReports((prev) => (prev[table] && prev[table].join('\n') === list.join('\n') ? prev : { ...prev, [table]: list }));
   }, []);
 
-  const problems = tables.flatMap((t) => reports[t] || []);
-  const labelProblem = label.on && filteredTablesOf(scopes, tables).length && !(label.text ?? joinWords(filterValuesOf(scopes, tables))).trim()
+  const direct = picks.tables || [];
+  const shownKeys = useMemo(() => new Set(direct.map(scopeKeyOf)), [direct]);
+  const labelTables = pickedTableNames(scopes, picks);
+  const problems = Object.values(reports).flat();
+  const labelProblem = label.on && filteredTablesOf(scopes, labelTables).length && !(label.text ?? joinWords(filterValuesOf(scopes, labelTables))).trim()
     ? ['Use case labeling is ticked but the label is empty: type the label or untick the box.'] : [];
   const allProblems = [...problems, ...labelProblem];
   const allKey = allProblems.join('\n');
@@ -260,19 +334,33 @@ export default function DataFilters({ tables, scopes, onScopes, label, onLabel, 
     if (entry) next[table] = entry;
     onScopes(next);
   };
+  const renderTable = (table) => (
+    <TableFilterCard key={table} table={table} entry={tableScopeOf(scopes, table)} onEntry={setEntry}
+      apiFetch={apiFetch} warehouseId={warehouseId} onReport={onReport} />
+  );
+  const renderSchema = (catalog, schema) => (
+    <SchemaGroup key={`${catalog}.${schema}`} catalog={catalog} schema={schema} skip={shownKeys}
+      apiFetch={apiFetch} warehouseId={warehouseId} renderTable={renderTable} />
+  );
+  const nothingPicked = !direct.length && !picks.schemas.length && !picks.catalogs.length;
 
   return (
     <div data-data-filters className="space-y-4 text-xs">
       <p className="text-text-secondary">
-        A table with no filters is read whole: every column, every row. Filters apply to the tables you picked under Unity Catalog Metadata.
-        Schemas and catalogs have no table list here, so pick their tables to filter them.
+        A table with no filters is read whole: every column, every row. Filters apply to the tables you picked, and to the tables
+        inside the schemas and catalogs you picked: open a schema to list and filter its tables.
       </p>
-      {tables.length === 0 && <p data-data-filters-empty className="text-text-tertiary">Pick tables under Unity Catalog Metadata to filter them.</p>}
-      {tables.map((table) => (
-        <TableFilterCard key={table} table={table} entry={tableScopeOf(scopes, table)} onEntry={setEntry}
-          apiFetch={apiFetch} warehouseId={warehouseId} onReport={onReport} />
+      {nothingPicked && <p data-data-filters-empty className="text-text-tertiary">Pick tables, schemas or catalogs under Unity Catalog Metadata to filter them.</p>}
+      {direct.map(renderTable)}
+      {picks.schemas.map((s) => {
+        const [catalog, schema] = s.split('.');
+        return renderSchema(catalog, schema);
+      })}
+      {picks.catalogs.map((catalog) => (
+        <CatalogGroup key={catalog} catalog={catalog} pickedSchemas={picks.schemas} apiFetch={apiFetch} warehouseId={warehouseId}
+          renderSchema={renderSchema} />
       ))}
-      {tables.length > 0 && <UseCaseLabel scopes={scopes} tables={tables} label={label} onLabel={onLabel} />}
+      {labelTables.length > 0 && <UseCaseLabel scopes={scopes} tables={labelTables} label={label} onLabel={onLabel} />}
     </div>
   );
 }

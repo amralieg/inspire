@@ -127,3 +127,60 @@ test('a row filter that keeps 0 rows blocks Get Started, and a table with nothin
     await ui.close();
   }
 });
+
+async function openDataFiltersAfter(page, pick) {
+  await page.getByPlaceholder(BUSINESS).fill('Acme');
+  await pick(page);
+  await idle(page);
+  await page.getByRole('button', { name: /Advanced Settings/ }).click();
+  await page.getByRole('button', { name: /Data Filters \(optional\)/ }).click();
+}
+
+test('a picked schema is a collapsed group that lists its tables when opened, and a filter on one reaches the run under catalog.schema.table', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page, made } = ui;
+  try {
+    await openDataFiltersAfter(page, async (p) => {
+      await p.locator('button[title="main"]').click();
+      await p.locator('button[title="s"]').click();
+    });
+    const group = page.locator('[data-schema-group="main.s"]');
+    await group.waitFor({ timeout: 15000 });
+    assert.equal(await group.locator('> button').getAttribute('aria-expanded'), 'false', 'the schema group is collapsed by default');
+    assert.equal(await page.locator(`[data-scope-table="${ORDERS}"]`).count(), 0, 'no table is listed until the schema is opened');
+    await group.locator('> button').click();
+    await page.locator(`[data-schema-group="main.s"] [data-scope-table="${ORDERS}"] [data-scope-column="brand_name"]`).waitFor({ timeout: 15000 });
+    await page.locator(`[data-schema-group="main.s"] [data-scope-table="${ORDERS}"] [data-scope-column="location"]`).uncheck();
+    await page.locator(`[data-schema-group="main.s"]`).getByRole('button', { name: 'Add a row filter' }).click();
+    await page.locator(`[data-schema-group="main.s"]`).getByLabel('Filter 1 column').selectOption('brand_name');
+    await page.locator('[data-scope-value="Starbucks"]').click();
+    await until(async () => (await page.locator(`[data-schema-group="main.s"] [data-scope-table="${ORDERS}"] [data-scope-summary="${ORDERS}"]`).innerText()).includes('120 rows match'),
+      'the filter on the table of the picked schema counts its rows');
+    const params = await launchOf(page, made);
+    assert.deepEqual(JSON.parse(params['17_table_scope']), {
+      [ORDERS]: { columns: ['brand_name', 'total_sales', 'store_id'], rows: [{ column: 'brand_name', op: '=', values: ['Starbucks'] }] },
+    }, 'the scope holds the table of the schema pick under its catalog.schema.table key');
+    assert.equal(params['01_uc_metadata'].includes('main.s'), true, 'the run reads the picked schema');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a picked catalog lists its schemas when opened, and each schema opens to its tables', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page } = ui;
+  try {
+    await openDataFiltersAfter(page, async (p) => { await p.locator('button[title="main"]').click(); });
+    const catalog = page.locator('[data-catalog-group="main"]');
+    await catalog.waitFor({ timeout: 15000 });
+    await catalog.locator('> button').click();
+    const schema = page.locator('[data-schema-group="main.s"]');
+    await schema.waitFor({ timeout: 15000 });
+    assert.equal(await schema.locator('> button').getAttribute('aria-expanded'), 'false', 'a schema under a picked catalog is collapsed too');
+    await schema.locator('> button').click();
+    await page.locator(`[data-schema-group="main.s"] [data-scope-table="${ORDERS}"]`).waitFor({ timeout: 15000 });
+    assert.equal(await page.locator(`[data-schema-group="main.s"] [data-scope-table="${ORDERS}"] [data-scope-column]`).count(), 4);
+  } finally {
+    await ui.close();
+  }
+});

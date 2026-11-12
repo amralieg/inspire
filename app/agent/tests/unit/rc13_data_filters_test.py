@@ -90,7 +90,7 @@ def test_the_name_check_repairs_a_name_without_the_label_and_keeps_one_that_carr
         {"Name": "Track supplier lead times", "Primary Table": "main.s.suppliers"},
     ]
     stats = labelled["ensure_data_filter_labels"](use_cases, lambda uc: [], "Starbucks", labelled["INSPIRE_TABLE_SCOPES"])
-    assert stats == {"affected": 2, "carried": 1, "repaired": 1}
+    assert stats == {"affected": 2, "carried": 1, "reasked": 0, "fallback": 1}
     assert use_cases[0]["Name"] == "Improve Starbucks customer experience using segmentation"
     assert use_cases[1]["Name"] == "Forecast STARBUCKS order volume", "a name that carries the label in any case is kept as written"
     assert use_cases[2]["Name"] == "Track supplier lead times", "a use case on no filtered table is never touched"
@@ -107,7 +107,7 @@ def test_an_empty_label_changes_no_name(labelled):
     labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
     use_cases = [{"Name": "Improve customer experience", "Primary Table": ORDERS}]
     stats = labelled["ensure_data_filter_labels"](use_cases, lambda uc: [], "", labelled["INSPIRE_TABLE_SCOPES"])
-    assert stats == {"affected": 0, "carried": 0, "repaired": 0}
+    assert stats == {"affected": 0, "carried": 0, "reasked": 0, "fallback": 0}
     assert use_cases[0]["Name"] == "Improve customer experience"
 
 
@@ -146,7 +146,100 @@ def test_the_name_check_is_wired_on_the_final_list_after_the_statement_check_and
     with open(notebook, encoding="utf-8") as handle:
         source = "".join(_json.load(handle)["cells"][1]["source"])
     statements = source.index("ensure_scope_statements(final_consolidated_use_cases")
-    names = source.index("ensure_data_filter_labels(final_consolidated_use_cases")
+    names = source.index("label_stats = ensure_data_filter_labels(")
     assert names > statements, "the name check runs on the final list, after the statement check, before anything is written"
-    assert "[DATA-FILTER-LABEL FIRED]" in source, "the check logs how many names carried the label"
+    assert "[DATA-FILTER-LABEL FIRED]" in source and "re-asked" in source, "the check logs the names carried, re-asked and rewritten"
     assert 'DATA_FILTER_LABEL["text"] = parse_use_case_label(table_scope_str)' in source, "the widget fills the label holder"
+
+
+class _Stub:
+    """A stand-in for the agent's run_worker: records each call and returns the scripted answer or raises it."""
+
+    def __init__(self, answer=None, error=None):
+        self.calls = []
+        self.answer = answer
+        self.error = error
+
+    def __call__(self, **kwargs):
+        self.calls.append(kwargs)
+        if self.error is not None:
+            raise self.error
+        return self.answer
+
+
+MISSED = [
+    {"No": "1", "Name": "Improve customer experience using segmentation", "Primary Table": ORDERS},
+    {"No": "2", "Name": "Forecast order volume", "Primary Table": ORDERS},
+]
+
+
+def test_the_reask_runs_once_for_only_the_missed_names_with_the_cache_bypassed_and_its_answer_is_used(labelled):
+    import json as _json
+
+    labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
+    answer = _json.dumps([
+        {"Ref": "0", "Name": "Improve Contoso customer experience using segmentation"},
+        {"Ref": "1", "Name": "Forecast Contoso order volume"},
+    ])
+    stub = _Stub(answer=answer)
+    use_cases = [dict(uc) for uc in MISSED]
+    stats = labelled["ensure_data_filter_labels"](
+        use_cases, lambda uc: [], "Contoso", labelled["INSPIRE_TABLE_SCOPES"],
+        reask=lambda misses: labelled["reask_data_filter_names"](stub, misses, "Contoso"))
+    assert stats == {"affected": 2, "carried": 0, "reasked": 2, "fallback": 0}
+    assert [uc["Name"] for uc in use_cases] == ["Improve Contoso customer experience using segmentation", "Forecast Contoso order volume"]
+    assert len(stub.calls) == 1, "one re-ask for all the missed names, never one per name"
+    call = stub.calls[0]
+    assert call["worker_prompt_path"] == "DATA_FILTER_LABEL_RENAME_PROMPT"
+    assert call["skip_cache"] is True, "a re-ask must not replay the answer that missed"
+    assert call["prompt_vars"]["label"] == "Contoso"
+    assert '"Ref": "0"' in call["prompt_vars"]["names_json"] and "Improve customer experience" in call["prompt_vars"]["names_json"]
+
+
+def test_the_rename_prompt_is_a_registered_template_with_the_label_and_the_names_as_its_only_placeholders(agent_ns):
+    import string
+
+    template = agent_ns["PROMPT_TEMPLATES"]["DATA_FILTER_LABEL_RENAME_PROMPT"]
+    fields = {name for _, name, _, _ in string.Formatter().parse(template) if name}
+    assert fields == {"label", "names_json"}
+    assert "USER DIRECTIVES ARE THE SUPREME AUTHORITY" in template, "every prompt carries the user-vibes preamble"
+    assert "the user directive WINS without exception" in template
+
+
+def test_when_the_reask_still_misses_the_deterministic_rewrite_fires_for_each_name(labelled):
+    import json as _json
+
+    labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
+    still_wrong = _Stub(answer=_json.dumps([{"Ref": "0", "Name": "Improve customer experience"}, {"Ref": "1", "Name": "Forecast order volume"}]))
+    use_cases = [dict(uc) for uc in MISSED]
+    stats = labelled["ensure_data_filter_labels"](
+        use_cases, lambda uc: [], "Contoso", labelled["INSPIRE_TABLE_SCOPES"],
+        reask=lambda misses: labelled["reask_data_filter_names"](still_wrong, misses, "Contoso"))
+    assert stats == {"affected": 2, "carried": 0, "reasked": 0, "fallback": 2}
+    assert use_cases[0]["Name"] == "Improve Contoso customer experience using segmentation"
+    assert use_cases[1]["Name"] == "Forecast Contoso order volume"
+
+
+@pytest.mark.parametrize("failure", [RuntimeError("endpoint timed out"), "garbage"])
+def test_a_failed_or_unusable_reask_falls_back_to_the_deterministic_rewrite(labelled, failure):
+    labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
+    stub = _Stub(error=failure) if isinstance(failure, Exception) else _Stub(answer=failure)
+    use_cases = [dict(uc) for uc in MISSED]
+    stats = labelled["ensure_data_filter_labels"](
+        use_cases, lambda uc: [], "Contoso", labelled["INSPIRE_TABLE_SCOPES"],
+        reask=lambda misses: labelled["reask_data_filter_names"](stub, misses, "Contoso"))
+    assert stats == {"affected": 2, "carried": 0, "reasked": 0, "fallback": 2}
+    assert all("Contoso" in uc["Name"] for uc in use_cases)
+
+
+def test_a_cancelled_reask_is_not_swallowed(agent_ns):
+    stub = _Stub(error=agent_ns["SparkWorkCancelled"]("DataFilterLabel_Reask", "tag"))
+    with pytest.raises(agent_ns["SparkWorkCancelled"]):
+        agent_ns["reask_data_filter_names"](stub, [dict(uc) for uc in MISSED], "Contoso")
+
+
+def test_without_a_reask_the_name_check_stays_deterministic_and_makes_no_llm_call(labelled):
+    labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
+    use_cases = [dict(uc) for uc in MISSED]
+    stats = labelled["ensure_data_filter_labels"](use_cases, lambda uc: [], "Contoso", labelled["INSPIRE_TABLE_SCOPES"])
+    assert stats["reasked"] == 0 and stats["fallback"] == 2

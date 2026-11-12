@@ -122,6 +122,25 @@ export function filterValuesOf(scopes, pickedTables = []) {
   return [...new Set(values)];
 }
 
+// The tables a run reads through its picks: the tables picked one by one, plus every scoped table that sits under a
+// picked schema or catalog. A scope on a table from a schema pick is keyed catalog.schema.table like any other.
+export function pickedTableNames(scopes, { catalogs = [], schemas = [], tables = [] } = {}) {
+  const names = [...tables];
+  const seen = new Set(names.map(scopeKeyOf));
+  const under = (key) => schemas.some((s) => key.startsWith(`${scopeKeyOf(s)}.`)) || catalogs.some((c) => key.startsWith(`${scopeKeyOf(c)}.`));
+  for (const table of Object.keys(scopes || {})) {
+    const key = scopeKeyOf(table);
+    if (!seen.has(key) && under(key)) { seen.add(key); names.push(table); }
+  }
+  return names;
+}
+
+// The warehouse query every Unity Catalog browse call carries.
+export function tableBrowseQuery(warehouseId) {
+  if (!warehouseId) return '';
+  return `?warehouse_id=${encodeURIComponent(warehouseId)}`;
+}
+
 export function filteredTablesOf(scopes, pickedTables = []) {
   const picked = new Set(pickedTables.map(scopeKeyOf));
   return Object.entries(scopes || {})

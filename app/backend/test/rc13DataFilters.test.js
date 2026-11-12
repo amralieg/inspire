@@ -81,3 +81,17 @@ test('the Implement readiness count applies the Launch row filters and is bounde
   assert.deepEqual(w.readinessScope(spec, row, {}).filters, spec.data.filters, 'no Launch scope: the count is unchanged');
   assert.deepEqual(w.readinessScope(spec, row, {}).columns, ['order_id', 'total_sales'], 'no Launch scope: every role column is read');
 });
+
+test('a scope on a table under a picked schema or catalog is a picked table, and the job accepts it', async () => {
+  const T = await lib('tableScope.js');
+  const scopes = { [ORDERS]: SCOPE[ORDERS], [WEB]: { columns: ['x'], rows: [] } };
+  assert.deepEqual(T.pickedTableNames(scopes, { schemas: ['main.sales'] }), [ORDERS, WEB], 'a scope under a picked schema counts');
+  assert.deepEqual(T.pickedTableNames(scopes, { schemas: ['main.other'] }), [], 'a scope outside every picked schema does not');
+  assert.deepEqual(T.pickedTableNames(scopes, { catalogs: ['main'] }), [ORDERS, WEB], 'a catalog pick covers every scoped table under it');
+  assert.deepEqual(T.pickedTableNames(scopes, { tables: [WEB] }), [WEB], 'a picked table comes first and an unpicked scope adds nothing');
+  assert.equal(T.tableBrowseQuery('wh 1'), '?warehouse_id=wh%201');
+  assert.equal(T.tableBrowseQuery(''), '');
+  const params = { '01_uc_metadata': 'main.sales', '17_table_scope': JSON.stringify({ [ORDERS]: SCOPE[ORDERS], use_case_label: 'Contoso' }) };
+  const kept = jobParams.validateTableScopeParams(params);
+  assert.equal(JSON.parse(kept['17_table_scope']).use_case_label, 'Contoso', 'a schema pick keeps its table scope and label');
+});

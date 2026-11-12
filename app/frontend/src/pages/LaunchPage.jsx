@@ -41,7 +41,7 @@ import StrategyEditor from '../components/StrategyEditor';
 import { parseStrategicContext, splitPriorities, validateStrategicContextText, withPriorities } from '../lib/strategyContext';
 import UcPermissionErrorHelp from '../components/UcPermissionErrorHelp';
 import DataFilters from '../components/DataFilters';
-import { scopesFromObject, serializeTableScopes, filterValuesOf, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
+import { scopesFromObject, serializeTableScopes, filterValuesOf, pickedTableNames, tableBrowseQuery, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
 import { joinWords } from '../lib/implementWizard';
 import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
@@ -216,11 +216,6 @@ function restoredLabel(value) {
   const on = !!(value && typeof value === 'object' && value.on === true);
   const text = value && typeof value === 'object' && typeof value.text === 'string' ? value.text : null;
   return { on, text };
-}
-
-function ucBrowseQuery(warehouseId) {
-  if (!warehouseId) return '';
-  return `?warehouse_id=${encodeURIComponent(warehouseId)}`;
 }
 
 export default function LaunchPage({ settings, update, onLaunched, onOpenResults, onNoData }) {
@@ -471,6 +466,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   }, [priorityChecks]);
 
   const scope = useMemo(() => pickedScope(selectedCatalogs, selectedSchemas, selectedTables), [selectedCatalogs, selectedSchemas, selectedTables]);
+  const scopeTables = useMemo(() => pickedTableNames(tableScopes, { catalogs: selectedCatalogs, schemas: selectedSchemas, tables: selectedTables }),
+    [tableScopes, selectedCatalogs, selectedSchemas, selectedTables]);
   const scopeText = scopeSummary(scope);
 
   useEffect(() => {
@@ -497,7 +494,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       let lastError = '';
       for (let attempt = 1; attempt <= 3; attempt++) {
         try {
-          const data = await apiFetch(`/api/catalogs${ucBrowseQuery(warehouseId)}`);
+          const data = await apiFetch(`/api/catalogs${tableBrowseQuery(warehouseId)}`);
           const cats = data.catalogs || [];
           console.log(`[catalogs] loaded ${cats.length}:`, cats.map(c => c.name));
           if (!cancelled) {
@@ -544,7 +541,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     const failed = [];
     Promise.all(
       selectedCatalogs.map((cat) =>
-        apiFetch(`/api/catalogs/${encodeURIComponent(cat)}/schemas${ucBrowseQuery(warehouseId)}`)
+        apiFetch(`/api/catalogs/${encodeURIComponent(cat)}/schemas${tableBrowseQuery(warehouseId)}`)
           .then(d => d.schemas || [])
           .catch((err) => { failed.push(pickerReadFailure('schemas', cat, err)); return []; })
       )
@@ -570,7 +567,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     Promise.all(
       selectedSchemas.map((schemaFullName) => {
         const [catalog, schema] = schemaFullName.split('.');
-        return apiFetch(`/api/tables/${encodeURIComponent(catalog)}/${encodeURIComponent(schema)}${ucBrowseQuery(warehouseId)}`)
+        return apiFetch(`/api/tables/${encodeURIComponent(catalog)}/${encodeURIComponent(schema)}${tableBrowseQuery(warehouseId)}`)
           .then(d => (d.tables || []).map(t => ({
             ...t,
             full_name: t.full_name || `${catalog}.${schema}.${t.name}`,
@@ -743,8 +740,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     finalParams['12_documents_languages'] = formatDocumentLanguages(launchDocLanguages(params));
     // Always auto-generate session ID
     finalParams['14_session_id'] = newSessionId();
-    const tableScopeText = serializeTableScopes(tableScopes, selectedTables,
-      dataFilterLabel.on ? (dataFilterLabel.text ?? joinWords(filterValuesOf(tableScopes, selectedTables))) : '');
+    const tableScopeText = serializeTableScopes(tableScopes, scopeTables,
+      dataFilterLabel.on ? (dataFilterLabel.text ?? joinWords(filterValuesOf(tableScopes, scopeTables))) : '');
     if (tableScopeText) finalParams['17_table_scope'] = tableScopeText;
 
     try {
@@ -1656,7 +1653,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                 {showDataFilters && (
                   <div className="px-4 pb-4 pt-1 border-t border-border">
                     <DataFilters
-                      tables={selectedTables}
+                      picks={{ catalogs: selectedCatalogs, schemas: selectedSchemas, tables: selectedTables }}
                       scopes={tableScopes}
                       onScopes={setTableScopes}
                       label={dataFilterLabel}
