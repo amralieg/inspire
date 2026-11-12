@@ -194,7 +194,7 @@ def _signal_stub(inst, failing):
         return {uc["No"]: {"No": uc["No"]} for uc in batch}
     inst._ask_signal_roles = ask
     inst._signal_spec = lambda uc, item, evidence: ({"No": uc["No"]}, "")
-    inst._signal_record = lambda deep, spec, reason, profiles: (
+    inst._signal_record = lambda deep, spec, reason, profiles, use_case=None: (
         {"status": "failed", "check": "lever", "reason": f"{spec['No']} does not move"} if spec["No"] in failing
         else {"status": "passed", "check": "lever", "reason": "it moves"})
     return inst

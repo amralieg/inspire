@@ -201,7 +201,7 @@ class _Rows:
     def __init__(self, answer):
         self.answer, self.statements = answer, []
 
-    def __call__(self, kind, table, sql, args=None):
+    def __call__(self, kind, table, sql, args=None, budget="evidence", scopes=None):
         self.statements.append(sql)
         return [self.answer]
 

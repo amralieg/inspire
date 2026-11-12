@@ -90,7 +90,7 @@ def test_a_date_that_sits_in_the_date_table_is_read_through_its_key_and_the_use_
     assert record["columns"]["time"] == "ws_sold_date_sk -> main.s.date_dim.d_date"
     unique, series = spark.statements
     assert unique == "SELECT COUNT(`d_date_sk`) AS n, COUNT(DISTINCT `d_date_sk`) AS k FROM `main`.`s`.`date_dim`"
-    assert ("FROM (SELECT f.*, j0.`d_date` AS `inspire_time_date` FROM `main`.`s`.`web_sales` AS f LEFT JOIN "
+    assert ("FROM (SELECT f.*, j0.`d_date` AS `inspire_time_date` FROM (SELECT * FROM `main`.`s`.`web_sales`) AS f LEFT JOIN "
             "`main`.`s`.`date_dim` AS j0 ON f.`ws_sold_date_sk` = j0.`d_date_sk`) AS joined") in series
     assert "CAST(`inspire_time_date` AS DATE) AS d" in series and "`inspire_time_date` IS NOT NULL" in series
     assert "date keys: ws_sold_date_sk of main.s.web_sales reads main.s.date_dim.d_date" in agent.calls[0]["vars"]["use_cases_listing"]
