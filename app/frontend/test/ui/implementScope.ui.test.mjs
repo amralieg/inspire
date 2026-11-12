@@ -10,7 +10,10 @@ test.after(closeBrowser);
 
 const ME = { userName: OWNER, displayName: 'Owner' };
 const PERSON = 'person-token';
-const next = (page) => page.getByRole('button', { name: 'Next' }).click();
+const next = async (page) => {
+  while (await page.locator('[data-money-next]').count() && await page.locator('[data-money-next]').isVisible()) await page.locator('[data-money-next]').click();
+  await page.getByRole('button', { name: 'Next' }).click();
+};
 const stepBar = (page) => page.locator('[aria-current="step"]').locator('xpath=..').locator('li').allTextContents();
 const insertsOf = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
   .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
@@ -399,7 +402,7 @@ test('a technique Data groups do not apply to asks only for the first run, and a
   const { page } = ui;
   try {
     await toStep(page, 'First run');
-    assert.deepEqual(await stepBar(page), ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '8. Page storage', '7. App look', '9. Run it', '10. Review & build'], 'no Data groups step when groups do not apply (must-exclude)');
+    assert.deepEqual(await stepBar(page), ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build'], 'no Data groups step when groups do not apply (must-exclude)');
     assert.equal(await page.locator('[data-first-run-held]').textContent(), 'main.sales.orders holds 800 records, so the First run covers all of it.');
     assert.deepEqual(await checkedChoice(page, 'data-first-run-choice'), ['records'], 'a profile that still says all is never the default');
     assert.equal(await page.locator('[data-first-run-covers]').textContent(), 'The First run covers all 800 records of main.sales.orders, since it holds no more than 1,000 records.');
