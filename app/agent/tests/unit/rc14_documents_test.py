@@ -68,3 +68,12 @@ def test_the_initialiser_takes_its_output_folder_from_the_helper():
     code = "".join("".join(cell["source"]) for cell in notebook["cells"] if cell["cell_type"] == "code")
     assert "self.base_output_dir = documents_base_folder(resolved_generation_path, _folder_name, self.json_file_path)" in code
     assert "self.base_output_dir = os.path.join(resolved_generation_path, _folder_name)" not in code
+
+
+def test_a_regenerated_document_takes_the_business_name_typed_now_after_a_rename(docs, monkeypatch):
+    path = saved_catalog(docs, monkeypatch)
+    obj = make_inspire(docs)
+    obj.business_name = "Acme Renamed"
+    obj._load_usecases_catalog_json(path)
+    assert obj.business_name == "Acme Renamed", "the name typed for this run names the documents, not the saved catalog's name"
+    assert obj._catalog_file_name("English", "pdf") == "Acme Renamed-dbx_inspire.pdf"
