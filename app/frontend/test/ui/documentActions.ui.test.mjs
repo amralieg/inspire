@@ -101,3 +101,28 @@ test('a finished run whose catalog file is missing says so in plain words, with 
     await ui.close();
   }
 });
+
+const UNSAVED = "This run could not save its catalog file, so documents can't be made from it. Run Discover again.";
+
+test('a run that could not save its catalog file says so in that exact plain sentence, with no path or stack, and the buttons stay live (REQ-077)', async () => {
+  const mount = (app) => {
+    app.post('/api/documents', (_req, res) => res.status(409).json({ error: UNSAVED }));
+  };
+  const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount });
+  const { page } = ui;
+  try {
+    await page.locator('[data-doc-action="use-case-catalog"]').waitFor();
+    await page.locator('[data-doc-action="use-case-catalog"]').click();
+    await page.getByText(UNSAVED, { exact: true }).first().waitFor({ timeout: 20000 });
+    const panel = await page.locator('[data-document-actions]').innerText();
+    assert.equal(panel.includes(UNSAVED), true, panel);
+    assert.equal(/\/Workspace|\/Users\/|Traceback|at .*\(/.test(panel), false, panel);
+    for (const kind of ['strategy-document', 'use-case-catalog', 'excel-workbook']) {
+      assert.equal(await page.locator(`[data-doc-action="${kind}"]`).isDisabled(), false, `${kind} stays live to try again`);
+    }
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 409/.test(e)), [], 'the 409 is the intended answer; no other page error');
+  } finally {
+    await ui.close();
+  }
+});
+
