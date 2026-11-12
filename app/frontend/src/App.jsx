@@ -548,7 +548,6 @@ export default function App() {
               nav('results');
             }}
             onOpenBuild={openBuildFilter}
-            onOpenUseCase={openImplement}
           />
         )}
 

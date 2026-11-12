@@ -21,7 +21,8 @@ test('the App read sentence on the Build page is one plain sentence with no GRAN
 });
 
 test('the Build page card renders the offer sentence through PlainMessage and keeps the grant SQL under Details (REQ-041)', () => {
-  const body = WIZARD.slice(WIZARD.indexOf('function AppReadAccess('), WIZARD.indexOf('function ValuePicker('));
+  const SHARED = fs.readFileSync(path.join(FRONT, 'components', 'AppReadAccess.jsx'), 'utf8');
+  const body = SHARED.slice(SHARED.indexOf('export function AppReadAccess('));
   assert.match(body, /<PlainMessage text=\{offer\.text\}/, 'the offer goes through PlainMessage, which moves statements and codes to Details');
   assert.doesNotMatch(body, /<p className="text-text-secondary">\{offer\.text\}<\/p>/, 'the raw offer text is not rendered as a paragraph');
   assert.match(body, /<TechnicalDetails items=\{offer\.grants\} \/>/, 'the grant SQL sits under Details');

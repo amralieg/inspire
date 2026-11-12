@@ -1245,6 +1245,45 @@ export function specFromLatest(latest, fallback, assets = {}) {
   return withSettingsNote(spec, '');
 }
 
+const PER_USE_CASE_OUTPUTS = {
+  app_purpose: '', app_vibes: '', app_charts: [], genie_space_name: '', genie_questions: [], genie_space_vibes: '',
+  dashboard_name: '', dashboard_filters: [], dashboard_vibes: '', alert_name: '', alert_condition_text: '', alert_vibes: '',
+};
+
+// The source columns a money rule names: its status and group columns, and its rate column when it reads rates from the table.
+export function moneyRuleColumns(money) {
+  if (!money || typeof money !== 'object') return [];
+  return [money.status_column, money.group_column, money.rate_column].filter((name) => typeof name === 'string' && name);
+}
+
+// Build Now: the live App's settings carried to a sibling use case. Its own use case, tables, result table and names replace the App's.
+// The money rule travels only when the sibling's primary table has every column it names; the KPI target never travels.
+export function specForSibling(liveSpec, uc, ctx = {}) {
+  if (!liveSpec) return null;
+  const app = withoutOneVersionKeys(structuredClone(liveSpec));
+  const own = defaultSpecFromUseCase(uc, ctx);
+  const { catalog, schema } = resultTableParts(app.config.result_table);
+  const { table } = resultTableParts(own.config.result_table);
+  const resultTable = catalog && schema && table ? `${catalog}.${schema}.${table}` : own.config.result_table;
+  const appName = placementAppName(app.outputs.app_placement, { business: ctx.businessName || '', domain: domainOf(uc), useCaseAppName: caseAppNameOf(uc) });
+  const outputs = { ...own.outputs, ...app.outputs };
+  for (const key of ['app_look', 'app_options', 'merge']) outputs[key] = { ...own.outputs[key], ...(app.outputs[key] || {}) };
+  const sourceColumns = new Set((ctx.sourceColumns || []).map((name) => String(name).toLowerCase()));
+  const money = moneyRuleColumns(app.money).every((name) => sourceColumns.has(name.toLowerCase())) ? app.money : null;
+  return withMoneyRule(withKpiTarget({
+    ...app,
+    use_case_id: own.use_case_id,
+    use_case_name: own.use_case_name,
+    based_on_version: null,
+    confirm_notebook_overwrite: false,
+    use_case: own.use_case,
+    data: { ...app.data, tables: {}, removed_tables: [], filters: [], column_roles: {}, notes: '' },
+    config: { ...app.config, widgets: {}, result_table: resultTable },
+    outputs: { ...outputs, ...PER_USE_CASE_OUTPUTS, app_name: appName },
+    removed_outputs: {},
+  }, ''), money);
+}
+
 export const ROLE_RULES = {
   keyNameSuffixes: ['_id', '_key', '_sk', '_pk', '_fk', '_nk', '_code', '_no', '_num', '_number', '_ref', '_uuid', '_guid', '_zip', '_zipcode', '_postcode'],
   keyNamePrefixes: ['id_', 'fk_', 'sk_', 'pk_'],
@@ -1578,6 +1617,22 @@ export function profileEstimate({ evidence, table, dateColumn, windowDays, dataW
 
 export function modelNameOf(spec) {
   return String(spec?.config?.widgets?.model_name ?? '').trim();
+}
+
+export function preflightParams(spec) {
+  const mergeApp = spec.outputs.app ? spec.outputs.merge.app : '';
+  return new URLSearchParams({
+    result_table: spec.config.result_table,
+    model_name: modelNameOf(spec),
+    app_name: spec.outputs.app && !mergeApp ? spec.outputs.app_name : '',
+    app_warehouse: spec.outputs.app && !mergeApp ? spec.outputs.app_warehouse_id || '' : '',
+    merge_app: mergeApp,
+    alert: spec.outputs.alert ? '1' : '0',
+    genie: spec.outputs.genie_space ? '1' : '0',
+    dashboard: spec.outputs.dashboard ? '1' : '0',
+    share: (spec.sharing.principals || []).length ? '1' : '0',
+    principals: JSON.stringify((spec.sharing.principals || []).map((p) => p.name)),
+  });
 }
 
 export function genieCodeOff(features) {

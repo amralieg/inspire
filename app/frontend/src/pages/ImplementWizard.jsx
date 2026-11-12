@@ -71,7 +71,6 @@ import {
   initialStepId,
   stepIndexOf,
   lostTablesText,
-  APP_READ_ACTION,
   SOURCE_REFUSED_REASON,
   ACCESS_CHECKING,
   ACCESS_UNKNOWN,
@@ -186,6 +185,7 @@ import {
   VIBES_STEP_NOTE,
   vibesSkippedText,
   modelNameOf,
+  preflightParams,
   splitList,
   APP_OWNERS_LABEL,
   APP_OWNERS_HELP,
@@ -251,6 +251,7 @@ import { personalColumn } from '../lib/personalColumns';
 import { PLACE_RIGHTS, placeNameProblem } from '../lib/tableName';
 import { BlockedReason, ClearsChoice, DigestChoice, RowSubjectCheck } from '../components/WizardStickParts';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
+import { AppReadAccess, GrantList } from '../components/AppReadAccess';
 import { placeholderWords } from '../lib/placeholderWords';
 import {
   KPI_CHANGE_NOTE, KPI_INSPIRE_PICKS, KPI_NONE_YET, KPI_PICK_RULE, kpiKey, kpiOptionLabel, kpiTargetOf, kpiTargetOptions, kpiTargetProblems, trackedKpiOf,
@@ -889,19 +890,7 @@ export default function ImplementWizard({
     setPreflightError('');
     const timer = setTimeout(async () => {
       const planNow = lastStep && !ownErrorsKey && planReady && !appBlocked;
-      const mergeApp = spec.outputs.app ? spec.outputs.merge.app : '';
-      const checks = new URLSearchParams({
-        result_table: spec.config.result_table,
-        model_name: modelNameOf(spec),
-        app_name: spec.outputs.app && !mergeApp ? spec.outputs.app_name : '',
-        app_warehouse: spec.outputs.app && !mergeApp ? spec.outputs.app_warehouse_id || '' : '',
-        merge_app: mergeApp,
-        alert: spec.outputs.alert ? '1' : '0',
-        genie: spec.outputs.genie_space ? '1' : '0',
-        dashboard: spec.outputs.dashboard ? '1' : '0',
-        share: (spec.sharing.principals || []).length ? '1' : '0',
-        principals: JSON.stringify((spec.sharing.principals || []).map((p) => p.name)),
-      });
+      const checks = preflightParams(spec);
       const [pre, planned] = await Promise.allSettled([
         apiPostJson(`/api/inspire/implement/preflight?${q}&${checks.toString()}`, { spec: sent }),
         planNow
@@ -3172,38 +3161,6 @@ function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake
       <AppSample palette={palette} look={chosen} appName={spec.outputs.app_name || 'Your App'} title={title}
         view={view} shared={spec.outputs.app_access !== 'user'} label={sampleLabel} charts={charts} impact={appScreensOf(spec).impact} stake={stake} />
       <p className="text-[11px] text-text-tertiary">{APP_SAMPLE_NOTE}</p>
-    </section>
-  );
-}
-
-function GrantList({ label, items }) {
-  if (!items?.length) return null;
-  return (
-    <ul aria-label={label} className="space-y-0.5">
-      {items.map((sql) => <li key={sql} className="font-mono text-[11px] text-text-primary break-all">{sql}</li>)}
-    </ul>
-  );
-}
-
-function AppReadAccess({ offer, result, busy, onGrant }) {
-  return (
-    <section aria-label="App read access" data-app-read="" className="space-y-1.5 text-[11px] bg-bg border border-border rounded-md px-3 py-2">
-      {offer && <PlainMessage text={offer.text} className="text-text-secondary" />}
-      {offer?.can_grant && (
-        <button type="button" disabled={busy} onClick={onGrant}
-          className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70">
-          {busy ? 'Granting with your sign-in' : APP_READ_ACTION}
-        </button>
-      )}
-      {offer?.grants?.length > 0 && <TechnicalDetails items={offer.grants} />}
-      {result && (
-        <div role="status" aria-label="Grant result" className="space-y-1">
-          {result.error ? <PlainMessage text={`Your grant was refused: ${result.error}`} onRetry={offer?.can_grant ? onGrant : null} copy className="text-text-secondary" /> : <p className="text-text-secondary">{result.text}</p>}
-          {(result.ran?.length > 0 || result.failed?.length > 0) && (
-            <TechnicalDetails items={[...(result.ran || []).map((sql) => `Ran: ${sql}`), ...(result.failed || []).map((sql) => `Failed: ${sql}`)]} />
-          )}
-        </div>
-      )}
     </section>
   );
 }
