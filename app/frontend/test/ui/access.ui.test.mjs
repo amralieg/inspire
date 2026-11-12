@@ -44,9 +44,15 @@ async function openAt(hash, size, theme = 'light') {
   return ui;
 }
 
+async function focusTopOfPage(page) {
+  await page.evaluate(() => document.querySelector('button, a[href], input, select, textarea, [tabindex]:not([tabindex="-1"])')?.focus());
+  await page.keyboard.press('Shift+Tab');
+}
+
 async function assertReachable(ui, where, theme, min = 5) {
   assert.equal(await ui.page.evaluate(() => document.documentElement.classList.contains('dark')), theme === 'dark', `${where} draws the ${theme} theme`);
   assert.deepEqual(await unnamedControls(ui.page), [], `${where}: controls a screen reader reads with no name`);
+  await focusTopOfPage(ui.page);
   const walk = await weakFocus(ui.page, { max: 45 });
   assert.ok(walk.checked >= min, `${where}: the keyboard reached ${walk.checked} controls`);
   assert.deepEqual(walk.weak, [], `${where}: controls with no visible focus`);
