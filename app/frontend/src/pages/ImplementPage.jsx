@@ -345,7 +345,7 @@ function BuildFilterStrip({ filter, sessionId, onPickRun, onClear }) {
   );
 }
 
-export default function ImplementPage({ settings, sessionId, focusId = null, focusStep = null, onFocus, onOpenRun = null, demoMvps = null, filter = null, onPickRun, onClearFilter }) {
+export default function ImplementPage({ settings, sessionId, focusId = null, focusStep = null, onStepOpened = null, onFocus, onOpenRun = null, demoMvps = null, filter = null, onPickRun, onClearFilter }) {
   const { token, databricksHost, showcase = '' } = settings;
   const readOnly = Boolean(showcase);
   const apiFetch = useMemo(() => makeApiFetch({ token, databricksHost, showcase }), [token, databricksHost, showcase]);
@@ -449,6 +449,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
     if (!focusStep || !selected?.uc || openedStep.current === `${focusStep}:${selected.id}`) return;
     openedStep.current = `${focusStep}:${selected.id}`;
     setWizard({ uc: selected.uc, focus: { step: focusStep }, live: false });
+    onStepOpened?.();
   }, [focusStep, selected]);
   const paneRef = useRef(null);
   useLayoutEffect(() => {

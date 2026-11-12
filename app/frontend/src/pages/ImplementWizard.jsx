@@ -1,6 +1,7 @@
 import { splitTechnical } from '../lib/plainText';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
+import { MONEY_PARTS } from '../lib/moneyParts.js';
 import { Check, Loader2, NotebookPen, X, ChevronLeft, ChevronRight, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
 import BodyPortal from '../components/BodyPortal';
 import VibesEditor, { VibePrevious } from '../components/VibesEditor';
@@ -58,8 +59,9 @@ import {
   cronInWords,
   cronProblem,
   alertTriggerText,
+  sectionErrors,
   stepErrors,
-  advancedErrors,
+  advancedWithErrors,
   freshnessOf,
   withFreshness,
   nextAppName,
@@ -406,6 +408,8 @@ function CheckLine({ check, label }) {
   );
 }
 
+const MONEY_PART_LABEL = { method: 'How it is found', direction: 'Which movement counts', currency: 'Currency', window: 'Periods and statuses', off: 'Turn it off' };
+
 export default function ImplementWizard({
   uc,
   sessionId,
@@ -431,8 +435,9 @@ export default function ImplementWizard({
   const [errors, setErrors] = useState([]);
   const [attempted, setAttempted] = useState({ data: false, delivery: false });
   const [checking, setChecking] = useState('');
-  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false, fresh: false, app_pages: false });
+  const [advanced, setAdvanced] = useState({ data: false, results: false, fresh: false, delivery: false, app_place: false, app_access: false, app_options: false, app_pages: false, summary: false });
   const [details, setDetails] = useState(false);
+  const [moneyPart, setMoneyPart] = useState(0);
   const [lookView, setLookView] = useState({ tab: 'style', page: 'fix' });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
   const [columnsByTable, setColumnsByTable] = useState({});
@@ -533,6 +538,9 @@ export default function ImplementWizard({
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
   const shows = (panel) => steps[stepIndex].panels.includes(panel);
+  const moneyParts = spec.money?.off ? ['off'] : [...MONEY_PARTS.filter((p) => p !== 'off'), 'off'];
+  const moneyActive = Math.min(moneyPart, moneyParts.length - 1);
+  useEffect(() => { if (steps[stepIndex].id === 'stake') setMoneyPart(0); }, [stepIndex]); // eslint-disable-line react-hooks/exhaustive-deps
   const resultsOn = shows('results');
   useEffect(() => {
     if (!context || !scopeSteps.grouping || context.latest || groupingDefaulted.current) return;
@@ -751,7 +759,8 @@ export default function ImplementWizard({
   const blockedBy = (id) => {
     setAttempted((prev) => ({ ...prev, [id]: true }));
     if (!stepErrors(id, spec, extras, mode).length) return false;
-    if (advancedErrors(id, spec, extras, mode).length) setAdvanced((prev) => ({ ...prev, [id]: true }));
+    const hidden = advancedWithErrors(id, spec, extras, mode);
+    if (hidden.length) setAdvanced((prev) => ({ ...prev, ...Object.fromEntries(hidden.map((section) => [section, true])) }));
     if (id === 'data' && (!String(spec.use_case.goal || '').trim() || !String(spec.use_case.decision_owner || '').trim())) setDetails(true);
     if (id === SUMMARY_STEP.id) {
       const where = vibesProblem('mvp', spec.vibes, 'MVP') ? '[data-vibes="mvp"] textarea' : vibePreviousProblem(spec, built) ? '[data-vibe-previous] input' : '';
@@ -779,6 +788,7 @@ export default function ImplementWizard({
 
   const goNext = async () => {
     setErrors([]);
+    if (stepId === 'stake' && moneyActive < moneyParts.length - 1) { setMoneyPart(moneyActive + 1); return; }
     if (mode === 'notebook') {
       setStep(steps[stepIndex + 1].id);
       return;
@@ -1553,7 +1563,8 @@ export default function ImplementWizard({
         )}
 
         {resultsOn && (
-          <>
+          <Advanced open={advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false} onToggle={() => toggleAdvanced('results')} what="result table"
+            summary={`Result table: ${spec.config.result_table || 'not set yet'}`}>
             <ResultTableStep
               table={spec.config.result_table}
               ownTable={ownTable}
@@ -1577,13 +1588,15 @@ export default function ImplementWizard({
                 onCreate={createPlace}
               />
             </ResultTableStep>
-          </>
+          </Advanced>
         )}
 
         {shows('fresh') && (
-          <section className="space-y-2" aria-label={FRESH_LABEL}>
-            <Advanced open={advanced.fresh} onToggle={() => toggleAdvanced('fresh')} what={FRESH_LABEL}
-              summary={freshness === 'off' ? 'Keep it fresh: off, it runs once now' : `Keep it fresh: runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`}>
+          <Advanced open={advanced.fresh || sectionErrors('schedule', spec, extras).length > 0} onToggle={() => toggleAdvanced('fresh')} what="Keep it fresh"
+            summary={`Keep it fresh: ${FRESHNESS_OPTIONS.find((o) => o.id === freshness)?.label || 'Custom'}`}>
+            <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
+            <section className="space-y-2">
+              <h3 className="text-sm font-semibold text-text-primary">{FRESH_LABEL}</h3>
               <p className="text-[11px] text-text-secondary">{FRESH_HELP}</p>
               <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
               <div data-choice="freshness" className="space-y-2">
@@ -1604,10 +1617,13 @@ export default function ImplementWizard({
               </div>
               <BestOf best={best.freshness} label={FRESHNESS_OPTIONS.find((o) => o.id === best.freshness.id)?.label} />
               </div>
-              
-            
-            </Advanced>
-          </section>
+              <p className="text-[11px] text-text-tertiary">
+                {freshness === 'off'
+                  ? 'It runs once now. Turn this on later to keep the results current.'
+                  : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first run works. Cost: ${costHint(spec, { scheduleSaid: true })}`}
+              </p>
+            </section>
+          </Advanced>
         )}
 
         {shows('measure') && (
@@ -1889,7 +1905,19 @@ export default function ImplementWizard({
               <h3 className="text-sm font-semibold text-text-primary">Money at stake</h3>
               <p className="text-[11px] text-text-secondary">{`Each record is counted in the ${stakeWords(sampleStake)}. Choose how the money totals are worked out.`}</p>
             </div>
-            <MoneyRuleEditor value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} loadRates={(body) => apiPostJson('/api/money/rate-sample', body)} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
+            <ol aria-label="Money decisions" className="flex flex-wrap gap-x-1 gap-y-1 text-[11px]">
+              {moneyParts.map((p, i) => (
+                <li key={p} data-money-current={i === moneyActive ? '' : undefined}
+                  className={`rounded-full ${i === moneyActive ? 'bg-db-red-50 text-db-red-fg font-semibold' : i < moneyActive ? 'text-text-primary' : 'text-text-tertiary'}`}>
+                  <button type="button" data-money-part={p} disabled={i > moneyActive} onClick={() => setMoneyPart(i)} className="px-2 py-1 glow-focus disabled:cursor-default">{i + 1}. {MONEY_PART_LABEL[p]}</button>
+                </li>
+              ))}
+            </ol>
+            <MoneyRuleEditor part={moneyParts[moneyActive]} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
+            <div className="flex items-center justify-between pt-1">
+              {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
+              {moneyActive < moneyParts.length - 1 && <button type="button" data-money-next="" onClick={() => setMoneyPart(moneyActive + 1)} className="text-xs font-medium text-db-red-fg">Following decision</button>}
+            </div>
           </section>
         )}
 
@@ -1936,16 +1964,22 @@ export default function ImplementWizard({
         )}
 
         {shows('app_features') && (
-          <AppFeaturesStep
-            spec={spec}
-            onOption={(key, value) => setSpec((prev) => withAppOption(prev, key, value))}
-            best={{ option: best.appOption, replace: best.replaceEdits }}
-          />
+          <Advanced open={advanced.app_options} onToggle={() => toggleAdvanced('app_options')} what="what people can do in the App"
+            summary={`What people can do: ${APP_OPTIONS.filter((o) => spec.outputs.app_options[o.id]).map((o) => o.label).join(', ') || 'nothing'}`}>
+            <AppFeaturesStep
+              spec={spec}
+              onOption={(key, value) => setSpec((prev) => withAppOption(prev, key, value))}
+              best={{ option: best.appOption, replace: best.replaceEdits }}
+            />
+          </Advanced>
         )}
 
         {shows('app_pages') && (
-          <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView} open={advanced.app_pages} onToggle={() => toggleAdvanced('app_pages')}
-            onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
+          <Advanced open={advanced.app_pages} onToggle={() => toggleAdvanced('app_pages')} what="App pages"
+            summary={`Pages on: ${appPagesOf(spec).filter((p) => p.on).map((p) => p.label).join(', ') || 'none'}`}>
+            <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView}
+              onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
+          </Advanced>
         )}
 
         {shows('app_look') && (
@@ -2128,7 +2162,7 @@ export default function ImplementWizard({
             type="button"
             className={`inline-flex items-center gap-1 text-xs text-text-secondary ${stepIndex === 0 ? 'invisible' : ''}`}
             disabled={stepIndex === 0 || busy}
-            onClick={() => { setErrors([]); setStep(steps[stepIndex - 1].id); }}
+            onClick={() => { setErrors([]); if (stepId === 'stake' && moneyActive > 0) setMoneyPart(moneyActive - 1); else setStep(steps[stepIndex - 1].id); }}
           >
             <ChevronLeft size={14} /> Back
           </button>
@@ -3255,14 +3289,6 @@ function UseCaseDrawer({ title, ucRow, spec, patch, onOwner, onClose }) {
 }
 
 function Overlay({ title, uc, steps, total = steps.length, step, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
-  const stepsRef = useRef(null);
-  useEffect(() => {
-    const list = stepsRef.current;
-    const current = list?.querySelector('[aria-current="step"]');
-    if (!list || !current) return;
-    const left = current.offsetLeft - list.offsetLeft;
-    if (left < list.scrollLeft || left + current.offsetWidth > list.scrollLeft + list.clientWidth) list.scrollLeft = Math.max(0, left - 8);
-  }, [step, steps.length]);
   const row = uc ? catalogRow(uc, 0) : null;
   const facts = row ? [['Domain', row.domain], ['Subdomain', row.subdomain], ['Technique', row.technique]].filter(([, v]) => v) : [];
   return (
@@ -3293,7 +3319,7 @@ function Overlay({ title, uc, steps, total = steps.length, step, reach = [], don
                 <X size={16} />
               </button>
             </div>
-            <ol ref={stepsRef} aria-label="Steps" className="flex flex-nowrap items-center gap-0.5 overflow-x-auto text-[11px] [scrollbar-width:none]">
+            <ol aria-label="Steps" className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px]">
               {steps.map((item, i) => {
                 const label = <>{done[i] && <Check size={11} className="text-success-fg" aria-hidden="true" />}{i + 1}. {item.label}</>;
                 return (

@@ -1,366 +1,615 @@
 {
- "cases": [
-  {
-   "name": "default",
-   "rule": null,
-   "valid": true,
-   "clean": {
-    "currency": "per_currency"
-   }
-  },
-  {
-   "name": "per currency",
-   "rule": {
-    "currency": "per_currency"
-   },
-   "valid": true,
-   "clean": {
-    "currency": "per_currency"
-   }
-  },
-  {
-   "name": "typed rates",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rates": {
-     "AED": 0.27,
-     "EUR": 1.08
-    }
-   },
-   "valid": true,
-   "clean": {
-    "currency": "convert",
-    "base": "USD",
-    "rates": {
-     "AED": 0.27,
-     "EUR": 1.08
-    }
-   }
-  },
-  {
-   "name": "rate column",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rate_column": "fx_rate"
-   },
-   "valid": true,
-   "clean": {
-    "currency": "convert",
-    "base": "USD",
-    "rate_column": "fx_rate"
-   }
-  },
-  {
-   "name": "window of 12 closed periods",
-   "rule": {
-    "currency": "per_currency",
-    "window": {
-     "periods": 12
-    }
-   },
-   "valid": true,
-   "clean": {
-    "currency": "per_currency",
-    "window": {
-     "periods": 12
-    }
-   }
-  },
-  {
-   "name": "bad base",
-   "rule": {
-    "currency": "convert",
-    "base": "NOPE",
-    "rates": {
-     "AED": 0.27
-    }
-   },
-   "valid": false
-  },
-  {
-   "name": "no rates and no column",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rates": {}
-   },
-   "valid": false
-  },
-  {
-   "name": "rates and column together",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rates": {
-     "AED": 0.27
+  "cases": [
+    {
+      "name": "default",
+      "rule": null,
+      "valid": true,
+      "clean": {
+        "currency": "per_currency"
+      }
     },
-    "rate_column": "fx_rate"
-   },
-   "valid": false
-  },
-  {
-   "name": "negative rate",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rates": {
-     "AED": -1
-    }
-   },
-   "valid": false
-  },
-  {
-   "name": "boolean rate",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rates": {
-     "AED": true
-    }
-   },
-   "valid": false
-  },
-  {
-   "name": "bad column name",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rate_column": "fx rate; drop"
-   },
-   "valid": false
-  },
-  {
-   "name": "window out of range",
-   "rule": {
-    "currency": "per_currency",
-    "window": {
-     "periods": 0
-    }
-   },
-   "valid": false
-  },
-  {
-   "name": "unknown mode",
-   "rule": {
-    "currency": "sum_everything"
-   },
-   "valid": false
-  },
-  {
-   "name": "off",
-   "rule": {
-    "currency": "per_currency",
-    "off": true
-   },
-   "valid": true,
-   "clean": {
-    "currency": "per_currency",
-    "off": true
-   }
-  },
-  {
-   "name": "statuses and net",
-   "rule": {
-    "currency": "per_currency",
-    "statuses": [
-     "used",
-     "exchanged"
-    ],
-    "rule": "net",
-    "status_column": "status"
-   },
-   "valid": true,
-   "clean": {
-    "currency": "per_currency",
-    "statuses": [
-     "used",
-     "exchanged"
-    ],
-    "rule": "net",
-    "status_column": "status"
-   }
-  },
-  {
-   "name": "per group by a column",
-   "rule": {
-    "currency": "per_currency",
-    "per": "group",
-    "group_column": "entity_id"
-   },
-   "valid": true,
-   "clean": {
-    "currency": "per_currency",
-    "per": "group",
-    "group_column": "entity_id"
-   }
-  },
-  {
-   "name": "per group without a column",
-   "rule": {
-    "currency": "per_currency",
-    "per": "group"
-   },
-   "valid": false
-  },
-  {
-   "name": "unknown rule",
-   "rule": {
-    "currency": "per_currency",
-    "rule": "gross"
-   },
-   "valid": false
-  },
-  {
-   "name": "too many statuses",
-   "rule": {
-    "currency": "per_currency",
-    "statuses": [
-     "0",
-     "1",
-     "2",
-     "3",
-     "4",
-     "5",
-     "6",
-     "7",
-     "8",
-     "9",
-     "10",
-     "11",
-     "12",
-     "13",
-     "14",
-     "15",
-     "16",
-     "17",
-     "18",
-     "19",
-     "20"
-    ]
-   },
-   "valid": false
-  },
-  {
-   "name": "status with quotes",
-   "rule": {
-    "currency": "per_currency",
-    "statuses": [
-     "used'; drop"
-    ]
-   },
-   "valid": false
-  },
-  {
-   "name": "rate table",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rate_table": {
-     "table": "main.fx.rates",
-     "currency_column": "from_code",
-     "base_column": "to_code",
-     "date_column": "rate_date",
-     "rate_column": "rate",
-     "load_column": "loaded_at"
-    }
-   },
-   "valid": true,
-   "clean": {
-    "currency": "convert",
-    "base": "USD",
-    "rate_table": {
-     "table": "main.fx.rates",
-     "currency_column": "from_code",
-     "base_column": "to_code",
-     "date_column": "rate_date",
-     "rate_column": "rate",
-     "load_column": "loaded_at"
-    }
-   }
-  },
-  {
-   "name": "rate table with a bad name",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rate_table": {
-     "table": "main.fx; drop",
-     "currency_column": "from_code",
-     "base_column": "to_code",
-     "date_column": "rate_date",
-     "rate_column": "rate",
-     "load_column": "loaded_at"
-    }
-   },
-   "valid": false
-  },
-  {
-   "name": "rate table and typed rates",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rates": {
-     "AED": 0.27
+    {
+      "name": "per currency",
+      "rule": {
+        "currency": "per_currency"
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency"
+      }
     },
-    "rate_table": {
-     "table": "main.fx.rates",
-     "currency_column": "a",
-     "base_column": "b",
-     "date_column": "c",
-     "rate_column": "d",
-     "load_column": "loaded_at"
+    {
+      "name": "typed rates",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rates": {
+          "AED": 0.27,
+          "EUR": 1.08
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "convert",
+        "base": "USD",
+        "rates": {
+          "AED": 0.27,
+          "EUR": 1.08
+        }
+      }
+    },
+    {
+      "name": "rate column",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rate_column": "fx_rate"
+      },
+      "valid": true,
+      "clean": {
+        "currency": "convert",
+        "base": "USD",
+        "rate_column": "fx_rate"
+      }
+    },
+    {
+      "name": "window of 12 closed periods",
+      "rule": {
+        "currency": "per_currency",
+        "window": {
+          "periods": 12
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "window": {
+          "periods": 12
+        }
+      }
+    },
+    {
+      "name": "bad base",
+      "rule": {
+        "currency": "convert",
+        "base": "NOPE",
+        "rates": {
+          "AED": 0.27
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "no rates and no column",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rates": {}
+      },
+      "valid": false
+    },
+    {
+      "name": "rates and column together",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rates": {
+          "AED": 0.27
+        },
+        "rate_column": "fx_rate"
+      },
+      "valid": false
+    },
+    {
+      "name": "negative rate",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rates": {
+          "AED": -1
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "boolean rate",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rates": {
+          "AED": true
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "bad column name",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rate_column": "fx rate; drop"
+      },
+      "valid": false
+    },
+    {
+      "name": "window out of range",
+      "rule": {
+        "currency": "per_currency",
+        "window": {
+          "periods": 0
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "unknown mode",
+      "rule": {
+        "currency": "sum_everything"
+      },
+      "valid": false
+    },
+    {
+      "name": "off",
+      "rule": {
+        "currency": "per_currency",
+        "off": true
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "off": true
+      }
+    },
+    {
+      "name": "statuses and net",
+      "rule": {
+        "currency": "per_currency",
+        "statuses": [
+          "used",
+          "exchanged"
+        ],
+        "rule": "net",
+        "status_column": "status"
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "statuses": [
+          "used",
+          "exchanged"
+        ],
+        "rule": "net",
+        "status_column": "status"
+      }
+    },
+    {
+      "name": "per group by a column",
+      "rule": {
+        "currency": "per_currency",
+        "per": "group",
+        "group_column": "entity_id"
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "per": "group",
+        "group_column": "entity_id"
+      }
+    },
+    {
+      "name": "per group without a column",
+      "rule": {
+        "currency": "per_currency",
+        "per": "group"
+      },
+      "valid": false
+    },
+    {
+      "name": "unknown rule",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gross"
+      },
+      "valid": false
+    },
+    {
+      "name": "too many statuses",
+      "rule": {
+        "currency": "per_currency",
+        "statuses": [
+          "0",
+          "1",
+          "2",
+          "3",
+          "4",
+          "5",
+          "6",
+          "7",
+          "8",
+          "9",
+          "10",
+          "11",
+          "12",
+          "13",
+          "14",
+          "15",
+          "16",
+          "17",
+          "18",
+          "19",
+          "20"
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "status with quotes",
+      "rule": {
+        "currency": "per_currency",
+        "statuses": [
+          "used'; drop"
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "rate table",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rate_table": {
+          "table": "main.fx.rates",
+          "currency_column": "from_code",
+          "base_column": "to_code",
+          "date_column": "rate_date",
+          "rate_column": "rate",
+          "load_column": "loaded_at"
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "convert",
+        "base": "USD",
+        "rate_table": {
+          "table": "main.fx.rates",
+          "currency_column": "from_code",
+          "base_column": "to_code",
+          "date_column": "rate_date",
+          "rate_column": "rate",
+          "load_column": "loaded_at"
+        }
+      }
+    },
+    {
+      "name": "rate table with a bad name",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rate_table": {
+          "table": "main.fx; drop",
+          "currency_column": "from_code",
+          "base_column": "to_code",
+          "date_column": "rate_date",
+          "rate_column": "rate",
+          "load_column": "loaded_at"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "rate table and typed rates",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rates": {
+          "AED": 0.27
+        },
+        "rate_table": {
+          "table": "main.fx.rates",
+          "currency_column": "a",
+          "base_column": "b",
+          "date_column": "c",
+          "rate_column": "d",
+          "load_column": "loaded_at"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "three letters that are no currency",
+      "rule": {
+        "currency": "convert",
+        "base": "XYZ",
+        "rates": {
+          "AED": 0.27
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "statuses without a status column",
+      "rule": {
+        "currency": "per_currency",
+        "statuses": [
+          "used"
+        ]
+      },
+      "valid": false
+    },
+    {
+      "name": "status column is a plain name",
+      "rule": {
+        "currency": "per_currency",
+        "statuses": [
+          "used"
+        ],
+        "status_column": "st; drop"
+      },
+      "valid": false
+    },
+    {
+      "name": "rate table without a load column",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rate_table": {
+          "table": "main.fx.rates",
+          "currency_column": "a",
+          "base_column": "b",
+          "date_column": "c",
+          "rate_column": "d"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "fixed value in one currency",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rates": {
+          "AED": 0.27,
+          "USD": 1
+        },
+        "value": {
+          "method": "fixed",
+          "amount": 120,
+          "currency": "USD"
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "convert",
+        "base": "USD",
+        "rates": {
+          "AED": 0.27,
+          "USD": 1
+        },
+        "value": {
+          "method": "fixed",
+          "amount": 120,
+          "currency": "USD"
+        }
+      }
+    },
+    {
+      "name": "column value with a currency column",
+      "rule": {
+        "currency": "per_currency",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        }
+      }
+    },
+    {
+      "name": "equation value in one currency",
+      "rule": {
+        "currency": "per_currency",
+        "value": {
+          "method": "equation",
+          "expression": "  quantity * unit_price - discount ",
+          "currency": "AED"
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "value": {
+          "method": "equation",
+          "expression": "quantity * unit_price - discount",
+          "currency": "AED"
+        }
+      }
+    },
+    {
+      "name": "equation with brackets and a minus sign",
+      "rule": {
+        "currency": "per_currency",
+        "value": {
+          "method": "equation",
+          "expression": "-(units * 2) + price / 4",
+          "currency_column": "currency"
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "value": {
+          "method": "equation",
+          "expression": "-(units * 2) + price / 4",
+          "currency_column": "currency"
+        }
+      }
+    },
+    {
+      "name": "equation with an operator the rule does not allow",
+      "rule": {
+        "currency": "per_currency",
+        "value": {
+          "method": "equation",
+          "expression": "quantity ^ 2",
+          "currency": "USD"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "equation with unbalanced brackets",
+      "rule": {
+        "currency": "per_currency",
+        "value": {
+          "method": "equation",
+          "expression": "(quantity * 2",
+          "currency": "USD"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "value naming two currencies",
+      "rule": {
+        "currency": "per_currency",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency": "USD",
+          "currency_column": "currency"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "fixed value of zero",
+      "rule": {
+        "currency": "per_currency",
+        "value": {
+          "method": "fixed",
+          "amount": 0,
+          "currency": "USD"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gains without a sign",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "gains with a column sign",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "column",
+          "column": "discount"
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "column",
+          "column": "discount"
+        }
+      }
+    },
+    {
+      "name": "gains with a status sign",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "status",
+          "column": "channel",
+          "value": "gain"
+        }
+      },
+      "valid": true,
+      "clean": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "status",
+          "column": "channel",
+          "value": "gain"
+        }
+      }
+    },
+    {
+      "name": "sign of an unknown kind",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "sign",
+          "column": "discount"
+        }
+      },
+      "valid": false
+    },
+    {
+      "name": "status sign with a quoted value",
+      "rule": {
+        "currency": "per_currency",
+        "rule": "gains",
+        "value": {
+          "method": "column",
+          "column": "amount",
+          "currency_column": "currency"
+        },
+        "sign": {
+          "kind": "status",
+          "column": "channel",
+          "value": "gain' OR 1=1"
+        }
+      },
+      "valid": false
     }
-   },
-   "valid": false
-  },
-  {
-   "name": "three letters that are no currency",
-   "rule": {
-    "currency": "convert",
-    "base": "XYZ",
-    "rates": {
-     "AED": 0.27
-    }
-   },
-   "valid": false
-  },
-  {
-   "name": "statuses without a status column",
-   "rule": {
-    "currency": "per_currency",
-    "statuses": [
-     "used"
-    ]
-   },
-   "valid": false
-  },
-  {
-   "name": "status column is a plain name",
-   "rule": {
-    "currency": "per_currency",
-    "statuses": [
-     "used"
-    ],
-    "status_column": "st; drop"
-   },
-   "valid": false
-  },
-  {
-   "name": "rate table without a load column",
-   "rule": {
-    "currency": "convert",
-    "base": "USD",
-    "rate_table": {
-     "table": "main.fx.rates",
-     "currency_column": "a",
-     "base_column": "b",
-     "date_column": "c",
-     "rate_column": "d"
-    }
-   },
-   "valid": false
-  }
- ]
+  ]
 }

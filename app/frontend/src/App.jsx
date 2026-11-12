@@ -621,6 +621,7 @@ export default function App() {
               sessionId={implementSessionId}
               focusId={implementFocus}
               focusStep={inDemo ? null : implement.step || null}
+              onStepOpened={inDemo ? null : () => setImplement((prev) => ({ ...prev, step: null }))}
               onFocus={inDemo ? onDemoFocus : onImplementFocus}
               onOpenRun={inDemo ? null : openRun}
               demoMvps={demoMvps}

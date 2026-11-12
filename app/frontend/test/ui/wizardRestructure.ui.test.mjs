@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, openUi, shot } from './uiSupport.mjs';
+import { closeBrowser, goToStep, openRow, openUi, shot } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -47,6 +47,7 @@ test('What to deliver is the first step, Data and results is one page, and Where
 
     await goToStep(page, 'Data & results');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
+    await openRow(page, 'result table');
     await page.getByRole('region', { name: 'Where the result table lives' }).waitFor();
     assert.equal(await page.getByRole('region', { name: 'Where the result table lives' }).count(), 1, 'the result table sits on the same page as the data');
     await snap(page, 'restructure-data-results');
@@ -55,11 +56,12 @@ test('What to deliver is the first step, Data and results is one page, and Where
     const measure = page.getByRole('region', { name: 'Measure' });
     await measure.waitFor();
     assert.equal(await measure.locator('[data-money-rule-editor]').count(), 1, 'Measure holds the money rule editor, so the person defines how money at stake is counted');
-    assert.match(await measure.locator('[data-money-sentence]').innerText(), /totalled on its own/, 'Measure shows the current definition in plain words');
+    assert.match(await measure.locator('[data-money-base-needed]').innerText(), /Pick the reporting currency/, 'without a currency column the Measure step asks for the reporting currency in plain words');
     await snap(page, 'restructure-measure');
 
     await goToStep(page, 'Where it lives');
     await page.getByRole('region', { name: 'App placement' }).waitFor();
+    await openRow(page, 'App pages');
     await page.getByRole('region', { name: 'App pages' }).waitFor();
     assert.equal(await page.getByRole('region', { name: 'App features' }).count(), 0, 'the App pages are picked on Where it lives, not with who uses the App');
     assert.equal(await page.getByRole('tab', { name: 'Pages', exact: true }).count(), 0, 'App look no longer holds a Pages tab');
@@ -67,6 +69,7 @@ test('What to deliver is the first step, Data and results is one page, and Where
 
     await goToStep(page, 'Who uses the App');
     await page.getByRole('region', { name: 'App access' }).waitFor();
+    await openRow(page, 'what people can do in the App');
     await page.getByRole('region', { name: 'App features' }).waitFor();
     assert.equal(await page.getByRole('region', { name: 'App pages' }).count(), 0, 'Who uses the App no longer holds the pages');
     await snap(page, 'restructure-who');
@@ -133,7 +136,7 @@ test('Keep it fresh sits on Data & results, and Run it keeps the Measure impact 
   const { page } = ui;
   try {
     await goToStep(page, 'Data & results');
-    await page.getByRole('button', { name: 'Change Keep it fresh', exact: true }).click();
+    await openRow(page, 'Keep it fresh');
     await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
     await goToStep(page, 'Run it');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Run it no longer holds Keep it fresh');

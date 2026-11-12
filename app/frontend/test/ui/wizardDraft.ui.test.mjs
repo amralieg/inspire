@@ -2,14 +2,17 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { DRAFT_BACK_NOTE, WIZARD_DRAFT_PREFIX } from '../../src/lib/wizardDraft.js';
-import { BUILD_IT, closeBrowser, goToStep, onStep, openUi, profileAt, settleChoices, stepsAre } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, goToStep, onStep, openRow, openUi, profileAt, settleChoices, stepsAre } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
 const STATE = { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } };
 const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. App look', '9. Run it', '10. Review & build'];
-const next = (page) => page.getByRole('button', { name: 'Next' }).click();
+const next = async (page) => {
+  while (await page.locator('[data-money-next]').count() && await page.locator('[data-money-next]').isVisible()) await page.locator('[data-money-next]').click();
+  await page.getByRole('button', { name: 'Next' }).click();
+};
 const drafts = (page) => page.evaluate((prefix) => Object.keys(localStorage).filter((k) => k.startsWith(prefix)), WIZARD_DRAFT_PREFIX);
 const draftNote = (page) => page.locator('[data-wizard-draft]');
 const checked = (page, selector) => page.locator(selector).evaluateAll((all) => all.filter((i) => i.checked).map((i) => i.value));
@@ -44,9 +47,9 @@ const PICKS = {
     pick: (page) => pickOther(page, 'app-style'),
     read: (page) => checked(page, 'input[type="radio"][name="app-style"]'),
   },
-  'Run it': {
-    pick: async (page) => { await page.locator('[data-choice="freshness"] [data-option="weekly"]').click(); return 'weekly'; },
-    read: (page) => pressed(page, 'freshness'),
+  'Data & results': {
+    pick: async (page) => { await openRow(page, 'Keep it fresh'); await page.locator('[data-choice="freshness"] [data-option="weekly"]').click(); return 'weekly'; },
+    read: async (page) => { await openRow(page, 'Keep it fresh'); return pressed(page, 'freshness'); },
   },
   'Review & build': {
     pick: async (page) => { await page.getByRole('region', { name: 'Vibes' }).locator('textarea').first().fill('keep the draft words'); return 'keep the draft words'; },

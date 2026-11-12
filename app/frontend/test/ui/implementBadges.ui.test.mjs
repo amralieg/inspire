@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openUi, settleChoices } from './uiSupport.mjs';
+import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openAllRows, openRow, openUi, settleChoices } from './uiSupport.mjs';
 import { APP_LOOK_STEP, APP_LOOK_TABS, APP_STEP, WHERE_LABEL } from '../../src/lib/implementWizard.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
@@ -13,6 +13,7 @@ async function auditEveryStep(page, { look = true } = {}) {
   const labels = (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\.\s*/, '').trim());
   for (const label of labels) {
     await goToStep(page, label);
+    await openAllRows(page);
     if (label === APP_STEP.label) await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     await settleChoices(page);
     const tabs = label === APP_LOOK_STEP.label && look ? APP_LOOK_TABS.map((t) => t.label) : [null];
@@ -45,6 +46,7 @@ test('every choice in the wizard shows exactly one Recommended badge, and it sit
     await goToStep(page, 'What to build');
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
     await goToStep(page, 'Keep it fresh');
+    await openRow(page, 'Keep it fresh');
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
     assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh starts on Daily, where the badge is');
     assertOneBadgeOnDefault((await choicesShown(page)).filter((c) => c.choice === 'freshness'), 'Keep it fresh with an alert');

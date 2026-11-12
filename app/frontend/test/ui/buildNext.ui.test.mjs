@@ -164,3 +164,24 @@ test('a run card with no measured KPI baseline says Value at stake: Not calculat
     await ui.close();
   }
 });
+
+test('the Measure step opens once from the Build next action; picking another use case does not reopen it', async () => {
+  const ui = await openApp({ ...STATE, useCases: USE_CASES.map((uc) => (uc.id === 'N01-U02' ? { ...uc, value_estimate: notMeasured() } : uc)) });
+  const { page } = ui;
+  try {
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    const panel = page.locator('[data-build-next]');
+    await panel.waitFor({ timeout: 20000 });
+    await panel.locator('[data-build-next-row="N02-U02"] [data-measure-value="N02-U02"]').click();
+    await page.getByRole('region', { name: 'Measure' }).waitFor({ timeout: 20000 });
+    await page.getByRole('button', { name: 'Close', exact: true }).last().click();
+    await page.getByRole('region', { name: 'Measure' }).waitFor({ state: 'detached', timeout: 20000 });
+    await go(page, '#/build/42/N02-U01');
+    await page.waitForFunction(() => window.location.hash.includes('/build/42/N02-U01'), null, { timeout: 20000 });
+    await page.waitForTimeout(1500);
+    assert.equal(await page.locator('[data-wizard-header]').count(), 0, 'the wizard does not reopen on Measure for another use case (must-exclude)');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

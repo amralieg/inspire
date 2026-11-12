@@ -43,7 +43,33 @@ PAGE = {
 }
 
 
-def _run(sql):
+STAKE_COLUMNS = ("value_at_stake", "currency_code", "channel", "event_month", "fx_rate")
+VALUE_ROWS = [
+    {"quantity": 2, "unit_price": 60.0, "discount": 10.0, "amount": 100.0, "currency_code": "AED", "channel": "web", "event_month": CLOSED, "value_at_stake": 999.0},
+    {"quantity": 1, "unit_price": 50.0, "discount": 0.0, "amount": 40.0, "currency_code": "EUR", "channel": "web", "event_month": CLOSED, "value_at_stake": 999.0},
+    {"quantity": 3, "unit_price": 20.0, "discount": 5.0, "amount": 30.0, "currency_code": "USD", "channel": "agent", "event_month": CLOSED, "value_at_stake": 999.0},
+]
+VALUE_COLUMNS = ("quantity", "unit_price", "discount", "amount", "currency_code", "channel", "event_month", "value_at_stake")
+VALUE_RATES = {"AED": 0.27, "EUR": 1.1, "USD": 1.0}
+
+
+def _load(db, table, columns, rows):
+    db.execute(f"CREATE TABLE {table} ({', '.join(f'{c} TEXT' if c in ('currency_code', 'channel', 'event_month') else f'{c} REAL' for c in columns)})")
+    db.executemany(f"INSERT INTO {table} VALUES ({', '.join('?' for _ in columns)})", rows)
+
+
+def _value_page(money):
+    return dict(PAGE, datasets=[{"name": "rows", "sql": "SELECT * FROM value_rows"}], money=money)
+
+
+def _sqlite_star_except(sql, columns):
+    def expand(found):
+        dropped = {name.strip().strip("`") for name in found.group(1).split(",")}
+        return "SELECT " + ", ".join(name for name in columns if name not in dropped) + ", "
+    return re.sub(r"SELECT \* EXCEPT \(([^)]*)\), ", expand, sql)
+
+
+def _run(sql, table="stake_rows", columns=STAKE_COLUMNS, rows=None):
     db = sqlite3.connect(":memory:")
 
     def add_months(value, months):
@@ -52,10 +78,9 @@ def _run(sql):
         return f"{total // 12:04d}-{total % 12 + 1:02d}-01"
 
     db.create_function("ADD_MONTHS", 2, add_months)
-    db.execute("CREATE TABLE stake_rows (value_at_stake REAL, currency_code TEXT, channel TEXT, event_month TEXT, fx_rate REAL)")
-    db.executemany("INSERT INTO stake_rows VALUES (?, ?, ?, ?, ?)",
-                   [(r["value_at_stake"], r["currency_code"], r["channel"], r["event_month"], r.get("fx_rate")) for r in ROWS])
-    text = sqlglot.transpile(sql, read="databricks", write="sqlite")[0]
+    db.create_function("TRY_DIVIDE", 2, lambda a, b: None if not b else a / b)
+    _load(db, table, columns, rows if rows is not None else [(r["value_at_stake"], r["currency_code"], r["channel"], r["event_month"], r.get("fx_rate")) for r in ROWS])
+    text = sqlglot.transpile(_sqlite_star_except(sql, columns), read="databricks", write="sqlite")[0]
     text = re.sub(r"(TIMESTAMP_TRUNC|DATE_TRUNC)\(\s*(CURRENT_DATE\s*,\s*MONTH|'?MONTH'?\s*,\s*CURRENT_DATE)\s*\)",
                   "date('now', 'start of month')", text, flags=re.I)
     cursor = db.execute(text)
@@ -455,9 +480,7 @@ def test_a_dataset_that_ignores_a_status_or_the_losses_rule_fails_the_page_check
 
 def _run_with(page, setup, sql=None):
     db = sqlite3.connect(":memory:")
-    db.execute("CREATE TABLE stake_rows (value_at_stake REAL, currency_code TEXT, channel TEXT, event_month TEXT, fx_rate REAL)")
-    db.executemany("INSERT INTO stake_rows VALUES (?, ?, ?, ?, ?)",
-                   [(r["value_at_stake"], r["currency_code"], r["channel"], r["event_month"], r.get("fx_rate")) for r in ROWS])
+    _load(db, "stake_rows", STAKE_COLUMNS, [(r["value_at_stake"], r["currency_code"], r["channel"], r["event_month"], r.get("fx_rate")) for r in ROWS])
     for statement in [part for part in setup.split(";") if part.strip()]:
         db.execute(statement)
     if sql is None:
@@ -610,3 +633,176 @@ def test_off_removes_the_money_cards_from_what_the_app_lists(tmp_path):
     assert status == 200
     listed = [k["id"] for p in out["pages"] for k in p.get("kpis") or []]
     assert listed and not any(k["format"] == "currency" for p in out["pages"] for k in p.get("kpis") or []), listed
+
+
+def _value_total(money):
+    rows = [tuple(r[c] for c in VALUE_COLUMNS) for r in VALUE_ROWS]
+    return shell_sql.kpi_values(_run(shell_sql.kpi_query(_value_page(money), "exposure", {})[0], "value_rows", VALUE_COLUMNS, rows))["now"]
+
+
+def test_a_fixed_value_saved_by_the_person_replaces_genie_stake_in_one_currency():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "value": {"method": "fixed", "amount": 120, "currency": "USD"}}
+    assert _value_total(money) == 360.0, "three records at 120 USD each, Genie's 999 is not used"
+
+
+def test_a_column_value_converts_each_row_at_the_rate_of_its_own_currency():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "value": {"method": "column", "column": "amount", "currency_column": "currency_code"}}
+    assert round(_value_total(money), 6) == 101.0, "AED 100 at 0.27 + EUR 40 at 1.1 + USD 30"
+
+
+def test_an_equation_value_over_columns_converts_each_row_in_its_currency():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES,
+             "value": {"method": "equation", "expression": "quantity * unit_price - discount", "currency_column": "currency_code"}}
+    assert round(_value_total(money), 6) == 139.7, "AED 110 at 0.27 + EUR 50 at 1.1 + USD 55"
+
+
+def test_a_net_rule_keeps_the_value_sign_and_gains_needs_a_sign():
+    net = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "net",
+           "value": {"method": "column", "column": "amount", "currency_column": "currency_code"}}
+    assert round(_value_total(net), 6) == 101.0
+    assert shell_sql.money_rule_problems({"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "gains"})
+
+
+
+def test_a_saved_column_the_table_lost_falls_back_to_the_genie_estimate_with_a_note():
+    rule = {"currency": "convert", "base": "USD", "rates": VALUE_RATES,
+            "value": {"method": "column", "column": "amount", "currency_column": "currency_code"}}
+    kept, note = shell_sql.money_value_fallback(rule, ["quantity", "currency_code"])
+    assert "value" not in kept, "the value is dropped, so no SQL reads a missing column"
+    assert kept["rates"] == VALUE_RATES, "the rest of the rule stands"
+    assert "amount" in note and "Genie estimates" in note
+
+
+def test_an_equation_checks_each_column_it_names_and_names_only_the_missing_ones():
+    rule = {"currency": "per_currency",
+            "value": {"method": "equation", "expression": "quantity * unit_price - discount", "currency": "USD"}}
+    kept, note = shell_sql.money_value_fallback(rule, ["quantity", "unit_price"])
+    assert "value" not in kept
+    assert "discount" in note and "quantity" not in note.split("uses", 1)[1].split(",")[0]
+
+
+def test_a_value_whose_columns_all_exist_is_kept_unchanged_without_a_note():
+    rule = {"currency": "per_currency", "value": {"method": "equation", "expression": "quantity * unit_price", "currency": "USD"}}
+    kept, note = shell_sql.money_value_fallback(rule, ["quantity", "unit_price", "channel"])
+    assert kept == rule and note == ""
+
+
+def test_a_fixed_value_needs_no_column_so_the_table_can_lose_any_column():
+    rule = {"currency": "per_currency", "value": {"method": "fixed", "amount": 120, "currency": "USD"}}
+    kept, note = shell_sql.money_value_fallback(rule, [])
+    assert kept == rule and note == ""
+
+
+ZERO_PRICE_ROW = {"quantity": 5, "unit_price": 0.0, "discount": 0.0, "amount": None, "currency_code": "USD", "channel": "web", "event_month": CLOSED, "value_at_stake": 999.0}
+
+
+def _value_page_plain(money):
+    return dict(PAGE, datasets=[{"name": "rows", "sql": "SELECT * FROM value_rows"}], money=money, filters=[PAGE["filters"][0]])
+
+
+def _value_rows(extra=()):
+    return [tuple(r[c] for c in VALUE_COLUMNS) for r in list(VALUE_ROWS) + list(extra)]
+
+
+def test_a_division_by_a_zero_row_is_a_null_that_drops_out_of_the_total_and_never_fails_the_query():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES,
+             "value": {"method": "equation", "expression": "quantity / unit_price", "currency_column": "currency_code"}}
+    kpi_sql = shell_sql.kpi_query(_value_page(money), "exposure", {})[0]
+    assert "try_divide(" in kpi_sql and " / " not in kpi_sql, "ANSI mode fails the whole query on a bare division by zero, so no bare division is emitted"
+    total = shell_sql.kpi_values(_run(shell_sql.kpi_query(_value_page(money), "exposure", {})[0], "value_rows", VALUE_COLUMNS,
+                                      _value_rows([ZERO_PRICE_ROW])))["now"]
+    expected = 2 / 60 * 0.27 + 1 / 50 * 1.1 + 3 / 20 * 1.0
+    assert round(total, 6) == round(expected, 6), "the zero-price row is unrated, the other three rows are summed"
+
+
+def test_a_row_the_value_cannot_price_is_counted_as_unrated_in_the_left_out_line_not_as_zero():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES,
+             "value": {"method": "equation", "expression": "quantity / unit_price", "currency_column": "currency_code"}}
+    sql, _params = shell_sql.money_left_out(_value_page_plain(money), {"dataset": "rows", "id": "exposure"}, {})
+    counted = _run(sql, "value_rows", VALUE_COLUMNS, _value_rows([ZERO_PRICE_ROW]))[0]
+    assert counted["unrated"] == 1, "the left-out line reads the overridden value, so the zero-price row is unrated"
+
+
+def test_a_null_saved_amount_is_unrated_and_never_becomes_a_zero_amount():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "value": {"method": "column", "column": "amount", "currency_column": "currency_code"}}
+    sql, _params = shell_sql.money_left_out(_value_page_plain(money), {"dataset": "rows", "id": "exposure"}, {})
+    counted = _run(sql, "value_rows", VALUE_COLUMNS, _value_rows([ZERO_PRICE_ROW]))[0]
+    assert counted["unrated"] == 1
+    total = shell_sql.kpi_values(_run(shell_sql.kpi_query(_value_page(money), "exposure", {})[0], "value_rows", VALUE_COLUMNS,
+                                      _value_rows([ZERO_PRICE_ROW])))["now"]
+    assert round(total, 6) == 101.0
+
+
+def test_the_app_and_the_server_list_the_same_currency_codes():
+    import re
+    here = os.path.dirname(os.path.abspath(__file__))
+    js = open(os.path.join(here, "..", "..", "agent", "app_shell", "web", "src", "moneyRule.js"), encoding="utf-8").read()
+    js_block = js[js.index("new Set(["):js.index("]);", js.index("new Set(["))]
+    seg = open(os.path.join(here, "..", "..", "agent", "app_shell", "server", "shell_sql.py"), encoding="utf-8").read()
+    py_block = seg[seg.index("MONEY_CODES = frozenset(("):]
+    py_block = py_block[:py_block.index("split())")]
+    assert set(re.findall(r"[A-Z]{3}", js_block)) == set(re.findall(r"[A-Z]{3}", py_block[len("MONEY_CODES = frozenset(("):]))
+
+
+
+def test_gains_counts_the_magnitude_of_the_rows_a_status_marks_as_gains():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "gains",
+             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+             "sign": {"kind": "status", "column": "channel", "value": "agent"}}
+    assert round(_value_total(money), 6) == 30.0, "only the agent row, USD 30, is a gain"
+
+
+def test_losses_with_a_status_sign_counts_the_other_rows_and_never_the_gains():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "losses",
+             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+             "sign": {"kind": "status", "column": "channel", "value": "agent"}}
+    assert round(_value_total(money), 6) == 71.0, "AED 100 at 0.27 + EUR 40 at 1.1; the agent row is a gain, not a loss"
+
+
+def test_gains_by_a_positive_column_counts_the_rows_where_that_column_is_positive():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "gains",
+             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+             "sign": {"kind": "column", "column": "discount"}}
+    assert round(_value_total(money), 6) == 57.0, "discount is positive on AED and USD: AED 100 at 0.27 + USD 30"
+
+
+def test_a_null_saved_amount_stays_unrated_under_a_sign():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "gains",
+             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+             "sign": {"kind": "status", "column": "channel", "value": "agent"}}
+    sql, _params = shell_sql.money_left_out(_value_page_plain(money), {"dataset": "rows", "id": "exposure"}, {})
+    counted = _run(sql, "value_rows", VALUE_COLUMNS, _value_rows([ZERO_PRICE_ROW]))[0]
+    assert counted["unrated"] == 1, "the NULL amount is unrated under a sign, not a zero gain"
+
+
+def test_gains_without_a_sign_is_refused_by_the_server_with_a_plain_reason():
+    problems = shell_sql.money_rule_problems({"currency": "per_currency", "rule": "gains"})
+    assert problems and "gains needs a sign" in problems[0]
+
+
+def test_on_mixed_data_gains_and_losses_are_different_totals_and_net_is_gains_minus_losses():
+    base = {"currency": "convert", "base": "USD", "rates": VALUE_RATES,
+            "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+            "sign": {"kind": "column", "column": "discount"}}
+    gains = _value_total(dict(base, rule="gains"))
+    losses = _value_total(dict(base, rule="losses"))
+    net = _value_total(dict(base, rule="net"))
+    assert gains == round(gains, 6) and round(gains, 6) == 57.0, "discount is positive on AED and USD: AED 100 at 0.27 + USD 30"
+    assert round(losses, 6) == 44.0, "the EUR row has no discount, so it is a loss: EUR 40 at 1.1"
+    assert gains != losses, "gains and losses are different totals on mixed data"
+    assert round(net, 6) == 13.0, "net is gains minus losses"
+
+
+def test_a_saved_value_with_no_currency_filter_is_converted_in_its_own_currency_and_never_dropped():
+    page = dict(PAGE, datasets=[{"name": "rows", "sql": "SELECT * FROM value_rows"}], filters=[],
+                money={"currency": "convert", "base": "USD", "rates": VALUE_RATES, "value": {"method": "fixed", "amount": 120, "currency": "AED"}})
+    rows = _value_rows()
+    total = shell_sql.kpi_values(_run(shell_sql.kpi_query(page, "exposure", {})[0], "value_rows", VALUE_COLUMNS, rows))["now"]
+    assert round(total, 6) == round(3 * 120 * 0.27, 6), "three records at AED 120, converted at 0.27, are one total in USD, not a dropped value"
+
+
+def test_every_money_dataset_is_checked_for_the_saved_value_columns():
+    page = dict(PAGE, kpis=[{"id": "a", "dataset": "rows", "format": "currency"}, {"id": "b", "dataset": "other", "format": "currency"}])
+    assert shell_sql.money_datasets(page) == ["rows", "other"]
+    charts_only = {"kpis": [], "charts": [{"id": "c", "dataset": "charted", "y": [{"format": "currency"}]}]}
+    assert shell_sql.money_datasets(charts_only) == ["charted"]

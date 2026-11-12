@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { createRequire } from 'node:module';
-import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openUi, painted, setDark, settled, startMvp, toAppAccess, toSharedAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
+import { assertFitsScreen, assertOneBadgeOnDefault, choicesShown, closeBrowser, dataToResults, lowContrast, idle, onStep, openAdvanced, openRow, openUi, painted, setDark, settled, startMvp, toAppAccess, toSharedAccess, toSummary, toVibes, until, watchAsks, wizardFit, goToStep } from './uiSupport.mjs';
 import { LAKEBASE_ABSENT, LAKEBASE_PER_USER_REASON } from '../../src/lib/implementWizard.js';
 import { wheelScrolls } from './wheelScroll.mjs';
 
@@ -287,6 +287,7 @@ test('App look has Style, Palette, Layout and Charts tabs over a sample page, Ap
     await shown({ 'app-sample': 'genie' });
 
     await goToStep(page, 'Who uses the App');
+    await openRow(page, 'what people can do in the App');
     const features = page.getByRole('region', { name: 'App features' });
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
     await features.getByRole('checkbox', { name: /^Send alerts/ }).check();
@@ -325,6 +326,7 @@ async function withEveryAppLookOption(check) {
     await toSharedAccess(page);
     await goToStep(page, 'Who uses the App');
     await goToStep(page, 'Who uses the App');
+    await openRow(page, 'what people can do in the App');
     const features = page.getByRole('region', { name: 'App features' });
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
     await features.getByRole('checkbox', { name: /^Send alerts/ }).check();
@@ -552,6 +554,7 @@ test('Where results live offers its own schema, falls back to the Inspire databa
     await goToStep(page, 'Data');
     assert.equal(await page.getByLabel('Output table').count(), 0, 'the result table left the Data step');
     await dataToResults(page);
+    await openRow(page, 'result table');
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     await step.getByRole('heading', { name: 'Where should the result table live?' }).waitFor();
     const place = step.getByRole('group', { name: 'Result table catalog and schema' });
@@ -624,6 +627,7 @@ test('A person who may create schemas gets the use case its own schema: Next cre
   try {
     await goToStep(page, 'Data');
     await dataToResults(page);
+    await openRow(page, 'result table');
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
     await places.locator('[data-option="own"] [data-recommended]').waitFor();
@@ -654,6 +658,7 @@ test('A schema of the same name that is not this use case\'s: the wizard says so
   try {
     await goToStep(page, 'Data');
     await dataToResults(page);
+    await openRow(page, 'result table');
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
     assert.equal(await places.getByRole('radio', { name: /Its own schema/ }).isChecked(), true);
@@ -685,6 +690,7 @@ test('A re-run of this Inspire database finds the use case\'s schema from sessio
   try {
     await goToStep(page, 'Data');
     await dataToResults(page);
+    await openRow(page, 'result table');
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
     assert.equal(await places.getByRole('radio', { name: /Its own schema/ }).isChecked(), true);
@@ -713,6 +719,7 @@ test('When the use case\'s name and every suffixed name hold other use cases, th
   try {
     await goToStep(page, 'Data');
     await dataToResults(page);
+    await openRow(page, 'result table');
     const step = page.getByRole('region', { name: 'Where the result table lives' });
     const places = step.getByRole('radiogroup', { name: 'Where the tables go' });
     await step.getByRole('note', { name: 'Where the tables go note' })
@@ -1093,7 +1100,8 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await goToStep(page, 'App look');
     await measure(page, '5-app-pages');
     await readable('app pages');
-    await goToStep(page, 'App pages');
+    await goToStep(page, 'App features');
+    await openRow(page, 'what people can do in the App');
     await page.getByRole('region', { name: 'App features' }).getByRole('checkbox', { name: /^Let people edit data/ }).check();
     await goToStep(page, 'App look');
     await page.locator('[data-swatch="mono"]').waitFor({ state: 'attached' });
@@ -1102,10 +1110,12 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
       await lookTabs.getByRole('tab', { name, exact: true }).click();
       await readable(`app look ${name.toLowerCase()}`);
     }
+    await goToStep(page, 'Keep it fresh');
+    await openRow(page, 'Keep it fresh');
+    await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
     await goToStep(page, 'Run it');
     const holdout = page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back a share of records/ });
     await holdout.waitFor();
-    await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
     await fits('6-run-it');
     await readable('run it');
     await goToStep(page, 'Review & build');

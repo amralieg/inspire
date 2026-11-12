@@ -256,7 +256,7 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 
 const STEP_HOLDING = {
   'Use case': 'Data & results', Data: 'Data & results', Results: 'Data & results', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Who uses the App', 'App placement': 'Where it lives', 'App access': 'Who uses the App',
-  'App features': 'Where it lives', 'App pages': 'Where it lives', 'App look': 'App look', Measure: 'Measure', 'Measure impact': 'Run it', 'Keep it fresh': 'Run it', Vibes: 'Review & build',
+  'App features': 'Who uses the App', 'App pages': 'Where it lives', 'App look': 'App look', Measure: 'Measure', 'Measure impact': 'Run it', 'Keep it fresh': 'Data & results', Vibes: 'Review & build',
 };
 const exactly = (label) => {
   const body = label === 'Data & results' ? 'Data(?: & results)?' : label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -290,6 +290,15 @@ export async function stepsAre(page, expected) {
 
 export async function openAdvanced(page, what = 'data settings') {
   await page.getByRole('button', { name: `Change ${what}`, exact: true }).click();
+}
+
+export async function openRow(page, what) {
+  const row = page.getByRole('button', { name: `Change ${what}`, exact: true });
+  if (await row.count()) await row.click();
+}
+
+export async function openAllRows(page) {
+  for (const row of await page.locator('[data-wizard-body] button[aria-expanded="false"][aria-label^="Change "]').all()) await row.click();
 }
 
 export const BUILD_IT = 'All Good, Build it Now';
@@ -336,7 +345,9 @@ async function nextUntil(page, part) {
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const steps = page.locator('[data-wizard-header] ol li');
-  for (let i = 0; i < (await steps.count()) && !isStep(await current.innerText(), label); i += 1) {
+  for (let i = 0; i < 30 && !isStep(await current.innerText(), label); i += 1) {
+    const moneyNext = page.locator('[data-money-next]');
+    if (await moneyNext.count() && await moneyNext.isVisible()) { await moneyNext.click(); continue; }
     const from = await current.innerText();
     await page.getByRole('button', { name: 'Next' }).click({ timeout: 15000 });
     try {

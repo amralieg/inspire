@@ -45,7 +45,7 @@ function Delta({ kpi, data, scope }) {
   );
 }
 
-export default function Kpis({ page, data, errors, loading, plan, scope, label = 'Key numbers' }) {
+export default function Kpis({ page, data, errors, loading, plan, scope, moneyNote = '', label = 'Key numbers' }) {
   const retry = useRetry();
   const fold = useFold('kpis');
   const shared = useSharedFailure();
@@ -56,6 +56,7 @@ export default function Kpis({ page, data, errors, loading, plan, scope, label =
   const strip = (
     <>
     {scope?.text && <p className="kpi-scope scope-banner" data-scope-banner>{scope.text}</p>}
+    {moneyNote && <p className="kpi-scope scope-banner" data-money-note>{moneyNote}</p>}
     <section className="kpis" aria-label={label} data-n={entries.length} data-tour="kpis">
       {entries.map((entry) => {
         if (entry.block) return <Block key={entry.key} block={entry.block} tile />;

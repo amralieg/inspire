@@ -46,7 +46,7 @@ async function overflowing(page) {
 
 async function walk(page, name, actions = {}) {
   const seen = [];
-  for (let i = 0; i < 12; i += 1) {
+  for (let i = 0; i < 20; i += 1) {
     await settle(page);
     const step = await current(page);
     if (actions[step]) {
@@ -56,6 +56,7 @@ async function walk(page, name, actions = {}) {
     const text = await page.locator('[role="dialog"]').innerText();
     seen.push({ step, text, overflow: await overflowing(page) });
     if (DUMP) await page.screenshot({ path: `${DUMP}/${name}-${i + 1}.png` });
+    while (await page.locator('[data-money-next]').count() && await page.locator('[data-money-next]').isVisible()) { await page.locator('[data-money-next]').click(); await settle(page); }
     const next = page.getByRole('button', { name: 'Next', exact: true });
     if (!(await next.count()) || step === 'Review & build') break;
     if (await next.isDisabled()) {
@@ -409,9 +410,14 @@ async function summaryText(page) {
 }
 
 async function toSummary(page) {
-  for (let i = 0; i < 12 && (await current(page)) !== 'Review & build'; i += 1) {
+  for (let i = 0; i < 20 && (await current(page)) !== 'Review & build'; i += 1) {
     await settle(page);
     const was = await current(page);
+    const moneyNext = page.locator('[data-money-next]');
+    if (was === 'Measure' && await moneyNext.count() && await moneyNext.isVisible()) {
+      await moneyNext.click();
+      continue;
+    }
     await page.getByRole('button', { name: /^(Next|Back to Summary)$/ }).click();
     await settle(page);
     assert.notEqual(await current(page), was, `Next did not leave ${was}`);

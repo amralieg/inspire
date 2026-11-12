@@ -37,7 +37,7 @@ export const CHANGE_LABEL = 'Change';
 
 const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery'] };
 const WHERE_STEP = { id: 'where', label: WHERE_LABEL, sections: ['app_place', 'app_pages'], advanced: [], panels: ['app_place', 'app_pages'] };
-const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case', 'data', 'configure', 'results', 'fresh'], advanced: ['data', 'configure'], panels: ['data', 'results', 'fresh'] };
+const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case', 'data', 'configure', 'results', 'fresh'], advanced: ['data', 'configure', 'results', 'fresh'], panels: ['data', 'results', 'fresh'] };
 export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
 export const MEASURE_STEP = { id: 'stake', label: MEASURE_LABEL, sections: [], advanced: [], panels: ['stake'] };
 
@@ -1811,8 +1811,11 @@ export function stepErrors(step, spec, extras = {}, mode = 'mvp') {
   return stepOf(step, mode, spec, extras.scopeSteps).sections.flatMap((section) => sectionErrors(section, spec, extras));
 }
 
-export function advancedErrors(step, spec, extras = {}, mode = 'mvp') {
-  return stepOf(step, mode, spec, extras.scopeSteps).advanced.flatMap((section) => sectionErrors(section, spec, extras));
+export const ADVANCED_WRAPPER = { configure: 'data', app_owners: 'delivery', alert: 'delivery' };
+
+export function advancedWithErrors(step, spec, extras = {}, mode = 'mvp') {
+  const hidden = stepOf(step, mode, spec, extras.scopeSteps).advanced.filter((section) => sectionErrors(section, spec, extras).length > 0);
+  return [...new Set(hidden.map((section) => ADVANCED_WRAPPER[section] || section))];
 }
 
 export const APP_LOOK_LISTS = { style: 'styles', layout: 'layouts', palette: 'palettes', theme: 'themes' };
