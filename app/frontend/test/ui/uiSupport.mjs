@@ -345,7 +345,9 @@ async function nextUntil(page, part) {
   const current = page.locator('[aria-current="step"]');
   await current.waitFor({ timeout: 15000 });
   const steps = page.locator('[data-wizard-header] ol li');
-  for (let i = 0; i < (await steps.count()) && !isStep(await current.innerText(), label); i += 1) {
+  for (let i = 0; i < 30 && !isStep(await current.innerText(), label); i += 1) {
+    const moneyNext = page.locator('[data-money-next]');
+    if (await moneyNext.count() && await moneyNext.isVisible()) { await moneyNext.click(); continue; }
     const from = await current.innerText();
     await page.getByRole('button', { name: 'Next' }).click({ timeout: 15000 });
     try {

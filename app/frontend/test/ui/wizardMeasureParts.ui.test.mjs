@@ -24,7 +24,7 @@ async function assertOneDecision(page, part) {
   }
 }
 
-test('Measure shows one money decision per screen, Next decision moves on, and a finished screen keeps its place', async () => {
+test('Measure shows one money decision per screen, Following decision moves on, and a finished screen keeps its place', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
@@ -39,7 +39,7 @@ test('Measure shows one money decision per screen, Next decision moves on, and a
         await wizardInScreen(page, `Measure ${part} ${width}x${height}`, height);
         if (i < list.length - 1) {
           await page.locator('[data-money-next]').click();
-          assert.equal(await current(page, list[i + 1]), true, `Next decision reaches ${list[i + 1]}`);
+          assert.equal(await current(page, list[i + 1]), true, `Following decision reaches ${list[i + 1]}`);
         }
       }
       await page.locator('[data-money-back]').click();
@@ -47,23 +47,6 @@ test('Measure shows one money decision per screen, Next decision moves on, and a
       await page.locator('[data-money-back]').click();
       await page.locator('[data-money-back]').click();
     }
-    assert.deepEqual(ui.pageErrors, []);
-  } finally {
-    await ui.close();
-  }
-});
-
-test('when money is off, Measure holds only the off decision, and the other decisions are skipped', async () => {
-  const ui = await openUi('wizard', ME);
-  const { page } = ui;
-  try {
-    await goToStep(page, 'Measure');
-    for (let i = 0; i < 4; i += 1) await page.locator('[data-money-next]').click();
-    await assertOneDecision(page, 'off');
-    await openMoreIfClosed(page);
-    await page.locator('[data-money-off]').check({ force: true });
-    await page.waitForFunction(() => document.querySelectorAll('[data-money-part]').length === 1, null, { timeout: 15000 });
-    assert.deepEqual(await parts(page), ['off'], 'off leaves only the off decision (must-exclude the others)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

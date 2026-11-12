@@ -51,6 +51,24 @@ test('a blocked Next opens the result table row, so the message sits beside the 
   }
 });
 
+test('a blocked Next opens the delivery settings that hold the alert problem', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await goToStep(page, 'What to deliver');
+    await page.getByRole('checkbox', { name: /^Alert/ }).check();
+    await openRow(page, 'delivery settings');
+    await page.getByLabel('Email recipients (comma separated)').fill('not-an-email');
+    await page.getByRole('button', { name: 'Close delivery settings', exact: true }).click();
+    assert.equal(await page.getByRole('button', { name: 'Close delivery settings', exact: true }).count(), 0, 'the delivery settings are closed before Next');
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    await page.getByRole('button', { name: 'Close delivery settings', exact: true }).waitFor();
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('Where it lives opens the App placement, and App pages sit behind a Change row', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;

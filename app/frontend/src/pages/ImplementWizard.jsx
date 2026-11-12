@@ -1881,7 +1881,7 @@ export default function ImplementWizard({
             <MoneyRuleEditor part={moneyParts[moneyActive]} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
             <div className="flex items-center justify-between pt-1">
               {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
-              {moneyActive < moneyParts.length - 1 && <button type="button" data-money-next="" onClick={() => setMoneyPart(moneyActive + 1)} className="text-xs font-medium text-db-red-fg">Next decision</button>}
+              {moneyActive < moneyParts.length - 1 && <button type="button" data-money-next="" onClick={() => setMoneyPart(moneyActive + 1)} className="text-xs font-medium text-db-red-fg">Following decision</button>}
             </div>
           </section>
         )}

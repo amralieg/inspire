@@ -1811,8 +1811,11 @@ export function stepErrors(step, spec, extras = {}, mode = 'mvp') {
   return stepOf(step, mode, spec, extras.scopeSteps).sections.flatMap((section) => sectionErrors(section, spec, extras));
 }
 
+export const ADVANCED_WRAPPER = { configure: 'data', app_owners: 'delivery', alert: 'delivery' };
+
 export function advancedWithErrors(step, spec, extras = {}, mode = 'mvp') {
-  return stepOf(step, mode, spec, extras.scopeSteps).advanced.filter((section) => sectionErrors(section, spec, extras).length > 0);
+  const hidden = stepOf(step, mode, spec, extras.scopeSteps).advanced.filter((section) => sectionErrors(section, spec, extras).length > 0);
+  return [...new Set(hidden.map((section) => ADVANCED_WRAPPER[section] || section))];
 }
 
 export const APP_LOOK_LISTS = { style: 'styles', layout: 'layouts', palette: 'palettes', theme: 'themes' };
