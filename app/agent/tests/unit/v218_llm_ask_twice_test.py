@@ -154,7 +154,7 @@ def _signal(agent_ns, building, failures):
     inst._load_elite_evidence = lambda fresh: {}
     inst._signal_spec = lambda uc, answer, evidence: ({"check": "none", "family": "none"}, str(answer))
     inst._uc_table_refs = lambda uc: []
-    inst._signal_record = lambda deep, spec, reason, profiles: reason
+    inst._signal_record = lambda deep, spec, reason, profiles, use_case=None: reason
 
     def ask(pending, schema_details, skip_cache, evidence):
         asked.append(([uc["No"] for uc in pending], skip_cache))

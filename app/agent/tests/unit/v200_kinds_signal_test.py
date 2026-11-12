@@ -306,7 +306,7 @@ def test_every_mode_reads_the_data_for_each_kind_check(agent_ns, mode):
     inst, _agent, spark = deep_inspire(agent_ns, answers, rows, discovery_type=mode)
     kept, dropped = inst._check_data_signal(kind_use_cases(), [])
     assert kept == [] and [u["No"] for u in dropped] == ["N01-U01", "N01-U02", "N01-U03", "N01-U04", "N01-U05"]
-    assert "1.5 seasonal cycles" in dropped[0]["selection_drop_reason"]
+    assert "Too few usable rows were found for this use case (18); at least 60 are needed." in dropped[0]["selection_drop_reason"]
     assert "too few distinct steps (2)" in dropped[3]["selection_drop_reason"]
     assert spark.statements, "both modes read aggregates of the data"
 
