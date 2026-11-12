@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, openUi, wizardInScreen } from './uiSupport.mjs';
+import { closeBrowser, goToStep, openUi, shot, wizardInScreen } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -83,6 +83,32 @@ test('Periods and statuses shows its two text boxes on screen, without opening M
     assert.equal(await visible(page, '[data-money-statuses]'), true, 'the Statuses box is on screen with More options closed (REQ-004)');
     await closed.fill('2');
     assert.equal(await closed.inputValue(), '2', 'the Closed periods box takes a typed value');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Measure method radios sit one per row, each label laid out as a row, and read at 1280 wide (REQ-089)', async () => {
+  const ui = await openUi('wizard', ME);
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Measure');
+    await page.locator('[data-measure-method]').first().waitFor();
+    for (const [width, height] of [[1280, 800], [1440, 900]]) {
+      await page.setViewportSize({ width, height });
+      const rows = await page.locator('[data-measure-method]').evaluateAll((els) => els.map((el) => {
+        const r = el.getBoundingClientRect();
+        return { display: getComputedStyle(el).display, top: r.top, bottom: r.bottom, left: r.left, right: r.right, radioTop: el.querySelector('input').getBoundingClientRect().top };
+      }));
+      assert.ok(rows.length >= 2, 'the method radios are listed');
+      for (const [i, row] of rows.entries()) {
+        assert.equal(row.display, 'flex', `method ${i} is a row, not a stacked grid (REQ-089) at ${width}`);
+        assert.ok(row.right - row.left > 200, `method ${i} has room to read at ${width}`);
+        if (i > 0) assert.ok(row.top >= rows[i - 1].bottom - 1, `method ${i} sits on its own line below method ${i - 1} at ${width}`);
+      }
+      await shot(page, `measure-methods-${width}x${height}`, false);
+    }
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

@@ -190,7 +190,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
       <fieldset className="space-y-2" data-measure-value>
         <legend className="text-[13px] font-semibold text-text-primary">How does your business measure the value of each record?</legend>
         {METHODS.map((m) => (
-          <label key={m.id} className="flex items-start gap-2 cursor-pointer" data-measure-method={m.id}>
+          <label key={m.id} className="!flex items-start gap-2 cursor-pointer" data-measure-method={m.id}>
             <input type="radio" name="measure-method" className="mt-1" checked={pick.method === m.id} onChange={() => setPickPart({ method: m.id })} data-money-method={m.id} />
             <span className="text-[12px]"><span className="font-medium text-text-primary">{m.label}</span><span className="block text-text-secondary">{m.hint}</span></span>
           </label>
@@ -240,9 +240,9 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         <div className="space-y-2 text-[12px]" data-money-value-currency>
           <p className="font-medium text-text-primary">Currency of those values</p>
           {hasCurrencyColumn && (
-            <label className="flex items-center gap-2"><input type="radio" name="value-currency-by" checked={pick.currencyBy === 'column'} onChange={() => setPickPart({ currencyBy: 'column', currencyColumn: pick.currencyColumn || sample.currency })} data-money-value-currency-by="column" /> Each record has its own currency column</label>
+            <label className="!flex items-center gap-2"><input type="radio" name="value-currency-by" checked={pick.currencyBy === 'column'} onChange={() => setPickPart({ currencyBy: 'column', currencyColumn: pick.currencyColumn || sample.currency })} data-money-value-currency-by="column" /> Each record has its own currency column</label>
           )}
-          <label className="flex items-center gap-2"><input type="radio" name="value-currency-by" checked={pick.currencyBy !== 'column'} onChange={() => setPickPart({ currencyBy: 'code' })} data-money-value-currency-by="code" /> One currency for all records</label>
+          <label className="!flex items-center gap-2"><input type="radio" name="value-currency-by" checked={pick.currencyBy !== 'column'} onChange={() => setPickPart({ currencyBy: 'code' })} data-money-value-currency-by="code" /> One currency for all records</label>
           {pick.currencyBy === 'column' && <label>Currency column <input dir="auto" className="ms-2" value={pick.currencyColumn} onChange={(e) => setPickPart({ currencyColumn: e.target.value })} data-money-value-currency-column /></label>}
           {pick.currencyBy !== 'column' && <label>Currency code <input dir="auto" className="ms-2 w-24" value={pick.code} onChange={(e) => setPickPart({ code: e.target.value })} data-money-value-code /></label>}
         </div>
@@ -262,7 +262,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
       <fieldset className="space-y-2" data-measure-direction>
         <legend className="text-[13px] font-semibold text-text-primary">Which movement counts?</legend>
         {DIRECTIONS.map((d) => (
-          <label key={d.id} className="flex items-start gap-2 cursor-pointer">
+          <label key={d.id} className="!flex items-start gap-2 cursor-pointer">
             <input type="radio" name="measure-direction" className="mt-1" disabled={d.id === 'gains' && !draft.sign} checked={(draft.rule || 'losses') === d.id} onChange={() => setDraftPart({ rule: d.id })} data-money-rule-kind={d.id} />
             <span className="text-[12px]"><span className="font-medium text-text-primary">{d.label}</span><span className="block text-text-secondary">{d.hint}</span></span>
           </label>
@@ -273,13 +273,13 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         {show('direction') && (
         <fieldset className="space-y-2 text-[12px]" data-measure-sign>
           <legend className="text-[13px] font-semibold text-text-primary">Which records are gains?</legend>
-          <label className="flex items-start gap-2"><input type="radio" name="measure-sign" checked={signPick.kind === 'column'} onChange={() => setSignPick({ ...signPick, kind: 'column' })} data-money-sign-kind="column" /> <span>A column: its positive values are gains</span></label>
+          <label className="!flex items-start gap-2"><input type="radio" name="measure-sign" checked={signPick.kind === 'column'} onChange={() => setSignPick({ ...signPick, kind: 'column' })} data-money-sign-kind="column" /> <span>A column: its positive values are gains</span></label>
           {signPick.kind === 'column' && (
             <label className="block">Column <select className="ms-2" value={signPick.column} onChange={(e) => pickSign({ column: e.target.value })} data-money-sign-column>
               <option value="">Pick a column</option>{columns.map((name) => <option key={name} value={name}>{name}</option>)}
             </select></label>
           )}
-          <label className="flex items-start gap-2"><input type="radio" name="measure-sign" checked={signPick.kind === 'status'} onChange={() => setSignPick({ ...signPick, kind: 'status' })} data-money-sign-kind="status" /> <span>A status value marks a gain</span></label>
+          <label className="!flex items-start gap-2"><input type="radio" name="measure-sign" checked={signPick.kind === 'status'} onChange={() => setSignPick({ ...signPick, kind: 'status' })} data-money-sign-kind="status" /> <span>A status value marks a gain</span></label>
           {signPick.kind === 'status' && (
             <div className="space-y-1">
               <label className="block">Status column <select className="ms-2" value={signPick.column} onChange={(e) => pickSign({ column: e.target.value })} data-money-sign-status-column>
@@ -339,7 +339,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         </div>
       </details>
       )}
-      {show('off') && <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" checked={draft.off} onChange={(e) => setDraftPart({ off: e.target.checked })} data-money-off /> Off: show no money total, chart or Genie money answer</label>}
+      {show('off') && <label className="!flex items-center gap-2 text-[12px]"><input type="checkbox" checked={draft.off} onChange={(e) => setDraftPart({ off: e.target.checked })} data-money-off /> Off: show no money total, chart or Genie money answer</label>}
       {!effective.method && <p className="text-[12px] text-text-secondary" data-money-genie-estimate>Until you choose how to measure value, the totals are Genie estimate, not your rule.</p>}
       {!draft.base && <p className="text-[12px] text-text-secondary" data-money-base-needed>Pick the reporting currency: every amount is reported in it.</p>}
       {sentence && <p className="sentence text-[12px] text-text-primary" data-money-sentence>{sentence}</p>}

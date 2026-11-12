@@ -8,7 +8,7 @@ import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeas
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. Page storage', '9. App look', '10. Run it', '11. Review & build'];
+const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Run it', '8. Review & build'];
 const NO_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Run it', '6. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const builtLine = (page) => page.locator('[data-built-sentence]').innerText();
@@ -110,15 +110,15 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     await page.getByRole('region', { name: 'App placement' }).waitFor();
     await page.locator('input[name="app-place"]').first().waitFor();
     await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
-    assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'who sees which rows waits for its own step (must-exclude)');
+    assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 1, 'who sees which rows shares Where it lives, the one App step (REQ-002)');
     await onePerQuestion(page, 'Where it lives');
     await shot(page, '06-where', false);
     await goToStep(page, 'Who uses the App');
     await page.getByRole('region', { name: 'App access' }).waitFor();
-    assert.equal(await page.locator('input[name="app-place"]').count(), 0, 'where the App goes was picked on Where it lives (must-exclude)');
-    assert.equal(await page.getByLabel('App name').count(), 0, 'and so was its name (must-exclude)');
+    assert.ok(await page.locator('input[name="app-place"]').count() > 0, 'where the App goes stays on Where it lives, the one App step (REQ-002)');
+    assert.ok(await page.getByLabel('App name').count() > 0, 'and so does its name (REQ-002)');
     await onePerQuestion(page, 'Who uses the App');
-    assert.equal(await page.getByRole('region', { name: 'App features' }).count(), 0, 'the pages and look wait for their own step (must-exclude)');
+    assert.equal(await page.getByRole('region', { name: 'App features' }).count(), 0, 'App features stay closed until their row opens');
     const dialogWords = await page.locator('[role="dialog"]').evaluate((el) => { const copy = el.cloneNode(true); copy.querySelectorAll('[data-app-speed]').forEach((n) => n.remove()); return copy.textContent; });
     assert.doesNotMatch(dialogWords, /service principal|Lakebase/i, 'no internals in view outside the storage choice');
     assert.ok((await page.locator('[role="dialog"]').innerText()).split(/could not check/i).length <= 2, 'one sentence says what Inspire could not check');
@@ -127,7 +127,7 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     await openRow(page, 'App pages');
     await page.getByRole('region', { name: 'App pages' }).waitFor();
     assert.ok(await page.locator('input[name="app-place"]').count() > 0, 'the App placement sits on Where it lives, with the App pages (the pages are on the same step)');
-    assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'and access on Who uses the App (must-exclude)');
+    assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 1, 'and access sit on the same Where it lives step (REQ-002)');
     await onePerQuestion(page, 'App pages');
     await shot(page, '08-app-pages', false);
     await goToStep(page, 'App look');

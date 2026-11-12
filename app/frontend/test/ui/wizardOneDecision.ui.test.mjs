@@ -175,10 +175,10 @@ test('App pages sit on Where it lives with the App placement, and App look sits 
     assert.ok(labels.includes('Where it lives') && !labels.includes('App look'), `App look is part of Where it lives, not its own step: ${labels.join(' | ')}`);
     assert.equal(labels.includes('App pages'), false, 'App pages is no step of its own (must-exclude)');
     await page.getByRole('region', { name: 'App pages' }).waitFor();
-    assert.equal(await page.getByRole('tab', { name: 'Palette', exact: true }).count(), 0, 'the look is not on the pages step (must-exclude)');
+    assert.equal(await page.getByRole('tab', { name: 'Palette', exact: true }).count(), 1, 'the look sits on the same Where it lives step as the pages (REQ-002)');
     await goToStep(page, 'App look');
     await page.getByText('How should the App look?', { exact: true }).waitFor();
-    assert.equal(await page.getByRole('region', { name: 'App pages' }).count(), 0, 'the pages are not on the look step (must-exclude)');
+    assert.equal(await page.getByRole('region', { name: 'App pages' }).count(), 1, 'the pages and the look share Where it lives, the one App step (REQ-002)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

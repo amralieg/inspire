@@ -8,7 +8,9 @@ test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
 const STATE = { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } };
-const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. Page storage', '9. App look', '10. Run it', '11. Review & build'];
+const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Run it', '8. Review & build'];
+// Who uses the App and App look are picked on Where it lives, the one App step (REQ-002)
+const SUB = { 'Where it lives': ['Who uses the App', 'App look'] };
 const next = async (page) => {
   while (await page.locator('[data-money-next]').count() && await page.locator('[data-money-next]').isVisible()) await page.locator('[data-money-next]').click();
   await page.getByRole('button', { name: 'Next' }).click();
@@ -79,12 +81,13 @@ test('a person\u2019s own picks on every step survive a reload, the wizard reope
     for (const step of WITH_APP.map((s) => s.replace(/^\d+\.\s*/, ''))) {
       await onStep(page, step);
       await settleChoices(page);
-      if (PICKS[step]) kept[step] = await PICKS[step].pick(page);
-      if (PICKS[step]) {
+      const picked = SUB[step] || (PICKS[step] ? [step] : []);
+      for (const name of picked) kept[name] = await PICKS[name].pick(page);
+      if (picked.length) {
         await reloadOn(page, step);
         assert.equal(await draftNote(page).locator('span').first().innerText(), DRAFT_BACK_NOTE, `${step}: the wizard says the picks are back`);
         await stepsAre(page, WITH_APP);
-        if (PICKS[step]) assert.deepEqual(await PICKS[step].read(page), [kept[step]], `${step}: the pick survives the reload`);
+        for (const name of picked) assert.deepEqual(await PICKS[name].read(page), [kept[name]], `${name}: the pick survives the reload`);
         assert.equal((await drafts(page)).length, 1, 'one draft for this use case');
       }
       if (step !== 'Review & build') await next(page);

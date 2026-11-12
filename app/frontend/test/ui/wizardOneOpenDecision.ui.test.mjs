@@ -173,7 +173,7 @@ test('the step list jumps to a finished step and Back returns to the step before
     await goToStep(page, 'Data');
     await goToStep(page, 'Who uses the App');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
-    await onStep(page, 'Where it lives');
+    await onStep(page, 'Measure');
     await page.locator('[data-step-go="delivery"]').click();
     await onStep(page, 'What to deliver');
     assert.deepEqual(ui.pageErrors, []);

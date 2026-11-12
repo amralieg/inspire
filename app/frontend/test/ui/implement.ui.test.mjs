@@ -73,7 +73,7 @@ function submittedSpec(made) {
 test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
-  const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build'];
+  const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Run it', '7. Review & build'];
   try {
     await goToStep(page, 'Data');
     await stepsAre(page, withApp);
@@ -98,7 +98,7 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     await stepsAre(page, withApp);
     await goToStep(page, 'Where it lives');
     await page.getByRole('region', { name: 'App placement' }).waitFor();
-    assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'where the App goes is on Where it lives, who sees which rows waits for its own step');
+    assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 1, 'where the App goes is on Where it lives, and who sees which rows is on the same step (REQ-002)');
     await goToStep(page, 'What to deliver');
     await page.getByRole('checkbox', { name: /^Dashboard/ }).check();
     await page.getByRole('checkbox', { name: /^Alert/ }).check();
@@ -2000,7 +2000,7 @@ test('with a Genie Code route, the wizard walks the MVP steps and no note shows'
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
     await goToStep(ui.page, 'Data');
-    await stepsAre(ui.page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build']);
+    await stepsAre(ui.page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Run it', '7. Review & build']);
     assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
   } finally {
     await ui.close();
