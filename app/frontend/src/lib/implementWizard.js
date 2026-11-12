@@ -2845,6 +2845,17 @@ export const APP_READ_ACTION = 'Let Inspire read these tables';
 
 export const SOURCE_REFUSED_REASON = 'The App cannot read its sources yet, so the build cannot start. Grant access first, then build.';
 
+export const SOURCE_SAMPLES_REFUSED_REASON = 'The source is a built-in sample, so the App cannot read it. Copy the table first, then build.';
+
+export function samplesOnlyRefusal(offer) {
+  const builtin = offer?.builtin || [];
+  return builtin.length > 0 && (offer.tables || []).every((t) => builtin.includes(t));
+}
+
+export function sourceRefusedReason(offer) {
+  return samplesOnlyRefusal(offer) ? SOURCE_SAMPLES_REFUSED_REASON : SOURCE_REFUSED_REASON;
+}
+
 export const ACCESS_CHECKING = 'Checking access';
 export const ACCESS_UNKNOWN = 'Could not check access';
 

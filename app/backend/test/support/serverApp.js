@@ -37,7 +37,7 @@ const state = {
 function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
-    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
+    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
     createdJob: null, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);

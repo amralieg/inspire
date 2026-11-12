@@ -31,6 +31,7 @@ test('a whole catalog picked next to a schema of another catalog stays in scope,
     assert.match(await pickedLine(page).innerText(), /1 schema, 1 catalog/);
     assert.match(await page.getByText('Metadata Selected', { exact: true }).locator('xpath=..').innerText(), /1 schema, 1 catalog/);
     assert.equal(await page.getByText(/^The whole catalog samples is in scope/).count() > 0, true, 'the catalog picked whole still warns that it is read whole');
+    await page.locator('[data-samples-descriptions]').click();
     const params = await launchOf(page, made);
     assert.equal(params['01_uc_metadata'], 'main.s,samples');
     assert.equal(params['04_table_election'], 'Let Inspire Decides', 'no table is picked, so the default table choice stays');
