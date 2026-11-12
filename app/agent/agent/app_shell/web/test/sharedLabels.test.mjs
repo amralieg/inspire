@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { columnValuesIn, groupAliases, groupValues, groupsOf, setGroupValues, setColumnValueIn } from '../src/filters.js';
+import { apiTables, apiValues, clearColumnValuesIn, columnValuesIn, groupAliases, groupValues, groupsOf, setGroupValues, setColumnValueIn } from '../src/filters.js';
 
 const PASSENGER = { column: 'passenger_profile', label: 'Passenger profile', type: 'multi_select', options: ['P1', 'P2'] };
 const META = {
@@ -39,4 +39,17 @@ test('a label used by one column stays on its own column state, unchanged', () =
   assert.equal(aliases['|possible_duplicate'], undefined);
   const solo = groupsOf(META).find((g) => g.label === 'Possible duplicate');
   assert.equal(solo.page, false);
+});
+
+test('the request carries a shared value as the column filter of every column it stands for, never as an unknown filter id', () => {
+  const shared = groupsOf(META).find((g) => g.label === 'Passenger profile');
+  const bar = setGroupValues(EMPTY, shared, ['P1']);
+  assert.deepEqual(apiTables(bar), { groups: { passenger_profile: ['P1'] } }, 'the table request names its own column');
+  assert.deepEqual(Object.keys(apiValues(bar)), [], 'no label: id goes to the server as a filter');
+  const aliases = groupAliases(META);
+  const table = setColumnValueIn(EMPTY, 'groups', 'passenger_profile', ['P2'], aliases);
+  assert.deepEqual(apiTables(table), { groups: { passenger_profile: ['P2'] } });
+  const cleared = clearColumnValuesIn(bar, null, aliases);
+  assert.deepEqual(apiTables(cleared), {}, 'clearing the bar clears the table column too');
+  assert.deepEqual(columnValuesIn(cleared, 'groups', aliases).passenger_profile, []);
 });

@@ -16,7 +16,7 @@ export function apiValues(state) {
     if (r.preset !== 'all' && r.from && r.to) out[id] = { from: r.from, to: r.to };
   });
   Object.entries(state?.sel || {}).forEach(([id, values]) => {
-    if (values?.length) out[id] = values;
+    if (values?.length && !isSharedId(id)) out[id] = values;
   });
   return out;
 }
@@ -160,6 +160,13 @@ const labelKey = (label) => String(label ?? '').trim().toLowerCase();
 
 export const sharedLabelId = (label) => `label:${labelKey(label)}`;
 
+export const isSharedId = (id) => String(id ?? '').startsWith('label:');
+
+export function setSharedValues(state, aliases, id, values) {
+  const pairs = Object.entries(aliases || {}).filter(([, v]) => v === id).map(([key]) => key.split('|'));
+  return pairs.reduce((next, [table, column]) => setColumnValue(next, table === '' ? null : table, column, values), setSelection(state, id, values));
+}
+
 function pickColumns(meta) {
   return [...(meta?.columns?.list || []).map((f) => ({ ...f, table: null })),
     ...Object.entries(meta?.columns?.tables || {}).flatMap(([table, list]) => (list || []).map((f) => ({ ...f, table })))]
@@ -188,7 +195,8 @@ export function groupsOf(meta) {
     if (seen.has(key)) return [];
     seen.add(key);
     const id = sharedLabelId(f.label);
-    return [{ key: id, id, label: f.label, filter: { ...f, id, which: { column: f.column } }, table: null, column: null, page: true }];
+    return [{ key: id, id, label: f.label, filter: { ...f, id, which: { column: f.column } }, table: null, column: null, page: true,
+      pairs: columns.filter((c) => labelKey(c.label) === key).map((c) => ({ table: c.table ?? null, column: c.column })) }];
   });
   const all = [...page, ...columnGroups];
   return all.map((g) => ({ ...g, high: !g.filter.grouping && (!!g.filter.searchable || !!g.filter.lazy || (g.filter.options || []).length > HIGH_CARDINALITY) }))
@@ -206,6 +214,7 @@ export function groupValues(state, group) {
 }
 
 export function setGroupValues(state, group, values) {
+  if (group.pairs) return group.pairs.reduce((next, { table, column }) => setColumnValue(next, table, column, values), setSelection(state, group.id, values));
   if (group.page) return setSelection(state, group.id, values);
   return setColumnValue(state, group.table, group.column, values);
 }
@@ -240,6 +249,7 @@ export function columnValuesIn(state, table, aliases) {
 
 export function setColumnValueIn(state, table, column, value, aliases) {
   const id = (aliases || {})[`${table ?? ''}|${column}`];
+  if (isSharedId(id)) return setSharedValues(state, aliases, id, Array.isArray(value) ? value : []);
   if (id) return setSelection(state, id, Array.isArray(value) ? value : []);
   return setColumnValue(state, table, column, value);
 }
@@ -247,6 +257,7 @@ export function setColumnValueIn(state, table, column, value, aliases) {
 export function clearColumnValuesIn(state, table, aliases) {
   const cleared = Object.entries(aliases || {}).reduce((next, [key, id]) => {
     const [t] = key.split('|');
+    if (isSharedId(id)) return next.sel?.[id] ? setSharedValues(next, aliases, id, []) : next;
     return t === String(table ?? '') && next.sel?.[id] ? setSelection(next, id, []) : next;
   }, state);
   return clearColumnValues(cleared, table);
