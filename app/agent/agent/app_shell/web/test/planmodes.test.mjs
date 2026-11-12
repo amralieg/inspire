@@ -389,3 +389,40 @@ test('a review that cannot reload after a version move keeps its series rows and
   await context.close();
   assert.deepEqual(errors.filter((e) => !/Failed to load resource/.test(e)), []);
 });
+
+test('REQ-099: the forecast override Save shows a spinner and Saving… while the save is open', async () => {
+  const { page, context } = await open('forecast', 'work', { ...forecastRoutes([]), ...reviewRoutes({ plan_id: PID, number: 1, label: 'Version 1', status: 'Draft', overrides: [] }, []), 'forecast/override': () => new Promise(() => {}) });
+  try {
+    await page.locator('[data-series="S1"]').waitFor();
+    await page.locator('[data-show="all"]').click();
+    await page.locator('[data-series="S1"] [data-override-open]').click();
+    await page.locator('[data-override-value]').fill('150');
+    await page.locator('[data-override-reason]').fill('Promo week');
+    const save = page.locator('[data-override-save]');
+    await save.click();
+    await page.waitForTimeout(400);
+    const state = await save.evaluate((b) => ({ spinner: !!b.querySelector('.saving-ring'), text: b.textContent.trim() }));
+    assert.equal(state.spinner, true, 'the forecast override Save shows a spinner while it saves');
+    assert.match(state.text, /^Saving/, 'the forecast override Save says Saving while it saves (the host bundle has no charset, so the ellipsis is not compared)');
+  } finally {
+    await context.close();
+  }
+});
+
+test('REQ-099: the approve reason Save shows a spinner and Saving… while the plan move is open', async () => {
+  const versions = versionRoutes('plan', { versions: [{ plan_id: PID, number: 1, label: 'Version 1', status: 'Draft', overrides: [] }] });
+  const { page, context } = await open('plan', 'work', { ...plannerRoutes([], [], { keep: true }), ...versions.routes, 'plans/version': () => new Promise(() => {}) });
+  try {
+    await page.locator('[data-plan-row="K1"]').getByRole('button', { name: 'Accept' }).waitFor();
+    await page.locator('[data-move="approve"]').click();
+    await page.locator('[data-reason-form="approve"] [data-reason]').fill('Fits the oven hours');
+    const save = page.locator('[data-reason-form="approve"] [data-reason-save]');
+    await save.click();
+    await page.waitForTimeout(400);
+    const state = await save.evaluate((b) => ({ spinner: !!b.querySelector('.saving-ring'), text: b.textContent.trim() }));
+    assert.equal(state.spinner, true, 'the approve reason Save shows a spinner while the move is sent');
+    assert.match(state.text, /^Saving/, 'the approve reason Save says Saving while the move is sent (the host bundle has no charset, so the ellipsis is not compared)');
+  } finally {
+    await context.close();
+  }
+});

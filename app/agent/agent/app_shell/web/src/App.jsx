@@ -288,7 +288,7 @@ function Shell({ app, onRefreshSiblings }) {
     if (working && genieOpen) {
       setDock('genie');
       setGenieOpenNow(false);
-    } else if (!working && prefs.dock === 'genie') {
+    } else if (!working && prefs.dock === 'genie' && !genieClosedThisSession()) {
       setGenieOpenNow(true);
     }
   }, [working]);

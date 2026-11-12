@@ -140,3 +140,28 @@ test('a page with no money note shows no money note line', async () => {
   assert.equal(await page.locator('[data-money-note]').count(), 0);
   await context.close();
 });
+
+test('REQ-099: the money rule Save shows a spinner and Saving… while the save is open', async () => {
+  const info = appInfo({ use_case_owners: { 'n01_u05': ['owner@example.com'] } }, 1, { ...TABLE }, 'example_page.json');
+  const record = { saved: null };
+  const { page, context } = await openApp(browser, served.base, info, {
+    width: 1280, height: 800, routes: { settings: settingsRoute(record), 'money/rule': () => new Promise(() => {}) },
+    hash: '#/n01_u05/settings', ready: 'body',
+  });
+  try {
+    await page.waitForSelector('[data-money-rule]', { timeout: 15000 });
+    await page.locator('[data-money-mode="convert"]').check();
+    await page.locator('[data-money-base]').fill('USD');
+    await page.locator('[data-money-rate-code]').first().fill('AED');
+    await page.locator('[data-money-rate]').first().fill('0.27');
+    const save = page.locator('[data-money-save]');
+    await save.click();
+    await page.waitForTimeout(400);
+    const state = await save.evaluate((b) => ({ spinner: !!b.querySelector('.saving-ring'), text: b.textContent.trim(), disabled: b.disabled }));
+    assert.equal(state.spinner, true, 'the money rule Save shows a spinner while it saves');
+    assert.match(state.text, /Saving…/, 'the money rule Save says Saving… while it saves');
+    assert.equal(state.disabled, true, 'the money rule Save cannot be pressed twice');
+  } finally {
+    await context.close();
+  }
+});

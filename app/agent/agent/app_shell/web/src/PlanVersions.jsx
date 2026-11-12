@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import { movePlan } from './api.js';
 import { Icon } from './icons.jsx';
+import { Saving } from './saving.jsx';
 import { PlainNote, SaidNote, useToast } from './ui.jsx';
 import './styles/plan.css';
 import { SectionHelp } from './SectionHelp.jsx';
@@ -34,7 +35,7 @@ export function ReasonForm({ ask, required = true, busy, onSubmit, onCancel, sub
         <textarea dir="auto" rows={2} maxLength={REASON_MAX} required={required} value={text} onChange={(e) => setText(e.target.value)} data-reason />
       </label>
       <small className="muted" aria-live="polite">{text.length}/{REASON_MAX}</small>
-      <button className="btn btn--sm btn--pri" type="submit" disabled={busy || missing} data-reason-save>{submit}</button>
+      <button className="btn btn--sm btn--pri" type="submit" disabled={busy || missing} data-reason-save>{busy ? <Saving /> : submit}</button>
       {onCancel && <button className="btn btn--sm" type="button" onClick={onCancel}>Cancel</button>}
     </form>
   );
