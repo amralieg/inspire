@@ -361,6 +361,43 @@ test('preflight on a first run passes the App when the person can create the use
   });
 });
 
+test('the first run creates the schema the wizard names, even when the session business name names another schema, and the verdict says so (REQ-037, must fail before the fix)', async () => {
+  const ask = `/api/inspire/implement/preflight?${Q}&result_table=main._inspire_n01_u01.n01_u01_results&app_name=&merge_app=&genie=1&dashboard=0`;
+  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp' },
+    warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] } };
+  await withApp({ ...app, statements: { ...schemaRows([RIGHT, ME]), ...outputRows(NOT_CREATED) } }, async (url) => {
+    const got = await call(url, ask);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.checks.output.ok, true, JSON.stringify(got.data.checks.output));
+    assert.match(got.data.checks.output.detail, /the First run creates it$/);
+    assert.equal(got.data.new_app.ok, true, JSON.stringify(got.data.new_app));
+  });
+});
+
+test('a missing schema is refused when the person cannot create schemas, even when it is a name Inspire generates (must-exclude, REQ-037)', async () => {
+  const ask = `/api/inspire/implement/preflight?${Q}&result_table=main._inspire_n01_u01.n01_u01_results&app_name=&merge_app=&genie=1&dashboard=0`;
+  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp' },
+    warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] } };
+  await withApp({ ...app, statements: { ...schemaRows([ME]), ...outputRows(NOT_CREATED) } }, async (url) => {
+    const got = await call(url, ask);
+    assert.equal(got.data.checks.output.ok, false, JSON.stringify(got.data.checks.output));
+    assert.doesNotMatch(got.data.checks.output.detail, /First run creates it/);
+    assert.match(got.data.checks.output.detail, /schema main\._inspire_n01_u01 does not exist or you have no access to it/);
+    assert.equal(got.data.new_app.ok, false);
+  });
+});
+
+test('a missing schema with a name Inspire does not generate is refused even with CREATE SCHEMA (must-exclude, REQ-037)', async () => {
+  const ask = `/api/inspire/implement/preflight?${Q}&result_table=main._sales_n01_u01.n01_u01_results&app_name=&merge_app=&genie=1&dashboard=0`;
+  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp' },
+    warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] } };
+  await withApp({ ...app, statements: { ...schemaRows([RIGHT, ME]), ...outputRows(NOT_CREATED) } }, async (url) => {
+    const got = await call(url, ask);
+    assert.equal(got.data.checks.output.ok, false, JSON.stringify(got.data.checks.output));
+    assert.doesNotMatch(got.data.checks.output.detail, /First run creates it/);
+  });
+});
+
 test('a schema tag value cut to the Unity Catalog length limit never ends with a space', () => {
   const value = `${'a'.repeat(255)} b`;
   const sql = I.useCaseSchemaTagsSql('main', 's', { inspire_business: value, inspire_session_id: '  42  ' });

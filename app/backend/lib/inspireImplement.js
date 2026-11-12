@@ -3376,6 +3376,12 @@ function useCaseSchemaCandidates(inspireDatabase, useCaseId, sessionId, business
   return USE_CASE_SCHEMA_CLASHES.map((clash) => defaultUseCaseResultTable(inspireDatabase, useCaseId, sessionId, businessName, { clash }));
 }
 
+function useCaseOwnSchemas(inspireDatabase, useCaseId, sessionId, businessName) {
+  return [...useCaseSchemaCandidates(inspireDatabase, useCaseId, sessionId, businessName),
+    ...useCaseSchemaCandidates(inspireDatabase, useCaseId, sessionId, '')]
+    .map((table) => { const t = tableParts(table); return `${t.catalog}.${t.schema}`.toLowerCase(); });
+}
+
 function useCaseSchemaOwner(held, { inspireDatabase, useCaseId, sessionId }) {
   const fact = held || {};
   if (!fact.exists && !fact.session && !fact.database && !fact.useCase) return 'free';
@@ -3846,6 +3852,7 @@ module.exports = {
   useCaseSchemaStatement,
   useCaseSchemaEnsure,
   useCaseSchemaCandidates,
+  useCaseOwnSchemas,
   useCaseSchemaFacts,
   useCaseSchemaOwner,
   useCaseSchemaPlace,

@@ -120,3 +120,68 @@ test('the refused source reads as one plain sentence, with GRANT only under Deta
     await ui.close();
   }
 });
+
+const STORED_NO_BUSINESS_TABLE = { ...publishedRow(), spec_json: JSON.stringify({ ...builtSpec(), config: { ...builtSpec().config, result_table: 'main._inspire_n01_u01.n01_u01_results' } }) };
+const NO_SCHEMA_OWN = [
+  { level: 'catalog', privilege: 'OWNER', principal: 'admins', mine: 'false', me: OWNER },
+  { level: 'catalog', privilege: 'USE_CATALOG', principal: 'account users', mine: 'true', me: OWNER },
+];
+const CAN_CREATE_SCHEMA = [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }, { kind: 'me', schema_name: '', value: OWNER }];
+const schemaOwnStatements = (rightRows) => ({
+  'information_schema.schema_tags': (_sql, _params, token) => ({ rows: token === PERSON ? rightRows : [] }),
+  'AS mine, current_user() AS me FROM (': { rows: NO_SCHEMA_OWN },
+});
+
+test('a first build whose result schema does not exist yet reads First run creates it and enables Build (REQ-037, fails before the fix)', async () => {
+  const ui = await walkToSummary({ history: [STORED_NO_BUSINESS_TABLE], tokenKind: 'app', forwardedToken: PERSON,
+    statements: schemaOwnStatements(CAN_CREATE_SCHEMA) }, { change: true });
+  try {
+    const checks = ui.page.locator('[aria-label="Access checks"]');
+    await checks.waitFor({ timeout: 20000 });
+    const plain = await checks.innerText();
+    await ui.page.getByRole('button', { name: 'Change checks and plan', exact: true }).click();
+    const shown = await ui.page.innerText('body');
+    assert.match(shown, /First run creates it/, 'the verdict says the first run creates the schema');
+    assert.doesNotMatch(plain, /does not exist or you have no access/, plain);
+    assert.equal(await ui.page.locator('[data-access-verdict="error"]').count(), 0);
+    const build = ui.page.getByRole('button', { name: BUILD_IT, exact: true });
+    await build.waitFor({ timeout: 20000 });
+    assert.equal(await build.isDisabled(), false, 'the schema the first run creates never blocks Build');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a missing result schema the person cannot create refuses Build with the missing schema named (must-exclude, REQ-037)', async () => {
+  const ui = await walkToSummary({ history: [STORED_NO_BUSINESS_TABLE], tokenKind: 'app', forwardedToken: PERSON,
+    statements: schemaOwnStatements([{ kind: 'me', schema_name: '', value: OWNER }]) }, { change: true });
+  try {
+    const checks = ui.page.locator('[aria-label="Access checks"]');
+    await checks.waitFor({ timeout: 20000 });
+    const plain = await checks.innerText();
+    assert.match(plain, /does not exist or you have no access/, plain);
+    assert.doesNotMatch(plain, /First run creates it/, plain);
+    assert.equal(await ui.page.getByRole('button', { name: BUILD_IT, exact: true }).isDisabled(), true, 'a real denial keeps Build disabled');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a source the App cannot read the metadata of is refused in two plain sentences, with no sentence fragment (REQ-037 negative, fails before the fix)', async () => {
+  const ui = await walkToSummary({ tokenKind: 'app', forwardedToken: PERSON, abacUnreadable: true, abacUnreadableAppOnly: true });
+  try {
+    const checks = ui.page.locator('[aria-label="Access checks"]');
+    await checks.waitFor({ timeout: 20000 });
+    const plain = await checks.innerText();
+    assert.match(plain, /cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them\. The build cannot read (a|\d+) source tables?: /, plain);
+    assert.doesNotMatch(plain, /\. the build/, plain);
+    const build = ui.page.getByRole('button', { name: BUILD_IT, exact: true });
+    assert.ok(await build.count() === 0 || await build.isDisabled(), 'an unreadable source keeps Build off');
+    assert.doesNotMatch(plain, /GRANT |PERMISSION_DENIED/, 'GRANT stays under Details');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

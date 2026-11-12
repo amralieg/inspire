@@ -575,8 +575,11 @@ function registerImplementRoutes(app, deps) {
     const { catalog, schema } = dbOf(req, splitInspireDatabase);
     const sid = sessionIdOf(req);
     const session = await loadSession(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid);
-    const place = await useCaseSchemaOf(req, warehouseId, `${catalog}.${schema}`, sid, useCaseId, session.business_name);
-    return Boolean(place && place.place === 'own' && place.create && I.sameSchema(place.table, table));
+    const own = I.useCaseOwnSchemas(`${catalog}.${schema}`, useCaseId, sid, session.business_name);
+    const asked = I.tableParts(table);
+    if (!own.includes(`${asked.catalog}.${asked.schema}`.toLowerCase())) return false;
+    const { rows } = await useCaseSchemaRows(req, warehouseId, catalog, [asked.schema]);
+    return Boolean(rows) && I.useCaseSchemaFacts(rows).canCreate;
   }
 
   async function useCaseSchemaOf(req, warehouseId, inspireDatabase, sid, useCaseId, businessName) {
