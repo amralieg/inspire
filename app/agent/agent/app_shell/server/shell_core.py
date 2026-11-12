@@ -4148,8 +4148,8 @@ class Shell:
         ws, _who = self.workspace(headers)
         out = ws.genie_message(space, conversation, message, row_limit=GENIE_PREVIEW_ROWS)
         if out.get("state") == "done" and out.get("text"):
-            shaped = shell_agent.shape_answer(out["text"])
-            out = dict(out, text=shell_agent.with_scopes(shaped, [], [shell_agent.genie_note(shaped, out)] if shaped else []))
+            rows = out.get("rows") or []
+            out = dict(out, text=shell_agent.finish_text(out["text"], genie=[{"sql": out.get("sql") or "", "rows": rows}], rows=len(rows)))
         return out
 
     def genie_feedback(self, headers: dict, data: dict) -> dict:
