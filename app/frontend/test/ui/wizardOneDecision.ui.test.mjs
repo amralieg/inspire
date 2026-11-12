@@ -245,11 +245,11 @@ test('the stepper, its numbers and its Step count agree: one step bar, unique la
   }
 });
 
-test('the App access step shows the SQL warehouse as one line with its own Change link, and the picker opens only from it (must-exclude: a block-wide Change line)', async () => {
+test('the Page storage step shows the SQL warehouse as one line with its own Change link, and the picker opens only from it (must-exclude: a block-wide Change line)', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
-    await goToStep(page, 'Who uses the App');
+    await goToStep(page, 'Page storage');
     const row = page.locator('[data-setting="SQL warehouse"]');
     await row.waitFor();
     assert.equal(await page.locator('[data-app-warehouse="pick"]').count(), 0, 'the warehouse picker waits behind its Change link');

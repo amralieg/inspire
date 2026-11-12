@@ -8,7 +8,7 @@ test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
 const STATE = { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } };
-const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. App look', '9. Run it', '10. Review & build'];
+const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. Page storage', '9. App look', '10. Run it', '11. Review & build'];
 const next = async (page) => {
   while (await page.locator('[data-money-next]').count() && await page.locator('[data-money-next]').isVisible()) await page.locator('[data-money-next]').click();
   await page.getByRole('button', { name: 'Next' }).click();

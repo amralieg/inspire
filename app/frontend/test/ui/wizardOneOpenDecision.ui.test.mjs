@@ -91,7 +91,10 @@ test('Who uses the App opens who sees which rows, and what people can do in the 
   const { page } = ui;
   try {
     await goToStep(page, 'Who uses the App');
+    await page.getByRole('region', { name: 'App access' }).waitFor();
+    await goToStep(page, 'Page storage');
     await page.getByRole('group', { name: 'How fast do the App\'s pages open?' }).waitFor();
+    await goToStep(page, 'Who uses the App');
     assert.equal(await page.locator('[data-choice="app-options"]').count(), 0, 'the App features are behind their Change row');
     assert.equal(await changeRow(page, 'what people can do in the App').getAttribute('aria-expanded'), 'false', 'the App features row is closed');
     await changeRow(page, 'what people can do in the App').click();

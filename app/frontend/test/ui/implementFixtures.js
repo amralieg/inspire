@@ -130,3 +130,13 @@ export const GROUPING_PROFILE = {
 };
 export const GROUPING_INSTRUCTION = '## Parameters\n| widget | type | default | allowed | used for |\n|---|---|---|---|---|\n'
   + '| `act_now_share` | text | 0.05 | 0 to 1 | Act now share |\n| `group_by` | text | all | | Data groups |\n| `run_scope` | text | all | | First run |\n';
+
+export const MONEY_PROFILE = {
+  ...GROUPING_PROFILE,
+  money_columns: ['order_id', 'quantity', 'unit_price', 'discount', 'amount', 'currency'],
+  money_sample: { amount: 'amount', currency: 'currency', status: '', rows: [{ amount: 100, currency: 'AED' }, { amount: 50, currency: 'USD' }, { amount: 20, currency: 'EUR' }] },
+};
+export const LIVE_RATES = {
+  base: 'AED', currencies: [{ code: 'AED', records: 40 }, { code: 'USD', records: 9 }, { code: 'EUR', records: 4 }],
+  rates: { USD: 0.272294, EUR: 0.2967 }, sources: { USD: 'today', EUR: 'today' }, missing: [], as_of: '2026-11-11', offline: false, message: '',
+};

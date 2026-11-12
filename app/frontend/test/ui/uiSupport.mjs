@@ -298,7 +298,8 @@ export async function openRow(page, what) {
 }
 
 export async function openAllRows(page) {
-  for (const row of await page.locator('[data-wizard-body] button[aria-expanded="false"][aria-label^="Change "]').all()) await row.click();
+  const closed = page.locator('[data-wizard-body] button[aria-expanded="false"][aria-label^="Change "]');
+  for (let i = 0; i < 20 && await closed.count(); i += 1) await closed.first().click();
 }
 
 export const BUILD_IT = 'All Good, Build it Now';
@@ -592,4 +593,19 @@ export const profileAt = (calls, answer, { status = 200, after = 0 } = {}) => as
 export async function openDetails(page) {
   await page.locator('[data-use-case-details-open]').click();
   return page.getByRole('dialog', { name: /^Use case details: / });
+}
+
+export function stubMoney(path, answerOf, calls) {
+  return async (page) => {
+    await page.route(`**/api/money/${path}`, async (route) => {
+      const body = JSON.parse(route.request().postData() || '{}');
+      calls.push(body);
+      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(answerOf(body)) });
+    });
+  };
+}
+
+export async function goToStorage(page) {
+  await goToStep(page, 'Page storage');
+  return page.getByRole('group', { name: 'How fast do the App\'s pages open?' });
 }

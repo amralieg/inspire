@@ -202,7 +202,7 @@ test('the wizard keeps an empty App warehouse for the build one, labels the fiel
   assert.deepEqual(w.appWarehouseProblems(picked, listed), []);
   assert.deepEqual(w.appWarehouseProblems(w.withAppWarehouse(spec, 'wh7'), listed), ['the SQL warehouse wh7 is not one you can use: pick another for the App']);
   assert.deepEqual(w.appWarehouseProblems(w.withAppWarehouse(spec, 'wh7'), null), [], 'no list yet, so nothing to refuse');
-  assert.deepEqual(w.sectionErrors('app_access', w.withAppWarehouse(spec, 'wh7'), { warehouses: listed }),
+  assert.deepEqual(w.sectionErrors('app_storage', w.withAppWarehouse(spec, 'wh7'), { warehouses: listed }),
     ['the SQL warehouse wh7 is not one you can use: pick another for the App']);
   assert.equal(w.PREFLIGHT_LABELS.app_warehouse, 'App SQL warehouse');
 });
