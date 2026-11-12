@@ -5211,7 +5211,7 @@
   "title_chars": 60,
   "text_chars": 220,
   "least": 5,
-  "most": 12,
+  "most": 18,
   "live": [
    "open_count",
    "top_record",
@@ -5252,7 +5252,12 @@
    "alerts": "the alerts entry, to get an email when a new run finds something",
    "performance": "the performance entry, which shows what was promised and what the actions delivered",
   "runs": "the runs entry, the history of each refresh of this use case and what it found",
-  "settings": "the settings entry, where the target, the measurement and the flagging rules are set"
+  "settings": "the settings entry, where the target, the measurement and the flagging rules are set",
+  "todo": "the What to do now box, the next steps for you in order and how many records are still waiting",
+  "value": "the value line at the top of the page, the number this use case is meant to move and where it stands now",
+  "saved": "the Saved since go-live line, what the actions on this page have saved so far",
+  "feedback": "the Feedback entry, to tell the owners of this use case what is wrong or what you would change",
+  "reports": "the Reported issues entry, every issue sent about this use case and its status"
   },
   "must_name": {
     "actions": ["side panel", "choice"]
@@ -5268,7 +5273,11 @@
    "alerts",
    "performance",
    "runs",
-   "settings"
+   "feedback",
+   "reports",
+   "settings",
+   "value",
+   "saved"
   ],
   "records": [
    "records",
@@ -5279,7 +5288,10 @@
   "layouts": {
    "decision_queue": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5290,11 +5302,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "monitor_triage": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5305,11 +5322,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "scenario_lab": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5320,11 +5342,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "performance_explainer": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5335,11 +5362,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "forecast_cockpit": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5349,11 +5381,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "planner": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5363,11 +5400,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "segment_explorer": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5376,11 +5418,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "recommendation_desk": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5389,11 +5436,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "lift_readout": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5402,11 +5454,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "process_flow": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5415,11 +5472,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "location_view": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5428,11 +5490,16 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "network_explorer": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "records",
@@ -5441,27 +5508,39 @@
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "agent_chat": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "genie",
     "alerts",
     "performance",
     "runs",
+    "feedback",
+    "reports",
     "settings"
    ],
    "dashboard": [
     "decision",
+    "todo",
     "kpis",
+    "value",
+    "saved",
     "view",
     "filters",
     "genie",
     "alerts",
-    "performance"
+    "performance",
+    "feedback",
+    "reports"
    ]
   },
   "rtl": [
@@ -5538,6 +5617,26 @@
      "settings": {
       "title": "Settings",
       "text": "Settings hold the target, how the value is measured and the rules that flag records. Each change is kept with its note."
+     },
+     "todo": {
+      "title": "What to do now",
+      "text": "This box lists your next steps in order and how many records are still waiting for you. Work through them from the top."
+     },
+     "value": {
+      "title": "The value line",
+      "text": "This is the number this use case is meant to move, and where it stands now. The owners set how it is measured in Settings."
+     },
+     "saved": {
+      "title": "Saved since go-live",
+      "text": "This line adds up what the actions on this page have saved since the App went live. It reads none recorded yet until the first saving is logged."
+     },
+     "feedback": {
+      "title": "Feedback",
+      "text": "Tell the owners of this use case what is wrong or what you would change. They read it on the Build page."
+     },
+     "reports": {
+      "title": "Reported issues",
+      "text": "Every issue sent about this use case, with its status, so you can see what the owners have already fixed."
      }
     }
    },

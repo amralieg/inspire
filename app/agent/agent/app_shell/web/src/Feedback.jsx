@@ -109,7 +109,7 @@ export function FeedbackButton({ pageId, context, sections, reports = null }) {
 export function FeedbackScreen({ pageId, context, sections, reports = null }) {
   return (
     <section className="card" aria-label="Feedback" data-feedback-screen>
-      <FeedbackForm pageId={pageId} context={context} sections={sections} reports={reports} />
+      <FeedbackButton pageId={pageId} context={context} sections={sections} reports={reports} />
     </section>
   );
 }
