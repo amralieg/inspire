@@ -643,7 +643,20 @@ def with_scopes(answer: str, clashes: list, notes: list) -> str:
     return "\n\n".join(p for p in parts if p.strip())
 
 
-def listing_note(answer: str, listed, key_numbers: list) -> str:
+DEFAULT_NOUNS = {"record": ["record", "records"], "kpi": ["record", "records"]}
+
+
+def unit_nouns(page: dict) -> dict:
+    kind = str((page or {}).get("kind") or "")
+    found = next((k for k in shell_sql.kinds_registry().get("kinds") or [] if k.get("id") == kind), {})
+    return found.get("nouns") or DEFAULT_NOUNS
+
+
+def counted(number, noun: list) -> str:
+    return f"{shell_sql.shown_number(number)} {noun[0] if number == 1 else noun[1]}"
+
+
+def listing_note(answer: str, listed, key_numbers: list, nouns: dict) -> str:
     total = number_of(listed)
     if total is None or not re.search(rf"(?<![\d.,]){int(total)}(?![\d.,])", answer):
         return ""
@@ -651,17 +664,17 @@ def listing_note(answer: str, listed, key_numbers: list) -> str:
         value, label = number_of(item.get("value")), str(item.get("label") or "").strip()
         if value is None or not label or same_number(value, total):
             continue
-        return (f"{label} {kpi_shown(item, value)} counts {item.get('counts') or 'every row of every run'}; "
-                f"the records listed here number {shell_sql.shown_number(total)}, so they are a different count.")
+        return (f"{counted(total, nouns['record']).capitalize()} listed here; the page KPI {label} counts "
+                f"{counted(value, nouns['kpi'])}.")
     return ""
 
 
-def finish_text(text, question: str = "", key_numbers=None, genie=None, rows: int = 0, listed=None) -> str:
+def finish_text(text, question: str = "", key_numbers=None, genie=None, rows: int = 0, listed=None, nouns=None) -> str:
     content = bullets_to_table(text) if rows_as_bullets(text, rows) else text
     shaped = shape_answer(content)
     clashes, notes = number_scopes(shaped, question, key_numbers or [], genie or [])
     if not clashes and not notes and listed is not None:
-        notes = [n for n in [listing_note(shaped, listed, key_numbers)] if n]
+        notes = [n for n in [listing_note(shaped, listed, key_numbers, nouns or DEFAULT_NOUNS)] if n]
     return with_scopes(shaped, clashes, notes) if shaped else shaped
 
 
@@ -1544,7 +1557,7 @@ class Agent:
         if rows_as_bullets(content, answer_rows(turn)):
             content = bullets_to_table(content)
         final = finish_text(content, job.get("question") or "", job.get("key_numbers"), job.get("genie") or [],
-                            listed=job.get("listed_total"))
+                            listed=job.get("listed_total"), nouns=unit_nouns(job["page"]))
         print(f"[AGENT-ANSWER-SHAPE FIRED] page={turn.page_id} problems={len(problems)} rewritten={rewritten} "
               f"words={words_of(content)}->{words_of(final)}", flush=True)
         return final

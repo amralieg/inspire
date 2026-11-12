@@ -9,6 +9,7 @@ if TESTS not in sys.path:
     sys.path.insert(0, TESTS)
 
 import shell_agent  # noqa: E402
+import shell_sql  # noqa: E402
 from v141_app_shell_test import call  # noqa: E402
 from v211_genie_agent_test import AgentWorkspace, FakeLLM, agent_shell, ask, said, topic_of  # noqa: E402
 
@@ -77,10 +78,32 @@ def test_a_chat_answer_with_bullets_beside_a_table_is_shaped_to_the_lead_and_one
 PROFILE_KPI = [{"label": "Duplicate active passenger profiles", "value": 2.0, "counts": "the current rows of the runs it picked", "scope": "Region: East"}]
 
 
-def test_a_listed_pair_count_that_differs_from_the_page_profile_kpi_names_both_counts():
-    answer = shell_agent.finish_text("There is 1 duplicate pair to act on.", key_numbers=PROFILE_KPI, listed=1)
-    assert answer == ("There is 1 duplicate pair to act on.\n\nDuplicate active passenger profiles 2 counts the current rows of the runs "
-                      "it picked; the records listed here number 1, so they are a different count.")
+def test_a_listed_pair_count_that_differs_from_the_page_profile_kpi_names_both_units():
+    answer = shell_agent.finish_text("There is 1 duplicate pair to act on.", key_numbers=PROFILE_KPI, listed=1,
+                                     nouns=shell_agent.unit_nouns({"kind": "entity_matching"}))
+    assert answer == ("There is 1 duplicate pair to act on.\n\n1 pair listed here; the page KPI Duplicate active passenger profiles "
+                      "counts 2 profiles.")
+
+
+def test_the_entity_matching_kind_declares_pairs_for_its_list_and_profiles_for_its_kpi():
+    nouns = shell_agent.unit_nouns({"kind": "entity_matching"})
+    assert nouns == {"record": ["pair", "pairs"], "kpi": ["profile", "profiles"]}
+    assert shell_agent.unit_nouns({"kind": "no_such_kind"}) == shell_agent.DEFAULT_NOUNS
+
+
+def test_every_kind_in_the_registry_declares_a_singular_and_plural_noun_for_its_list_and_its_kpi():
+    kinds = shell_sql.kinds_registry()["kinds"]
+    assert len(kinds) == 40
+    for kind in kinds:
+        for key in ("record", "kpi"):
+            singular, plural = kind["nouns"][key]
+            assert singular and plural.startswith(singular) and plural.endswith("s"), (kind["id"], key)
+
+
+def test_a_count_of_one_uses_the_singular_noun_and_other_counts_the_plural():
+    assert shell_agent.counted(1, ["pair", "pairs"]) == "1 pair"
+    assert shell_agent.counted(2, ["profile", "profiles"]) == "2 profiles"
+    assert shell_agent.counted(0, ["pair", "pairs"]) == "0 pairs"
 
 
 def test_a_listed_count_that_agrees_with_the_page_kpi_gets_no_different_count_note():
