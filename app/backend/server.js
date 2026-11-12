@@ -2236,9 +2236,14 @@ async function discoverAppAccess(req, scope) {
   }
 }
 
+// The token the App's write check runs with: the App's own token, or in run-as-me the person's (the App acts as the person).
+async function appWriteTokenOf(req) {
+  return (await appOwnToken()) || (runAsPerson() ? req.dbToken : '');
+}
+
 async function outputWriteVerdict(req, writes, { preview = false } = {}) {
   const manager = await routePolicy.managerOf(req).catch(() => ({ manager: false }));
-  const plan = await outputPlan(dbFetch, req, writes, { manager: manager.manager, appToken: await appOwnToken(), appId: SP_CLIENT_ID, preview });
+  const plan = await outputPlan(dbFetch, req, writes, { manager: manager.manager, appToken: await appWriteTokenOf(req), appId: SP_CLIENT_ID, preview });
   return { ...plan, checked: manager.manager ? 'manager' : 'passed' };
 }
 
@@ -3201,7 +3206,7 @@ if (fs.existsSync(STATIC_DIR)) {
 // Pre-warm SP token BEFORE listening so the first request already has a valid token.
 const PORT = process.env.PORT || 8080;
 
-module.exports = { app, registeredRoutes: routePolicyRoutes.registered, getToken, tokenFor, appOwnToken };
+module.exports = { app, registeredRoutes: routePolicyRoutes.registered, getToken, tokenFor, appOwnToken, appWriteTokenOf };
 
 if (require.main === module) (async () => {
   redactCrashes();

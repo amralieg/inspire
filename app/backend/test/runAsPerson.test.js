@@ -108,3 +108,18 @@ test('static: no SQL call in the backend takes the App\'s own token as its token
   }
   assert.deepEqual(offenders, []);
 });
+
+test('run-as-me: the App write check runs with the person\'s token; default mode uses the App token only', async () => {
+  const { appWriteTokenOf } = require('../server');
+  const req = { dbToken: 'person-token' };
+  const saved = process.env.INSPIRE_RUN_AS_PERSON;
+  try {
+    process.env.INSPIRE_RUN_AS_PERSON = '1';
+    assert.equal(await appWriteTokenOf(req), 'person-token');
+    delete process.env.INSPIRE_RUN_AS_PERSON;
+    assert.equal(await appWriteTokenOf(req), '');
+  } finally {
+    if (saved === undefined) delete process.env.INSPIRE_RUN_AS_PERSON;
+    else process.env.INSPIRE_RUN_AS_PERSON = saved;
+  }
+});
