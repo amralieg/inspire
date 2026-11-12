@@ -52,7 +52,7 @@ const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase')
 const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
-const { discoverGrantedText, discoverUnreadText, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, sampleCopyName, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames } = require('./lib/inspireImplement');
+const { discoverGrantedText, discoverUnreadText, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -2108,6 +2108,7 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
 app.post('/api/run', requireToken, async (req, res) => {
   const { cluster_id, notebook_path } = req.body;
   const params = (req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
+  if (samplesNeedChoice(params, req.body.samples_choice)) return res.status(409).json({ error: SAMPLES_CHOICE_TEXT });
   return launchDiscover(req, res, { params, notebook_path, cluster_id });
 });
 

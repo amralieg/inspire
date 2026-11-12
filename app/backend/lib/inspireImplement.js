@@ -3133,6 +3133,17 @@ function isBuiltInSampleEntry(name) {
   return BUILT_IN_SAMPLE_CATALOGS.includes(plainTable(name).split('.')[0]);
 }
 
+// A samples.* pick (catalog, schema or table) runs only with the descriptions choice; a copy removes it from the pick.
+const SAMPLES_CHOICE_TEXT = 'Copy the samples tables into a schema you own, or use descriptions only, before Start. A run that reads samples.* needs one of the two';
+
+function samplePicksIn(uc) {
+  return String(uc || '').split(',').map((p) => p.trim()).filter((p) => p && isBuiltInSampleEntry(p));
+}
+
+function samplesNeedChoice(params, choice) {
+  return samplePicksIn((params || {})['01_uc_metadata']).length > 0 && choice !== 'descriptions';
+}
+
 function schemaParts(name) {
   const parts = plainTable(name).split('.');
   if (parts.length !== 2 || parts.some((p) => !p || p.includes('`'))) throw badRequest(`'${str(name)}' must be catalog.schema`);
@@ -3837,6 +3848,8 @@ module.exports = {
   sampleCopyName,
   sampleCopyStatement,
   sampleCopyFailureKind,
+  samplesNeedChoice,
+  SAMPLES_CHOICE_TEXT,
   sampleTableRef,
   schemaCreateStatement,
   sampleSchemaMessage,
