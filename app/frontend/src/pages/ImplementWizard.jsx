@@ -2982,7 +2982,7 @@ function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake
   const charts = appChartsOf(spec, look, dates);
   const picked = appChartsPicked(spec);
   const pickable = Array.isArray(look?.chart_kinds) && Array.isArray(look?.screens);
-  const view = tab === 'charts' ? 'charts' : 'fix';
+  const view = tab === 'charts' ? 'charts' : shownPage;
   const named = (list, id) => list.find((x) => x.id === id)?.label || id;
   const viewLabel = view === 'charts' ? 'Charts' : named(pages, view);
   const sampleLabel = `Sample App page: ${viewLabel}, in ${lookText(chosen)}`;
