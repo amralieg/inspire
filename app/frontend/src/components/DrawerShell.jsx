@@ -28,8 +28,10 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
   const [width, setWidth] = useState(() => loadPaneWidth(DRAWER_WIDTH));
   useEffect(() => { if (!center) savePaneWidth(DRAWER_WIDTH, width); }, [width, center]);
 
+  const openedByPerson = useRef(false);
   useEffect(() => {
     openerRef.current = document.activeElement;
+    openedByPerson.current = openerRef.current instanceof HTMLElement && openerRef.current !== document.body;
     return () => {
       const opener = openerRef.current;
       if (opener instanceof HTMLElement && opener.isConnected) opener.focus();
@@ -37,7 +39,7 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
   }, []);
 
   useEffect(() => {
-    panelRef.current?.focus();
+    if (openedByPerson.current) panelRef.current?.focus({ preventScroll: true });
   }, [focusKey]);
 
   useEffect(() => {
