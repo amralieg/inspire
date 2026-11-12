@@ -825,14 +825,20 @@ function registerImplementRoutes(app, deps) {
   app.post('/api/inspire/implement/group-counts', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);
+      const top = Number(req.body?.top) || 0;
+      if (top && (!Number.isInteger(top) || top > GR.GROUP_MAX_GROUPS)) {
+        return res.status(400).json({ error: `top must be a whole number up to ${GR.GROUP_MAX_GROUPS}` });
+      }
       const statement = I.groupCountsStatement(q(req, 'table'), req.body?.columns || [], {
         filters: req.body?.filters || [],
         window: req.body?.window || {},
+        top,
       });
-      if (!statement) return res.status(400).json({ error: `name between 1 and ${I.GROUP_COUNT_MAX_COLUMNS} group columns to count` });
+      if (!statement) return res.status(400).json({ error: top ? 'name one group column to list its values' : `name between 1 and ${I.GROUP_COUNT_MAX_COLUMNS} group columns to count` });
       const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
-      const truncated = rows.length > I.GROUP_COUNT_LIMIT;
-      const kept = truncated ? rows.slice(0, I.GROUP_COUNT_LIMIT) : rows;
+      const cap = top || I.GROUP_COUNT_LIMIT;
+      const truncated = rows.length > cap;
+      const kept = truncated ? rows.slice(0, cap) : rows;
       res.json({ truncated, groups: kept.map((r) => ({ ...r, records: Number(r.records) || 0 })) });
     } catch (err) {
       sendError(res, err);
@@ -1957,8 +1963,9 @@ function registerImplementRoutes(app, deps) {
       const days = GP.scopeDaysOf(req.body?.scope_days ?? req.query.scope_days);
       if (days === null) throw I.badRequest(`scope_days must be a whole number of days from 1 to ${GP.PROFILE_DAYS_MAX}.`);
       const groupBy = GR.groupByColumns(req.body?.group_by ?? req.query.group_by);
-      const [useCase, history] = await Promise.all([loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
-        loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId)]);
+      const [useCase, history, session] = await Promise.all([loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
+        loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId),
+        fetchInspireSessionWidgetRow(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid)]);
       if (!useCase) throw I.badRequest(`No use case ${useCaseId} in this session.`, 404);
       const data = builtData(history);
       table = profiledTable(useCase, data, req.body?.table ?? req.query.table);
@@ -1966,6 +1973,7 @@ function registerImplementRoutes(app, deps) {
       if (!main || !/^[^`]+\.[^`]+\.[^`]+$/.test(table)) {
         throw I.badRequest(`${String(useCase.use_case ?? '').trim() || 'This use case'} names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.`);
       }
+      const scan = GP.scopedMain(main, parseTableScopeText(session?.table_scope).scopes, table);
       const options = (rowLimit) => ({ rowLimit, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s', signal: stop.signal });
       const rows = async (sql, parameters, rowLimit) => sqlResultToObjects(await executeSql(req.dbHost, token, warehouseId, sql, parameters, options(rowLimit)));
       const view = await runWithRequestDeadline(async () => {
@@ -2011,22 +2019,22 @@ function registerImplementRoutes(app, deps) {
         const candidates = GR.groupingCandidates(columns, roles, table, { primary: keys.primary, joined, text, time: time ? time.column : '', tags })
           .filter((name) => !name.includes(',')).slice(0, GR.GROUP_PROFILED);
         const profiledJoined = joined.filter((c) => candidates.includes(c.name));
-        const [statRows, sample] = await Promise.all([rows(GP.statsSql(main, candidates, time, days, profiledJoined), null, 1),
-          candidates.length ? rows(GP.sampleSql(main, candidates, profiledJoined), null, GP.PROFILE_META_ROWS) : []]);
+        const [statRows, sample] = await Promise.all([rows(GP.statsSql(scan, candidates, time, days, profiledJoined), scan.parameters, 1),
+          candidates.length ? rows(GP.sampleSql(scan, candidates, profiledJoined), scan.parameters, GP.PROFILE_META_ROWS) : []]);
         const stats = statRows[0] || {};
         const picked = GP.profiledColumns(stats, candidates);
-        const values = picked.length ? await rows(GP.valuesSql(main, picked, profiledJoined), null, GP.PROFILE_VALUE_ROWS) : [];
+        const values = picked.length ? await rows(GP.valuesSql(scan, picked, profiledJoined), scan.parameters, GP.PROFILE_VALUE_ROWS) : [];
         const deep = GP.deepSuggestionOf(useCase);
         const draft = (paths) => GP.profileView({ table, technique: useCase.analytics_technique, columns, candidates, stats, sample, values, paths,
           time, days, joined: profiledJoined, deep: deep ? deep.columns : [], groupBy, readAt: new Date().toISOString(), subject: text });
         const pick = GP.moneySampleColumns(columns);
-        const example = pick ? await rows(GP.moneySampleSql(main, pick), null, GP.MONEY_SAMPLE_ROWS) : [];
+        const example = pick ? await rows(GP.moneySampleSql(scan, pick), scan.parameters, GP.MONEY_SAMPLE_ROWS) : [];
         const moneyColumns = (columns || []).map((c) => String(c.column_name ?? '')).filter(Boolean);
         const withExample = (view) => ({ ...view, money_columns: moneyColumns, money_sample: pick ? { ...pick, rows: example } : null });
         const first = draft(null);
         const grouped = GR.groupByColumns(first.groups_for);
         if (grouped.length < 2) return withExample(first);
-        const paths = await rows(GP.pathsSql(main, grouped, profiledJoined), null, GP.PROFILE_PATH_ROWS);
+        const paths = await rows(GP.pathsSql(scan, grouped, profiledJoined), scan.parameters, GP.PROFILE_PATH_ROWS);
         return withExample(draft(paths));
       }, GP.PROFILE_MS);
       return res.json({ ...view, deep_suggestion: GP.deepSuggestionOf(useCase) });

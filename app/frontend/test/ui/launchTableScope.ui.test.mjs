@@ -16,7 +16,13 @@ const STATE = {
   columnsByTable: { [ORDERS]: ORDER_COLUMNS },
   valuesByColumn: { brand_name: ['Starbucks', 'Costa'] },
   readinessByFilter: { Starbucks: '120', Nobody: '0' },
+  groupCountsByColumn: {
+    brand_name: [{ brand_name: 'Starbucks', records: '120' }, { brand_name: 'Costa', records: '80' },
+      { brand_name: 'Tokyo Tidbits', records: '60' }, { brand_name: 'Golden Gate Ginger', records: '40' }],
+    location: [{ location: 'Store 1', records: '40' }, { location: 'Store 2', records: '30' }],
+  },
 };
+const GROUP_BIG = Array.from({ length: 501 }, (_, i) => ({ brand_name: `brand ${i}`, records: String(1000 - i) }));
 
 const launchOf = async (page, made) => {
   await idle(page);
@@ -37,6 +43,11 @@ async function openGrid(page) {
 }
 
 // Adds one row filter to a column: the operator is "is" unless changed, the value is picked from the suggestions when it is offered.
+async function loadGroups(page, column) {
+  await page.getByRole('button', { name: `Load groups for ${column}` }).click();
+  await page.locator(`[data-row-groups="${column}"] [data-group-value]`).first().waitFor({ timeout: 15000 });
+}
+
 async function addFilter(page, column, value) {
   await page.getByRole('button', { name: `Add row filter on ${column}` }).click();
   await page.locator(`[data-scope-value="${value}"]`).waitFor({ timeout: 15000 });
@@ -164,7 +175,7 @@ test('Select all and Unselect all tick and clear every column, and an empty colu
     await until(async () => (await gridOf(page).locator('[data-scope-column]:checked').count()) === 0, 'Unselect all clears every box');
     assert.match(await gridOf(page).locator('[role="alert"]').innerText(), /Pick at least one column for this table\./,
       'the grid says a table needs one column');
-    await gridOf(page).getByRole('button', { name: 'Select all', exact: true }).click();
+    await gridOf(page).getByRole('button', { name: 'Select all', exact: true }).first().click();
     await until(async () => (await gridOf(page).locator('[data-scope-column]:checked').count()) === 4, 'Select all ticks every box');
     assert.equal(await gridOf(page).locator('[role="alert"]').count(), 0, 'the problem clears once a column is ticked');
   } finally {
@@ -248,7 +259,7 @@ test('an unticked column cannot get a row filter, and unticking a column drops i
   }
 });
 
-test('the label is still filled in from the row filters, disabled until ticked, and carried into the run as typed', async () => {
+test('the label is filled in from the picked Row Groups only: a row filter alone leaves it empty, groups fill it', async () => {
   const ui = await openUi('launch', STATE);
   const { page, made } = ui;
   try {
@@ -257,14 +268,21 @@ test('the label is still filled in from the row filters, disabled until ticked, 
     assert.equal(await text.isDisabled(), true, 'the label box is disabled while the tick box is unticked');
     await openGrid(page);
     await addFilter(page, 'brand_name', 'Starbucks');
-    await until(async () => (await text.inputValue()) === 'Starbucks', 'the label is prefilled from the brand filter');
+    await until(async () => (await summaryOf(page)).includes('120 rows match'), 'the brand filter counts its rows');
+    assert.equal(await text.inputValue(), '', 'a row filter alone names nothing: the label stays empty');
+    await loadGroups(page, 'brand_name');
+    await page.locator('[data-group-value="Starbucks"]').check();
+    await until(async () => (await text.inputValue()) === 'Starbucks', 'the picked group prefills the label, the row filter does not add to it');
     await page.getByRole('checkbox', { name: 'Use case labeling enhanced using filters' }).check();
     assert.equal(await text.isDisabled(), false, 'ticking the box enables the label');
     await text.fill('Starbucks Cafe');
     const params = await launchOf(page, made);
     const scope = JSON.parse(params['17_table_scope']);
     assert.equal(scope.use_case_label, 'Starbucks Cafe', 'the typed label is the label the run carries, verbatim');
-    assert.deepEqual(scope[ORDERS].rows, [{ column: 'brand_name', op: '=', values: ['Starbucks'] }]);
+    assert.deepEqual(scope[ORDERS].rows, [
+      { column: 'brand_name', op: '=', values: ['Starbucks'] },
+      { column: 'brand_name', op: 'in', values: ['Starbucks'], group: true },
+    ]);
   } finally {
     await ui.close();
   }
@@ -366,6 +384,196 @@ test('a column tick reads ticked before a click, unticked after it, and the tabl
     await location.click();
     assert.equal(await location.isChecked(), true, 'after the second click: the tick is back on');
     await until(async () => (await summaryOf(page)) === 'All columns, all rows', 'after the second click: the table reads whole again');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the collapsed nodes of the tree show no "Open to list" text, only their counts once known', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page } = ui;
+  try {
+    await openDataFiltersAfter(page, async (p) => { await p.locator('button[title="main"]').click(); });
+    const catalog = page.locator('[data-catalog-group="main"] > [role="treeitem"]');
+    await catalog.waitFor({ timeout: 15000 });
+    assert.equal(await catalog.getAttribute('aria-expanded'), 'false', 'the picked catalog is collapsed');
+    assert.equal(await page.getByText(/Open to list/).count(), 0, 'no "Open to list" text anywhere');
+    assert.equal((await catalog.innerText()).trim(), 'main', 'a collapsed node with no count known shows its name and arrow only');
+    await catalog.click();
+    await page.locator('[data-schema-group="main.s"] > [role="treeitem"]').waitFor({ timeout: 15000 });
+    assert.match(await catalog.innerText(), /1 schema/, 'the count shows once the schemas are listed');
+    assert.equal(await page.getByText(/Open to list/).count(), 0, 'still no "Open to list" text once the schemas are listed');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the table list and the grid are equal width, the splitter drags them apart, and the arrow keys resize them', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page } = ui;
+  try {
+    await pickOrdersAndOpenDataFilters(page);
+    const widths = () => page.evaluate(() => ({
+      tree: document.querySelector('[data-filters-tree]').getBoundingClientRect().width,
+      pane: document.querySelector('[data-filters-grid-pane]').getBoundingClientRect().width,
+    }));
+    const equal = await widths();
+    assert.ok(Math.abs(equal.tree - equal.pane) <= 2, `the two parts start equal (${equal.tree} and ${equal.pane})`);
+    const splitter = page.locator('[role="separator"][data-filters-splitter]');
+    assert.equal(await splitter.getAttribute('aria-valuenow'), '50', 'the splitter starts at the middle');
+    const box = await splitter.boundingBox();
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    await page.mouse.move(box.x - 120, box.y + box.height / 2, { steps: 6 });
+    await page.mouse.up();
+    await until(async () => (await splitter.getAttribute('aria-valuenow')) !== '50', 'dragging moves the splitter');
+    const dragged = await widths();
+    assert.ok(dragged.tree < dragged.pane, 'dragged left, the table list is narrower than the grid');
+    await splitter.focus();
+    const before = Number(await splitter.getAttribute('aria-valuenow'));
+    await page.keyboard.press('ArrowRight');
+    await page.keyboard.press('ArrowRight');
+    assert.equal(Number(await splitter.getAttribute('aria-valuenow')), before + 4, 'each arrow key moves it 2 points');
+    assert.equal(await page.evaluate(() => window.sessionStorage.getItem('inspire.dataFilters.split')), String(before + 4),
+      'the width is kept for the session');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('on a narrow screen the table list stacks above the grid and the splitter is hidden', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1100, height: 1000 });
+    await pickOrdersAndOpenDataFilters(page);
+    const tree = await page.locator('[data-filters-tree]').boundingBox();
+    const pane = await page.locator('[data-filters-grid-pane]').boundingBox();
+    assert.ok(pane.y >= tree.y + tree.height - 1, 'the grid sits below the table list');
+    assert.equal(await page.locator('[role="separator"][data-filters-splitter]').isVisible(), false, 'no splitter on a narrow screen');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Load groups lists a categorical column top 500 by row count, each value with its count', async () => {
+  const ui = await openUi('launch', { ...STATE, groupCountsByColumn: { brand_name: GROUP_BIG } });
+  const { page } = ui;
+  try {
+    await pickOrdersAndOpenDataFilters(page);
+    await openGrid(page);
+    await loadGroups(page, 'brand_name');
+    assert.equal(await page.locator('[data-group-value]').count(), 500, 'at most 500 values are listed');
+    assert.match(await page.locator('[data-row-groups="brand_name"]').innerText(), /500 values, the top 500 by rows/);
+    assert.match(await page.locator('[data-group-value="brand 0"]').locator('xpath=..').innerText(), /1,000/, 'each value shows its row count');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('picking groups writes {column, op: in} to the scope, and shows each picked group as a chip', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page, made } = ui;
+  try {
+    await pickOrdersAndOpenDataFilters(page);
+    await openGrid(page);
+    await loadGroups(page, 'brand_name');
+    await page.locator('[data-group-value="Starbucks"]').check();
+    await page.locator('[data-group-value="Costa"]').check();
+    await until(async () => (await gridOf(page).locator('[data-scope-group="brand_name"]').count()) === 2, 'each picked group is a chip');
+    await until(async () => (await summaryOf(page)).includes('rows match'), 'the picked groups settle to a row count, not counting');
+    const params = await launchOf(page, made);
+    assert.deepEqual(JSON.parse(params['17_table_scope'])[ORDERS].rows, [
+      { column: 'brand_name', op: 'in', values: ['Starbucks', 'Costa'], group: true },
+    ], 'the picked groups are one in row, the agent reads it as is-one-of');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a numeric or date column shows the Row filters hint in Row Groups, and no Load groups button', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page } = ui;
+  try {
+    await pickOrdersAndOpenDataFilters(page);
+    await openGrid(page);
+    const numeric = page.locator('[data-scope-row="total_sales"]');
+    assert.match(await numeric.innerText(), /Use Row filters for numbers and dates/);
+    assert.equal(await numeric.getByRole('button', { name: /Load groups/ }).count(), 0, 'numbers get no Load groups button');
+    assert.equal(await page.locator('[data-scope-row="brand_name"]').getByRole('button', { name: 'Load groups for brand_name' }).count(), 1,
+      'a text column does');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('Load groups on a second column reads only the rows inside the groups already picked on the table', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page, made } = ui;
+  try {
+    await pickOrdersAndOpenDataFilters(page);
+    await openGrid(page);
+    await loadGroups(page, 'brand_name');
+    await page.locator('[data-group-value="Starbucks"]').check();
+    await loadGroups(page, 'location');
+    const last = [...made.sqlCalls].reverse().find((c) => c.sql.includes('ORDER BY records DESC'));
+    assert.ok(last, 'the location groups were listed');
+    assert.ok(last.sql.includes('IN ('), 'the statement narrows the location groups to the picked brand');
+    assert.ok(last.parameters.some((p) => p.value === 'Starbucks'), 'the picked brand group is the filter');
+    assert.ok(last.sql.includes('`location` IS NOT NULL'), 'the list leaves the empty location out');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the label names more than three picked groups as the first two and the rest counted', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page } = ui;
+  try {
+    await pickOrdersAndOpenDataFilters(page);
+    await openGrid(page);
+    await loadGroups(page, 'brand_name');
+    const text = page.getByRole('textbox', { name: 'Use case label', exact: true });
+    for (const value of ['Starbucks', 'Costa', 'Tokyo Tidbits']) await page.locator(`[data-group-value="${value}"]`).check();
+    await until(async () => (await text.inputValue()) === 'Starbucks, Costa and Tokyo Tidbits', 'three groups join with commas and and');
+    await page.locator('[data-group-value="Golden Gate Ginger"]').check();
+    await until(async () => (await text.inputValue()) === 'Starbucks and Costa and 2 more', 'four groups name two and count the rest');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a long list of groups gets a search box, and the search narrows the tick boxes', async () => {
+  const ui = await openUi('launch', { ...STATE, groupCountsByColumn: { brand_name: GROUP_BIG } });
+  const { page } = ui;
+  try {
+    await pickOrdersAndOpenDataFilters(page);
+    await openGrid(page);
+    await loadGroups(page, 'brand_name');
+    const search = page.getByRole('searchbox', { name: 'Search the groups of brand_name' });
+    await search.fill('brand 49');
+    await until(async () => (await page.locator('[data-group-value]').count()) === 11, 'the search keeps the matching values');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('after Done the picked groups collapse to removable chips, and Change groups opens the list again', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page } = ui;
+  try {
+    await pickOrdersAndOpenDataFilters(page);
+    await openGrid(page);
+    await loadGroups(page, 'brand_name');
+    await page.locator('[data-group-value="Costa"]').check();
+    assert.equal(await page.locator('[data-row-groups="brand_name"] [data-group-value]').count(), 4, 'the list is open while picking');
+    await page.getByRole('button', { name: 'Done', exact: true }).click();
+    assert.equal(await page.locator('[data-row-groups="brand_name"] [data-group-value]').count(), 0, 'Done collapses the list');
+    assert.equal(await gridOf(page).locator('[data-scope-group="brand_name"]').count(), 1, 'the pick stays as a chip');
+    await gridOf(page).getByRole('button', { name: 'Remove group Costa' }).click();
+    assert.equal(await gridOf(page).locator('[data-scope-group="brand_name"]').count(), 0, 'a chip removes its group');
+    assert.equal(await page.getByRole('button', { name: 'Change groups', exact: true }).count(), 0, 'with nothing picked the list is open, no toggle');
+    assert.equal(await page.locator('[data-row-groups="brand_name"] [data-group-value]').count(), 4, 'nothing picked: the list shows again');
   } finally {
     await ui.close();
   }

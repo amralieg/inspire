@@ -147,7 +147,8 @@ function makeApp(overrides = {}, { mount } = {}) {
         return { rows: since ? steps.filter((s) => Date.parse(s.last_updated) > Date.parse(since.value)) : steps };
       }
       if (sql.includes(' GROUP BY ') && sql.includes(' AS records FROM ')) {
-        return { rows: state.groupCounts || [] };
+        const grouped = (/CAST\(`([^`]+)` AS STRING\) AS/.exec(sql) || [])[1] || '';
+        return { rows: (state.groupCountsByColumn || {})[grouped] || state.groupCounts || [] };
       }
       if (sql.startsWith('SELECT COUNT(*) AS row_count')) {
         const filtered = (parameters || []).map((p) => String(p.value)).find((v) => state.readinessByFilter && Object.hasOwn(state.readinessByFilter, v));

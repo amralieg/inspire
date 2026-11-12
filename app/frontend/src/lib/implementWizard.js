@@ -1450,6 +1450,11 @@ export function joinWords(items) {
   return items.length < 2 ? items.join('') : `${items.slice(0, -1).join(', ')} and ${items[items.length - 1]}`;
 }
 
+export function groupLabelOf(values) {
+  const items = values.filter(Boolean);
+  return items.length > 3 ? `${joinWords(items.slice(0, 2))} and ${items.length - 2} more` : joinWords(items);
+}
+
 function cronList(field, codes, words, base) {
   const index = (token) => (/^\d{1,2}$/.test(token) ? Number(token) - base : codes.indexOf(token));
   const parts = [];

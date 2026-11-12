@@ -2311,14 +2311,18 @@ function readinessStatement(name, { columns = [], filters = [], window = {} } = 
 const GROUP_COUNT_MAX_COLUMNS = 8;
 const GROUP_COUNT_LIMIT = 5000;
 
-function groupCountsStatement(name, columns = [], { filters = [], window = {} } = {}) {
+function groupCountsStatement(name, columns = [], { filters = [], window = {}, top = 0 } = {}) {
   const wanted = [...new Set(columns.map((c) => str(c).trim()).filter(Boolean))];
   if (!wanted.length || wanted.length > GROUP_COUNT_MAX_COLUMNS) return null;
+  if (top && wanted.length !== 1) return null;
   const { where, parameters } = scopeWhere(filters, window);
   const cols = wanted.map((c) => quoteColumn(c));
+  if (top) where.push(`${cols[0]} IS NOT NULL`);
+  const order = top ? ' ORDER BY records DESC' : '';
+  const limit = top ? top + 1 : GROUP_COUNT_LIMIT + 1;
   return {
     sql: `SELECT ${cols.map((c) => `CAST(${c} AS STRING) AS ${c}`).join(', ')}, COUNT(*) AS records FROM ${quoteTable(name)}`
-      + `${where.length ? ` WHERE ${where.join(' AND ')}` : ''} GROUP BY ${cols.join(', ')} LIMIT ${GROUP_COUNT_LIMIT + 1}`,
+      + `${where.length ? ` WHERE ${where.join(' AND ')}` : ''} GROUP BY ${cols.join(', ')}${order} LIMIT ${limit}`,
     parameters: parameters.length ? parameters : null,
     columns: wanted,
   };
@@ -3888,6 +3892,7 @@ module.exports = {
   columnValuesStatement,
   readinessStatement,
   groupCountsStatement,
+  scopeWhere,
   GROUP_COUNT_MAX_COLUMNS,
   GROUP_COUNT_LIMIT,
   readinessFromRow,

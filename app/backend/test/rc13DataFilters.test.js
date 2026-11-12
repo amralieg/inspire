@@ -16,6 +16,12 @@ const SCOPE = {
     rows: [{ column: 'brand_name', op: '=', values: ['Starbucks'] }],
   },
 };
+const GROUPED = {
+  [ORDERS]: {
+    columns: ['brand_name', 'location', 'total_sales'],
+    rows: [{ column: 'brand_name', op: 'in', values: ['Starbucks'], group: true }],
+  },
+};
 
 test('the label rides in the scope object under its reserved key, and is never read as a table', async () => {
   const T = await lib('tableScope.js');
@@ -26,33 +32,35 @@ test('the label rides in the scope object under its reserved key, and is never r
   assert.equal(T.scopesFromObject(SCOPE).label, undefined, 'no label key means no label');
 });
 
-test('the label is written only when a picked table has a row filter to name', async () => {
+test('the label is written only when a picked table has a picked row group to name; a row filter alone names nothing', async () => {
   const T = await lib('tableScope.js');
-  const text = T.serializeTableScopes(SCOPE, [ORDERS], 'Starbucks');
-  assert.deepEqual(JSON.parse(text), { ...SCOPE, use_case_label: 'Starbucks' });
+  const text = T.serializeTableScopes(GROUPED, [ORDERS], 'Starbucks');
+  assert.deepEqual(JSON.parse(text), { ...GROUPED, use_case_label: 'Starbucks' });
+  assert.equal(T.serializeTableScopes(SCOPE, [ORDERS], 'Starbucks'), JSON.stringify(SCOPE), 'a row filter alone writes no label');
   const columnsOnly = { [ORDERS]: { columns: ['brand_name'], rows: [] } };
   assert.equal(T.serializeTableScopes(columnsOnly, [ORDERS], 'Starbucks'), JSON.stringify(columnsOnly), 'no row filter, no label written');
-  assert.equal(T.serializeTableScopes(SCOPE, [ORDERS], '   '), JSON.stringify(SCOPE), 'a blank label is not written');
-  assert.equal(T.serializeTableScopes(SCOPE, [WEB], 'Starbucks'), '', 'a table no longer picked drops its scope and the label');
+  assert.equal(T.serializeTableScopes(GROUPED, [ORDERS], '   '), JSON.stringify(GROUPED), 'a blank label is not written');
+  assert.equal(T.serializeTableScopes(GROUPED, [WEB], 'Starbucks'), '', 'a table no longer picked drops its scope and the label');
 });
 
-test('the label prefill is the values of the is and is-one-of row filters, joined naturally, for picked tables only', async () => {
+test('the label prefill is the picked row groups only, joined naturally, for picked tables only', async () => {
   const T = await lib('tableScope.js');
   const W = await lib('implementWizard.js');
-  const filterLabelOf = (scopes, tables) => W.joinWords(T.filterValuesOf(scopes, tables));
-  assert.equal(filterLabelOf(SCOPE, [ORDERS]), 'Starbucks');
+  const labelOf = (scopes, tables) => W.groupLabelOf(T.filterValuesOf(scopes, tables));
+  assert.equal(labelOf(GROUPED, [ORDERS]), 'Starbucks');
+  assert.equal(labelOf(SCOPE, [ORDERS]), '', 'a row filter alone prefills nothing');
   const several = {
-    [ORDERS]: { columns: ['a'], rows: [{ column: 'brand_name', op: 'in', values: ['Starbucks', 'Costa'] }] },
-    [WEB]: { columns: ['b'], rows: [{ column: 'region', op: '=', values: ['EMEA'] }, { column: 'total', op: '>=', values: ['10'] }] },
+    [ORDERS]: { columns: ['a'], rows: [{ column: 'brand_name', op: 'in', values: ['Starbucks', 'Costa'], group: true }] },
+    [WEB]: { columns: ['b'], rows: [{ column: 'region', op: '=', values: ['EMEA'] }, { column: 'region', op: 'in', values: ['EMEA', 'APAC'], group: true }] },
   };
-  assert.equal(filterLabelOf(several, [ORDERS, WEB]), 'Starbucks, Costa and EMEA', 'the at-least filter names no value');
-  assert.equal(filterLabelOf(several, [ORDERS]), 'Starbucks and Costa');
-  assert.equal(filterLabelOf({ [ORDERS]: { columns: ['a'], rows: [] } }, [ORDERS]), '', 'no row filter, nothing to prefill');
+  assert.equal(labelOf(several, [ORDERS, WEB]), 'Starbucks and Costa and 2 more', 'the groups of every picked table, more than three as two and the rest counted; the row filter names nothing');
+  assert.equal(labelOf(several, [ORDERS]), 'Starbucks and Costa');
+  assert.equal(labelOf({ [ORDERS]: { columns: ['a'], rows: [] } }, [ORDERS]), '', 'no row filter, nothing to prefill');
   assert.deepEqual(T.filteredTablesOf(several, [ORDERS, WEB]), [ORDERS, WEB]);
 });
 
 test('the job validation keeps the label, so the notebook receives it', () => {
-  const params = { '01_uc_metadata': `${ORDERS}`, '17_table_scope': JSON.stringify({ ...SCOPE, use_case_label: 'Starbucks' }) };
+  const params = { '01_uc_metadata': `${ORDERS}`, '17_table_scope': JSON.stringify({ ...GROUPED, use_case_label: 'Starbucks' }) };
   const kept = jobParams.validateTableScopeParams(params);
   assert.equal(JSON.parse(kept['17_table_scope']).use_case_label, 'Starbucks');
   assert.deepEqual(Object.keys(JSON.parse(kept['17_table_scope'])), [ORDERS, 'use_case_label']);
@@ -91,7 +99,7 @@ test('a scope on a table under a picked schema or catalog is a picked table, and
   assert.deepEqual(T.pickedTableNames(scopes, { tables: [WEB] }), [WEB], 'a picked table comes first and an unpicked scope adds nothing');
   assert.equal(T.tableBrowseQuery('wh 1'), '?warehouse_id=wh%201');
   assert.equal(T.tableBrowseQuery(''), '');
-  const params = { '01_uc_metadata': 'main.sales', '17_table_scope': JSON.stringify({ [ORDERS]: SCOPE[ORDERS], use_case_label: 'Contoso' }) };
+  const params = { '01_uc_metadata': 'main.sales', '17_table_scope': JSON.stringify({ [ORDERS]: GROUPED[ORDERS], use_case_label: 'Contoso' }) };
   const kept = jobParams.validateTableScopeParams(params);
   assert.equal(JSON.parse(kept['17_table_scope']).use_case_label, 'Contoso', 'a schema pick keeps its table scope and label');
 });
