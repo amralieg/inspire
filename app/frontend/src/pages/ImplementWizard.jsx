@@ -887,9 +887,6 @@ export default function ImplementWizard({
           : Promise.resolve(null),
       ]);
       if (cancelled) return;
-      console.log('[preflight]', pre.status === 'fulfilled'
-        ? JSON.stringify({ ok: pre.value?.ok, keys: Object.keys(pre.value?.checks || {}), sources: pre.value?.checks?.sources || null, app_unreadable: Boolean(pre.value?.app_unreadable) })
-        : `error: ${pre.reason?.message}`);
       setPreflight(pre.status === 'fulfilled' ? pre.value : null);
       setPreflightError(pre.status === 'fulfilled' ? '' : (pre.reason?.message || 'Could not check access'));
       if (pre.status === 'fulfilled' && pre.value?.checks?.app_name?.ok === false) {
