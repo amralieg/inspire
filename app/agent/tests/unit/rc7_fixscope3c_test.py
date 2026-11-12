@@ -11,6 +11,9 @@ import pytest
 from v120_artifacts_support import FakeSpark, make_inspire
 from v130_evidence_test import Row
 from v130_feedback_test import fb, obj_with
+from unittest.mock import MagicMock
+
+from v153_signal_check_test import FLAT_PRICE, SALES, TRIPS, deep_inspire, responder_for, uc
 
 TABLE = "main.s.orders"
 OTHER = "main.s.customers"
@@ -121,3 +124,50 @@ def test_a_table_the_person_left_unscoped_is_read_whole(clean):
     assert set(scopes) == {clean["inspire_table_scope_key"](TABLE)}
     sql = clean["DeepEvidence"].kpi_sql({"table": OTHER, "aggregation": "COUNT", "column": "customer_id"}, scopes)
     assert "FROM `main`.`s`.`customers`" in sql and "(SELECT" not in sql, sql
+
+
+def test_the_implement_recount_counts_only_the_rows_the_wizard_scope_keeps(agent_ns):
+    use_case = uc("N01-U02", "Optimization")
+    use_case["_implement_data"] = {"tables": {}, "removed_tables": [], "window": {}, "run_profile": "preview", "notes": "",
+                                   "column_roles": {"lever": f"{SALES}.sales_price", "outcome": f"{SALES}.quantity"},
+                                   "filters": [{"table": SALES, "column": "churned", "op": "=", "values": ["no"]}]}
+    inst, _agent, spark = deep_inspire(agent_ns, [], responder_for({"lever": FLAT_PRICE, "rows": 1000}))
+    inst.spark = spark
+    spec = {"check": "lever", "family": "H", "table": SALES, "roles": {"lever": "sales_price", "outcome": "quantity"}}
+    record = {"status": "passed", "check": "lever", "family": "H", "spec": spec, "measures": {"row_count": 1000}}
+    fresh = inst._implement_recount_signal(("k", "N01-U02"), use_case, record)
+    assert fresh.get("table") == SALES, fresh
+    reads = [s for s in spark.statements if "store_sales" in s]
+    assert len(reads) >= 2, spark.statements
+    assert all("WHERE `churned` = 'no'" in s for s in reads), reads
+
+
+def test_the_source_value_check_compares_against_the_wizard_scope_not_the_whole_table(clean):
+    scopes = clean["implement_table_scopes"](_gold(), [TABLE], DATABASE, "N01-U03")
+    sql = clean["implement_aggregate_probe_sql"]("main.inspire.churn_out", TABLE, "order_id", scopes)
+    assert GOLD in sql and "(SELECT" in sql, sql
+    assert "LEFT ANTI JOIN `main`.`s`.`orders` AS s" not in sql, sql
+
+
+def test_a_signal_date_join_in_the_implement_recount_reads_the_wizard_scope_of_the_joined_table(clean):
+    use_case = uc("N01-U02", "Optimization", tables=f"{SALES}, {TRIPS}")
+    use_case["_implement_data"] = {"tables": {}, "removed_tables": [], "window": {}, "run_profile": "preview", "notes": "",
+                                   "column_roles": {"lever": f"{SALES}.sales_price", "outcome": f"{SALES}.quantity"},
+                                   "filters": [{"table": TRIPS, "column": "pickup_zip", "op": "=", "values": ["10001"]}]}
+    inst, _agent, spark = deep_inspire(clean, [], responder_for({"lever": FLAT_PRICE, "rows": 1000}))
+    base = spark.responder
+
+    def respond(statement):
+        if "AS k FROM" in statement:
+            return [{"n": 1000, "k": 1000}]
+        return base(statement)
+    spark.responder = respond
+    inst.spark = spark
+    spec = {"check": "lever", "family": "H", "table": SALES, "roles": {"lever": "sales_price", "outcome": "quantity"},
+            "date_joins": {"when": {"table": TRIPS, "key": "ticket_number", "ref_column": "pickup_zip", "date": "pickup_datetime",
+                                    "alias": "pickup"}}}
+    deep = clean["DeepEvidence"](spark, "Deep", MagicMock())
+    record = inst._signal_record(deep, spec, "", {}, use_case)
+    joins = [s for s in spark.statements if "trips" in s]
+    assert joins and all("WHERE `pickup_zip` = '10001'" in s for s in joins), joins
+    assert record.get("status") in ("passed", "failed"), record

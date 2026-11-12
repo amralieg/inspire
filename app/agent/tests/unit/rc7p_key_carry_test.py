@@ -38,7 +38,7 @@ def test_the_choices_prompt_asks_for_the_key_columns_only_when_there_are_some(ag
 def test_a_per_user_lakebase_app_asks_for_each_filter_key_before_its_first_generation(agent_ns):
     inst = _inst(agent_ns, [FILTER])
     spec = _spec_of(agent_ns, **PER_USER)
-    assert inst._implement_key_requirements(spec, _use_case()) == [{"table": SOURCE, "column": "region", "result_table": RESULT}]
+    assert inst._implement_key_requirements(spec, _use_case()) == [{"table": SOURCE, "column": "region", "result_table": RESULT, "scopes": {}}]
 
 
 def test_no_key_is_asked_for_a_shared_app_a_delta_app_or_an_unreadable_filter(agent_ns):
