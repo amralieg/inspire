@@ -41,8 +41,8 @@ import StrategyEditor from '../components/StrategyEditor';
 import { parseStrategicContext, splitPriorities, validateStrategicContextText, withPriorities } from '../lib/strategyContext';
 import UcPermissionErrorHelp from '../components/UcPermissionErrorHelp';
 import DataFilters from '../components/DataFilters';
+import { groupLabelOf } from '../lib/implementWizard';
 import { scopesFromObject, serializeTableScopes, filterValuesOf, pickedTableNames, tableBrowseQuery, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
-import { joinWords } from '../lib/implementWizard';
 import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { runBusiness } from '../lib/reviewFigures';
@@ -741,7 +741,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     // Always auto-generate session ID
     finalParams['14_session_id'] = newSessionId();
     const tableScopeText = serializeTableScopes(tableScopes, scopeTables,
-      dataFilterLabel.on ? (dataFilterLabel.text ?? joinWords(filterValuesOf(tableScopes, scopeTables))) : '');
+      dataFilterLabel.on ? (dataFilterLabel.text ?? groupLabelOf(filterValuesOf(tableScopes, scopeTables))) : '');
     if (tableScopeText) finalParams['17_table_scope'] = tableScopeText;
 
     try {

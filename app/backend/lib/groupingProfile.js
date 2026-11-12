@@ -1,4 +1,6 @@
 const G = require('../../frontend/src/lib/tableName.js');
+const { tableScopeOf, normalizeTableScope } = require('../../frontend/src/lib/tableScope.js');
+const I = require('./inspireImplement');
 const R = require('./groupingRule');
 const { parseExactJson } = require('./exactJson');
 const { plural } = require('./plural');
@@ -24,6 +26,14 @@ function scopeDaysOf(raw) {
   if (raw == null || raw === '') return R.SCOPE_DAYS;
   const days = Number(raw);
   return Number.isInteger(days) && days >= 1 && days <= PROFILE_DAYS_MAX ? days : null;
+}
+
+// The use case table read through the Launch scope of its table: only the rows the scope keeps. Every statement of the profile reads this.
+function scopedMain(main, scopes, table) {
+  const rows = normalizeTableScope(tableScopeOf(scopes, table)).rows;
+  if (!rows.length) return { ...main, parameters: null };
+  const { where, parameters } = I.scopeWhere(rows);
+  return { ...main, sql: `(SELECT * FROM ${main.sql} WHERE ${where.join(' AND ')})`, parameters: parameters.length ? parameters : null };
 }
 
 function keysStatement(catalog, schema, table) {
@@ -449,6 +459,7 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
 }
 
 module.exports = {
+  scopedMain,
   currencySpreadSql,
   moneyValueSampleSql,
   CURRENCY_SPREAD_ROWS,

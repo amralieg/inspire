@@ -1,16 +1,16 @@
 import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Table2, X } from 'lucide-react';
 import { PlainMessage } from './TechnicalDetails';
-import { joinWords } from '../lib/implementWizard';
+import { groupLabelOf } from '../lib/implementWizard';
 import {
-  SCOPE_OPS, filterValuesOf, filteredTablesOf, normalizeTableScope, pickedTableNames, scopeKeyOf, scopeOpOf, scopeProblems,
-  tableBrowseQuery, tableScopeOf,
+  SCOPE_OPS, columnKindOf, filterValuesOf, filteredTablesOf, isGroupRow, normalizeTableScope, pickedTableNames, scopeKeyOf,
+  scopeOpOf, scopeProblems, tableBrowseQuery, tableScopeOf,
 } from '../lib/tableScope';
 
 const VALUE_CHIPS = 40;
 const COUNT_DEBOUNCE_MS = 350;
 const ALL_READ = 'All columns, all rows';
-const BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
+const BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 whitespace-nowrap px-3 rounded-lg text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const FIELD = 'h-8 rounded-md border border-border bg-surface px-2 text-xs text-text-primary';
 const ITEM = 'flex items-center gap-2 rounded-md px-2 py-1 cursor-pointer hover:bg-bg-subtle/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red-fg/60';
 
@@ -28,6 +28,23 @@ function filterIsComplete(f) {
 }
 
 const shortName = (table) => table.split('.').pop();
+const SPLIT_MIN = 20;
+const SPLIT_MAX = 80;
+const SPLIT_DEFAULT = 50;
+const SPLIT_KEY = 'inspire.dataFilters.split';
+const GROUP_TOP = 500;
+const ANSWER_MS = 20000;
+const withTimeout = (promise, ms) => new Promise((resolve, reject) => {
+  const timer = setTimeout(() => reject(new Error('Inspire did not get an answer in time.')), ms);
+  promise.then((value) => { clearTimeout(timer); resolve(value); }, (err) => { clearTimeout(timer); reject(err); });
+});
+const GROUP_SEARCH_MIN = 20;
+const clampSplit = (value) => Math.min(SPLIT_MAX, Math.max(SPLIT_MIN, Math.round(value)));
+const readSplit = () => {
+  const saved = Number(window.sessionStorage.getItem(SPLIT_KEY));
+  return Number.isFinite(saved) && saved >= SPLIT_MIN && saved <= SPLIT_MAX ? saved : SPLIT_DEFAULT;
+};
+const writeSplit = (value) => window.sessionStorage.setItem(SPLIT_KEY, String(value));
 const byName = (a, b) => a.name.localeCompare(b.name);
 const browseQuery = (warehouseId, table) => `warehouse_id=${encodeURIComponent(warehouseId || '')}&table=${encodeURIComponent(table)}`;
 const columnsKey = (warehouseId, table) => `cols:${warehouseId || ''}:${table}`;
@@ -133,7 +150,7 @@ function SchemaNode({ catalog, schema, listable, tableNames, apiFetch, warehouse
   const names = [...(listed?.tables || []), ...tableNames].filter((t) => (seen.has(scopeKeyOf(t)) ? false : seen.add(scopeKeyOf(t))));
   names.sort();
   const count = listed?.tables ? `${listed.tables.length} table${listed.tables.length === 1 ? '' : 's'}`
-    : open && listable ? 'Listing its tables' : listable ? 'Open to list its tables' : `${tableNames.length} picked`;
+    : tableNames.length ? `${tableNames.length} picked` : '';
   return (
     <Branch level={2} label={schema} dataKey="data-schema-group" name={name} open={open} setOpen={setOpen} count={count}
       error={open ? listed?.error : ''}>
@@ -161,7 +178,7 @@ function CatalogNode({ catalog, picked, schemas, apiFetch, warehouseId, renderSc
   schemas.forEach((s) => merged.set(scopeKeyOf(s.name), s));
   const children = [...merged.values()].sort(byName);
   const count = listed?.schemas ? `${listed.schemas.length} schema${listed.schemas.length === 1 ? '' : 's'}`
-    : open && picked ? 'Listing its schemas' : picked ? 'Open to list its schemas' : `${schemas.length} picked`;
+    : schemas.length ? `${schemas.length} picked` : '';
   return (
     <Branch level={1} label={catalog} dataKey="data-catalog-group" name={catalog} open={open} setOpen={setOpen} count={count}
       error={open ? listed?.error : ''}>
@@ -188,7 +205,7 @@ function AddRowFilter({ table, column, suggestions, loadValues, onCommit }) {
     setDraft(max === 1 ? [text] : [...draft, text].slice(0, max));
   };
   if (!open) {
-    return <button type="button" aria-label={`Add row filter on ${column}`} className={BUTTON} onClick={() => setOpen(true)}>Add row filter</button>;
+    return <button type="button" aria-label={`Add row filter on ${column}`} className={`${BUTTON} whitespace-nowrap`} onClick={() => setOpen(true)}>Add row filter</button>;
   }
   return (
     <fieldset aria-label={`New row filter on ${column}`} className="rounded-lg border border-border bg-surface p-2 space-y-2">
@@ -232,8 +249,74 @@ function AddRowFilter({ table, column, suggestions, loadValues, onCommit }) {
   );
 }
 
-function ColumnGrid({ table, entry, meta, problems, onEntry, valuesOf, loadValues }) {
+function RowGroups({ column, ticked, picked, loaded, onLoad, onPick }) {
+  const [search, setSearch] = useState('');
+  const [editing, setEditing] = useState(true);
+  if (!ticked) return <p className="text-text-tertiary">Tick {column} to pick its groups.</p>;
+  const values = loaded?.status === 'done' ? loaded.values : [];
+  const shown = values.filter((g) => !search || g.value.toLowerCase().includes(search.trim().toLowerCase()));
+  const chosen = new Set(picked);
+  const listing = loaded?.status === 'done' && values.length > 0 && (editing || picked.length === 0);
+  return (
+    <div className="space-y-2" data-row-groups={column}>
+      <div className="flex flex-wrap items-center gap-2">
+        <button type="button" className={BUTTON} aria-label={`Load groups for ${column}`} disabled={loaded?.status === 'loading'}
+          onClick={() => { setEditing(true); onLoad(); }}>
+          {loaded ? 'Reload groups' : 'Load groups'}
+        </button>
+        {loaded?.status === 'loading' && <span className="text-text-tertiary">Loading the groups of {column}</span>}
+        {loaded?.status === 'done' && (
+          <span className="text-text-tertiary">
+            {values.length.toLocaleString()} value{values.length === 1 ? '' : 's'}{loaded.truncated ? `, the top ${GROUP_TOP} by rows` : ''}
+          </span>
+        )}
+        {loaded?.status === 'done' && values.length > 0 && picked.length > 0 && (
+          <button type="button" className={BUTTON} onClick={() => setEditing(!editing)}>{editing ? 'Done' : 'Change groups'}</button>
+        )}
+      </div>
+      {loaded?.status === 'error' && <PlainMessage role="alert" className="text-error-fg" text={loaded.error} />}
+      {listing && (
+        <>
+          {values.length > GROUP_SEARCH_MIN && (
+            <input type="search" aria-label={`Search the groups of ${column}`} value={search} placeholder="Search groups" dir="auto"
+              onChange={(e) => setSearch(e.target.value)} className={`${FIELD} w-full`} />
+          )}
+          <div className="flex gap-2">
+            <button type="button" className={BUTTON} onClick={() => onPick(values.map((g) => g.value))}>Select all</button>
+            <button type="button" className={BUTTON} onClick={() => onPick([])}>Clear</button>
+          </div>
+          <ul aria-label={`Groups of ${column}`} className="grid gap-1 max-h-56 overflow-y-auto">
+            {shown.map((g) => (
+              <li key={g.value}>
+                <label className="flex items-center gap-2 rounded-md border border-border bg-surface px-2 py-1">
+                  <input type="checkbox" data-group-value={g.value} checked={chosen.has(g.value)}
+                    onChange={() => onPick(chosen.has(g.value) ? picked.filter((v) => v !== g.value) : [...picked, g.value])} />
+                  <span dir="auto" className="text-text-primary">{g.value}</span>
+                  <span className="ms-auto text-text-tertiary">{g.records.toLocaleString()}</span>
+                </label>
+              </li>
+            ))}
+          </ul>
+        </>
+      )}
+      {loaded?.status === 'done' && values.length === 0 && <p className="text-text-secondary">{column} has no values in the rows in scope.</p>}
+      {picked.length > 0 && (
+        <div className="flex flex-wrap gap-1.5">
+          {picked.map((v) => (
+            <span key={v} data-scope-group={column} className="inline-flex items-center gap-1 rounded-full bg-db-red-50 px-2 py-0.5 text-db-red-fg">
+              <span dir="auto">{v}</span>
+              <button type="button" aria-label={`Remove group ${v}`} onClick={() => onPick(picked.filter((x) => x !== v))}><X size={10} /></button>
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function ColumnGrid({ table, entry, meta, problems, onEntry, valuesOf, loadValues, apiFetch, warehouseId }) {
   const [note, setNote] = useState('');
+  const [groupsOf, setGroupsOf] = useState({});
   if (meta?.error) return <PlainMessage role="alert" className="text-error-fg" text={meta.error} />;
   if (!meta) return <p className="text-text-tertiary">Reading the columns of {table}</p>;
   const names = meta.columns.map((c) => c.column_name);
@@ -253,6 +336,28 @@ function ColumnGrid({ table, entry, meta, problems, onEntry, valuesOf, loadValue
   };
   const toggle = (name) => write(shown.includes(name) ? shown.filter((n) => n !== name) : [...shown, name], rows);
   const keyNotes = (meta.keys || []).filter((k) => !shown.includes(k));
+  const groupOf = (name) => rows.find((f) => isGroupRow(f) && f.column === name)?.values || [];
+  const pickGroups = (name, values) => {
+    const others = rows.filter((f) => !(isGroupRow(f) && f.column === name));
+    write(shown, values.length ? [...others, { column: name, op: 'in', values, group: true }] : others);
+  };
+  const loadGroups = (name) => {
+    setGroupsOf((prev) => ({ ...prev, [name]: { status: 'loading' } }));
+    const filters = rows.filter((f) => filterIsComplete(f) && !(isGroupRow(f) && f.column === name));
+    withTimeout(apiFetch(`/api/inspire/implement/group-counts?${browseQuery(warehouseId, table)}`, {
+      method: 'POST',
+      body: JSON.stringify({ columns: [name], filters, window: {}, top: GROUP_TOP }),
+    }), ANSWER_MS)
+      .then((d) => setGroupsOf((prev) => ({
+        ...prev,
+        [name]: {
+          status: 'done',
+          truncated: Boolean(d.truncated),
+          values: (d.groups || []).map((g) => ({ value: String(g[name]), records: Number(g.records) || 0 })),
+        },
+      })))
+      .catch((e) => setGroupsOf((prev) => ({ ...prev, [name]: { status: 'error', error: e.message || `The groups of ${name} could not be listed.` } })));
+  };
   return (
     <section aria-label={`Columns of ${table}`} data-column-grid={table} className="space-y-3">
       <div className="flex flex-wrap items-center gap-2">
@@ -270,28 +375,30 @@ function ColumnGrid({ table, entry, meta, problems, onEntry, valuesOf, loadValue
           Key columns {keyNotes.join(', ')} are not ticked. Inspire then identifies each row by its own row key.
         </p>
       )}
-      <table className="w-full border-collapse">
-        <caption className="sr-only">Columns of {table}: tick the columns Inspire reads, and add row filters to a column.</caption>
+      <div className="overflow-x-auto">
+      <table className="w-full table-fixed border-collapse">
+        <caption className="sr-only">Columns of {table}: tick the columns Inspire reads, add row filters, and pick row groups.</caption>
         <thead>
           <tr className="text-text-tertiary">
-            <th scope="col" className="px-2 py-1 text-start font-semibold">Column</th>
-            <th scope="col" className="px-2 py-1 text-start font-semibold">Row filters</th>
+            <th scope="col" className="w-[30%] px-2 py-1 text-start font-semibold">Column</th>
+            <th scope="col" className="w-[28%] px-2 py-1 text-start font-semibold">Row filters</th>
+            <th scope="col" className="w-[42%] px-2 py-1 text-start font-semibold">Row Groups</th>
           </tr>
         </thead>
         <tbody>
           {names.map((name) => {
             const ticked = shown.includes(name);
-            const conditions = rows.map((f, index) => ({ f, index })).filter(({ f }) => f.column === name);
+            const conditions = rows.map((f, index) => ({ f, index })).filter(({ f }) => f.column === name && !isGroupRow(f));
             return (
               <tr key={name} data-scope-row={name} className="border-t border-border align-top">
-                <td className="px-2 py-1.5">
-                  <label className="flex items-center gap-2">
+                <td className="break-words px-2 py-1.5">
+                  <label className="flex flex-wrap items-center gap-x-2 gap-y-0.5">
                     <input type="checkbox" data-scope-column={name} checked={ticked} onChange={() => toggle(name)} />
                     <span className="font-mono text-text-primary">{name}</span>
                     {typeOf.get(name) && <span className="text-text-tertiary">{typeOf.get(name)}</span>}
                   </label>
                 </td>
-                <td className="px-2 py-1.5 space-y-2">
+                <td className="break-words px-2 py-1.5 space-y-2">
                   {conditions.length > 0 && (
                     <div className="flex flex-wrap gap-1.5">
                       {conditions.map(({ f, index }) => (
@@ -310,9 +417,17 @@ function ColumnGrid({ table, entry, meta, problems, onEntry, valuesOf, loadValue
                       onCommit={(condition) => write(shown, [...rows, condition])} />
                   ) : (
                     <>
-                      <button type="button" disabled aria-label={`Add row filter on ${name}`} className={BUTTON}>Add row filter</button>
+                      <button type="button" disabled aria-label={`Add row filter on ${name}`} className={`${BUTTON} whitespace-nowrap`}>Add row filter</button>
                       <p className="text-text-tertiary">Tick {name} to add a row filter to it.</p>
                     </>
+                  )}
+                </td>
+                <td className="break-words px-2 py-1.5">
+                  {columnKindOf(typeOf.get(name)) === 'categorical' ? (
+                    <RowGroups column={name} ticked={ticked} picked={groupOf(name)} loaded={groupsOf[name]}
+                      onLoad={() => loadGroups(name)} onPick={(values) => pickGroups(name, values)} />
+                  ) : (
+                    <p className="text-text-tertiary">Use Row filters for numbers and dates.</p>
                   )}
                 </td>
               </tr>
@@ -320,14 +435,14 @@ function ColumnGrid({ table, entry, meta, problems, onEntry, valuesOf, loadValue
           })}
         </tbody>
       </table>
+      </div>
     </section>
   );
 }
 
-// The label block: prefilled from the row filters until the person types, then kept as typed.
 function UseCaseLabel({ scopes, tables, label, onLabel }) {
   const filtered = filteredTablesOf(scopes, tables);
-  const prefill = joinWords(filterValuesOf(scopes, tables));
+  const prefill = groupLabelOf(filterValuesOf(scopes, tables));
   const shown = label.text == null ? prefill : label.text;
   return (
     <div data-use-case-label className="rounded-xl border border-border p-3 space-y-2">
@@ -336,22 +451,25 @@ function UseCaseLabel({ scopes, tables, label, onLabel }) {
         Use case labeling enhanced using filters
       </label>
       <input dir="auto" type="text" aria-label="Use case label" data-use-case-label-text value={shown} disabled={!label.on}
-        placeholder={label.on ? 'Add a row filter, then the label fills in here' : 'Tick the box above to use a label'}
+        placeholder={label.on ? 'Pick row groups, then the label fills in here' : 'Tick the box above to use a label'}
         onChange={(e) => onLabel({ ...label, text: e.target.value })}
         className={`${FIELD} h-9 w-full disabled:opacity-50`} />
       {label.text != null && label.on && (
-        <button type="button" className={BUTTON} onClick={() => onLabel({ ...label, text: null })}>Use the filter values</button>
+        <button type="button" className={BUTTON} onClick={() => onLabel({ ...label, text: null })}>Use the group values</button>
       )}
       <p className="text-text-tertiary">
         Inspire puts this label in the name of every use case that reads a filtered table, for example
         &quot;Improve Contoso customer experience using segmentation&quot;.
-        {label.on && !filtered.length && ' Add a row filter to a table first: the label has nothing to name yet.'}
+        {label.on && !filtered.length && ' Pick row groups first: the label has nothing to name yet.'}
       </p>
     </div>
   );
 }
 
 export default function DataFilters({ picks, scopes, onScopes, label, onLabel, apiFetch, warehouseId, onProblems }) {
+  const [split, setSplit] = useState(readSplit);
+  const rootRef = useRef(null);
+  useEffect(() => { writeSplit(split); }, [split]);
   const [openTable, setOpenTable] = useState(null);
   const [columnsOf, setColumnsOf] = useState({});
   const [valuesOf, setValuesOf] = useState({});
@@ -393,10 +511,10 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
       latestJobs.current.forEach(({ table, key, filters }) => {
         if (fired.current[table] === key) return;
         fired.current[table] = key;
-        apiFetch(`/api/inspire/implement/readiness?${browseQuery(warehouseId, table)}`, {
+        withTimeout(apiFetch(`/api/inspire/implement/readiness?${browseQuery(warehouseId, table)}`, {
           method: 'POST',
           body: JSON.stringify({ table, columns: [], filters, window: {} }),
-        })
+        }), ANSWER_MS)
           .then((d) => setCounts((prev) => ({ ...prev, [table]: { key, rows: Number(d.row_count) || 0 } })))
           .catch((e) => setCounts((prev) => ({ ...prev, [table]: { key, error: e.message || 'The rows could not be counted.' } })));
       });
@@ -428,7 +546,7 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
   };
   const tableProblems = tables.map(problemsOf);
   const problems = tableProblems.flat();
-  const labelProblem = label.on && filteredTablesOf(scopes, tables).length && !(label.text ?? joinWords(filterValuesOf(scopes, tables))).trim()
+  const labelProblem = label.on && filteredTablesOf(scopes, tables).length && !(label.text ?? groupLabelOf(filterValuesOf(scopes, tables))).trim()
     ? ['Use case labeling is ticked but the label is empty: type the label or untick the box.'] : [];
   const allProblems = [...problems, ...labelProblem];
   const allKey = allProblems.join('\n');
@@ -443,7 +561,10 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
     const parts = [];
     if (total && ticked === total) parts.push('All columns');
     else parts.push(total ? `${ticked} of ${total} columns` : `${ticked} column${ticked === 1 ? '' : 's'}`);
-    if (scope.rows.length) parts.push(`${scope.rows.length} row filter${scope.rows.length === 1 ? '' : 's'}`);
+    const filters = scope.rows.filter((r) => !isGroupRow(r)).length;
+    const groups = scope.rows.length - filters;
+    if (filters) parts.push(`${filters} row filter${filters === 1 ? '' : 's'}`);
+    if (groups) parts.push(`${groups} row group${groups === 1 ? '' : 's'}`);
     const job = jobs.find((j) => j.table === table);
     if (job) {
       const c = counts[table];
@@ -477,7 +598,8 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
       </p>
       {nothingPicked && <p data-data-filters-empty className="text-text-tertiary">Pick tables, schemas or catalogs under Unity Catalog Metadata to filter them.</p>}
       {!nothingPicked && (
-        <div data-filters-layout className="grid gap-4 min-[1440px]:grid-cols-[minmax(16rem,0.8fr)_minmax(0,1.4fr)]">
+        <div ref={rootRef} data-filters-layout className="grid grid-cols-1 gap-4 min-[1024px]:[grid-template-columns:var(--dfl)_0.5rem_var(--dfr)]"
+          style={{ '--dfl': `minmax(0,${split}fr)`, '--dfr': `minmax(0,${100 - split}fr)` }}>
           <div data-filters-tree className="min-w-0 max-h-[28rem] overflow-y-auto">
             <ul role="tree" aria-label="Tables you picked, by catalog, schema and table" className="space-y-1">
               {tree.map((c) => (
@@ -486,10 +608,27 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
               ))}
             </ul>
           </div>
+          <div role="separator" aria-orientation="vertical" aria-label="Resize the table list and the column grid" aria-valuemin={SPLIT_MIN}
+            aria-valuemax={SPLIT_MAX} aria-valuenow={split} tabIndex={0} data-filters-splitter
+            onPointerDown={(e) => e.currentTarget.setPointerCapture(e.pointerId)}
+            onPointerMove={(e) => {
+              if (!e.currentTarget.hasPointerCapture(e.pointerId)) return;
+              const box = rootRef.current.getBoundingClientRect();
+              setSplit(clampSplit(((e.clientX - box.left) / box.width) * 100));
+            }}
+            onKeyDown={(e) => {
+              const next = { ArrowLeft: split - 2, ArrowRight: split + 2, Home: SPLIT_MIN, End: SPLIT_MAX }[e.key];
+              if (next === undefined) return;
+              e.preventDefault();
+              setSplit(clampSplit(next));
+            }}
+            className="hidden min-[1024px]:flex cursor-col-resize justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red-fg/60">
+            <span className="w-px bg-border" />
+          </div>
           <div data-filters-grid-pane className="min-w-0">
             {shownTable ? (
               <ColumnGrid key={shownTable} table={shownTable} entry={tableScopeOf(scopes, shownTable)} meta={columnsOf[shownTable]}
-                problems={problemsOf(shownTable)} onEntry={setEntry}
+                problems={problemsOf(shownTable)} onEntry={setEntry} apiFetch={apiFetch} warehouseId={warehouseId}
                 valuesOf={(column) => valuesOf[valueKey(warehouseId, shownTable, column)] || []} loadValues={loadValues} />
             ) : (
               <p data-grid-empty className="text-text-tertiary">Click a table on the left to see its columns.</p>

@@ -24,9 +24,23 @@ export function normalizeTableScope(entry) {
     column: text(row.column),
     op: text(row.op).toLowerCase(),
     values: (Array.isArray(row.values) ? row.values : []).map(text),
+    ...(row.group === true ? { group: true } : {}),
   }));
   return { columns, rows };
 }
+
+const NUMERIC_TYPE = /^(DECIMAL|DOUBLE|FLOAT|REAL|NUMERIC|INT|INTEGER|BIGINT|SMALLINT|TINYINT|LONG|SHORT|BYTE)(?![A-Za-z_])/i;
+const DATE_TYPE = /^(DATE|TIMESTAMP|TIMESTAMP_NTZ|TIMESTAMP_LTZ|INTERVAL)(?![A-Za-z_])/i;
+
+// Row Groups apply to categorical columns: every type that is neither numeric nor a date (string, boolean and the rest).
+export function columnKindOf(dataType) {
+  const type = String(dataType ?? '').trim();
+  if (DATE_TYPE.test(type)) return 'date';
+  if (NUMERIC_TYPE.test(type)) return 'numeric';
+  return 'categorical';
+}
+
+export const isGroupRow = (row) => row.group === true;
 
 export function scopeProblems(entry, tableColumns = null) {
   const scope = normalizeTableScope(entry);
@@ -105,7 +119,7 @@ export function serializeTableScopes(scopes, pickedTables = [], label = '') {
     if (scopeIsValid(entry)) out[table] = normalizeTableScope(entry);
   }
   const labelText = text(label);
-  if (labelText && Object.values(out).some((entry) => entry.rows.length)) out[USE_CASE_LABEL_KEY] = labelText;
+  if (labelText && Object.values(out).some((entry) => entry.rows.some(isGroupRow))) out[USE_CASE_LABEL_KEY] = labelText;
   return Object.keys(out).length ? JSON.stringify(out) : '';
 }
 
@@ -116,7 +130,7 @@ export function filterValuesOf(scopes, pickedTables = []) {
   for (const [table, entry] of Object.entries(scopes || {})) {
     if (!picked.has(scopeKeyOf(table))) continue;
     for (const row of normalizeTableScope(entry).rows) {
-      if (row.op === '=' || row.op === 'in') values.push(...row.values.filter(Boolean));
+      if (isGroupRow(row)) values.push(...row.values.filter(Boolean));
     }
   }
   return [...new Set(values)];
@@ -144,7 +158,7 @@ export function tableBrowseQuery(warehouseId) {
 export function filteredTablesOf(scopes, pickedTables = []) {
   const picked = new Set(pickedTables.map(scopeKeyOf));
   return Object.entries(scopes || {})
-    .filter(([table, entry]) => picked.has(scopeKeyOf(table)) && normalizeTableScope(entry).rows.length)
+    .filter(([table, entry]) => picked.has(scopeKeyOf(table)) && normalizeTableScope(entry).rows.some(isGroupRow))
     .map(([table]) => table);
 }
 
