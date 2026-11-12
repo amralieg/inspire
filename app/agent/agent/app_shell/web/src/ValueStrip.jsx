@@ -16,10 +16,10 @@ export default function ValueStrip({ page, data, app }) {
   const { kpi, more } = strip;
   return (
     <div className="value-strip" data-value-strip="" aria-label="Value and more use cases">
-      {kpi && <p data-value-now="">{kpi.label}: <b>{data ? kpi.now : 'Loading'}</b></p>}
+      {kpi && <p data-value-now="" data-tour="value">{kpi.label}: <b>{data ? kpi.now : 'Loading'}</b></p>}
       {strip.saved && (strip.saved.warning
         ? <p role="alert" data-value-saved-warning="">{strip.saved.warning}</p>
-        : <p data-value-saved="">{strip.saved.text}</p>)}
+        : <p data-value-saved="" data-tour="saved">{strip.saved.text}</p>)}
       {more && (
         <a className="link" data-more-use-cases="" href={more.href} target={more.inside ? '_top' : '_blank'}
           rel={more.inside ? undefined : 'noopener noreferrer'}>{MORE_USE_CASES}</a>

@@ -113,7 +113,7 @@ function choiceFields(page, row) {
     ...(reasons.length ? { Reasons: reasons.join('; ') } : {}) };
 }
 
-function useChoices(page, onChanged) {
+export function useChoices(page, onChanged) {
   const labelOf = (s) => String(s?.label ?? s?.record_key ?? '');
   const acts = useActs({ pageId: page.id, similarBy: [], onActed: onChanged, labelOf });
   const [error, setError] = useState('');
@@ -475,7 +475,7 @@ export function EffectCard({ page, data, filters, onPick }) {
   );
 }
 
-function ClusterBar({ page, app, name, items, decide, can }) {
+export function ClusterBar({ page, app, name, items, decide, can }) {
   const [asking, setAsking] = useState('');
   const group = page.records.group;
   const choice = (page.choices || []).find((c) => c.id === group.choice);

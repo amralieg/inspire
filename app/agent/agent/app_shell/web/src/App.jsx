@@ -30,6 +30,9 @@ const Tour = lazy(() => import('./Tour.jsx'));
 const Performance = lazy(() => import('./Performance.jsx'));
 
 const THEME_KEY = 'inspire-app-theme';
+const GENIE_CLOSED = 'inspire-genie-closed';
+const genieClosedThisSession = () => { try { return window.sessionStorage.getItem(GENIE_CLOSED) === '1'; } catch { return false; } };
+const rememberGenie = (open) => { try { window.sessionStorage.setItem(GENIE_CLOSED, open ? '0' : '1'); } catch { /* private mode opens it on every load */ } };
 const RAIL_ICONS = { dashboard: 'grid', inbox: 'bell', work: 'check', performance: 'trend', runs: 'history', alerts: 'bell', impact: 'trend', feedback: 'info', reports: 'history', settings: 'sliders' };
 
 function initials(user) {
@@ -89,7 +92,7 @@ function railOf(app, page) {
 
 function SectionRail({ sections, on, onGo, open, page, counts = {}, alerting }) {
   const top = sections.filter((s) => s !== 'settings');
-  const toured = (s) => (s === 'runs' && alerting && !sections.includes('alerts') ? 'alerts' : ['performance', 'alerts', 'runs', 'settings'].includes(s) ? s : undefined);
+  const toured = (s) => (s === 'runs' && alerting && !sections.includes('alerts') ? 'alerts' : ['performance', 'alerts', 'runs', 'feedback', 'reports', 'settings'].includes(s) ? s : undefined);
   const item = (s) => (
     <button key={s} type="button" className={`nav-i rail-i ${on === s ? 'is-on' : ''}`} onClick={() => onGo(s)} aria-current={on === s ? 'page' : undefined} data-rail={s}
       data-tour={toured(s)}
@@ -160,7 +163,8 @@ function Shell({ app, onRefreshSiblings }) {
   }), []);
   const [navOpen, setNavOpen] = useState(false);
   const [railCounts, setRailCounts] = useState({});
-  const [genieOpen, setGenieOpen] = useState(false);
+  const [genieOpen, setGenieOpenNow] = useState(() => !genieClosedThisSession());
+  const setGenieOpen = (open) => { rememberGenie(open); setGenieOpenNow(open); };
   const [dockSlot, setDockSlot] = useState(null);
   const [showing, setShowing] = useState(false);
   const [view, setView] = useState(DEFAULT_VIEW);
@@ -283,9 +287,9 @@ function Shell({ app, onRefreshSiblings }) {
     wasWorking.current = working;
     if (working && genieOpen) {
       setDock('genie');
-      setGenieOpen(false);
+      setGenieOpenNow(false);
     } else if (!working && prefs.dock === 'genie') {
-      setGenieOpen(true);
+      setGenieOpenNow(true);
     }
   }, [working]);
   const genieProps = { app, genie, page, pages: shown, onPick: go, fact: page ? topFact(page, tourFacts[page.id]) : '' };

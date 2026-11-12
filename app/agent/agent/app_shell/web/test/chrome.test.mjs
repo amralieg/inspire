@@ -295,8 +295,8 @@ test('the Genie window resizes by drag, keys, double-click and the maximize butt
   assert.deepEqual([await max.getAttribute('aria-pressed'), await width()], ['false', 320]);
   await page.reload();
   await page.waitForSelector('.kpi-v');
-  await page.getByRole('button', { name: 'Ask Genie', exact: true }).click();
-  assert.equal(await width(), 320, 'the width is remembered');
+  await page.locator('aside.genie.is-open').waitFor({ timeout: 10000 });
+  assert.equal(await width(), 320, 'the width is remembered, and the panel stays open after a reload as the person left it in the session (REQ-092)');
   await handle.focus();
   await page.keyboard.press('End');
   await resizeTo(page, 1000);
