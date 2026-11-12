@@ -1559,12 +1559,11 @@ export default function ImplementWizard({
         )}
 
         {shows('fresh') && (
-          <Advanced open={advanced.fresh || sectionErrors('schedule', spec, extras).length > 0} onToggle={() => toggleAdvanced('fresh')} what="Keep it fresh"
-            summary={`Keep it fresh: ${FRESHNESS_OPTIONS.find((o) => o.id === freshness)?.label || 'Custom'}`}>
-            <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-text-primary">{FRESH_LABEL}</h3>
+          <section className="space-y-2" aria-label={FRESH_LABEL}>
+            <Advanced open={advanced.fresh || sectionErrors('schedule', spec, extras).length > 0} onToggle={() => toggleAdvanced('fresh')} what={FRESH_LABEL}
+              summary={freshness === 'off' ? 'Keep it fresh: off, it runs once now' : `Keep it fresh: runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`}>
               <p className="text-[11px] text-text-secondary">{FRESH_HELP}</p>
+              <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
               <div data-choice="freshness" className="space-y-2">
               <div role="group" aria-label="Keep it fresh" className="inline-flex rounded-lg border border-border overflow-hidden">
                 {[...FRESHNESS_OPTIONS, ...(freshness === 'custom' ? [{ id: 'custom', label: 'Custom' }] : [])].map((option) => (
@@ -1588,8 +1587,8 @@ export default function ImplementWizard({
                   ? 'It runs once now. Turn this on later to keep the results current.'
                   : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first run works. Cost: ${costHint(spec, { scheduleSaid: true })}`}
               </p>
-            </section>
-          </Advanced>
+            </Advanced>
+          </section>
         )}
 
         {shows('measure') && (
@@ -1948,11 +1947,8 @@ export default function ImplementWizard({
         )}
 
         {shows('app_pages') && (
-          <Advanced open={advanced.app_pages} onToggle={() => toggleAdvanced('app_pages')} what="App pages"
-            summary={`Pages on: ${appPagesOf(spec).filter((p) => p.on).map((p) => p.label).join(', ') || 'none'}`}>
-            <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView}
-              onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
-          </Advanced>
+          <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView} open={advanced.app_pages} onToggle={() => toggleAdvanced('app_pages')}
+            onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
         )}
 
         {shows('app_look') && (
@@ -2978,8 +2974,9 @@ function LookCard({ name, value, checked, onChange, label, best = null, blurb = 
   );
 }
 
-function AppPagesStep({ spec, look, onPage, view: lookView, onView }) {
+function AppPagesStep({ spec, look, onPage, view: lookView, onView, open = false, onToggle = null }) {
   const pages = appPagesOf(spec);
+  const onPages = pages.filter((p) => p.on).map((p) => p.label);
   const pageId = lookView.page;
   const shownPage = pages.some((p) => p.id === pageId && p.on) ? pageId : 'fix';
   const setPageId = (next) => onView({ ...lookView, page: next });
@@ -2987,6 +2984,7 @@ function AppPagesStep({ spec, look, onPage, view: lookView, onView }) {
   const perUserAlerts = pages.find((p) => p.id === 'alerts')?.off;
   return (
     <section className="space-y-2" aria-label="App pages">
+      <Advanced open={open} onToggle={onToggle} what="App pages" summary={`${onPages.length} pages on: ${onPages.join(', ')}`}>
         <fieldset className="space-y-2">
           <legend className={LEGEND}>Pages</legend>
           <p className="text-[11px] text-text-secondary">{APP_PAGES_NOTE} Pick a page to see it in the App look sample.</p>
@@ -3013,6 +3011,7 @@ function AppPagesStep({ spec, look, onPage, view: lookView, onView }) {
           <p data-page-blurb="" className="text-[11px] leading-snug text-text-secondary">{pages.find((p) => p.id === shownPage).blurb}</p>
           {perUserAlerts && <p className="text-[11px] leading-snug text-text-tertiary">Alerts are off: {PER_USER_REASON}</p>}
         </fieldset>
+      </Advanced>
     </section>
   );
 }
