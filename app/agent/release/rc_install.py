@@ -143,6 +143,18 @@ def prep(w, tag, folder, app_name, work, online=False, whole=False, unzip=False,
     return listed
 
 
+ISOLATION = HERE / "isolation.py"
+
+
+def before_snapshot(path, run=subprocess.run):
+    done = run([sys.executable, str(ISOLATION), "snapshot", str(path)], capture_output=True, text=True)
+    if done.returncode != 0 or not pathlib.Path(path).is_file():
+        detail = (done.stderr or done.stdout or "").strip()[-400:]
+        raise SystemExit(f"the before-snapshot {path} failed (exit {done.returncode}), so nothing is installed: {detail}")
+    say(f"before-snapshot written: {path}")
+    return pathlib.Path(path)
+
+
 def busy_protected_runs(w, app_name):
     watched = set(WATCHED_SPS)
     try:
@@ -346,6 +358,7 @@ def main():
     if args.stage == "all":
         if state_path.exists():
             raise SystemExit(f"{state_path} exists: this install already ran; pick a new --label")
+        before_snapshot(W40 / f"{key}_iso_before.json")
         busy = busy_protected_runs(w, app_name)
         if busy:
             raise SystemExit(f"{len(busy)} run(s) of a watched App service principal are active; not installing")
