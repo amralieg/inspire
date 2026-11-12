@@ -1111,7 +1111,7 @@ export default function ImplementWizard({
   };
 
   const markTouched = (e) => {
-    if (e.target?.closest?.('input, select, textarea, button, [data-option]')) touched.current = true;
+    if (e.target?.closest?.('input, select, textarea, [data-option], [data-draft-change]')) touched.current = true;
   };
 
   const startOver = () => {
@@ -1441,7 +1441,7 @@ export default function ImplementWizard({
                   only to override it.
                 </p>
                 {Object.values(spec.data.column_roles).some(Boolean) && (
-                  <button type="button" className="text-[11px] text-db-red-fg shrink-0" onClick={() => patch('data.column_roles', {})}>
+                  <button type="button" data-draft-change="" className="text-[11px] text-db-red-fg shrink-0" onClick={() => patch('data.column_roles', {})}>
                     {RESET_ROLES_LABEL}
                   </button>
                 )}
@@ -3224,7 +3224,7 @@ function SourceTableBlocks({ tables, spec, columnsByTable, values, setSpec, load
       {filterTablesOutside(spec.data.filters, tables).map((table) => (
         <div key={table} data-filters-outside={table} className="border border-border rounded-lg p-3 flex items-center justify-between gap-3">
           <p className="text-[11px] text-text-secondary">Row filters on {table}, which is no longer a source table.</p>
-          <button type="button" className="text-[11px] text-db-red-fg shrink-0" onClick={() => setSpec((prev) => withoutTableFilters(prev, table))}>
+          <button type="button" data-draft-change="" className="text-[11px] text-db-red-fg shrink-0" onClick={() => setSpec((prev) => withoutTableFilters(prev, table))}>
             Remove these filters
           </button>
         </div>
