@@ -87,8 +87,9 @@ test('a refused App read the person cannot grant shows Check again, and after th
     await check.waitFor({ timeout: 15000 });
     w.fixed.value = true;
     await check.click();
-    await page.getByRole('region', { name: CARD }).waitFor({ state: 'detached', timeout: 15000 });
+    await page.getByRole('region', { name: CLEARED }).waitFor({ timeout: 15000 });
     assert.equal(await page.getByRole('region', { name: CARD }).count(), 0, 'the refusal is cleared by Check again');
+    assert.match(await page.getByRole('region', { name: CLEARED }).innerText(), /The App can read all its data now/, 'the cleared card says so');
     assert.equal(await page.getByText(CARD, { exact: false }).count(), 0, 'no stale refusal text stays on the page');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
