@@ -178,8 +178,9 @@ test('a picked catalog lists its schemas when opened, and each schema opens to i
     await schema.waitFor({ timeout: 15000 });
     assert.equal(await schema.locator('> button').getAttribute('aria-expanded'), 'false', 'a schema under a picked catalog is collapsed too');
     await schema.locator('> button').click();
-    await page.locator(`[data-schema-group="main.s"] [data-scope-table="${ORDERS}"]`).waitFor({ timeout: 15000 });
-    assert.equal(await page.locator(`[data-schema-group="main.s"] [data-scope-table="${ORDERS}"] [data-scope-column]`).count(), 4);
+    await page.locator(`[data-schema-group="main.s"] [data-scope-table="${ORDERS}"] [data-scope-column="brand_name"]`).waitFor({ timeout: 15000 });
+    await until(async () => (await page.locator(`[data-schema-group="main.s"] [data-scope-table="${ORDERS}"] [data-scope-column]`).count()) === 4,
+      'the table lists its four columns once they load');
   } finally {
     await ui.close();
   }
