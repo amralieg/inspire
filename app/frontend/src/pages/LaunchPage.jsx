@@ -40,8 +40,9 @@ import DocumentLanguagesMultiselect from '../components/DocumentLanguagesMultise
 import StrategyEditor from '../components/StrategyEditor';
 import { parseStrategicContext, splitPriorities, validateStrategicContextText, withPriorities } from '../lib/strategyContext';
 import UcPermissionErrorHelp from '../components/UcPermissionErrorHelp';
-import TableScopeWizard from '../components/TableScopeWizard';
-import { scopesFromObject, serializeTableScopes, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
+import DataFilters from '../components/DataFilters';
+import { scopesFromObject, serializeTableScopes, filterValuesOf, tableScopeOf, tableScopeSummary } from '../lib/tableScope';
+import { joinWords } from '../lib/implementWizard';
 import { PlainMessage } from '../components/TechnicalDetails';
 import LatestRunBadge from '../components/LatestRunBadge';
 import { runBusiness } from '../lib/reviewFigures';
@@ -180,7 +181,7 @@ const DRAFT_PARAMS = ['00_business_name', '03_discovery_type', '04_table_electio
   '11_generation_path', '12_documents_languages', '13_generate_genie_code_for', '15_operation', '16_best_of_best_count'];
 const FORM_DEFAULTS = {
   genChecks: { 'PDF Catalog': false, Presentation: false, Excel: false }, priorityChecks: {}, customPriorities: [], strategyBase: '',
-  selectedCatalogs: [], selectedSchemas: [], selectedTables: [], tableScopes: {},
+  selectedCatalogs: [], selectedSchemas: [], selectedTables: [], tableScopes: {}, dataFilterLabel: { on: false, text: null },
   electionTouched: false, discoveryTouched: false, strategyTouched: false, prioritiesTouched: false,
 };
 const FLAGS = ['electionTouched', 'discoveryTouched', 'strategyTouched', 'prioritiesTouched'];
@@ -206,8 +207,15 @@ function restoredForm(draft) {
     strategyBase: typeof spec.strategyBase === 'string' ? spec.strategyBase : '',
     ...Object.fromEntries(LISTS.map((key) => [key, Array.isArray(spec[key]) ? spec[key].filter((x) => typeof x === 'string') : []])),
     tableScopes: scopesFromObject(spec.tableScopes).scopes,
+    dataFilterLabel: restoredLabel(spec.dataFilterLabel),
     ...Object.fromEntries(FLAGS.map((key) => [key, spec[key] === true])),
   };
+}
+
+function restoredLabel(value) {
+  const on = !!(value && typeof value === 'object' && value.on === true);
+  const text = value && typeof value === 'object' && typeof value.text === 'string' ? value.text : null;
+  return { on, text };
 }
 
 function ucBrowseQuery(warehouseId) {
@@ -242,7 +250,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [tables, setTables] = useState([]);
   const [selectedTables, setSelectedTables] = useState(start.selectedTables);
   const [tableScopes, setTableScopes] = useState(start.tableScopes);
-  const [scopingTable, setScopingTable] = useState('');
+  const [dataFilterLabel, setDataFilterLabel] = useState(start.dataFilterLabel);
+  const [showDataFilters, setShowDataFilters] = useState(false);
+  const [dataFilterProblems, setDataFilterProblems] = useState([]);
   const [loadingTables, setLoadingTables] = useState(false);
   const [tableSearch, setTableSearch] = useState('');
   const [samplesChoice, setSamplesChoice] = useState({ key: '', choice: '' });
@@ -604,9 +614,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [prioritiesTouched, setPrioritiesTouched] = useState(start.prioritiesTouched);
 
   const draftForm = useMemo(() => draftFormOf(params, {
-    genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables, tableScopes,
+    genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables, tableScopes, dataFilterLabel,
     electionTouched, discoveryTouched, strategyTouched, prioritiesTouched,
-  }), [params, genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables, tableScopes,
+  }), [params, genChecks, priorityChecks, customPriorities, strategyBase, selectedCatalogs, selectedSchemas, selectedTables, tableScopes, dataFilterLabel,
     electionTouched, discoveryTouched, strategyTouched, prioritiesTouched]);
   useEffect(() => {
     if (JSON.stringify(draftForm) === PRISTINE_FORM) clearWizardDraft(draftKey);
@@ -625,6 +635,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     setSelectedSchemas(FORM_DEFAULTS.selectedSchemas);
     setSelectedTables(FORM_DEFAULTS.selectedTables);
     setTableScopes(FORM_DEFAULTS.tableScopes);
+    setDataFilterLabel(FORM_DEFAULTS.dataFilterLabel);
     setElectionTouched(false);
     setDiscoveryTouched(false);
     setStrategyTouched(false);
@@ -732,7 +743,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     finalParams['12_documents_languages'] = formatDocumentLanguages(launchDocLanguages(params));
     // Always auto-generate session ID
     finalParams['14_session_id'] = newSessionId();
-    const tableScopeText = serializeTableScopes(tableScopes, selectedTables);
+    const tableScopeText = serializeTableScopes(tableScopes, selectedTables,
+      dataFilterLabel.on ? (dataFilterLabel.text ?? joinWords(filterValuesOf(tableScopes, selectedTables))) : '');
     if (tableScopeText) finalParams['17_table_scope'] = tableScopeText;
 
     try {
@@ -822,6 +834,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       : !params['01_uc_metadata'] ? 'Pick at least one catalog, schema or table under Unity Catalog Metadata to get started.'
         : sampleEntries.length > 0 && !samplesDecided ? 'Copy the samples tables into a schema you own, or use descriptions only, above Get Started.'
           : strategyProblems.length ? `Fix the strategy first, in Advanced Settings under Strategy (optional): ${strategyProblems[0]}`
+            : dataFilterProblems.length ? `Fix the data filters first, in Advanced Settings under Data Filters (optional): ${dataFilterProblems[0]}`
           : bestOfBestInvalid ? 'Best of Best stars takes a whole number from 0 to 100. Fix it in Advanced Settings.' : '';
   const canLaunch = !launchBlock;
   const liveRunNote = useMemo(() => {
@@ -835,6 +848,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   }, [params['00_business_name'], sessionsList]); // eslint-disable-line react-hooks/exhaustive-deps
   const advancedProblem = !effectiveDb ? 'Set the Inspire Database.'
     : strategyProblems.length ? `Fix the strategy: ${strategyProblems[0]}`
+      : dataFilterProblems.length ? `Fix the data filters: ${dataFilterProblems[0]}`
       : bestOfBestInvalid ? 'Fix Best of Best stars: use a whole number from 0 to 100, or leave it empty.'
         : needsLanguage && selectedDocLanguages.length === 0 ? 'Select at least one document language for PDF or Presentation.'
           : ['refused', 'error'].includes(outputCheck.state) ? 'Change the Generation Path: Inspire cannot write to it.' : '';
@@ -1214,10 +1228,9 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           <Table2 size={9} />
                           {t.split('.').pop()}
                           <button aria-label={`Remove ${t}`} onClick={() => setSelectedTables((p) => p.filter((x) => x !== t))} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
-                          <button type="button" aria-label={`Filter ${t}`} data-table-scope-open={t} onClick={() => setScopingTable(t)}
-                            className="hover:text-db-red-fg ms-0.5 underline-offset-2 hover:underline">
-                            {tableScopeOf(tableScopes, t) ? tableScopeSummary(tableScopeOf(tableScopes, t)) : 'Filter rows and columns'}
-                          </button>
+                          {tableScopeOf(tableScopes, t) && (
+                            <span data-table-scope-summary={t} className="text-text-secondary ms-0.5">{tableScopeSummary(tableScopeOf(tableScopes, t))}</span>
+                          )}
                         </span>
                       ))}
                       {selectedSchemas.map((s) => (
@@ -1235,15 +1248,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       ))}
                     </div>
                   </div>
-                )}
-
-                {scopingTable && (
-                  <TableScopeWizard table={scopingTable} entry={tableScopeOf(tableScopes, scopingTable)} apiFetch={apiFetch} warehouseId={warehouseId}
-                    onClose={() => setScopingTable('')}
-                    onSave={(entry) => {
-                      setTableScopes((prev) => ({ ...prev, [scopingTable]: entry }));
-                      setScopingTable('');
-                    }} />
                 )}
 
                 {tableSelectionWarning.show && (
@@ -1620,6 +1624,46 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       value={strategyBase}
                       onChange={handleStrategyChange}
                       domains={String(params['06_business_domains'] || '').split(',').map((d) => d.trim()).filter(Boolean)}
+                    />
+                  </div>
+                )}
+              </div>
+
+              <div className="border border-border rounded-xl overflow-hidden" data-testid="launch-data-filters">
+                <button
+                  type="button"
+                  onClick={() => setShowDataFilters(!showDataFilters)}
+                  aria-expanded={showDataFilters}
+                  className="w-full flex items-start gap-2 px-4 py-3 text-start hover:bg-bg-subtle/50 transition-smooth"
+                >
+                  <Table2 size={14} className="text-text-tertiary mt-0.5 shrink-0" />
+                  <span className="min-w-0">
+                    <span className="block text-xs font-bold text-text-primary">Data Filters (optional)</span>
+                    <span className="block text-[10px] text-text-tertiary">
+                      The columns Inspire reads and the rows it keeps, per table you picked. Leave it empty to read every column and every row.
+                    </span>
+                  </span>
+                  {dataFilterProblems.length > 0 && (
+                    <span className="ms-auto text-[10px] font-semibold text-db-red-fg">
+                      {`${dataFilterProblems.length} problem${dataFilterProblems.length > 1 ? 's' : ''}`}
+                    </span>
+                  )}
+                  <ChevronDown
+                    size={14}
+                    className={`text-text-tertiary transition-transform duration-200 ${dataFilterProblems.length > 0 ? '' : 'ms-auto'} ${showDataFilters ? 'rotate-180' : ''}`}
+                  />
+                </button>
+                {showDataFilters && (
+                  <div className="px-4 pb-4 pt-1 border-t border-border">
+                    <DataFilters
+                      tables={selectedTables}
+                      scopes={tableScopes}
+                      onScopes={setTableScopes}
+                      label={dataFilterLabel}
+                      onLabel={setDataFilterLabel}
+                      apiFetch={apiFetch}
+                      warehouseId={warehouseId}
+                      onProblems={setDataFilterProblems}
                     />
                   </div>
                 )}

@@ -1271,7 +1271,7 @@ function registerImplementRoutes(app, deps) {
       if (mergeIssues.length) throw I.badRequest(mergeIssues.join('; '));
     }
     const [stalled, tables, empty, unshared] = await Promise.all([stalledOf(req, history[0]), ownerTableChange(req, warehouseId, history, spec, useCase, person),
-      emptyDataWarning(req, warehouseId, spec, useCase), newAppReads(req, warehouseId, spec, useCase)]);
+      emptyDataWarning(req, warehouseId, spec, useCase, parseTableScopeText(session.table_scope).scopes), newAppReads(req, warehouseId, spec, useCase)]);
     const plan = I.planSubmission(history, spec, stalled, { requester: person.username, tableChange: tables.change });
     if (moved) plan.summary.result_table_moved = moved;
     if (tables.change) plan.summary.table_change = tables.change;
@@ -1329,8 +1329,8 @@ function registerImplementRoutes(app, deps) {
     return I.newAppReadsGaps(tables, tables.map((t, i) => (rows[i].length ? I.accessPlan(t, rows[i]) : { gaps: [] })));
   }
 
-  async function emptyDataWarning(req, warehouseId, spec, useCase) {
-    const scope = readinessScope(spec, useCase);
+  async function emptyDataWarning(req, warehouseId, spec, useCase, launchScopes = {}) {
+    const scope = readinessScope(spec, useCase, launchScopes);
     if (!scope.table || !P.personTokenOf(req)) return '';
     const countOf = async (table, narrowing) => {
       const statement = I.readinessStatement(table, narrowing);

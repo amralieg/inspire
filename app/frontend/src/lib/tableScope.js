@@ -60,13 +60,19 @@ export function scopeProblems(entry, tableColumns = null) {
 
 export const scopeIsValid = (entry, tableColumns = null) => scopeProblems(entry, tableColumns).length === 0;
 
+export const USE_CASE_LABEL_KEY = 'use_case_label';
+
+// The label is the one text key the scope object carries besides the catalog.schema.table keys.
 export function scopesFromObject(value) {
   const out = { scopes: {}, problems: [] };
   if (!value || typeof value !== 'object' || Array.isArray(value)) {
     if (value != null && value !== '') out.problems.push('The table scope must be an object keyed by catalog.schema.table.');
     return out;
   }
+  const label = typeof value[USE_CASE_LABEL_KEY] === 'string' ? text(value[USE_CASE_LABEL_KEY]) : '';
+  if (label) out.label = label;
   for (const [table, entry] of Object.entries(value)) {
+    if (table === USE_CASE_LABEL_KEY) continue;
     if (!/^[^.`\s]+\.[^.`\s]+\.[^.`\s]+$/.test(table)) {
       out.problems.push(`${table} must be a catalog.schema.table name.`);
       continue;
@@ -89,7 +95,8 @@ export function tableScopeOf(scopes, table) {
   return null;
 }
 
-export function serializeTableScopes(scopes, pickedTables = []) {
+// The use case label only means something when a picked table has a row filter, so it is written only then.
+export function serializeTableScopes(scopes, pickedTables = [], label = '') {
   const picked = new Set(pickedTables.map(scopeKeyOf));
   const out = {};
   for (const table of Object.keys(scopes || {}).sort()) {
@@ -97,7 +104,29 @@ export function serializeTableScopes(scopes, pickedTables = []) {
     const entry = scopes[table];
     if (scopeIsValid(entry)) out[table] = normalizeTableScope(entry);
   }
+  const labelText = text(label);
+  if (labelText && Object.values(out).some((entry) => entry.rows.length)) out[USE_CASE_LABEL_KEY] = labelText;
   return Object.keys(out).length ? JSON.stringify(out) : '';
+}
+
+// The values the label is prefilled from: the values of the "is" and "is one of" row filters on the picked tables.
+export function filterValuesOf(scopes, pickedTables = []) {
+  const picked = new Set(pickedTables.map(scopeKeyOf));
+  const values = [];
+  for (const [table, entry] of Object.entries(scopes || {})) {
+    if (!picked.has(scopeKeyOf(table))) continue;
+    for (const row of normalizeTableScope(entry).rows) {
+      if (row.op === '=' || row.op === 'in') values.push(...row.values.filter(Boolean));
+    }
+  }
+  return [...new Set(values)];
+}
+
+export function filteredTablesOf(scopes, pickedTables = []) {
+  const picked = new Set(pickedTables.map(scopeKeyOf));
+  return Object.entries(scopes || {})
+    .filter(([table, entry]) => picked.has(scopeKeyOf(table)) && normalizeTableScope(entry).rows.length)
+    .map(([table]) => table);
 }
 
 export function tableScopeSummary(entry) {

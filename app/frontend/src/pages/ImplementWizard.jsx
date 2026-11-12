@@ -586,7 +586,7 @@ export default function ImplementWizard({
   }, [scopeSteps.grouping, context, scopeProfile.profile]);
   const lastStep = stepIndex === steps.length - 1;
   const scopeReady = scopeProfile.state !== 'loading';
-  const scopeNow = readinessScope(spec, ucRow);
+  const scopeNow = readinessScope(spec, ucRow, context?.table_scope);
   const scopeKey = JSON.stringify(scopeNow);
   const readCounted = countedFor(readiness, scopeNow);
   const scopeCounted = Boolean(readCounted);
@@ -885,7 +885,7 @@ export default function ImplementWizard({
     }
     try {
       if (stepId === 'data') {
-        const scope = readinessScope(spec, ucRow);
+        const scope = readinessScope(spec, ucRow, context?.table_scope);
         if (scope.table) {
           setChecking('Checking the data');
           setReadiness(await countScope(scope));

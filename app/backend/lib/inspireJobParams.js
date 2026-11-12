@@ -156,13 +156,13 @@ function parseTableScopeText(text) {
 }
 
 function validateTableScopeParams(params) {
-  const { scopes, problems } = parseTableScopeText(params['17_table_scope']);
+  const { scopes, problems, label } = parseTableScopeText(params['17_table_scope']);
   if (problems.length) throw paramError(`Table scope: ${problems.join(' ')}`);
   const uncovered = Object.keys(scopes).filter((table) => !tableIsPicked(table, params['01_uc_metadata']));
   if (uncovered.length) {
     throw paramError(`Table scope names ${uncovered.join(', ')}, which ${uncovered.length === 1 ? 'is' : 'are'} not picked under Unity Catalog Metadata.`);
   }
-  const text = serializeTableScopes(scopes, Object.keys(scopes));
+  const text = serializeTableScopes(scopes, Object.keys(scopes), label);
   if (text) params['17_table_scope'] = text;
   else delete params['17_table_scope'];
   return params;
