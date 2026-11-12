@@ -61,6 +61,7 @@ const SAMPLES = [
   { key: 'POST /api/setup/verify', rule: 'managers', method: 'POST', path: '/api/setup/verify', body: {} },
   { key: 'POST /api/inspire/implement/swaps', rule: 'any', method: 'POST', path: '/api/inspire/implement/swaps', body: {} },
   { key: 'POST /api/inspire/implement/readiness', rule: 'any', method: 'POST', path: '/api/inspire/implement/readiness', body: {} },
+  { key: 'POST /api/inspire/samples/copy', rule: 'any', method: 'POST', path: '/api/inspire/samples/copy', body: { entries: ['samples.bakehouse.sales_transactions'], destination: 'main.inspire' } },
   { key: 'POST /api/inspire/implement/grant-access', rule: 'any', method: 'POST', path: '/api/inspire/implement/grant-access?kind=source_tables', body: { tables: ['main.sales.orders'] } },
   { key: 'POST /api/inspire/implement/preflight', rule: 'owners', method: 'POST', path: `/api/inspire/implement/preflight?${qs(UC)}&result_table=main.inspire.churn_out`, body: { spec: {} } },
   { key: 'POST /api/inspire/implement/app-reads', rule: 'any', method: 'POST', path: `/api/inspire/implement/app-reads?${qs(UC)}`, body: { action: 'check' } },

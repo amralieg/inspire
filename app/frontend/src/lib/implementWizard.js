@@ -2747,6 +2747,14 @@ export const APP_READ_ACTION = 'Let Inspire read these tables';
 
 export const SOURCE_REFUSED_REASON = 'The App cannot read its sources yet, so the build cannot start. Grant access first, then build.';
 
+export const SOURCE_SAMPLES_REFUSED_REASON = 'The source is a built-in sample, so the App cannot read it. Copy the table first, then build.';
+
+export function sourceRefusedReason(offer) {
+  const builtin = offer?.builtin || [];
+  const samplesOnly = builtin.length > 0 && (offer.tables || []).every((t) => builtin.includes(t));
+  return samplesOnly ? SOURCE_SAMPLES_REFUSED_REASON : SOURCE_REFUSED_REASON;
+}
+
 export function abacGrantText(got) {
   const gaps = got?.abac_gaps || [];
   if (gaps.length) {

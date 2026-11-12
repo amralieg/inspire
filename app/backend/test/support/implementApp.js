@@ -16,6 +16,7 @@ function makeApp(overrides = {}, { mount } = {}) {
   const flagged = [];
   const appCalls = [];
   const launches = [];
+  const sampleCopies = [];
   const catalogLists = [];
   const state = {
     implementColumns: IMPLEMENT_COLUMNS.map(([name]) => name),
@@ -315,6 +316,11 @@ function makeApp(overrides = {}, { mount } = {}) {
     const names = (state.schemas || { main: ['inspire', 's'] })[req.params.catalog] || [];
     return res.json({ schemas: names.map((name) => ({ name, full_name: `${req.params.catalog}.${name}` })) });
   });
+  app.post('/api/inspire/samples/copy', (req, res) => {
+    sampleCopies.push(req.body);
+    const [status, data] = state.sampleCopyAnswer || [200, { destination: String((req.body || {}).destination || ''), copies: (req.body.entries || []).map((source) => ({ source, copy: `${req.body.destination}.${source.split('.')[2]}` })), failed: [] }];
+    res.status(status).json(data);
+  });
   app.get('/api/inspire/feedback', (_req, res) => res.json(state.feedback || { available: false, latest: [], message: '' }));
   app.get('/api/inspire/session', (_req, res) => res.json({ session: state.inspireSession || null }));
   app.get('/api/inspire/steps', (_req, res) => res.json({ steps: state.runSteps || [], count: (state.runSteps || []).length }));
@@ -331,7 +337,7 @@ function makeApp(overrides = {}, { mount } = {}) {
   app.get('/api/inspire/value', (_req, res) => res.json(state.value || { use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } }));
   app.get('/api/inspire/value/overall', (_req, res) => res.json(state.valueOverall || { at_stake: [], saved: [], runs: 0, businesses: 0 }));
   app.get('/api/inspire/value/runs', (_req, res) => res.json(state.valueRuns || { runs: {} }));
-  return { app, sqlCalls, fetches, jobs, state, altered, flagged, appCalls, launches, catalogLists };
+  return { app, sqlCalls, fetches, jobs, state, altered, flagged, appCalls, launches, catalogLists, sampleCopies };
 }
 
 function json(data, status = 200) {

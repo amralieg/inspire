@@ -18,6 +18,7 @@ const NOT_WALKED = {
   'GET /api/inspire/implement/runs': 'reads the last two runs of a built use case from its App with the person\u2019s own sign-in; no non-owner harness row walks it yet',
   'POST /api/inspire/implement/alerts/preview': 'previews an alert and changes nothing; no non-owner harness row walks it yet',
   'POST /api/inspire/implement/alerts/pause': 'pauses an alert; no non-owner harness row walks it yet, and the route samples prove the owners refusal',
+  'POST /api/inspire/samples/copy': 'copies samples tables only with the person own sign-in, into a schema the person names; no non-owner harness row walks it yet, and the route samples and samplesCopy tests prove the sign-in refusal and the copy',
   'POST /api/inspire/implement/grant-access': 'runs grants only with the person own sign-in; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'POST /api/inspire/implement/app-reads': 'runs only the read grants the build recorded for its App, with the person own sign-in; no non-owner harness row walks it yet, and the route tests prove the sign-in refusal',
   'POST /api/inspire/implement/create-schema': 'creates a catalog or schema only with the person own sign-in; no non-owner harness row walks it yet, and the route tests prove the sign-in refusal',

@@ -3063,6 +3063,33 @@ function builtInSampleMessage(tables) {
     + `copy ${one ? 'the table' : 'each table'} into a catalog you own with CREATE TABLE ... AS SELECT, and use the ${one ? 'copy' : 'copies'}`;
 }
 
+const SAMPLE_COPY_NO_SIGN_IN = 'Inspire copies with your own sign-in, and this request carries none, so it copies nothing';
+
+function isBuiltInSampleEntry(name) {
+  return BUILT_IN_SAMPLE_CATALOGS.includes(plainTable(name).split('.')[0]);
+}
+
+function schemaParts(name) {
+  const parts = plainTable(name).split('.');
+  if (parts.length !== 2 || parts.some((p) => !p || p.includes('`'))) throw badRequest(`'${str(name)}' must be catalog.schema`);
+  return { catalog: parts[0], schema: parts[1] };
+}
+
+function sampleCopyDestination(name) {
+  const to = schemaParts(name);
+  if (BUILT_IN_SAMPLE_CATALOGS.includes(to.catalog)) throw badRequest(`${to.catalog} is a built-in sample catalog that Databricks owns, so copy into a schema you own`);
+  return to;
+}
+
+function sampleCopyName(source, destination) {
+  return `${destination.catalog}.${destination.schema}.${tableParts(source).table}`;
+}
+
+function sampleCopyStatement(source, destination) {
+  const from = tableParts(source);
+  return `CREATE TABLE \`${destination.catalog}\`.\`${destination.schema}\`.\`${from.table}\` AS SELECT * FROM \`${from.catalog}\`.\`${from.schema}\`.\`${from.table}\``;
+}
+
 function abacUnreadableSentence(label, { app = false } = {}) {
   const name = str(label).trim();
   const who = app ? `The App's service principal ${name}` : (name || 'The build');
@@ -3703,6 +3730,12 @@ module.exports = {
   IMPLEMENT_SOURCE_NEEDS,
   builtInSampleTable,
   builtInSampleMessage,
+  isBuiltInSampleEntry,
+  schemaParts,
+  sampleCopyDestination,
+  sampleCopyName,
+  sampleCopyStatement,
+  SAMPLE_COPY_NO_SIGN_IN,
   abacUnreadableSentence,
   ownerLabel,
   IMPLEMENT_TRAVERSE_PRIVILEGES,

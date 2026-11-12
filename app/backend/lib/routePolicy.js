@@ -118,6 +118,7 @@ const ROUTE_POLICY = {
   'GET /api/inspire/implement/values': yours('read the values of a column', ['sql']),
   'POST /api/inspire/implement/swaps': yours('look up table swaps', ['sql']),
   'POST /api/inspire/implement/readiness': yours('check data readiness', ['sql']),
+  'POST /api/inspire/samples/copy': yours('copy samples tables into a schema you own, with your own sign-in', ['sql', 'catalog.schemas:read', 'catalog.tables:read']),
   'POST /api/inspire/implement/grant-access': yours('grant read access with your own sign-in', ['sql']),
   'POST /api/inspire/implement/app-reads': yours('give an App Inspire built read access with your own sign-in', ['sql']),
   'POST /api/inspire/implement/create-schema': yours('create a catalog or schema with your own sign-in', ['sql']),

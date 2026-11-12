@@ -69,7 +69,7 @@ import {
   stepIndexOf,
   lostTablesText,
   APP_READ_ACTION,
-  SOURCE_REFUSED_REASON,
+  sourceRefusedReason,
   NEW_APPS_ACCESS_ACTION,
   appGrantText,
   profileEstimate,
@@ -2085,7 +2085,7 @@ export default function ImplementWizard({
           </button>
           <div className="flex items-center gap-2">
             {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceRefused && (
-              <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
+              <p data-source-refused="" className="text-[11px] text-warning-fg">{sourceRefusedReason(appUnreadable)}</p>
             )}
             {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceRefused && (
               <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
@@ -2113,7 +2113,7 @@ export default function ImplementWizard({
                 {busy ? 'Starting…' : 'Generate notebook'}
               </button>
             ) : sourceRefused ? (
-              <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
+              <p data-source-refused="" className="text-[11px] text-warning-fg">{sourceRefusedReason(appUnreadable)}</p>
             ) : (
               <button
                 type="button"
