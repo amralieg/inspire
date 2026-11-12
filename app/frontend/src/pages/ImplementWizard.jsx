@@ -234,6 +234,7 @@ import {
   builtSentence,
   DELIVERY_QUESTION,
   resultTableProblems,
+  dataFilterProblems,
   REBUILD_AS_IS_NOTE,
   rebuildNeedsChoice,
   APP_BACKEND_GUIDE,
@@ -762,11 +763,11 @@ export default function ImplementWizard({
   const chartDates = appInputDates(columnsByTable, sourceTables);
   const ownErrors = stepErrors(stepId, spec, extras, mode);
   const resultAuto = advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false;
-  const dataFolded = dataChoice ?? (resultAuto ? 'results' : null);
-  const dataErrorsOpen = stepId === 'data' && ownErrors.length > 0;
+  const errorBlock = stepId !== 'data' ? null : dataFilterProblems(spec).length ? 'filters' : resultTableProblems(spec.config.result_table).length ? 'results' : null;
+  const dataFolded = errorBlock ?? dataChoice ?? (resultAuto ? 'results' : null);
   const resultsShown = dataFolded === 'results';
-  const sourcesShown = dataFolded === null || dataFolded === 'sources' || dataErrorsOpen;
-  const filtersShown = dataFolded === null || dataFolded === 'filters' || dataErrorsOpen;
+  const sourcesShown = dataFolded === null || dataFolded === 'sources';
+  const filtersShown = dataFolded === null || dataFolded === 'filters';
   const reach = steps.map((s, i) => i <= stepIndex || steps.slice(0, i).every((p) => !stepErrors(p.id, spec, extras, mode).length));
   const done = steps.map((s, i) => i < stepIndex && !stepErrors(s.id, spec, extras, mode).length);
   const goTo = (id) => { setErrors([]); setStep(id); };
