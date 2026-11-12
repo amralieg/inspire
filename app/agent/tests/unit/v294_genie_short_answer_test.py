@@ -10,6 +10,7 @@ if TESTS not in sys.path:
 
 import shell_agent  # noqa: E402
 import shell_sql  # noqa: E402
+from _agentload import load_agent_namespace  # noqa: E402
 from v141_app_shell_test import call  # noqa: E402
 from v211_genie_agent_test import AgentWorkspace, FakeLLM, agent_shell, ask, said, topic_of  # noqa: E402
 
@@ -113,3 +114,22 @@ def test_a_listed_count_that_agrees_with_the_page_kpi_gets_no_different_count_no
 
 def test_a_listed_count_the_answer_does_not_state_gets_no_note():
     assert shell_agent.finish_text("Start with the east list.", key_numbers=PROFILE_KPI, listed=1) == "Start with the east list."
+
+
+def test_a_page_without_a_kind_id_reads_its_layout_when_the_kinds_on_it_agree_and_the_defaults_otherwise():
+    kinds = shell_sql.kinds_registry()["kinds"]
+    entity = next(k for k in kinds if k["id"] == "entity_matching")
+    same = [k["nouns"] for k in kinds if k["layout"] == entity["layout"]]
+    expected = same[0] if all(n == same[0] for n in same) else shell_agent.DEFAULT_NOUNS
+    assert shell_agent.unit_nouns({"layout": entity["layout"]}) == expected
+    assert shell_agent.unit_nouns({"layout": "no_such_layout"}) == shell_agent.DEFAULT_NOUNS
+    assert shell_agent.unit_nouns({}) == shell_agent.DEFAULT_NOUNS
+
+
+def test_a_built_page_spec_carries_its_kind_id_and_the_answer_reads_one_pair_and_two_profiles():
+    ns = load_agent_namespace()
+    page = ns["implement_app_page"]({"title": "Merge passenger profiles"}, "uc1", {"use_case_kind": "entity_matching"}, "")
+    assert page["kind"] == "entity_matching"
+    answer = shell_agent.finish_text("There is 1 duplicate pair to act on.", key_numbers=PROFILE_KPI, listed=1,
+                                     nouns=shell_agent.unit_nouns(page))
+    assert answer.endswith("1 pair listed here; the page KPI Duplicate active passenger profiles counts 2 profiles.")

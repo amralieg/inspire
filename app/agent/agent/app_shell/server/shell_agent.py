@@ -647,9 +647,14 @@ DEFAULT_NOUNS = {"record": ["record", "records"], "kpi": ["record", "records"]}
 
 
 def unit_nouns(page: dict) -> dict:
+    kinds = shell_sql.kinds_registry().get("kinds") or []
     kind = str((page or {}).get("kind") or "")
-    found = next((k for k in shell_sql.kinds_registry().get("kinds") or [] if k.get("id") == kind), {})
-    return found.get("nouns") or DEFAULT_NOUNS
+    found = next((k for k in kinds if k.get("id") == kind), None)
+    if found is None and page and page.get("layout"):
+        same = [k for k in kinds if k.get("layout") == page.get("layout") and k.get("nouns")]
+        if same and all(k["nouns"] == same[0]["nouns"] for k in same):
+            found = same[0]
+    return (found or {}).get("nouns") or DEFAULT_NOUNS
 
 
 def counted(number, noun: list) -> str:
