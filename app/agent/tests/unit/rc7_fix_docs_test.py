@@ -70,6 +70,17 @@ def test_the_excel_workbook_has_one_column_per_customer_strategy_level(docs):
     assert {"Theme", "Ambition", "Outcome", "Focus Area"} <= set(headers), headers
 
 
+def test_a_customer_level_with_no_entry_yet_still_gets_its_excel_column(docs):
+    declared = docs["parse_strategic_context"]({"levels": ["Pillar", "Goal", "Objective"],
+                                                "strategy": [{"name": "Customer", "children": [{"name": "Win loyalty"}]}]})
+    obj = make_inspire(docs, strategy_tree=declared, data_foundations=foundations(), delivery_order=["N01-U01", "N01-U02"],
+                       docs_output_dir="/Workspace/out/docs")
+    obj._generate_use_case_excel("English", "en", portfolio())
+    path = next(p for p in obj.w_client.workspace.files if str(p).endswith(".xlsx"))
+    headers = [cell.value for cell in openpyxl.load_workbook(io.BytesIO(obj.w_client.workspace.files[path]))["Use Cases"][1]]
+    assert {"Pillar", "Goal", "Objective"} <= set(headers), headers
+
+
 def test_a_model_that_refuses_temperature_or_structured_output_is_never_sent_either(docs):
     health = docs["LLM_ENDPOINT_HEALTH"]
     for endpoint in ("databricks-claude-haiku-5-5", "databricks-claude-opus-5-5"):
