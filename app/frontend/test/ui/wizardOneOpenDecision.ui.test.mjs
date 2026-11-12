@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, onStep, openRow, openUi, wizardInScreen } from './uiSupport.mjs';
+import { closeBrowser, goToStep, onStep, openRow, openUi, wizardInScreen, openFolded } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -18,6 +18,7 @@ test('Data and results opens on the source tables, and Keep it fresh sits behind
   const { page } = ui;
   try {
     await goToStep(page, 'Data');
+    await openFolded(page, 'Source tables');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Keep it fresh is behind its Change row');
     assert.equal(await changeRow(page, 'Keep it fresh').getAttribute('aria-expanded'), 'false', 'the Keep it fresh row is closed');

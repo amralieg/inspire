@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, V
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, openDetails, openRow, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary } from './uiSupport.mjs';
+import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, openDetails, openRow, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary, openFolded } from './uiSupport.mjs';
 import { wheelReads } from './wheelScroll.mjs';
 
 const gone = (table) => `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${table} cannot be found. Verify the spelling. SQLSTATE: 42P01`;
@@ -108,6 +108,7 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     assert.deepEqual(await comparison.locator('option').allInnerTexts(), ['at least', 'more than', 'equal to', 'not equal to', 'less than', 'at most'],
       'the alert comparison reads in words, never a symbol');
     await goToStep(page, 'Data');
+    await openFolded(page, 'Source tables');
     assert.deepEqual(await page.locator('[data-table]').evaluateAll((rows) => rows.map((r) => r.dataset.table)), ['main.s.orders', 'main.s.returns']);
     assert.equal(await advanced(page).getAttribute('aria-expanded'), 'false');
     assert.equal(await page.getByLabel('Goal sentence').count(), 0, 'every other setting waits behind its Change line');
@@ -585,6 +586,7 @@ test('Change swaps a table for a similar one or drops it, and never offers to dr
   const { page, made } = ui;
   try {
     await toData(page);
+    await openFolded(page, 'Source tables');
     const row = (table) => page.locator(`[data-table="${table}"]`);
     await row('main.s.orders').getByRole('button', { name: 'Change' }).click();
     const ordersPick = page.getByLabel('Table to use for main.s.orders', { exact: true });

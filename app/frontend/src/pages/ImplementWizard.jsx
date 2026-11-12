@@ -772,10 +772,10 @@ export default function ImplementWizard({
   const ownErrors = stepErrors(stepId, spec, extras, mode);
   const resultAuto = advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false;
   const errorBlock = stepId !== 'data' ? null : dataFilterProblems(spec).length ? 'filters' : resultTableProblems(spec.config.result_table).length ? 'results' : null;
-  const dataFolded = errorBlock ?? dataChoice ?? (resultAuto ? 'results' : null);
+  const dataFolded = dataChoice ?? errorBlock ?? (resultAuto ? 'results' : null);
   const resultsShown = dataFolded === 'results';
-  const sourcesShown = dataFolded === null || dataFolded === 'sources';
-  const filtersShown = dataFolded === null || dataFolded === 'filters';
+  const sourcesShown = dataFolded === null || dataFolded === 'sources' || dataFolded === 'closed';
+  const filtersShown = dataFolded === null || dataFolded === 'filters' || dataFolded === 'closed';
   const reach = steps.map((s, i) => i <= stepIndex || steps.slice(0, i).every((p) => !stepErrors(p.id, spec, extras, mode).length));
   const done = steps.map((s, i) => i < stepIndex && !stepErrors(s.id, spec, extras, mode).length);
   const goTo = (id) => { setErrors([]); setStep(id); };
@@ -872,7 +872,10 @@ export default function ImplementWizard({
       setStep(steps[stepIndex + 1].id);
       return;
     }
-    if (blockedBy(stepId)) return;
+    if (blockedBy(stepId)) {
+      if (stepId === 'data') setDataChoice(null);
+      return;
+    }
     try {
       if (stepId === 'data') {
         const scope = readinessScope(spec, ucRow);
@@ -1567,7 +1570,7 @@ export default function ImplementWizard({
         )}
 
         {resultsOn && (
-          <Advanced open={resultsShown} onToggle={() => { if (resultsShown) { setAdvanced((prev) => ({ ...prev, results: false })); setDataChoice(null); } else setDataChoice('results'); }} what="result table"
+          <Advanced open={resultsShown} onToggle={() => { if (resultsShown) { setAdvanced((prev) => ({ ...prev, results: false })); setDataChoice('closed'); } else setDataChoice('results'); }} what="result table"
             summary={`Result table: ${spec.config.result_table || 'not set yet'}`}>
             <ResultTableStep
               table={spec.config.result_table}

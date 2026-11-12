@@ -297,6 +297,11 @@ export async function openRow(page, what) {
   if (await row.count()) await row.click();
 }
 
+export async function openFolded(page, what) {
+  const change = page.getByRole('button', { name: `Change ${what}`, exact: true });
+  if (await change.count()) await change.click();
+}
+
 export async function openAllRows(page) {
   const closed = page.locator('[data-wizard-body] button[aria-expanded="false"][aria-label^="Change "]:not([data-fold-open])');
   for (let i = 0; i < 20 && await closed.count(); i += 1) await closed.first().click();

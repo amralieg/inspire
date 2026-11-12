@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE } from '../../src/lib/runScope.js';
 import { RUN_IT_TITLE, WIZARD_STEPS_MAX } from '../../src/lib/implementWizard.js';
-import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openRow, openUi, profileAt, settleChoices, shot, stepsAre } from './uiSupport.mjs';
+import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openRow, openUi, profileAt, settleChoices, shot, stepsAre, openFolded } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -58,6 +58,7 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     await onePerQuestion(page, 'Use case');
     await shot(page, '01-use-case', false);
     await onStep(page, 'Data');
+    await openFolded(page, 'Source tables');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
     assert.equal(await page.getByRole('region', { name: GROUPING_TITLE, exact: true }).count(), 0, 'the groups are their own step, not on Data (must-exclude)');
     await onePerQuestion(page, 'Data');
