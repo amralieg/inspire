@@ -67,3 +67,42 @@ def test_no_reporting_currency_and_no_other_currency_stays_unknown(ns, monkeypat
     _widget(ns, monkeypatch, "")
     estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns)], use_case_kind="forecast"))
     assert estimate["currency"] is None and estimate["short"].endswith("(currency not known)")
+
+
+def _widget_map(ns, monkeypatch, **widgets):
+    monkeypatch.setitem(ns, "INSPIRE_SETTINGS_APPLIED", widgets)
+
+
+def test_a_card_whose_currency_was_assumed_says_so_in_its_label(ns, monkeypatch):
+    _widget_map(ns, monkeypatch, currency="AED")
+    estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns)], use_case_kind="forecast"))
+    assert estimate["short"] == "AED 2.4K-6K a year (currency assumed: AED (reporting currency))"
+
+
+def test_a_kpi_in_another_currency_is_converted_to_the_reporting_currency_at_the_app_rate(ns, monkeypatch):
+    _widget_map(ns, monkeypatch, currency="AED", currency_rates='{"EUR": 4.28}')
+    estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns, unit="EUR")], use_case_kind="forecast"))
+    assert estimate["currency"] == "AED"
+    assert estimate["currency_source"] == "converted from EUR"
+    assert estimate["short"] == "AED 10.3K-25.7K a year (converted from EUR at 4.28)"
+    assert "measured: 29,589 EUR" in estimate["text"], "the measured baseline stays in the currency it was measured in"
+
+
+def test_a_currency_with_no_rate_is_not_converted_and_the_label_says_why(ns, monkeypatch):
+    _widget_map(ns, monkeypatch, currency="AED", currency_rates='{"USD": 3.67}')
+    estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns, unit="EUR")], use_case_kind="forecast"))
+    assert estimate["currency"] == "EUR"
+    assert estimate["short"] == "EUR 2.4K-6K a year (not converted to AED: no rate for EUR)"
+
+
+def test_unreadable_rates_are_ignored_not_guessed(ns, monkeypatch):
+    _widget_map(ns, monkeypatch, currency="AED", currency_rates="not json")
+    estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns, unit="EUR")], use_case_kind="forecast"))
+    assert estimate["short"] == "EUR 2.4K-6K a year (not converted to AED: no rate for EUR)"
+
+
+def test_the_same_currency_as_the_reporting_currency_is_never_converted(ns, monkeypatch):
+    _widget_map(ns, monkeypatch, currency="AED", currency_rates='{"AED": 9.9}')
+    estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns, unit="AED")], use_case_kind="forecast"))
+    assert estimate["short"] == "AED 2.4K-6K a year"
+    assert estimate["currency_source"] == "KPI unit"
