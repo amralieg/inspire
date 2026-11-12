@@ -29,6 +29,18 @@ const SLOW_WAREHOUSE_MESSAGE =
   'The warehouse may be starting or waiting for compute. Try again in a minute.';
 
 const requestDeadline = new AsyncLocalStorage();
+const queryTagStore = new AsyncLocalStorage();
+const QUERY_TAG_MAX = 128;
+
+function sqlQueryTags(tags) {
+  return Object.entries(tags || {})
+    .map(([key, value]) => ({ key, value: String(value ?? '').split(/\s+/).filter(Boolean).join(' ').slice(0, QUERY_TAG_MAX) }))
+    .filter((tag) => tag.value);
+}
+
+function runWithQueryTags(tags, fn) {
+  return queryTagStore.run(sqlQueryTags(tags), fn);
+}
 
 function runWithRequestDeadline(fn, ms = PAGE_SQL_DEADLINE_MS, now = Date.now) {
   return requestDeadline.run({ deadline: now() + ms }, fn);
@@ -78,6 +90,8 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
       format: 'JSON_ARRAY',
     };
     if (Array.isArray(parameters) && parameters.length) body.parameters = parameters;
+    const queryTags = queryTagStore.getStore() || [];
+    if (queryTags.length) body.query_tags = queryTags;
     if (Number.isInteger(rowLimit) && rowLimit > 0) body.row_limit = rowLimit;
     if (Number.isInteger(byteLimit) && byteLimit > 0) body.byte_limit = byteLimit;
     const submitResp = await dbFetch(host, token, '/api/2.0/sql/statements', {
@@ -154,6 +168,8 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
 
 module.exports = {
   createExecuteSql,
+  sqlQueryTags,
+  runWithQueryTags,
   sqlCancelledError,
   isDeltaWriteConflict,
   CONFLICT_ATTEMPTS,
