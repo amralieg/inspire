@@ -78,8 +78,9 @@ async function estimatesFor({ useCases, specs, measured, baselineOf }) {
 }
 
 // Every session that has use cases, for the all-runs read (the banner and the Start cards).
-function sessionsSql(table) {
-  return `SELECT DISTINCT CAST(session_id AS STRING) AS session_id FROM ${table}`;
+// The runs the Start list shows, newest first: the cap plus one row, so the caller can tell the list was cut.
+function sessionsSql(sessionTable, cap) {
+  return `SELECT CAST(session_id AS STRING) AS session_id FROM ${sessionTable} ORDER BY create_at DESC LIMIT ${Number(cap) + 1}`;
 }
 
 // Totals from several runs, added per currency. Estimated money stays estimated; it is only ever added to other estimates.

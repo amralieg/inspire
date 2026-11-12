@@ -51,7 +51,7 @@ const {
 const { createSourceAccess } = require('./lib/sourceAccess');
 const { withBusyRetry } = require('./lib/busyRetry');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
-const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
+const { loadSessionList, loadSessionOverviews, sessionListCap, SESSION_LIST_CAP } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { discoverGrantedText, discoverUnreadText, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyName, sampleCopyStatement, implementTableName, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
@@ -2517,11 +2517,13 @@ app.get('/api/inspire/value/estimates', requireToken, async (req, res) => {
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     if (session_id === undefined || session_id === '') {
-      const rows = await readValueRows(req, warehouse_id, VE.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_usecases')));
-      const sids = rows.map((row) => String(row.session_id)).filter((sid) => !invalidSessionId(sid));
+      // The same runs the Start list shows: the latest SESSION_LIST_CAP, newest first.
+      const rows = await readValueRows(req, warehouse_id, VE.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_session'), SESSION_LIST_CAP));
+      const truncated = rows.length > SESSION_LIST_CAP;
+      const sids = rows.slice(0, SESSION_LIST_CAP).map((row) => String(row.session_id)).filter((sid) => !invalidSessionId(sid));
       const answers = await Promise.all(sids.map((sid) => estimatesOfSession(req, warehouse_id, parsedDb, sid)));
       const runs = Object.fromEntries(sids.map((sid, i) => [sid, answers[i]]));
-      return res.json({ runs, totals: VE.mergeTotals(answers.map((answer) => answer.totals)) });
+      return res.json({ runs, totals: VE.mergeTotals(answers.map((answer) => answer.totals)), truncated, cap: SESSION_LIST_CAP });
     }
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
     res.json(await estimatesOfSession(req, warehouse_id, parsedDb, String(session_id).trim()));

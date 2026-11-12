@@ -554,9 +554,8 @@ test('REQ-078 Start: one estimates read feeds every run card and the banner; eac
     const banner = page.locator('[data-value-overall] [data-value-estimated-total]');
     await banner.waitFor({ timeout: 20000 });
     assert.equal((await banner.innerText()).trim(), 'Plus estimated, not measured: 3,000 AED', 'the banner shows the estimate too');
-    const distinct = [...new Set(estimateUrls)];
-    assert.equal(distinct.length, 1, `every card reads the same batch, not one request per card: ${distinct.join(' ')}`);
-    assert.ok(!distinct[0].includes('session_id='), 'the batch read is all runs, not one run');
+    assert.equal(estimateUrls.length, 1, `Start reads the batch once (StrictMode must not double it): ${estimateUrls.join(' ')}`);
+    assert.ok(!estimateUrls[0].includes('session_id='), 'the batch read is all runs, not one run');
     assert.equal(await page.locator('[data-run="42"] [data-value-headline="at stake"]').innerText().then((t) => t.trim()), 'AED 9K', 'the measured total is still shown on its own');
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
   } finally {

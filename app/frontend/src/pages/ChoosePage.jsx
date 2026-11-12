@@ -342,7 +342,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
 
-        {valueReady && <OverallValue value={overallValue} estimated={estimates?.totals} />}
+        {valueReady && <OverallValue value={overallValue} estimated={estimates?.totals} estimateCap={estimates?.truncated ? estimates.cap : null} />}
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
         )}

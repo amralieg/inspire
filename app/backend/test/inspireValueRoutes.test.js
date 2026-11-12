@@ -43,7 +43,10 @@ function fakeWarehouse() {
     if (sql.includes(`FROM ${LEDGER}`) && state.missingLedger) {
       return { failed: `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${LEDGER} cannot be found.` };
     }
-    if (sql.includes('SELECT DISTINCT CAST(session_id')) return { columns: ['session_id'], rows: [['42'], ['43']] };
+    if (sql.includes('FROM `c`.`s`.`__inspire_session` ORDER BY create_at DESC')) {
+      const ids = state.manySessions ? Array.from({ length: 21 }, (_, i) => [String(100 + i)]) : [['42'], ['43']];
+      return { columns: ['session_id'], rows: ids };
+    }
     if (sql.includes('SELECT id, business_domain FROM')) return { columns: ['id', 'business_domain'], rows: USE_CASE_ROWS };
     if (sql.includes('PARTITION BY use_case_id ORDER BY spec_version')) return { columns: ['use_case_id', 'spec'], rows: SPEC_ROWS };
     if (sql.includes('_summary` WHERE use_case_id')) return { columns: ['kpi_baseline'], rows: [['120']] };
@@ -90,9 +93,10 @@ test.after(async () => {
   if (warehouse) await new Promise((resolve) => warehouse.server.close(resolve));
 });
 
-const reset = ({ missingLedger = false } = {}) => {
+const reset = ({ missingLedger = false, manySessions = false } = {}) => {
   warehouse.state.statements.length = 0;
   warehouse.state.missingLedger = missingLedger;
+  warehouse.state.manySessions = manySessions;
 };
 const statements = () => warehouse.state.statements.map((s) => s.statement);
 
@@ -180,4 +184,16 @@ test('GET /api/inspire/value/estimates with no session answers every run by sess
   assert.deepEqual(body.runs['42'].totals, { estimated: { AED: 6000 } });
   assert.deepEqual(body.runs['43'].use_cases['N05-U01'], { status: 'estimated', app: 'Sales App', currency: 'AED', per_record: 50, baseline: 120, amount: 6000 });
   assert.deepEqual(body.totals, { estimated: { AED: 12000 } }, 'the banner total is the sum of the runs, estimates still apart from measured money');
+});
+
+test('GET /api/inspire/value/estimates with no session covers the latest 20 runs, the Start list cap, and says when it was cut', async () => {
+  reset({ manySessions: true });
+  const { status, body } = await app.get(`/api/inspire/value/estimates?${QUERY}`);
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.equal(Object.keys(body.runs).length, 20, 'the Start list shows 20 runs, and the estimate covers the same 20');
+  assert.equal(body.truncated, true);
+  assert.equal(body.cap, 20);
+  assert.equal(body.totals.estimated.AED, 20 * 6000, 'the total is over the runs covered, not all of them');
+  const listed = statements().find((sql) => sql.includes('__inspire_session` ORDER BY create_at DESC'));
+  assert.match(listed, /LIMIT 21$/, 'one extra row tells the route the list was cut');
 });
