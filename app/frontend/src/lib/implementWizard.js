@@ -45,7 +45,7 @@ export function withMoneyRule(spec, money) {
   const { money: _previous, ...rest } = spec || {};
   return money ? { ...rest, money } : rest;
 }
-export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule', 'kpi', 'holdout'], advanced: ['schedule', 'holdout'], panels: ['fresh', 'measure'] };
+export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['kpi', 'holdout'], advanced: ['schedule', 'holdout'], panels: ['fresh', 'measure'] };
 
 export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP, RUN_STEP];
 

@@ -55,7 +55,7 @@ test('What to deliver is the first step, Data and results is one page, and Where
     const measure = page.getByRole('region', { name: 'Measure' });
     await measure.waitFor();
     assert.equal(await measure.locator('[data-money-rule-editor]').count(), 1, 'Measure holds the money rule editor, so the person defines how money at stake is counted');
-    assert.match(await measure.locator('[data-money-sentence]').innerText(), /totalled on its own/, 'Measure shows the current definition in plain words');
+    assert.match(await measure.locator('[data-money-base-needed]').innerText(), /Pick the reporting currency/, 'without a currency column the Measure step asks for the reporting currency in plain words');
     await snap(page, 'restructure-measure');
 
     await goToStep(page, 'Where it lives');

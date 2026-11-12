@@ -2704,7 +2704,10 @@ def money_scope(page: dict, dataset: str) -> dict:
     rate_column = money.get("rate_column") if convert and "rate_column" in money else None
     rate_table = money.get("rate_table") if convert and "rate_table" in money else None
     window = (money.get("window") or {}).get("periods", 0)
-    return {"currency": "" if (rates or rate_column or rate_table) else currency, "currency_column": currency, "period": period,
+    value = money.get("value") if isinstance(money.get("value"), dict) else None
+    value_currency = VALUE_CURRENCY if value and ("currency" in value or "currency_column" in value) else ""
+    currency_column = value_currency or currency
+    return {"currency": "" if (rates or rate_column or rate_table) else currency_column, "currency_column": currency_column, "period": period,
             "grain": grain, "rates": rates or {}, "rate_column": rate_column or "", "rate_table": rate_table or {},
             "base": str(money.get("base") or "") if convert else "", "window": window if period else 0,
             "per_group": money.get("group_column") if money.get("per") == "group" else "",
@@ -2720,18 +2723,25 @@ def money_gain_predicate(sign) -> str:
 
 
 def money_direction_amount(amount: str, direction: str, sign=None) -> str:
-    """The amount a direction counts. The saved value is a magnitude; the sign says which rows are gains. Gains counts the magnitude of
-    the gain rows, losses counts the magnitude of the rows that are not gains (every row when no sign is set), and net keeps the value's
-    own sign. A NULL amount stays NULL, so a row without a value is unrated rather than a zero."""
-    if direction == "net":
-        return amount
+    """The amount a direction counts. The saved value is a magnitude. With no sign, losses counts every magnitude and net keeps the
+    value's own sign. With a sign, a gain row is one the sign marks as a gain and every other row is a loss: gains counts the gain rows,
+    losses counts the rest, and net is gains minus losses. A NULL amount stays NULL, so a row without a value is unrated, not a zero."""
     magnitude = f"GREATEST({amount}, 0)"
     if sign is None:
-        return f"CASE WHEN {amount} IS NULL THEN NULL ELSE {magnitude} END"
+        return amount if direction == "net" else f"CASE WHEN {amount} IS NULL THEN NULL ELSE {magnitude} END"
     gain = money_gain_predicate(sign)
-    counted = magnitude if direction == "gains" else "0"
-    other = "0" if direction == "gains" else magnitude
-    return f"CASE WHEN {amount} IS NULL THEN NULL WHEN {gain} THEN {counted} ELSE {other} END"
+    gained, lost = magnitude, f"-{magnitude}"
+    branches = {"gains": (gained, "0"), "losses": ("0", magnitude), "net": (gained, lost)}[direction]
+    return f"CASE WHEN {amount} IS NULL THEN NULL WHEN {gain} THEN {branches[0]} ELSE {branches[1]} END"
+
+
+VALUE_CURRENCY = "_inspire_value_currency"
+
+
+def money_datasets(page: dict) -> list:
+    names = [k.get("dataset") for k in page.get("kpis") or [] if k.get("format") == "currency"]
+    names += [c.get("dataset") for c in page.get("charts") or [] if any(y.get("format") == "currency" for y in c.get("y") or [])]
+    return list(dict.fromkeys(n for n in names if n)) or [RECORDS_DATASET]
 
 
 def money_value_override(page: dict, dataset: str, sql: str) -> str:
@@ -2745,12 +2755,13 @@ def money_value_override(page: dict, dataset: str, sql: str) -> str:
     if amount is None:
         return sql
     amount = money_direction_amount(amount, scope["direction"], scope["sign"])
-    replaced = ["value_at_stake"]
+    replaced = ["value_at_stake"] + ([scope["currency_filter"]] if scope["currency_filter"] else [])
     currency_part = ""
-    if scope["currency_filter"] and ("currency" in value or "currency_column" in value):
+    if "currency" in value or "currency_column" in value:
         source = sql_text(value["currency"]) if "currency" in value else quote(value["currency_column"])
-        replaced.append(scope["currency_filter"])
-        currency_part = f", {source} AS {quote(scope['currency_filter'])}"
+        currency_part = f", {source} AS {quote(VALUE_CURRENCY)}"
+        if scope["currency_filter"]:
+            currency_part += f", {source} AS {quote(scope['currency_filter'])}"
     return f"SELECT * EXCEPT ({', '.join(quote(c) for c in replaced)}), {amount} AS value_at_stake{currency_part} FROM ({sql}) AS v"
 
 def money_joined(page: dict, dataset: str, sql: str) -> str:
