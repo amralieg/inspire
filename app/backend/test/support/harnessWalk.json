@@ -249,5 +249,8 @@
  ],
  "POST /api/setup/verify": [
   "O25"
+ ],
+ "POST /api/inspire/implement/group-counts": [
+  "C11"
  ]
 }
