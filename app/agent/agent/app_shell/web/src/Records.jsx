@@ -516,9 +516,7 @@ export function RecordPanel({ meta, app, pageId, row, list, onClose, onChanged, 
 function emptyState({ search, mine, changed, fresh, windowed, narrowedAny, ranged, onClear, onWide, status = '', counts = null, onTab }) {
   const watch = counts && status === 'Open' && !narrowedAny && !ranged && !search && !mine && !changed && counts.open === 0 && counts.watch > 0;
   if (watch) {
-    const done = counts.statuses?.Done || 0;
-    const dismissed = counts.statuses?.Dismissed || 0;
-    return <><span className="empty-t" data-empty-breakdown>{`Nothing to fix right now: ${integer(counts.watch)} on watch (held back on purpose), ${integer(done)} done, ${integer(dismissed)} dismissed.`}</span>{' '}
+    return <><span className="empty-t" data-empty-breakdown>{watchBreakdown(counts)}</span>{' '}
       <button type="button" className="lnk" onClick={() => onTab?.('all')} data-empty-watch>Show the watch list</button>{' '}
       <button type="button" className="lnk" onClick={() => onTab?.('all')} data-empty-all>Show all</button></>;
   }
