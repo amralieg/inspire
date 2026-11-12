@@ -101,3 +101,34 @@ test('a slow rename shows Saving… with a spinner in place, the field is disabl
     await ui.close();
   }
 });
+
+test('REQ-098 Tab to the pencil and press Enter or Space opens the rename field and leaves the card as it was (must-exclude)', async () => {
+  const posted = { rename: [] };
+  const ui = await openUi('results', REVIEW_STATE, '', { init: routes(posted) });
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await cardOf(page).locator('[aria-expanded]').first().waitFor();
+    await idle(page);
+    const toggle = cardOf(page).locator('[aria-expanded]').first();
+    const before = await cardOf(page).locator('h3').innerText();
+    const expandedBefore = await toggle.getAttribute('aria-expanded');
+    const field = () => cardOf(page).getByRole('textbox', { name: `Use case name for ${before}` });
+
+    await page.getByRole('button', { name: `Rename ${before}` }).focus();
+    await page.keyboard.press('Enter');
+    await field().waitFor();
+    assert.equal(await toggle.getAttribute('aria-expanded'), expandedBefore, 'Enter on the pencil does not expand or collapse the card');
+
+    await field().press('Escape');
+    await cardOf(page).locator('h3').waitFor();
+    await page.getByRole('button', { name: `Rename ${before}` }).focus();
+    await page.keyboard.press('Space');
+    await field().waitFor();
+    assert.equal(await toggle.getAttribute('aria-expanded'), expandedBefore, 'Space on the pencil does not expand or collapse the card');
+    assert.equal(posted.rename.length, 0, 'opening the field sends no write');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

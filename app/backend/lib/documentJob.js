@@ -69,4 +69,6 @@ function documentRunParams(body) {
 
 const CATALOG_MISSING_TEXT = "This run's catalog file is missing, so documents can't be made from it. Run Discover again to make them.";
 
-module.exports = { documentRunParams, englishCatalogPath, DOCUMENT_KINDS, CATALOG_MISSING_TEXT };
+const CATALOG_CHECK_FAILED_TEXT = 'Inspire could not check the catalog file, try again.';
+
+module.exports = { documentRunParams, englishCatalogPath, DOCUMENT_KINDS, CATALOG_MISSING_TEXT, CATALOG_CHECK_FAILED_TEXT };
