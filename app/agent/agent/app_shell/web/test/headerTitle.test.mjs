@@ -49,16 +49,11 @@ const measure = () => {
 for (const width of [1280, 1440]) {
   for (const open of [true, false]) {
     test(`at ${width}px with Ask Genie ${open ? 'open' : 'closed'}, the brand, the centred use case title and Ask Genie share one line`, async () => {
-      const { page, context } = await openApp(browser, served.base, appInfo({ title: BRAND }, 1, { title: TITLE }), { width, height: 800 });
+      const { page, context } = await openApp(browser, served.base, appInfo({ title: BRAND }, 1, { title: TITLE }), { width, height: 800, genie: open ? 'open' : 'closed' });
       try {
         await page.locator('[data-switcher] .switch-t b').waitFor({ timeout: 20000 });
-        if (!open) {
-          await page.locator('aside.genie.is-open').waitFor({ timeout: 20000 });
-          await page.locator('.genie-btn').click();
-          await page.locator('aside.genie.is-open').waitFor({ state: 'detached', timeout: 10000 });
-        } else {
-          await page.locator('aside.genie.is-open').waitFor({ timeout: 20000 });
-        }
+        if (open) await page.locator('aside.genie.is-open').waitFor({ timeout: 20000 });
+        else await page.locator('.genie-btn').waitFor({ timeout: 20000 });
         await resizeTo(page, width, 800);
         const m = await page.evaluate(measure);
         assert.equal(m.genieOpen, open, `the Genie panel is ${open ? 'open' : 'closed'} for this check`);
@@ -76,7 +71,7 @@ for (const width of [1280, 1440]) {
 
 test('the longest title the App accepts (80 characters) stays on one line, ends in an ellipsis and shows the full title on hover', async () => {
   assert.equal(LONG.length, 80, `the test title has ${LONG.length} characters, the App accepts at most 80`);
-  const { page, context } = await openApp(browser, served.base, appInfo({ title: BRAND }, 1, { title: LONG }), { width: 1280, height: 800 });
+  const { page, context } = await openApp(browser, served.base, appInfo({ title: BRAND }, 1, { title: LONG }), { width: 1280, height: 800, genie: 'open' });
   try {
     await page.locator('[data-switcher] .switch-t b').waitFor({ timeout: 20000 });
     await page.locator('aside.genie.is-open').waitFor({ timeout: 20000 });

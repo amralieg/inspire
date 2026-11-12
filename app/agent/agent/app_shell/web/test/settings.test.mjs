@@ -79,6 +79,7 @@ test('an owner changes a cutoff with a live preview and a note, and starts a run
   const { page, seen: app, context } = await openApp(browser, served.base, appInfo({}, 1, TABLE), { routes: routes(seen) });
   await goRail(page, 'settings');
   await page.waitForSelector('[data-settings] [data-group="impact"]');
+  await page.waitForSelector('[data-settings] [data-group="feedback"]');
   assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)),
     ['my_view', 'look', 'measurement', 'help', 'share', 'access', 'impact', 'flagging', 'scope', 'alerts', 'feedback']);
   assert.match(await page.locator('[data-setting="alert_threshold"]').innerText(), /Change it on the Build page of the Inspire App/);
@@ -114,6 +115,7 @@ test('a viewer who is not an owner gets Settings with only their own My view, an
   assert.equal(await page.locator('[data-settings]').count(), 0, 'Settings shows only on its own section');
   await goRail(page, 'settings');
   await page.waitForSelector('[data-settings] [data-group="access"]');
+  await page.waitForSelector('[data-settings] [data-group="feedback"]');
   assert.deepEqual(await page.$$eval('[data-settings] [data-group]', (els) => els.map((e) => e.dataset.group)), ['my_view', 'look', 'measurement', 'help', 'share', 'access', 'feedback']);
   assert.equal(await page.locator('[data-settings] [data-setting]').count(), 0);
   assert.equal(await page.locator('[data-run-now]').count(), 0);
