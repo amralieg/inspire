@@ -291,7 +291,7 @@ def test_value_tracking_never_measures_a_stored_kpi_whose_filter_does_not_match_
     deep = agent_ns["DeepEvidence"](measured, "Deep", make_inspire(agent_ns).logger)
     stored = [dict(STORED, table="c.s.web"), dict(RIGHT, table="c.s.web")]
     obj, _spark = obj_with(agent_ns, rows=[fb("loss|c.s.web", "implemented", title="Loss")],
-                           tracking_rows=[Row(use_case_key="loss|c.s.web", kpis=json.dumps(stored), session_id=1)], deep=deep)
+                           tracking_rows=[Row(use_case_key="loss|c.s.web", kpis=json.dumps(stored), session_id=1, id="N01-U01")], deep=deep)
     obj._gate_schema_index([("c", "s", "web", "ws_net_profit", "decimal(7,2)", "")])
     obj._load_feedback()
     wrong, right = obj._track_implemented_value()

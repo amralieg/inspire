@@ -146,7 +146,7 @@ def test_value_tracking_rebuilds_sql_and_measures_in_deep(agent_ns):
     measured = FakeSpark(responder=lambda statement: [Row(v=130)])
     deep = agent_ns["DeepEvidence"](measured, "Deep", make_inspire(agent_ns).logger)
     obj, spark = obj_with(agent_ns, rows=[fb("repeat|c.s.orders", "implemented", title="Repeat")],
-                          tracking_rows=[Row(use_case_key="repeat|c.s.orders", kpis=_stored_kpis(), session_id=1)],
+                          tracking_rows=[Row(use_case_key="repeat|c.s.orders", kpis=_stored_kpis(), session_id=1, id="N01-U01")],
                           deep=deep)
     obj._gate_schema_index([("c", "s", "orders", "customer_id", "bigint", "")])
     obj._load_feedback()
@@ -171,7 +171,7 @@ def test_value_tracking_never_reports_a_change_from_a_0_counted_back_from_today(
     deep = agent_ns["DeepEvidence"](measured, "Deep", make_inspire(agent_ns).logger)
     stored = _stored_kpis(time_column="order_date", window_days=7, baseline=baseline)
     obj, _spark = obj_with(agent_ns, rows=[fb("repeat|c.s.orders", "implemented", title="Repeat")],
-                           tracking_rows=[Row(use_case_key="repeat|c.s.orders", kpis=stored, session_id=1)], deep=deep)
+                           tracking_rows=[Row(use_case_key="repeat|c.s.orders", kpis=stored, session_id=1, id="N01-U01")], deep=deep)
     obj._gate_schema_index([("c", "s", "orders", "customer_id", "bigint", ""), ("c", "s", "orders", "order_date", "date", "")])
     obj._load_feedback()
     entry = obj._track_implemented_value()[0]
@@ -187,7 +187,7 @@ def test_value_tracking_in_standard_emits_the_query_only_and_skips_specs_off_the
                            tracking_rows=[Row(use_case_key="repeat|c.s.orders",
                                               kpis=json.dumps(json.loads(_stored_kpis())
                                                               + json.loads(_stored_kpis(table="c.s.secret_payroll"))),
-                                              session_id=1)])
+                                              session_id=1, id="N01-U01")])
     obj._gate_schema_index([("c", "s", "orders", "customer_id", "bigint", "")])
     obj._load_feedback()
     tracked = obj._track_implemented_value()
