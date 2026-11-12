@@ -383,7 +383,7 @@ function WidgetInput({ widget, value, endpoints, onChange }) {
 function FoldLine({ label, what, summary, onOpen }) {
   return (
     <div className="border-t border-border pt-3 flex items-start justify-between gap-3">
-      <p className="text-[12px] text-text-secondary min-w-0"><span className="font-semibold text-text-primary">{label}: </span>{summary}</p>
+      <p data-fold-line={label} className="text-[12px] text-text-secondary min-w-0"><span className="font-semibold text-text-primary">{label}: </span>{summary}</p>
       <button type="button" aria-expanded={false} aria-label={`${CHANGE_LABEL} ${what}`} onClick={onOpen}
         className="shrink-0 text-xs font-medium text-db-red-fg hover:underline glow-focus">
         {CHANGE_LABEL}
@@ -763,7 +763,7 @@ export default function ImplementWizard({
   const ownErrors = stepErrors(stepId, spec, extras, mode);
   const resultAuto = advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false;
   const dataFolded = dataChoice ?? (resultAuto ? 'results' : null);
-  const dataErrorsOpen = dataChoice === null && !resultAuto && stepId === 'data' && ownErrors.length > 0;
+  const dataErrorsOpen = stepId === 'data' && ownErrors.length > 0;
   const resultsShown = dataFolded === 'results';
   const sourcesShown = dataFolded === null || dataFolded === 'sources' || dataErrorsOpen;
   const filtersShown = dataFolded === null || dataFolded === 'filters' || dataErrorsOpen;

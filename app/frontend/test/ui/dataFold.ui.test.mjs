@@ -16,8 +16,13 @@ test('Data & results folds one block at a time: opening the result table folds S
     await goToStep(page, 'Data');
     await page.getByRole('region', { name: RESULTS }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'Source tables' }).count(), 0, 'the result table is open on arrival, so Source tables is a line');
-    await page.getByText(/^Source tables: 1 table: /).waitFor();
-    await page.getByText(/^Table filters: \d+ filters? on 1 table$/).waitFor();
+    const sourcesLine = page.locator('[data-fold-line="Source tables"]');
+    const sourcesText = (await sourcesLine.innerText()).trim();
+    const sourcesMatch = /^Source tables: (\d+) tables?: (.+)$/.exec(sourcesText);
+    assert.ok(sourcesMatch, `the folded Source tables line counts and names its tables: "${sourcesText}"`);
+    assert.equal(Number(sourcesMatch[1]), sourcesMatch[2].split(', ').length, `the count matches the names: "${sourcesText}"`);
+    assert.ok(sourcesMatch[2].includes('main.s.orders'), `the table is named: "${sourcesText}"`);
+    assert.match((await page.locator('[data-fold-line="Table filters"]').innerText()).trim(), /^Table filters: \d+ filters? on \d+ tables?$/, 'the folded Table filters line counts its filters');
     await page.getByRole('button', { name: 'Change Source tables', exact: true }).click();
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
     assert.equal(await page.getByRole('region', { name: RESULTS }).count(), 0, 'opening Source tables folds the result table');
