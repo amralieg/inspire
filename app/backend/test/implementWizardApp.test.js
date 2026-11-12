@@ -178,8 +178,8 @@ test('a use case that joins an existing App skips App access and App look, shows
   assert.deepEqual([w.joinsApp(joined), w.joinsApp(fresh), w.joinsApp({ ...joined, outputs: { ...joined.outputs, app: false } }), w.joinsApp(null)], [true, false, false, false]);
   assert.equal(w.wizardSteps('mvp', joined).find((s) => s.id === 'app'), undefined, 'the existing App keeps its sign-in, data source and look');
   assert.deepEqual(w.wizardSteps('mvp', joined).find((s) => s.id === 'where').panels, ['app_place'], 'where it goes is still picked on Where it lives');
-  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app').panels, ['app_access']);
-  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'where').panels, ['app_place', 'app_features']);
+  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'app').panels, ['app_access', 'app_features']);
+  assert.deepEqual(w.wizardSteps('mvp', fresh).find((s) => s.id === 'where').panels, ['app_place', 'app_pages']);
   assert.deepEqual(w.wizardSteps('mvp', joined).map((s) => s.id), w.wizardSteps('mvp', fresh).map((s) => s.id).filter((id) => id !== 'app' && id !== 'app_look'),
     'a joined App keeps its own pages, look and sign-in, so it has no App steps (must-exclude)');
   assert.deepEqual(w.stepErrors('delivery', joined, { mergeTargets: targets }), [], 'no hidden App owner blocks Next');

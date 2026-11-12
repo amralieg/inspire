@@ -252,6 +252,7 @@ test('App look has Style, Palette, Layout and Charts tabs over a sample page, Ap
       'no edits while that App option is off, and the decisions that start on');
     await page.getByRole('region', { name: 'App pages' }).locator('[data-app-page="impact"]').getByRole('switch').uncheck();
     await goToStep(page, 'App look');
+    await tab('Style').click();
     await shown({ 'app-sample': 'fix' });
     assert.equal(await sample.getByText('Impact', { exact: true }).count(), 0, 'the sample drops Impact when it is off');
     await goToStep(page, 'Where it lives');
@@ -280,7 +281,7 @@ test('App look has Style, Palette, Layout and Charts tabs over a sample page, Ap
     await shown({ 'app-sample': 'genie' });
     await sample.getByText('Why is R-1042 flagged?', { exact: true }).waitFor();
     await tab('Style').click();
-    await shown({ 'app-sample': 'fix' });
+    await shown({ 'app-sample': 'genie' });
     await goToStep(page, 'Where it lives');
     await openAppPages(page);
     await goToStep(page, 'App look');
@@ -315,7 +316,7 @@ test('App look has Style, Palette, Layout and Charts tabs over a sample page, Ap
 });
 
 const LOOK_LAYOUTS = ['Sidebar', 'Top tabs', 'Home cards'];
-const LOOK_VIEWS = [['fix', 'Palette'], ['charts', 'Charts'], ['runs', 'Runs'], ['alerts', 'Alerts'], ['impact', 'Impact'], ['genie', 'Ask Genie']];
+const LOOK_VIEWS = [['fix', 'Things to fix'],['charts', 'Charts'], ['runs', 'Runs'], ['alerts', 'Alerts'], ['impact', 'Impact'], ['genie', 'Ask Genie']];
 
 async function withEveryAppLookOption(check) {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
@@ -386,11 +387,12 @@ for (const layout of LOOK_LAYOUTS) {
       await tab('Charts').click();
       await shown({ 'app-sample': 'charts' });
       for (const line of await clippedSample(sample)) cut.push(`${layout}/${style}/charts ${line}`);
-      await goToStep(page, 'Where it lives');
-      await openAppPages(page);
       for (const control of ['Runs', 'Alerts', 'Impact', 'Ask Genie', 'Things to fix']) {
+        await goToStep(page, 'Where it lives');
+        await openAppPages(page);
         await pages.getByRole('button', { name: new RegExp(`^${control}`) }).click();
         await goToStep(page, 'App look');
+        await tab('Style').click();
         await shown({ 'app-sample': { Runs: 'runs', Alerts: 'alerts', Impact: 'impact', 'Ask Genie': 'genie', 'Things to fix': 'fix' }[control] });
         for (const line of await clippedSample(sample)) cut.push(`${layout}/${style}/${control} ${line}`);
       }
@@ -414,13 +416,16 @@ for (const style of ['a', 'b', 'c']) {
         await look.getByRole('group', { name: 'Light or dark' }).getByRole('button', { name: theme === 'dark' ? 'Dark' : 'Light' }).click();
         await look.locator(`[data-swatch="${palette}"]`).click();
         for (const [view, control] of LOOK_VIEWS) {
-          if (view === 'charts') await tab('Charts').click();
-          else if (view !== 'fix') {
+          if (view === 'charts') {
+            await goToStep(page, 'App look');
+            await tab('Charts').click();
+          } else {
             await goToStep(page, 'Where it lives');
             await openAppPages(page);
             await pages.getByRole('button', { name: new RegExp(`^${control}`) }).click();
+            await goToStep(page, 'App look');
+            await tab('Style').click();
           }
-          await goToStep(page, 'App look');
           await shown({ 'app-sample': view, 'sample-style': style, 'sample-theme': theme, 'sample-palette': palette });
           const result = await lowContrast(page, ['[data-app-sample]']);
           measured += result.checked;
@@ -1081,7 +1086,6 @@ test('every wizard step but the App steps, Deliver with the App and where it goe
     await fits('4-deliver-joining');
     await page.getByRole('checkbox', { name: /^App A Databricks/ }).check();
     await goToStep(page, 'Where it lives');
-    await openAppPages(page);
     await placeStep(page).locator('[data-app-target]').first().waitFor();
     await fits('4-where-app');
     await page.setViewportSize({ width: 1280, height: 800 });

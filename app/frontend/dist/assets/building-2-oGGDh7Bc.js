@@ -1,1 +1,9 @@
+<<<<<<< HEAD:app/frontend/dist/assets/building-2-oGGDh7Bc.js
 import{c as a}from"./index-d8EaUlbt.js";const e=[["path",{d:"M10 12h4",key:"a56b0p"}],["path",{d:"M10 8h4",key:"1sr2af"}],["path",{d:"M14 21v-3a2 2 0 0 0-4 0v3",key:"1rgiei"}],["path",{d:"M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2",key:"secmi2"}],["path",{d:"M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16",key:"16ra0t"}]],h=a("building-2",e);export{h as B};
+=======
+<<<<<<<< HEAD:app/frontend/dist/assets/building-2-D6UqHp14.js
+import{c as a}from"./index-w4TbQIk2.js";const e=[["path",{d:"M10 12h4",key:"a56b0p"}],["path",{d:"M10 8h4",key:"1sr2af"}],["path",{d:"M14 21v-3a2 2 0 0 0-4 0v3",key:"1rgiei"}],["path",{d:"M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2",key:"secmi2"}],["path",{d:"M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16",key:"16ra0t"}]],h=a("building-2",e);export{h as B};
+========
+import{c as a}from"./index-Cya7BiQx.js";const e=[["path",{d:"M10 12h4",key:"a56b0p"}],["path",{d:"M10 8h4",key:"1sr2af"}],["path",{d:"M14 21v-3a2 2 0 0 0-4 0v3",key:"1rgiei"}],["path",{d:"M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2",key:"secmi2"}],["path",{d:"M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16",key:"16ra0t"}]],h=a("building-2",e);export{h as B};
+>>>>>>>> origin/rc7/fix-measure:app/frontend/dist/assets/building-2-CcjJ-3kQ.js
+>>>>>>> 39cf5457e:app/frontend/dist/assets/building-2-D6UqHp14.js

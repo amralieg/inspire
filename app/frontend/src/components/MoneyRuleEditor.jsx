@@ -20,6 +20,7 @@ const DIRECTIONS = [
   { id: 'gains', label: 'Gains only', hint: 'Needs a sign below: only the gain records count.' },
   { id: 'net', label: 'Losses and gains, netted', hint: 'Gains and losses cancel out inside each total.' },
 ];
+const OFF_RULE = { currency: 'per_currency', off: true };
 const SOURCE_TEXT = { today: 'today’s rate', average: `ECB average, ${AVERAGES.period.from.slice(0, 4)}`, typed: 'typed in', base: 'reporting currency', missing: 'no rate yet, type it in' };
 
 function pickOf(value) {
@@ -84,12 +85,18 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
   const effective = effectiveOf(pick);
 
   const save = (nextDraft, nextPick) => {
+    if (nextDraft.off) {
+      setProblems([]);
+      onChange(OFF_RULE);
+      return;
+    }
     const { rule, problems: found } = ruleOf(nextDraft);
     const picked = valueOf(effectiveOf(nextPick));
     const gone = picked.value && columns.length ? columnsOf(picked.value).filter((name) => !columns.includes(name)) : [];
     const all = [...found, ...picked.problems, ...gone.map((name) => `The column ${name} is not in this table, so the rule cannot use it.`)];
     setProblems(all);
     if (!all.length && rule) onChange(picked.value ? { ...rule, value: picked.value } : rule);
+    else if (value?.off) onChange(null);
   };
   const pickSign = (patch) => {
     const next = { ...signPick, ...patch };
@@ -312,7 +319,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
       </div>
 
       </>)}
-      {(!onlyPart || onlyPart === 'window' || onlyPart === 'off') && (
+      {(!onlyPart || onlyPart === 'window') && (
       <details className="text-[12px]" data-money-more>
         <summary className="cursor-pointer text-text-secondary">More options</summary>
         <div className="space-y-2 pt-2">
@@ -329,10 +336,10 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
             </label>
           )}
           </>)}
-          {show('off') && <label className="flex items-center gap-2"><input type="checkbox" checked={draft.off} onChange={(e) => setDraftPart({ off: e.target.checked })} data-money-off /> Off: show no money total, chart or Genie money answer</label>}
         </div>
       </details>
       )}
+      {show('off') && <label className="flex items-center gap-2 text-[12px]"><input type="checkbox" checked={draft.off} onChange={(e) => setDraftPart({ off: e.target.checked })} data-money-off /> Off: show no money total, chart or Genie money answer</label>}
       {!effective.method && <p className="text-[12px] text-text-secondary" data-money-genie-estimate>Until you choose how to measure value, the totals are Genie estimate, not your rule.</p>}
       {!draft.base && <p className="text-[12px] text-text-secondary" data-money-base-needed>Pick the reporting currency: every amount is reported in it.</p>}
       {sentence && <p className="sentence text-[12px] text-text-primary" data-money-sentence>{sentence}</p>}

@@ -89,13 +89,14 @@ test('the Summary of an MVP build states what is built, never only a notebook, a
   assert.deepEqual(w.droppedOutputs(before, after, {}), [], 'a person unticking it is not a drop');
 });
 
-test('Results holds only the table place; Run it holds Keep it fresh and Measure impact; the wizard has no Team capacity', async () => {
+test('Results holds the table place and Keep it fresh; Run it holds Measure impact; the wizard has no Team capacity', async () => {
   const w = await lib('implementWizard.js');
   const steps = w.wizardSteps('mvp', { outputs: { app: true } }, { grouping: true, firstRun: true });
   const results = steps.find((s) => s.id === 'data');
   assert.deepEqual(results.sections.filter((x) => x === 'results'), ['results'], 'the result table is on Data & results');
   assert.deepEqual(steps.find((s) => s.id === 'run').sections, ['schedule', 'kpi', 'holdout']);
-  assert.deepEqual(steps.find((s) => s.id === 'run').panels, ['fresh', 'measure'], 'Keep it fresh comes first');
+  assert.deepEqual(steps.find((s) => s.id === 'run').panels, ['measure'], 'Run it holds Measure impact only, Keep it fresh is on Data & results');
+  assert.deepEqual(results.panels, ['data', 'results', 'fresh'], 'Keep it fresh sits on Data & results');
   assert.equal(steps.flatMap((s) => s.sections).includes('capacity'), false);
   const spec = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh', inspireDatabase: 'main.inspire' });
   assert.deepEqual([spec.schedule.enabled, w.freshnessOf(spec.schedule)], [true, 'daily'], 'Keep it fresh starts on, Daily');

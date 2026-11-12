@@ -16,6 +16,7 @@ import {
   GENIE_CODE_OFF_TITLE,
   genieCodeOff,
   wizardSteps,
+  APP_STORAGE_STEP,
   contextSettings,
   IMPLEMENT_OUTPUTS,
   ALERT_TIER_HELP,
@@ -654,7 +655,7 @@ export default function ImplementWizard({
         if (!next.config.warehouse_id) next.config.warehouse_id = warehouseId;
         setSpec(next);
         setMissingTables(missing);
-        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_pages', 'app_place', 'app_access', 'app_features', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
+        if (['review', 'summary', 'vibes', 'settings', 'app', 'app_pages', 'app_place', 'app_access', 'app_features', 'app_storage', 'app_look', 'run', 'measure', 'fresh'].includes(focus?.step)) setStep(initialStepId(focus, 'mvp', next));
         loadedSpec.current = next;
         draftStamp.current = draftStampOf(data.use_case, data.latest);
         const draft = readWizardDraft(draftKey, draftStamp.current);
@@ -1040,7 +1041,7 @@ export default function ImplementWizard({
   }, [columnsByTable, spec]);
 
   useEffect(() => {
-    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where' || stepId === 'app'));
+    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where' || stepId === 'app' || stepId === APP_STORAGE_STEP.id));
     if (!wanted || warehouses !== null || warehousesError) return undefined;
     let cancelled = false;
     apiFetch('/api/warehouses')
@@ -1255,7 +1256,7 @@ export default function ImplementWizard({
   const freshness = freshnessOf(spec.schedule);
   const checkStepOf = (k) => {
     if (PLACE_CHECKS.includes(k)) return 'where';
-    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'where' : 'app';
+    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'where' : APP_STORAGE_STEP.id;
     return CHOOSE_CHECKS.includes(k) || TILE_CHECK_KEYS.includes(k) ? 'delivery' : SUMMARY_STEP.id;
   };
   const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || SUMMARY_STEP.label;
@@ -1565,11 +1566,9 @@ export default function ImplementWizard({
         )}
 
         {shows('fresh') && (
-          <Advanced open={advanced.fresh || sectionErrors('schedule', spec, extras).length > 0} onToggle={() => toggleAdvanced('fresh')} what="Keep it fresh"
-            summary={`Keep it fresh: ${FRESHNESS_OPTIONS.find((o) => o.id === freshness)?.label || 'Custom'}`}>
-            <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-text-primary">{FRESH_LABEL}</h3>
+          <section className="space-y-2" aria-label={FRESH_LABEL}>
+            <Advanced open={advanced.fresh || sectionErrors('schedule', spec, extras).length > 0} onToggle={() => toggleAdvanced('fresh')} what={FRESH_LABEL}
+              summary={freshness === 'off' ? 'Keep it fresh: off, it runs once now' : `Keep it fresh: runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`}>
               <p className="text-[11px] text-text-secondary">{FRESH_HELP}</p>
               <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
               <div data-choice="freshness" className="space-y-2">
@@ -1595,8 +1594,8 @@ export default function ImplementWizard({
                   ? 'It runs once now. Turn this on later to keep the results current.'
                   : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first run works. Cost: ${costHint(spec, { scheduleSaid: true })}`}
               </p>
-            </section>
-          </Advanced>
+            </Advanced>
+          </section>
         )}
 
         {shows('measure') && (
@@ -1925,14 +1924,21 @@ export default function ImplementWizard({
         {shows('app_access') && (
           <AppAccessStep
             spec={spec}
+            onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
+            best={{ access: best.appAccess }}
+          />
+        )}
+
+        {shows('app_storage') && (
+          <AppStorageStep
+            spec={spec}
             lakebase={lakebase}
             warehouses={warehouses}
             warehousesError={warehousesError} onWarehousesRetry={onWarehousesRetry}
             warehouseCheck={preflight?.checks?.app_warehouse || null}
-            onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
             onBackend={(backend) => setSpec((prev) => withAppBackend(prev, backend))}
             onWarehouse={(id) => setSpec((prev) => withAppWarehouse(prev, id))}
-            best={{ access: best.appAccess, backend: best.appBackend }}
+            best={{ backend: best.appBackend }}
           />
         )}
 
@@ -1948,11 +1954,8 @@ export default function ImplementWizard({
         )}
 
         {shows('app_pages') && (
-          <Advanced open={advanced.app_pages} onToggle={() => toggleAdvanced('app_pages')} what="App pages"
-            summary={`Pages on: ${appPagesOf(spec).filter((p) => p.on).map((p) => p.label).join(', ') || 'none'}`}>
-            <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView}
-              onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
-          </Advanced>
+          <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView} open={advanced.app_pages} onToggle={() => toggleAdvanced('app_pages')}
+            onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
         )}
 
         {shows('app_look') && (
@@ -2775,7 +2778,7 @@ function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, onWare
   );
 }
 
-function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onAccess, onBackend, onWarehouse, best = {} }) {
+function AppAccessStep({ spec, onAccess, best = {} }) {
   const access = spec.outputs.app_access;
   const inside = insideInspire(spec);
   return (
@@ -2807,6 +2810,14 @@ function AppAccessStep({ spec, lakebase, warehouses, warehousesError, onWarehous
           })}
         </div>
       </fieldset>
+    </section>
+  );
+}
+
+function AppStorageStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onBackend, onWarehouse, best = {} }) {
+  const inside = insideInspire(spec);
+  return (
+    <section className="space-y-4" aria-label={APP_STORAGE_STEP.label}>
       <AppBackendChoice spec={spec} lakebase={lakebase} onBackend={onBackend} best={best.backend}>
         {inside ? (
           <p data-inside-warehouse="" className="text-[11px] text-text-secondary">
@@ -3035,7 +3046,7 @@ function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake
   const charts = appChartsOf(spec, look, dates);
   const picked = appChartsPicked(spec);
   const pickable = Array.isArray(look?.chart_kinds) && Array.isArray(look?.screens);
-  const view = tab === 'charts' ? 'charts' : 'fix';
+  const view = tab === 'charts' ? 'charts' : shownPage;
   const named = (list, id) => list.find((x) => x.id === id)?.label || id;
   const viewLabel = view === 'charts' ? 'Charts' : named(pages, view);
   const sampleLabel = `Sample App page: ${viewLabel}, in ${lookText(chosen)}`;
