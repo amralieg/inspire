@@ -12,6 +12,7 @@ export default function SamplesCopyOffer({ names, target, onTarget, canCopy, cop
       <label className="mt-3 flex flex-col gap-1 text-text-secondary">
         <span>Copy into</span>
         <input
+          dir="auto"
           value={target}
           onChange={(e) => onTarget(e.target.value)}
           placeholder="catalog.schema you own"

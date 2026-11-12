@@ -1994,7 +1994,7 @@ export default function ImplementWizard({
                     <dt className="text-text-tertiary">{row.label}</dt>
                     <dd data-picked-value="" className="text-text-primary break-words">{row.value}</dd>
                     <dd>
-                      {row.step !== SUMMARY_STEP.id && <button type="button" data-picked-change={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus"
+                      {row.step !== SUMMARY_STEP.id && <button type="button" data-picked-change={row.step} className="text-[11px] font-medium text-db-red-fg hover:underline glow-focus outline-offset-2"
                         aria-label={`Change ${row.label}`} onClick={() => changeStep(row.step)}>Change</button>}
                     </dd>
                   </div>
