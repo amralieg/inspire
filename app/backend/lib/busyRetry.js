@@ -13,9 +13,18 @@ function isBusy(method, status) {
   return status === 429 || (status === 503 && String(method || 'GET').toUpperCase() === 'GET');
 }
 
-async function withBusyRetry(fetchOnce, { method = 'GET', signal = null, sleep = (ms) => new Promise((done) => setTimeout(done, ms)), attempts = BUSY_ATTEMPTS } = {}) {
+async function withBusyRetry(fetchOnce, { method = 'GET', signal = null, sleep = (ms) => new Promise((done) => setTimeout(done, ms)), attempts = BUSY_ATTEMPTS, retryNetwork = false } = {}) {
   for (let attempt = 1; ; attempt += 1) {
-    const resp = await fetchOnce();
+    let resp;
+    try {
+      resp = await fetchOnce();
+    } catch (err) {
+      if (!retryNetwork || attempt >= attempts || (signal && signal.aborted)) throw err;
+      const wait = busyDelayMs(attempt);
+      console.warn(`workspace did not answer (${err.message}); asking again in ${Math.round(wait)} ms (attempt ${attempt + 1}/${attempts})`);
+      await sleep(wait);
+      continue;
+    }
     if (!isBusy(method, resp.status) || attempt >= attempts || (signal && signal.aborted)) return resp;
     const wait = busyDelayMs(attempt, resp.headers && resp.headers.get ? resp.headers.get('retry-after') : '');
     console.warn(`workspace busy (HTTP ${resp.status}); asking again in ${Math.round(wait)} ms (attempt ${attempt + 1}/${attempts})`);

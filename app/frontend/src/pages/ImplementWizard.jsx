@@ -71,6 +71,9 @@ import {
   lostTablesText,
   APP_READ_ACTION,
   SOURCE_REFUSED_REASON,
+  ACCESS_CHECKING,
+  ACCESS_UNKNOWN,
+  accessVerdictOf,
   NEW_APPS_ACCESS_ACTION,
   appGrantText,
   profileEstimate,
@@ -394,10 +397,10 @@ function SettingRow({ label, value, children, changeLabel = label, help = '', de
 
 function CheckLine({ check, label }) {
   return (
-    <p className={`text-[11px] ${check.ok ? 'text-success-fg' : 'text-error-fg'}`}>
-      {label}: {check.detail}
+    <div className={`text-[11px] ${check.ok ? 'text-success-fg' : 'text-error-fg'}`}>
+      <PlainMessage text={`${label}: ${check.detail}`} className="text-[11px]" />
       {check.warn && <span className="block text-warning-fg">{check.warn}</span>}
-    </p>
+    </div>
   );
 }
 
@@ -892,8 +895,11 @@ export default function ImplementWizard({
           : Promise.resolve(null),
       ]);
       if (cancelled) return;
+      console.log('[preflight]', pre.status === 'fulfilled'
+        ? JSON.stringify({ ok: pre.value?.ok, keys: Object.keys(pre.value?.checks || {}), sources: pre.value?.checks?.sources || null, app_unreadable: Boolean(pre.value?.app_unreadable) })
+        : `error: ${pre.reason?.message}`);
       setPreflight(pre.status === 'fulfilled' ? pre.value : null);
-      setPreflightError(pre.status === 'fulfilled' ? '' : pre.reason.message);
+      setPreflightError(pre.status === 'fulfilled' ? '' : (pre.reason?.message || 'Could not check access'));
       if (pre.status === 'fulfilled' && pre.value?.checks?.app_name?.ok === false) {
         setAppNameRefusal({ name: spec.outputs.app_name, check: pre.value.checks.app_name });
       }
@@ -1233,7 +1239,7 @@ export default function ImplementWizard({
     ...(attempted[stepId] ? ownErrors : []),
     ...errors,
     ...(stepId === 'data' ? Object.values(columnsErrors) : []),
-    ...(buildStep ? [lastStep ? planError : '', preflightError, ...deliveryChecks, ...earlierGaps] : []),
+    ...(buildStep ? [lastStep ? planError : '', lastStep ? '' : preflightError, ...deliveryChecks, ...earlierGaps] : []),
   ].filter(Boolean))];
   const checkAgain = async () => {
     try {
@@ -1250,10 +1256,12 @@ export default function ImplementWizard({
     [planError, checkAgain],
     [preflightError, checkAgain],
   ].filter(([e]) => e));
-  const unchanged = lastStep && !checksBusy && Boolean(plan?.unchanged);
-  const sourceRefused = preflight?.checks?.sources ? preflight.checks.sources.ok === false : Boolean(appUnreadable);
+  const accessVerdict = accessVerdictOf({ preflight, error: preflightError, busy: checksBusy, unread: appUnreadable });
+  const unchanged = lastStep && accessVerdict === 'ok' && Boolean(plan?.unchanged);
+  const sourceRefused = accessVerdict === 'refused';
   const implementBlocked = busy || checksBusy || !placeSettled || schemaJob?.state === 'running' || schemaJob?.state === 'failed' || rebuildNeedsChoice(plan, rebuildAsIs) || sourceRefused
-    || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))));
+    || (!ownErrors.length && (!preflight || !checkEntries.every(([, c]) => c.ok) || (lastStep && (!plan || Boolean(planError)))))
+    || (lastStep && accessVerdict !== 'ok' && accessVerdict !== 'refused');
   const palette = (look?.palette_colors || []).find((p) => p.id === spec.outputs.app_look.palette) || null;
   const best = oneBestPerStep({
     output: bestOutput(blocks),
@@ -2096,6 +2104,15 @@ export default function ImplementWizard({
         {Object.values(checkNotes).filter(Boolean).map((note) => (
           <p key={note} role="note" data-check-note="" className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs text-warning-fg">{note}</p>
         ))}
+        {lastStep && accessVerdict === 'pending' && (
+          <p role="status" data-access-verdict="pending" className="text-xs text-text-secondary">{ACCESS_CHECKING}</p>
+        )}
+        {lastStep && (accessVerdict === 'error' || accessVerdict === 'unknown') && (
+          <div role="alert" data-access-verdict={accessVerdict} className="flex items-center justify-between gap-3 bg-error-bg border border-error/20 rounded-md px-3 py-2 text-xs text-error-fg">
+            <span>{ACCESS_UNKNOWN}</span>
+            <button type="button" data-access-retry="" className="font-semibold underline" onClick={checkAgain}>Try again</button>
+          </div>
+        )}
         {footerErrors.length > 0 && (
           <div role="alert" className="bg-error-bg border border-error/20 rounded-md px-3 py-2 space-y-0.5">
             {footerErrors.map((e) => <PlainMessage key={e} text={e} onRetry={footerRetry.get(e) || null} copy={footerRetry.has(e)} className="text-xs text-error-fg" />)}

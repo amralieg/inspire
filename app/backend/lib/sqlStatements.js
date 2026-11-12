@@ -3,6 +3,11 @@ const { plural } = require('./plural');
 
 const PAGE_SQL_DEADLINE_MS = 240000;
 const READ_ONLY_SQL_RE = /^\s*(SELECT|WITH|SHOW|DESCRIBE|DESC|EXPLAIN)\b/i;
+const WRITE_WORD_RE = /\b(INSERT|MERGE|UPDATE|DELETE|CREATE|ALTER|DROP|TRUNCATE|COPY|OPTIMIZE|VACUUM)\b|\bREPLACE\b(?!\s*\()/i;
+
+function isIdempotentSql(sql) {
+  return READ_ONLY_SQL_RE.test(sql) && !WRITE_WORD_RE.test(sql);
+}
 const DELTA_WRITE_CONFLICT_RE =
   /DELTA_CONCURRENT_\w+|DELTA_(METADATA|PROTOCOL)_CHANGED|CONCURRENT_(APPEND|DELETE|TRANSACTION|WRITE)|Concurrent\w*Exception|(Metadata|Protocol)ChangedException/i;
 const CONFLICT_WINDOW_MS = 60000;
@@ -83,6 +88,7 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
     const submitResp = await dbFetch(host, token, '/api/2.0/sql/statements', {
       method: 'POST',
       body: JSON.stringify(body),
+      idempotent: isIdempotentSql(sql),
     });
     if (!submitResp.ok) {
       const errText = await submitResp.text();
@@ -154,6 +160,7 @@ function createExecuteSql(dbFetch, { now = Date.now, sleep = (ms) => new Promise
 
 module.exports = {
   createExecuteSql,
+  isIdempotentSql,
   sqlCancelledError,
   isDeltaWriteConflict,
   CONFLICT_ATTEMPTS,

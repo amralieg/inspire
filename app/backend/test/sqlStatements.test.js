@@ -282,3 +282,26 @@ test('the backend column-add sweep catches a raw ALTER written any way and leave
     'const sql = `ALTER TABLE ${t} SET TBLPROPERTIES (a = 1)`;',
   ]) assert.deepEqual(columnAddSites(clean), [], clean);
 });
+
+test('a SELECT is sent so a dropped request may be asked again, and a write never is (must-exclude)', async () => {
+  const sent = [];
+  const dbFetch = async (host, token, apiPath, options = {}) => {
+    if (options.method === 'POST') sent.push({ sql: JSON.parse(options.body).statement, idempotent: options.idempotent });
+    return { ok: true, status: 200, json: async () => ({ statement_id: 's1', status: { state: 'SUCCEEDED' }, result: { data_array: [] }, manifest: {} }) };
+  };
+  const { createExecuteSql } = require('../lib/sqlStatements');
+  const executeSql = createExecuteSql(dbFetch);
+  await executeSql('https://h', 't', 'wh1', 'SELECT 1');
+  await executeSql('https://h', 't', 'wh1', 'INSERT INTO main.s.t VALUES (1)');
+  assert.deepEqual(sent.map((s) => [s.sql.slice(0, 6), s.idempotent]), [['SELECT', true], ['INSERT', false]]);
+});
+
+test('a WITH that writes is never sent again after a dropped response, and a read-only WITH may be (must-exclude)', async () => {
+  const { isIdempotentSql } = require('../lib/sqlStatements');
+  assert.equal(isIdempotentSql('WITH x AS (SELECT 1 AS a) SELECT * FROM x'), true, 'a read-only WITH is idempotent');
+  assert.equal(isIdempotentSql('WITH x AS (SELECT 1 AS a) INSERT INTO main.s.t SELECT * FROM x'), false, 'WITH ... INSERT is a write');
+  assert.equal(isIdempotentSql('WITH x AS (SELECT 1 AS a) MERGE INTO main.s.t USING x ON true WHEN MATCHED THEN DELETE'), false);
+  assert.equal(isIdempotentSql('SELECT replace(name, "a", "b") FROM main.s.t'), true, 'the replace() function is not a write');
+  assert.equal(isIdempotentSql('REPLACE TABLE main.s.t AS SELECT 1'), false);
+  assert.equal(isIdempotentSql('DELETE FROM main.s.t'), false);
+});
