@@ -718,7 +718,7 @@ export function scopeStepsOf(profileState, profile, builtFirstRun = false) {
   const ready = profileState === 'ready' && isMap(profile);
   const reading = profileState === 'loading';
   return { grouping: reading || (ready && (profile.applies === true || deepGrouping(profile).length > 0)),
-    firstRun: builtFirstRun !== true && (ready || reading || profileState === 'error') };
+    firstRun: builtFirstRun !== true && (ready || reading || profileState === 'error' || profileState === 'no_table') };
 }
 
 export function builtFirstRunOf(model) {

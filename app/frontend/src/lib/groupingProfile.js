@@ -4,6 +4,7 @@ import { FIRST_RUN_LABEL, GROUP_BY, GROUP_ALL, groupByColumns, groupsReadNeeded,
 export const GROUPING_PROFILE_ROUTE = '/api/grouping/profile';
 export const PROFILE_READING = `Inspire is reading the table to suggest Data groups and a ${FIRST_RUN_LABEL}.`;
 export const PROFILE_WAITING = 'Reading the table';
+export const noMainTableText = (name) => `${String(name ?? '').trim() || 'This use case'} names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.`;
 
 export function profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true, groupBy = '', table = '' }) {
   const [db, sid, uc, wh, main] = [inspireDatabase, sessionId, useCaseId, warehouseId, table].map((part) => String(part ?? '').trim());
@@ -24,8 +25,8 @@ export function profileState(key, got) {
   return { state: got.status === 404 ? 'none' : 'error', profile: null, error: got.error };
 }
 
-export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true, groupBy = '', table = '' }) {
-  const key = profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled, groupBy, table });
+export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, useCaseId, warehouseId, enabled = true, groupBy = '', table = '', noMainTable = '' }) {
+  const key = profileKey({ inspireDatabase, sessionId, useCaseId, warehouseId, enabled: enabled && !noMainTable, groupBy, table });
   const [got, setGot] = useState(null);
   const post = useRef(apiPostJson);
   const pending = useRef({ key: '', promise: null });
@@ -47,6 +48,7 @@ export function useGroupingProfile({ apiPostJson, inspireDatabase, sessionId, us
     if (got?.key === key) return profileState(key, got);
     return profileState(key, pending.current.key === key ? await pending.current.promise : null);
   };
+  if (noMainTable) return { state: 'no_table', profile: null, error: noMainTable, key: '', wait: async () => ({ state: 'no_table', profile: null, error: noMainTable }) };
   return { ...profileState(key, got), key, wait };
 }
 
