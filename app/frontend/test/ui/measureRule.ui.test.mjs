@@ -68,6 +68,7 @@ test('the cost of each lost opportunity is a fixed amount counted over the lost 
     await page.locator('[data-money-lost-statuses]').fill('lost');
     await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
     assert.deepEqual(calls.preview.at(-1).value, { method: 'fixed', amount: 120, currency: 'USD' }, 'each lost record is worth 120 USD');
+    assert.deepEqual(calls.preview.at(-1).lost_filter, { statuses: ['lost'], status_column: 'status' }, 'the example rows are the lost rows only');
     assert.match(await page.locator('[data-money-sentence]').innerText(), /Only rows whose status is lost count\./);
     assert.equal(await page.locator('[data-money-problems], [data-money-error]').count(), 0, 'no problem is shown once the statuses are named');
   } finally {

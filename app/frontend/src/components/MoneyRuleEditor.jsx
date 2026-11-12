@@ -158,11 +158,14 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
 
   const { value: picked, problems: pickProblems } = valueOf(effective);
   const gone = picked && columns.length ? columnsOf(picked).filter((name) => !columns.includes(name)) : [];
-  const previewKey = JSON.stringify(pickProblems.length || gone.length ? null : picked);
+  // The lost-opportunity choice previews only the rows whose status means lost, the rows the rule counts.
+  const lostFilter = pick.method === 'lost' ? { statuses: draft.statuses.split(',').map((s) => s.trim()).filter(Boolean), status_column: draft.statusColumn } : null;
+  const lostUnnamed = lostFilter !== null && !(lostFilter.statuses.length && lostFilter.status_column);
+  const previewKey = JSON.stringify(pickProblems.length || gone.length || lostUnnamed ? null : { picked, lostFilter });
   useEffect(() => {
-    if (!picked || pickProblems.length || gone.length || !table || !api.preview) { setPreview(null); return undefined; }
+    if (!picked || pickProblems.length || gone.length || lostUnnamed || !table || !api.preview) { setPreview(null); return undefined; }
     let live = true;
-    api.preview({ table, value: picked }).then((data) => { if (live) setPreview({ rows: data.rows || [] }); })
+    api.preview({ table, value: picked, lost_filter: lostFilter }).then((data) => { if (live) setPreview({ rows: data.rows || [] }); })
       .catch((err) => { if (live) setPreview({ error: err?.message || 'The example rows could not be read.' }); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -268,7 +271,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         </div>
       )}
 
-      {effective.method && !pickProblems.length && !gone.length && (
+      {effective.method && !pickProblems.length && !gone.length && !lostUnnamed && (
         <div className="space-y-1 text-[12px]" data-money-value-preview>
           <p className="font-semibold text-text-primary">Value of three example rows</p>
           {preview?.error && <PlainMessage text={preview.error} className="text-[12px] text-danger" />}

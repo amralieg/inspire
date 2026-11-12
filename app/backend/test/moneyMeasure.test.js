@@ -46,6 +46,14 @@ test('a value saved in a money rule is kept by the backend cleaner, and a bad on
   assert.notEqual(moneyRuleProblems({ currency: 'per_currency', value: { method: 'equation', expression: 'qty ^ 2', currency: 'USD' } }).length, 0);
 });
 
+test('the value preview counts only the rows whose status means lost, so its example rows are lost rows', () => {
+  const sql = GP.moneyValueSampleSql(TABLE, { method: 'fixed', amount: 120, currency: 'USD' }, { statuses: ['lost', 'closed lost'], status_column: 'stage' });
+  assert.match(sql, /WHERE `stage` IN \('lost', 'closed lost'\) AND 120 IS NOT NULL LIMIT 3$/);
+  assert.equal(GP.moneyValueSampleSql(TABLE, { method: 'fixed', amount: 120, currency: 'USD' }, { statuses: ["lost' OR 1=1"], status_column: 'stage' }), null, 'a status is a plain word, never SQL');
+  assert.equal(GP.moneyValueSampleSql(TABLE, { method: 'fixed', amount: 120, currency: 'USD' }, { statuses: ['lost'], status_column: 'stage; x' }), null);
+  assert.match(GP.moneyValueSampleSql(TABLE, { method: 'fixed', amount: 120, currency: 'USD' }), /^SELECT CAST\(120 AS DOUBLE\) AS stake, 'USD' AS currency FROM .* WHERE 120 IS NOT NULL LIMIT 3$/, 'no filter, no change');
+});
+
 test('the cost of each lost opportunity is a fixed amount over the statuses that mean lost: the same rule, kept as it is', () => {
   const rule = { currency: 'per_currency', statuses: ['lost'], status_column: 'stage', value: { method: 'fixed', amount: 120, currency: 'USD' } };
   assert.deepEqual(moneyRuleProblems(rule), []);

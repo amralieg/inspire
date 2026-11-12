@@ -1914,7 +1914,7 @@ function registerImplementRoutes(app, deps) {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
     try {
-      const sql = GP.moneyValueSampleSql(req.body?.table, req.body?.value);
+      const sql = GP.moneyValueSampleSql(req.body?.table, req.body?.value, req.body?.lost_filter ?? null);
       if (!sql) throw I.badRequest('Name the use case table, and the value: a fixed amount, one column, or an equation over its columns, with one currency.');
       const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.MONEY_VALUE_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
       return res.json({ rows: sqlResultToObjects(found).map((r) => ({ stake: Number(r.stake), currency: String(r.currency ?? '') })) });
