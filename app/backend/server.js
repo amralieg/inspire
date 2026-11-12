@@ -52,7 +52,7 @@ const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase')
 const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
-const { discoverGrantedText, discoverUnreadText, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyName, sampleCopyStatement } = require('./lib/inspireImplement');
+const { discoverGrantedText, discoverUnreadText, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, sampleCopyName, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -2232,6 +2232,17 @@ async function discoverAppAccess(req, scope) {
   }
 }
 
+// A copy that already sits at the copy name is reused only when it has the source's columns (names compared, via the same DESCRIBE reader the build uses).
+async function sameCopyColumns(req, person, source, copy) {
+  const columnsOf = async (name) => describedColumnNames(sqlResultToObjects(await executeSql(req.dbHost, person, DEFAULT_WAREHOUSE_ID, `DESCRIBE TABLE ${sampleTableRef(name)}`)));
+  try {
+    const [want, have] = await Promise.all([columnsOf(source), columnsOf(copy)]);
+    return want.size > 0 && want.size === have.size && [...want].every((name) => have.has(name));
+  } catch {
+    return false;
+  }
+}
+
 app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
   const person = personTokenOf(req);
   if (!person) return res.status(401).json({ error: SAMPLE_COPY_NO_SIGN_IN });
@@ -2245,11 +2256,28 @@ app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
     if (more) throw Object.assign(new Error(`The samples you picked hold more tables than one copy can take (${tables.length} read). Pick fewer tables or schemas`), { statusCode: 409 });
     const copies = [];
     const failed = [];
+    let schemaTried = false;
     for (const source of tables) {
+      const copy = sampleCopyName(source, destination);
       const sql = sampleCopyStatement(source, destination);
-      const outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
-      if (outcome.ran.length) copies.push({ source, copy: sampleCopyName(source, destination) });
-      else failed.push({ source, reason: String(outcome.failed[0] || '').slice(sql.length + 2) });
+      let outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
+      if (!outcome.ran.length && !schemaTried && sampleCopyFailureKind(outcome.failed[0]) === 'no_schema') {
+        schemaTried = true;
+        const schema = schemaCreateStatement(destination);
+        const made = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [schema]);
+        if (!made.ran.length) {
+          const why = String(made.failed[0] || '').slice(schema.length + 2);
+          throw Object.assign(new Error(sampleSchemaMessage(destination, schema, why)), { statusCode: 409 });
+        }
+        outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
+      }
+      if (outcome.ran.length) { copies.push({ source, copy }); continue; }
+      if (sampleCopyFailureKind(outcome.failed[0]) === 'exists') {
+        if (await sameCopyColumns(req, person, source, copy)) copies.push({ source, copy, reused: true });
+        else failed.push({ source, reason: sampleCopyTakenMessage(copy, source) });
+        continue;
+      }
+      failed.push({ source, reason: String(outcome.failed[0] || '').slice(sql.length + 2) });
     }
     res.json({ destination: `${destination.catalog}.${destination.schema}`, copies, failed });
   } catch (err) {

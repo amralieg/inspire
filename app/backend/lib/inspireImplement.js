@@ -3149,9 +3149,40 @@ function sampleCopyName(source, destination) {
   return `${destination.catalog}.${destination.schema}.${tableParts(source).table}`;
 }
 
+// A table name as a quoted three-part reference, e.g. `samples`.`bakehouse`.`sales`.
+function sampleTableRef(name) {
+  const t = tableParts(name);
+  return `\`${t.catalog}\`.\`${t.schema}\`.\`${t.table}\``;
+}
+
 function sampleCopyStatement(source, destination) {
   const from = tableParts(source);
-  return `CREATE TABLE \`${destination.catalog}\`.\`${destination.schema}\`.\`${from.table}\` AS SELECT * FROM \`${from.catalog}\`.\`${from.schema}\`.\`${from.table}\``;
+  return `CREATE TABLE \`${destination.catalog}\`.\`${destination.schema}\`.\`${from.table}\` AS SELECT * FROM ${sampleTableRef(source)}`;
+}
+
+// Why a copy failed: 'exists' (the copy's name is already a table), 'no_schema' (the destination schema or catalog is missing), or '' (anything else).
+function sampleCopyFailureKind(text) {
+  const t = String(text || '');
+  if (/TABLE_OR_VIEW_ALREADY_EXISTS|already exists/i.test(t)) return 'exists';
+  if (/SCHEMA_NOT_FOUND|CATALOG_NOT_FOUND|NO_SUCH_CATALOG_EXCEPTION|schema.*does not exist/i.test(t)) return 'no_schema';
+  return '';
+}
+
+function schemaCreateStatement(destination) {
+  return `CREATE SCHEMA IF NOT EXISTS \`${destination.catalog}\`.\`${destination.schema}\``;
+}
+
+// The plain message for a destination schema that is missing and that the person cannot create. The statement is the one to copy.
+function sampleSchemaMessage(destination, statement, reason) {
+  const schema = `${destination.catalog}.${destination.schema}`;
+  return `${schema} does not exist, and your sign-in cannot create it (${String(reason || '').trim()}). `
+    + `Ask someone who can create schemas in ${destination.catalog} to run: ${statement}, then copy again`;
+}
+
+// The plain message for a copy name that is already another table. Inspire never overwrites it.
+function sampleCopyTakenMessage(copy, source) {
+  return `${copy} already holds a different table (its columns do not match ${source}), so Inspire will not overwrite it. `
+    + 'Rename or remove it, then copy again';
 }
 
 function abacUnreadableSentence(label, { app = false } = {}) {
@@ -3805,6 +3836,11 @@ module.exports = {
   sampleCopyDestination,
   sampleCopyName,
   sampleCopyStatement,
+  sampleCopyFailureKind,
+  sampleTableRef,
+  schemaCreateStatement,
+  sampleSchemaMessage,
+  sampleCopyTakenMessage,
   SAMPLE_COPY_NO_SIGN_IN,
   abacUnreadableSentence,
   ownerLabel,
