@@ -46,7 +46,7 @@ async function readable(page, selectors, name) {
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
 }
 
-const STEPS_WITH_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. App look', '8. Run it', '9. Review & build'];
+const STEPS_WITH_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build'];
 const boxLabels = (panel) => panel.locator('textarea').evaluateAll((boxes) => boxes.map((b) => b.getAttribute('aria-label')));
 
 async function grayExamples(page, panel) {

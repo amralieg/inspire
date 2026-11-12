@@ -1896,7 +1896,7 @@ export default function ImplementWizard({
                 </SettingRow>
               </div>
             ) : (
-              <MoneyRuleEditor part={moneyParts[moneyActive]} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => setSpec((prev) => withMoneyRule(prev, money))} />
+              <MoneyRuleEditor part={moneyParts[moneyActive]} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => { setSpec((prev) => withMoneyRule(prev, money)); if (Boolean(money?.off) !== Boolean(spec.money?.off)) setMoneyPart(money?.off ? 0 : MONEY_PARTS.indexOf('off')); }} />
             )}
             <div className="flex items-center justify-between pt-1">
               {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
