@@ -2004,7 +2004,8 @@ def step_preflight(ctx):
                                     f"{_grant_refusal(name, ctx['USER_EMAIL'], held)}, or take `{name}` out of SCAN_CATALOGS.")
             except Exception as exc:
                 problems.append(f"Inspire cannot check catalog `{name}` in SCAN_CATALOGS: {_rights_unread(exc, name, ctx['USER_EMAIL'])}.")
-    for folder in (ctx["APP_FOLDER"], _workspace_api_path(ctx["BUNDLE_ROOT"]), _workspace_api_path(ctx["ASSETS_PARENT"])):
+    for folder in ((ctx["APP_FOLDER"], _workspace_api_path(ctx["BUNDLE_ROOT"]), _workspace_api_path(ctx["ASSETS_PARENT"]))
+                   if not problems else ()):
         made = api("POST", "/api/2.0/workspace/mkdirs", {"path": folder})
         if made.status_code != 200:
             problems.append(f"You cannot write the workspace folder {folder} ({made.status_code} {made.text[:160]}). "

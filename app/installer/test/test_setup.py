@@ -192,10 +192,11 @@ class PreflightTest(unittest.TestCase):
                               or (c[0] == "POST" and c[1] != "/api/2.0/workspace/mkdirs")], [], name)
             self.assertIn("Setup incomplete", shown[-1], name)
 
-    def test_every_problem_is_named_at_once(self):
-        api, _ = recording(app_exists(manage=False, mkdirs=403))
+    def test_every_read_only_problem_is_named_at_once_and_a_refusal_creates_no_folder(self):
+        api, calls = recording(app_exists(manage=False, mkdirs=403))
         _, error, _ = self.run_install(context(api, w=Workspace(warehouse=FAILED, schema=False), held=(), SCAN_CATALOGS=["nope"]))
-        self.assertEqual(error.count("\n  • "), 8)
+        self.assertEqual(error.count("\n  • "), 5)
+        self.assertEqual([c for c in calls if c[1] == "/api/2.0/workspace/mkdirs"], [])
 
     def test_a_passed_preflight_runs_every_step_in_order_and_unpacks_the_app_only_after_it(self):
         api, calls = recording(app_exists())
@@ -1866,7 +1867,7 @@ class SchemaModeTest(unittest.TestCase):
         self.assertIn("Nothing was replaced", error)
         self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `account users`", error)
         self.assertEqual([c for c in calls if c[0] in ("DELETE", "PATCH", "PUT")], [])
-        self.assertEqual([c for c in calls if c[0] == "POST" and c[1] != "/api/2.0/workspace/mkdirs"], [])
+        self.assertEqual([c for c in calls if c[0] == "POST"], [])
         self.assertEqual(w.statements, ["SELECT 1"], "only the warehouse check ran; no CREATE SCHEMA or GRANT was sent")
 
     def test_schema_mode_accepts_the_app_principal_when_it_holds_use_catalog_directly(self):
