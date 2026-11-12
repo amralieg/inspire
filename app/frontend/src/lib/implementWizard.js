@@ -1789,6 +1789,15 @@ export function rebuildNeedsChoice(plan, rebuildAsIs) {
   return Boolean(plan?.unchanged) && !rebuildAsIs;
 }
 
+export function dataFilterProblems(spec) {
+  const problems = [];
+  for (const kept of (spec.data.filters || []).filter((f) => f.op === 'in')) {
+    const both = filterValues(spec, kept.table, kept.column, 'not in').filter((v) => kept.values.includes(v));
+    if (both.length) problems.push(`${kept.table}.${kept.column} both keeps and excludes ${both.join(', ')}`);
+  }
+  return problems;
+}
+
 export function sectionErrors(section, spec, extras = {}) {
   const errors = [];
   if (section === 'use_case') {
@@ -1816,15 +1825,12 @@ export function sectionErrors(section, spec, extras = {}) {
     }
   }
   if (section === 'data') {
+    errors.push(...dataFilterProblems(spec));
     const roleProblems = columnRoleProblems(spec.data.column_roles, extras.columnsByTable, { trainsModel: extras.trainsModel !== false });
     errors.push(...roleProblems);
     if (roleProblems.length) errors.push(`${RESET_ROLES_LABEL}, under Change data settings, sets every role back at once`);
     const { start, end } = spec.data.window || {};
     if (start && end && start > end) errors.push('the window starts after it ends');
-    for (const kept of (spec.data.filters || []).filter((f) => f.op === 'in')) {
-      const both = filterValues(spec, kept.table, kept.column, 'not in').filter((v) => kept.values.includes(v));
-      if (both.length) errors.push(`${kept.table}.${kept.column} both keeps and excludes ${both.join(', ')}`);
-    }
   }
   if (section === 'configure') {
     if (!spec.config.warehouse_id) errors.push('pick a SQL warehouse');

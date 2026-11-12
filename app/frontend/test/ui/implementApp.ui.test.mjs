@@ -1056,6 +1056,7 @@ const UNWRITABLE_RESULT = { rows: [accessRow('catalog', 'OWNER', 'admins', false
 
 test('every wizard step but the App steps, Deliver with the App and where it goes included, fits a 1440x900 screen with nothing to scroll, and every step reads at 4.5:1 in light and dark', async () => {
   const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' },
+    warehousePermissions: { access_control_list: [{ user_name: OWNER, all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] },
     statements: { ...CAN_CREATE_SCHEMA, 'SELECT level, privilege, principal': WRITABLE_RESULT } });
   const { page } = ui;
   const heights = {};

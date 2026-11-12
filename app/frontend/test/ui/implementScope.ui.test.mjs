@@ -10,7 +10,10 @@ test.after(closeBrowser);
 
 const ME = { userName: OWNER, displayName: 'Owner' };
 const PERSON = 'person-token';
-const next = (page) => page.getByRole('button', { name: 'Next' }).click();
+const next = async (page) => {
+  while (await page.locator('[data-money-next]').count() && await page.locator('[data-money-next]').isVisible()) await page.locator('[data-money-next]').click();
+  await page.getByRole('button', { name: 'Next' }).click();
+};
 const stepBar = (page) => page.locator('[aria-current="step"]').locator('xpath=..').locator('li').allTextContents();
 const insertsOf = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
   .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
