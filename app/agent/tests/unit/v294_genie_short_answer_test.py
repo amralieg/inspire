@@ -72,3 +72,21 @@ def test_a_chat_answer_with_bullets_beside_a_table_is_shaped_to_the_lead_and_one
     answer = ask(s, "Which profile source creates the most duplicates?", view=EAST)["answer"]
     assert PROFILES in answer and "| 2707 | 4183 | 0.4 |" in answer
     assert answer.count("counts") <= 1, answer
+
+
+PROFILE_KPI = [{"label": "Duplicate active passenger profiles", "value": 2.0, "counts": "the current rows of the runs it picked", "scope": "Region: East"}]
+
+
+def test_a_listed_pair_count_that_differs_from_the_page_profile_kpi_names_both_counts():
+    answer = shell_agent.finish_text("There is 1 duplicate pair to act on.", key_numbers=PROFILE_KPI, listed=1)
+    assert answer == ("There is 1 duplicate pair to act on.\n\nDuplicate active passenger profiles 2 counts the current rows of the runs "
+                      "it picked; the records listed here number 1, so they are a different count.")
+
+
+def test_a_listed_count_that_agrees_with_the_page_kpi_gets_no_different_count_note():
+    answer = shell_agent.finish_text("There are 2 duplicate active passenger profiles.", key_numbers=PROFILE_KPI, listed=2)
+    assert "different count" not in answer and answer.startswith("There are 2 duplicate active passenger profiles.")
+
+
+def test_a_listed_count_the_answer_does_not_state_gets_no_note():
+    assert shell_agent.finish_text("Start with the east list.", key_numbers=PROFILE_KPI, listed=1) == "Start with the east list."

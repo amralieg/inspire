@@ -643,10 +643,25 @@ def with_scopes(answer: str, clashes: list, notes: list) -> str:
     return "\n\n".join(p for p in parts if p.strip())
 
 
-def finish_text(text, question: str = "", key_numbers=None, genie=None, rows: int = 0) -> str:
+def listing_note(answer: str, listed, key_numbers: list) -> str:
+    total = number_of(listed)
+    if total is None or not re.search(rf"(?<![\d.,]){int(total)}(?![\d.,])", answer):
+        return ""
+    for item in key_numbers or []:
+        value, label = number_of(item.get("value")), str(item.get("label") or "").strip()
+        if value is None or not label or same_number(value, total):
+            continue
+        return (f"{label} {kpi_shown(item, value)} counts {item.get('counts') or 'every row of every run'}; "
+                f"the records listed here number {shell_sql.shown_number(total)}, so they are a different count.")
+    return ""
+
+
+def finish_text(text, question: str = "", key_numbers=None, genie=None, rows: int = 0, listed=None) -> str:
     content = bullets_to_table(text) if rows_as_bullets(text, rows) else text
     shaped = shape_answer(content)
     clashes, notes = number_scopes(shaped, question, key_numbers or [], genie or [])
+    if not clashes and not notes and listed is not None:
+        notes = [n for n in [listing_note(shaped, listed, key_numbers)] if n]
     return with_scopes(shaped, clashes, notes) if shaped else shaped
 
 
@@ -1528,7 +1543,8 @@ class Agent:
                 content, rewritten = shorter, True
         if rows_as_bullets(content, answer_rows(turn)):
             content = bullets_to_table(content)
-        final = finish_text(content, job.get("question") or "", job.get("key_numbers"), job.get("genie") or [])
+        final = finish_text(content, job.get("question") or "", job.get("key_numbers"), job.get("genie") or [],
+                            listed=job.get("listed_total"))
         print(f"[AGENT-ANSWER-SHAPE FIRED] page={turn.page_id} problems={len(problems)} rewritten={rewritten} "
               f"words={words_of(content)}->{words_of(final)}", flush=True)
         return final
@@ -1640,6 +1656,7 @@ class Agent:
     def tool_find_records(self, turn: Turn, job: dict, args: dict) -> dict:
         limit = args.get("limit") if isinstance(args.get("limit"), int) and 1 <= args["limit"] <= FIND_ROWS else FIND_ROWS
         found = self.listing(job, args, limit, window="")
+        job["listed_total"] = found["total"]
         rows = [self.row_view(job["page"], r) for r in found["rows"]]
         turn.listed = [{"record_key": r["record_key"], "label": r.get((job["page"].get("records") or {}).get("label")) or r["record_key"]}
                        for r in rows]
