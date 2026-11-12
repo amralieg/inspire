@@ -1,12 +1,13 @@
 import { useEffect, useState } from 'react';
-import { DOCUMENT_ACTIONS, documentJobState, documentRunBody } from '../lib/documentActions.js';
+import { DOCUMENT_ACTIONS, PDF_MADE_TEXT, documentBlockedText, documentJobState, documentRunBody } from '../lib/documentActions.js';
 import { PlainMessage } from './TechnicalDetails';
 
 const POLL_MS = 15000;
 
-export default function DocumentActions({ apiFetch, apiPostJson, session, onFinished }) {
+export default function DocumentActions({ apiFetch, apiPostJson, session, onFinished, pdfMade = false }) {
   const [job, setJob] = useState(null);
-  const [format, setFormat] = useState('PDF');
+  const [format, setFormat] = useState(pdfMade ? 'PPTX' : 'PDF');
+  const blocked = documentBlockedText('strategy-document', format, pdfMade);
   const busy = job?.state === 'starting' || job?.state === 'running';
 
   useEffect(() => {
@@ -27,6 +28,8 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, onFini
   }, [job, apiFetch, onFinished]);
 
   const start = async (kind) => {
+    const refused = documentBlockedText(kind, format, pdfMade);
+    if (refused) return setJob({ kind, state: 'failed', runId: null, error: refused });
     setJob({ kind, state: 'starting', runId: null, error: '' });
     try {
       const body = documentRunBody({
@@ -49,8 +52,9 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, onFini
   return (
     <div data-document-actions="" className="mb-3 rounded-lg border border-border p-3">
       <div className="mb-2 text-sm font-medium">Documents</div>
+      {pdfMade && <p role="note" data-pdf-made="" className="mb-2 text-xs text-text-secondary">{PDF_MADE_TEXT}</p>}
       <div className="flex flex-wrap items-center gap-2">
-        <button type="button" data-doc-action="strategy-document" disabled={disabled}
+        <button type="button" data-doc-action="strategy-document" disabled={disabled || blocked !== ''}
           onClick={() => start('strategy-document')} className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50">
           {DOCUMENT_ACTIONS['strategy-document'].label}
         </button>
@@ -58,7 +62,7 @@ export default function DocumentActions({ apiFetch, apiPostJson, session, onFini
           onChange={(e) => setFormat(e.target.value)} className="rounded-md border border-border px-2 py-1.5 text-sm">
           {DOCUMENT_ACTIONS['strategy-document'].formats.map((f) => <option key={f} value={f}>{f}</option>)}
         </select>
-        <button type="button" data-doc-action="use-case-catalog" disabled={disabled}
+        <button type="button" data-doc-action="use-case-catalog" disabled={disabled || pdfMade}
           onClick={() => start('use-case-catalog')} className="rounded-md border border-border px-3 py-1.5 text-sm disabled:opacity-50">
           {DOCUMENT_ACTIONS['use-case-catalog'].label}
         </button>

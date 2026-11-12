@@ -169,7 +169,7 @@ const defaultParams = (inspireDatabase) => ({
   '06_business_domains': '',
   '07_business_priorities': '',
   '08_generation_instructions': '',
-  '09_generation_options': '',
+  '09_generation_options': 'PDF Catalog',
   '10_strategic_context': '',
   '11_generation_path': '',
   '12_documents_languages': 'English',
@@ -180,7 +180,7 @@ const defaultParams = (inspireDatabase) => ({
 const DRAFT_PARAMS = ['00_business_name', '03_discovery_type', '04_table_election', '05_use_cases_quality', '06_business_domains', '08_generation_instructions',
   '11_generation_path', '12_documents_languages', '13_generate_genie_code_for', '15_operation', '16_best_of_best_count'];
 const FORM_DEFAULTS = {
-  genChecks: { 'PDF Catalog': false, Presentation: false, Excel: false }, priorityChecks: {}, customPriorities: [], strategyBase: '',
+  genChecks: { 'PDF Catalog': true, Presentation: false, Excel: false }, priorityChecks: {}, customPriorities: [], strategyBase: '',
   selectedCatalogs: [], selectedSchemas: [], selectedTables: [], tableScopes: {}, dataFilterLabel: { on: false, text: null },
   electionTouched: false, discoveryTouched: false, strategyTouched: false, prioritiesTouched: false,
 };
@@ -1699,6 +1699,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       <button
                         key={opt.key}
                         type="button"
+                        aria-pressed={active}
                         onClick={() => setGenChecks((p) => ({ ...p, [opt.key]: !p[opt.key] }))}
                         className={`relative p-3.5 rounded-xl text-start transition-smooth border group ${
                           active
