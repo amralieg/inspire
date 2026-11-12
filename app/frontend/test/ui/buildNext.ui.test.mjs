@@ -101,7 +101,6 @@ test('a use case that is not live shows no next-step card', async () => {
 
 // The Build page's Build next step: Build Now submits the live App's settings for the sibling, Build custom opens the wizard.
 const WIZARD = /Start Use Case MVP with Genie/;
-const SIBLING_LIST_NAME = 'Score upsell';
 const GRANT = 'GRANT SELECT ON TABLE `main`.`s`.`customers` TO `app-sp-id`';
 const CUSTOMERS_REFUSAL = {
   text: 'The App cannot read main.s.customers, so the build cannot start.', tables: ['main.s.customers'], can_grant: true, grants: [GRANT],
@@ -281,15 +280,16 @@ test('a live App with no saved spec shows Build custom and hides Build Now', asy
 
 test('Build custom opens the wizard on that sibling and sends no build', async () => {
   const log = newLog();
-  const ui = await openUi('app', STATE, '', { mount: (app) => mountBuilds(app, log) });
+  const ui = await openUi('app', { ...STATE, useCase: { id: 'N01-U02', use_case: 'Forecast weekly orders', genie_instruction: '' } }, '', { mount: (app) => mountBuilds(app, log) });
   const { page } = ui;
   try {
     await go(page, '#/build/42/N01-U01');
     await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    const siblingName = (await sibling(page, 'N01-U02').locator('p').first().innerText()).trim();
     await sibling(page, 'N01-U02').getByRole('button', { name: 'Build custom', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: WIZARD });
     await dialog.waitFor({ timeout: 20000 });
-    assert.ok((await dialog.getAttribute('aria-label')).includes(SIBLING_LIST_NAME), 'the wizard is for the sibling');
+    assert.ok((await dialog.getAttribute('aria-label')).includes(siblingName), 'the wizard is for the sibling, named as its Build next row');
     assert.equal(log.submits.length, 0, 'the wizard alone sends nothing');
   } finally {
     await ui.close();
@@ -359,6 +359,8 @@ test('a run card with no measured KPI baseline says Value at stake: Not calculat
   const { page } = ui;
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
+    await go(page, '#/review/42');
     const panel = page.locator('[data-build-next]');
     await panel.waitFor({ timeout: 20000 });
     const row = panel.locator('[data-build-next-row="N02-U02"]');
@@ -381,6 +383,8 @@ test('the Measure step opens once from the Build next action; picking another us
   const { page } = ui;
   try {
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await page.locator('[data-run="42"]').waitFor({ timeout: 20000 });
+    await go(page, '#/review/42');
     const panel = page.locator('[data-build-next]');
     await panel.waitFor({ timeout: 20000 });
     await panel.locator('[data-build-next-row="N02-U02"] [data-measure-value="N02-U02"]').click();

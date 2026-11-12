@@ -561,14 +561,14 @@ export default function ImplementWizard({
   const scopeReady = scopeProfile.state !== 'loading';
   const scopeNow = readinessScope(spec, ucRow);
   const scopeKey = JSON.stringify(scopeNow);
-  const counted = countedFor(readiness, scopeNow);
-  const scopeCounted = Boolean(counted);
+  const readinessCounted = countedFor(readiness, scopeNow);
+  const scopeCounted = Boolean(readinessCounted);
   const narrowed = scopeNarrowing(scopeNow).length > 0;
-  const scopeCount = scopeCounted ? Number(counted.row_count) : null;
-  const scopeGroups = scopeCounted ? counted.groups || null : null;
+  const scopeCount = scopeCounted ? Number(readinessCounted.row_count) : null;
+  const scopeGroups = scopeCounted ? readinessCounted.groups || null : null;
   const scopedProfile = narrowed ? withScopedRows(scopeProfile.profile, scopeCount, scopeGroups) : scopeProfile.profile;
   const scopedFirstRun = narrowed && scopeProfile.firstRun ? { ...scopeProfile.firstRun, profile: withScopedRows(scopeProfile.firstRun.profile, scopeCount, scopeGroups) } : scopeProfile.firstRun;
-  const tooFewRows = tooFewRowsText(counted);
+  const tooFewRows = tooFewRowsText(readinessCounted);
   const totalSteps = useMemo(() => steps.length, [scopeReady, Boolean(spec.outputs.app)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const q = useMemo(() => {
