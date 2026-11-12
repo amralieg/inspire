@@ -598,7 +598,7 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
       </p>
       {nothingPicked && <p data-data-filters-empty className="text-text-tertiary">Pick tables, schemas or catalogs under Unity Catalog Metadata to filter them.</p>}
       {!nothingPicked && (
-        <div ref={rootRef} data-filters-layout className="grid grid-cols-1 gap-4 min-[1440px]:[grid-template-columns:var(--dfl)_0.5rem_var(--dfr)]"
+        <div ref={rootRef} data-filters-layout className="grid grid-cols-1 gap-4 min-[1024px]:[grid-template-columns:var(--dfl)_0.5rem_var(--dfr)]"
           style={{ '--dfl': `minmax(0,${split}fr)`, '--dfr': `minmax(0,${100 - split}fr)` }}>
           <div data-filters-tree className="min-w-0 max-h-[28rem] overflow-y-auto">
             <ul role="tree" aria-label="Tables you picked, by catalog, schema and table" className="space-y-1">
@@ -622,7 +622,7 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
               e.preventDefault();
               setSplit(clampSplit(next));
             }}
-            className="hidden min-[1440px]:flex cursor-col-resize justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red-fg/60">
+            className="hidden min-[1024px]:flex cursor-col-resize justify-center focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-db-red-fg/60">
             <span className="w-px bg-border" />
           </div>
           <div data-filters-grid-pane className="min-w-0">

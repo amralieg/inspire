@@ -445,7 +445,7 @@ test('on a narrow screen the table list stacks above the grid and the splitter i
   const ui = await openUi('launch', STATE);
   const { page } = ui;
   try {
-    await page.setViewportSize({ width: 1100, height: 1000 });
+    await page.setViewportSize({ width: 900, height: 1000 });
     await pickOrdersAndOpenDataFilters(page);
     const tree = await page.locator('[data-filters-tree]').boundingBox();
     const pane = await page.locator('[data-filters-grid-pane]').boundingBox();
@@ -574,6 +574,22 @@ test('after Done the picked groups collapse to removable chips, and Change group
     assert.equal(await gridOf(page).locator('[data-scope-group="brand_name"]').count(), 0, 'a chip removes its group');
     assert.equal(await page.getByRole('button', { name: 'Change groups', exact: true }).count(), 0, 'with nothing picked the list is open, no toggle');
     assert.equal(await page.locator('[data-row-groups="brand_name"] [data-group-value]').count(), 4, 'nothing picked: the list shows again');
+  } finally {
+    await ui.close();
+  }
+});
+
+test('at 1024 px and up the table list and the grid sit side by side at equal width', async () => {
+  const ui = await openUi('launch', STATE);
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1024, height: 900 });
+    await pickOrdersAndOpenDataFilters(page);
+    const tree = await page.locator('[data-filters-tree]').boundingBox();
+    const pane = await page.locator('[data-filters-grid-pane]').boundingBox();
+    assert.ok(Math.abs(tree.y - pane.y) < 2, 'the table list and the grid start on the same row');
+    assert.ok(Math.abs(tree.width - pane.width) <= 2, `equal width (${tree.width} and ${pane.width})`);
+    assert.equal(await page.locator('[role="separator"][data-filters-splitter]').isVisible(), true, 'the splitter shows');
   } finally {
     await ui.close();
   }
