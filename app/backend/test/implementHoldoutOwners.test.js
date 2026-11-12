@@ -178,7 +178,7 @@ test('the wizard App owners start empty, take workspace emails, and flag a bad o
   assert.deepEqual(fresh.outputs.app_owners, []);
   const app = { ...fresh, outputs: { ...fresh.outputs, app: true, genie_space: true, app_owners: ['lee@example.com', 'nope'] } };
   assert.ok(w.stepErrors('delivery', app).includes('App owners must be email addresses: nope'));
-  assert.ok(w.advancedErrors('delivery', app).includes('App owners must be email addresses: nope'), 'the problem opens Advanced settings, where owners are typed');
+  assert.ok(w.advancedWithErrors('delivery', app).includes('delivery'), 'the problem opens Advanced settings, where owners are typed');
   assert.ok(!w.stepErrors('delivery', { ...app, outputs: { ...app.outputs, app: false } }).some((e) => e.startsWith('App owners must')));
   const many = Array.from({ length: 51 }, (_, i) => `person${i}@example.com`);
   assert.ok(w.stepErrors('delivery', { ...app, outputs: { ...app.outputs, app_owners: many } }).includes('name at most 50 App owners'));

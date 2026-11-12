@@ -1,37 +1,18 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, openUi, profileAt } from './uiSupport.mjs';
-import { GROUPING_PROFILE } from './implementFixtures.js';
+import { closeBrowser, goToStep, openUi, profileAt, stubMoney as stub } from './uiSupport.mjs';
+import { GROUPING_PROFILE, LIVE_RATES, MONEY_PROFILE } from './implementFixtures.js';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const MONEY_PROFILE = {
-  ...GROUPING_PROFILE,
-  money_columns: ['order_id', 'quantity', 'unit_price', 'discount', 'amount', 'currency'],
-  money_sample: { amount: 'amount', currency: 'currency', status: '', rows: [{ amount: 100, currency: 'AED' }, { amount: 50, currency: 'USD' }, { amount: 20, currency: 'EUR' }] },
-};
-const LIVE_RATES = {
-  base: 'AED', currencies: [{ code: 'AED', records: 40 }, { code: 'USD', records: 9 }, { code: 'EUR', records: 4 }],
-  rates: { USD: 0.272294, EUR: 0.2967 }, sources: { USD: 'today', EUR: 'today' }, missing: [], as_of: '2026-11-11', offline: false, message: '',
-};
 const OFFLINE_RATES = {
   ...LIVE_RATES, sources: { USD: 'average', EUR: 'average' }, offline: true,
   message: 'No internet: every rate is the saved historical average (fetch failed).',
 };
 const DESCRIBED = { value: { method: 'equation', expression: 'quantity * unit_price - discount', currency_column: 'currency' }, explanation: 'Units times price, less discount.' };
 const PREVIEW = (currency) => ({ rows: [{ stake: 120, currency }, { stake: 120, currency }, { stake: 120, currency }] });
-
-function stub(path, answerOf, calls) {
-  return async (page) => {
-    await page.route(`**/api/money/${path}`, async (route) => {
-      const body = JSON.parse(route.request().postData() || '{}');
-      calls.push(body);
-      await route.fulfill({ status: 200, contentType: 'application/json', body: JSON.stringify(answerOf(body)) });
-    });
-  };
-}
 
 function plannedStub(path, plan, calls) {
   return async (page) => {
