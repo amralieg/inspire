@@ -380,6 +380,18 @@ function WidgetInput({ widget, value, endpoints, onChange }) {
   );
 }
 
+function FoldLine({ label, what, summary, onOpen }) {
+  return (
+    <div className="border-t border-border pt-3 flex items-start justify-between gap-3">
+      <p className="text-[12px] text-text-secondary min-w-0"><span className="font-semibold text-text-primary">{label}: </span>{summary}</p>
+      <button type="button" aria-expanded={false} aria-label={`${CHANGE_LABEL} ${what}`} onClick={onOpen}
+        className="shrink-0 text-xs font-medium text-db-red-fg hover:underline glow-focus">
+        {CHANGE_LABEL}
+      </button>
+    </div>
+  );
+}
+
 function Advanced({ open, onToggle, children, summary = '', what = 'settings' }) {
   return (
     <div className="border-t border-border pt-3 space-y-3">
@@ -521,6 +533,7 @@ export default function ImplementWizard({
   const [appNameRefusal, setAppNameRefusal] = useState(null);
   const [placeSet, setPlaceSet] = useState('');
   const [draftBack, setDraftBack] = useState(false);
+  const [dataChoice, setDataChoice] = useState(null);
   const draftStamp = useRef('');
   const touched = useRef(false);
   const loadedSpec = useRef(null);
@@ -748,6 +761,12 @@ export default function ImplementWizard({
     lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps: stepScope, scopeProfile: scopeProfile.profile, outputBlocks: blocks };
   const chartDates = appInputDates(columnsByTable, sourceTables);
   const ownErrors = stepErrors(stepId, spec, extras, mode);
+  const resultAuto = advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false;
+  const dataFolded = dataChoice ?? (resultAuto ? 'results' : null);
+  const dataErrorsOpen = dataChoice === null && !resultAuto && stepId === 'data' && ownErrors.length > 0;
+  const resultsShown = dataFolded === 'results';
+  const sourcesShown = dataFolded === null || dataFolded === 'sources' || dataErrorsOpen;
+  const filtersShown = dataFolded === null || dataFolded === 'filters' || dataErrorsOpen;
   const reach = steps.map((s, i) => i <= stepIndex || steps.slice(0, i).every((p) => !stepErrors(p.id, spec, extras, mode).length));
   const done = steps.map((s, i) => i < stepIndex && !stepErrors(s.id, spec, extras, mode).length);
   const goTo = (id) => { setErrors([]); setStep(id); };
@@ -1397,7 +1416,8 @@ export default function ImplementWizard({
 
         {stepId === 'data' && mode === 'mvp' && (
           <>
-            <section className="space-y-2">
+            {!sourcesShown && <FoldLine label="Source tables" what="Source tables" summary={`${sourceTables.length} ${sourceTables.length === 1 ? 'table' : 'tables'}: ${sourceTables.join(', ')}`} onOpen={() => setDataChoice('sources')} />}
+            {sourcesShown && <section className="space-y-2">
               <div>
                 <h3 className="text-sm font-semibold text-text-primary">Source tables</h3>
                 <p className="text-[11px] text-text-tertiary">Inspire picked these for this use case. Genie builds on them unless you change one.</p>
@@ -1422,9 +1442,10 @@ export default function ImplementWizard({
                 onSearch={searchTable}
                 onRestore={(original) => { setSpec((prev) => restoreTable(prev, original)); setNotice(''); }}
               />
-            </section>
+            </section>}
 
-            <SourceTableBlocks tables={sourceTables} spec={spec} columnsByTable={columnsByTable} values={values} setSpec={setSpec} loadValues={loadValues} />
+            {!filtersShown && <FoldLine label="Table filters" what="Table filters" summary={`${(spec.data.filters || []).length} filter${(spec.data.filters || []).length === 1 ? '' : 's'} on ${sourceTables.length} ${sourceTables.length === 1 ? 'table' : 'tables'}`} onOpen={() => setDataChoice('filters')} />}
+            {filtersShown && <SourceTableBlocks tables={sourceTables} spec={spec} columnsByTable={columnsByTable} values={values} setSpec={setSpec} loadValues={loadValues} />}
 
             <Advanced open={advanced.data} onToggle={() => toggleAdvanced('data')} what="data settings" summary={dataSummary}>
               <RowSubjectCheck
@@ -1537,7 +1558,7 @@ export default function ImplementWizard({
         )}
 
         {resultsOn && (
-          <Advanced open={advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false} onToggle={() => toggleAdvanced('results')} what="result table"
+          <Advanced open={resultsShown} onToggle={() => { if (resultsShown) { setAdvanced((prev) => ({ ...prev, results: false })); setDataChoice(null); } else setDataChoice('results'); }} what="result table"
             summary={`Result table: ${spec.config.result_table || 'not set yet'}`}>
             <ResultTableStep
               table={spec.config.result_table}

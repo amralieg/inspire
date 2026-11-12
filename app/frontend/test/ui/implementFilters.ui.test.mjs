@@ -17,6 +17,10 @@ const PROFILE = {
   first_run: { all: 48210, groups: 19612, recent: 3120, records: null }, default_scope: 'records', read_at: '2026-11-01T15:00:00Z',
 };
 
+const openFilters = async (page) => {
+  const change = page.getByRole('button', { name: 'Change Table filters', exact: true });
+  if (await change.count()) await change.click();
+};
 const block = (page, table) => page.locator(`[data-source-table="${table}"]`);
 const pickStatus = async (page, table) => block(page, table).getByLabel(`Filter rows of ${table} by column`).selectOption('status');
 
@@ -31,6 +35,7 @@ test('the data step gives each source table its own column list and row filter, 
   const { page, pageErrors } = ui;
   try {
     await goToStep(page, 'Data');
+    await openFilters(page);
     await block(page, 'main.s.orders').waitFor();
     assert.equal(await page.locator('[data-source-table]').count(), 2, 'one block per source table');
     assert.equal(await page.getByRole('button', { name: 'Change data settings', exact: true }).getAttribute('aria-expanded'), 'false', 'Advanced stays closed');
@@ -51,6 +56,7 @@ test('keeping one value counts that scope in review and submits the row filter w
   const { page, made, pageErrors } = ui;
   try {
     await goToStep(page, 'Data');
+    await openFilters(page);
     const orders = block(page, 'main.s.orders');
     await pickStatus(page, 'main.s.orders');
     await orders.getByRole('button', { name: 'Load values' }).first().click();
@@ -73,6 +79,7 @@ test('the First run sizes the scope from its own count, not the whole table', as
   const { page } = ui;
   try {
     await goToStep(page, 'Data');
+    await openFilters(page);
     await pickStatus(page, 'main.s.orders');
     await block(page, 'main.s.orders').getByRole('button', { name: 'Load values' }).first().click();
     await block(page, 'main.s.orders').getByRole('checkbox', { name: 'gold', exact: true }).first().check();
@@ -92,6 +99,7 @@ test('a scope under the forecast minimum shows one plain warning on the data ste
   const { page, made, pageErrors } = ui;
   try {
     await goToStep(page, 'Data');
+    await openFilters(page);
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.locator('[data-too-few-rows]').waitFor();
     assert.equal(await page.locator('[data-too-few-rows]').innerText(), 'Only 30 rows are in this scope, fewer than the 60 this use case needs; you can still go on.');
@@ -115,6 +123,7 @@ test('a narrowed scope reads the row count of every Data group under the same sc
   const { page, made, pageErrors } = ui;
   try {
     await goToStep(page, 'Data');
+    await openFilters(page);
     await block(page, 'main.s.orders').getByLabel('Filter rows of main.s.orders by column').selectOption('status');
     await block(page, 'main.s.orders').getByRole('button', { name: 'Load values' }).first().click();
     await block(page, 'main.s.orders').getByRole('checkbox', { name: 'gold', exact: true }).first().check();
@@ -136,6 +145,7 @@ test('a restored draft that opens First run on a narrowed scope counts that scop
   const { page, made, pageErrors } = ui;
   try {
     await goToStep(page, 'Data');
+    await openFilters(page);
     await block(page, 'main.s.orders').getByLabel('Filter rows of main.s.orders by column').selectOption('status');
     await block(page, 'main.s.orders').getByRole('button', { name: 'Load values' }).first().click();
     await block(page, 'main.s.orders').getByRole('checkbox', { name: 'gold', exact: true }).first().check();
@@ -159,6 +169,7 @@ test('a row filter left on a table that is no longer a source is listed, and Rem
   const { page, pageErrors } = ui;
   try {
     await goToStep(page, 'Data');
+    await openFilters(page);
     await block(page, 'main.s.orders').getByLabel('Filter rows of main.s.orders by column').selectOption('status');
     await block(page, 'main.s.orders').getByRole('button', { name: 'Load values' }).first().click();
     await block(page, 'main.s.orders').getByRole('checkbox', { name: 'gold', exact: true }).first().check();
@@ -171,6 +182,7 @@ test('a row filter left on a table that is no longer a source is listed, and Rem
     }, WIZARD_DRAFT_PREFIX);
     await page.reload();
     await onStep(page, 'Data');
+    await openFilters(page);
     const orphan = page.locator('[data-filters-outside="main.s.gone"]');
     await orphan.waitFor();
     assert.match(await orphan.innerText(), /Row filters on main\.s\.gone, which is no longer a source table\./);
