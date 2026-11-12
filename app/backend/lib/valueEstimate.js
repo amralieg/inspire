@@ -77,4 +77,20 @@ async function estimatesFor({ useCases, specs, measured, baselineOf }) {
   return { use_cases: out, totals: totalsOf(Object.values(out)) };
 }
 
-module.exports = { estimateOf, totalsOf, useCasesSql, latestSpecsSql, baselineSql, parseSpec, estimatesFor };
+// Every session that has use cases, for the all-runs read (the banner and the Start cards).
+function sessionsSql(table) {
+  return `SELECT DISTINCT CAST(session_id AS STRING) AS session_id FROM ${table}`;
+}
+
+// Totals from several runs, added per currency. Estimated money stays estimated; it is only ever added to other estimates.
+function mergeTotals(list) {
+  const estimated = {};
+  for (const totals of list) {
+    for (const [code, amount] of Object.entries((totals && totals.estimated) || {})) {
+      estimated[code] = Math.round(((estimated[code] || 0) + Number(amount)) * 100) / 100;
+    }
+  }
+  return { estimated };
+}
+
+module.exports = { estimateOf, totalsOf, useCasesSql, latestSpecsSql, baselineSql, parseSpec, estimatesFor, sessionsSql, mergeTotals };

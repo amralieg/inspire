@@ -460,7 +460,7 @@ test('a Start run with MVPs building shows a spinner, its building count and a G
 const RC10_VALUE_OVERALL = { at_stake: [{ kind: 'money', unit: 'AED', amount: 12000 }], saved: [], runs: 6, businesses: 3 };
 const RC10_VALUE_RUNS = { runs: { 42: { at_stake: [{ kind: 'money', unit: 'AED', amount: 9000 }], saved: [], mvps_measured: 2 } } };
 // REQ-078: the run's use cases with no measured value are estimated, and the total is kept apart from the measured one.
-const RC10_VALUE_ESTIMATES = { use_cases: {}, totals: { estimated: { AED: 3000 } } };
+const RC10_VALUE_ESTIMATES = { runs: { 42: { use_cases: {}, totals: { estimated: { AED: 3000 } } } }, totals: { estimated: { AED: 3000 } } };
 const RC10_STATS_TOGGLE = 'Across all runs in this Inspire Database';
 const rc10Mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
@@ -539,9 +539,11 @@ test('REQ-095 Value across runs sits above the all-runs stats, and the stats col
   }
 });
 
-test('REQ-078 a run card says measured X + estimated Y: the estimate sits beside its own measured total, labelled as not measured', async () => {
+test('REQ-078 Start: one estimates read feeds every run card and the banner; each card keeps its measured total apart', async () => {
   const ui = await openUi('app', REVIEW_STATE, '', { mount: rc10Mount });
   const { page } = ui;
+  const estimateUrls = [];
+  page.on('request', (req) => { if (req.url().includes('/api/inspire/value/estimates')) estimateUrls.push(req.url()); });
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
@@ -549,6 +551,12 @@ test('REQ-078 a run card says measured X + estimated Y: the estimate sits beside
     const estimated = page.locator('[data-run="42"] [data-value-estimated-total]');
     await estimated.waitFor({ timeout: 20000 });
     assert.equal((await estimated.innerText()).trim(), 'Plus estimated, not measured: 3,000 AED');
+    const banner = page.locator('[data-value-overall] [data-value-estimated-total]');
+    await banner.waitFor({ timeout: 20000 });
+    assert.equal((await banner.innerText()).trim(), 'Plus estimated, not measured: 3,000 AED', 'the banner shows the estimate too');
+    const distinct = [...new Set(estimateUrls)];
+    assert.equal(distinct.length, 1, `every card reads the same batch, not one request per card: ${distinct.join(' ')}`);
+    assert.ok(!distinct[0].includes('session_id='), 'the batch read is all runs, not one run');
     assert.equal(await page.locator('[data-run="42"] [data-value-headline="at stake"]').innerText().then((t) => t.trim()), 'AED 9K', 'the measured total is still shown on its own');
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
   } finally {

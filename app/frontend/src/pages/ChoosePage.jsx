@@ -26,13 +26,6 @@ const STATUS_CONFIG = {
   quiet:    { label: 'No news', bg: 'bg-bg-subtle', text: 'text-text-secondary', dot: 'bg-text-tertiary' },
 };
 
-// REQ-078: the run's estimate for its use cases with no measured value, kept apart from its measured total (same route as Review).
-function RunEstimateTotals({ apiFetch, inspireDatabase, warehouseId, sessionId }) {
-  const read = useValueRead(apiFetch, `/api/inspire/value/estimates?${valueQuery(inspireDatabase, warehouseId, { session_id: String(sessionId) })}`);
-  if (!read?.totals) return null;
-  return <EstimateTotals totals={read.totals} className="mt-1" />;
-}
-
 function formatDate(dateStr) {
   if (!dateStr) return '';
   const d = new Date(dateStr);
@@ -194,6 +187,8 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
   const valueReady = Boolean(inspireDatabase && warehouseId && !showcase);
   const overallValue = useValueRead(apiFetch, valueReady ? `/api/inspire/value/overall?${valueQuery(inspireDatabase, warehouseId)}` : '');
   const runsValue = useValueRead(apiFetch, valueReady ? `/api/inspire/value/runs?${valueQuery(inspireDatabase, warehouseId)}` : '');
+  // REQ-078: one read for every run's estimate (the cards and the banner), kept apart from the measured totals.
+  const estimates = useValueRead(apiFetch, valueReady ? `/api/inspire/value/estimates?${valueQuery(inspireDatabase, warehouseId)}` : '');
   const runValues = runsValue?.runs || {};
   const [confirmDelete, setConfirmDelete] = useState(null);
   const [deleting, setDeleting] = useState(null);
@@ -347,7 +342,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
 
         <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />
 
-        {valueReady && <OverallValue value={overallValue} />}
+        {valueReady && <OverallValue value={overallValue} estimated={estimates?.totals} />}
         {inspireDatabase && warehouseId && (
           <PortfolioCards portfolio={portfolio} error={portfolioError} sessions={sessions} active={runFilter} onCard={openCard} />
         )}
@@ -500,7 +495,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                               ) : (
                                 <p data-run-value-state="not-calculated" className="text-xs leading-snug text-text-secondary">Not calculated</p>
                               )}
-                              {valueReady && <RunEstimateTotals apiFetch={apiFetch} inspireDatabase={inspireDatabase} warehouseId={warehouseId} sessionId={sidStr} />}
+                              {valueReady && estimates?.runs?.[sidStr]?.totals && <EstimateTotals totals={estimates.runs[sidStr].totals} className="mt-1" />}
                             </div>
                           )}
                           {counts.note && <p data-run-counts-note="" className="mt-1.5 text-[11px] text-text-secondary">{counts.note}</p>}

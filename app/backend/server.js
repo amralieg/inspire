@@ -2486,34 +2486,45 @@ async function readValueRows(req, warehouse_id, sql) {
 }
 
 // REQ-078: the estimate for each use case that has no measured value, and the totals kept apart from measured money.
+// With a session_id it answers that run; without one it answers every run (runs by session id) and the total over them.
+async function estimatesOfSession(req, warehouse_id, parsedDb, sid) {
+  const useCases = await readValueRows(req, warehouse_id, VE.useCasesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), sid));
+  const specRows = await readValueRows(req, warehouse_id, VE.latestSpecsSql(implementTableName(parsedDb.catalog, parsedDb.schema), sid));
+  const specs = new Map(specRows.map((row) => [String(row.use_case_id), VE.parseSpec(row.spec)]));
+  const measured = valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), sid))).use_cases;
+  const baselineOf = async (resultTable, useCaseId) => {
+    if (resultTableNameError(resultTable)) return null;
+    try {
+      const found = await executeSql(req.dbHost, req.dbToken, warehouse_id, VE.baselineSql(quoteTable(`${resultTable}_summary`)),
+        [{ name: 'uc', value: useCaseId, type: 'STRING' }]);
+      const row = sqlResultToObjects(found)[0];
+      const baseline = row ? Number(row.kpi_baseline) : NaN;
+      return Number.isFinite(baseline) ? baseline : null;
+    } catch (err) {
+      if (isMissingTableError(err)) return null;
+      throw err;
+    }
+  };
+  return VE.estimatesFor({ useCases, specs, measured, baselineOf });
+}
+
 app.get('/api/inspire/value/estimates', requireToken, async (req, res) => {
   try {
     const { inspire_database, warehouse_id, session_id } = req.query;
-    if (!inspire_database || !warehouse_id || !session_id) {
-      return res.status(400).json({ error: 'inspire_database, warehouse_id and session_id required.' });
+    if (!inspire_database || !warehouse_id) {
+      return res.status(400).json({ error: 'inspire_database and warehouse_id required.' });
     }
     const parsedDb = splitInspireDatabase(inspire_database);
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    if (session_id === undefined || session_id === '') {
+      const rows = await readValueRows(req, warehouse_id, VE.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_usecases')));
+      const sids = rows.map((row) => String(row.session_id)).filter((sid) => !invalidSessionId(sid));
+      const answers = await Promise.all(sids.map((sid) => estimatesOfSession(req, warehouse_id, parsedDb, sid)));
+      const runs = Object.fromEntries(sids.map((sid, i) => [sid, answers[i]]));
+      return res.json({ runs, totals: VE.mergeTotals(answers.map((answer) => answer.totals)) });
+    }
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
-    const sid = String(session_id).trim();
-    const useCases = await readValueRows(req, warehouse_id, VE.useCasesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), sid));
-    const specRows = await readValueRows(req, warehouse_id, VE.latestSpecsSql(implementTableName(parsedDb.catalog, parsedDb.schema), sid));
-    const specs = new Map(specRows.map((row) => [String(row.use_case_id), VE.parseSpec(row.spec)]));
-    const measured = valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), sid))).use_cases;
-    const baselineOf = async (resultTable, useCaseId) => {
-      if (resultTableNameError(resultTable)) return null;
-      try {
-        const found = await executeSql(req.dbHost, req.dbToken, warehouse_id, VE.baselineSql(quoteTable(`${resultTable}_summary`)),
-          [{ name: 'uc', value: useCaseId, type: 'STRING' }]);
-        const row = sqlResultToObjects(found)[0];
-        const baseline = row ? Number(row.kpi_baseline) : NaN;
-        return Number.isFinite(baseline) ? baseline : null;
-      } catch (err) {
-        if (isMissingTableError(err)) return null;
-        throw err;
-      }
-    };
-    res.json(await VE.estimatesFor({ useCases, specs, measured, baselineOf }));
+    res.json(await estimatesOfSession(req, warehouse_id, parsedDb, String(session_id).trim()));
   } catch (err) {
     res.status(500).json({ error: err.message });
   }

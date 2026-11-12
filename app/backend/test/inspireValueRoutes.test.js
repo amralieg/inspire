@@ -43,6 +43,7 @@ function fakeWarehouse() {
     if (sql.includes(`FROM ${LEDGER}`) && state.missingLedger) {
       return { failed: `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${LEDGER} cannot be found.` };
     }
+    if (sql.includes('SELECT DISTINCT CAST(session_id')) return { columns: ['session_id'], rows: [['42'], ['43']] };
     if (sql.includes('SELECT id, business_domain FROM')) return { columns: ['id', 'business_domain'], rows: USE_CASE_ROWS };
     if (sql.includes('PARTITION BY use_case_id ORDER BY spec_version')) return { columns: ['use_case_id', 'spec'], rows: SPEC_ROWS };
     if (sql.includes('_summary` WHERE use_case_id')) return { columns: ['kpi_baseline'], rows: [['120']] };
@@ -169,4 +170,14 @@ test('GET /api/inspire/value/estimates: measured use cases are never estimated, 
   assert.deepEqual(body.totals, { estimated: { AED: 6000 } }, 'estimates are totalled apart from measured money');
   const baselineReads = statements().filter((sql) => sql.includes('_summary` WHERE use_case_id'));
   assert.equal(baselineReads.length, 1, 'the baseline is read only for the built, unmeasured use case');
+});
+
+test('GET /api/inspire/value/estimates with no session answers every run by session id, and the total over them, per currency', async () => {
+  reset();
+  const { status, body } = await app.get(`/api/inspire/value/estimates?${QUERY}`);
+  assert.equal(status, 200, JSON.stringify(body));
+  assert.deepEqual(Object.keys(body.runs).sort(), ['42', '43']);
+  assert.deepEqual(body.runs['42'].totals, { estimated: { AED: 6000 } });
+  assert.deepEqual(body.runs['43'].use_cases['N05-U01'], { status: 'estimated', app: 'Sales App', currency: 'AED', per_record: 50, baseline: 120, amount: 6000 });
+  assert.deepEqual(body.totals, { estimated: { AED: 12000 } }, 'the banner total is the sum of the runs, estimates still apart from measured money');
 });
