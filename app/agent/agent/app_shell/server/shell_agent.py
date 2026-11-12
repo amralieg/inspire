@@ -623,10 +623,12 @@ def number_scopes(answer: str, question: str, key_numbers: list, genie: list) ->
                            f"{kpi_shown(item, clash[1])} for {sql_scope(clash[0].get('sql'))}.")
         elif states(answer, value, label) and page_scope.casefold() not in answer.casefold():
             stated.append((label.casefold() in answer.casefold(), f"{label} {kpi_shown(item, value)} counts {page_scope}."))
+    if clashes:
+        return clashes[:1], []
     named = [note for by_name, note in stated if by_name]
-    notes = named or ([stated[0][1]] if len(stated) == 1 else [])
-    counted = genie_note(answer, genie[-1]) if genie and not clashes and not notes else ""
-    return clashes, notes + ([counted] if counted else [])
+    notes = named[:1] or ([stated[0][1]] if len(stated) == 1 else [])
+    counted = genie_note(answer, genie[-1]) if genie and not notes else ""
+    return [], notes + ([counted] if counted else [])
 
 
 def genie_note(answer: str, result: dict) -> str:
@@ -639,6 +641,46 @@ def genie_note(answer: str, result: dict) -> str:
 def with_scopes(answer: str, clashes: list, notes: list) -> str:
     parts = ["\n".join(clashes), answer, "\n".join(notes)]
     return "\n\n".join(p for p in parts if p.strip())
+
+
+DEFAULT_NOUNS = {"record": ["record", "records"], "kpi": ["record", "records"]}
+
+
+def unit_nouns(page: dict) -> dict:
+    kinds = shell_sql.kinds_registry().get("kinds") or []
+    kind = str((page or {}).get("kind") or "")
+    found = next((k for k in kinds if k.get("id") == kind), None)
+    if found is None and page and page.get("layout"):
+        same = [k for k in kinds if k.get("layout") == page.get("layout") and k.get("nouns")]
+        if same and all(k["nouns"] == same[0]["nouns"] for k in same):
+            found = same[0]
+    return (found or {}).get("nouns") or DEFAULT_NOUNS
+
+
+def counted(number, noun: list) -> str:
+    return f"{shell_sql.shown_number(number)} {noun[0] if number == 1 else noun[1]}"
+
+
+def listing_note(answer: str, listed, key_numbers: list, nouns: dict) -> str:
+    total = number_of(listed)
+    if total is None or not re.search(rf"(?<![\d.,]){int(total)}(?![\d.,])", answer):
+        return ""
+    for item in key_numbers or []:
+        value, label = number_of(item.get("value")), str(item.get("label") or "").strip()
+        if value is None or not label or same_number(value, total):
+            continue
+        return (f"{counted(total, nouns['record']).capitalize()} listed here; the page KPI {label} counts "
+                f"{counted(value, nouns['kpi'])}.")
+    return ""
+
+
+def finish_text(text, question: str = "", key_numbers=None, genie=None, rows: int = 0, listed=None, nouns=None) -> str:
+    content = bullets_to_table(text) if rows_as_bullets(text, rows) else text
+    shaped = shape_answer(content)
+    clashes, notes = number_scopes(shaped, question, key_numbers or [], genie or [])
+    if not clashes and not notes and listed is not None:
+        notes = [n for n in [listing_note(shaped, listed, key_numbers, nouns or DEFAULT_NOUNS)] if n]
+    return with_scopes(shaped, clashes, notes) if shaped else shaped
 
 
 INJECTION = re.compile(r"\b(?:ignore|disregard|forget|override|bypass)\b[^.?!]{0,40}\b(?:your|previous|prior|above|earlier|all|these|those|system)\b"
@@ -1519,11 +1561,11 @@ class Agent:
                 content, rewritten = shorter, True
         if rows_as_bullets(content, answer_rows(turn)):
             content = bullets_to_table(content)
-        shaped = shape_answer(content)
-        clashes, notes = number_scopes(shaped, job.get("question") or "", job.get("key_numbers"), job.get("genie") or [])
+        final = finish_text(content, job.get("question") or "", job.get("key_numbers"), job.get("genie") or [],
+                            listed=job.get("listed_total"), nouns=unit_nouns(job["page"]))
         print(f"[AGENT-ANSWER-SHAPE FIRED] page={turn.page_id} problems={len(problems)} rewritten={rewritten} "
-              f"words={words_of(content)}->{words_of(shaped)} scoped={len(notes)} clashes={len(clashes)}", flush=True)
-        return with_scopes(shaped, clashes, notes) if shaped else shaped
+              f"words={words_of(content)}->{words_of(final)}", flush=True)
+        return final
 
     def use_tool(self, turn: Turn, job: dict, names: list, name: str, raw_args) -> dict:
         try:
@@ -1608,8 +1650,10 @@ class Agent:
         return {"actions": actions, "applied": "the page shows these changes now, the person can undo them, and they last until the page "
                                                   "reloads; Save this view under Saved views keeps them"}
 
-    def listing(self, job: dict, args: dict, limit: int) -> dict:
-        data = {"page": job["page"]["id"], "filters": args.get("filters") or {}, "limit": limit, "window": "all"}
+    def listing(self, job: dict, args: dict, limit: int, window: str = "all") -> dict:
+        data = {"page": job["page"]["id"], "filters": args.get("filters") or {}, "limit": limit}
+        if window:
+            data["window"] = window
         if args.get("column_filters"):
             data[shell_sql.COLUMN_FILTERS] = {str(k): strings(v) if isinstance(v, list) else v for k, v in args["column_filters"].items()}
         if args.get("search"):
@@ -1629,7 +1673,8 @@ class Agent:
 
     def tool_find_records(self, turn: Turn, job: dict, args: dict) -> dict:
         limit = args.get("limit") if isinstance(args.get("limit"), int) and 1 <= args["limit"] <= FIND_ROWS else FIND_ROWS
-        found = self.listing(job, args, limit)
+        found = self.listing(job, args, limit, window="")
+        job["listed_total"] = found["total"]
         rows = [self.row_view(job["page"], r) for r in found["rows"]]
         turn.listed = [{"record_key": r["record_key"], "label": r.get((job["page"].get("records") or {}).get("label")) or r["record_key"]}
                        for r in rows]

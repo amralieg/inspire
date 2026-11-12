@@ -422,3 +422,56 @@ def test_the_value_line_a_person_reads_names_columns_in_words_never_as_raw_colum
                                          "Financial Benefits": ["Fewer `repair_cost` overruns"], "value_estimate_text": "Value not measured yet: measure `loss_m3`."})
     assert promised == {"value": "This should reduce confirmed Main Break incidents, awareness hours and loss m3.",
                         "benefits": ["Fewer repair cost overruns"], "estimate": "Value not measured yet: measure loss m3."}
+
+
+BAKEHOUSE_TRANSACTIONS = "inspire_kinds_rc7.walk_rc7e.bakehouse_sales_transactions"
+BAKEHOUSE_CUSTOMERS = "inspire_kinds_rc7.walk_rc7e.bakehouse_sales_customers"
+
+
+def bakehouse_kpi(ns, name="Weekly revenue", direction="increase", value=29589.0, table=BAKEHOUSE_TRANSACTIONS, unit="currency units"):
+    return kpi(ns, name=name, unit=unit, aggregation="SUM", column="totalprice", value=value, window=7,
+               table=table, time_column="datetime", direction=direction)
+
+
+def bakehouse_count(ns, name, unit, value):
+    return kpi(ns, name=name, unit=unit, aggregation="COUNT_DISTINCT", column="franchiseid", value=value, window=7,
+               table=BAKEHOUSE_TRANSACTIONS, time_column="datetime")
+
+
+def bakehouse_uc(ns, no, kind_id, *kpis, tables=BAKEHOUSE_TRANSACTIONS):
+    return make_uc(no, use_case_kind=kind_id, KPIs=list(kpis), **{"Tables Involved": tables, "Primary Table": tables})
+
+
+def test_bakehouse_use_cases_are_valued_from_their_own_measured_money_kpi_with_no_instructions(ns):
+    obj = make_inspire(ns, user_generation_instructions="")
+    assert ns["_kpi_impact_guess"]("Weekly revenue", "currency units") == "money"
+    ucs = [bakehouse_uc(ns, "N01-U03", "data_agent", bakehouse_count(ns, "Franchises with sales in the week", "franchises", 48.0),
+                        bakehouse_kpi(ns)),
+           bakehouse_uc(ns, "N02-U01", "allocation", bakehouse_kpi(ns, "Weekly units sold", value=9863.0, unit="units"), bakehouse_kpi(ns)),
+           bakehouse_uc(ns, "N04-U03", "pricing", bakehouse_kpi(ns),
+                        tables=f"{BAKEHOUSE_CUSTOMERS}, {BAKEHOUSE_TRANSACTIONS}")]
+    obj._apply_value_estimates(ucs)
+    for uc in ucs:
+        assert uc["Value Estimate"]["status"] == "measured", (uc["No"], uc["value_estimate_text"])
+        assert uc["value_at_stake"] and uc["Value Estimate"]["kpi"] == "Weekly revenue", uc["No"]
+        assert uc["Value Estimate"]["measured_from"]["table"] == BAKEHOUSE_TRANSACTIONS, uc["No"]
+
+
+def test_a_use_case_is_never_valued_from_a_money_total_it_does_not_read(ns):
+    obj = make_inspire(ns, user_generation_instructions="")
+    sibling = bakehouse_uc(ns, "N01-U03", "data_agent", bakehouse_kpi(ns))
+    reads_other_table = bakehouse_uc(ns, "N01-U09", "data_agent", bakehouse_kpi(ns), tables=BAKEHOUSE_CUSTOMERS)
+    no_kpi = bakehouse_uc(ns, "N01-U10", "data_agent", tables=BAKEHOUSE_CUSTOMERS)
+    ucs = [sibling, reads_other_table, no_kpi]
+    obj._apply_value_estimates(ucs)
+    assert sibling["Value Estimate"]["status"] == "measured" and "value_at_stake" in sibling
+    for uc in (reads_other_table, no_kpi):
+        assert uc["Value Estimate"]["status"] == "not measured yet" and "value_at_stake" not in uc, uc["No"]
+        assert "29,589" not in uc["value_estimate_text"] and not re.search(r"\d", uc["value_estimate_text"]), uc["value_estimate_text"]
+
+
+def test_a_user_named_kpi_is_never_replaced_by_another_measured_money_kpi_of_the_use_case(ns):
+    uc = bakehouse_uc(ns, "N01-U03", "data_agent", bakehouse_kpi(ns), bakehouse_kpi(ns, "Refund cost", value=None))
+    estimate = estimate_of(ns, uc, "Value the use cases on refund cost", "")
+    assert estimate["status"] == "not measured yet" and "value_low" not in estimate
+    assert "29,589" not in estimate["text"] and "Weekly revenue" not in estimate["text"], estimate["text"]

@@ -3439,16 +3439,17 @@ WINDOW_EXTRA = ("CAST(`action_due` AS DATE) AS `_inspire_due`", f"CAST(`{SNOOZE_
 WINDOW_PICKED = ("c.`_inspire_due`", "c.`_inspire_snooze`", "c.`_inspire_joined`")
 
 
-def window_conditions(bounds: dict, params, held: bool, today: str) -> list:
-    out = [f"COALESCE(c.`_inspire_status`, '{NEW}') IN ({shell_facts.sql_list(OPEN_STATUSES)})", f"(c.`_inspire_snooze` IS NULL OR c.`_inspire_snooze` <= {today})"]
+def window_conditions(bounds: dict, params, held: bool, today: str, alias: str = "c") -> list:
+    a = f"{alias}."
+    out = [f"COALESCE({a}`_inspire_status`, '{NEW}') IN ({shell_facts.sql_list(OPEN_STATUSES)})", f"({a}`_inspire_snooze` IS NULL OR {a}`_inspire_snooze` <= {today})"]
     if held:
-        out.append("NOT COALESCE(c.`_inspire_held`, FALSE)")
+        out.append(f"NOT COALESCE({a}`_inspire_held`, FALSE)")
     if bounds["window"] != "all":
         first, last = params.add(bounds["start_day"], "DATE"), params.add(bounds["end_day"], "DATE")
         start, end = params.add(str(bounds["start_us"]), "BIGINT"), params.add(str(bounds["end_us"]), "BIGINT")
-        out.append(f"(c.`_inspire_due` < {today} OR (c.`_inspire_due` >= {first} AND c.`_inspire_due` < {last}) OR "
-                   f"(c.`_inspire_due` IS NULL AND unix_micros(c.`_inspire_joined`) >= {start} AND "
-                   f"unix_micros(c.`_inspire_joined`) < {end}))")
+        out.append(f"({a}`_inspire_due` < {today} OR ({a}`_inspire_due` >= {first} AND {a}`_inspire_due` < {last}) OR "
+                   f"({a}`_inspire_due` IS NULL AND unix_micros({a}`_inspire_joined`) >= {start} AND "
+                   f"unix_micros({a}`_inspire_joined`) < {end}))")
     return out
 
 
@@ -4480,24 +4481,29 @@ def list_match_query(page: dict, values: dict, request: dict, context: dict, edi
 def status_counts_query(page: dict, values: dict, request: dict, context: dict, editor: str = "") -> tuple:
     params = _Params()
     columns = {k: v for k, v in (request.get("columns") or {}).items() if k != "action_status"}
-    plan = _list_plan(page, values, dict(request, columns=columns, mine=False, window=None, exclude=[], choice=None), context, editor, params, current=True)
+    plan = _list_plan(page, values, dict(request, columns=columns, mine=False, window=None, exclude=[], choice=None, due_first=True), context,
+                      editor, params, current=True)
     status = f"COALESCE(f.`_inspire_status`, '{NEW}')"
+    listed = f"CASE WHEN {' AND '.join(window_conditions({'window': 'all'}, params, context['held'], params.add(request['today'], 'DATE'), 'f'))} THEN 1 ELSE 0 END"
     mine = f"lower(f.`_inspire_owner`) = lower({params.add(editor)})" if editor else "FALSE"
-    return (f"{_with(plan['ctes'], plan['counted'])} SELECT {status} AS v, f.`_inspire_choice` AS c, COUNT(*) AS n, "
-            f"COALESCE(SUM(CASE WHEN {mine} THEN 1 ELSE 0 END), 0) AS m FROM f GROUP BY {status}, f.`_inspire_choice`", params.items)
+    return (f"{_with(plan['ctes'], plan['counted'])} SELECT {status} AS v, f.`_inspire_choice` AS c, {listed} AS l, COUNT(*) AS n, "
+            f"COALESCE(SUM(CASE WHEN {mine} THEN 1 ELSE 0 END), 0) AS m FROM f GROUP BY {status}, f.`_inspire_choice`, {listed}", params.items)
 
 
 def status_counts_of(rows, choices=None) -> dict:
     statuses = dict.fromkeys(ACTION_STATUSES, 0)
     picked = dict.fromkeys((c.get("id") for c in (DEFAULT_CHOICES if choices is None else choices)), 0)
-    mine = 0
+    mine, listed_open = 0, 0
     for row in rows or []:
         name, n = row.get("v") or NEW, int(row.get("n") or 0)
         statuses[name] = statuses.get(name, 0) + n
         if row.get("c") in picked:
             picked[row["c"]] += n
         mine += int(row.get("m") or 0)
-    return {"statuses": statuses, "choices": picked, "open": sum(statuses.get(s, 0) for s in OPEN_STATUSES), "mine": mine,
+        if name in OPEN_STATUSES and int(row.get("l") or 0):
+            listed_open += n
+    open_all = sum(statuses.get(s, 0) for s in OPEN_STATUSES)
+    return {"statuses": statuses, "choices": picked, "open": listed_open, "watch": open_all - listed_open, "mine": mine,
             "all": sum(statuses.values())}
 
 
