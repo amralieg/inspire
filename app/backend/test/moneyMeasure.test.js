@@ -46,6 +46,13 @@ test('a value saved in a money rule is kept by the backend cleaner, and a bad on
   assert.notEqual(moneyRuleProblems({ currency: 'per_currency', value: { method: 'equation', expression: 'qty ^ 2', currency: 'USD' } }).length, 0);
 });
 
+test('the cost of each lost opportunity is a fixed amount over the statuses that mean lost: the same rule, kept as it is', () => {
+  const rule = { currency: 'per_currency', statuses: ['lost'], status_column: 'stage', value: { method: 'fixed', amount: 120, currency: 'USD' } };
+  assert.deepEqual(moneyRuleProblems(rule), []);
+  assert.deepEqual(moneyRuleClean(rule), rule);
+  assert.notEqual(moneyRuleProblems({ ...rule, statuses: ['lost'], status_column: undefined }).length, 0, 'statuses need the column that holds them');
+});
+
 test('the money preview and currency routes check a person’s sign-in and read only', () => {
   for (const route of ["app.post('/api/money/currency-rates', requireToken", "app.post('/api/money/value-preview', requireToken"]) {
     assert.ok(ROUTES.includes(route), `${route} is registered behind the person's sign-in`);

@@ -13,6 +13,7 @@ const METHODS = [
   { id: 'fixed', label: 'A fixed amount for each record', hint: 'Every record is worth the same amount, for example each lost booking costs 120.' },
   { id: 'column', label: 'A value from a data column', hint: 'The column already holds the amount each record is worth.' },
   { id: 'equation', label: 'An equation over columns', hint: 'Work the value out from columns, for example quantity * unit_price - discount.' },
+  { id: 'lost', label: 'The cost of each lost opportunity (count × value)', hint: 'Counts the records whose status says the opportunity was lost, each worth the amount you set.' },
   { id: 'describe', label: 'Describe it', hint: 'Write how the value works in your words; the App proposes the rule for you to check.' },
 ];
 const DIRECTIONS = [
@@ -23,10 +24,12 @@ const DIRECTIONS = [
 const OFF_RULE = { currency: 'per_currency', off: true };
 const SOURCE_TEXT = { today: 'today’s rate', average: `ECB average, ${AVERAGES.period.from.slice(0, 4)}`, typed: 'typed in', base: 'reporting currency', missing: 'no rate yet, type it in' };
 
-function pickOf(value) {
+// A fixed amount that a rule filters to statuses is the cost of each lost opportunity: the same rule, shown under its own name.
+function pickOf(value, rule) {
   if (!value || !['fixed', 'column', 'equation'].includes(value.method)) return { ...EMPTY_PICK };
+  const lost = value.method === 'fixed' && Array.isArray(rule?.statuses) && rule.statuses.length > 0;
   return {
-    ...EMPTY_PICK, method: value.method, amount: value.amount == null ? '' : String(value.amount), column: value.column || '', expression: value.expression || '',
+    ...EMPTY_PICK, method: lost ? 'lost' : value.method, amount: value.amount == null ? '' : String(value.amount), column: value.column || '', expression: value.expression || '',
     currencyBy: value.currency_column !== undefined ? 'column' : 'code', code: value.currency || '', currencyColumn: value.currency_column || '',
   };
 }
@@ -41,7 +44,7 @@ function valueOf(pick) {
   const currency = pick.currencyBy === 'column' ? { currency_column: pick.currencyColumn.trim() } : { currency: pick.code.trim().toUpperCase() };
   if (pick.currencyBy === 'column' && !COLUMN.test(pick.currencyColumn.trim())) problems.push('Pick the column that holds the currency of each record.');
   if (pick.currencyBy !== 'column' && !ISO.test(currency.currency)) problems.push('The value currency is a three-letter code such as USD.');
-  if (pick.method === 'fixed') {
+  if (pick.method === 'fixed' || pick.method === 'lost') {
     const amount = Number(pick.amount);
     if (!(amount > 0)) problems.push('A fixed value is a positive amount for each record, such as 120.');
     return { value: { method: 'fixed', amount, ...currency }, problems };
@@ -75,7 +78,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
   const onlyPart = MONEY_PARTS.includes(part) ? part : null;
   const show = (name) => !onlyPart || onlyPart === name;
   const [draft, setDraft] = useState(() => ({ ...draftOf({ ...(value || {}), currency: 'convert', base: value?.base || '', rates: value?.rates || {} }), mode: 'convert', rateSource: 'typed' }));
-  const [pick, setPick] = useState(() => ({ ...pickOf(value?.value) }));
+  const [pick, setPick] = useState(() => ({ ...pickOf(value?.value, value) }));
   const [signPick, setSignPick] = useState(() => ({ kind: value?.sign?.kind || '', column: value?.sign?.column || '', value: value?.sign?.value || '', losses: (value?.sign?.losses || []).join(', ') }));
   const [problems, setProblems] = useState([]);
   const [notice, setNotice] = useState('');
@@ -93,7 +96,8 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
     const { rule, problems: found } = ruleOf(nextDraft);
     const picked = valueOf(effectiveOf(nextPick));
     const gone = picked.value && columns.length ? columnsOf(picked.value).filter((name) => !columns.includes(name)) : [];
-    const all = [...found, ...picked.problems, ...gone.map((name) => `The column ${name} is not in this table, so the rule cannot use it.`)];
+    const lostNeedsStatuses = nextPick.method === 'lost' && !nextDraft.statuses.trim() ? ['Name the statuses that mean the opportunity was lost, such as lost.'] : [];
+    const all = [...found, ...picked.problems, ...lostNeedsStatuses, ...gone.map((name) => `The column ${name} is not in this table, so the rule cannot use it.`)];
     setProblems(all);
     if (!all.length && rule) onChange(picked.value ? { ...rule, value: picked.value } : rule);
     else if (value?.off) onChange(null);
@@ -219,6 +223,22 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         <label className="block text-[12px]">Amount for each record
           <input dir="auto" className="block mt-1 w-40" value={pick.amount} onChange={(e) => setPickPart({ amount: e.target.value })} data-money-fixed-amount />
         </label>
+      )}
+      {pick.method === 'lost' && (
+        <div className="space-y-2 text-[12px]" data-money-lost>
+          <label className="block">Amount for each lost record
+            <input dir="auto" className="block mt-1 w-40" value={pick.amount} onChange={(e) => setPickPart({ amount: e.target.value })} data-money-lost-amount />
+          </label>
+          <label className="block">Column that holds the status of each record
+            <select className="block mt-1" value={draft.statusColumn} onChange={(e) => setDraftPart({ statusColumn: e.target.value })} data-money-lost-status-column>
+              <option value="">Pick a column</option>
+              {[...new Set([...columns, draft.statusColumn].filter(Boolean))].map((name) => <option key={name} value={name}>{name}</option>)}
+            </select>
+          </label>
+          <label className="block">Statuses that mean the opportunity was lost, comma-separated
+            <input dir="auto" className="block mt-1 w-full" value={draft.statuses} onChange={(e) => setDraftPart({ statuses: e.target.value })} data-money-lost-statuses />
+          </label>
+        </div>
       )}
       {pick.method === 'column' && (
         <label className="block text-[12px]">Column with the amount
