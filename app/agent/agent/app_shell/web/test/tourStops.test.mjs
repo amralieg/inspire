@@ -51,7 +51,7 @@ test('every box on the page has a tour stop, so the tour reaches all of them', a
   }
 });
 
-test('the tour walks to the What to do now box, the value line, the Saved line, Feedback and Reported issues, each with a title and a text', async () => {
+test('the tour walks to the What to do now box, the value line, the Saved line and Settings, which holds Feedback and Reported issues, each with a title and a text', async () => {
   const money = { routes: { money: ({ json }) => json(200, { ...NO_MONEY, saved: { since: '2026-11-01T00:00:00Z', lines: [], warning: '' } }) } };
   const info = appInfo();
   info.pages[0].is_owner = true;
@@ -59,7 +59,7 @@ test('the tour walks to the What to do now box, the value line, the Saved line, 
   try {
     const stops = await walkStops(page);
     const anchors = stops.map((s) => s.anchor);
-    for (const anchor of ['todo', 'value', 'saved', 'feedback', 'reports']) {
+    for (const anchor of ['todo', 'value', 'saved', 'settings']) {
       assert.ok(anchors.includes(anchor), `the tour has no stop on ${anchor}; it walked ${anchors.join(', ')}`);
     }
     for (const stop of stops) {

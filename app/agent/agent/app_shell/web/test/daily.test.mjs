@@ -210,8 +210,9 @@ test('a link to an unknown page opens the App with a notice instead of breaking'
   await toastSays(page, UNKNOWN_PAGE);
   await page.waitForFunction(() => location.hash === '#/n01_u05/dashboard');
   assert.equal(await page.locator('.main h1').innerText(), 'Price-loss decision desk');
-  assert.equal(await page.locator('[data-rail]').count(), 6, 'the rail lists the sections, Feedback included (bff5947e)');
-  assert.ok(await page.locator('[data-rail="feedback"]').count() === 1, 'Feedback is on the rail');
+  const rails = await page.locator('[data-rail]').evaluateAll((all) => all.map((r) => r.dataset.rail));
+  assert.deepEqual(rails.filter((r) => r === 'feedback' || r === 'reports'), [], 'Feedback and Reported issues sit in Settings, not on the rail');
+  assert.ok(rails.includes('settings'), 'Settings stays on the rail');
   assert.deepEqual(seen.errors, []);
   await context.close();
 

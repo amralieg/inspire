@@ -17,17 +17,19 @@ after(async () => {
   await served?.close?.();
 });
 
-test('the Feedback section is listed only when the demo recorded its route', async () => {
+test('the Feedback group sits in Settings only when the demo recorded its route, and never on the nav', async () => {
   const kept = appInfo();
   const shown = await openApp(browser, served.base, kept, { clock: NOW });
-  await shown.page.locator('[data-rail="feedback"]').waitFor({ timeout: 15000 });
-  assert.equal(await shown.page.locator('[data-rail="feedback"]').count(), 1);
+  await shown.page.locator('[data-rail="settings"]').click();
+  await shown.page.locator('[data-group="feedback"]').waitFor({ timeout: 15000 });
+  assert.equal(await shown.page.locator('[data-rail="feedback"]').count(), 0, 'Feedback is not a nav entry');
   await shown.context.close();
 
   const gone = appInfo();
   gone.screens = { ...gone.screens, feedback: false };
   const hidden = await openApp(browser, served.base, gone, { clock: NOW });
-  await hidden.page.locator('[data-rail="settings"]').waitFor({ timeout: 15000 });
-  assert.equal(await hidden.page.locator('[data-rail="feedback"]').count(), 0);
+  await hidden.page.locator('[data-rail="settings"]').click();
+  await hidden.page.locator('[data-group="look"]').waitFor({ timeout: 15000 });
+  assert.equal(await hidden.page.locator('[data-group="feedback"]').count(), 0, 'no Feedback group when the App turns it off');
   await hidden.context.close();
 });

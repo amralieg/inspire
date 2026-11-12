@@ -54,11 +54,11 @@ button,input,select,textarea{font:inherit;color:inherit}
 .rail-i .nav-ic{width:28px;height:28px}
 .rail-i .rail-n{margin-inline-start:auto;font-weight:700;font-size:11px;padding:0 7px;border-radius:999px;background:var(--well);color:var(--muted)}
 .rail-foot{border-top:1px solid var(--line);padding-top:8px}
-.switch{display:inline-flex;align-items:center;gap:9px;min-width:0;max-width:380px;flex:0 4 auto;padding:5px 10px;border-radius:10px;border:1px solid var(--line-strong);background:var(--card);cursor:pointer;text-align:start}
+.switch{display:inline-flex;align-items:center;gap:9px;min-width:0;max-width:380px;flex:0 4 auto;padding:5px 10px;border-radius:10px;border:1px solid var(--line-strong);background:var(--card);cursor:pointer;text-align:center}
 .switch:hover:not(:disabled),.switch[aria-expanded="true"]{background:var(--well)}
 .switch:disabled{cursor:default;border-color:transparent}
 .switch-ic{display:grid;place-items:center;flex:none;width:26px;height:26px;border-radius:7px;background:var(--hue-bg);color:var(--hue-ink);border:1px solid var(--hue-line)}
-.switch-t{display:flex;flex-direction:column;min-width:0;line-height:1.25}
+.switch-t{display:flex;flex-direction:column;min-width:0;line-height:1.25;text-align:center}
 .switch-t b{font-size:13.5px;font-weight:650;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .switch-t small{font-size:11.5px;color:var(--muted);overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
 .switch-t small.warn{color:var(--amber-ink)}

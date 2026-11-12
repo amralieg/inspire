@@ -1,6 +1,6 @@
 export const FEEDBACK_CHARS = 2000;
 export const FEEDBACK_SECTIONS = ['dashboard', 'work', 'performance', 'runs', 'alerts', 'settings'];
-const FEEDBACK_SECTION_OF = { impact: 'performance', inbox: 'work', feedback: 'settings', reports: 'settings' };
+const FEEDBACK_SECTION_OF = { impact: 'performance', inbox: 'work' };
 export const feedbackSectionOf = (section) => (FEEDBACK_SECTIONS.includes(section) ? section : FEEDBACK_SECTION_OF[section] || 'dashboard');
 const STATUS_TEXT = { new: 'New', vibe: 'Turned into vibe', closed: 'Closed' };
 
