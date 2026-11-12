@@ -193,7 +193,11 @@ def test_the_scope_is_saved_on_the_session_row_so_a_generate_run_keeps_it(scoped
     assert writer._widget_to_columns_map()["table_scope"] == ""
     import _agentload
     text = _agentload.agent_source(_agentload.agent_notebook_path())
-    assert "generation_instructions_section STRING,\n            table_scope STRING\n        ) USING DELTA" in text, "the session table is created with the column"
+    anchor = text.index("generation_instructions_section STRING,")
+    start = text.rindex("(", 0, anchor)
+    end = text.index(") USING DELTA", anchor)
+    columns = [c.strip() for c in text[start + 1:end].split(",") if c.strip()]
+    assert "table_scope STRING" in columns, ("the session table is created with the column", columns)
     assert '            ("table_scope", "STRING"),' in text, "a session table made before this version gets the column"
 
 
