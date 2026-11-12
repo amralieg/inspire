@@ -88,7 +88,7 @@ test('a business with an App for all its use cases joins it, cannot create a sec
   const next = () => page.getByRole('button', { name: 'Next' }).click();
   try {
     await goToStep(page, 'What to build');
-    await page.getByRole('checkbox', { name: /^App / }).check();
+    await page.getByRole('checkbox', { name: /^App A Databricks/ }).check();
     await goToStep(page, 'App placement');
     const place = page.getByRole('region', { name: 'App placement' });
     const hub = place.locator('[data-app-target="inspire-hub-acme"] input[type="radio"]');

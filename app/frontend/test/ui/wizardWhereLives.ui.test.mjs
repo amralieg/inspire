@@ -35,9 +35,9 @@ test('What to deliver only picks what gets built, Where it lives places the App 
     await shot(page, 'where-it-lives-1440x900', false);
 
     await goToStep(page, 'What to deliver');
-    await page.getByRole('checkbox', { name: /^App / }).uncheck();
+    await page.getByRole('checkbox', { name: /^App A Databricks/ }).uncheck();
     assert.deepEqual(await stepLabels(page), labels.filter((l) => l !== 'Where it lives' && !/App/.test(l)), 'with the App unticked, Where it lives is skipped too');
-    await page.getByRole('checkbox', { name: /^App / }).check();
+    await page.getByRole('checkbox', { name: /^App A Databricks/ }).check();
 
     await goToStep(page, 'Who uses the App');
     const group = storage(page);

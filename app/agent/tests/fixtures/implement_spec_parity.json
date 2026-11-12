@@ -21913,7 +21913,7 @@
             "outputs",
             "inspire_url"
           ],
-          "https://me@inspire.example.com"
+          "https://me:@inspire.example.com"
         ]
       ],
       "errors": [

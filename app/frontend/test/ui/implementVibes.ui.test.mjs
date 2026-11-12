@@ -74,7 +74,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await page.getByRole('button', { name: /vibes/i }).count(), 0, 'Delivery has no vibes button');
     assert.equal(await page.getByRole('textbox', { name: /vibes/i }).count(), 0, 'Delivery has no vibes box');
     assert.equal(await page.getByRole('region', { name: 'Vibes' }).count(), 0);
-    await page.getByRole('checkbox', { name: /^App / }).uncheck();
+    await page.getByRole('checkbox', { name: /^App A Databricks/ }).uncheck();
     assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Run it', '6. Review & build'], 'Summary stays last without an App');
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
@@ -101,7 +101,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'Run it');
     await goToStep(page, 'What to build');
-    for (const name of [/^Dashboard/, /^App /, /^Alert/]) await page.getByRole('checkbox', { name }).check();
+    for (const name of [/^Dashboard/, /^App A Databricks/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.getByText(`Emails ${OWNER} when`, { exact: false }).waitFor();
     await toAppAccess(page);
     await page.getByRole('radio', { name: /^Internal data/ }).check();

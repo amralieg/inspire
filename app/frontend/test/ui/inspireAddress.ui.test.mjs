@@ -49,7 +49,7 @@ test('the wizard sends the Inspire address for a dashboard with no App, and none
     const what = tick.map(String).join(' ') || 'nothing';
     try {
       await goToStep(page, 'What to build');
-      await page.getByRole('checkbox', { name: /^App / }).uncheck();
+      await page.getByRole('checkbox', { name: /^App A Databricks/ }).uncheck();
       for (const name of tick) await page.getByRole('checkbox', { name }).check();
       await startMvp(page);
       await until(() => made.jobs.length === 1, `the build with the App off and ${what} ticked`, 20000);
