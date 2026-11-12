@@ -156,19 +156,45 @@ export function rangeLabel(filter, r) {
 
 export const HIGH_CARDINALITY = 8;
 
+const labelKey = (label) => String(label ?? '').trim().toLowerCase();
+
+export const sharedLabelId = (label) => `label:${labelKey(label)}`;
+
+function pickColumns(meta) {
+  return [...(meta?.columns?.list || []).map((f) => ({ ...f, table: null })),
+    ...Object.entries(meta?.columns?.tables || {}).flatMap(([table, list]) => (list || []).map((f) => ({ ...f, table })))]
+    .filter((f) => f.type === 'multi_select' && !f.action);
+}
+
+function sameLabelCounts(columns) {
+  const counts = new Map();
+  columns.forEach((f) => counts.set(labelKey(f.label), (counts.get(labelKey(f.label)) || 0) + 1));
+  return counts;
+}
+
 export function groupsOf(meta) {
   const page = (meta?.filters || []).filter((f) => f.type === 'multi_select')
     .map((f) => ({ key: `page:${f.id}`, id: f.id, label: f.label, filter: f, table: null, column: null, page: true }));
-  const columns = [...(meta?.columns?.list || []).map((f) => ({ ...f, table: null })),
-    ...Object.entries(meta?.columns?.tables || {}).flatMap(([table, list]) => (list || []).map((f) => ({ ...f, table })))]
-    .filter((f) => f.type === 'multi_select' && !f.action)
-    .map((f) => ({ key: `col:${f.table ?? ''}:${f.column}`, id: f.column, label: f.label, filter: { ...f, id: f.column, which: f.table == null ? { column: f.column } : { table: f.table, column: f.column } },
-      table: f.table ?? null, column: f.column, page: false }));
-  const named = new Set(page.map((g) => String(g.label).trim().toLowerCase()));
-  const all = [...page, ...columns.filter((g) => !named.has(String(g.label).trim().toLowerCase()))];
+  const named = new Set(page.map((g) => labelKey(g.label)));
+  const columns = pickColumns(meta).filter((f) => !named.has(labelKey(f.label)));
+  const counts = sameLabelCounts(columns);
+  const seen = new Set();
+  const columnGroups = columns.flatMap((f) => {
+    const key = labelKey(f.label);
+    if ((counts.get(key) || 0) < 2) {
+      return [{ key: `col:${f.table ?? ''}:${f.column}`, id: f.column, label: f.label, filter: { ...f, id: f.column, which: f.table == null ? { column: f.column } : { table: f.table, column: f.column } },
+        table: f.table ?? null, column: f.column, page: false }];
+    }
+    if (seen.has(key)) return [];
+    seen.add(key);
+    const id = sharedLabelId(f.label);
+    return [{ key: id, id, label: f.label, filter: { ...f, id, which: { column: f.column } }, table: null, column: null, page: true }];
+  });
+  const all = [...page, ...columnGroups];
   return all.map((g) => ({ ...g, high: !g.filter.grouping && (!!g.filter.searchable || !!g.filter.lazy || (g.filter.options || []).length > HIGH_CARDINALITY) }))
     .sort((a, b) => Number(a.high) - Number(b.high));
 }
+
 
 export function groupedByText(grouping) {
   const names = (grouping?.group_by || []).map((g) => g.label).filter(Boolean);
@@ -191,14 +217,15 @@ export function clearGroups(state) {
 export const groupsOn = (state, groups) => groups.some((g) => groupValues(state, g).length > 0);
 
 export function groupAliases(meta) {
-  const pages = new Map((meta?.filters || []).filter((f) => f.type === 'multi_select').map((f) => [String(f.label).trim().toLowerCase(), f.id]));
+  const pages = new Map((meta?.filters || []).filter((f) => f.type === 'multi_select').map((f) => [labelKey(f.label), f.id]));
+  const columns = pickColumns(meta);
+  const counts = sameLabelCounts(columns);
   const out = {};
-  const link = (table, columns) => (columns || []).filter((f) => f.type === 'multi_select' && !f.action).forEach((f) => {
-    const id = pages.get(String(f.label).trim().toLowerCase());
-    if (id) out[`${table}|${f.column}`] = id;
+  columns.forEach((f) => {
+    const key = labelKey(f.label);
+    const id = pages.get(key) || ((counts.get(key) || 0) > 1 ? sharedLabelId(f.label) : null);
+    if (id) out[`${f.table ?? ''}|${f.column}`] = id;
   });
-  link('', meta?.columns?.list);
-  Object.entries(meta?.columns?.tables || {}).forEach(([table, columns]) => link(table, columns));
   return out;
 }
 

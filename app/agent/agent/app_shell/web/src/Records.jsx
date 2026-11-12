@@ -470,7 +470,7 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
               );
             })()}
             {undoBatch && !work && !undoAsk && (
-              <button type="button" className="btn" onClick={() => setUndoAsk(true)} data-undo-close><Icon name="undo" size={14} />Undo this change</button>
+              <button type="button" className="btn" onClick={() => setUndoAsk(true)} data-undo-close><Icon name="undo" size={14} />{meta?.undo || 'Reopen'}</button>
             )}
             {undoBatch && undoAsk && (
               <div className="note note--flat undo-ask" role="group" aria-label="Undo this change">
