@@ -480,6 +480,9 @@ export default function ImplementWizard({
   const [plan, setPlan] = useState(null);
   const [planError, setPlanError] = useState('');
   const [appUnreadable, setAppUnreadable] = useState(null);
+  const [copyTarget, setCopyTarget] = useState('');
+  const [copying, setCopying] = useState(false);
+  const [copyError, setCopyError] = useState('');
   const [appGrant, setAppGrant] = useState(null);
   const [granting, setGranting] = useState(false);
   const [grantRound, setGrantRound] = useState(0);
@@ -772,7 +775,9 @@ export default function ImplementWizard({
   const ownErrors = stepErrors(stepId, spec, extras, mode);
   const resultAuto = advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false;
   const errorBlock = stepId !== 'data' ? null : dataFilterProblems(spec).length ? 'filters' : resultTableProblems(spec.config.result_table).length ? 'results' : null;
-  const dataFolded = dataChoice ?? errorBlock ?? (resultAuto ? 'results' : null);
+  const builtInRefused = stepId === 'data' && Boolean(appUnreadable?.builtin?.length);
+  const copyTo = (copyTarget || inspireDatabase || '').trim();
+  const dataFolded = dataChoice ?? errorBlock ?? (builtInRefused ? 'sources' : null) ?? (resultAuto ? 'results' : null);
   const resultsShown = dataFolded === 'results';
   const sourcesShown = dataFolded === null || dataFolded === 'sources' || dataFolded === 'closed';
   const filtersShown = dataFolded === null || dataFolded === 'filters' || dataFolded === 'closed';
@@ -1354,6 +1359,20 @@ export default function ImplementWizard({
   const changeStep = (id, part) => { setErrors([]); setBackToSummary(true); openOnImpact.current = part === MEASURE_IMPACT_PART; setStep(id); };
   const nextIsSummary = backToSummary && nextStepAfter(steps, stepId, { backToSummary, visited }) === SUMMARY_STEP.id;
 
+  const copySamples = async () => {
+    setCopying(true);
+    setCopyError('');
+    try {
+      const data = await apiPostJson('/api/inspire/samples/copy', { entries: appUnreadable.builtin, destination: copyTo });
+      for (const { source, copy } of data.copies || []) pickTable(source, copy);
+      if ((data.failed || []).length) setCopyError(data.failed.map((f) => `Could not copy ${f.source}: ${f.reason}`).join('. '));
+    } catch (e) {
+      setCopyError(e.message);
+    } finally {
+      setCopying(false);
+    }
+  };
+
   const pickTable = (original, value) => {
     const picked = pickedTable(spec, original, value);
     setSpec(picked.spec);
@@ -1425,6 +1444,20 @@ export default function ImplementWizard({
         )}
 
         {(appUnreadable || appGrant) && <AppReadAccess offer={appUnreadable} result={appGrant} busy={granting} onGrant={grantAppRead} />}
+
+        {builtInRefused && (
+          <section aria-label="Copy the samples" data-samples-copy-block="" className="space-y-2 text-[12px]">
+            <label className="flex flex-col gap-1 text-text-secondary">
+              <span>Copy into</span>
+              <input dir="auto" value={copyTarget} placeholder={inspireDatabase || 'catalog.schema you own'} onChange={(e) => setCopyTarget(e.target.value)} className={inputCls} />
+            </label>
+            <button type="button" data-samples-copy="" disabled={copying || !copyTo} onClick={() => copySamples()}
+              className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70">
+              {copying ? 'Copying…' : 'Copy it now'}
+            </button>
+            {copyError && <p role="alert" className="text-error">{copyError}</p>}
+          </section>
+        )}
 
         {stepId === 'data' && mode === 'mvp' && (
           <>

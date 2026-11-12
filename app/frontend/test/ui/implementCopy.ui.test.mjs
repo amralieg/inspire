@@ -33,6 +33,7 @@ test('a built-in sample source is refused, the picker lists the person’s own c
     const { page } = ui;
     await goToStep(page, 'Data');
     await page.getByText(BUILT_IN, { exact: false }).first().waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Copy it now', exact: true }).waitFor({ timeout: 15000 });
     await tableRow(page, SAMPLE).getByRole('button', { name: 'Change', exact: true }).click();
     const options = await optionTexts(picker(page, SAMPLE));
     assert.deepEqual(options.slice(0, 2), [`${SAMPLE} (Inspire's pick)`, `Your copy of ${SAMPLE} (${COPY})`], options.join(' | '));
@@ -82,6 +83,7 @@ test('a table typed into the picker is checked with the person’s sign-in: a re
   try {
     const { page } = ui;
     await goToStep(page, 'Data');
+    await page.getByRole('button', { name: 'Change Source tables', exact: true }).click();
     const orders = tableRow(page, 'main.s.orders');
     await orders.getByRole('button', { name: 'Change', exact: true }).click();
     const find = page.getByLabel('Search for another table instead of main.s.orders', { exact: true });
