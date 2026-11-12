@@ -2,6 +2,7 @@ const { isMissingTableError } = require('./lib/inspireFeedback');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, noSessionText, stepsStatement } = require('./lib/sqlInputs');
 const I = require('./lib/inspireImplement');
 const { createGenieJobGuard } = require('./lib/genieJobGuard');
+const { runWithQueryTags } = require('./lib/sqlStatements');
 const { genieNotebookJobName, latestGenieNotebookRun } = require('./lib/genieNotebookJob');
 const C = require('./lib/implementControl');
 const LE = require('./lib/lakebaseEnforce');
@@ -510,6 +511,13 @@ function registerImplementRoutes(app, deps) {
 
   app.post('/api/inspire/generate-genie', requireToken, handleInspireGenerateGenie);
   app.post('/api/inspire/generate_genie', requireToken, handleInspireGenerateGenie);
+
+  app.use('/api/inspire/implement', (req, res, next) => runWithQueryTags({
+    dbx_inspire_ai_usecase_id: q(req, 'use_case_id'),
+    dbx_inspire_ai_session_id: q(req, 'session_id'),
+    dbx_inspire_ai_app_name: q(req, 'app_name'),
+    dbx_inspire_ai_asset: q(req, 'asset'),
+  }, next));
 
   app.get('/api/inspire/implement/context', requireToken, async (req, res) => {
     try {
