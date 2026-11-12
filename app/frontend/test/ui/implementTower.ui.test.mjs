@@ -1411,7 +1411,7 @@ test('the progress panel opens at 640px, drags and arrow-keys to a new width tha
   }
 });
 
-test('Build progress opens docked as a full-height column beside the use case whose 500-line log scrolls on its own, the page behind keeps its own scroll, Esc and X close it, a reload keeps it open, and the reason names the threshold the run missed (must-exclude: the log never grows the page)', async () => {
+test('Build progress opens pinned to the right under the App header, full window height, whose 500-line log scrolls on its own, the page behind keeps its own scroll, Esc and X close it, a reload keeps it open, and the reason names the threshold the run missed (must-exclude: the log never grows the page)', async () => {
   const said = (i) => `Step ${i}: I checked the notebook instructions and the Databricks workflow before I built the dashboard.`;
   const line = (i, words) => `${agoIso(390 - Math.floor(i * 0.7)).slice(0, 19).replace('T', ' ')} - inspire - INFO - [GENIE N01-U01] [build] Genie: ${words}`;
   const last = 'Last I checked the alert query against the latest run.';
@@ -1442,9 +1442,10 @@ test('Build progress opens docked as a full-height column beside the use case wh
       await page.setViewportSize({ width, height });
       await painted(page);
       const box = await dialog.boundingBox();
-      const row = await page.locator('section[aria-label="Use case"]').boundingBox();
-      assert.ok(Math.abs(box.height - row.height) <= 2 && Math.abs(box.y - row.y) <= 2, `at ${width}x${height} the panel fills the height of the use case row ${JSON.stringify(box)} vs ${JSON.stringify(row)}`);
-      assert.ok(box.x >= row.x + row.width, `at ${width}x${height} the panel docks beside the use case ${JSON.stringify(box)}`);
+      const useCase = await page.locator('section[aria-label="Use case"]').boundingBox();
+      assert.ok(Math.abs(box.y - 56) <= 1 && Math.abs(box.height - (height - 56)) <= 2, `at ${width}x${height} the panel runs from under the App header to the bottom of the window ${JSON.stringify(box)}`);
+      assert.ok(Math.abs(box.x + box.width - width) <= 1, `at ${width}x${height} the panel is pinned to the right edge ${JSON.stringify(box)}`);
+      assert.ok(useCase.x + useCase.width <= box.x + 1, `at ${width}x${height} nothing of the use case sits under the panel ${JSON.stringify({ useCase, box })}`);
       assert.ok(box.width >= 400 && box.width <= Math.round(width * 0.4) + 1, `at ${width}x${height} the panel is 400px or more and at most 40% of the window (${box.width} px)`);
       const room = await log.evaluate((el) => ({ scroll: el.scrollHeight, client: el.clientHeight, overflow: getComputedStyle(el).overflowY,
         page: document.scrollingElement.scrollHeight - window.innerHeight }));
