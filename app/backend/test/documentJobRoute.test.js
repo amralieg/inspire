@@ -113,3 +113,40 @@ test('a catalog check that cannot reach the workspace says so in plain words, wi
   assert.equal(got.text.includes('ENOTFOUND'), false, 'no raw network error reaches the person');
   assert.equal(creates().length, 0);
 });
+
+const RENAMED_CATALOG = `${OUT}/acme/docs/Acme-dbx_inspire.json`;
+
+test('a renamed business still finds the English catalog its Discover run wrote, from the path the session stored (REQ-077)', async () => {
+  S.reset({ presentPaths: [RENAMED_CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+    catalogPaths: { 7300: RENAMED_CATALOG } });
+  const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, business_name: 'Acme Renamed', kind: 'use-case-catalog' } });
+  assert.equal(got.status, 200, got.text.slice(0, 300));
+  assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['01_uc_metadata'], RENAMED_CATALOG, 'the stored path is used, not the new business name');
+});
+
+test('an old session whose stored catalog path is empty falls back to the business-name folder (REQ-077)', async () => {
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+    catalogPaths: { 7300: null } });
+  const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
+  assert.equal(got.status, 200, got.text.slice(0, 300));
+  assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['01_uc_metadata'], CATALOG);
+});
+
+test('a workspace that has not added the catalog path column yet falls back to the business-name folder (REQ-077)', async () => {
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+    catalogColumnMissing: true });
+  const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
+  assert.equal(got.status, 200, got.text.slice(0, 300));
+  assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['01_uc_metadata'], CATALOG);
+});
+
+test('a failed read of the stored catalog path says so in plain words and starts no job (REQ-077)', async () => {
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+    catalogQueryError: 'PERMISSION_DENIED: User does not have SELECT on __inspire_session' });
+  const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
+  assert.equal(got.status, 503, got.text.slice(0, 300));
+  assert.equal(got.data.error, CATALOG_CHECK_FAILED_TEXT);
+  assert.equal(got.text.includes('PERMISSION_DENIED'), false, 'no raw SQL error reaches the person');
+  assert.equal(creates().length, 0);
+});
+
