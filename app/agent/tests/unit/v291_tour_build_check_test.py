@@ -58,7 +58,7 @@ def test_a_generic_first_answer_is_asked_again_and_the_shipped_tour_is_the_secon
     inst._implement_app(context, None)
     assert seen["errors"] == [] and [a["skip_cache"] for a in asked if a["name"] == "implement_app_tour"] == [False, True]
     shipped = _deployed(seen)["tour"]["steps"]["English"]
-    assert next(s for s in shipped if s["anchor"] == "kpis")["text"] == STEPS[1]["text"]
+    assert next(s for s in shipped if s["anchor"] == "kpis")["text"] == next(s for s in STEPS if s["anchor"] == "kpis")["text"]
     assert _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR-RETRY FIRED] N01-U01") and any("not fit to ship" in m for m in _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR-RETRY FIRED]"))
 
 

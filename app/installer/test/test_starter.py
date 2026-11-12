@@ -16,7 +16,7 @@ import zipfile
 
 import support
 
-LATEST = "https://github.com/amralieg/inspire/releases/latest/download"
+LATEST = support.RELEASE_BASE
 
 
 class StarterCase(unittest.TestCase):
@@ -105,7 +105,7 @@ class TrustTest(StarterCase):
     def test_the_test_setting_points_only_at_a_release_of_the_fork(self):
         source = self.ns["release_source"]
         self.assertEqual(source({}), (LATEST, "amralieg/inspire"))
-        self.assertEqual(source({"release": support.FORK_BASE + "/"}), (support.FORK_BASE, "amralieg/inspire"))
+        self.assertEqual(source({"release": support.RELEASE_BASE + "/"}), (support.RELEASE_BASE, "amralieg/inspire"))
         for bad in ("https://github.com/someone/else/releases/download/v1", "https://evil.example.com/x",
                     "http://github.com/amralieg/inspire/releases/download/v1",
                     "https://github.com/amralieg/inspire/releases/download/v1/../../x"):
@@ -128,10 +128,44 @@ class TrustTest(StarterCase):
     def test_no_link_in_the_starter_names_a_version_or_the_github_api(self):
         source = support.release.STARTER.read_text()
         self.assertEqual(self.ns["RELEASE_REPO"], "amralieg/inspire")
-        self.assertEqual(self.ns["LATEST_BASE"], "https://github.com/amralieg/inspire/releases/latest/download")
+        self.assertEqual(self.ns["RELEASE_TAG"], support.VERSION)
+        self.assertNotIn("releases/latest", source)
         self.assertNotIn("api.github.com", source)
-        self.assertIn('LATEST_BASE = f"https://github.com/{RELEASE_REPO}/releases/latest/download"', source)
+        self.assertIn('RELEASE_TAG = ""', source)
         self.assertEqual([line for line in source.splitlines() if "releases/download/v" in line or "releases/tag/v" in line], [])
+
+
+class PinnedTagTest(StarterCase):
+    def test_a_stamped_installer_builds_urls_only_for_its_own_tag(self):
+        self.assertEqual(self.ns["release_source"]({}), (support.RELEASE_BASE, "amralieg/inspire"))
+        self.assertEqual(self.ns["release_source"]({"release": support.RELEASE_BASE + "/"}), (support.RELEASE_BASE, "amralieg/inspire"))
+        self.assertNotIn("latest", support.RELEASE_BASE)
+        with self.assertRaises(self.ns["InspireTrustError"]) as caught:
+            self.ns["release_source"]({"release": "https://github.com/amralieg/inspire/releases/download/v1.2.0"})
+        self.assertIn("v1.2.0", str(caught.exception))
+        self.assertIn(support.RELEASE_BASE, str(caught.exception))
+
+    def test_a_manifest_of_another_tag_or_version_is_refused_and_names_both(self):
+        for tag, version in ((f"{support.VERSION}-rc.1", support.VERSION), (support.VERSION, "v1.2.0")):
+            with self.assertRaises(self.ns["InspireMixedRelease"]) as caught:
+                self.ns["check_pinned"]({"tag": tag, "version": version})
+            self.assertIn(support.VERSION, str(caught.exception))
+            self.assertIn(tag, str(caught.exception))
+
+    def test_local_files_of_another_version_next_to_the_installer_are_refused(self):
+        other = self.release("other", version="v1.2.0")
+        folder = self.tmp / "next_to_installer"
+        shutil.copytree(other, folder)
+        with self.assertRaises(self.ns["InspireMixedRelease"]) as caught:
+            self.ns["acquire_local"](str(folder))
+        self.assertIn("v1.2.0", str(caught.exception))
+        self.assertIn(support.VERSION, str(caught.exception))
+
+    def test_online_a_manifest_of_another_tag_is_not_used(self):
+        other = self.release("other", tag=f"{support.VERSION}-rc.1")
+        github = support.FakeGitHub(support.RELEASE_BASE, other)
+        with self.assertRaises(self.ns["InspireReleaseError"]):
+            self.ns["acquire_online"](support.RELEASE_BASE, "amralieg/inspire", str(self.folder), github)
 
 
 class ManifestTest(StarterCase):
@@ -266,8 +300,8 @@ class OnlineTest(StarterCase):
 
     def test_the_test_setting_points_the_download_at_the_fork_pre_release(self):
         out = self.release()
-        github = support.FakeGitHub(support.FORK_BASE, out)
-        got = self.acquire({"release": support.FORK_BASE}, github)
+        github = support.FakeGitHub(support.RELEASE_BASE, out)
+        got = self.acquire({"release": support.RELEASE_BASE}, github)
         self.assertEqual(got["source"], "online")
         self.assertEqual(github.requested, ["manifest.json", "inspire-app.zip", "inspire-assets.tar"])
 
@@ -469,7 +503,7 @@ class OfflinePageTest(StarterCase):
                 self.assertIn(html.escape(words) if body is page else words, body)
             for gone in ("SHA256SUMS", ".part", "partNN", "10 MB", "import-dir", "leave that folder"):
                 self.assertNotIn(gone, body)
-        self.assertIn("https://github.com/amralieg/inspire/releases/latest", page)
+        self.assertIn(f"https://github.com/amralieg/inspire/releases/tag/{support.VERSION}", page)
         order = [page.index(words) for words in ("<b>macOS</b>", "<b>Linux</b>", "<b>Windows PowerShell</b>",
                                                  "<h3>2. Import the files into this workspace folder", "<h3>3. Then run this installer again",
                                                  "If the commands fail")]

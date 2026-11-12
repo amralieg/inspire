@@ -51,11 +51,12 @@ test('Data & results, Run it and App show the business settings and keep the tec
   const open = (what) => openAdvanced(page, what);
   try {
     await goToStep(page, 'Data');
-    await page.getByRole('heading', { name: 'Source tables' }).waitFor();
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await hidden(label);
     await open('data settings');
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await shown(label);
     for (const label of ['Table name', 'Catalog', 'Schema']) await shown(label);
+    await page.getByRole('button', { name: 'Change Source tables', exact: true }).click();
+    await page.getByRole('heading', { name: 'Source tables' }).waitFor();
     await next(page);
     await onStep(page, 'First run');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Results holds only where the result table lives');

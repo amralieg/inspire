@@ -276,6 +276,8 @@ import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, noMainTableText, useScopeProfiles } from '../lib/groupingProfile';
 import { fieldOf } from '../lib/useCaseFields.js';
 import { tableScopeSummary } from '../lib/tableScope';
+import SamplesCopyOffer from '../components/SamplesCopyOffer';
+import { samplesTarget, validCopyTarget } from '../lib/samplesCopy';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
   FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
@@ -480,6 +482,9 @@ export default function ImplementWizard({
   const [plan, setPlan] = useState(null);
   const [planError, setPlanError] = useState('');
   const [appUnreadable, setAppUnreadable] = useState(null);
+  const [copyTarget, setCopyTarget] = useState('');
+  const [copying, setCopying] = useState(false);
+  const [copyError, setCopyError] = useState('');
   const [appGrant, setAppGrant] = useState(null);
   const [granting, setGranting] = useState(false);
   const [grantRound, setGrantRound] = useState(0);
@@ -772,7 +777,9 @@ export default function ImplementWizard({
   const ownErrors = stepErrors(stepId, spec, extras, mode);
   const resultAuto = advanced.results || Boolean(placeNote) || outputCheck?.write?.ok === false;
   const errorBlock = stepId !== 'data' ? null : dataFilterProblems(spec).length ? 'filters' : resultTableProblems(spec.config.result_table).length ? 'results' : null;
-  const dataFolded = dataChoice ?? errorBlock ?? (resultAuto ? 'results' : null);
+  const builtInRefused = stepId === 'data' && Boolean(appUnreadable?.builtin?.length);
+  const copyTo = samplesTarget(inspireDatabase, copyTarget);
+  const dataFolded = dataChoice ?? errorBlock ?? (builtInRefused ? 'sources' : null) ?? (resultAuto ? 'results' : null);
   const resultsShown = dataFolded === 'results';
   const sourcesShown = dataFolded === null || dataFolded === 'sources' || dataFolded === 'closed';
   const filtersShown = dataFolded === null || dataFolded === 'filters' || dataFolded === 'closed';
@@ -1354,6 +1361,20 @@ export default function ImplementWizard({
   const changeStep = (id, part) => { setErrors([]); setBackToSummary(true); openOnImpact.current = part === MEASURE_IMPACT_PART; setStep(id); };
   const nextIsSummary = backToSummary && nextStepAfter(steps, stepId, { backToSummary, visited }) === SUMMARY_STEP.id;
 
+  const copySamples = async () => {
+    setCopying(true);
+    setCopyError('');
+    try {
+      const data = await apiPostJson('/api/inspire/samples/copy', { entries: appUnreadable.builtin, destination: copyTo });
+      for (const { source, copy } of data.copies || []) pickTable(source, copy);
+      if ((data.failed || []).length) setCopyError(data.failed.map((f) => `Could not copy ${f.source}: ${f.reason}`).join('. '));
+    } catch (e) {
+      setCopyError(e.message);
+    } finally {
+      setCopying(false);
+    }
+  };
+
   const pickTable = (original, value) => {
     const picked = pickedTable(spec, original, value);
     setSpec(picked.spec);
@@ -1425,6 +1446,11 @@ export default function ImplementWizard({
         )}
 
         {(appUnreadable || appGrant) && <AppReadAccess offer={appUnreadable} result={appGrant} busy={granting} onGrant={grantAppRead} />}
+
+        {builtInRefused && (
+          <SamplesCopyOffer names={appUnreadable.builtin.join(', ')} target={copyTo} onTarget={setCopyTarget} canCopy={validCopyTarget(copyTo)}
+            copying={copying} error={copyError} onCopy={copySamples} copyLabel="Copy it now" />
+        )}
 
         {stepId === 'data' && mode === 'mvp' && (
           <>

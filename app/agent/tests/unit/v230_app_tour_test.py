@@ -132,7 +132,7 @@ def test_a_repeated_anchor_and_a_non_object_step_are_refused_too_must_refuse():
 
 def test_too_many_steps_are_cut_and_too_few_are_filled_from_templates():
     page = queue_page()
-    many = [step(a) for a in TOUR["layouts"]["decision_queue"]]
+    many = [step(a) for a in TOUR["layouts"]["decision_queue"]] + [step("kpis")]
     tour, notes = shell_core.fit_tour(dict(page, tour={"steps": {"English": many}}))
     assert len(tour["steps"]["English"]) == TOUR["most"] and any(f"more than {TOUR['most']}" in n for n in notes)
     tour, notes = shell_core.fit_tour(dict(page, tour={"steps": {"English": GOOD[:2]}}))
@@ -208,3 +208,11 @@ def test_without_a_tour_registry_the_page_has_no_tour_and_nothing_breaks(monkeyp
     monkeypatch.setitem(shell_sql._REGISTRY, "data", {k: v for k, v in REGISTRY.items() if k != "tour"})
     assert shell_core.fit_tour(queue_page()) == (None, [])
     assert shell_core.public_page(queue_page())["tour"] is None
+
+
+def test_the_tour_cap_is_the_most_parts_any_layout_shows_and_every_settings_step_names_feedback_and_reported_issues():
+    assert TOUR["most"] == max(len(parts) for parts in TOUR["layouts"].values())
+    for name, words in TOUR["languages"].items():
+        text = words["steps"]["settings"]["text"]
+        assert "Feedback" in text and "Reported issues" in text, name
+        assert len(text) <= TOUR["text_chars"], name

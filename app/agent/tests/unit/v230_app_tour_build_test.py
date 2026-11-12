@@ -10,7 +10,10 @@ TOUR = json.load(open(os.path.join(os.path.dirname(os.path.dirname(os.path.dirna
 
 STEPS = [
     {"anchor": "decision", "title": "Keep the customers who are about to leave", "text": "This desk lists the customers most likely to leave next month. {open_count} wait for a call."},
+    {"anchor": "todo", "title": "Work the call list", "text": "This box counts the customers still waiting for a call, and lists the next steps in order."},
     {"anchor": "kpis", "title": "How much is at risk", "text": "The first tile is the revenue at risk, {kpi:total_loss} today."},
+    {"anchor": "value", "title": "The revenue this protects", "text": "This line shows the revenue retention should keep, and where it stands after today's calls."},
+    {"anchor": "saved", "title": "Saved since go-live", "text": "This line adds up the revenue the calls have kept since the App went live."},
     {"anchor": "view", "title": "Where the risk sits", "text": "This view shows which customer groups carry the most revenue at risk. Click a group to see its customers."},
     {"anchor": "filters", "title": "Narrow the call list", "text": "Use Region and Segment to see only the customers you call."},
     {"anchor": "records", "title": "Your call list", "text": "Each customer here needs a retention call or a reason to skip it."},
@@ -104,12 +107,12 @@ def test_the_app_ships_the_tour_written_for_its_use_case(agent_ns, tmp_path):
     page = _deployed(seen)
     assert page["tour"] == {"languages": ["English"], "steps": {"English": STEPS}}
     assert not _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR FIXED]")
-    assert _logged(inst, "INFO", "[IMPLEMENT-APP-TOUR] N01-U01: the App tour has 12 steps in English")
+    assert _logged(inst, "INFO", "[IMPLEMENT-APP-TOUR] N01-U01: the App tour has 15 steps in English")
     assert context["artifacts"]["app"]["tour"] == page["tour"]
 
 
 def test_a_bad_step_is_replaced_by_the_template_step_and_logged_and_the_app_still_ships(agent_ns, tmp_path):
-    bad = [dict(STEPS[0]), dict(STEPS[1], text="The tile sums SELECT SUM(revenue_at_risk) FROM churn_out.")] + STEPS[2:]
+    bad = [dict(s, text="The tile sums SELECT SUM(revenue_at_risk) FROM churn_out.") if s["anchor"] == "kpis" else dict(s) for s in STEPS]
     inst, context, seen, _asked = _tour_flow(agent_ns, tmp_path, [{"tours": [{"language": "English", "steps": bad}]}])
     inst._implement_app(context, None)
     shipped = _deployed(seen)["tour"]["steps"]["English"]
@@ -118,6 +121,19 @@ def test_a_bad_step_is_replaced_by_the_template_step_and_logged_and_the_app_stil
     assert kpis == template and "SELECT" not in json.dumps(shipped)
     fixed = _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR FIXED] N01-U01:")
     assert len(fixed) == 1 and "raw column id or SQL" in fixed[0] and "replaced by the template step for kpis" in fixed[0]
+
+
+def test_a_too_long_step_is_replaced_alone_and_the_rest_of_the_model_tour_still_ships(agent_ns, tmp_path):
+    long = [dict(s, text="word " * 46) if s["anchor"] == "settings" else dict(s) for s in STEPS]
+    inst, context, seen, asked = _tour_flow(agent_ns, tmp_path, [{"tours": [{"language": "English", "steps": long}]}])
+    inst._implement_app(context, None)
+    assert [a["name"] for a in asked] == ["implement_app_tour"], "a too-long step is not a reason to ask again"
+    shipped = _deployed(seen)["tour"]["steps"]["English"]
+    assert len(shipped) == len(STEPS)
+    assert [s for s in shipped if s["anchor"] != "settings"] == [s for s in STEPS if s["anchor"] != "settings"]
+    assert next(s for s in shipped if s["anchor"] == "settings") == _core(inst).tour_template("settings", "English", _deployed(seen))
+    fixed = _logged(inst, "WARNING", "[IMPLEMENT-APP-TOUR FIXED] N01-U01:")
+    assert len(fixed) == 1 and "more than 220" in fixed[0] and "replaced by the template step for settings" in fixed[0]
 
 
 def test_a_tour_the_model_never_writes_is_asked_again_without_the_cache_then_falls_back_to_the_template_tour(agent_ns, tmp_path):

@@ -33,6 +33,7 @@ test('a built-in sample source is refused, the picker lists the person’s own c
     const { page } = ui;
     await goToStep(page, 'Data');
     await page.getByText(BUILT_IN, { exact: false }).first().waitFor({ timeout: 15000 });
+    await page.getByRole('button', { name: 'Copy it now', exact: true }).waitFor({ timeout: 15000 });
     await tableRow(page, SAMPLE).getByRole('button', { name: 'Change', exact: true }).click();
     const options = await optionTexts(picker(page, SAMPLE));
     assert.deepEqual(options.slice(0, 2), [`${SAMPLE} (Inspire's pick)`, `Your copy of ${SAMPLE} (${COPY})`], options.join(' | '));
@@ -82,6 +83,7 @@ test('a table typed into the picker is checked with the person’s sign-in: a re
   try {
     const { page } = ui;
     await goToStep(page, 'Data');
+    await page.getByRole('button', { name: 'Change Source tables', exact: true }).click();
     const orders = tableRow(page, 'main.s.orders');
     await orders.getByRole('button', { name: 'Change', exact: true }).click();
     const find = page.getByLabel('Search for another table instead of main.s.orders', { exact: true });
@@ -96,6 +98,57 @@ test('a table typed into the picker is checked with the person’s sign-in: a re
     await page.getByRole('button', { name: 'Use this table', exact: true }).click();
     await picker(page, 'main.s.orders').waitFor({ state: 'detached', timeout: 15000 });
     assert.equal(await tableRow(page, 'main.s.orders').locator('.font-mono').textContent(), COPY, 'a readable table in another catalog is used as picked');
+    assert.deepEqual(ui.pageErrors.filter((line) => !/status of 401/.test(line)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+const COPY_TARGET = 'inspire_kinds_rc7.walk_rc7e';
+
+test('Copy it now posts the samples copy with the target, re-points the source to the copy, clears the refusal and lets the build go ahead', async () => {
+  const ui = await openUi('wizard', {
+    me: ME, useCase: SAMPLE_CASE, history: [], forwardedToken: PERSON, columnsByTable: COLUMNS,
+    swapRowsByToken: { [PERSON]: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
+    sampleCopyAnswer: [200, { destination: COPY_TARGET, copies: [{ source: SAMPLE, copy: COPY }], failed: [] }],
+  });
+  try {
+    const { page, made } = ui;
+    await goToStep(page, 'Data');
+    await page.getByText(BUILT_IN, { exact: false }).first().waitFor({ timeout: 15000 });
+    await page.getByLabel('Copy into', { exact: true }).fill(COPY_TARGET);
+    await page.getByRole('button', { name: 'Copy it now', exact: true }).click();
+    await page.getByRole('region', { name: 'App read access' }).waitFor({ state: 'detached', timeout: 15000 });
+    assert.deepEqual(made.sampleCopies, [{ entries: [SAMPLE], destination: COPY_TARGET }], 'the copy names the samples table and the target');
+    await page.getByRole('button', { name: 'Change Source tables', exact: true }).click();
+    assert.equal(await tableRow(page, SAMPLE).locator('.font-mono').textContent(), COPY, 'the source is re-pointed to the copy');
+    await toSummary(page);
+    await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 15000 });
+    assert.deepEqual(ui.pageErrors.filter((line) => !/status of 401/.test(line)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a copy the warehouse refuses names the table and the reason, keeps the sample picked and the refusal shown (must-fail)', async () => {
+  const REASON = '[PERMISSION_DENIED] User does not have CREATE TABLE on schema inspire_kinds_rc7.walk_rc7e';
+  const ui = await openUi('wizard', {
+    me: ME, useCase: SAMPLE_CASE, history: [], forwardedToken: PERSON, columnsByTable: COLUMNS,
+    swapRowsByToken: { [PERSON]: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
+    sampleCopyAnswer: [200, { destination: COPY_TARGET, copies: [], failed: [{ source: SAMPLE, reason: REASON }] }],
+  });
+  try {
+    const { page, made } = ui;
+    await goToStep(page, 'Data');
+    await page.getByText(BUILT_IN, { exact: false }).first().waitFor({ timeout: 15000 });
+    await page.getByLabel('Copy into', { exact: true }).fill(COPY_TARGET);
+    await page.getByRole('button', { name: 'Copy it now', exact: true }).click();
+    const alert = page.locator('[data-samples-error]');
+    await alert.waitFor({ timeout: 15000 });
+    assert.match(await alert.textContent(), new RegExp(`Could not copy ${SAMPLE.replace(/\./g, '\\.')}`));
+    assert.equal(made.sampleCopies.length, 1, 'the copy was sent once');
+    assert.equal(await page.getByRole('region', { name: 'App read access' }).count(), 1, 'the refusal stays shown');
+    assert.equal(await tableRow(page, SAMPLE).locator('.font-mono').textContent(), SAMPLE, 'the sample stays picked');
     assert.deepEqual(ui.pageErrors.filter((line) => !/status of 401/.test(line)), []);
   } finally {
     await ui.close();

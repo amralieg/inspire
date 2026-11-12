@@ -158,7 +158,7 @@ def build(args, work):
     target.write_bytes(notebook)
     shutil.copytree(args.assets, assets)
     say(f"assets copied from {args.assets}: {sum(1 for p in assets.rglob('*') if p.is_file())} files")
-    run([sys.executable, str(src / "app" / "installer" / "release.py"), "build", "--assets", str(assets), "--out", str(release)],
+    run([sys.executable, str(src / "app" / "installer" / "release.py"), "build", "--assets", str(assets), "--out", str(release), "--tag", args.tag],
         cwd=src / "app", capture=False)
     held = sorted(p.name for p in release.iterdir())
     if held != sorted(PUBLISHED):
@@ -281,7 +281,12 @@ def check(args, work):
         probe.unlink(missing_ok=True)
         failures += status != "404"
         lines.append(f"{'OK  ' if status == '404' else 'FAIL'}  {name}  HTTP {status}, a release carries no {name}")
-    lines.append(f"release check {base}: {len(PUBLISHED) + len(LEFT_OUT) - failures} of {len(PUBLISHED) + len(LEFT_OUT)} checks OK, {failures} failures")
+    installer = downloaded / built["installer"]["name"]
+    stamped = re.search(r'^RELEASE_TAG = "([^"]*)"$', installer.read_text(encoding="utf-8"), re.M) if installer.is_file() else None
+    stamp_ok = bool(stamped) and stamped.group(1) == args.tag
+    failures += not stamp_ok
+    lines.append(f"{'OK  ' if stamp_ok else 'FAIL'}  installer stamped {stamped.group(1) if stamped else 'with no tag'}, the release is {args.tag}")
+    lines.append(f"release check {base}: {len(PUBLISHED) + len(LEFT_OUT) + 1 - failures} of {len(PUBLISHED) + len(LEFT_OUT) + 1} checks OK, {failures} failures")
     out = "\n".join(lines)
     (work / "check.log").write_text(out, encoding="utf-8")
     print(out)

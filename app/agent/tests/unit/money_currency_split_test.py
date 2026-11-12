@@ -845,3 +845,14 @@ def test_every_money_dataset_is_checked_for_the_saved_value_columns():
     assert shell_sql.money_datasets(page) == ["rows", "other"]
     charts_only = {"kpis": [], "charts": [{"id": "c", "dataset": "charted", "y": [{"format": "currency"}]}]}
     assert shell_sql.money_datasets(charts_only) == ["charted"]
+
+
+def test_every_money_figure_of_a_converted_rule_is_labelled_with_its_reporting_currency():
+    aed = shell_sql.page_with_money(PAGE, {"currency": "convert", "base": "AED", "rates": {"AED": 1.0, "USD": 3.6725}})
+    assert [k["currency"] for k in aed["kpis"] if k["format"] == "currency"] == ["AED"], "the KPI tile shows the reporting currency, not the spec's USD"
+    assert [y["currency"] for c in aed["charts"] for y in c["y"]] == ["AED", "AED"], "every money chart axis and bar label is AED"
+    import v141_app_shell_test as shell_harness
+    served = shell_harness.shell_core.public_page(aed)
+    assert [k["currency"] for k in served["kpis"] if k["format"] == "currency"] == ["AED"], "the page the App serves carries the same label"
+    per_currency = shell_sql.page_with_money(PAGE, {"currency": "per_currency"})
+    assert [k["currency"] for k in per_currency["kpis"] if k["format"] == "currency"] == ["USD"], "a per-currency rule keeps each figure's own currency"

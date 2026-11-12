@@ -328,14 +328,14 @@ def main():
     parser.add_argument("--app", default="", help="the scratch App to install onto; defaults to the scratch_app setting")
     parser.add_argument("--label", default="", help="names a second install of the same tag: its folder and evidence files")
     parser.add_argument("--work", default="", help="the build folder under the work setting whose files are installed and checked; defaults to the tag")
-    parser.add_argument("--online", action="store_true", help="upload only the installer and let it download the latest release from GitHub")
+    parser.add_argument("--online", action="store_true", help="upload only the installer and let it download its own release (its stamped tag) from GitHub")
     parser.add_argument("--whole", action="store_true", help="upload the installer with manifest.json, inspire-app.zip and inspire-assets.tar as whole files (the default offline upload; with --online it also uploads them)")
     parser.add_argument("--unzip", action="store_true", help="upload manifest.json and the whole inspire-assets.tar, and import inspire-app.zip so the workspace unzips it")
     parser.add_argument("--remote-stage", choices=("whole", "ui"), default="",
                         help="offline: a workspace job downloads the release files and imports them next to the installer, whole (format RAW) or the way the workspace UI import does (it unpacks inspire-app.zip), so no large file goes over this computer's link")
     parser.add_argument("--remote-files", default="manifest.json,inspire-app.zip,inspire-assets.tar",
                         help="with --remote-stage, the release files the workspace job downloads from the tag; this computer uploads the others whole")
-    parser.add_argument("--tag-links", action="store_true", help="with --online, download from this tag's links instead of the latest release")
+    parser.add_argument("--tag-links", action="store_true", help="also write the release setting, which must name this installer's own tag")
     parser.add_argument("--catalog", default=CATALOG, help="the catalog the installer puts the Inspire Database in (<catalog>._inspire)")
     args = parser.parse_args()
     rc_settings.require_tools(S, commands=("net_wait",))
