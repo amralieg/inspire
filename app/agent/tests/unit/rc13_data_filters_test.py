@@ -303,3 +303,36 @@ def test_the_fired_line_carries_the_counts_and_is_written_as_a_step_message(agen
         source = "".join(_json.load(handle)["cells"][1]["source"])
     assert 'step_name="Data Filter Label"' in source and "message=_label_line" in source, "the FIRED line is a step message"
     assert "log_print(_label_line)" in source, "and it is also written to the log"
+
+
+@pytest.mark.parametrize("label", ["iPhone", "UAE", "McDonald's", "Tokyo Tidbits"])
+def test_the_label_reaches_the_title_and_the_composed_name_exactly_as_typed(labelled, label):
+    labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
+    labelled["DATA_FILTER_LABEL"]["text"] = label
+    normalize = labelled["DatabricksInspire"]._normalize_usecase
+    uc = {"No": "1", "usecase": "improve sales of the product", "Name": "improve sales of the product", "Primary Table": ORDERS}
+    labelled["ensure_data_filter_labels"]([uc], lambda u: [], label, labelled["INSPIRE_TABLE_SCOPES"])
+    title = normalize(uc["usecase"], uc["Name"])
+    assert title.count(label) == 1, f"the title keeps the typed spelling of {label!r}: {title!r}"
+    assert _composed_name(labelled, uc).count(label) == 1
+
+
+def test_a_label_already_typed_in_another_case_is_put_back_as_typed_by_the_title(labelled):
+    labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
+    labelled["DATA_FILTER_LABEL"]["text"] = "iPhone"
+    normalize = labelled["DatabricksInspire"]._normalize_usecase
+    assert normalize("Improve IPHONE sales", "") == "Improve iPhone Sales", "the normaliser's title case would give Iphone"
+
+
+def test_the_restore_matches_whole_words_only(agent_ns):
+    restore = agent_ns["restore_label_text"]
+    assert restore("Track uae fleet and uaeb routes", "UAE") == "Track UAE fleet and uaeb routes"
+    assert restore("no label here", "") == "no label here"
+
+
+def test_a_name_without_a_label_normalises_as_before(labelled):
+    normalize = labelled["DatabricksInspire"]._normalize_usecase
+    labelled["DATA_FILTER_LABEL"]["text"] = ""
+    assert normalize("predict churn for members of the club", "") == "Predict Churn for Members of the Club"
+    labelled["DATA_FILTER_LABEL"]["text"] = "iPhone"
+    assert normalize("predict churn for members", "") == "Predict Churn for Members"
