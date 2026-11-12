@@ -764,12 +764,12 @@ export function typedText(text, elapsedMs, wordsPerSecond = FEED_WORDS_PER_SECON
   const value = String(text || '');
   const tokens = value.split(/(\s+)/);
   const words = Math.max(0, Math.floor((Math.max(0, Number(elapsedMs) || 0) / 1000) * wordsPerSecond));
-  let shown = 0;
+  let typed = 0;
   let out = '';
   for (const token of tokens) {
     if (!/^\s+$/.test(token) && token) {
-      if (shown >= words) return out.trimEnd();
-      shown += 1;
+      if (typed >= words) return out.trimEnd();
+      typed += 1;
     }
     out += token;
   }

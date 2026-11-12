@@ -105,7 +105,11 @@ function makeApp(overrides = {}, { mount } = {}) {
         return { rows: state.history };
       }
       if (sql.includes('u.business_domain AS domain')) return { rows: state.useCaseScope || [] };
-      if (sql.includes('__inspire_usecases')) return { rows: state.useCase ? [state.useCase] : [] };
+      if (sql.includes('__inspire_usecases')) {
+        const asked = ((parameters || []).find((p) => p.name === 'uc') || {}).value;
+        const listed = (state.useCases || []).find((row) => asked !== undefined && String(row.id) === String(asked));
+        return { rows: listed ? [listed] : (state.useCase ? [state.useCase] : []) };
+      }
       if (sql.includes('_summary` WHERE use_case_id = :uc')) return { rows: state.moneySummary || [] };
       if (sql.includes('_assumptions` WHERE use_case_id = :uc')) return { rows: state.moneyEdits || [] };
       if (sql.includes('system.information_schema.catalogs') && !sql.includes('WITH o AS')) {

@@ -73,7 +73,7 @@ function submittedSpec(made) {
 test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
-  const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. App look', '8. Run it', '9. Review & build'];
+  const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build'];
   try {
     await goToStep(page, 'Data');
     await stepsAre(page, withApp);
@@ -1585,6 +1585,7 @@ test('a version saved while the App offered downloads retries its App and opens 
     await toDelivery(edit.page);
     await toAppAccess(edit.page);
     await goToStep(edit.page, 'App features');
+    await openRow(edit.page, 'what people can do in the App');
     const features = edit.page.getByRole('region', { name: 'App features' });
     assert.equal(await features.getByRole('checkbox', { name: /^Let people edit data/ }).isChecked(), true, 'the saved choices come back');
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
@@ -1846,11 +1847,8 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     await goToStep(never.page, 'Data');
     assert.equal(await never.page.locator('[data-wizard-header] h2').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
-    for (const label of ['First run', 'Measure', 'Where it lives', 'Who uses the App', 'App look', 'Run it']) {
-      if (label !== 'Data') {
-        await next(never.page);
-        await onStep(never.page, label);
-      }
+    for (const label of ['First run', 'Measure', 'Where it lives', 'Who uses the App', 'Page storage', 'App look', 'Run it']) {
+      await goToStep(never.page, label);
       assert.equal(await header.getByRole('heading', { level: 2 }).innerText(), HARNESS_USE_CASE.Name, label);
       assert.doesNotMatch(await header.innerText(), /\bID\b|N01-U01/, `${label}: the header shows no use case id (must-exclude)`);
     }
@@ -2000,7 +1998,7 @@ test('with a Genie Code route, the wizard walks the MVP steps and no note shows'
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
     await goToStep(ui.page, 'Data');
-    await stepsAre(ui.page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. App look', '8. Run it', '9. Review & build']);
+    await stepsAre(ui.page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build']);
     assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
   } finally {
     await ui.close();
