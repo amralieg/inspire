@@ -6,6 +6,7 @@ import { SkeletonCard } from '../components/SkeletonLoader';
 import LatestRunBadge from '../components/LatestRunBadge';
 import PortfolioCards, { usePortfolio } from '../components/PortfolioCards';
 import ValueBadge, { OverallValue } from '../components/ValueBadge';
+import { EstimateTotals } from '../components/ValueEstimateLine';
 import { valueChips, valueQuery } from '../lib/valueLedger';
 import { useValueRead } from '../lib/useValueLedger';
 import { makeApiFetch, requestHeaders } from '../lib/apiClient';
@@ -24,6 +25,13 @@ const STATUS_CONFIG = {
   starting: { label: 'Starting', bg: 'bg-info-bg', text: 'text-info-fg', dot: 'bg-info' },
   quiet:    { label: 'No news', bg: 'bg-bg-subtle', text: 'text-text-secondary', dot: 'bg-text-tertiary' },
 };
+
+// REQ-078: the run's estimate for its use cases with no measured value, kept apart from its measured total (same route as Review).
+function RunEstimateTotals({ apiFetch, inspireDatabase, warehouseId, sessionId }) {
+  const read = useValueRead(apiFetch, `/api/inspire/value/estimates?${valueQuery(inspireDatabase, warehouseId, { session_id: String(sessionId) })}`);
+  if (!read?.totals) return null;
+  return <EstimateTotals totals={read.totals} className="mt-1" />;
+}
 
 function formatDate(dateStr) {
   if (!dateStr) return '';
@@ -492,6 +500,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                               ) : (
                                 <p data-run-value-state="not-calculated" className="text-xs leading-snug text-text-secondary">Not calculated</p>
                               )}
+                              {valueReady && <RunEstimateTotals apiFetch={apiFetch} inspireDatabase={inspireDatabase} warehouseId={warehouseId} sessionId={sidStr} />}
                             </div>
                           )}
                           {counts.note && <p data-run-counts-note="" className="mt-1.5 text-[11px] text-text-secondary">{counts.note}</p>}

@@ -459,12 +459,15 @@ test('a Start run with MVPs building shows a spinner, its building count and a G
 
 const RC10_VALUE_OVERALL = { at_stake: [{ kind: 'money', unit: 'AED', amount: 12000 }], saved: [], runs: 6, businesses: 3 };
 const RC10_VALUE_RUNS = { runs: { 42: { at_stake: [{ kind: 'money', unit: 'AED', amount: 9000 }], saved: [], mvps_measured: 2 } } };
+// REQ-078: the run's use cases with no measured value are estimated, and the total is kept apart from the measured one.
+const RC10_VALUE_ESTIMATES = { use_cases: {}, totals: { estimated: { AED: 3000 } } };
 const RC10_STATS_TOGGLE = 'Across all runs in this Inspire Database';
 const rc10Mount = (app) => {
   app.get('/api/defaults', (_req, res) => res.json(DEFAULTS));
   app.get('/api/showcase', (_req, res) => res.json(DEMO_LIST));
   app.get('/api/inspire/value/overall', (_req, res) => res.json(RC10_VALUE_OVERALL));
   app.get('/api/inspire/value/runs', (_req, res) => res.json(RC10_VALUE_RUNS));
+  app.get('/api/inspire/value/estimates', (_req, res) => res.json(RC10_VALUE_ESTIMATES));
 };
 const boxOf = (page, selector) => page.locator(selector).boundingBox();
 
@@ -530,6 +533,23 @@ test('REQ-095 Value across runs sits above the all-runs stats, and the stats col
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click().catch(() => {});
     await page.getByRole('button', { name: RC10_STATS_TOGGLE }).waitFor({ timeout: 20000 });
     assert.equal(await page.getByRole('button', { name: RC10_STATS_TOGGLE }).getAttribute('aria-expanded'), 'false', 'the collapsed choice is remembered');
+    assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('REQ-078 a run card says measured X + estimated Y: the estimate sits beside its own measured total, labelled as not measured', async () => {
+  const ui = await openUi('app', REVIEW_STATE, '', { mount: rc10Mount });
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
+    await page.locator('[data-run="42"] [data-value-headline="at stake"]').waitFor({ timeout: 20000 });
+    const estimated = page.locator('[data-run="42"] [data-value-estimated-total]');
+    await estimated.waitFor({ timeout: 20000 });
+    assert.equal((await estimated.innerText()).trim(), 'Plus estimated, not measured: 3,000 AED');
+    assert.equal(await page.locator('[data-run="42"] [data-value-headline="at stake"]').innerText().then((t) => t.trim()), 'AED 9K', 'the measured total is still shown on its own');
     assert.deepEqual(ui.pageErrors.filter((e) => !/status of 500/.test(e)), []);
   } finally {
     await ui.close();
