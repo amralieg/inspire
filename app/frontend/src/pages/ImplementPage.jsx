@@ -550,7 +550,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
             !listLoading && !listError && <p className={`${PANEL_CLASS} p-6 text-[12px] text-text-secondary`}>This session has no use cases yet.</p>
           )}
         </section>
-      <div ref={setProgressDock} data-progress-dock="" className="hidden empty:hidden md:flex md:fixed md:top-14 md:right-0 md:z-30 md:h-[calc(100dvh-3.5rem)]" />
+      <div ref={setProgressDock} data-progress-dock="" className="hidden empty:hidden md:flex md:fixed md:top-14 md:end-0 md:z-30 md:h-[calc(100dvh-3.5rem)]" />
       </div>
       </ProgressDock.Provider>
       {wizard && !readOnly && (
