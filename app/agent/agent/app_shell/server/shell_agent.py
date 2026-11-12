@@ -1608,8 +1608,10 @@ class Agent:
         return {"actions": actions, "applied": "the page shows these changes now, the person can undo them, and they last until the page "
                                                   "reloads; Save this view under Saved views keeps them"}
 
-    def listing(self, job: dict, args: dict, limit: int) -> dict:
-        data = {"page": job["page"]["id"], "filters": args.get("filters") or {}, "limit": limit, "window": "all"}
+    def listing(self, job: dict, args: dict, limit: int, window: str = "all") -> dict:
+        data = {"page": job["page"]["id"], "filters": args.get("filters") or {}, "limit": limit}
+        if window:
+            data["window"] = window
         if args.get("column_filters"):
             data[shell_sql.COLUMN_FILTERS] = {str(k): strings(v) if isinstance(v, list) else v for k, v in args["column_filters"].items()}
         if args.get("search"):
@@ -1629,7 +1631,7 @@ class Agent:
 
     def tool_find_records(self, turn: Turn, job: dict, args: dict) -> dict:
         limit = args.get("limit") if isinstance(args.get("limit"), int) and 1 <= args["limit"] <= FIND_ROWS else FIND_ROWS
-        found = self.listing(job, args, limit)
+        found = self.listing(job, args, limit, window="")
         rows = [self.row_view(job["page"], r) for r in found["rows"]]
         turn.listed = [{"record_key": r["record_key"], "label": r.get((job["page"].get("records") or {}).get("label")) or r["record_key"]}
                        for r in rows]
