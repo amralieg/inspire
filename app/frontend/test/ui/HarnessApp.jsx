@@ -238,7 +238,7 @@ function WizardOnly({ discoveryType, step, onImplemented }) {
   if (closed) return <p>The wizard is closed.</p>;
   return (
     <ImplementWizard
-      uc={HARNESS_USE_CASE}
+      uc={new URLSearchParams(window.location.search).get('noTable') ? { ...HARNESS_USE_CASE, primary_table: '', tables_involved: '' } : HARNESS_USE_CASE}
       sessionId={HARNESS_SESSION_ID}
       settings={SETTINGS}
       discoveryType={discoveryType}

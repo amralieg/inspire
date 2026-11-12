@@ -909,3 +909,20 @@ test('Data groups on a 20-column table shows the pick and the top cards with the
     await narrow.close();
   }
 });
+
+test('a use case that names no main table sends no grouping profile request, reports no page error, and says why in the scope step', async () => {
+  const requests = [];
+  const noTable = { ...HARNESS_USE_CASE, primary_table: '', tables_involved: '' };
+  const ui = await openUi('wizard', { me: ME, useCase: noTable }, '&noTable=1', {
+    init: (page) => page.on('request', (r) => { if (r.url().includes('/api/grouping/profile')) requests.push(r.method()); }),
+  });
+  const { page, pageErrors } = ui;
+  try {
+    await toStep(page, 'First run');
+    await page.getByText(/names no main table as catalog\.schema\.table, so Inspire cannot read it for Data groups\./).waitFor({ timeout: 20000 });
+    assert.deepEqual(requests, [], 'no grouping profile is requested for a use case with no main table (must-exclude the 400)');
+    assert.deepEqual(pageErrors, [], 'no page error or console 400 reaches the page');
+  } finally {
+    await ui.close();
+  }
+});
