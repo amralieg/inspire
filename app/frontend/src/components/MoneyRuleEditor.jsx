@@ -75,7 +75,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
   const show = (name) => !onlyPart || onlyPart === name;
   const [draft, setDraft] = useState(() => ({ ...draftOf({ ...(value || {}), currency: 'convert', base: value?.base || '', rates: value?.rates || {} }), mode: 'convert', rateSource: 'typed' }));
   const [pick, setPick] = useState(() => ({ ...pickOf(value?.value) }));
-  const [signPick, setSignPick] = useState(() => ({ kind: value?.sign?.kind || '', column: value?.sign?.column || '', value: value?.sign?.value || '' }));
+  const [signPick, setSignPick] = useState(() => ({ kind: value?.sign?.kind || '', column: value?.sign?.column || '', value: value?.sign?.value || '', losses: (value?.sign?.losses || []).join(', ') }));
   const [problems, setProblems] = useState([]);
   const [notice, setNotice] = useState('');
   const [preview, setPreview] = useState(null);
@@ -96,7 +96,8 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
     setSignPick(next);
     const column = next.column.trim();
     const ready = COLUMN.test(column) && (next.kind === 'column' || (next.kind === 'status' && next.value.trim() !== ''));
-    setDraftPart({ sign: !ready ? null : next.kind === 'column' ? { kind: 'column', column } : { kind: 'status', column, value: next.value.trim() } });
+    const losses = next.losses.split(',').map((v) => v.trim()).filter(Boolean);
+    setDraftPart({ sign: !ready ? null : next.kind === 'column' ? { kind: 'column', column } : { kind: 'status', column, value: next.value.trim(), losses } });
   };
   const setDraftPart = (patch) => { const next = { ...draft, ...patch }; setDraft(next); save(next, pick); };
   const setPickPart = (patch) => { const next = { ...pick, ...patch }; setPick(next); save(draft, next); };
@@ -278,6 +279,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
                 <option value="">Pick a column</option>{columns.map((name) => <option key={name} value={name}>{name}</option>)}
               </select></label>
               <label className="block">Status value that marks a gain <input className="ms-2 w-40" dir="auto" value={signPick.value} onChange={(e) => pickSign({ value: e.target.value })} data-money-sign-value /></label>
+              <label className="block">Statuses that mark a loss, comma-separated (any other status counts neither) <input className="ms-2 w-56" dir="auto" value={signPick.losses} onChange={(e) => pickSign({ losses: e.target.value })} data-money-sign-losses /></label>
             </div>
           )}
           {!draft.sign && <p className="text-text-secondary" data-money-sign-needed>Gains only needs a sign: name the column whose positive values are gains, or the status value that marks a gain.</p>}

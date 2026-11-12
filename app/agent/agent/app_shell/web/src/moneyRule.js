@@ -32,11 +32,15 @@ function signProblemsOf(sign) {
   if (!plain(sign) || !SIGN_KINDS.includes(sign.kind)) return [`the gain sign is a column or a status: one of ${SIGN_KINDS.join(', ')}`];
   if (typeof sign.column !== 'string' || !COLUMN.test(sign.column)) return ['the gain sign names a plain column name'];
   if (sign.kind === 'status' && (typeof sign.value !== 'string' || !STATUS_WORD.test(sign.value))) return ['the gain status is a plain status word such as gain'];
+  if (sign.kind === 'status' && sign.losses !== undefined) {
+    if (!Array.isArray(sign.losses) || sign.losses.length > 20 || !sign.losses.every((v) => typeof v === 'string' && STATUS_WORD.test(v))) return ['the loss statuses are plain status words, such as used'];
+    if (sign.losses.includes(sign.value)) return ['a status cannot be both a gain and a loss'];
+  }
   return [];
 }
 
 function signCleanOf(sign) {
-  return sign.kind === 'column' ? { kind: 'column', column: sign.column } : { kind: 'status', column: sign.column, value: sign.value };
+  return sign.kind === 'column' ? { kind: 'column', column: sign.column } : { kind: 'status', column: sign.column, value: sign.value, losses: [...new Set(sign.losses || [])].sort() };
 }
 const plain = (value) => value !== null && typeof value === 'object' && !Array.isArray(value);
 

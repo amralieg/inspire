@@ -755,8 +755,8 @@ def test_gains_counts_the_magnitude_of_the_rows_a_status_marks_as_gains():
 def test_losses_with_a_status_sign_counts_the_other_rows_and_never_the_gains():
     money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "losses",
              "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
-             "sign": {"kind": "status", "column": "channel", "value": "agent"}}
-    assert round(_value_total(money), 6) == 71.0, "AED 100 at 0.27 + EUR 40 at 1.1; the agent row is a gain, not a loss"
+             "sign": {"kind": "status", "column": "channel", "value": "agent", "losses": ["web"]}}
+    assert round(_value_total(money), 6) == 71.0, "AED 100 at 0.27 + EUR 40 at 1.1: the web rows the person listed as losses"
 
 
 def test_gains_by_a_positive_column_counts_the_rows_where_that_column_is_positive():
@@ -780,17 +780,56 @@ def test_gains_without_a_sign_is_refused_by_the_server_with_a_plain_reason():
     assert problems and "gains needs a sign" in problems[0]
 
 
-def test_on_mixed_data_gains_and_losses_are_different_totals_and_net_is_gains_minus_losses():
+def _mixed_total(money, rows, what="now"):
+    page = dict(PAGE, datasets=[{"name": "rows", "sql": "SELECT * FROM value_rows"}], money=money)
+    tuples = [tuple(r[c] for c in VALUE_COLUMNS) for r in rows]
+    return shell_sql.kpi_values(_run(shell_sql.kpi_query(page, "exposure", {})[0], "value_rows", VALUE_COLUMNS, tuples))[what]
+
+
+MIXED_SIGN_ROWS = [
+    {"quantity": 2, "unit_price": 60.0, "discount": 10.0, "amount": 100.0, "currency_code": "AED", "channel": "web", "event_month": CLOSED, "value_at_stake": 999.0},
+    {"quantity": 1, "unit_price": 50.0, "discount": 0.0, "amount": 40.0, "currency_code": "EUR", "channel": "web", "event_month": CLOSED, "value_at_stake": 999.0},
+    {"quantity": 3, "unit_price": 20.0, "discount": -5.0, "amount": 30.0, "currency_code": "USD", "channel": "agent", "event_month": CLOSED, "value_at_stake": 999.0},
+    {"quantity": 1, "unit_price": 20.0, "discount": None, "amount": 20.0, "currency_code": "EUR", "channel": "agent", "event_month": CLOSED, "value_at_stake": 999.0},
+]
+
+
+def test_a_column_sign_splits_gains_from_losses_and_zero_is_neither_and_a_null_sign_is_unrated():
     base = {"currency": "convert", "base": "USD", "rates": VALUE_RATES,
             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
             "sign": {"kind": "column", "column": "discount"}}
-    gains = _value_total(dict(base, rule="gains"))
-    losses = _value_total(dict(base, rule="losses"))
-    net = _value_total(dict(base, rule="net"))
-    assert gains == round(gains, 6) and round(gains, 6) == 57.0, "discount is positive on AED and USD: AED 100 at 0.27 + USD 30"
-    assert round(losses, 6) == 44.0, "the EUR row has no discount, so it is a loss: EUR 40 at 1.1"
+    gains = _mixed_total(dict(base, rule="gains"), MIXED_SIGN_ROWS)
+    losses = _mixed_total(dict(base, rule="losses"), MIXED_SIGN_ROWS)
+    net = _mixed_total(dict(base, rule="net"), MIXED_SIGN_ROWS)
+    assert round(gains, 6) == 27.0, "the positive discount row: AED 100 at 0.27; the zero row is neither"
+    assert round(losses, 6) == 30.0, "the negative discount row: USD 30"
     assert gains != losses, "gains and losses are different totals on mixed data"
-    assert round(net, 6) == 13.0, "net is gains minus losses"
+    assert round(net, 6) == -3.0, "net is gains minus losses"
+
+
+def test_the_null_sign_row_is_counted_as_unrated_in_the_left_out_line_and_never_as_a_loss():
+    money = {"currency": "convert", "base": "USD", "rates": VALUE_RATES, "rule": "losses",
+             "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+             "sign": {"kind": "column", "column": "discount"}}
+    sql, _params = shell_sql.money_left_out(_value_page_plain(money), {"dataset": "rows", "id": "exposure"}, {})
+    tuples = [tuple(r[c] for c in VALUE_COLUMNS) for r in MIXED_SIGN_ROWS]
+    assert _run(sql, "value_rows", VALUE_COLUMNS, tuples)[0]["unrated"] == 1
+
+
+def test_a_status_sign_counts_its_gain_status_and_its_listed_loss_statuses_and_any_other_status_is_neither():
+    rows = [dict(r, channel=c) for r, c in zip(MIXED_SIGN_ROWS, ["web", "web", "agent", "other"])]
+    base = {"currency": "convert", "base": "USD", "rates": VALUE_RATES,
+            "value": {"method": "column", "column": "amount", "currency_column": "currency_code"},
+            "sign": {"kind": "status", "column": "channel", "value": "agent", "losses": ["web"]}}
+    assert round(_mixed_total(dict(base, rule="gains"), rows), 6) == 30.0, "the agent row, USD 30"
+    assert round(_mixed_total(dict(base, rule="losses"), rows), 6) == 71.0, "the web rows: AED 27 and EUR 44"
+    assert round(_mixed_total(dict(base, rule="net"), rows), 6) == -41.0, "gains minus losses"
+
+
+def test_a_status_cannot_be_both_a_gain_and_a_loss():
+    problems = shell_sql.money_rule_problems({"currency": "per_currency", "rule": "gains",
+                                              "sign": {"kind": "status", "column": "channel", "value": "agent", "losses": ["agent"]}})
+    assert problems and "both a gain and a loss" in problems[0]
 
 
 def test_a_saved_value_with_no_currency_filter_is_converted_in_its_own_currency_and_never_dropped():

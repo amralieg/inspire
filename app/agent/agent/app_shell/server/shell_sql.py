@@ -2567,13 +2567,19 @@ def money_sign_problems(sign) -> list:
         return ["the gain sign names a plain column name"]
     if sign["kind"] == "status" and not (isinstance(sign.get("value"), str) and MONEY_STATUS_RE.fullmatch(sign["value"])):
         return ["the gain status is a plain status word such as gain"]
+    if sign["kind"] == "status" and "losses" in sign:
+        losses = sign["losses"]
+        if not isinstance(losses, list) or len(losses) > MONEY_MAX_STATUSES or not all(isinstance(v, str) and MONEY_STATUS_RE.fullmatch(v) for v in losses):
+            return ["the loss statuses are plain status words, such as used"]
+        if sign.get("value") in losses:
+            return ["a status cannot be both a gain and a loss"]
     return []
 
 
 def money_sign_clean(sign: dict) -> dict:
     if sign["kind"] == "column":
         return {"kind": "column", "column": sign["column"]}
-    return {"kind": "status", "column": sign["column"], "value": sign["value"]}
+    return {"kind": "status", "column": sign["column"], "value": sign["value"], "losses": sorted(set(sign.get("losses") or []))}
 
 
 def money_value_problems(value) -> list:
@@ -2716,23 +2722,35 @@ def money_scope(page: dict, dataset: str) -> dict:
             "currency_filter": currency}
 
 
+def money_sign_column(sign) -> str:
+    return quote(sign["column"])
+
+
 def money_gain_predicate(sign) -> str:
     if sign["kind"] == "column":
-        return f"CAST({quote(sign['column'])} AS DOUBLE) > 0"
-    return f"{quote(sign['column'])} = {sql_text(sign['value'])}"
+        return f"CAST({money_sign_column(sign)} AS DOUBLE) > 0"
+    return f"{money_sign_column(sign)} = {sql_text(sign['value'])}"
+
+
+def money_loss_predicate(sign) -> str:
+    if sign["kind"] == "column":
+        return f"CAST({money_sign_column(sign)} AS DOUBLE) < 0"
+    losses = sign.get("losses") or []
+    return f"{money_sign_column(sign)} IN ({', '.join(sql_text(v) for v in losses)})" if losses else "FALSE"
 
 
 def money_direction_amount(amount: str, direction: str, sign=None) -> str:
     """The amount a direction counts. The saved value is a magnitude. With no sign, losses counts every magnitude and net keeps the
-    value's own sign. With a sign, a gain row is one the sign marks as a gain and every other row is a loss: gains counts the gain rows,
-    losses counts the rest, and net is gains minus losses. A NULL amount stays NULL, so a row without a value is unrated, not a zero."""
+    value's own sign. With a sign: a gain row is one the sign marks as a gain, a loss row one it marks as a loss, and every other row
+    counts zero. Gains counts the gain rows, losses counts the loss rows, and net is gains minus losses. A NULL amount, or a NULL sign on
+    a column sign, is unrated: it is left out of every total and counted in the left-out line."""
     magnitude = f"GREATEST({amount}, 0)"
     if sign is None:
         return amount if direction == "net" else f"CASE WHEN {amount} IS NULL THEN NULL ELSE {magnitude} END"
-    gain = money_gain_predicate(sign)
-    gained, lost = magnitude, f"-{magnitude}"
-    branches = {"gains": (gained, "0"), "losses": ("0", magnitude), "net": (gained, lost)}[direction]
-    return f"CASE WHEN {amount} IS NULL THEN NULL WHEN {gain} THEN {branches[0]} ELSE {branches[1]} END"
+    unrated = f"{amount} IS NULL" + (f" OR {money_sign_column(sign)} IS NULL" if sign["kind"] == "column" else "")
+    on_gain, on_loss = {"gains": (magnitude, "0"), "losses": ("0", magnitude), "net": (magnitude, f"-{magnitude}")}[direction]
+    return (f"CASE WHEN {unrated} THEN NULL WHEN {money_gain_predicate(sign)} THEN {on_gain} "
+            f"WHEN {money_loss_predicate(sign)} THEN {on_loss} ELSE 0 END")
 
 
 VALUE_CURRENCY = "_inspire_value_currency"
