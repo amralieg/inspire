@@ -1018,7 +1018,11 @@ RUN_AS_NEEDS_SCHEMA = ("RUN_AS_PERSON needs INSPIRE_SCHEMA: run-as-me installs i
                        "INSPIRE_SCHEMA to catalog.schema and run the installer again.")
 
 
-def discovery_job_settings(notebook_path, person):
+TEST_TAG_JOB_KEY = "dbx_inspire_ai_test"  # INSPIRE_TEST_TAG in app/backend/lib/inspireJobParams.js
+TEST_TAG_SAFE = re.compile(r"[A-Za-z0-9+=.:@_-]{1,256}")
+
+
+def discovery_job_settings(notebook_path, person, test_tag=""):
     """The discovery job the App starts with run-now. `run_as` is the person: Databricks runs a job as its run_as identity
     whoever triggers it (Jobs API reference, Create a job, field run_as; the leak scan blocks the docs host, so the URL is not in code). The App's service principal
     then needs only CAN_MANAGE_RUN on the job, so it never creates a job and never runs one as itself."""
@@ -1033,6 +1037,7 @@ def discovery_job_settings(notebook_path, person):
         }],
         "environments": [{"environment_key": JOB_ENVIRONMENT_KEY, "spec": {"environment_version": JOB_ENVIRONMENT_VERSION}}],
         "max_concurrent_runs": 1,
+        **({"tags": {TEST_TAG_JOB_KEY: test_tag}} if test_tag else {}),
     }
 
 
@@ -1054,7 +1059,10 @@ def step_run_as_jobs(ctx):
     if not ctx.get("SCHEMA_MODE"):
         raise RuntimeError(RUN_AS_NEEDS_SCHEMA)
     api, api_get, person = ctx["api"], ctx["api_get"], ctx["USER_EMAIL"]
-    settings = discovery_job_settings(ctx["NOTEBOOK_PATH"], person)
+    test_tag = str(ctx.get("TEST_TAG") or "")
+    if test_tag and not TEST_TAG_SAFE.fullmatch(test_tag):
+        raise RuntimeError(f"The test tag {test_tag[:60]!r} has characters a job tag cannot hold. Use letters, digits and + = . : @ _ -.")
+    settings = discovery_job_settings(ctx["NOTEBOOK_PATH"], person, test_tag)
     listed = api_get(f"/api/2.1/jobs/list?name={urllib.parse.quote(DISCOVERY_JOB_NAME)}&limit=100")
     existing = [job for job in listed.get("jobs") or [] if (job.get("settings") or {}).get("name") == DISCOVERY_JOB_NAME
                 and ((job.get("settings") or {}).get("run_as") or {}).get("user_name") == person]

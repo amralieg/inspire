@@ -2023,3 +2023,22 @@ class RunAsTest(unittest.TestCase):
             without = setup.write_app_yaml_deploy(path, "my.inspire", "wh", "/n", "sp", None, None, None)
         self.assertIn('  - name: "INSPIRE_JOB_ID_DISCOVER"\n    value: "77"', with_jobs)
         self.assertNotIn("INSPIRE_JOB_ID_DISCOVER", without)
+
+
+class RunAsJobSettingsTest(unittest.TestCase):
+    """The installer sets what the App used to set on each run's job: the serverless environment, the notebook and the test tag."""
+
+    def test_the_discovery_job_carries_the_environment_notebook_and_test_tag(self):
+        settings = setup.discovery_job_settings("/Users/someone@example.com/n", "someone@example.com", "inspire-rc4")
+        self.assertEqual(settings["environments"], [{"environment_key": "Default", "spec": {"environment_version": "4"}}])
+        self.assertEqual(settings["tasks"][0]["notebook_task"]["notebook_path"], "/Users/someone@example.com/n")
+        self.assertEqual(settings["tags"], {"dbx_inspire_ai_test": "inspire-rc4"})
+        self.assertNotIn("tags", setup.discovery_job_settings("/n", "p", ""))
+
+    def test_an_unsafe_test_tag_is_refused_before_a_job_is_written(self):
+        calls = []
+        ctx = {"RUN_AS_PERSON": True, "SCHEMA_MODE": True, "NOTEBOOK_PATH": "/n", "USER_EMAIL": "p", "TEST_TAG": "bad tag!",
+               "api": lambda m, p, b=None: calls.append(p) or Resp(200, {}), "api_get": lambda p: {"jobs": []}}
+        with self.assertRaises(RuntimeError):
+            setup.step_run_as_jobs(ctx)
+        self.assertEqual(calls, [])

@@ -121,6 +121,12 @@ async function jsonOf(dbFetch, host, token, path, opts = {}) {
   return { ok: resp.ok, status: resp.status, data };
 }
 
+/** Run-as-me: the installer owns the job's settings (the job runs as you), so the App does not change them on a rerun. */
+async function alignJobSettingsUnlessRunAs(align, host, token, jobId, env = process.env) {
+  if (runAsPerson(env)) return '';
+  return align(host, token, jobId);
+}
+
 function registerImplementRoutes(app, deps) {
   const {
     requireToken,
@@ -2213,8 +2219,7 @@ function registerImplementRoutes(app, deps) {
       await refusePersonUnreadable(req, latest.spec_json, useCase);
       await refuseMissingSources(req, warehouseId, latest.spec_json, useCase);
       const jobId = requireInt64Id(latest.job_id, 'job_id');
-      // Run-as-me: the installer owns the job's settings (the job runs as you), so the App does not change them.
-      const warning = runAsPerson() ? '' : await alignJobSettings(req.dbHost, req.dbToken, jobId);
+      const warning = await alignJobSettingsUnlessRunAs(alignJobSettings, req.dbHost, req.dbToken, jobId);
       const viewer = await grantJobViewer(dbFetch, req.dbHost, req.dbToken, jobId, (await personOf(req)).username);
       const resp = await dbFetch(req.dbHost, req.dbToken, '/api/2.1/jobs/run-now', {
         method: 'POST',
@@ -2246,4 +2251,4 @@ function registerImplementRoutes(app, deps) {
   return { loadHistory };
 }
 
-module.exports = { jsonOf, registerImplementRoutes };
+module.exports = { jsonOf, registerImplementRoutes, alignJobSettingsUnlessRunAs };

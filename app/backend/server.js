@@ -403,11 +403,27 @@ async function listTablesSql(host, token, warehouseId, catalog, schema) {
   }
 }
 
+// The App's own credentials as this process sees them now. getToken reads them through this seam, so a test can pass others.
+function currentAppTokens() {
+  return {
+    production: process.env.NODE_ENV === 'production',
+    serviceToken: SERVICE_TOKEN,
+    spCredentials: Boolean(SP_CLIENT_ID && SP_CLIENT_SECRET),
+    spTokenFresh: spOAuthTokenStillFresh(),
+    spTokenCached: spTokenCache,
+    runAs: runAsPerson(),
+  };
+}
+
 // Synchronous token resolution — uses pre-warmed cached token.
 function getToken(req) {
+  return tokenFor(req, currentAppTokens());
+}
+
+function tokenFor(req, app) {
   // Local dev: PAT from .env wins over browser headers so rotating DATABRICKS_TOKEN works without clearing localStorage.
-  if (process.env.NODE_ENV !== 'production' && SERVICE_TOKEN) {
-    return SERVICE_TOKEN;
+  if (!app.production && app.serviceToken) {
+    return app.serviceToken;
   }
 
   // 1) Explicit PAT from frontend header
@@ -424,22 +440,22 @@ function getToken(req) {
   const forwardedClean = forwardedTokenOf(req);
 
   // Run-as-me: requests act as the signed-in person, so their SQL, files, UC and Genie calls use the forwarded user token.
-  if (runAsPerson() && forwardedClean) return forwardedClean;
+  if (app.runAs && forwardedClean) return forwardedClean;
 
   // 3–5) Databricks App (production + SP): prefer static / SP token over x-forwarded-access-token.
   // Delegated user tokens expire; Inspire Results/SQL should keep working on the app service principal.
-  const spBackedApp = process.env.NODE_ENV === 'production' && SP_CLIENT_ID && SP_CLIENT_SECRET;
+  const spBackedApp = app.production && app.spCredentials;
   if (spBackedApp) {
-    if (SERVICE_TOKEN) return SERVICE_TOKEN;
-    if (spOAuthTokenStillFresh()) return spTokenCache;
-    if (spTokenCache) return spTokenCache;
+    if (app.serviceToken) return app.serviceToken;
+    if (app.spTokenFresh) return app.spTokenCached;
+    if (app.spTokenCached) return app.spTokenCached;
     if (forwardedClean) return forwardedClean;
     return null;
   }
 
   if (forwardedClean) return forwardedClean;
-  if (SERVICE_TOKEN) return SERVICE_TOKEN;
-  if (spTokenCache) return spTokenCache;
+  if (app.serviceToken) return app.serviceToken;
+  if (app.spTokenCached) return app.spTokenCached;
 
   return null;
 }
@@ -3184,7 +3200,7 @@ if (fs.existsSync(STATIC_DIR)) {
 // Pre-warm SP token BEFORE listening so the first request already has a valid token.
 const PORT = process.env.PORT || 8080;
 
-module.exports = { app, registeredRoutes: routePolicyRoutes.registered, getToken };
+module.exports = { app, registeredRoutes: routePolicyRoutes.registered, getToken, tokenFor };
 
 if (require.main === module) (async () => {
   redactCrashes();
