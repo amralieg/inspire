@@ -426,7 +426,7 @@ export default function ImplementWizard({
   const [errors, setErrors] = useState([]);
   const [attempted, setAttempted] = useState({ data: false, delivery: false });
   const [checking, setChecking] = useState('');
-  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false, fresh: false });
+  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false, fresh: false, app_pages: false });
   const [details, setDetails] = useState(false);
   const [lookView, setLookView] = useState({ tab: 'style', page: 'fix' });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -1910,7 +1910,7 @@ export default function ImplementWizard({
         )}
 
         {shows('app_pages') && (
-          <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView}
+          <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView} open={advanced.app_pages} onToggle={() => toggleAdvanced('app_pages')}
             onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
         )}
 
@@ -2929,8 +2929,9 @@ function LookCard({ name, value, checked, onChange, label, best = null, blurb = 
   );
 }
 
-function AppPagesStep({ spec, look, onPage, view: lookView, onView }) {
+function AppPagesStep({ spec, look, onPage, view: lookView, onView, open = false, onToggle = null }) {
   const pages = appPagesOf(spec);
+  const onPages = pages.filter((p) => p.on).map((p) => p.label);
   const pageId = lookView.page;
   const shownPage = pages.some((p) => p.id === pageId && p.on) ? pageId : 'fix';
   const setPageId = (next) => onView({ ...lookView, page: next });
@@ -2938,6 +2939,7 @@ function AppPagesStep({ spec, look, onPage, view: lookView, onView }) {
   const perUserAlerts = pages.find((p) => p.id === 'alerts')?.off;
   return (
     <section className="space-y-2" aria-label="App pages">
+      <Advanced open={open} onToggle={onToggle} what="App pages" summary={`${onPages.length} pages on: ${onPages.join(', ')}`}>
         <fieldset className="space-y-2">
           <legend className={LEGEND}>Pages</legend>
           <p className="text-[11px] text-text-secondary">{APP_PAGES_NOTE} Pick a page to see it in the App look sample.</p>
@@ -2964,6 +2966,7 @@ function AppPagesStep({ spec, look, onPage, view: lookView, onView }) {
           <p data-page-blurb="" className="text-[11px] leading-snug text-text-secondary">{pages.find((p) => p.id === shownPage).blurb}</p>
           {perUserAlerts && <p className="text-[11px] leading-snug text-text-tertiary">Alerts are off: {PER_USER_REASON}</p>}
         </fieldset>
+      </Advanced>
     </section>
   );
 }
