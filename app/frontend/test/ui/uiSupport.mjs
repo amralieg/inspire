@@ -609,3 +609,9 @@ export async function goToStorage(page) {
   await goToStep(page, 'Page storage');
   return page.getByRole('group', { name: 'How fast do the App\'s pages open?' });
 }
+
+export async function onMoneyPart(page, part) {
+  const current = `li[data-money-current] [data-money-part="${part}"]`;
+  for (let i = 0; i < 5 && !(await page.locator(current).count()); i += 1) await page.locator('[data-money-next]').click();
+  await page.locator(current).waitFor({ timeout: 15000 });
+}

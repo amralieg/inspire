@@ -209,7 +209,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
               <p className="text-text-primary" data-money-describe-explanation>{pick.explanation}</p>
               <p className="text-text-secondary" data-money-describe-rule>{`Proposed rule: ${ruleTextOf(pick.proposal)}`}</p>
               {proposalRows && <ol className="list-decimal ps-5" data-money-describe-rows>{proposalRows.map((row, i) => <li key={i}>{`${shownAmount(row.stake)} ${row.currency}`}</li>)}</ol>}
-              <button type="button" className="lnk" onClick={useProposal} data-money-describe-use>Use this rule</button>
+              <button type="button" className="lnk" onClick={useProposal} data-money-describe-use data-draft-change="">Use this rule</button>
             </div>
           )}
         </div>

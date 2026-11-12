@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, openUi, profileAt, stubMoney as stub } from './uiSupport.mjs';
+import { closeBrowser, goToStep, onMoneyPart, openUi, profileAt, stubMoney as stub } from './uiSupport.mjs';
 import { GROUPING_PROFILE, LIVE_RATES, MONEY_PROFILE } from './implementFixtures.js';
 
 test.after(closeBrowser);
@@ -50,6 +50,7 @@ test('the Measure step asks how the value of each record is measured, with four 
     assert.match(await page.locator('[data-measure-value] legend').innerText(), /How does your business measure the value of each record\?/);
     assert.equal(await page.locator('[data-money-method]').count(), 4);
     assert.equal(await page.locator('[data-money-mode]').count(), 0, 'the old per-currency and convert radios are gone');
+    await onMoneyPart(page, 'window');
     assert.equal(await page.locator('[data-money-more] summary').innerText(), 'More options');
   } finally {
     await page.context().close();
@@ -109,6 +110,7 @@ test('the reporting currency is the data main currency, its rates show today’s
   const ui = await openMeasure();
   const { page } = ui;
   try {
+    await onMoneyPart(page, 'currency');
     assert.equal(await page.locator('[data-money-base]').inputValue(), 'AED');
     const usd = page.locator('[data-money-rate-row="USD"]');
     assert.match(await usd.locator('[data-money-rate-source]').innerText(), /today/);
@@ -124,6 +126,7 @@ test('with no internet the rates are the saved averages, and one line says so', 
   const ui = await openMeasure({ rates: OFFLINE_RATES });
   const { page } = ui;
   try {
+    await onMoneyPart(page, 'currency');
     assert.match(await page.locator('[data-money-rates-notice]').innerText(), /No internet: every rate is the saved historical average/);
     assert.match(await page.locator('[data-money-rate-row="EUR"] [data-money-rate-source]').innerText(), /ECB average, 2025/);
   } finally {
@@ -135,6 +138,7 @@ test('which movement counts is one plain question, and both gains and losses net
   const ui = await openMeasure();
   const { page } = ui;
   try {
+    await onMoneyPart(page, 'direction');
     await page.locator('[data-money-rule-kind="net"]').check();
     await page.waitForFunction(() => /netted/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
     assert.equal(await page.locator('[data-money-rule-kind="net"]').isChecked(), true);
@@ -185,6 +189,7 @@ test('a slow rates reply for the same reporting currency does not overwrite a ra
   const ui = await openMeasure({ calls, init: plannedStub('currency-rates', (n) => (n <= 1 ? { answer: LIVE_RATES } : { answer: LIVE_RATES, delay: 2000 }), calls.currency) });
   const { page } = ui;
   try {
+    await onMoneyPart(page, 'currency');
     await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').waitFor({ timeout: 15000 });
     await page.locator('[data-money-base]').blur();
     await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').fill('0.5');
@@ -202,6 +207,7 @@ test('a rate typed for one reporting currency is dropped when the reporting curr
   const ui = await openMeasure({ calls, init: plannedStub('currency-rates', (n) => (n <= 1 ? { answer: LIVE_RATES } : { answer: eurBase }), calls.currency) });
   const { page } = ui;
   try {
+    await onMoneyPart(page, 'currency');
     await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').waitFor({ timeout: 15000 });
     await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').fill('4.10');
     await page.locator('[data-money-base]').fill('EUR');
@@ -240,6 +246,7 @@ test('Gains only is disabled with its reason until a sign is named, and a status
   const ui = await openMeasure();
   const { page } = ui;
   try {
+    await onMoneyPart(page, 'direction');
     assert.equal(await page.locator('[data-money-rule-kind="gains"]').isDisabled(), true);
     assert.match(await page.locator('[data-money-sign-needed]').innerText(), /Gains only needs a sign/);
     await page.locator('[data-money-sign-kind="status"]').check();
