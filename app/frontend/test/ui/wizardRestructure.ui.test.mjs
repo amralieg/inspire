@@ -133,6 +133,7 @@ test('Keep it fresh sits on Data & results, and Run it keeps the Measure impact 
   const { page } = ui;
   try {
     await goToStep(page, 'Data & results');
+    await page.getByRole('button', { name: 'Change Keep it fresh', exact: true }).click();
     await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
     await goToStep(page, 'Run it');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Run it no longer holds Keep it fresh');
