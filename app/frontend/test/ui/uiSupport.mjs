@@ -256,7 +256,7 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 
 const STEP_HOLDING = {
   'Use case': 'Data & results', Data: 'Data & results', Results: 'Data & results', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Who uses the App', 'App placement': 'Where it lives', 'App access': 'Who uses the App',
-  'App features': 'Who uses the App', 'App pages': 'Where it lives', 'App look': 'App look', Measure: 'Measure', 'Measure impact': 'Run it', 'Keep it fresh': 'Data & results', Vibes: 'Review & build',
+  'App features': 'Who uses the App', 'App pages': 'Where it lives', 'App look': 'App look', Measure: 'Measure', 'Keep it fresh': 'Data & results', Vibes: 'Review & build',
 };
 const exactly = (label) => {
   const body = label === 'Data & results' ? 'Data(?: & results)?' : label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -337,7 +337,7 @@ export async function goToStep(page, part) {
   const at = labels.findIndex((l) => l.trim() === now);
   if (target < 0) throw new Error(`the wizard has no "${label}" step: ${labels.join(' | ')}`);
   if (target >= at) return nextUntil(page, label);
-  for (let i = at; i > target; i -= 1) await page.getByRole('button', { name: 'Back', exact: true }).click();
+  for (let i = 0; i < 30 && !isStep(await current.innerText(), label); i += 1) await page.getByRole('button', { name: 'Back', exact: true }).click();
   await onStep(page, label);
 }
 
@@ -614,4 +614,11 @@ export async function onMoneyPart(page, part) {
   const current = `li[data-money-current] [data-money-part="${part}"]`;
   for (let i = 0; i < 5 && !(await page.locator(current).count()); i += 1) await page.locator('[data-money-next]').click();
   await page.locator(current).waitFor({ timeout: 15000 });
+}
+
+export async function goToMeasureImpact(page) {
+  await goToStep(page, 'Measure');
+  const onImpact = () => page.locator('[data-money-part="impact"]').evaluate((el) => el.closest('li').hasAttribute('data-money-current'));
+  for (let i = 0; i < 6 && !(await onImpact()); i += 1) await page.locator('[data-money-next]').click();
+  await page.getByRole('group', { name: 'Measure impact' }).waitFor();
 }

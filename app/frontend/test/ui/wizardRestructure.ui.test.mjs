@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, openRow, openUi, shot } from './uiSupport.mjs';
+import { closeBrowser, goToMeasureImpact, goToStep, openRow, openUi, shot } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -131,7 +131,7 @@ test('Rebuild as is: an unchanged version is refused until the person picks Rebu
   }
 });
 
-test('Keep it fresh sits on Data & results, and Run it keeps the Measure impact and schedule settings', async () => {
+test('Keep it fresh sits on Data & results, Run it no longer shows Measure impact, and Measure does', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
@@ -140,6 +140,8 @@ test('Keep it fresh sits on Data & results, and Run it keeps the Measure impact 
     await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
     await goToStep(page, 'Run it');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Run it no longer holds Keep it fresh');
+    assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Run it no longer shows Measure impact (must-exclude)');
+    await goToMeasureImpact(page);
     await page.getByRole('group', { name: 'Measure impact' }).waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {

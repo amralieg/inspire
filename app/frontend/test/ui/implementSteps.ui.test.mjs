@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { INSIDE_WAREHOUSE_TOGGLE } from '../../src/lib/implementWizard.js';
-import { BUILD_IT, closeBrowser, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardInScreen, goToStep } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, goToMeasureImpact, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardInScreen, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -60,11 +60,12 @@ test('Data & results, Run it and App show the business settings and keep the tec
     await onStep(page, 'First run');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Results holds only where the result table lives');
     assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Results holds only where the result table lives');
-    await goToStep(page, 'Run it');
-    await page.getByRole('checkbox', { name: /^Hold back/ }).check();
+    await goToMeasureImpact(page);
+    await page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back/ }).check();
     for (const label of ['Share of records held back', 'Cron (Quartz)']) await hidden(label);
     await page.getByRole('button', { name: 'Change hold back share', exact: true }).click();
     await shown('Share of records held back');
+    await goToStep(page, 'Run it');
     await page.getByRole('button', { name: 'Change schedule', exact: true }).click();
     await shown('Cron (Quartz)');
     await hidden('Rows the team can act on each run');

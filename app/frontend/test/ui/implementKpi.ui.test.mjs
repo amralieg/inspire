@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { HARNESS_USE_CASE, OWNER, built } from './implementFixtures.js';
 import { KPI_NONE_YET } from '../../src/lib/targetKpi.js';
-import { closeBrowser, dataToResults, lowContrast, onStep, openAsset, openBuild, openUi, startMvp, until, goToStep } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, lowContrast, onStep, openAsset, openBuild, openUi, startMvp, until, goToStep, goToMeasureImpact } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -48,7 +48,7 @@ test('the Measure impact step offers the use case\u2019s own KPIs with Let Inspi
       await goToStep(page, 'What to build');
       await goToStep(page, 'Data');
       await dataToResults(page);
-      await goToStep(page, 'Measure impact');
+      await goToMeasureImpact(page);
       const box = page.getByRole('group', { name: 'Target KPI', exact: true });
       await box.waitFor();
       assert.deepEqual(await picker(page).locator('option').allTextContents(), ['Let Inspire pick', 'Churn rate (%)', 'Hours saved (hours)']);
@@ -74,7 +74,7 @@ test('the picker shows the KPI the built version tracks, its unit and how record
   try {
     await goToStep(page, 'Data');
     await dataToResults(page);
-    await goToStep(page, 'Measure impact');
+    await goToMeasureImpact(page);
     const box = page.getByRole('group', { name: 'Target KPI', exact: true });
     assert.equal(await box.locator('[data-kpi-tracked]').textContent(),
       'v1 tracks Hours saved, in hours, and counts each record in hours at stake. Inspire picked it: it is the first KPI of this use case Inspire can compute from its tables.');
@@ -91,7 +91,7 @@ test('the picker shows the KPI the built version tracks, its unit and how record
   try {
     await goToStep(none.page, 'Data');
     await dataToResults(none.page);
-    await goToStep(none.page, 'Measure impact');
+    await goToMeasureImpact(none.page);
     assert.deepEqual(await picker(none.page).locator('option').allTextContents(), ['Let Inspire pick']);
     await none.page.getByText(KPI_NONE_YET).waitFor();
     assert.equal(await none.page.getByText('the first it can compute').count(), 1, 'the pick rule is said once');

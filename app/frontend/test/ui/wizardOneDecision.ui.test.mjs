@@ -195,7 +195,6 @@ test('Run it shows one line per setting with its own Change link, and opens only
     assert.equal(await page.getByLabel('Cron (Quartz)', { exact: false }).count(), 0, 'the cron field waits behind its own Change link');
     await page.getByRole('button', { name: 'Change schedule', exact: true }).click();
     await page.getByLabel(/^Cron \(Quartz\)/).first().waitFor();
-    assert.equal(await page.getByRole('button', { name: 'Change hold back share', exact: true }).getAttribute('aria-expanded'), 'false', 'opening one setting leaves the others closed');
     assert.equal(await page.getByRole('button', { name: 'Close schedule', exact: true }).count(), 1);
     assert.equal(await page.getByRole('button', { name: /^Change Advanced|^Change run settings/ }).count(), 0, 'no block-wide Change line (must-exclude)');
     assert.deepEqual(ui.pageErrors, []);

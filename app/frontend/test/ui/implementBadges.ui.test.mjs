@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToStep, onStep, openAllRows, openRow, openUi, settleChoices } from './uiSupport.mjs';
-import { APP_LOOK_STEP, APP_LOOK_TABS, APP_STEP, WHERE_LABEL } from '../../src/lib/implementWizard.js';
+import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openAllRows, openRow, openUi, settleChoices } from './uiSupport.mjs';
+import { APP_LOOK_STEP, APP_LOOK_TABS, APP_STEP, MEASURE_LABEL, WHERE_LABEL } from '../../src/lib/implementWizard.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const DATED = [{ column_name: 'order_id', data_type: 'STRING', ordinal_position: 1 }, { column_name: 'order_date', data_type: 'DATE', ordinal_position: 2 }];
@@ -13,6 +13,7 @@ async function auditEveryStep(page, { look = true } = {}) {
   const labels = (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\.\s*/, '').trim());
   for (const label of labels) {
     await goToStep(page, label);
+    if (label === MEASURE_LABEL) await goToMeasureImpact(page);
     await openAllRows(page);
     if (label === APP_STEP.label) await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
     await settleChoices(page);
