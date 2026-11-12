@@ -38,7 +38,7 @@ function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
     launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null,
-    createdJob: null, presentPaths: [], statusErrors: {}, runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
+    createdJob: null, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -59,6 +59,14 @@ function answerSql(body) {
   const sql = String(body.statement || '');
   const conflict = state.conflictOn ? state.conflictOn(sql) : '';
   if (conflict) return { statement_id: 's1', status: { state: 'FAILED', error: { message: conflict } } };
+  if (/^\s*SELECT catalog_json_path\b/i.test(sql)) {
+    if (state.catalogQueryError) return { statement_id: 's1', status: { state: 'FAILED', error: { message: state.catalogQueryError } } };
+    if (state.catalogColumnMissing) return { statement_id: 's1', status: { state: 'FAILED', error: { message: '[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column with name `catalog_json_path` cannot be resolved.' } } };
+    const sid = (sql.match(/session_id = (\d+)/) || [])[1];
+    const value = Object.hasOwn(state.catalogPaths || {}, sid) ? state.catalogPaths[sid] : undefined;
+    const reason = (state.catalogReasons || {})[sid] || null;
+    return sqlResult(['catalog_json_path', 'catalog_json_reason'], value === undefined ? [] : [[value, reason]]);
+  }
   if (/^\s*INSERT INTO\b/i.test(sql) && sql.includes('__inspire_launch')) {
     const row = Object.fromEntries((body.parameters || []).map((p) => [p.name, p.value]));
     state.launches.push(row);

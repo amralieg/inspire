@@ -2129,11 +2129,32 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
   }
 });
 
+async function storedCatalogPath(req, inspireDatabase, sessionId) {
+  const parsed = splitInspireDatabase(inspireDatabase);
+  if (!parsed || !DEFAULT_WAREHOUSE_ID) return null;
+  try {
+    const rows = sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, DEFAULT_WAREHOUSE_ID,
+      `SELECT catalog_json_path, catalog_json_reason FROM \`${parsed.catalog}\`.\`${parsed.schema}\`.\`__inspire_session\` WHERE session_id = ${sessionId} LIMIT 1`));
+    if (!rows.length) return { path: null, reason: null };
+    return { path: rows[0].catalog_json_path ? String(rows[0].catalog_json_path) : null, reason: rows[0].catalog_json_reason ? String(rows[0].catalog_json_reason) : null };
+  } catch (err) {
+    if (/UNRESOLVED_COLUMN/.test(String(err && err.message))) return { path: null, reason: null };
+    throw err;
+  }
+}
+
 app.post('/api/documents', requireToken, async (req, res) => {
   try {
     const { params, document } = DJ.documentRunParams(req.body || {});
     const refused = await launchSessionProblem(req, params);
     if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
+    const stored = await storedCatalogPath(req, params['02_inspire_database'], params['14_session_id']).catch((err) => {
+      console.warn(`document catalog path read failed: ${err && err.message}`);
+      return undefined;
+    });
+    if (stored === undefined) return res.status(503).json({ error: DJ.CATALOG_CHECK_FAILED_TEXT });
+    if (stored.path) params['01_uc_metadata'] = stored.path;
+    else if (stored.reason) return res.status(409).json({ error: DJ.CATALOG_UNSAVED_TEXT });
     const catalog = await dbFetch(req.dbHost, req.dbToken, `/api/2.0/workspace/get-status?path=${encodeURIComponent(params['01_uc_metadata'])}`).catch((err) => {
       console.warn(`document catalog check failed: ${err && err.message}`);
       return null;
