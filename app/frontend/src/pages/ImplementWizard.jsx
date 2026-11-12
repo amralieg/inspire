@@ -1842,7 +1842,7 @@ export default function ImplementWizard({
                   </Field>
                   <div className="flex flex-wrap gap-1">
                     {(spec.sharing.principals || []).map((p) => (
-                      <button
+                      <button data-draft-change=""
                         key={`${p.type}:${p.name}`}
                         type="button"
                         className="text-[11px] border border-border rounded-full px-2 py-0.5"
@@ -1853,7 +1853,7 @@ export default function ImplementWizard({
                     ))}
                   </div>
                   {principals.map((p) => (
-                    <button
+                    <button data-draft-change=""
                       key={`${p.type}:${p.name}`}
                       type="button"
                       className="block text-[11px] text-text-secondary hover:text-db-red-fg"
@@ -2247,7 +2247,7 @@ function AppNameField({ name, nameCheck, onName }) {
       ) : nameCheck?.ok === false ? (
         <p className="text-[11px] text-error-fg">
           {nameCheck.detail}.{' '}
-          <button type="button" className="text-db-red-fg underline" onClick={() => onName(nameCheck.suggested || nextAppName(name))}>Use {nameCheck.suggested || nextAppName(name)}</button>
+          <button data-draft-change="" type="button" className="text-db-red-fg underline" onClick={() => onName(nameCheck.suggested || nextAppName(name))}>Use {nameCheck.suggested || nextAppName(name)}</button>
         </p>
       ) : (
         <p className="text-[11px] text-text-tertiary">{nameCheck?.ok ? nameCheck.detail : 'Up to 30 lowercase letters, digits and dashes.'}</p>
@@ -3152,7 +3152,7 @@ function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake
           {dates === false && <p data-chart-trend-off="" className="text-[11px] text-text-secondary">{APP_TREND_NO_DATE}</p>}
           <div className="flex items-center gap-3">
             <p id="app-charts-min" className="text-[11px] text-text-tertiary">{picked ? APP_CHARTS_MIN_NOTE : appChartPickText(look, dates)}</p>
-            {picked && <button type="button" className="text-[11px] font-medium text-db-red-fg glow-focus" onClick={onInspireCharts}>{APP_CHARTS_RESET}</button>}
+            {picked && <button data-draft-change="" type="button" className="text-[11px] font-medium text-db-red-fg glow-focus" onClick={onInspireCharts}>{APP_CHARTS_RESET}</button>}
           </div>
         </fieldset>
       </div>

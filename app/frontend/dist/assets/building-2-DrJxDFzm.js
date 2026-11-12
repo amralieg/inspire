@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:app/frontend/dist/assets/building-2-DUEHKScW.js
-import{c as a}from"./index-DFaz27vt.js";const e=[["path",{d:"M10 12h4",key:"a56b0p"}],["path",{d:"M10 8h4",key:"1sr2af"}],["path",{d:"M14 21v-3a2 2 0 0 0-4 0v3",key:"1rgiei"}],["path",{d:"M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2",key:"secmi2"}],["path",{d:"M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16",key:"16ra0t"}]],h=a("building-2",e);export{h as B};
-========
-import{c as a}from"./index-DZcYd81A.js";const e=[["path",{d:"M10 12h4",key:"a56b0p"}],["path",{d:"M10 8h4",key:"1sr2af"}],["path",{d:"M14 21v-3a2 2 0 0 0-4 0v3",key:"1rgiei"}],["path",{d:"M6 10H4a2 2 0 0 0-2 2v7a2 2 0 0 0 2 2h16a2 2 0 0 0 2-2V9a2 2 0 0 0-2-2h-2",key:"secmi2"}],["path",{d:"M6 21V5a2 2 0 0 1 2-2h8a2 2 0 0 1 2 2v16",key:"16ra0t"}]],h=a("building-2",e);export{h as B};
->>>>>>>> c11e95da3 (agent: a wizard step change alone is not a draft; Next, Back, Change and the step list no longer save a draft, so a reload after only moving between steps opens on What to deliver (REQ-001). Test: wizardScenarios reload test 39/39, wizardDraft 2/2):app/frontend/dist/assets/building-2-DrJxDFzm.js
