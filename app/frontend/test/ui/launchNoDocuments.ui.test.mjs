@@ -36,20 +36,21 @@ test('the Launch page starts with the strategy PDF ticked, so the default launch
     assert.equal(await page.locator('[data-no-documents]').count(), 0, 'no no-documents note while the PDF is ticked');
     await launchButton(page).click();
     await until(() => calls.runs.length === 1, 'the default launch');
-    assert.equal(calls.runs[0].params['09_generation_options'], 'PDF Catalog', 'the default launch builds the strategy PDF');
+    assert.equal(calls.runs[0].params['09_generation_options'], 'PDF Catalog,Excel', 'the default launch builds the strategy PDF and the Excel workbook');
     assert.equal(ui.pageErrors.length, 0);
   } finally {
     await ui.close();
   }
 });
 
-test('unticking the PDF in the Launch page shows the no-documents note and sends no document formats (REQ-077 must-exclude, REQ-121)', async () => {
+test('unticking the PDF and the Excel workbook in the Launch page shows the no-documents note and sends no document formats (REQ-077 must-exclude, REQ-121, REQ-135)', async () => {
   const { calls, mount } = launchBackend();
   const ui = await openUi('launch', {}, '', { mount, ...FAKE_CLOCK });
   const { page } = ui;
   try {
     await readyToLaunch(page);
     await pdfOption(page).click();
+    await page.getByRole('button', { name: /^Excel/ }).click();
     await page.locator('[data-no-documents]').waitFor();
     await launchButton(page).click();
     await until(() => calls.runs.length === 1, 'the launch with no documents');

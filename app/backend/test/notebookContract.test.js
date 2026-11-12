@@ -112,7 +112,7 @@ test('launch UI exposes v1.2.0 quality modes and Auto-Genie widget 13', () => {
   );
   assert.doesNotMatch(launchPage, /key:\s*['"]Genie Code Instructions['"]/);
   assert.doesNotMatch(launchPage, /discover_auto_genie_top_n/);
-  assert.match(launchPage, /'09_generation_options':\s*'PDF Catalog'/);
+  assert.match(launchPage, /'09_generation_options':\s*'PDF Catalog,Excel'/);
   assert.match(
     launchPage,
     /QUALITY_OPTIONS\s*=\s*\['Good', 'High', 'Ultra High'\]/,

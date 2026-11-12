@@ -233,7 +233,7 @@ function buildDemoInspireDiscoveryParams({ inspireDatabase, sessionId, generateT
     '06_business_domains': '',
     '07_business_priorities': 'Increase Revenue',
     '08_generation_instructions': `{{tasks.${tk}.values.user_description}}`,
-    '09_generation_options': 'PDF Catalog',
+    '09_generation_options': 'PDF Catalog,Excel',
     '10_strategic_context': '',
     '11_generation_path': String(generationPath || '').trim() || DEFAULT_GENERATION_PATH,
     '12_documents_languages': 'English',

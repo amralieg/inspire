@@ -31,7 +31,7 @@ test('demo discovery parameters use v1.2.0 generation choices and the v1.3.0 dis
     sessionId: '123456789',
   });
 
-  assert.equal(params['09_generation_options'], 'PDF Catalog');
+  assert.equal(params['09_generation_options'], 'PDF Catalog,Excel', 'an unset option defaults to both the PDF and the Excel workbook');
   assert.equal(params['13_generate_genie_code_for'], '0');
   assert.equal(params['14_session_id'], '123456789');
   assert.equal(params['05_use_cases_quality'], 'Good');

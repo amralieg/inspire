@@ -38,16 +38,16 @@ async function reloaded(page) {
   await option(page, 'PDF Catalog').waitFor({ timeout: 15000 });
 }
 
-test('the strategy PDF (PDF Catalog) is ticked by default and the run carries it; Presentation and Excel stay off', async () => {
+test('the strategy PDF (PDF Catalog) and the Excel workbook are ticked by default and the run carries both; Presentation stays off', async () => {
   const ui = await openUi('launch', STATE);
   const { page, made } = ui;
   try {
     await fillForm(page);
     assert.equal(await pressed(page, 'PDF Catalog'), true, 'the PDF is ticked on a new Launch page');
     assert.equal(await pressed(page, 'Presentation'), false);
-    assert.equal(await pressed(page, 'Excel'), false);
+    assert.equal(await pressed(page, 'Excel'), true, 'the Excel workbook is ticked on a new Launch page');
     const params = await launchOf(page, made);
-    assert.equal(params['09_generation_options'], 'PDF Catalog', 'the job carries the PDF Catalog option');
+    assert.equal(params['09_generation_options'], 'PDF Catalog,Excel', 'the job carries the PDF Catalog and Excel options');
   } finally {
     await ui.close();
   }
@@ -72,18 +72,19 @@ test('a reload keeps the PDF ticked with the other choices, and a draft saved wi
     await reloaded(page);
     assert.equal(await pressed(page, 'PDF Catalog'), true, 'a draft without the PDF choice restores it ticked');
     const params = await launchOf(page, made);
-    assert.deepEqual(params['09_generation_options'].split(','), ['PDF Catalog', 'Presentation']);
+    assert.deepEqual(params['09_generation_options'].split(',').sort(), ['Excel', 'PDF Catalog', 'Presentation']);
   } finally {
     await ui.close();
   }
 });
 
-test('unticking the PDF launches with the option empty, which the run reads as no documents', async () => {
+test('unticking the PDF and the Excel workbook launches with the option empty, which the run reads as no documents', async () => {
   const ui = await openUi('launch', STATE);
   const { page, made } = ui;
   try {
     await fillForm(page);
     await option(page, 'PDF Catalog').click();
+    await option(page, 'Excel').click();
     assert.equal(await pressed(page, 'PDF Catalog'), false);
     const params = await launchOf(page, made);
     assert.equal(params['09_generation_options'], '', 'the person unticked every document');
