@@ -27,6 +27,7 @@ const INSPIRE_NOTEBOOK_WIDGET_KEYS = [
   '17_table_scope',
   'currency',
   'currency_rates',
+  'currency_default',
   '16_best_of_best_count',
   'inspire_implement_use_case',
   'inspire_implement_spec_version',

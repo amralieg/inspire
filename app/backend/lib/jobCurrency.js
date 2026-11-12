@@ -21,7 +21,8 @@ async function discoverCurrencyParams(params, { fetchImpl, sourceUrl } = {}) {
   const base = ISO.test(asked) ? asked : DISCOVER_DEFAULT_REPORTING;
   const codes = Object.keys(FX.AVERAGE_PER_USD).filter((code) => code !== base);
   const { rates, offline } = await FX.currencyRates({ base, codes, fetchImpl, sourceUrl });
-  return { currency: base, currency_rates: JSON.stringify({ source: offline ? 'saved' : 'live', rates }) };
+  const currency_default = ISO.test(asked) ? 'false' : 'true';
+  return { currency: base, currency_default, currency_rates: JSON.stringify({ source: offline ? 'saved' : 'live', rates }) };
 }
 
 module.exports = { implementCurrencyParams, discoverCurrencyParams, DISCOVER_DEFAULT_REPORTING };
