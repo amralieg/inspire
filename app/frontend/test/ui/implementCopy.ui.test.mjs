@@ -101,37 +101,3 @@ test('a table typed into the picker is checked with the person’s sign-in: a re
     await ui.close();
   }
 });
-
-test('a built-in sample refusal says copy the table first in the footer, not grant access', async () => {
-  const ui = await openUi('wizard', {
-    me: ME, useCase: SAMPLE_CASE, history: [], forwardedToken: PERSON, columnsByTable: COLUMNS,
-    swapRowsByToken: { [PERSON]: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
-  });
-  try {
-    const { page } = ui;
-    await goToStep(page, 'Data');
-    await page.getByText(BUILT_IN, { exact: false }).first().waitFor({ timeout: 15000 });
-    const footer = page.locator('[data-source-refused]').first();
-    await footer.waitFor({ timeout: 15000 });
-    assert.equal(await footer.innerText(), 'The source is a built-in sample, so the App cannot read it. Copy the table first, then build.');
-    assert.equal(await page.getByText('Grant access first', { exact: false }).count(), 0, 'the footer does not ask for a grant on a sample');
-  } finally {
-    await ui.close();
-  }
-});
-
-test('a real access refusal on a table outside samples keeps the grant wording in the footer (must-exclude)', async () => {
-  const DENIED = '[PERMISSION_DENIED] User does not have SELECT on Table main.s.orders';
-  const ui = await openUi('wizard', {
-    me: ME, history: [], forwardedToken: PERSON, columnsByTable: COLUMNS, appProbeErrors: { '`main`.`s`.`orders`': DENIED },
-  });
-  try {
-    const { page } = ui;
-    await goToStep(page, 'Data');
-    const footer = page.locator('[data-source-refused]').first();
-    await footer.waitFor({ timeout: 15000 });
-    assert.equal(await footer.innerText(), 'The App cannot read its sources yet, so the build cannot start. Grant access first, then build.');
-  } finally {
-    await ui.close();
-  }
-});

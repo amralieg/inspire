@@ -79,8 +79,7 @@ import {
   initialStepId,
   stepIndexOf,
   lostTablesText,
-  samplesOnlyRefusal,
-  sourceRefusedReason,
+  SOURCE_REFUSED_REASON,
   ACCESS_CHECKING,
   ACCESS_UNKNOWN,
   accessVerdictOf,
@@ -260,8 +259,6 @@ import { personalColumn } from '../lib/personalColumns';
 import { PLACE_RIGHTS, placeNameProblem } from '../lib/tableName';
 import { BlockedReason, ClearsChoice, DigestChoice, RowSubjectCheck } from '../components/WizardStickParts';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
-import { validCopyTarget } from '../lib/samplesCopy';
-import { parseApiErrorMessage } from '../lib/ucPermissionErrors';
 import { AppReadAccess, GrantList } from '../components/AppReadAccess';
 import { placeholderWords } from '../lib/placeholderWords';
 import {
@@ -1331,40 +1328,7 @@ export default function ImplementWizard({
     setSpec(picked.spec);
     if (picked.notice !== null) setNotice(picked.notice);
     setChanging((prev) => ({ ...prev, [original]: false }));
-    setCopyError('');
   };
-
-  const [copyTarget, setCopyTarget] = useState('');
-  const [copying, setCopying] = useState(false);
-  const [copyError, setCopyError] = useState('');
-  const samplesTo = appUnreadable?.builtin || [];
-  const copyTo = (copyTarget || inspireDatabase || '').trim();
-
-  const copySamplesNow = async () => {
-    setCopying(true);
-    setCopyError('');
-    try {
-      const data = await apiPostJson('/api/inspire/samples/copy', { entries: samplesTo, destination: copyTo });
-      let next = spec;
-      for (const c of data.copies || []) {
-        next = pickedTable(next, c.source, c.copy).spec;
-        setChanging((prev) => ({ ...prev, [c.source]: false }));
-      }
-      if (next !== spec) setSpec(next);
-      if ((data.failed || []).length) setCopyError(data.failed.map((f) => `Could not copy ${f.source}: ${f.reason}`).join('. '));
-    } catch (err) {
-      setCopyError(parseApiErrorMessage(err.message));
-    } finally {
-      setCopying(false);
-    }
-  };
-
-  const sourceRefusedNote = samplesOnlyRefusal(appUnreadable) ? (
-    <SamplesCopyNow reason={sourceRefusedReason(appUnreadable)} target={copyTo} onTarget={setCopyTarget}
-      canCopy={validCopyTarget(copyTo)} copying={copying} error={copyError} onCopy={copySamplesNow} />
-  ) : (
-    <p data-source-refused="" className="text-[11px] text-warning-fg">{sourceRefusedReason(appUnreadable)}</p>
-  );
 
   const toggleOutput = (id, checked) => setSpec((prev) => withOutput(prev, id, checked, context?.assets));
 
@@ -2183,7 +2147,7 @@ export default function ImplementWizard({
           </button>
           <div className="flex items-center gap-2">
             {mode === 'mvp' && stepIndex > 0 && !lastStep && sourceAccessRefused && (
-              {sourceRefusedNote}
+              <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             )}
             {mode === 'mvp' && stepIndex > 0 && !lastStep && !sourceAccessRefused && (
               <button type="button" data-build-now="" disabled={implementBlocked || steps.some((x) => stepErrors(x.id, spec, extras, mode).length > 0)} onClick={submit}
@@ -2211,7 +2175,7 @@ export default function ImplementWizard({
                 {busy ? 'Starting…' : 'Generate notebook'}
               </button>
             ) : sourceAccessRefused ? (
-              {sourceRefusedNote}
+              <p data-source-refused="" className="text-[11px] text-warning-fg">{SOURCE_REFUSED_REASON}</p>
             ) : (
               <button
                 type="button"
@@ -3381,22 +3345,5 @@ function Overlay({ title, uc, steps, total = steps.length, step, reach = [], don
         </div>
       </div>
     </BodyPortal>
-  );
-}
-
-function SamplesCopyNow({ reason, target, onTarget, canCopy, copying, error, onCopy }) {
-  return (
-    <div data-samples-copy-now="" className="flex flex-col items-end gap-1.5 max-w-[340px]">
-      <p data-source-refused="" className="text-[11px] text-warning-fg">{reason}</p>
-      <div className="flex items-center gap-2">
-        <input aria-label="Copy into" value={target} onChange={(e) => onTarget(e.target.value)} placeholder="catalog.schema you own"
-          className="rounded-md border border-border bg-surface px-2 py-1 font-mono text-[11px] text-text-primary" />
-        <button type="button" data-copy-now="" disabled={!canCopy || copying} onClick={onCopy}
-          className="inline-flex items-center gap-1.5 px-3 py-2 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-50">
-          {copying ? 'Copying…' : 'Copy it now'}
-        </button>
-      </div>
-      {error && <PlainMessage text={error} role="alert" data-copy-error="" className="text-[11px] text-error-fg" />}
-    </div>
   );
 }

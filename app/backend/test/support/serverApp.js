@@ -204,6 +204,11 @@ async function stubFetch(url, opts = {}) {
     }
     return json({ userName: APP_SP, applicationId: APP_SP, displayName: APP_NAME });
   }
+  if (state.ucSchemas && u.pathname === '/api/2.1/unity-catalog/schemas') return json({ schemas: (state.ucSchemas[u.searchParams.get('catalog_name')] || []).map((name) => ({ name })) });
+  if (state.ucTables && u.pathname === '/api/2.1/unity-catalog/tables') {
+    const names = state.ucTables[`${u.searchParams.get('catalog_name')}.${u.searchParams.get('schema_name')}`] || [];
+    return json({ tables: names.map((name) => ({ name })) });
+  }
   if (u.pathname === '/api/2.0/sql/statements') return json(answerSql(body));
   if (u.pathname === '/api/2.0/workspace/import') return json({ message: 'stubbed import refused' }, 400);
   const file = u.pathname.startsWith('/api/2.0/fs/files/') ? decodeURIComponent(u.pathname.slice('/api/2.0/fs/files'.length)) : '';
