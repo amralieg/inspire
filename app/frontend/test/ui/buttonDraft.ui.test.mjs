@@ -44,6 +44,8 @@ test('a button that changes the spec saves the draft: removing a filter left on 
     assert.deepEqual(await draftFilters(page), ['main.s.orders'], 'the button-only removal rewrote the draft without the orphan');
     await page.reload();
     await onStep(page, 'Data');
+    const changeLast = page.getByRole('button', { name: 'Change Table filters', exact: true });
+    if (await changeLast.count()) await changeLast.click();
     await block(page, 'main.s.orders').waitFor();
     assert.equal(await page.locator('[data-filters-outside]').count(), 0, 'the reload restores the saved draft without the orphan');
     assert.deepEqual(pageErrors, []);
