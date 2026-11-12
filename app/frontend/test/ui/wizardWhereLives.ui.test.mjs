@@ -24,8 +24,8 @@ test('What to deliver only picks what gets built, Where it lives places the App 
 
     const labels = await stepLabels(page);
     const at = (label) => labels.indexOf(label);
-    assert.ok(at('What to deliver') === 0 && at('Where it lives') === at('Measure') + 1 && at('Who uses the App') === at('Where it lives') + 1,
-      `What to deliver first, then Where it lives after Measure, then Who uses the App: ${labels.join(' | ')}`);
+    assert.ok(at('What to deliver') === 0 && at('Where it lives') === at('Measure') + 1 && at('Run it') === at('Where it lives') + 1 && at('Who uses the App') === -1,
+      `What to deliver first, then Where it lives after Measure, then Run it, with no Who uses the App step: ${labels.join(' | ')}`);
 
     await goToStep(page, 'Where it lives');
     await page.getByRole('radio', { name: /^One App per use case/ }).waitFor();
@@ -42,8 +42,6 @@ test('What to deliver only picks what gets built, Where it lives places the App 
 
     await goToStep(page, 'Who uses the App');
     await page.getByRole('region', { name: 'App access' }).waitFor();
-    assert.equal(await storage(page).count(), 0, 'the storage choice waits for its own step, Page storage (must-exclude)');
-    await goToStep(page, 'Page storage');
     const group = storage(page);
     await group.getByRole('status').waitFor({ state: 'detached' });
     await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();

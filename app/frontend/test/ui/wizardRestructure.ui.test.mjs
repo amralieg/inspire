@@ -6,7 +6,7 @@ test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Who uses the App', 'Page storage', 'App look', 'Run it', 'Review & build'];
+const STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Run it', 'Review & build'];
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, '').trim());
 const viewports = [{ width: 1280, height: 800 }, { width: 1440, height: 900 }];
 const snap = async (page, name) => {
@@ -31,7 +31,7 @@ test('the step count reads the same total on every step for a fixed scope', asyn
     }
     const all = new Set(totals.map((t) => t.split(' of ')[1]));
     assert.equal(all.size, 1, `the total never changes: ${totals.join(' | ')}`);
-    assert.match(totals[0], /^Step 1 of 10$/, 'What to deliver is step 1 of 10 with the App on');
+    assert.match(totals[0], /^Step 1 of 7$/, 'What to deliver is step 1 of 7 with the App on: Who uses the App, Page storage and App look sit on Where it lives');
   } finally {
     await ui.close();
   }
@@ -71,7 +71,7 @@ test('What to deliver is the first step, Data and results is one page, and Where
     await page.getByRole('region', { name: 'App access' }).waitFor();
     await openRow(page, 'what people can do in the App');
     await page.getByRole('region', { name: 'App features' }).waitFor();
-    assert.equal(await page.getByRole('region', { name: 'App pages' }).count(), 0, 'Who uses the App no longer holds the pages');
+    assert.equal(await page.getByRole('region', { name: 'App pages' }).count(), 1, 'the App pages stay on Where it lives, the one App step (REQ-002)');
     await snap(page, 'restructure-who');
 
     await goToStep(page, 'App look');

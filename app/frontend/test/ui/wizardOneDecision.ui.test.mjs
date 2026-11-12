@@ -165,14 +165,14 @@ test('Next on Data and results does not wait for the own schema to be created: t
   }
 });
 
-test('App pages sit on Where it lives with the App placement, and App look is its own step that holds no pages', async () => {
+test('App pages sit on Where it lives with the App placement, and App look sits there too, with no pages of its own', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
     await goToStep(page, 'App pages');
     await openRow(page, 'App pages');
     const labels = await stepLabels(page);
-    assert.ok(labels.includes('Where it lives') && labels.includes('App look'), labels.join(' | '));
+    assert.ok(labels.includes('Where it lives') && !labels.includes('App look'), `App look is part of Where it lives, not its own step: ${labels.join(' | ')}`);
     assert.equal(labels.includes('App pages'), false, 'App pages is no step of its own (must-exclude)');
     await page.getByRole('region', { name: 'App pages' }).waitFor();
     assert.equal(await page.getByRole('tab', { name: 'Palette', exact: true }).count(), 0, 'the look is not on the pages step (must-exclude)');

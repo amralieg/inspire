@@ -632,7 +632,7 @@ for (const [name, profile] of [['the data qualifies for Data groups', PROFILE], 
         await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
         const steps = (await stepBar(page)).map((s) => s.replace(/^\d+\. /, ''));
         const groups = profile === PROFILE ? ['Data groups'] : [];
-        assert.deepEqual(steps, ['What to deliver', 'Data & results', ...groups, 'Measure', 'Where it lives', 'Who uses the App', 'Page storage', 'App look', 'Run it', 'Review & build'],
+        assert.deepEqual(steps, ['What to deliver', 'Data & results', ...groups, 'Measure', 'Where it lives', 'Run it', 'Review & build'],
           'no First run step on a rebuild, and Data groups only when the data qualifies');
         assert.equal(await page.locator('[data-first-run-choice]').count(), 0, 'no First run choice anywhere');
         await toSummary(page);

@@ -346,7 +346,7 @@ test('the First run names the chosen Data groups in a plain note, never in the r
 test('every question in the wizard shows at most one Recommended choice', async () => {
   const counts = [];
   const tally = async (page) => counts.push([await current(page), await page.locator('[role="radiogroup"]').evaluateAll((groups) => groups.map((g) => g.querySelectorAll('[data-recommended]').length))]);
-  const steps = ['Data groups', 'First run', 'Results', 'What to deliver', 'Where it lives', 'Who uses the App', 'App pages', 'App look', RUN_IT];
+  const steps = ['Data groups', 'First run', 'Results', 'What to deliver', 'Where it lives', RUN_IT];
   const { ui } = await scenario('one-recommended', { profile: PROFILE, extra: counted(PROFILE), actions: Object.fromEntries(steps.map((s) => [s, tally])) });
   try {
     assert.ok(counts.length >= 5, JSON.stringify(counts));

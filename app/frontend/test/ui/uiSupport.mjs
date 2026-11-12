@@ -255,8 +255,8 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 }
 
 const STEP_HOLDING = {
-  'Use case': 'Data & results', Data: 'Data & results', Results: 'Data & results', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Who uses the App', 'App placement': 'Where it lives', 'App access': 'Who uses the App',
-  'App features': 'Who uses the App', 'App pages': 'Where it lives', 'App look': 'App look', Measure: 'Measure', 'Keep it fresh': 'Data & results', Vibes: 'Review & build',
+  'Use case': 'Data & results', Data: 'Data & results', Results: 'Data & results', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Where it lives', 'App placement': 'Where it lives', 'App access': 'Where it lives',
+  'App features': 'Where it lives', 'App pages': 'Where it lives', 'App look': 'Where it lives', 'Who uses the App': 'Where it lives', 'Page storage': 'Where it lives', Measure: 'Measure', 'Keep it fresh': 'Data & results', Vibes: 'Review & build',
 };
 const exactly = (label) => {
   const body = label === 'Data & results' ? 'Data(?: & results)?' : label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');

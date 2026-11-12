@@ -37,7 +37,9 @@ export const BUILD_NOW_LABEL = 'Build with these choices';
 export const CHANGE_LABEL = 'Change';
 
 const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery'] };
-const WHERE_STEP = { id: 'where', label: WHERE_LABEL, sections: ['app_place', 'app_pages'], advanced: [], panels: ['app_place', 'app_pages'] };
+export const APP_PANELS = ['app_place', 'app_pages', 'app_access', 'app_features', 'app_storage', 'app_look'];
+export const PAGE_STORAGE_LABEL = 'Page storage';
+const WHERE_STEP = { id: 'where', label: WHERE_LABEL, sections: APP_PANELS, advanced: [], panels: APP_PANELS };
 const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case', 'data', 'configure', 'results', 'fresh'], advanced: ['data', 'configure', 'results', 'fresh'], panels: ['data', 'results', 'fresh'] };
 export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
 export const MEASURE_STEP = { id: 'stake', label: MEASURE_LABEL, sections: ['kpi', 'holdout'], advanced: [], panels: ['stake'] };
@@ -52,10 +54,6 @@ export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule'], ad
 
 export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP, RUN_STEP];
 
-export const APP_PANELS = ['app_place', 'app_pages', 'app_access', 'app_features', 'app_storage', 'app_look'];
-export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_access', 'app_features'], advanced: [], panels: ['app_access', 'app_features'] };
-export const APP_STORAGE_STEP = { id: 'app_storage', label: 'Page storage', sections: ['app_storage'], advanced: [], panels: ['app_storage'] };
-export const APP_LOOK_STEP = { id: 'app_look', label: 'App look', sections: ['app_look'], advanced: [], panels: ['app_look'] };
 export const WIZARD_STEPS_MAX = 11;
 
 export const SUMMARY_STEP = { id: 'summary', label: 'Review & build', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
@@ -71,11 +69,12 @@ export const NOTEBOOK_STEPS = [
 
 const STEP_ALIASES = {
   use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: MEASURE_STEP.id, fresh: DATA_STEP.id, vibes: SUMMARY_STEP.id,
-  settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: APP_STEP.id, app_features: APP_STEP.id, app_look: APP_LOOK_STEP.id,
+  settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: WHERE_STEP.id, app_features: WHERE_STEP.id, app_look: WHERE_STEP.id,
+  app: WHERE_STEP.id, app_storage: WHERE_STEP.id,
   results: DATA_STEP.id, app_pages: WHERE_STEP.id, [MEASURE_IMPACT_PART]: MEASURE_STEP.id,
 };
 export const opensOnImpact = (focus) => IMPACT_FOCUS.includes(focus?.step);
-const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id, [APP_LOOK_STEP.id]: APP_STEP.id, [APP_STORAGE_STEP.id]: APP_STEP.id, [APP_STEP.id]: WHERE_STEP.id };
+const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id };
 
 function heldStepOf(steps, id) {
   let want = id;
@@ -97,15 +96,14 @@ export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
     const app = Boolean(spec?.outputs?.app);
     const joined = joinsApp(spec);
     const where = app ? [{ ...WHERE_STEP, sections: joined ? ['app_place'] : WHERE_STEP.sections, panels: joined ? ['app_place'] : WHERE_STEP.panels }] : [];
-    const appSteps = app && !joined ? [APP_STEP, APP_STORAGE_STEP, APP_LOOK_STEP] : [];
     return [DELIVERY_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), MEASURE_STEP,
-      ...where, ...appSteps, RUN_STEP, SUMMARY_STEP];
+      ...where, RUN_STEP, SUMMARY_STEP];
   }
   if (mode === 'notebook') return NOTEBOOK_STEPS;
   throw new Error(`unknown implement mode '${mode}'`);
 }
 
-export const BUILD_STEP_IDS = [DELIVERY_STEP.id, WHERE_STEP.id, APP_STEP.id, APP_STORAGE_STEP.id, APP_LOOK_STEP.id, SUMMARY_STEP.id];
+export const BUILD_STEP_IDS = [DELIVERY_STEP.id, WHERE_STEP.id, SUMMARY_STEP.id];
 
 export const APP_PLACEMENTS = [
   { id: 'domain', label: 'One App per business domain', blurb: 'Use cases of the same domain share one App, so the people of that domain find them in one place.' },
@@ -2574,9 +2572,9 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
     ...(app ? [row('app', 'where', 'App', joined ? `Joins ${outputs.merge.app}`
       : [placement?.label, outputs.app_name].filter(Boolean).join(': ') || 'not placed yet')] : []),
     ...(app && !joined ? [
-      row('app_access', 'app', 'App access', APP_ACCESS_CHOICES.find((c) => c.id === outputs.app_access)?.label || 'not picked yet'),
+      row('app_access', 'where', 'App access',APP_ACCESS_CHOICES.find((c) => c.id === outputs.app_access)?.label || 'not picked yet'),
       row('app_features', 'where', 'App features', APP_OPTIONS.filter((o) => outputs.app_options?.[o.id] && appOptionShown(spec, o.id)).map((o) => o.label).join(', ') || 'none'),
-      row('app_look', 'app_look', 'App look', lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
+      row('app_look', 'where', 'App look',lookText({ ...APP_LOOK_DEFAULT, ...(outputs.app_look || {}) })),
     ] : []),
   ];
 }

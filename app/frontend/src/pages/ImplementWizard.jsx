@@ -16,7 +16,7 @@ import {
   GENIE_CODE_OFF_TITLE,
   genieCodeOff,
   wizardSteps,
-  APP_STORAGE_STEP,
+  PAGE_STORAGE_LABEL,
   contextSettings,
   IMPLEMENT_OUTPUTS,
   ALERT_TIER_HELP,
@@ -1079,7 +1079,7 @@ export default function ImplementWizard({
   }, [columnsByTable, spec]);
 
   useEffect(() => {
-    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where' || stepId === 'app' || stepId === APP_STORAGE_STEP.id));
+    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where'));
     if (!wanted || warehouses !== null || warehousesError) return undefined;
     let cancelled = false;
     apiFetch('/api/warehouses')
@@ -1294,7 +1294,7 @@ export default function ImplementWizard({
   const freshness = freshnessOf(spec.schedule);
   const checkStepOf = (k) => {
     if (PLACE_CHECKS.includes(k)) return 'where';
-    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'where' : APP_STORAGE_STEP.id;
+    if (ACCESS_CHECKS.includes(k)) return 'where';
     return CHOOSE_CHECKS.includes(k) || TILE_CHECK_KEYS.includes(k) ? 'delivery' : SUMMARY_STEP.id;
   };
   const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || SUMMARY_STEP.label;
@@ -2881,7 +2881,7 @@ function AppAccessStep({ spec, onAccess, best = {} }) {
 function AppStorageStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onBackend, onWarehouse, best = {} }) {
   const inside = insideInspire(spec);
   return (
-    <section className="space-y-4" aria-label={APP_STORAGE_STEP.label}>
+    <section className="space-y-4" aria-label={PAGE_STORAGE_LABEL}>
       <AppBackendChoice spec={spec} lakebase={lakebase} onBackend={onBackend} best={best.backend}>
         {inside ? (
           <p data-inside-warehouse="" className="text-[11px] text-text-secondary">
