@@ -426,7 +426,7 @@ export default function ImplementWizard({
   const [errors, setErrors] = useState([]);
   const [attempted, setAttempted] = useState({ data: false, delivery: false });
   const [checking, setChecking] = useState('');
-  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false });
+  const [advanced, setAdvanced] = useState({ data: false, results: false, delivery: false, app_place: false, app_access: false, summary: false, fresh: false });
   const [details, setDetails] = useState(false);
   const [lookView, setLookView] = useState({ tab: 'style', page: 'fix' });
   const toggleAdvanced = (id) => setAdvanced((prev) => ({ ...prev, [id]: !prev[id] }));
@@ -1547,9 +1547,9 @@ export default function ImplementWizard({
         )}
 
         {shows('fresh') && (
-          <>
-            <section className="space-y-2">
-              <h3 className="text-sm font-semibold text-text-primary">{FRESH_LABEL}</h3>
+          <section className="space-y-2" aria-label={FRESH_LABEL}>
+            <Advanced open={advanced.fresh} onToggle={() => toggleAdvanced('fresh')} what={FRESH_LABEL}
+              summary={freshness === 'off' ? 'Keep it fresh: off, it runs once now' : `Keep it fresh: runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`}>
               <p className="text-[11px] text-text-secondary">{FRESH_HELP}</p>
               <p data-run-it="" className="text-[12px] text-text-secondary">{RUN_IT_TITLE}</p>
               <div data-choice="freshness" className="space-y-2">
@@ -1570,14 +1570,10 @@ export default function ImplementWizard({
               </div>
               <BestOf best={best.freshness} label={FRESHNESS_OPTIONS.find((o) => o.id === best.freshness.id)?.label} />
               </div>
-              <p className="text-[11px] text-text-tertiary">
-                {freshness === 'off'
-                  ? 'It runs once now. Turn this on later to keep the results current.'
-                  : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}, after the first run works. Cost: ${costHint(spec, { scheduleSaid: true })}`}
-              </p>
-            </section>
-
-          </>
+              
+            
+            </Advanced>
+          </section>
         )}
 
         {shows('measure') && (
@@ -2983,7 +2979,7 @@ function AppLookStep({ spec, look, lookError, onLookRetry, palette, title, stake
   const charts = appChartsOf(spec, look, dates);
   const picked = appChartsPicked(spec);
   const pickable = Array.isArray(look?.chart_kinds) && Array.isArray(look?.screens);
-  const view = tab === 'charts' ? 'charts' : shownPage;
+  const view = tab === 'charts' ? 'charts' : 'fix';
   const named = (list, id) => list.find((x) => x.id === id)?.label || id;
   const viewLabel = view === 'charts' ? 'Charts' : named(pages, view);
   const sampleLabel = `Sample App page: ${viewLabel}, in ${lookText(chosen)}`;

@@ -334,6 +334,7 @@ async function withEveryAppLookOption(check) {
     await goToStep(page, 'Where it lives');
     assert.deepEqual(await pages.getByRole('button').allTextContents(), ['Things to fix', 'Runs', 'Alerts', 'Impact', 'Ask Genie']);
     assert.equal(await pages.getByRole('button', { name: /^Alerts/ }).isDisabled(), false, 'with Send alerts on, the Alerts page can be shown');
+    await goToStep(page, 'App look');
     await check({ page, look, tab, sample, shown, pages });
     assert.deepEqual(ui.pageErrors, []);
   } finally {
