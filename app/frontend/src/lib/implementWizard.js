@@ -2640,6 +2640,12 @@ export function runStopped(status, stalled = null) {
   return Boolean(stalled) && (IMPLEMENT_ACTIVE_STATUSES.includes(s) || (s === 'failed' && stalled.ended === true));
 }
 
+export function cancelledByUser(latest) {
+  if (String(latest?.status || '') !== 'failed') return false;
+  if (latest?.ended_by) return latest.ended_by === 'user';
+  return /\(CANCELED(?::|\))/.test(String(latest?.status_message || ''));
+}
+
 export function statusChip(status, stalled = null, latest = null) {
   const s = String(status || '');
   if (['ready', 'ready_with_warnings'].includes(s) && undeliveredOutputs(latest).length) return { label: UNDELIVERED_LABEL, tone: 'warning' };

@@ -6,7 +6,7 @@ import {
 } from 'lucide-react';
 import {
   statusChip, statusReason, statusDetails, nextSpecFrom, retryableOutputs, lostTables, lostTablesText, genieQuestions, appStatusRows, editedNotebook,
-  runProfileText, runStopped, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
+  runProfileText, runStopped, cancelledByUser, versionActive, historyStatus, implementGroups, notebookRunEnded, notebookStatus, START_MVP_LABEL, IMPLEMENT_ACTIVE_STATUSES, IMPLEMENT_UNINSTALLED,
   vibesPreview, canBuildAgain, buildAgainChanges, buildAgainHint, resultTableMoveNote, IMPLEMENT_DONE_STATUSES, builtVersion, vibePreviousChoices,
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   failureChoices, stoppedChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
@@ -50,7 +50,7 @@ import {
 } from '../lib/mvpProgress';
 import PaneResizer from '../components/PaneResizer';
 import { RAIL_WIDTH, loadPaneWidth, paneWidth, savePaneWidth } from '../lib/paneWidth';
-import MvpProgress, { ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
+import MvpProgress, { ProgressDock, ProgressLine, ScopeNotes, StageNotes } from '../components/MvpProgress';
 import useBuildDiagnostics from '../components/useBuildDiagnostics';
 import ChoiceList from '../components/ChoiceList';
 import { useProgressView } from '../lib/progressView';
@@ -216,7 +216,7 @@ const FILTER_ICONS = { notebook: NotebookPen, ...OUTPUT_ICONS };
 function AssetFilters({ counts, assets, onToggle }) {
   const total = counts.reduce((most, entry) => Math.max(most, entry.count), 0);
   if (!total && !assets.length) return null;
-  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth has-disabled:border-dashed ${
+  const chip = (on) => `inline-flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-[11px] font-semibold transition-smooth has-disabled:cursor-not-allowed has-disabled:border-dashed ${
     on ? 'border-db-red/40 bg-db-red-50 text-db-red-fg' : 'border-border bg-surface text-text-primary hover:bg-bg-subtle'}`;
   return (
     <div role="group" aria-label="Show use cases with" className="rounded-xl border border-border bg-surface px-3 py-2.5 shadow-sm space-y-1.5">
@@ -488,6 +488,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
     if (data?.mode === 'notebook') setListVersion((n) => n + 1);
     loadRail().catch((e) => setRailError(e.message));
   };
+  const [progressDock, setProgressDock] = useState(null);
 
   return (
     <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
@@ -503,6 +504,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
       )}
       {buildNotes.length > 0 && buildDetails.length > 0 && <TechnicalDetails items={buildDetails} />}
       {railError && <PlainMessage text={railError} className={ERROR_BOX} onRetry={() => loadRail().catch((e) => setRailError(e.message))} copy />}
+      <ProgressDock.Provider value={progressDock}>
       <div className="flex flex-col md:flex-row gap-4 md:gap-2 md:flex-1 md:min-h-0">
         <div data-implement-rail="" style={{ '--rail-w': `${railPx}px` }}
           className="w-full md:w-(--rail-w) shrink-0 flex flex-col gap-3 max-h-[50dvh] overflow-y-auto md:max-h-none md:min-h-0">
@@ -547,7 +549,9 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
             !listLoading && !listError && <p className={`${PANEL_CLASS} p-6 text-[12px] text-text-secondary`}>This session has no use cases yet.</p>
           )}
         </section>
+      <div ref={setProgressDock} data-progress-dock="" className="hidden empty:hidden md:flex md:self-stretch md:min-h-0 md:shrink-0" />
       </div>
+      </ProgressDock.Provider>
       {wizard && !readOnly && (
         <ImplementWizard
           uc={wizard.uc}
@@ -1089,7 +1093,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const kept = keptVersions(history);
   const checklist = useMemo(() => vibeChecklist(status?.steps, latest), [status?.steps, latest]);
   const held = heldVersion(latest, status?.history ?? null);
-  const progressView = useProgressView(useCaseId, Boolean(held) || Boolean(checklist?.notDecided));
+  const progressView = useProgressView(useCaseId, built);
   const alertAsset = latest?.asset_status?.alert || {};
   const notebookState = uninstalled ? item.notebook || null : item.notebook || (vibeTargets.some((c) => c.id === 'notebook') ? notebookStatus({ has_genie_code: 'Y' }, null) : null);
   const notebook = notebookState && {
@@ -1219,8 +1223,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     return () => { live = false; };
   }, [qBase, latest?.session_id, latest?.spec_version, readOnly]);
   const protection = readOnly ? null : liveProtection(sourceNow, protectionStopOf(latest));
+  const userCancel = cancelledByUser(latest);
   const choicesNow = protection ? protectionChoices(protection)
-    : buildAgain && !dataStop && latest?.status === 'failed' ? (stopped
+    : buildAgain && !dataStop && latest?.status === 'failed' && !userCancel ? (stopped
       ? stoppedChoices(latest, { notebookUrl: notebook?.href || '', issueUrl: newIssueUrl })
       : failureChoices(latest, { technique: fieldOf(item.uc || {}, 'Analytics Technique', 'analytics_technique'), notebookUrl: notebook?.href || '' })) : [];
   const writeNotebook = async () => {
@@ -1668,7 +1673,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   };
 
   const tileRow = (
-    <ul aria-label="Assets" data-asset-tiles="" className="shrink-0 grid grid-cols-2 sm:grid-cols-3 xl:grid-cols-6 auto-rows-fr gap-2">
+    <ul aria-label="Assets" data-asset-tiles="" className="shrink-0 grid grid-cols-1 @[18rem]:grid-cols-2 @[30rem]:grid-cols-3 @[46rem]:grid-cols-6 auto-rows-fr gap-2">
       {ASSET_TILES.map(({ id, label }) => {
         if (id === 'notebook') {
           return (
@@ -1753,7 +1758,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   );
 
   return (
-    <div data-use-case-pane="" className={`flex flex-col gap-3 ${built ? 'md:h-full md:min-h-0' : ''}`}>
+    <div data-use-case-pane="" className={`@container flex flex-col gap-3 ${built ? 'md:h-full md:min-h-0' : ''}`}>
       {celebrations > 0 && <Celebration key={celebrations} trigger />}
       <header data-pinned-name="" className={`${PANEL_CLASS} shrink-0 px-4 py-3 space-y-2.5`}>
         <div className="flex items-start justify-between gap-3">

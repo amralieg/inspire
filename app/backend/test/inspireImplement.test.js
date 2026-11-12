@@ -234,12 +234,26 @@ test('the App records the run it started, and fails a version whose run never st
   assert.deepEqual(failed.parameters, [{ name: 'message', value: 'the MVP run could not start: RESOURCE_EXHAUSTED', type: 'STRING' }, ...keyParams]);
 });
 
+test('the end state records who ended the run: a Databricks cancel is user, any other end is system, and the row carries it for the page', () => {
+  const now = Date.parse('2026-10-25T18:00:00Z');
+  const version = (status, extra = {}) => ({ spec_version: 4, status, implement_run_id: '77', updated_at: '2026-10-25T17:00:00.000Z', ...extra });
+  const run = (life, result, message) => ({ state: { life_cycle_state: life, result_state: result, state_message: message } });
+  assert.equal(implementStalled(version('queued'), run('TERMINATED', 'CANCELED', 'Run cancelled'), now).ended_by, 'user');
+  assert.equal(implementStalled(version('queued'), { status: { state: 'TERMINATED', termination_details: { code: 'USER_CANCELED' } } }, now).ended_by, 'user');
+  assert.equal(implementStalled(version('filling'), run('TERMINATED', 'FAILED', 'Workload failed'), now).ended_by, 'system');
+  assert.equal(implementStalled(version('filling'), run('INTERNAL_ERROR', undefined, ''), now).ended_by, 'system');
+  const written = { ...version('filling'), status: 'failed', ended_by: 'user', status_message: 'the run building v4 ended (Stopped) while v4 was still filling' };
+  assert.equal(implementStalled(written, null, now).ended_by, 'user', 'the page reads the row it was written with');
+  assert.equal(implementStalled({ ...written, ended_by: null }, null, now).ended_by, null, 'an old row has no field and reads as null');
+  assert.deepEqual(parseImplementRow({ ...written, status: 'failed' }).ended_by, 'user', 'the field reaches the page with the row');
+});
+
 test('a version is stalled when its run ended, or when its run cannot be read and it has not moved for longer than a run may hold its lock', () => {
   const now = Date.parse('2026-10-25T18:00:00Z');
   const version = (status, extra = {}) => ({ spec_version: 4, status, implement_run_id: '77', updated_at: '2026-10-25T17:00:00.000Z', ...extra });
   const run = (life, result, message, url) => ({ run_page_url: url, state: { life_cycle_state: life, result_state: result, state_message: message } });
   assert.deepEqual(implementStalled(version('previewing'), run('TERMINATED', 'FAILED', 'Workload failed', 'https://x/run/77'), now),
-    { run_id: '77', run_url: 'https://x/run/77', reason: 'the run building v4 ended (Failed: Workload failed) while v4 was still previewing', ended: true });
+    { run_id: '77', run_url: 'https://x/run/77', reason: 'the run building v4 ended (Failed: Workload failed) while v4 was still previewing', ended: true, ended_by: 'system' });
   assert.equal(implementStalled(version('building_outputs'), run('INTERNAL_ERROR', undefined, ''), now).reason,
     'the run building v4 ended (Ended by Databricks) while v4 was still building outputs');
   assert.equal(implementStalled(version('queued'), { status: { state: 'TERMINATED', termination_details: { code: 'CANCELED', message: 'Run cancelled' } } }, now).reason,
@@ -267,10 +281,11 @@ test('only a run seen ended writes its version failed, guarded by the status and
   const row = { session_id: '42', use_case_id: 'N01-U01', spec_version: 2, status: 'queued', implement_run_id: '777788889999000', updated_at: '2026-10-25T17:00:00Z' };
   const cancelled = { state: { life_cycle_state: 'TERMINATED', result_state: 'CANCELED', state_message: 'Run cancelled' } };
   const got = implementRunEndedStatement('t', row, implementStalled(row, cancelled, now));
-  assert.equal(got.sql, "UPDATE t SET status = 'failed', status_message = :message, updated_at = current_timestamp() "
+  assert.equal(got.sql, "UPDATE t SET status = 'failed', status_message = :message, ended_by = :endedBy, updated_at = current_timestamp() "
     + 'WHERE session_id = :sid AND use_case_id = :uc AND spec_version = :v AND status = :was AND implement_run_id = :run');
   assert.deepEqual(got.parameters, [
     { name: 'message', value: 'the run building v2 ended (Stopped: Run cancelled) while v2 was still queued', type: 'STRING' },
+    { name: 'endedBy', value: 'user', type: 'STRING' },
     { name: 'was', value: 'queued', type: 'STRING' }, { name: 'run', value: '777788889999000', type: 'BIGINT' },
     { name: 'sid', value: '42', type: 'BIGINT' }, { name: 'uc', value: 'N01-U01', type: 'STRING' }, { name: 'v', value: '2', type: 'INT' }]);
   const old = { ...row, updated_at: '2026-10-20T00:00:00Z' };
@@ -285,7 +300,7 @@ test('only a run seen ended writes its version failed, guarded by the status and
 test('only the failed record Inspire wrote for an ended run reads as stopped again, never a failure the agent wrote', () => {
   const row = { spec_version: 3, status: 'failed', implement_run_id: '77', status_message: 'the run building v3 ended (CANCELED: Run cancelled) while v3 was still building outputs' };
   assert.equal(implementEndedRecord(row), true);
-  assert.deepEqual(implementStalled(row, { run_page_url: 'https://x/run/77' }), { run_id: '77', run_url: 'https://x/run/77', reason: row.status_message, ended: true });
+  assert.deepEqual(implementStalled(row, { run_page_url: 'https://x/run/77' }), { run_id: '77', run_url: 'https://x/run/77', reason: row.status_message, ended: true, ended_by: null });
   assert.equal(implementEndedRecord({ ...row, status_message: 'the notebook failed: the run building v3 ended' }), false);
   assert.equal(implementEndedRecord({ ...row, status_message: row.status_message.replace('v3 was', 'v2 was') }), false, 'another version');
   assert.equal(implementEndedRecord({ ...row, status: 'ready' }), false);

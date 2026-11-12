@@ -210,16 +210,17 @@ test('a vibe edit submitted on its own refreshes only its output', async () => {
 });
 
 test('asset_snapshots is created, added to an older table, and never read by the status and history reads', async () => {
-  assert.deepEqual(I.IMPLEMENT_COLUMNS[I.IMPLEMENT_COLUMNS.length - 1], ['asset_snapshots', 'STRING']);
+  assert.deepEqual(I.IMPLEMENT_COLUMNS.find(([n]) => n === 'asset_snapshots'), ['asset_snapshots', 'STRING']);
   assert.ok(I.implementTableCreateSql('`c`.`s`.`__inspire_implement`').includes('`asset_snapshots` STRING'));
   assert.ok(!I.implementHistoryStatement('`t`', '42', 'N01-U01').sql.includes('asset_snapshots'));
-  const older = new Set(I.IMPLEMENT_COLUMNS.map(([n]) => n).filter((n) => n !== 'asset_snapshots'));
+  const newer = ['asset_snapshots', 'ended_by'];
+  const older = new Set(I.IMPLEMENT_COLUMNS.map(([n]) => n).filter((n) => !newer.includes(n)));
   assert.ok(!I.implementHistoryStatement('`t`', '42', null, older).sql.includes('asset_snapshots'), 'a missing snapshot column is not read as NULL either');
-  assert.deepEqual(I.implementMissingColumns(older), [['asset_snapshots', 'STRING']]);
+  assert.deepEqual(I.implementMissingColumns(older), I.IMPLEMENT_COLUMNS.filter(([n]) => newer.includes(n)));
   assert.ok(!I.implementRegistryStatement('`t`').sql.includes('asset_snapshots'));
 
   const { app, sqlCalls, altered, state } = makeApp({ history: [versionRow(1, { snapshot: { dashboard: true } })] });
-  state.implementColumns = state.implementColumns.filter((c) => c !== 'asset_snapshots');
+  state.implementColumns = state.implementColumns.filter((c) => !['asset_snapshots', 'ended_by'].includes(c));
   const srv = await listen(app);
   try {
     const q = 'inspire_database=main.inspire&warehouse_id=wh1&session_id=42&use_case_id=N01-U01';
@@ -230,7 +231,7 @@ test('asset_snapshots is created, added to an older table, and never read by the
     assert.deepEqual(altered, [], 'a read never adds the column');
     const got = await call(srv.url, '/api/inspire/implement/submit', submitBody({ ...BASE, based_on_version: 1, outputs: { ...BASE.outputs, dashboard_vibes: 'weekly bars' } }));
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(altered, [{ table: '`main`.`inspire`.`__inspire_implement`', columns: [['asset_snapshots', 'STRING']] }]);
+    assert.deepEqual(altered, [{ table: '`main`.`inspire`.`__inspire_implement`', columns: [['asset_snapshots', 'STRING'], ['ended_by', 'STRING']] }]);
     const reads = sqlCalls.filter((c) => String(c.sql).startsWith('SELECT') && String(c.sql).includes('__inspire_implement'));
     assert.ok(reads.length >= 4, `${reads.length} reads`);
     assert.deepEqual(reads.filter((c) => c.sql.includes('asset_snapshots')), [], 'no read selects the snapshots');

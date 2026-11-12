@@ -587,7 +587,7 @@ test('Change swaps a table for a similar one or drops it, and never offers to dr
     await toData(page);
     const row = (table) => page.locator(`[data-table="${table}"]`);
     await row('main.s.orders').getByRole('button', { name: 'Change' }).click();
-    const ordersPick = page.getByLabel('Table to use for main.s.orders');
+    const ordersPick = page.getByLabel('Table to use for main.s.orders', { exact: true });
     await page.waitForFunction(() => [...document.querySelectorAll('option')].some((o) => o.textContent === 'main.s2.orders_v2 (5 of 6 columns match)'));
     const drop = ordersPick.locator('option', { hasText: "Don't use this table" });
     assert.equal(await drop.textContent(), "Don't use this table (the primary table can be swapped, not removed)");
@@ -596,7 +596,7 @@ test('Change swaps a table for a similar one or drops it, and never offers to dr
     await row('main.s.orders').getByText('main.s2.orders_v2', { exact: true }).waitFor();
     await row('main.s.orders').getByText('instead of main.s.orders').waitFor();
     await row('main.s.returns').getByRole('button', { name: 'Change' }).click();
-    await page.getByLabel('Table to use for main.s.returns').selectOption('__remove__');
+    await page.getByLabel('Table to use for main.s.returns', { exact: true }).selectOption('__remove__');
     await page.getByText('Removed main.s.returns.', { exact: false }).waitFor();
     await row('main.s.returns').getByRole('button', { name: 'Use it again' }).waitFor();
     await toDelivery(page);
@@ -613,7 +613,7 @@ test('Change swaps a table for a similar one or drops it, and never offers to dr
 
 const NOTEBOOK_PATH = '/Users/owner@example.com/inspire/Acme/N01-U01';
 
-test('the Build page shows one row of tiles in a fixed order, each tile opens its asset in a new tab, Versions opens its facts, and the job holds the runs and the history', async () => {
+test('the Build page shows its tiles in a fixed order, no label is clipped beside the open Genie panel at 1440, 1280 and 1024, and the tiles sit in one row with the panel closed at 1440', async () => {
   const ui = await openUi('implement', { ...STUDIO_STATE, job: MVP_JOB, useCase: { ...HARNESS_USE_CASE, has_genie_code: 'Y', notebook_path: NOTEBOOK_PATH } });
   const { page } = ui;
   try {
@@ -636,6 +636,9 @@ test('the Build page shows one row of tiles in a fixed order, each tile opens it
       assert.deepEqual(cut, [], `no state or action label of a tile is cut short at ${width} px`);
     }
     await page.setViewportSize({ width: 1440, height: 1000 });
+    await closeBuild(page);
+    const tops = await tiles.evaluateAll((els) => [...new Set(els.map((t) => Math.round(t.getBoundingClientRect().top)))]);
+    assert.equal(tops.length, 1, `one row of tiles with the panel closed at 1440px: ${tops.length} rows`);
     const rows = await tiles.evaluateAll((els) => els.map((t) => [t.dataset.assetTile, t.dataset.tileKind]));
     assert.deepEqual(rows.map(([, kind]) => kind), TILE_IDS.map(() => 'live'), JSON.stringify(rows));
     assert.equal(await page.getByRole('tablist', { name: 'MVP views' }).count(), 0, 'no tabs: the tiles replace them');
@@ -1195,6 +1198,27 @@ test('a build that failed the same way twice lists what Inspire tried, drops Try
   }
 });
 
+test('the end state decides a cancel: a run the user cancelled shows no failure choices, a run the system stopped shows the stopped choices, and a row written before ended_by reads its text', async () => {
+  const stoppedWords = 'the run building v2 ended (Stopped: Run cancelled) while v2 was still filling';
+  const row = (extra) => built({ spec_version: 2, status: 'failed', implement_run_id: '5555555555555555', ...extra });
+  const cases = [
+    ['user', row({ status_message: stoppedWords, ended_by: 'user' }), 0],
+    ['system', row({ status_message: stoppedWords, ended_by: 'system' }), 3],
+    ['old row', row({ status_message: 'the run building v2 ended (CANCELED: Run cancelled) while v2 was still filling' }), 0],
+  ];
+  for (const [name, failed, expected] of cases) {
+    const ui = await openUi('implement', { ...STUDIO_STATE, history: [failed, built()] });
+    try {
+      const banner = ui.page.getByRole('region', { name: 'Build failed' });
+      await banner.waitFor();
+      assert.equal(await banner.locator('[data-failure-choice]').count(), expected, `${name}: failure choices`);
+      assert.deepEqual(ui.pageErrors, []);
+    } finally {
+      await ui.close();
+    }
+  }
+});
+
 test('Try again on a failed build sends the version that failed again as the next one, with its asks, and a notebook edit keeps its own rebuild', async () => {
   const spec = builtSpec();
   const vibe = 'Put the riskiest customers first';
@@ -1253,6 +1277,7 @@ test('a build that finishes bursts confetti from the bundled package, never for 
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     await page.getByRole('progressbar', { name: 'Build progress' }).waitFor();
+    await closeBuild(page);
     made.state.history = [built({ spec_version: 2 }), built()];
     await pollNow(page);
     await page.locator('[data-progress-card][data-progress-open="false"] [data-build-headline]', { hasText: /^Ready/ }).waitFor({ timeout: 15000 });
@@ -1599,10 +1624,10 @@ test('a dropped primary table stops the re-run with its name, and Edit opens the
     await lostRow.getByText('not found', { exact: true }).waitFor();
     assert.match(await lostRow.getAttribute('class'), /border-error\/50/);
     await lostRow.getByText('Primary', { exact: true }).waitFor();
-    await page.getByLabel('Table to use for main.s.orders').waitFor();
+    await page.getByLabel('Table to use for main.s.orders', { exact: true }).waitFor();
     const otherRow = wizard.locator('[data-table="main.s.returns"]');
     assert.doesNotMatch(await otherRow.getAttribute('class'), /border-error/);
-    assert.equal(await page.getByLabel('Table to use for main.s.returns').count(), 0, 'only the lost table opens its Change');
+    assert.equal(await page.getByLabel('Table to use for main.s.returns', { exact: true }).count(), 0, 'only the lost table opens its Change');
     assert.equal(made.sqlCalls.some((c) => /FROM `main`\.`inspire`\.`n01_u01_s42_out` WHERE as_of_date/.test(String(c.sql))), false, 'no result rows are read');
     assert.equal(made.jobs.length, 0);
     assert.deepEqual([...new Set(ui.pageErrors)], ['Failed to load resource: the server responded with a status of 409 (Conflict)'], 'the refused re-run is the only error (the same 409 can come from the check on What to deliver too)');
@@ -1689,7 +1714,7 @@ test('Edit of a version whose swapped primary table and own table are both gone 
       + 'Swap main.s.orders_old for a table with the same role, because the primary table can be swapped, not removed.', { exact: true }).waitFor();
     const row = page.locator('[data-table="main.s.orders"]');
     await row.getByText('not found', { exact: true }).waitFor();
-    await page.getByLabel('Table to use for main.s.orders').waitFor();
+    await page.getByLabel('Table to use for main.s.orders', { exact: true }).waitFor();
     await toDelivery(page);
     await toAppAccess(page);
     await goToStep(page, 'App look');
@@ -1714,7 +1739,7 @@ test('Edit of a version whose swapped secondary table and own table are both gon
     await page.getByRole('dialog').getByText(lostTablesText([{ table: 'main.s.returns_old', reason: 'not found' }])).waitFor();
     const row = page.locator('[data-table="main.s.returns"]');
     await row.getByText('not found', { exact: true }).waitFor();
-    await page.getByLabel('Table to use for main.s.returns').waitFor();
+    await page.getByLabel('Table to use for main.s.returns', { exact: true }).waitFor();
     await toDelivery(page);
     await toAppAccess(page);
     await goToStep(page, 'App look');
@@ -1723,6 +1748,57 @@ test('Edit of a version whose swapped secondary table and own table are both gon
     await page.waitForFunction(() => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === 'All Good, Build it Now' && !b.disabled), null, { timeout: 15000 });
     assert.equal(await start.isDisabled(), false, 'a lost secondary table never blocks the build (must-exclude)');
     assert.equal(await page.getByText('the preview cannot run because', { exact: false }).count(), 0);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the Genie build panel is docked beside the use case on first load of a built App, and at 1280x800 and 1440x900 the asset tiles stay clickable with it open', async () => {
+  const ui = await openUi('implement', STUDIO_STATE);
+  const { page } = ui;
+  try {
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    for (const [width, height] of [[1280, 800], [1440, 900]]) {
+      await page.setViewportSize({ width, height });
+      const dialog = page.locator('[data-progress-dock] [data-progress-panel] [role="dialog"]');
+      await dialog.waitFor();
+      assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', `open on first load at ${width}px`);
+      const [rail, pane, box] = await Promise.all([
+        page.locator('[data-implement-rail]').boundingBox(),
+        page.locator('[data-use-case-pane]').boundingBox(),
+        dialog.boundingBox(),
+      ]);
+      assert.ok(rail.x + rail.width <= pane.x + 1, `the use case list is left of the use case at ${width}px`);
+      assert.ok(pane.x + pane.width <= box.x + 1, `the panel is a column beside the use case, not over it, at ${width}px (pane ends ${Math.round(pane.x + pane.width)}, panel starts ${Math.round(box.x)})`);
+      assert.ok(box.width <= width * 0.4 + 1, `the panel takes at most 40% of ${width}px: ${Math.round(box.width)}px`);
+      await page.locator('[data-asset-tiles] button').first().click({ timeout: 5000 });
+      if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
+      assert.equal(await dialog.count(), 1, `the panel stays open through the tile click at ${width}px`);
+    }
+  } finally {
+    await ui.close();
+  }
+});
+
+test('the Genie build panel opens by itself while a build runs, and a close is remembered after a reload in the same tab', async () => {
+  const run = { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } };
+  const building = built({ spec_version: 2, status: 'building_outputs', status_message: 'building outputs', implement_run_id: String(run.run_id), updated_at: new Date().toISOString() });
+  const ui = await openUi('implement', { ...STUDIO_STATE, history: [building, built()], implementRun: run }, '', FAKE_CLOCK);
+  const { page } = ui;
+  try {
+    await page.setViewportSize({ width: 1280, height: 800 });
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    const panel = page.locator('[data-progress-panel]');
+    await panel.waitFor();
+    assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', 'the Genie panel is open while the build runs');
+    assert.ok((await panel.locator('[role="dialog"]').boundingBox()).width <= 1280 * 0.4 + 1, 'the panel takes at most 40% of 1280px');
+
+    await panel.getByRole('button', { name: 'Close', exact: true }).click();
+    await panel.waitFor({ state: 'detached' });
+    await page.reload();
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    assert.equal(await page.locator('[data-progress-panel]').count(), 0, 'after a close and a reload the panel stays closed');
+    assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'false');
   } finally {
     await ui.close();
   }
@@ -1744,7 +1820,7 @@ test('Use case details on the Implement page open the full use case in a drawer 
     await page.keyboard.press('Escape');
     await drawer.waitFor({ state: 'detached' });
     await page.locator('[data-progress-card]').waitFor();
-    assert.equal(await page.locator('[data-mvp-progress]').count(), 0, 'the click outside the progress panel closed it');
+    assert.equal(await page.locator('[data-mvp-progress]').count(), 1, 'the docked Genie panel stays open through a click outside it');
     assert.equal(await page.locator('[data-mvp-panel]').count(), 0, 'no asset drawer opened behind it');
     assert.equal(await focusedName(page), 'Use case details', 'the focus comes back to the button that opened it');
     await page.getByRole('button', { name: 'Use case details' }).click();
