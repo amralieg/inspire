@@ -2574,6 +2574,40 @@ def _condition(kind, target: str, value, params) -> list:
     return []
 
 
+class LiteralParams:
+    """The App's own filter conditions with each value written in as a SQL literal, for the text a Genie block carries."""
+
+    def __init__(self):
+        self.items = []
+
+    def add(self, value, kind: str = "STRING") -> str:
+        if kind == "DATE":
+            return f"DATE {literal(value)}"
+        if kind == "DOUBLE":
+            try:
+                return str(float(value))
+            except (TypeError, ValueError):
+                return literal(value)
+        return literal(value)
+
+
+def kpi_where(page: dict, dataset: str, values) -> str:
+    """The App's WHERE for one dataset at these filter values, values written as literals; empty when no filter applies."""
+    return _where(page, dataset, values or {}, LiteralParams())
+
+
+def filter_templates(page: dict, dataset: str) -> list:
+    """For each choice or date filter on the dataset, the App's condition shape with a placeholder a question's own values fill in."""
+    out = []
+    for f in page.get("filters") or []:
+        column = (f.get("columns") or {}).get(dataset)
+        if not column or f.get("type") not in ("multi_select", "date_range"):
+            continue
+        placeholder = ["<value>"] if f["type"] == "multi_select" else {"from": "<from>", "to": "<to>"}
+        out.append((str(f.get("label") or f.get("id")), " AND ".join(_condition(f["type"], quote(column), placeholder, LiteralParams()))))
+    return out
+
+
 def column_conditions(filters: list, values, params, targets=None) -> list:
     conditions = []
     for f in filters:

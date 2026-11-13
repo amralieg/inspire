@@ -160,3 +160,71 @@ def test_nothing_to_act_follows_the_app_at_the_same_boundary(agent_ns):
         assert reasons[label] == agent_ns["inspire_nothing_to_act"](
             {"act_now_records": app["act_now"], "review_records": app["review"], "records": app["records"]}, None, "")
     assert reasons["future"] is not None and reasons["boundary"] is None
+
+
+FILTER_PAGE = {
+    "datasets": [{"name": "rows", "sql": "SELECT value_at_stake, currency_code, channel, event_month, fx_rate FROM stake_rows"}],
+    "filters": [{"id": "channel", "label": "Sales channel", "type": "multi_select", "columns": {"rows": "channel"}},
+                {"id": "ticket_month", "label": "Ticket month", "type": "date_range", "grain": "month", "columns": {"rows": "event_month"}}],
+    "kpis": [{"id": "results", "label": "Results", "dataset": "rows", "expression": "COUNT(*)", "format": "integer"}],
+}
+
+
+def _block_text(agent_ns, page, values):
+    return agent_ns["implement_genie_kpi_block"]("N09-U05", page, shell_sql, values)
+
+
+def _genie_query_at(agent_ns, page, values, label):
+    block = _block_text(agent_ns, page, values)
+    head = f"- When asked for {label}, use exactly: "
+    start = block.index(head) + len(head)
+    end = END_OF_QUERY.search(block, start)
+    return block[start:end.start() if end else len(block)]
+
+
+def _app_value_bound(page, kpi, values, rows):
+    """The App's KPI as the App runs it: its own query with its values bound as parameters, on SQLite."""
+    import sqlglot
+    sql, params = shell_sql.kpi_query(page, kpi, values)
+    db = money.sqlite3.connect(":memory:")
+    money._load(db, "stake_rows", money.STAKE_COLUMNS, rows)
+    text = sqlglot.transpile(sql, read="databricks", write="sqlite")[0]
+    cursor = db.execute(text, {p["name"]: p["value"] for p in params})
+    names = [c[0] for c in cursor.description]
+    return dict(zip(names, cursor.fetchone()))["value"]
+
+
+def test_a_named_filter_value_narrows_the_genie_query_to_the_same_rows_as_the_apps_filtered_kpi(agent_ns):
+    values = {"channel": ["web"]}
+    app = _app_value_bound(FILTER_PAGE, "results", values, ROWS)
+    genie = money._run(_genie_query_at(agent_ns, FILTER_PAGE, values, "Results"), rows=ROWS)[0]["value"]
+    assert app == genie == 3, "web rows only: the App's filtered count and the Genie query's count are the same"
+    templates = dict(shell_sql.filter_templates(FILTER_PAGE, "rows"))
+    assert templates["Sales channel"] == "CAST(`channel` AS STRING) IN ('<value>')"
+
+
+def test_the_genie_query_at_the_apps_default_window_matches_the_app_and_the_bounds_come_from_each_sync(agent_ns):
+    class Frame:
+        def __init__(self, rows):
+            self.rows = rows
+
+        def collect(self):
+            return self.rows
+
+    class Spark:
+        def __init__(self):
+            self.statements = []
+
+        def sql(self, text):
+            self.statements.append(text)
+            return Frame([{"low": "2025-01-01", "high": "2025-06-30"}])
+
+    spark = Spark()
+    values = agent_ns["implement_genie_default_values"](spark, FILTER_PAGE, shell_sql)
+    assert spark.statements and "MIN(CAST(`event_month` AS DATE))" in spark.statements[0], "the bounds are read on each sync, as the App's check reads them"
+    assert values == shell_sql.default_values(FILTER_PAGE, {"ticket_month": ("2025-01-01", "2025-06-30")})
+    assert values, "a default window is set for the page's date filter"
+    app = _app_value_bound(FILTER_PAGE, "results", values, ROWS)
+    genie = money._run(_genie_query_at(agent_ns, FILTER_PAGE, values, "Results"), rows=ROWS)[0]["value"]
+    assert app == genie and app > 0
+    assert shell_sql.kpi_where(FILTER_PAGE, "rows", values) in _block_text(agent_ns, FILTER_PAGE, values)
