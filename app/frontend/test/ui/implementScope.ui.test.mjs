@@ -198,16 +198,21 @@ test('while the groups of a new Data groups pick are read, One group and Several
 
 test('Next on Data waits for a slow read and then opens the Data groups step with its pick made, and a first run the person picked stays picked after Back', async () => {
   const calls = [];
-  const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, PROFILE, { after: 8000 }) });
+  // The read is held until the test releases it: the profile is requested on open, so a fixed delay could finish before Next.
+  let release;
+  const hold = new Promise((done) => { release = done; });
+  const ui = await openUi('wizard', { me: ME }, '', { init: profileAt(calls, PROFILE, { hold }) });
   const { page } = ui;
   try {
-    await goToStep(page, 'Data');
-    assert.deepEqual(await stepBar(page), ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App and storage', '8. App look', '9. Review & build'],
-      'while the table is read the steps it may need already show, so the count never grows under the person');
-    // Source table folds and Result table opens: Next on the last section of Data & results waits for the read.
+    // REQ-166: the step bar shows only once the scope is known, so while the table is read the bar says so and holds no step, and the count never changes after it first shows.
+    await page.locator('[data-step-bar-loading=""]').waitFor({ timeout: 15000 });
+    assert.equal(await page.locator('[aria-current="step"]').count(), 0, 'no step is marked while the table is read');
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    // Source table folds and Result table open: Next on the last section of Data & results waits for the read.
     await next(page);
     await next(page);
     await page.getByRole('button', { name: /Reading the table/ }).waitFor({ timeout: 8000 });
+    release();
     await page.getByRole('button', { name: /Reading the table/ }).waitFor({ state: 'detached', timeout: 30000 });
     await onStep(page, 'Data groups');
     assert.equal(await page.locator('[aria-current="step"]').innerText(), '3. Data groups', 'Next lands on the Data groups step once the table is read');

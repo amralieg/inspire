@@ -610,10 +610,12 @@ export function assertOneBadgeOnDefault(shown, where, { perChoice = false } = {}
   }
 }
 
-export const profileAt = (calls, answer, { status = 200, after = 0 } = {}) => async (page) => {
+export const profileAt = (calls, answer, { status = 200, after = 0, hold = null } = {}) => async (page) => {
   await page.route('**/api/grouping/profile', async (route) => {
     calls.push(JSON.parse(route.request().postData() || '{}'));
     if (after) await new Promise((done) => setTimeout(done, after));
+    // hold: a promise the test resolves to release the answer, so a read stays in flight for as long as the test needs.
+    if (hold) await hold;
     await route.fulfill({ status, contentType: 'application/json', body: JSON.stringify(answer) });
   });
 };

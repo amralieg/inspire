@@ -113,6 +113,8 @@ test('the first page is What to deliver, and each step fits the screen at 1280x8
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
+    // REQ-166: the step list fills in once the scope is known (until then the bar shows "Loading the steps"), so wait for it.
+    await page.locator('[data-wizard-header] ol li').first().waitFor({ timeout: 15000 });
     const labels = await stepLabels(page);
     assert.equal(labels[0], 'What to deliver', labels.join(' | '));
     for (const [width, height] of VIEWPORTS) {
