@@ -313,6 +313,23 @@ def test_a_user_app_with_two_viewers_grants_both_and_lists_the_one_refused_grant
     assert [(e["principal"], e["statements"]) for e in entries] == [("bob@example.com", [refused])], entries
 
 
+def test_the_build_persists_the_scope_view_and_the_source_table_the_app_reads_directly_but_not_its_result_table(agent_ns, sdk_stub):
+    # A page that reads one Data Filters scope view, one source table directly, and its own result table: the build persists the
+    # view as an App object and the source as sources_read, and never the result table (the App writes it, it does not read it as a source).
+    host = dict(HOST_APP, user_api_scopes=["sql:restricted-query", "genie"])
+    inst, context, _calls, _imported = _deploy_inspire(agent_ns, [host, {"access_control_list": []}] + DEPLOYED, access=[])
+    view, source = "main.s.orders_scope", "main.s.returns"
+    inst._genie_scopes = lambda use_case: {"main.s.orders": {"table": "main.s.orders", "view": view, "view_sql": "SELECT 1", "ready": True}}
+    context["app_host"] = dict(agent_ns["implement_app_host"]("sales-desk"), app=host, merged=True, source=SOURCE, settings={
+        "auth": "user", "options": {"modify": False, "decisions": False}})
+    fields = inst._implement_deploy_app(context, "sales-desk", SHELL_FILES, [view, source, context["result_table"]], "gA", poll_s=0)
+    persisted = fields["_asset"]
+    assert persisted["views"] == [view], persisted
+    assert persisted["sources_read"] == [source], persisted
+    assert context["result_table"] not in persisted["sources_read"], "the result table is never a source the App reads"
+    assert context["result_table"] not in persisted["views"]
+
+
 def test_a_sensitive_use_case_is_never_merged_into_a_service_principal_app(agent_ns, tmp_path, monkeypatch):
     inst, context, seen, _calls = _merge_flow(agent_ns, tmp_path, monkeypatch, outputs={"app_access": "user"})
     with pytest.raises(_blocked(agent_ns)) as raised:
