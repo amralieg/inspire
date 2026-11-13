@@ -182,7 +182,12 @@ async function stubFetch(url, opts = {}) {
   const call = { method, path: u.pathname, query: u.search, token, statement: body.statement || '', raw: typeof opts.body === 'string' ? opts.body : '', category: categoryOf(method, u.pathname, body, token) };
   state.calls.push(call);
   // holdFetch(url, method) => true makes the workspace never answer that call (a stalled warehouse or listing).
-  if (state.holdFetch && state.holdFetch(u, method)) return new Promise(() => {});
+  // A held call honours the abort signal the way fetch does: it rejects when the caller aborts, and never answers otherwise.
+  if (state.holdFetch && state.holdFetch(u, method)) {
+    return new Promise((_, reject) => {
+      if (opts.signal) opts.signal.addEventListener('abort', () => reject(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' })), { once: true });
+    });
+  }
   if (u.pathname === '/oidc/v1/token') return json({ access_token: APP_TOKEN, expires_in: 3600 });
   if (u.pathname === `/api/2.0/permissions/apps/${APP_NAME}`) {
     if (state.aclStatus !== 200) return json({ message: 'denied' }, state.aclStatus);

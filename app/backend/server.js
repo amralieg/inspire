@@ -38,6 +38,7 @@ const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, va
 const { normalizeUseCaseName, renameStatement } = require('./lib/useCaseName');
 const { createExecuteSql, runWithRequestDeadline } = require('./lib/sqlStatements');
 const { raceLaunchCheck } = require('./lib/launchDeadline');
+const { answerMs, fetchWithin } = require('./lib/answerWithin');
 const { plural } = require('./lib/plural');
 const { jsonOf, registerImplementRoutes } = require('./implementRoutes');
 const {
@@ -255,7 +256,7 @@ async function refreshSpToken() {
 
     if (DEBUG_SP_AUTH) console.log('🔑 SP OAuth: fetching token…');
     try {
-      const resp = await fetch(`${host}/oidc/v1/token`, {
+      const resp = await fetchWithin(`${host}/oidc/v1/token`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
         body: new URLSearchParams({
@@ -264,7 +265,7 @@ async function refreshSpToken() {
           client_secret: SP_CLIENT_SECRET,
           scope: 'all-apis',
         }),
-      });
+      }, { label: 'The sign-in token request' });
       if (resp.ok) {
         const data = await resp.json();
         spTokenCache = data.access_token || '';
@@ -312,17 +313,19 @@ async function dbFetch(host, token, apiPath, options = {}) {
   const url = `${host}${apiPath}`;
   const { idempotent = false, ...init } = options;
   const method = init.method || 'GET';
+  const ms = answerMs();
   let resp;
   try {
-    resp = await withBusyRetry(() => fetch(url, {
+    resp = await withBusyRetry(() => fetchWithin(url, {
       ...init,
       headers: {
         'Authorization': `Bearer ${token}`,
         'Content-Type': 'application/json',
         ...init.headers,
       },
-    }), { method, signal: init.signal, retryNetwork: idempotent || method === 'GET' });
+    }, { ms, label: `Databricks ${method} ${apiPath.split('?')[0]}` }), { method, signal: init.signal, retryNetwork: idempotent || method === 'GET' });
   } catch (e) {
+    if (e && e.timedOut) throw e;
     throw new Error(unreachableMessage(host, e, policyEnforced()));
   }
   return resp;
@@ -1221,11 +1224,11 @@ app.post('/api/auth/sp-token', async (req, res) => {
       scope,
     });
 
-    const resp = await fetch(tokenUrl, {
+    const resp = await fetchWithin(tokenUrl, {
       method: 'POST',
       headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
       body: body.toString(),
-    });
+    }, { label: 'The Azure sign-in token request' });
 
     if (!resp.ok) {
       const errText = await resp.text();
@@ -1517,9 +1520,9 @@ app.post('/api/setup/verify', async (req, res) => {
   // 1. Workspace connectivity
   try {
     if (!host) throw new Error('No Databricks host configured');
-    const resp = await fetch(`${host}/api/2.0/clusters/spark-versions`, {
+    const resp = await fetchWithin(`${host}/api/2.0/clusters/spark-versions`, {
       headers: { Authorization: `Bearer ${token || 'invalid'}` },
-    });
+    }, { label: `The workspace ${host}` });
     checks.workspace = { ok: resp.status !== 0, message: resp.ok ? host : `Host reachable but returned ${resp.status}` };
   } catch (err) {
     checks.workspace = { ok: false, message: `Cannot reach ${host || 'no host'}: ${err.message}` };
