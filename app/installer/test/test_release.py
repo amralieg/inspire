@@ -297,6 +297,30 @@ class CheckTest(unittest.TestCase):
         self.assertIn("installer.py is stamped", "".join(failures))
         self.assertIn("FAIL", said)
 
+    def test_a_manifest_whose_version_is_not_the_version_of_the_tag_fails_the_check(self):
+        manifest = json.loads((self.out / "manifest.json").read_text())
+        manifest["version"] = "v1.2.9"
+        github = support.FakeGitHub(LATEST, self.out)
+        github.files["manifest.json"] = json.dumps(manifest).encode()
+        failures, _ = self.check(github)
+        self.assertEqual(failures, ["manifest.json names version v1.2.9, but tag v1.3.0 is version v1.3.0"])
+
+    def test_a_release_candidate_tag_is_checked_against_the_version_without_its_rc_suffix(self):
+        self.assertEqual(release.tag_version("v1.3.0-rc.1"), "v1.3.0")
+        self.assertEqual(release.tag_version("v1.3.0"), "v1.3.0")
+        self.assertEqual(release.tag_version("v1.3.0-rc.12"), "v1.3.0")
+        self.assertEqual(release.tag_version("v1.3.0-rc.x"), "v1.3.0-rc.x")
+        rc_tag = "v1.3.0-rc.1"
+        rc = support.build_release(self.tmp, name="rc", tag=rc_tag)
+        github = support.FakeGitHub(support.RELEASE_BASE.replace(support.VERSION, rc_tag), rc)
+        failures, _ = self.check(github, rc_tag)
+        self.assertEqual(failures, [])
+        manifest = json.loads((rc / "manifest.json").read_text())
+        manifest["version"] = "v1.3.1"
+        github.files["manifest.json"] = json.dumps(manifest).encode()
+        failures, _ = self.check(github, rc_tag)
+        self.assertEqual(failures, ["manifest.json names version v1.3.1, but tag v1.3.0-rc.1 is version v1.3.0"])
+
     def test_the_check_runs_the_live_genie_walk_on_the_named_built_app_and_fails_when_any_answer_has_no_data(self):
         github = support.FakeGitHub(LATEST, self.out)
         calls = []
