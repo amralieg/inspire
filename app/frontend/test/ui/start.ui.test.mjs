@@ -491,8 +491,11 @@ test('REQ-094 No data yet has See Demo beside it on the same row, and See Demo o
     await page.setViewportSize({ width: 1440, height: 900 });
     await page.getByRole('button', { name: 'Get Started', exact: true }).first().click();
     await choice(page, 'demo').waitFor({ timeout: 20000 });
-    const noData = await boxOf(page, '[data-start-choice="no-data"]');
-    const demo = await boxOf(page, '[data-start-choice="demo"]');
+    await page.waitForFunction(() => !document.querySelector('main')?.getAnimations({ subtree: true }).some((a) => a.animationName === 'pageEnter'), null, { timeout: 5000 });
+    const [noData, demo] = await page.evaluate(() => ['no-data', 'demo'].map((id) => {
+      const { x, y, width } = document.querySelector(`[data-start-choice="${id}"]`).getBoundingClientRect();
+      return { x, y, width };
+    }));
     assert.ok(Math.abs(demo.y - noData.y) < 2, `See Demo is on the same row as No data yet (y ${Math.round(demo.y)} vs ${Math.round(noData.y)})`);
     assert.ok(demo.x >= noData.x + noData.width - 1, 'See Demo sits to the right of No data yet');
     assert.equal(await page.getByRole('button', { name: 'See Demo', exact: true }).count(), 1, 'one See Demo control, not a copy');
