@@ -153,3 +153,20 @@ def test_the_first_run_suggestions_read_a_scoped_table_through_its_scope_at_run_
 def test_a_table_outside_any_run_scope_is_suggested_from_the_table_itself(scoped):
     scoped["INSPIRE_RUN"] = {"table_scopes": {}, "scoped_tables": []}
     assert scoped["inspire_table_name"]("main.s.customers") in scoped["inspire_scope_groups_sql"]("main.s.customers", "region")
+
+
+def test_a_rows_only_scope_outside_the_build_names_its_columns_through_the_run_session(agent_ns):
+    agent_ns["spark"] = object()
+    agent_ns["implement_uc_columns"] = lambda session, table, logger=None: [{"column_name": c, "data_type": "STRING"}
+                                                                             for c in ["sku", "brand", "sold_on"]]
+    data = {"tables": {}, "removed_tables": [], "filters": [{"table": SALES, "column": "brand", "op": "=", "values": ["alpha"]}],
+            "column_roles": {}, "window": {}, "run_profile": "preview", "notes": ""}
+    scopes = agent_ns["implement_use_case_scopes"]({"No": "7", "_implement_data": copy.deepcopy(data)}, [SALES], VIEW_DATABASE)
+    assert scopes[SALES]["columns"] == ["sku", "brand", "sold_on"], scopes[SALES]
+
+
+def test_a_rows_only_scope_outside_the_build_with_no_run_session_is_refused_not_widened(agent_ns):
+    data = {"tables": {}, "removed_tables": [], "filters": [{"table": SALES, "column": "brand", "op": "=", "values": ["alpha"]}],
+            "column_roles": {}, "window": {}, "run_profile": "preview", "notes": ""}
+    with pytest.raises(ValueError, match="names no columns"):
+        agent_ns["implement_use_case_scopes"]({"No": "7", "_implement_data": copy.deepcopy(data)}, [SALES], VIEW_DATABASE)
