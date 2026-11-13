@@ -16,10 +16,10 @@ function cleanRates(rates) {
 
 // The latest rate per currency into the base, read from the rate table the rule names. runSql runs the statement with the
 // person's sign-in, so the table is read through what that person can see.
-async function rateTableRates(rateTable, base, runSql) {
-  const sql = GP.rateSampleSql(rateTable, base, RATE_TABLE_CURRENCIES);
-  if (!sql) throw new Error('The rate table is not readable: name its table and its columns, and the reporting currency as a three-letter code.');
-  const rows = await runSql(sql);
+async function rateTableRates(rateTable, base, runSql, scopes) {
+  const made = GP.rateSampleSql(rateTable, base, scopes, RATE_TABLE_CURRENCIES);
+  if (!made) throw new Error('The rate table is not readable: name its table and its columns, and the reporting currency as a three-letter code.');
+  const rows = await runSql(made.sql, made.parameters);
   const rates = {};
   for (const row of rows) rates[String(row.currency ?? '').trim().toUpperCase()] = Number(row.rate);
   return cleanRates(rates);
@@ -29,10 +29,10 @@ async function rateTableRates(rateTable, base, runSql) {
 // for both launch paths: Implement passes the Measure rule's own currency and rates (typed, or read from its rate table);
 // Discover, which has no rule yet, passes today's rates where the rate source answers and the saved averages where it does not.
 // A rate-column rule has one rate per record, not one per currency: it sends the rate and currency columns, and each record converts with its own rate.
-async function implementCurrencyParams(money, { runSql } = {}) {
+async function implementCurrencyParams(money, { runSql, scopes } = {}) {
   if (!money || money.currency !== 'convert' || !ISO.test(String(money.base || ''))) return {};
   if (money.rate_table !== undefined) {
-    const rates = await rateTableRates(money.rate_table, money.base, runSql);
+    const rates = await rateTableRates(money.rate_table, money.base, runSql, scopes);
     return { currency: money.base, currency_rates: JSON.stringify({ source: 'table', rates }) };
   }
   if (money.rate_column !== undefined) {
