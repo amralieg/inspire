@@ -188,3 +188,20 @@ def test_a_whole_build_failure_after_a_refused_grant_keeps_its_entries_on_the_fa
     fields = agent_ns["DatabricksInspire"]._implement_stopped_fields(stub, ("1", "N01-U01", 2), inflight)
     assert fields["asset_status"]["permissions"] == [entry]
     assert fields["asset_status"]["app"] == {"state": "failed"}
+
+
+def test_a_refusal_with_no_identity_names_no_grant_instead_of_a_placeholder_role(agent_ns):
+    # REQ-149: with no identity to grant to, a GRANT would name a placeholder role the owner cannot run, so no statement is made.
+    refusal = agent_ns["implement_lakebase_refusal"](RuntimeError(DENIED), "")
+    assert isinstance(refusal, agent_ns["ImplementLakebasePermission"])
+    assert refusal.statement == "" and "<identity>" not in str(refusal)
+    assert "the identity Inspire runs as cannot create objects in the database databricks_postgres" in str(refusal)
+    assert agent_ns["implement_lakebase_permission_entry"](RuntimeError(DENIED), "") is None
+
+
+def test_the_reason_for_a_refusal_with_no_identity_asks_the_owner_to_run_nothing(agent_ns):
+    obj = _inst(agent_ns, FakeCursor(), [])
+    obj._implement_builder = lambda: ""
+    reason = obj._implement_lakebase_reason(RuntimeError(DENIED), "x")
+    assert reason.startswith("the identity Inspire runs as cannot create objects in the database databricks_postgres")
+    assert "ask the Lakebase project owner" not in reason and reason.endswith("can grant")
