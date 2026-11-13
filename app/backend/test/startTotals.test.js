@@ -137,27 +137,41 @@ test('the totals live on Start alone: Review renders no portfolio cards and Star
 
 test('each Start run row counts its use cases, quality, priority and MVPs, numbers first, and says why a count is missing', async () => {
   const { runCounts } = await lib('reviewFigures.js');
-  const shown = (c) => c.items.map((i) => `${i.n} ${i.label}`);
+  // Start renders an item's text when it has one (the quality sentence), otherwise its number and label, as ChoosePage does.
+  const shown = (c) => c.items.map((i) => (i.n == null ? `${i.label} not counted` : i.text ? i.text : `${i.n} ${i.label}`));
   const overview = { total: 8, high: 3, meets: 6, below: 2, domains: 1, unread: {} };
   const portfolio = { sessions: { 42: { mvps_started: 4, mvps_live: 1, mvps_building: 2, mvps_failed: 1 } } };
   assert.deepEqual(shown(runCounts(overview, portfolio, SESSIONS[0])),
-    ['8 use cases', '6 high quality', '2 low quality', '3 high priority', '1 domain', '1 MVP built', '2 building', '1 failed']);
+    ['8 use cases', '6 of 8 use cases meet the quality bar', '3 high priority', '1 domain', '1 MVP built', '2 building', '1 failed']);
   assert.deepEqual(runCounts(overview, portfolio, SESSIONS[0]).why, []);
   const held = { sessions: { 42: { mvps_started: 3, mvps_live: 2, mvps_building: 0, mvps_failed: 0, mvps_held: 1 } } };
   assert.deepEqual(shown(runCounts(overview, held, SESSIONS[0])).slice(-4), ['2 MVPs built', '0 building', '0 failed', '1 vibes not met'],
     'an MVP held for its vibes with nothing live is counted, not lost');
   assert.deepEqual(shown(runCounts(overview, portfolio, SESSIONS[2])).slice(-3), ['0 MVPs built', '0 building', '0 failed'], 'a run with no MVP counts zero');
-  assert.deepEqual(shown(runCounts(overview, null, SESSIONS[0])).length, 5, 'no MVP counts before the portfolio loads');
+  assert.deepEqual(shown(runCounts(overview, null, SESSIONS[0])).length, 4, 'no MVP counts before the portfolio loads');
+  const quality = (c) => c.items.find((i) => i.key === 'quality_bar');
+  for (const item of runCounts(overview, portfolio, SESSIONS[0]).items.filter((i) => i.key === 'quality_bar')) {
+    assert.match(item.text, /^\d+ of \d+ use cases? meets? the (\S+ )?quality bar$/, 'the quality count is one sentence that starts with a number, never a bare number');
+  }
+  const named = { ...SESSIONS[0], results_json: { quality_bar: { mode: 'High' } } };
+  assert.equal(quality(runCounts(overview, portfolio, named)).text, '6 of 8 use cases meet the High quality bar', 'a run that names its bar says so');
+  const unread = runCounts({ ...overview, meets: null, below: null, unread: { quality: 'no elite_status column' } }, portfolio, SESSIONS[0]);
+  assert.equal(quality(unread).n, null, 'an unread quality count is not counted');
+  assert.equal(shown(unread).includes('quality bar not counted'), true, 'the missing quality count says so');
+  assert.match(unread.why.join(' '), /Quality is not counted: no elite_status column/, 'and says why it is missing');
   assert.equal(shown(runCounts(overview, portfolio, SESSIONS[0], { running: true }))[0], '8 use cases so far');
-  assert.deepEqual(runCounts({ total: 1, high: 0, meets: 0, below: 1, domains: 1 }, null, SESSIONS[0]).items.map((i) => i.n), [1, 0, 1, 0, 1],
-    'a use case below the bar is low quality, never high quality');
+  const belowOnly = runCounts({ total: 1, high: 0, meets: 0, below: 1, domains: 1 }, null, SESSIONS[0]).items;
+  assert.equal(belowOnly.find((i) => i.key === 'quality_bar').text, '0 of 1 use case meets the quality bar',
+    'a use case below the bar is not counted as meeting it');
+  assert.deepEqual(belowOnly.map((i) => i.n), [1, 0, 0, 1], 'use cases, quality, high priority, domains');
   assert.deepEqual(runCounts({ total: 0 }, portfolio, SESSIONS[0], { running: true }), { items: [], note: 'No use cases yet', why: [] });
   assert.deepEqual(shown(runCounts({ total: 0 }, null, SESSIONS[0])), ['0 use cases'], 'a finished run with no use cases says 0, not nothing');
   const denied = runCounts({ error: 'PERMISSION_DENIED on table' }, portfolio, SESSIONS[0]);
   assert.deepEqual(shown(denied), ['1 MVP built', '2 building', '1 failed'], 'no made-up use case zero, and the MVPs still count');
   assert.deepEqual(denied.why, ['Use cases are not counted: PERMISSION_DENIED on table']);
   const older = runCounts({ total: 5, high: 2, meets: null, below: null, domains: 3, unread: { quality: 'the use case table has no elite_status column' } }, null, SESSIONS[0]);
-  assert.deepEqual(older.items.map((i) => i.n), [5, null, null, 2, 3], 'an unreadable count is null, never 0');
+  assert.deepEqual(older.items.map((i) => i.n), [5, null, 2, 3], 'an unreadable quality count is null, never 0');
+  assert.equal(shown(older)[1], 'quality bar not counted', 'and the Start row says it is not counted');
   assert.deepEqual(older.why, ['Quality is not counted: the use case table has no elite_status column.']);
   const noMvps = runCounts(overview, portfolio, SESSIONS[0], { mvpError: 'the MVP table cannot be read' });
   assert.deepEqual(noMvps.items.at(-1), { key: 'mvps_built', n: null, label: 'MVPs built' });

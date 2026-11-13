@@ -14,7 +14,9 @@ BUNDLED = os.path.join(APP, "dbx_inspire_ai_agent.ipynb")
 BUNDLE_JS = os.path.join(APP, "backend", "notebook_bundle.js")
 LEGACY = ("_INSPIRE_APP_SHELL", "_INSPIRE_KINDS")
 NOTEBOOK_BYTES_CAP = 6_000_000
-TRANSLATIONS_BEFORE_THE_MOVE_SHA256 = "66c436fa5cb74d084d505dc988d3617a7d7f8e6e9eecb7933c828b5642daaf24"
+# rc.2 (REQ-165) regenerated the three count notices in every curated language, so the guard now covers the rest of the copy.
+COUNT_NOTICE_KEYS = ("doc_fallback_notice", "doc_fallback_notice_one", "doc_bar_partial_notice")
+TRANSLATIONS_BEFORE_THE_MOVE_WITHOUT_COUNT_NOTICES_SHA256 = "344bccfeed4bc555d3402cb7679ac3364b6a171afa16e1b89f112b8bcda9757c"
 IMPORT_BYTES_CAP = 8_000_000
 
 
@@ -200,8 +202,8 @@ def test_embed_check_finds_an_asset_still_embedded_or_pinned_at_another_build_an
 def test_the_curated_translations_load_from_the_assets_exactly_as_the_notebook_held_them_before_the_move(agent_ns):
     fallbacks = agent_ns["TranslationService"].TRANSLATION_FALLBACKS
     assert isinstance(fallbacks, agent_ns["InspireTranslationFallbacks"])
-    held = json.dumps(dict(fallbacks), ensure_ascii=False)
-    assert hashlib.sha256(held.encode("utf-8")).hexdigest() == TRANSLATIONS_BEFORE_THE_MOVE_SHA256
+    held = {language: {k: v for k, v in table.items() if k not in COUNT_NOTICE_KEYS} for language, table in dict(fallbacks).items()}
+    assert hashlib.sha256(json.dumps(held, ensure_ascii=False).encode("utf-8")).hexdigest() == TRANSLATIONS_BEFORE_THE_MOVE_WITHOUT_COUNT_NOTICES_SHA256
     assert dict(fallbacks) == json.loads(_repo_bytes(agent_ns, "translations"))
     assert len(fallbacks) == 22 and fallbacks["Arabic"]["domain"] and "English" not in fallbacks
     assert fallbacks.get("Klingon", {}) == {} and {**fallbacks}.keys() == set(fallbacks)

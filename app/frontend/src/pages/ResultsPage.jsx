@@ -1403,7 +1403,7 @@ export default function ResultsPage({
                           : <p className="text-[11px] text-text-secondary">Every step of the run finished.</p>}
                       {qualityBarCounts.found > 0 && (
                         <p className="text-[11px] text-text-secondary mt-0.5" data-testid="quality-bar-counts">
-                          {qualityBarCountText(qualityBarCounts.found, qualityBarCounts.meets)}
+                          {qualityBarCountText(qualityBarCounts.found, qualityBarCounts.meets, runOutcome.mode)}
                         </p>
                       )}
                       {noneMeetsBar && !runOutcome.failed && (
