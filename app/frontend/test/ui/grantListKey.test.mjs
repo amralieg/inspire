@@ -33,7 +33,7 @@ test('the same statements split across entries in a different order keep one key
 // The bus keeps what it has shown for the page's life, so each test uses its own grant statements.
 function listen() {
   const got = [];
-  const off = subscribePermissions((permissions, extra) => got.push({ permissions, extra }));
+  const off = subscribePermissions((permissions, extra, { quiet = false } = {}) => got.push({ permissions, extra, quiet }));
   return { got, off };
 }
 
@@ -43,7 +43,7 @@ test('a grant list raised twice opens the dialog once, even when the second rais
   raisePermissions([{ statements: [stmt] }]);
   raisePermissions([{ statements: [stmt] }], { retry: () => {} });
   off();
-  assert.equal(got.length, 1);
+  assert.equal(got.filter((g) => !g.quiet).length, 1);
 });
 
 test('the same grants in another order do not reopen the dialog (REQ-131, REQ-137)', () => {
@@ -53,7 +53,7 @@ test('the same grants in another order do not reopen the dialog (REQ-131, REQ-13
   raisePermissions([{ statements: [a, b] }]);
   raisePermissions([{ statements: [b, a] }]);
   off();
-  assert.equal(got.length, 1);
+  assert.equal(got.filter((g) => !g.quiet).length, 1);
 });
 
 test('a new grant opens the dialog again, and an explicit action always opens (REQ-131, REQ-137)', () => {
@@ -64,7 +64,7 @@ test('a new grant opens the dialog again, and an explicit action always opens (R
   raisePermissions([{ statements: [a, b] }]);
   raisePermissions([{ statements: [a] }], {}, { explicit: true });
   off();
-  assert.equal(got.length, 3);
+  assert.equal(got.filter((g) => !g.quiet).length, 3);
 });
 
 test('an empty grant list raises nothing (REQ-131, REQ-137)', () => {
@@ -72,5 +72,17 @@ test('an empty grant list raises nothing (REQ-131, REQ-137)', () => {
   raisePermissions([]);
   raisePermissions(undefined);
   off();
-  assert.equal(got.length, 0);
+  assert.equal(got.filter((g) => !g.quiet).length, 0);
+});
+
+test('a repeat of grants already shown reaches the open dialog as a quiet merge of its extras, never as a second dialog (REQ-131, REQ-137)', () => {
+  const { got, off } = listen();
+  const stmt = 'GRANT SELECT ON TABLE `main`.`bus`.`retry` TO `sp-retry`';
+  raisePermissions([{ statements: [stmt] }]);
+  const retry = () => {};
+  raisePermissions([{ statements: [stmt] }], { retry });
+  off();
+  assert.equal(got.filter((g) => !g.quiet).length, 1, 'one dialog');
+  assert.equal(got.filter((g) => g.quiet).length, 1, 'the repeat is a quiet notice');
+  assert.equal(got.find((g) => g.quiet).extra.retry, retry, 'the repeat carries Try again to the open dialog');
 });

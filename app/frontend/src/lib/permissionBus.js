@@ -27,7 +27,11 @@ export function raisePermissions(permissions, extra = {}, { explicit = false } =
   const key = grantListKey(permissions);
   const seen = shown.has(key);
   shown.add(key);
-  if (seen && !explicit) return;
+  if (seen && !explicit) {
+    // The same grants again: never reopen. An open dialog for them takes this raise's extras (Try again, Start) through a quiet notice.
+    subscribers.forEach((fn) => fn(permissions, extra, { quiet: true }));
+    return;
+  }
   if (!subscribers.size) {
     pending = { permissions, extra };
     return;
