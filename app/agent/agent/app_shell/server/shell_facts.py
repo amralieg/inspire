@@ -1147,3 +1147,14 @@ def run_total_query(source: str) -> str:
             "filters": [{"id": "as_of", "type": "date_range", "grain": "month", "columns": {RUN_TOTAL_DATASET: "as_of_date"}}]}
     expression = money_expression(page, RUN_TOTAL_DATASET, "SUM(value_at_stake)")
     return f"SELECT {expression} AS value FROM ({money_source(page, RUN_TOTAL_DATASET, source)}) AS d"
+
+
+RUN_ROWS_DATASET = "run_rows"
+
+
+def run_rows_source(source: str, date_column: str) -> str:
+    """The rows of a run that its counts read: the App's count rule (future_source), so a dated row after today is left out and an
+    undated row stays, as the App's count KPIs keep them. The run's counts and the App's counts over the same rows then agree."""
+    page = {"datasets": [{"name": RUN_ROWS_DATASET, "sql": source}],
+            "filters": [{"id": "as_of", "type": "date_range", "columns": {RUN_ROWS_DATASET: date_column}}]}
+    return future_source(page, RUN_ROWS_DATASET, source)
