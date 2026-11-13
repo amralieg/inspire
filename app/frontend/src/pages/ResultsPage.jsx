@@ -93,7 +93,7 @@ import {
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { liveCountText } from '../lib/liveUseCases';
 import { saveBlob } from '../lib/download';
-import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, artifactTreeFiles, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, hasPdfArtifact, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
+import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, artifactTreeFiles, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import DocumentActions from '../components/DocumentActions';
 import { documentBasePath } from '../lib/documentActions';
@@ -1623,7 +1623,6 @@ export default function ResultsPage({
             <DocumentActions
               apiFetch={apiFetch}
               apiPostJson={apiPostJson}
-              pdfMade={hasPdfArtifact(artifactTreeFiles(artifactsRootFiles, artifactTree))}
               session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), outputLanguage: selectedSession?.output_language || '', generationPath: documentBasePath({ generationPath: selectedSession?.generation_path || selectedSession?.widget_values?.generation_path || '', notebookPath: settings?.notebookPath || '' }) }}
               onFinished={() => loadArtifacts(generationPath)}
             />

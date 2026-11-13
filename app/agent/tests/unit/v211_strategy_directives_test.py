@@ -62,12 +62,13 @@ def test_the_app_names_the_priority_level_without_renaming_any_header(agent_ns):
     assert any("priority_level 'Initiative' ignored" in w for w in wrong["warnings"])
 
 
-def test_a_named_level_with_no_entries_gets_no_column(agent_ns):
+def test_a_declared_level_with_no_entries_still_gets_its_column(agent_ns):
+    """REQ-076: the Excel has a column for every strategy level the customer declared, even one no use case reaches yet."""
     obj = make_inspire(agent_ns)
     obj.strategy_tree = agent_ns["parse_strategic_context"](json.dumps(
         {"levels": ["Pillar", "Goal", "Objective", "Priority"], "priority_level": "Priority",
          "strategy": [{"name": "Customer", "children": ["Win loyalty"]}]}))
-    assert [header for header, _get, _numeric in obj._strategy_level_columns()] == ["Pillar", "Goal"]
+    assert [header for header, _get, _numeric in obj._strategy_level_columns()] == ["Pillar", "Goal", "Objective", "Priority"]
     assert agent_ns["strategy_level_names"](obj.strategy_tree, [{"id": "S1.1"}]) == {"Pillar": "Customer", "Goal": "Win loyalty"}
 
 
