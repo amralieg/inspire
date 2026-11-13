@@ -80,8 +80,6 @@ test('Check again on an unreadable build opens See the grant, with the full read
     assert.equal(await page.locator('[data-permission-dialog=""]').count(), 0, 'Check again reopens nothing for the same grants');
     const see = card.locator('[data-see-grant=""]');
     await see.waitFor({ timeout: 15000 });
-    await dialog.waitFor({ timeout: 15000 });
-    await dialog.getByRole('button', { name: 'Close' }).click();
     await see.click();
     await dialog.waitFor({ timeout: 15000 });
     assert.match(await dialog.locator('#permission-required-title').innerText(), /^Permission Required$/);

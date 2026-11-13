@@ -24,7 +24,7 @@ const RATE_TABLE = { table: 'main.fx.rates', currency_column: 'ccy', base_column
 test('a rate-table rule reads the latest rate per currency from its table and sends source table, so the run converts (REQ-103)', async () => {
   const seen = [];
   const runSql = async (sql) => { seen.push(sql); return [{ currency: 'EUR', rate: 4.28 }, { currency: 'usd', rate: 3.6725 }, { currency: 'GBP', rate: 0 }, { currency: 'XX', rate: 1 }]; };
-  const out = await implementCurrencyParams({ currency: 'convert', base: 'AED', rate_table: RATE_TABLE }, { runSql });
+  const out = await implementCurrencyParams({ currency: 'convert', base: 'AED', rate_table: RATE_TABLE }, { runSql, scopes: {} });
   assert.deepEqual(out, { currency: 'AED', currency_rates: '{"source":"table","rates":{"EUR":4.28,"USD":3.6725}}' },
     'a zero rate and a code that is not ISO are dropped, and the table rates are labelled table');
   assert.equal(seen.length, 1, 'one read of the rate table');
@@ -34,7 +34,12 @@ test('a rate-table rule reads the latest rate per currency from its table and se
 
 test('a rate-table rule whose table cannot be named is refused, never sent as converted with no rates', async () => {
   await assert.rejects(implementCurrencyParams({ currency: 'convert', base: 'AED', rate_table: { ...RATE_TABLE, table: 'not a table' } },
-    { runSql: async () => [] }), /rate table is not readable/);
+    { runSql: async () => [], scopes: {} }), /rate table is not readable/);
+});
+
+test('a rate-table rule reads the rate table only through the Data Filters of the run, so no scope means no read (REQ-022)', async () => {
+  await assert.rejects(implementCurrencyParams({ currency: 'convert', base: 'AED', rate_table: RATE_TABLE }, { runSql: async () => { throw new Error('must not read'); } }),
+    /refuses to read its tables here/);
 });
 
 test('a rate-column rule sends the rate column and the currency column, so each row converts with its own rate and never reads a table (REQ-103)', async () => {
@@ -77,6 +82,6 @@ test('both launch paths send the currency params: Implement from its rule in sta
   const path = require('node:path');
   const implementRoutes = fs.readFileSync(path.join(__dirname, '..', 'implementRoutes.js'), 'utf8');
   const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
-  assert.match(implementRoutes, /Object\.assign\(params, await JC\.implementCurrencyParams\(spec\?\.money, \{ runSql \}\)\);/);
+  assert.match(implementRoutes, /Object\.assign\(params, await JC\.implementCurrencyParams\(spec\?\.money, \{ runSql, scopes \}\)\);/);
   assert.match(server, /jobType !== 'implement' && !\('currency_rates' in params\)\) Object\.assign\(params, await JC\.discoverCurrencyParams\(params\)\);/);
 });
