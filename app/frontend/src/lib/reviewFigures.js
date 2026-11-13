@@ -72,9 +72,9 @@ export function runsOfCard(key, sessions, portfolio) {
 const countOf = (value) => (value == null || value === '' || !Number.isFinite(Number(value)) ? null : Math.max(0, Math.floor(Number(value))));
 const UNREAD_LABELS = { quality: 'Quality', high: 'High priority', domains: 'Domains' };
 
-const qualityItem = (total, meetsValue) => {
+const qualityItem = (total, meetsValue, mode) => {
   const meets = countOf(meetsValue);
-  return meets == null ? { key: 'quality_bar', n: null, label: 'quality bar' } : { key: 'quality_bar', n: meets, label: '', text: qualityBarCountText(total, meets) };
+  return meets == null ? { key: 'quality_bar', n: null, label: 'quality bar' } : { key: 'quality_bar', n: meets, label: '', text: qualityBarCountText(total, meets, mode) };
 };
 
 export function runCounts(overview, portfolio, session, { running = false, mvpError = '' } = {}) {
@@ -92,7 +92,7 @@ export function runCounts(overview, portfolio, session, { running = false, mvpEr
     } else {
       items.push(
         item('use_cases', total, running ? 'use case so far' : 'use case', running ? 'use cases so far' : 'use cases'),
-        qualityItem(total, overview.meets),
+        qualityItem(total, overview.meets, session?.results_json?.quality_bar?.mode || ''),
         item('high_priority', countOf(overview.high), 'high priority'),
         item('domains', countOf(overview.domains), 'domain', 'domains'),
       );
