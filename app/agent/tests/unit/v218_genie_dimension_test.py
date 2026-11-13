@@ -19,6 +19,7 @@ for folder in (SERVER, TESTS):
 
 import shell_agent  # noqa: E402
 import shell_sql  # noqa: E402
+from v218_kpi_genie_parity_test import genie_block, genie_kpis  # noqa: E402
 from v211_genie_agent_test import AgentWorkspace, FakeLLM, agent_shell, ask, said, tool_call, topic_of  # noqa: E402
 
 RESULT = "main.billing.bills_out"
@@ -42,7 +43,7 @@ GENIE_RC3_SQL = (f"SELECT COALESCE(NULLIF(`segment_or_item`, ''), 'Unknown distr
 
 
 def _block(ns, page=PAGE):
-    return ns["implement_genie_kpi_block"]("N01-U01", page)
+    return genie_block(ns)("N01-U01", page)
 
 
 def _kpi_line(block, label):
@@ -80,13 +81,14 @@ def test_the_block_says_its_queries_outrank_the_space_and_take_other_words(agent
 
 def test_the_kpi_block_keeps_its_exact_queries_and_record_count_line(agent_ns):
     block = _block(agent_ns)
-    assert f"- When asked for Bills failing controls, use exactly: SELECT SUM(CASE WHEN value > 0 THEN 1 ELSE 0 END) AS value FROM (\n{RECORDS_SQL}\n) AS d" in block
+    assert (f"- When asked for Bills failing controls, use exactly: SELECT SUM(CASE WHEN value > 0 THEN 1 ELSE 0 END) AS value FROM "
+            f"(\nSELECT * FROM ({RECORDS_SQL}) AS f WHERE `as_of_date` IS NULL OR `as_of_date` <= current_date\n) AS d") in block
     assert "The page narrows it with its filters on Run date (as_of_date), Score (value), District (district), Region (region)." in block
     assert f"COUNT(DISTINCT record_key) of the current rows of `{RESULT}`, never COUNT(*) over a join" in block
 
 
 def test_a_rebuilt_space_with_the_split_block_is_left_as_it_is(agent_ns):
-    sync = agent_ns["implement_genie_page_kpis"]
+    sync = genie_kpis(agent_ns)
     space, changed = sync({"instructions": {}}, "N01-U01", PAGE)
     assert changed
     again, changed = sync(space, "N01-U01", PAGE)
@@ -257,7 +259,7 @@ GOOD_EXAMPLE = {"question": ["Which districts have the most failing bills?"],
 
 
 def _sync_room(ns, room, capsys):
-    space, changed = ns["implement_genie_page_kpis"](room, "N01-U01", PAGE)
+    space, changed = genie_kpis(ns)(room, "N01-U01", PAGE)
     return space, changed, capsys.readouterr().out
 
 
@@ -292,7 +294,7 @@ def test_a_measure_named_like_a_kpi_of_another_table_is_dropped(agent_ns, capsys
     page = copy.deepcopy(PAGE)
     page["kpis"] = [k for k in page["kpis"] if k["id"] == "runs"]
     wrong = {"alias": "run_values", "sql": ["COUNT(*)"]}
-    space, changed = agent_ns["implement_genie_page_kpis"](_room([wrong]), "N01-U01", page)
+    space, changed = genie_kpis(agent_ns)(_room([wrong]), "N01-U01", page)
     assert changed and space["instructions"]["sql_snippets"]["measures"] == []
     assert "measure='run_values' kpi='Run values' action=dropped" in capsys.readouterr().out
 
@@ -351,7 +353,7 @@ def test_a_ratio_kpi_drops_only_a_measure_named_exactly_for_it(agent_ns, capsys)
     same = {"alias": "failure_rate", "sql": ["AVG(CASE WHEN `bills_out`.`value` > 0 THEN 1 ELSE 0 END)"]}
     other = {"alias": "failure_rate_all", "display_name": "Failure rate", "sql": ["AVG(`bills_out`.`value_at_stake`)"]}
     gate = {"alias": "failed_filter", "sql": ["`bills_out`.`value` > 0"], "synonyms": ["failure rate rows"]}
-    space, changed = agent_ns["implement_genie_page_kpis"](_room([count, same, other], filters=[gate]), "N01-U01", page)
+    space, changed = genie_kpis(agent_ns)(_room([count, same, other], filters=[gate]), "N01-U01", page)
     out = capsys.readouterr().out
     assert space["instructions"]["sql_snippets"]["measures"] == [count, same]
     assert space["instructions"]["sql_snippets"]["filters"] == [gate]
@@ -395,7 +397,7 @@ FR_PAGE = _page_in([{"id": "failed", "label": "Factures en échec de contrôle",
 
 
 def _sync_page(ns, room, page, capsys):
-    space, changed = ns["implement_genie_page_kpis"](room, "N01-U01", page)
+    space, changed = genie_kpis(ns)(room, "N01-U01", page)
     return space, changed, capsys.readouterr().out
 
 

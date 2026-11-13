@@ -4,8 +4,10 @@ free-text reason column, goes back to the builder; the Genie space carries every
 with each rebuilt version and taken out with the use case, offline."""
 import contextlib
 import copy
+import functools
 import json
 import os
+import pathlib
 import sys
 import tempfile
 
@@ -186,21 +188,24 @@ def _text(space):
 
 
 def test_the_space_carries_every_page_kpi_label_with_its_exact_query(agent_ns):
-    space, changed = agent_ns["implement_genie_page_kpis"](_space(), "N01-U03", KPI_PAGE)
+    space, changed = genie_kpis(agent_ns)(_space(), "N01-U03", KPI_PAGE)
     text = _text(space)
     assert changed and text.startswith(OTHER + "\n\n"), "the other use case's instructions stay first and whole"
     for kpi in KPI_PAGE["kpis"]:
         assert f"When asked for {kpi['label']}, use exactly: SELECT {kpi['expression']} AS value FROM (" in text
-    assert (f"SELECT COUNT_IF(ai_cat_fix = 'Failed') AS value FROM (\nSELECT record_key, ai_cat_rule, ai_cat_fix, priority_tier, "
-            f"value_at_stake, as_of_date\nFROM {RESULT}\nWHERE is_current -- the current rows\nAND change_source = 'run'\n) AS d") in text
-    assert f"FROM (\nSELECT as_of_date, value_at_stake FROM {RESULT}_history\n) AS d" in text
+    # a count KPI reads the App's rows: dated rows after today are left out, undated rows stay, as the App's future_source keeps them
+    assert (f"SELECT COUNT_IF(ai_cat_fix = 'Failed') AS value FROM (\nSELECT * FROM (SELECT record_key, ai_cat_rule, ai_cat_fix, "
+            f"priority_tier, value_at_stake, as_of_date\nFROM {RESULT}\nWHERE is_current -- the current rows\nAND change_source = 'run') AS f "
+            f"WHERE `as_of_date` IS NULL OR `as_of_date` <= current_date\n) AS d") in text
+    assert f"FROM (\nSELECT * FROM (SELECT as_of_date, value_at_stake FROM {RESULT}_history) AS f " \
+           f"WHERE `as_of_date` IS NULL OR `as_of_date` <= current_date\n) AS d" in text
     assert "The page narrows it with its filters on Run date (as_of_date), Tier (priority_tier)." in text
     assert "never with a count or a sum of every row" in text
     assert "\n\n" not in text[len(OTHER) + 2:], "the KPI block is one block, so it is found and replaced whole"
 
 
 def test_the_kpi_block_is_idempotent_replaced_on_rebuild_and_taken_out(agent_ns):
-    sync = agent_ns["implement_genie_page_kpis"]
+    sync = genie_kpis(agent_ns)
     first, _ = sync(_space(), "N01-U03", KPI_PAGE)
     again, changed = sync(first, "N01-U03", KPI_PAGE)
     assert not changed and again == first
@@ -219,6 +224,19 @@ def test_the_kpi_block_is_idempotent_replaced_on_rebuild_and_taken_out(agent_ns)
     assert changed and "text_instructions" not in emptied["instructions"]
     untouched, changed = sync({"version": 2}, "N01-U03", None)
     assert not changed and untouched == {"version": 2}
+
+
+def app_shell_sql(agent_ns):
+    """The App shell's shell_sql, loaded the way the agent loads it; the Genie block reads the App's own queries through it."""
+    return _app_shell(agent_ns, pathlib.Path(tempfile.mkdtemp(prefix="inspire-shell-")))[1]["shell_sql"]
+
+
+def genie_kpis(agent_ns):
+    return functools.partial(agent_ns["implement_genie_page_kpis"], shell_sql=app_shell_sql(agent_ns))
+
+
+def genie_block(agent_ns):
+    return functools.partial(agent_ns["implement_genie_kpi_block"], shell_sql=app_shell_sql(agent_ns))
 
 
 def _sync_inst(agent_ns, current, status=None, page=KPI_PAGE):

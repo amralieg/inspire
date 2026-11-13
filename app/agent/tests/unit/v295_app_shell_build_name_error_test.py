@@ -16,14 +16,15 @@ MUTATED_ANNOTATION = ('def answer_rows(turn: "Turn") -> int:', 'def answer_rows(
 
 
 def _pre_314_python():
-    for candidate in (os.environ.get("INSPIRE_PRE_314_PYTHON"), shutil.which("python3.13"), "/opt/homebrew/bin/python3.13"):
+    configured = os.environ.get("INSPIRE_PRE_314_PYTHON")
+    if configured:
+        if not os.path.exists(configured):
+            pytest.fail(f"INSPIRE_PRE_314_PYTHON={configured} does not exist; the Turn guard cannot run", pytrace=False)
+        return configured
+    for candidate in (shutil.which("python3.13"), "/opt/homebrew/bin/python3.13"):
         if candidate and os.path.exists(candidate):
             return candidate
-    return None
-
-
-PRE_314 = _pre_314_python()
-needs_pre_314 = pytest.mark.skipif(PRE_314 is None, reason="no Python 3.13 interpreter to reproduce the pre-3.14 annotation semantics")
+    pytest.fail("no Python 3.13 interpreter: install it or set INSPIRE_PRE_314_PYTHON; the Turn guard must not skip", pytrace=False)
 
 
 def _payload(agent_ns):
@@ -39,7 +40,7 @@ def _write(folder, files):
 
 def _import_pre_314(folder, modules):
     script = f"import sys; sys.path.insert(0, sys.argv[1]); import {', '.join(modules)}"
-    return subprocess.run([PRE_314, "-I", "-c", script, folder], capture_output=True, text=True, timeout=120)
+    return subprocess.run([_pre_314_python(), "-I", "-c", script, folder], capture_output=True, text=True, timeout=120)
 
 
 def test_the_shipped_shell_modules_build_with_no_name_error(agent_ns, tmp_path):
@@ -48,7 +49,6 @@ def test_the_shipped_shell_modules_build_with_no_name_error(agent_ns, tmp_path):
     assert set(modules) == set(agent_ns["IMPLEMENT_APP_SHELL_MODULES"])
 
 
-@needs_pre_314
 def test_the_shipped_shell_modules_import_on_a_python_before_3_14(agent_ns, tmp_path):
     payload = _payload(agent_ns)
     names = [f"{name}.py" for name in agent_ns["IMPLEMENT_APP_SHELL_MODULES"]]
@@ -58,7 +58,6 @@ def test_the_shipped_shell_modules_import_on_a_python_before_3_14(agent_ns, tmp_
     assert result.returncode == 0, result.stderr
 
 
-@needs_pre_314
 def test_dropping_the_quotes_from_the_turn_annotation_reproduces_the_build_failure(agent_ns, tmp_path):
     payload = _payload(agent_ns)
     names = [f"{name}.py" for name in agent_ns["IMPLEMENT_APP_SHELL_MODULES"]]
