@@ -101,6 +101,12 @@ export function scopesFromObject(value) {
   return out;
 }
 
+// The saved entry for a table, matched by name in any case; undefined when the table has no scope.
+export function scopeEntryOf(scopes, table) {
+  const want = scopeKeyOf(table);
+  return Object.entries(scopes || {}).find(([name]) => scopeKeyOf(name) === want)?.[1];
+}
+
 export function tableScopeOf(scopes, table) {
   const key = scopeKeyOf(table);
   for (const [name, entry] of Object.entries(scopes || {})) {

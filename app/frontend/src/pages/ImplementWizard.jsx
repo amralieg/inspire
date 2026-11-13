@@ -281,7 +281,7 @@ import ScopeSettings, { GroupingChosen } from '../components/ScopeSettings';
 import CatalogPicker from '../components/CatalogPicker';
 import { PROFILE_WAITING, noMainTableText, useScopeProfiles } from '../lib/groupingProfile';
 import { fieldOf } from '../lib/useCaseFields.js';
-import { tableScopeSummary } from '../lib/tableScope';
+import { normalizeTableScope, scopeEntryOf, tableScopeSummary } from '../lib/tableScope';
 import SamplesCopyOffer from '../components/SamplesCopyOffer';
 import { samplesTarget, validCopyTarget } from '../lib/samplesCopy';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
@@ -2252,13 +2252,19 @@ export default function ImplementWizard({
           <p role="note" aria-label="Before you start" data-plan-move-note=""
             className="bg-warning-bg border border-warning/30 rounded-md px-3 py-2 text-xs font-medium text-warning-fg">{moveNote}</p>
         )}
-        {stepId === 'data' && Object.keys(context?.table_scope || {}).length > 0 && (
+        {stepId === 'data' && sourceTables.length > 0 && (
           <div aria-label="Table scope" data-table-scope-notes="" className="bg-bg-subtle border border-border rounded-md px-3 py-2 text-xs text-text-secondary space-y-1">
-            <p className="font-semibold text-text-primary">Inspire reads only the scope of these tables</p>
+            <p className="font-semibold text-text-primary">What Inspire reads from each table</p>
             <ul className="list-disc ps-4">
-              {Object.entries(context.table_scope).map(([table, entry]) => (
-                <li key={table} data-scope-table={table}>{table}: {tableScopeSummary(entry)}</li>
-              ))}
+              {sourceTables.map((table) => {
+                const entry = scopeEntryOf(context?.table_scope, table);
+                const kept = entry ? normalizeTableScope(entry).columns : [];
+                return (
+                  <li key={table} data-scope-table={table}>
+                    {table}: {entry ? tableScopeSummary(entry) : 'all columns, all rows'}{kept.length ? ` (columns: ${kept.join(', ')})` : ''}
+                  </li>
+                );
+              })}
             </ul>
           </div>
         )}
