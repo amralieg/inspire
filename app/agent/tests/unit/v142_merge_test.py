@@ -265,7 +265,9 @@ def test_a_shared_view_use_case_merged_into_a_per_user_app_keeps_the_hosts_scope
     assert [c[0] for c in calls].count("PATCH") == 0, "the host keeps the user scopes its viewers sign in with"
     assert not any("could not remove" in w for w in fields.get("_warnings") or [])
     ledger_creates = [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("CREATE TABLE")]
-    assert _without_feedback(_not_access_reads(inst.spark.statements)) == ledger_creates and len(ledger_creates) == 1 and inst.genie_grants == [], \
+    # The viewer's own grants on the source table the pages read are the audience rule; only the identity is checked here.
+    identity = [s for s in _not_access_reads(inst.spark.statements) if "TO `viewer@example.com`" not in s]
+    assert _without_feedback(identity) == ledger_creates and len(ledger_creates) == 1 and inst.genie_grants == [], \
         "each viewer of the per-user host reads with their own grants, so its identity gets none beyond the feedback table (the job identity creates the value ledger)"
     assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")] == []
     assert [s for s in inst.spark.statements if s.startswith("GRANT") and "viewer@example.com" not in s and "sp-1" in s] == [], \
@@ -299,7 +301,8 @@ def test_a_user_app_with_two_viewers_grants_both_and_lists_the_one_refused_grant
     inst._implement_deploy_app(context, "sales-desk", SHELL_FILES, READS, "gA", poll_s=0)
 
     for principal in ("ana@example.com", "bob@example.com"):
-        assert [s for s in attempts if s.endswith(f"TO `{principal}`")] == [
+        # The scope view's grants are checked here (the USE statements are shared with the source table, which has its own grants).
+        assert list(dict.fromkeys(s for s in attempts if s.endswith(f"TO `{principal}`") and "`orders`" not in s)) == [
             f"GRANT USE CATALOG ON CATALOG `main` TO `{principal}`",
             f"GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `{principal}`",
             f"GRANT SELECT ON TABLE `main`.`s`.`orders_scope` TO `{principal}`",

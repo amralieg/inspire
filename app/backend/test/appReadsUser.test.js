@@ -156,3 +156,19 @@ test('a service-principal App with objects is checked and granted for its live s
     assert.ok(w.grants.length > 0 && w.grants.every(([sql, token]) => sql.endsWith(`TO \`${SP}\``) && token === PERSON_TOKEN));
   });
 });
+
+// An object the App reads directly as a source is checked by both paths (the App-reads check and the source check) with the same
+// needs list and the same statement function, so the two can never offer different grants for one object and principal.
+test('a source table the App reads directly gets the same grants from the App-reads check as from the source check, held or not', () => {
+  const SRC = 'main.s.orders';
+  const record = I.appReadsRecord([{ status: 'ready', app_name: 'riverside-assets', asset_status: { app: { views: [VIEW], sources_read: [SRC], access_mode: 'sp' } } }]);
+  assert.deepEqual(record.tables.map((t) => t.table), [VIEW, SRC], 'the App reads its view and its source table');
+  for (const held of [[], ['SELECT']]) {
+    const rows = held.map((privilege) => ({ level: 'table', privilege, principal: SP, mine: 'false', me: ME }));
+    const offered = I.appReadsLeftFor(record, [SP], [[], rows]).filter((t) => t.table === SRC).flatMap((t) => t.grants).sort();
+    const plan = I.accessPlan(SRC, rows, SP, { needs: I.IMPLEMENT_SOURCE_NEEDS });
+    const sourceCheck = [...plan.grants, ...plan.gaps].map((g) => I.grantSql(g, SP)).sort();
+    assert.deepEqual(offered, sourceCheck, `held: ${held.join(',') || 'nothing'}`);
+    assert.ok(offered.length > 0 || held.length, 'there is something to offer when nothing is held');
+  }
+});

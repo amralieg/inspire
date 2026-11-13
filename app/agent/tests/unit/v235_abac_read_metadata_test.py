@@ -119,7 +119,7 @@ def test_the_app_read_grants_include_read_metadata_on_the_source_tables(agent_ns
             {"level": "catalog", "privilege": "MANAGE", "principal": "builder@example.com", "mine": True, "me": "builder@example.com"}]
     inst, _context = _gate(agent_ns, api=lambda *a, **k: {}, rows=rows)
     ran = []
-    unread = inst._implement_app_read_grants([SOURCE, RESULT], {SOURCE: rows, RESULT: rows}, "client-7", ran, sources=[SOURCE])
+    unread = inst._implement_app_read_grants([SOURCE, RESULT], {SOURCE: rows, RESULT: rows}, "client-7", ran, RESULT)
     assert unread == {}
     assert "GRANT READ METADATA ON TABLE `main`.`s`.`orders_v2` TO `client-7`" in inst.spark.statements
     assert not any("READ METADATA" in s and "churn_out" in s for s in inst.spark.statements), "a result table gets no ABAC read (must-exclude)"

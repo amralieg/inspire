@@ -11,7 +11,7 @@ import {
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   swapParts,
   failureChoices, stoppedChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, appReadsOwners, viewerRows, tableRows, APP_READS_HEADING, APP_READS_CLEARED, protectionStopOf, protectionChoices, abacGrantText, grantGapPermissions, grantFailurePermissions, liveSourceNow, liveProtection, liveReads,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appObjectsOf, appReadsChoices, appReadsText, appReadsOwners, viewerRows, tableRows, APP_READS_HEADING, APP_READS_CLEARED, protectionStopOf, protectionChoices, abacGrantText, grantGapPermissions, grantFailurePermissions, liveSourceNow, liveProtection, liveReads,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -1406,7 +1406,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     setReadsBusy(action);
     try {
       // A user-authorization build grants its viewers' scope views through app-reads; only the source tables take this path.
-      if (action === 'grant' && sourceNow.loaded && !(latest?.asset_status?.app?.views?.length)) {
+      if (action === 'grant' && sourceNow.loaded && !appObjectsOf(latest)) {
         const tables = (sourceNow.unreadable?.tables || []);
         const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables });
         const failed = [...(got.failed || []), ...(got.abac_gaps || []).flatMap((g) => g.grants.map((sql) => `${sql}: not yours to grant`))];
@@ -1440,7 +1440,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const autoViewerChecks = useRef({});
   useEffect(() => {
     // A build that persisted its App objects (views) is checked once per build version, the same set the backend reads (no grant runs).
-    if (readOnly || !latest || !latest.asset_status?.app?.views?.length) return;
+    if (readOnly || !latest || !appObjectsOf(latest)) return;
     const key = `${latest.session_id ?? ''}:${latest.spec_version}`;
     if (autoViewerChecks.current[key]) return;
     autoViewerChecks.current[key] = true;

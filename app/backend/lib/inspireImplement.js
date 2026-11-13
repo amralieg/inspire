@@ -3274,14 +3274,16 @@ function appReadsRecord(history) {
   const row = (history || [])[0];
   if (!row || !IMPLEMENT_DONE_STATUSES.includes(str(row.status))) return null;
   const app = isPlainObject(row.asset_status) && isPlainObject(row.asset_status.app) ? row.asset_status.app : null;
-  if (app && Array.isArray(app.views) && app.views.length) {
-    // The App's own read objects, persisted by the build: its Data Filters views and its reasons view. Every grant is derived
-    // from these objects and the one needs list, so the build and Check again read the same set.
+  const persisted = (list) => (Array.isArray(list) ? list.map(str).filter((v) => v && !resultTableNameError(v)) : []);
+  if (app && (persisted(app.views).length || persisted(app.sources_read).length)) {
+    // The App's own read objects, persisted by the build: its Data Filters views, its reasons view, and the source tables its
+    // pages read directly. Every grant is derived from these objects and the one needs list, so the build and Check again agree.
     const name = str(row.app_name).trim();
-    const views = app.views.map(str).filter((v) => v && !resultTableNameError(v));
-    if (!name || name.includes('`') || !views.length) return null;
+    const views = persisted(app.views);
+    if (!name || name.includes('`')) return null;
     const reason = str(app.reasons_view).trim();
-    const objects = reason && !resultTableNameError(reason) ? [...views, reason] : views;
+    const sources = persisted(app.sources_read).filter((s) => !views.includes(s));
+    const objects = [...new Set([...views, ...(reason && !resultTableNameError(reason) ? [reason] : []), ...sources])];
     return { row, app: '', app_name: name, mode: str(app.access_mode) === 'user' ? 'user' : 'sp', objects: true,
       tables: objects.map((table) => ({ table, owner: '', grants: [] })) };
   }
