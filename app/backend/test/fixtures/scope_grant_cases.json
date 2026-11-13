@@ -1,0 +1,35 @@
+{
+  "description": "The grants a principal needs on one App object: the notebook (implement_scope_grant_statements) and the backend (scopeGrantStatements) must both produce these exact statements, in this order.",
+  "cases": [
+    {
+      "view": "main.s.orders_scope",
+      "principal": "bob@example.com",
+      "statements": [
+        "GRANT USE CATALOG ON CATALOG `main` TO `bob@example.com`",
+        "GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `bob@example.com`",
+        "GRANT SELECT ON TABLE `main`.`s`.`orders_scope` TO `bob@example.com`",
+        "GRANT READ METADATA ON TABLE `main`.`s`.`orders_scope` TO `bob@example.com`"
+      ]
+    },
+    {
+      "view": "main.s.orders_scope",
+      "principal": "app-sp-2",
+      "statements": [
+        "GRANT USE CATALOG ON CATALOG `main` TO `app-sp-2`",
+        "GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-2`",
+        "GRANT SELECT ON TABLE `main`.`s`.`orders_scope` TO `app-sp-2`",
+        "GRANT READ METADATA ON TABLE `main`.`s`.`orders_scope` TO `app-sp-2`"
+      ]
+    },
+    {
+      "view": "prod.sales_core.v_orders",
+      "principal": "grp-analysts",
+      "statements": [
+        "GRANT USE CATALOG ON CATALOG `prod` TO `grp-analysts`",
+        "GRANT USE SCHEMA ON SCHEMA `prod`.`sales_core` TO `grp-analysts`",
+        "GRANT SELECT ON TABLE `prod`.`sales_core`.`v_orders` TO `grp-analysts`",
+        "GRANT READ METADATA ON TABLE `prod`.`sales_core`.`v_orders` TO `grp-analysts`"
+      ]
+    }
+  ]
+}

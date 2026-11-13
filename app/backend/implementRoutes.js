@@ -1118,7 +1118,7 @@ function registerImplementRoutes(app, deps) {
   });
 
   function appReadsPermissions(left, record, principals, app) {
-    if (record.mode === 'user') {
+    if (record.objects) {
       return (principals || []).map((p) => {
         const statements = left.flatMap((t) => t.grants.filter((g) => I.appReadGrantFor(g, p)));
         return PM.permissionRequired({ statements, principal: p, why: `${p} opens the App ${record.app_name || ''} and reads its data with its own access, `
@@ -1146,12 +1146,12 @@ function registerImplementRoutes(app, deps) {
       const { left, ran, failed, principals, app } = await appReads(req, warehouseId, record, action === 'grant');
       const was = record.tables.map((t) => `${t.table}:${t.owner}:${t.grants.join(';')}`).join('|');
       const now = left.map((t) => `${t.table}:${t.owner}:${t.grants.join(';')}`).join('|');
-      if (was !== now && record.mode !== 'user') {
+      if (was !== now && !record.objects) {
         const update = I.appReadsUpdateStatement(I.implementTableName(catalog, schema), record.row, left);
         await executeSql(req.dbHost, req.dbToken, warehouseId, update.sql, update.parameters);
       }
       const liveApp = app ? { id: app.id, name: app.name } : { id: record.app, name: record.app_name };
-      res.json({ state: left.length ? 'unreadable' : 'readable', app: liveApp.id, app_name: liveApp.name, mode: record.mode || '', tables: left, ran, failed,
+      res.json({ state: left.length ? 'unreadable' : 'readable', app: liveApp.id, app_name: liveApp.name, mode: record.mode || '', objects: !!record.objects, principals, tables: left, ran, failed,
         refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, liveApp.name, failed),
         permissions: appReadsPermissions(left, record, principals, liveApp) });
     } catch (err) {

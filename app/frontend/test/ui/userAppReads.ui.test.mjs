@@ -19,13 +19,14 @@ const CARD = 'The App cannot read part of its data';
 const SELECT_BOB = `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${BOB}\``;
 const SELECT_ALICE = `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${ALICE}\``;
 const grantsTo = (who) => [`GRANT USE CATALOG ON CATALOG \`main\` TO \`${who}\``, `GRANT USE SCHEMA ON SCHEMA \`main\`.\`s\` TO \`${who}\``,
-  `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${who}\``];
+  `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${who}\``, `GRANT READ METADATA ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${who}\``];
 const DENIED = `[PERMISSION_DENIED] User does not have MANAGE on Table '${VIEW}'.`;
 
 const userBuild = () => {
   const row = built({ status: 'ready' });
   const assets = JSON.parse(row.asset_status);
-  assets.app.unread = { mode: 'user', app: '', tables: [{ table: VIEW, owner: OWNER, grants: [] }] };
+  assets.app.views = [VIEW];
+  assets.app.access_mode = 'user';
   return { ...row, asset_status: JSON.stringify(assets) };
 };
 
@@ -58,7 +59,7 @@ function userWorkspace() {
         'system.information_schema.catalogs': () => ({ rows: rows() }),
         'GRANT ': (sql) => {
           grants.push(sql);
-          const m = /^GRANT (USE CATALOG|USE SCHEMA|SELECT) ON \w+ .+ TO `([^`]+)`$/.exec(sql);
+          const m = /^GRANT (USE CATALOG|USE SCHEMA|SELECT|READ METADATA) ON \w+ .+ TO `([^`]+)`$/.exec(sql);
           if (m && m[1] === 'SELECT' && m[2] === BOB) throw new Error(DENIED);
           if (m) (held[m[2]] = held[m[2]] || []).push(m[1]);
           return { rows: [] };
@@ -81,9 +82,9 @@ test('a user-authorization Build lists the viewer the scope view refuses, with i
     // The first check of this build lists the gap once: the dialog opens with bob's SELECT and its exact SQL.
     const dialog = page.locator('[data-permission-dialog=""]');
     await dialog.waitFor({ timeout: 15000 });
-    // Both people who may open the App (bob, and the owner who holds IS_OWNER) still need all three grants: one row each.
-    assert.deepEqual(await viewerRowTexts(page), [`${BOB}: needs USE CATALOG, USE SCHEMA, SELECT on ${VIEW}`, `${ME}: needs USE CATALOG, USE SCHEMA, SELECT on ${VIEW}`]);
-    assert.deepEqual((await listed(page)).sort(), [...grantsTo(BOB), ...grantsTo(ME)].sort(), 'the dialog lists the exact SQL each viewer still needs');
+    // Both people who may open the App still need grants: bob all four; the owner holds MANAGE, which covers READ METADATA, so three.
+    assert.deepEqual(await viewerRowTexts(page), [`${BOB}: needs USE CATALOG, USE SCHEMA, SELECT, READ METADATA on ${VIEW}`, `${ME}: needs USE CATALOG, USE SCHEMA, SELECT on ${VIEW}`]);
+    assert.deepEqual((await listed(page)).sort(), [...grantsTo(BOB), ...grantsTo(ME).slice(0, 3)].sort(), 'the dialog lists the exact SQL each viewer still needs');
     await dialog.getByRole('button', { name: 'Close' }).click();
     await page.getByRole('region', { name: CARD }).waitFor({ timeout: 15000 });
     await expandBuild(page);
@@ -106,7 +107,7 @@ test('a user-authorization Build lists the viewer the scope view refuses, with i
     await page.locator('[data-permission-dialog=""]').waitFor({ timeout: 15000 });
     assert.deepEqual((await listed(page)).sort(), [...grantsTo(ALICE), SELECT_BOB].sort(), 'the check lists the new viewer and bob, still refused');
     // The owner's grants already landed on the first grant, so the owner has no row now.
-    assert.deepEqual((await viewerRowTexts(page)).sort(), [`${ALICE}: needs USE CATALOG, USE SCHEMA, SELECT on ${VIEW}`, `${BOB}: needs SELECT on ${VIEW}`].sort(), 'a row per viewer still refused');
+    assert.deepEqual((await viewerRowTexts(page)).sort(), [`${ALICE}: needs USE CATALOG, USE SCHEMA, SELECT, READ METADATA on ${VIEW}`, `${BOB}: needs SELECT on ${VIEW}`].sort(), 'a row per viewer still refused');
     await page.locator('[data-permission-dialog=""]').getByRole('button', { name: 'Close' }).click();
 
     await page.getByRole('region', { name: CARD }).getByRole('button', { name: 'Grant access with my permissions' }).click();

@@ -302,7 +302,8 @@ def test_a_user_app_with_two_viewers_grants_both_and_lists_the_one_refused_grant
         assert [s for s in attempts if s.endswith(f"TO `{principal}`")] == [
             f"GRANT USE CATALOG ON CATALOG `main` TO `{principal}`",
             f"GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `{principal}`",
-            f"GRANT SELECT ON TABLE `main`.`s`.`orders_scope` TO `{principal}`"], principal
+            f"GRANT SELECT ON TABLE `main`.`s`.`orders_scope` TO `{principal}`",
+            f"GRANT READ METADATA ON TABLE `main`.`s`.`orders_scope` TO `{principal}`"], principal
     assert [s for s in attempts if "sp-7" in s and "orders_scope" in s] == [], \
         "the App's service principal is never granted a Data Filters view by a per-user App (its feedback table grant is the existing per-user path)"
     entries = context["permissions"]

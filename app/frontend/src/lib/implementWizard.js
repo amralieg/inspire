@@ -2810,7 +2810,7 @@ export function viewerRows(reads) {
     const byViewer = new Map();
     for (const g of t.grants || []) {
       const who = /TO `([^`]+)`$/.exec(g)?.[1] || '';
-      const need = /^GRANT (USE CATALOG|USE SCHEMA|SELECT) /.exec(g)?.[1] || '';
+      const need = /^GRANT (USE CATALOG|USE SCHEMA|SELECT|READ METADATA) /.exec(g)?.[1] || '';
       if (who && need) byViewer.set(who, [...new Set([...(byViewer.get(who) || []), need])]);
     }
     for (const [viewer, needs] of byViewer) rows.push({ viewer, table: t.table, needs });
@@ -2820,7 +2820,7 @@ export function viewerRows(reads) {
 
 // One row per table of a service-principal App: the read grants it still needs on that table.
 export function tableRows(reads) {
-  return (reads?.tables || []).map((t) => ({ table: t.table, needs: [...new Set((t.grants || []).map((g) => /^GRANT (USE CATALOG|USE SCHEMA|SELECT) /.exec(g)?.[1]).filter(Boolean))] }));
+  return (reads?.tables || []).map((t) => ({ table: t.table, needs: [...new Set((t.grants || []).map((g) => /^GRANT (USE CATALOG|USE SCHEMA|SELECT|READ METADATA) /.exec(g)?.[1]).filter(Boolean))] }));
 }
 
 export function appReadsOwners(reads) {

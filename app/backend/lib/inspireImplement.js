@@ -3274,15 +3274,18 @@ function appReadsRecord(history) {
   const row = (history || [])[0];
   if (!row || !IMPLEMENT_DONE_STATUSES.includes(str(row.status))) return null;
   const app = isPlainObject(row.asset_status) && isPlainObject(row.asset_status.app) ? row.asset_status.app : null;
-  const unread = app && isPlainObject(app.unread) ? app.unread : null;
-  if (unread && str(unread.mode) === 'user') {
-    // A user-authorization App: its audience is read live, so the record only names the scope views it reads.
+  if (app && Array.isArray(app.views) && app.views.length) {
+    // The App's own read objects, persisted by the build: its Data Filters views and its reasons view. Every grant is derived
+    // from these objects and the one needs list, so the build and Check again read the same set.
     const name = str(row.app_name).trim();
-    if (!name || name.includes('`') || !Array.isArray(unread.tables)) return null;
-    const tables = unread.tables.filter((t) => isPlainObject(t) && !resultTableNameError(str(t.table)))
-      .map((t) => ({ table: str(t.table), owner: ownerLabel(t.owner), grants: [] }));
-    return tables.length ? { row, app: '', app_name: name, mode: 'user', tables } : null;
+    const views = app.views.map(str).filter((v) => v && !resultTableNameError(v));
+    if (!name || name.includes('`') || !views.length) return null;
+    const reason = str(app.reasons_view).trim();
+    const objects = reason && !resultTableNameError(reason) ? [...views, reason] : views;
+    return { row, app: '', app_name: name, mode: str(app.access_mode) === 'user' ? 'user' : 'sp', objects: true,
+      tables: objects.map((table) => ({ table, owner: '', grants: [] })) };
   }
+  const unread = app && isPlainObject(app.unread) ? app.unread : null;
   const id = str(unread && unread.app).trim();
   if (!id || id.includes('`') || !Array.isArray(unread.tables)) return null;
   const tables = unread.tables.filter((t) => isPlainObject(t) && !resultTableNameError(str(t.table)))
@@ -3334,15 +3337,14 @@ function appAudience(acl) {
   return [...people.values()];
 }
 
-// The grants each person or group still needs on the scope views of a user-authorization App, checked live for every principal.
-function appReadsUserLeft(record, principals, rows) {
+// What each principal still needs on each App object, checked live. Service-principal and user-authorization Apps share this path.
+function appReadsLeftFor(record, principals, rows) {
   return record.tables.map((t, i) => {
     const grants = [];
     const owners = [];
     for (const principal of principals) {
-      // The same three grants the build gives each viewer on a scope view: USE CATALOG, USE SCHEMA and SELECT.
-      const plan = accessPlan(t.table, rows[i], principal, { needs: IMPLEMENT_READ_NEEDS });
-      const order = (g) => IMPLEMENT_READ_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
+      const plan = accessPlan(t.table, rows[i], principal, { needs: IMPLEMENT_SOURCE_NEEDS });
+      const order = (g) => IMPLEMENT_SOURCE_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
       for (const need of [...plan.grants, ...plan.gaps].sort((a, b) => order(a) - order(b))) {
         const sql = grantSql(need, principal);
         if (appReadGrantFor(sql, principal)) grants.push(sql);
@@ -3353,8 +3355,15 @@ function appReadsUserLeft(record, principals, rows) {
   }).filter((t) => t.grants.length);
 }
 
-function appReadsUserGrantable(left, principals) {
+function appReadsGrantableFor(left, principals) {
+  // Only statements for a principal that may open the App, so a grant can never name anyone else.
+
   return [...new Set(left.flatMap((t) => t.grants))].filter((g) => principals.some((p) => appReadGrantFor(g, p)));
+}
+
+// The statements the build gives a principal on one App object: the offer both the notebook and the backend derive from the same needs list.
+function scopeGrantStatements(object, who) {
+  return accessPlan(object, null, who, { needs: IMPLEMENT_SOURCE_NEEDS }).grants.map((need) => grantSql(need, who));
 }
 
 function appReadsUpdateStatement(table, row, left) {
@@ -4127,8 +4136,9 @@ module.exports = {
   appReadsLeft,
   appReadsGrantable,
   appAudience,
-  appReadsUserLeft,
-  appReadsUserGrantable,
+  appReadsLeftFor,
+  appReadsGrantableFor,
+  scopeGrantStatements,
   appReadsUpdateStatement,
   appReadsText,
   newAppReadsGaps,

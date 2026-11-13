@@ -13,15 +13,17 @@ const OWNER = 'data-eng';
 const ME = 'amr@x';
 const NEW = 'new.viewer@x';
 const SHARED_LATER = 'later.viewer@x';
+const SP = 'app-sp-2';
 
 const acl = (people) => ({ access_control_list: people.map((p) => ({ user_name: p, all_permissions: [{ permission_level: 'CAN_USE' }] }))
   .concat([{ user_name: ME, all_permissions: [{ permission_level: 'IS_OWNER' }] }, { service_principal_name: 'app-sp', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }]) });
 
-function userBuild(tables = [{ table: VIEW, owner: OWNER, grants: [] }]) {
+// The build persists the App's own objects (its Data Filters views) and how they are read; no grant is stored with them.
+function userBuild(views = [VIEW]) {
   return {
     session_id: 42, use_case_id: 'N01-U01', spec_version: 3, status: 'ready_with_warnings', app_name: 'riverside-assets',
     spec_json: JSON.stringify({ use_case_id: 'N01-U01', config: { warehouse_id: 'wh1', result_table: 'main.inspire.churn_out' }, outputs: { app: true } }),
-    asset_status: JSON.stringify({ app: { state: 'ready', spec_version: 3, unread: { mode: 'user', app: '', tables } } }),
+    asset_status: JSON.stringify({ app: { state: 'ready', spec_version: 3, views, access_mode: 'user' } }),
   };
 }
 
@@ -49,7 +51,7 @@ function workspace({ held = {}, denied = [], people }) {
         'GRANT ': (sql, _p, token) => {
           grants.push([sql, token]);
           if (denied.some((d) => sql.includes(d))) throw new Error('[PERMISSION_DENIED] User does not have MANAGE');
-          const m = /^GRANT (USE CATALOG|USE SCHEMA|SELECT) ON \w+ .+ TO `([^`]+)`$/.exec(sql);
+          const m = /^GRANT (USE CATALOG|USE SCHEMA|SELECT|READ METADATA) ON \w+ .+ TO `([^`]+)`$/.exec(sql);
           if (m) (held[m[2]] = held[m[2]] || []).push(m[1]);
           return { rows: [] };
         },
@@ -73,7 +75,7 @@ async function withApp(overrides, run) {
 test('a user-authorization App record names only its scope views, and the audience is read live: people and groups at CAN_USE or higher, never a service principal', () => {
   const row = { status: 'ready_with_warnings', app_name: 'riverside-assets', asset_status: JSON.parse(userBuild().asset_status) };
   const record = I.appReadsRecord([row]);
-  assert.deepEqual(record, { row, app: '', app_name: 'riverside-assets', mode: 'user', tables: [{ table: VIEW, owner: OWNER, grants: [] }] });
+  assert.deepEqual(record, { row, app: '', app_name: 'riverside-assets', mode: 'user', objects: true, tables: [{ table: VIEW, owner: '', grants: [] }] });
   const audience = I.appAudience({ access_control_list: [
     { user_name: 'a@x', all_permissions: [{ permission_level: 'CAN_VIEW' }] },
     { user_name: 'b@x', all_permissions: [{ permission_level: 'CAN_USE' }] },
@@ -90,7 +92,7 @@ test('Check again grants a viewer shared after the build, with the person token,
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const toNew = w.grants.filter(([sql]) => sql.endsWith(`TO \`${NEW}\``)).map(([sql]) => sql);
     assert.deepEqual(toNew, [`GRANT USE CATALOG ON CATALOG \`main\` TO \`${NEW}\``, `GRANT USE SCHEMA ON SCHEMA \`main\`.\`s\` TO \`${NEW}\``,
-      `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${NEW}\``]);
+      `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${NEW}\``, `GRANT READ METADATA ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${NEW}\``]);
     assert.ok(w.grants.every(([, token]) => token === PERSON_TOKEN), 'every grant runs with the person token');
     assert.ok(!w.grants.some(([sql]) => sql.includes('app-sp')), 'no grant names the App service principal');
     assert.equal(got.data.state, 'readable');
@@ -126,4 +128,31 @@ test('the Build page diagnostics do not list the grants record as a build part',
   assert.match(got.text, /Parts \(1\)/);
   assert.doesNotMatch(got.text, /Grants: no state|grants: no state/);
   assert.doesNotMatch(got.text, /Permissions: no state|permissions: no state/);
+});
+
+// The statements the build gives a principal on an App object are the same ones the backend offers: both sides read
+// test/fixtures/scope_grant_cases.json, which the Python suite reads too.
+test('the backend offers exactly the grants the notebook builds for an App object, from the shared fixture', () => {
+  const fs = require('node:fs');
+  const path = require('node:path');
+  const cases = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'scope_grant_cases.json'), 'utf8')).cases;
+  assert.ok(cases.length >= 3);
+  for (const c of cases) assert.deepEqual(I.scopeGrantStatements(c.view, c.principal), c.statements, `${c.view} for ${c.principal}`);
+});
+
+test('a service-principal App with objects is checked and granted for its live service principal, with the person token', async () => {
+  const SP_BUILD = { ...userBuild(), asset_status: JSON.stringify({ app: { state: 'ready', spec_version: 3, views: [VIEW], access_mode: 'sp' } }) };
+  const w = workspace({ people: [] });
+  w.overrides.history = [SP_BUILD];
+  w.overrides.me = { applicationId: SP, userName: SP };
+  await withApp(w.overrides, async (url) => {
+    const checked = await call(url, `/api/inspire/implement/app-reads?${Q}`, {});
+    assert.equal(checked.status, 200, JSON.stringify(checked.data));
+    assert.equal(checked.data.objects, true);
+    assert.deepEqual(checked.data.principals, [SP], 'the live service principal is the principal');
+    assert.ok(checked.data.tables.some((t) => t.grants.includes(`GRANT READ METADATA ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${SP}\``)));
+    const got = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.ok(w.grants.length > 0 && w.grants.every(([sql, token]) => sql.endsWith(`TO \`${SP}\``) && token === PERSON_TOKEN));
+  });
 });

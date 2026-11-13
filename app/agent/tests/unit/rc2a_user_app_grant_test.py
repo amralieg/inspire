@@ -1,5 +1,6 @@
 import json
 import logging
+import os
 
 ANA, BOB = "ana@example.com", "bob@example.com"
 CATALOG, SCHEMA_NAME = "main", "sales"
@@ -42,27 +43,26 @@ def test_the_audience_of_an_app_is_its_can_use_or_higher_people_and_groups_and_n
     assert sorted((p["type"], p["name"]) for p in audience) == [("group", "admins"), ("user", ANA)]
 
 
-def test_every_audience_principal_is_granted_use_catalog_use_schema_and_select_on_each_scope_view(agent_ns):
+def test_every_audience_principal_is_granted_the_full_source_needs_on_each_scope_view(agent_ns):
     spark = FakeSpark()
     obj = _build(agent_ns, spark)
-    ran = []
     for principal in (ANA, BOB):
-        assert obj._implement_app_principal_grants(principal, [VIEW], "", ran) == []
-    assert spark.statements == [
-        f"GRANT USE CATALOG ON CATALOG `{CATALOG}` TO `{ANA}`",
-        f"GRANT USE SCHEMA ON SCHEMA `{CATALOG}`.`{SCHEMA_NAME}` TO `{ANA}`",
-        f"GRANT SELECT ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`orders_scope_view` TO `{ANA}`",
-        f"GRANT USE CATALOG ON CATALOG `{CATALOG}` TO `{BOB}`",
-        f"GRANT USE SCHEMA ON SCHEMA `{CATALOG}`.`{SCHEMA_NAME}` TO `{BOB}`",
-        f"GRANT SELECT ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`orders_scope_view` TO `{BOB}`",
-    ]
+        assert obj._implement_app_principal_grants(principal, [VIEW], "") == []
+    expected = []
+    for principal in (ANA, BOB):
+        expected += [f"GRANT USE CATALOG ON CATALOG `{CATALOG}` TO `{principal}`",
+                     f"GRANT USE SCHEMA ON SCHEMA `{CATALOG}`.`{SCHEMA_NAME}` TO `{principal}`",
+                     f"GRANT SELECT ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`orders_scope_view` TO `{principal}`",
+                     f"GRANT READ METADATA ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`orders_scope_view` TO `{principal}`"]
+    assert spark.statements == expected
 
 
 def test_a_grant_the_build_identity_cannot_run_comes_back_with_its_exact_sql_for_the_entry(agent_ns):
     spark = FakeSpark(refuse=[f"TO `{BOB}`"])
     obj = _build(agent_ns, spark)
-    denied = obj._implement_app_principal_grants(BOB, [VIEW], "", [])
-    assert denied == [f"GRANT SELECT ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`orders_scope_view` TO `{BOB}`"]
+    denied = obj._implement_app_principal_grants(BOB, [VIEW], "")
+    assert denied == [f"GRANT SELECT ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`orders_scope_view` TO `{BOB}`",
+                      f"GRANT READ METADATA ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`orders_scope_view` TO `{BOB}`"]
     entry = agent_ns["implement_permission_entry"](BOB, denied, "why")
     assert entry["principal"] == BOB and entry["statements"] == denied
 
@@ -70,16 +70,16 @@ def test_a_grant_the_build_identity_cannot_run_comes_back_with_its_exact_sql_for
 def test_the_reasons_view_is_granted_to_the_same_principal_through_the_same_path(agent_ns):
     spark = FakeSpark()
     obj = _build(agent_ns, spark)
-    ran = []
-    assert obj._implement_app_principal_grants(ANA, [VIEW], REASONS, ran) == []
+    assert obj._implement_app_principal_grants(ANA, [VIEW], REASONS) == []
     assert f"GRANT SELECT ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`reasons_scope_view` TO `{ANA}`" in spark.statements
 
 
 def test_a_refused_reasons_grant_is_listed_not_raised(agent_ns):
     spark = FakeSpark(refuse=["reasons_scope_view"])
     obj = _build(agent_ns, spark)
-    denied = obj._implement_app_principal_grants(ANA, [], REASONS, [])
-    assert denied == [f"GRANT SELECT ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`reasons_scope_view` TO `{ANA}`"]
+    denied = obj._implement_app_principal_grants(ANA, [], REASONS)
+    assert denied == [f"GRANT SELECT ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`reasons_scope_view` TO `{ANA}`",
+                      f"GRANT READ METADATA ON TABLE `{CATALOG}`.`{SCHEMA_NAME}`.`reasons_scope_view` TO `{ANA}`"]
 
 
 def test_a_user_app_record_marks_its_views_as_user_reads_so_the_app_checks_each_viewer(agent_ns):
@@ -99,3 +99,13 @@ def test_the_service_principal_record_keeps_its_shape(agent_ns):
     assert record == {"app": "app-sp", "tables": [{"table": VIEW, "owner": record["tables"][0]["owner"],
                                                    "grants": ["GRANT SELECT ON TABLE x TO `app-sp`"]}]}
     assert "mode" not in record
+
+
+def test_the_notebook_offers_exactly_the_grants_the_backend_offers_for_each_object_from_the_shared_fixture(agent_ns):
+    # test/fixtures/scope_grant_cases.json is read by this suite and by backend/test/appReadsUser.test.js.
+    path = os.path.join(os.path.dirname(__file__), "..", "..", "..", "backend", "test", "fixtures", "scope_grant_cases.json")
+    with open(path, encoding="utf-8") as handle:
+        cases = json.load(handle)["cases"]
+    assert len(cases) >= 3
+    for case in cases:
+        assert agent_ns["implement_scope_grant_statements"](case["view"], case["principal"]) == case["statements"], case

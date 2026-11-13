@@ -17,7 +17,7 @@ const CARD = 'The App cannot read part of its data';
 const unreadBuild = () => {
   const row = built({ status: 'ready_with_warnings' });
   const assets = JSON.parse(row.asset_status);
-  assets.app.unread = { app: SP, tables: [{ table: 'main.s.orders', owner: 'data-eng', grants: [CATALOG, SCHEMA, SELECT] }] };
+  assets.app.unread = { app: SP, tables: [{ table: 'main.s.orders', owner: 'data-eng', grants: [CATALOG, SCHEMA, SELECT, METADATA] }] };
   return { ...row, asset_status: JSON.stringify(assets) };
 };
 
@@ -65,7 +65,7 @@ test('a service-principal Build keeps one row per table the App cannot read, and
     const card = page.getByRole('region', { name: CARD });
     await card.waitFor({ timeout: 15000 });
     const rows = await card.locator('[data-table-row]').allInnerTexts();
-    assert.deepEqual(rows, ['main.s.orders: needs USE CATALOG, USE SCHEMA, SELECT', 'main.s.returns: needs USE CATALOG, USE SCHEMA, SELECT'], 'one row per table with its grants');
+    assert.deepEqual(rows, ['main.s.orders: needs USE CATALOG, USE SCHEMA, SELECT, READ METADATA', 'main.s.returns: needs USE CATALOG, USE SCHEMA, SELECT, READ METADATA'], 'one row per table with its grants');
     assert.equal(await card.locator('[data-viewer-row]').count(), 0, 'a service-principal App has no viewer rows');
     assert.deepEqual(ui.pageErrors, []);
   } finally {

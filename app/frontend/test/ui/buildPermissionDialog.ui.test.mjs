@@ -18,7 +18,8 @@ const DENIED = "[PERMISSION_DENIED] User does not have MANAGE on Catalog 'main'.
 const unreadBuild = ({ appFailed = false } = {}) => {
   const row = built({ status: 'ready_with_warnings' });
   const assets = JSON.parse(row.asset_status);
-  assets.app.unread = { app: SP, tables: [{ table: 'main.s.orders', owner: 'data-eng', grants: [CATALOG, SCHEMA, SELECT] }] };
+  assets.app.unread = { app: SP, tables: [{ table: 'main.s.orders', owner: 'data-eng', grants: [CATALOG, SCHEMA, SELECT, METADATA] },
+    { table: 'main.s.returns', owner: 'data-eng', grants: [CATALOG, SCHEMA, SELECT_RETURNS, METADATA_RETURNS] }] };
   if (appFailed) assets.app = { ...assets.app, state: 'failed', error: 'the App could not be given read access to 1 source table' };
   return { ...row, asset_status: JSON.stringify(assets) };
 };

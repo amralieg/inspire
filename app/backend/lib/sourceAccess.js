@@ -192,9 +192,12 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
   // The one derivation the card, Check again and Grant share for the service principal: the live plan of each table for the
   // principal read from its token (IMPLEMENT_SOURCE_NEEDS, READ METADATA included), with the rows the card reads.
   async function appReadsLeftOf(req, token, warehouseId, record, principals, who) {
-    if (record.mode === 'user') {
-      const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, token, warehouseId, t.table)));
-      return I.appReadsUserLeft(record, principals, rows);
+    if (record.objects) {
+      // The App's own objects (its Data Filters views and reasons view): a user-authorization App reads them as each person who
+      // may open it, a service-principal App as its live service principal. Both are the same derivation.
+      const rowsToken = record.mode === 'user' ? token : P.personTokenOf(req);
+      const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, rowsToken, warehouseId, t.table)));
+      return I.appReadsLeftFor(record, principals, rows);
     }
     const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, P.personTokenOf(req), warehouseId, t.table)));
     const tables = record.tables.map((t) => t.table);
@@ -208,10 +211,11 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     // The App's identity is read live from its token, so a stale id on the build record never names the wrong principal.
     const who = user ? null : await appIdentity(req, await appTokenOf(req));
     const principals = user ? await audienceOf(req, token, record.app_name) : [who.id];
+    const grantable = (left) => (record.objects ? I.appReadsGrantableFor(left, principals) : I.appReadsGrantable(left, who.id));
     const before = await appReadsLeftOf(req, token, warehouseId, record, principals, who);
     if (!grant) return { left: before, ran: [], failed: [], principals, app: who };
     if (!person) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);
-    const statements = user ? I.appReadsUserGrantable(before, principals) : I.appReadsGrantable(before, who.id);
+    const statements = grantable(before);
     const { ran, failed } = await runPersonGrants(req, person, warehouseId, statements);
     return { left: ran.length ? await appReadsLeftOf(req, token, warehouseId, record, principals, who) : before, ran, failed, principals, app: who };
   }

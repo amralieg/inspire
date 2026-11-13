@@ -1381,7 +1381,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const grantedAll = !readOnly && !reads && readsResult?.version === latest?.spec_version && (readsResult?.action === 'grant' || readsResult?.action === 'check')
     && !readsResult?.refused && !readsResult?.error;
   const viewerNow = viewerReads && viewerReads.version === latest?.spec_version ? viewerReads : null;
-  const readsLeft = reads || (viewerNow ? { tables: viewerNow.tables, canGrant: viewerNow.tables.some((t) => t.grants?.length > 0), viewers: true } : null)
+  const readsLeft = reads || (viewerNow ? { tables: viewerNow.tables, canGrant: viewerNow.tables.some((t) => t.grants?.length > 0), viewers: viewerNow.user === true } : null)
     || (grantedAll ? { tables: [], canGrant: false } : null);
   // A person who cannot grant the App's reads must act: Permission Required opens once per distinct grant list, with the owner's exact GRANT statements.
   // The inline card under it keeps the copy-and-check, and See the grant reopens the dialog.
@@ -1406,7 +1406,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     setReadsBusy(action);
     try {
       // A user-authorization build grants its viewers' scope views through app-reads; only the source tables take this path.
-      if (action === 'grant' && sourceNow.loaded && latest?.asset_status?.app?.unread?.mode !== 'user') {
+      if (action === 'grant' && sourceNow.loaded && !(latest?.asset_status?.app?.views?.length)) {
         const tables = (sourceNow.unreadable?.tables || []);
         const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables });
         const failed = [...(got.failed || []), ...(got.abac_gaps || []).flatMap((g) => g.grants.map((sql) => `${sql}: not yours to grant`))];
@@ -1418,7 +1418,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       // A check shows its refusal inline (Check again, See the grant). It raises Permission Required only for a grant list this page has not shown yet; a grant action always raises.
       const got = await apiPostJson(`/api/inspire/implement/app-reads?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, { action }, { raise: action === 'grant' });
       setReadsResult({ ...got, version: latest?.spec_version, action });
-      if (got.mode === 'user') setViewerReads({ version: latest?.spec_version, tables: got.tables || [] });
+      if (got.objects) setViewerReads({ version: latest?.spec_version, tables: got.tables || [], user: got.mode === 'user' });
       raisePermissions(got.permissions, { retry: () => recheckSources() }, { explicit: action === 'grant' });
       if (action === 'check' || action === 'grant') await refreshSourceNow();
     } catch (e) {
@@ -1439,8 +1439,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const autoReads = useRef({});
   const autoViewerChecks = useRef({});
   useEffect(() => {
-    // A user-authorization build reads its scope views as each viewer, so Inspire checks once per build version (no grant runs).
-    if (readOnly || !latest || latest.asset_status?.app?.unread?.mode !== 'user') return;
+    // A build that persisted its App objects (views) is checked once per build version, the same set the backend reads (no grant runs).
+    if (readOnly || !latest || !latest.asset_status?.app?.views?.length) return;
     const key = `${latest.session_id ?? ''}:${latest.spec_version}`;
     if (autoViewerChecks.current[key]) return;
     autoViewerChecks.current[key] = true;
