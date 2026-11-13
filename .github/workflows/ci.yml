@@ -121,6 +121,10 @@ jobs:
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-python@v5
+        id: serverless-compat
+        with:
+          python-version: "3.13"
+      - uses: actions/setup-python@v5
         with:
           python-version: ${{ env.PYTHON_VERSION }}
           cache: pip
@@ -135,6 +139,7 @@ jobs:
         env:
           SHARD: ${{ matrix.shard }}
           SHARDS: "10"
+          INSPIRE_PRE_314_PYTHON: ${{ steps.serverless-compat.outputs.python-path }}
         run: |
           mapfile -t files < <(python - <<'PY'
           import json, os, statistics, sys
