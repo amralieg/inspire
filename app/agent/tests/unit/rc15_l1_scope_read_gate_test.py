@@ -170,3 +170,63 @@ def test_a_rows_only_scope_outside_the_build_with_no_run_session_is_refused_not_
             "column_roles": {}, "window": {}, "run_profile": "preview", "notes": ""}
     with pytest.raises(ValueError, match="names no columns"):
         agent_ns["implement_use_case_scopes"]({"No": "7", "_implement_data": copy.deepcopy(data)}, [SALES], VIEW_DATABASE)
+
+
+# Real-shaped Genie output (the templates Genie writes around inspire_read_source): an f-string over a view the notebook made from
+# a checked read is allowed; a placeholder that names a source table, a view that was never made, or an expression is refused.
+GENIE_REAL_SHAPES = {
+    "a view named by a variable, read in a multi-line f-string": (True, '''
+frame = inspire_read_source("main.s.sales")
+sales_view = "sales_scoped"
+frame.createOrReplaceTempView(sales_view)
+summary = spark.sql(f"""
+    SELECT brand, SUM(amount) AS total
+    FROM {sales_view}
+    GROUP BY brand
+""")
+'''),
+    "two views joined in one template, the lookup read whole through the helper": (True, '''
+records = inspire_read_source("main.s.sales")
+records.createOrReplaceTempView("records_v")
+lookup = inspire_read_source("main.s.brands")
+lookup.createOrReplaceTempView("brands_v")
+records_view, lookup_view = "records_v", "brands_v"
+joined = spark.sql(f"SELECT r.brand, b.name FROM {records_view} r JOIN {lookup_view} b ON r.brand = b.brand")
+'''),
+    "a view name bound to a variable that is then used as a placeholder": (True, '''
+view = "sales_v"
+inspire_read_source("main.s.sales").createOrReplaceTempView(view)
+rows = spark.sql(f"SELECT COUNT(*) AS n FROM {view}")
+'''),
+    "a placeholder that names a source table in a variable": (False, '''
+table = "sales"
+rows = spark.sql(f"SELECT COUNT(*) AS n FROM {table}")
+'''),
+    "a placeholder whose view was never made by the notebook": (False, '''
+view = "sales_v"
+rows = spark.sql(f"SELECT COUNT(*) AS n FROM {view}")
+'''),
+    "a placeholder built by a function call (the gate cannot see the name)": (False, '''
+rows = spark.sql(f"SELECT COUNT(*) AS n FROM {view_name_for('sales')}")
+'''),
+    "a placeholder with a prefix or a suffix around it": (False, '''
+view = "sales_v"
+inspire_read_source("main.s.sales").createOrReplaceTempView(view)
+rows = spark.sql(f"SELECT COUNT(*) AS n FROM main.s.{view}")
+'''),
+    "a view made from a direct spark.table read of a source": (False, '''
+view = "sales_v"
+spark.table("main.s.sales").createOrReplaceTempView(view)
+rows = spark.sql(f"SELECT COUNT(*) AS n FROM {view}")
+'''),
+}
+
+
+@pytest.mark.parametrize("label", sorted(GENIE_REAL_SHAPES))
+def test_real_shaped_genie_templates_pass_or_fail_the_gate_as_their_reads_warrant(scoped, label):
+    allowed, code = GENIE_REAL_SHAPES[label]
+    problems = _refused(scoped, code)
+    if allowed:
+        assert problems == [], f"{label}: reads a view the notebook made from a checked read, so the gate must pass it: {problems}"
+    else:
+        assert problems, f"{label}: the gate cannot see a source read here, so it must refuse"

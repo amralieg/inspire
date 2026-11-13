@@ -1896,6 +1896,15 @@ function registerImplementRoutes(app, deps) {
     failed: (m) => [400, `Inspire could not read the table for Data groups: ${m}`],
   });
 
+  // The Data Filters of the session the preview names: the money previews and the profile read their tables through them.
+  async function launchScopesOf(req, warehouseId) {
+    const sid = sessionIdOf(req);
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const session = await fetchInspireSessionWidgetRow(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid);
+    if (!session) throw I.badRequest(`No Inspire session ${sid} is in this Inspire database, so Inspire cannot read its Data Filters.`, 404);
+    return parseTableScopeText(session.table_scope).scopes;
+  }
+
   function builtData(history) {
     const built = I.previousBuilt(history);
     const spec = built && built.spec_json && typeof built.spec_json === 'object' ? built.spec_json : {};
@@ -1916,11 +1925,13 @@ function registerImplementRoutes(app, deps) {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
     try {
+      const warehouseId = warehouseOf(req);
+      const scopes = await launchScopesOf(req, warehouseId);
       const column = req.body?.rate_column;
-      const sql = column ? GP.rateColumnSampleSql(req.body?.table, req.body?.currency_column, column)
-        : GP.rateSampleSql(req.body?.rate_table, req.body?.base);
-      if (!sql) throw I.badRequest('Name the rate table and its columns, or the use case table, its currency column and its rate column, to read the rates.');
-      const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.RATE_SAMPLE_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
+      const made = column ? GP.rateColumnSampleSql(req.body?.table, req.body?.currency_column, column, scopes)
+        : GP.rateSampleSql(req.body?.rate_table, req.body?.base, scopes);
+      if (!made) throw I.badRequest('Name the rate table and its columns, or the use case table, its currency column and its rate column, to read the rates.');
+      const found = await executeSql(req.dbHost, token, warehouseId, made.sql, made.parameters, { rowLimit: GP.RATE_SAMPLE_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
       return res.json({ rates: sqlResultToObjects(found).map((r) => ({ currency: String(r.currency ?? ''), rate: Number(r.rate) })) });
     } catch (err) {
       return sendError(res, sqlFailure(err, profileFailures(String(req.body?.rate_table?.table || 'the rate table'))));
@@ -1932,9 +1943,11 @@ function registerImplementRoutes(app, deps) {
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
     const asked = String(req.body?.base || '').trim().toUpperCase();
     try {
-      const sql = GP.currencySpreadSql(req.body?.table, req.body?.currency_column);
-      if (!sql || (asked && !/^[A-Z]{3}$/.test(asked))) throw I.badRequest('Name the use case table and its currency column, and the reporting currency as a three-letter code such as USD.');
-      const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.CURRENCY_SPREAD_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
+      const warehouseId = warehouseOf(req);
+      const scopes = await launchScopesOf(req, warehouseId);
+      const made = GP.currencySpreadSql(req.body?.table, req.body?.currency_column, scopes);
+      if (!made || (asked && !/^[A-Z]{3}$/.test(asked))) throw I.badRequest('Name the use case table and its currency column, and the reporting currency as a three-letter code such as USD.');
+      const found = await executeSql(req.dbHost, token, warehouseId, made.sql, made.parameters, { rowLimit: GP.CURRENCY_SPREAD_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
       const currencies = sqlResultToObjects(found).map((r) => ({ code: String(r.currency ?? '').trim().toUpperCase(), records: Number(r.records) }));
       const capped = currencies.length >= GP.CURRENCY_SPREAD_ROWS;
       const base = asked || (currencies[0] ? currencies[0].code : 'USD');
@@ -1949,9 +1962,11 @@ function registerImplementRoutes(app, deps) {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
     try {
-      const sql = GP.moneyValueSampleSql(req.body?.table, req.body?.value);
-      if (!sql) throw I.badRequest('Name the use case table, and the value: a fixed amount, one column, or an equation over its columns, with one currency.');
-      const found = await executeSql(req.dbHost, token, warehouseOf(req), sql, null, { rowLimit: GP.MONEY_VALUE_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
+      const warehouseId = warehouseOf(req);
+      const scopes = await launchScopesOf(req, warehouseId);
+      const made = GP.moneyValueSampleSql(req.body?.table, req.body?.value, scopes);
+      if (!made) throw I.badRequest('Name the use case table, and the value: a fixed amount, one column, or an equation over its columns, with one currency.');
+      const found = await executeSql(req.dbHost, token, warehouseId, made.sql, made.parameters, { rowLimit: GP.MONEY_VALUE_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
       return res.json({ rows: sqlResultToObjects(found).map((r) => ({ stake: Number(r.stake), currency: String(r.currency ?? '') })) });
     } catch (err) {
       return sendError(res, sqlFailure(err, profileFailures(String(req.body?.table || 'the use case table'))));
@@ -2051,16 +2066,19 @@ function registerImplementRoutes(app, deps) {
         const refColumns = Object.fromEntries(refPairs);
         const tags = GP.columnTagsOf(tagRows);
         const time = GR.timeSourceOf(namedTime, columns, joins, refColumns);
-        const joined = GR.joinedCandidates(linked, refColumns, tags, time && time.via ? time.via.table : '');
+        const joined = GP.scopedJoined(GR.joinedCandidates(linked, refColumns, tags, time && time.via ? time.via.table : ''), launchScopes);
         const text = [useCase.use_case, useCase.statement, useCase.solution].map((v) => (v == null ? '' : String(v))).join(' ');
         const candidates = GR.groupingCandidates(columns, roles, table, { primary: keys.primary, joined, text, time: time ? time.column : '', tags })
           .filter((name) => !name.includes(',')).slice(0, GR.GROUP_PROFILED);
         const profiledJoined = joined.filter((c) => candidates.includes(c.name));
-        const [statRows, sample] = await Promise.all([rows(GP.statsSql(scan, candidates, time, days, profiledJoined), scan.parameters, 1),
-          candidates.length ? rows(GP.sampleSql(scan, candidates, profiledJoined), scan.parameters, GP.PROFILE_META_ROWS) : []]);
+        const statsQuery = GP.statement(launchScopes, (ctx) => GP.statsSql(scan, candidates, time, days, profiledJoined, ctx), scan.parameters);
+        const sampleQuery = candidates.length ? GP.statement(launchScopes, (ctx) => GP.sampleSql(scan, candidates, profiledJoined, ctx), scan.parameters) : null;
+        const [statRows, sample] = await Promise.all([rows(statsQuery.sql, statsQuery.parameters, 1),
+          sampleQuery ? rows(sampleQuery.sql, sampleQuery.parameters, GP.PROFILE_META_ROWS) : []]);
         const stats = statRows[0] || {};
         const picked = GP.profiledColumns(stats, candidates);
-        const values = picked.length ? await rows(GP.valuesSql(scan, picked, profiledJoined), scan.parameters, GP.PROFILE_VALUE_ROWS) : [];
+        const valuesQuery = picked.length ? GP.statement(launchScopes, (ctx) => GP.valuesSql(scan, picked, profiledJoined, ctx), scan.parameters) : null;
+        const values = valuesQuery ? await rows(valuesQuery.sql, valuesQuery.parameters, GP.PROFILE_VALUE_ROWS) : [];
         const deep = GP.deepSuggestionOf(useCase);
         const draft = (paths) => GP.profileView({ table, technique: useCase.analytics_technique, columns, candidates, stats, sample, values, paths,
           time, days, joined: profiledJoined, deep: deep ? deep.columns : [], groupBy, readAt: new Date().toISOString(), subject: text });
@@ -2071,7 +2089,8 @@ function registerImplementRoutes(app, deps) {
         const first = draft(null);
         const grouped = GR.groupByColumns(first.groups_for);
         if (grouped.length < 2) return withExample(first);
-        const paths = await rows(GP.pathsSql(scan, grouped, profiledJoined), scan.parameters, GP.PROFILE_PATH_ROWS);
+        const pathsQuery = GP.statement(launchScopes, (ctx) => GP.pathsSql(scan, grouped, profiledJoined, ctx), scan.parameters);
+        const paths = await rows(pathsQuery.sql, pathsQuery.parameters, GP.PROFILE_PATH_ROWS);
         return withExample(draft(paths));
       }, GP.PROFILE_MS);
       return res.json({ ...view, deep_suggestion: GP.deepSuggestionOf(useCase) });

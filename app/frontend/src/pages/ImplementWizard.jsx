@@ -592,7 +592,9 @@ export default function ImplementWizard({
     return moneyReads.current.get(key);
   };
   const moneyApi = useRef(null);
-  moneyApi.current = { currencies: moneyRead('/api/money/currency-rates'), preview: moneyRead('/api/money/value-preview'), describe: (body) => postRef.current('/api/money/describe-value', body) };
+  // The money previews read their tables through the Data Filters of this use case's session, so they name the session like the profile does.
+  const withSession = (body) => ({ ...body, inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId), use_case_id: spec.use_case_id });
+  moneyApi.current = { currencies: (body) => moneyRead('/api/money/currency-rates')(withSession(body)), preview: (body) => moneyRead('/api/money/value-preview')(withSession(body)), describe: (body) => postRef.current('/api/money/describe-value', body) };
   // Folding sections: a step with several panels shows one open section at a time, in panel order.
   const [openFold, setOpenFold] = useState(null);
   const foldPanels = steps[stepIndex].panels;

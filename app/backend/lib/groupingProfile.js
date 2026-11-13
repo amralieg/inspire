@@ -69,7 +69,61 @@ function keysStatement(catalog, schema, table) {
   };
 }
 
-function sourceOf(main, names, joined = []) {
+// The Data Filters a statement reads through, as one context per statement: the values each statement binds are named apart from
+// the values of every other statement it runs with.
+function statementContext(scopes) {
+  if (!scopes || typeof scopes !== 'object') throw I.badRequest('Inspire cannot read the Data Filters of this use case, so it refuses to read its tables here');
+  return { scopes, params: [], seq: 0 };
+}
+
+// A table read for a statement that needs the columns `needed`: through its Launch scope when it has one (the scope's columns and
+// its kept rows, the values bound in the context), else as it is. A scope that does not keep a needed column refuses the read with
+// the reason. A read that needs no column reads the scope's rows only, never the whole table.
+function previewFrom(table, ctx, needed) {
+  if (!ctx) throw I.badRequest(`Inspire cannot read ${table} without its Data Filters, so it refuses to read it`);
+  const main = G.groupingMainTable(table);
+  if (!main) throw I.badRequest(`${table} is not a catalog.schema.table name`);
+  const scope = normalizeTableScope(tableScopeOf(ctx.scopes, table));
+  if (!scope.rows.length && !scope.columns.length) return main.sql;
+  const wanted = [...new Set(needed.map(str).filter(Boolean))];
+  const kept = new Set(scope.columns.map((c) => c.toLowerCase()));
+  const outside = wanted.filter((c) => scope.columns.length && !kept.has(c.toLowerCase()));
+  if (outside.length) throw I.badRequest(`The Data Filters of ${table} keep only the columns ${scope.columns.join(', ')}, so this read cannot use ${outside.join(', ')}`);
+  const named = scope.columns.length ? scope.columns : wanted;
+  const projection = named.length ? named.map((c) => q(c)).join(', ') : '1 AS inspire_row';
+  let where = '';
+  if (scope.rows.length) {
+    const { where: clauses, parameters } = I.scopeWhere(scope.rows);
+    ctx.seq += 1;
+    const tag = `s${ctx.seq}`;
+    where = ` WHERE ${clauses.map((c) => c.replace(/:(f\d+_\d+)\b/g, `:${tag}_$1`)).join(' AND ')}`;
+    for (const p of parameters) ctx.params.push({ ...p, name: `${tag}_${p.name}` });
+  }
+  return `(SELECT ${projection} FROM ${main.sql}${where})`;
+}
+
+// One statement of a profile or a preview: its SQL, and the values its Data Filters bind after the `base` values it already binds.
+function statement(scopes, build, base = []) {
+  const ctx = statementContext(scopes);
+  const sql = build(ctx);
+  const parameters = [...(base || []), ...ctx.params];
+  return { sql, parameters: parameters.length ? parameters : null };
+}
+
+// The joined columns a profile may group or sample: those the Data Filters of their own table keep (every column when it has none).
+function scopedJoined(joined, scopes) {
+  return (joined || []).filter((c) => {
+    const scope = normalizeTableScope(tableScopeOf(scopes, c.table));
+    return !scope.columns.length || scope.columns.some((col) => col.toLowerCase() === String(c.name).toLowerCase());
+  });
+}
+
+// The quoted column names a SQL fragment reads, for the scope check of a statement.
+function columnsIn(...fragments) {
+  return fragments.flatMap((f) => [...String(f || '').matchAll(/`([^`]+)`/g)].map((m) => m[1]));
+}
+
+function sourceOf(main, names, joined = [], ctx) {
   const byName = new Map((joined || []).map((c) => [c.name, c]));
   const groups = [];
   const placed = new Map();
@@ -85,12 +139,12 @@ function sourceOf(main, names, joined = []) {
     placed.set(name, `${group.alias}.${q(hit.column)}`);
   }
   const joins = groups.map((g) => `LEFT JOIN (SELECT ${q(g.ref_column)} AS inspire_key, ${g.columns.map((c) => `MAX(${q(c)}) AS ${q(c)}`).join(', ')} `
-    + `FROM ${G.groupingMainTable(g.table).sql} GROUP BY ${q(g.ref_column)}) ${g.alias} ON m.${q(g.key)} = ${g.alias}.inspire_key`);
+    + `FROM ${previewFrom(g.table, ctx, [...g.columns, g.ref_column])} GROUP BY ${q(g.ref_column)}) ${g.alias} ON m.${q(g.key)} = ${g.alias}.inspire_key`);
   return { from: [`${main.sql} m`, ...joins].join(' '), expr: (name) => placed.get(name) || `m.${q(name)}` };
 }
 
-function statsSql(main, columns, time, days, joined = []) {
-  const src = sourceOf(main, columns, joined);
+function statsSql(main, columns, time, days, joined = [], ctx) {
+  const src = sourceOf(main, columns, joined, ctx);
   const parts = ['COUNT(*) AS records', ...columns.flatMap((c, i) => [`approx_count_distinct(${src.expr(c)}) AS d${i}`,
     `COUNT_IF(${src.expr(c)} IS NULL OR TRIM(CAST(${src.expr(c)} AS STRING)) = '') AS n${i}`])];
   const back = Math.max(Number(days), 1) - 1;
@@ -101,7 +155,7 @@ function statsSql(main, columns, time, days, joined = []) {
     return `WITH x AS (SELECT date_sub(MAX(CAST(${t} AS DATE)), ${back}) AS inspire_since FROM ${main.sql}) `
       + `SELECT ${parts.join(', ')} FROM ${src.from} CROSS JOIN x`;
   }
-  const ref = G.groupingMainTable(time.via.table).sql;
+  const ref = previewFrom(time.via.table, ctx, [time.via.key, time.via.date]);
   const [key, date] = [q(time.via.key), `CAST(r.${q(time.via.date)} AS DATE)`];
   parts.push('COUNT(k.inspire_key) AS recent', 'MAX(kc.inspire_keys) AS recent_keys');
   return `WITH x AS (SELECT MAX(${date}) AS inspire_newest FROM ${main.sql} m JOIN ${ref} r ON m.${t} = r.${key}), `
@@ -141,14 +195,14 @@ const MONEY_VALUE_ROWS = 3;
 const ISO_CODE = /^[A-Z]{3}$/;
 
 // Every currency the use case table holds, with its row count, most rows first: the Measure step lists one rate per currency.
-function currencySpreadSql(table, currencyColumn) {
+function currencySpreadSql(table, currencyColumn, scopes) {
   if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(currencyColumn || ''))) return null;
-  return `SELECT ${q(currencyColumn)} AS currency, COUNT(*) AS records FROM ${G.groupingMainTable(table).sql} `
-    + `WHERE ${q(currencyColumn)} IS NOT NULL GROUP BY ${q(currencyColumn)} ORDER BY records DESC`;
+  return statement(scopes, (ctx) => `SELECT ${q(currencyColumn)} AS currency, COUNT(*) AS records FROM ${previewFrom(table, ctx, [currencyColumn])} `
+    + `WHERE ${q(currencyColumn)} IS NOT NULL GROUP BY ${q(currencyColumn)} ORDER BY records DESC`);
 }
 
 // Three rows of the use case table through a value definition: the amount each row is worth, and its currency.
-function moneyValueSampleSql(table, value) {
+function moneyValueSampleSql(table, value, scopes) {
   if (!RATE_TABLE_PATTERN.test(String(table || '')) || !value || typeof value !== 'object') return null;
   let amount = null;
   if (value.method === 'fixed' && Number.isFinite(Number(value.amount)) && Number(value.amount) > 0) amount = String(Number(value.amount));
@@ -162,32 +216,34 @@ function moneyValueSampleSql(table, value) {
   if (value.currency !== undefined && ISO_CODE.test(String(value.currency))) currency = `'${value.currency}'`;
   else if (value.currency_column !== undefined && RATE_COLUMN_PATTERN.test(String(value.currency_column))) currency = q(value.currency_column);
   if (currency === null) return null;
-  return `SELECT CAST(${amount} AS DOUBLE) AS stake, ${currency} AS currency FROM ${G.groupingMainTable(table).sql} `
-    + `WHERE ${amount} IS NOT NULL LIMIT ${MONEY_VALUE_ROWS}`;
+  return statement(scopes, (ctx) => {
+    const from = previewFrom(table, ctx, columnsIn(amount, currency));
+    return `SELECT CAST(${amount} AS DOUBLE) AS stake, ${currency} AS currency FROM ${from} WHERE ${amount} IS NOT NULL LIMIT ${MONEY_VALUE_ROWS}`;
+  });
 }
 
 // The latest rate loaded for up to three currencies, into the base currency: the example reads real numbers from the rate table.
-function rateSampleSql(rateTable, base) {
+function rateSampleSql(rateTable, base, scopes) {
   const t = rateTable || {};
   const names = ['currency_column', 'base_column', 'rate_column', 'load_column'];
   if (!RATE_TABLE_PATTERN.test(String(t.table || '')) || !/^[A-Z]{3}$/.test(String(base || ''))
     || names.some((k) => !RATE_COLUMN_PATTERN.test(String(t[k] || '')))) return null;
-  return `SELECT currency, rate FROM (SELECT ${q(t.currency_column)} AS currency, CAST(${q(t.rate_column)} AS DOUBLE) AS rate, `
+  return statement(scopes, (ctx) => `SELECT currency, rate FROM (SELECT ${q(t.currency_column)} AS currency, CAST(${q(t.rate_column)} AS DOUBLE) AS rate, `
     + `ROW_NUMBER() OVER (PARTITION BY ${q(t.currency_column)} ORDER BY ${q(t.load_column)} DESC) AS latest `
-    + `FROM ${G.groupingMainTable(t.table).sql} WHERE ${q(t.base_column)} = '${String(base)}') AS ranked WHERE latest = 1 LIMIT ${RATE_SAMPLE_ROWS}`;
+    + `FROM ${previewFrom(t.table, ctx, [t.currency_column, t.base_column, t.rate_column, t.load_column])} `
+    + `WHERE ${q(t.base_column)} = '${String(base)}') AS ranked WHERE latest = 1 LIMIT ${RATE_SAMPLE_ROWS}`);
 }
 
 // The three latest rates from a rate column of the use case table: the example reads real numbers for a rate column too.
-function rateColumnSampleSql(table, currencyColumn, rateColumn) {
+function rateColumnSampleSql(table, currencyColumn, rateColumn, scopes) {
   if (!RATE_TABLE_PATTERN.test(String(table || '')) || !RATE_COLUMN_PATTERN.test(String(currencyColumn || ''))
     || !RATE_COLUMN_PATTERN.test(String(rateColumn || ''))) return null;
-  const main = G.groupingMainTable(table).sql;
-  return `SELECT ${q(currencyColumn)} AS currency, CAST(${q(rateColumn)} AS DOUBLE) AS rate FROM ${main} `
-    + `WHERE ${q(rateColumn)} IS NOT NULL LIMIT ${RATE_SAMPLE_ROWS}`;
+  return statement(scopes, (ctx) => `SELECT ${q(currencyColumn)} AS currency, CAST(${q(rateColumn)} AS DOUBLE) AS rate FROM ${previewFrom(table, ctx, [currencyColumn, rateColumn])} `
+    + `WHERE ${q(rateColumn)} IS NOT NULL LIMIT ${RATE_SAMPLE_ROWS}`);
 }
 
-function sampleSql(main, columns, joined = []) {
-  const src = sourceOf(main, columns, joined);
+function sampleSql(main, columns, joined = [], ctx) {
+  const src = sourceOf(main, columns, joined, ctx);
   const c = columns.map((_name, i) => `c${i}`);
   const sizes = c.map((col, i) => `SELECT 'size' AS kind, ${i} AS coarse, -1 AS fine, COUNT(*) AS groups, SUM(n) AS records `
     + `FROM (SELECT ${col} AS v, COUNT(*) AS n FROM s GROUP BY ${col})`);
@@ -197,17 +253,17 @@ function sampleSql(main, columns, joined = []) {
     + `${[...sizes, ...nests].join(' UNION ALL ')}`;
 }
 
-function valuesSql(main, picked, joined = []) {
+function valuesSql(main, picked, joined = [], ctx) {
   const parts = picked.map(({ name, at }) => {
-    const src = sourceOf(main, [name], joined);
+    const src = sourceOf(main, [name], joined, ctx);
     return `SELECT ${at} AS col, left(CAST(${src.expr(name)} AS STRING), ${PROFILE_VALUE_CHARS}) AS value, COUNT(*) AS records `
       + `FROM ${src.from} GROUP BY ${src.expr(name)}`;
   });
   return `SELECT col, value, records FROM (${parts.join(' UNION ALL ')}) ORDER BY col, records DESC`;
 }
 
-function pathsSql(main, columns, joined = []) {
-  const src = sourceOf(main, columns, joined);
+function pathsSql(main, columns, joined = [], ctx) {
+  const src = sourceOf(main, columns, joined, ctx);
   const c = columns.map((name) => src.expr(name));
   return `SELECT ${c.map((col, i) => `left(CAST(${col} AS STRING), ${PROFILE_VALUE_CHARS}) AS p${i}`).join(', ')}, COUNT(*) AS records `
     + `FROM ${src.from} GROUP BY ${c.join(', ')}`;
@@ -477,6 +533,10 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
 module.exports = {
   scopedMain,
   scopedColumns,
+  statement,
+  previewFrom,
+  scopedJoined,
+  statementContext,
   currencySpreadSql,
   moneyValueSampleSql,
   CURRENCY_SPREAD_ROWS,
