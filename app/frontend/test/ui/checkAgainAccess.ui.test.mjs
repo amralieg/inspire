@@ -17,7 +17,7 @@ const CARD = 'The App cannot read part of its data';
 const unreadBuild = () => {
   const row = built({ status: 'ready_with_warnings' });
   const assets = JSON.parse(row.asset_status);
-  assets.app.unread = { app: SP, tables: [{ table: 'main.s.orders', owner: 'data-eng', grants: [CATALOG, SCHEMA, SELECT] }] };
+  assets.app.unread = { app: SP, tables: [{ table: 'main.s.orders', owner: 'data-eng', grants: [CATALOG, SCHEMA, SELECT, METADATA] }] };
   return { ...row, asset_status: JSON.stringify(assets) };
 };
 

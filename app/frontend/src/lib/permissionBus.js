@@ -3,6 +3,7 @@
 // A grant list (its GRANT statements, sorted) opens the dialog once per session: a re-check, a poll or a reload that returns the same grants
 // merges into the open dialog or stays closed. A new grant opens it. An explicit action (explicit: true) always opens.
 const subscribers = new Set();
+// Every GRANT statement the dialog has shown this session: a raise opens the dialog only for a statement it has not shown yet.
 const shown = new Set();
 let pending = null;
 
@@ -24,9 +25,9 @@ export function subscribePermissions(fn) {
 
 export function raisePermissions(permissions, extra = {}, { explicit = false } = {}) {
   if (!Array.isArray(permissions) || !permissions.length) return;
-  const key = grantListKey(permissions);
-  const seen = shown.has(key);
-  shown.add(key);
+  const statements = permissions.flatMap((p) => p?.statements || []);
+  const seen = statements.length > 0 && statements.every((s) => shown.has(s));
+  statements.forEach((s) => shown.add(s));
   if (seen && !explicit) {
     // The same grants again: never reopen. An open dialog for them takes this raise's extras (Try again, Start) through a quiet notice.
     subscribers.forEach((fn) => fn(permissions, extra, { quiet: true }));

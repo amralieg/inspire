@@ -3273,6 +3273,19 @@ function appReadsRecord(history) {
   const row = (history || [])[0];
   if (!row || !IMPLEMENT_DONE_STATUSES.includes(str(row.status))) return null;
   const app = isPlainObject(row.asset_status) && isPlainObject(row.asset_status.app) ? row.asset_status.app : null;
+  const persisted = (list) => (Array.isArray(list) ? list.map(str).filter((v) => v && !resultTableNameError(v)) : []);
+  if (app && (persisted(app.views).length || persisted(app.sources_read).length)) {
+    // The App's own read objects, persisted by the build: its Data Filters views, its reasons view, and the source tables its
+    // pages read directly. Every grant is derived from these objects and the one needs list, so the build and Check again agree.
+    const name = str(row.app_name).trim();
+    const views = persisted(app.views);
+    if (!name || name.includes('`')) return null;
+    const reason = str(app.reasons_view).trim();
+    const sources = persisted(app.sources_read).filter((s) => !views.includes(s));
+    const objects = [...new Set([...views, ...(reason && !resultTableNameError(reason) ? [reason] : []), ...sources])];
+    return { row, app: '', app_name: name, mode: str(app.access_mode) === 'user' ? 'user' : 'sp', objects: true,
+      tables: objects.map((table) => ({ table, owner: '', grants: [] })) };
+  }
   const unread = app && isPlainObject(app.unread) ? app.unread : null;
   const id = str(unread && unread.app).trim();
   if (!id || id.includes('`') || !Array.isArray(unread.tables)) return null;
@@ -3309,6 +3322,49 @@ function appReadsLeft(record, tables, plans, app) {
 // Every statement the dialog shows, in order. The person runs them all; the workspace refuses the ones the person may not grant.
 function appReadsGrantable(left, app) {
   return [...new Set(left.flatMap((t) => t.grants))].filter((g) => appReadGrantFor(g, app));
+}
+
+// Who may open an App: the users and groups the App is shared with at CAN_USE or higher. Its service principal is never one.
+const PERMISSION_RANK = ['CAN_VIEW', 'CAN_READ', 'CAN_USE', 'CAN_RUN', 'CAN_MONITOR', 'CAN_MANAGE_RUN', 'CAN_EDIT', 'CAN_MANAGE', 'IS_OWNER'];
+
+function appAudience(acl) {
+  const people = new Map();
+  for (const entry of Array.isArray(acl && acl.access_control_list) ? acl.access_control_list : []) {
+    const name = str(entry && (entry.user_name || entry.group_name)).trim();
+    if (!name || (!entry.user_name && !entry.group_name)) continue;
+    const shared = (entry.all_permissions || []).some((p) => PERMISSION_RANK.indexOf(str(p && p.permission_level).toUpperCase()) >= PERMISSION_RANK.indexOf('CAN_USE'));
+    if (shared) people.set(name.toLowerCase(), { type: entry.user_name ? 'user' : 'group', name });
+  }
+  return [...people.values()];
+}
+
+// What each principal still needs on each App object, checked live. Service-principal and user-authorization Apps share this path.
+function appReadsLeftFor(record, principals, rows) {
+  return record.tables.map((t, i) => {
+    const grants = [];
+    const owners = [];
+    for (const principal of principals) {
+      const plan = accessPlan(t.table, rows[i], principal, { needs: IMPLEMENT_SOURCE_NEEDS });
+      const order = (g) => IMPLEMENT_SOURCE_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
+      for (const need of [...plan.grants, ...plan.gaps].sort((a, b) => order(a) - order(b))) {
+        const sql = grantSql(need, principal);
+        if (appReadGrantFor(sql, principal)) grants.push(sql);
+      }
+      owners.push(...plan.gaps.map((g) => ownerLabel(g.owner)).filter(Boolean));
+    }
+    return { table: t.table, owner: joinAnd([...new Set(owners)]) || ownerLabel(t.owner), grants: [...new Set(grants)] };
+  }).filter((t) => t.grants.length);
+}
+
+function appReadsGrantableFor(left, principals) {
+  // Only statements for a principal that may open the App, so a grant can never name anyone else.
+
+  return [...new Set(left.flatMap((t) => t.grants))].filter((g) => principals.some((p) => appReadGrantFor(g, p)));
+}
+
+// The statements the build gives a principal on one App object: the offer both the notebook and the backend derive from the same needs list.
+function scopeGrantStatements(object, who) {
+  return accessPlan(object, null, who, { needs: IMPLEMENT_SOURCE_NEEDS }).grants.map((need) => grantSql(need, who));
 }
 
 function appReadsUpdateStatement(table, row, left) {
@@ -4080,6 +4136,10 @@ module.exports = {
   appReadGrantFor,
   appReadsLeft,
   appReadsGrantable,
+  appAudience,
+  appReadsLeftFor,
+  appReadsGrantableFor,
+  scopeGrantStatements,
   appReadsUpdateStatement,
   appReadsText,
   newAppReadsGaps,
