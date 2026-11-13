@@ -20,7 +20,7 @@ SCHEMAS = tuple(rc_settings.need(rc_install.S, "isolation.schemas"))
 FOLDERS = tuple(rc_settings.need(rc_install.S, "isolation.folders"))
 TREES = tuple(rc_settings.need(rc_install.S, "isolation.trees"))
 ACL_FOLDERS = tuple(rc_settings.need(rc_install.S, "isolation.acl_folders"))
-OWN_PATHS = (OWN_APP, *rc_settings.need(rc_install.S, "isolation.own_paths"))
+OWN_PATHS = (OWN_APP, rc_install.WORKSPACE_FOLDER, *rc_settings.need(rc_install.S, "isolation.own_paths"))
 
 
 def listing(w, path, recursive=False):
