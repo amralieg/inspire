@@ -233,27 +233,15 @@ def test_a_user_named_use_case_wins_its_name_even_when_ranked_lower(agent_ns):
     assert selected == [] and below == [mine] and other["selection_removed"] == "duplicate"
 
 
-def test_a_headline_with_no_outcome_is_flagged(agent_ns):
+def test_a_headline_without_an_outcome_is_no_longer_a_name_issue(agent_ns):
+    """REQ-175 dropped the "to <verb>" headline rule: a name is judged by its own words and length, not its headline."""
     obj = inspire(agent_ns)
-    issues = obj._use_case_name_issues({"Name": "Reduce unsold waste across daily bakery production", "usecase": "Align Daily Production"})
-    assert "headline_no_outcome" in issues
+    issues = obj._use_case_name_issues({"Name": "Reduce Unsold Waste", "usecase": "Align Daily Production"})
+    assert "headline_no_outcome" not in issues and issues == []
 
 
-@pytest.mark.parametrize("uc", [
-    {"Name": "Reduce unsold waste across daily bakery production", "usecase": "Align Daily Production to Cut Unsold Waste"},
-    {"Name": "Align Daily Production", "user_named": "Align Daily Production", "usecase": "Align Daily Production"},
-])
-def test_a_headline_with_an_outcome_or_a_user_name_is_not_flagged_must_exclude(agent_ns, uc):
-    assert "headline_no_outcome" not in inspire(agent_ns)._use_case_name_issues(uc)
-
-
-def test_the_naming_prompt_examples_obey_the_outcome_rule(agent_ns):
-    pattern = agent_ns["USE_CASE_HEADLINE_OUTCOME_RE"]
-    source = agent_source()
-    assert '"Align Daily Production" → REJECTED' in source
-    for good in ("Recover Missed Pricing Revenue to Improve Margins", "Stabilize Revenue in Volatile Periods to Protect Growth",
-                 "Tighten Discount Controls to Protect Margins"):
-        assert good in source and pattern.search(good)
+def test_the_outcome_headline_pattern_is_gone_from_the_notebook(agent_ns):
+    assert "USE_CASE_HEADLINE_OUTCOME_RE" not in agent_source()
 
 
 def test_constant_columns_reach_the_notebook_rules(agent_ns):

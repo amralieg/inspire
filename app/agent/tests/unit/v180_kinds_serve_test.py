@@ -227,75 +227,43 @@ def test_csv_and_excel_columns_carry_the_kind_family_and_lines_in_english(ns):
     assert bare["Use Case Kind"] == "" and bare["What we serve"] == ""
 
 
-def test_the_csv_and_excel_description_is_the_name_using_the_technique_in_lower_case(ns):
-    import openpyxl
+def test_the_csv_and_excel_description_is_the_subtitle_with_the_technique(ns):
+    """REQ-175: the Description column carries the subtitle (outcome, technique, scope). The name is the name alone."""
     uc = forecast_uc(**{"Analytics Technique": "Causal Impact"})
     bare = make_uc("N01-U02", **{"Analytics Technique": ""})
     obj = bilingual(ns)
     obj._generate_csv_catalog("English", "en", {"Sales": [uc, bare]})
     _header, rows = csv_rows(obj)
     described = {row["ID"]: row["Description"] for row in rows}
-    assert described == {"N01-U01": "Forecast demand N01-U01 using causal impact", "N01-U02": "Forecast demand N01-U02"}
-    obj = bilingual(ns)
-    obj._generate_use_case_excel("English", "en", {"Sales": [uc, bare]})
-    _path, data = written(obj, ".xlsx")
-    sheet = openpyxl.load_workbook(io.BytesIO(data)).worksheets[0]
-    header = [c.value for c in sheet[1]]
-    cells = {row[header.index("ID")]: row[header.index("Description")] for row in sheet.iter_rows(min_row=2, values_only=True)}
-    assert cells == described
-    arabic = bilingual(ns)
-    labels = arabic_labels(ns)
-    arabic._generate_csv_catalog("Arabic", "ar", {"المبيعات": [uc]}, translations=labels)
-    _header, rows = csv_rows(arabic)
-    technique, _untranslated = arabic._doc_technique_label("Causal Impact", labels, "Arabic")
-    assert technique and technique != "Causal Impact"
-    assert "Forecast demand N01-U01 باستخدام " + technique in rows[0].values()
-    assert "using" not in " ".join(rows[0].values())
-
-
-def test_every_curated_language_joins_the_name_and_technique_with_its_own_word(ns):
+    assert described["N01-U01"] == obj._inspire_subtitle(uc, {}, "English")
+    assert "Technique:" in described["N01-U01"]
+    assert "Technique:" not in described["N01-U02"], "no technique, no technique line"
+def test_no_language_joins_a_name_with_a_technique_and_the_old_key_is_gone(ns):
+    """REQ-175: the name never carries the technique, so no language needs a joining word for it."""
     obj = make_inspire(ns)
     service = ns["TranslationService"]
-    assert service.ENGLISH_TRANSLATIONS["doc_name_using_technique"] == "{name} using {technique}"
-    uc = {"Name": "Forecast demand", "Analytics Technique": "Forecasting"}
-    assert set(service.TRANSLATION_FALLBACKS) >= {"Arabic", "German", "Japanese"}
+    assert "doc_name_using_technique" not in service.ENGLISH_TRANSLATIONS
     for language, fallbacks in service.TRANSLATION_FALLBACKS.items():
-        text = fallbacks["doc_name_using_technique"]
-        assert "{name}" in text and "{technique}" in text and " using " not in text, language
-        technique, _untranslated = obj._doc_technique_label("Forecasting", {}, language)
-        label = obj._inspire_name_with_technique(uc, {}, language)
-        kept = technique if language == "German" else " ".join(w if w.isupper() else w.lower() for w in technique.split())
-        assert label == text.replace("{name}", "Forecast demand").replace("{technique}", kept), language
-    assert obj._inspire_name_with_technique(uc, {}, "German").endswith(" mit " + obj._doc_technique_label("Forecasting", {}, "German")[0])
-
-
-def test_a_language_without_a_curated_word_uses_the_run_translation_and_a_broken_one_falls_back(ns):
-    obj = make_inspire(ns)
-    uc = {"Name": "Πρόβλεψη ζήτησης", "Analytics Technique": "Forecasting"}
-    technique = obj._doc_technique_label("Forecasting", {}, "Greek")[0].lower()
-    assert obj._inspire_name_with_technique(uc, {"doc_name_using_technique": "{name} με χρήση {technique}"}, "Greek") == \
-        f"Πρόβλεψη ζήτησης με χρήση {technique}"
-    assert obj._inspire_name_with_technique(uc, {"doc_name_using_technique": "{name} με χρήση"}, "Greek") == \
-        f"Πρόβλεψη ζήτησης using {technique}", "a translation that loses a placeholder is refused"
-
-
-def test_the_tracking_row_stores_the_name_with_its_technique_for_the_app(ns):
+        assert "doc_name_using_technique" not in fallbacks, language
+    assert obj._inspire_name_with_technique({"Name": "Πρόβλεψη ζήτησης", "Analytics Technique": "Forecasting"}, {}, "Greek") == \
+        "Πρόβλεψη ζήτησης"
+def test_the_tracking_row_stores_the_name_alone_and_the_subtitle_for_the_app(ns):
     obj = _tracking_obj(ns, FakeSpark())
     source = obj._tracking_row_source(forecast_uc())
-    assert source["name_with_technique"] == "Forecast demand N01-U01 using forecasting"
-    assert _row(ns, source)["name_with_technique"] == "Forecast demand N01-U01 using forecasting"
+    assert source["name_with_technique"] == "Forecast demand N01-U01", "the name alone (REQ-175)"
+    assert "Technique: forecasting." in source["subtitle"] or "Technique:" in source["subtitle"]
+    assert _row(ns, source)["name_with_technique"] == "Forecast demand N01-U01"
     plain = obj._tracking_row_source(make_uc("N01-U02", **{"Analytics Technique": ""}))
     assert plain["name_with_technique"] == "Forecast demand N01-U02"
-
-
-def test_the_json_catalog_the_app_reads_carries_the_name_with_its_technique(ns):
+    assert "Technique:" not in plain["subtitle"]
+def test_the_json_catalog_the_app_reads_the_name_and_the_subtitle(ns):
     obj = make_inspire(ns, column_id_map={}, id_column_map={}, table_id_map={}, id_table_map={},
                        catalogs_str="main", schemas_str="", generation_path="/Workspace/out")
     obj._save_usecases_catalog_json([forecast_uc(), make_uc("N01-U02", **{"Analytics Technique": ""})], {}, summary_dict={"Executive": "x"})
-    names = {uc["No"]: uc["name_with_technique"] for d in obj.final_inspire_results_json["domains"] for uc in d["use_cases"]}
-    assert names == {"N01-U01": "Forecast demand N01-U01 using forecasting", "N01-U02": "Forecast demand N01-U02"}
-
-
+    ucs = {uc["No"]: uc for d in obj.final_inspire_results_json["domains"] for uc in d["use_cases"]}
+    assert ucs["N01-U01"]["name_with_technique"] == "Forecast demand N01-U01"
+    assert "Technique:" in ucs["N01-U01"]["subtitle"]
+    assert "Technique:" not in ucs["N01-U02"]["subtitle"]
 def test_the_arabic_csv_has_arabic_headers_and_the_translated_lines(ns):
     labels = arabic_labels(ns)
     uc = kinded(ns, forecast_uc())

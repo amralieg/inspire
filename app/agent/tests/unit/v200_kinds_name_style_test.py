@@ -11,22 +11,18 @@ from v120_artifacts_support import make_inspire, make_uc  # noqa: E402
 from v120_gate_recalibration_test import SCHEMA, U, make  # noqa: E402
 
 WIREFRAME_NAMES = (
-    "Call the repeat buyers most likely to lapse this month",
-    "Call the overdue invoices most likely to slip past 90 days",
-    "Catch freight invoices billed above the contract rate",
-    "Set next week's store orders from forecast demand",
-    "Test price and cost moves on next quarter's margin",
-    "Rebalance stock between warehouses at the lowest cost",
-    "Staff each store's checkouts to the forecast footfall",
-    "Serve each customer group at a cost it can carry",
-    "Pick the next product to offer each loyal buyer",
-    "Explain the margin gap to plan by price, volume and mix",
-    "Bring under-performing stores up to their peer group",
-    "Keep, change or stop each promotion by its true net lift",
-    "Cut order-to-ship delays at the slowest warehouses",
-    "Choose the next five store sites by unmet demand",
-    "Break up return-abuse rings across accounts",
-    "Ask the sales and stock data anything, with the SQL shown",
+    "Predict Customer Attrition",
+    "Forecast Store Order Demand",
+    "Catch Freight Invoice Errors",
+    "Set Weekly Store Orders",
+    "Test Price Changes",
+    "Rebalance Stock Across Warehouses",
+    "Staff Store Checkouts",
+    "Pick Next Product Offers",
+    "Explain Margin Gap",
+    "Cut Order-to-Ship Delays",
+    "Break Up Return Abuse Rings",
+    "Ask Sales Data Anything",
 )
 OLD_STYLE_NAMES = (
     "Forecast Daily Product Demand with Production Planning Recommendations",
@@ -44,19 +40,19 @@ def test_every_wireframe_name_passes_the_name_check(agent_ns, name):
 
 
 @pytest.mark.parametrize("name", OLD_STYLE_NAMES)
-def test_every_old_style_name_fails_on_method_verb_tail_and_title_case(agent_ns, name):
+def test_every_old_style_name_fails_on_its_tail_and_its_length(agent_ns, name):
     codes = {issue.split(":")[0] for issue in _issues(agent_ns, name)}
-    assert {"method_verb", "deliverable_tail", "title_case"} <= codes
+    assert {"deliverable_tail", "words"} <= codes
 
 
 @pytest.mark.parametrize("name, code", [
     ("Monitor the overdue invoices most likely to slip", "verb:monitor"),
-    ("Call the lapsing buyers", "words:4"),
+    ("Churn", "words:1"),
     ("Call the repeat buyers most likely to lapse this month across every store and channel we run", "words:17"),
     ("Call the lapsing repeat buyers to grow revenue this month", "value_lever"),
     ("Set store orders from the Forecasting output every week", "technique:Forecasting"),
     ("Catch freight invoices with Billing Integrity Review Queue items", "deliverable_tail"),
-    ("Catch Freight Invoices Billed Above Contract Rate", "title_case"),
+    ("Catch freight Invoices", "case:freight"),
     ("", "missing"),
 ])
 def test_each_name_rule_rejects_its_own_breach(agent_ns, name, code):
@@ -67,9 +63,9 @@ def test_the_use_cases_own_technique_counts_even_when_it_is_not_a_registry_label
     assert "technique:Erlang Staffing" in _issues(agent_ns, "Staff each store with the Erlang staffing model weekly", "Erlang Staffing")
 
 
-def test_acronyms_and_a_single_proper_noun_keep_sentence_case(agent_ns):
-    assert _issues(agent_ns, "Call the EMEA accounts most likely to lapse this month") == []
-    assert _issues(agent_ns, "Ask the Genie room about stock levels in each store") == []
+def test_acronyms_and_a_single_proper_noun_keep_title_case(agent_ns):
+    assert _issues(agent_ns, "Predict EMEA Account Churn") == []
+    assert _issues(agent_ns, "Ask Genie About Store Stock") == []
 
 
 def _q5(agent_ns, *ucs, instructions=None):
@@ -90,7 +86,7 @@ def test_q5_r20_flags_an_old_style_name_and_never_drops_it(agent_ns, caplog):
     _obj, kept, dropped = _q5(agent_ns, _uc("N01-U01", OLD_STYLE_NAMES[0]), _uc("N01-U02", WIREFRAME_NAMES[0]))
     assert dropped == [] and set(kept) == {"N01-U01", "N01-U02"}
     flags = [f for f in kept["N01-U01"].get("gate_flags") or [] if f.startswith("Q5_R25_NAME_STYLE:")]
-    assert len(flags) == 1 and "deliverable_tail" in flags[0] and "method_verb:forecast" in flags[0]
+    assert len(flags) == 1 and "deliverable_tail" in flags[0] and "words:8" in flags[0]
     assert not any(f.startswith("Q5_R20") for f in kept["N01-U02"].get("gate_flags") or [])
     assert any("[NAME-CHECK FIRED] Q5 R25 flagged 1 of 2 names" in r.getMessage() for r in caplog.records)
 
@@ -118,27 +114,26 @@ def test_the_genie_target_reads_a_sentence_case_name_as_the_decision(agent_ns):
     assert target({"Name": ""}) == "the ranked rows of the business output table"
 
 
-def test_the_combined_label_is_the_name_using_the_technique_in_lower_case(agent_ns):
+def test_the_name_carries_no_technique_tail_in_any_language(agent_ns):
+    """REQ-175: the technique moved to the subtitle, so the name is the name alone, never "using <technique>"."""
     obj = make(agent_ns)
     label = obj._inspire_name_with_technique
-    uc = {"Name": "Call the repeat buyers most likely to lapse this month", "Analytics Technique": "Predictive Modeling"}
-    assert label(uc) == "Call the repeat buyers most likely to lapse this month using predictive modeling"
-    assert label({"Name": "Ask the sales data anything", "Analytics Technique": "Data Agent"}) == "Ask the sales data anything using data agent"
-    assert label({"Name": "Catch freight invoices billed above the contract rate", "Analytics Technique": ""}) == \
-        "Catch freight invoices billed above the contract rate"
-    assert label({"Name": "", "Analytics Technique": "Forecasting"}) == "Forecasting"
-    arabic = obj._doc_technique_label("Predictive Modeling", {}, "Arabic")[0]
-    assert label(uc, {}, "Arabic") == f"{uc['Name']} باستخدام {arabic}", "each language joins them with its own word"
+    uc = {"Name": "Predict Customer Churn", "Analytics Technique": "Predictive Modeling"}
+    assert label(uc) == "Predict Customer Churn"
+    assert label({"Name": "Ask Sales Data Anything", "Analytics Technique": "Data Agent"}) == "Ask Sales Data Anything"
+    assert label({"Name": "", "Analytics Technique": "Forecasting"}) == ""
+    assert label(uc, {}, "Arabic") == "Predict Customer Churn"
 
 
-def test_the_shared_use_case_view_shows_the_combined_label_under_the_headline(agent_ns):
+def test_the_shared_use_case_view_shows_the_name_alone_under_the_headline(agent_ns):
     obj = make_inspire(agent_ns)
     t = dict(agent_ns["TranslationService"].ENGLISH_TRANSLATIONS)
-    uc = make_uc("N01-U01", Name="Call the repeat buyers most likely to lapse this month", usecase="Win Back Lapsing Buyers to Grow Revenue",
-                 **{"Analytics Technique": "Predictive Modeling"})
+    name = "Call the repeat buyers most likely to lapse this month"
+    uc = make_uc("N01-U01", Name=name, usecase=name, **{"Analytics Technique": "Predictive Modeling"})
     model = obj._document_model("English", t, {}, {"Sales": [uc]}, "Acme")
     view = obj._use_case_view(model["ranked"][0], model, t)
-    assert view["name"] == "Call the repeat buyers most likely to lapse this month using predictive modeling"
+    assert view["title"].lower() == name.lower(), "the name is the title (Title Case in the document); the technique is in the subtitle"
+    assert "Technique: Predictive Modeling." in view["subtitle"]
 
 
 def test_the_generation_prompt_carries_the_name_rules_and_the_user_wins_line(agent_ns):
@@ -154,8 +149,7 @@ def test_the_generation_prompt_carries_the_name_rules_and_the_user_wins_line(age
 
 def test_the_example_rows_in_the_prompt_follow_the_name_rules(agent_ns):
     base = agent_ns["PROMPT_TEMPLATES"]["BASE_USE_CASE_GEN_PROMPT"]
-    for name in ("Set next month's [METRIC] capacity from forecast demand", "Call the [ENTITY] most likely to [OUTCOME] this month",
-                 "Review each [ENTITY] in the riskiest [CATEGORY] tier"):
+    for name in ("Forecast [METRIC] Capacity Need", "Predict [ENTITY] Churn Risk", "Classify [ENTITY] Risk Tiers"):
         assert name in base
         assert _issues(agent_ns, name) == []
 
