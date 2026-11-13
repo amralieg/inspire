@@ -140,7 +140,8 @@ def test_the_app_service_principal_loses_its_lakebase_reads_of_a_departed_pages_
     inst._implement_lakebase_sql = denied
     warnings, _said, left = inst._implement_revoke_app_sp("sales-desk", record, needs)
     assert warnings == ['App: REVOKE SELECT ON TABLE "sales_desk"."n01_u01__t_aaaa1111" FROM "sp-7" failed on Lakebase, so the App\'s '
-                        "service principal may still read that copy: permission denied for table n01_u01__t_aaaa1111"]
+                        "service principal may still read that copy: the identity Inspire runs as has no rights on the Lakebase table "
+                        'n01_u01__t_aaaa1111; ask the Lakebase project owner to run GRANT ALL PRIVILEGES ON TABLE n01_u01__t_aaaa1111 TO "<identity>"']
     assert left["lakebase"]["tables"] == ["sales_desk.n01_u01__t_aaaa1111"]
 
 
