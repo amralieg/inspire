@@ -61,3 +61,26 @@ test('Gains only is enabled once a status sign is set, and the explanation goes'
   assert.ok(!gainsInput(html).includes('disabled=""'), 'the Gains only choice is enabled');
   assert.ok(!html.includes('data-money-sign-needed'), 'no explanation once the sign is set');
 });
+
+const radioOf = (html, method) => html.match(new RegExp(`<input[^>]*data-money-method="${method}"[^>]*>`))[0];
+
+test('the method part offers the cost of a lost opportunity beside the fixed, column, equation and describe choices', () => {
+  const html = render('method');
+  assert.ok(html.includes('data-money-method="lost"'), 'the lost-opportunity choice is offered');
+  for (const other of ['fixed', 'column', 'equation', 'describe']) assert.ok(html.includes(`data-money-method="${other}"`), `${other} is still offered`);
+});
+
+test('a saved fixed amount with statuses opens on the lost-opportunity choice, with its statuses and status column filled in', () => {
+  const html = renderWith({ currency: 'convert', base: 'USD', rates: { USD: 1 }, statuses: ['lost'], status_column: 'stage', value: { method: 'fixed', amount: 120, currency: 'USD' } });
+  assert.ok(radioOf(html, 'lost').includes('checked=""'), 'the lost-opportunity choice is checked');
+  assert.ok(!radioOf(html, 'fixed').includes('checked=""'), 'the plain fixed choice is not checked');
+  assert.ok(html.includes('data-money-lost'), 'the lost block is shown');
+  assert.match(html, /<input[^>]*data-money-lost-statuses[^>]*value="lost"/);
+  assert.match(html, /<option value="stage" selected=""/);
+});
+
+test('a saved fixed amount without statuses stays the plain fixed choice', () => {
+  const html = renderWith({ currency: 'convert', base: 'USD', rates: { USD: 1 }, value: { method: 'fixed', amount: 120, currency: 'USD' } });
+  assert.ok(radioOf(html, 'fixed').includes('checked=""'), 'the fixed choice is checked');
+  assert.ok(!html.includes('data-money-lost'), 'no lost block');
+});
