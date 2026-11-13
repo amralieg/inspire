@@ -420,8 +420,10 @@ def test_check_reports_an_empty_list_and_a_failed_summary_once(tmp_path):
     ws = DataWorkspace(rows=[], fail={"left": shell_db.QueryError("PERMISSION_DENIED")})
     s, _ws, _made = shell(tmp_path, settings=DECIDE, ws=ws)
     problems = s.check(EDITOR)
-    assert "page n01_u05: the decision list returned no rows at the default filters" in problems
+    assert not any("decision list returned no rows" in p for p in problems), problems
     assert "page n01_u05: the count of records that left the list failed: PERMISSION_DENIED" in problems
+    notes = [t for kind, t in s.checked(EDITOR) if "decision list holds no rows in its whole scope" in t]
+    assert len(notes) == 1, "an empty list over an empty scope is zero matches, not a failure"
 
 
 def test_check_finds_nothing_to_flag_on_decisions_for_a_result_table_the_app_can_read(tmp_path):

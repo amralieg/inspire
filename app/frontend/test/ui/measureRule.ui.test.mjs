@@ -43,12 +43,13 @@ async function openMeasure({ rates = LIVE_RATES, calls = { preview: [], currency
   return { ...ui, calls };
 }
 
-test('the Measure step asks how the value of each record is measured, with four choices and no old fields', async () => {
+test('the Measure step asks how the value of each record is measured, with five choices (the rule’s own amount first) and no old fields', async () => {
   const ui = await openMeasure();
   const { page } = ui;
   try {
     assert.match(await page.locator('[data-measure-value] legend').innerText(), /How does your business measure the value of each record\?/);
-    assert.equal(await page.locator('[data-money-method]').count(), 4);
+    assert.equal(await page.locator('[data-money-method]').count(), 5);
+    assert.equal(await page.locator('[data-money-method="rule"]').isChecked(), false, 'this use case states no amount, so the default is the table column');
     assert.equal(await page.locator('[data-money-mode]').count(), 0, 'the old per-currency and convert radios are gone');
     await onMoneyPart(page, 'window');
     assert.equal(await page.locator('[data-money-window]').isVisible(), true, 'the periods box is on its own decision, with no More options fold');
@@ -266,6 +267,24 @@ test('Gains only is disabled with its reason until a sign is named, and a status
     assert.equal(await page.locator('[data-money-sign-needed]').count(), 0);
     await page.locator('[data-money-rule-kind="gains"]').check();
     await page.waitForFunction(() => /Only gains count/.test(document.querySelector('[data-money-sentence]')?.textContent || ''), null, { timeout: 15000 });
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('a person can switch from a column to the rule’s own amount and back, and the rule shows which one it uses', async () => {
+  const ui = await openMeasure();
+  const { page, calls } = ui;
+  try {
+    await page.locator('[data-money-method="column"]').check();
+    await page.locator('[data-money-value-column]').fill('unit_price');
+    for (let i = 0; i < 100 && calls.preview.at(-1)?.value?.column !== 'unit_price'; i += 1) await new Promise((done) => setTimeout(done, 100));
+    assert.equal(calls.preview.at(-1).value.column, 'unit_price', 'the preview reads the column the person typed');
+    await page.locator('[data-money-method="rule"]').check();
+    assert.equal(await page.locator('[data-money-rule-own]').isVisible(), true, 'the rule’s-own sentence shows');
+    assert.equal(await page.locator('[data-money-value-currency]').count(), 0, 'no currency block for the rule’s own amount');
+    await page.locator('[data-money-method="column"]').check();
+    assert.equal(await page.locator('[data-money-value-column]').inputValue(), 'unit_price', 'the column the person picked is kept');
   } finally {
     await page.context().close();
   }

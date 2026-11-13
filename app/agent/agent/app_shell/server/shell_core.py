@@ -3816,7 +3816,11 @@ class Shell:
         counts[("records", shell_sql.RECORDS_DATASET)] = int(out.get("total") or len(out["rows"]))
         problems = [(CHECK_FAILED, f"{where}: {LIST_LABELS[name]} failed: {message}") for name, message in sorted(out["errors"].items())]
         if not out["rows"]:
-            problems.append((CHECK_FAILED, f"{where}: the decision list returned no rows at the default filters"))
+            whole = self.records(headers, {"page": page["id"], "filters": {}, "limit": 1}, probe)
+            if whole["rows"]:
+                problems.append((CHECK_FAILED, f"{where}: the decision list returned no rows at the default filters"))
+            else:
+                problems.append((CHECK_NOTE, f"{where}: the decision list holds no rows in its whole scope (zero matches, not a filter problem)"))
         columns = self.list_columns(probe.ws, None, page)
         problems += [(CHECK_DESIGN, f"{where}: {p}") for p in shell_sql.part_column_problems(page, columns)]
         problems += [(CHECK_DESIGN, f"{where}: {p}") for p in shell_sql.filter_grain_problems(page, columns)]
@@ -3833,20 +3837,45 @@ class Shell:
                              f"table's key for one record, in the {shell_sql.RECORDS_DATASET} dataset"))
         return problems
 
-    def rule_finds_nothing(self, page: dict, chart: dict, ws, who=None) -> bool:
-        """True when every measure of the chart is zero for every group with no filter applied: the rule has no exception in its scope."""
+    def rule_finds_nothing(self, page: dict, chart: dict, ws, who=None, every_measure: bool = False) -> bool:
+        """True when the chart's money measures are zero for every group with no filter applied: the rule has no money exception in
+        its scope. A chart with a count of the records the rule tested still reads True, because a tested record is not an
+        exception. every_measure=True counts every measure (the zero-state panel says 'none found', so no tested record may show)."""
+        measures = list(enumerate(chart.get("y") or []))
+        money = [i for i, y in measures if y.get("format") == "currency"]
+        checked = [i for i, _y in measures] if every_measure or not money else money
         sql, params = shell_sql.chart_query(page, chart["id"], {})
         rows = self.run(ws, who, sql, params, shell_sql.CAPS["chart_rows"]).get("rows") or []
-        return not any(abs(shell_sql.as_number(row.get(f"y{i}")) or 0) > 1e-12 for row in rows for i in range(len(chart.get("y") or [])))
+        return not any(abs(shell_sql.as_number(row.get(f"y{i}")) or 0) > 1e-12 for row in rows for i in checked)
 
     def zero_state(self, page: dict, ws, who, charts: dict):
-        """The zero-state flag: every chart drawn at these filters is flat and its rule finds no exception in the scope, so the page
-        shows one plain 'none found' panel in place of the flat charts. None when any drawn chart is not flat or the rule still finds exceptions."""
+        """The zero-state flag: every chart drawn at these filters is flat (or empty) and the whole scope has no measure, so the page
+        shows one plain 'none found' panel in place of the flat charts. None when any drawn chart is not flat, or any measure is
+        nonzero in the scope."""
         drawn = [item for item in page.get("charts") or [] if item["id"] in charts]
-        if not drawn or not all(flat_measures(item, charts[item["id"]].get("rows") or []) and self.rule_finds_nothing(page, item, ws, who)
-                                for item in drawn):
+        if not drawn or not all((not charts[item["id"]].get("rows") or flat_measures(item, charts[item["id"]]["rows"]))
+                                and self.rule_finds_nothing(page, item, ws, who, every_measure=True) for item in drawn):
             return None
         return {"charts": sorted(item["id"] for item in drawn)}
+
+    def filter_scope_empty(self, page: dict, ident: str, ws) -> bool:
+        """True when a dataset the filter reads holds no row in its whole scope, so the filter has no values because nothing matched."""
+        spec = next((f for f in page.get("filters") or [] if f.get("id") == ident), {})
+        names = list((spec.get("columns") or {}).keys())
+        return bool(names) and self.dataset_empty(page, names[0], ws)
+
+    def dataset_empty(self, page: dict, name: str, ws, who=None) -> bool:
+        """True when the dataset holds no row in its whole scope, with no filter applied."""
+        sql, params = shell_sql.dataset_rows_query(page, name)
+        return not (self.run(ws, who, sql, params, 1).get("rows") or [])
+
+    def scope_empty(self, page: dict, kind: str, item: dict, ws, who=None) -> bool:
+        """True when the chart or table has no rows in its whole scope, with no filter applied: zero matches, not a filter that hides them."""
+        if kind == "chart":
+            sql, params = shell_sql.chart_query(page, item["id"], {})
+        else:
+            sql, params = shell_sql.table_query(page, item["id"], {})
+        return not (self.run(ws, who, sql, params, 1).get("rows") or [])
 
     def check_held_rows(self, headers: dict, page: dict, values: dict, counts: dict, probe) -> dict:
         source = ("records", shell_sql.RECORDS_DATASET)
@@ -3968,10 +3997,18 @@ class Shell:
                     found.append(filter_problem(f"{where}: filter {f['id']}", f["error"]))
                 elif f["type"] == "date_range":
                     if f.get("low") is None or f.get("high") is None:
+                        if self.filter_scope_empty(page, f["id"], probe.ws):
+                            found.append((CHECK_NOTE, f"{where}: date filter {f['id']} finds no dates because its data holds no rows "
+                                                      f"in its whole scope (zero matches, not a filter problem)"))
+                            continue
                         failed([f"{where}: date filter {f['id']} found no dates"])
                     bounds[f["id"]] = (f.get("low"), f.get("high"))
                 elif not f.get("options"):
-                    failed([f"{where}: filter {f['id']} found no values to pick"])
+                    if self.filter_scope_empty(page, f["id"], probe.ws):
+                        found.append((CHECK_NOTE, f"{where}: filter {f['id']} has no values to pick because its data holds no rows "
+                                                  f"in its whole scope (zero matches, not a filter problem)"))
+                    else:
+                        failed([f"{where}: filter {f['id']} found no values to pick"])
                 elif len(f["options"]) < 2:
                     single.append(f"{f['id']} ({f['options'][0]})")
                 else:
@@ -3995,7 +4032,11 @@ class Shell:
             for kpi in page.get("kpis") or []:
                 if f"kpi:{kpi['id']}" not in errors and (data["kpis"].get(kpi["id"]) or {}).get("now") is None \
                         and not (data["kpis"].get(kpi["id"]) or {}).get("by_currency"):
-                    failed([f"{where}: KPI {kpi['id']} has no value at the default filters"])
+                    if self.dataset_empty(page, kpi["dataset"], probe.ws):
+                        found.append((CHECK_NOTE, f"{where}: KPI {kpi['id']} has no value because its dataset holds no rows in its "
+                                                  f"whole scope (zero matches, not a filter problem)"))
+                    else:
+                        failed([f"{where}: KPI {kpi['id']} has no value at the default filters"])
             counts = {}
             for kind in ("chart", "table"):
                 for item in page.get(f"{kind}s") or []:
@@ -4003,7 +4044,10 @@ class Shell:
                     if f"{kind}:{item['id']}" in errors:
                         continue
                     counts[(kind, item["id"])] = len(rows)
-                    if not rows:
+                    if not rows and self.scope_empty(page, kind, item, probe.ws):
+                        found.append((CHECK_NOTE, f"{where}: {kind} {item['id']} holds no rows in its whole scope, so it is empty because "
+                                                  f"nothing matched (zero matches, not a filter problem)"))
+                    elif not rows:
                         failed([f"{where}: {kind} {item['id']} returned no rows at the default filters"])
                     elif kind == "chart" and len(rows) < 2:
                         design([f"{where}: chart {item['id']} draws one group at the default filters, so it compares "

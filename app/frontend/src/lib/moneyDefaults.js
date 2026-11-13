@@ -7,32 +7,17 @@ export const DEFAULT_CURRENCY = 'USD';
 export const WINDOW_CHOICES = ['3', '6', '12', '24'];
 export const ALL_PERIODS = 'All closed periods';
 
-export const METHOD_NAMES = { fixed: 'A fixed amount for each record', column: 'A value from a data column', equation: 'An equation over columns', describe: 'Described in words' };
+export const METHOD_NAMES = { rule: 'The amount the rule computes', fixed: 'A fixed amount for each record', column: 'A value from a data column', equation: 'An equation over columns', describe: 'Described in words' };
 export const DIRECTION_NAMES = { losses: 'Losses only', gains: 'Gains only', net: 'Losses and gains, netted' };
 
-const VALUE_WORDS = ['amount', 'price', 'total', 'value', 'revenue', 'cost'];
-
-// The column the use case's own value text names: an exact column name in the text, else a value word in the text
-// with the table column that carries it. Empty when the text names no column of the table.
-export function valueColumnFromText(text, columns) {
-  const words = String(text || '').toLowerCase();
-  const names = (columns || []).filter(Boolean);
-  if (!words || !names.length) return '';
-  const escaped = (name) => name.toLowerCase().replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-  const exact = names.find((name) => new RegExp(`(^|[^a-z0-9_])${escaped(name)}([^a-z0-9_]|$)`).test(words));
-  if (exact) return exact;
-  const word = VALUE_WORDS.find((w) => words.includes(w));
-  return word ? names.find((name) => name.toLowerCase().includes(word)) || '' : '';
-}
-
-// The rule the wizard writes on its own when a use case has none. It counts the column its own value text names, when the
-// table has one; else the amount column of the table; else each record once. The currency is the currency column when the
-// table has one, else USD. With no amount column, each record counts 1 USD, which counts records.
-export function defaultMoneyRule(profile, valueText = '') {
+// The one place the default money rule is picked. A use case that states its own value (the rule's amount for each flagged record)
+// keeps that amount: the rule saves no value, so the build counts the amount the rule computes. Only a use case with no such amount
+// falls back to the amount column of its table, else each record once at 1 USD. The wizard shows the choice in a sentence
+// (moneySummaryOf) and the person can change it there.
+export function defaultMoneyRule(profile, ruleComputes = false) {
+  if (ruleComputes) return { currency: 'per_currency' };
   const sample = profile?.money_sample || null;
   const currency = sample?.currency ? { currency_column: sample.currency } : { currency: DEFAULT_CURRENCY };
-  const named = valueColumnFromText(valueText, profile?.money_columns || []);
-  if (named) return { currency: 'per_currency', value: { method: 'column', column: named, ...currency } };
   const value = sample?.amount ? { method: 'column', column: sample.amount, ...currency } : { method: 'fixed', amount: 1, ...currency };
   return { currency: 'per_currency', value };
 }
@@ -52,7 +37,7 @@ export function windowText(window) {
 // One line that says what a folded section holds. Empty when the section has nothing set.
 export function moneySummaryOf(money, part) {
   if (!money) return 'Not set yet';
-  if (part === 'method') return money.value ? `${METHOD_NAMES[money.value.method] || 'Value'}: ${valueTextOf(money.value)}` : 'Not set';
+  if (part === 'method') return money.value ? `${METHOD_NAMES[money.value.method] || 'Value'}: ${valueTextOf(money.value)}` : `${METHOD_NAMES.rule}: each flagged record counts the amount its own rule works out`;
   if (part === 'direction') return DIRECTION_NAMES[money.rule || 'losses'];
   if (part === 'currency') {
     const values = money.value?.currency_column !== undefined ? `each record in ${money.value.currency_column}` : money.value ? money.value.currency : 'USD';

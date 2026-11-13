@@ -3688,6 +3688,11 @@ def schema_query(table: str) -> tuple:
     return f"SELECT * FROM {table_name(table)} LIMIT 0", []
 
 
+def dataset_rows_query(page: dict, name: str) -> tuple:
+    """One row if the dataset holds any row in its whole scope, with no filter applied: zero matches show no rows here."""
+    return f"SELECT 1 FROM ({_dataset(page, name)}) AS d LIMIT 1", []
+
+
 def dataset_columns_query(page: dict, name: str) -> tuple:
     return f"SELECT * FROM ({_dataset(page, name)}) AS d LIMIT 0", []
 

@@ -639,6 +639,9 @@ def test_check_runs_every_query_at_the_default_filters(tmp_path):
 
 
 def test_check_names_every_broken_or_empty_tile(tmp_path):
+    # the default filters empty every chart, but the whole scope has rows (no filter applied), so each one is named as failed
+    unfiltered = {shell_sql.chart_query(PAGE, c["id"], {})[0] for c in PAGE["charts"]}
+
     def shape(sql):
         if "low_0 AS low" in sql:
             return None
@@ -648,6 +651,8 @@ def test_check_names_every_broken_or_empty_tile(tmp_path):
             return []
         if "ORDER BY `rank`" in sql:
             return shell_db.QueryError("TABLE_OR_VIEW_NOT_FOUND")
+        if sql in unfiltered or sql.startswith("SELECT 1 FROM ("):
+            return [{"x": "a", "y0": 1.0}, {"x": "b", "y0": 2.0}]
         return []
 
     problems, _ws = checked(tmp_path, shape)

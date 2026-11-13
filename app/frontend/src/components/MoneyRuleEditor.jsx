@@ -11,6 +11,7 @@ const ISO = /^[A-Z]{3}$/;
 const COLUMN = /^[A-Za-z_][A-Za-z0-9_]{0,63}$/;
 const EMPTY_PICK = { method: '', amount: '', column: '', expression: '', currencyBy: 'code', code: 'USD', currencyColumn: '', text: '', proposal: null, explanation: '', error: '', used: null };
 const METHODS = [
+  { id: 'rule', label: 'The amount the rule computes', hint: 'Each flagged record counts the amount its own rule works out. Nothing to fill in.' },
   { id: 'fixed', label: 'A fixed amount for each record', hint: 'Every record is worth the same amount.' },
   { id: 'column', label: 'A value from a data column', hint: 'The column already holds the amount each record is worth.' },
   { id: 'equation', label: 'An equation over columns', hint: 'Work the value out from several columns.' },
@@ -25,7 +26,9 @@ const OFF_RULE = { currency: 'per_currency', off: true };
 const SOURCE_TEXT = { today: 'today’s rate', average: `ECB average, ${AVERAGES.period.from.slice(0, 4)}`, typed: 'typed in', base: 'reporting currency', missing: 'no rate yet, type it in' };
 const DESCRIBE_EXAMPLE = 'Example: Each cancelled booking is worth its ticket_price in the currency column, and a refund counts as 0.';
 
-function pickOf(value) {
+// A saved rule with no value counts the amount its own rule computes: that is the 'rule' choice, not an empty one.
+function pickOf(value, rule = null) {
+  if (rule && rule.value === undefined && !rule.off) return { ...EMPTY_PICK, method: 'rule' };
   if (!value || !['fixed', 'column', 'equation'].includes(value.method)) return { ...EMPTY_PICK };
   return {
     ...EMPTY_PICK, method: value.method, amount: value.amount == null ? '' : String(value.amount), column: value.column || '', expression: value.expression || '',
@@ -38,7 +41,7 @@ function effectiveOf(pick) {
 }
 
 function valueOf(pick) {
-  if (!pick.method) return { value: null, problems: [] };
+  if (!pick.method || pick.method === 'rule') return { value: null, problems: [] };
   const problems = [];
   const currency = pick.currencyBy === 'column' ? { currency_column: pick.currencyColumn.trim() } : { currency: pick.code.trim().toUpperCase() };
   if (pick.currencyBy === 'column' && !COLUMN.test(pick.currencyColumn.trim())) problems.push('Pick the column that holds the currency of each record.');
@@ -88,7 +91,7 @@ function Section({ left, right, className = '' }) {
 export function MoneyRuleEditor({ value, onChange, sample = null, table = '', columns = [], api = {}, part = null }) {
   const onlyPart = MONEY_PARTS.includes(part) ? part : null;
   const [draft, setDraft] = useState(() => ({ ...draftOf(value || {}), rateSource: 'typed' }));
-  const [pick, setPick] = useState(() => ({ ...pickOf(value?.value) }));
+  const [pick, setPick] = useState(() => ({ ...pickOf(value?.value, value) }));
   const [signPick, setSignPick] = useState(() => ({ kind: value?.sign?.kind || '', column: value?.sign?.column || '', value: value?.sign?.value || '', losses: (value?.sign?.losses || []).join(', ') }));
   const [problems, setProblems] = useState([]);
   const [notice, setNotice] = useState('');
@@ -209,7 +212,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
   );
 
 
-  const valueCurrencyBlock = pick.method && pick.method !== 'describe' && (
+  const valueCurrencyBlock = pick.method && pick.method !== 'describe' && pick.method !== 'rule' && (
     <fieldset className="space-y-2 text-[12px]" data-money-value-currency>
       <legend className="font-semibold text-text-primary">Currency of those values</legend>
       {hasCurrencyColumn && (
@@ -244,6 +247,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
         <>
           <p className="font-semibold text-text-primary">Calculation</p>
           {pick.method === '' && <p className="text-text-secondary">Choose how the value is measured. The default is pre-filled from this use case’s table, so you can keep it.</p>}
+          {pick.method === 'rule' && <p className="text-text-secondary" data-money-rule-own>Each flagged record counts the amount its own rule works out, so there is nothing to fill in. Pick a column, a fixed amount or an equation to use a value of your own instead.</p>}
           {pick.method === 'fixed' && (
             <>
               <label className="block">Amount for each record (positive, for example 120)

@@ -46,7 +46,7 @@ def test_flat_chart_whose_rule_finds_nothing_sets_the_zero_state(tmp_path):
 def test_flat_chart_whose_rule_still_finds_exceptions_keeps_the_charts(tmp_path, monkeypatch):
     # page_data reads the unfiltered rule through the same cache as the drawn chart, so the exception is set by the rule check itself
     page = _bar_page()
-    monkeypatch.setattr(shell_core.Shell, "rule_finds_nothing", lambda self, page, chart, ws, who=None: False)
+    monkeypatch.setattr(shell_core.Shell, "rule_finds_nothing", lambda self, page, chart, ws, who=None, every_measure=False: False)
     s, _ws = _shell(tmp_path, page, _zeros)
     out = s.page_data({}, page["id"], {})
     assert out["zero_state"] is None
