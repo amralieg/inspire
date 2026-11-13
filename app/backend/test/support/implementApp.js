@@ -329,11 +329,15 @@ function makeApp(overrides = {}, { mount } = {}) {
   });
 
   app.get('/api/run/:runId', (req, res, next) => (state.runRead ? res.status(state.runRead.status || 200).json(state.runRead.body || {}) : next()));
+  // state.checkHold / state.runHold: the backend never answers that call (a stalled warehouse), so the browser must end the spinner itself.
   app.post('/api/run/check', (req, res) => {
+    if (state.checkHold) return undefined;
     res.json({ permissions: state.checkPermissions || [], warnings: [] });
+    return undefined;
   });
   app.post('/api/run', (req, res) => {
     launches.push(req.body);
+    if (state.runHold) return undefined;
     const [status, data] = state.runAnswer || [200, { run_id: 99 }];
     return res.status(status).json(data);
   });

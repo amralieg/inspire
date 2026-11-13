@@ -336,13 +336,16 @@ async function sweep(list, remove) {
   for (const path of paths) await removeProbe(remove, path);
 }
 
+// Walks up from `path` to the first folder that exists, stopping at `top`. Each step drops one segment, so the walk ends
+// at '/' (or at a path with no parent) even when every folder answers 404.
 async function nearestExisting(exists, path, top) {
   let at = path;
   for (;;) {
     const got = await exists(at);
     if (got.ok) return { at, got };
-    if (got.status !== 404 || at === top) return { at, got };
-    at = at.replace(/\/[^/]+$/, '') || '/';
+    const parent = at.replace(/\/[^/]+$/, '') || '/';
+    if (got.status !== 404 || at === top || parent === at) return { at, got };
+    at = parent;
   }
 }
 
@@ -596,6 +599,7 @@ function writeRefusalBody(key, refused) {
 
 module.exports = {
   RUN_NO_SIGN_IN,
+  nearestExisting,
   UNREADABLE_SHOWN,
   WRITE_NO_SIGN_IN,
   PROBE_PREFIX,

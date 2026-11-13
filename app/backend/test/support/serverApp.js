@@ -37,8 +37,8 @@ const state = {
 function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
-    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
-    createdJob: null, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, tableColumns: null, files: {}, sessionBusiness: {},
+    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, holdFetch: null, createFailure: '', sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
+    createdJob: null, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -119,12 +119,6 @@ function answerSql(body) {
   if (/^\s*DESCRIBE TABLE\b/i.test(sql) && sql.includes('__inspire_usecases') && state.usecaseColumns) {
     return sqlResult(['col_name', 'data_type'], state.usecaseColumns.map((name) => [name, 'string']));
   }
-  if (/^\s*DESCRIBE TABLE\b/i.test(sql) && !sql.includes('__inspire_usecases')) {
-    const name = sql.replace(/^\s*DESCRIBE TABLE\s+/i, '').replace(/`/g, '');
-    const cols = (state.tableColumns || {})[name];
-    if (!cols) return { statement_id: 's1', status: { state: 'FAILED', error: { message: `[TABLE_OR_VIEW_NOT_FOUND] The table ${name} cannot be found` } } };
-    return sqlResult(['col_name', 'data_type'], cols.map((c) => [c, 'string']));
-  }
   if (/^\s*SELECT session_id,/.test(sql) && sql.includes('__inspire_usecases')) {
     const lacking = (state.usecaseColumns ? USECASE_RULE_COLUMNS.filter((c) => !state.usecaseColumns.includes(c) && new RegExp(`\\b${c}\\b`).test(sql)) : []);
     if (lacking.length) return { statement_id: 's1', status: { state: 'FAILED', error: { message: `[UNRESOLVED_COLUMN] A column with name \`${lacking[0]}\` cannot be resolved.` } } };
@@ -187,6 +181,13 @@ async function stubFetch(url, opts = {}) {
   }
   const call = { method, path: u.pathname, query: u.search, token, statement: body.statement || '', raw: typeof opts.body === 'string' ? opts.body : '', category: categoryOf(method, u.pathname, body, token) };
   state.calls.push(call);
+  // holdFetch(url, method) => true makes the workspace never answer that call (a stalled warehouse or listing).
+  // A held call honours the abort signal the way fetch does: it rejects when the caller aborts, and never answers otherwise.
+  if (state.holdFetch && state.holdFetch(u, method)) {
+    return new Promise((_, reject) => {
+      if (opts.signal) opts.signal.addEventListener('abort', () => reject(Object.assign(new Error('This operation was aborted'), { name: 'AbortError' })), { once: true });
+    });
+  }
   if (u.pathname === '/oidc/v1/token') return json({ access_token: APP_TOKEN, expires_in: 3600 });
   if (u.pathname === `/api/2.0/permissions/apps/${APP_NAME}`) {
     if (state.aclStatus !== 200) return json({ message: 'denied' }, state.aclStatus);
@@ -238,6 +239,7 @@ async function stubFetch(url, opts = {}) {
   }
   if (u.pathname === '/api/2.1/jobs/create') {
     state.createdJob = body;
+    if (state.createFailure) return json({ error_code: 'INVALID_PARAMETER_VALUE', message: state.createFailure }, 400);
     if (state.createdJobIdText) return { ...json({}), text: async () => `{"job_id": ${state.createdJobIdText}}` };
     return json({ job_id: 5 });
   }

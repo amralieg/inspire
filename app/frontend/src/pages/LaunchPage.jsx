@@ -64,6 +64,7 @@ import { catalogListNote, pickedScope, scopeSummary, typedCatalog } from '../lib
 import { SAMPLE_CATALOG, applySampleCopies, isSampleEntry, samplesTarget, validCopyTarget } from '../lib/samplesCopy';
 import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_PRIVACY, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
 import PermissionRequired from '../components/PermissionRequired';
+import { withStartDeadline } from '../lib/startDeadline';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -748,15 +749,16 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
     const startRun = async () => {
       try {
-        const data = await apiFetch('/api/run', {
+        const data = await withStartDeadline((signal) => apiFetch('/api/run', {
           method: 'POST',
+          signal,
           body: JSON.stringify({
             notebook_path: notebookPath,
             params: finalParams,
             warehouse_id: warehouseId,
             samples_choice: sampleEntries.length ? samplesChoice.choice : undefined,
           }),
-        });
+        }), { label: 'The launch' });
         clearWizardDraft(draftKey);
         update('inspireDatabase', finalParams['02_inspire_database']);
         onLaunched?.(finalParams['14_session_id'], data.run_id, Array.isArray(data.warnings) ? data.warnings : [],
@@ -768,11 +770,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       }
     };
     try {
-      const check = await apiFetch('/api/run/check', {
+      const check = await withStartDeadline((signal) => apiFetch('/api/run/check', {
         raise: false,
         method: 'POST',
+        signal,
         body: JSON.stringify({ params: finalParams, warehouse_id: warehouseId }),
-      });
+      }), { label: 'The launch check' });
       if (Array.isArray(check.permissions) && check.permissions.length) {
         setLaunching(false);
         setPermissionDialog({ permissions: check.permissions, onStart: () => { setPermissionDialog(null); setLaunching(true); startRun(); } });
@@ -875,6 +878,11 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   useEffect(() => {
     if (advancedProblem) setShowAdvanced(true);
   }, [advancedProblem]);
+
+  // A failed launch shows its reason at the top of the page; the Get Started button is at the bottom, so bring the reason into view.
+  useEffect(() => {
+    if (launchError) document.getElementById('launch-error')?.scrollIntoView?.({ block: 'center' });
+  }, [launchError]);
 
   const launchErrorGuidance = useMemo(
     () => (launchError
@@ -1187,7 +1195,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       )}
 
       {/* Error banner */}
-      {launchErrorGuidance && <UcPermissionErrorHelp guidance={launchErrorGuidance} />}
+      {launchErrorGuidance && <div id="launch-error"><UcPermissionErrorHelp guidance={launchErrorGuidance} /></div>}
 
       <div className="space-y-6">
 
