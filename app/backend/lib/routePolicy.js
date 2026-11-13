@@ -1,4 +1,5 @@
 const { holdsManage, implementOwners } = require('./inspireImplement');
+const { permissionRequired } = require('./permissions');
 const { splitInspireDatabase } = require('./sqlInputs');
 const { isInt64Id } = require('./int64Id');
 
@@ -39,6 +40,12 @@ function field(req, key) {
 function specOf(req) {
   const body = req.body && typeof req.body === 'object' ? req.body : {};
   return body.spec && typeof body.spec === 'object' ? body.spec : body;
+}
+
+// The action a route body names (app-reads: check or grant). A missing action is the read-only check, as the route itself reads it.
+function requestAction(req) {
+  const body = req && req.body && typeof req.body === 'object' ? req.body : {};
+  return String(body.action ?? 'check');
 }
 
 function useCaseTarget(req) {
@@ -120,8 +127,15 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/readiness': yours('check data readiness', ['sql']),
   'POST /api/inspire/implement/group-counts': yours('count the rows of each group in scope', ['sql']),
   'POST /api/inspire/samples/copy': yours('copy samples tables into a schema you own, with your own sign-in', ['sql', 'catalog.schemas:read', 'catalog.tables:read']),
-  'POST /api/inspire/implement/grant-access': yours('grant read access with your own sign-in', ['sql']),
-  'POST /api/inspire/implement/app-reads': yours('give an App Inspire built read access with your own sign-in', ['sql']),
+  // A grant on a build's source tables changes what the App's principal can read, so it needs the build's owner (or the session's
+  // launcher before the first build) or an App manager. UC still enforces the person's own GRANT rights on each object.
+  'POST /api/inspire/implement/grant-access': { ...yours('grant read access with your own sign-in', ['sql']), rule: 'owners',
+    target: useCaseTarget, launcherOwnsUnbuilt: true, permissionRequired: true, why: GATED },
+  // Check reads what a viewer still needs for anyone who can see the record; Grant changes read access, so it needs the same
+  // owner-or-manager rule as the build and control routes (the action is in the body, read by ruleWhen).
+  'POST /api/inspire/implement/app-reads': { ...yours('give an App Inspire built read access with your own sign-in', ['sql']),
+    ruleWhen: (req) => (requestAction(req) === 'grant' ? { rule: 'owners', action: 'grant read access to the App its build made', target: useCaseTarget,
+      permissionRequired: true, why: GATED } : null) },
   'POST /api/inspire/implement/create-schema': yours('create a catalog or schema with your own sign-in', ['sql']),
   'GET /api/inspire/implement/serving-endpoints': yours('list serving endpoints', ['model-serving']),
   'POST /api/run/check': yours('check the grants a run needs before it starts', ['sql', 'catalog.tables:read']),
@@ -327,12 +341,19 @@ function staleEntries(routes, laneRoutes, table = ROUTE_POLICY) {
   return stale;
 }
 
-function refusalBody(key, rule, message) {
-  return { error: message, policy: { route: key, rule, needs: RULES[rule] || 'an access rule for this route' } };
+function refusalBody(key, rule, message, permissions = null) {
+  return { error: message, policy: { route: key, rule, needs: RULES[rule] || 'an access rule for this route' },
+    ...(permissions && permissions.length ? { permissions } : {}) };
 }
 
-function refusal(res, key, rule, message) {
-  return res.status(403).json(refusalBody(key, rule, message));
+function refusal(res, key, rule, message, permissions = null) {
+  return res.status(403).json(refusalBody(key, rule, message, permissions));
+}
+
+// A refused mutation says what the person must have, as a Permission Required entry with no SQL: nothing is shown to someone who
+// may not run it.
+function permissionRefusal(message) {
+  return [permissionRequired({ instructions: [message] })].filter(Boolean);
 }
 
 function createRoutePolicy(deps) {
@@ -461,11 +482,13 @@ function createRoutePolicy(deps) {
   }
 
   async function verdictFor(key, req) {
-    const entry = Object.hasOwn(ROUTE_POLICY, key) ? ROUTE_POLICY[key] : null;
-    if (!entry) return { allowed: false, rule: 'none', message: `Inspire has no access rule for ${key}, so it refuses it.` };
+    const base = Object.hasOwn(ROUTE_POLICY, key) ? ROUTE_POLICY[key] : null;
+    if (!base) return { allowed: false, rule: 'none', message: `Inspire has no access rule for ${key}, so it refuses it.` };
+    const entry = base.ruleWhen ? { ...base, ...(base.ruleWhen(req) || {}) } : base;
     if (!deps.enforce() || entry.rule === 'any' || entry.rule === 'delegated') return { allowed: true };
     try {
-      return await decide(key, entry, req);
+      const verdict = await decide(key, entry, req);
+      return verdict.allowed ? verdict : { ...verdict, permissionRequired: Boolean(entry.permissionRequired) };
     } catch (err) {
       return { allowed: false, rule: entry.rule, message: `Inspire could not check that you may ${entry.action}: ${oneLine(err.message)}.` };
     }
@@ -475,7 +498,7 @@ function createRoutePolicy(deps) {
     return async function routePolicyGate(req, res, next) {
       const verdict = await verdictFor(key, req);
       if (verdict.allowed) return next();
-      return refusal(res, key, verdict.rule, verdict.message);
+      return refusal(res, key, verdict.rule, verdict.message, verdict.permissionRequired ? permissionRefusal(verdict.message) : null);
     };
   }
 

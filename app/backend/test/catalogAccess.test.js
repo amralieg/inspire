@@ -403,7 +403,9 @@ test('a built-in sample catalog the App cannot read is named as not shareable an
   const grants = [];
   const { live, overrides } = split(PERSON_OWNS, { onGrant: (sql, token) => grants.push([sql, token]) });
   live.appReads = true;
-  await withApp({ ...overrides, workspace: appPolicyDenied(overrides.workspace) }, async (url) => {
+  // The build reads the sample table, so the use case's saved tables name it (a build-context grant grants only those).
+  const built = { ...overrides, useCase: { ...overrides.useCase, tables_involved: 'samples.bakehouse.sales_transactions' } };
+  await withApp({ ...built, workspace: appPolicyDenied(overrides.workspace) }, async (url) => {
     const got = await call(url, `/api/inspire/implement/grant-access?${Q}&kind=source_tables`, { method: 'POST',
       body: { tables: ['samples.bakehouse.sales_transactions'] } });
     assert.equal(got.status, 403, JSON.stringify(got.data));

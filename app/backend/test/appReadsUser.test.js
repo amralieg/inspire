@@ -145,6 +145,7 @@ test('a service-principal App with objects is checked and granted for its live s
   const w = workspace({ people: [] });
   w.overrides.history = [SP_BUILD];
   w.overrides.me = { applicationId: SP, userName: SP };
+  w.overrides.builtAppSp = SP;
   await withApp(w.overrides, async (url) => {
     const checked = await call(url, `/api/inspire/implement/app-reads?${Q}`, {});
     assert.equal(checked.status, 200, JSON.stringify(checked.data));

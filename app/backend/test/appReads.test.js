@@ -45,6 +45,7 @@ function workspace({ catalogMine = false, schemaManage = true, history = [built(
     overrides: {
       useCase: { id: 'N01-U01', use_case: 'Assess water assets', primary_table: 'main.s.orders', tables_involved: 'main.s.orders' },
       me: { applicationId: SP, displayName: 'riverside-assets' },
+      builtAppSp: SP,
       tokenKind: 'app',
       forwardedToken: PERSON_TOKEN,
       history,
@@ -132,12 +133,12 @@ test('a fully refused grant keeps every table listed with its exact grants and t
   });
 });
 
-test('Check again reads the App access without granting and without a sign-in', async () => {
+test('Check again and Grant both need the person\'s own sign-in, and neither falls back to the service token', async () => {
   const w = workspace();
   await withApp({ ...w.overrides, forwardedToken: '' }, async (url) => {
     const got = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'check' });
-    assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.equal(got.data.state, 'unreadable');
+    assert.equal(got.status, 401, JSON.stringify(got.data));
+    assert.equal(got.data.error, I.IMPLEMENT_GRANT_NO_SIGN_IN);
     assert.deepEqual(w.grants, []);
     const grant = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
     assert.equal(grant.status, 401);
@@ -315,11 +316,12 @@ test('the dialog and the Grant use the App service principal id read live from i
   const stale = { app: STALE, tables: [{ table: 'main.s.orders', owner: 'data-eng', grants: [`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${STALE}\``] }] };
   const w = workspace({ history: [built(stale)] });
   w.overrides.me = { applicationId: LIVE, displayName: 'churn-desk' };
+  w.overrides.builtAppSp = LIVE;
   await withApp(w.overrides, async (url) => {
     const check = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'check' });
     const shown = check.data.permissions[0];
     assert.equal(check.data.app, LIVE);
-    assert.equal(shown.principal, 'churn-desk', 'the name the person sees is the App, not the Inspire identity');
+    assert.equal(shown.principal, 'riverside-assets', 'the name the person sees is the built App (its record name), not the Inspire identity');
     assert.ok(shown.statements.length > 0 && shown.statements.every((g) => g.endsWith(`TO \`${LIVE}\``)), JSON.stringify(shown.statements));
     assert.ok(!JSON.stringify(check.data).includes(STALE), 'the build-time id never reaches the dialog');
     await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });

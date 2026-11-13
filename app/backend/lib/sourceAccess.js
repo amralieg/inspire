@@ -204,15 +204,27 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     return I.appReadsLeft(record, tables, tables.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs: I.IMPLEMENT_SOURCE_NEEDS })), who.id);
   }
 
+  // The service principal of the App Inspire built, read from the platform's App record with the person's own token. It is
+  // never the Inspire host's identity: grants on a built App's data go to the App that reads them.
+  async function builtAppIdentity(req, token, appName) {
+    const resp = await dbFetch(req.dbHost, token, `/api/2.0/apps/${encodeURIComponent(appName)}`);
+    if (!resp.ok) throw I.badRequest(`Inspire could not read the App ${appName} (HTTP ${resp.status}), so it cannot tell which service principal reads its data.`, 502);
+    const app = parseExactJson((await resp.text()) || '{}');
+    const id = String(app.service_principal_client_id || '').trim();
+    if (!id) throw I.badRequest(`The App ${appName} has no service principal yet, so Inspire grants it nothing.`, 409);
+    return { id, name: String(app.service_principal_name || '') };
+  }
+
   async function appReads(req, warehouseId, record, grant) {
     const person = P.personTokenOf(req);
-    const token = person || req.dbToken;
+    // No service-token fallback: every read and grant here runs as the signed-in person, or it does not run.
+    if (!person) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);
+    const token = person;
     const user = record.mode === 'user';
-    // The App's identity is read live from its token, so a stale id on the build record never names the wrong principal.
-    const who = user ? null : await appIdentity(req, await appTokenOf(req));
+    const who = user ? null : await builtAppIdentity(req, token, record.app_name);
     const principals = user ? await audienceOf(req, token, record.app_name) : [who.id];
     // A user-authorization App's audience is granted its App-owned views only, never a source table it reads directly.
-    const grantable = (left) => (record.objects ? I.appReadsGrantableFor(left, principals, user ? record.views : null) : I.appReadsGrantable(left, who.id));
+    const grantable = (left) => (record.objects ? I.appReadsGrantableFor(left, principals, user ? record.views : null) : I.appReadsGrantable(left, who && who.id));
     const before = await appReadsLeftOf(req, token, warehouseId, record, principals, who);
     if (!grant) return { left: before, ran: [], failed: [], principals, app: who };
     if (!person) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);

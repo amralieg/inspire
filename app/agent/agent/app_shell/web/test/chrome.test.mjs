@@ -4,7 +4,7 @@ import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { chromium } from 'playwright';
-import { appInfo, bundleEntry, chartsDrawn, idle, openApp, openBundle, pageData, resizeTo, sent, serveDist, steadyBox, TABLE, until } from './harness.mjs';
+import { appInfo, bundleEntry, chartsDrawn, idle, NO_JOB, openApp, openBundle, pageData, resizeTo, sent, serveDist, steadyBox, TABLE, until } from './harness.mjs';
 import { ratio } from './contrast.test.mjs';
 import { SERIES_TOKENS, themeTokens } from '../src/tokens.js';
 import { EXPLAIN_CONTEXT_CHARS, EXPLAIN_ROWS, chartContext, chartRow, cutText, explainBody, filterWords } from '../src/explain.js';
@@ -529,6 +529,8 @@ function askRoutes() {
   const calls = { asks: [], refuse: '' };
   let hold = false;
   const routes = {
+    // The Genie panel reads the App's freshness when it opens (Genie.jsx getFreshness); a fixture with no answer for it logs a 404.
+    freshness: ({ json }) => json(200, NO_JOB),
     'genie/ask': ({ route, json }) => {
       const body = route.request().postDataJSON();
       calls.asks.push(body);

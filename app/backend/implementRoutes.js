@@ -272,6 +272,28 @@ function registerImplementRoutes(app, deps) {
     return rows[0] || null;
   }
 
+  // The tables a build-context grant may name. With a spec (the Launch wizard's, before any build), the spec is validated by the same
+  // path plan and submit use, and its own tables and Data Filters count. Without one, the latest saved build's spec does. Either way
+  // the use case's saved involved tables are the base, so an injected table is refused.
+  async function requireBuildSources(req, warehouseId, tables, asked = null) {
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const sid = sessionIdOf(req);
+    const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
+    if (asked && asked.use_case_id !== useCaseId) throw I.badRequest(`the spec is for use case ${asked.use_case_id || '(none)'}, not ${useCaseId}`, 400);
+    const involved = await useCasesTables(req, warehouseId, catalog, schema, sid, [useCaseId]);
+    if (!involved.length) throw I.badRequest(`Inspire has no source tables saved for use case ${useCaseId}, so it grants none.`, 409);
+    let spec = asked;
+    if (!spec) {
+      const history = await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
+      const latest = [...(history || [])].sort((a, b) => (Number(b.spec_version) || 0) - (Number(a.spec_version) || 0))[0];
+      spec = (latest && latest.spec_json) || {};
+    }
+    const filtered = Array.isArray(spec.data && spec.data.filters) ? spec.data.filters.map((f) => String((f && f.table) || '').trim()).filter(Boolean) : [];
+    const allowed = I.uniqueTables([...involved, ...I.sourceTables(spec, I.uniqueTables([...involved, ...filtered]))]);
+    const outside = tables.filter((t) => !allowed.some((a) => a.toLowerCase() === t.toLowerCase()));
+    if (outside.length) throw I.badRequest(`these tables are not source tables of use case ${useCaseId}, so Inspire grants none of them: ${outside.join(', ')}`, 400);
+  }
+
   async function useCasesTables(req, warehouseId, catalog, schema, sid, useCaseIds) {
     const table = `\`${catalog}\`.\`${schema}\`.\`__inspire_usecases\``;
     const rows = await sqlRows(req.dbHost, req.dbToken, warehouseId, I.useCaseTablesStatement(table, sid, useCaseIds));
@@ -1111,6 +1133,9 @@ function registerImplementRoutes(app, deps) {
       const tables = I.uniqueTables(raw.map((t) => String(t == null ? '' : t).trim()).filter(Boolean)).slice(0, 50);
       const bad = tables.map((t) => I.resultTableNameError(t, 'tables')).find(Boolean);
       if (!tables.length || bad) throw I.badRequest(bad || 'tables must be a list of catalog.schema.table names');
+      // A request made for one use case grants only that use case's own source tables (its saved involved tables, and the swaps its
+      // build chose). A request with no use case, such as the Build page's own protections, is unchanged.
+      if (q(req, 'use_case_id')) await requireBuildSources(req, warehouseId, tables, req.body && req.body.spec ? (await askedSpec(req)).asked : null);
       return res.json({ kind, ...(await grantSourceAccess(req, token, warehouseId, tables)) });
     } catch (err) {
       sendError(res, err);
@@ -1153,13 +1178,17 @@ function registerImplementRoutes(app, deps) {
       const { left, ran, failed, principals, app } = await appReads(req, warehouseId, record, action === 'grant');
       const was = record.tables.map((t) => `${t.table}:${t.owner}:${t.grants.join(';')}`).join('|');
       const now = left.map((t) => `${t.table}:${t.owner}:${t.grants.join(';')}`).join('|');
-      if (was !== now && !record.objects) {
+      // A Check only reads: the stored unread list changes on a grant, never on a check.
+      if (action === 'grant' && was !== now && !record.objects) {
         const update = I.appReadsUpdateStatement(I.implementTableName(catalog, schema), record.row, left);
         await executeSql(req.dbHost, req.dbToken, warehouseId, update.sql, update.parameters);
       }
-      const liveApp = app ? { id: app.id, name: app.name } : { id: record.app, name: record.app_name };
-      res.json({ state: left.length ? 'unreadable' : 'readable', app: liveApp.id, app_name: liveApp.name, mode: record.mode || '', objects: !!record.objects, principals, tables: left, ran, failed,
-        refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, liveApp.name, failed),
+      // The App's name is the record's: the identity read for the App's service principal is named by the platform, not the App.
+      const liveApp = app ? { id: app.id, name: record.app_name || app.name } : { id: record.app, name: record.app_name };
+      // A Check shows what the App still needs, with its SQL, to anyone who can see the record: the person who cannot grant hands it
+      // to the owner (REQ-042). Only a Grant changes access, and the route policy owns that rule.
+      res.json({ state: left.length ? 'unreadable' : 'readable', app: liveApp.id, app_name: liveApp.name, mode: record.mode || '', objects: !!record.objects, principals,
+        tables: left, ran, failed, refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, liveApp.name, failed),
         permissions: appReadsPermissions(left, record, principals, liveApp) });
     } catch (err) {
       sendError(res, err);

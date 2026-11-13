@@ -42,6 +42,10 @@ function grantableWorkspace({ canGrant = true } = {}) {
       workspace: ({ token, path }) => (path.includes('/scim/v2/Me')
         ? [token === 'tok' ? { displayName: 'inspire-manual', applicationId: SP } : { userName: 'owner@example.com', displayName: 'Owner' }]
         : undefined),
+      // The built App's record names its service principal; the App reads its data as that principal (REQ-150 follow-up).
+      appExists: true,
+      app: { name: 'riverside-assets', description: 'Inspire use case N01-U01 (session 42): Predict churn', compute_status: { state: 'ACTIVE' },
+        app_status: { state: 'RUNNING' }, service_principal_client_id: SP, service_principal_name: 'inspire-manual' },
       statements: {
         'system.information_schema.catalogs': () => ({ rows: rows() }),
         'GRANT ': (sql) => {

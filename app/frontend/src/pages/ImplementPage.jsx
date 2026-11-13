@@ -1276,7 +1276,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     setProtectionCopy('');
     setProtectionFailed([]);
     try {
-      const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables: protection.tables });
+      const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}&kind=source_tables`, { tables: protection.tables });
       setProtectionFailed(got.failed || []);
       raisePermissions([...grantGapPermissions(got), ...grantFailurePermissions(got)], {}, { explicit: true });
       return recheckSources(abacGrantText(got));
@@ -1408,7 +1408,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       // A user-authorization build grants its viewers' scope views through app-reads; only the source tables take this path.
       if (action === 'grant' && sourceNow.loaded && !appObjectsOf(latest)) {
         const tables = (sourceNow.unreadable?.tables || []);
-        const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables });
+        const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}&kind=source_tables`, { tables });
         const failed = [...(got.failed || []), ...(got.abac_gaps || []).flatMap((g) => g.grants.map((sql) => `${sql}: not yours to grant`))];
         raisePermissions([...grantGapPermissions(got), ...grantFailurePermissions(got)], {}, { explicit: true });
         setReadsResult({ text: abacGrantText(got), failed, refused: failed.length > 0, version: latest?.spec_version, action });

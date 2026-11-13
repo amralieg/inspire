@@ -203,6 +203,9 @@ function makeApp(overrides = {}, { mount } = {}) {
         return json(state.warehousePermissions, state.warehousePermissionsStatus || 200);
       }
       if (path.includes('/sql/warehouses')) return json(state.warehouses);
+      // The built App's record: its service principal is the one the fixtures name as the App's (the host identity by default).
+      const builtApp = /^\/api\/2\.0\/apps\/([^/?]+)$/.exec(path);
+      if (builtApp && !state.appsByName && state.builtAppSp !== undefined) return json({ name: decodeURIComponent(builtApp[1]), service_principal_client_id: state.builtAppSp, service_principal_name: 'app-sp' });
       if (path.match(/\/api\/2\.0\/apps\/.+/) && !path.includes('page_size') && state.appsByName) {
         const found = state.appsByName[decodeURIComponent(path.split('/').pop())];
         return json(found || { error_code: 'NOT_FOUND' }, found ? found.status_code || 200 : 404);

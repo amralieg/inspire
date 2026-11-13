@@ -1075,7 +1075,8 @@ export default function ImplementWizard({
     if (!appUnreadable) return;
     setGranting(true);
     try {
-      const got = await apiPostJson(`/api/inspire/implement/grant-access?${q}&kind=source_tables`, { tables: appUnreadable.tables });
+      // The spec the wizard is building goes with the tables, so the server checks them against that spec (before any build exists).
+      const got = await apiPostJson(`/api/inspire/implement/grant-access?${q}&kind=source_tables`, { tables: appUnreadable.tables, spec: sent });
       const data = await apiFetch(`/api/inspire/implement/context?${contextQ}`);
       setContext(data);
       setAppGrant({ ...got, text: appGrantText(got) });

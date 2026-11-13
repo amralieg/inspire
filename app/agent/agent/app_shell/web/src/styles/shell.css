@@ -318,6 +318,10 @@ dialog::backdrop{background:rgba(10,12,16,.45)}
 .pg-h{display:flex;flex-wrap:wrap;align-items:flex-start;gap:12px;margin-bottom:4px}
 .pg-h>div,.pg-h>h1{flex:1 1 0;min-width:min(360px,100%)}
 .pg-h>.ph-tools{flex:0 1 auto;min-width:0;max-width:100%}
+/* The header's own width decides whether its tools keep their labels: below 816px (a 360px title, 12px gap and the 445px labelled tools) the tools
+   turn icon-only with their accessible names, so they still sit beside the title instead of dropping a row under it. */
+.pg-h{container:hdr/inline-size}
+@container hdr (max-width: 816px){.pg-h>.ph-tools :is(.top-ic,.top-ic2)>span{display:none}.pg-h>.ph-tools .btn:is(.top-ic,.top-ic2){min-width:40px;padding:0 9px;justify-content:center}}
 .pg-h.is-refreshing>h1{min-width:min(300px,100%)}
 .pg-h>div>p{margin:4px 0 0;color:var(--muted);font-size:13.5px}
 .notify{flex:none;text-decoration:none}
