@@ -37,9 +37,9 @@ test('a rate-table rule whose table cannot be named is refused, never sent as co
     { runSql: async () => [] }), /rate table is not readable/);
 });
 
-test('a rate-column rule sends its currency alone, so the run says the rate is not known rather than guessing one', async () => {
-  const out = await implementCurrencyParams({ currency: 'convert', base: 'AED', rate_column: 'rate' }, { runSql: async () => { throw new Error('must not read'); } });
-  assert.deepEqual(out, { currency: 'AED' });
+test('a rate-column rule sends the rate column and the currency column, so each row converts with its own rate and never reads a table (REQ-103)', async () => {
+  const out = await implementCurrencyParams({ currency: 'convert', base: 'AED', rate_column: 'fx_rate', currency_column: 'ccy' }, { runSql: async () => { throw new Error('must not read'); } });
+  assert.deepEqual(out, { currency: 'AED', currency_rates: JSON.stringify({ source: 'column', column: 'fx_rate', currency_column: 'ccy', rates: {} }) });
 });
 
 test('Discover with no currency asked sends USD and today’s rates for every saved currency', async () => {

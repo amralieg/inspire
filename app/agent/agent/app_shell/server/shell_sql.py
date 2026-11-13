@@ -2840,7 +2840,11 @@ def _money_rule_problems(money) -> list:
         return problems
     if "rate_column" in money:
         column = money.get("rate_column")
-        return problems + ([] if isinstance(column, str) and IDENT_RE.fullmatch(column) else ["the rate column is a plain column name"])
+        problems += [] if isinstance(column, str) and IDENT_RE.fullmatch(column) else ["the rate column is a plain column name"]
+        currency_column = money.get("currency_column")
+        if not (isinstance(currency_column, str) and IDENT_RE.fullmatch(currency_column)):
+            problems.append("the rate column needs currency_column, the plain column name that holds the currency of each row; pick it in the Measure step")
+        return problems
     rates = money.get("rates")
     if not isinstance(rates, dict) or not rates:
         return problems + ["converting money needs at least one rate, typed in as currency: units of the base currency"]
@@ -3088,6 +3092,8 @@ def money_rule_clean(rule: dict) -> dict:
             out["rate_table"] = dict(rule["rate_table"])
         elif "rate_column" in rule:
             out["rate_column"] = rule["rate_column"]
+            if "currency_column" in rule:
+                out["currency_column"] = rule["currency_column"]
         else:
             out["rates"] = {str(code): float(value) for code, value in sorted(rule["rates"].items())}
     if rule.get("window"):

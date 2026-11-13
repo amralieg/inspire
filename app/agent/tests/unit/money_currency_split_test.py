@@ -377,7 +377,7 @@ def test_the_money_rule_cases_agree_with_the_inspire_backend():
 def test_a_rate_column_converts_each_row_at_its_own_rate():
     global ROWS
     saved = list(ROWS)
-    rate_page = dict(PAGE, money={"currency": "convert", "base": "USD", "rate_column": "fx_rate"})
+    rate_page = dict(PAGE, money={"currency": "convert", "base": "USD", "rate_column": "fx_rate", "currency_column": "currency_code"})
     ROWS = [dict(r, fx_rate=2.0) for r in saved]
     try:
         db_rows = _run(shell_sql.kpi_query(rate_page, "exposure", {})[0])
@@ -390,7 +390,7 @@ def test_the_basis_says_at_which_rates_a_converted_total_was_worked_out():
     assert shell_sql.money_basis(PAGE) == ""
     assert shell_sql.money_basis(dict(PAGE, money={"currency": "convert", "base": "USD", "rates": {"AED": 0.5}})) == \
         "converted to USD at the rates typed in"
-    assert shell_sql.money_basis(dict(PAGE, money={"currency": "convert", "base": "USD", "rate_column": "fx_rate"})) == \
+    assert shell_sql.money_basis(dict(PAGE, money={"currency": "convert", "base": "USD", "rate_column": "fx_rate", "currency_column": "currency_code"})) == \
         "converted to USD at the rate in fx_rate"
 
 

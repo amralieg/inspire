@@ -90,7 +90,7 @@ function Section({ left, right, className = '' }) {
 
 export function MoneyRuleEditor({ value, onChange, sample = null, table = '', columns = [], api = {}, part = null }) {
   const onlyPart = MONEY_PARTS.includes(part) ? part : null;
-  const [draft, setDraft] = useState(() => ({ ...draftOf(value || {}), rateSource: 'typed' }));
+  const [draft, setDraft] = useState(() => draftOf(value || {}));
   const [pick, setPick] = useState(() => ({ ...pickOf(value?.value, value) }));
   const [signPick, setSignPick] = useState(() => ({ kind: value?.sign?.kind || '', column: value?.sign?.column || '', value: value?.sign?.value || '', losses: (value?.sign?.losses || []).join(', ') }));
   const [problems, setProblems] = useState([]);
@@ -389,6 +389,30 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
                   onChange={(e) => setDraftPart({ base: e.target.value.toUpperCase() })} onBlur={(e) => { if (ISO.test(e.target.value.trim().toUpperCase())) loadRates(e.target.value.trim().toUpperCase()); }} data-money-base />
               </label>
             )}
+            {draft.mode === 'convert' && (
+              <fieldset className="space-y-2 ps-6 text-[12px]" data-money-rate-source-group>
+                <legend className="font-semibold text-text-primary">Where each rate comes from</legend>
+                <Choice label="Rates you type, one per currency" control={<input type="radio" name="money-rate-source" className="mt-0.5 shrink-0" checked={draft.rateSource !== 'column'} onChange={() => setDraftPart({ rateSource: 'typed' })} data-money-rate-source="typed" />} />
+                <Choice label="Each record has its own rate, in a column" hint="Each row is converted with the rate on its own row."
+                  control={<input type="radio" name="money-rate-source" className="mt-0.5 shrink-0" checked={draft.rateSource === 'column'} onChange={() => setDraftPart({ rateSource: 'column', currencyColumn: draft.currencyColumn || sample?.currency || '' })} data-money-rate-source="column" />} />
+                {draft.rateSource === 'column' && (
+                  <>
+                    <label className="block">Rate column
+                      <select className="block mt-1 w-40" value={draft.rateColumn} onChange={(e) => setDraftPart({ rateColumn: e.target.value })} data-money-rate-column>
+                        <option value="">Pick a column</option>
+                        {columns.map((name) => <option key={name} value={name}>{name}</option>)}
+                      </select>
+                    </label>
+                    <label className="block">Currency column, the currency of each row
+                      <select className="block mt-1 w-40" value={draft.currencyColumn} onChange={(e) => setDraftPart({ currencyColumn: e.target.value })} data-money-rate-currency-column>
+                        <option value="">Pick a column</option>
+                        {columns.map((name) => <option key={name} value={name}>{name}</option>)}
+                      </select>
+                    </label>
+                  </>
+                )}
+              </fieldset>
+            )}
           </fieldset>
           <datalist id="money-currency-codes">{MONEY_CURRENCY_CHOICES.map((code) => <option key={code} value={code} />)}</datalist>
         </>
@@ -399,7 +423,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
           <p className="text-text-secondary">A currency code is the three-letter money code, such as USD or AED. The value currency says what each value is written in; the reporting currency is the one every total is shown in when you convert.</p>
           {!hasCurrencyColumn && <p className="text-text-secondary">The table has no currency column, so every amount is taken in the currency code you pick.</p>}
           {notice && <p className="text-text-secondary" data-money-rates-notice>{notice}</p>}
-          {draft.mode === 'convert' && (
+          {draft.mode === 'convert' && draft.rateSource !== 'column' && (
             draft.rates.length > 0 ? (
               <table className="text-[12px]" data-money-rates>
                 <thead><tr><th className="text-start pe-4">Currency</th><th className="text-start pe-4">1 unit is worth, in {draft.base || 'the reporting currency'}</th><th className="text-start">Source</th></tr></thead>

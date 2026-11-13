@@ -74,7 +74,7 @@ export function draftOf(rule) {
   const statuses = Array.isArray(rule?.statuses) ? rule.statuses.join(', ') : '';
   const base = {
     mode, window, statuses, statusColumn: rule?.status_column || '', rule: rule?.rule || 'losses', off: rule?.off === true, per: rule?.per || 'row', groupColumn: rule?.group_column || '',
-    base: '', rates: [], rateSource: 'typed', rateColumn: '', rateTable: { table: '', currency_column: '', base_column: '', date_column: '', rate_column: '', load_column: '' },
+    base: '', rates: [], rateSource: 'typed', rateColumn: '', currencyColumn: '', rateTable: { table: '', currency_column: '', base_column: '', date_column: '', rate_column: '', load_column: '' },
     both: false, value: rule?.value ?? null, sign: rule?.sign ?? null,
   };
   if (mode !== 'convert') return base;
@@ -84,6 +84,7 @@ export function draftOf(rule) {
     ...base, base: rule.base || '',
     rateSource: rule.rate_table !== undefined ? 'table' : rule.rate_column !== undefined ? 'column' : 'typed',
     rateColumn: rule.rate_column || '',
+    currencyColumn: rule.currency_column || '',
     rateTable: { table: table.table || '', currency_column: table.currency_column || '', base_column: table.base_column || '', date_column: table.date_column || '', rate_column: table.rate_column || '', load_column: table.load_column || '' },
     rates: Object.entries(rule.rates || {}).map(([code, rate]) => ({ code, rate: String(rate) })),
     both: sources.filter(Boolean).length > 1,
@@ -130,7 +131,10 @@ function ruleBaseOf(draft) {
   if (draft.rateSource === 'column') {
     const column = String(draft.rateColumn || '').trim();
     if (!COLUMN.test(column)) problems.push('The rate column is the name of a column that holds one rate per row, such as fx_rate.');
+    const currencyColumn = String(draft.currencyColumn || '').trim();
+    if (!COLUMN.test(currencyColumn)) problems.push('Pick the currency column: the column that holds the currency of each row, such as currency.');
     out.rate_column = column;
+    out.currency_column = currencyColumn;
     return { rule: out, problems };
   }
   if (draft.rateSource === 'table') {

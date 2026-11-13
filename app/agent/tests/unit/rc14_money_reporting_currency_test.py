@@ -158,7 +158,32 @@ def test_a_rate_table_feed_keeps_its_table_label_and_its_rates(ns, monkeypatch):
     """REQ-103: a rule that converts from its rate table reaches the notebook as source table. The label must survive
     the feed, or the run would say the person typed the rate."""
     monkeypatch.setitem(ns, "INSPIRE_SETTINGS_APPLIED", {"currency": "AED", "currency_rates": '{"source":"table","rates":{"EUR":4.28}}'})
-    rates, source = ns["_inspire_reporting_rate_feed"]()
+    rates, source, _column = ns["_inspire_reporting_rate_feed"]()
     assert source == "table"
     assert rates == {"EUR": 4.28}
     assert ns["_INSPIRE_RATE_PHRASES"]["table"] == "converted at the rate in your rate table"
+
+
+def test_a_column_rate_feed_names_its_column_and_has_no_per_currency_rates(ns, monkeypatch):
+    """REQ-103: a column-rate rule reaches the notebook as source column with the rate column named. Each row was converted
+    with its own rate, so the feed carries no per-currency rates and the label names the column."""
+    monkeypatch.setitem(ns, "INSPIRE_SETTINGS_APPLIED", {"currency": "AED", "currency_rates": '{"source":"column","column":"fx_rate","currency_column":"ccy","rates":{}}'})
+    rates, source, column = ns["_inspire_reporting_rate_feed"]()
+    assert (rates, source, column) == ({}, "column", "fx_rate")
+    assert ns["_inspire_rate_phrase"]("column", "fx_rate") == "converted with the rate in fx_rate"
+
+
+def test_the_money_brief_tells_the_dataset_to_convert_each_row_with_its_own_rate(ns):
+    """REQ-103: the dataset SQL is written from this brief, so a column-rate rule must say per row, with its rate column and
+    its currency column named. Without this line the SQL would apply one rate to all rows."""
+    brief = ns["implement_money_brief"]({"currency": "convert", "base": "AED", "rate_column": "fx_rate", "currency_column": "ccy"})
+    assert "fx_rate" in brief and "ccy" in brief
+    assert "each row is converted with its own rate" in brief
+
+
+def test_a_measured_value_from_a_column_rate_says_it_was_converted_with_that_column(ns, monkeypatch):
+    """REQ-103: a value measured under a column-rate rule names the rate column it was converted with, on the card."""
+    monkeypatch.setitem(ns, "INSPIRE_SETTINGS_APPLIED", {"currency": "AED", "currency_rates": '{"source":"column","column":"fx_rate","currency_column":"ccy","rates":{}}'})
+    estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns)], use_case_kind="forecast"))
+    assert estimate["status"] == "measured"
+    assert "converted with the rate in fx_rate" in estimate["short"], estimate["short"]

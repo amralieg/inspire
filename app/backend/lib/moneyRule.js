@@ -100,6 +100,7 @@ function rateProblems(rule) {
   }
   if (hasColumn) {
     if (typeof rule.rate_column !== 'string' || !COLUMN.test(rule.rate_column)) problems.push('the rate column is a plain column name');
+    if (typeof rule.currency_column !== 'string' || !COLUMN.test(rule.currency_column)) problems.push('the rate column needs currency_column, the plain column name that holds the currency of each row; pick it in the Measure step');
     return problems.concat(base(rule));
   }
   const rates = rule.rates;
@@ -142,7 +143,10 @@ function moneyRuleClean(rule) {
   if (out.currency === 'convert') {
     out.base = String(rule.base);
     if (rule.rate_table !== undefined) out.rate_table = { ...rule.rate_table };
-    else if (rule.rate_column !== undefined) out.rate_column = rule.rate_column;
+    else if (rule.rate_column !== undefined) {
+      out.rate_column = rule.rate_column;
+      if (rule.currency_column !== undefined) out.currency_column = rule.currency_column;
+    }
     else out.rates = Object.fromEntries(Object.keys(rule.rates).sort().map((code) => [code, Number(rule.rates[code])]));
   }
   if (rule.window) out.window = { periods: rule.window.periods };
