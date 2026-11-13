@@ -70,7 +70,7 @@ import { buildFilterText } from '../lib/reviewFigures';
 import ValueEstimateLine from '../components/ValueEstimateLine';
 import { BuildNextStep } from '../components/BuildNext';
 import PermissionRequired from '../components/PermissionRequired';
-import { raisePermissions } from '../lib/permissionBus';
+import { grantListKey, raisePermissions } from '../lib/permissionBus';
 
 const OUTPUT_ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: BellRing };
 const OUTPUT_NAMES = { dashboard: 'Dashboard', genie_space: 'Genie Agent', app: 'App', alert: 'Alert' };
@@ -880,7 +880,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const built = hasMvp && !uninstalled;
   // The build's own Permission Required entries (scope-view grants, the Lakebase database grant) open once per distinct list.
   const buildPermissions = latest?.asset_status?.permissions || [];
-  const buildPermissionsKey = buildPermissions.length ? JSON.stringify(buildPermissions) : '';
+  const buildPermissionsKey = grantListKey(buildPermissions);
   useEffect(() => {
     if (!buildPermissionsKey) return;
     raisePermissions(buildPermissions, { retry: () => loadStatus().catch(() => {}) });
@@ -1276,7 +1276,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     try {
       const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables: protection.tables });
       setProtectionFailed(got.failed || []);
-      raisePermissions([...grantGapPermissions(got), ...grantFailurePermissions(got)]);
+      raisePermissions([...grantGapPermissions(got), ...grantFailurePermissions(got)], {}, { explicit: true });
       return recheckSources(abacGrantText(got));
     } catch (e) {
       setProtectionCopy(`Your grant was refused: ${e.message}`);
@@ -1382,13 +1382,13 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   // A person who cannot grant the App's reads must act: Permission Required opens once per distinct grant list, with the owner's exact GRANT statements.
   // The inline card under it keeps the copy-and-check, and See the grant reopens the dialog.
   const mustAct = readsLeft?.tables?.length > 0 && readsLeft.canGrant !== true;
-  const mustActKey = mustAct ? JSON.stringify(readsLeft.tables.map((t) => [t.table, t.grants])) : '';
   const mustActPermissions = mustAct ? [{
     statements: [...new Set(readsLeft.tables.flatMap((t) => t.grants))],
     instructions: [],
     principal: readsLeft.app || 'the App',
     why: `The App cannot read part of its data. Ask ${appReadsOwners(readsLeft)} to run these commands, then click Try again.`,
   }] : [];
+  const mustActKey = grantListKey(mustActPermissions);
   useEffect(() => {
     if (!mustActKey) return;
     raisePermissions(mustActPermissions, { retry: () => recheckSources() });
@@ -1405,15 +1405,15 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         const tables = (sourceNow.unreadable?.tables || []);
         const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables });
         const failed = [...(got.failed || []), ...(got.abac_gaps || []).flatMap((g) => g.grants.map((sql) => `${sql}: not yours to grant`))];
-        raisePermissions([...grantGapPermissions(got), ...grantFailurePermissions(got)]);
+        raisePermissions([...grantGapPermissions(got), ...grantFailurePermissions(got)], {}, { explicit: true });
         setReadsResult({ text: abacGrantText(got), failed, refused: failed.length > 0, version: latest?.spec_version, action });
         await refreshSourceNow();
         return;
       }
-      // A check shows its refusal inline (Check again, See the grant); only a grant action opens Permission Required itself.
+      // A check shows its refusal inline (Check again, See the grant). It raises Permission Required only for a grant list this page has not shown yet; a grant action always raises.
       const got = await apiPostJson(`/api/inspire/implement/app-reads?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, { action }, { raise: action === 'grant' });
       setReadsResult({ ...got, version: latest?.spec_version, action });
-      if (got.permissions?.length) setPermissionDialog({ permissions: got.permissions });
+      raisePermissions(got.permissions, { retry: () => recheckSources() }, { explicit: action === 'grant' });
       if (action === 'check' || action === 'grant') await refreshSourceNow();
     } catch (e) {
       setReadsResult({ error: e.message, version: latest?.spec_version, action });

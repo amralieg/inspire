@@ -1370,6 +1370,34 @@ test('a use case added to another use case\'s App shows that App\'s SQL warehous
   }
 });
 
+test('the result table write check re-runs after Next when the table changes or the person comes back with Back, so it never shows an old check (REQ-142)', async () => {
+  const writable = { value: true };
+  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' },
+    statements: { ...CAN_CREATE_SCHEMA, 'SELECT level, privilege, principal': () => (writable.value ? WRITABLE_RESULT : UNWRITABLE_RESULT) } });
+  const { page } = ui;
+  try {
+    await goToStep(page, 'Data');
+    await openFolded(page, 'Result table');
+    const table = page.getByLabel('Table name', { exact: true }).first();
+    await table.fill('orders_ok');
+    const check = page.getByLabel('Result table check');
+    await page.getByRole('button', { name: 'Next', exact: true }).click();
+    // The grant lands while the person is on the next step. Back returns to the results fold, and the check runs again.
+    writable.value = false;
+    await page.getByRole('button', { name: 'Back', exact: true }).click();
+    if (!await check.count()) await openFolded(page, 'Result table');
+    await check.locator('p.text-error-fg').first().waitFor({ timeout: 15000 });
+    assert.match(await check.innerText(), /to write to |to create /, 'after Back the check reads the table as it is now');
+    // A table change while the fold is open re-runs the check too, without Next.
+    writable.value = true;
+    await table.fill('orders_good');
+    await check.locator('p.text-success-fg').first().waitFor({ timeout: 15000 });
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
 test('a result table the person cannot write says why on Data, with the reason the write check gives', async () => {
   const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' },
     statements: { ...CAN_CREATE_SCHEMA, 'SELECT level, privilege, principal': UNWRITABLE_RESULT } });
