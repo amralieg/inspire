@@ -57,7 +57,7 @@ const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../fronte
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
 const PM_ERROR = require('./lib/permissionError');
-const { isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames, implementTableName, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
+const { samplesChoiceOfRun, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames, implementTableName, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -2157,7 +2157,9 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
     }
     const again = LC.runAgainOf(parseExactJson(await response.text()), req.params.runId, sessionId);
     if (again.problem) return res.status(409).json({ error: `${again.problem}.` });
-    if (samplesNeedChoice(again.params, req.body.samples_choice)) return res.status(409).json({ error: SAMPLES_CHOICE_TEXT });
+    // The re-run repeats the run's own inputs, so it carries the choice that run recorded: no 409 from Monitor.
+    const samplesChoice = req.body.samples_choice || samplesChoiceOfRun(again.params);
+    if (samplesNeedChoice(again.params, samplesChoice)) return res.status(409).json({ error: SAMPLES_CHOICE_TEXT });
     return launchDiscover(req, res, again);
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;

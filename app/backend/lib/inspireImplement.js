@@ -3165,6 +3165,12 @@ function samplesNeedChoice(params, choice) {
   return samplePicksIn((params || {})['01_uc_metadata']).length > 0 && choice !== 'descriptions';
 }
 
+// The samples choice a run recorded. A samples entry in its pick can only have come from the descriptions choice, because a
+// copy replaces the samples entry with the copy, so a re-run of that run repeats the choice Start made.
+function samplesChoiceOfRun(params) {
+  return samplePicksIn((params || {})['01_uc_metadata']).length > 0 ? 'descriptions' : '';
+}
+
 function schemaParts(name) {
   const parts = plainTable(name).split('.');
   if (parts.length !== 2 || parts.some((p) => !p || p.includes('`'))) throw badRequest(`'${str(name)}' must be catalog.schema`);
@@ -3874,6 +3880,7 @@ module.exports = {
   sampleCopyStatement,
   sampleCopyFailureKind,
   samplesNeedChoice,
+  samplesChoiceOfRun,
   SAMPLES_CHOICE_TEXT,
   sampleTableRef,
   schemaCreateStatement,
