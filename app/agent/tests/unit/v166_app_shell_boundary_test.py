@@ -18,6 +18,8 @@ LAKEBASE_ENFORCEMENT_REVIEWED = {
 }
 SHELL_ENTRY_POINTS = {
     ("_implement_page_file", "shell_sql.money_page_problems"),
+    ("_implement_page_file", "shell_sql.drop_long_expressions"),
+    ("_implement_page_file", "shell_sql.fit_text_limits"),
     ("_implement_siblings", "shell_sql.sibling_items"),
     ("implement_page_grouping", "shell_sql.page_grouping"),
     ("_implement_alert.build", "_implement_app_shell"),

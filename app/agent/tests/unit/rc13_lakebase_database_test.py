@@ -53,6 +53,14 @@ def _pg():
     return type("PG", (), {"pg_ident": staticmethod(lambda name: '"' + name + '"')})
 
 
+def test_a_token_inside_the_object_name_a_permission_error_quotes_never_reaches_the_refusal(agent_ns):
+    token = "dapi" + "ab" * 16
+    refusal = agent_ns["implement_lakebase_refusal"](RuntimeError(f"permission denied for table churn_desk.{token}"), BUILDER)
+    assert token not in str(refusal)
+    assert token not in refusal.statement
+    assert "<redacted>" in str(refusal)
+
+
 def test_a_database_refusal_maps_to_the_exact_grant_for_the_builder_role(agent_ns):
     refusal = agent_ns["implement_lakebase_refusal"](RuntimeError(DENIED + "\nDETAIL: x"), BUILDER)
     assert isinstance(refusal, agent_ns["ImplementLakebasePermission"])
