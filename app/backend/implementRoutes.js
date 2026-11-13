@@ -1116,10 +1116,10 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
-  function appReadsPermissions(left, record) {
-    const statements = PM.readStatementsFor(left.map((t) => t.table), record.app || record.app_name);
-    const permission = PM.permissionRequired({ statements, principal: record.app || record.app_name,
-      why: `The App ${record.app_name || ''} cannot read ${left.map((t) => t.table).join(', ')}, so the build cannot show that data.`.replace('App  ', 'App ') });
+  // The dialog lists the same statements the card and the Grant action use: the grants still missing on the live plan.
+  function appReadsPermissions(left, app) {
+    const permission = PM.permissionRequired({ statements: left.flatMap((t) => t.grants), principal: app.name || app.id,
+      why: `The App ${app.name || ''} cannot read ${left.map((t) => t.table).join(', ')}, so the build cannot show that data.`.replace('App  ', 'App ') });
     return permission ? [permission] : [];
   }
 
@@ -1133,16 +1133,19 @@ function registerImplementRoutes(app, deps) {
       if (!['check', 'grant'].includes(action)) throw I.badRequest('action must be check or grant');
       const record = I.appReadsRecord(await loadHistory(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId));
       if (!record) return res.json({ state: 'readable', tables: [], ran: [], failed: [], text: I.appReadsText([], '') });
-      const { left, ran, failed } = await appReads(req, warehouseId, record, action === 'grant');
+      // The same source tables the on-load card checks, so Check again and the card name the same statements.
+      const useCase = await loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
+      const tables = I.checkedSourceTables(record.row.spec_json, I.useCaseTables(useCase || {}));
+      const { left, ran, failed, app } = await appReads(req, warehouseId, record, action === 'grant', tables);
       const was = record.tables.map((t) => `${t.table}:${t.owner}:${t.grants.join(';')}`).join('|');
       const now = left.map((t) => `${t.table}:${t.owner}:${t.grants.join(';')}`).join('|');
       if (was !== now) {
         const update = I.appReadsUpdateStatement(I.implementTableName(catalog, schema), record.row, left);
         await executeSql(req.dbHost, req.dbToken, warehouseId, update.sql, update.parameters);
       }
-      res.json({ state: left.length ? 'unreadable' : 'readable', app: record.app, app_name: record.app_name, tables: left, ran, failed,
-        refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, record.app_name, failed),
-        permissions: appReadsPermissions(left, record) });
+      res.json({ state: left.length ? 'unreadable' : 'readable', app: app.id, app_name: app.name, tables: left, ran, failed,
+        refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, app.name, failed),
+        permissions: appReadsPermissions(left, app) });
     } catch (err) {
       sendError(res, err);
     }
