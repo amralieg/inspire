@@ -102,7 +102,9 @@ function makeApp(overrides = {}, { mount } = {}) {
           .find((name) => !state.implementColumns.includes(name) && sql.includes(`\`${name}\``) && !sql.includes(`NULL AS \`${name}\``));
         if (unknown) throw new Error(`[UNRESOLVED_COLUMN.WITH_SUGGESTION] A column, variable, or function parameter with name \`${unknown}\` cannot be resolved.`);
         if (sql.includes('GROUP BY ROLLUP')) return { rows: state.portfolioMvps || [] };
-        return { rows: state.history };
+        // The real query filters by use case (use_case_id = :uc); the fixture history is for the whole session.
+        const askedHistory = ((parameters || []).find((p) => p.name === 'uc') || {}).value;
+        return { rows: (state.history || []).filter((row) => askedHistory === undefined || String(row.use_case_id) === String(askedHistory)) };
       }
       if (sql.includes('u.business_domain AS domain')) return { rows: state.useCaseScope || [] };
       if (sql.includes('__inspire_usecases')) {

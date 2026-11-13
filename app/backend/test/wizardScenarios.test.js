@@ -89,7 +89,8 @@ function sharedHistoryApp() {
       'spec_json, status, status_message': async (_sql, parameters) => {
         await new Promise((resolve) => { setTimeout(resolve, 400); });
         const v = Number((parameters.find((p) => p.name === 'v') || {}).value);
-        history.push({ spec_version: v, status: 'queued', spec_json: (parameters.find((p) => p.name === 'spec') || {}).value });
+        const useCaseId = (parameters.find((p) => p.name === 'uc') || {}).value;
+        history.push({ use_case_id: useCaseId, spec_version: v, status: 'queued', spec_json: (parameters.find((p) => p.name === 'spec') || {}).value });
         return { rows: [] };
       },
     },
