@@ -1,4 +1,5 @@
 import { splitTechnical } from '../lib/plainText';
+import { withStartDeadline } from '../lib/startDeadline';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MONEY_PARTS } from '../lib/moneyParts.js';
@@ -1233,14 +1234,14 @@ export default function ImplementWizard({
     if (blockedBy(stepId)) return;
     setBusy(true);
     try {
-      const data = await apiPostJson('/api/inspire/implement/submit', {
+      const data = await withStartDeadline((signal) => apiPostJson('/api/inspire/implement/submit', {
         inspire_database: inspireDatabase,
         warehouse_id: warehouseId,
         session_id: String(sessionId),
         notebook_path: settings.notebookPath,
         spec: sent,
         rebuild_as_is: rebuildAsIs,
-      });
+      }, { signal }), { label: 'The build' });
       clearWizardDraft(draftKey);
       onImplemented(data);
     } catch (e) {
@@ -1254,9 +1255,9 @@ export default function ImplementWizard({
     setErrors([]);
     setBusy(true);
     try {
-      const data = await apiPostJson('/api/inspire/generate-genie', genieNotebookRequest({
+      const data = await withStartDeadline((signal) => apiPostJson('/api/inspire/generate-genie', genieNotebookRequest({
         inspireDatabase, warehouseId, sessionId, useCaseId: spec.use_case_id, notebookPath: settings.notebookPath,
-      }));
+      }), { signal }), { label: 'The notebook build' });
       clearWizardDraft(draftKey);
       onImplemented({ mode: 'notebook', use_case_id: spec.use_case_id, run_id: data.run_id, job_run_url: data.job_run_url });
     } catch (e) {

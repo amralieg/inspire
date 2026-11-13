@@ -42,6 +42,7 @@ import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 import { useFollowEnd } from '../lib/followEnd';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 import { splitTechnical } from '../lib/plainText';
+import { withStartDeadline } from '../lib/startDeadline';
 
 // Run lifecycle phases
 const PHASE_PENDING = 'PENDING';
@@ -255,7 +256,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
     setAgain({ busy: true, error: '' });
     const sid = newSessionId();
     try {
-      const data = await apiFetch(`/api/run/${runId}/again`, { method: 'POST', body: JSON.stringify({ session_id: sid }) });
+      const data = await withStartDeadline((signal) => apiFetch(`/api/run/${runId}/again`, { method: 'POST', signal, body: JSON.stringify({ session_id: sid }) }), { label: 'The run' });
       setAgain({ busy: false, error: '' });
       onRunAgain(sid, data.run_id, Array.isArray(data.warnings) ? data.warnings : [], Array.isArray(data.warning_details) ? data.warning_details : []);
     } catch (e) {

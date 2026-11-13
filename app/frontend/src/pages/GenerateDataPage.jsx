@@ -15,6 +15,7 @@ import { DEMO_GENERATED_TABLES, DEMO_KIND_SIGNAL_TABLES, demoSchemaError, demoTa
 import { DISCOVERY_BADGE, DISCOVERY_MODE_TEXT, DISCOVERY_RECOMMENDED, DISCOVERY_TYPE_VALID } from '../lib/discoveryType';
 import TechnicalDetails from '../components/TechnicalDetails';
 import { PlainMessage } from '../components/TechnicalDetails';
+import { withStartDeadline } from '../lib/startDeadline';
 
 function demoTablesLine(tables) {
   if (!tables) return 'Write the demo Delta tables with UC table and column comments';
@@ -61,8 +62,9 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
     setLastResult(null);
 
     try {
-      const data = await apiFetch('/api/demo-data/start', {
+      const data = await withStartDeadline((signal) => apiFetch('/api/demo-data/start', {
         method: 'POST',
+        signal,
         body: JSON.stringify({
           description: description.trim(),
           business_name: businessName.trim(),
@@ -70,7 +72,7 @@ export default function GenerateDataPage({ settings, onBack, onLaunched }) {
           discovery_type: discoveryType,
           demo_schema: demoSchema.trim(),
         }),
-      });
+      }), { label: 'The run' });
       setLastResult(data);
       onLaunched?.(data.session_id, data.inspire_run_id);
     } catch (err) {
