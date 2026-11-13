@@ -856,3 +856,48 @@ def test_every_money_figure_of_a_converted_rule_is_labelled_with_its_reporting_c
     assert [k["currency"] for k in served["kpis"] if k["format"] == "currency"] == ["AED"], "the page the App serves carries the same label"
     per_currency = shell_sql.page_with_money(PAGE, {"currency": "per_currency"})
     assert [k["currency"] for k in per_currency["kpis"] if k["format"] == "currency"] == ["USD"], "a per-currency rule keeps each figure's own currency"
+
+
+# REQ-103: the build recomputes each converted row from its amount and its rate, so a generated dataset that forgets the rate fails
+# the round with the reason, instead of shipping a wrong total. Fixture rows: amount, fx_rate, ccy.
+RATE_COLUMNS = ("amount", "fx_rate", "ccy", "value_at_stake")
+RATE_FIXTURE = [(100.0, 2.0, "AED", None), (50.0, 1.5, "EUR", None), (30.0, None, "USD", None)]
+
+
+def _rate_page(sql):
+    return {
+        "id": "rate_page",
+        "datasets": [{"name": "rows", "sql": sql}],
+        "kpis": [{"id": "total", "format": "currency", "dataset": "rows", "expression": "SUM(value_at_stake)"}],
+        "money": {"currency": "convert", "base": "AED", "rate_column": "fx_rate", "currency_column": "ccy",
+                  "value": {"method": "column", "column": "amount", "currency_column": "ccy"}, "rule": "net"},
+        "filters": [],
+    }
+
+
+def _rate_checks(sql):
+    checks = shell_sql.money_check_queries(_rate_page(sql))
+    return {label: _run(query, columns=RATE_COLUMNS, rows=RATE_FIXTURE) for label, query in checks}
+
+
+def test_a_dataset_that_converts_each_row_passes_every_rate_check():
+    sql = "SELECT amount, fx_rate, ccy, amount * fx_rate AS value_at_stake FROM stake_rows WHERE fx_rate IS NOT NULL"
+    got = _rate_checks(sql)
+    assert set(got) == {shell_sql.RATE_CHECK_LABEL + "rows", shell_sql.RATE_TOTAL_LABEL + "rows"}
+    assert all(rows[0]["bad"] == 0 for rows in got.values()), got
+
+
+def test_a_dataset_that_forgot_the_rate_fails_the_row_and_the_total_checks_with_the_reason():
+    sql = "SELECT amount, fx_rate, ccy, amount AS value_at_stake FROM stake_rows WHERE fx_rate IS NOT NULL"
+    got = _rate_checks(sql)
+    assert got[shell_sql.RATE_CHECK_LABEL + "rows"][0]["bad"] == 2, "both rows with a rate carry the unconverted amount"
+    assert got[shell_sql.RATE_TOTAL_LABEL + "rows"][0]["bad"] == 1, "the total is the unconverted sum, not the converted one"
+    reason = shell_sql.money_check_reason(shell_sql.RATE_CHECK_LABEL + "rows")
+    assert "multiply each row's amount by the rate column" in reason
+
+
+def test_a_row_with_no_rate_fails_the_row_check_instead_of_dropping_out_of_the_total():
+    sql = "SELECT amount, fx_rate, ccy, amount * fx_rate AS value_at_stake FROM stake_rows"
+    got = _rate_checks(sql)
+    assert got[shell_sql.RATE_CHECK_LABEL + "rows"][0]["bad"] == 1, "the USD row has no rate, so the round must say so"
+    assert got[shell_sql.RATE_TOTAL_LABEL + "rows"][0]["bad"] == 0

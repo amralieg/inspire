@@ -3230,7 +3230,49 @@ def money_check_queries(page: dict) -> list:
             out.append((f"statuses of {name}", f"SELECT COUNT(*) AS bad FROM ({sql}) AS d WHERE {column} IS NULL OR {column} NOT IN ({names})"))
         if money.get("rule", "losses") == "losses":
             out.append((f"losses of {name}", f"SELECT COUNT(*) AS bad FROM ({sql}) AS d WHERE value_at_stake < 0"))
+        out += money_rate_column_checks(name, sql, money)
     return out
+
+
+RATE_CHECK_LABEL = "converted rows of "
+RATE_TOTAL_LABEL = "converted total of "
+
+
+def money_rate_column_checks(name: str, sql: str, money: dict) -> list:
+    """Deterministic recompute for a rule that converts each row with its own rate. The dataset SQL is generated, so the
+    build recomputes every row from the amount and the rate the dataset carries (amount x rate, the losses rule applied),
+    and compares the dataset's own value_at_stake and total with it. A dataset that forgot the rate fails here, with the
+    reason, and Genie repairs the round. An equation amount is not recomputed here; the App reads its total only."""
+    value = money.get("value") if isinstance(money.get("value"), dict) else {}
+    if not money.get("rate_column") or not money.get("currency_column"):
+        return []
+    if value.get("method") == "column" and value.get("column"):
+        amount = f"CAST({quote(value['column'])} AS DOUBLE)"
+    elif value.get("method") == "fixed" and value.get("amount") is not None:
+        amount = f"CAST({float(value['amount'])!r} AS DOUBLE)"
+    else:
+        return []
+    rate = f"CAST({quote(money['rate_column'])} AS DOUBLE)"
+    stake = f"({amount} * {rate})"
+    if money.get("rule", "losses") == "losses":
+        stake = f"(CASE WHEN {stake} < 0 THEN -{stake} ELSE 0 END)"
+    tolerance = "ABS(value_at_stake - {stake}) > 0.005 * ABS({stake}) + 0.01"
+    rows = (f"SELECT COUNT(*) AS bad FROM ({sql}) AS d WHERE {amount} IS NULL OR {rate} IS NULL OR "
+            + tolerance.format(stake=stake))
+    total = (f"SELECT CASE WHEN ABS(SUM(value_at_stake) - SUM({stake})) > 0.005 * ABS(SUM({stake})) + 0.01 "
+             f"THEN 1 ELSE 0 END AS bad FROM ({sql}) AS d")
+    return [(RATE_CHECK_LABEL + name, rows), (RATE_TOTAL_LABEL + name, total)]
+
+
+def money_check_reason(label: str) -> str:
+    """The reason a money check failed, in words Genie can repair from."""
+    if label.startswith(RATE_CHECK_LABEL):
+        return (f"the dataset does not convert each row with its own rate: some rows of {label[len(RATE_CHECK_LABEL):]} "
+                f"do not equal their amount times their rate, or carry no rate; the dataset SQL must multiply each row's amount by the rate column")
+    if label.startswith(RATE_TOTAL_LABEL):
+        return (f"the total of {label[len(RATE_TOTAL_LABEL):]} does not equal the amounts converted row by row at their own rates, "
+                f"so the dataset total is wrong; the dataset SQL must apply each row's rate before it sums")
+    return "the statuses or the losses-only rule are not applied in the dataset"
 
 
 def money_basis(page: dict) -> str:
