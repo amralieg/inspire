@@ -28,12 +28,28 @@ function scopeDaysOf(raw) {
   return Number.isInteger(days) && days >= 1 && days <= PROFILE_DAYS_MAX ? days : null;
 }
 
-// The use case table read through the Launch scope of its table: only the rows the scope keeps. Every statement of the profile reads this.
-function scopedMain(main, scopes, table) {
-  const rows = normalizeTableScope(tableScopeOf(scopes, table)).rows;
-  if (!rows.length) return { ...main, parameters: null };
-  const { where, parameters } = I.scopeWhere(rows);
-  return { ...main, sql: `(SELECT * FROM ${main.sql} WHERE ${where.join(' AND ')})`, parameters: parameters.length ? parameters : null };
+// The use case table read through the Launch scope of its table: only the columns and the rows the scope keeps, the columns named
+// one by one, never every column by default. A scope that keeps only rows names every column of the table (allColumns). Every
+// statement of the profile reads this.
+function scopedMain(main, scopes, table, allColumns = []) {
+  const scope = normalizeTableScope(tableScopeOf(scopes, table));
+  if (!scope.rows.length && !scope.columns.length) return { ...main, parameters: null };
+  const named = scope.columns.length ? scope.columns : allColumns.map(str).filter(Boolean);
+  if (!named.length) throw new Error(`the Table Scope of ${table} names no columns, and the columns of ${table} could not be read`);
+  const { where, parameters } = scope.rows.length ? I.scopeWhere(scope.rows) : { where: [], parameters: [] };
+  return {
+    ...main,
+    sql: `(SELECT ${named.map((c) => q(c)).join(', ')} FROM ${main.sql}${where.length ? ` WHERE ${where.join(' AND ')}` : ''})`,
+    parameters: parameters.length ? parameters : null,
+  };
+}
+
+// The columns of the use case table the profile may group, measure or sample: the Launch scope's columns when it names some.
+function scopedColumns(columns, scopes, table) {
+  const scope = normalizeTableScope(tableScopeOf(scopes, table));
+  if (!scope.columns.length) return columns;
+  const allowed = new Set(scope.columns.map((c) => c.toLowerCase()));
+  return (columns || []).filter((c) => allowed.has(str(c.column_name).toLowerCase()));
 }
 
 function keysStatement(catalog, schema, table) {
@@ -460,6 +476,7 @@ function profileView({ table, technique, columns, candidates, stats, sample, val
 
 module.exports = {
   scopedMain,
+  scopedColumns,
   currencySpreadSql,
   moneyValueSampleSql,
   CURRENCY_SPREAD_ROWS,

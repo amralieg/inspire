@@ -88,15 +88,17 @@ def test_a_scoped_table_whose_scope_was_dropped_is_refused_not_read_whole(agent_
 
 def test_a_table_with_row_filters_and_no_picked_columns_keeps_every_column_but_only_the_chosen_rows(agent_ns):
     inst = build_inspire(agent_ns)
+    inst._implement_scope_columns = lambda table: ["order_id", "brand", "total_price"]
     uc = make_uc()
     table = inst._genie_involved_tables(uc)[0]
     run = _run(inst, uc, _data(filters=[{"table": table, "column": "brand", "op": "not in", "values": ["Other Co"]}]))
     scope = run["table_scopes"][table.lower()]
-    assert scope["columns"] == [] and scope["rows"][0]["op"] == "not in"
+    assert scope["columns"] == ["order_id", "brand", "total_price"] and scope["rows"][0]["op"] == "not in"
     agent_ns["INSPIRE_RUN"] = run
     session = _Session()
     agent_ns["inspire_read_source"](table, session)
-    assert session.log == [("table", agent_ns["inspire_table_name"](table.lower())), ("where", "`brand` NOT IN ('Other Co')")]
+    assert session.log == [("table", agent_ns["inspire_table_name"](table.lower())), ("where", "`brand` NOT IN ('Other Co')"),
+                           ("select", ("`order_id`", "`brand`", "`total_price`"))], "every column is named, never read by default"
 
 
 def test_a_table_the_person_did_not_touch_is_read_as_before(agent_ns):

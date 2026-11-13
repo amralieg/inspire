@@ -65,8 +65,9 @@ test('the grouping profile reads only the rows inside the Launch scope of its ta
   } finally {
     await srv.close();
   }
-  const scoped = made.sqlCalls.filter((c) => c.sql.includes(`(SELECT * FROM \`main\`.\`s\`.\`orders\` WHERE`));
-  assert.ok(scoped.length >= 2, `the profile statements read the scoped rows (${scoped.length} found)`);
+  const scoped = made.sqlCalls.filter((c) => c.sql.includes('(SELECT `brand_name`, `location` FROM `main`.`s`.`orders` WHERE'));
+  assert.ok(scoped.length >= 1, `the profile statements read the scoped rows and columns (${scoped.length} found)`);
+  assert.ok(!made.sqlCalls.some((c) => c.sql.includes('SELECT * FROM `main`.`s`.`orders`')), 'no profile statement reads every column of the table');
   assert.ok(scoped.every((c) => c.parameters.some((p) => p.value === 'Tokyo Tidbits')), 'every scoped statement carries the scope value');
 });
 

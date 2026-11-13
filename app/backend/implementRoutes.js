@@ -2008,20 +2008,22 @@ function registerImplementRoutes(app, deps) {
       if (!main || !/^[^`]+\.[^`]+\.[^`]+$/.test(table)) {
         throw I.badRequest(`${String(useCase.use_case ?? '').trim() || 'This use case'} names no main table as catalog.schema.table, so Inspire cannot read it for Data groups.`);
       }
-      const scan = GP.scopedMain(main, parseTableScopeText(session?.table_scope).scopes, table);
+      const launchScopes = parseTableScopeText(session?.table_scope).scopes;
       const options = (rowLimit) => ({ rowLimit, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s', signal: stop.signal });
       const rows = async (sql, parameters, rowLimit) => sqlResultToObjects(await executeSql(req.dbHost, token, warehouseId, sql, parameters, options(rowLimit)));
       const view = await runWithRequestDeadline(async () => {
         const [cat, sch, tbl] = table.split('.');
         const columnsAsked = I.columnsStatement(table);
         const keysAsked = GP.keysStatement(cat, sch, tbl);
-        const [columns, keyRows] = await Promise.all([rows(columnsAsked.sql, columnsAsked.parameters, GP.PROFILE_META_ROWS),
+        const [allColumns, keyRows] = await Promise.all([rows(columnsAsked.sql, columnsAsked.parameters, GP.PROFILE_META_ROWS),
           rows(keysAsked.sql, keysAsked.parameters, GP.PROFILE_META_ROWS).catch((err) => {
             if (['SQL_DEADLINE', 'SQL_CANCELLED'].includes(err && err.code)) throw err;
             console.warn(`grouping profile: the declared keys of ${table} could not be read, so Data groups use no declared key: ${err.message}`);
             return [];
           })]);
-        if (!columns.length) throw I.badRequest(`${U.runUnreadableTablesText([table])}.`, 403);
+        if (!allColumns.length) throw I.badRequest(`${U.runUnreadableTablesText([table])}.`, 403);
+        const columns = GP.scopedColumns(allColumns, launchScopes, table);
+        const scan = GP.scopedMain(main, launchScopes, table, columns.map((c) => c.column_name));
         const roles = data.column_roles && typeof data.column_roles === 'object' ? data.column_roles : {};
         const keys = GP.declaredKeys(keyRows);
         const saved = GP.savedJoins(useCase.table_joins, table);
