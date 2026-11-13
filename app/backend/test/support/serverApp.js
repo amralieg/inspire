@@ -38,7 +38,7 @@ function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
     launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
-    createdJob: null, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
+    createdJob: null, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, tableColumns: null, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
 }
@@ -118,6 +118,12 @@ function answerSql(body) {
   }
   if (/^\s*DESCRIBE TABLE\b/i.test(sql) && sql.includes('__inspire_usecases') && state.usecaseColumns) {
     return sqlResult(['col_name', 'data_type'], state.usecaseColumns.map((name) => [name, 'string']));
+  }
+  if (/^\s*DESCRIBE TABLE\b/i.test(sql) && !sql.includes('__inspire_usecases')) {
+    const name = sql.replace(/^\s*DESCRIBE TABLE\s+/i, '').replace(/`/g, '');
+    const cols = (state.tableColumns || {})[name];
+    if (!cols) return { statement_id: 's1', status: { state: 'FAILED', error: { message: `[TABLE_OR_VIEW_NOT_FOUND] The table ${name} cannot be found` } } };
+    return sqlResult(['col_name', 'data_type'], cols.map((c) => [c, 'string']));
   }
   if (/^\s*SELECT session_id,/.test(sql) && sql.includes('__inspire_usecases')) {
     const lacking = (state.usecaseColumns ? USECASE_RULE_COLUMNS.filter((c) => !state.usecaseColumns.includes(c) && new RegExp(`\\b${c}\\b`).test(sql)) : []);

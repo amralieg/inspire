@@ -55,7 +55,7 @@ const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../fronte
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
 const PM_ERROR = require('./lib/permissionError');
-const { isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyName, sampleCopyStatement } = require('./lib/inspireImplement');
+const { isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -2137,6 +2137,7 @@ app.post('/api/run/check', requireToken, async (req, res) => {
 app.post('/api/run', requireToken, async (req, res) => {
   const { cluster_id, notebook_path } = req.body;
   const params = (req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
+  if (samplesNeedChoice(params, req.body.samples_choice)) return res.status(409).json({ error: SAMPLES_CHOICE_TEXT });
   return launchDiscover(req, res, { params, notebook_path, cluster_id });
 });
 
@@ -2151,6 +2152,7 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
     }
     const again = LC.runAgainOf(parseExactJson(await response.text()), req.params.runId, sessionId);
     if (again.problem) return res.status(409).json({ error: `${again.problem}.` });
+    if (samplesNeedChoice(again.params, req.body.samples_choice)) return res.status(409).json({ error: SAMPLES_CHOICE_TEXT });
     return launchDiscover(req, res, again);
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -2267,6 +2269,17 @@ async function discoverAppAccess(req, scope) {
   }
 }
 
+// A copy that already sits at the copy name is reused only when it has the source's columns (names compared, via the same DESCRIBE reader the build uses).
+async function sameCopyColumns(req, person, source, copy) {
+  const columnsOf = async (name) => describedColumnNames(sqlResultToObjects(await executeSql(req.dbHost, person, DEFAULT_WAREHOUSE_ID, `DESCRIBE TABLE ${sampleTableRef(name)}`)));
+  try {
+    const [want, have] = await Promise.all([columnsOf(source), columnsOf(copy)]);
+    return want.size > 0 && want.size === have.size && [...want].every((name) => have.has(name));
+  } catch {
+    return false;
+  }
+}
+
 app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
   const person = personTokenOf(req);
   if (!person) return res.status(401).json({ error: SAMPLE_COPY_NO_SIGN_IN });
@@ -2280,11 +2293,28 @@ app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
     if (more) throw Object.assign(new Error(`The samples you picked hold more tables than one copy can take (${tables.length} read). Pick fewer tables or schemas`), { statusCode: 409 });
     const copies = [];
     const failed = [];
+    let schemaTried = false;
     for (const source of tables) {
+      const copy = sampleCopyName(source, destination);
       const sql = sampleCopyStatement(source, destination);
-      const outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
-      if (outcome.ran.length) copies.push({ source, copy: sampleCopyName(source, destination) });
-      else failed.push({ source, reason: String(outcome.failed[0] || '').slice(sql.length + 2) });
+      let outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
+      if (!outcome.ran.length && !schemaTried && sampleCopyFailureKind(outcome.failed[0]) === 'no_schema') {
+        schemaTried = true;
+        const schema = schemaCreateStatement(destination);
+        const made = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [schema]);
+        if (!made.ran.length) {
+          const why = String(made.failed[0] || '').slice(schema.length + 2);
+          throw Object.assign(new Error(sampleSchemaMessage(destination, schema, why)), { statusCode: 409 });
+        }
+        outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
+      }
+      if (outcome.ran.length) { copies.push({ source, copy }); continue; }
+      if (sampleCopyFailureKind(outcome.failed[0]) === 'exists') {
+        if (await sameCopyColumns(req, person, source, copy)) copies.push({ source, copy, reused: true });
+        else failed.push({ source, reason: sampleCopyTakenMessage(copy, source) });
+        continue;
+      }
+      failed.push({ source, reason: String(outcome.failed[0] || '').slice(sql.length + 2) });
     }
     const permission = sampleCopyPermission(failed, RP.forwardedPerson(req.headers));
     res.json({ destination: `${destination.catalog}.${destination.schema}`, copies, failed, ...(permission ? { permissions: [permission] } : {}) });
