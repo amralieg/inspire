@@ -181,6 +181,7 @@ REVIEWED = {
         ('parse_table_scopes', 'label'),
         ('parse_table_scopes', 'op'),
         ('parse_table_scopes', 'table_name'),
+        ('_run_implement_mode', 'missing'),
     },
     'name': {
         ('_implement_alert', 'named'),
@@ -284,9 +285,6 @@ REVIEWED = {
         ('add_missing_columns', 'owned_table'),
         ('_parse_dedup_response', 'context_label'),
         ('_run_generate_mode', 'self.business_name'),
-        ('_run_implement_mode', 'self._implement_param(IMPLEMENT_USE_CASE_PARAM)'),
-        ('_run_implement_mode', 'self._implement_table_sql()'),
-        ('_run_implement_mode', 'self.session_id'),
         ('_run_tagged_spark_work', 'label'),
         ('_run_tagged_spark_work', 'tag'),
         ('_score_batch', 'batch_label'),
@@ -318,6 +316,10 @@ REVIEWED = {
         ('assert_scope_sources', 'message'),
         ('assert_scoped_reads', 'message'),
         ('scope_app_pages', "' | '.join(problems)"),
+        ('assert_scope_columns', "', '.join(outside)"),
+        ('assert_scope_columns', 'name'),
+        ('enforce_scope_gate', "' | '.join(fresh[:5])"),
+        ('scope_genie_space', "' | '.join(problems)"),
     },
     'composed': {
         ('_implement_genie_loop', 'denied'),
@@ -434,6 +436,8 @@ REVIEWED = {
         ('_implement_app_feedback_create', 'message'),
         ('_implement_app_feedback_table', "'; '.join(warnings)"),
         ('_implement_deploy_app', 'reason'),
+        ('_implement_app_lakebase', 'refusal'),
+        ('_implement_app_lakebase', 'refusal.statement'),
     },
     'genie': {
         ('_implement_keep_untargeted', 'implement_untargeted_repair(name, blocked)'),

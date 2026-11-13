@@ -190,7 +190,7 @@ def test_pptx_follows_the_shared_order_and_shows_one_card_per_elite_use_case(ran
         assert not any(text in slide for slide in slides), text
     index = next(s for s in slides if s.startswith("APPENDIX | Use case index"))
     assert re.findall(r"\| (N0\d-U0\d) \|", index) == ["N01-U01", "N01-U06", "N02-U01", "N01-U05", "N01-U02", "N01-U04", "N01-U03", "N02-U02"]
-    assert "| N02-U02 | Coverage pick · Forecast Demand N02-u02 | Operations |  | High | 9.9 / 10" in index
+    assert "| N02-U02 | Coverage pick · Ops Pick | Operations |  | High | 9.9 / 10" in index, "the approved name is the title (REQ-175)"
     sales = next(s for s in slides if "| DOMAIN 01 | Sales |" in s)
     assert re.findall(r"\| (N01-U0\d) \|", sales) == ["N01-U01", "N01-U06", "N01-U05"]
 
@@ -262,7 +262,7 @@ def test_csv_ranks_globally_and_marks_missing_scores_not_scored(ranked):
     assert body[0][header.index("Inspire Score")] == "9.0"
     assert header[-13:] == ["Elite Status", "Verdict", "Decision", "Decision Owner", "Decision Cadence", "KPI", "Value Driver",
                             "Evidence Columns", "Join Path", "Build Path", "Red-Team Note", "Coverage Pick Reason", "Below Bar Reason"]
-    assert header[:15] == ["ID", "Rank", "Business Domain", "Subdomain", "Use Case", "Description", "Quality",
+    assert header[:15] == ["ID", "Rank", "Business Domain", "Subdomain", "Use Case", "Subtitle", "Quality",
                            "Meets your quality bar", "Inspire Score", "Elite Score", "Quality Score", "Best-of-Best Score",
                            "Priority", "Value", "Feasibility"]
     assert [r[1] for r in body] == ["1", "2", "3", "4", "5", "6", "7", "8"]
@@ -378,3 +378,19 @@ def test_missing_pdf_dependency_is_a_failed_step_and_a_missing_artifact(ranked, 
     assert {"step": "PDF Catalog", "language": "English"}.items() <= obj.failed_steps[0].items()
     assert obj.logger.matching("[VIBE-LANG missing-artifacts]", level="WARNING")
     assert not obj.logger.matching("[VIBE-LANG all-artifacts-produced]")
+
+
+def test_excel_header_names_the_subtitle_and_the_cell_carries_it(ranked):
+    """REQ-175: the workbook's use case sheet has a Subtitle column; the cell holds the outcome, the technique and the scope."""
+    import openpyxl
+    grouped = {"Sales": [make_uc("N01-U01", **{"Analytics Technique": "Predictive Modeling",
+                                             "Statement": "Churn costs the business money. More detail follows."})]}
+    obj = make_inspire(ranked)
+    obj._generate_use_case_excel("English", "en", grouped)
+    workbook = openpyxl.load_workbook(io.BytesIO(next(iter(obj.w_client.workspace.files.values()))))
+    sheet = workbook["Use Cases"]
+    header = [c.value for c in sheet[1]]
+    assert "Subtitle" in header and "Description" not in header
+    row = dict(zip(header, [c.value for c in sheet[2]]))
+    assert row["Subtitle"].startswith("Churn costs the business money.")
+    assert "Analytics Technique: Predictive Modeling." in row["Subtitle"]

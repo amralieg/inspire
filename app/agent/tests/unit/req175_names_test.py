@@ -82,7 +82,7 @@ def test_the_subtitle_carries_the_outcome_the_technique_and_the_scope_when_the_n
           "Statement": "Churn costs the business money each month. More detail follows.", "scope_label": "Contoso Export Group"}
     subtitle = obj._inspire_subtitle(uc)
     assert subtitle.startswith("Churn costs the business money each month.")
-    assert "Technique: Predictive Modeling." in subtitle
+    assert "Analytics Technique: Predictive Modeling." in subtitle
     assert "Scope: Contoso Export Group." in subtitle
 
 
@@ -144,3 +144,16 @@ def test_the_pdf_card_deck_and_markdown_show_the_subtitle_under_the_title(agent_
     assert 'deck.text(slide, 1.6, 1.36, 11.13, 0.28, view["subtitle"], size=S["body"], color=C["muted"])' in source
     assert 'md_content.append(f"\\n*{iso(view[\'subtitle\'])}*\\n")' in source
     assert 'view["name"]' not in source, "no view reads the name as a sub-line any more"
+
+
+def test_a_populated_headline_never_replaces_the_approved_generated_name(agent_ns):
+    """The title is the approved simple name. A usecase headline that differs from it is not the title."""
+    obj = make(agent_ns)
+    uc = {"Name": "Predict Customer Churn", "usecase": "Stop Customer Losses to Grow Revenue"}
+    assert obj._doc_use_case_title(uc, "English") == "Predict Customer Churn"
+
+
+def test_a_person_typed_name_is_always_the_title(agent_ns):
+    obj = make(agent_ns)
+    uc = {"Name": "Predict Customer Churn", "usecase": "Stop Customer Losses", "user_use_case_name": "My own words"}
+    assert obj._doc_use_case_title(uc, "English") == "My own words"

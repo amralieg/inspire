@@ -127,6 +127,14 @@ def build_ultra(ns, tmp_path, judge, user_domains=None):
     return obj
 
 
+def test_the_offline_harness_generates_the_product_default_outputs(agent_ns, tmp_path):
+    """The harness must generate the product default outputs. A PDF-only harness sent the Ultra High run down a path
+    the stubs do not answer (the elite smoke red at c450272af), so the harness and the product default stay in step."""
+    obj = _build(agent_ns, tmp_path, "Ultra High", {"High", "Very High", "Ultra High"}, combined_scorer)
+    product = [opt.strip() for opt in agent_ns["DEFAULT_GENERATION_OPTIONS"].split(",")]
+    assert obj.generate_choices == product == ["PDF Catalog", "Excel"], (obj.generate_choices, product)
+
+
 def stages(obj):
     return [e["stage"] for e in obj.final_inspire_results_json["funnel_ledger"]]
 

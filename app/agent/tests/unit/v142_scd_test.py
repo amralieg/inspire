@@ -748,11 +748,12 @@ FACTS_PLAIN = {"names", "tier", "scope", "version", "previous", "label", "histor
                "inspire_shell_facts", "floored", "int", "str", "table", "inspire_acted_table", "inspire_closed_table", "inspire_changes_table",
                "inspire_closes_table", "order", "row"}
 HISTORY_COUNTED = "{inspire_table_name(read_table)}"
-HISTORY_SCOPED = "{inspire_table_name(source_table)}"
+# REQ-022 L1: the scoped source of the First run and run-time reads is read through inspire_scoped_from (the Table Scope), not the bare table.
+HISTORY_SCOPED = "{inspire_scoped_from(source_table)}"
 HISTORY_SCOPED_READS = ("SELECT CAST(", "WITH dated AS (SELECT CAST(")
-HISTORY_DATED = "{inspire_table_name(via['table'])}"
+HISTORY_DATED = "{inspire_scoped_from(via['table'])}"  # REQ-022 L1: the via table of a run-time read is scoped too
 HISTORY_DATED_READS = (f"SELECT CAST(r.{{inspire_column(via['date'])}} AS DATE) AS d FROM {HISTORY_SCOPED} m JOIN {HISTORY_DATED} r ON ",
-                       f"SELECT DISTINCT CAST({{inspire_column(via['key'])}} AS STRING) AS k FROM {HISTORY_DATED} WHERE ")
+                       f"SELECT DISTINCT CAST({{inspire_column(via['key'])}} AS STRING) AS k FROM {HISTORY_DATED} WHERE ")  # the via key read is scoped too (REQ-022 L1 rule)
 HISTORY_JOINED = "{inspire_table_name(join['table'])}"
 HISTORY_JOINED_READS = (f"SELECT {{key}}, MAX({{value}}) AS {{named}} FROM (SELECT CAST({{ref}} AS STRING) AS {{key}}, {{named}} AS {{value}} "
                         f"FROM {HISTORY_JOINED} WHERE ",)

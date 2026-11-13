@@ -1119,11 +1119,18 @@ function registerImplementRoutes(app, deps) {
 
   function appReadsPermissions(left, record, principals, app) {
     if (record.objects) {
-      return (principals || []).map((p) => {
+      const granted = (principals || []).map((p) => {
         const statements = left.flatMap((t) => t.grants.filter((g) => I.appReadGrantFor(g, p)));
         return PM.permissionRequired({ statements, principal: p, why: `${p} opens the App ${record.app_name || ''} and reads its data with its own access, `
           + 'so it needs these grants. Ask the owner of the table to run them, then click Try again.' });
       }).filter(Boolean);
+      // A user-authorization App reads a source table directly: its viewers get the App's views, never the raw table. The App must be
+      // rebuilt to read through a view; nothing here is a grant to run.
+      const direct = record.mode === 'user' && (record.sources || []).length ? record.sources : [];
+      const rebuild = direct.length ? [PM.permissionRequired({ principal: record.app_name || '', instructions: [
+        `The App ${record.app_name || ''} reads ${direct.join(', ')} directly. A user-authorization App does not give its viewers access to a source table, `
+        + 'so they see only its own views. Rebuild the App so it reads through its views, then click Try again.'] })] : [];
+      return [...granted, ...rebuild].filter(Boolean);
     }
     // The same statements the card and Check again show: the live plan's grants, never a second list.
     const statements = [...new Set(left.flatMap((t) => t.grants))];

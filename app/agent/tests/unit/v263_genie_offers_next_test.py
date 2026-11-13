@@ -27,7 +27,7 @@ def test_three_rows_written_as_bullets_are_rewritten_into_one_table(tmp_path):
     llm = FakeLLM([tool_call("find_records", {}), said(BULLETS), said(TABLE)], related=topic_of)
     s, _ws, _made = agent_shell(tmp_path, ws=rows_ws(llm))
     turn = ask(s, "Which records need action?")
-    assert turn["answer"] == TABLE, turn["answer"]
+    assert turn["answer"] == TABLE + "\n\n3 records listed here; the page KPI Loss to discounts counts 120 records.", turn["answer"]
     assert "- " not in turn["answer"] and "| Item 1 | Open |" in turn["answer"]
     rewrite = llm.main_calls()[-1]["messages"][-1]["content"]
     assert "3 rows written as bullets" in rewrite and "one table, with no bullets" in rewrite

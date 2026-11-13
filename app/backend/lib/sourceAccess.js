@@ -211,7 +211,8 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     // The App's identity is read live from its token, so a stale id on the build record never names the wrong principal.
     const who = user ? null : await appIdentity(req, await appTokenOf(req));
     const principals = user ? await audienceOf(req, token, record.app_name) : [who.id];
-    const grantable = (left) => (record.objects ? I.appReadsGrantableFor(left, principals) : I.appReadsGrantable(left, who.id));
+    // A user-authorization App's audience is granted its App-owned views only, never a source table it reads directly.
+    const grantable = (left) => (record.objects ? I.appReadsGrantableFor(left, principals, user ? record.views : null) : I.appReadsGrantable(left, who.id));
     const before = await appReadsLeftOf(req, token, warehouseId, record, principals, who);
     if (!grant) return { left: before, ran: [], failed: [], principals, app: who };
     if (!person) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);

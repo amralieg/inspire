@@ -307,6 +307,8 @@ def test_a_user_app_with_two_viewers_grants_both_and_lists_the_one_refused_grant
             f"GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `{principal}`",
             f"GRANT SELECT ON TABLE `main`.`s`.`orders_scope` TO `{principal}`",
             f"GRANT READ METADATA ON TABLE `main`.`s`.`orders_scope` TO `{principal}`"], principal
+    # 9A boundary: the audience is granted the App's scope view only; the source table the pages read directly is never granted to a viewer.
+    assert [s for s in attempts if "`orders`" in s and "example.com`" in s] == [], "no raw source grant to the audience (9A boundary)"
     assert [s for s in attempts if "sp-7" in s and "orders_scope" in s] == [], \
         "the App's service principal is never granted a Data Filters view by a per-user App (its feedback table grant is the existing per-user path)"
     entries = context["permissions"]
@@ -330,7 +332,40 @@ def test_the_build_persists_the_scope_view_and_the_source_table_the_app_reads_di
     assert context["result_table"] not in persisted["views"]
 
 
+def test_a_user_app_reads_a_directly_read_source_through_its_own_view_and_grants_the_viewer_that_view_only(agent_ns, sdk_stub):
+    # 9A: the source the App reads directly is read through an App-owned view (all columns, no rows); the build persists that view,
+    # and the viewer is granted the view, never the raw source table.
+    host = dict(HOST_APP, user_api_scopes=["sql:restricted-query", "genie"])
+    sharing = {"access_control_list": [{"user_name": "ana@example.com", "all_permissions": [{"permission_level": "CAN_USE"}]}]}
+    inst, context, _calls, _imported = _deploy_inspire(agent_ns, [host, sharing] + DEPLOYED, access=[])
+    inst._genie_scopes = lambda use_case: {}
+    scopes = agent_ns["implement_app_read_scopes"](["main.s.orders"], lambda table: ["order_id", "amount"], "main.inspire", "N01-U01")
+    for entry in scopes.values():
+        entry["ready"] = True
+    context["app_read_scopes"] = scopes
+    view = next(iter(scopes.values()))["view"]
+    context["app_host"] = dict(agent_ns["implement_app_host"]("sales-desk"), app=host, merged=True, source=SOURCE, settings={
+        "auth": "user", "options": {"modify": False, "decisions": False}})
+    attempts = []
+    real_sql = inst.spark.sql
+
+    def sql(statement):
+        attempts.append(statement)
+        return real_sql(statement)
+
+    inst.spark.sql = sql
+    fields = inst._implement_deploy_app(context, "sales-desk", SHELL_FILES, [view], "gA", poll_s=0)
+    persisted = fields["_asset"]
+    assert persisted["views"] == [view] and persisted["sources_read"] == [], persisted
+    granted = [s for s in attempts if s.endswith("TO `ana@example.com`")]
+    assert [s for s in granted if view.split(".")[-1] in s and s.startswith("GRANT SELECT")], granted
+    assert not [s for s in attempts if "`s`.`orders`" in s and s.startswith("GRANT")], "the raw source table is never granted"
+
+
 def test_a_sensitive_use_case_is_never_merged_into_a_service_principal_app(agent_ns, tmp_path, monkeypatch):
+    # The App's pages read these sources directly: their columns come from the workspace metadata (stubbed here), so each gets an App-owned view.
+    columns = {"main.s.stores": ["item_id"], "main.inspire.sales_out": ["record_key"], "main.s.orders": ["order_id"]}
+    monkeypatch.setitem(agent_ns, "implement_scope_columns_of", lambda table: columns.get(table, []))
     inst, context, seen, _calls = _merge_flow(agent_ns, tmp_path, monkeypatch, outputs={"app_access": "user"})
     with pytest.raises(_blocked(agent_ns)) as raised:
         inst._implement_app(context, None)

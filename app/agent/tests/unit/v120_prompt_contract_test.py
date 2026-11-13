@@ -75,7 +75,8 @@ NEW_PROMPTS = {"ULTRA_HIGH_ELITE_JUDGE_PROMPT": {"allowed_value_tiers", "busines
                                              "business_priorities", "sponsor_roster", "metric_views", "use_cases_json"},
                "THEME_ASSIGNMENT_PROMPT": {"use_cases_listing", "existing_themes_section", "method_families",
                                            "generation_instructions_section", "theme_budget"},
-               "SIGNAL_CHECK_PROMPT": {"schema_details", "use_cases_listing", "generation_instructions_section"}}
+               "SIGNAL_CHECK_PROMPT": {"schema_details", "use_cases_listing", "generation_instructions_section"},
+               "DATA_FILTER_LABEL_RENAME_PROMPT": {"label", "names_json"}}
 
 
 @pytest.fixture(scope="module")

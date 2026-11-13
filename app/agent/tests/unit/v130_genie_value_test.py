@@ -1170,7 +1170,7 @@ def joined(loader, table):
 
 def schema_listings(spark, schema):
     return [q for q, args in spark.queries
-            if "`information_schema`.`tables`" in q and "table_name IN" not in q and args.get("schema") == schema]
+            if "`information_schema`.`tables`" in q and "IN (:t" not in q and args.get("schema") == schema]
 
 
 def test_round_30_a_generate_run_infers_the_joins_discover_infers_over_the_schema_of_its_scope(agent_ns, monkeypatch):

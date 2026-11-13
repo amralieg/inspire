@@ -234,9 +234,9 @@ def test_the_csv_and_excel_description_is_the_subtitle_with_the_technique(ns):
     obj = bilingual(ns)
     obj._generate_csv_catalog("English", "en", {"Sales": [uc, bare]})
     _header, rows = csv_rows(obj)
-    described = {row["ID"]: row["Description"] for row in rows}
+    described = {row["ID"]: row["Subtitle"] for row in rows}
     assert described["N01-U01"] == obj._inspire_subtitle(uc, {}, "English")
-    assert "Technique:" in described["N01-U01"]
+    assert "Analytics Technique:" in described["N01-U01"]
     assert "Technique:" not in described["N01-U02"], "no technique, no technique line"
 def test_no_language_joins_a_name_with_a_technique_and_the_old_key_is_gone(ns):
     """REQ-175: the name never carries the technique, so no language needs a joining word for it."""

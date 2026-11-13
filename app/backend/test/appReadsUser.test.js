@@ -75,7 +75,7 @@ async function withApp(overrides, run) {
 test('a user-authorization App record names only its scope views, and the audience is read live: people and groups at CAN_USE or higher, never a service principal', () => {
   const row = { status: 'ready_with_warnings', app_name: 'riverside-assets', asset_status: JSON.parse(userBuild().asset_status) };
   const record = I.appReadsRecord([row]);
-  assert.deepEqual(record, { row, app: '', app_name: 'riverside-assets', mode: 'user', objects: true, tables: [{ table: VIEW, owner: '', grants: [] }] });
+  assert.deepEqual(record, { row, app: '', app_name: 'riverside-assets', mode: 'user', objects: true, views: [VIEW], sources: [], tables: [{ table: VIEW, owner: '', grants: [] }] });
   const audience = I.appAudience({ access_control_list: [
     { user_name: 'a@x', all_permissions: [{ permission_level: 'CAN_VIEW' }] },
     { user_name: 'b@x', all_permissions: [{ permission_level: 'CAN_USE' }] },
@@ -171,4 +171,50 @@ test('a source table the App reads directly gets the same grants from the App-re
     assert.deepEqual(offered, sourceCheck, `held: ${held.join(',') || 'nothing'}`);
     assert.ok(offered.length > 0 || held.length, 'there is something to offer when nothing is held');
   }
+});
+
+// Boundary (9A): a user-authorization App's audience is granted only the App-owned views. A source table the App reads directly is
+// never granted to a person or a group: it becomes a rebuild state. A service-principal App still gets its live grants.
+const SRC = 'main.s.orders';
+const READERS = 'readers';
+
+function boundaryBuild(sources = [SRC]) {
+  return { ...userBuild(), asset_status: JSON.stringify({ app: { state: 'ready', spec_version: 3, views: [VIEW], sources_read: sources, access_mode: 'user' } }) };
+}
+
+function boundaryWorkspace(people) {
+  const w = workspace({ people });
+  w.overrides.history = [boundaryBuild()];
+  w.overrides.responses['GET /api/2.0/permissions/apps/riverside-assets'][0].access_control_list.push(
+    { group_name: READERS, all_permissions: [{ permission_level: 'CAN_USE' }] });
+  return w;
+}
+
+test('a user and a group in the audience are granted the App view only, never the source table it reads directly (9A boundary)', async () => {
+  const w = boundaryWorkspace([NEW]);
+  await withApp(w.overrides, async (url) => {
+    const got = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    const granted = w.grants.map(([sql]) => sql);
+    assert.ok(granted.some((sql) => sql === `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${NEW}\``), 'the user gets the view');
+    assert.ok(granted.some((sql) => sql === `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${READERS}\``), 'the group gets the view');
+    assert.ok(!granted.some((sql) => /`orders`/.test(sql)), `no raw source grant: ${granted.filter((s) => /\`orders\`/.test(s)).join(' | ')}`);
+    assert.ok(got.data.permissions.some((p) => p.instructions.join(' ').includes(SRC) && p.statements.length === 0),
+      'the source the App reads directly is a rebuild state, not a grant');
+  });
+});
+
+test('a viewer shared after the build is granted the view on Check again, and the source table stays unreadable to them', async () => {
+  const w = boundaryWorkspace([NEW]);
+  await withApp(w.overrides, async (url) => {
+    w.overrides.responses['GET /api/2.0/permissions/apps/riverside-assets'][0].access_control_list.push(
+      { user_name: SHARED_LATER, all_permissions: [{ permission_level: 'CAN_USE' }] });
+    const checked = await call(url, `/api/inspire/implement/app-reads?${Q}`, {});
+    assert.equal(checked.status, 200, JSON.stringify(checked.data));
+    assert.ok(checked.data.principals.includes(SHARED_LATER), 'the viewer shared later is in the audience');
+    const got = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.ok(w.grants.some(([sql]) => sql === `GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders_scope\` TO \`${SHARED_LATER}\``), 'the later viewer gets the view');
+    assert.ok(!w.grants.some(([sql]) => /`orders`/.test(sql) && sql.includes(SHARED_LATER)), 'the later viewer gets no raw source grant');
+  });
 });

@@ -29,6 +29,9 @@ SHELL_ENTRY_POINTS = {
     ("implement_genie_default_values", "shell_sql.default_values"),
     ("implement_genie_kpi_block", "shell_sql.kpi_where"),
     ("implement_genie_kpi_block", "shell_sql.filter_templates"),
+    # Reviewed pure page-shape fixes from the CI guard audit.
+    ("_implement_page_file", "shell_sql.drop_long_expressions"),
+    ("_implement_page_file", "shell_sql.fit_text_limits"),
     ("_implement_siblings", "shell_sql.sibling_items"),
     ("implement_page_grouping", "shell_sql.page_grouping"),
     ("_implement_alert.build", "_implement_app_shell"),

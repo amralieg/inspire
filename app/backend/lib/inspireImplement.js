@@ -3283,7 +3283,10 @@ function appReadsRecord(history) {
     const reason = str(app.reasons_view).trim();
     const sources = persisted(app.sources_read).filter((s) => !views.includes(s));
     const objects = [...new Set([...views, ...(reason && !resultTableNameError(reason) ? [reason] : []), ...sources])];
+    // views: the App-owned views a user-authorization App's audience may be granted; sources: the source tables it reads directly,
+    // which are never granted to a person or group (the rebuild message covers them).
     return { row, app: '', app_name: name, mode: str(app.access_mode) === 'user' ? 'user' : 'sp', objects: true,
+      views: [...new Set([...views, ...(reason && !resultTableNameError(reason) ? [reason] : [])])], sources,
       tables: objects.map((table) => ({ table, owner: '', grants: [] })) };
   }
   const unread = app && isPlainObject(app.unread) ? app.unread : null;
@@ -3356,10 +3359,10 @@ function appReadsLeftFor(record, principals, rows) {
   }).filter((t) => t.grants.length);
 }
 
-function appReadsGrantableFor(left, principals) {
-  // Only statements for a principal that may open the App, so a grant can never name anyone else.
-
-  return [...new Set(left.flatMap((t) => t.grants))].filter((g) => principals.some((p) => appReadGrantFor(g, p)));
+function appReadsGrantableFor(left, principals, only = null) {
+  // Only statements for a principal that may open the App, and only for the objects in `only` when given (the App-owned views).
+  return [...new Set(left.filter((t) => !only || only.includes(t.table)).flatMap((t) => t.grants))]
+    .filter((g) => principals.some((p) => appReadGrantFor(g, p)));
 }
 
 // The statements the build gives a principal on one App object: the offer both the notebook and the backend derive from the same needs list.
