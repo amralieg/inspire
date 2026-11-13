@@ -155,6 +155,7 @@ def test_a_signal_date_join_in_the_implement_recount_reads_the_wizard_scope_of_t
                                    "column_roles": {"lever": f"{SALES}.sales_price", "outcome": f"{SALES}.quantity"},
                                    "filters": [{"table": TRIPS, "column": "pickup_zip", "op": "=", "values": ["10001"]}]}
     inst, _agent, spark = deep_inspire(clean, [], responder_for({"lever": FLAT_PRICE, "rows": 1000}))
+    inst._implement_scope_columns = lambda table: ["ticket_number", "pickup_zip", "pickup_datetime"]
     base = spark.responder
 
     def respond(statement):
@@ -171,3 +172,20 @@ def test_a_signal_date_join_in_the_implement_recount_reads_the_wizard_scope_of_t
     joins = [s for s in spark.statements if "trips" in s]
     assert joins and all("WHERE `pickup_zip` = '10001'" in s for s in joins), joins
     assert record.get("status") in ("passed", "failed"), record
+
+
+def test_a_signal_whose_scope_columns_cannot_be_read_is_not_checked_and_says_why(clean):
+    use_case = uc("N01-U02", "Optimization", tables=f"{SALES}, {TRIPS}")
+    use_case["_implement_data"] = {"tables": {}, "removed_tables": [], "window": {}, "run_profile": "preview", "notes": "",
+                                   "column_roles": {"lever": f"{SALES}.sales_price", "outcome": f"{SALES}.quantity"},
+                                   "filters": [{"table": TRIPS, "column": "pickup_zip", "op": "=", "values": ["10001"]}]}
+    inst, _agent, spark = deep_inspire(clean, [], responder_for({"lever": FLAT_PRICE, "rows": 1000}))
+    inst._implement_scope_columns = lambda table: []
+    spec = {"check": "lever", "family": "H", "table": SALES, "roles": {"lever": "sales_price", "outcome": "quantity"},
+            "date_joins": {"when": {"table": TRIPS, "key": "ticket_number", "ref_column": "pickup_zip", "date": "pickup_datetime",
+                                    "alias": "pickup"}}}
+    deep = clean["DeepEvidence"](spark, "Deep", MagicMock())
+    record = inst._signal_record(deep, spec, "", {}, use_case)
+    assert record["status"] == "not_checked", record
+    assert record["reason"].startswith("Not checked: Inspire cannot build the Table Scope of this use case"), record["reason"]
+    assert not [s for s in spark.statements if "trips" in s], "no join is read when its scope cannot be built"

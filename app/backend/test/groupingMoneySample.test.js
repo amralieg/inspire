@@ -3,6 +3,8 @@ const assert = require('node:assert/strict');
 const fs = require('node:fs');
 const path = require('node:path');
 const GP = require('../lib/groupingProfile.js');
+// The statement's SQL, read with an empty set of Data Filters (no scope) so the text stays the same as before the scopes.
+const sqlOf = (build, ...args) => { const made = build(...args, {}); return made === null ? null : made.sql; };
 
 test('the example picks the first amount-like numeric column, with its currency and status when the table has them', () => {
   const columns = [{ column_name: 'channel', data_type: 'STRING' }, { column_name: 'total_amount', data_type: 'DECIMAL(12,2)' },
@@ -35,15 +37,15 @@ test('the rate sample route is wired and asks for the person sign-in', () => {
 
 test('the rate sample statement refuses a table name, a column or a base that is not plain', () => {
   const ok = { table: 'main.fx.rates', currency_column: 'from_code', base_column: 'to_code', date_column: 'rate_date', rate_column: 'rate', load_column: 'loaded_at' };
-  assert.ok(GP.rateSampleSql(ok, 'USD').includes('LIMIT 3'));
-  assert.equal(GP.rateSampleSql({ ...ok, table: 'main.fx;drop' }, 'USD'), null);
-  assert.equal(GP.rateSampleSql({ ...ok, rate_column: 'rate; drop' }, 'USD'), null);
-  assert.equal(GP.rateSampleSql(ok, 'usd'), null);
+  assert.ok(sqlOf(GP.rateSampleSql, ok, 'USD').includes('LIMIT 3'));
+  assert.equal(sqlOf(GP.rateSampleSql, { ...ok, table: 'main.fx;drop' }, 'USD'), null);
+  assert.equal(sqlOf(GP.rateSampleSql, { ...ok, rate_column: 'rate; drop' }, 'USD'), null);
+  assert.equal(sqlOf(GP.rateSampleSql, ok, 'usd'), null);
 });
 
 test('the rate column sample reads three rates of the use case table, and refuses names that are not plain', () => {
-  const sql = GP.rateColumnSampleSql('main.sales.orders', 'currency_code', 'fx_rate');
+  const sql = sqlOf(GP.rateColumnSampleSql, 'main.sales.orders', 'currency_code', 'fx_rate');
   assert.equal(sql, 'SELECT `currency_code` AS currency, CAST(`fx_rate` AS DOUBLE) AS rate FROM `main`.`sales`.`orders` WHERE `fx_rate` IS NOT NULL LIMIT 3');
-  assert.equal(GP.rateColumnSampleSql('main.sales.orders', 'currency_code', 'fx; drop'), null);
-  assert.equal(GP.rateColumnSampleSql('main.sales;drop', 'currency_code', 'fx_rate'), null);
+  assert.equal(sqlOf(GP.rateColumnSampleSql, 'main.sales.orders', 'currency_code', 'fx; drop'), null);
+  assert.equal(sqlOf(GP.rateColumnSampleSql, 'main.sales;drop', 'currency_code', 'fx_rate'), null);
 });

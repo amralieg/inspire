@@ -86,7 +86,7 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
     assert.deepEqual(Object.keys(d), ['table', 'records', 'applies', 'qualifies', 'reason', 'recommended_by', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
-      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'group_count', 'group_max', 'column_groups', 'first_run', 'default_scope', 'read_at', 'money_columns', 'money_sample', 'deep_suggestion']);
+      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'group_count', 'group_max', 'column_groups', 'first_run', 'default_scope', 'read_at', 'money_columns', 'money_sample', 'deep_suggestion', 'refusals']);
     assert.equal('prefill' in d, false, 'the profile carries no starting SQL, since Inspire runs no typed SQL');
     assert.deepEqual([d.table, d.records, d.applies, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, true, false, null]);
     assert.equal(d.reason, 'Inspire recommends region, then country because Anomaly Detection works out what is normal inside each group, and country splits '
@@ -577,3 +577,39 @@ test('the default grouping is the column the use case names when the statistics 
   assert.equal(GP.profileView({ ...base, subject: 'Forecast billed revenue by districts' }).recommended_by, 'statistics', 'a name must match a whole word (must-exclude: plural)');
 });
 
+
+// rc15 L1 (REQ-022): the profile reads the Launch scope of its table by its named columns and its rows, never SELECT * and never
+// the whole table once the person scoped it. The scope is a small fixture, no workspace names.
+const SCOPED = { 'main.s.orders': { columns: ['order_id', 'status'], rows: [{ column: 'status', op: '=', values: ['gold'] }] } };
+const ORDERS = { sql: '`main`.`s`.`orders`' };
+
+test('a Launch scope with rows and columns reads the named columns and the kept rows, never SELECT *', () => {
+  const got = GP.scopedMain(ORDERS, SCOPED, 'main.s.orders', ['order_id', 'status', 'total']);
+  assert.ok(got.sql.startsWith('(SELECT `order_id`, `status` FROM `main`.`s`.`orders` WHERE '), got.sql);
+  assert.ok(!got.sql.includes('SELECT *'), 'a scoped read names its columns');
+  assert.equal(got.parameters.length, 1);
+});
+
+test('a Launch scope that keeps only columns still reads only those columns, with no row filter', () => {
+  const got = GP.scopedMain(ORDERS, { 'main.s.orders': { columns: ['order_id'], rows: [] } }, 'main.s.orders', ['order_id', 'total']);
+  assert.equal(got.sql, '(SELECT `order_id` FROM `main`.`s`.`orders`)');
+  assert.equal(got.parameters, null);
+});
+
+test('a Launch scope that keeps only rows names every column of the table, never SELECT *', () => {
+  const got = GP.scopedMain(ORDERS, { 'main.s.orders': { columns: [], rows: [{ column: 'status', op: '=', values: ['gold'] }] } },
+    'main.s.orders', ['order_id', 'status']);
+  assert.ok(got.sql.startsWith('(SELECT `order_id`, `status` FROM `main`.`s`.`orders` WHERE '), got.sql);
+});
+
+test('a table with no Launch scope is read as it is, and a rows-only scope whose columns are unknown is refused', () => {
+  assert.deepEqual(GP.scopedMain(ORDERS, {}, 'main.s.orders', ['order_id']), { ...ORDERS, parameters: null });
+  assert.throws(() => GP.scopedMain(ORDERS, { 'main.s.orders': { columns: [], rows: [{ column: 'status', op: '=', values: ['gold'] }] } },
+    'main.s.orders', []), /names no columns, and the columns of main.s.orders could not be read/);
+});
+
+test('the profile may group and sample only the Launch scope columns, matched without regard to case', () => {
+  const columns = [{ column_name: 'Order_Id' }, { column_name: 'status' }, { column_name: 'total' }];
+  assert.deepEqual(GP.scopedColumns(columns, SCOPED, 'main.s.orders').map((c) => c.column_name), ['Order_Id', 'status']);
+  assert.equal(GP.scopedColumns(columns, {}, 'main.s.orders'), columns, 'an unscoped table keeps every column');
+});
