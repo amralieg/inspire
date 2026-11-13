@@ -18,6 +18,17 @@ LAKEBASE_ENFORCEMENT_REVIEWED = {
 }
 SHELL_ENTRY_POINTS = {
     ("_implement_page_file", "shell_sql.money_page_problems"),
+    # Genie KPI answers are the App's own queries: the sync passes the App shell it loads into the Genie block, which reads the App's
+    # counting rule (future_source) and money rule (genie_money_query) from shell_sql, the same functions the App's KPIs read.
+    ("_implement_genie_kpi_sync", "_implement_app_shell"),
+    ("implement_genie_kpi_block", "shell_sql.future_source"),
+    ("implement_genie_kpi_block", "shell_sql.genie_money_query"),
+    # Genie filters: the default window is the App's own default_values over the App's bounds_query, read on each sync; the block
+    # carries the App's WHERE (kpi_where) and the App's condition shapes (filter_templates) for values a question names.
+    ("implement_genie_default_values", "shell_sql.bounds_query"),
+    ("implement_genie_default_values", "shell_sql.default_values"),
+    ("implement_genie_kpi_block", "shell_sql.kpi_where"),
+    ("implement_genie_kpi_block", "shell_sql.filter_templates"),
     ("_implement_siblings", "shell_sql.sibling_items"),
     ("implement_page_grouping", "shell_sql.page_grouping"),
     ("_implement_alert.build", "_implement_app_shell"),

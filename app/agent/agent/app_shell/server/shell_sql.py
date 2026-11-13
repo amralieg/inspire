@@ -9,7 +9,7 @@ import zoneinfo
 from html.parser import HTMLParser
 
 import shell_facts
-from shell_facts import CLOSING_ORDER, closing_ctes, quote, table_name, versions_source
+from shell_facts import (CLOSING_ORDER, CONVERTED, MONEY_CODES, MONEY_COLUMN, date_column, future_source, money_currency_column, money_equation_tokens, money_expression, money_joined, money_rule_problems, money_scope, money_value_sql, money_source, money_value_override, sql_text, closing_ctes, quote, table_name, versions_source)
 from shell_redact import inspire_parse_time, inspire_raised_by, inspire_redact_text
 
 SHELL_MODULES = ("shell_redact", "shell_facts", "shell_sql", "shell_db", "shell_pg", "shell_alerts", "shell_core", "app")
@@ -168,7 +168,6 @@ FLAGGED_TIERS = shell_facts.FLAGGED_TIERS
 HELD_BACK = "Held back"
 HELD_MEANING = ("Held back records were flagged Act now or Review but are kept off the to fix list on purpose, so later runs can compare "
                 "them with the records people acted on.")
-MONEY_COLUMN = shell_facts.MONEY_COLUMN
 MONEY_VALUES = "hv"
 LISTED_MONEY = f"COALESCE(c.`_inspire_money`, CAST(d.`{MONEY_COLUMN}` AS DOUBLE))"
 IMPACT_COLUMNS = (("k", "STRING"), ("label", "STRING"), ("status", "STRING"), ("choice", "STRING"), ("state", "STRING"), ("reason", "STRING"), ("note", "STRING"),
@@ -222,13 +221,6 @@ SQL_TYPES = {"STRING": "STRING", "CHAR": "STRING", "VARCHAR": "STRING", "BYTE": 
              "TIMESTAMP_NTZ": "TIMESTAMP_NTZ"}
 INTEGER_BITS = {"BYTE": 7, "SHORT": 15, "INT": 31, "LONG": 63}
 LINES_TYPE = "ARRAY<STRING>"
-MONEY_CODES = frozenset((
-    "AED AFN ALL AMD ANG AOA ARS AUD AWG AZN BAM BBD BDT BGN BHD BIF BMD BND BOB BRL BSD BTN BWP BYN BZD CAD CDF CHF CLP CNY COP "
-    "CRC CUC CUP CVE CZK DJF DKK DOP DZD EGP ERN ETB EUR FJD FKP GBP GEL GHS GIP GMD GNF GTQ GYD HKD HNL HRK HTG HUF IDR ILS INR "
-    "IQD IRR ISK JMD JOD JPY KES KGS KHR KMF KPW KRW KWD KYD KZT LAK LBP LKR LRD LSL LYD MAD MDL MGA MKD MMK MNT MOP MRU MUR MVR "
-    "MWK MXN MYR MZN NAD NGN NIO NOK NPR NZD OMR PAB PEN PGK PHP PKR PLN PYG QAR RON RSD RUB RWF SAR SBD SCR SDG SEK SGD SHP SLE "
-    "SLL SOS SRD SSP STN SVC SYP SZL THB TJS TMT TND TOP TRY TTD TWD TZS UAH UGX USD UYU UZS VED VES VND VUV WST XAF XCD XCG XOF "
-    "XPF YER ZAR ZMW ZWG ZWL").split())
 IMPACT_KINDS = ("money", "count", "hours", "percent", "number")
 _NUMBER = re.compile(r"^[-+]?(\d+\.?\d*|\.\d+)([eE][-+]?\d+)?$")
 _INTEGER = re.compile(r"^[-+]?\d{1,20}$")
@@ -2582,6 +2574,40 @@ def _condition(kind, target: str, value, params) -> list:
     return []
 
 
+class LiteralParams:
+    """The App's own filter conditions with each value written in as a SQL literal, for the text a Genie block carries."""
+
+    def __init__(self):
+        self.items = []
+
+    def add(self, value, kind: str = "STRING") -> str:
+        if kind == "DATE":
+            return f"DATE {literal(value)}"
+        if kind == "DOUBLE":
+            try:
+                return str(float(value))
+            except (TypeError, ValueError):
+                return literal(value)
+        return literal(value)
+
+
+def kpi_where(page: dict, dataset: str, values) -> str:
+    """The App's WHERE for one dataset at these filter values, values written as literals; empty when no filter applies."""
+    return _where(page, dataset, values or {}, LiteralParams())
+
+
+def filter_templates(page: dict, dataset: str) -> list:
+    """For each choice or date filter on the dataset, the App's condition shape with a placeholder a question's own values fill in."""
+    out = []
+    for f in page.get("filters") or []:
+        column = (f.get("columns") or {}).get(dataset)
+        if not column or f.get("type") not in ("multi_select", "date_range"):
+            continue
+        placeholder = ["<value>"] if f["type"] == "multi_select" else {"from": "<from>", "to": "<to>"}
+        out.append((str(f.get("label") or f.get("id")), " AND ".join(_condition(f["type"], quote(column), placeholder, LiteralParams()))))
+    return out
+
+
 def column_conditions(filters: list, values, params, targets=None) -> list:
     conditions = []
     for f in filters:
@@ -2605,131 +2631,19 @@ def _item(page: dict, key: str, ident: str) -> dict:
     raise KeyError(f"the page has no {key[:-1]} {ident}")
 
 
-CURRENCY_FILTER = "currency"
-PERIOD_GRAINS = ("week", "month", "quarter", "year")
 MONEY_SERIES_CHARTS = ("line", "area", "stacked_area", "stacked_bar", "band", "control", "heatmap")
 
 
-CONVERTED = "_inspire_converted"
-MONEY_RULE_MODES = ("per_currency", "convert")
-MONEY_MAX_PERIODS = 60
-MONTHS_PER_PERIOD = {"month": 1, "quarter": 3, "year": 12}
-IDENT_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]{0,63}")
-MONEY_TABLE_RE = re.compile(r"[A-Za-z_][A-Za-z0-9_]*(\.[A-Za-z_][A-Za-z0-9_]*){0,2}")
-MONEY_STATUS_RE = re.compile(r"^[A-Za-z0-9_ -]{1,40}$")
-MONEY_RULES = ("losses", "net", "gains")
-MONEY_SIGN_KINDS = ("column", "status")
-MONEY_PER = ("row", "group")
-MONEY_MAX_STATUSES = 20
 
 
-MONEY_VALUE_METHODS = ("fixed", "column", "equation")
-MONEY_EQUATION_MAX_CHARS = 200
-MONEY_EQUATION_MAX_TOKENS = 60
-MONEY_EQUATION_TOKEN = re.compile(r"\s*(?:([A-Za-z_][A-Za-z0-9_]{0,63})|([0-9]+(?:\.[0-9]+)?)|([-+*/()]))")
-MONEY_EQUATION_HELP = ("The equation adds, subtracts, multiplies and divides column names and numbers, with brackets, "
-                       "such as quantity * unit_price - discount.")
 
 
-def money_equation_tokens(text: str):
-    tokens, at = [], 0
-    while at < len(text):
-        if not text[at:].strip():
-            break
-        found = MONEY_EQUATION_TOKEN.match(text, at)
-        if not found:
-            return None
-        tokens.append(("column", found.group(1)) if found.group(1) else ("number", found.group(2)) if found.group(2)
-                      else ("op", found.group(3)))
-        at = found.end()
-        if len(tokens) > MONEY_EQUATION_MAX_TOKENS:
-            return None
-    return tokens
 
 
-def money_equation_sql(expression):
-    if not isinstance(expression, str):
-        return None
-    text = expression.strip()
-    if not text or len(text) > MONEY_EQUATION_MAX_CHARS:
-        return None
-    tokens = money_equation_tokens(text)
-    if not tokens:
-        return None
-    at = 0
-
-    def peek_op(*ops):
-        return at < len(tokens) and tokens[at][0] == "op" and tokens[at][1] in ops
-
-    def factor():
-        nonlocal at
-        if at >= len(tokens):
-            raise ValueError("equation")
-        kind, value = tokens[at]
-        at += 1
-        if kind == "number":
-            return value
-        if kind == "column":
-            return quote(value)
-        if value == "-":
-            return f"(-{factor()})"
-        if value == "(":
-            inner = sum_()
-            if not peek_op(")"):
-                raise ValueError("equation")
-            at += 1
-            return f"({inner})"
-        raise ValueError("equation")
-
-    def product():
-        nonlocal at
-        left = factor()
-        while peek_op("*", "/"):
-            op = tokens[at][1]
-            at += 1
-            right = factor()
-            left = f"try_divide({left}, {right})" if op == "/" else f"({left} * {right})"
-        return left
-
-    def sum_():
-        nonlocal at
-        left = product()
-        while peek_op("+", "-"):
-            op = tokens[at][1]
-            at += 1
-            left = f"({left} {op} {product()})"
-        return left
-
-    try:
-        sql = sum_()
-    except ValueError:
-        return None
-    return sql if at == len(tokens) else None
 
 
-def money_value_sql(value: dict):
-    if value["method"] == "fixed":
-        return repr(float(value["amount"]))
-    if value["method"] == "column":
-        return f"CAST({quote(value['column'])} AS DOUBLE)"
-    equation = money_equation_sql(value["expression"])
-    return None if equation is None else f"CAST({equation} AS DOUBLE)"
 
 
-def money_sign_problems(sign) -> list:
-    if not isinstance(sign, dict) or sign.get("kind") not in MONEY_SIGN_KINDS:
-        return [f"the gain sign is a column or a status: one of {', '.join(MONEY_SIGN_KINDS)}"]
-    if not (isinstance(sign.get("column"), str) and IDENT_RE.fullmatch(sign["column"])):
-        return ["the gain sign names a plain column name"]
-    if sign["kind"] == "status" and not (isinstance(sign.get("value"), str) and MONEY_STATUS_RE.fullmatch(sign["value"])):
-        return ["the gain status is a plain status word such as gain"]
-    if sign["kind"] == "status" and "losses" in sign:
-        losses = sign["losses"]
-        if not isinstance(losses, list) or len(losses) > MONEY_MAX_STATUSES or not all(isinstance(v, str) and MONEY_STATUS_RE.fullmatch(v) for v in losses):
-            return ["the loss statuses are plain status words, such as used"]
-        if sign.get("value") in losses:
-            return ["a status cannot be both a gain and a loss"]
-    return []
 
 
 def money_sign_clean(sign: dict) -> dict:
@@ -2738,29 +2652,6 @@ def money_sign_clean(sign: dict) -> dict:
     return {"kind": "status", "column": sign["column"], "value": sign["value"], "losses": sorted(set(sign.get("losses") or []))}
 
 
-def money_value_problems(value) -> list:
-    if not isinstance(value, dict):
-        return ["the value of each record is an object: its method, and its amount, column or equation"]
-    if value.get("method") not in MONEY_VALUE_METHODS:
-        return [f"the value method is one of {', '.join(MONEY_VALUE_METHODS)}"]
-    problems = []
-    by_code, by_column = "currency" in value, "currency_column" in value
-    if by_code == by_column:
-        problems.append("the value names one currency: a code such as USD (currency), or the column that holds it (currency_column)")
-    elif by_code and value["currency"] not in MONEY_CODES:
-        problems.append("the value currency is an ISO 4217 code such as USD")
-    elif by_column and not (isinstance(value["currency_column"], str) and IDENT_RE.fullmatch(value["currency_column"])):
-        problems.append("the value currency_column is a plain column name")
-    method = value["method"]
-    if method == "fixed":
-        amount = value.get("amount")
-        if isinstance(amount, bool) or not isinstance(amount, (int, float)) or not 0 < amount <= 1e12:
-            problems.append("a fixed value is a positive amount per record")
-    if method == "column" and not (isinstance(value.get("column"), str) and IDENT_RE.fullmatch(value["column"])):
-        problems.append("a column value names the plain column that holds each amount")
-    if method == "equation" and money_equation_sql(value.get("expression")) is None:
-        problems.append(MONEY_EQUATION_HELP)
-    return problems
 
 
 def money_value_clean(value: dict) -> dict:
@@ -2778,142 +2669,19 @@ def money_value_clean(value: dict) -> dict:
     return out
 
 
-def money_rule_problems(money) -> list:
-    problems = _money_rule_problems(money)
-    if isinstance(money, dict) and "value" in money:
-        problems += money_value_problems(money["value"])
-    return problems
 
 
-def _money_rule_problems(money) -> list:
-    """The money rule, the same rules as the Inspire backend (app/backend/lib/moneyRule.js), checked against one fixture."""
-    if money is None:
-        return []
-    if not isinstance(money, dict):
-        return ["the money rule is an object: currency mode and, when it converts, base and rates"]
-    mode = money.get("currency", "per_currency")
-    if mode not in MONEY_RULE_MODES:
-        return [f"the money currency mode is one of {', '.join(MONEY_RULE_MODES)}"]
-    problems = []
-    window = money.get("window")
-    if window is not None:
-        periods = window.get("periods") if isinstance(window, dict) else None
-        if not isinstance(periods, int) or isinstance(periods, bool) or not 1 <= periods <= MONEY_MAX_PERIODS:
-            problems.append(f"the money window counts 1 to {MONEY_MAX_PERIODS} closed periods")
-    if "statuses" in money:
-        statuses = money["statuses"]
-        if not isinstance(statuses, list) or not 1 <= len(statuses) <= MONEY_MAX_STATUSES:
-            problems.append(f"the statuses are a list of 1 to {MONEY_MAX_STATUSES} status values")
-        else:
-            problems += [f"the status {s!r} is a plain word such as used" for s in statuses
-                         if not isinstance(s, str) or not MONEY_STATUS_RE.match(s)]
-    if "statuses" in money and not (isinstance(money.get("status_column"), str) and IDENT_RE.fullmatch(money["status_column"])):
-        problems.append("statuses need status_column, the plain column name that holds each row status")
-    if money.get("rule") == "gains" and not isinstance(money.get("sign"), dict):
-        problems.append("gains needs a sign: the column whose positive values are gains, or the status value that marks a gain")
-    if "sign" in money:
-        problems += money_sign_problems(money["sign"])
-    if "rule" in money and money["rule"] not in MONEY_RULES:
-        problems.append(f"the money rule is one of {', '.join(MONEY_RULES)}")
-    if "off" in money and not isinstance(money["off"], bool):
-        problems.append("off is true or false")
-    per = money.get("per", "row")
-    if per not in MONEY_PER:
-        problems.append(f"per is one of {', '.join(MONEY_PER)}")
-    if per == "group" and not (isinstance(money.get("group_column"), str) and IDENT_RE.fullmatch(money["group_column"])):
-        problems.append("per group needs group_column, the plain column name that identifies each group")
-    if mode == "per_currency":
-        return problems
-    rate_keys = [k for k in ("rates", "rate_column", "rate_table") if k in money]
-    if len(rate_keys) > 1:
-        return problems + ["converting money takes typed rates, one rate column, or a rate table, not more than one"]
-    base = str(money.get("base") or "")
-    problems += [] if base in MONEY_CODES else [f"the money base currency is an ISO 4217 code such as USD, not {base or 'nothing'}"]
-    if "rate_table" in money:
-        table = money["rate_table"]
-        keys = ("table", "currency_column", "base_column", "date_column", "rate_column", "load_column")
-        if not isinstance(table, dict) or not all(isinstance(table.get(k), str) for k in keys):
-            return problems + ["the rate table names its table and its columns: table, currency_column, base_column, date_column, rate_column, load_column"]
-        if not MONEY_TABLE_RE.fullmatch(table["table"]):
-            problems.append("the rate table is a table name such as main.fx.rates")
-        problems += [f"the rate table {k} is a plain column name" for k in keys[1:] if not IDENT_RE.fullmatch(table[k])]
-        return problems
-    if "rate_column" in money:
-        column = money.get("rate_column")
-        problems += [] if isinstance(column, str) and IDENT_RE.fullmatch(column) else ["the rate column is a plain column name"]
-        currency_column = money.get("currency_column")
-        if not (isinstance(currency_column, str) and IDENT_RE.fullmatch(currency_column)):
-            problems.append("the rate column needs currency_column, the plain column name that holds the currency of each row; pick it in the Measure step")
-        return problems
-    rates = money.get("rates")
-    if not isinstance(rates, dict) or not rates:
-        return problems + ["converting money needs at least one rate, typed in as currency: units of the base currency"]
-    for code, rate in rates.items():
-        if code not in MONEY_CODES or isinstance(rate, bool) or not isinstance(rate, (int, float)) or not 0 < rate < 1e9:
-            problems.append(f"the rate for {code!r} must be an ISO 4217 code with a positive number")
-    return problems
-
-def money_scope(page: dict, dataset: str) -> dict:
-    """The one rule every money total follows: the currency column, the period the rows are kept to, the window, the conversion,
-    and how each group is counted."""
-    currency = next((column for f in page.get("filters") or [] if f.get("id") == CURRENCY_FILTER
-                     for column in [(f.get("columns") or {}).get(dataset)] if column), "")
-    period, grain = "", ""
-    for f in page.get("filters") or []:
-        column = (f.get("columns") or {}).get(dataset)
-        if column and f.get("type") == "date_range" and f.get("grain") in PERIOD_GRAINS:
-            period, grain = column, f["grain"]
-            break
-    money = page.get("money") if isinstance(page.get("money"), dict) and not money_rule_problems(page.get("money")) else {}
-    convert = money.get("currency") == "convert"
-    rates = money.get("rates") if convert and "rates" in money else None
-    rate_column = money.get("rate_column") if convert and "rate_column" in money else None
-    rate_table = money.get("rate_table") if convert and "rate_table" in money else None
-    window = (money.get("window") or {}).get("periods", 0)
-    value = money.get("value") if isinstance(money.get("value"), dict) else None
-    value_currency = VALUE_CURRENCY if value and ("currency" in value or "currency_column" in value) else ""
-    currency_column = value_currency or currency
-    return {"currency": "" if (rates or rate_column or rate_table) else currency_column, "currency_column": currency_column, "period": period,
-            "grain": grain, "rates": rates or {}, "rate_column": rate_column or "", "rate_table": rate_table or {},
-            "base": str(money.get("base") or "") if convert else "", "window": window if period else 0,
-            "per_group": money.get("group_column") if money.get("per") == "group" else "",
-            "value": money.get("value") if isinstance(money.get("value"), dict) else None, "direction": money.get("rule", "losses"),
-            "sign": money.get("sign") if isinstance(money.get("sign"), dict) else None,
-            "currency_filter": currency}
 
 
-def money_sign_column(sign) -> str:
-    return quote(sign["column"])
 
 
-def money_gain_predicate(sign) -> str:
-    if sign["kind"] == "column":
-        return f"CAST({money_sign_column(sign)} AS DOUBLE) > 0"
-    return f"{money_sign_column(sign)} = {sql_text(sign['value'])}"
 
 
-def money_loss_predicate(sign) -> str:
-    if sign["kind"] == "column":
-        return f"CAST({money_sign_column(sign)} AS DOUBLE) < 0"
-    losses = sign.get("losses") or []
-    return f"{money_sign_column(sign)} IN ({', '.join(sql_text(v) for v in losses)})" if losses else "FALSE"
 
 
-def money_direction_amount(amount: str, direction: str, sign=None) -> str:
-    """The amount a direction counts. The saved value is a magnitude. With no sign, losses counts every magnitude and net keeps the
-    value's own sign. With a sign: a gain row is one the sign marks as a gain, a loss row one it marks as a loss, and every other row
-    counts zero. Gains counts the gain rows, losses counts the loss rows, and net is gains minus losses. A NULL amount, or a NULL sign on
-    a column sign, is unrated: it is left out of every total and counted in the left-out line."""
-    magnitude = f"GREATEST({amount}, 0)"
-    if sign is None:
-        return amount if direction == "net" else f"CASE WHEN {amount} IS NULL THEN NULL ELSE {magnitude} END"
-    unrated = f"{amount} IS NULL" + (f" OR {money_sign_column(sign)} IS NULL" if sign["kind"] == "column" else "")
-    on_gain, on_loss = {"gains": (magnitude, "0"), "losses": ("0", magnitude), "net": (magnitude, f"-{magnitude}")}[direction]
-    return (f"CASE WHEN {unrated} THEN NULL WHEN {money_gain_predicate(sign)} THEN {on_gain} "
-            f"WHEN {money_loss_predicate(sign)} THEN {on_loss} ELSE 0 END")
 
 
-VALUE_CURRENCY = "_inspire_value_currency"
+
 
 
 def money_datasets(page: dict) -> list:
@@ -2922,89 +2690,14 @@ def money_datasets(page: dict) -> list:
     return list(dict.fromkeys(n for n in names if n)) or [RECORDS_DATASET]
 
 
-def money_value_override(page: dict, dataset: str, sql: str) -> str:
-    """The value the person saved for each record replaces the Genie value_at_stake in every money total: the rule's direction
-    decides which sign counts, and a currency the value names replaces the currency column of the page."""
-    scope = money_scope(page, dataset)
-    value = scope["value"]
-    if not value or money_value_problems(value):
-        return sql
-    amount = money_value_sql(value)
-    if amount is None:
-        return sql
-    amount = money_direction_amount(amount, scope["direction"], scope["sign"])
-    replaced = ["value_at_stake"] + ([scope["currency_filter"]] if scope["currency_filter"] else [])
-    currency_part = ""
-    if "currency" in value or "currency_column" in value:
-        source = sql_text(value["currency"]) if "currency" in value else quote(value["currency_column"])
-        currency_part = f", {source} AS {quote(VALUE_CURRENCY)}"
-        if scope["currency_filter"]:
-            currency_part += f", {source} AS {quote(scope['currency_filter'])}"
-    return f"SELECT * EXCEPT ({', '.join(quote(c) for c in replaced)}), {amount} AS value_at_stake{currency_part} FROM ({sql}) AS v"
-
-def money_joined(page: dict, dataset: str, sql: str) -> str:
-    """Every row of the dataset, with its converted amount in CONVERTED: no row is dropped here, so a row with no rate shows as NULL."""
-    scope = money_scope(page, dataset)
-    if scope["rates"]:
-        cases = " ".join(f"WHEN {sql_text(code)} THEN {float(rate)!r}" for code, rate in sorted(scope["rates"].items()))
-        return (f"SELECT *, CAST(value_at_stake AS DOUBLE) * CASE {quote(scope['currency_column'])} {cases} ELSE NULL END AS {CONVERTED} "
-                f"FROM ({sql}) AS c")
-    if scope["rate_column"]:
-        return (f"SELECT *, CAST(value_at_stake AS DOUBLE) * CAST({quote(scope['rate_column'])} AS DOUBLE) AS {CONVERTED} "
-                f"FROM ({sql}) AS c")
-    if scope["rate_table"] and scope["period"]:
-        table = scope["rate_table"]
-        key = f"{quote(table['currency_column'])}, {quote(table['base_column'])}, CAST({quote(table['date_column'])} AS DATE)"
-        rates = (f"SELECT from_code, to_code, rate_date, rate FROM (SELECT {quote(table['currency_column'])} AS from_code, "
-                 f"{quote(table['base_column'])} AS to_code, CAST({quote(table['date_column'])} AS DATE) AS rate_date, "
-                 f"CAST({quote(table['rate_column'])} AS DOUBLE) AS rate, ROW_NUMBER() OVER (PARTITION BY {key} "
-                 f"ORDER BY {quote(table['load_column'])} DESC) AS _latest FROM {table_name(table['table'])}) AS ranked "
-                 f"WHERE _latest = 1")
-        return (f"SELECT c.*, CAST(c.value_at_stake AS DOUBLE) * r.rate AS {CONVERTED} FROM ({sql}) AS c LEFT JOIN ({rates}) AS r "
-                f"ON c.{quote(scope['currency_column'])} = r.from_code AND r.to_code = {sql_text(scope['base'])} "
-                f"AND CAST(c.{quote(scope['period'])} AS DATE) = r.rate_date")
-    return sql
 
 
-def money_source(page: dict, dataset: str, sql: str) -> str:
-    """Rows a money total may add: a dated row in a period that has closed, in the window the rule sets, converted when the rule converts,
-    and one row per group when the rule counts each group once."""
-    sql = money_value_override(page, dataset, sql)
-    scope = money_scope(page, dataset)
-    inner = money_joined(page, dataset, sql) if (scope["rates"] or scope["rate_column"] or scope["rate_table"]) else sql
-    if scope["per_group"]:
-        amount = money_expression(page, dataset, MONEY_COLUMN)
-        inner = (f"SELECT * FROM (SELECT *, ROW_NUMBER() OVER (PARTITION BY {quote(scope['per_group'])} "
-                 f"ORDER BY {amount} DESC NULLS LAST) AS _inspire_rank FROM ({inner}) AS g) AS ranked WHERE _inspire_rank = 1")
-    if not scope["period"]:
-        return inner
-    column, grain = quote(scope["period"]), scope["grain"]
-    closed = f"{column} < date_trunc('{grain}', current_date())"
-    if scope["window"]:
-        lookback = (f"date_sub(date_trunc('week', current_date()), {7 * scope['window']})" if grain == "week"
-                    else f"add_months(date_trunc('{grain}', current_date()), -{scope['window'] * MONTHS_PER_PERIOD[grain]})")
-        closed += f" AND {column} >= {lookback}"
-    return f"SELECT * FROM ({inner}) AS m WHERE {column} IS NOT NULL AND {closed}"
-
-def date_column(page: dict, dataset: str) -> str:
-    return next((column for f in page.get("filters") or [] if f.get("type") == "date_range"
-                 for column in [(f.get("columns") or {}).get(dataset)] if column), "")
 
 
-def future_source(page: dict, dataset: str, sql: str) -> str:
-    """Rows a KPI or chart may read: rows dated after today are left out, undated rows stay (a money total also drops them)."""
-    column = date_column(page, dataset)
-    if not column or column not in sql:
-        return sql
-    return f"SELECT * FROM ({sql}) AS f WHERE {quote(column)} IS NULL OR {quote(column)} <= current_date"
 
 
-def money_expression(page: dict, dataset: str, expression: str) -> str:
-    """A money expression reads the converted amount when the rule converts, and the stake amount otherwise."""
-    scope = money_scope(page, dataset)
-    if not (scope["rates"] or scope["rate_column"] or scope["rate_table"]):
-        return expression
-    return re.sub(r"\bvalue_at_stake\b", CONVERTED, expression)
+
+
 
 def money_left_out(page: dict, kpi: dict, values: dict):
     """The query that counts the rows a money total leaves out: undated rows, the running period, and rows with no rate,
@@ -3284,8 +2977,15 @@ def money_basis(page: dict) -> str:
     return ""
 
 
-def money_currency_column(page: dict, kpi: dict) -> str:
-    return money_scope(page, kpi["dataset"])["currency"] if kpi.get("format") == "currency" else ""
+
+
+def genie_money_query(page: dict, kpi: dict) -> tuple:
+    """The expression, rows and quoted currency column a Genie answer to one money KPI reads: the same three pieces kpi_query reads at
+    the page's default filters, so a dated row in a closed period counts, undated and future rows do not, and each currency keeps its
+    own total. The currency column is empty when the KPI has none."""
+    dataset = kpi["dataset"]
+    by = money_currency_column(page, kpi)
+    return money_expression(page, dataset, kpi["expression"]), money_source(page, dataset, _dataset(page, dataset)), quote(by) if by else ""
 
 
 def kpi_query(page: dict, ident: str, values: dict, previous: str = None) -> tuple:
@@ -6459,8 +6159,6 @@ def trends_query(page: dict, names: set, now: datetime.datetime, since: datetime
     return f"{_with(ctes, TRENDS_ORDER)} {' UNION ALL '.join(branches)}", params.items
 
 
-def sql_text(value) -> str:
-    return "'" + str(value).replace("\\", "\\\\").replace("'", "\\'") + "'"
 
 
 def impact_of(summary) -> dict:

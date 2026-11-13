@@ -16,6 +16,7 @@ for folder in (SERVER, TESTS):
         sys.path.insert(0, folder)
 
 import shell_agent  # noqa: E402
+from v218_kpi_genie_parity_test import genie_block, genie_kpis  # noqa: E402
 from v211_genie_agent_test import AgentWorkspace, FakeLLM, agent_shell, ask, said, tool_call, topic_of  # noqa: E402
 
 RESULT = "main.ops.bill_out"
@@ -174,7 +175,7 @@ KPI_PAGE = {"id": "n01_u01", "result_table": RESULT,
 
 
 def _kpi_text(ns, page):
-    space, _changed = ns["implement_genie_page_kpis"]({"instructions": {}}, "N01-U01", page)
+    space, _changed = genie_kpis(ns)({"instructions": {}}, "N01-U01", page)
     return "".join(space["instructions"]["text_instructions"][0]["content"])
 
 
@@ -185,7 +186,7 @@ def test_the_genie_kpi_block_carries_the_record_count_definition(agent_ns):
     assert "such as the failed, flagged or queued ones, takes that KPI's query, never this count" in text
     assert text.index("Revenue leakage") < text.index("When asked how many records there are")
     assert "\n\n" not in text, "the KPI block stays one block, so a rebuild finds and replaces it whole"
-    again, changed = agent_ns["implement_genie_page_kpis"]({"instructions": {"text_instructions": [
+    again, changed = genie_kpis(agent_ns)({"instructions": {"text_instructions": [
         {"id": "a" * 32, "content": text.splitlines(keepends=True)}]}}, "N01-U01", KPI_PAGE)
     assert not changed
 

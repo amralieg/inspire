@@ -15,6 +15,7 @@ from v140_implement_test import _FakeRunner, _FileRunner, _fill, _flow_inspire, 
 from v142_merge_test import _dashboard_inspire
 from v206_genie_self_repair_test import _family, _run, _spec, _stopped
 from v218_genie_dimension_test import GOOD_EXAMPLE, LIVE_EXAMPLE, PAGE, _room
+from v218_kpi_genie_parity_test import genie_kpis
 
 EMPTY = "The source table main.sales.orders holds no rows yet."
 
@@ -245,7 +246,7 @@ def test_genie_tries_the_next_sample_question_then_keeps_the_agent_with_a_warnin
 def test_a_dropped_example_also_drops_its_sample_question(agent_ns, capsys):
     room = _room(examples=[LIVE_EXAMPLE, GOOD_EXAMPLE])
     room["config"] = {"sample_questions": [{"question": copy.deepcopy(LIVE_EXAMPLE["question"])}]}
-    space, changed = agent_ns["implement_genie_page_kpis"](room, "N01-U01", PAGE)
+    space, changed = genie_kpis(agent_ns)(room, "N01-U01", PAGE)
     shown = ["".join(q["question"]) for q in space["config"]["sample_questions"]]
     assert changed and shown == ["".join(GOOD_EXAMPLE["question"])]
     assert "action=sample question removed with its SQL" in capsys.readouterr().out

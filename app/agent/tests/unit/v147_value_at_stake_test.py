@@ -181,8 +181,8 @@ def test_the_outcome_counts_the_current_records_and_prices_only_the_flagged_ones
     found = _sqlite(sql, rows)
     assert (found["act_now_records"], found["review_records"], found["records"]) == (1, 1, 5), \
         "a closed version, a deleted record and another use case's rows are never counted"
-    assert (found["value_at_stake"], found["top_stake"], found["flagged_records"], found["top_flag"]) == (7200.0, 9000.0, 2,
-                                                                                                         "missing price")
+    assert (found["top_stake"], found["flagged_records"], found["top_flag"]) == (9000.0, 2, "missing price")
+    assert "value_at_stake" not in found, "the run total is read through the App's money rule, not summed here (v296 checks its value)"
     plain = agent_ns["inspire_outcome_sql"](TABLE, "N01-U01", COLUMNS, None)
     assert "value_at_stake" not in plain and "top_stake" not in plain
 
@@ -233,6 +233,8 @@ def _summary_spark(row, asked, fail=False):
         if statement.startswith("SELECT ai_query("):
             asked.append(statement)
             return [{"r": {"result": "Ten categories are on Monitor.", "errorMessage": None}}]
+        if statement.startswith("SELECT SUM(value_at_stake) AS value FROM"):
+            return [{"value": found.get("value_at_stake")}]
         if statement == f"DESCRIBE TABLE {QUOTED_SUMMARY}":
             return _describe(SUMMARY)
         return []
@@ -282,6 +284,8 @@ def _outcome_spark(found, summary=SUMMARY, fail=None):
             raise RuntimeError(f"PERMISSION_DENIED: {fail}")
         if statement.startswith("SELECT COUNT_IF(t.`priority_tier` = 'Act now') AS act_now_records"):
             return [found]
+        if statement.startswith("SELECT SUM(value_at_stake) AS value FROM"):
+            return [{"value": found.get("value_at_stake")}]
         if statement == f"DESCRIBE TABLE {QUOTED_SUMMARY}":
             return _describe(summary)
         return []
@@ -295,15 +299,16 @@ def test_a_measured_run_records_its_outcome_and_its_reason_for_the_app(agent_ns,
     reason = agent_ns["inspire_save_outcome"](spark, TABLE, "N01-U01", "r-1", COLUMNS, MEASURED, "", printed.append)
     assert reason.startswith("No record has 1,000 USD or more at stake")
     assert spark.statements[0].startswith(f"SELECT COUNT_IF(t.`priority_tier` = 'Act now') AS act_now_records")
-    assert spark.statements[1].startswith(f"CREATE TABLE IF NOT EXISTS {QUOTED_SUMMARY} (use_case_id STRING, run_id STRING")
+    assert spark.statements[1].startswith("SELECT SUM(value_at_stake) AS value FROM"), "the run total is read through the App's money rule"
+    assert spark.statements[2].startswith(f"CREATE TABLE IF NOT EXISTS {QUOTED_SUMMARY} (use_case_id STRING, run_id STRING")
     assert ("act_now_records BIGINT, review_records BIGINT, records BIGINT, value_at_stake DOUBLE, currency STRING, decision_basis "
             "STRING, act_now_amount DOUBLE, review_amount DOUBLE, nothing_to_act STRING, run_started_at TIMESTAMP, run_ended_at "
             "TIMESTAMP, run_trigger STRING, run_segments STRING, run_tables STRING, run_stages STRING, run_grouping STRING, ai_checks STRING, "
             "value_formula STRING, value_expression "
             "STRING, value_assumptions STRING, accepted BOOLEAN, preview_sample_entities BIGINT, passing_records BIGINT, act_now_share DOUBLE, "
             "review_share DOUBLE, impact_kind STRING, impact_unit STRING, kpi_name STRING, kpi_source STRING, kpi_direction STRING, kpi_unit STRING, kpi_baseline DOUBLE, kpi_baseline_on STRING, kpi_latest DOUBLE, kpi_target DOUBLE, kpi_target_text STRING, kpi_status STRING, kpi_reason STRING, kpi_measured_at TIMESTAMP, kpi_query STRING, act_now_capacity BIGINT, over_capacity_records BIGINT, not_reliable STRING, "
-            "run_facts STRING, updated_at TIMESTAMP)") in spark.statements[1]
-    assert len(spark.statements) == 5, "the summary is created with every column, so the run neither reads nor alters its columns"
+            "run_facts STRING, updated_at TIMESTAMP)") in spark.statements[2]
+    assert len(spark.statements) == 6, "the count, the run total, the summary create, its describe, the merge and the ledger; no column is altered"
     merge = next(s for s in spark.statements if s.startswith(f"MERGE INTO {QUOTED_SUMMARY}"))
     assert spark.statements[-1].startswith("INSERT INTO `main`.`inspire`.`__inspire_value_ledger`") and "'r-1'" in spark.statements[-1]
     assert merge.startswith(f"MERGE INTO {QUOTED_SUMMARY} AS s USING (SELECT 'N01-U01' AS use_case_id, 'r-1' AS run_id)")
