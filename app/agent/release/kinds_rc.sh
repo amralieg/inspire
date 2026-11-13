@@ -4,11 +4,15 @@ set -euo pipefail
 ROOT=$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)
 PY=${INSPIRE_RC_PYTHON:-python3}
 setting() { "$PY" "$ROOT/rc_settings.py" get "$1"; }
+setting_optional() { "$PY" "$ROOT/rc_settings.py" get-optional "$1"; }
 REPO_DIR=$(setting repo_dir)
 REPO=amralieg/inspire
 W40=$(setting work)
 RC1=$W40
 BRANCH=$(setting branch)
+# the ref the build sha must be an ancestor of; a local integration branch (e.g. rc2/int) is named by release_ref
+REF=$(setting_optional release_ref)
+REF=${REF:-origin/$BRANCH}
 APP=$(setting scratch_app)
 CATALOG=$(setting catalog)
 LATEST=$(setting latest_tag)
@@ -47,12 +51,12 @@ OUT=$([ "$MODE" = --dry-run ] && echo "$RC1/${TAG}-dry_out" || echo "$RC1/${TAG}
 SCRATCH=$RC1/$KEY
 REPORT=$RC1/${KEY}_report.json
 
-step "1. resolve $SHA_IN on origin/$BRANCH"
+step "1. resolve $SHA_IN on $REF"
 git -C "$REPO_DIR" fetch -q origin $BRANCH dev
 SHA=$(git -C "$REPO_DIR" rev-parse --verify "${SHA_IN}^{commit}") || fail "$SHA_IN is not a commit"
-DEV=$(git -C "$REPO_DIR" rev-parse origin/$BRANCH)
-git -C "$REPO_DIR" merge-base --is-ancestor "$SHA" "$DEV" || fail "$SHA is not on origin/$BRANCH ($DEV)"
-ok "sha $SHA on origin/$BRANCH (head $DEV$([ "$SHA" = "$DEV" ] && echo ", the head" || echo ", NOT the head"))"
+DEV=$(git -C "$REPO_DIR" rev-parse --verify "$REF^{commit}") || fail "$REF is not a ref of $REPO_DIR"
+git -C "$REPO_DIR" merge-base --is-ancestor "$SHA" "$DEV" || fail "$SHA is not on $REF ($DEV)"
+ok "sha $SHA on $REF (head $DEV$([ "$SHA" = "$DEV" ] && echo ", the head" || echo ", NOT the head"))"
 
 step "2. build the assets from the notebook pins at ${SHA:0:7} (repo app/agent/release/build_assets.py, cache $CACHE)"
 rm -rf "$SCRATCH"; mkdir -p "$SCRATCH/src" "$SCRATCH/assets"

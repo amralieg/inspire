@@ -495,8 +495,10 @@ def _fake_tools(root):
     py = sys.executable
     scripts = {
         "git": f'''#!{py}
-import sys, tarfile
+import json, os, sys, tarfile
 args = sys.argv[1:]
+with open(os.environ["FAKE_LOG"], "a") as log:
+    log.write(json.dumps(["git", args]) + "\\n")
 args = args[2:] if args[:1] == ["-C"] else args
 if args[:1] == ["archive"]:
     with tarfile.open(fileobj=sys.stdout.buffer, mode="w|"):
@@ -599,6 +601,25 @@ def test_an_installer_that_prints_no_summary_line_does_not_stop_the_run_silently
     done, installs = _full_run(release_tool, tmp_path, "{url}: 8 of 8 checks OK, 0 failures", quiet_install=True)
     assert len(installs) == 1
     assert "==== 8." in done.stdout and "STOPPED" not in done.stderr
+
+
+def _git_refs(tmp_path):
+    calls = [json.loads(line) for line in (tmp_path / "calls.log").read_text().splitlines()]
+    return [arg for name, args in calls if name == "git" for arg in args]
+
+
+def test_the_build_sha_must_be_an_ancestor_of_release_ref_when_it_names_one(release_tool, tmp_path):
+    release_tool.settings["release_ref"] = "rc2/int"
+    done, _ = _full_run(release_tool, tmp_path, "{url}: 8 of 8 checks OK, 0 failures")
+    assert done.returncode == 0, done.stderr
+    assert "rc2/int^{commit}" in _git_refs(tmp_path)
+    assert not any(arg.startswith("origin/feat/test") for arg in _git_refs(tmp_path))
+
+
+def test_the_build_sha_is_checked_against_origin_branch_when_no_release_ref_is_set(release_tool, tmp_path):
+    done, _ = _full_run(release_tool, tmp_path, "{url}: 8 of 8 checks OK, 0 failures")
+    assert done.returncode == 0, done.stderr
+    assert "origin/feat/test^{commit}" in _git_refs(tmp_path)
 
 
 def test_a_publish_log_with_an_incomplete_check_stops_the_run_before_the_install(release_tool, tmp_path):
