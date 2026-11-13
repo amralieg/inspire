@@ -608,10 +608,10 @@ export default function ImplementWizard({
   const foldLine = (panel, label, summary) => (shows(panel) && !isOpenSection(panel)
     ? <FoldLine key={panel} label={label} what={label} summary={summary} onOpen={() => openFoldSection(panel)} /> : null);
   useEffect(() => { setOpenFold(null); }, [stepId]);
-  // Every MVP gets a money rule without input: the default counts the amount column of its table (or each record once) in USD.
+  // Every MVP gets a money rule without input: the default is the amount the rule computes per flagged record when the use case states one, else the amount column of its table (or each record once) in USD.
   useEffect(() => {
     if (mode !== 'mvp' || spec.money || scopeProfile.state === 'loading') return;
-    setSpec((prev) => (prev.money ? prev : withMoneyRule(prev, defaultMoneyRule(scopeProfile.profile, valueEstimateOf(uc)?.text || ''))));
+    setSpec((prev) => (prev.money ? prev : withMoneyRule(prev, defaultMoneyRule(scopeProfile.profile, Boolean(valueEstimateOf(uc))))));
   }, [mode, spec.money, scopeProfile.state, scopeProfile.profile, uc]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (steps[stepIndex].id !== 'stake') return;

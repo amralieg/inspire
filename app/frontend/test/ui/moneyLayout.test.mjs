@@ -16,7 +16,7 @@ await build({
       "export { createElement } from 'react';",
       "export { renderToStaticMarkup } from 'react-dom/server';",
       "export { MoneyRuleEditor } from './src/components/MoneyRuleEditor.jsx';",
-      "export { defaultMoneyRule, moneySummaryOf, MONEY_CURRENCY_CHOICES, WINDOW_CHOICES, valueTextOf, valueColumnFromText } from './src/lib/moneyDefaults.js';",
+      "export { defaultMoneyRule, moneySummaryOf, MONEY_CURRENCY_CHOICES, WINDOW_CHOICES, valueTextOf } from './src/lib/moneyDefaults.js';",
       "export { draftOf, ruleOf } from '../agent/agent/app_shell/web/src/moneyRule.js';",
     ].join('\n'),
     resolveDir: root, loader: 'jsx', sourcefile: 'entry.jsx',
@@ -105,13 +105,38 @@ test('valueTextOf keeps the wording the rest of the App uses', () => {
   assert.equal(lib.valueTextOf({ method: 'fixed', amount: 120, currency: 'USD' }), '120 in USD, for each record');
 });
 
-test('the default counts the column the use case value text names, and falls back to the amount column when it names none', () => {
-  const profile = { money_columns: ['order_id', 'unit_price', 'total_amount', 'currency_code'], money_sample: SAMPLE };
-  assert.equal(lib.valueColumnFromText('Losses: unit_price times the units returned.', profile.money_columns), 'unit_price');
-  assert.equal(lib.valueColumnFromText('Amount lost per refund.', profile.money_columns), 'total_amount');
-  assert.equal(lib.valueColumnFromText('Counts of flagged orders.', profile.money_columns), '');
-  assert.deepEqual(lib.defaultMoneyRule(profile, 'Amount lost per refund.').value, { method: 'column', column: 'total_amount', currency_column: 'currency_code' });
-  assert.deepEqual(lib.defaultMoneyRule(profile, 'Counts of flagged orders.').value, { method: 'column', column: 'total_amount', currency_column: 'currency_code' });
-  assert.deepEqual(lib.defaultMoneyRule({ money_columns: ['order_id'], money_sample: null }, 'Revenue lost.').value, { method: 'fixed', amount: 1, currency: 'USD' });
-  assert.deepEqual(lib.defaultMoneyRule({ money_columns: ['order_id', 'qty'], money_sample: null }, 'Revenue lost.').value, { method: 'fixed', amount: 1, currency: 'USD' });
+test('the default is the amount the rule computes when the use case states one, and saves no value for it', () => {
+  assert.deepEqual(lib.defaultMoneyRule({ money_sample: SAMPLE }, true), { currency: 'per_currency' });
+  assert.equal('value' in lib.defaultMoneyRule({ money_sample: SAMPLE }, true), false);
+});
+
+test('with no amount from the rule, the default is the amount column of the table, else each record once in USD', () => {
+  assert.deepEqual(lib.defaultMoneyRule({ money_sample: SAMPLE }, false).value, { method: 'column', column: 'total_amount', currency_column: 'currency_code' });
+  assert.deepEqual(lib.defaultMoneyRule({ money_columns: ['order_id', 'qty'], money_sample: null }, false).value, { method: 'fixed', amount: 1, currency: 'USD' });
+});
+
+test('the default never counts a sales column named in the use case text (N01-U01: totalPrice is not the loss)', () => {
+  const profile = { money_columns: ['totalPrice', 'recomputation_amount'], money_sample: null };
+  assert.deepEqual(lib.defaultMoneyRule(profile, false).value, { method: 'fixed', amount: 1, currency: 'USD' });
+});
+
+test('the wizard sentence names the choice the default made, in plain words', () => {
+  assert.equal(lib.moneySummaryOf(lib.defaultMoneyRule({ money_sample: SAMPLE }, true), 'method'),
+    'The amount the rule computes: each flagged record counts the amount its own rule works out');
+  assert.equal(lib.moneySummaryOf(lib.defaultMoneyRule({ money_sample: SAMPLE }, false), 'method'),
+    'A value from a data column: the amount in total_amount, in the currency of currency_code');
+  assert.equal(lib.moneySummaryOf(lib.defaultMoneyRule(null, false), 'method'), 'A fixed amount for each record: 1 in USD, for each record');
+});
+
+test('a rule with no value shows the rule’s-own choice as selected, with no currency block', () => {
+  const html = render({ value: { currency: 'per_currency' }, part: 'method' });
+  assert.equal(checkedRadio(html, 'data-money-method="rule"'), true);
+  assert.equal(html.includes('data-money-value-currency'), false);
+  assert.ok(html.includes('data-money-rule-own'));
+});
+
+test('a column the person picks in the wizard shows as chosen, and the sentence names that column', () => {
+  const picked = { currency: 'per_currency', value: { method: 'column', column: 'unit_price', currency: 'USD' } };
+  assert.equal(checkedRadio(render({ value: picked, part: 'method' }), 'data-money-method="column"'), true);
+  assert.equal(lib.moneySummaryOf(picked, 'method'), 'A value from a data column: the amount in unit_price, in USD');
 });
