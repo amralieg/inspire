@@ -9,6 +9,14 @@ test('the cut-off sentence is read from the stored run summary the page already 
   assert.equal(cutoffNote({ run: { summary: CUTOFF } }), CUTOFF);
 });
 
+test('the cut-off sentence with its count of left-out rows is read from the stored summary, wherever the summary is shown', () => {
+  const counted = 'Reads rows dated before 2026-11-12; 3,333 rows on 2026-11-12 are left out because that day may be incomplete.';
+  assert.equal(cutoffNote({ run: { summary: `Three exceptions this week. ${counted}` } }), counted);
+  assert.equal(cutoffNote({ run: { summary: `${counted} Nothing is on the to fix list.` } }), counted);
+  const unknown = 'Reads rows dated before 2026-11-12; rows on 2026-11-12 are left out because that day may be incomplete, and Inspire did not count them.';
+  assert.equal(cutoffNote({ run: { summary: unknown } }), unknown, 'a count that is unknown says so, and is still shown');
+});
+
 test('no cut-off sentence in the summary means no note, not a made-up one', () => {
   assert.equal(cutoffNote({ run: { summary: 'Three exceptions this week.' } }), '');
   assert.equal(cutoffNote({ run: null }), '');

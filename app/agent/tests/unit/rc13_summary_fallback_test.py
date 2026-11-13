@@ -4,7 +4,9 @@ cut-off. The AI text is not stored in that case."""
 from v120_artifacts_support import FakeSpark
 from v147_value_at_stake_test import QUOTED_SUMMARY, ROW_READ, SUMMARY, TABLE, _describe, _summary_spark
 
-CUTOFF = "Reads rows dated before 2026-10-29; rows on 2026-10-29 are left out because that day may be incomplete."
+CUTOFF = ("Reads rows dated before 2026-10-29; rows on 2026-10-29 are left out because that day may be incomplete, "
+          "and Inspire did not count them.")
+CUTOFF_COUNTED = "Reads rows dated before 2026-10-29; 3,333 rows on 2026-10-29 are left out because that day may be incomplete."
 
 
 def test_an_empty_ai_endpoint_still_stores_the_cut_off_sentence(agent_ns, monkeypatch):
@@ -34,3 +36,12 @@ def test_an_empty_ai_reply_still_stores_the_cut_off_sentence(agent_ns, monkeypat
     agent_ns["inspire_write_summary"]("rows written: 4 rows", TABLE, "r-3", "2026-10-29", spark, "ep", None, printed.append)
     merges = [s for s in spark.statements if s.startswith(f"MERGE INTO {QUOTED_SUMMARY}")]
     assert merges and CUTOFF in merges[-1], merges
+
+
+def test_the_stored_summary_states_how_many_rows_on_the_as_of_day_are_left_out(agent_ns, monkeypatch):
+    monkeypatch.setitem(agent_ns, "INSPIRE_RUN", {"use_case_id": "N01-U02", "ai_context": "Business: Acme",
+                                                  "scope": {"table": "main.inspire.churn_out_src", "time_column": "order_date"}})
+    spark = FakeSpark(responder=lambda statement: [{"n": 3333}] if "COUNT(*) AS n" in statement else [])
+    agent_ns["inspire_write_summary"]("rows written: 4 rows", TABLE, "r-3", "2026-10-29", spark, "", None, [].append)
+    merges = [s for s in spark.statements if s.startswith(f"MERGE INTO {QUOTED_SUMMARY}")]
+    assert merges and CUTOFF_COUNTED in merges[0], merges
