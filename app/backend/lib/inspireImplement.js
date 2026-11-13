@@ -533,7 +533,6 @@ function validateImplementSpec(input, { shell = null, legacyAccess = '', impact 
   const chosen = {};
   for (const name of IMPLEMENT_OUTPUTS) chosen[name] = flagField(outputs[name], `outputs.${name}`, errors);
   if (!ownKey(spec, 'outputs')) chosen.dashboard = true;
-  if (chosen.app) chosen.genie_space = true;
   const app = appSettings(outputs, chosen.app, shell, errors, legacyAccess);
   const merge = mergeChoices(outputs, chosen, errors);
   const inside = Boolean(chosen.app) && app.placement === IMPLEMENT_APP_INSIDE;

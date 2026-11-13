@@ -158,8 +158,8 @@ test('the build page has one tile per asset in a fixed order; each asset opens a
     await live.getByRole('button', { name: 'Uninstall', exact: true }).waitFor();
     await showAsset(page, 'genie_space');
     const agent = panel(page).locator('[data-asset-panel="genie_space"]');
-    assert.equal(await agent.getByRole('button', { name: 'Uninstall', exact: true }).isDisabled(), true, 'the Agent waits for the App that asks it');
-    assert.match(await agent.locator('[data-uninstall-blocked]').textContent(), /Uninstall the App first\.$/);
+    assert.equal(await agent.getByRole('button', { name: 'Uninstall', exact: true }).isDisabled(), false, 'the App does not hold the Genie Agent (REQ-152)');
+    assert.equal(await agent.locator('[data-uninstall-blocked]').count(), 0);
     await showAsset(page, 'app');
     const card = await pick(page, PAGE);
     const part = panel(page).getByRole('tabpanel');

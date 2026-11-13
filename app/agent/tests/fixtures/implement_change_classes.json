@@ -5726,8 +5726,7 @@
         ],
         "refill": true,
         "build": [
-          "app",
-          "genie_space"
+          "app"
         ],
         "refresh": [],
         "rollback": [],
@@ -6580,8 +6579,7 @@
         "refill": false,
         "build": [
           "app",
-          "dashboard",
-          "genie_space"
+          "dashboard"
         ],
         "refresh": [],
         "rollback": [],
@@ -6601,8 +6599,7 @@
         "refill": false,
         "build": [
           "app",
-          "dashboard",
-          "genie_space"
+          "dashboard"
         ],
         "refresh": [],
         "rollback": [],
@@ -6642,8 +6639,7 @@
         ],
         "refill": true,
         "build": [
-          "app",
-          "genie_space"
+          "app"
         ],
         "refresh": [],
         "rollback": [],
@@ -6894,8 +6890,7 @@
         "refill": false,
         "build": [
           "app",
-          "dashboard",
-          "genie_space"
+          "dashboard"
         ],
         "refresh": [],
         "rollback": [],
@@ -6915,8 +6910,7 @@
         "refill": false,
         "build": [
           "app",
-          "dashboard",
-          "genie_space"
+          "dashboard"
         ],
         "refresh": [],
         "rollback": [],
@@ -6936,8 +6930,7 @@
         "refill": false,
         "build": [
           "app",
-          "dashboard",
-          "genie_space"
+          "dashboard"
         ],
         "refresh": [],
         "rollback": [],
@@ -7144,8 +7137,7 @@
         "refill": false,
         "build": [
           "app",
-          "dashboard",
-          "genie_space"
+          "dashboard"
         ],
         "refresh": [],
         "rollback": [],
@@ -10044,15 +10036,15 @@
     },
     "INSPIRE_SETTING_ALL": "all",
     "IMPLEMENT_ASSUMPTION_NAME_RE": "^[A-Za-z][A-Za-z0-9_]{0,62}$",
-    "IMPLEMENT_ASSUMPTION_LIMIT": 1000000000000000.0,
+    "IMPLEMENT_ASSUMPTION_LIMIT": 1000000000000000,
     "INSPIRE_ASSUMPTION_BOUNDS": {
       "percent": [
-        0.0,
-        1.0,
+        0,
+        1,
         "0 to 1"
       ],
       "money": [
-        0.0,
+        0,
         null,
         "at least 0"
       ],
@@ -10480,8 +10472,8 @@
       "setting": {
         "name": "WEEKS_LEFT",
         "kind": "number",
-        "low": 1.0,
-        "high": 52.0,
+        "low": 1,
+        "high": 52,
         "allowed": "1 to 52"
       },
       "value": "60",
@@ -10491,8 +10483,8 @@
       "setting": {
         "name": "WEEKS_LEFT",
         "kind": "number",
-        "low": 1.0,
-        "high": 52.0,
+        "low": 1,
+        "high": 52,
         "allowed": "1 to 52"
       },
       "value": "0",
@@ -10502,8 +10494,8 @@
       "setting": {
         "name": "WEEKS_LEFT",
         "kind": "number",
-        "low": 1.0,
-        "high": 52.0,
+        "low": 1,
+        "high": 52,
         "allowed": "1 to 52"
       },
       "value": "1",
@@ -10513,8 +10505,8 @@
       "setting": {
         "name": "WEEKS_LEFT",
         "kind": "number",
-        "low": 1.0,
-        "high": 52.0,
+        "low": 1,
+        "high": 52,
         "allowed": "1 to 52"
       },
       "value": "52",
@@ -10524,8 +10516,8 @@
       "setting": {
         "name": "WEEKS_LEFT",
         "kind": "number",
-        "low": 1.0,
-        "high": 52.0,
+        "low": 1,
+        "high": 52,
         "allowed": "1 to 52"
       },
       "value": "26.5",
@@ -10568,8 +10560,8 @@
       "setting": {
         "name": "UNIT_COST",
         "kind": "money",
-        "low": 2.0,
-        "high": 40.0,
+        "low": 2,
+        "high": 40,
         "allowed": "2 to 40"
       },
       "value": "1.5",
@@ -10579,8 +10571,8 @@
       "setting": {
         "name": "UNIT_COST",
         "kind": "money",
-        "low": 2.0,
-        "high": 40.0,
+        "low": 2,
+        "high": 40,
         "allowed": "2 to 40"
       },
       "value": "41",
@@ -10590,8 +10582,8 @@
       "setting": {
         "name": "UNIT_COST",
         "kind": "money",
-        "low": 2.0,
-        "high": 40.0,
+        "low": 2,
+        "high": 40,
         "allowed": "2 to 40"
       },
       "value": "12",
@@ -10814,8 +10806,8 @@
       "setting": {
         "name": "WEEKS_LEFT",
         "kind": "number",
-        "low": 1.0,
-        "high": 52.0,
+        "low": 1,
+        "high": 52,
         "allowed": "1 to 52"
       }
     },
@@ -10840,8 +10832,8 @@
       "setting": {
         "name": "UNIT_COST",
         "kind": "money",
-        "low": 2.0,
-        "high": 40.0,
+        "low": 2,
+        "high": 40,
         "allowed": "2 to 40"
       }
     },
@@ -10866,8 +10858,8 @@
       "setting": {
         "name": "KEEP_RATE",
         "kind": "percent",
-        "low": 0.0,
-        "high": 1.0,
+        "low": 0,
+        "high": 1,
         "allowed": "0 to 1"
       }
     },
@@ -10879,7 +10871,7 @@
       "setting": {
         "name": "UNIT_COST",
         "kind": "money",
-        "low": 0.0,
+        "low": 0,
         "high": null,
         "allowed": "at least 0"
       }

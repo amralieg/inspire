@@ -50,8 +50,8 @@ test('the App starts on with its Genie Agent locked on and the alert off, App ac
     const box = (name) => page.getByRole('checkbox', { name: new RegExp(`^${name}`) });
     assert.deepEqual([await box('Dashboard').isChecked(), await genie.isChecked(), await box('App ').isChecked(), await box('Alert').isChecked()],
       [false, true, true, false], 'the Genie Agent and App start on, the dashboard and the alert off');
-    assert.equal(await genie.isDisabled(), true, 'the App locks the Genie Agent');
-    await page.locator('[data-output="genie_space"]').getByText('Ask Genie in the App needs a Genie Agent.').waitFor();
+    assert.equal(await genie.isDisabled(), false, 'the App does not lock the Genie Agent (REQ-152)');
+    await page.locator('[data-output="genie_space"]').getByText("The App's own agent answers Ask.").waitFor();
     await toAppAccess(page);
     await openFolded(page, 'Who sees which rows');
     const access = page.getByRole('region', { name: 'App access' });
