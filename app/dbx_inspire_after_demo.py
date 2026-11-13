@@ -8,13 +8,13 @@
 
 dbutils.widgets.text("inspire_database", "", "Inspire tracking DB (catalog._inspire)")
 dbutils.widgets.text("session_id", "", "Session ID")
-dbutils.widgets.text("inspire_notebook_path", "/Shared/inspire-ai/dbx_inspire_ai_agent", "Inspire agent workspace path")
+dbutils.widgets.text("inspire_notebook_path", "", "Inspire agent workspace path")
 
 inspire_database = (dbutils.widgets.get("inspire_database") or "").strip()
 session_id = (dbutils.widgets.get("session_id") or "").strip()
 inspire_notebook_path = (
     (dbutils.widgets.get("inspire_notebook_path") or "").strip()
-    or "/Shared/inspire-ai/dbx_inspire_ai_agent"
+    or "/Shared/inspire-ai/dbx_inspire_ai_agent"  # fallback only: the job passes the path the installer wrote (NOTEBOOK_PATH)
 )
 
 def _task(key, default=""):
@@ -87,6 +87,6 @@ except Exception as e:
         raise RuntimeError(
             f"Inspire notebook not found at '{inspire_notebook_path}'. "
             "Re-run Workspace setup or publish dbx_inspire_ai_agent to "
-            "/Shared/inspire-ai/dbx_inspire_ai_agent."
+            f"{inspire_notebook_path}."
         ) from e
     raise

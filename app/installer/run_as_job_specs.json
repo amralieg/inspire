@@ -1,0 +1,139 @@
+{
+  "format": 1,
+  "concurrent_runs": 20,
+  "single_task": {
+    "tasks": [
+      {
+        "task_key": "inspire_notebook",
+        "notebook_task": {
+          "notebook_path": "{{notebook.inspire}}",
+          "source": "WORKSPACE",
+          "base_parameters": {}
+        },
+        "environment_key": "Default",
+        "disable_auto_optimization": true
+      }
+    ],
+    "environments": [
+      {
+        "environment_key": "Default",
+        "spec": {
+          "environment_version": "4"
+        }
+      }
+    ],
+    "max_concurrent_runs": 20
+  },
+  "demo_pipeline": {
+    "parameters": [
+      {
+        "name": "description",
+        "default": ""
+      },
+      {
+        "name": "business_name",
+        "default": ""
+      },
+      {
+        "name": "inspire_catalog",
+        "default": ""
+      },
+      {
+        "name": "inspire_database",
+        "default": ""
+      },
+      {
+        "name": "session_id",
+        "default": ""
+      },
+      {
+        "name": "demo_schema",
+        "default": ""
+      },
+      {
+        "name": "warehouse_id",
+        "default": ""
+      },
+      {
+        "name": "app_sp_application_id",
+        "default": ""
+      },
+      {
+        "name": "plant_kind_signals",
+        "default": ""
+      },
+      {
+        "name": "discovery_type",
+        "default": ""
+      },
+      {
+        "name": "generation_path",
+        "default": ""
+      }
+    ],
+    "tasks": [
+      {
+        "task_key": "generate_demo_data",
+        "notebook_task": {
+          "notebook_path": "{{notebook.generate}}",
+          "source": "WORKSPACE",
+          "base_parameters": {
+            "user_description": "{{job.parameters.description}}",
+            "inspire_catalog": "{{job.parameters.inspire_catalog}}",
+            "inspire_database": "{{job.parameters.inspire_database}}",
+            "session_id": "{{job.parameters.session_id}}",
+            "business_name": "{{job.parameters.business_name}}",
+            "demo_schema": "{{job.parameters.demo_schema}}",
+            "warehouse_id": "{{job.parameters.warehouse_id}}",
+            "app_sp_application_id": "{{job.parameters.app_sp_application_id}}",
+            "plant_kind_signals": "{{job.parameters.plant_kind_signals}}"
+          }
+        },
+        "environment_key": "Default",
+        "disable_auto_optimization": true
+      },
+      {
+        "task_key": "inspire_discovery",
+        "depends_on": [
+          {
+            "task_key": "generate_demo_data"
+          }
+        ],
+        "notebook_task": {
+          "notebook_path": "{{notebook.inspire}}",
+          "source": "WORKSPACE",
+          "base_parameters": {
+            "15_operation": "Discover Use Cases",
+            "00_business_name": "{{tasks.generate_demo_data.values.display_name}}",
+            "01_uc_metadata": "{{tasks.generate_demo_data.values.uc_metadata}}",
+            "02_inspire_database": "{{job.parameters.inspire_database}}",
+            "03_discovery_type": "{{job.parameters.discovery_type}}",
+            "04_table_election": "All Tables",
+            "05_use_cases_quality": "Good",
+            "06_business_domains": "",
+            "07_business_priorities": "Increase Revenue",
+            "08_generation_instructions": "{{tasks.generate_demo_data.values.user_description}}",
+            "09_generation_options": "PDF Catalog,Excel",
+            "10_strategic_context": "",
+            "11_generation_path": "{{job.parameters.generation_path}}",
+            "12_documents_languages": "English",
+            "13_generate_genie_code_for": "0",
+            "14_session_id": "{{job.parameters.session_id}}",
+            "16_best_of_best_count": ""
+          }
+        },
+        "environment_key": "Default",
+        "disable_auto_optimization": true
+      }
+    ],
+    "environments": [
+      {
+        "environment_key": "Default",
+        "spec": {
+          "environment_version": "4"
+        }
+      }
+    ],
+    "max_concurrent_runs": 20
+  }
+}

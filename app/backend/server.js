@@ -31,6 +31,8 @@ const {
   normalizeUseCasesQualityParams,
   sanitizeInspireNotebookJobParams,
   normalizeV130UseCaseFields,
+  runAsPerson,
+  launchPlanFor,
 } = require('./lib/inspireJobParams');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
@@ -417,11 +419,27 @@ async function listTablesSql(host, token, warehouseId, catalog, schema) {
   }
 }
 
+// The App's own credentials as this process sees them now. getToken reads them through this seam, so a test can pass others.
+function currentAppTokens() {
+  return {
+    production: process.env.NODE_ENV === 'production',
+    serviceToken: SERVICE_TOKEN,
+    spCredentials: Boolean(SP_CLIENT_ID && SP_CLIENT_SECRET),
+    spTokenFresh: spOAuthTokenStillFresh(),
+    spTokenCached: spTokenCache,
+    runAs: runAsPerson(),
+  };
+}
+
 // Synchronous token resolution — uses pre-warmed cached token.
 function getToken(req) {
+  return tokenFor(req, currentAppTokens());
+}
+
+function tokenFor(req, app) {
   // Local dev: PAT from .env wins over browser headers so rotating DATABRICKS_TOKEN works without clearing localStorage.
-  if (process.env.NODE_ENV !== 'production' && SERVICE_TOKEN) {
-    return SERVICE_TOKEN;
+  if (!app.production && app.serviceToken) {
+    return app.serviceToken;
   }
 
   // 1) Explicit PAT from frontend header
@@ -437,20 +455,23 @@ function getToken(req) {
 
   const forwardedClean = forwardedTokenOf(req);
 
+  // Run-as-me: requests act as the signed-in person, so their SQL, files, UC and Genie calls use the forwarded user token.
+  if (app.runAs && forwardedClean) return forwardedClean;
+
   // 3–5) Databricks App (production + SP): prefer static / SP token over x-forwarded-access-token.
   // Delegated user tokens expire; Inspire Results/SQL should keep working on the app service principal.
-  const spBackedApp = process.env.NODE_ENV === 'production' && SP_CLIENT_ID && SP_CLIENT_SECRET;
+  const spBackedApp = app.production && app.spCredentials;
   if (spBackedApp) {
-    if (SERVICE_TOKEN) return SERVICE_TOKEN;
-    if (spOAuthTokenStillFresh()) return spTokenCache;
-    if (spTokenCache) return spTokenCache;
+    if (app.serviceToken) return app.serviceToken;
+    if (app.spTokenFresh) return app.spTokenCached;
+    if (app.spTokenCached) return app.spTokenCached;
     if (forwardedClean) return forwardedClean;
     return null;
   }
 
   if (forwardedClean) return forwardedClean;
-  if (SERVICE_TOKEN) return SERVICE_TOKEN;
-  if (spTokenCache) return spTokenCache;
+  if (app.serviceToken) return app.serviceToken;
+  if (app.spTokenCached) return app.spTokenCached;
 
   return null;
 }
@@ -471,7 +492,9 @@ async function refreshSpTokenIfStale() {
   }
 }
 
+// Run-as-me: the App acts as the person, so no SQL uses the App's own token. Callers that need a token in run-as mode pass the request's token.
 async function appOwnToken() {
+  if (runAsPerson()) return null;
   await refreshSpTokenIfStale();
   return SERVICE_TOKEN || spTokenCache || null;
 }
@@ -727,8 +750,8 @@ async function resolveWorkspaceNotebookObjectPath(host, token, candidatePath) {
  */
 let launchTableReady = false;
 
-async function launchSql(host, statement) {
-  return sqlResultToObjects(await executeSql(host, await appOwnToken(), DEFAULT_WAREHOUSE_ID, statement.sql, statement.parameters));
+async function launchSql(host, statement, token) {
+  return sqlResultToObjects(await executeSql(host, token, DEFAULT_WAREHOUSE_ID, statement.sql, statement.parameters));
 }
 
 async function readLaunchRecord(req, target) {
@@ -739,7 +762,7 @@ async function readLaunchRecord(req, target) {
     : L.sessionLauncherStatement(table, target.inspireDatabase, target.sessionId);
   if (!statement) return null;
   try {
-    return L.launcherOf(await launchSql(resolveHost(req), statement));
+    return L.launcherOf(await launchSql(resolveHost(req), statement, req.dbToken));
   } catch (err) {
     if (isMissingTableError(err)) return null;
     throw err;
@@ -751,7 +774,7 @@ async function runIsRecorded(req, runId) {
   const statement = table && DEFAULT_WAREHOUSE_ID ? L.runLauncherStatement(table, runId) : null;
   if (!statement) return false;
   try {
-    return (await launchSql(resolveHost(req), statement)).length > 0;
+    return (await launchSql(resolveHost(req), statement, req.dbToken)).length > 0;
   } catch (err) {
     if (isMissingTableError(err)) return false;
     throw err;
@@ -763,7 +786,7 @@ async function sessionOutputFolders(req) {
   if (!statement) return [];
   let rows;
   try {
-    rows = await launchSql(resolveHost(req), statement);
+    rows = await launchSql(resolveHost(req), statement, req.dbToken);
   } catch (err) {
     if (isMissingTableError(err)) return [];
     throw err;
@@ -777,16 +800,16 @@ async function sessionOutputFolders(req) {
 async function readAppDatabaseHistory(req, sessionId) {
   const parsed = splitInspireDatabase(DEFAULT_INSPIRE_DB);
   if (!parsed || !DEFAULT_WAREHOUSE_ID) return [];
-  return implementApi.loadHistory(resolveHost(req), await appOwnToken(), DEFAULT_WAREHOUSE_ID, parsed.catalog, parsed.schema, sessionId, null);
+  return implementApi.loadHistory(resolveHost(req), req.dbToken, DEFAULT_WAREHOUSE_ID, parsed.catalog, parsed.schema, sessionId, null);
 }
 
-async function sessionIsNew(host, inspireDatabase, sessionId) {
+async function sessionIsNew(host, token, inspireDatabase, sessionId) {
   const table = L.launchTableName(DEFAULT_INSPIRE_DB);
   const statements = DEFAULT_WAREHOUSE_ID ? L.sessionKnownStatements(table || '', inspireDatabase, sessionId) : null;
   if (!statements) return false;
   for (const statement of table ? [statements.ledger, statements.session] : [statements.session]) {
     try {
-      if ((await launchSql(host, statement)).length) return false;
+      if ((await launchSql(host, statement, token)).length) return false;
     } catch (err) {
       if (!isMissingTableError(err)) return false;
     }
@@ -815,7 +838,7 @@ async function launchSessionProblem(req, params) {
   if (!policyEnforced() || !sessionId || !splitInspireDatabase(inspireDatabase)) return '';
   if (!isInt64Id(sessionId)) return 'The session id must be a numeric Inspire session id';
   const host = resolveHost(req);
-  const fresh = await sessionIsNew(host, inspireDatabase, sessionId);
+  const fresh = await sessionIsNew(host, req.dbToken, inspireDatabase, sessionId);
   if (fresh) return '';
   const launcher = String(await readLaunchRecord(req, { kind: 'session', inspireDatabase, sessionId }).catch(() => '') || '').trim().toLowerCase();
   const person = RP.forwardedPerson(req.headers);
@@ -831,13 +854,13 @@ async function startingSessions(req, inspireDatabase, warehouseId, listed) {
   try {
     const host = resolveHost(req);
     const shown = new Set(listed.map((s) => int64Id(s.session_id)).filter(Boolean));
-    let launches = (await launchSql(host, statement)).filter((l) => isInt64Id(l.session_id) && !shown.has(int64Id(l.session_id)));
+    let launches = (await launchSql(host, statement, req.dbToken)).filter((l) => isInt64Id(l.session_id) && !shown.has(int64Id(l.session_id)));
     const seen = L.sessionsSeenStatement(inspireDatabase, launches.map((l) => l.session_id));
     if (!seen) return [];
     const known = new Set(sqlResultToObjects(await executeSql(req.dbHost, req.dbToken, warehouseId, seen.sql, seen.parameters)).map((r) => String(r.session_id)));
     launches = launches.filter((l) => !known.has(String(l.session_id)));
     if (!launches.length) return [];
-    const token = await appOwnToken();
+    const token = req.dbToken;
     const rows = await Promise.all(launches.map(async (launch) => {
       const resp = await dbFetch(host, token, `/api/2.1/jobs/runs/get?run_id=${encodeURIComponent(launch.run_id)}`);
       return resp.ok ? L.startingSessionRow(launch, parseExactJson(await resp.text()), inspireDatabase) : null;
@@ -849,13 +872,12 @@ async function startingSessions(req, inspireDatabase, warehouseId, listed) {
   }
 }
 
-async function recordLaunch(host, record) {
+async function recordLaunch(host, token, record) {
   const table = L.launchTableName(DEFAULT_INSPIRE_DB);
   if (!table || !DEFAULT_WAREHOUSE_ID) {
     return { recorded: false, note: 'Inspire has no database of its own set, so it did not record who launched this run, and only App managers can cancel it' };
   }
   try {
-    const token = await appOwnToken();
     if (!launchTableReady) {
       await executeSql(host, token, DEFAULT_WAREHOUSE_ID, L.launchCreateSql(table));
       launchTableReady = true;
@@ -940,8 +962,9 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   const inspireRunType = jobType === 'genie_regen' ? 'genie_regen' : (jobType === 'implement' ? 'implement' : 'discovery');
   const launchSession = String(params['14_session_id'] || '').trim();
   const launchDatabase = String(params['02_inspire_database'] || '').trim();
-  const openedSession = Boolean(launchedBy) && inspireRunType === 'discovery' && await sessionIsNew(host, launchDatabase, launchSession);
+  const openedSession = Boolean(launchedBy) && inspireRunType === 'discovery' && await sessionIsNew(host, token, launchDatabase, launchSession);
 
+  const launchPlan = launchPlanFor({ runAs: runAsPerson(), jobType });
   const createPayload = {
     name: jobName,
     tags: inspireJobTags({ runType: inspireRunType, params, businessName, notebookFilename, useCaseIds }),
@@ -958,29 +981,39 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
     max_concurrent_runs: 1,
   };
 
-  console.log(`📋 Creating job: ${resolvedPath}`);
-  const createResp = await dbFetch(host, token, '/api/2.1/jobs/create', {
-    method: 'POST',
-    body: JSON.stringify(createPayload),
-  });
+  let job_id;
+  let viewer;
+  if (launchPlan.mode === 'create') {
+    console.log(`📋 Creating job: ${resolvedPath}`);
+    const createResp = await dbFetch(host, token, '/api/2.1/jobs/create', {
+      method: 'POST',
+      body: JSON.stringify(createPayload),
+    });
 
-  if (!createResp.ok) {
-    const errText = await createResp.text();
-    console.error(`❌ Job create failed (${createResp.status}): ${errText}`);
-    const err = new Error(`Job creation failed: ${errText}`);
-    err.statusCode = createResp.status;
-    throw err;
+    if (!createResp.ok) {
+      const errText = await createResp.text();
+      console.error(`❌ Job create failed (${createResp.status}): ${errText}`);
+      const err = new Error(`Job creation failed: ${errText}`);
+      err.statusCode = createResp.status;
+      throw err;
+    }
+
+    const created = parseExactJson(await createResp.text());
+    job_id = int64Id(created.job_id) ?? String(created.job_id);
+    console.log(`✅ Job created: ${job_id}`);
+    viewer = await grantJobViewer(dbFetch, host, token, job_id, launchedBy);
+    if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
+  } else {
+    job_id = launchPlan.jobId;
+    viewer = { granted: false, note: 'run-as-me: the job runs as you, so it needs no viewer grant' };
+    console.log(`📋 Run-as-me: starting the installed job ${job_id}; the run's parameters are passed to it`);
   }
-
-  const created = parseExactJson(await createResp.text());
-  const job_id = int64Id(created.job_id) ?? String(created.job_id);
-  console.log(`✅ Job created: ${job_id}`);
-  const viewer = await grantJobViewer(dbFetch, host, token, job_id, launchedBy);
-  if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
 
   const response = await dbFetch(host, token, '/api/2.1/jobs/run-now', {
     method: 'POST',
-    body: jsonWithInt64Ids({ job_id }, ['job_id']),
+    body: launchPlan.mode === 'create'
+      ? jsonWithInt64Ids({ job_id }, ['job_id'])
+      : jsonWithInt64Ids({ job_id, notebook_params: params }, ['job_id']),
   });
 
   if (!response.ok) {
@@ -999,7 +1032,7 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   const jobRunUrl = databricksJobRunUrl(host, job_id, runId);
   console.log(`✅ Run submitted: ${runId}, job_id=${job_id}, notebook: ${resolvedPath}`);
   const launch = launchedBy
-    ? await recordLaunch(host, { runId, jobId: job_id, runType: inspireRunType, inspireDatabase: launchDatabase, sessionId: launchSession, openedSession, launchedBy,
+    ? await recordLaunch(host, token, { runId, jobId: job_id, runType: inspireRunType, inspireDatabase: launchDatabase, sessionId: launchSession, openedSession, launchedBy,
       outputFolder, outputChecked })
     : { recorded: false, note: 'no signed-in person launched this run, so only App managers can cancel it' };
   return {
@@ -2293,10 +2326,14 @@ app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
     PM_ERROR.sendFailure(res, code, err.message);
   }
 });
+// The token the App's write check runs with: the App's own token, or in run-as-me the person's (the App acts as the person).
+async function appWriteTokenOf(req) {
+  return (await appOwnToken()) || (runAsPerson() ? req.dbToken : '');
+}
 
 async function outputWriteVerdict(req, writes, { preview = false } = {}) {
   const manager = await routePolicy.managerOf(req).catch(() => ({ manager: false }));
-  const plan = await outputPlan(dbFetch, req, writes, { manager: manager.manager, appToken: await appOwnToken(), appId: SP_CLIENT_ID, preview });
+  const plan = await outputPlan(dbFetch, req, writes, { manager: manager.manager, appToken: await appWriteTokenOf(req), appId: SP_CLIENT_ID, preview });
   return { ...plan, checked: manager.manager ? 'manager' : 'passed' };
 }
 
@@ -3261,7 +3298,7 @@ if (fs.existsSync(STATIC_DIR)) {
 // Pre-warm SP token BEFORE listening so the first request already has a valid token.
 const PORT = process.env.PORT || 8080;
 
-module.exports = { app, registeredRoutes: routePolicyRoutes.registered };
+module.exports = { app, registeredRoutes: routePolicyRoutes.registered, getToken, tokenFor, appOwnToken, appWriteTokenOf };
 
 if (require.main === module) (async () => {
   redactCrashes();

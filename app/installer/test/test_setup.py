@@ -80,10 +80,11 @@ def context(api, w=None, held=("USE_CATALOG", "MANAGE"), groups=("admins",), cat
         if path == "/api/2.1/unity-catalog/metastore_summary":
             return {"owner": "metastore-admins"}
         raise AssertionError(path)
-    ctx = {"ready": True, "api": api, "api_get": api_get, "w": w or Workspace(), "APP_NAME": "inspire-ai", "SP_NAME": "inspire-ai-sp",
+    ctx = {"ready": True, "api": api, "api_get": api_get, "w": w or Workspace(), "APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False, "SP_NAME": "inspire-ai-sp",
            "CATALOG": "main", "SCHEMA": "_inspire", "WAREHOUSE_ID": "wh", "WAREHOUSE_NAME": "Shared", "USER_EMAIL": "someone@example.com",
            "USER_GROUPS": list(groups), "INSPIRE_DB": "main._inspire", "RELEASE_VERSION": "v1.3.0",
-           "available_catalogs": sorted(held_on), "BUNDLE_ROOT": "/Workspace/Shared/inspire-ai/apps/inspire-ai"}
+            "available_catalogs": sorted(held_on), "BUNDLE_ROOT": "/Workspace/Shared/inspire-ai/apps/inspire-ai",
+            "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False}
     ctx.update(extra)
     return ctx
 
@@ -190,9 +191,10 @@ class PreflightTest(unittest.TestCase):
             self.assertIn("Setup incomplete", shown[-1], name)
 
     def test_every_problem_is_named_at_once(self):
-        api, _ = recording(app_exists(manage=False, mkdirs=403))
+        api, calls = recording(app_exists(manage=False, mkdirs=403))
         _, error, _ = self.run_install(context(api, w=Workspace(warehouse=FAILED, schema=False), held=()))
-        self.assertEqual(error.count("\n  • "), 7)
+        self.assertEqual(error.count("\n  • "), 4)
+        self.assertEqual([c for c in calls if c[1] == "/api/2.0/workspace/mkdirs"], [])
 
     def test_a_passed_preflight_runs_every_step_in_order_and_unpacks_the_app_only_after_it(self):
         api, calls = recording(app_exists())
@@ -384,7 +386,7 @@ class AppYamlTest(unittest.TestCase):
             shutil.rmtree(folder)
 
     def test_the_deploy_step_writes_the_installed_assets_path(self):
-        self.assertEqual(self.deploy({})[5:], ("/Workspace/Shared/inspire-ai/assets/v1.3.0", None))
+        self.assertEqual(self.deploy({})[5:], ("/Workspace/Shared/inspire-ai/assets/v1.3.0", None, None))
 
     def test_the_deploy_step_writes_the_test_tag_of_a_test_install_only(self):
         self.assertEqual(self.deploy({"TEST_TAG": "inspire-rc0"})[6], "inspire-rc0")
@@ -401,7 +403,7 @@ class AppYamlTest(unittest.TestCase):
             api = lambda method, path, body=None: Resp(200, {"deployment_id": "d1", "url": "https://app"})
             api_get = lambda path: app if path == "/api/2.0/apps/inspire-ai" else {"Resources": [{"id": "1"}]}
             ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/b", "INSPIRE_DB": "main._inspire", "WAREHOUSE_ID": "wh",
-                   "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai",
+                   "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False,
                    "CATALOG": "main", "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "RELEASE_VERSION": "v1.3.0", **extra}
             with contextlib.redirect_stdout(io.StringIO()):
                 setup.step_create_app_and_find_sp(ctx)
@@ -416,7 +418,7 @@ class VersionTextTest(unittest.TestCase):
         shown = []
         saved = getattr(setup, "displayHTML", None)
         setup.displayHTML = shown.append
-        ctx = {"api_get": lambda path: {"url": "https://app"}, "APP_NAME": "inspire-ai", "INSPIRE_DB": "main._inspire",
+        ctx = {"api_get": lambda path: {"url": "https://app"}, "APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False, "INSPIRE_DB": "main._inspire",
                "WAREHOUSE_NAME": "wh", "NEW_SP_APP_ID": "sp", "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0",
                "RELEASE_VERSION": "v1.3.0"}
         printed = io.StringIO()
@@ -607,7 +609,7 @@ def postgres_posts(calls):
 
 class GrantPlanTest(unittest.TestCase):
     def grant(self, data, listed=("main", "sales", "finance", "samples", "system", "inspire_lakebase"), rights=None, owners=None, catalog="main",
-              admin="metastore-admins", fail=None, api=None, lakebase=LAKEBASE):
+              admin="metastore-admins", fail=None, api=None, lakebase=LAKEBASE, schema_mode=False):
         out = io.StringIO()
         executed = []
         held_on = {n: ("MANAGE",) for n in listed} if rights is None else rights
@@ -641,10 +643,12 @@ class GrantPlanTest(unittest.TestCase):
             there = LAKEBASE["catalog"] in listed
             api, _calls = lakebase_api(catalog=((200, BOUND),) if there else ((404, {}),), make_catalog=REFUSED_CATALOG)
         ctx = {"NEW_SP_APP_ID": "SP", "WAREHOUSE_ID": "wh", "w": w, "CATALOG": catalog, "SCHEMA": "_inspire", "APP_NAME": "inspire-ai",
+               "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets",
                "api": api, "available_catalogs": [n for n in listed if n != "system"],
                "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "DATA_CATALOGS": list(data), "api_get": api_get,
                "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": lakebase,
                "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
+        ctx["SCHEMA_MODE"] = schema_mode
         with contextlib.redirect_stdout(out), mock.patch.object(setup, "LAKEBASE_POLL_S", 0):
             setup.step_grant_permissions(ctx)
         self.ctx = ctx
@@ -766,6 +770,7 @@ class LargeWorkspaceGrantTest(unittest.TestCase):
             return base(method, path, body)
         data = [n for n in names if n not in ("main", "__databricks_internal", "__replication_internal_x", "samples", "system")]
         ctx = {"NEW_SP_APP_ID": "SP", "WAREHOUSE_ID": "wh", "w": w, "CATALOG": "main", "SCHEMA": "_inspire", "APP_NAME": "inspire-ai",
+               "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets",
                "api": api, "available_catalogs": [n for n in names if n != "system"], "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0",
                "DATA_CATALOGS": data, "api_get": api_get, "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": LAKEBASE,
                "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
@@ -837,7 +842,7 @@ class LakebaseSetupTest(unittest.TestCase):
         import base64
         for text, wanted in ((AGENT_NOTEBOOK.read_text(encoding="utf-8"), LAKEBASE), (json.dumps({"cells": [{"source": ""}, {"source": ""}]}), None)):
             api = lambda method, path, body=None: Resp(200, {"object_type": "NOTEBOOK"})
-            ctx = {"w": Workspace(), "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "SOURCE_FOLDER": "/b", "APP_NAME": "inspire-ai",
+            ctx = {"w": Workspace(), "WAREHOUSE_ID": "wh", "CATALOG": "main", "SCHEMA": "_inspire", "SOURCE_FOLDER": "/b", "APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False,
                    "api": api}
             with contextlib.redirect_stdout(io.StringIO()) as out, \
                     mock.patch.object(setup, "export_workspace_b64", lambda ctx, path, export_formats: base64.b64encode(text.encode()).decode()), \
@@ -1048,7 +1053,7 @@ class DeployedSettingsTest(unittest.TestCase):
         setup.time = types.SimpleNamespace(sleep=lambda s: None)
         ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/Shared/inspire-ai/apps/inspire-ai/b", "INSPIRE_DB": "main._inspire",
                "WAREHOUSE_ID": "wh", "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp",
-               "APP_NAME": "inspire-ai", "CATALOG": "main", "RELEASE_VERSION": "v1.4.0"}
+               "APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False, "CATALOG": "main", "RELEASE_VERSION": "v1.4.0"}
         if defaults is not None:
             ctx["app_defaults"] = app_defaults
         out, error = io.StringIO(), None
@@ -1078,7 +1083,7 @@ class DeployedSettingsTest(unittest.TestCase):
             setup.write_app_yaml_deploy = lambda *a: WANTED_YAML
             setup.time = types.SimpleNamespace(sleep=lambda s: None)
             ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/Shared/inspire-ai/apps/inspire-ai/b", "INSPIRE_DB": "main._inspire",
-                   "WAREHOUSE_ID": "wh", "NOTEBOOK_PATH": "/n", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai", "CATALOG": "main",
+                   "WAREHOUSE_ID": "wh", "NOTEBOOK_PATH": "/n", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False, "CATALOG": "main",
                    "RELEASE_VERSION": "v1.4.0"}
             try:
                 with self.assertRaises(RuntimeError) as caught, contextlib.redirect_stdout(io.StringIO()):
@@ -1199,7 +1204,7 @@ class AppUrlTest(unittest.TestCase):
         setup.write_app_yaml_deploy = lambda *a: "env: wanted\n"
         setup.time = types.SimpleNamespace(sleep=lambda s: None)
         ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/b", "INSPIRE_DB": "main._inspire", "WAREHOUSE_ID": "wh",
-               "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai",
+               "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent", "SP_NAME": "inspire-ai-sp", "APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False,
                "CATALOG": "main", "RELEASE_VERSION": "v1.3.1"}
         out = io.StringIO()
         try:
@@ -1251,7 +1256,7 @@ class AppUrlTest(unittest.TestCase):
         shown = []
         saved = getattr(setup, "displayHTML", None)
         setup.displayHTML = shown.append
-        base = {"APP_NAME": "inspire-ai", "INSPIRE_DB": "main._inspire", "WAREHOUSE_NAME": "wh", "NEW_SP_APP_ID": "sp",
+        base = {"APP_NAME": "inspire-ai", "APP_FOLDER": "/Shared/inspire-ai", "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "SCHEMA_MODE": False, "INSPIRE_DB": "main._inspire", "WAREHOUSE_NAME": "wh", "NEW_SP_APP_ID": "sp",
                 "ASSETS_PATH": "/x", "RELEASE_VERSION": "v1.3.0"}
         try:
             for extra, url in (({"app_url": APP_URL}, APP_URL), ({}, "")):
@@ -1656,3 +1661,303 @@ class GenieCodeInstallCheckTest(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+SCHEMA_ACCOUNT_USERS_USE = [{"principal": "account users", "actiontype": "USE CATALOG"}]
+
+
+class SchemaModeTest(unittest.TestCase):
+    """INSPIRE_SCHEMA mode: CREATE SCHEMA only, no catalog-level grant, the App's folders under the person's home."""
+
+    def setUp(self):
+        self.saved = {name: getattr(setup, name) for name in INSTALL_STEPS + ("build_runtime_context",)}
+
+    def tearDown(self):
+        for name, value in self.saved.items():
+            setattr(setup, name, value)
+
+    def preflight(self, ctx, rows):
+        steps = []
+        for name in INSTALL_STEPS:
+            setattr(setup, name, lambda c, n=name: steps.append(n))
+        setup.build_runtime_context = lambda env: ctx
+        out = io.StringIO()
+        error = None
+        with mock.patch.object(setup, "_statement_rows", return_value=rows), contextlib.redirect_stdout(out):
+            try:
+                setup.run({"dbutils": None, "displayHTML": lambda html: None, "manifest": {"version": "v1.3.0"}})
+            except RuntimeError as exc:
+                error = str(exc)
+        return steps, error, out.getvalue()
+
+    def schema_ctx(self, api, **extra):
+        base = dict(SCHEMA_MODE=True, APP_FOLDER="/Users/someone@example.com/inspire-ai/inspire-ai",
+                    ASSETS_PARENT="/Workspace/Users/someone@example.com/inspire-ai/assets",
+                    BUNDLE_ROOT="/Workspace/Users/someone@example.com/inspire-ai/apps/inspire-ai")
+        base.update(extra)
+        return context(api, **base)
+
+    def test_schema_mode_without_manage_on_the_catalog_succeeds_and_makes_no_catalog_grant(self):
+        api, calls = recording(app_exists())
+        w = Workspace(owner="someone-else", schema=False)
+        ctx = self.schema_ctx(api, w=w, held=("CREATE_SCHEMA",))
+        steps, error, out = self.preflight(ctx, SCHEMA_ACCOUNT_USERS_USE)
+        self.assertIsNone(error)
+        self.assertEqual(steps, list(INSTALL_STEPS))
+        self.assertIn("Schema mode: the App reads only `main`.`_inspire`", out)
+
+    def test_schema_mode_refuses_before_any_change_when_the_app_cannot_use_the_catalog(self):
+        api, calls = recording(app_exists())
+        w = Workspace(owner="someone-else", schema=False)
+        ctx = self.schema_ctx(api, w=w, held=("CREATE_SCHEMA",))
+        steps, error, _ = self.preflight(ctx, [{"principal": "someone@example.com", "actiontype": "USE CATALOG"}])
+        self.assertEqual(steps, [])
+        self.assertIn("Nothing was replaced", error)
+        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `account users`", error)
+        self.assertEqual([c for c in calls if c[0] in ("DELETE", "PATCH", "PUT")], [])
+        self.assertEqual([c for c in calls if c[0] == "POST"], [])
+        self.assertEqual(w.statements, ["SELECT 1"], "only the warehouse check ran; no CREATE SCHEMA or GRANT was sent")
+
+    def test_schema_mode_accepts_the_app_principal_when_it_holds_use_catalog_directly(self):
+        def script(method, path, body):
+            if path == "/api/2.0/apps/inspire-ai" and method == "GET":
+                return Resp(200, {"name": "inspire-ai", "service_principal_client_id": "app-sp-id"})
+            return app_exists()(method, path, body)
+        api, _ = recording(script)
+        ctx = self.schema_ctx(api, w=Workspace(owner="someone-else", schema=False), held=("CREATE_SCHEMA",))
+        rows = [{"principal": "app-sp-id", "actiontype": "USE CATALOG"}]
+        steps, error, _ = self.preflight(ctx, rows)
+        self.assertIsNone(error)
+        self.assertEqual(steps, list(INSTALL_STEPS))
+
+    def test_schema_mode_refuses_an_existing_schema_that_the_person_does_not_own(self):
+        api, _ = recording(app_exists())
+        w = Workspace(owner="someone-else", schema=True)
+        ctx = self.schema_ctx(api, w=w, held=("CREATE_SCHEMA",))
+        steps, error, _ = self.preflight(ctx, SCHEMA_ACCOUNT_USERS_USE)
+        self.assertEqual(steps, [])
+        self.assertIn("exists and you are not its owner", error)
+        self.assertIn("GRANT MANAGE ON SCHEMA `main`.`_inspire` TO `someone@example.com`", error)
+
+    def test_schema_mode_refuses_when_the_person_cannot_create_the_schema(self):
+        api, _ = recording(app_exists())
+        ctx = self.schema_ctx(api, w=Workspace(owner="someone-else", schema=False), held=("USE_CATALOG",))
+        steps, error, _ = self.preflight(ctx, SCHEMA_ACCOUNT_USERS_USE)
+        self.assertEqual(steps, [])
+        self.assertIn("You cannot create the schema `main`.`_inspire`", error)
+
+    def test_default_mode_still_requires_manage_on_the_catalog_and_keeps_shared_folders(self):
+        api, _ = recording(app_exists())
+        ctx = context(api, held=("USE_CATALOG", "CREATE_SCHEMA"), w=Workspace(owner="someone-else", schema=False))
+        steps, error, _ = self.preflight(ctx, SCHEMA_ACCOUNT_USERS_USE)
+        self.assertEqual(steps, [])
+        self.assertIn("You cannot grant on catalog `main`", error)
+        self.assertEqual(setup.install_folders("someone@example.com", "inspire-ai", False), {
+            "ASSETS_PARENT": "/Workspace/Shared/inspire-ai/assets", "APPS_PARENT": "/Workspace/Shared/inspire-ai/apps",
+            "APP_FOLDER": "/Shared/inspire-ai"})
+
+    def test_a_schema_mode_install_creates_no_shared_folder_and_checks_the_signed_in_person(self):
+        """REQ-113: schema mode writes every install folder under the signed-in person's home, never /Shared, and checks that person's rights."""
+        person = "someone@example.com"
+        folders = setup.install_folders(person, "inspire-ai", True)
+        for key in ("ASSETS_PARENT", "APPS_PARENT", "APP_FOLDER"):
+            self.assertIn(person, folders[key], key)
+            self.assertNotIn("Shared", folders[key], key)
+        api, calls = recording(app_exists())
+        ctx = self.schema_ctx(api, w=Workspace(owner="someone-else", schema=False), held=("CREATE_SCHEMA",),
+                              USER_EMAIL=person, APP_FOLDER=folders["APP_FOLDER"], ASSETS_PARENT=folders["ASSETS_PARENT"],
+                              BUNDLE_ROOT=f"{folders['APPS_PARENT']}/inspire-ai")
+        steps, error, _ = self.preflight(ctx, SCHEMA_ACCOUNT_USERS_USE)
+        self.assertIsNone(error)
+        self.assertEqual(steps, list(INSTALL_STEPS))
+        shared = [(method, path) for method, path, body in calls if "Shared" in path or "Shared" in str(body)]
+        self.assertEqual(shared, [], "a schema-mode install must not touch /Shared")
+        made = [body["path"] for method, path, body in calls if method == "POST" and path == "/api/2.0/workspace/mkdirs"]
+        self.assertEqual(made, [folders["APP_FOLDER"], setup._workspace_api_path(f"{folders['APPS_PARENT']}/inspire-ai"),
+                                setup._workspace_api_path(folders["ASSETS_PARENT"])])
+        self.assertTrue(all(person in path for path in made), made)
+        self.assertEqual(ctx["USER_EMAIL"], person)
+
+    def test_schema_mode_puts_assets_app_and_notebook_under_the_persons_folder(self):
+        self.assertEqual(setup.install_folders("someone@example.com", "inspire-ai", True), {
+            "ASSETS_PARENT": "/Workspace/Users/someone@example.com/inspire-ai/assets",
+            "APPS_PARENT": "/Workspace/Users/someone@example.com/inspire-ai/apps",
+            "APP_FOLDER": "/Users/someone@example.com/inspire-ai/inspire-ai"})
+
+    def test_inspire_schema_setting_is_empty_by_default_and_must_name_catalog_and_schema(self):
+        self.assertIsNone(setup.inspire_schema_setting(""))
+        self.assertIsNone(setup.inspire_schema_setting("   "))
+        self.assertEqual(setup.inspire_schema_setting("my_catalog.inspire"), ("my_catalog", "inspire"))
+        for bad in ("inspire", "a.b.c", ".inspire", "my_catalog.", "home`x.inspire", "a. b", 7):
+            with self.assertRaises(ValueError, msg=repr(bad)):
+                setup.inspire_schema_setting(bad)
+
+    def test_schema_mode_grant_plan_has_no_catalog_level_statement(self):
+        plan = setup._grant_plan("sp-id", "my_catalog", "inspire", {"my_catalog"}, "lake", catalog_level=False)
+        self.assertFalse([sql for sql in plan if " ON CATALOG " in sql], plan)
+        self.assertIn("GRANT USE SCHEMA ON SCHEMA `my_catalog`.`inspire` TO `sp-id`", plan)
+        self.assertIn("GRANT MANAGE ON SCHEMA `my_catalog`.`inspire` TO `sp-id`", plan)
+        self.assertFalse([sql for sql in plan if "lake" in sql], plan)
+        default = setup._grant_plan("sp-id", "my_catalog", "inspire", {"my_catalog"}, "", catalog_level=True)
+        self.assertIn("GRANT USE CATALOG ON CATALOG `my_catalog` TO `sp-id`", default)
+
+    def test_schema_mode_grants_on_the_schema_only_and_skips_every_catalog_level_grant_in_plain_words(self):
+        grants, printed, executed, said = GrantPlanTest.grant(self, "all", schema_mode=True)
+        self.assertFalse([sql for sql, _ in executed if " ON CATALOG " in sql or "SCAN" in sql], executed)
+        self.assertTrue(any(sql.startswith("GRANT USE SCHEMA ON SCHEMA `main`.`_inspire` TO `SP`") for sql in grants), grants)
+        self.assertIn("Skipped in schema mode: catalog-level grants are skipped in schema mode", said)
+        self.assertNotIn("New Apps can use catalog", said)
+        self.assertIn("CAN_READ", said)
+
+    def test_assets_folder_access_in_schema_mode_grants_only_the_app_principal(self):
+        seen = []
+
+        def api(method, path, body=None):
+            if method == "GET":
+                return Resp(200, {"object_id": 7})
+            seen.append(body)
+            return Resp(200)
+        said = setup._assets_folder_access(api, "/Workspace/Users/someone@example.com/inspire-ai/assets/v1.3.0", "SP",
+                                           "/Workspace/Users/someone@example.com/inspire-ai/assets", False)
+        self.assertEqual(seen, [{"access_control_list": [{"service_principal_name": "SP", "permission_level": "CAN_READ"}]}])
+        self.assertIn("CAN_READ on /Users/someone@example.com/inspire-ai/assets for SP, so every run reads", said)
+
+
+class RunAsTest(unittest.TestCase):
+    """RUN_AS_PERSON: the four App jobs are made as the person from the shared spec, the App's principal may run them, default mode makes none."""
+    PERSON = "someone@example.com"
+
+    def ctx(self, api, api_get, **extra):
+        base = dict(RUN_AS_PERSON=True, SCHEMA_MODE=True, NOTEBOOK_PATH="/Users/someone@example.com/inspire-ai/inspire-ai/dbx_inspire_ai_agent",
+                    GENERATE_DEMO_DEST="/Users/someone@example.com/inspire-ai/inspire-ai/dbx_generate_demo_data",
+                    USER_EMAIL=self.PERSON, SOURCE_FOLDER=str(support.INSTALLER_DIR.parent), api=api, api_get=api_get)
+        base.update(extra)
+        return base
+
+    def creating_api(self, calls, first_id=71):
+        ids = iter(range(first_id, first_id + 10))
+
+        def api(method, path, body=None):
+            calls.append((method, path, body))
+            return Resp(200, {"job_id": next(ids)})
+        return api
+
+    def run_step(self, ctx):
+        out = io.StringIO()
+        with contextlib.redirect_stdout(out):
+            setup.step_run_as_jobs(ctx)
+        return out.getvalue()
+
+    def test_run_as_creates_all_four_jobs_as_the_person_and_records_their_ids(self):
+        calls = []
+        ctx = self.ctx(self.creating_api(calls), lambda path: {"jobs": []})
+        out = self.run_step(ctx)
+        creates = [c for c in calls if c[1] == "/api/2.1/jobs/create"]
+        self.assertEqual([c[2]["name"] for c in creates], [name for _, name, _ in setup.RUN_AS_JOBS])
+        self.assertTrue(all(c[2]["run_as"] == {"user_name": self.PERSON} for c in creates))
+        self.assertEqual(ctx["JOB_IDS"], {"INSPIRE_JOB_ID_DISCOVER": "71", "INSPIRE_JOB_ID_IMPLEMENT": "72",
+                                          "INSPIRE_JOB_ID_GENIE": "73", "INSPIRE_JOB_ID_DEMO": "74"})
+        self.assertEqual(ctx["APP_EXTRA_ENV"], dict({"INSPIRE_RUN_AS_PERSON": "1"}, **ctx["JOB_IDS"]))
+        self.assertIn("[RUN-AS] per-use-case job tags are not applied in run-as mode; usage is attributed to the shared job "
+                      "Inspire AI - implement", out)
+
+    def test_each_job_is_filled_from_the_shared_spec_with_no_placeholder_left(self):
+        calls = []
+        ctx = self.ctx(self.creating_api(calls), lambda path: {"jobs": []}, TEST_TAG="inspire-rc4")
+        self.run_step(ctx)
+        creates = {c[2]["name"]: c[2] for c in calls if c[1] == "/api/2.1/jobs/create"}
+        for name in ("Inspire AI - discovery", "Inspire AI - implement", "Inspire AI - genie code"):
+            body = creates[name]
+            self.assertEqual(body["tasks"][0]["notebook_task"]["notebook_path"], ctx["NOTEBOOK_PATH"])
+            self.assertEqual(body["environments"], [{"environment_key": "Default", "spec": {"environment_version": "4"}}])
+            self.assertEqual(body["tags"], {"dbx_inspire_ai_test": "inspire-rc4"})
+            self.assertEqual(body["max_concurrent_runs"], 20)
+        demo = creates["Inspire AI - demo pipeline"]
+        self.assertEqual(demo["tasks"][0]["notebook_task"]["notebook_path"], ctx["GENERATE_DEMO_DEST"])
+        self.assertEqual(demo["tasks"][1]["notebook_task"]["notebook_path"], ctx["NOTEBOOK_PATH"])
+        self.assertEqual(demo["tasks"][1]["notebook_task"]["base_parameters"]["03_discovery_type"], "{{job.parameters.discovery_type}}")
+        self.assertIn({"name": "session_id", "default": ""}, demo["parameters"])
+        self.assertNotIn("{{notebook", json.dumps(calls))
+
+    def test_an_existing_job_of_the_same_person_is_reset_and_no_duplicate_is_made(self):
+        calls = []
+        listed = {"jobs": [{"job_id": 5, "settings": {"name": "Inspire AI - discovery", "run_as": {"user_name": self.PERSON}}},
+                           {"job_id": 6, "settings": {"name": "Inspire AI - discovery", "run_as": {"user_name": "other@example.com"}}}]}
+        ctx = self.ctx(self.creating_api(calls), lambda path: listed if "discovery" in path else {"jobs": []})
+        self.run_step(ctx)
+        resets = [c for c in calls if c[1] == "/api/2.1/jobs/reset"]
+        self.assertEqual([c[2]["job_id"] for c in resets], [5])
+        self.assertEqual(ctx["JOB_IDS"]["INSPIRE_JOB_ID_DISCOVER"], "5")
+        self.assertEqual(len([c for c in calls if c[1] == "/api/2.1/jobs/create"]), 3)
+
+    def test_run_as_refuses_without_schema_mode_and_default_mode_makes_no_job(self):
+        calls = []
+        api = lambda method, path, body=None: calls.append((method, path)) or Resp(200, {})
+        with self.assertRaises(RuntimeError):
+            self.run_step(self.ctx(api, lambda p: {}, SCHEMA_MODE=False))
+        self.run_step(self.ctx(api, lambda p: {}, RUN_AS_PERSON=False))
+        self.assertEqual(calls, [])
+
+    def test_an_unsafe_test_tag_is_refused_before_any_job_is_written(self):
+        calls = []
+        api = lambda method, path, body=None: calls.append(path) or Resp(200, {})
+        with self.assertRaises(RuntimeError):
+            self.run_step(self.ctx(api, lambda p: {"jobs": []}, TEST_TAG="bad tag!"))
+        self.assertEqual(calls, [])
+
+    def test_the_app_principal_gets_can_manage_run_on_every_installed_job(self):
+        calls = []
+        api = lambda method, path, body=None: calls.append((method, path, body)) or Resp(200, {})
+        setup._run_job_access(api, "SP-ID", {"INSPIRE_JOB_ID_DISCOVER": "71", "INSPIRE_JOB_ID_DEMO": "74"})
+        self.assertEqual([c[1] for c in calls], ["/api/2.0/permissions/jobs/71", "/api/2.0/permissions/jobs/74"])
+        self.assertTrue(all(c[2] == {"access_control_list": [{"service_principal_name": "SP-ID", "permission_level": "CAN_MANAGE_RUN"}]}
+                            for c in calls))
+
+    def test_a_refused_job_permission_stops_the_install_before_the_deploy(self):
+        api = lambda method, path, body=None: Resp(403, {}, "denied")
+        with self.assertRaises(RuntimeError) as raised:
+            setup._run_job_access(api, "SP-ID", {"INSPIRE_JOB_ID_DISCOVER": "71"})
+        self.assertIn("could not be given CAN_MANAGE_RUN on the job 71", str(raised.exception))
+
+    def test_app_yaml_carries_the_run_as_flag_and_the_job_ids_only_in_run_as_mode(self):
+        import tempfile as _t
+        with _t.TemporaryDirectory() as folder:
+            path = os.path.join(folder, "app.yaml")
+            with_jobs = setup.write_app_yaml_deploy(path, "my.inspire", "wh", "/n", "sp", None, None,
+                                                    {"INSPIRE_RUN_AS_PERSON": "1", "INSPIRE_JOB_ID_DISCOVER": "71"})
+            without = setup.write_app_yaml_deploy(path, "my.inspire", "wh", "/n", "sp", None, None, None)
+        self.assertIn('  - name: "INSPIRE_JOB_ID_DISCOVER"\n    value: "71"', with_jobs)
+        self.assertIn('  - name: "INSPIRE_RUN_AS_PERSON"\n    value: "1"', with_jobs)
+        self.assertNotIn("INSPIRE_JOB_ID", without)
+        self.assertNotIn("INSPIRE_RUN_AS_PERSON", without)
+
+
+class RunAsPreflightTest(unittest.TestCase):
+    """Run-as-me: the App acts as the person, so the preflight checks the person's catalog rights and never the App's principal."""
+
+    def setUp(self):
+        self.saved = {name: getattr(setup, name) for name in INSTALL_STEPS + ("build_runtime_context", "step_run_as_jobs")}
+        setup.step_run_as_jobs = lambda ctx: None
+
+    def tearDown(self):
+        for name, value in self.saved.items():
+            setattr(setup, name, value)
+
+    def run_as_ctx(self, api, held=("USE_CATALOG", "CREATE_SCHEMA"), **extra):
+        return context(api, w=Workspace(owner="someone-else", schema=False), held=held, RUN_AS_PERSON=True,
+                       SCHEMA_MODE=True, APP_FOLDER="/Users/someone@example.com/inspire-ai/inspire-ai",
+                       ASSETS_PARENT="/Workspace/Users/someone@example.com/inspire-ai/assets",
+                       BUNDLE_ROOT="/Workspace/Users/someone@example.com/inspire-ai/apps/inspire-ai", **extra)
+
+    def test_run_as_needs_no_app_principal_catalog_grant_and_reads_no_grant_table(self):
+        api, calls = recording(app_exists())
+        steps, error, _ = SchemaModeTest.preflight(self, self.run_as_ctx(api), [])
+        self.assertIsNone(error)
+        self.assertEqual(steps, list(INSTALL_STEPS))
+
+    def test_run_as_refuses_when_the_person_cannot_use_the_catalog(self):
+        api, _ = recording(app_exists())
+        ctx = self.run_as_ctx(api, held=("CREATE_SCHEMA",))
+        steps, error, _ = SchemaModeTest.preflight(self, ctx, [])
+        self.assertEqual(steps, [])
+        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `someone@example.com`", error)

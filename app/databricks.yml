@@ -11,6 +11,9 @@ variables:
   notebook_path:
     description: "Workspace path for the Inspire notebook"
     default: "/Shared/inspire-ai/dbx_inspire_ai_agent"
+  inspire_root:
+    description: "Workspace folder the Inspire bundle deploys to (schema mode: your own folder)"
+    default: "/Shared/inspire-ai"
 
 targets:
   # ── Development (local workspace) ──
@@ -24,7 +27,7 @@ targets:
   prod:
     mode: production
     workspace:
-      root_path: /Shared/inspire-ai
+      root_path: ${var.inspire_root}
     run_as:
       service_principal_name: ${var.service_principal_name}
     variables:

@@ -12,6 +12,10 @@
 # MAGIC The installer has three settings. **SQL warehouse** and **Inspire catalog** (where Inspire keeps its own schema and tables) are the first two widgets. The third, **Data catalogs the Inspire App may read**, is a multi-select. It lists every catalog you can see, except system, samples, internal and Delta Sharing catalogs, and it starts on "All catalogs you can use", which reads all of them. Pick fewer to narrow it. On install the installer asks for consent in one line, then grants the Inspire App USE CATALOG, USE SCHEMA, SELECT and BROWSE on each picked catalog. A catalog you cannot grant on is not a failure: the installer prints the exact GRANT statements under **Permission Required**, one per line, and carries on. Ask a catalog admin to run them, then run this installer again.
 # MAGIC
 # MAGIC **NEW_APPS_CATALOG_ACCESS** lets the Apps that Implement builds read their results: `"account users"` grants account users USE CATALOG on the Inspire catalog when nothing below it is granted to them, so it opens no data by itself, and `"off"` grants nothing and prints the statement for a catalog owner.
+# MAGIC
+# MAGIC **INSPIRE_SCHEMA** (empty by default) is schema mode for a catalog where you hold CREATE SCHEMA but not MANAGE, such as `"my_catalog.inspire"`: the installer creates that schema if it is missing, keeps Inspire inside it, puts the assets and the App under your own folder, and makes no catalog-level grant. It stops before any change if the App's service principal cannot use the catalog, and prints the one GRANT the catalog owner must run.
+# MAGIC
+# MAGIC **RUN_AS_PERSON** (off by default, needs INSPIRE_SCHEMA) makes the Inspire jobs run as you: the installer creates the discovery job with you as its run_as identity and gives the App CAN_MANAGE_RUN on it, so the App starts runs with run-now instead of creating jobs, and every run uses your rights.
 
 # COMMAND ----------
 
@@ -38,13 +42,15 @@ INTERNET_BLOCKED = False
 NEW_APPS_CATALOG_ACCESS = "account users"
 RELEASE_TAG = ""
 TAG = re.compile(r"v[0-9]\.[0-9]\.[0-9](-rc\.[0-9]+)?")
+INSPIRE_SCHEMA = ""
+RUN_AS_PERSON = False
 DOWNLOAD_HOSTS = ("github.com", "objects.githubusercontent.com", "release-assets.githubusercontent.com")
 INSTALLER = "inspire_installer.py"
 MANIFEST = "manifest.json"
 WHOLE_FILES = ("inspire-app.zip", "inspire-assets.tar")
 RELEASE_FILES = (MANIFEST, INSTALLER) + WHOLE_FILES
 SETTINGS = "inspire_installer_test.json"
-SETTING_KEYS = ("release", "app_name", "warehouse_id", "catalog", "test_tag")
+SETTING_KEYS = ("release", "app_name", "warehouse_id", "catalog", "test_tag", "inspire_schema", "run_as_person", "local_files")
 REACH_TIMEOUT_S = 10
 READ_TIMEOUT_S = 120
 MANIFEST_LIMIT_BYTES = 1 << 20
@@ -604,17 +610,21 @@ def acquire(folder, notebook, settings, opener=None, exporter=None):
     base, repo = release_source(settings)
     reasons, known, reached = [], None, False
     print(f"Inspire installer {STARTER_VERSION}: release {base}")
-    try:
-        return acquire_online(base, repo, folder, opener)
-    except InspireStarterTooOld as exc:
-        show(*stop_page("This installer is too old for this Inspire release", str(exc)))
-        raise InspireNotInstalled(str(exc)) from None
-    except InspireDownloadCut as exc:
-        reasons.append(f"GitHub: {exc}")
-        known, reached = exc.manifest, True
-    except Exception as exc:
-        reasons.append(f"GitHub: {describe(exc)}")
-    print(f"  {reasons[-1].rstrip('.')}. Looking for the release files next to this installer in {folder}")
+    # Test setting local_files = "1": the installer never asks GitHub; it uses the complete release files next to it.
+    if str(settings.get("local_files") or "").strip() == "1":
+        reasons.append("GitHub was not asked, because the test setting local_files is 1")
+    else:
+        try:
+            return acquire_online(base, repo, folder, opener)
+        except InspireStarterTooOld as exc:
+            show(*stop_page("This installer is too old for this Inspire release", str(exc)))
+            raise InspireNotInstalled(str(exc)) from None
+        except InspireDownloadCut as exc:
+            reasons.append(f"GitHub: {exc}")
+            known, reached = exc.manifest, True
+        except Exception as exc:
+            reasons.append(f"GitHub: {describe(exc)}")
+        print(f"  {reasons[-1].rstrip('.')}. Looking for the release files next to this installer in {folder}")
     try:
         return acquire_local(folder, exporter)
     except InspireMixedRelease as exc:
@@ -655,6 +665,8 @@ def install_redacted():
             "installer_folder": folder,
             "settings": settings,
             "new_apps_catalog_access": NEW_APPS_CATALOG_ACCESS,
+            "inspire_schema": settings.get("inspire_schema") or INSPIRE_SCHEMA,
+            "run_as_person": RUN_AS_PERSON or str(settings.get("run_as_person") or "").strip() == "1",
         }), None
     except Exception as exc:
         return None, redact_failure(exc)
