@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useLayoutEffect, useRef, useState } from 'react';
 import { GenieMark, Icon } from './icons.jsx';
-import { agentAsk, agentFeedback, agentPrepare, agentStatus, agentTurn, askGenie, explainGenie, retryable, undoRecords, waitingOf, writeRecord } from './api.js';
+import { agentAsk, agentFeedback, agentPrepare, agentStatus, agentTurn, askGenie, explainGenie, getFreshness, retryable, undoRecords, waitingOf, writeRecord } from './api.js';
+import { POLL_MS, latestRunText, stepText } from './freshness.js';
 import WaitingForAccess from './WaitingForAccess.jsx';
 import { reducedMotion } from './theme.js';
 import { answerLabel, cellText, integer, isKeyColumn } from './format.js';
@@ -424,6 +425,19 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
   const panel = useRef(null);
   const [text, setText] = useState('');
   const { key, thread, ask, reset, setThread, busy, about, clearAbout, draft, setDraft, mode } = genie;
+  const [build, setBuild] = useState(null);
+  useEffect(() => {
+    setBuild(null);
+    if (!key) return undefined;
+    let timer = null;
+    let alive = true;
+    const look = () => getFreshness(key)
+      .then((next) => { if (!alive) return; setBuild(next); if (next?.active) timer = setTimeout(look, POLL_MS); })
+      .catch(() => {});
+    look();
+    return () => { alive = false; clearTimeout(timer); };
+  }, [key]);
+  const buildLine = build?.active ? stepText(build.active) : build?.last_run ? latestRunText(build.last_run) : '';
   const agent = mode?.mode === 'agent';
   const width = useGenieWidth(panel);
   const tick = useCallback((n, shown) => setThread((t) => t.map((m) => (m.n === n ? { ...m, shown } : m))), [setThread]);
@@ -463,6 +477,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
         )}
         {!full && <button className="ibtn" onClick={onClose} aria-label="Close Ask Genie"><Icon name="x" size={18} /></button>}
       </header>
+      {buildLine && <p className="g-note" role="status" data-build-status>{buildLine}</p>}
       {on && mode?.note && <p className="g-note" role="note" data-agent-note>{mode.note}</p>}
       {on && !info.enabled && info.note && <p className="g-note g-note--sub" role="note" data-genie-gap>{info.note}</p>}
       <div className="g-log" ref={log} role="log" aria-live="polite" aria-label="Genie conversation">

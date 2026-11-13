@@ -58,3 +58,23 @@ test('a disabled scenario save shows its reason as the button hover text too, so
   assert.deepEqual(seen.errors, []);
   await context.close();
 });
+
+test('REQ-099: the scenario Save on the Scenarios tab shows a spinner and Saving… while the save is open', async () => {
+  const { page, context } = await open('scenario_lab.json', { ...scenarioRoutes([], []), 'scenario/save': () => new Promise(() => {}) });
+  try {
+    await EXAMPLES['scenario_lab.json'].ready(page);
+    await page.locator('[data-rail="work"]').click();
+    const form = page.locator('[data-scenario-save]');
+    await form.waitFor({ timeout: 20000 });
+    await form.getByRole('textbox', { name: 'Name this scenario' }).fill('Price up 8%');
+    const save = form.locator('button[type="submit"]');
+    await save.click();
+    await page.waitForTimeout(400);
+    const state = await save.evaluate((b) => ({ spinner: !!b.querySelector('.saving-ring'), text: b.textContent.trim(), disabled: b.disabled }));
+    assert.equal(state.spinner, true, 'the scenario Save shows a spinner while it saves');
+    assert.match(state.text, /Saving…/, 'the scenario Save says Saving… while it saves');
+    assert.equal(state.disabled, true, 'the scenario Save cannot be pressed twice');
+  } finally {
+    await context.close();
+  }
+});
