@@ -29,11 +29,13 @@ test('a name that is not text is refused', () => {
   assert.match(normalizeUseCaseName({ name: 'x' }).error, /must be text/);
 });
 
-test('the rename writes only the user name column and binds both values as parameters', () => {
+test('the rename writes the user name and binds the values as parameters', () => {
   const stmt = renameStatement(TABLE, 4242, 'N01-U01', "Churn ' early");
-  assert.equal(stmt.sql, `UPDATE ${TABLE} SET user_use_case_name = :name WHERE session_id = 4242 AND id = :id`);
+  assert.ok(stmt.sql.startsWith(`UPDATE ${TABLE} SET user_use_case_name = :name, generate_genie_code_instruction = CASE`), stmt.sql);
+  assert.match(stmt.sql, /WHERE session_id = 4242 AND id = :id$/);
   assert.deepEqual(stmt.parameters, [
     { name: 'name', value: "Churn ' early", type: 'STRING' },
+    { name: 'name_new', value: "Churn ' early", type: 'STRING' },
     { name: 'id', value: 'N01-U01', type: 'STRING' },
   ]);
   assert.doesNotMatch(stmt.sql, /\buse_case\s*=/);
@@ -41,6 +43,20 @@ test('the rename writes only the user name column and binds both values as param
 
 test('a cleared name sets the user name column to NULL and never touches the catalogue name', () => {
   const stmt = renameStatement(TABLE, 4242, 'N01-U01', null);
-  assert.equal(stmt.sql, `UPDATE ${TABLE} SET user_use_case_name = NULL WHERE session_id = 4242 AND id = :id`);
+  assert.ok(stmt.sql.startsWith(`UPDATE ${TABLE} SET user_use_case_name = NULL, generate_genie_code_instruction = CASE`), stmt.sql);
+  assert.match(stmt.sql, /WHERE session_id = 4242 AND id = :id$/);
   assert.deepEqual(stmt.parameters, [{ name: 'id', value: 'N01-U01', type: 'STRING' }]);
+  assert.doesNotMatch(stmt.sql, /\buse_case\s*=/);
+});
+
+test('a rename flags a Genie Code instruction written under the old name for regeneration, so the next Generate Genie run rewrites it from the clean name (REQ-155)', () => {
+  const stmt = renameStatement(TABLE, 4242, 'N01-U01', 'Churn early warning');
+  assert.match(stmt.sql, /THEN 'Yes' ELSE generate_genie_code_instruction END/);
+  assert.match(stmt.sql, /TRIM\(COALESCE\(genie_instruction, ''\)\) <> ''/);
+  assert.match(stmt.sql, /COALESCE\(user_use_case_name, ''\) <> :name_new/);
+});
+
+test('clearing a name flags a stale instruction only when a user name was shown before', () => {
+  const stmt = renameStatement(TABLE, 4242, 'N01-U01', null);
+  assert.match(stmt.sql, /COALESCE\(user_use_case_name, ''\) <> '' AND TRIM/);
 });
