@@ -1406,6 +1406,14 @@ def run_tables(value):
     return None if items and not out else out
 
 
+def rows_checked(row):
+    """The rows the run read of its scope's table, counted when the run ran; None when the run holds no count for that table."""
+    tables = run_tables((row or {}).get("run_tables")) or []
+    main = str((shell_sql.summary_scope(row) or {}).get("table") or "").strip().lower()
+    entry = next((t for t in tables if t["table"].lower() == main), None) if main else (tables[0] if len(tables) == 1 else None)
+    return entry["rows"] if entry else None
+
+
 def run_grouping(value):
     if isinstance(value, str):
         try:
@@ -2885,7 +2893,7 @@ class Shell:
         for kpi in page.get("kpis") or []:
             if basis and kpi.get("format") == "currency":
                 out["kpis"].setdefault(kpi["id"], {})["basis"] = basis
-        out["zero_state"] = self.zero_state(page, ws, who, out["charts"]) if out["charts"] else None
+        out["zero_state"] = self.zero_state(page, ws, who, out["charts"], rows_checked(scoped[0]) if scoped else None) if out["charts"] else None
         return out
 
     def previous_datasets(self, ws, who, page: dict) -> dict:
@@ -3848,15 +3856,15 @@ class Shell:
         rows = self.run(ws, who, sql, params, shell_sql.CAPS["chart_rows"]).get("rows") or []
         return not any(abs(shell_sql.as_number(row.get(f"y{i}")) or 0) > 1e-12 for row in rows for i in checked)
 
-    def zero_state(self, page: dict, ws, who, charts: dict):
-        """The zero-state flag: every chart drawn at these filters is flat (or empty) and the whole scope has no measure, so the page
-        shows one plain 'none found' panel in place of the flat charts. None when any drawn chart is not flat, or any measure is
-        nonzero in the scope."""
+    def zero_state(self, page: dict, ws, who, charts: dict, checked=None):
+        """The zero-state flag: every chart drawn at these filters is flat and its rule finds no exception in the scope, so the page
+        shows one plain 'none found' panel in place of the flat charts. None when any drawn chart is not flat or the rule still finds exceptions.
+        rows_checked is the count the latest run wrote for its scope (None when it wrote none), so the panel never shows a false number."""
         drawn = [item for item in page.get("charts") or [] if item["id"] in charts]
         if not drawn or not all((not charts[item["id"]].get("rows") or flat_measures(item, charts[item["id"]]["rows"]))
                                 and self.rule_finds_nothing(page, item, ws, who, every_measure=True) for item in drawn):
             return None
-        return {"charts": sorted(item["id"] for item in drawn)}
+        return {"charts": sorted(item["id"] for item in drawn), "rows_checked": checked}
 
     def filter_scope_empty(self, page: dict, ident: str, ws) -> bool:
         """True when a dataset the filter reads holds no row in its whole scope, so the filter has no values because nothing matched."""

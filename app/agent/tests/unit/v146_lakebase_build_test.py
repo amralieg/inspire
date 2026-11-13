@@ -434,9 +434,11 @@ class _Reader:
 
 
 def _app_lakebase(ns, tmp_path, outputs=None, host=None, rounds=("COMPLETED",), online=(True,), checks=(), ready=None, synced="pipe-1",
-                  resync=True, designs=(), slows=()):
+                  resync=True, designs=(), slows=(), builder=None):
     inst = _inspire(ns, FakeSpark())
     inst.logger = CapturingLogger()
+    if builder is not None:
+        inst._implement_builder = lambda: builder
     payload, modules = _app_shell(ns, tmp_path)
     pg = modules["shell_pg"]
     reader = _Reader(rounds)
@@ -623,9 +625,11 @@ def _routed(ns, routes):
     return inst, calls
 
 
-def _grant(ns, routes, sql_error=None, lakebase=None):
+def _grant(ns, routes, sql_error=None, lakebase=None, builder=None):
     inst, calls = _routed(ns, routes)
     statements, grants = [], []
+    if builder is not None:
+        inst._implement_builder = lambda: builder
 
     def run(env, batch):
         if sql_error:
@@ -674,10 +678,10 @@ def test_the_app_role_reads_only_the_copies_its_app_lists_so_a_copy_another_buil
 
 def test_a_grant_that_fails_is_returned_as_the_reason_and_nothing_raises(agent_ns):
     problem, _calls, _statements, grants = _grant(agent_ns, {("GET", ROLES): [{"roles": [SP_ROLE]}]},
-                                                  sql_error=RuntimeError("permission denied for schema churn_desk"))
-    # A refused grant names the one statement its owner runs (REQ-149), and nothing is granted.
-    assert str(problem) == "the identity Inspire runs as has no rights on the Lakebase schema churn_desk" and grants == []
-    assert problem.statement.startswith("GRANT ALL PRIVILEGES ON SCHEMA churn_desk TO ")
+                                                  sql_error=RuntimeError("permission denied for schema churn_desk"), builder=LAKEBASE_CALLER)
+    # A refused grant names the one statement its owner runs (REQ-149), to the identity that needs it, and nothing is granted.
+    assert str(problem) == "the identity Inspire runs as (caller@example.com) has no rights on the Lakebase schema churn_desk" and grants == []
+    assert problem.statement == f'GRANT ALL PRIVILEGES ON SCHEMA churn_desk TO "{LAKEBASE_CALLER}"'
     problem, _calls, _statements, _grants = _grant(agent_ns, {("GET", ROLES): [{"roles": []}],
                                                               ("POST", ROLES): RuntimeError("PERMISSION_DENIED: not a project owner")})
     assert problem == "PERMISSION_DENIED: not a project owner"
@@ -1204,3 +1208,67 @@ def test_the_build_shows_the_apps_speed_as_its_own_step_and_marks_it_failed_when
     assert all(p in host.emitted[0][2] for p in problems)
     if speeds and "p1" in speeds:
         assert f"first records {speeds['p1']['first']:.1f} s (target 3 s)" in host.emitted[0][2]
+
+# REQ-149: the build run by someone who is not the Lakebase project owner. The owner builds on Lakebase; anyone else
+# gets the Postgres refusal mapped to the one GRANT the owner runs, a Permission Required entry, and the fallback sentence.
+LAKEBASE_OWNER_BUILDER = "owner@example.com"
+LAKEBASE_CALLER = "caller@example.com"
+PERMISSION_HEAD = ("App: it reads Delta tables, so its pages take a few seconds to load, because Inspire could not set up Lakebase: "
+                   "these App queries did not run on Lakebase: ")
+
+
+def test_the_project_owner_builds_on_lakebase_with_no_warning_and_no_permission_entry(agent_ns, tmp_path):
+    inst, out, _seen, _reader, _pg = _app_lakebase(agent_ns, tmp_path, builder=LAKEBASE_OWNER_BUILDER)
+    assert out["kind"] == "lakebase" and out["warnings"] == []
+    assert "permissions" not in out, "a build that reaches Lakebase raises no Permission Required entry"
+    assert [e["status"] for e in inst.emitted] == ["started", "ended_success"]
+    assert not any("Ask the Lakebase project owner" in line for line in _lines(inst, "INFO") + _lines(inst, "WARNING"))
+
+
+@pytest.mark.parametrize("problem,kind,scope", [
+    ("permission denied for database databricks_postgres", "database", "DATABASE"),
+    ("permission denied for schema churn_desk", "schema", "SCHEMA"),
+    ("must be owner of table churn_desk.n01_u01__t_aaaa1111", "table", "TABLE"),
+], ids=["database", "schema", "table"])
+def test_a_caller_who_is_not_the_owner_gets_the_exact_grant_the_owner_runs(agent_ns, tmp_path, problem, kind, scope):
+    refusal = agent_ns["implement_lakebase_refusal"](RuntimeError(problem), LAKEBASE_CALLER)
+    assert isinstance(refusal, agent_ns["ImplementLakebasePermission"]), kind
+    inst, out, _seen, _reader, _pg = _app_lakebase(agent_ns, tmp_path, checks=([problem],), builder=LAKEBASE_CALLER)
+    assert out["kind"] == "delta" and out["files"] is out["delta_files"]
+    warning = out["warnings"][0]
+    assert warning.startswith(PERMISSION_HEAD) and "the identity Inspire runs as" in warning
+    assert warning.endswith(f". Ask the Lakebase project owner to run {refusal.statement}, then build the App again to switch it to Lakebase")
+    assert warning.count(LAKEBASE_CALLER) == 1, "the caller's identity appears only in the GRANT, not in the reason"
+    assert refusal.statement.startswith("GRANT ") and refusal.statement.endswith(f'TO "{LAKEBASE_CALLER}"')
+    entry = out["permissions"][0]
+    assert entry["statements"] == [refusal.statement] and entry["principal"] == LAKEBASE_CALLER and entry["instructions"] == []
+    assert entry["why"].endswith("Ask the person who can grant it to run this command, then click Try again.")
+    assert [e["status"] for e in inst.emitted] == ["started", "ended_warning"]
+    logged = _lines(inst, "WARNING")
+    assert any(line.startswith("[IMPLEMENT-LAKEBASE] ") and refusal.statement in line for line in logged), logged
+
+
+def test_the_grant_for_a_schema_or_table_names_that_object_not_the_database(agent_ns, tmp_path):
+    _inst, out, _seen, _reader, _pg = _app_lakebase(agent_ns, tmp_path, checks=(["permission denied for schema churn_desk"],),
+                                                    builder=LAKEBASE_CALLER)
+    assert out["permissions"][0]["statements"] == [f'GRANT ALL PRIVILEGES ON SCHEMA churn_desk TO "{LAKEBASE_CALLER}"']
+    assert out["warnings"][0].endswith(f"Ask the Lakebase project owner to run GRANT ALL PRIVILEGES ON SCHEMA churn_desk TO \"{LAKEBASE_CALLER}\", "
+                                       "then build the App again to switch it to Lakebase")
+
+
+def test_a_failure_that_is_not_a_postgres_refusal_gets_the_rebuild_sentence_and_no_grant(agent_ns, tmp_path):
+    reason = "dataset trend: function unix_micros does not exist"
+    inst, out, _seen, _reader, _pg = _app_lakebase(agent_ns, tmp_path, checks=([reason],), builder=LAKEBASE_CALLER)
+    assert out["warnings"] == [FALLBACK.format(f"these App queries did not run on Lakebase: {reason}")]
+    assert "permissions" not in out and "Ask the Lakebase project owner" not in out["warnings"][0]
+
+
+def test_a_caller_with_no_identity_gets_the_rebuild_sentence_and_no_grant_to_run(agent_ns, tmp_path):
+    inst, out, _seen, _reader, _pg = _app_lakebase(agent_ns, tmp_path, checks=(["permission denied for database databricks_postgres"],),
+                                                   builder="")
+    assert out["kind"] == "delta" and "permissions" not in out
+    warning = out["warnings"][0]
+    assert warning.startswith(PERMISSION_HEAD) and "<identity>" not in warning
+    assert warning.endswith("can grant. Build the App again with Vibe/Add/Remove Features on the Build page, or pick Lakebase again in the "
+                            "wizard, to switch it to Lakebase")
+    assert "Ask the Lakebase project owner" not in warning
