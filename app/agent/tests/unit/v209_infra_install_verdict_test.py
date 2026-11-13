@@ -37,3 +37,26 @@ def test_the_install_output_folders_come_from_the_settings(release_tool, infra):
     assert str(infra.BASE) == release_tool.settings["infra_base"]
     assert str(infra.ENVS) == release_tool.settings["infra_envs"]
     assert infra.R.PROFILE == "test-profile" and infra.R.SCRATCH_APP == "scratch-app"
+
+
+
+def test_the_rc1_starter_with_no_read_catalog_constant_is_used_unchanged(infra, tmp_path, monkeypatch):
+    """REQ-113 miss 4: rc.1 moved the read-catalog setting from SCAN_CATALOGS to the DATA_CATALOGS widget in the installer module.
+    The starter carries no SCAN_CATALOGS, so the infra work dir must accept it as it is instead of refusing it."""
+    monkeypatch.setattr(infra, "BASE", tmp_path / "base")
+    release_out = tmp_path / "release_out"
+    release_out.mkdir()
+    real = open(os.path.join(ROOT, "..", "..", "inspire_installer.py"), encoding="utf-8").read()
+    assert "SCAN_CATALOGS" not in real
+    (release_out / "inspire_installer.py").write_text(real, encoding="utf-8")
+    work = infra.work_dir("v1.5.3-rc.1", release_out)
+    assert (work / "release" / "inspire_installer.py").read_text(encoding="utf-8") == real
+
+
+def test_a_starter_with_a_malformed_scan_catalogs_setting_is_refused(infra, tmp_path, monkeypatch):
+    monkeypatch.setattr(infra, "BASE", tmp_path / "base")
+    release_out = tmp_path / "release_out"
+    release_out.mkdir()
+    (release_out / "inspire_installer.py").write_text('SCAN_CATALOGS = ["main"]\n', encoding="utf-8")
+    with pytest.raises(SystemExit, match="SCAN_CATALOGS is neither"):
+        infra.work_dir("v1.5.3-rc.1", release_out)

@@ -32,7 +32,9 @@ const INSPIRE_NOTEBOOK_WIDGET_KEYS = [
 
 const IMPLEMENT_RUN_ID_PARAM = 'inspire_implement_run_id';
 const IMPLEMENT_INSPIRE_CLIENT_PARAM = 'inspire_app_client_id';
-const INSPIRE_JOB_ONLY_PARAM_KEYS = [IMPLEMENT_RUN_ID_PARAM, IMPLEMENT_INSPIRE_CLIENT_PARAM];
+// REQ-113: '1' tells the notebook the job runs as the signed-in person, so it grants the App's principal nothing.
+const IMPLEMENT_RUN_AS_PARAM = 'inspire_run_as_person';
+const INSPIRE_JOB_ONLY_PARAM_KEYS = [IMPLEMENT_RUN_ID_PARAM, IMPLEMENT_INSPIRE_CLIENT_PARAM, IMPLEMENT_RUN_AS_PARAM];
 const INSPIRE_ASSETS_PARAM = 'inspire_assets_path';
 const INSPIRE_TEST_TAG = 'dbx_inspire_ai_test';
 
@@ -349,6 +351,39 @@ function resourceTags(kind, tags) {
   return Object.fromEntries(Object.entries(tags).map(([key, value]) => [resourceTagKey(kind, key), resourceTagValue(kind, value)]));
 }
 
+/** Run-as-me: the installer created the Inspire jobs as the person (jobs/create run_as), so the App only starts them. */
+function runAsPerson(env = process.env) {
+  return String(env.INSPIRE_RUN_AS_PERSON || '').trim() === '1';
+}
+
+/** Run-as-me: the installed job for each job type, and the App variable that holds its id (the installer writes them). */
+const RUN_AS_JOB_ENV = {
+  discovery: 'INSPIRE_JOB_ID_DISCOVER',
+  implement: 'INSPIRE_JOB_ID_IMPLEMENT',
+  genie_regen: 'INSPIRE_JOB_ID_GENIE',
+  demo_pipeline: 'INSPIRE_JOB_ID_DEMO',
+};
+/**
+ * Concurrent runs one shared run-as-me job allows. The App had no cap before: each run had its own job with max_concurrent_runs 1.
+ * A shared job needs this many, so the cap is set here and the installer reads it from the spec (run_as_job_specs.json).
+ */
+const RUN_AS_CONCURRENT_RUNS = 20;
+
+/**
+ * How one launch starts. Run-as-me never creates a job (a job made by the App would run as the App's identity); it starts the
+ * job the installer made as the person, with run-now and the run's parameters.
+ */
+function launchPlanFor({ runAs, jobType, env = process.env }) {
+  if (!runAs) return { mode: 'create' };
+  const variable = RUN_AS_JOB_ENV[jobType];
+  if (!variable) throw Object.assign(new Error(`Run-as-me: there is no installed job for ${jobType}.`), { statusCode: 500 });
+  const jobId = String(env[variable] || '').trim();
+  if (!jobId) {
+    throw Object.assign(new Error(`Run-as-me: ${variable} is not set, so run the Inspire installer again to make the ${jobType} job.`), { statusCode: 500 });
+  }
+  return { mode: 'run-now', jobId };
+}
+
 function inspireTaskCompute(clusterId) {
   return clusterId
     ? { existing_cluster_id: clusterId }
@@ -466,10 +501,15 @@ function normalizeV130UseCaseFields(row) {
 
 module.exports = {
   INSPIRE_AGENT_VERSION,
+  runAsPerson,
+  launchPlanFor,
+  RUN_AS_JOB_ENV,
+  RUN_AS_CONCURRENT_RUNS,
   parseTableScopeText,
   INSPIRE_ENVIRONMENT_VERSION,
   INSPIRE_NOTEBOOK_WIDGET_KEYS,
   IMPLEMENT_RUN_ID_PARAM,
+  IMPLEMENT_RUN_AS_PARAM,
   INSPIRE_JOB_ONLY_PARAM_KEYS,
   INSPIRE_ASSETS_PARAM,
   USE_CASES_QUALITY_VALID,

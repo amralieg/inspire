@@ -2,6 +2,7 @@ const I = require('./inspireImplement');
 const P = require('./requestPerson');
 const { parseExactJson } = require('./exactJson');
 const { redactSecrets } = require('./redact');
+const { runAsPerson } = require('./inspireJobParams');
 
 const POLICY_PRIVILEGE_DENIED_RE = /does not have .+ on /i;
 
@@ -41,7 +42,8 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     .then(() => sqlRows(req.dbHost, token, warehouseId, I.outputAccessStatement(table)))
     .catch(() => []);
 
-  const appTokenOf = async (req) => (await appToken()) || (req.dbTokenKind === P.PERSON_TOKEN ? '' : req.dbToken);
+  // Run-as-me: the App acts as the person, so its reads use the person's forwarded token (never an App token).
+  const appTokenOf = async (req) => (await appToken()) || (req.dbTokenKind === P.PERSON_TOKEN && !runAsPerson() ? '' : req.dbToken);
 
   async function abacUnreadable(req, app, table) {
     try {

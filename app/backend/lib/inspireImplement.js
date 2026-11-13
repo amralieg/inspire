@@ -1,5 +1,5 @@
 const { appShellCatalog } = require('./appShell');
-const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, resourceTagKey, resourceTagValue, withInspireInstallParams } = require('./inspireJobParams');
+const { IMPLEMENT_RUN_AS_PARAM, IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, resourceTagKey, resourceTagValue, withInspireInstallParams } = require('./inspireJobParams');
 const { parseExactJson } = require('./exactJson');
 const { moneyRuleProblems, moneyRuleClean } = require('./moneyRule');
 const { int64Id } = require('./int64Id');
@@ -2115,7 +2115,7 @@ function refuseUnchanged(plan) {
   }
 }
 
-function implementJobParams(baseParams, useCaseId, specVersion, inspireClientId = '') {
+function implementJobParams(baseParams, useCaseId, specVersion, inspireClientId = '', runAs = false) {
   return {
     ...baseParams,
     '15_operation': IMPLEMENT_OPERATION,
@@ -2123,6 +2123,7 @@ function implementJobParams(baseParams, useCaseId, specVersion, inspireClientId 
     [IMPLEMENT_USE_CASE_PARAM]: String(useCaseId),
     [IMPLEMENT_SPEC_VERSION_PARAM]: String(specVersion),
     [IMPLEMENT_INSPIRE_CLIENT_PARAM]: String(inspireClientId || ''),
+    [IMPLEMENT_RUN_AS_PARAM]: runAs ? '1' : '',
     [IMPLEMENT_RUN_ID_PARAM]: IMPLEMENT_RUN_ID_REFERENCE,
   };
 }

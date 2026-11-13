@@ -17,6 +17,9 @@ SCAN_PROGRESS_FROM = 50
 SCAN_PROGRESS_STEPS = 10
 SCAN_SHOWN = 10
 NEW_APPS_ACCOUNT_USERS = "account users"
+INSPIRE_SCHEMA_OFF = ""
+SCHEMA_MODE_CATALOG_NOTE = ("catalog-level grants are skipped in schema mode: BROWSE, CREATE SCHEMA on the catalog, USE CATALOG for the App "
+                            "(checked, not granted), the data catalogs and NEW_APPS_CATALOG_ACCESS; the App's principal gets no grant at all")
 NEW_APPS_OFF = "off"
 SYSTEM_SCHEMA = "information_schema"
 BELOW_CATALOG_VIEWS = (("schema", "schema_privileges", "schema_name", "schema_name"),
@@ -203,6 +206,27 @@ def ensure_parameter_widgets(warehouses, catalogs, own_catalogs, data_choices):
             "data": data, "data_problem": data_problem, "replaced": not all(placed) or created}
 
 
+def inspire_schema_setting(value):
+    """INSPIRE_SCHEMA names `catalog.schema` for schema mode, or is empty for the default mode."""
+    if not isinstance(value, str):
+        raise ValueError(f"INSPIRE_SCHEMA must be text, not {value!r}.")
+    text = value.strip()
+    if not text:
+        return None
+    parts = text.split(".")
+    if len(parts) != 2 or not all(part.strip() == part and part and "`" not in part for part in parts):
+        raise ValueError(f"INSPIRE_SCHEMA must be `catalog.schema`, such as `my_catalog.inspire`, not {text[:80]!r}.")
+    return parts[0], parts[1]
+
+
+def install_folders(user_email, app_name, schema_mode):
+    """Where the assets, the App bundle and the notebook folder go: /Shared by default, the person's own folder in schema mode."""
+    if not schema_mode:
+        return {"ASSETS_PARENT": ASSETS_PARENT, "APPS_PARENT": APPS_PARENT, "APP_FOLDER": f"/Shared/{app_name}"}
+    home = f"/Workspace/Users/{user_email}/inspire-ai"
+    return {"ASSETS_PARENT": f"{home}/assets", "APPS_PARENT": f"{home}/apps", "APP_FOLDER": f"/Users/{user_email}/inspire-ai/{app_name}"}
+
+
 def _wh_sort_key(wh):
     st = wh.state.value if wh.state else ""
     srv = bool(getattr(wh, "enable_serverless_compute", False))
@@ -223,7 +247,7 @@ def _yaml_quote(value):
 FX_RATE_SOURCE = 'https://api.frankfurter.dev/v1/latest'
 
 
-def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_resource_name, assets_path=None, test_tag=None):
+def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_resource_name, assets_path=None, test_tag=None, extra_env=None):
     """Emit app.yaml without PyYAML (no extra pip on the cluster)."""
     lines = [
         "command:",
@@ -248,6 +272,8 @@ def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_reso
         lines += ["  - name: \"INSPIRE_ASSETS_PATH\"", f"    value: {_yaml_quote(assets_path)}"]
     if test_tag:
         lines += ["  - name: \"INSPIRE_TEST_TAG\"", f"    value: {_yaml_quote(test_tag)}"]
+    for name, value in sorted((extra_env or {}).items()):
+        lines += [f"  - name: \"{name}\"", f"    value: {_yaml_quote(str(value))}"]
     lines += [
         "",
         "resources:",
@@ -739,7 +765,10 @@ def build_runtime_context(env):
     elif picked_wh is None:
         missing_messages.append(pickers["warehouse_problem"])
 
-    if catalog_override:
+    schema_pair = inspire_schema_setting(env.get("inspire_schema", INSPIRE_SCHEMA_OFF))
+    if schema_pair:
+        picked_cat = schema_pair[0]
+    elif catalog_override:
         picked_cat = resolve_catalog(catalog_override, available_catalogs)[0]
         if picked_cat is None:
             raise ValueError(f"catalog {catalog_override!r} in the test setting is not one of the {len(available_catalogs)} catalogs "
@@ -754,19 +783,29 @@ def build_runtime_context(env):
         show_warning_banner("Choose notebook parameter values first", steps + "\n\n" + "\n".join(missing_messages))
         return {"ready": False}
 
+    if schema_pair and picked_cat not in available_catalogs:
+        raise ValueError(f"INSPIRE_SCHEMA names catalog `{picked_cat}`, which is not a catalog you can see "
+                         f"(showing first 5): {available_catalogs[:5]}. Fix INSPIRE_SCHEMA, or leave it empty.")
     warehouse_id = picked_wh.id
     warehouse_name = picked_wh.name or warehouse_id
     catalog = picked_cat
 
-    schema = "_inspire"
+    schema = schema_pair[1] if schema_pair else "_inspire"
     inspire_db = f"{catalog}.{schema}"
     app_name = app_name_override or "inspire-ai"
     if not re.fullmatch(r"[a-z0-9][a-z0-9-]{0,28}[a-z0-9]", app_name):
         raise ValueError(f"App name {app_name!r} must be 2-30 lowercase letters, digits or hyphens")
     sp_name = f"{app_name}-sp"
+    folders = install_folders(user_email, app_name, bool(schema_pair))
+    if bool(env.get("run_as_person", False)) and not schema_pair:
+        raise ValueError(RUN_AS_NEEDS_SCHEMA)
+    run_as = bool(schema_pair)  # REQ-113: schema mode is run-as-me, so the App acts as the signed-in person and the App's principal gets nothing
 
     print(f"Selected warehouse: {warehouse_name} ({warehouse_id})")
     print(f"Selected catalog:   {catalog}  →  {inspire_db}")
+    if schema_pair:
+        print(f"Install mode: schema mode (INSPIRE_SCHEMA = {inspire_db}). The installer creates no catalog rights: "
+              f"{SCHEMA_MODE_CATALOG_NOTE}. Files go under {folders['APPS_PARENT'].rsplit('/', 1)[0]}.")
 
     release_version = str(env["manifest"]["version"])
     source_zip = (env.get("files") or {}).get(APP_ZIP, "")
@@ -827,12 +866,16 @@ def build_runtime_context(env):
         "USER_GROUPS": [str(getattr(g, "display", "") or "") for g in (getattr(current_user, "groups", None) or [])],
         "RELEASE_VERSION": release_version,
         "SOURCE_ZIP": source_zip,
-        "BUNDLE_ROOT": f"{APPS_PARENT}/{app_name}",
+        "SCHEMA_MODE": bool(schema_pair),
+        "RUN_AS_PERSON": run_as,
+        "ASSETS_PARENT": folders["ASSETS_PARENT"],
+        "APP_FOLDER": folders["APP_FOLDER"],
+        "BUNDLE_ROOT": f"{folders['APPS_PARENT']}/{app_name}",
         "DATA_CATALOGS": picked_data or [],
         "NEW_APPS_CATALOG_ACCESS": _new_apps_setting(env.get("new_apps_catalog_access", NEW_APPS_ACCOUNT_USERS)),
         "ASSETS_TAR": assets_tar,
         "TEST_TAG": str(settings.get("test_tag") or "").strip(),
-        "ASSETS_ROOT": f"{ASSETS_PARENT}/{release_version}",
+        "ASSETS_ROOT": f"{folders['ASSETS_PARENT']}/{release_version}",
         "available_catalogs": available_catalogs,
         "api": api,
         "api_get": api_get,
@@ -885,7 +928,6 @@ def step_schema_and_notebooks(ctx):
     catalog = ctx["CATALOG"]
     schema = ctx["SCHEMA"]
     source_folder = ctx["SOURCE_FOLDER"]
-    app_name = ctx["APP_NAME"]
     api = ctx["api"]
 
     if warehouse_id:
@@ -896,7 +938,7 @@ def step_schema_and_notebooks(ctx):
         )
         print(f"Schema: {'✅' if stmt.status and stmt.status.state == StatementState.SUCCEEDED else '⚠️ ' + str(stmt.status)}")
 
-    notebook_dest = f"/Shared/{app_name}/dbx_inspire_ai_agent"
+    notebook_dest = f"{ctx['APP_FOLDER']}/dbx_inspire_ai_agent"
     notebook_path = None
 
     notebook_source = None
@@ -934,7 +976,7 @@ def step_schema_and_notebooks(ctx):
         print(f"  ⚠️ {ctx['LAKEBASE_NOTE']}")
 
     try:
-        api("POST", "/api/2.0/workspace/mkdirs", {"path": f"/Shared/{app_name}"})
+        api("POST", "/api/2.0/workspace/mkdirs", {"path": ctx["APP_FOLDER"]})
     except Exception:
         pass
     try:
@@ -967,7 +1009,7 @@ def step_schema_and_notebooks(ctx):
     ctx["NOTEBOOK_PATH"] = notebook_path
     print(f"NOTEBOOK_PATH = {notebook_path}")
 
-    generate_demo_dest = f"/Shared/{app_name}/dbx_generate_demo_data"
+    generate_demo_dest = f"{ctx['APP_FOLDER']}/dbx_generate_demo_data"
     generate_source = None
     for candidate in [f"{source_folder}/dbx_generate_demo_data.py", f"{source_folder}/dbx_generate_demo_data"]:
         if os.path.exists(candidate):
@@ -979,7 +1021,7 @@ def step_schema_and_notebooks(ctx):
         gen_b64 = export_workspace_b64(ctx, generate_source, export_formats=("SOURCE", "JUPYTER"))
         if gen_b64:
             try:
-                api("POST", "/api/2.0/workspace/mkdirs", {"path": f"/Shared/{app_name}"})
+                api("POST", "/api/2.0/workspace/mkdirs", {"path": ctx["APP_FOLDER"]})
             except Exception:
                 pass
             gen_resp = api(
@@ -1026,6 +1068,103 @@ def _deploy_once(api, api_get, app_name, source_folder, app_url):
     raise RuntimeError(f"The App {app_name} was still deploying after 5 minutes. Check Compute → Apps → {app_name}, then run the installer again.")
 
 
+RUN_AS_SPEC = "installer/run_as_job_specs.json"  # written by app/scripts/emit-run-as-job-specs.js from the App's own job builders
+RUN_AS_JOBS = (  # (App variable that holds the id, job name, spec section)
+    ("INSPIRE_JOB_ID_DISCOVER", "Inspire AI - discovery", "single_task"),
+    ("INSPIRE_JOB_ID_IMPLEMENT", "Inspire AI - implement", "single_task"),
+    ("INSPIRE_JOB_ID_GENIE", "Inspire AI - genie code", "single_task"),
+    ("INSPIRE_JOB_ID_DEMO", "Inspire AI - demo pipeline", "demo_pipeline"),
+)
+RUN_AS_TAG_NOTE = ("[RUN-AS] per-use-case job tags are not applied in run-as mode; usage is attributed to the shared job {name}")
+RUN_AS_NEEDS_SCHEMA = ("RUN_AS_PERSON needs INSPIRE_SCHEMA: run-as-me installs into one schema the person owns, so set "
+                       "INSPIRE_SCHEMA to catalog.schema and run the installer again.")
+TEST_TAG_JOB_KEY = "dbx_inspire_ai_test"  # INSPIRE_TEST_TAG in app/backend/lib/inspireJobParams.js
+TEST_TAG_SAFE = re.compile(r"[A-Za-z0-9+=.:@_-]{1,256}")
+
+
+def _fill(value, marks):
+    if isinstance(value, dict):
+        return {key: _fill(item, marks) for key, item in value.items()}
+    if isinstance(value, list):
+        return [_fill(item, marks) for item in value]
+    if isinstance(value, str):
+        for mark, text in marks.items():
+            value = value.replace(mark, text)
+    return value
+
+
+def run_as_job_settings(spec, section, name, person, notebook, generate_notebook, test_tag=""):
+    """One install-time job from the shared spec: run_as is the person, notebook marks are filled, the test tag is set when given."""
+    template = spec[section]
+    settings = _fill({key: value for key, value in template.items() if key != "parameters"},
+                     {"{{notebook.inspire}}": notebook, "{{notebook.generate}}": generate_notebook})
+    if "parameters" in template:
+        settings["parameters"] = template["parameters"]
+    settings["name"] = name
+    # Jobs API reference, Create a job, field run_as: the job runs as this identity whoever triggers a run.
+    settings["run_as"] = {"user_name": person}
+    if test_tag:
+        settings["tags"] = {TEST_TAG_JOB_KEY: test_tag}
+    return settings
+
+
+def _load_run_as_spec(ctx):
+    path = os.path.join(ctx["SOURCE_FOLDER"], RUN_AS_SPEC)
+    if not os.path.isfile(path):
+        raise RuntimeError(f"The run-as job spec {RUN_AS_SPEC} is missing from the App bundle, so the jobs cannot be made. "
+                           "Download the release again.")
+    with open(path, encoding="utf-8") as handle:
+        return json.load(handle)
+
+
+def _run_job_access(api, sp, job_ids):
+    """Run-as-me: the App's service principal may start each installed job with run-now and see its runs; it owns none."""
+    for env_name, job_id in job_ids.items():
+        resp = api("PATCH", f"/api/2.0/permissions/jobs/{job_id}",
+                   {"access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_MANAGE_RUN"}]})
+        if resp.status_code != 200:
+            raise RuntimeError(f"{sp} could not be given CAN_MANAGE_RUN on the job {job_id} ({resp.status_code} {resp.text[:160]}). "
+                               "Inspire stopped before it deploys the new App version, so the App keeps its last working version.")
+        print(f"  CAN_MANAGE_RUN on the job {job_id} ({env_name}) for {sp}: ✅")
+
+
+def step_run_as_jobs(ctx):
+    """Run-as-me: create or reset each App job as the person, and record its id for app.yaml and the App's SP grant."""
+    if not ctx.get("RUN_AS_PERSON"):
+        return
+    if not ctx.get("SCHEMA_MODE"):
+        raise RuntimeError(RUN_AS_NEEDS_SCHEMA)
+    api, api_get, person = ctx["api"], ctx["api_get"], ctx["USER_EMAIL"]
+    spec = _load_run_as_spec(ctx)
+    test_tag = str(ctx.get("TEST_TAG") or "")
+    if test_tag and not TEST_TAG_SAFE.fullmatch(test_tag):
+        raise RuntimeError(f"The test tag {test_tag[:60]!r} has characters a job tag cannot hold. Use letters, digits and + = . : @ _ -.")
+    generate = ctx["GENERATE_DEMO_DEST"]
+    ids = {}
+    for env_name, name, section in RUN_AS_JOBS:
+        settings = run_as_job_settings(spec, section, name, person, ctx["NOTEBOOK_PATH"], generate, test_tag)
+        listed = api_get(f"/api/2.1/jobs/list?name={urllib.parse.quote(name)}&limit=100")
+        existing = [job for job in listed.get("jobs") or [] if (job.get("settings") or {}).get("name") == name
+                    and ((job.get("settings") or {}).get("run_as") or {}).get("user_name") == person]
+        if existing:
+            job_id = str(existing[0]["job_id"])
+            resp = api("POST", "/api/2.1/jobs/reset", {"job_id": int(job_id), "new_settings": settings})
+            verb = "updated"
+        else:
+            resp = api("POST", "/api/2.1/jobs/create", settings)
+            verb = "created"
+            if resp.status_code == 200:
+                job_id = str(resp.json()["job_id"])
+        if resp.status_code != 200:
+            raise RuntimeError(f"The job {name} could not be {verb} as {person} ({resp.status_code} {resp.text[:160]}). "
+                               "Nothing of the App was replaced; fix the job rights, then run this installer again.")
+        ids[env_name] = job_id
+        print(f"Job {name} {verb} as {person}: {job_id} (App env {env_name}) ✅")
+    ctx["JOB_IDS"] = ids
+    ctx["APP_EXTRA_ENV"] = {"INSPIRE_RUN_AS_PERSON": "1", **ids}
+    print(RUN_AS_TAG_NOTE.format(name=RUN_AS_JOBS[1][1]))
+
+
 def step_create_app_and_find_sp(ctx):
     api = ctx["api"]
     api_get = ctx["api_get"]
@@ -1048,7 +1187,7 @@ def step_create_app_and_find_sp(ctx):
 
     app_yaml_path = f"{source_folder}/app.yaml"
     wanted_yaml = write_app_yaml_deploy(app_yaml_path, inspire_db, warehouse_id, notebook_path, sp_name, ctx.get("ASSETS_PATH"),
-                                        ctx.get("TEST_TAG"))
+                                        ctx.get("TEST_TAG"), ctx.get("APP_EXTRA_ENV"))
     print("app.yaml: ✅")
 
     app_url = ""
@@ -1422,8 +1561,7 @@ def _lakebase_project_access(api, sp, project):
     )
 
 
-def _app_folder_access(api, app_name, sp):
-    folder = f"/Shared/{app_name}"
+def _app_folder_access(api, folder, sp):
     found = api("GET", f"/api/2.0/workspace/get-status?path={folder}")
     object_id = found.json().get("object_id") if found.status_code == 200 else None
     if not object_id:
@@ -1445,6 +1583,16 @@ SHARED_OUTPUT_GENERATION_PATH = "./../demos/"  # the App's default Generation Pa
 
 def _shared_output_folder(notebook_path):
     return posixpath.normpath(posixpath.join(posixpath.dirname(notebook_path), SHARED_OUTPUT_GENERATION_PATH))
+
+
+def _own_output_access(api, notebook_path):
+    """Schema mode: the demo output folder is created under the person's own folder, as the person. The App's principal gets no grant."""
+    folder = _shared_output_folder(notebook_path)
+    made = api("POST", "/api/2.0/workspace/mkdirs", {"path": folder})
+    if made.status_code != 200:
+        return False, (f"{folder} could not be created as you ({made.status_code} {made.text[:160]}), so a run has no output folder. "
+                       "Create that folder in your workspace home, then run this installer again")
+    return True, f"{folder} is your output folder, created under your own folder, so runs write there as you: ✅"
 
 
 def _shared_output_access(api, notebook_path, sp):
@@ -1587,7 +1735,26 @@ def _blocking_read_grants(failed):
     return blocking
 
 
+def _schema_mode_access(ctx):
+    """REQ-113 schema mode: the App's principal gets no grant at all. The App runs as the signed-in person, so the value ledger,
+    the demo output folder and every table are the person's, and the person's own rights are the only ones that count."""
+    warehouse_id, catalog, schema, api = ctx["WAREHOUSE_ID"], ctx["CATALOG"], ctx["SCHEMA"], ctx["api"]
+    if warehouse_id:
+        _ensure_value_ledger(ctx["w"], warehouse_id, catalog, schema)
+    ctx["LAKEBASE_NOTE"] = "schema mode grants the App's principal nothing, so Lakebase is not wired for Apps that Implement builds"
+    ctx["LAKEBASE_SUMMARY"] = f"⚠️ {ctx['LAKEBASE_NOTE']}"
+    print(f"  Schema mode: the App's principal gets no grant. The App runs as you, on `{catalog}`.`{schema}` and your folders. "
+          f"{SCHEMA_MODE_CATALOG_NOTE}.")
+    shared_ok, shared_said = _own_output_access(api, ctx["NOTEBOOK_PATH"])
+    print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
+    if not shared_ok:
+        raise RuntimeError(f"{shared_said}. Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
+                           "Then run this installer again.")
+
+
 def step_grant_permissions(ctx):
+    if ctx.get("SCHEMA_MODE"):
+        return _schema_mode_access(ctx)
     new_sp_app_id = ctx.get("NEW_SP_APP_ID")
     warehouse_id = ctx["WAREHOUSE_ID"]
     w = ctx["w"]
@@ -1654,8 +1821,9 @@ def step_grant_permissions(ctx):
                 ctx["LAKEBASE_NOTE"] = granted_said
         ctx["LAKEBASE_SUMMARY"] = (f"⚠️ {ctx['LAKEBASE_NOTE']}" if ctx.get("LAKEBASE_NOTE") else
                                    f"Apps that Implement builds read Lakebase: project {lakebase['project']}, catalog `{lakebase['catalog']}` ✅")
-        print(f"  {_app_folder_access(api, ctx['APP_NAME'], sp)}")
-        print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp)}")
+        print(f"  {_app_folder_access(api, ctx['APP_FOLDER'], sp)}")
+        print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp, ctx['ASSETS_PARENT'])}")
+        _run_job_access(api, sp, ctx.get("JOB_IDS") or {})
         shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
         print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
         _grant_data_catalogs(ctx, sp)
@@ -1732,8 +1900,8 @@ def step_render_done(ctx):
     )
 
 
-def _assets_folder_access(api, assets_path, sp):
-    folder = _workspace_api_path(ASSETS_PARENT)
+def _assets_folder_access(api, assets_path, sp, assets_parent=ASSETS_PARENT):
+    folder = _workspace_api_path(assets_parent)
     if not assets_path:
         return f"⚠️ No Inspire assets were installed in {folder}, so runs cannot read them. Run this installer again"
     found = api("GET", f"/api/2.0/workspace/get-status?path={folder}")
@@ -1883,6 +2051,36 @@ def _grant_refusal(name, person, held):
             f"GRANT MANAGE ON CATALOG `{name}` TO `{person}`, or make you the owner of `{name}`")
 
 
+def _schema_mode_problems(ctx):
+    """Schema mode checks, read only: you can use the catalog, and the schema is creatable or its owner is you."""
+    catalog, schema, person = ctx["CATALOG"], ctx["SCHEMA"], ctx["USER_EMAIL"]
+    problems = []
+    try:
+        full, held = _catalog_privileges(ctx, catalog)
+    except Exception as exc:
+        return [f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, catalog, person)}."]
+    try:
+        existing = ctx["w"].schemas.get(f"{catalog}.{schema}")
+    except Exception:
+        existing = None
+    if not (full or {"USE_CATALOG", "ALL_PRIVILEGES"} & held):
+        # The App acts as the person, so the person needs the catalog itself. The App's principal needs nothing.
+        problems.append(f"You cannot use catalog `{catalog}`, and the App runs as you, so it cannot read `{catalog}`. A catalog owner can run "
+                        f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `{person}`, then run this installer again.")
+    if existing is not None:
+        mine = {person.lower(), *[str(g).lower() for g in ctx.get("USER_GROUPS") or [] if g]}
+        owner = str(getattr(existing, "owner", "") or "").lower()
+        admin = _metastore_admin(ctx)
+        if owner not in mine and not (admin and admin in mine):
+            problems.append(f"The schema `{catalog}`.`{schema}` exists and you are not its owner, so the App, running as you, cannot manage it. "
+                            f"Its owner or a catalog owner can run GRANT MANAGE ON SCHEMA `{catalog}`.`{schema}` TO `{person}`, "
+                            "or make you the owner, then run this installer again.")
+    elif not (full or {"CREATE_SCHEMA", "ALL_PRIVILEGES"} & held):
+        problems.append(f"You cannot create the schema `{catalog}`.`{schema}`. A catalog owner can run "
+                        f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{person}`.")
+    return problems
+
+
 def step_preflight(ctx):
     api, w = ctx["api"], ctx["w"]
     app_name, catalog, schema = ctx["APP_NAME"], ctx["CATALOG"], ctx["SCHEMA"]
@@ -1915,17 +2113,22 @@ def step_preflight(ctx):
     except Exception as exc:
         problems.append(f"The SQL warehouse {ctx['WAREHOUSE_NAME']} does not run a query for you ({_error_words(exc)}). "
                         "You need Can Use on it.")
-    try:
-        rights = _catalog_rights(ctx)
-        if not rights["grant"]:
-            problems.append(f"You cannot grant on catalog `{catalog}`, and the Inspire App needs USE CATALOG on it: "
-                            f"{_grant_refusal(catalog, ctx['USER_EMAIL'], rights['held'])}.")
-        if not rights["schema"]:
-            problems.append(f"You cannot create the schema `{catalog}`.`{schema}`. A catalog owner can run "
-                            f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{ctx['USER_EMAIL']}`.")
-    except Exception as exc:
-        problems.append(f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, catalog, ctx['USER_EMAIL'])}.")
-    for folder in (f"/Shared/{app_name}", _workspace_api_path(ctx["BUNDLE_ROOT"]), _workspace_api_path(ASSETS_PARENT)):
+    schema_mode = bool(ctx.get("SCHEMA_MODE"))
+    if schema_mode:
+        problems += _schema_mode_problems(ctx)
+    else:
+        try:
+            rights = _catalog_rights(ctx)
+            if not rights["grant"]:
+                problems.append(f"You cannot grant on catalog `{catalog}`, and the Inspire App needs USE CATALOG on it: "
+                                f"{_grant_refusal(catalog, ctx['USER_EMAIL'], rights['held'])}.")
+            if not rights["schema"]:
+                problems.append(f"You cannot create the schema `{catalog}`.`{schema}`. A catalog owner can run "
+                                f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{ctx['USER_EMAIL']}`.")
+        except Exception as exc:
+            problems.append(f"Inspire cannot check catalog `{catalog}`: {_rights_unread(exc, catalog, ctx['USER_EMAIL'])}.")
+    for folder in ((ctx["APP_FOLDER"], _workspace_api_path(ctx["BUNDLE_ROOT"]), _workspace_api_path(ctx["ASSETS_PARENT"]))
+                   if not problems else ()):
         made = api("POST", "/api/2.0/workspace/mkdirs", {"path": folder})
         if made.status_code != 200:
             problems.append(f"You cannot write the workspace folder {folder} ({made.status_code} {made.text[:160]}). "
@@ -1934,6 +2137,8 @@ def step_preflight(ctx):
         raise RuntimeError("Nothing was replaced: the installed Inspire App and its service principal are untouched. "
                            "Fix these, then run this installer again:\n" + "\n".join(f"  • {p}" for p in problems))
     print(f"  Rights: ✅ App {app_name}, warehouse {ctx['WAREHOUSE_NAME']}, catalog `{catalog}` and the workspace folders")
+    if ctx.get("SCHEMA_MODE"):
+        print(f"  Schema mode: the App reads only `{catalog}`.`{schema}`; {SCHEMA_MODE_CATALOG_NOTE}")
 
 
 def run(env):
@@ -1944,8 +2149,8 @@ def run(env):
         ctx = build_runtime_context(env)
         if not ctx.get("ready"):
             return None
-        for step in (step_preflight, step_bundle, step_assets, step_cleanup, step_schema_and_notebooks, step_create_app_and_find_sp,
-                     step_grant_permissions, step_deploy_source, step_render_done):
+        for step in (step_preflight, step_bundle, step_assets, step_cleanup, step_schema_and_notebooks, step_run_as_jobs,
+                     step_create_app_and_find_sp, step_grant_permissions, step_deploy_source, step_render_done):
             step(ctx)
         return ctx
     except (FileNotFoundError, RuntimeError, requests.exceptions.HTTPError) as exc:

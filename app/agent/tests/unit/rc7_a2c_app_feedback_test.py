@@ -249,3 +249,11 @@ def test_the_inspire_identity_is_read_from_the_build_parameter_and_never_looked_
     method = next(n for n in ast.walk(tree) if isinstance(n, ast.FunctionDef) and n.name == "_implement_inspire_principal")
     calls = [n.func.attr for n in ast.walk(method) if isinstance(n, ast.Call) and isinstance(n.func, ast.Attribute)]
     assert calls == ["_implement_param"]
+
+
+def test_req113_run_as_inside_app_writes_its_reports_as_the_person_with_no_grant_and_no_warning(agent_ns):
+    """REQ-113: in run-as-me the Implement job takes no App principal. The reports table is the person's, so nothing is granted and nothing is warned."""
+    inst, calls = stub_agent(agent_ns, principal="")
+    inst._implement_param = lambda name: "1" if name == "inspire_run_as_person" else ""
+    assert inst._implement_app_feedback_inside(INSIDE_TABLE, []) == []
+    assert calls["access"] == [], "run-as-me grants the App's principal nothing"

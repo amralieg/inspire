@@ -315,3 +315,11 @@ def test_the_weasyprint_pin_keeps_the_70_floor_that_stops_the_double_free(agent_
         "WeasyPrint 70.0 needs tinycss2 1.5.0 and fonttools 4.59.2, newer than environment 4 ships"
     assert tuple(int(p) for p in agent_ns["INSPIRE_ASSET_WHEELS"]["fonttools"].split(".")[:2]) >= (4, 59)
     assert tuple(int(p) for p in agent_ns["INSPIRE_ASSET_WHEELS"]["tinycss2"].split(".")[:2]) >= (1, 5)
+
+
+def test_the_app_passes_the_installed_assets_folder_and_the_notebook_reads_it_before_the_shared_fallback(fresh_ns):
+    installed = "/Workspace/Users/someone@example.com/inspire-ai/assets/v1.3.0"
+    fresh_ns["INSPIRE_SETTINGS_APPLIED"] = {"inspire_assets_path": installed + "/"}
+    assert fresh_ns["InspireAssets"]().root == installed
+    fresh_ns["INSPIRE_SETTINGS_APPLIED"] = {}
+    assert fresh_ns["InspireAssets"]().root == f"/Workspace/Shared/inspire-ai/assets/{fresh_ns['__AGENT_VERSION__']}"

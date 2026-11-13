@@ -12,7 +12,7 @@ const FB = require('./lib/appFeedback');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
 const { ownServicePrincipalId } = require('./lib/inspireSpGrants');
-const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning, parseTableScopeText } = require('./lib/inspireJobParams');
+const { inspireJobEnvironmentChange, inspireJobEnvironmentWarning, inspireJobTestTagChange, inspireJobTestTagWarning, parseTableScopeText, runAsPerson, launchPlanFor } = require('./lib/inspireJobParams');
 const R = require('./lib/reviewFigures');
 const A = require('./lib/useCaseAlerts');
 const P = require('./lib/requestPerson');
@@ -1420,7 +1420,8 @@ function registerImplementRoutes(app, deps) {
     const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
     const warnings = [...noted, ...outputWarnings];
     const sessionParams = notebookParamsFromSessionForGenerateRun(session, sid);
-    const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, ownServicePrincipalId());
+    // Run-as-me (REQ-113): the job gets no App principal and runs as the signed-in person.
+    const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, runAsPerson() ? '' : ownServicePrincipalId(), runAsPerson());
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
     if (!sessionParams['01_uc_metadata']) {
       const err = new Error('This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.');
@@ -2165,7 +2166,7 @@ function registerImplementRoutes(app, deps) {
         throw Object.assign(new Error('this MVP names no result table in its settings, so Inspire cannot check which table its decisions belong to; '
           + 'pick the result table in Edit MVP and build it again'), { statusCode: 409 });
       }
-      const token = await appToken();
+      const token = (await appToken()) || (runAsPerson() ? req.dbToken : '');
       if (!token) {
         throw Object.assign(new Error('Inspire has no sign-in of its own here, so it cannot record decisions for this page; '
           + 'open the page from the Inspire App in Databricks'), { statusCode: 503 });
@@ -2343,12 +2344,18 @@ function registerImplementRoutes(app, deps) {
       const useCase = await loadUseCase(req.dbHost, req.dbToken, warehouseId, catalog, schema, sid, useCaseId);
       await refusePersonUnreadable(req, latest.spec_json, useCase);
       await refuseMissingSources(req, warehouseId, latest.spec_json, useCase);
-      const jobId = requireInt64Id(latest.job_id, 'job_id');
-      const warning = await alignJobSettings(req.dbHost, req.dbToken, jobId);
-      const viewer = await grantJobViewer(dbFetch, req.dbHost, req.dbToken, jobId, (await personOf(req)).username);
+      const plan = launchPlanFor({ runAs: runAsPerson(), jobType: 'implement' });
+      // Run-as-me: the shared implement job (installed as you) takes the use case as parameters; the per-use-case job is not used.
+      const jobId = plan.mode === 'create' ? requireInt64Id(latest.job_id, 'job_id') : plan.jobId;
+      const warning = plan.mode === 'create' ? await alignJobSettings(req.dbHost, req.dbToken, jobId) : '';
+      const viewer = plan.mode === 'create'
+        ? await grantJobViewer(dbFetch, req.dbHost, req.dbToken, jobId, (await personOf(req)).username)
+        : { granted: false, note: 'run-as-me: the shared job runs as you, so it needs no viewer grant' };
       const resp = await dbFetch(req.dbHost, req.dbToken, '/api/2.1/jobs/run-now', {
         method: 'POST',
-        body: jsonWithInt64Ids({ job_id: jobId, notebook_params: notebookParams, only: [I.IMPLEMENT_NOTEBOOK_TASK_KEY] }, ['job_id']),
+        body: plan.mode === 'create'
+          ? jsonWithInt64Ids({ job_id: jobId, notebook_params: notebookParams, only: [I.IMPLEMENT_NOTEBOOK_TASK_KEY] }, ['job_id'])
+          : jsonWithInt64Ids({ job_id: jobId, notebook_params: notebookParams }, ['job_id']),
       });
       const text = await resp.text();
       let data = {};
