@@ -312,9 +312,9 @@ def test_a_pure_fallback_set_carries_the_below_bar_label_notice_and_index_flag(d
     rows = obj._doc_index_rows(model["ranked"], model, labels(docs, "English"))
     assert [row["flag"] for row in rows] == ["Below bar", "Below bar"]
     notice = obj._quality_bar_notice([tier, tier2], {}, "English")
-    assert notice == model["executive"][0] and notice.startswith("None of the 2 use cases found meets your High bar.")
+    assert notice == model["executive"][0] and notice.startswith("0 of 2 use cases meet the High quality bar.")
     _, page = pdf_html(docs, captured_html, grouped, summary())
-    assert "Below the High bar" in page and "None of the 2 use cases found meets your High bar" in page
+    assert "Below the High bar" in page and "0 of 2 use cases meet the High quality bar" in page
 
 
 def test_an_ultra_high_near_miss_fallback_reads_near_miss_below_the_ultra_high_bar(docs):
@@ -326,7 +326,7 @@ def test_an_ultra_high_near_miss_fallback_reads_near_miss_below_the_ultra_high_b
     assert views[0]["coverage"][0] == "Near miss, below the Ultra High bar"
     assert views[0]["coverage"][2] == "failed check: red_team"
     assert obj._quality_bar_notice([near], {}, "English") == model["executive"][0]
-    assert model["executive"][0].startswith("None of the 1 use") and "Ultra High bar" in model["executive"][0]
+    assert model["executive"][0].startswith("0 of 1 use") and "Ultra High quality bar" in model["executive"][0]
 
 
 def test_missing_values_render_translated_not_provided_and_not_scored(docs, captured_html):

@@ -37,6 +37,7 @@ import StopRunControl from '../components/StopRunControl';
 import RunLogPanel from '../components/RunLogPanel';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
+import { qualityBarCountText } from '../lib/qualityBarWording';
 import { newSessionId, runResultText, runStateText } from '../lib/runState';
 import { liveCountText, liveUseCasesOf } from '../lib/liveUseCases';
 import { useFollowEnd } from '../lib/followEnd';
@@ -440,7 +441,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
               )}
               {isComplete && outcome.found > 0 && (
                 <p className="text-xs mt-0.5 text-text-secondary" data-testid="monitor-bar-counts">
-                  {outcome.found} use case{outcome.found === 1 ? '' : 's'} found, {outcome.meets} {outcome.meets === 1 ? 'meets' : 'meet'} your {outcome.mode || 'quality'} bar
+                  {qualityBarCountText(outcome.found, outcome.meets)}
                 </p>
               )}
               {isComplete && outcome.emptyTables.length > 0 && (

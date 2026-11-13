@@ -415,8 +415,8 @@ test('a Start run row says why it has no counts: still running with none yet, th
     assert.match(await page.locator('[data-run="71"] [data-run-counts-why]').first().innerText(), /^Use cases are not counted: \[INSUFFICIENT_PERMISSIONS\]/);
     assert.equal(await page.locator('[data-run="71"] [data-run-count="use_cases"]').count(), 0, 'no made-up zero when the use cases cannot be read');
     const older = page.locator('[data-run="72"]').first();
-    assert.equal((await older.locator('[data-run-count="high_quality"]').innerText()).trim(), 'high quality not counted');
-    assert.equal(await older.locator('[data-run-count="high_quality"][data-count-off]').count(), 1);
+    assert.equal((await older.locator('[data-run-count="quality_bar"]').innerText()).trim(), 'quality bar not counted');
+    assert.equal(await older.locator('[data-run-count="quality_bar"][data-count-off]').count(), 1);
     assert.equal((await older.locator('[data-run-count="high_priority"]').innerText()).replace(/\s+/g, ' ').trim(), '1 high priority');
     const why = await older.locator('[data-run-counts-why]').allInnerTexts();
     assert.ok(why.includes('Quality is not counted: the use case table has no elite_status column, which holds the quality bar.'), why.join(' | '));

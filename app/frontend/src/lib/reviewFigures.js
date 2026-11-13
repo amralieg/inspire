@@ -1,4 +1,5 @@
 import { displayCleanText } from './useCaseFields.js';
+import { qualityBarCountText } from './qualityBarWording.js';
 
 export const LATEST_RUN_LABEL = 'Latest Run';
 
@@ -71,6 +72,11 @@ export function runsOfCard(key, sessions, portfolio) {
 const countOf = (value) => (value == null || value === '' || !Number.isFinite(Number(value)) ? null : Math.max(0, Math.floor(Number(value))));
 const UNREAD_LABELS = { quality: 'Quality', high: 'High priority', domains: 'Domains' };
 
+const qualityItem = (total, meetsValue) => {
+  const meets = countOf(meetsValue);
+  return meets == null ? { key: 'quality_bar', n: null, label: 'quality bar' } : { key: 'quality_bar', n: meets, label: '', text: qualityBarCountText(total, meets) };
+};
+
 export function runCounts(overview, portfolio, session, { running = false, mvpError = '' } = {}) {
   const item = (key, n, one, many = one) => ({ key, n, label: n === 1 ? one : many });
   const items = [];
@@ -86,8 +92,7 @@ export function runCounts(overview, portfolio, session, { running = false, mvpEr
     } else {
       items.push(
         item('use_cases', total, running ? 'use case so far' : 'use case', running ? 'use cases so far' : 'use cases'),
-        item('high_quality', countOf(overview.meets), 'high quality'),
-        item('low_quality', countOf(overview.below), 'low quality'),
+        qualityItem(total, overview.meets),
         item('high_priority', countOf(overview.high), 'high priority'),
         item('domains', countOf(overview.domains), 'domain', 'domains'),
       );

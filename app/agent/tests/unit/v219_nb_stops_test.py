@@ -122,9 +122,9 @@ def test_empty_scanned_tables_skip_metric_views_and_the_message_is_short(agent_n
 
 
 def test_the_summary_is_honest_when_no_use_case_meets_the_bar(agent_ns):
-    inst = make_inspire(agent_ns, quality_bar_outcome={"mode": "Balanced", "meets": 0, "message": "None of the 4 use cases found meets"})
+    inst = make_inspire(agent_ns, quality_bar_outcome={"mode": "Balanced", "meets": 0, "message": "0 of 4 use cases meet the Balanced quality bar"})
     section = inst._summary_quality_bar_section()
-    assert section and "None of the 4 use cases found meets" in section and "Balanced" in section
+    assert section and "0 of 4 use cases meet the Balanced quality bar" in section and "Balanced" in section
     inst.quality_bar_outcome = {"mode": "Balanced", "meets": 3, "message": "3 of 4"}
     assert inst._summary_quality_bar_section() == ""
 
