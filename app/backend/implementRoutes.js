@@ -22,6 +22,7 @@ const G = require('../frontend/src/lib/tableName.js');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const FX = require('./lib/fxRates');
+const JC = require('./lib/jobCurrency');
 const MD = require('./lib/moneyDescribe');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
 const {
@@ -1421,6 +1422,7 @@ function registerImplementRoutes(app, deps) {
     const warnings = [...noted, ...outputWarnings];
     const sessionParams = notebookParamsFromSessionForGenerateRun(session, sid);
     const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, ownServicePrincipalId());
+    Object.assign(params, JC.implementCurrencyParams(spec?.money));
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
     if (!sessionParams['01_uc_metadata']) {
       const err = new Error('This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.');

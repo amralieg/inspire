@@ -118,7 +118,7 @@ test('widget keys follow the notebook order with the two v1.3.0 keys in their sl
   assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.indexOf('10_strategic_context'), INSPIRE_NOTEBOOK_WIDGET_KEYS.indexOf('09_generation_options') + 1);
   const { IMPLEMENT_USE_CASE_PARAM, IMPLEMENT_SPEC_VERSION_PARAM } = require('../lib/inspireImplement');
   assert.deepEqual(INSPIRE_NOTEBOOK_WIDGET_KEYS.slice(-3), ['16_best_of_best_count', IMPLEMENT_USE_CASE_PARAM, IMPLEMENT_SPEC_VERSION_PARAM]);
-  assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.length, 20, 'the table scope widget is one more key');
+  assert.equal(INSPIRE_NOTEBOOK_WIDGET_KEYS.length, 22, 'the table scope widget and the two currency widgets are the extra keys');
 });
 
 test('the implement run id reaches the job but is not a notebook widget, so a forked run never copies it', () => {
