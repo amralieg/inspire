@@ -901,3 +901,33 @@ def test_a_row_with_no_rate_fails_the_row_check_instead_of_dropping_out_of_the_t
     got = _rate_checks(sql)
     assert got[shell_sql.RATE_CHECK_LABEL + "rows"][0]["bad"] == 1, "the USD row has no rate, so the round must say so"
     assert got[shell_sql.RATE_TOTAL_LABEL + "rows"][0]["bad"] == 0
+
+
+def _equation_page(sql):
+    page = _rate_page(sql)
+    page["money"]["value"] = {"method": "equation", "expression": "quantity * unit_price - discount", "currency_column": "ccy"}
+    return page
+
+
+EQUATION_COLUMNS = ("quantity", "unit_price", "discount", "fx_rate", "ccy", "value_at_stake")
+EQUATION_FIXTURE = [(2, 60.0, 10.0, 2.0, "AED", None), (1, 50.0, 0.0, 1.5, "EUR", None)]
+
+
+def _equation_checks(sql):
+    return {label: _run(query, columns=EQUATION_COLUMNS, rows=EQUATION_FIXTURE)
+            for label, query in shell_sql.money_check_queries(_equation_page(sql))}
+
+
+def test_an_equation_rule_converted_row_by_row_passes_both_checks():
+    sql = ("SELECT quantity, unit_price, discount, fx_rate, ccy, (quantity * unit_price - discount) * fx_rate AS value_at_stake "
+           "FROM stake_rows")
+    got = _equation_checks(sql)
+    assert set(got) == {shell_sql.RATE_CHECK_LABEL + "rows", shell_sql.RATE_TOTAL_LABEL + "rows"}, "the equation rule gets both checks"
+    assert all(rows[0]["bad"] == 0 for rows in got.values()), got
+
+
+def test_an_equation_dataset_that_forgot_the_rate_fails_the_row_and_total_checks():
+    sql = "SELECT quantity, unit_price, discount, fx_rate, ccy, quantity * unit_price - discount AS value_at_stake FROM stake_rows"
+    got = _equation_checks(sql)
+    assert got[shell_sql.RATE_CHECK_LABEL + "rows"][0]["bad"] == 2
+    assert got[shell_sql.RATE_TOTAL_LABEL + "rows"][0]["bad"] == 1

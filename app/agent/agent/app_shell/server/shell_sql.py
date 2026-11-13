@@ -3241,17 +3241,16 @@ RATE_TOTAL_LABEL = "converted total of "
 def money_rate_column_checks(name: str, sql: str, money: dict) -> list:
     """Deterministic recompute for a rule that converts each row with its own rate. The dataset SQL is generated, so the
     build recomputes every row from the amount and the rate the dataset carries (amount x rate, the losses rule applied),
-    and compares the dataset's own value_at_stake and total with it. A dataset that forgot the rate fails here, with the
-    reason, and Genie repairs the round. An equation amount is not recomputed here; the App reads its total only."""
+    and compares the dataset's own value_at_stake and total with it. The amount is the rule's value, a column, a fixed
+    amount or an equation, turned into SQL by money_value_sql, the same parser the rule validator uses. A dataset that
+    forgot the rate fails here, with the reason, and Genie repairs the round."""
     value = money.get("value") if isinstance(money.get("value"), dict) else {}
     if not money.get("rate_column") or not money.get("currency_column"):
         return []
-    if value.get("method") == "column" and value.get("column"):
-        amount = f"CAST({quote(value['column'])} AS DOUBLE)"
-    elif value.get("method") == "fixed" and value.get("amount") is not None:
-        amount = f"CAST({float(value['amount'])!r} AS DOUBLE)"
-    else:
+    value_sql = money_value_sql(value) if value.get("method") in ("column", "fixed", "equation") else None
+    if value_sql is None:
         return []
+    amount = f"CAST({value_sql} AS DOUBLE)"
     rate = f"CAST({quote(money['rate_column'])} AS DOUBLE)"
     stake = f"({amount} * {rate})"
     if money.get("rule", "losses") == "losses":
