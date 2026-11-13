@@ -1,5 +1,0 @@
-<<<<<<<< HEAD:app/frontend/dist/assets/play-CSJfXIpt.js
-import{c as a}from"./index-CE36KoEr.js";const o=[["path",{d:"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z",key:"10ikf1"}]],e=a("play",o);export{e as P};
-========
-import{c as a}from"./index-BWnTMKm2.js";const o=[["path",{d:"M5 5a2 2 0 0 1 3.008-1.728l11.997 6.998a2 2 0 0 1 .003 3.458l-12 7A2 2 0 0 1 5 19z",key:"10ikf1"}]],e=a("play",o);export{e as P};
->>>>>>>> rc2/z-zero-money:app/frontend/dist/assets/play-C8S8DmFN.js
