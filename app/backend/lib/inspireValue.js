@@ -169,5 +169,5 @@ function overallValue(rows, counts) {
 
 module.exports = {
   valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql,
-  valueOfSession, valueOfRuns, overallValue, totalOf,
+  valueOfSession, valueOfRuns, overallValue, totalOf, qualified,
 };

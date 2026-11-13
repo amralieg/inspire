@@ -35,7 +35,8 @@ const {
 const JC = require('./lib/jobCurrency');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
-const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql, valueOfSession, valueOfRuns, overallValue } = require('./lib/inspireValue');
+const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql, valueOfSession, valueOfRuns, overallValue, qualified: qualifiedInspireTable } = require('./lib/inspireValue');
+const VE = require('./lib/valueEstimate');
 const { normalizeUseCaseName, renameStatement } = require('./lib/useCaseName');
 const { createExecuteSql, runWithRequestDeadline } = require('./lib/sqlStatements');
 const { plural } = require('./lib/plural');
@@ -51,12 +52,12 @@ const { metricViewSkipLine } = require('./lib/metricViews');
 const { createSourceAccess } = require('./lib/sourceAccess');
 const { withBusyRetry } = require('./lib/busyRetry');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
-const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
+const { loadSessionList, loadSessionOverviews, sessionListCap, SESSION_LIST_CAP } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
 const PM_ERROR = require('./lib/permissionError');
-const { isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames } = require('./lib/inspireImplement');
+const { isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames, implementTableName, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -2549,6 +2550,53 @@ async function readValueRows(req, warehouse_id, sql) {
     throw err;
   }
 }
+
+// REQ-078: the estimate for each use case that has no measured value, and the totals kept apart from measured money.
+// With a session_id it answers that run; without one it answers every run (runs by session id) and the total over them.
+async function estimatesOfSession(req, warehouse_id, parsedDb, sid) {
+  const useCases = await readValueRows(req, warehouse_id, VE.useCasesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), sid));
+  const specRows = await readValueRows(req, warehouse_id, VE.latestSpecsSql(implementTableName(parsedDb.catalog, parsedDb.schema), sid));
+  const specs = new Map(specRows.map((row) => [String(row.use_case_id), VE.parseSpec(row.spec)]));
+  const measured = valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), sid))).use_cases;
+  const baselineOf = async (resultTable, useCaseId) => {
+    if (resultTableNameError(resultTable)) return null;
+    try {
+      const found = await executeSql(req.dbHost, req.dbToken, warehouse_id, VE.baselineSql(quoteTable(`${resultTable}_summary`)),
+        [{ name: 'uc', value: useCaseId, type: 'STRING' }]);
+      const row = sqlResultToObjects(found)[0];
+      const baseline = row ? Number(row.kpi_baseline) : NaN;
+      return Number.isFinite(baseline) ? baseline : null;
+    } catch (err) {
+      if (isMissingTableError(err)) return null;
+      throw err;
+    }
+  };
+  return VE.estimatesFor({ useCases, specs, measured, baselineOf });
+}
+
+app.get('/api/inspire/value/estimates', requireToken, async (req, res) => {
+  try {
+    const { inspire_database, warehouse_id, session_id } = req.query;
+    if (!inspire_database || !warehouse_id) {
+      return res.status(400).json({ error: 'inspire_database and warehouse_id required.' });
+    }
+    const parsedDb = splitInspireDatabase(inspire_database);
+    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    if (session_id === undefined || session_id === '') {
+      // The same runs the Start list shows: the latest SESSION_LIST_CAP, newest first.
+      const rows = await readValueRows(req, warehouse_id, VE.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_session'), SESSION_LIST_CAP));
+      const truncated = rows.length > SESSION_LIST_CAP;
+      const sids = rows.slice(0, SESSION_LIST_CAP).map((row) => String(row.session_id)).filter((sid) => !invalidSessionId(sid));
+      const answers = await Promise.all(sids.map((sid) => estimatesOfSession(req, warehouse_id, parsedDb, sid)));
+      const runs = Object.fromEntries(sids.map((sid, i) => [sid, answers[i]]));
+      return res.json({ runs, totals: VE.mergeTotals(answers.map((answer) => answer.totals)), truncated, cap: SESSION_LIST_CAP });
+    }
+    if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
+    res.json(await estimatesOfSession(req, warehouse_id, parsedDb, String(session_id).trim()));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get('/api/inspire/value', requireToken, async (req, res) => {
   try {

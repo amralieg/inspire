@@ -45,6 +45,7 @@ import { DataAccessBadge, InsightsGrid, SidebarFilterPanel } from '../components
 import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
 import ValueBadge from '../components/ValueBadge';
+import { EstimateTotals } from '../components/ValueEstimateLine';
 import { valueQuery } from '../lib/valueLedger';
 import { useValueRead } from '../lib/useValueLedger';
 import LatestRunBadge from '../components/LatestRunBadge';
@@ -268,6 +269,8 @@ export default function ResultsPage({
     ? `/api/inspire/value?${valueQuery(inspireDb, warehouseId, { session_id: String(selectedSessionId) })}`
     : '';
   const runValue = useValueRead(apiFetch, runValueUrl, implementRefresh);
+  const estimateUrl = runValueUrl ? runValueUrl.replace('/api/inspire/value?', '/api/inspire/value/estimates?') : '';
+  const estimates = useValueRead(apiFetch, estimateUrl, implementRefresh);
 
   const resultsDiscoveryType = results?.discovery_type || '';
   const feedbackBusiness = useMemo(() => {
@@ -1095,6 +1098,7 @@ export default function ResultsPage({
                 className="mt-2"
               />
             )}
+            {estimates?.totals && <EstimateTotals totals={estimates.totals} className="mt-1" />}
           </div>
           <button
             type="button"
@@ -2424,6 +2428,8 @@ export default function ResultsPage({
                         v130={uc._v130}
                         feedbackCurrent={feedbackCurrentFor(uc)}
                         useCaseValue={runValue?.use_cases?.[trackingIdOf(uc)] ?? null}
+                        estimate={estimates?.use_cases?.[trackingIdOf(uc)] ?? null}
+                        onSetRule={canImplement ? () => startImplement(uc) : undefined}
                         implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}
                         onImplement={canImplement ? () => startImplement(uc) : undefined}
                         onOpenMvp={onOpenImplement && tid && selectedSessionId ? () => onOpenImplement(String(selectedSessionId), tid) : undefined}

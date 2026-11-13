@@ -361,6 +361,7 @@ function makeApp(overrides = {}, { mount } = {}) {
   app.get('/api/inspire/value', (_req, res) => res.json(state.value || { use_cases: {}, run: { at_stake: [], saved: [], mvps_measured: 0 } }));
   app.get('/api/inspire/value/overall', (_req, res) => res.json(state.valueOverall || { at_stake: [], saved: [], runs: 0, businesses: 0 }));
   app.get('/api/inspire/value/runs', (_req, res) => res.json(state.valueRuns || { runs: {} }));
+  app.get('/api/inspire/value/estimates', (_req, res) => res.json(state.valueEstimates || { use_cases: {}, totals: { estimated: {} } }));
   return { app, sqlCalls, fetches, jobs, state, altered, flagged, appCalls, launches, catalogLists, sampleCopies };
 }
 

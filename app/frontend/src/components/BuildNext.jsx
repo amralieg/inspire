@@ -10,7 +10,9 @@ import { appGrantText, moneyRuleColumns, preflightParams, primaryTableOf, specFo
 const BUILD_NOW_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg px-3 text-xs font-semibold text-white bg-db-red-solid shadow-sm shadow-db-red/20 hover:bg-db-red-solid-hover disabled:opacity-70';
 const BUILD_CUSTOM_BUTTON = 'inline-flex h-8 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-surface px-3 text-xs font-semibold text-text-primary hover:bg-bg-subtle';
 
-function RunValue({ row, onMeasure }) {
+// REQ-078: a sibling shows its own estimate from its domain's money rule, or asks for a rule (the same route and line as Review).
+export function RunValue({ row, onMeasure }) {
+  if (row.estimate) return <ValueEstimateLine estimate={row.estimate} onSetRule={onMeasure ? () => onMeasure(row.id) : undefined} />;
   if (row.uc && row.est) return <ValueEstimateLine uc={row.uc} />;
   return (
     <p data-value-estimate="not-calculated" className="text-xs leading-snug text-text-secondary">
@@ -29,13 +31,15 @@ export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId) 
     if (!sessionId || !inspireDatabase || !warehouseId) return undefined;
     let cancelled = false;
     const q = new URLSearchParams({ inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) });
-    Promise.all([apiFetch(`/api/inspire/usecases?${q}`), apiFetch(`/api/inspire/implement/history?${q}`)])
-      .then(([cases, history]) => {
+    Promise.all([apiFetch(`/api/inspire/usecases?${q}`), apiFetch(`/api/inspire/implement/history?${q}`), apiFetch(`/api/inspire/value/estimates?${q}`)])
+      .then(([cases, history, estimates]) => {
         if (cancelled) return;
         const latest = history?.latest || [];
         const statusById = Object.fromEntries(latest.map((row) => [String(row.use_case_id ?? ''), row.status]));
         const liveSpecs = Object.fromEntries(latest.map((row) => [String(row.use_case_id ?? ''), row.live_spec_json]));
-        setState({ rows: buildItems(cases?.usecases || [], statusById), liveSpecs, error: '' });
+        const byUseCase = estimates?.use_cases || {};
+        const rows = buildItems(cases?.usecases || [], statusById).map((row) => ({ ...row, estimate: byUseCase[String(row.id)] ?? null }));
+        setState({ rows, liveSpecs, error: '' });
       })
       .catch((err) => { if (!cancelled) setState({ rows: null, liveSpecs: {}, error: String(err?.message || err) }); });
     return () => { cancelled = true; };

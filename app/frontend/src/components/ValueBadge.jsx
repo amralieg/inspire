@@ -1,5 +1,6 @@
 import { plural } from '../lib/plural';
 import { valueChips } from '../lib/valueLedger';
+import { EstimateTotals } from './ValueEstimateLine';
 
 const isCount = (entry) => entry?.kind === 'count';
 const amountsOf = (entries) => (Array.isArray(entries) ? entries : []).filter((entry) => !isCount(entry));
@@ -50,7 +51,7 @@ export default function ValueBadge({ atStake, saved, measured = true, mvps = nul
   );
 }
 
-export function OverallValue({ value }) {
+export function OverallValue({ value, estimated = null, estimateCap = null }) {
   if (!value || !(Number(value.runs) > 0)) return null;
   return (
     <section aria-label="Value across runs" data-value-overall="" className="rounded-xl border border-border bg-surface px-4 py-3">
@@ -61,6 +62,8 @@ export function OverallValue({ value }) {
       <p className="mt-2 text-[11px] text-text-secondary">
         across {plural(value.runs, 'run')}, {plural(value.businesses, 'business', 'businesses')} · saved is as reported by owners
       </p>
+      {estimated && <EstimateTotals totals={estimated} className="mt-1" />}
+      {estimated && estimateCap && <p data-estimate-cap="" className="mt-1 text-[11px] text-text-tertiary">{`Estimate covers the latest ${estimateCap} runs`}</p>}
     </section>
   );
 }
