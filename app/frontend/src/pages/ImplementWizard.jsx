@@ -636,7 +636,6 @@ export default function ImplementWizard({
   const scopedProfile = narrowed ? withScopedRows(scopeProfile.profile, scopeCount, scopeGroups) : scopeProfile.profile;
   const scopedFirstRun = narrowed && scopeProfile.firstRun ? { ...scopeProfile.firstRun, profile: withScopedRows(scopeProfile.firstRun.profile, scopeCount, scopeGroups) } : scopeProfile.firstRun;
   const tooFewRows = tooFewRowsText(readCounted);
-  const totalSteps = useMemo(() => steps.length, [scopeReady, Boolean(spec.outputs.app)]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const q = useMemo(() => {
     const p = new URLSearchParams({
@@ -1339,7 +1338,7 @@ export default function ImplementWizard({
 
   if (loading) {
     return (
-      <Overlay title={title} uc={uc} steps={steps} total={totalSteps} step={stepIndex} onClose={cancel}>
+      <Overlay title={title} uc={uc} steps={steps} stepsReady={false} step={stepIndex} onClose={cancel}>
         <div className="flex items-center gap-2 p-8 text-sm text-text-secondary">
           <Loader2 size={16} className="animate-spin" /> Loading the use case…
         </div>
@@ -1449,7 +1448,7 @@ export default function ImplementWizard({
   const toggleOutput = (id, checked) => setSpec((prev) => withOutput(prev, id, checked, context?.assets));
 
   return (
-    <Overlay title={title} uc={uc} steps={steps} total={totalSteps} step={stepIndex} reach={reach} done={done} onGo={goTo} onDetails={() => setDetails(true)}
+    <Overlay title={title} uc={uc} steps={steps} stepsReady={!loading && scopeReady} step={stepIndex} reach={reach} done={done} onGo={goTo} onDetails={() => setDetails(true)}
       onClose={cancel} onTouch={markTouched}>
       {details && <UseCaseDrawer title={title} ucRow={ucRow} spec={spec} patch={patch} onOwner={(owner) => setSpec((prev) => withDecisionOwner(prev, owner))} onClose={() => setDetails(false)} />}
       <div ref={bodyRef} data-wizard-body="" className="flex-1 min-h-0 overflow-y-auto px-6 py-5 space-y-5">
@@ -3443,7 +3442,8 @@ function UseCaseDrawer({ title, ucRow, spec, patch, onOwner, onClose }) {
   );
 }
 
-function Overlay({ title, uc, steps, total = steps.length, step, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
+// The step bar shows only once the real spec and scope are known (stepsReady), so its count never changes after it first shows.
+function Overlay({ title, uc, steps, stepsReady = true, step, reach = [], done = [], onGo = null, onDetails = null, onClose, onTouch = undefined, children }) {
   const row = uc ? catalogRow(uc, 0) : null;
   const facts = row ? [['Domain', row.domain], ['Subdomain', row.subdomain], ['Technique', row.technique]].filter(([, v]) => v) : [];
   return (
@@ -3474,6 +3474,7 @@ function Overlay({ title, uc, steps, total = steps.length, step, reach = [], don
                 <X size={16} />
               </button>
             </div>
+            {stepsReady ? (<>
             <ol aria-label="Steps" className="flex flex-wrap items-center gap-x-1 gap-y-1 text-[11px]">
               {steps.map((item, i) => {
                 const label = <>{done[i] && <Check size={11} className="text-success-fg" aria-hidden="true" />}{i + 1}. {item.label}</>;
@@ -3492,7 +3493,10 @@ function Overlay({ title, uc, steps, total = steps.length, step, reach = [], don
                 );
               })}
             </ol>
-            <span className="sr-only">Step {step + 1} of {total}</span>
+            <span className="sr-only">Step {step + 1} of {steps.length}</span>
+          </>) : (
+            <p data-step-bar-loading="" className="text-[11px] text-text-tertiary">Loading the steps…</p>
+          )}
           </header>
           {children}
         </div>

@@ -474,7 +474,7 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
                             <ul data-run-counts="" aria-label="Counts for this run" className="mt-1.5 flex flex-wrap items-baseline gap-x-3 gap-y-0.5 text-[11px] text-text-secondary">
                               {counts.items.map((item) => (
                                 <li key={item.key} data-run-count={item.key} data-count-off={item.n == null ? '' : undefined}>
-                                  {item.n == null ? `${item.label} not counted` : (
+                                  {item.n == null ? `${item.label} not counted` : item.text ? item.text : (
                                     <><span className="font-semibold tabular-nums text-text-primary">{item.n.toLocaleString('en-US')}</span> {item.label}</>
                                   )}
                                 </li>

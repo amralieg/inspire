@@ -91,6 +91,7 @@ import {
   nameOfUseCase,
 } from '../lib/useCaseFields';
 import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
+import { qualityBarCountText } from '../lib/qualityBarWording';
 import { liveCountText } from '../lib/liveUseCases';
 import { saveBlob } from '../lib/download';
 import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, artifactTreeFiles, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, hasPdfArtifact, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
@@ -1402,7 +1403,7 @@ export default function ResultsPage({
                           : <p className="text-[11px] text-text-secondary">Every step of the run finished.</p>}
                       {qualityBarCounts.found > 0 && (
                         <p className="text-[11px] text-text-secondary mt-0.5" data-testid="quality-bar-counts">
-                          {qualityBarCounts.found} found, {qualityBarCounts.meets} {qualityBarCounts.meets === 1 ? 'meets' : 'meet'} your quality bar
+                          {qualityBarCountText(qualityBarCounts.found, qualityBarCounts.meets)}
                         </p>
                       )}
                       {noneMeetsBar && !runOutcome.failed && (

@@ -56,7 +56,7 @@ test('a run where nothing meets the bar still lists every use case found, each m
     await done.waitFor();
     assert.equal(await done.getAttribute('data-status'), 'warning');
     assert.match(await done.innerText(), /Run finished, with a warning/);
-    assert.match(await page.locator('[data-testid="quality-bar-counts"]').innerText(), /^6 found, 0 meet your quality bar$/);
+    assert.equal(await page.locator('[data-testid="quality-bar-counts"]').innerText(), '0 of 6 use cases meet the quality bar');
     assert.match(await page.locator('[data-testid="execution-outcome"]').innerText(), /^None of the 6 use cases found meets your High bar/);
     assert.equal(await page.locator('[data-testid="quality-bar-next-step"]').innerText(),
       'Next step: add rows to the 2 tables that have no rows yet (the Generate data page can add sample rows), then run again.');
@@ -94,7 +94,7 @@ test('in a mixed run the use cases that meet the bar come first with the chip, a
     assert.deepEqual(chips, ['yes', 'yes', 'yes', 'no', 'no', 'no']);
     assert.match(await cards(page).first().innerText(), /Meets your quality bar/i);
     assert.equal(await page.locator('[data-testid="execution-complete"]').getAttribute('data-status'), 'success');
-    assert.match(await page.locator('[data-testid="quality-bar-counts"]').innerText(), /^6 found, 3 meet your quality bar$/);
+    assert.equal(await page.locator('[data-testid="quality-bar-counts"]').innerText(), '3 of 6 use cases meet the quality bar');
     assert.equal(await page.locator('[data-testid="quality-bar-next-step"]').count(), 0);
     const tiles = await page.locator('[data-stat]').evaluateAll((els) => els.map((el) => el.dataset.stat));
     assert.ok(tiles.includes('High Priority') && tiles.includes('Avg Inspire score'), tiles.join(', '));
@@ -147,7 +147,7 @@ test('the Monitor shows an amber Completed with a warning when no use case meets
     assert.match(await card.getAttribute('class'), /bg-warning-bg/);
     assert.doesNotMatch(await card.getAttribute('class'), /bg-success-bg/);
     assert.match(await card.innerText(), /Completed: 0 of 6 use cases meet your High bar/);
-    assert.equal(await card.locator('[data-testid="monitor-bar-counts"]').innerText(), '6 use cases found, 0 meet your High bar');
+    assert.equal(await card.locator('[data-testid="monitor-bar-counts"]').innerText(), '0 of 6 use cases meet the quality bar');
     assert.match(await card.locator('[data-testid="monitor-empty-tables"]').innerText(),
       /^These tables have no rows yet: airline\.passenger\.bookings, airline\.passenger\.flights\. Add sample rows on the Generate data page, then run again\.$/);
     assert.equal(await card.getByText('Inspire finished this run.', { exact: true }).count(), 0);
@@ -180,7 +180,7 @@ test('the Monitor stays green when the bar is met, and still shows how many were
     const card = page.locator('[data-testid="monitor-status"]');
     await card.getByText('Completed', { exact: true }).waitFor({ timeout: 10000 });
     assert.equal(await card.getAttribute('data-status'), 'success');
-    assert.equal(await card.locator('[data-testid="monitor-bar-counts"]').innerText(), '6 use cases found, 3 meet your High bar');
+    assert.equal(await card.locator('[data-testid="monitor-bar-counts"]').innerText(), '3 of 6 use cases meet the quality bar');
     assert.equal(await card.locator('[data-testid="monitor-empty-tables"]').count(), 0);
   } finally {
     await ui.close();
