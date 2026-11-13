@@ -83,7 +83,7 @@ def test_the_settings_reach_every_tool(release_tool):
     assert release.EXTRA.pattern == "secret-host" and str(release.LEAK_SCAN) == release_tool.settings["leak_scan"]
     assert release.REVIEWED == () and release.LONG_REVIEWED == {}
     isolation = release_tool.load("isolation")
-    assert isolation.CATALOGS == ("kept_cat", "lb_cat") and isolation.OWN_PATHS == ("scratch-app", "/v9.9.9")
+    assert isolation.CATALOGS == ("kept_cat", "lb_cat") and isolation.OWN_PATHS == ("scratch-app", "rc_tests", "/v9.9.9")
 
 
 class _Calls:
@@ -366,6 +366,15 @@ def test_isolation_allows_a_grant_to_the_scratch_apps_own_principal_only(release
     assert code == 1 and "CHANGED grants.catalog:kept_cat: added" in out
 
 
+def test_isolation_allows_the_lanes_own_workspace_folder_even_when_own_paths_does_not_list_it(release_tool, tmp_path, capsys):
+    release_tool.settings["workspace_folder"] = "inspire_cust_rehearsal"
+    code, out = _diff(release_tool, tmp_path, _snapshot([], ["/Shared/kept/x"]),
+                      _snapshot([], ["/Shared/kept/x", "/Users/someone/inspire_cust_rehearsal/v1.5.3-rc.2-cust/a"]), capsys)
+    assert code == 0
+    assert "ALLOWED folders./Shared/kept: added /Users/someone/inspire_cust_rehearsal/v1.5.3-rc.2-cust/a" in out
+    assert "NOT MINE" not in out
+
+
 def test_isolation_counts_new_paths_under_the_own_paths_setting_as_allowed(release_tool, tmp_path, capsys):
     code, out = _diff(release_tool, tmp_path, _snapshot([], ["/Shared/kept/x"]),
                       _snapshot([], ["/Shared/kept/x", "/Shared/kept/assets/v9.9.9/a", "/Shared/kept/scratch-app/b", "/Shared/kept/other"]), capsys)
@@ -495,8 +504,10 @@ def _fake_tools(root):
     py = sys.executable
     scripts = {
         "git": f'''#!{py}
-import sys, tarfile
+import json, os, sys, tarfile
 args = sys.argv[1:]
+with open(os.environ["FAKE_LOG"], "a") as log:
+    log.write(json.dumps(["git", args]) + "\\n")
 args = args[2:] if args[:1] == ["-C"] else args
 if args[:1] == ["archive"]:
     with tarfile.open(fileobj=sys.stdout.buffer, mode="w|"):
@@ -599,6 +610,25 @@ def test_an_installer_that_prints_no_summary_line_does_not_stop_the_run_silently
     done, installs = _full_run(release_tool, tmp_path, "{url}: 8 of 8 checks OK, 0 failures", quiet_install=True)
     assert len(installs) == 1
     assert "==== 8." in done.stdout and "STOPPED" not in done.stderr
+
+
+def _git_refs(tmp_path):
+    calls = [json.loads(line) for line in (tmp_path / "calls.log").read_text().splitlines()]
+    return [arg for name, args in calls if name == "git" for arg in args]
+
+
+def test_the_build_sha_must_be_an_ancestor_of_release_ref_when_it_names_one(release_tool, tmp_path):
+    release_tool.settings["release_ref"] = "rc2/int"
+    done, _ = _full_run(release_tool, tmp_path, "{url}: 8 of 8 checks OK, 0 failures")
+    assert done.returncode == 0, done.stderr
+    assert "rc2/int^{commit}" in _git_refs(tmp_path)
+    assert not any(arg.startswith("origin/feat/test") for arg in _git_refs(tmp_path))
+
+
+def test_the_build_sha_is_checked_against_origin_branch_when_no_release_ref_is_set(release_tool, tmp_path):
+    done, _ = _full_run(release_tool, tmp_path, "{url}: 8 of 8 checks OK, 0 failures")
+    assert done.returncode == 0, done.stderr
+    assert "origin/feat/test^{commit}" in _git_refs(tmp_path)
 
 
 def test_a_publish_log_with_an_incomplete_check_stops_the_run_before_the_install(release_tool, tmp_path):

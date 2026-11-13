@@ -61,8 +61,12 @@ def wait_for_network(settings):
 
 
 def main():
+    if len(sys.argv) == 3 and sys.argv[1] == "get-optional":
+        value = load().get(sys.argv[2])
+        print("" if value in (None, "") else value)
+        return
     if len(sys.argv) != 3 or sys.argv[1] != "get":
-        raise SystemExit("usage: rc_settings.py get <key>")
+        raise SystemExit("usage: rc_settings.py get <key> | get-optional <key>")
     value = need(load(), sys.argv[2])
     print(" ".join(map(str, value)) if isinstance(value, list) else value)
 
