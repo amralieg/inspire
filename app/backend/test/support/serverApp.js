@@ -37,7 +37,7 @@ const state = {
 function reset(overrides = {}) {
   Object.assign(state, {
     managers: [], managerGroups: [], personGroups: [], aclStatus: 200, personAppsScope: true, launchers: {}, sessionLaunchers: {}, history: [], calls: [],
-    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
+    launches: [], knownSessions: [], ledgerSessions: [], nextRunId: 501, holdFetch: null, createFailure: '', sessionRows: {}, groupParents: {}, indirectGroups: [], conflictOn: null, ucSchemas: null, ucTables: null,
     createdJob: null, presentPaths: [], statusErrors: {}, catalogPaths: {}, catalogReasons: {}, catalogColumnMissing: false, catalogQueryError: '', runJobs: {}, runStates: null, runOutputs: null, sessionList: [], usecases: [], usecaseColumns: null, files: {}, sessionBusiness: {},
     ...folderModel({ folders: { '/Shared/demos': { id: 7, writers: '*' } } }),
   }, overrides);
@@ -181,6 +181,8 @@ async function stubFetch(url, opts = {}) {
   }
   const call = { method, path: u.pathname, query: u.search, token, statement: body.statement || '', raw: typeof opts.body === 'string' ? opts.body : '', category: categoryOf(method, u.pathname, body, token) };
   state.calls.push(call);
+  // holdFetch(url, method) => true makes the workspace never answer that call (a stalled warehouse or listing).
+  if (state.holdFetch && state.holdFetch(u, method)) return new Promise(() => {});
   if (u.pathname === '/oidc/v1/token') return json({ access_token: APP_TOKEN, expires_in: 3600 });
   if (u.pathname === `/api/2.0/permissions/apps/${APP_NAME}`) {
     if (state.aclStatus !== 200) return json({ message: 'denied' }, state.aclStatus);
@@ -232,6 +234,7 @@ async function stubFetch(url, opts = {}) {
   }
   if (u.pathname === '/api/2.1/jobs/create') {
     state.createdJob = body;
+    if (state.createFailure) return json({ error_code: 'INVALID_PARAMETER_VALUE', message: state.createFailure }, 400);
     if (state.createdJobIdText) return { ...json({}), text: async () => `{"job_id": ${state.createdJobIdText}}` };
     return json({ job_id: 5 });
   }
