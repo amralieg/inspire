@@ -8,12 +8,14 @@ const UNCHECKED_TAIL = 'Get Started still works, and the run checks the folder a
 const lines = (items) => (Array.isArray(items) ? items.filter((item) => item != null).map(String).filter(Boolean) : []);
 
 export function outputCheckRequest(generationPath) {
-  return { method: 'POST', body: JSON.stringify({ generation_path: String(generationPath ?? '') }) };
+  // The check shows its own See the grant, so its refusal must not open the App-level dialog over the page.
+  return { method: 'POST', body: JSON.stringify({ generation_path: String(generationPath ?? '') }), raise: false };
 }
 
 export function outputCheckVerdict(path, data, err) {
   if (err && [400, 401, 403].includes(err.status)) {
-    return { path, state: 'refused', text: String(err.message || 'You cannot write to the output folder.'), folder: '', checked: '', warnings: [], details: [] };
+    return { path, state: 'refused', text: String(err.message || 'You cannot write to the output folder.'), folder: '', checked: '', warnings: [], details: [],
+      permissions: Array.isArray(err.body?.permissions) ? err.body.permissions : [] };
   }
   if (!err && data && data.allowed === true) {
     return { path, state: 'passed', text: '', folder: String(data.folder || path), checked: String(data.checked || ''),

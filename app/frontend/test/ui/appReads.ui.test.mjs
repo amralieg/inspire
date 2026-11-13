@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_READS_LABEL } from '../../src/lib/implementWizard.js';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { BUILD_IT, closeBrowser, expandBuild, openUi, toSharedAccess, toSummary } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, closeOnLoadPermission, expandBuild, openUi, toSharedAccess, toSummary } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -69,6 +69,7 @@ test('a build whose App cannot read its data ends as action needed; a person who
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await closeOnLoadPermission(page, { expect: true });
     await expandBuild(page);
     const card = page.getByRole('region', { name: 'The App cannot read part of its data' });
     await card.waitFor();

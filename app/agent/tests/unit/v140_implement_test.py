@@ -5385,10 +5385,10 @@ def test_the_app_is_built_from_genie_page_json_checked_at_its_defaults_then_depl
 
 
 @pytest.mark.parametrize("outputs,asset_status,note", [
-    ({}, {}, "Ask Genie is off because this use case's Genie Agent is not ready: it was not built"),
+    ({}, {}, "The Genie Agent is not ready: it was not built"),
     ({}, {"genie_space": {"state": "failed", "error": "the warehouse  was\nstopped"}},
-     "Ask Genie is off because this use case's Genie Agent is not ready: the warehouse was stopped"),
-    ({"genie_space": False}, {}, "Ask Genie is off because this use case's Genie Agent is not ready: it was not built"),
+     "The Genie Agent is not ready: the warehouse was stopped"),
+    ({"genie_space": False}, {}, "The Genie Agent is not ready: it was not built"),
 ])
 def test_an_app_without_a_ready_genie_agent_deploys_with_ask_genie_off_and_a_warning(agent_ns, tmp_path, outputs, asset_status, note):
     inst, context, seen = _app_flow(agent_ns, tmp_path, outputs=outputs, asset_status=asset_status)

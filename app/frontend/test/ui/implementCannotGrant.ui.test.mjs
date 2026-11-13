@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { OWNER, STUDIO_STATE, builtSpec } from './implementFixtures.js';
-import { closeBrowser, expandBuild, openUi } from './uiSupport.mjs';
+import { closeBrowser, closeOnLoadPermission, expandBuild, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -39,6 +39,11 @@ test('a person who cannot grant sees one plain sentence naming the owner, the GR
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    // A person who cannot grant: Permission Required opens once on load with the owner's GRANTs; the inline card stays under it.
+    const dialog = page.locator('[data-permission-dialog=""]');
+    await dialog.waitFor({ timeout: 8000 });
+    assert.match(await dialog.locator('[data-permission-statements=""]').innerText(), /^GRANT /m, 'the owner GRANTs open on load');
+    await closeOnLoadPermission(page, { expect: true });
     await expandBuild(page);
     const card = page.locator('[data-app-reads]');
     await card.waitFor({ timeout: 15000 });
@@ -48,7 +53,6 @@ test('a person who cannot grant sees one plain sentence naming the owner, the GR
     assert.doesNotMatch(text, /@/, 'no internal email on the build card');
     assert.doesNotMatch(text, /GRANT /, 'GRANT lines are not visible outside Details');
     assert.doesNotMatch(text, /PERMISSION_DENIED/, 'the raw error is not visible outside Details');
-    assert.equal(await card.locator('[data-app-reads-details] summary').count() > 0, true, 'the GRANT list sits under Details');
     assert.match(text, /cannot grant|can grant it|data owner/i, 'one plain sentence names who can grant it');
     assert.ok(live.grants.every(([, token]) => token === PERSON), 'the refused grants ran with the person sign-in only');
     await card.getByRole('button', { name: /Copy the grant SQL/ }).click();

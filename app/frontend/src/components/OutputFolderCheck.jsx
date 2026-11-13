@@ -1,5 +1,7 @@
 import { AlertTriangle, Loader2 } from 'lucide-react';
+import { useState } from 'react';
 import TechnicalDetails from './TechnicalDetails';
+import PermissionRequired from './PermissionRequired';
 
 function Notes({ items }) {
   if (!items.length) return null;
@@ -16,6 +18,7 @@ function Notes({ items }) {
 }
 
 export default function OutputFolderCheck({ check, where = '', id }) {
+  const [grant, setGrant] = useState(false);
   if (check.state === 'checking') {
     return (
       <p id={id} role="status" data-output-check="checking" className="flex items-center gap-1.5 text-xs text-text-tertiary mt-2">
@@ -56,6 +59,13 @@ export default function OutputFolderCheck({ check, where = '', id }) {
         <p className="mt-1 text-text-secondary">
           {`Get Started stays off until the output folder check passes${where ? `. ${where}` : ''}.`}
         </p>
+        {check.permissions?.length > 0 && (
+          <button type="button" data-see-grant="" onClick={() => setGrant(true)}
+            className="mt-1 rounded-lg border border-border bg-surface px-2.5 py-1 text-[11px] font-semibold text-text-primary hover:bg-bg-subtle">
+            See the grant
+          </button>
+        )}
+        {grant && <PermissionRequired permissions={check.permissions} onClose={() => setGrant(false)} />}
       </div>
     </div>
   );

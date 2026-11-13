@@ -46,7 +46,7 @@ async function readable(page, selectors, name) {
   await page.evaluate(() => document.documentElement.classList.remove('dark'));
 }
 
-const STEPS_WITH_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build'];
+const STEPS_WITH_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App and storage', '7. App look', '8. Review & build'];
 const boxLabels = (panel) => panel.locator('textarea').evaluateAll((boxes) => boxes.map((b) => b.getAttribute('aria-label')));
 
 async function grayExamples(page, panel) {
@@ -75,7 +75,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.equal(await page.getByRole('textbox', { name: /vibes/i }).count(), 0, 'Delivery has no vibes box');
     assert.equal(await page.getByRole('region', { name: 'Vibes' }).count(), 0);
     await page.getByRole('checkbox', { name: /^App A Databricks/ }).uncheck();
-    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Run it', '6. Review & build'], 'Summary stays last without an App');
+    assert.deepEqual(await page.locator('ol li').allTextContents(), ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Review & build'], 'Summary stays last without an App');
     await toVibes(page);
     const panel = page.getByRole('region', { name: 'Vibes' });
     await panel.getByRole('heading', { name: 'Anything else Genie should build in?' }).waitFor();
@@ -99,7 +99,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
     assert.deepEqual((await grayExamples(page, panel)).map((e) => e.value), [''], 'the example is never typed into the box');
 
     await page.getByRole('button', { name: 'Back', exact: true }).click();
-    await onStep(page, 'Run it');
+    await onStep(page, 'Measure');
     await goToStep(page, 'What to build');
     for (const name of [/^Dashboard/, /^App A Databricks/, /^Alert/]) await page.getByRole('checkbox', { name }).check();
     await page.getByText(`Emails ${OWNER} when`, { exact: false }).waitFor();
@@ -141,8 +141,6 @@ test('the one box on the Vibes step takes the full width, is 8 lines tall and gr
     const after = await box.boundingBox();
     assert.ok(after.height > before.height + 60, `dragging the corner makes the box taller (${before.height} to ${after.height})`);
     await box.fill('Make the trend weekly\nAnswer in euros');
-    await page.getByRole('button', { name: 'Back', exact: true }).click();
-    await onStep(page, 'Run it');
     await page.getByRole('button', { name: 'Back', exact: true }).click();
     await onStep(page, 'App look');
     await toVibes(page);

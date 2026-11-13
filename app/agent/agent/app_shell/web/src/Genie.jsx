@@ -8,7 +8,7 @@ import DataTable from './DataTable.jsx';
 import Markdown from './Markdown.jsx';
 import { BUSY_TITLE, explainBody } from './explain.js';
 import { GENIE_DEFAULT, GENIE_MIN, clampGenie, genieMax, keyWidth, rememberGenieWidth, storedGenieWidth } from './genieWidth.js';
-import { GENIE_ASK, genieAnswer, genieKey, genieOf, genieOn, paceText } from './genieAsk.js';
+import { GENIE_ASK, agentIntro, genieAnswer, genieKey, genieOf, genieOn, paceText } from './genieAsk.js';
 import { AGENT_CHANGED, suggestions } from './agentView.js';
 import { AgentExtras, AgentSteps, RecordOffers, confirmWrite } from './AgentParts.jsx';
 import { runWrite } from './saving.jsx';
@@ -89,7 +89,7 @@ export function useGenie(app, current, onOpen, view = null) {
   }, [current]);
   useEffect(() => { opener.current = onOpen; shown.current = app; keyNow.current = key; all.current = threads; modesNow.current = modes; viewNow.current = view; });
   useEffect(() => {
-    if (!key || !genieOn(app, key) || modesNow.current[key]) return;
+    if (!key || !genieKey(app, key) || modesNow.current[key]) return;
     const settle = (mode) => setModes((m) => ({ ...m, [key]: mode }));
     settle({ mode: 'checking', note: '' });
     agentStatus(key).then((m) => settle({ mode: m.mode === 'agent' ? 'agent' : 'genie', note: m.note || '' }))
@@ -437,17 +437,17 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
   }, [draft, setDraft]);
   const info = genieOf(app, key);
   const home = key ? app.pages.find((p) => p.id === key) : null;
-  const on = Boolean(home) && info.enabled;
+  const on = Boolean(home) && genieOn(app, key, mode?.mode);
   const entity = String(app.pages.find((p) => p.id === about?.pageId)?.records?.label_title || 'record').toLowerCase();
   const asked = thread.filter((m) => m.who === 'you').map((m) => m.text);
   const questions = home ? (agent ? suggestions(home, null, String(home.records?.label_title || 'record').toLowerCase(), asked) : (home.questions || []).filter((q) => !asked.includes(q))) : [];
-  const answering = pages.filter((p) => p.genie.enabled);
+  const answering = pages.filter((p) => genieOn(app, p.id));
   const submit = (e) => { e.preventDefault(); if (on && text.trim() && !busy) { ask(text); setText(''); } };
   const who = app.auth === 'user' ? 'with your permissions' : "with the App's permissions";
   const subject = about ? `"${about.label}"` : home ? home.title : '';
   const status = !home ? 'Each use case has its own Genie Agent'
-    : on && agent ? `Answers about ${page && page.id !== home.id ? home.title : 'this use case'} ${who}; asks the Genie Agent${info.title ? ` "${info.title}"` : ''} when it needs the data`
-      : on ? `Answers from the Genie Agent${info.title ? ` "${info.title}"` : ''} · ${who}` : 'Ask Genie is off for this use case';
+    : on && agent ? `Answers about ${page && page.id !== home.id ? home.title : 'this use case'} from its data ${who}${info.enabled ? `; asks the Genie Agent${info.title ? ` "${info.title}"` : ''} when it needs the data` : ''}`
+      : on ? `Answers from the Genie Agent${info.title ? ` "${info.title}"` : ''} · ${who}` : `Ask is off for this use case${info.note ? `: ${info.note}` : ''}`;
   return (
     <aside ref={panel} className={`genie is-open ${full ? 'genie--full' : ''}`} aria-label="Ask Genie" style={full ? undefined : { '--genie-w': `${width.shown}px` }} data-genie-full={full || undefined}>
       {!full && <Resizer width={width} />}
@@ -464,6 +464,7 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
         {!full && <button className="ibtn" onClick={onClose} aria-label="Close Ask Genie"><Icon name="x" size={18} /></button>}
       </header>
       {on && mode?.note && <p className="g-note" role="note" data-agent-note>{mode.note}</p>}
+      {on && !info.enabled && info.note && <p className="g-note g-note--sub" role="note" data-genie-gap>{info.note}</p>}
       <div className="g-log" ref={log} role="log" aria-live="polite" aria-label="Genie conversation">
         {!home && (
           <div className="g-empty g-pick">
@@ -476,10 +477,11 @@ export default function GeniePanel({ app, genie, page, pages, onPick, onClose, t
             )}
           </div>
         )}
-        {home && !on && <div className="g-off"><GenieMark size={28} /><b>Ask Genie is off</b><span>{info.note}</span></div>}
+        {home && !on && mode?.mode === 'checking' && <div className="g-off"><GenieMark size={28} /><b>Checking Ask Genie</b><span>Checking whether this use case can answer.</span></div>}
+        {home && !on && mode?.mode !== 'checking' && <div className="g-off"><GenieMark size={28} /><b>Ask Genie is off</b><span>{info.note}</span></div>}
         {on && !thread.length && (
           <div className="g-empty"><GenieMark size={28} /><p>{agent
-            ? `Ask about ${subject}. Genie reads what the page shows, asks the Genie Agent when it needs the data, can change the view, and asks before it changes a record.`
+            ? agentIntro(subject, info.enabled)
             : `Ask a question about ${subject}. Genie writes the SQL, runs it ${app.auth === 'user' ? 'as you' : 'as the App'}, and shows its work.`}</p>
             {agent && fact && <p className="g-fact" data-fact>{fact}</p>}</div>
         )}

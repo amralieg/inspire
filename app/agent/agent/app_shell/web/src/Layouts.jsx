@@ -284,8 +284,16 @@ export function PlanTable({ page, app, filters, ready, nonce, onChanged, planId 
 
 const SCENARIO_HOLDS = ['levers', 'scenario', 'target'];
 
-export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kpisOf, records, chartCards, tableCard, data, onPick, genie, onRun, running }) {
+export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kpisOf, records, chartCards, zeroPanel = null, tableCard, data, onPick, genie, onRun, running }) {
   const sections = page.layout?.sections || [];
+  // a zero-state page shows its one panel where the first chart group would draw, and no flat chart after it
+  let zeroShown = false;
+  const chartsOut = (charts) => {
+    if (!zeroPanel) return chartCards(charts);
+    if (zeroShown) return null;
+    zeroShown = true;
+    return zeroPanel;
+  };
   const holds = page.layout?.holds || {};
   const placed = new Set();
   const shows = (s) => !!(SECTION_PARTS[s] || KIND_PARTS[s]) || page.charts.some((c) => c.section === s) || page.tables.some((t) => t.section === s);
@@ -316,7 +324,7 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kp
     charts.forEach((c) => placed.add(c.id));
     tables.forEach((t) => placed.add(t.id));
     const out = tables.map((t, i) => <div key={`${section}:${t.id}`} data-section={section} data-tour={!charts.length && !i ? toured(section) : undefined}>{tableCard(t)}</div>);
-    if (charts.length) out.unshift(<section key={section} className="charts" data-section={section} data-tour={toured(section)}>{chartCards(charts)}</section>);
+    if (charts.length) out.unshift(<section key={section} className="charts" data-section={section} data-tour={toured(section)}>{chartsOut(charts)}</section>);
     return out.length ? out : null;
   };
   const drawn = sections.map((s) => [s, draw(s)]).filter(([, part]) => part);
@@ -328,6 +336,7 @@ export function LayoutSections({ page, app, ready, nonce, filters, onChanged, kp
     </Suspense>,
   ];
   const rest = page.charts.filter((c) => !placed.has(c.id));
-  if (rest.length) out.push(<section key="rest" className="charts">{chartCards(rest)}</section>);
+  const restOut = rest.length ? chartsOut(rest) : null;
+  if (restOut) out.push(<section key="rest" className="charts">{restOut}</section>);
   return <ChartsReady page={page}><KindReady page={page}>{out}</KindReady></ChartsReady>;
 }

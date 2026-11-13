@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, onStep, openAdvanced, openRow, openUi, profileAt } from './uiSupport.mjs';
+import { closeBrowser, goToStep, onStep, openAdvanced, openFolded, openRow, openUi, profileAt } from './uiSupport.mjs';
 import { GROUPING_PROFILE } from './implementFixtures.js';
 
 test.after(closeBrowser);
@@ -89,6 +89,7 @@ test('every setting that used to sit under Advanced settings opens from its own 
     await openAdvanced(page, 'data settings');
     for (const label of ['Window start', 'Window end']) await page.getByLabel(label, { exact: true }).first().waitFor();
     await goToStep(page, 'Run it');
+    await openFolded(page, 'Schedule');
     await page.getByRole('button', { name: 'Change schedule', exact: true }).click();
     await page.getByLabel(/^Cron \(Quartz\)/).first().waitFor();
     assert.equal(await page.getByRole('button', { name: /^(Change|Close) / }).count() >= 1, true);
@@ -150,6 +151,7 @@ test('Next on Data and results does not wait for the own schema to be created: t
   const { page } = ui;
   try {
     await goToStep(page, 'Results');
+    await openFolded(page, 'Result table');
     await openRow(page, 'result table');
     await page.locator('[data-option="own"] [data-recommended]').waitFor();
     await page.locator('input[name="result-place"][value="own"]').waitFor();
@@ -170,7 +172,7 @@ test('App pages sit on Where it lives with the App placement, and App look is it
   const { page } = ui;
   try {
     await goToStep(page, 'App pages');
-    await openRow(page, 'App pages');
+    await openFolded(page, 'Pages');
     const labels = await stepLabels(page);
     assert.ok(labels.includes('Where it lives') && labels.includes('App look'), labels.join(' | '));
     assert.equal(labels.includes('App pages'), false, 'App pages is no step of its own (must-exclude)');
@@ -190,6 +192,7 @@ test('Run it shows one line per setting with its own Change link, and opens only
   const { page } = ui;
   try {
     await goToStep(page, 'Run it');
+    await openFolded(page, 'Schedule');
     const cron = page.locator('[data-setting="Schedule (Quartz cron)"]');
     await cron.waitFor();
     assert.equal(await page.getByLabel('Cron (Quartz)', { exact: false }).count(), 0, 'the cron field waits behind its own Change link');
@@ -249,6 +252,7 @@ test('the Page storage step shows the SQL warehouse as one line with its own Cha
   const { page } = ui;
   try {
     await goToStep(page, 'Page storage');
+    await openFolded(page, 'Page storage');
     const row = page.locator('[data-setting="SQL warehouse"]');
     await row.waitFor();
     assert.equal(await page.locator('[data-app-warehouse="pick"]').count(), 0, 'the warehouse picker waits behind its Change link');
@@ -270,6 +274,7 @@ test('a schema that cannot be created says why in plain words on the Results ste
   const { page } = ui;
   try {
     await goToStep(page, 'Results');
+    await openFolded(page, 'Result table');
     await openRow(page, 'result table');
     await page.locator('[data-option="own"] [data-recommended]').waitFor();
     await page.locator('input[name="result-place"][value="own"]').waitFor();

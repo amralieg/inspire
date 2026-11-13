@@ -1250,19 +1250,36 @@ class Agent:
                 return choice["message"]
         raise HttpError(409, NO_MODEL, code="no_model")
 
-    def status(self, headers: dict, ident) -> dict:
-        page = self.shell.page(ident)
-        ws, who = self.shell.workspace(headers)
+    def ready_model(self, headers: dict) -> str:
+        """The chat model this App can use for this caller, or "" when none answers. Cached per caller for MODELS_TTL_S."""
+        try:
+            ws, who = self.shell.workspace(headers)
+        except (HttpError, ValueError):
+            return ""
         held = self.ready.get(who)
         if not held or held[0] <= self.clock():
             probe = Turn(who, "")
             try:
                 self.complete(ws, who, probe, {"messages": [{"role": "user", "content": "Reply OK."}], "max_tokens": 2, "temperature": 0})
-            except (HttpError, QueryError):
+            except (HttpError, QueryError, ValueError):
                 probe.model = ""
             held = self.ready[who] = (self.clock() + MODELS_TTL_S, probe.model)
-        return {"mode": "agent" if held[1] else "genie", "note": "" if held[1] else NO_MODEL, "page": page["id"],
-                "genie": self.genie_on(page), "model": held[1]}
+        return held[1]
+
+    def known_model(self, headers: dict) -> str:
+        """The chat model already found for this caller, or "" before a probe has run. Never calls a model, so App info stays fast."""
+        try:
+            _ws, who = self.shell.workspace(headers)
+        except (HttpError, ValueError):
+            return ""
+        held = self.ready.get(who)
+        return held[1] if held and held[0] > self.clock() else ""
+
+    def status(self, headers: dict, ident) -> dict:
+        page = self.shell.page(ident)
+        model = self.ready_model(headers)
+        return {"mode": "agent" if model else "genie", "note": "" if model else NO_MODEL, "page": page["id"],
+                "genie": self.genie_on(page), "model": model}
 
     def genie_on(self, page: dict) -> bool:
         try:

@@ -20,9 +20,10 @@ test('Data and results opens on the source tables, and Keep it fresh sits behind
     await goToStep(page, 'Data');
     await openFolded(page, 'Source tables');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
+    await goToStep(page, 'Run it');
     assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Keep it fresh is behind its Change row');
     assert.equal(await changeRow(page, 'Keep it fresh').getAttribute('aria-expanded'), 'false', 'the Keep it fresh row is closed');
-    assert.equal((await openDecisions(page)).includes('freshness'), false, 'Keep it fresh is not open on Data and results before its Change row is opened');
+    assert.equal((await openDecisions(page)).includes('freshness'), false, 'Keep it fresh is not open on First run before its Change row is opened');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -37,6 +38,7 @@ test('a blocked Next opens the result table row, so the message sits beside the 
   const { page } = ui;
   try {
     await goToStep(page, 'Data');
+    await openFolded(page, 'Result table');
     await openRow(page, 'result table');
     const place = page.getByRole('region', { name: 'Where the result table lives' });
     await place.getByLabel('Table name').fill('bad name!');
@@ -77,8 +79,8 @@ test('Where it lives opens the App placement, and App pages sit behind a Change 
     await goToStep(page, 'Where it lives');
     await page.getByRole('radio', { name: /^One App per use case/ }).waitFor();
     assert.equal(await page.locator('[data-app-page]').count(), 0, 'no App page card is open before its Change row is opened');
-    assert.equal(await changeRow(page, 'App pages').getAttribute('aria-expanded'), 'false', 'the App pages row is closed');
-    await changeRow(page, 'App pages').click();
+    assert.equal(await changeRow(page, 'Pages').getAttribute('aria-expanded'), 'false', 'the App pages row is closed');
+    await changeRow(page, 'Pages').click();
     await page.locator('[data-app-page]').first().waitFor();
     assert.ok(await page.locator('[data-app-page]').count() >= 2, 'the App pages open once the row is opened');
     assert.deepEqual(ui.pageErrors, []);
@@ -94,11 +96,12 @@ test('Who uses the App opens who sees which rows, and what people can do in the 
     await goToStep(page, 'Who uses the App');
     await page.getByRole('region', { name: 'App access' }).waitFor();
     await goToStep(page, 'Page storage');
+    await openFolded(page, 'Page storage');
     await page.getByRole('group', { name: 'How fast do the App\'s pages open?' }).waitFor();
     await goToStep(page, 'Who uses the App');
     assert.equal(await page.locator('[data-choice="app-options"]').count(), 0, 'the App features are behind their Change row');
-    assert.equal(await changeRow(page, 'what people can do in the App').getAttribute('aria-expanded'), 'false', 'the App features row is closed');
-    await changeRow(page, 'what people can do in the App').click();
+    assert.equal(await changeRow(page, 'What people can do').getAttribute('aria-expanded'), 'false', 'the App features row is closed');
+    await changeRow(page, 'What people can do').click();
     await page.locator('[data-choice="app-options"]').waitFor();
     assert.deepEqual(ui.pageErrors, []);
   } finally {

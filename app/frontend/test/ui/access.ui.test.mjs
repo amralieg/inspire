@@ -197,7 +197,7 @@ for (const theme of ['light', 'dark']) {
           && parseFloat(getComputedStyle(el).outlineOffset) < -2)
         .map((el) => `${el.tagName.toLowerCase()} "${(el.getAttribute('aria-label') || el.innerText || '').trim().slice(0, 40)}"`));
       assert.deepEqual(insetRings, [], `${theme}: links and buttons in a scrolling pane whose ring is drawn more than 2 px inside their box`);
-      const firstRun = ui.page.locator('[data-picked-change="first_run"]');
+      const firstRun = ui.page.getByRole('button', { name: 'Change First run', exact: true });
       await firstRun.evaluate((el) => el.focus({ focusVisible: true }));
       assert.ok(parseFloat(await firstRun.evaluate((el) => getComputedStyle(el).outlineOffset)) > 0, 'the First run Change link ring sits outside its box, not over its text');
       const ring = await activeRing(ui.page);

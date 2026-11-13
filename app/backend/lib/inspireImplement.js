@@ -2172,6 +2172,16 @@ function columnsStatement(name) {
   };
 }
 
+/** The table type of one picked table, read before any read of its rows. */
+function tableTypeStatement(name) {
+  const t = tableParts(name);
+  return {
+    sql: `SELECT table_type FROM \`${t.catalog}\`.information_schema.tables `
+      + 'WHERE table_schema = lower(:s) AND table_name = lower(:t)',
+    parameters: [{ name: 's', value: t.schema, type: 'STRING' }, { name: 't', value: t.table, type: 'STRING' }],
+  };
+}
+
 function primaryKeysStatement(name) {
   const t = tableParts(name);
   return {
@@ -2972,7 +2982,7 @@ function outputAccess(rows, name, options = {}) {
   const readable = accessPlan(name, list, '', options);
   const app = missing ? { ok: false, detail: `a new App cannot read the table: ${missing}` }
     : readable.gaps.length
-      ? { ok: false, detail: appAccessMessage(table, readable.gaps, readable.me) }
+      ? { ok: false, detail: appAccessMessage(table, readable.gaps, readable.me), permission: appAccessPermission(readable.gaps, readable.me) }
       : { ok: true, detail: `Inspire can give a new App read access to ${table}` };
   return { table, exists, identity, write, grant, app };
 }
@@ -2985,7 +2995,7 @@ const IMPLEMENT_READ_NEEDS = [
 ];
 const IMPLEMENT_TRAVERSE_PRIVILEGES = IMPLEMENT_READ_NEEDS.filter(([, level]) => level !== 'table').map(([privilege]) => privilege);
 const IMPLEMENT_ABAC_READ_NEEDS = [['READ METADATA', 'table', ['catalog', 'schema', 'table']]];
-const IMPLEMENT_PRIVILEGE_COVERS = { 'READ METADATA': ['MANAGE'] };
+const IMPLEMENT_PRIVILEGE_COVERS = { 'READ METADATA': ['MANAGE', 'BROWSE'] };
 const IMPLEMENT_SOURCE_NEEDS = [...IMPLEMENT_READ_NEEDS, ...IMPLEMENT_ABAC_READ_NEEDS];
 const BUILT_IN_SAMPLE_CATALOGS = ['samples'];
 
@@ -3190,9 +3200,6 @@ const APP_READ_JOBS = {
   discover: { who: 'Discover', runs: 'Discover runs', grant: 'Run with your sign-in' },
 };
 
-function discoverGrantedText(tables, ran) {
-  return `Inspire granted the App read on ${joinAnd(tables)} with your sign-in, because Discover runs as the App: ${ran.join('; ')}`;
-}
 
 function discoverUnreadText(offer) {
   const one = offer.tables.length === 1;
@@ -3300,6 +3307,12 @@ function accessGapMessage(who, gaps) {
   const statements = gaps.map((g) => grantSql(g, who)).join('; ');
   return `${who} may not be able to read the result table: Inspire cannot grant ${gaps.length === 1 ? 'this access' : 'these accesses'}, because it `
     + `neither owns nor holds MANAGE on ${it}. If ${who} does not have ${it} yet, ask the owner to run: ${statements}`;
+}
+
+function appAccessPermission(gaps, me = '') {
+  const principal = me ? `\`${me}\`` : 'the identity Inspire runs as';
+  const statements = gaps.map((g) => `GRANT MANAGE ON ${g.level.toUpperCase()} ${g.object} TO ${principal}`);
+  return { statements, principal: me || 'the identity Inspire runs as', why: 'The new App needs MANAGE to share this table, so Inspire can give it read access.' };
 }
 
 function appAccessMessage(table, gaps, me = '') {
@@ -3700,6 +3713,7 @@ function implementJobName(useCaseId, useCaseName, specVersion) {
 }
 
 module.exports = {
+  tableTypeStatement,
   implementJobName,
   IMPLEMENT_RUN_STARTED_MESSAGE,
   RUN_SUMMARY_SUFFIX,
@@ -3988,6 +4002,7 @@ module.exports = {
   grantSql,
   accessGapMessage,
   appAccessMessage,
+  appAccessPermission,
   IMPLEMENT_GRANT_NO_SIGN_IN,
   IMPLEMENT_GRANT_KINDS,
   IMPLEMENT_REAL_GRANTS_SHOWN,
@@ -4009,7 +4024,6 @@ module.exports = {
   appReadsText,
   newAppReadsGaps,
   newAppReadsWarning,
-  discoverGrantedText,
   discoverUnreadText,
   shareWarnings,
   shareWarehouseWarnings,

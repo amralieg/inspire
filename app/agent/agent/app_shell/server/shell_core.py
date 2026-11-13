@@ -112,6 +112,20 @@ def access_refusal(text: str) -> bool:
     return bool(NO_ACCESS.search(text) or text.startswith("No access to "))
 
 
+def refusal_details(texts) -> str:
+    """The Details text: one 'No access to <object>' per unreadable object, however many charts or queries hit it.
+    A refusal that names no whole objects (the generic App text, a raw permission error) is kept once as it was said."""
+    lines = []
+    for text in texts:
+        listed = NO_ACCESS_LIST.fullmatch(text.strip())
+        parts = [part.strip() for part in listed.group(1).split(",")] if listed else []
+        if parts and all(part and not any(ch.isspace() for ch in part) for part in parts):
+            lines += [f"No access to {part}" for part in parts]
+        else:
+            lines.append(text)
+    return "; ".join(dict.fromkeys(lines))
+
+
 def card_waiting_text(owners) -> str:
     return CARD_WAITING.format(owner=" or ".join(owners) if owners else "your data owner")
 
@@ -2333,7 +2347,7 @@ class Shell:
             return status, answer
         owners = self.access_owners(refused)
         if not any(answer.get(k) for k in ("kpis", "charts", "rows", "runs", "tables")):
-            return 200, waiting_for_access_body("; ".join(refused), owners)
+            return 200, waiting_for_access_body(refusal_details(refused), owners)
         if name not in ACCESS_CARD_ROUTES:
             return status, answer
         card = card_waiting_text(owners)
@@ -2341,7 +2355,7 @@ class Shell:
             answer["errors"] = {key: card if isinstance(text, str) and access_refusal(text) else text for key, text in answer["errors"].items()}
         answer["filters"] = [dict(item, error=card) if isinstance(item, dict) and item.get("error") and access_refusal(str(item.get("error")))
                              else item for item in answer.get("filters") or []] if answer.get("filters") else answer.get("filters")
-        answer.setdefault("detail", "; ".join(refused))
+        answer.setdefault("detail", refusal_details(refused))
         return status, answer
 
     def access_owners(self, texts) -> list:
@@ -2504,9 +2518,13 @@ class Shell:
         except (ValueError, KeyError) as error:
             return 400, error_body(shell_sql.error_text(error), getattr(error, "code", ""))
 
-    def genie_info(self, page: dict, host: str) -> dict:
+    def genie_info(self, page: dict, host: str, agent: bool = False) -> dict:
+        """enabled: the page has a Genie Agent space. agent: the App's own chat agent can answer (no space needed).
+        Ask is on when either is true; the note says why each part is missing."""
         genie, note = page_genie(self.settings, self.pages, page)
-        return {"enabled": bool(genie), "title": (genie or {}).get("title") or "",
+        if not genie and not agent:
+            note = " ".join(part for part in (shell_agent.NO_MODEL, note) if part)
+        return {"enabled": bool(genie), "agent": agent, "title": (genie or {}).get("title") or "",
                 "url": f"{host}/genie/rooms/{genie['space_id']}" if genie and host else "", "note": note}
 
     def tab_title(self) -> str:
@@ -2537,10 +2555,11 @@ class Shell:
     def app_info(self, headers: dict) -> dict:
         s = self.settings
         host = self.host()
-        pages = [dict(public_page(p, self.tour_gaps(p)), genie=self.genie_info(p, host), is_owner=bool(self.signed_in(headers) & self.page_editors(p)),
+        agent = bool(self.agent.known_model(headers))
+        pages = [dict(public_page(p, self.tour_gaps(p)), genie=self.genie_info(p, host, agent), is_owner=bool(self.signed_in(headers) & self.page_editors(p)),
                       reports=reports_view(p, self.settings.get("feedback_table", "")))
                  for p in (self.with_saved_money(page) for page in self.pages)]
-        answering = any(p["genie"]["enabled"] for p in pages)
+        answering = agent or any(p["genie"]["enabled"] for p in pages)
         genie = (pages[0]["genie"] if len(pages) == 1 else
                  {"enabled": answering, "title": "", "url": "", "note": HUB_GENIE_NOTE if answering else HUB_GENIE_OFF})
         return {
@@ -2866,6 +2885,7 @@ class Shell:
         for kpi in page.get("kpis") or []:
             if basis and kpi.get("format") == "currency":
                 out["kpis"].setdefault(kpi["id"], {})["basis"] = basis
+        out["zero_state"] = self.zero_state(page, ws, who, out["charts"]) if out["charts"] else None
         return out
 
     def previous_datasets(self, ws, who, page: dict) -> dict:
@@ -3813,6 +3833,21 @@ class Shell:
                              f"table's key for one record, in the {shell_sql.RECORDS_DATASET} dataset"))
         return problems
 
+    def rule_finds_nothing(self, page: dict, chart: dict, ws, who=None) -> bool:
+        """True when every measure of the chart is zero for every group with no filter applied: the rule has no exception in its scope."""
+        sql, params = shell_sql.chart_query(page, chart["id"], {})
+        rows = self.run(ws, who, sql, params, shell_sql.CAPS["chart_rows"]).get("rows") or []
+        return not any(abs(shell_sql.as_number(row.get(f"y{i}")) or 0) > 1e-12 for row in rows for i in range(len(chart.get("y") or [])))
+
+    def zero_state(self, page: dict, ws, who, charts: dict):
+        """The zero-state flag: every chart drawn at these filters is flat and its rule finds no exception in the scope, so the page
+        shows one plain 'none found' panel in place of the flat charts. None when any drawn chart is not flat or the rule still finds exceptions."""
+        drawn = [item for item in page.get("charts") or [] if item["id"] in charts]
+        if not drawn or not all(flat_measures(item, charts[item["id"]].get("rows") or []) and self.rule_finds_nothing(page, item, ws, who)
+                                for item in drawn):
+            return None
+        return {"charts": sorted(item["id"] for item in drawn)}
+
     def check_held_rows(self, headers: dict, page: dict, values: dict, counts: dict, probe) -> dict:
         source = ("records", shell_sql.RECORDS_DATASET)
         if source not in counts:
@@ -3973,10 +4008,14 @@ class Shell:
                     elif kind == "chart" and len(rows) < 2:
                         design([f"{where}: chart {item['id']} draws one group at the default filters, so it compares "
                                 f"nothing; chart a column with 2 or more values"])
-                    elif kind == "chart":
-                        design([f"{where}: chart {item['id']} gives every group the same {label} ({value}) at the default "
-                                f"filters, so it ranks nothing; chart a measure that differs across the groups"
-                                for label, value in flat_measures(item, rows)])
+                    elif kind == "chart" and flat_measures(item, rows):
+                        if self.rule_finds_nothing(page, item, probe.ws):
+                            found.append((CHECK_NOTE, f"{where}: chart {item['id']} is zero for every group because its rule finds no "
+                                                      f"exception in the scope, so the zero result is accepted (zero-state panel not built)"))
+                        else:
+                            design([f"{where}: chart {item['id']} gives every group the same {label} ({value}) at the default "
+                                    f"filters, so it ranks nothing; chart a measure that differs across the groups"
+                                    for label, value in flat_measures(item, rows)])
             charted = data["charts"]
             design([f"{where}: {p}" for p in shell_sql.concentration_problems(
                 page, self.check_concentration(page, defaults, probe, {i: len(r.get("rows") or []) for i, r in charted.items()}))])

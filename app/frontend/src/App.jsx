@@ -12,6 +12,7 @@ import ParticleField from './components/ParticleField';
 import ShowcaseBar from './components/ShowcaseBar';
 import { RESULTS_FRAME } from './lib/layout';
 import { showcaseSettings, showcasesFrom, staysInShowcase } from './lib/showcase';
+import PermissionHost from './components/PermissionHost';
 
 const noop = () => {};
 
@@ -500,6 +501,7 @@ export default function App() {
     <ThemeProvider>
     <div className="min-h-screen bg-bg text-text-primary relative">
       {!bare && <ParticleField count={40} />}
+      <PermissionHost />
 
       {!bare && page !== 'landing' && page !== 'loading' && page !== 'setup' && (
         <Header

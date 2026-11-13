@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from 'react';
 import { ChevronDown, ChevronRight, Table2, X } from 'lucide-react';
 import { PlainMessage } from './TechnicalDetails';
 import { groupLabelOf } from '../lib/implementWizard';
+import { raisePermissions } from '../lib/permissionBus';
 import {
   SCOPE_OPS, columnKindOf, filterValuesOf, filteredTablesOf, isGroupRow, normalizeTableScope, pickedTableNames, scopeKeyOf,
   scopeOpOf, scopeProblems, tableBrowseQuery, tableScopeOf,
@@ -317,7 +318,13 @@ function RowGroups({ column, ticked, picked, loaded, onLoad, onPick }) {
 function ColumnGrid({ table, entry, meta, problems, onEntry, valuesOf, loadValues, apiFetch, warehouseId }) {
   const [note, setNote] = useState('');
   const [groupsOf, setGroupsOf] = useState({});
-  if (meta?.error) return <PlainMessage role="alert" className="text-error-fg" text={meta.error} />;
+  if (meta?.error) {
+    return (
+      <>
+        <PlainMessage role="alert" className="text-error-fg" text={meta.error} />
+      </>
+    );
+  }
   if (!meta) return <p className="text-text-tertiary">Reading the columns of {table}</p>;
   const names = meta.columns.map((c) => c.column_name);
   const typeOf = new Map(meta.columns.map((c) => [c.column_name, c.data_type || '']));
@@ -356,7 +363,11 @@ function ColumnGrid({ table, entry, meta, problems, onEntry, valuesOf, loadValue
           values: (d.groups || []).map((g) => ({ value: String(g[name]), records: Number(g.records) || 0 })),
         },
       })))
-      .catch((e) => setGroupsOf((prev) => ({ ...prev, [name]: { status: 'error', error: e.message || `The groups of ${name} could not be listed.` } })));
+      .catch((e) => {
+        const permissions = Array.isArray(e.body?.permissions) ? e.body.permissions : [];
+        setGroupsOf((prev) => ({ ...prev, [name]: { status: 'error', error: e.message || `The groups of ${name} could not be listed.`, permissions } }));
+        raisePermissions(permissions, { retry: () => loadGroups(name) });
+      });
   };
   return (
     <section aria-label={`Columns of ${table}`} data-column-grid={table} className="space-y-3">
@@ -466,6 +477,8 @@ function UseCaseLabel({ scopes, tables, label, onLabel }) {
   );
 }
 
+const METRIC_VIEW_REFUSAL = /is a metric view, so Inspire leaves it out of Data Filters/;
+
 export default function DataFilters({ picks, scopes, onScopes, label, onLabel, apiFetch, warehouseId, onProblems }) {
   const [split, setSplit] = useState(readSplit);
   const rootRef = useRef(null);
@@ -500,7 +513,12 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
       requested.current.add(key);
       apiFetch(`/api/inspire/implement/columns?${browseQuery(warehouseId, table)}`)
         .then((d) => setColumnsOf((prev) => ({ ...prev, [table]: { columns: d.columns || [], keys: d.primary_keys || [] } })))
-        .catch((e) => setColumnsOf((prev) => ({ ...prev, [table]: { error: e.message || 'The columns of this table could not be read.' } })));
+        .catch((e) => setColumnsOf((prev) => ({ ...prev, [table]: {
+          error: e.message || 'The columns of this table could not be read.',
+          // A saved pick that is a metric view: the refusal line, acted on by the effect below.
+          refused: METRIC_VIEW_REFUSAL.test(e.message || '') ? e.message : '',
+          permissions: Array.isArray(e.body?.permissions) ? e.body.permissions : [],
+        } })));
     });
   }, [wantedKey, apiFetch, warehouseId]);
 
@@ -579,6 +597,14 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
     if (entry) next[table] = entry;
     onScopes(next);
   };
+  // A saved pick that is a metric view is dropped from the scope on load, with a note. Idempotent: it acts only while the
+  // entry is still in the scope.
+  useEffect(() => {
+    for (const [table, info] of Object.entries(columnsOf)) {
+      if (!info.refused || !tableScopeOf(scopes, table)) continue;
+      onScopes(Object.fromEntries(Object.entries(scopes || {}).filter(([name]) => scopeKeyOf(name) !== scopeKeyOf(table))));
+    }
+  }, [columnsOf, scopes, onScopes]);
 
   const renderTable = (table) => (
     <TableLeaf key={table} level={3} table={table} summary={summaryOf(table)} selected={table === shownTable}
@@ -592,6 +618,11 @@ export default function DataFilters({ picks, scopes, onScopes, label, onLabel, a
 
   return (
     <div data-data-filters className="space-y-4 text-xs">
+      {[...new Set(Object.values(columnsOf).map((info) => info.refused).filter(Boolean))].map((note) => (
+        <p key={note} role="status" data-metric-view-note="" className="text-warning-fg">
+          {note} Its scope was dropped from Data Filters; the table is left out of the run.
+        </p>
+      ))}
       <p className="text-text-secondary">
         A table with no filters is read whole: every column, every row. Pick a table on the left to tick its columns and add row filters.
         Picked schemas and catalogs open to their tables.

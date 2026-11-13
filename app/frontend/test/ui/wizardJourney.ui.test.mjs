@@ -8,8 +8,8 @@ import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeas
 test.after(closeBrowser);
 
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App', '8. Page storage', '9. App look', '10. Run it', '11. Review & build'];
-const NO_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Run it', '6. Review & build'];
+const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Who uses the App and storage', '8. App look', '9. Review & build'];
+const NO_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const builtLine = (page) => page.locator('[data-built-sentence]').innerText();
 
@@ -124,23 +124,26 @@ test('with the App picked the wizard reads Data, Data groups, First run, Results
     assert.ok((await page.locator('[role="dialog"]').innerText()).split(/could not check/i).length <= 2, 'one sentence says what Inspire could not check');
     await shot(page, '07-who-uses-the-app', false);
     await goToStep(page, 'App pages');
+    await openFolded(page, 'Where it lives');
+    assert.ok(await page.locator('input[name="app-place"]').count() > 0, 'the App placement sits on Where it lives, as its own folded section');
+    await openFolded(page, 'Pages');
     await openRow(page, 'App pages');
     await page.getByRole('region', { name: 'App pages' }).waitFor();
-    assert.ok(await page.locator('input[name="app-place"]').count() > 0, 'the App placement sits on Where it lives, with the App pages (the pages are on the same step)');
     assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'and access on Who uses the App (must-exclude)');
     await onePerQuestion(page, 'App pages');
     await shot(page, '08-app-pages', false);
     await goToStep(page, 'App look');
     await onePerQuestion(page, 'App look');
-    await goToStep(page, 'Data & results');
-    await openRow(page, 'Keep it fresh');
+    await goToStep(page, 'First run');
+    await openFolded(page, 'Keep it fresh');
     const fresh = page.getByRole('group', { name: 'Keep it fresh' });
     assert.equal(await fresh.getByRole('button', { name: 'Daily' }).getAttribute('aria-pressed'), 'true', 'Keep it fresh is on, Daily, by default');
     await goToStep(page, 'Run it');
-    assert.equal(await page.locator('[data-run-it]').count(), 0, 'Run it no longer carries the Keep it fresh question');
-    assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Measure impact is not on Run it (must-exclude)');
-    await onePerQuestion(page, 'Run it');
-    await shot(page, '09-run-it', false);
+    await openFolded(page, 'Keep it fresh');
+    assert.equal(await page.locator('[data-run-it]').count(), 1, 'Run it is gone: the Keep it fresh question now sits in First run, the step that starts the build');
+    assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Measure impact is not on First run (must-exclude)');
+    await onePerQuestion(page, 'First run');
+    await shot(page, '09-first-run', false);
     await goToMeasureImpact(page);
     assert.equal(await page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back/ }).count(), 1, 'Measure impact sits on Measure');
     await onePerQuestion(page, 'Measure impact');

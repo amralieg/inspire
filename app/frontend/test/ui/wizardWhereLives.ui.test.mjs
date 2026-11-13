@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PER_USER_GUIDE } from '../../src/lib/implementWizard.js';
-import { closeBrowser, goToStep, openUi, shot } from './uiSupport.mjs';
+import { closeBrowser, goToStep, openFolded, openUi, shot } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -24,8 +24,8 @@ test('What to deliver only picks what gets built, Where it lives places the App 
 
     const labels = await stepLabels(page);
     const at = (label) => labels.indexOf(label);
-    assert.ok(at('What to deliver') === 0 && at('Where it lives') === at('Measure') + 1 && at('Who uses the App') === at('Where it lives') + 1,
-      `What to deliver first, then Where it lives after Measure, then Who uses the App: ${labels.join(' | ')}`);
+    assert.ok(at('What to deliver') === 0 && at('Where it lives') === at('Measure') + 1 && at('Who uses the App and storage') === at('Where it lives') + 1,
+      `What to deliver first, then Where it lives after Measure, then Who uses the App and storage: ${labels.join(' | ')}`);
 
     await goToStep(page, 'Where it lives');
     await page.getByRole('radio', { name: /^One App per use case/ }).waitFor();
@@ -36,14 +36,14 @@ test('What to deliver only picks what gets built, Where it lives places the App 
 
     await goToStep(page, 'What to deliver');
     await page.getByRole('checkbox', { name: /^App / }).uncheck();
-    assert.deepEqual(await stepLabels(page), labels.filter((l) => !['Where it lives', 'Page storage'].includes(l) && !/App/.test(l)),
+    assert.deepEqual(await stepLabels(page), labels.filter((l) => !['Where it lives'].includes(l) && !/App/.test(l)),
       'with the App unticked, Where it lives and Page storage are skipped too');
     await page.getByRole('checkbox', { name: /^App / }).check();
 
-    await goToStep(page, 'Who uses the App');
+    await goToStep(page, 'Who uses the App and storage');
     await page.getByRole('region', { name: 'App access' }).waitFor();
-    assert.equal(await storage(page).count(), 0, 'the storage choice waits for its own step, Page storage (must-exclude)');
-    await goToStep(page, 'Page storage');
+    assert.equal(await storage(page).count(), 0, 'the storage choice stays folded under its Change line until opened (must-exclude)');
+    await openFolded(page, 'Page storage');
     const group = storage(page);
     await group.getByRole('status').waitFor({ state: 'detached' });
     await group.getByText('Fast pages (Lakebase)', { exact: true }).waitFor();

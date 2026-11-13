@@ -1,13 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { INSIDE_WAREHOUSE_TOGGLE } from '../../src/lib/implementWizard.js';
-import { BUILD_IT, closeBrowser, goToMeasureImpact, lowContrast, onStep, openAdvanced, openUi, setDark, toSummary, wizardInScreen, goToStep } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, goToMeasureImpact, lowContrast, onStep, openAdvanced, openFolded, openUi, setDark, toSummary, wizardInScreen, goToStep } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const FULL_MVP_STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Who uses the App', 'Page storage', 'App look', 'Run it', 'Review & build'];
+const FULL_MVP_STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Who uses the App and storage', 'App look', 'Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();
 const startButton = (page) => page.getByRole('button', { name: BUILD_IT, exact: true });
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, ''));
@@ -54,12 +54,13 @@ test('Data & results, Run it and App show the business settings and keep the tec
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await hidden(label);
     await open('data settings');
     for (const label of ['SQL warehouse', 'Window start', 'Window end', 'Entity key']) await shown(label);
-    for (const label of ['Table name', 'Catalog', 'Schema']) await shown(label);
     await page.getByRole('button', { name: 'Change Source tables', exact: true }).click();
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
+    await openFolded(page, 'Result table');
+    for (const label of ['Table name', 'Catalog', 'Schema']) await shown(label);
+    assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Results holds only where the result table lives');
     await next(page);
     await onStep(page, 'First run');
-    assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Results holds only where the result table lives');
     assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Results holds only where the result table lives');
     await goToMeasureImpact(page);
     await page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name: /^Hold back/ }).check();
@@ -67,6 +68,7 @@ test('Data & results, Run it and App show the business settings and keep the tec
     await page.getByRole('button', { name: 'Change hold back share', exact: true }).click();
     await shown('Share of records held back');
     await goToStep(page, 'Run it');
+    await openFolded(page, 'Schedule');
     await page.getByRole('button', { name: 'Change schedule', exact: true }).click();
     await shown('Cron (Quartz)');
     await hidden('Rows the team can act on each run');

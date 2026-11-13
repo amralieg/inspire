@@ -111,3 +111,35 @@ def test_a_card_text_on_a_route_outside_the_card_routes_keeps_its_data(tmp_path)
     s.overview = lambda *args, **kwargs: partial
     status, body = s.handle("POST", "overview", {}, {}, b'{"page": "%s"}' % PAGE["id"].encode())
     assert status == 200 and body.get("kpis") == {"k1": {"value": 4}}, "the overview keeps its readable cards (existing contract)"
+
+
+def test_details_names_each_unreadable_object_once_however_many_charts_hit_it(tmp_path):
+    s, _sp_ws, _user_ws, _made = shell(tmp_path, pages=[reading_page()])
+    s.settings["unread_owners"] = {"main.s.orders": "data-eng"}
+    same_view = {f"chart:c{i}": "No access to main.s.orders" for i in range(12)}
+    s.page_data = lambda *args, **kwargs: {"kpis": {}, "charts": {}, "tables": {}, "errors": same_view}
+    status, body = s.handle("POST", "page", {}, {}, b'{"page": "%s"}' % PAGE["id"].encode())
+    assert status == 200 and body["state"] == "waiting_for_access", body
+    assert body["detail"] == "No access to main.s.orders", body["detail"]
+
+
+def test_details_names_two_unreadable_objects_once_each_in_first_seen_order(tmp_path):
+    s, _sp_ws, _user_ws, _made = shell(tmp_path, pages=[reading_page()])
+    s.settings["unread_owners"] = {"main.s.orders": "data-eng", "main.s.items": "data-eng"}
+    errors = {"chart:a": "No access to main.s.orders", "chart:b": "No access to main.s.items",
+              "chart:c": "No access to main.s.orders", "chart:d": "No access to main.s.items, main.s.orders"}
+    s.page_data = lambda *args, **kwargs: {"kpis": {}, "charts": {}, "tables": {}, "errors": errors}
+    status, body = s.handle("POST", "page", {}, {}, b'{"page": "%s"}' % PAGE["id"].encode())
+    assert status == 200 and body["state"] == "waiting_for_access", body
+    assert body["detail"] == "No access to main.s.orders; No access to main.s.items", body["detail"]
+    assert body["tables"] == ["main.s.orders", "main.s.items"], body["tables"]
+
+
+def test_a_partial_page_keeps_its_readable_cards_and_its_details_names_the_view_once(tmp_path):
+    s, _sp_ws, _user_ws, _made = shell(tmp_path, pages=[reading_page()])
+    s.settings["unread_owners"] = {"main.s.orders": "data-eng"}
+    errors = {f"chart:c{i}": "No access to main.s.orders" for i in range(3)}
+    s.page_data = lambda *args, **kwargs: {"kpis": {"k1": {"value": 4}}, "charts": {}, "tables": {}, "errors": errors}
+    status, body = s.handle("POST", "page", {}, {}, b'{"page": "%s"}' % PAGE["id"].encode())
+    assert status == 200 and body["kpis"] == {"k1": {"value": 4}}, body
+    assert body["detail"] == "No access to main.s.orders", body.get("detail")

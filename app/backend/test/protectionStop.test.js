@@ -42,7 +42,9 @@ test('the grant result says what ran, names the owner and the statement when a t
   const metadata = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-id`';
   assert.equal(w.abacGrantText({ ran: [metadata], failed: [], abac_gaps: [] }), 'Inspire granted 1 grant with your sign-in, and the checks run again');
   const gap = w.abacGrantText({ ran: [], failed: [], abac_gaps: [{ table: 'main.s.orders', owner: 'data-eng', grants: [metadata] }] });
-  assert.equal(gap, `Inspire cannot grant READ METADATA on main.s.orders with your sign-in, because you cannot manage it. Ask data-eng to run: ${metadata}`);
+  // A table the person cannot grant on is shown as a Permission Required entry with the owner's statements, not as a sentence here (REQ-138).
+  assert.equal(gap, '');
+  assert.deepEqual(w.grantGapPermissions({ abac_gaps: [{ table: 'main.s.orders', owner: 'data-eng', grants: [metadata] }] })[0].statements, [metadata]);
   assert.match(w.abacGrantText({ ran: [], failed: ['x: boom'], abac_gaps: [] }), /1 grant failed/);
 });
 

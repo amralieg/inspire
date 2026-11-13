@@ -51,4 +51,14 @@ export function genieOf(app, id) {
   return key ? app.pages.find((p) => p.id === key).genie : app.genie;
 }
 
-export const genieOn = (app, id) => Boolean(genieKey(app, id) && genieOf(app, id).enabled);
+// Ask is on when the page has a Genie Agent space, or when the App's own agent can answer (no space needed).
+// mode is the agentStatus answer the Genie hook holds for the page: it covers a cold cache, before the payload knows the agent.
+export const genieOn = (app, id, mode = '') => {
+  if (!genieKey(app, id)) return false;
+  const info = genieOf(app, id);
+  return Boolean(info.enabled || info.agent || mode === 'agent');
+};
+
+// The agent's empty-state intro: it names the Genie Agent only when the use case has one to ask.
+export const agentIntro = (subject, space) =>
+  `Ask about ${subject}. Genie reads what the page shows, ${space ? 'asks the Genie Agent when it needs the data' : "reads this use case's data when it needs more"}, can change the view, and asks before it changes a record.`;

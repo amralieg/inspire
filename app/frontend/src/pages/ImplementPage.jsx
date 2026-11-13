@@ -11,7 +11,7 @@ import {
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   swapParts,
   failureChoices, stoppedChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, APP_READS_HEADING, APP_READS_CLEARED, protectionStopOf, protectionChoices, abacGrantText, liveSourceNow, liveProtection, liveReads,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, appReadsOwners, APP_READS_HEADING, APP_READS_CLEARED, protectionStopOf, protectionChoices, abacGrantText, grantGapPermissions, grantFailurePermissions, liveSourceNow, liveProtection, liveReads,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -21,7 +21,7 @@ import { formatWhen } from '../lib/formatWhen';
 import { plural, shown } from '../lib/plural';
 import ImplementStatusBadge from '../components/ImplementStatusBadge';
 import ImplementWizard from './ImplementWizard';
-import { ACTION_ROW, AssetPanel, AssetTile, BuildControls, ConfirmDialog, NotebookPanel } from '../components/ImplementControlTower';
+import { AssetPanel, AssetTile, BuildControls, ConfirmDialog, NotebookPanel } from '../components/ImplementControlTower';
 import UseCaseDrawer from '../components/UseCaseDrawer';
 import TechnicalDetails, { PlainMessage } from '../components/TechnicalDetails';
 import QualityBarChip from '../components/QualityBarChip';
@@ -69,6 +69,8 @@ import { SHOWCASE_ALERT_NOTE, SHOWCASE_DASHBOARD_NOTE, SHOWCASE_GENIE_NOTE, SHOW
 import { buildFilterText } from '../lib/reviewFigures';
 import ValueEstimateLine from '../components/ValueEstimateLine';
 import { BuildNextStep } from '../components/BuildNext';
+import PermissionRequired from '../components/PermissionRequired';
+import { raisePermissions } from '../lib/permissionBus';
 
 const OUTPUT_ICONS = { notebook: NotebookPen, dashboard: LayoutDashboard, genie_space: GenieLogo, app: AppWindow, alert: BellRing };
 const OUTPUT_NAMES = { dashboard: 'Dashboard', genie_space: 'Genie Agent', app: 'App', alert: 'Alert' };
@@ -78,6 +80,8 @@ const NO_JOB = { label: 'No job yet', tone: 'idle' };
 const CHECKING = { label: 'Checking', tone: 'idle' };
 const ERROR_BOX = 'text-xs text-error-fg bg-error-bg border border-error/20 rounded-lg px-3 py-2';
 const NOTE_BOX = 'text-xs text-info-fg bg-info-bg border border-info/20 rounded-lg px-3 py-2';
+// Header actions: equal widths per row, and a row that does not fit wraps to a second row instead of overlapping.
+const HEADER_ACTIONS = 'grid w-full gap-1.5 grid-cols-[repeat(auto-fit,minmax(9.5rem,1fr))]';
 const OUTLINE_BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 px-3 rounded-lg whitespace-nowrap text-xs font-semibold border border-border bg-surface text-text-primary hover:bg-bg-subtle disabled:opacity-50';
 const PRIMARY_BUTTON = 'inline-flex h-8 items-center justify-center gap-1.5 px-3.5 rounded-lg whitespace-nowrap text-xs font-semibold text-white bg-db-red-solid hover:bg-db-red-solid-hover shadow-sm shadow-db-red/20 disabled:opacity-50';
 const LINK = 'text-sm font-semibold text-db-red-fg inline-flex items-center gap-1 hover:underline';
@@ -492,7 +496,7 @@ export default function ImplementPage({ settings, sessionId, focusId = null, foc
   const [progressDock, setProgressDock] = useState(null);
 
   return (
-    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:has-[[data-progress-open=true]]:pe-[var(--dock-w,1.5rem)] md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
+    <div className="max-w-7xl mx-auto px-6 py-6 space-y-4 md:flex md:flex-col md:[&>:not(:last-child)]:shrink-0 md:max-h-[calc(100dvh-3.5rem-1px)] md:has-[[data-progress-open=true]]:h-[calc(100dvh-3.5rem-1px)]" data-implement-page="">
       <PageHeader summary={summary} loading={listLoading} query={query} onQuery={setQuery} />
       {!listLoading && !listError && <SummaryBanner summary={summary} />}
       {filter && <BuildFilterStrip filter={filter} sessionId={sessionId} onPickRun={onPickRun} onClear={clearFilter} />}
@@ -874,6 +878,14 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const stalled = (status ? status.stalled : item.latest?.stalled) || null;
   const uninstalled = latest?.status === IMPLEMENT_UNINSTALLED;
   const built = hasMvp && !uninstalled;
+  // The build's own Permission Required entries (scope-view grants, the Lakebase database grant) open once per distinct list.
+  const buildPermissions = latest?.asset_status?.permissions || [];
+  const buildPermissionsKey = buildPermissions.length ? JSON.stringify(buildPermissions) : '';
+  useEffect(() => {
+    if (!buildPermissionsKey) return;
+    raisePermissions(buildPermissions, { retry: () => loadStatus().catch(() => {}) });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- raise once per distinct permission list
+  }, [buildPermissionsKey]);
   const moneyKey = `${latest?.spec_version ?? ''}:${latest?.status ?? ''}`;
   const issues = useReportedIssues({ apiFetch, apiPostJson, qBase, useCaseId, on: built && !readOnly, refreshKey: `${moneyKey}:${refreshKey}` });
   useEffect(() => {
@@ -931,6 +943,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     { spec: next }), [apiPostJson, qBase, useCaseId]);
   const chip = statusChip(latest?.status, stalled, latest);
   const [readsResult, setReadsResult] = useState(null);
+  const [permissionDialog, setPermissionDialog] = useState(null);
   const [readsBusy, setReadsBusy] = useState('');
   const [protectionCopy, setProtectionCopy] = useState('');
   const [protectionFailed, setProtectionFailed] = useState([]);
@@ -1094,7 +1107,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const kept = keptVersions(history);
   const checklist = useMemo(() => vibeChecklist(status?.steps, latest), [status?.steps, latest]);
   const held = heldVersion(latest, status?.history ?? null);
-  const progressView = useProgressView(useCaseId, built);
+  const progressView = useProgressView(useCaseId, progress.active);
   const alertAsset = latest?.asset_status?.alert || {};
   const notebookState = uninstalled ? item.notebook || null : item.notebook || (vibeTargets.some((c) => c.id === 'notebook') ? notebookStatus({ has_genie_code: 'Y' }, null) : null);
   const notebook = notebookState && {
@@ -1263,6 +1276,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     try {
       const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables: protection.tables });
       setProtectionFailed(got.failed || []);
+      raisePermissions([...grantGapPermissions(got), ...grantFailurePermissions(got)]);
       return recheckSources(abacGrantText(got));
     } catch (e) {
       setProtectionCopy(`Your grant was refused: ${e.message}`);
@@ -1365,6 +1379,21 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const grantedAll = !readOnly && !reads && readsResult?.version === latest?.spec_version && (readsResult?.action === 'grant' || readsResult?.action === 'check')
     && !readsResult?.refused && !readsResult?.error;
   const readsLeft = reads || (grantedAll ? { tables: [], canGrant: false } : null);
+  // A person who cannot grant the App's reads must act: Permission Required opens once per distinct grant list, with the owner's exact GRANT statements.
+  // The inline card under it keeps the copy-and-check, and See the grant reopens the dialog.
+  const mustAct = readsLeft?.tables?.length > 0 && readsLeft.canGrant !== true;
+  const mustActKey = mustAct ? JSON.stringify(readsLeft.tables.map((t) => [t.table, t.grants])) : '';
+  const mustActPermissions = mustAct ? [{
+    statements: [...new Set(readsLeft.tables.flatMap((t) => t.grants))],
+    instructions: [],
+    principal: readsLeft.app || 'the App',
+    why: `The App cannot read part of its data. Ask ${appReadsOwners(readsLeft)} to run these commands, then click Try again.`,
+  }] : [];
+  useEffect(() => {
+    if (!mustActKey) return;
+    raisePermissions(mustActPermissions, { retry: () => recheckSources() });
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- raise once per distinct grant list
+  }, [mustActKey]);
   const refreshSourceNow = async () => {
     const fresh = await apiFetch(`/api/inspire/implement/context?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`);
     setSourceNow(liveSourceNow(fresh));
@@ -1376,12 +1405,15 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         const tables = (sourceNow.unreadable?.tables || []);
         const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables });
         const failed = [...(got.failed || []), ...(got.abac_gaps || []).flatMap((g) => g.grants.map((sql) => `${sql}: not yours to grant`))];
+        raisePermissions([...grantGapPermissions(got), ...grantFailurePermissions(got)]);
         setReadsResult({ text: abacGrantText(got), failed, refused: failed.length > 0, version: latest?.spec_version, action });
         await refreshSourceNow();
         return;
       }
-      const got = await apiPostJson(`/api/inspire/implement/app-reads?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, { action });
+      // A check shows its refusal inline (Check again, See the grant); only a grant action opens Permission Required itself.
+      const got = await apiPostJson(`/api/inspire/implement/app-reads?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, { action }, { raise: action === 'grant' });
       setReadsResult({ ...got, version: latest?.spec_version, action });
+      if (got.permissions?.length) setPermissionDialog({ permissions: got.permissions });
       if (action === 'check' || action === 'grant') await refreshSourceNow();
     } catch (e) {
       setReadsResult({ error: e.message, version: latest?.spec_version, action });
@@ -1413,13 +1445,11 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         <div className="min-w-0 space-y-1 text-warning-fg">
           <p className="text-[13px] font-semibold">{readsLeft.tables.length ? APP_READS_HEADING : APP_READS_CLEARED}</p>
           {readsLeft.tables.length > 0 && <p>{appReadsText(readsLeft, latest?.app_name || '')}</p>}
-          {readsLeft.tables.length > 0 && (
-            <details data-app-reads-details="" className="text-[11px]">
-              <summary className="cursor-pointer">Details</summary>
-              <ul aria-label="Grants the App needs" className="space-y-0.5 mt-1">
-                {[...new Set(readsLeft.tables.flatMap((t) => t.grants))].map((g) => <li key={g} className="font-mono text-[11px] text-text-primary break-all">{g}</li>)}
-              </ul>
-            </details>
+          {(readsResult?.permissions?.length > 0 || mustActPermissions.length > 0) && (
+            <button type="button" data-see-grant="" onClick={() => setPermissionDialog({ permissions: readsResult?.permissions?.length ? readsResult.permissions : mustActPermissions })}
+              className="inline-flex h-7 items-center rounded-lg border border-border bg-surface px-2.5 text-[11px] font-semibold text-text-primary hover:bg-bg-subtle">
+              See the grant
+            </button>
           )}
         </div>
       </div>
@@ -1427,7 +1457,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         <div role="status" aria-label="Grant result" data-app-reads-result={readsResult.refused || readsResult.error ? 'refused' : readsResult.action} className="space-y-0.5 text-text-primary">
           {readsResult.error && <p>Your grant could not be made. The error is under Details.</p>}
           {readsResult.error && <details data-app-reads-error="" className="text-[11px]"><summary className="cursor-pointer">Details</summary><PlainMessage text={readsResult.error} /></details>}
-          {!readsResult.error && readsResult.action !== 'copy' && <p>{readsResult.text}</p>}
+          {!readsResult.error && readsResult.action !== 'copy' && readsResult.text && <p>{readsResult.text}</p>}
           {!readsResult.error && readsResult.failed?.length > 0 && (
             <details data-app-reads-failed="" className="text-[11px]">
               <summary className="cursor-pointer">Details</summary>
@@ -1763,15 +1793,16 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   );
 
   return (
+    <>
     <div data-use-case-pane="" className={`@container flex flex-col gap-3 ${built ? 'md:h-full md:min-h-0' : ''}`}>
       {celebrations > 0 && <Celebration key={celebrations} trigger />}
       <header data-pinned-name="" className={`${PANEL_CLASS} shrink-0 px-4 py-3 space-y-2.5`}>
         <div className="flex items-start justify-between gap-3">
           <div className="min-w-0 flex-1">
-            <h2 className="truncate text-lg font-bold text-text-primary" title={item.name}>{item.name}</h2>
+            <h2 className="line-clamp-2 break-words text-lg font-bold text-text-primary" title={item.name}>{item.name}</h2>
             <div data-use-case-meta="" className="mt-0.5 flex flex-wrap items-center gap-x-2 gap-y-1 text-[11px] text-text-secondary">
-              {row?.domain && <span><bdi>{row.domain}</bdi>{row.subdomain && <> › <bdi>{row.subdomain}</bdi></>}</span>}
-              {latest?.spec_version != null && <span className="font-mono">· v{latest.spec_version}</span>}
+              {row?.domain && <span className="whitespace-nowrap"><bdi>{row.domain}</bdi>{row.subdomain && <> › <bdi>{row.subdomain}</bdi></>}</span>}
+              {latest?.spec_version != null && <span className="whitespace-nowrap font-mono">· v{latest.spec_version}</span>}
               <ImplementStatusBadge state={item.state} />
             </div>
           </div>
@@ -1779,7 +1810,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         </div>
         {item.uc && <ValueEstimateLine uc={item.uc} />}
         {built && progress.active && <ProgressLine chip={chip} summary={progress} />}
-        <div className={ACTION_ROW}>
+        <div className={HEADER_ACTIONS}>
           {item.uc && (
             <button type="button" onClick={() => setDetailsOpen(true)} className={OUTLINE_BUTTON}>
               <FileText size={13} /> Use case details
@@ -1876,7 +1907,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           error={rebuildError || error} built={builtOn} choices={choices} previous={previous} blocked={rebuildBlocked}
           onPrevious={setPrevious} onAdd={addFeature} onDrop={dropAsk} onRemoveAsk={removeAsk} onRebuild={rebuild} onOpenSettings={onEdit ? openSettings : null} onClose={closeFeatures} />
       )}
+      {permissionDialog && <PermissionRequired permissions={permissionDialog.permissions} onClose={() => setPermissionDialog(null)} />}
     </div>
+    </>
   );
 }
 

@@ -1,7 +1,7 @@
 import { plainColumns } from './impact.js';
 import { VALUE_METHODS, compileExpression } from './moneyValue.js';
 // ISO 4217 codes, the same list as shell_sql.MONEY_CODES; the parity test runs the shared fixture through both.
-const CURRENCY_CODES = new Set([
+export const CURRENCY_CODES = new Set([
   'AED', 'AFN', 'ALL', 'AMD', 'ANG', 'AOA', 'ARS', 'AUD', 'AWG', 'AZN', 'BAM', 'BBD', 'BDT',
   'BGN', 'BHD', 'BIF', 'BMD', 'BND', 'BOB', 'BRL', 'BSD', 'BTN', 'BWP', 'BYN', 'BZD', 'CAD',
   'CDF', 'CHF', 'CLP', 'CNY', 'COP', 'CRC', 'CUC', 'CUP', 'CVE', 'CZK', 'DJF', 'DKK', 'DOP',

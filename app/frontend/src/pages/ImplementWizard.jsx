@@ -2,6 +2,8 @@ import { splitTechnical } from '../lib/plainText';
 import { nameOfUseCase } from '../lib/useCaseFields';
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { MONEY_PARTS } from '../lib/moneyParts.js';
+import { defaultMoneyRule, moneySummaryOf } from '../lib/moneyDefaults.js';
+import { valueEstimateOf } from '../lib/v130UseCase.js';
 import { Check, Loader2, NotebookPen, X, ChevronLeft, ChevronRight, LayoutDashboard, Sparkles, AppWindow, Bell, Lock, UserRound, KeyRound } from 'lucide-react';
 import BodyPortal from '../components/BodyPortal';
 import VibesEditor, { VibePrevious } from '../components/VibesEditor';
@@ -16,7 +18,9 @@ import {
   GENIE_CODE_OFF_TITLE,
   genieCodeOff,
   wizardSteps,
-  APP_STORAGE_STEP,
+  APP_STEP,
+  APP_STORAGE_LABEL,
+  PANEL_SECTIONS,
   contextSettings,
   IMPLEMENT_OUTPUTS,
   ALERT_TIER_HELP,
@@ -119,6 +123,7 @@ import {
   buildWarehouseNote,
   joinedWarehouseText,
   APP_OPTIONS,
+  APP_SCREENS,
   APP_NO_DOWNLOADS,
   APP_REFRESH_NOTE,
   REPLACE_EDITS_QUESTION,
@@ -209,6 +214,7 @@ import {
   withHoldout,
   withHoldoutPercent,
   outputBlocks,
+  appAccessRefusalOf,
   droppedOutputs,
   withoutUnavailableOutputs,
   FRESH_HELP,
@@ -280,7 +286,7 @@ import SamplesCopyOffer from '../components/SamplesCopyOffer';
 import { samplesTarget, validCopyTarget } from '../lib/samplesCopy';
 import { DRAFT_BACK_NOTE, DRAFT_START_OVER, clearWizardDraft, readWizardDraft, draftStampOf, wizardDraftKey, writeWizardDraft } from '../lib/wizardDraft';
 import {
-  FIRST_RUN_TITLE, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
+  FIRST_RUN_TITLE, FIRST_RUN_LABEL, GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE, RUN_SCOPE_UNRECORDED_HIDDEN, builtFirstRunOf, deepGrouping, groupingChosenBy, isFirstRunSetting, isGroupingSetting, isScopeSetting,
   latestRunScope, scopeChanges, scopeStepsOf, scopeValues,
   withGroupingDefault, withScopeDefaults, GROUP_BY, groupingChoices, groupingCount, groupingCountText, groupingOf, firstRunSummaryText,
   withScopedRows,
@@ -437,7 +443,7 @@ function CheckLine({ check, label }) {
   );
 }
 
-const MONEY_PART_LABEL = { method: 'How it is found', direction: 'Which movement counts', currency: 'Currency', window: 'Periods and statuses', off: 'Turn it off', [MEASURE_IMPACT_PART]: 'Measure impact' };
+const MONEY_PART_LABEL = { method: 'How the value is measured', direction: 'Which movement counts', currency: 'Currency', window: 'Periods and statuses', off: 'Turn it off', [MEASURE_IMPACT_PART]: 'Measure impact' };
 
 export default function ImplementWizard({
   uc,
@@ -573,6 +579,40 @@ export default function ImplementWizard({
   const shows = (panel) => steps[stepIndex].panels.includes(panel);
   const moneyParts = [...(spec.money?.off ? ['off'] : [...MONEY_PARTS.filter((p) => p !== 'off'), 'off']), MEASURE_IMPACT_PART];
   const moneyActive = Math.min(moneyPart, moneyParts.length - 1);
+  // The money reads are cached per request, so a section that remounts reads its rates and preview once, not again.
+  const postRef = useRef(apiPostJson);
+  postRef.current = apiPostJson;
+  const moneyReads = useRef(new Map());
+  // Literal route strings, so the demo walk records each money call it answers.
+  const moneyRead = (route) => (body) => {
+    const key = `${route}:${JSON.stringify(body)}`;
+    if (!moneyReads.current.has(key)) {
+      moneyReads.current.set(key, postRef.current(route, body).catch((err) => { moneyReads.current.delete(key); throw err; }));
+    }
+    return moneyReads.current.get(key);
+  };
+  const moneyApi = useRef(null);
+  moneyApi.current = { currencies: moneyRead('/api/money/currency-rates'), preview: moneyRead('/api/money/value-preview'), describe: (body) => postRef.current('/api/money/describe-value', body) };
+  // Folding sections: a step with several panels shows one open section at a time, in panel order.
+  const [openFold, setOpenFold] = useState(null);
+  const foldPanels = steps[stepIndex].panels;
+  const foldActive = foldPanels.includes(openFold) ? openFold : foldPanels[0];
+  const isOpenSection = (panel) => foldPanels.length < 2 || foldActive === panel;
+  // A section that holds an Advanced block opens with that block already open, so one click shows its content.
+  const FOLD_ADVANCED = { fresh: 'fresh', app_features: 'app_options', app_pages: 'app_pages' };
+  const openFoldSection = (panel) => {
+    setOpenFold(panel);
+    if (FOLD_ADVANCED[panel]) setAdvanced((prev) => ({ ...prev, [FOLD_ADVANCED[panel]]: true }));
+    if (panel === 'results') setDataChoice('results');
+  };
+  const foldLine = (panel, label, summary) => (shows(panel) && !isOpenSection(panel)
+    ? <FoldLine key={panel} label={label} what={label} summary={summary} onOpen={() => openFoldSection(panel)} /> : null);
+  useEffect(() => { setOpenFold(null); }, [stepId]);
+  // Every MVP gets a money rule without input: the default counts the amount column of its table (or each record once) in USD.
+  useEffect(() => {
+    if (mode !== 'mvp' || spec.money || scopeProfile.state === 'loading') return;
+    setSpec((prev) => (prev.money ? prev : withMoneyRule(prev, defaultMoneyRule(scopeProfile.profile, valueEstimateOf(uc)?.text || ''))));
+  }, [mode, spec.money, scopeProfile.state, scopeProfile.profile, uc]); // eslint-disable-line react-hooks/exhaustive-deps
   useEffect(() => {
     if (steps[stepIndex].id !== 'stake') return;
     setMoneyPart(openOnImpact.current ? moneyParts.length - 1 : 0);
@@ -771,6 +811,7 @@ export default function ImplementWizard({
   const placeSettled = !spec.outputs.app || (targets !== null && (placeSet === 'default' || placeSet === 'person'));
   const features = preflight?.features || context?.features || ALL_FEATURES;
   const blocks = useMemo(() => outputBlocks(features, outputCheck, context?.assets, preflight), [features, outputCheck, context?.assets, preflight]);
+  const appRefusal = appAccessRefusalOf(outputCheck, preflight);
   const extras = { columnsByTable, widgets: context?.widgets || [], trainsModel, mergeTargets: targets, held: context?.assets || {}, appLook: look, built, placeSettled,
     lakebase, warehouses, kpiOptions, settings: settingsList, sourceTables, scopeSteps: stepScope, scopeProfile: scopeProfile.profile, outputBlocks: blocks };
   const chartDates = appInputDates(columnsByTable, sourceTables);
@@ -783,6 +824,9 @@ export default function ImplementWizard({
   const resultsShown = dataFolded === 'results';
   const sourcesShown = dataFolded === null || dataFolded === 'sources' || dataFolded === 'closed';
   const filtersShown = dataFolded === null || dataFolded === 'filters' || dataFolded === 'closed';
+  // The Source tables and Table filters lines show whenever their block is folded, also when the Data panel itself is folded to its one line.
+  const sourcesFold = !sourcesShown && <FoldLine label="Source tables" what="Source tables" summary={`${sourceTables.length} ${sourceTables.length === 1 ? 'table' : 'tables'}: ${sourceTables.join(', ')}`} onOpen={() => { openFoldSection('data'); setDataChoice('sources'); }} />;
+  const filtersFold = !filtersShown && <FoldLine label="Table filters" what="Table filters" summary={`${(spec.data.filters || []).length} filter${(spec.data.filters || []).length === 1 ? '' : 's'} on ${sourceTables.length} ${sourceTables.length === 1 ? 'table' : 'tables'}`} onOpen={() => { openFoldSection('data'); setDataChoice('filters'); }} />;
   const reach = steps.map((s, i) => i <= stepIndex || steps.slice(0, i).every((p) => !stepErrors(p.id, spec, extras, mode).length));
   const done = steps.map((s, i) => i < stepIndex && !stepErrors(s.id, spec, extras, mode).length);
   const goTo = (id) => { setErrors([]); setStep(id); };
@@ -808,12 +852,16 @@ export default function ImplementWizard({
     return { ...prev, config };
   });
 
-  const blockedBy = (id) => {
-    setAttempted((prev) => ({ ...prev, [id]: true }));
-    if (!stepErrors(id, spec, extras, mode).length) return false;
+  // Opens the Advanced line and the Details drawer that hold a problem, so the person sees the field to fix.
+  const revealProblems = (id) => {
     const hidden = advancedWithErrors(id, spec, extras, mode);
     if (hidden.length) setAdvanced((prev) => ({ ...prev, ...Object.fromEntries(hidden.map((section) => [section, true])) }));
     if (id === 'data' && (!String(spec.use_case.goal || '').trim() || !String(spec.use_case.decision_owner || '').trim())) setDetails(true);
+  };
+  const blockedBy = (id) => {
+    setAttempted((prev) => ({ ...prev, [id]: true }));
+    if (!stepErrors(id, spec, extras, mode).length) return false;
+    revealProblems(id);
     if (id === SUMMARY_STEP.id) {
       const where = vibesProblem('mvp', spec.vibes, 'MVP') ? '[data-vibes="mvp"] textarea' : vibePreviousProblem(spec, built) ? '[data-vibe-previous] input' : '';
       if (where) bodyRef.current?.querySelector(where)?.focus();
@@ -846,7 +894,7 @@ export default function ImplementWizard({
       columns: scope.columns,
       filters: scope.filters,
       window: scope.window,
-    }).catch((e) => {
+    }, { raise: false }).catch((e) => {
       if (checkCallRefused(e)) throw e;
       return uncountedReadiness(scope);
     });
@@ -855,7 +903,7 @@ export default function ImplementWizard({
     if (!counted.skipped && Number(counted.row_count) === 0) {
       warning = await emptyScopeWarningOf(scope, sourceTables, (table) => apiPostJson(`/api/inspire/implement/readiness?${q}`, {
         table, discovery_type: discoveryType, columns: [], filters: [], window: {},
-      }));
+      }, { raise: false }));
     }
     const groupColumns = scopeNarrowing(scope).length ? groupPartColumns(scopeProfile.profile) : [];
     const groups = groupColumns.length && !counted.skipped
@@ -872,9 +920,30 @@ export default function ImplementWizard({
     return () => { live = false; };
   }, [scopeKey, stepId]); // eslint-disable-line react-hooks/exhaustive-deps
 
+  const countDataScope = async () => {
+    const scope = readinessScope(spec, ucRow, context?.table_scope);
+    if (scope.table) {
+      setChecking('Checking the data');
+      setReadiness(await countScope(scope));
+    }
+  };
+
   const goNext = async () => {
     setErrors([]);
     if (stepId === 'stake' && moneyActive < moneyParts.length - 1) { setMoneyPart(moneyActive + 1); return; }
+    const folds = steps[stepIndex].panels;
+    // Back to Summary leaves the step at once: the folds it still has are reached from Summary's Change links.
+    if (folds.length > 1 && !backToSummary && foldActive !== folds[folds.length - 1]) {
+      const sectionProblems = (PANEL_SECTIONS[foldActive] || []).flatMap((section) => sectionErrors(section, spec, extras));
+      // The footer lists the step's problems live once the step is attempted, so a fixed field clears its line.
+      if (sectionProblems.length) { revealProblems(stepId); setAttempted((prev) => ({ ...prev, [stepId]: true })); return; }
+      // The data fold counts its scope before it folds, so the readiness note and too-few-rows warning show on the step's first Next.
+      if (stepId === 'data' && foldActive === 'data') {
+        try { await countDataScope(); } catch (e) { setErrors([e.message]); return; } finally { setChecking(''); }
+      }
+      openFoldSection(folds[folds.indexOf(foldActive) + 1]);
+      return;
+    }
     if (mode === 'notebook') {
       setStep(steps[stepIndex + 1].id);
       return;
@@ -884,13 +953,8 @@ export default function ImplementWizard({
       return;
     }
     try {
-      if (stepId === 'data') {
-        const scope = readinessScope(spec, ucRow, context?.table_scope);
-        if (scope.table) {
-          setChecking('Checking the data');
-          setReadiness(await countScope(scope));
-        }
-      }
+      // The data fold counted the scope when it folded; the results fold cannot change it, so leaving from there counts nothing.
+      if (stepId === 'data' && foldActive !== 'results') await countDataScope();
       if (resultsOn && resultPlace === 'own') {
         const own = resultTableParts(ownTable);
         setSchemaJob({ state: 'running', text: `Creating the use case schema ${own.catalog}.${own.schema} in the background. You can keep going; Build waits for it.` });
@@ -899,7 +963,7 @@ export default function ImplementWizard({
         }).then(async (made) => {
           setOwnSchema((prev) => ({ ...(prev || {}), own_table: ownTable, table: ownTable, place: 'own', create: false }));
           setPlaceNote((made.warnings || []).join(' '));
-          const check = await apiFetch(outputCheckPath()).catch((e) => (checkCallRefused(e) ? { ok: false, detail: e.message } : { ok: true, unchecked: outputUncheckedText(spec.config.result_table, e) }));
+          const check = await apiFetch(outputCheckPath(), { raise: false }).catch((e) => (checkCallRefused(e) ? { ok: false, detail: e.message } : { ok: true, unchecked: outputUncheckedText(spec.config.result_table, e) }));
           setOutputCheck(check.unchecked ? null : check);
           const failed = [check.write, check.safety, check.model].find((c) => c && !c.ok);
           setSchemaJob(failed ? { state: 'failed', text: failed.detail } : { state: 'done', text: '' });
@@ -912,7 +976,7 @@ export default function ImplementWizard({
         });
       } else if (resultsOn) {
         setChecking('Checking you can write the result table');
-        const check = await apiFetch(outputCheckPath()).catch((e) => {
+        const check = await apiFetch(outputCheckPath(), { raise: false }).catch((e) => {
           if (checkCallRefused(e)) throw e;
           return { ok: true, unchecked: outputUncheckedText(spec.config.result_table, e) };
         });
@@ -963,7 +1027,7 @@ export default function ImplementWizard({
       const planNow = lastStep && !ownErrorsKey && planReady && !appBlocked;
       const checks = preflightParams(spec);
       const [pre, planned] = await Promise.allSettled([
-        apiPostJson(`/api/inspire/implement/preflight?${q}&${checks.toString()}`, { spec: sent }),
+        apiPostJson(`/api/inspire/implement/preflight?${q}&${checks.toString()}`, { spec: sent }, { raise: false }),
         planNow
           ? apiPostJson('/api/inspire/implement/plan', { inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId), spec: sent })
           : Promise.resolve(null),
@@ -1079,7 +1143,7 @@ export default function ImplementWizard({
   }, [columnsByTable, spec]);
 
   useEffect(() => {
-    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where' || stepId === 'app' || stepId === APP_STORAGE_STEP.id));
+    const wanted = stepId === 'data' || (spec.outputs.app && (stepId === 'delivery' || stepId === 'where' || stepId === 'app'));
     if (!wanted || warehouses !== null || warehousesError) return undefined;
     let cancelled = false;
     apiFetch('/api/warehouses')
@@ -1294,7 +1358,7 @@ export default function ImplementWizard({
   const freshness = freshnessOf(spec.schedule);
   const checkStepOf = (k) => {
     if (PLACE_CHECKS.includes(k)) return 'where';
-    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'where' : APP_STORAGE_STEP.id;
+    if (ACCESS_CHECKS.includes(k)) return insideInspire(spec) || joinsApp(spec) ? 'where' : APP_STEP.id;
     return CHOOSE_CHECKS.includes(k) || TILE_CHECK_KEYS.includes(k) ? 'delivery' : SUMMARY_STEP.id;
   };
   const checkStepLabel = (k) => steps.find((s) => s.id === checkStepOf(k))?.label || SUMMARY_STEP.label;
@@ -1452,9 +1516,11 @@ export default function ImplementWizard({
             copying={copying} error={copyError} onCopy={copySamples} copyLabel="Copy it now" />
         )}
 
-        {stepId === 'data' && mode === 'mvp' && (
+        {foldLine('data', 'Source table', primaryChosen || 'not picked yet')}
+        {stepId === 'data' && mode === 'mvp' && !isOpenSection('data') && <>{sourcesFold}{filtersFold}</>}
+        {stepId === 'data' && mode === 'mvp' && isOpenSection('data') && (
           <>
-            {!sourcesShown && <FoldLine label="Source tables" what="Source tables" summary={`${sourceTables.length} ${sourceTables.length === 1 ? 'table' : 'tables'}: ${sourceTables.join(', ')}`} onOpen={() => setDataChoice('sources')} />}
+            {sourcesFold}
             {sourcesShown && <section className="space-y-2">
               <div>
                 <h3 className="text-sm font-semibold text-text-primary">Source tables</h3>
@@ -1482,7 +1548,7 @@ export default function ImplementWizard({
               />
             </section>}
 
-            {!filtersShown && <FoldLine label="Table filters" what="Table filters" summary={`${(spec.data.filters || []).length} filter${(spec.data.filters || []).length === 1 ? '' : 's'} on ${sourceTables.length} ${sourceTables.length === 1 ? 'table' : 'tables'}`} onOpen={() => setDataChoice('filters')} />}
+            {filtersFold}
             {filtersShown && <SourceTableBlocks tables={sourceTables} spec={spec} columnsByTable={columnsByTable} values={values} setSpec={setSpec} loadValues={loadValues} />}
 
             <Advanced open={advanced.data} onToggle={() => toggleAdvanced('data')} what="data settings" summary={dataSummary}>
@@ -1583,7 +1649,8 @@ export default function ImplementWizard({
           </>
         )}
 
-        {((shows('grouping') && mode === 'mvp' && (scopeSteps.grouping || scopeProfile.state === 'loading')) || shows('first_run')) && (
+        {foldLine('first_run', FIRST_RUN_LABEL, narrowed ? 'Only the rows you narrowed to' : 'All rows of the source table')}
+        {((shows('grouping') && mode === 'mvp' && (scopeSteps.grouping || scopeProfile.state === 'loading')) || shows('first_run')) && isOpenSection(shows('first_run') ? 'first_run' : 'grouping') && (
           <section aria-label={shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE} data-scope-step={shows('first_run') ? 'first_run' : 'grouping'} className="space-y-3">
             <h3 className="text-sm font-semibold text-text-primary">{shows('first_run') ? FIRST_RUN_TITLE : GROUPING_TITLE}</h3>
             {shows('grouping') && <p data-grouping-example-plain="" className="text-[12px] text-text-secondary">{GROUPING_EXAMPLE}{groupingChoices(scopeProfile.profile).length > 1 ? ` ${GROUPING_PICK}` : ''}</p>}
@@ -1595,7 +1662,8 @@ export default function ImplementWizard({
           </section>
         )}
 
-        {resultsOn && (
+        {foldLine('results', 'Result table', spec.config.result_table || 'not set yet')}
+        {resultsOn && isOpenSection('results') && (
           <Advanced open={resultsShown} onToggle={() => { if (resultsShown) { setAdvanced((prev) => ({ ...prev, results: false })); setDataChoice('closed'); } else setDataChoice('results'); }} what="result table"
             summary={`Result table: ${spec.config.result_table || 'not set yet'}`}>
             <ResultTableStep
@@ -1624,7 +1692,8 @@ export default function ImplementWizard({
           </Advanced>
         )}
 
-        {shows('fresh') && (
+        {foldLine('fresh', FRESH_LABEL, freshness === 'off' ? 'Run once now' : `Runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`)}
+        {shows('fresh') && isOpenSection('fresh') && (
           <section className="space-y-2" aria-label={FRESH_LABEL}>
             <Advanced open={advanced.fresh || sectionErrors('schedule', spec, extras).length > 0} onToggle={() => toggleAdvanced('fresh')} what={FRESH_LABEL}
               summary={freshness === 'off' ? 'Keep it fresh: off, it runs once now' : `Keep it fresh: runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`}>
@@ -1657,7 +1726,8 @@ export default function ImplementWizard({
           </section>
         )}
 
-        {shows('schedule') && (
+        {foldLine('schedule', 'Schedule', spec.schedule.enabled ? cronInWords(spec.schedule.cron, spec.schedule.timezone) : 'Run once now')}
+        {shows('schedule') && isOpenSection('schedule') && (
           <>
             <div className="space-y-3">
               <SettingRow label="Schedule (Quartz cron)" value={cronInWords(spec.schedule.cron, spec.schedule.timezone)} changeLabel="schedule">
@@ -1704,7 +1774,7 @@ export default function ImplementWizard({
                 {IMPLEMENT_OUTPUTS.map((item) => {
                   const Icon = ICONS[item.id];
                   const on = spec.outputs[item.id];
-                  const noAppAccess = item.id === 'app' && !context?.assets?.app && outputCheck?.app?.ok === false;
+                  const noAppAccess = item.id === 'app' && !context?.assets?.app && Boolean(appRefusal);
                   const block = blocks[item.id];
                   const cannot = Boolean(block);
                   const tileChecks = (TILE_CHECKS[item.id] || []).map((k) => [k, preflight?.checks?.[k]])
@@ -1733,9 +1803,9 @@ export default function ImplementWizard({
                         </label>
                       </div>
                       {cannot && <div className="ps-7"><BlockedReason block={block} id={item.id} /></div>}
-                      {noAppAccess && outputCheck.app.offer && (
+                      {noAppAccess && appRefusal.offer && (
                         <div className="ps-7 space-y-1.5 text-[11px]">
-                          <GrantList label="Grant Inspire can run for new Apps" items={outputCheck.app.offer.grants} />
+                          <GrantList label="Grant Inspire can run for new Apps" items={appRefusal.offer.grants} />
                           <button type="button" disabled={granting} onClick={grantNewApps}
                             className="inline-flex items-center px-3 py-1.5 rounded-lg text-xs font-semibold text-white bg-db-red-solid disabled:opacity-70">
                             {granting ? 'Granting with your sign-in' : NEW_APPS_ACCESS_ACTION}
@@ -1921,43 +1991,58 @@ export default function ImplementWizard({
           <section className="space-y-3" aria-label={MEASURE_LABEL}>
             <div>
               <h3 className="text-sm font-semibold text-text-primary">Money at stake</h3>
-              <p className="text-[11px] text-text-secondary">{`Each record is counted in the ${stakeWords(sampleStake)}. Choose how the money totals are worked out.`}</p>
+              <p className="text-[11px] text-text-secondary">{`Each record is counted in the ${stakeWords(sampleStake)}. Optional: the default already counts it, so Next moves on. Open a section to change it.`}</p>
             </div>
-            <ol aria-label="Money decisions" className="flex flex-wrap gap-x-1 gap-y-1 text-[11px]">
-              {moneyParts.map((p, i) => (
-                <li key={p} data-money-current={i === moneyActive ? '' : undefined}
-                  className={`rounded-full ${i === moneyActive ? 'bg-db-red-50 text-db-red-fg font-semibold' : i < moneyActive ? 'text-text-primary' : 'text-text-tertiary'}`}>
-                  <button type="button" data-money-part={p} disabled={i > moneyActive} onClick={() => setMoneyPart(i)} className="px-2 py-1 glow-focus disabled:cursor-default">{i + 1}. {MONEY_PART_LABEL[p]}</button>
-                </li>
-              ))}
+            <ol aria-label="Money decisions" className="space-y-2">
+              {moneyParts.map((p, i) => {
+                const open = i === moneyActive;
+                const label = `${i + 1}. ${MONEY_PART_LABEL[p]}`;
+                const nextPart = moneyParts[i + 1];
+                return (
+                  <li key={p} data-money-current={open ? '' : undefined} className="block">
+                    <div data-money-part={p}>
+                      {!open && i < moneyActive && <FoldLine label={label} what={MONEY_PART_LABEL[p]} summary={moneySummaryOf(spec.money, p)} onOpen={() => setMoneyPart(i)} />}
+                      {!open && i > moneyActive && <p className="border-t border-border pt-3 text-[12px] font-semibold text-text-tertiary">{label}</p>}
+                      {open && <p className="border-t border-border pt-3 text-[13px] font-semibold text-text-primary">{label}</p>}
+                    </div>
+                    {open && (
+                      <div className="space-y-3 pt-2 pb-1">
+                        {p === MEASURE_IMPACT_PART ? (
+                          <div className="space-y-3">
+                            <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
+                              <KpiTargetSetting
+                                spec={spec}
+                                best={best.kpi}
+                                options={kpiOptions}
+                                tracked={trackedKpi}
+                                before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
+                                onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
+                              />
+                            </HoldoutSetting>
+                            <SettingRow label="Hold back" value={holdoutOf(spec).enabled ? `${holdoutPercentText(spec) || '10'}% of records` : 'off'} changeLabel="hold back share">
+                              <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
+                            </SettingRow>
+                          </div>
+                        ) : spec.money ? (
+                          <MoneyRuleEditor part={p} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={moneyApi.current} onChange={(money) => { setSpec((prev) => withMoneyRule(prev, money)); if (Boolean(money?.off) !== Boolean(spec.money?.off)) setMoneyPart(money?.off ? 0 : MONEY_PARTS.indexOf('off')); }} />
+                        ) : (
+                          <p className="text-[12px] text-text-secondary">Reading this table to pre-fill the money rule</p>
+                        )}
+                        <div className="flex items-center justify-between pt-1">
+                          {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
+                          {nextPart && <button type="button" data-money-next="" aria-label={`Next: ${MONEY_PART_LABEL[nextPart]}`} onClick={() => setMoneyPart(moneyActive + 1)} className="text-xs font-medium text-db-red-fg">Next</button>}
+                        </div>
+                      </div>
+                    )}
+                  </li>
+                );
+              })}
             </ol>
-            {moneyParts[moneyActive] === MEASURE_IMPACT_PART ? (
-              <div className="space-y-3">
-                <HoldoutSetting spec={spec} best={best.holdout} onEnabled={(on) => setSpec((prev) => withHoldout(prev, on))}>
-                  <KpiTargetSetting
-                    spec={spec}
-                    best={best.kpi}
-                    options={kpiOptions}
-                    tracked={trackedKpi}
-                    before={context?.latest ? kpiTargetOf(context.latest.spec_json) : null}
-                    onPick={(name) => setSpec((prev) => withKpiTarget(prev, name))}
-                  />
-                </HoldoutSetting>
-                <SettingRow label="Hold back" value={holdoutOf(spec).enabled ? `${holdoutPercentText(spec) || '10'}% of records` : 'off'} changeLabel="hold back share">
-                  <HoldoutPercent spec={spec} onPercent={(text) => setSpec((prev) => withHoldoutPercent(prev, text))} />
-                </SettingRow>
-              </div>
-            ) : (
-              <MoneyRuleEditor part={moneyParts[moneyActive]} value={spec.money} sample={scopeProfile.profile?.money_sample || null} table={scopeProfile.profile?.table || ''} columns={scopeProfile.profile?.money_columns || []} api={{ currencies: (body) => apiPostJson('/api/money/currency-rates', body), preview: (body) => apiPostJson('/api/money/value-preview', body), describe: (body) => apiPostJson('/api/money/describe-value', body) }} onChange={(money) => { setSpec((prev) => withMoneyRule(prev, money)); if (Boolean(money?.off) !== Boolean(spec.money?.off)) setMoneyPart(money?.off ? 0 : MONEY_PARTS.indexOf('off')); }} />
-            )}
-            <div className="flex items-center justify-between pt-1">
-              {moneyActive > 0 ? <button type="button" data-money-back="" onClick={() => setMoneyPart(moneyActive - 1)} className="text-xs text-text-secondary">Previous decision</button> : <span />}
-              {moneyActive < moneyParts.length - 1 && <button type="button" data-money-next="" onClick={() => setMoneyPart(moneyActive + 1)} className="text-xs font-medium text-db-red-fg">Following decision</button>}
-            </div>
           </section>
         )}
 
-        {shows('app_place') && spec.outputs.app && (
+        {spec.outputs.app && foldLine('app_place', 'Where it lives', spec.outputs.app_name || 'not named yet')}
+        {shows('app_place') && spec.outputs.app && isOpenSection('app_place') && (
           <AppPlacementStep
             spec={spec}
             targets={targets}
@@ -1985,7 +2070,8 @@ export default function ImplementWizard({
           />
         )}
 
-        {shows('app_access') && (
+        {foldLine('app_access', 'Who sees which rows', ACCESS_SHORT[spec.outputs.app_access] || 'not picked yet')}
+        {shows('app_access') && isOpenSection('app_access') && (
           <AppAccessStep
             spec={spec}
             onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
@@ -1993,7 +2079,8 @@ export default function ImplementWizard({
           />
         )}
 
-        {shows('app_storage') && (
+        {foldLine('app_storage', APP_STORAGE_LABEL, `Warehouse: ${spec.outputs.app_warehouse_id || spec.config.warehouse_id || 'not picked yet'}`)}
+        {shows('app_storage') && isOpenSection('app_storage') && (
           <AppStorageStep
             spec={spec}
             lakebase={lakebase}
@@ -2006,7 +2093,8 @@ export default function ImplementWizard({
           />
         )}
 
-        {shows('app_features') && (
+        {foldLine('app_features', 'What people can do', APP_OPTIONS.filter((o) => spec.outputs.app_options[o.id]).map((o) => o.label).join(', ') || 'nothing')}
+        {shows('app_features') && isOpenSection('app_features') && (
           <Advanced open={advanced.app_options} onToggle={() => toggleAdvanced('app_options')} what="what people can do in the App"
             summary={`What people can do: ${APP_OPTIONS.filter((o) => spec.outputs.app_options[o.id]).map((o) => o.label).join(', ') || 'nothing'}`}>
             <AppFeaturesStep
@@ -2017,7 +2105,8 @@ export default function ImplementWizard({
           </Advanced>
         )}
 
-        {shows('app_pages') && (
+        {foldLine('app_pages', 'Pages', `${Object.values(appScreensOf(spec)).filter(Boolean).length} of ${APP_SCREENS.length} pages on`)}
+        {shows('app_pages') && isOpenSection('app_pages') && (
           <AppPagesStep spec={spec} look={look} view={lookView} onView={setLookView} open={advanced.app_pages} onToggle={() => toggleAdvanced('app_pages')}
             onPage={(id, on) => setSpec((prev) => withAppPage(prev, id, on))} />
         )}
@@ -2205,7 +2294,7 @@ export default function ImplementWizard({
             type="button"
             className={`inline-flex items-center gap-1 text-xs text-text-secondary ${stepIndex === 0 ? 'invisible' : ''}`}
             disabled={stepIndex === 0 || busy}
-            onClick={() => { setErrors([]); if (stepId === 'stake' && moneyActive > 0) setMoneyPart(moneyActive - 1); else setStep(steps[stepIndex - 1].id); }}
+            onClick={() => { setErrors([]); if (stepId === 'stake' && moneyActive > 0) setMoneyPart(moneyActive - 1); else if (foldPanels.indexOf(foldActive) > 0) openFoldSection(foldPanels[foldPanels.indexOf(foldActive) - 1]); else setStep(steps[stepIndex - 1].id); }}
           >
             <ChevronLeft size={14} /> Back
           </button>
@@ -2881,7 +2970,7 @@ function AppAccessStep({ spec, onAccess, best = {} }) {
 function AppStorageStep({ spec, lakebase, warehouses, warehousesError, onWarehousesRetry, warehouseCheck, onBackend, onWarehouse, best = {} }) {
   const inside = insideInspire(spec);
   return (
-    <section className="space-y-4" aria-label={APP_STORAGE_STEP.label}>
+    <section className="space-y-4" aria-label={APP_STORAGE_LABEL}>
       <AppBackendChoice spec={spec} lakebase={lakebase} onBackend={onBackend} best={best.backend}>
         {inside ? (
           <p data-inside-warehouse="" className="text-[11px] text-text-secondary">

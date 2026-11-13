@@ -20,7 +20,7 @@ function useWide() {
 
 const KEEP_OPEN = '[aria-modal="true"], [role="menu"], [role="listbox"], [data-radix-popper-content-wrapper]';
 
-export default function DrawerShell({ label, closeLabel, focusKey = null, onClose, title, actions = null, below = null, footer = null, center = false, side = false, dock = null, bodyRef = null, bodyProps = {}, children, ...rest }) {
+export default function DrawerShell({ label, closeLabel, focusKey = null, focusOnOpen = true, onClose, title, actions = null, below = null, footer = null, center = false, side = false, dock = null, bodyRef = null, bodyProps = {}, children, ...rest }) {
   const panelRef = useRef(null);
   const wide = useWide();
   const docked = Boolean(side && dock && wide);
@@ -39,7 +39,7 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
   }, []);
 
   useEffect(() => {
-    if (openedByPerson.current) panelRef.current?.focus({ preventScroll: true });
+    if (openedByPerson.current && focusOnOpen) panelRef.current?.focus({ preventScroll: true });
   }, [focusKey]);
 
   useEffect(() => {
@@ -66,12 +66,6 @@ export default function DrawerShell({ label, closeLabel, focusKey = null, onClos
     document.addEventListener('pointerdown', onDown, true);
     return () => document.removeEventListener('pointerdown', onDown, true);
   }, [onClose, side, docked]);
-
-  useEffect(() => {
-    if (!docked) return undefined;
-    document.documentElement.style.setProperty('--dock-w', `min(${width}px, 40vw)`);
-    return () => document.documentElement.style.removeProperty('--dock-w');
-  }, [docked, width]);
 
   const panel = (
     <>

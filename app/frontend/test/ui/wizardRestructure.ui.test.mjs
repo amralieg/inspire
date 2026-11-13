@@ -1,12 +1,12 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToMeasureImpact, goToStep, openRow, openUi, shot } from './uiSupport.mjs';
+import { closeBrowser, goToMeasureImpact, goToStep, moneyPart, openFolded, openRow, openUi, shot } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
-const STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Who uses the App', 'Page storage', 'App look', 'Run it', 'Review & build'];
+const STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Who uses the App and storage', 'App look', 'Review & build'];
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, '').trim());
 const viewports = [{ width: 1280, height: 800 }, { width: 1440, height: 900 }];
 const snap = async (page, name) => {
@@ -25,13 +25,13 @@ test('the step count reads the same total on every step for a fixed scope', asyn
     const count = async () => (await page.locator('.sr-only', { hasText: /^Step \d+ of \d+$/ }).first().textContent()).trim();
     const totals = [];
     totals.push(await count());
-    for (const step of ['Data & results', 'Measure', 'Where it lives', 'Who uses the App', 'Run it', 'Review & build', 'What to deliver']) {
+    for (const step of ['Data & results', 'Measure', 'Where it lives', 'Who uses the App and storage', 'Review & build', 'What to deliver']) {
       await goToStep(page, step);
       totals.push(await count());
     }
     const all = new Set(totals.map((t) => t.split(' of ')[1]));
     assert.equal(all.size, 1, `the total never changes: ${totals.join(' | ')}`);
-    assert.match(totals[0], /^Step 1 of 10$/, 'What to deliver is step 1 of 10 with the App on');
+    assert.match(totals[0], /^Step 1 of 8$/, 'What to deliver is step 1 of 8 with the App on');
   } finally {
     await ui.close();
   }
@@ -47,6 +47,7 @@ test('What to deliver is the first step, Data and results is one page, and Where
 
     await goToStep(page, 'Data & results');
     await page.getByRole('heading', { name: 'Source tables' }).or(page.locator('[data-fold-line="Source tables"]')).first().waitFor();
+    await openFolded(page, 'Result table');
     await openRow(page, 'result table');
     await page.getByRole('region', { name: 'Where the result table lives' }).waitFor();
     assert.equal(await page.getByRole('region', { name: 'Where the result table lives' }).count(), 1, 'the result table sits on the same page as the data');
@@ -56,12 +57,17 @@ test('What to deliver is the first step, Data and results is one page, and Where
     const measure = page.getByRole('region', { name: 'Measure' });
     await measure.waitFor();
     assert.equal(await measure.locator('[data-money-rule-editor]').count(), 1, 'Measure holds the money rule editor, so the person defines how money at stake is counted');
-    assert.match(await measure.locator('[data-money-base-needed]').innerText(), /Pick the reporting currency/, 'without a currency column the Measure step asks for the reporting currency in plain words');
+    // Money at stake opens one part at a time. With one currency in the data the Currency part shows the picker with its default
+    // and offers no conversion, so no reporting-currency prompt (must-exclude). Rates are covered by measureRule.
+    await moneyPart(page, 'Currency');
+    assert.equal(await measure.locator('[data-money-currency-mode="per_currency"]').isChecked(), true, 'the Currency part starts on keeping each currency separate');
+    assert.equal(await measure.locator('[data-money-currency-mode="convert"]').count(), 0, 'no conversion choice with one currency in the data (must-exclude)');
+    assert.equal(await measure.locator('[data-money-base-needed]').count(), 0, 'no reporting-currency prompt with one currency in the data (must-exclude)');
     await snap(page, 'restructure-measure');
 
     await goToStep(page, 'Where it lives');
     await page.getByRole('region', { name: 'App placement' }).waitFor();
-    await openRow(page, 'App pages');
+    await openFolded(page, 'Pages');
     await page.getByRole('region', { name: 'App pages' }).waitFor();
     assert.equal(await page.getByRole('region', { name: 'App features' }).count(), 0, 'the App pages are picked on Where it lives, not with who uses the App');
     assert.equal(await page.getByRole('tab', { name: 'Pages', exact: true }).count(), 0, 'App look no longer holds a Pages tab');
@@ -69,7 +75,7 @@ test('What to deliver is the first step, Data and results is one page, and Where
 
     await goToStep(page, 'Who uses the App');
     await page.getByRole('region', { name: 'App access' }).waitFor();
-    await openRow(page, 'what people can do in the App');
+    await openFolded(page, 'What people can do');
     await page.getByRole('region', { name: 'App features' }).waitFor();
     assert.equal(await page.getByRole('region', { name: 'App pages' }).count(), 0, 'Who uses the App no longer holds the pages');
     await snap(page, 'restructure-who');
@@ -131,15 +137,15 @@ test('Rebuild as is: an unchanged version is refused until the person picks Rebu
   }
 });
 
-test('Keep it fresh sits on Data & results, Run it no longer shows Measure impact, and Measure does', async () => {
+test('Keep it fresh sits on First run, Run it no longer shows Measure impact, and Measure does', async () => {
   const ui = await openUi('wizard', ME);
   const { page } = ui;
   try {
     await goToStep(page, 'Data & results');
-    await openRow(page, 'Keep it fresh');
-    await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
+    assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Data & results no longer holds Keep it fresh (must-exclude)');
     await goToStep(page, 'Run it');
-    assert.equal(await page.getByRole('group', { name: 'Keep it fresh' }).count(), 0, 'Run it no longer holds Keep it fresh');
+    await openFolded(page, 'Keep it fresh');
+    await page.getByRole('group', { name: 'Keep it fresh' }).waitFor();
     assert.equal(await page.getByRole('group', { name: 'Measure impact' }).count(), 0, 'Run it no longer shows Measure impact (must-exclude)');
     await goToMeasureImpact(page);
     await page.getByRole('group', { name: 'Measure impact' }).waitFor();

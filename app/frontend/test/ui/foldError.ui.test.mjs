@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { closeBrowser, goToStep, openRow, openUi } from './uiSupport.mjs';
+import { closeBrowser, goToStep, openFolded, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -15,7 +15,7 @@ test('a Data & results error opens only the block that holds it: the result tabl
   try {
     await goToStep(page, 'Data');
     await page.getByRole('heading', { name: 'Source tables' }).waitFor();
-    await openRow(page, 'result table');
+    await openFolded(page, 'Result table');
     await page.getByRole('region', { name: 'Where the result table lives' }).getByLabel('Table name').fill('bad name!');
     await page.getByRole('button', { name: 'Next', exact: true }).click();
     await page.getByText('can only use catalog, schema and table names', { exact: false }).waitFor();

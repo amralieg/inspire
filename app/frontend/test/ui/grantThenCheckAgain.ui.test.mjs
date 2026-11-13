@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { closeBrowser, expandBuild, openUi } from './uiSupport.mjs';
+import { closeBrowser, closeOnLoadPermission, expandBuild, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -78,6 +78,8 @@ test('a refused App read the person cannot grant shows Check again, and after th
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    // A person who cannot grant must act: Permission Required opens on load with the owner's GRANTs. It covers the drawer, so close it first.
+    await closeOnLoadPermission(page, { expect: true });
     await expandBuild(page);
     const card = page.getByRole('region', { name: CARD });
     await card.waitFor({ timeout: 15000 });
@@ -91,6 +93,34 @@ test('a refused App read the person cannot grant shows Check again, and after th
     assert.equal(await page.getByRole('region', { name: CARD }).count(), 0, 'the refusal is cleared by Check again');
     assert.match(await page.getByRole('region', { name: CLEARED }).innerText(), /The App can read all its data now/, 'the cleared card says so');
     assert.equal(await page.getByText(CARD, { exact: false }).count(), 0, 'no stale refusal text stays on the page');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a grant the person can make that fails opens Permission Required with the GRANT it tried, grouped by grantee (REQ-042)', async () => {
+  const w = grantableWorkspace();
+  w.state.statements['GRANT '] = (sql) => {
+    w.grants.push(sql);
+    throw new Error('[PERMISSION_DENIED] User does not have MANAGE on Table main.s.orders.');
+  };
+  const ui = await openUi('implement', w.state);
+  const { page } = ui;
+  try {
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await closeOnLoadPermission(page, { expect: true });
+    await expandBuild(page);
+    // The card's grant button arrives with the app-reads check; wait for the card before reading the button.
+    await page.getByRole('region', { name: CARD }).waitFor({ timeout: 15000 });
+    // The card's grant choice is labelled "Grant access with my permissions" (appReadsChoices), not the Build-card action.
+    const access = page.getByRole('button', { name: 'Grant access with my permissions', exact: true });
+    await access.click({ timeout: 15000 });
+    const dialog = page.locator('[data-permission-dialog=""]');
+    await dialog.waitFor({ timeout: 15000 });
+    const statements = await dialog.locator('[data-permission-statements=""]').innerText();
+    assert.match(statements, /GRANT SELECT ON TABLE `main`\.`s`\.`orders` TO `app-sp-2`;/, 'the failed grant is listed in Permission Required');
+    assert.ok(w.grants.length >= 1, 'the grant ran with the person sign-in');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

@@ -1,6 +1,9 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToStep, openUi, wizardInScreen } from './uiSupport.mjs';
+import { closeBrowser, goToStep, openUi, stubMoney, wizardInScreen } from './uiSupport.mjs';
+
+// The default rule previews its example rows on open; answer the preview so the page has no failed request.
+const stubPreview = (page) => stubMoney('value-preview', () => ({ rows: [{ stake: 1, currency: 'USD' }] }), [])(page);
 
 test.after(closeBrowser);
 
@@ -25,7 +28,7 @@ async function assertOneDecision(page, part) {
 }
 
 test('Measure shows one decision per screen, Measure impact last, Following decision moves on, and a finished screen keeps its place', async () => {
-  const ui = await openUi('wizard', ME);
+  const ui = await openUi('wizard', ME, '', { init: stubPreview });
   const { page } = ui;
   try {
     await goToStep(page, 'Measure');
@@ -51,7 +54,7 @@ test('Measure shows one decision per screen, Measure impact last, Following deci
 });
 
 test('a value typed on its decision survives moving to other decisions and back', async () => {
-  const ui = await openUi('wizard', ME);
+  const ui = await openUi('wizard', ME, '', { init: stubPreview });
   const { page } = ui;
   try {
     await goToStep(page, 'Measure');

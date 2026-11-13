@@ -675,7 +675,9 @@ def test_the_app_role_reads_only_the_copies_its_app_lists_so_a_copy_another_buil
 def test_a_grant_that_fails_is_returned_as_the_reason_and_nothing_raises(agent_ns):
     problem, _calls, _statements, grants = _grant(agent_ns, {("GET", ROLES): [{"roles": [SP_ROLE]}]},
                                                   sql_error=RuntimeError("permission denied for schema churn_desk"))
-    assert problem == "permission denied for schema churn_desk" and grants == []
+    # A refused grant names the one statement its owner runs (REQ-149), and nothing is granted.
+    assert str(problem) == "the identity Inspire runs as has no rights on the Lakebase schema churn_desk" and grants == []
+    assert problem.statement.startswith("GRANT ALL PRIVILEGES ON SCHEMA churn_desk TO ")
     problem, _calls, _statements, _grants = _grant(agent_ns, {("GET", ROLES): [{"roles": []}],
                                                               ("POST", ROLES): RuntimeError("PERMISSION_DENIED: not a project owner")})
     assert problem == "PERMISSION_DENIED: not a project owner"

@@ -130,6 +130,14 @@ function makeApp(overrides = {}, { mount } = {}) {
         return { rows: (state.primaryKeys || []).map((column_name) => ({ column_name })) };
       }
       if (sql.includes('SELECT COUNT(*) AS matched')) return { rows: state.matchRows || [{ matched: '4', total: '4' }] };
+      if (sql.includes('table_type FROM') && sql.includes('information_schema.tables')) {
+        // The table type of one picked table: a metric view when the test names it in metricViews, else a managed table.
+        const catalog = (/FROM `([^`]+)`\.information_schema\.tables/.exec(sql) || [])[1] || '';
+        const named = (key) => ((parameters || []).find((p) => p.name === key) || {}).value || '';
+        const name = `${catalog}.${named('s')}.${named('t')}`.toLowerCase();
+        const views = (state.metricViews || []).map((v) => String(v).toLowerCase());
+        return { rows: [{ table_type: views.includes(name) ? 'METRIC_VIEW' : 'MANAGED' }] };
+      }
       if (sql.includes('information_schema.columns') && sql.includes('WITH o AS')) {
         return { rows: state.swapRowsByToken ? state.swapRowsByToken[token] || [] : state.swapRows || [] };
       }
@@ -304,10 +312,14 @@ function makeApp(overrides = {}, { mount } = {}) {
   });
   app.get('/api/tables/:catalog/:schema', (req, res) => {
     const scope = `${req.params.catalog}.${req.params.schema}`;
+    if (state.tablesRefusal) return require('../../lib/permissionError').sendFailure(res, 403, state.tablesRefusal);
     const names = (state.tables || {})[scope] || [];
     return res.json({ tables: names.map((name) => ({ name, full_name: `${scope}.${name}`, schema_name: req.params.schema })), count: names.length });
   });
-  app.post('/api/output-folder/check', (req, res) => res.json({ allowed: true, folder: String((req.body || {}).generation_path || '/Shared/demos'), checked: 'passed' }));
+  app.post('/api/output-folder/check', (req, res) => {
+    if (state.outputRefusal) return res.status(403).json({ error: state.outputRefusal.message, permissions: state.outputRefusal.permissions });
+    return res.json({ allowed: true, folder: String((req.body || {}).generation_path || '/Shared/demos'), checked: 'passed' });
+  });
   app.post('/api/demo-data/start', (req, res) => {
     launches.push(req.body);
     const [status, data] = state.demoAnswer || [200, { ok: true, session_id: '1', pipeline: { inspire_agent_notebook: '/Shared/inspire-ai/agent' } }];
@@ -315,6 +327,9 @@ function makeApp(overrides = {}, { mount } = {}) {
   });
 
   app.get('/api/run/:runId', (req, res, next) => (state.runRead ? res.status(state.runRead.status || 200).json(state.runRead.body || {}) : next()));
+  app.post('/api/run/check', (req, res) => {
+    res.json({ permissions: state.checkPermissions || [], warnings: [] });
+  });
   app.post('/api/run', (req, res) => {
     launches.push(req.body);
     const [status, data] = state.runAnswer || [200, { run_id: 99 }];

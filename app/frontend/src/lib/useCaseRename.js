@@ -13,7 +13,8 @@ export function useUseCaseRename(value, onSave) {
   const inFlight = useRef(false);
   const skipBlur = useRef(false);
 
-  useEffect(() => { if (editing) field.current?.focus(); }, [editing]);
+  // Select the whole current name on open, so the first keystroke replaces it instead of landing inside it.
+  useEffect(() => { if (editing) { field.current?.focus(); field.current?.select(); } }, [editing]);
 
   const leave = () => { skipBlur.current = true; setEditing(false); };
   const start = () => { skipBlur.current = false; setError(''); setEditing(true); };

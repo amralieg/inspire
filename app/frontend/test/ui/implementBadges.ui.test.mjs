@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openAllRows, openRow, openUi, settleChoices } from './uiSupport.mjs';
+import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openFolded, openRow, openUi, settleChoices } from './uiSupport.mjs';
 import { APP_LOOK_STEP, APP_LOOK_TABS, APP_STEP, MEASURE_LABEL, WHERE_LABEL } from '../../src/lib/implementWizard.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
@@ -14,19 +14,24 @@ async function auditEveryStep(page, { look = true } = {}) {
   for (const label of labels) {
     await goToStep(page, label);
     if (label === MEASURE_LABEL) await goToMeasureImpact(page);
-    await openAllRows(page);
     if (label === APP_STEP.label) await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
-    await settleChoices(page);
-    const tabs = label === APP_LOOK_STEP.label && look ? APP_LOOK_TABS.map((t) => t.label) : [null];
-    for (const tab of tabs) {
-      if (tab) await page.getByRole('tab', { name: tab, exact: true }).click();
-      const shown = await choicesShown(page);
-      const where = tab ? `${label} / ${tab}` : label;
-      assertOneBadgeOnDefault(shown, where, { perChoice: true });
-      assertOneBadgeOnDefault(shown.filter((c) => c.choice === 'outputs' || c.choice.startsWith('removed-')), `${where} outputs`);
-      if (label === WHERE_LABEL) assertOneBadgeOnDefault(shown.filter((c) => ['app-place', 'app-target'].includes(c.choice)), `${where} placement`);
-      if (label === WHERE_LABEL) assertOneBadgeOnDefault(shown.filter((c) => ['app-options', 'replace-edits'].includes(c.choice)), `${where} features`);
-      for (const { choice } of shown) seen.add(choice);
+    // Folds open one at a time now (opening one folds the other), so each closed section is opened in turn and audited.
+    const folds = await page.locator('[data-wizard-body] button[aria-expanded="false"][aria-label^="Change "]').evaluateAll((els) => els.map((e) => e.getAttribute('aria-label').replace(/^Change /, '')));
+    // The section already open on arrival is audited first, then each closed one.
+    for (const fold of [null, ...new Set(folds)]) {
+      if (fold) await openFolded(page, fold);
+      await settleChoices(page);
+      const tabs = label === APP_LOOK_STEP.label && look ? APP_LOOK_TABS.map((t) => t.label) : [null];
+      for (const tab of tabs) {
+        if (tab) await page.getByRole('tab', { name: tab, exact: true }).click();
+        const shown = await choicesShown(page);
+        const where = tab ? `${label} / ${tab}` : label;
+        assertOneBadgeOnDefault(shown, where, { perChoice: true });
+        assertOneBadgeOnDefault(shown.filter((c) => c.choice === 'outputs' || c.choice.startsWith('removed-')), `${where} outputs`);
+        if (label === WHERE_LABEL) assertOneBadgeOnDefault(shown.filter((c) => ['app-place', 'app-target'].includes(c.choice)), `${where} placement`);
+        if (label === WHERE_LABEL) assertOneBadgeOnDefault(shown.filter((c) => ['app-options', 'replace-edits'].includes(c.choice)), `${where} features`);
+        for (const { choice } of shown) seen.add(choice);
+      }
     }
   }
   return seen;

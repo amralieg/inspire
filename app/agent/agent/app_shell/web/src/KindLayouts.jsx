@@ -40,7 +40,7 @@ export function tablesRead(sql) {
 }
 
 function useChat(page, app, genie) {
-  const on = genieOn(app, page.id) && !!genie;
+  const on = genieOn(app, page.id, genie?.mode?.mode) && !!genie;
   const mine = on && genie.key === page.id;
   const thread = mine ? genie.thread : [];
   const pairs = thread.filter((m) => m.who === 'genie').map((m) => ({ answer: m, question: thread.find((q) => q.n === m.n - 1) }));

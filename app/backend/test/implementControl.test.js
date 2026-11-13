@@ -594,7 +594,7 @@ test('the cards that read Rebuilding follow the recorded plan, and an asset vibe
 test('a built output that ended with warnings lists them on its tile, and a clean or malformed one lists none', async () => {
   const v = await view();
   const live = { targets: { app: 'churn-desk', genie_space: 'g1' }, assets: { app: app('ACTIVE'), genie_space: { ok: true, title: 'Churn' } } };
-  const note = "Ask Genie is off because this use case's Genie Agent is not ready: the space has no tables";
+  const note = "The Genie Agent is not ready: the space has no tables";
   const warned = (assets) => ({ ...LATEST, status: 'ready_with_warnings', asset_status: assets });
   const rows = v.controlRows(live, warned({ app: { state: 'ready', warnings: [note, '  '] }, genie_space: { state: 'ready' } }));
   assert.deepEqual([row(rows, 'app').warnings, row(rows, 'genie_space').warnings], [[note], []]);

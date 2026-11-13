@@ -406,7 +406,7 @@ def test_a_joining_page_whose_genie_agent_did_not_build_is_off_with_the_reason_a
     fields = inst._implement_app(context, None)
     deployed = seen["deployed"][0]
     ours = json.loads(deployed[1]["pages/n01_u01_s5150.json"])
-    assert ours["genie"] is None and ours["genie_note"].startswith("Ask Genie is off because this use case's Genie Agent is not ready")
+    assert ours["genie"] is None and ours["genie_note"].startswith("The Genie Agent is not ready")
     assert json.loads(deployed[1]["inspire_app.json"])["genie"]["space_id"] == "gA" and deployed[3] == ""
     assert f"App: {ours['genie_note']}" in fields["_warnings"]
 

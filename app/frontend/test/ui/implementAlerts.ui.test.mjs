@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createRequire } from 'node:module';
 import { built, builtSpec } from './implementFixtures.js';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { closeBuild, closeBrowser, openUi } from './uiSupport.mjs';
 
 const require = createRequire(import.meta.url);
 const { AlertsWorkspace, RULES_MISSING, realAlerts } = require('../../../backend/test/support/alertsWorkspace.js');
@@ -54,6 +54,8 @@ function scene({ alert = false } = {}) {
 async function openAlertDrawer(state) {
   const ui = await openUi('implement', state);
   try {
+    // The Build progress drawer opens on first load over the tiles; the person closes it before opening a tile (as openAsset does).
+    await closeBuild(ui.page);
     const open = ui.page.locator('[data-asset-tile="alert"]').locator('[data-tile-versions], [data-tile-add]').first();
     await open.waitFor({ timeout: 20000 });
     await open.click();

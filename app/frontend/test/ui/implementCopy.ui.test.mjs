@@ -35,6 +35,8 @@ test('a built-in sample source is refused, the picker lists the person’s own c
     await page.getByText(BUILT_IN, { exact: false }).first().waitFor({ timeout: 15000 });
     await page.getByRole('button', { name: 'Copy it now', exact: true }).waitFor({ timeout: 15000 });
     await tableRow(page, SAMPLE).getByRole('button', { name: 'Change', exact: true }).click();
+    // The copy is listed within 2 s (see the slow-search test); read the options once it is there, not while Finding similar tables shows.
+    await picker(page, SAMPLE).locator('option', { hasText: `Your copy of ${SAMPLE}` }).waitFor({ state: 'attached', timeout: 15000 });
     const options = await optionTexts(picker(page, SAMPLE));
     assert.deepEqual(options.slice(0, 2), [`${SAMPLE} (Inspire's pick)`, `Your copy of ${SAMPLE} (${COPY})`], options.join(' | '));
     await picker(page, SAMPLE).selectOption(COPY);

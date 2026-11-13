@@ -10,6 +10,8 @@ import { Tiles } from './Kpis.jsx';
 import { BarsCard } from './ChartCard.jsx';
 import DataTable, { RowDetails, columnOf } from './DataTable.jsx';
 import { PlainNote, Skeleton, SoWhat, useRetry } from './ui.jsx';
+import { ZeroPanel } from './ZeroPanel.jsx';
+import { cutoffNote, zeroRule } from './zeroState.js';
 const MoneyCard = lazy(() => import('./Money.jsx'));
 import { LayoutSections, TodoNow } from './Layouts.jsx';
 import { backendNotes } from './freshness.js';
@@ -141,7 +143,7 @@ export function chartSlots(plan, top, more) {
 }
 
 function HubBody({ app, page, entry, live, summary, state, onState, view, onView, meta, pageId, charts, explain, genieBusy, nonce,
-  onChanged, plan, topSlots, onFix }) {
+  onChanged, plan, topSlots, onFix, zero = null }) {
   const status = useCaseState(entry || live.data, summary);
   const waiting = status.kind === 'wait';
   const current = live.data || entry;
@@ -156,6 +158,7 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
       {!waiting && (
         <Placed slots={slotsOf(plan, 'kpis')}><Tiles tiles={hubTiles(page, current, summary, fix, app.user, status.kind === 'stale', onFix)} loading={loading} /></Placed>
       )}
+      {!waiting && !zero && cutoffNote(summary) && <p className="note" data-cutoff="">{cutoffNote(summary)}</p>}
       {!waiting && current?.money && <Suspense fallback={null}><MoneyCard pageId={pageId} nonce={nonce} onChanged={onChanged} /></Suspense>}
       {!waiting && current?.truncated && <p className="more">These numbers count the {integer(current.items.length)} biggest of {current.total_more ? 'at least ' : ''}{integer(current.total)} open records.</p>}
       {!meta && <section className="fbar"><Skeleton height={34} width="70%" /></section>}
@@ -181,7 +184,10 @@ function HubBody({ app, page, entry, live, summary, state, onState, view, onView
 
 export default function Dashboard({ app, page, meta, state, onState, view, onView, hubPage, laidOut, work, hubEntry, live, summary, latestRun, onRuns, data, error, failures,
   plan, topSlots, moreSlots, more, kpisCard, kpisOf, chartCards, hubCharts, tableCard, recordsCard, explain, genieBusy, nonce, onChanged, onAsk, genie, ready, filters,
-  onPick, onFix, onWork, trends, onRun, running, onRetry = null, onRetryMeta = null, onRetrySummary = null }) {
+  onPick, onFix, onWork, trends, onRun, running, onRetry = null, onRetryMeta = null, onRetrySummary = null, lastRefresh = '' }) {
+  const zero = data?.zero_state || null;
+  const cutoff = cutoffNote(summary);
+  const zeroPanel = zero ? <ZeroPanel rule={zeroRule(page)} lastRefresh={lastRefresh} cutoff={cutoff} /> : null;
   return (
     <>
       {backendNotes(app.backend, data).map((n) => <p key={n} className="note" role="status" data-backend-note><Icon name="info" size={14} />{n}</p>)}
@@ -189,7 +195,7 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
       {!laidOut && work && <TodoNow page={page} app={app} ready={ready} nonce={nonce} filters={filters} onAsk={onAsk} onRecords={onWork} />}
       {hubPage && (
         <HubBody app={app} page={page} entry={hubEntry} live={live} summary={summary} state={state} onState={onState} view={view} onView={onView} meta={meta}
-          pageId={page.id} charts={hubCharts} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={onChanged} plan={plan} topSlots={topSlots} onFix={onFix} />
+          pageId={page.id} charts={hubCharts} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={onChanged} plan={plan} topSlots={topSlots} onFix={onFix} zero={zero} />
       )}
       {trends}
       {!hubPage && slotsOf(plan, '@top').after.map((b) => <Block key={b.id} block={b} />)}
@@ -199,20 +205,20 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
           <FilterBar meta={meta?.filters} columns={meta?.columns} grouping={meta?.grouping} state={state || { range: {}, sel: {} }} onState={onState} pageId={page.id} />
         </Placed>
       )}
-      {meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the page shows all its data: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={onRetryMeta} />}
+      {meta?.error && <PlainNote text={meta.error} prefix="The filters could not load, so the page shows nothing until they load: " icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={onRetryMeta} />}
       <PageFailure failures={failures} onRetry={onChanged} onRuns={onRuns} />
       {error && !failures?.whole && <PlainNote text={error} icon={<Icon name="info" size={14} />} className="tile-err" role="alert" onRetry={onRetry} />}
-      {laidOut && (
+      {laidOut && !meta?.error && (
         <LayoutSections page={page} app={app} ready={ready} nonce={nonce} filters={filters} onChanged={onChanged} onAsk={onAsk}
-          kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} tableCard={tableCard} data={data || (failures?.whole ? { errors: failures.errors } : null)} onPick={onPick} genie={genie}
+          kpisOf={kpisOf} records={recordsCard} chartCards={(charts) => chartCards(charts)} zeroPanel={zeroPanel} tableCard={tableCard} data={data || (failures?.whole ? { errors: failures.errors } : null)} onPick={onPick} genie={genie}
           onRun={onRun} running={running} />
       )}
       {!hubPage && !laidOut && <Placed slots={slotsOf(plan, 'kpis')}>{kpisCard}</Placed>}
-      {!hubPage && !laidOut && <Placed slots={moreSlots}><section className="charts" data-tour="view">{chartCards(page.charts.filter((c) => !c.driver))}</section></Placed>}
+      {!hubPage && !laidOut && <Placed slots={moreSlots}><section className="charts" data-tour="view">{zeroPanel || chartCards(page.charts.filter((c) => !c.driver))}</section></Placed>}
       {hubPage && more.some((c) => !c.driver) && (
-        <Placed slots={moreSlots}><section className="charts charts--more" aria-label="More charts">{chartCards(more.filter((c) => !c.driver))}</section></Placed>
+        <Placed slots={moreSlots}><section className="charts charts--more" aria-label="More charts">{zeroPanel || chartCards(more.filter((c) => !c.driver))}</section></Placed>
       )}
-      {!laidOut && <Drivers drivers={page.drivers} cards={chartCards((hubPage ? more : page.charts).filter((c) => c.driver))} />}
+      {!laidOut && !zero && <Drivers drivers={page.drivers} cards={chartCards((hubPage ? more : page.charts).filter((c) => c.driver))} />}
       {!laidOut && page.tables.map((table) => <Placed key={table.id} slots={slotsOf(plan, table.id)}>{tableCard(table)}</Placed>)}
       {slotsOf(plan, '@bottom').after.map((b) => <Block key={b.id} block={b} />)}
     </>

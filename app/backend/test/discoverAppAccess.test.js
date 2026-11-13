@@ -77,20 +77,19 @@ test('Discover checks the App can read the picked tables and grants with the per
   assert.ok(got.live.grants.some(([sql]) => sql === 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `sp-app-id`'), JSON.stringify(got.live.grants));
   assert.equal(got.live.appReads, true);
   const access = got.data.warnings.filter((w) => w.includes('main.s.orders'));
-  assert.equal(access.length, 1, JSON.stringify(got.data.warnings));
-  assert.match(access[0], /^Inspire granted the App read on main\.s\.orders with your sign-in, because Discover runs as the App: GRANT/);
+  assert.equal(access.length, 0, `a successful auto-grant shows no warning, it is only logged: ${JSON.stringify(got.data.warnings)}`);
   assert.ok(got.calls.some((c) => c.token === SP_TOKEN && /LIMIT 0/.test(String(c.body && c.body.statement))), 'the read probe runs as the App');
 });
 
-test('Discover warns clearly, grants nothing and still starts when neither the App can read nor the person can grant', async () => {
+test('Discover asks for the grant as a Permission Required, grants nothing, and still starts when neither the App can read nor the person can grant', async () => {
   const got = await launchWith(READS);
   assert.equal(got.status, 200, JSON.stringify(got.data));
   assert.deepEqual(got.live.grants, []);
   assert.equal(got.data.run_id, '99');
-  const access = got.data.warnings.filter((w) => w.includes('cannot read a source table'));
-  assert.equal(access.length, 1, JSON.stringify(got.data.warnings));
-  assert.match(access[0], /^Discover cannot read a source table: Discover runs as the App service principal inspire-app \(application id sp-app-id\)/);
-  assert.doesNotMatch(access[0].split('Ask the owner')[0], /main\.s\.orders/, 'the ids sit under Details, not in the sentence');
-  assert.match(access[0], /Ask the owner to run: GRANT .*TO `sp-app-id`/);
-  assert.match(access[0], /no use case is checked against that table's data$/);
+  assert.equal(got.data.warnings.filter((w) => w.includes('cannot read a source table')).length, 0, 'the grant is structured, not warning text');
+  const permissions = got.data.permissions || [];
+  assert.equal(permissions.length, 1, JSON.stringify(got.data));
+  assert.ok(permissions[0].statements.some((sql) => /^GRANT .* TO `sp-app-id`$/.test(sql)), JSON.stringify(permissions[0]));
+  assert.match(permissions[0].why, /Discover reads .* as the App, and the App cannot read/);
+  assert.equal(permissions[0].principal, 'inspire-app');
 });

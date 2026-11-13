@@ -38,7 +38,7 @@ export const CHANGE_LABEL = 'Change';
 
 const DELIVERY_STEP = { id: 'delivery', label: DELIVERY_LABEL, sections: ['use_it', 'app_owners', 'alert'], advanced: ['app_owners', 'alert'], panels: ['delivery'] };
 const WHERE_STEP = { id: 'where', label: WHERE_LABEL, sections: ['app_place', 'app_pages'], advanced: [], panels: ['app_place', 'app_pages'] };
-const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case', 'data', 'configure', 'results', 'fresh'], advanced: ['data', 'configure', 'results', 'fresh'], panels: ['data', 'results', 'fresh'] };
+const DATA_STEP = { id: 'data', label: DATA_RESULTS_LABEL, sections: ['use_case', 'data', 'configure', 'results'], advanced: ['data', 'configure', 'results'], panels: ['data', 'results'] };
 export const GROUPING_STEP = { id: 'grouping', label: 'Data groups', sections: ['grouping'], advanced: [], panels: ['grouping'] };
 export const MEASURE_STEP = { id: 'stake', label: MEASURE_LABEL, sections: ['kpi', 'holdout'], advanced: [], panels: ['stake'] };
 export const MEASURE_IMPACT_PART = 'impact';
@@ -48,19 +48,21 @@ export function withMoneyRule(spec, money) {
   const { money: _previous, ...rest } = spec || {};
   return money ? { ...rest, money } : rest;
 }
-export const RUN_STEP = { id: 'run', label: 'Run it', sections: ['schedule'], advanced: ['schedule'], panels: ['schedule'] };
-
-export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP, RUN_STEP];
+export const IMPLEMENT_STEPS = [DELIVERY_STEP, DATA_STEP];
 
 export const APP_PANELS = ['app_place', 'app_pages', 'app_access', 'app_features', 'app_storage', 'app_look'];
-export const APP_STEP = { id: 'app', label: 'Who uses the App', sections: ['app_access', 'app_features'], advanced: [], panels: ['app_access', 'app_features'] };
-export const APP_STORAGE_STEP = { id: 'app_storage', label: 'Page storage', sections: ['app_storage'], advanced: [], panels: ['app_storage'] };
+export const APP_STORAGE_LABEL = 'Page storage';
+export const APP_STEP = { id: 'app', label: 'Who uses the App and storage', sections: ['app_access', 'app_features', 'app_storage'], advanced: [], panels: ['app_access', 'app_features', 'app_storage'] };
 export const APP_LOOK_STEP = { id: 'app_look', label: 'App look', sections: ['app_look'], advanced: [], panels: ['app_look'] };
-export const WIZARD_STEPS_MAX = 11;
+export const WIZARD_STEPS_MAX = 10;
 
 export const SUMMARY_STEP = { id: 'summary', label: 'Review & build', sections: ['vibes'], advanced: [], panels: ['summary', 'vibes'] };
 
-export const FIRST_RUN_STEP = { id: 'first_run', label: 'First run', sections: ['first_run'], advanced: [], panels: ['first_run'] };
+// The first run starts the build, so its schedule sits here too (default: run once now).
+export const FIRST_RUN_STEP = { id: 'first_run', label: 'First run', sections: ['first_run', 'fresh', 'schedule'], advanced: ['fresh', 'schedule'], panels: ['first_run', 'fresh', 'schedule'] };
+// The schedule sections a fold panel validates before Next folds it, so an error shows in its own section.
+export const PANEL_SECTIONS = { data: ['use_case', 'data', 'configure'], results: ['results'], first_run: ['first_run'], fresh: ['schedule'], schedule: ['schedule'], app_access: ['app_access'], app_storage: ['app_storage'], app_place: ['app_place'] };
+const firstRunStepOf = (scope) => (scope?.firstRun ? FIRST_RUN_STEP : { ...FIRST_RUN_STEP, sections: ['fresh', 'schedule'], panels: ['fresh', 'schedule'] });
 
 export const NO_SCOPE_STEPS = { grouping: false, firstRun: false };
 
@@ -70,12 +72,12 @@ export const NOTEBOOK_STEPS = [
 ];
 
 const STEP_ALIASES = {
-  use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: MEASURE_STEP.id, fresh: DATA_STEP.id, vibes: SUMMARY_STEP.id,
-  settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: APP_STEP.id, app_features: APP_STEP.id, app_look: APP_LOOK_STEP.id,
-  results: DATA_STEP.id, app_pages: WHERE_STEP.id, [MEASURE_IMPACT_PART]: MEASURE_STEP.id,
+  use_case: DATA_STEP.id, choose: DATA_STEP.id, review: SUMMARY_STEP.id, measure: MEASURE_STEP.id, vibes: SUMMARY_STEP.id,
+  settings: SUMMARY_STEP.id, app_place: WHERE_STEP.id, app_access: APP_STEP.id, app_features: APP_STEP.id, app_storage: APP_STEP.id, app_look: APP_LOOK_STEP.id,
+  results: DATA_STEP.id, app_pages: WHERE_STEP.id, [MEASURE_IMPACT_PART]: MEASURE_STEP.id, fresh: FIRST_RUN_STEP.id, schedule: FIRST_RUN_STEP.id, run: FIRST_RUN_STEP.id,
 };
 export const opensOnImpact = (focus) => IMPACT_FOCUS.includes(focus?.step);
-const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id, [APP_LOOK_STEP.id]: APP_STEP.id, [APP_STORAGE_STEP.id]: APP_STEP.id, [APP_STEP.id]: WHERE_STEP.id };
+const STEP_FALLBACKS = { [GROUPING_STEP.id]: DATA_STEP.id, [WHERE_STEP.id]: DELIVERY_STEP.id, [APP_LOOK_STEP.id]: APP_STEP.id, [APP_STEP.id]: WHERE_STEP.id };
 
 function heldStepOf(steps, id) {
   let want = id;
@@ -97,15 +99,15 @@ export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
     const app = Boolean(spec?.outputs?.app);
     const joined = joinsApp(spec);
     const where = app ? [{ ...WHERE_STEP, sections: joined ? ['app_place'] : WHERE_STEP.sections, panels: joined ? ['app_place'] : WHERE_STEP.panels }] : [];
-    const appSteps = app && !joined ? [APP_STEP, APP_STORAGE_STEP, APP_LOOK_STEP] : [];
-    return [DELIVERY_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), ...(scope?.firstRun ? [FIRST_RUN_STEP] : []), MEASURE_STEP,
-      ...where, ...appSteps, RUN_STEP, SUMMARY_STEP];
+    const appSteps = app && !joined ? [APP_STEP, APP_LOOK_STEP] : [];
+    return [DELIVERY_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), firstRunStepOf(scope), MEASURE_STEP,
+      ...where, ...appSteps, SUMMARY_STEP];
   }
   if (mode === 'notebook') return NOTEBOOK_STEPS;
   throw new Error(`unknown implement mode '${mode}'`);
 }
 
-export const BUILD_STEP_IDS = [DELIVERY_STEP.id, WHERE_STEP.id, APP_STEP.id, APP_STORAGE_STEP.id, APP_LOOK_STEP.id, SUMMARY_STEP.id];
+export const BUILD_STEP_IDS = [DELIVERY_STEP.id, WHERE_STEP.id, APP_STEP.id, APP_LOOK_STEP.id, SUMMARY_STEP.id];
 
 export const APP_PLACEMENTS = [
   { id: 'domain', label: 'One App per business domain', blurb: 'Use cases of the same domain share one App, so the people of that domain find them in one place.' },
@@ -457,7 +459,7 @@ export const FRESH_DEFAULT = 'daily';
 export const FRESH_HELP = 'Runs the MVP again each day or week, so the results stay current.';
 
 export const FRESHNESS_OPTIONS = [
-  { id: 'off', label: 'Off' },
+  { id: 'off', label: 'Run once now' },
   { id: 'daily', label: 'Daily', cron: '0 0 6 * * ?' },
   { id: 'weekly', label: 'Weekly', cron: '0 0 6 ? * MON' },
 ];
@@ -1994,11 +1996,16 @@ function checkBlock(check) {
   return blockOf(blockWhy(`${check.detail || ''} ${grants.join(' ')}`), [check.detail, ...grants].filter(Boolean).join('\n'));
 }
 
+// The first failing App check. The App tile's block and its grant offer both read this one object, so they cannot disagree.
+export function appAccessRefusalOf(outputCheck, preflight = null) {
+  return [outputCheck?.app, preflight?.checks?.app_access, preflight?.new_app].find((c) => c?.ok === false) || null;
+}
+
 export function outputBlocks(features, outputCheck, assets = {}, preflight = null) {
   const on = features || {};
   const app = !on.apps ? blockOf(OFF_IN_WORKSPACE.app, OFF_DETAILS)
     : !on.genie_spaces && !assets?.app ? blockOf(APP_NEEDS_GENIE, OFF_DETAILS)
-    : !assets?.app && (checkBlock(outputCheck?.app) || checkBlock(preflight?.checks?.app_access) || checkBlock(preflight?.new_app));
+    : !assets?.app && checkBlock(appAccessRefusalOf(outputCheck, preflight));
   return Object.fromEntries([
     ['app', app],
     ['genie_space', !on.genie_spaces && blockOf(OFF_IN_WORKSPACE.genie_space, OFF_DETAILS)],
@@ -2568,7 +2575,7 @@ export function pickedSummary(spec, sourceTables = [], more = {}) {
     row('result', 'data', 'Result table', String(spec?.config?.result_table || '') || 'not named yet'),
     impactRow('kpi', 'Target KPI', kpiTargetOf(spec) || 'Inspire picks'),
     impactRow('holdout', HOLDOUT_LABEL, holdout.enabled ? `On, ${holdoutPercentText(spec) || '?'}% kept aside` : 'Off'),
-    row('schedule', DATA_STEP.id, FRESH_LABEL, freshness === 'off' ? 'Off, it runs once'
+    row('schedule', FIRST_RUN_STEP.id, FRESH_LABEL, freshness === 'off' ? 'Run once now'
       : `${freshness === 'custom' ? 'Custom' : FRESHNESS_OPTIONS.find((o) => o.id === freshness).label}, runs ${cronInWords(spec.schedule.cron, spec.schedule.timezone)}`),
     ...(principals.length ? [row('sharing', 'delivery', 'Shared with', principals.join(', '))] : []),
     ...(app ? [row('app', 'where', 'App', joined ? `Joins ${outputs.merge.app}`
@@ -2883,14 +2890,35 @@ export function accessVerdictOf({ preflight = null, error = '', busy = false, un
   return 'pending';
 }
 
-export function abacGrantText(got) {
-  const gaps = got?.abac_gaps || [];
-  if (gaps.length) {
-    const owners = [...new Set(gaps.map((g) => g.owner).filter(Boolean))];
-    const who = owners.length ? joinWords(owners) : 'the owner of each table';
-    return `Inspire cannot grant READ METADATA on ${joinWords(gaps.map((g) => g.table))} with your sign-in, because you cannot manage it. `
-      + `Ask ${who} to run: ${gaps.flatMap((g) => g.grants).join('; ')}`;
+// One Permission Required entry per table the person cannot grant on, with the owner's exact GRANT statements.
+export function grantGapPermissions(got) {
+  return (got?.abac_gaps || []).filter((g) => g.grants?.length).map((g) => ({
+    statements: g.grants,
+    instructions: [],
+    principal: g.owner || 'the table owner',
+    why: `Inspire cannot grant READ METADATA on ${g.table} with your sign-in, because you cannot manage it. Ask ${g.owner || 'the table owner'} to run these commands, then click Try again.`,
+  }));
+}
+
+// Failed grants are "<GRANT sql>: <error>" lines. Group the GRANT statements by grantee for Permission Required.
+export function grantFailurePermissions(got) {
+  const byWho = new Map();
+  for (const line of got?.failed || []) {
+    const sql = String(line).split(': ')[0];
+    const hit = /TO `([^`]+)`\s*$/.exec(sql);
+    const who = hit ? hit[1] : 'the App';
+    byWho.set(who, [...(byWho.get(who) || []), sql]);
   }
+  return [...byWho].map(([principal, statements]) => ({
+    statements,
+    instructions: [],
+    principal,
+    why: 'Inspire could not run these grants with your sign-in. Ask your workspace admin to run these commands, then click Try again.',
+  }));
+}
+
+export function abacGrantText(got) {
+  if ((got?.abac_gaps || []).length) return '';
   const failed = got?.failed || [];
   if (failed.length) return `${plural(failed.length, 'grant')} failed, so the App still cannot read every table`;
   const ran = got?.ran || [];

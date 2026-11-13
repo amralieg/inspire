@@ -33,13 +33,16 @@ const { fsApiPath } = require('./lib/workspacePaths');
 const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const { parseExactJson } = require('./lib/exactJson');
 const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
+const PM = require('./lib/permissions');
+const PM_ERROR = require('./lib/permissionError');
 const GC = require('./lib/genieCodeCheck');
 const SA = require('./lib/sourceAccess');
 const D = require('./lib/buildDiagnostics');
+const MV = require('./lib/metricViews');
 
 function sendError(res, err) {
   const code = err && Number.isFinite(err.statusCode) ? err.statusCode : 500;
-  return res.status(code).json({ ...(err && err.details), error: err.message || String(err) });
+  return res.status(code).json({ ...(err && err.details), ...PM_ERROR.failureBody(res, err.message || String(err)) });
 }
 
 function q(req, key) {
@@ -168,6 +171,20 @@ function registerImplementRoutes(app, deps) {
     const { error, ...details } = RP.noPersonTokenBody(req.policyKey);
     throw Object.assign(I.badRequest(error, 401), { details });
   }
+
+  // A metric view is not a table: a route that reads a picked table's rows refuses it first, with one plain line.
+  // A failed type lookup does not block the read; the read then reports its own error.
+  async function refuseMetricView(req, warehouseId, table) {
+    if (!table) return;
+    let rows = [];
+    try {
+      rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, I.tableTypeStatement(table));
+    } catch {
+      return;
+    }
+    if (rows.some((r) => MV.isMetricViewType(r.table_type))) throw Object.assign(new Error(MV.metricViewRefusal(table)), { statusCode: 400 });
+  }
+
 
   async function buildsAsAnother(req) {
     const person = P.personTokenOf(req);
@@ -450,11 +467,11 @@ function registerImplementRoutes(app, deps) {
       if (!params['01_uc_metadata']) {
         return res.status(400).json({
           error:
-            'This session has no UC metadata (catalogs/schemas/tables or docs-only JSON path) stored on __inspire_session. Run Discover from this app first, or set metadata manually.',
+            'This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.',
         });
       }
       const refused = await U.runReadRefusal(dbFetch, req, { tables: await useCasesTables(req, warehouse_id, catalog, schema, sidStr, safeIds) });
-      if (refused) return res.status(refused.status).json({ error: refused.message, unreadable: refused.unreadable });
+      if (refused) return PM_ERROR.sendFailure(res, refused.status, refused.message, { unreadable: refused.unreadable });
 
       const lastRun = await latestGenieNotebookRun(fetchJsonFor(req), sidStr);
       if (lastRun?.state === 'running') {
@@ -508,7 +525,7 @@ function registerImplementRoutes(app, deps) {
       });
     } catch (err) {
       const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
-      res.status(code).json({ error: err.message });
+      PM_ERROR.sendFailure(res, code, err.message);
     }
   }
 
@@ -653,13 +670,13 @@ function registerImplementRoutes(app, deps) {
 
   app.get('/api/inspire/implement/app-look', requireToken, (_req, res) => {
     const catalog = appShellCatalog();
-    if (!catalog.ok) return res.status(503).json({ error: catalog.error });
+    if (!catalog.ok) return PM_ERROR.sendFailure(res, 503, catalog.error);
     return res.json(catalog);
   });
 
   app.get('/api/inspire/implement/lakebase', requireToken, async (req, res) => {
     const catalog = appShellCatalog();
-    if (!catalog.ok) return res.status(503).json({ error: catalog.error });
+    if (!catalog.ok) return PM_ERROR.sendFailure(res, 503, catalog.error);
     let got;
     try {
       got = await fetchJsonFor(req)(C.LAKEBASE_PROBE_PATH);
@@ -693,6 +710,7 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const table = q(req, 'table');
+      await refuseMetricView(req, warehouseId, table);
       const statement = I.columnsStatement(table);
       const token = personReadToken(req);
       const [rows, read, keyRows] = await Promise.all([sqlRows(req.dbHost, token, warehouseId, statement), readColumnTags(req, token, warehouseId, [table]),
@@ -798,6 +816,7 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const table = q(req, 'table');
+      await refuseMetricView(req, warehouseId, table);
       const statement = I.columnValuesStatement(table, q(req, 'column'), q(req, 'limit') || 200);
       const rows = await sqlRows(req.dbHost, personReadToken(req), warehouseId, statement);
       res.json({ values: rows.map((r) => r.value).filter((v) => v != null && v !== '') });
@@ -810,6 +829,7 @@ function registerImplementRoutes(app, deps) {
     try {
       const warehouseId = warehouseOf(req);
       const table = q(req, 'table');
+      await refuseMetricView(req, warehouseId, table);
       const statement = I.readinessStatement(table, {
         columns: req.body?.columns || [],
         filters: req.body?.filters || [],
@@ -829,6 +849,7 @@ function registerImplementRoutes(app, deps) {
       if (top && (!Number.isInteger(top) || top > GR.GROUP_MAX_GROUPS)) {
         return res.status(400).json({ error: `top must be a whole number up to ${GR.GROUP_MAX_GROUPS}` });
       }
+      await refuseMetricView(req, warehouseId, q(req, 'table'));
       const statement = I.groupCountsStatement(q(req, 'table'), req.body?.columns || [], {
         filters: req.body?.filters || [],
         window: req.body?.window || {},
@@ -848,7 +869,7 @@ function registerImplementRoutes(app, deps) {
   app.get('/api/inspire/implement/serving-endpoints', requireToken, async (req, res) => {
     try {
       const got = await jsonOf(dbFetch, req.dbHost, req.dbToken, '/api/2.0/serving-endpoints');
-      if (!got.ok) return res.status(got.status).json({ error: got.data.message || got.data.error || 'serving endpoints are not available' });
+      if (!got.ok) return PM_ERROR.sendFailure(res, got.status, got.data.message || got.data.error || 'serving endpoints are not available');
       const endpoints = (got.data.endpoints || []).map((e) => ({ name: e.name, state: e.state?.ready || e.state, task: e.task }));
       res.json({ endpoints });
     } catch (err) {
@@ -1037,7 +1058,7 @@ function registerImplementRoutes(app, deps) {
         const got = await jsonOf(dbFetch, req.dbHost, req.dbToken,
           `/api/2.0/notification-destinations?page_size=100${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`);
         if (!got.ok) {
-          return res.status(got.status).json({ error: got.data.message || got.data.error || 'notification destinations are not available' });
+          return PM_ERROR.sendFailure(res, got.status, got.data.message || got.data.error || 'notification destinations are not available');
         }
         destinations.push(...I.destinationsFromList(got.data));
         pageToken = String(got.data.next_page_token || '');
@@ -1095,6 +1116,13 @@ function registerImplementRoutes(app, deps) {
     }
   });
 
+  function appReadsPermissions(left, record) {
+    const statements = PM.readStatementsFor(left.map((t) => t.table), record.app || record.app_name);
+    const permission = PM.permissionRequired({ statements, principal: record.app || record.app_name,
+      why: `The App ${record.app_name || ''} cannot read ${left.map((t) => t.table).join(', ')}, so the build cannot show that data.`.replace('App  ', 'App ') });
+    return permission ? [permission] : [];
+  }
+
   app.post('/api/inspire/implement/app-reads', requireToken, async (req, res) => {
     try {
       const warehouseId = warehouseOf(req);
@@ -1113,7 +1141,8 @@ function registerImplementRoutes(app, deps) {
         await executeSql(req.dbHost, req.dbToken, warehouseId, update.sql, update.parameters);
       }
       res.json({ state: left.length ? 'unreadable' : 'readable', app: record.app, app_name: record.app_name, tables: left, ran, failed,
-        refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, record.app_name, failed) });
+        refused: action === 'grant' && failed.length > 0, text: I.appReadsText(left, record.app_name, failed),
+        permissions: appReadsPermissions(left, record) });
     } catch (err) {
       sendError(res, err);
     }
@@ -1142,6 +1171,7 @@ function registerImplementRoutes(app, deps) {
       if (ensure.create) await executeSql(req.dbHost, token, warehouseId, G.createPlaceSql(catalog, schema));
       if (!tags) return res.json({ catalog, schema });
       const warnings = [];
+      const permissions = [];
       const tagged = ensure.tag ? I.useCaseSchemaTagsSql(catalog, schema, tags) : '';
       if (tagged) {
         await executeSql(req.dbHost, token, warehouseId, tagged)
@@ -1154,9 +1184,10 @@ function registerImplementRoutes(app, deps) {
         if (failed.length) {
           warnings.push(`The identity Inspire builds as may not write to ${catalog}.${schema} until its owner grants `
             + `${I.USE_CASE_SCHEMA_BUILDER_PRIVILEGES} on it: ${failed.join('; ')}`);
+          if (grant) permissions.push(PM.builderPermission(catalog, grant, builder.applicationId || builder.userName));
         }
       }
-      res.json({ catalog, schema, warnings, existed: Boolean(found.exists) });
+      res.json({ catalog, schema, warnings, existed: Boolean(found.exists), ...(permissions.length ? { permissions } : {}) });
     } catch (err) {
       sendError(res, err);
     }
@@ -1392,7 +1423,7 @@ function registerImplementRoutes(app, deps) {
     const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, ownServicePrincipalId());
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
     if (!sessionParams['01_uc_metadata']) {
-      const err = new Error('This session has no UC metadata stored on __inspire_session. Run Discover from this app first.');
+      const err = new Error('This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.');
       err.statusCode = 400;
       throw err;
     }

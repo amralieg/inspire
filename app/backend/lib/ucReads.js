@@ -5,6 +5,8 @@ const RP = require('./routePolicy');
 const { DEFAULT_GENERATION_PATH } = require('./inspireJobParams');
 const { fsApiPath } = require('./workspacePaths');
 const { redactSecrets } = require('./redact');
+const { splitMetricViews, metricViewSkipLine } = require('./metricViews');
+const PM = require('./permissions');
 
 const RUN_NO_SIGN_IN = "Inspire needs your sign-in to check what you can read. Reload the App and try again.";
 const UNREADABLE_SHOWN = 10;
@@ -81,9 +83,15 @@ function listSchemas(dbFetch, host, token, catalog) {
   return pages(dbFetch, host, token, `${UC}/schemas`, [['catalog_name', catalog], ['max_results', '500']], 'schemas', 100);
 }
 
-function listTables(dbFetch, host, token, catalog, schema, { browse = false } = {}) {
+// Metric views are left out of every table listing: the App's table picker, the tree counts and the schema reads.
+// `metricViews` names what was left out, so the route can keep the same tables out of its SQL fallback.
+async function listTables(dbFetch, host, token, catalog, schema, { browse = false } = {}) {
   const params = [['catalog_name', catalog], ['schema_name', schema], ['max_results', '500'], ...(browse ? [['include_browse', 'true']] : [])];
-  return pages(dbFetch, host, token, `${UC}/tables`, params, 'tables', 200);
+  const got = await pages(dbFetch, host, token, `${UC}/tables`, params, 'tables', 200);
+  const { kept, skipped } = splitMetricViews(got.items, (t) => t && t.table_type);
+  if (skipped.length) console.log(metricViewSkipLine(skipped.map((t) => t.name || t.full_name || '?')));
+  const metricViews = skipped.map((t) => t.full_name || `${catalog}.${schema}.${t.name}`);
+  return { items: kept, truncated: got.truncated, metricViews };
 }
 
 const unseen = (err) => [403, 404].includes(Number(err && err.status));
@@ -567,21 +575,22 @@ async function outputPlan(dbFetch, req, writes, { manager = false, appToken = ''
   const { plan: own, details, scope } = await ownFolderPlan(dbFetch, req, home, { manager, appToken, appId });
   if (folderScore(own) === 2 || own.refused?.status === 401) return savedIn(own);
   const shared = await folderPlan(dbFetch, req, folders[0], { manager, appToken });
-  if (shared.refused) return own.refused ? planVerdict(shared) : unrunnableOwn(home, scope, details);
-  if (folderScore(shared) <= folderScore(own)) return unrunnableOwn(home, scope, details);
+  if (shared.refused) return own.refused ? planVerdict(shared) : unrunnableOwn(home, scope, details, appId);
+  if (folderScore(shared) <= folderScore(own)) return unrunnableOwn(home, scope, details, appId);
   return savedIn(shared, [sharedFallbackText(home, shared.folder, scope)], own.refused ? [own.refused.message] : details);
 }
 
-function unrunnableOwn(home, scope, details) {
+function unrunnableOwn(home, scope, details, appId = '') {
   const why = scope ? SCOPE_REASON : '';
   const message = `Inspire cannot save to your own folder ${home}${why}, and the App cannot write there yet, so Inspire will not start a run that saves no files there: `
     + `ask an App manager to give the App CAN MANAGE on ${home}, then launch again.`;
-  return { refused: { status: 403, message, unwritable: [home] }, folder: home, generationPath: '', warnings: [], details };
+  const permission = PM.folderPermission(home, appId);
+  return { refused: { status: 403, message, unwritable: [home], ...(permission ? { permissions: [permission] } : {}) }, folder: home, generationPath: '', warnings: [], details };
 }
 
 function writeRefusalBody(key, refused) {
   if (refused.status === 401) return { error: refused.message, policy: { route: String(key), identity: 'person', needs: RP.IDENTITIES.person }, unwritable: [] };
-  if (refused.status === 403) return { ...RP.refusalBody(String(key), 'writer', refused.message), unwritable: refused.unwritable };
+  if (refused.status === 403) return { ...RP.refusalBody(String(key), 'writer', refused.message), unwritable: refused.unwritable, ...(refused.permissions ? { permissions: refused.permissions } : {}) };
   return { error: refused.message, unwritable: refused.unwritable };
 }
 

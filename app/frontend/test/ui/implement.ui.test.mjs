@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, V
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, openDetails, openRow, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary, openFolded } from './uiSupport.mjs';
+import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, openDetails, openRow, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary, openFolded, nextUntil } from './uiSupport.mjs';
 import { wheelReads } from './wheelScroll.mjs';
 
 const gone = (table) => `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${table} cannot be found. Verify the spelling. SQLSTATE: 42P01`;
@@ -49,8 +49,8 @@ async function toData(page) {
 }
 async function toDelivery(page) {
   await dataToResults(page);
-  await next(page);
-  await page.locator('[aria-current="step"]', { hasText: 'Data & results' }).waitFor({ state: 'detached' });
+  // Next leaves Data & results by folding its sections, then the step after it; What to build is behind, so Back returns there.
+  await nextUntil(page, 'First run');
   await goToStep(page, 'What to build');
 }
 
@@ -73,7 +73,7 @@ function submittedSpec(made) {
 test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and All Good, Build it Now launches one run', async () => {
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
-  const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build'];
+  const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App and storage', '7. App look', '8. Review & build'];
   try {
     await goToStep(page, 'Data');
     await stepsAre(page, withApp);
@@ -93,7 +93,7 @@ test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks
     assert.equal(await page.locator('[data-choice="outputs"]').evaluate((g) => [...g.querySelectorAll('[data-recommended]')].filter((b) => b.closest('[data-choice]') === g).length),
       1, 'exactly one tile is Recommended');
     await page.getByRole('checkbox', { name: /^App A Databricks/ }).uncheck();
-    await stepsAre(page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Run it', '6. Review & build']);
+    await stepsAre(page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Review & build']);
     await page.getByRole('checkbox', { name: /^App A Databricks/ }).check();
     await stepsAre(page, withApp);
     await goToStep(page, 'Where it lives');
@@ -316,6 +316,8 @@ test('a use case that trains a model stops on Results until Inspire may register
       await toData(page);
       await dataToResults(page);
       await next(page);
+      // Next on the Data source section opens Result table; the check runs on the Next that leaves it.
+      await next(page);
       const check = page.getByLabel('Result table check');
       if (blocked) {
         await page.locator('[role="alert"] p', { hasText: missing }).waitFor({ timeout: 15000 });
@@ -323,9 +325,9 @@ test('a use case that trains a model stops on Results until Inspire may register
         assert.equal(await page.locator('[aria-current="step"]', { hasText: 'Data & results' }).count(), 1);
         assert.equal(await check.locator('p.text-error-fg', { hasText: missing }).count(), 1);
       } else {
-        await page.locator('[aria-current="step"]', { hasText: 'Data & results' }).waitFor({ state: 'detached' });
         assert.equal(await check.count(), 0);
         await goToStep(page, 'Results');
+        await openFolded(page, 'Result table');
         assert.equal(await page.getByLabel('Result table check').locator('p.text-success-fg', { hasText: `you can register the model ${RESULT_TABLE}_model` }).count(), 1);
       }
       assert.deepEqual(ui.pageErrors, []);
@@ -1587,7 +1589,7 @@ test('a version saved while the App offered downloads retries its App and opens 
     await toDelivery(edit.page);
     await toAppAccess(edit.page);
     await goToStep(edit.page, 'App features');
-    await openRow(edit.page, 'what people can do in the App');
+    await openFolded(edit.page, 'What people can do');
     const features = edit.page.getByRole('region', { name: 'App features' });
     assert.equal(await features.getByRole('checkbox', { name: /^Let people edit data/ }).isChecked(), true, 'the saved choices come back');
     await features.getByRole('checkbox', { name: /^Record decisions/ }).check();
@@ -1756,23 +1758,25 @@ test('Edit of a version whose swapped secondary table and own table are both gon
   }
 });
 
-test('the Genie build panel is docked beside the use case on first load of a built App, and at 1280x800 and 1440x900 the asset tiles stay clickable with it open', async () => {
+test('the Genie build panel overlays the use case on first load of a built App, and at 1280x800 and 1440x900 the asset tiles stay clickable with it open', async () => {
   const ui = await openUi('implement', STUDIO_STATE);
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
     for (const [width, height] of [[1280, 800], [1440, 900]]) {
       await page.setViewportSize({ width, height });
+      if (width === 1280) assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'false', 'closed on first load');
+      if (await page.locator('[data-progress-card]').getAttribute('data-progress-open') === 'false') await page.locator('[data-progress-card] [data-progress-show]').click();
       const dialog = page.locator('[data-progress-dock] [data-progress-panel] [role="dialog"]');
       await dialog.waitFor();
-      assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', `open on first load at ${width}px`);
+      assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', `open after Show progress at ${width}px`);
       const [rail, pane, box] = await Promise.all([
         page.locator('[data-implement-rail]').boundingBox(),
         page.locator('[data-use-case-pane]').boundingBox(),
         dialog.boundingBox(),
       ]);
       assert.ok(rail.x + rail.width <= pane.x + 1, `the use case list is left of the use case at ${width}px`);
-      assert.ok(pane.x + pane.width <= box.x + 1, `the panel is a column beside the use case, not over it, at ${width}px (pane ends ${Math.round(pane.x + pane.width)}, panel starts ${Math.round(box.x)})`);
+      assert.ok(pane.x + pane.width > box.x, `the panel overlays the use case, and the use case keeps its full width, at ${width}px (pane ends ${Math.round(pane.x + pane.width)}, panel starts ${Math.round(box.x)})`);
       assert.ok(box.width <= width * 0.4 + 1, `the panel takes at most 40% of ${width}px: ${Math.round(box.width)}px`);
       await page.locator('[data-asset-tiles] button').first().click({ timeout: 5000 });
       if (await page.locator('[data-mvp-panel]').count()) await closeAsset(page);
@@ -1783,7 +1787,7 @@ test('the Genie build panel is docked beside the use case on first load of a bui
   }
 });
 
-test('the Genie build panel opens by itself while a build runs, and a close is remembered after a reload in the same tab', async () => {
+test('the Genie build panel stays closed on page load while a build runs, opens on Show progress, and a close is remembered after a reload in the same tab', async () => {
   const run = { run_id: 5555555555555555, state: { life_cycle_state: 'RUNNING' } };
   const building = built({ spec_version: 2, status: 'building_outputs', status_message: 'building outputs', implement_run_id: String(run.run_id), updated_at: new Date().toISOString() });
   const ui = await openUi('implement', { ...STUDIO_STATE, history: [building, built()], implementRun: run }, '', FAKE_CLOCK);
@@ -1791,9 +1795,11 @@ test('the Genie build panel opens by itself while a build runs, and a close is r
   try {
     await page.setViewportSize({ width: 1280, height: 800 });
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    assert.equal(await page.locator('[data-progress-panel]').count(), 0, 'page load does not open the panel over the tiles, even while a build runs');
+    await page.locator('[data-progress-card] [data-progress-show]').click();
     const panel = page.locator('[data-progress-panel]');
     await panel.waitFor();
-    assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', 'the Genie panel is open while the build runs');
+    assert.equal(await page.locator('[data-progress-card]').getAttribute('data-progress-open'), 'true', 'Show progress opens the Genie panel');
     assert.ok((await panel.locator('[role="dialog"]').boundingBox()).width <= 1280 * 0.4 + 1, 'the panel takes at most 40% of 1280px');
 
     await panel.getByRole('button', { name: 'Close', exact: true }).click();
@@ -1849,7 +1855,7 @@ test('a use case with no MVP offers to start one, reads no result table, and the
     await goToStep(never.page, 'Data');
     assert.equal(await never.page.locator('[data-wizard-header] h2').innerText(), HARNESS_USE_CASE.Name);
     const header = never.page.locator('[data-wizard-header]');
-    for (const label of ['First run', 'Measure', 'Where it lives', 'Who uses the App', 'Page storage', 'App look', 'Run it']) {
+    for (const label of ['First run', 'Measure', 'Where it lives', 'Who uses the App and storage', 'App look']) {
       if (label !== 'Data') await goToStep(never.page, label);
       assert.equal(await header.getByRole('heading', { level: 2 }).innerText(), HARNESS_USE_CASE.Name, label);
       assert.doesNotMatch(await header.innerText(), /\bID\b|N01-U01/, `${label}: the header shows no use case id (must-exclude)`);
@@ -2000,7 +2006,7 @@ test('with a Genie Code route, the wizard walks the MVP steps and no note shows'
   const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
   try {
     await goToStep(ui.page, 'Data');
-    await stepsAre(ui.page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App', '7. Page storage', '8. App look', '9. Run it', '10. Review & build']);
+    await stepsAre(ui.page, ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Who uses the App and storage', '7. App look', '8. Review & build']);
     assert.equal(await ui.page.getByRole('note', { name: GENIE_CODE_OFF_TITLE }).count(), 0);
   } finally {
     await ui.close();
@@ -2331,6 +2337,10 @@ test('each output the version lacks shows faded with its name and Add opens Edit
     }
     assert.deepEqual(faded, { app: ['off', true], alert: ['off', true], genie_space: ['off', true] }, 'items not in the MVP show faded');
     assert.deepEqual(offered, { app: 1, alert: 1, genie_space: 1 });
+    // The Build progress drawer overlays the page (it no longer pushes the tiles aside), so fold it before clicking a tile it covers.
+    const hideProgress = page.locator('[data-progress-card]').getByRole('button', { name: 'Hide progress', exact: true });
+    if (await hideProgress.count()) await hideProgress.click();
+    await page.locator('[data-progress-dock] [data-progress-panel]').waitFor({ state: 'detached' }).catch(() => {});
     await tile(page, 'alert').getByRole('button', { name: 'Add the Alerts', exact: true }).click();
     await viewOf(page, 'alert').getByRole('region', { name: 'Alerts of this use case' }).waitFor();
     assert.equal(await page.getByRole('dialog', { name: /^Start Use Case MVP|^Edit/ }).count(), 0, 'Add on the Alert opens its drawer, not the wizard');
@@ -2390,7 +2400,7 @@ test('the whole Implement page, the use case details and the wizard read at 4.5:
 test('every asset drawer, Build progress and the Uninstall dialog read at 4.5:1 or better in light and in dark', async () => {
   const mvpJob = { job_id: 77, settings: { tags: { dbx_inspire_ai_run_type: 'implement', dbx_inspire_ai_session_id: '42', dbx_inspire_ai_usecase_id: 'N01-U01' },
     schedule: { quartz_cron_expression: '0 0 6 * * ?', timezone_id: 'UTC', pause_status: 'UNPAUSED' } } };
-  const note = "Ask Genie is off because this use case's Genie Agent is not ready: the space has no tables";
+  const note = "The Genie Agent is not ready: the space has no tables";
   const assets = JSON.parse(built().asset_status);
   const warned = built({ status: 'ready_with_warnings', status_message: `App: ${note}`,
     asset_status: JSON.stringify({ ...assets, app: { ...assets.app, warnings: [note] } }) });

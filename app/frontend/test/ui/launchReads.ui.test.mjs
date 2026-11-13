@@ -96,3 +96,24 @@ test('with no sign-in the Setup page shows the sign-in refusal under the catalog
     await ui.close();
   }
 });
+
+test('a launch whose App auto-grant succeeded shows no sign-in or grant notice on Launch or Monitor (REQ-138)', async () => {
+  const ui = await openUi('launch', { catalogs: ['main'], schemas: { main: ['s'] }, tables: { 'main.s': ['orders'] },
+    runAnswer: [200, { run_id: 99, session_id: 1, warnings: [] }] });
+  const { page, pageErrors, made } = ui;
+  try {
+    await page.getByPlaceholder('e.g. Contoso, Acme Corp, Retail Division').fill('Acme');
+    await page.locator('button[title="main"]').click();
+    await page.locator('button[title="s"]').click();
+    await page.locator('button[title="orders"]').click();
+    await page.getByRole('button', { name: 'Get Started' }).click();
+    await until(() => made.launches.length === 1, 'the launch was sent once');
+    await page.getByRole('status').filter({ hasText: /Launched|started/i }).first().waitFor({ timeout: 15000 }).catch(() => null);
+    assert.equal(await page.locator('[data-testid="launch-notes"]').count(), 0, 'a successful auto-grant leaves no launch note');
+    const text = await page.locator('body').innerText();
+    assert.doesNotMatch(text, /with your sign-in, because Discover runs as the App|Inspire granted the App read/, 'no grant notice is shown');
+    assert.deepEqual(pageErrors.filter((line) => !forbidden(line)), []);
+  } finally {
+    await ui.close();
+  }
+});

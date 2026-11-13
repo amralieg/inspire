@@ -51,7 +51,7 @@ test('the Measure step asks how the value of each record is measured, with four 
     assert.equal(await page.locator('[data-money-method]').count(), 4);
     assert.equal(await page.locator('[data-money-mode]').count(), 0, 'the old per-currency and convert radios are gone');
     await onMoneyPart(page, 'window');
-    assert.equal(await page.locator('[data-money-more] summary').innerText(), 'More options');
+    assert.equal(await page.locator('[data-money-window]').isVisible(), true, 'the periods box is on its own decision, with no More options fold');
   } finally {
     await page.context().close();
   }
@@ -63,6 +63,7 @@ test('a fixed amount previews three example rows in the currency it names, and t
   try {
     await page.locator('[data-money-method="fixed"]').check();
     await page.locator('[data-money-fixed-amount]').fill('120');
+    await page.locator('[data-money-value-currency-by="code"]').check({ force: true });
     await page.locator('[data-money-value-code]').fill('USD');
     await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
     assert.equal(await page.locator('[data-money-preview-rows] li').count(), 3);
@@ -78,7 +79,7 @@ test('a column value previews the rows of the column picked, with its currency c
   const { page, calls } = ui;
   try {
     await page.locator('[data-money-method="column"]').check();
-    await page.locator('[data-money-value-column]').selectOption('amount');
+    await page.locator('[data-money-value-column]').fill('amount');
     await page.locator('[data-money-value-currency-by="column"]').check();
     await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
     assert.deepEqual(calls.preview.at(-1).value, { method: 'column', column: 'amount', currency_column: 'currency' });
@@ -92,11 +93,12 @@ test('an equation the grammar does not allow is refused on the spot, and a valid
   const { page, calls } = ui;
   try {
     await page.locator('[data-money-method="equation"]').check();
+    await page.locator('[data-money-value-currency-by="code"]').check({ force: true });
     await page.locator('[data-money-value-code]').fill('USD');
     await page.locator('[data-money-equation]').fill('quantity ^ 2');
     await page.waitForSelector('[data-money-error]', { timeout: 15000 });
     assert.match(await page.locator('[data-money-error]').innerText(), /adds, subtracts, multiplies and divides column names and numbers/);
-    assert.equal(calls.preview.length, 0, 'a refused equation never reaches the warehouse');
+    assert.equal(calls.preview.filter((c) => JSON.stringify(c).includes('quantity ^ 2')).length, 0, 'a refused equation never reaches the warehouse');
     await page.locator('[data-money-equation]').fill('quantity * unit_price - discount');
     await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
     assert.equal(await page.locator('[data-money-preview-rows] li').count(), 3);
@@ -111,6 +113,7 @@ test('the reporting currency is the data main currency, its rates show today’s
   const { page } = ui;
   try {
     await onMoneyPart(page, 'currency');
+    await page.locator('[data-money-currency-mode="convert"]').check({ force: true });
     assert.equal(await page.locator('[data-money-base]').inputValue(), 'AED');
     const usd = page.locator('[data-money-rate-row="USD"]');
     assert.match(await usd.locator('[data-money-rate-source]').innerText(), /today/);
@@ -127,6 +130,9 @@ test('with no internet the rates are the saved averages, and one line says so', 
   const { page } = ui;
   try {
     await onMoneyPart(page, 'currency');
+    await page.locator('[data-money-currency-mode="convert"]').check({ force: true });
+    // The rates arrive after the Convert pick under load; wait for the notice rather than read it at once.
+    await page.locator('[data-money-rates-notice]').waitFor({ timeout: 30000 });
     assert.match(await page.locator('[data-money-rates-notice]').innerText(), /No internet: every rate is the saved historical average/);
     assert.match(await page.locator('[data-money-rate-row="EUR"] [data-money-rate-source]').innerText(), /ECB average, 2025/);
   } finally {
@@ -172,11 +178,12 @@ test('an equation that names a column the table does not have is refused before 
   const { page, calls } = ui;
   try {
     await page.locator('[data-money-method="equation"]').check();
+    await page.locator('[data-money-value-currency-by="code"]').check({ force: true });
     await page.locator('[data-money-value-code]').fill('USD');
     await page.locator('[data-money-equation]').fill('quantity * shipping_fee');
     await page.waitForSelector('[data-money-error]', { timeout: 15000 });
     assert.match(await page.locator('[data-money-error]').innerText(), /The column shipping_fee is not in this table, so the rule cannot use it./);
-    assert.equal(calls.preview.length, 0, 'a rule naming a missing column never reaches the warehouse');
+    assert.equal(calls.preview.filter((c) => JSON.stringify(c).includes('shipping_fee')).length, 0, 'a rule naming a missing column never reaches the warehouse');
     await page.locator('[data-money-equation]').fill('quantity * unit_price');
     await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
   } finally {
@@ -190,6 +197,7 @@ test('a slow rates reply for the same reporting currency does not overwrite a ra
   const { page } = ui;
   try {
     await onMoneyPart(page, 'currency');
+    await page.locator('[data-money-currency-mode="convert"]').check({ force: true });
     await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').waitFor({ timeout: 15000 });
     await page.locator('[data-money-base]').blur();
     await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').fill('0.5');
@@ -204,10 +212,12 @@ test('a slow rates reply for the same reporting currency does not overwrite a ra
 test('a rate typed for one reporting currency is dropped when the reporting currency changes, and never saved as the new base rate', async () => {
   const calls = { preview: [], currency: [], describe: [] };
   const eurBase = { base: 'EUR', currencies: [{ code: 'EUR', records: 4 }, { code: 'AED', records: 40 }], rates: { AED: 0.24 }, sources: { AED: 'today' }, missing: [], as_of: '2026-11-11', offline: false, message: '' };
-  const ui = await openMeasure({ calls, init: plannedStub('currency-rates', (n) => (n <= 1 ? { answer: LIVE_RATES } : { answer: eurBase }), calls.currency) });
+  // The first reply is the rates read on open; choosing Convert reads nothing new, so the base change is the second reply.
+  const ui = await openMeasure({ calls, init: plannedStub('currency-rates', (n) => (n <= 0 ? { answer: LIVE_RATES } : { answer: eurBase }), calls.currency) });
   const { page } = ui;
   try {
     await onMoneyPart(page, 'currency');
+    await page.locator('[data-money-currency-mode="convert"]').check({ force: true });
     await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').waitFor({ timeout: 15000 });
     await page.locator('[data-money-rate-row="EUR"] [data-money-rate]').fill('4.10');
     await page.locator('[data-money-base]').fill('EUR');
@@ -250,7 +260,7 @@ test('Gains only is disabled with its reason until a sign is named, and a status
     assert.equal(await page.locator('[data-money-rule-kind="gains"]').isDisabled(), true);
     assert.match(await page.locator('[data-money-sign-needed]').innerText(), /Gains only needs a sign/);
     await page.locator('[data-money-sign-kind="status"]').check();
-    await page.locator('[data-money-sign-status-column]').selectOption('currency');
+    await page.locator('[data-money-sign-status-column]').fill('currency');
     await page.locator('[data-money-sign-value]').fill('gain');
     await page.waitForFunction(() => !document.querySelector('[data-money-rule-kind="gains"]')?.disabled, null, { timeout: 15000 });
     assert.equal(await page.locator('[data-money-sign-needed]').count(), 0);

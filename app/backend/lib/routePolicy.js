@@ -124,6 +124,7 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/app-reads': yours('give an App Inspire built read access with your own sign-in', ['sql']),
   'POST /api/inspire/implement/create-schema': yours('create a catalog or schema with your own sign-in', ['sql']),
   'GET /api/inspire/implement/serving-endpoints': yours('list serving endpoints', ['model-serving']),
+  'POST /api/run/check': yours('check the grants a run needs before it starts', ['sql', 'catalog.tables:read']),
   'POST /api/run': { ...anyone('launch a run', 'launches the run as the App, which owns the job and its tracking tables'), outputWrite: true, scopes: OUTPUT_WRITE_SCOPES },
   'POST /api/output-folder/check': yours('check that you can write to an output folder', OUTPUT_WRITE_SCOPES, { outputWrite: true }),
   'GET /api/run/:runId': recorded('read a run', 'reads the state of a run the App launched and recorded in its own database'),

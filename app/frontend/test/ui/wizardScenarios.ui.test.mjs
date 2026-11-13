@@ -3,7 +3,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { closeBrowser, goToMeasureImpact, goToStep, idle, onStep, openRow, openUi, profileAt } from './uiSupport.mjs';
+import { closeBrowser, goToMeasureImpact, goToStep, idle, onStep, openFolded, openRow, openUi, profileAt, toSummary } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -44,12 +44,17 @@ async function overflowing(page) {
   });
 }
 
+// The folds of a step (one open at a time) are part of the position: Next that only folds a section stays on the step.
+const foldsOpen = (page) => page.evaluate(() => [...document.querySelectorAll('[data-fold-line]')].map((e) => e.dataset.foldLine).join(','));
+
 async function walk(page, name, actions = {}) {
   const seen = [];
-  for (let i = 0; i < 20; i += 1) {
+  const ran = new Set();
+  for (let i = 0; i < 80; i += 1) {
     await settle(page);
     const step = await current(page);
-    if (actions[step]) {
+    if (actions[step] && !ran.has(step)) {
+      ran.add(step);
       await actions[step](page);
       await settle(page);
     }
@@ -63,9 +68,10 @@ async function walk(page, name, actions = {}) {
       seen.push({ step, text: `NEXT DISABLED: ${(await page.locator('[role="alert"]').allInnerTexts()).join(' | ')}`, overflow: [] });
       break;
     }
+    const was = `${step}|${await foldsOpen(page)}`;
     await next.click();
     await settle(page);
-    if ((await current(page)) === step) {
+    if (`${await current(page)}|${await foldsOpen(page)}` === was) {
       seen.push({ step, text: `NEXT DID NOT MOVE: ${(await page.locator('[role="alert"]').allInnerTexts()).join(' | ')}`, overflow: [] });
       break;
     }
@@ -141,19 +147,20 @@ const check = (name) => async (page) => page.getByRole('checkbox', { name }).fir
 const uncheck = (name) => async (page) => page.getByRole('checkbox', { name }).first().uncheck();
 const radio = (name) => async (page) => page.getByRole('radio', { name }).first().check();
 const press = (name) => async (page) => page.getByRole('button', { name, exact: true }).first().click();
-const freshPress = (name) => async (page) => { await openRow(page, 'Keep it fresh'); await press(name)(page); };
+const inFold = (what, fn) => async (page) => { await openFolded(page, what); await fn(page); };
+const freshPress = (name) => async (page) => { await openRow(page, 'Keep it fresh'); await page.getByRole('group', { name: 'Keep it fresh', exact: true }).getByRole('button', { name, exact: true }).click(); };
 const impactUncheck = (name) => async (page) => { await goToMeasureImpact(page); await page.getByRole('group', { name: 'Measure impact' }).getByRole('checkbox', { name }).uncheck(); };
 const both = (...fns) => async (page) => { for (const fn of fns) await fn(page); };
 
 const COMBOS = [
   ['app-off', { 'What to deliver': uncheck(/^App A Databricks/) }],
   ['app-off-alert-dashboard', { 'What to deliver': both(uncheck(/^App A Databricks/), check(/^Dashboard/), check(/^Alert/)) }],
-  ['per-user', { 'Who uses the App': radio(/^Sensitive data/) }],
-  ['per-user-edit', { 'Who uses the App': radio(/^Sensitive data/), 'App pages': check(/^Let people edit data/) }],
+  ['per-user', { 'Who uses the App and storage': radio(/^Sensitive data/) }],
+  ['per-user-edit', { 'Who uses the App and storage': both(radio(/^Sensitive data/), inFold('What people can do', check(/^Let people edit data/))) }],
   ['one-app-per-use-case', { 'Where it lives': radio(/^One App per use case/) }],
   ['inside-inspire', { 'Where it lives': radio(/^Inside Inspire/) }],
-  ['schedule-off-holdout-off', { 'Data & results': freshPress('Off'), Measure: impactUncheck(/^Hold back/) }],
-  ['schedule-weekly', { 'Data & results': freshPress('Weekly') }],
+  ['schedule-off-holdout-off', { 'First run': freshPress('Run once now'), Measure: impactUncheck(/^Hold back/) }],
+  ['schedule-weekly', { 'First run': freshPress('Weekly') }],
   ['first-run-everything', { 'First run': radio(/^Everything/) }],
   ['first-run-recent', { 'First run': radio(/^The last 30 days/) }],
   ['first-run-one-group', { 'First run': radio(/^One group/) }],
@@ -346,7 +353,7 @@ test('the First run names the chosen Data groups in a plain note, never in the r
 test('every question in the wizard shows at most one Recommended choice', async () => {
   const counts = [];
   const tally = async (page) => counts.push([await current(page), await page.locator('[role="radiogroup"]').evaluateAll((groups) => groups.map((g) => g.querySelectorAll('[data-recommended]').length))]);
-  const steps = ['Data groups', 'First run', 'Results', 'What to deliver', 'Where it lives', 'Who uses the App', 'App pages', 'App look', RUN_IT];
+  const steps = ['Data groups', 'First run', 'Results', 'What to deliver', 'Where it lives', 'Who uses the App and storage', 'App look'];
   const { ui } = await scenario('one-recommended', { profile: PROFILE, extra: counted(PROFILE), actions: Object.fromEntries(steps.map((s) => [s, tally])) });
   try {
     assert.ok(counts.length >= 5, JSON.stringify(counts));
@@ -357,7 +364,7 @@ test('every question in the wizard shows at most one Recommended choice', async 
 });
 
 test('a build clears the draft, so the next wizard opens on the Use case with no "picks are back" note', async () => {
-  const { ui } = await scenario('draft-after-build', { profile: PROFILE, extra: counted(PROFILE), actions: { 'Data & results': freshPress('Weekly') } });
+  const { ui } = await scenario('draft-after-build', { profile: PROFILE, extra: counted(PROFILE), actions: { 'First run': freshPress('Weekly') } });
   try {
     const { page, made } = ui;
     await page.getByRole('button', { name: 'All Good, Build it Now' }).click();
@@ -411,38 +418,23 @@ async function summaryText(page) {
   return page.locator('[role="dialog"]').innerText();
 }
 
-async function toSummary(page) {
-  for (let i = 0; i < 20 && (await current(page)) !== 'Review & build'; i += 1) {
-    await settle(page);
-    const was = await current(page);
-    const moneyNext = page.locator('[data-money-next]');
-    if (was === 'Measure' && await moneyNext.count() && await moneyNext.isVisible()) {
-      await moneyNext.click();
-      continue;
-    }
-    await page.getByRole('button', { name: /^(Next|Back to Summary)$/ }).click();
-    await settle(page);
-    assert.notEqual(await current(page), was, `Next did not leave ${was}`);
-  }
-}
-
 test('Change on a Summary row opens that step, keeps every earlier answer and Back to Summary returns with the new answer', async () => {
-  const { ui } = await scenario('change-from-summary', { profile: PROFILE, extra: counted(PROFILE), actions: { 'Data & results': freshPress('Weekly') } });
+  const { ui } = await scenario('change-from-summary', { profile: PROFILE, extra: counted(PROFILE), actions: { 'First run': freshPress('Weekly') } });
   try {
     const { page } = ui;
     assert.equal(await current(page), 'Review & build');
     assert.match(await page.locator('[role="dialog"]').innerText(), /Keep it fresh\nWeekly/);
     await page.getByRole('button', { name: 'Change Keep it fresh' }).click();
     await settle(page);
-    assert.equal(await current(page), 'Data & results');
+    assert.equal(await current(page), 'First run');
     await openRow(page, 'Keep it fresh');
     assert.equal(await page.getByRole('button', { name: 'Weekly', exact: true }).getAttribute('aria-pressed'), 'true');
-    await press('Off')(page);
+    await press('Run once now')(page);
     await page.getByRole('button', { name: 'Back to Summary' }).click();
     await settle(page);
     assert.equal(await current(page), 'Review & build');
     const text = await page.locator('[role="dialog"]').innerText();
-    assert.match(text, /Keep it fresh\nOff/);
+    assert.match(text, /Keep it fresh\nRun once now/);
     assert.match(text, /Data groups\nstore · 31 groups/);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
@@ -454,15 +446,17 @@ test('Back from the Summary walks every step in order to What to deliver and Nex
   const { seen, ui } = await scenario('back-and-forth', { profile: PROFILE, extra: counted(PROFILE) });
   try {
     const { page } = ui;
-    const forward = seen.map((s) => s.step);
+    // A step's folds are one visit: Back that only reopens an earlier fold of the same step is not a new step.
+    const runs = (steps) => steps.filter((x, i) => i === 0 || x !== steps[i - 1]);
+    const forward = runs(seen.map((s) => s.step));
     const summary = await summaryText(page);
     const back = [await current(page)];
-    while ((await current(page)) !== 'What to deliver' && back.length < 12) {
-      const was = await current(page);
+    for (let i = 0; i < 80 && (await current(page)) !== 'What to deliver'; i += 1) {
+      const was = `${await current(page)}|${await foldsOpen(page)}`;
       await page.getByRole('button', { name: 'Back', exact: true }).click();
       await settle(page);
-      assert.notEqual(await current(page), was, `Back did not leave ${was}`);
-      back.push(await current(page));
+      assert.notEqual(`${await current(page)}|${await foldsOpen(page)}`, was, `Back did not leave ${was}`);
+      if ((await current(page)) !== back.at(-1)) back.push(await current(page));
     }
     assert.deepEqual(back, [...forward].reverse());
     await toSummary(page);

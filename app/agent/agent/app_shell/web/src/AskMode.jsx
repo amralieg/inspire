@@ -5,6 +5,7 @@ import { dayLabel, integer } from './format.js';
 import { Icon } from './icons.jsx';
 import { ModeEmpty } from './ModeParts.jsx';
 import { SectionHelp } from './SectionHelp.jsx';
+import { genieOf } from './genieAsk.js';
 
 function browserStorage() {
   try { return window.localStorage; } catch { return null; }
@@ -22,7 +23,7 @@ function Work({ app, page, genie, onPick }) {
   }, [genie?.thread, genie?.key, page.id, person]);
   return (
     <div className="mode-work mode-ask" data-mode-work="ask">
-      {genie ? <GeniePanel app={app} genie={genie} page={page} pages={app.pages} onPick={onPick} full /> : <ModeEmpty>Ask Genie is off for this use case.</ModeEmpty>}
+      {genie ? <GeniePanel app={app} genie={genie} page={page} pages={app.pages} onPick={onPick} full /> : <ModeEmpty>{genieOf(app, page.id).note || 'Ask Genie is off for this use case.'}</ModeEmpty>}
     </div>
   );
 }

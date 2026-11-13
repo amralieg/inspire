@@ -46,13 +46,16 @@ const {
   discoverReads, discoverWrites, listCatalogs, listSchemas, listTables, outputPlan, runReadPlan, scopeTables, skippedTablesDetail, ucMetadataParts,
   writeRefusalBody,
 } = require('./lib/ucReads');
+const { metricViewSkipLine } = require('./lib/metricViews');
 const { createSourceAccess } = require('./lib/sourceAccess');
 const { withBusyRetry } = require('./lib/busyRetry');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
 const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
-const { discoverGrantedText, discoverUnreadText, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyName, sampleCopyStatement } = require('./lib/inspireImplement');
+const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
+const PM_ERROR = require('./lib/permissionError');
+const { isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyName, sampleCopyStatement } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -378,10 +381,21 @@ async function listTablesSql(host, token, warehouseId, catalog, schema) {
     const stmt = `SHOW TABLES IN ${quotedIdent(catalog)}.${quotedIdent(schema)}`;
     const result = await executeSql(host, token, warehouseId, stmt);
     const rows = sqlResultToObjects(result);
+    // SHOW TABLES does not say which names are metric views, so the catalog's own table types decide.
+    const metricViewNames = new Set();
+    try {
+      const typed = await executeSql(host, token, warehouseId,
+        `SELECT table_name FROM ${quotedIdent(catalog)}.information_schema.tables WHERE table_schema = '${escapeSqlStringLiteral(schema)}' `
+        + `AND table_type IN ('METRIC_VIEW', 'METRIC VIEW')`);
+      for (const row of sqlResultToObjects(typed)) if (row.table_name) metricViewNames.add(row.table_name);
+    } catch (err) {
+      console.warn(`   ⚠️ metric view check failed for ${catalog}.${schema}: ${err.message}`);
+    }
+    if (metricViewNames.size) console.log(metricViewSkipLine([...metricViewNames]));
     const out = [];
     for (const row of rows) {
       const tname = row.tableName ?? row.table_name ?? row.name;
-      if (!tname || typeof tname !== 'string') continue;
+      if (!tname || typeof tname !== 'string' || metricViewNames.has(tname)) continue;
       out.push({
         name: tname,
         full_name: `${catalog}.${schema}.${tname}`,
@@ -1222,7 +1236,7 @@ app.post('/api/auth/sp-token', async (req, res) => {
     console.log('✅ SP token obtained successfully');
     res.json({ access_token: data.access_token, expires_in: data.expires_in });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1300,9 +1314,9 @@ app.get('/api/workspace/list', rejectUnsafeQueryPath, requireToken, async (req, 
       return res.json({ files, resolved_path: wsPath });
     }
 
-    return res.status(lastStatus).json({ error: lastErr, tried: candidates });
+    return PM_ERROR.sendFailure(res, lastStatus, lastErr, { tried: candidates });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1353,9 +1367,9 @@ app.get('/api/workspace/export', rejectUnsafeQueryPath, requireToken, async (req
       lastErr = await resp2.text();
     }
 
-    return res.status(lastStatus).json({ error: lastErr, tried: candidates });
+    return PM_ERROR.sendFailure(res, lastStatus, lastErr, { tried: candidates });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1598,7 +1612,7 @@ app.get('/api/notebook', requireToken, async (req, res) => {
     const found = await findPublishedNotebook(req.dbHost, req.dbToken);
     res.json({ path: found || '', published: Boolean(found) });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1608,7 +1622,7 @@ app.post('/api/notebook/republish', requireToken, async (req, res) => {
     const { path: nbPath, republished } = await ensureNotebookPublished(req.dbHost, req.dbToken, true);
     res.json({ path: nbPath, republished });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1621,13 +1635,13 @@ app.get('/api/me', requireToken, async (req, res) => {
       about: 'the identity the Inspire App uses to call Databricks',
     };
     const person = await personOf(req);
-    if (person.error) return res.status(person.error.status || 502).json({ error: person.error.message, source: ME_SOURCES[person.source] || person.source });
+    if (person.error) return PM_ERROR.sendFailure(res, person.error.status || 502, person.error.message, { source: ME_SOURCES[person.source] || person.source });
     if (!person.username && policyEnforced()) {
       return res.status(401).json({ error: 'The Databricks Apps proxy sent no signed-in person, so Inspire cannot tell who you are.' });
     }
     res.json({ person: { ...meResponse(person), source: ME_SOURCES[person.source] || person.source }, app: appIdentity });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1680,7 +1694,7 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
       restError: restErr && catalogs.length === 0 ? restErr : undefined,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1723,11 +1737,11 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
     const schemas = [...byKey.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
     console.log(`   📂 schemas ${catalog}: REST=${raw.length} merged=${schemas.length}`);
     if (raw.length === 0 && schemas.length === 0 && restErr) {
-      return res.status(restStatus).json({ error: restErr });
+      return PM_ERROR.sendFailure(res, restStatus, restErr);
     }
     res.json({ schemas, count: schemas.length, truncated: restCut && byKey.size === countAfterRest });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1740,8 +1754,9 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     let restCut = false;
     let restErr = null;
     let restStatus = 502;
+    let hiddenMetricViews = [];
     try {
-      ({ items: raw, truncated: restCut } = await listTables(dbFetch, req.dbHost, token, catalog, schema));
+      ({ items: raw, truncated: restCut, metricViews: hiddenMetricViews } = await listTables(dbFetch, req.dbHost, token, catalog, schema));
     } catch (e) {
       restErr = e.message || String(e);
       restStatus = restFailureStatus(e);
@@ -1769,18 +1784,19 @@ app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
     const countAfterRest = byKey.size;
     if (warehouseId) {
       const sqlRows = await listTablesSql(req.dbHost, token, warehouseId, catalog, schema);
+      const hidden = new Set(hiddenMetricViews);
       for (const row of sqlRows) {
-        if (!byKey.has(row.full_name)) byKey.set(row.full_name, row);
+        if (!byKey.has(row.full_name) && !hidden.has(row.full_name)) byKey.set(row.full_name, row);
       }
     }
     const tables = [...byKey.values()].sort((a, b) => a.full_name.localeCompare(b.full_name));
     console.log(`   📋 tables ${catalog}.${schema}: REST=${raw.length} merged=${tables.length}`);
     if (raw.length === 0 && tables.length === 0 && restErr) {
-      return res.status(restStatus).json({ error: restErr });
+      return PM_ERROR.sendFailure(res, restStatus, restErr);
     }
     res.json({ tables, count: tables.length, truncated: restCut && byKey.size === countAfterRest });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1793,7 +1809,7 @@ app.get('/api/warehouses', requireToken, async (req, res) => {
     const response = await dbFetch(req.dbHost, req.dbToken, '/api/2.0/sql/warehouses');
     if (!response.ok) {
       const err = await response.text();
-      return res.status(response.status).json({ error: err });
+      return PM_ERROR.sendFailure(res, response.status, err);
     }
     const data = await response.json();
     const warehouses = (data.warehouses || []).map(w => ({
@@ -1804,7 +1820,7 @@ app.get('/api/warehouses', requireToken, async (req, res) => {
     }));
     res.json({ warehouses });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1848,7 +1864,7 @@ app.post('/api/publish', requireToken, async (req, res) => {
 
     if (!response.ok) {
       const err = await response.text();
-      return res.status(response.status).json({ error: err });
+      return PM_ERROR.sendFailure(res, response.status, err);
     }
 
     let notebookPath = destination_path;
@@ -1867,7 +1883,7 @@ app.post('/api/publish', requireToken, async (req, res) => {
     console.log(`✅ Published notebook to: ${destination_path}, notebook: ${notebookPath}`);
     res.json({ success: true, path: notebookPath, folder_path: destination_path });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1906,12 +1922,12 @@ app.post('/api/publish/upload', requireToken, upload.single('file'), async (req,
 
     if (!response.ok) {
       const err = await response.text();
-      return res.status(response.status).json({ error: err });
+      return PM_ERROR.sendFailure(res, response.status, err);
     }
 
     res.json({ success: true, path: destination_path });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -1978,7 +1994,7 @@ app.get('/api/dbc/info', (req, res) => {
       });
     }
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2097,13 +2113,26 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
     console.error('demo-data/start failed:', err.message);
-    res.status(code).json({ error: err.message });
+    PM_ERROR.sendFailure(res, code, err.message);
   }
 });
 
 // ═══════════════════════════════════════════════════
 //  Submit notebook run
 // ═══════════════════════════════════════════════════
+
+app.post('/api/run/check', requireToken, async (req, res) => {
+  try {
+    const params = (req.body && req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
+    const reads = await runReadPlan(dbFetch, req, discoverReads(params));
+    if (reads.refusal) return PM_ERROR.sendFailure(res, reads.refusal.status, reads.refusal.message, { unreadable: reads.refusal.unreadable });
+    const access = await discoverAppAccess(req, reads.scope || params['01_uc_metadata']);
+    res.json({ permissions: access.permissions, warnings: access.warnings });
+  } catch (err) {
+    const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
+    PM_ERROR.sendFailure(res, code, err.message);
+  }
+});
 
 app.post('/api/run', requireToken, async (req, res) => {
   const { cluster_id, notebook_path } = req.body;
@@ -2125,7 +2154,7 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
     return launchDiscover(req, res, again);
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
-    return res.status(code).json({ error: err.message });
+    return PM_ERROR.sendFailure(res, code, err.message);
   }
 });
 
@@ -2172,7 +2201,7 @@ app.post('/api/documents', requireToken, async (req, res) => {
   } catch (err) {
     if (err.writeRefusal) return res.status(err.writeRefusal.status).json(writeRefusalBody(req.policyKey, err.writeRefusal));
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
-    res.status(code).json({ error: err.message });
+    PM_ERROR.sendFailure(res, code, err.message);
   }
 });
 
@@ -2181,7 +2210,7 @@ async function launchDiscover(req, res, { params, notebook_path, cluster_id }) {
     const refused = LC.launchParamsProblem(params) || await launchSessionProblem(req, params);
     if (refused) return res.status(403).json(RP.refusalBody(req.policyKey, 'launcher', `${refused}.`));
     const reads = await runReadPlan(dbFetch, req, discoverReads(params));
-    if (reads.refusal) return res.status(reads.refusal.status).json({ error: reads.refusal.message, unreadable: reads.refusal.unreadable });
+    if (reads.refusal) return PM_ERROR.sendFailure(res, reads.refusal.status, reads.refusal.message, { unreadable: reads.refusal.unreadable });
     if (reads.scope) params['01_uc_metadata'] = reads.scope;
     const access = await discoverAppAccess(req, params['01_uc_metadata']);
     const out = await triggerInspireNotebookJob(req.dbHost, req.dbToken, {
@@ -2193,13 +2222,13 @@ async function launchDiscover(req, res, { params, notebook_path, cluster_id }) {
       writeCheck: (writes) => outputWriteVerdict(req, writes),
       asker: req,
     });
-    const warnings = [...reads.warnings, ...access, ...(out.warnings || [])];
+    const warnings = [...reads.warnings, ...access.warnings, ...(out.warnings || [])];
     const details = [...(reads.skipped.length ? [skippedTablesDetail(reads.skipped)] : []), ...(out.warning_details || [])];
-    res.json({ ...out, ...(warnings.length ? { warnings } : {}), ...(details.length ? { warning_details: details } : {}), ...(reads.skipped.length ? { skipped_tables: reads.skipped } : {}) });
+    res.json({ ...out, ...(warnings.length ? { warnings } : {}), ...(access.permissions.length ? { permissions: access.permissions } : {}), ...(details.length ? { warning_details: details } : {}), ...(reads.skipped.length ? { skipped_tables: reads.skipped } : {}) });
   } catch (err) {
     if (err.writeRefusal) return res.status(err.writeRefusal.status).json(writeRefusalBody(req.policyKey, err.writeRefusal));
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
-    res.status(code).json({ error: err.message });
+    PM_ERROR.sendFailure(res, code, err.message);
   }
 }
 
@@ -2209,26 +2238,32 @@ async function discoverAppAccess(req, scope) {
   const person = personTokenOf(req);
   const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
   const entries = [...picked, ...schemas, ...catalogs];
-  if (!entries.length || !person || !DEFAULT_WAREHOUSE_ID) return [];
+  const none = { warnings: [], permissions: [] };
+  if (!entries.length || !person || !DEFAULT_WAREHOUSE_ID) return none;
   try {
     const { tables, more } = await scopeTables(dbFetch, req.dbHost, person, entries);
-    if (!tables.length) return [];
+    if (!tables.length) return none;
     let found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover');
     const warnings = [];
+    const permissions = [];
     if (found.app_unreadable && found.app_unreadable.can_grant) {
       const offer = found.app_unreadable;
       const { ran, failed } = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, offer.grants);
-      if (ran.length) warnings.push(discoverGrantedText(offer.tables, ran));
-      if (failed.length) warnings.push(`Inspire could not grant with your sign-in: ${failed.join('; ')}`);
+      if (ran.length) console.log(`Discover: granted the App read access to ${plural(offer.tables.length, 'table')} with the sign-in: ${ran.join('; ')}`);
+      if (failed.length) {
+        const refused = permissionRequired({ statements: readStatementsFor(offer.tables.map((t) => t.table || t), offer.app.id || SP_CLIENT_ID), principal: offer.app.id || SP_CLIENT_ID, why: 'Discover reads these tables as the App, and the grant could not run with your sign-in. Ask your workspace admin to run it.' });
+        if (refused) permissions.push(refused);
+      }
       found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover');
     }
-    if (found.app_unreadable) warnings.push(discoverUnreadText(found.app_unreadable));
-    if (found.missing.length) warnings.push(`Discover runs as the App, and the App cannot read ${found.missing.map((m) => `${m.table} (${m.reason})`).join(', ')}`);
-    if (more) warnings.push(`Inspire checked that the App can read the first ${tables.length} tables you picked, not the rest`);
-    return warnings;
+    const read = appReadPermissions(found, SP_CLIENT_ID);
+    warnings.push(...read.warnings);
+    permissions.push(...read.permissions);
+    if (more) console.log(`Discover: checked the App read access of the first ${tables.length} tables only`);
+    return { warnings, permissions };
   } catch (err) {
     console.warn(`discover read check: ${err.message || err}`);
-    return [`Inspire could not check that the App can read the tables you picked (${String(err.message || err).slice(0, 200)}), so Discover reads them as picked`];
+    return { permissions: [], warnings: [`Inspire could not check that the App can read the tables you picked (${String(err.message || err).slice(0, 200)}), so Discover reads them as picked`] };
   }
 }
 
@@ -2251,10 +2286,11 @@ app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
       if (outcome.ran.length) copies.push({ source, copy: sampleCopyName(source, destination) });
       else failed.push({ source, reason: String(outcome.failed[0] || '').slice(sql.length + 2) });
     }
-    res.json({ destination: `${destination.catalog}.${destination.schema}`, copies, failed });
+    const permission = sampleCopyPermission(failed, RP.forwardedPerson(req.headers));
+    res.json({ destination: `${destination.catalog}.${destination.schema}`, copies, failed, ...(permission ? { permissions: [permission] } : {}) });
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
-    res.status(code).json({ error: err.message });
+    PM_ERROR.sendFailure(res, code, err.message);
   }
 });
 
@@ -2295,7 +2331,7 @@ app.get('/api/run/:runId', requireToken, async (req, res) => {
     const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${req.params.runId}`);
     if (!response.ok) {
       const err = await response.text();
-      return res.status(response.status).json({ error: err });
+      return PM_ERROR.sendFailure(res, response.status, err);
     }
     const data = parseExactJson(await response.text());
     const state = data.state || {};
@@ -2325,7 +2361,7 @@ app.get('/api/run/:runId', requireToken, async (req, res) => {
       ...(viewerNoteOf(req.params.runId) ? { viewer_note: viewerNoteOf(req.params.runId) } : {}),
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2334,7 +2370,7 @@ app.get('/api/run/:runId/output', requireToken, async (req, res) => {
     const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get-output?run_id=${req.params.runId}`);
     if (!response.ok) {
       const err = await response.text();
-      return res.status(response.status).json({ error: err });
+      return PM_ERROR.sendFailure(res, response.status, err);
     }
     const data = await response.json();
     res.json({
@@ -2344,7 +2380,7 @@ app.get('/api/run/:runId/output', requireToken, async (req, res) => {
       error_trace: data.error_trace,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2362,11 +2398,11 @@ app.post('/api/run/:runId/cancel', requireToken, async (req, res) => {
     });
     if (!response.ok) {
       const err = await response.text();
-      return res.status(response.status).json({ error: err });
+      return PM_ERROR.sendFailure(res, response.status, err);
     }
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2467,7 +2503,7 @@ app.get('/api/inspire/session', requireToken, async (req, res) => {
     if (isMissingTableError(err)) {
       return res.json({ session: null, message: 'Inspire is getting ready...' });
     }
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2491,7 +2527,7 @@ app.get('/api/inspire/value', requireToken, async (req, res) => {
     if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
     res.json(valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), String(session_id).trim()))));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2507,7 +2543,7 @@ app.get('/api/inspire/value/overall', requireToken, async (req, res) => {
     const [counts] = await readValueRows(req, warehouse_id, sessionCountsSql(inspireSessionTable(parsedDb)));
     res.json(overallValue(totals, counts));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2521,7 +2557,7 @@ app.get('/api/inspire/value/runs', requireToken, async (req, res) => {
     if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
     res.json(valueOfRuns(await readValueRows(req, warehouse_id, valueRunsSql(valueLedgerTable(parsedDb)))));
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2558,7 +2594,7 @@ app.get('/api/inspire/steps', requireToken, async (req, res) => {
     if (isMissingTableError(err)) {
       return res.json({ steps: [], count: 0, message: 'Step table not yet created.' });
     }
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2619,7 +2655,7 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
     if (isMissingTableError(err)) {
       return res.json({ results: null, message: 'Step table not yet created.' });
     }
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2707,7 +2743,7 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
     if (isMissingTableError(err)) {
       return res.json({ usecases: [], count: 0, message: 'Usecases table not found.' });
     }
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2732,7 +2768,7 @@ app.post('/api/inspire/usecase-name', requireToken, async (req, res) => {
     console.log(`   ✏️ use case name: session=${sidStr}, use_case=${id}, ${name ? 'renamed' : 'cleared'}`);
     res.json({ success: true, session_id: sidStr, use_case_id: id, name });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2757,7 +2793,7 @@ app.post('/api/inspire/ack', requireToken, async (req, res) => {
     console.log(`   ✅ ACK sent for session ${session_id}`);
     res.json({ success: true });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2783,9 +2819,9 @@ app.post('/api/inspire/feedback', requireToken, async (req, res) => {
     await executeSql(req.dbHost, req.dbToken, warehouse_id, insert.sql, insert.parameters);
     res.json({ success: true, available: true, status: values.status, use_case_key: values.useCaseKey });
   } catch (err) {
-    if (err.statusCode === 400) return res.status(400).json({ error: err.message });
+    if (err.statusCode === 400) return PM_ERROR.sendFailure(res, 400, err.message);
     if (isMissingTableError(err)) return res.status(409).json({ available: false, error: FEEDBACK_NOT_AVAILABLE });
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2801,7 +2837,7 @@ app.get('/api/inspire/feedback', requireToken, async (req, res) => {
     res.json({ available: true, history, latest: latestFeedbackByKey(history) });
   } catch (err) {
     if (isMissingTableError(err)) return res.json({ available: false, history: [], latest: [], message: FEEDBACK_NOT_AVAILABLE });
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2858,7 +2894,7 @@ app.post('/api/inspire/sync-genie-flags', requireToken, async (req, res) => {
     console.log(`   🧞 sync-genie-flags: session=${sidStr}, flagged=${safeIds.length}`);
     res.json({ success: true, session_id: sidStr, flagged_use_case_ids: safeIds });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2939,7 +2975,7 @@ app.get('/api/inspire/genie-progress', requireToken, async (req, res) => {
       run_result_state,
     });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -2994,10 +3030,11 @@ app.get('/api/inspire/results', requireToken, async (req, res) => {
     });
   } catch (err) {
     if (isMissingTableError(err)) {
-      return res.json({ results: null, found: false, message: 'Session table not found.' });
+      // No results yet for a fresh workspace: the normal first-run state. The App shows nothing scary.
+      return res.json({ results: null, found: false, first_run: true });
     }
-    if (isReadDenied(err.message)) return res.status(403).json({ error: err.message });
-    res.status(500).json({ error: err.message });
+    if (isReadDenied(err.message)) return PM_ERROR.sendFailure(res, 403, err.message);
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -3051,7 +3088,8 @@ app.get('/api/inspire/sessions', requireToken, async (req, res) => {
   } catch (err) {
     const msg = err.message || String(err);
     if (isMissingTableError(msg)) {
-      return res.json({ sessions: [], message: 'Session table not found. Run Inspire once to create __inspire_session.' });
+      // A fresh workspace has no runs yet: that is the normal first-run state, not an error. The App shows its empty state.
+      return res.json({ sessions: [], first_run: true });
     }
     // Non-fatal: allow "New experiment" when workspace is unreachable or not yet provisioned
     if (
@@ -3068,7 +3106,7 @@ app.get('/api/inspire/sessions', requireToken, async (req, res) => {
         message: 'Could not reach Databricks. You can still start a new experiment.',
       });
     }
-    res.status(500).json({ error: msg });
+    PM_ERROR.sendFailure(res, 500, msg);
   }
 });
 
@@ -3100,7 +3138,7 @@ app.delete('/api/inspire/session', requireToken, async (req, res) => {
 
     res.json({ success: true, message: `Session ${session_id} deleted.` });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -3141,7 +3179,7 @@ app.get('/api/inspire/log', requireToken, async (req, res) => {
     }
     res.json({ log_path: logPath, found: true, text: got.text, truncated: got.truncated, size: got.size });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 
@@ -3156,12 +3194,12 @@ app.get('/api/workspace/status', rejectUnsafeQueryPath, requireToken, async (req
     if (!response.ok) {
       if (response.status === 404) return res.json({ exists: false });
       const err = await response.text();
-      return res.status(response.status).json({ error: err });
+      return PM_ERROR.sendFailure(res, response.status, err);
     }
     const data = await response.json();
     res.json({ exists: true, object_type: data.object_type, path: data.path, language: data.language });
   } catch (err) {
-    res.status(500).json({ error: err.message });
+    PM_ERROR.sendFailure(res, 500, err.message);
   }
 });
 

@@ -601,7 +601,6 @@ test('the demo Build progress card offers no Download diagnostics, Copy diagnost
     try {
       const card = ui.page.locator('[data-progress-card]');
       await card.locator('[data-progress-show]').waitFor();
-      await card.locator('[data-progress-show]').hover();
       await card.locator('[data-progress-show]').focus();
       await ui.page.keyboard.press('Tab');
       await ui.settle();

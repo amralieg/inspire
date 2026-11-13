@@ -139,6 +139,11 @@ const withSpec = (extra) => ({ ...STATE, history: [built({ spec_json: JSON.strin
 const APP_NAME_TAKEN = 'inspire-acme-customer is already the name of another App, so this build cannot name its App that.';
 const sibling = (page, id) => page.locator(`[data-next-step-row="${id}"]`);
 const buildNowOf = (page, id) => sibling(page, id).getByRole('button', { name: 'Build Now', exact: true });
+// The build progress drawer opens over the right side of the list and closes with its own Close button (DrawerShell). A sibling row is clicked under it, so close it first, as a user would.
+const closeDrawer = async (page) => {
+  const close = page.locator('button[aria-label="Close"][title="Close (Esc)"]');
+  if (await close.count()) await close.first().click();
+};
 
 test('Build Now builds the sibling with the live App settings, its own use case and tables, and opens no wizard', async () => {
   const log = newLog();
@@ -147,6 +152,7 @@ test('Build Now builds the sibling with the live App settings, its own use case 
   try {
     await go(page, '#/build/42/N01-U01');
     await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await closeDrawer(page);
     await buildNowOf(page, 'N01-U02').click();
     await until(() => log.submits.length === 1, 'one build submitted');
     await page.waitForFunction(() => window.location.hash.includes('/build/42/N01-U02'), null, { timeout: 20000 });
@@ -184,6 +190,7 @@ test('Build Now shows a spinner while the build is sent, then the build progress
   try {
     await go(page, '#/build/42/N01-U01');
     await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await closeDrawer(page);
     await buildNowOf(page, 'N01-U02').click();
     await sibling(page, 'N01-U02').locator('[data-build-spinner]').waitFor({ timeout: 10000 });
     assert.equal(await sibling(page, 'N01-U02').locator('[data-build-now]').isDisabled(), true, 'no second build while one is sent');
@@ -204,6 +211,7 @@ test('Build Now refuses a blocking preflight check plainly in the sibling row an
   try {
     await go(page, '#/build/42/N01-U01');
     await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await closeDrawer(page);
     await buildNowOf(page, 'N01-U02').click();
     await sibling(page, 'N01-U02').getByText(/could not start the build/).waitFor({ timeout: 20000 });
     assert.equal(log.submits.length, 0, 'the refused check stops the build before submit');
@@ -221,6 +229,7 @@ test('Build Now names the sibling App with the business prefix the wizard uses',
   try {
     await go(page, '#/build/42/N01-U01');
     await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await closeDrawer(page);
     await buildNowOf(page, 'N01-U02').click();
     await until(() => log.submits.length === 1, 'one build submitted');
     assert.equal(log.submits[0].spec.outputs.app_name, 'inspire-acme-customer');
@@ -238,6 +247,7 @@ test('Build Now carries the App money rule when the sibling has every column it 
   try {
     await go(page, '#/build/42/N01-U01');
     await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await closeDrawer(page);
     await buildNowOf(page, 'N01-U02').click();
     await until(() => log.submits.length === 1, 'one build submitted');
     assert.deepEqual(log.submits[0].spec.money, MONEY);
@@ -256,6 +266,7 @@ test('Build Now drops the money rule when the sibling primary table lacks a colu
   try {
     await go(page, '#/build/42/N01-U01');
     await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await closeDrawer(page);
     await buildNowOf(page, 'N01-U02').click();
     await until(() => log.submits.length === 1, 'one build submitted');
     assert.equal('money' in log.submits[0].spec, false, 'a rule naming a missing column does not travel');
@@ -286,6 +297,7 @@ test('Build custom opens the wizard on that sibling and sends no build', async (
   try {
     await go(page, '#/build/42/N01-U01');
     await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await closeDrawer(page);
     await sibling(page, 'N01-U02').getByRole('button', { name: 'Build custom', exact: true }).click();
     const dialog = page.getByRole('dialog', { name: WIZARD });
     await dialog.waitFor({ timeout: 20000 });
@@ -303,6 +315,7 @@ test('Build Now on a sibling whose tables the App cannot read shows the access r
   try {
     await go(page, '#/build/42/N01-U01');
     await page.locator('[data-build-next-step]').waitFor({ timeout: 20000 });
+    await closeDrawer(page);
     await buildNowOf(page, 'N01-U02').click();
     const panel = sibling(page, 'N01-U02').getByRole('region', { name: 'App read access', exact: true });
     await panel.waitFor({ timeout: 20000 });
@@ -310,6 +323,7 @@ test('Build Now on a sibling whose tables the App cannot read shows the access r
     assert.equal(await page.getByRole('dialog', { name: WIZARD }).count(), 0, 'the refusal does not open the wizard');
     assert.equal(log.submits.length, 0, 'no build is sent while the App cannot read the tables');
     await panel.getByRole('button', { name: 'Let Inspire read these tables', exact: true }).click();
+    await until(() => log.grants.length > 0, 'the grant is sent');
     assert.deepEqual(log.grants.map((g) => g.tables), [['main.s.customers']], 'the grant names the unreadable table');
     await until(() => log.submits.length === 1, 'the build continues on its own after the grant');
     await page.waitForFunction(() => window.location.hash.includes('/build/42/N01-U02'), null, { timeout: 20000 });

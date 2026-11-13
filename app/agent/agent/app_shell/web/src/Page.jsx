@@ -16,7 +16,7 @@ import { ReviewLink, hubExplain, reviewItem } from './Home.jsx';
 import { genieOn } from './genieAsk.js';
 import PageLink, { usePageAddress } from './PageLink.jsx';
 import { FreshBar, FreshDetail, runCounts, useFreshness, useRuns, useTrends } from './Freshness.jsx';
-import { backendText, dataThroughText, lastRunText, latestRunText } from './freshness.js';
+import { backendText, dataThroughText, lastRunText, latestRunText, stampText } from './freshness.js';
 import SettingsPanel, { SettingGroup, useSettings } from './Settings.jsx';
 import { paletteItems } from './Palette.jsx';
 import { FoldScope, useMyView } from './MyView.jsx';
@@ -312,6 +312,7 @@ export default function Page({ app, page, meta, state, onState, look = EMPTY_LOO
       {shown === 'dashboard' && (
         <Dashboard app={app} page={page} meta={meta} state={state} onState={onState} view={view} onView={onView} hubPage={hubPage} laidOut={laidOut} work={work}
           onRetry={retry} onRetryMeta={onRetryMeta} onRetrySummary={onRetrySummary}
+          lastRefresh={stampText(freshness.fresh?.last_success?.ended || freshness.fresh?.last_success?.started)}
           hubEntry={hubEntry} live={live} summary={summary} latestRun={latestRun} onRuns={showRuns} data={data} error={error} failures={failures} plan={plan} topSlots={topSlots}
           moreSlots={moreSlots} more={more} kpisCard={kpisOf(page.kpis)} kpisOf={kpisOf} chartCards={chartCards} hubCharts={hubCharts} tableCard={tableCard}
           recordsCard={laidOut ? records() : null} explain={explain} genieBusy={genieBusy} nonce={nonce} onChanged={() => setNonce((n) => n + 1)} onAsk={onAsk}

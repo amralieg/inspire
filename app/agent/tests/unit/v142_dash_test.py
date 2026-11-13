@@ -116,7 +116,7 @@ def test_the_dashboard_is_built_from_the_page_spec_and_the_app_reuses_it_without
     assert deployed["tour"]["steps"] and set(deployed["tour"]["steps"]) == {"English"}, "the App writes its own tour, the dashboard spec has none"
     assert "genie" not in page and "genie_note" not in page, "the dashboard's page spec never carries the App's Genie Agent"
     assert deployed["genie"] is None
-    assert deployed["genie_note"] == "Ask Genie is off because this use case's Genie Agent is not ready: it was not built", \
+    assert deployed["genie_note"] == "The Genie Agent is not ready: it was not built", \
         "the App page says why Ask Genie is off when this use case has no Genie Agent"
     assert len(seen["checked"]) == 2, "the App still runs its own files at the default filters before it deploys"
     steps = [(e["step_name"], e["status"]) for e in inst.emitted if e["step_name"] == "App"]

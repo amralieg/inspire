@@ -1,0 +1,93 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { STUDIO_STATE, built } from './implementFixtures.js';
+import { closeBrowser, closeOnLoadPermission, expandBuild, openUi } from './uiSupport.mjs';
+
+test.after(closeBrowser);
+
+const PERSON = 'person-tok';
+const SP = 'app-sp-2';
+const CATALOG = 'GRANT USE CATALOG ON CATALOG `main` TO `app-sp-2`';
+const SCHEMA = 'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-2`';
+const METADATA = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-2`';
+const SELECT_RETURNS = 'GRANT SELECT ON TABLE `main`.`s`.`returns` TO `app-sp-2`';
+const METADATA_RETURNS = 'GRANT READ METADATA ON TABLE `main`.`s`.`returns` TO `app-sp-2`';
+const SELECT = 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-2`';
+const DENIED = "[PERMISSION_DENIED] User does not have MANAGE on Catalog 'main'.";
+
+const unreadBuild = ({ appFailed = false } = {}) => {
+  const row = built({ status: 'ready_with_warnings' });
+  const assets = JSON.parse(row.asset_status);
+  assets.app.unread = { app: SP, tables: [{ table: 'main.s.orders', owner: 'data-eng', grants: [CATALOG, SCHEMA, SELECT] }] };
+  if (appFailed) assets.app = { ...assets.app, state: 'failed', error: 'the App could not be given read access to 1 source table' };
+  return { ...row, asset_status: JSON.stringify(assets) };
+};
+
+function grantsWorkspace(catalogMine) {
+  const held = new Set();
+  const grants = [];
+  const rows = () => [
+    { level: 'catalog', privilege: 'OWNER', principal: catalogMine ? 'owner@example.com' : 'admins', mine: String(catalogMine), me: 'owner@example.com' },
+    { level: 'schema', privilege: 'OWNER', principal: 'data-eng', mine: 'false', me: 'owner@example.com' },
+    { level: 'table', privilege: 'OWNER', principal: 'data-eng', mine: 'false', me: 'owner@example.com' },
+    { level: 'schema', privilege: 'MANAGE', principal: 'owner@example.com', mine: 'true', me: 'owner@example.com' },
+    ...[...held].map((sql) => {
+      const [, privilege, level] = /^GRANT (USE CATALOG|USE SCHEMA|SELECT|READ METADATA) ON (\w+)/.exec(sql);
+      return { level: level.toLowerCase(), privilege, principal: SP, mine: 'false', me: 'owner@example.com' };
+    }),
+  ];
+  return {
+    grants,
+    state: {
+      ...STUDIO_STATE,
+      history: [unreadBuild()],
+      forwardedToken: PERSON,
+      tokenKind: 'app',
+      abacUnreadable: (token) => token === 'tok' && !held.has(METADATA),
+      workspace: ({ token, path }) => (path.includes('/scim/v2/Me')
+        ? [token === 'tok' ? { displayName: 'inspire-manual', applicationId: SP } : { userName: 'owner@example.com', displayName: 'Owner' }]
+        : undefined),
+      statements: {
+        'system.information_schema.catalogs': () => ({ rows: rows() }),
+        'GRANT ': (sql, _p, token) => {
+          grants.push([sql, token]);
+          if (sql.includes(' ON CATALOG ') && !catalogMine) throw new Error(DENIED);
+          held.add(sql);
+          return { rows: [] };
+        },
+      },
+    },
+  };
+}
+
+test('Check again on an unreadable build opens See the grant, with the full read set for each table and the copy', async () => {
+  const w = grantsWorkspace(false);
+  const ui = await openUi('implement', w.state);
+  const { page } = ui;
+  try {
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    // The on-failure dialog opens on load: read its owner GRANTs, then close it, because it covers the drawer.
+    const onLoad = page.locator('[data-permission-dialog=""]');
+    await onLoad.waitFor({ timeout: 8000 });
+    assert.match(await onLoad.locator('[data-permission-statements=""]').innerText(), /^GRANT /m, 'the owner GRANTs open on load');
+    await closeOnLoadPermission(page, { expect: true });
+    await expandBuild(page);
+    const card = page.getByRole('region', { name: 'The App cannot read part of its data' });
+    await card.waitFor();
+    await card.getByRole('button', { name: 'Check again' }).click();
+    await card.locator('[data-app-reads-result="check"]').waitFor();
+    // The check's result is a new grant list, so the on-failure dialog opens once more: close it, then See the grant reopens it.
+    await closeOnLoadPermission(page, { expect: true });
+    const see = card.locator('[data-see-grant=""]');
+    await see.waitFor({ timeout: 15000 });
+    const dialog = page.locator('[data-permission-dialog=""]');
+    await see.click();
+    await dialog.waitFor({ timeout: 15000 });
+    assert.match(await dialog.locator('#permission-required-title').innerText(), /^Permission Required$/);
+    const statements = (await dialog.locator('[data-permission-statements=""]').innerText()).split('\n').map((s) => s.replace(/;$/, ''));
+    assert.deepEqual(statements, [CATALOG, SCHEMA, SELECT], 'the App needs USE CATALOG, USE SCHEMA and SELECT on the table, in that order, once each');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

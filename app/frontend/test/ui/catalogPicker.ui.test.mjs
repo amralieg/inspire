@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, onStep, openAdvanced, openRow, openUi, goToStep, until } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, onStep, openAdvanced, openFolded, openUi, goToStep, until } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -10,7 +10,7 @@ const many = Array.from({ length: 80 }, (_, i) => `cat_${String(i).padStart(3, '
 async function resultStep(state) {
   const ui = await openUi('wizard', { me: { userName: 'owner@example.com', displayName: 'Owner' }, schemas: { main: ['inspire'] }, ...state });
   await goToStep(ui.page, 'Data');
-  await openRow(ui.page, 'result table');
+  await openFolded(ui.page, 'Result table');
   const step = ui.page.getByRole('region', { name: 'Where the result table lives' });
   await step.getByRole('heading', { name: 'Where should the result table live?' }).waitFor();
   return { ui, step: ui.page.getByRole('group', { name: 'Result table catalog and schema' }) };

@@ -10,7 +10,7 @@ OWN_APP = {"name": "churn-desk", "description": OURS_APP, "url": "https://churn-
            "active_deployment": {"source_code_path": OWN_SOURCE}, "compute_status": {"state": "ACTIVE"},
            "service_principal_client_id": "sp-1"}
 GENIE = {"space_id": "g1", "title": "N01-U01 Predict churn"}
-NOT_READY = "Ask Genie is off because this use case's Genie Agent is not ready: it was not built"
+NOT_READY = "The Genie Agent is not ready: it was not built"
 CHECK_FAILED = "page n01_u01: kpi:revenue failed: TABLE_OR_VIEW_NOT_FOUND"
 
 

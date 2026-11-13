@@ -63,6 +63,7 @@ import { counted } from '../lib/plural';
 import { catalogListNote, pickedScope, scopeSummary, typedCatalog } from '../lib/catalogList';
 import { SAMPLE_CATALOG, applySampleCopies, isSampleEntry, samplesTarget, validCopyTarget } from '../lib/samplesCopy';
 import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_PRIVACY, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
+import PermissionRequired from '../components/PermissionRequired';
 
 /* ─── Constants — notebook v1.2.0 widget `05_use_cases_quality` ─── */
 const QUALITY_OPTIONS = ['Good', 'High', 'Ultra High'];
@@ -296,7 +297,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   // In Databricks App mode, the proxy injects x-forwarded-access-token automatically.
   // Only send explicit auth headers when the user has configured a PAT token locally.
   const apiFetch = useCallback(
-    async (url, opts = {}) => {
+    async (url, { raise = true, ...opts } = {}) => {
       const headers = {
         'Content-Type': 'application/json',
         ...opts.headers,
@@ -307,7 +308,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       }
       if (databricksHost) headers['X-Databricks-Host'] = databricksHost;
       const resp = await fetch(url, { ...opts, headers });
-      if (!resp.ok) throw await responseError(resp);
+      if (!resp.ok) throw await responseError(resp, { raise });
       return resp.json();
     },
     [token, databricksHost]
@@ -729,6 +730,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   ], [strategicContextText, customPriorities, strategyBase]);
 
   // Launch
+  const [permissionDialog, setPermissionDialog] = useState(null);
   const handleLaunch = async () => {
     if (launchBlock) return setLaunchError(launchBlock);
     if (!outputCheck.ready)
@@ -744,24 +746,43 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       dataFilterLabel.on ? (dataFilterLabel.text ?? groupLabelOf(filterValuesOf(tableScopes, scopeTables))) : '');
     if (tableScopeText) finalParams['17_table_scope'] = tableScopeText;
 
+    const startRun = async () => {
+      try {
+        const data = await apiFetch('/api/run', {
+          method: 'POST',
+          body: JSON.stringify({
+            notebook_path: notebookPath,
+            params: finalParams,
+            warehouse_id: warehouseId,
+          }),
+        });
+        clearWizardDraft(draftKey);
+        update('inspireDatabase', finalParams['02_inspire_database']);
+        onLaunched?.(finalParams['14_session_id'], data.run_id, Array.isArray(data.warnings) ? data.warnings : [],
+          Array.isArray(data.warning_details) ? data.warning_details : []);
+      } catch (err) {
+        setLaunchError(parseApiErrorMessage(err.message));
+      } finally {
+        setLaunching(false);
+      }
+    };
     try {
-      const data = await apiFetch('/api/run', {
+      const check = await apiFetch('/api/run/check', {
+        raise: false,
         method: 'POST',
-        body: JSON.stringify({
-          notebook_path: notebookPath,
-          params: finalParams,
-          warehouse_id: warehouseId,
-        }),
+        body: JSON.stringify({ params: finalParams, warehouse_id: warehouseId }),
       });
-      clearWizardDraft(draftKey);
-      update('inspireDatabase', finalParams['02_inspire_database']);
-      onLaunched?.(finalParams['14_session_id'], data.run_id, Array.isArray(data.warnings) ? data.warnings : [],
-        Array.isArray(data.warning_details) ? data.warning_details : []);
+      if (Array.isArray(check.permissions) && check.permissions.length) {
+        setLaunching(false);
+        setPermissionDialog({ permissions: check.permissions, onStart: () => { setPermissionDialog(null); setLaunching(true); startRun(); } });
+        return;
+      }
     } catch (err) {
       setLaunchError(parseApiErrorMessage(err.message));
-    } finally {
       setLaunching(false);
+      return;
     }
+    startRun();
   };
 
   const copySamples = async () => {
@@ -774,6 +795,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
       });
       const copies = data.copies || [];
       const failed = data.failed || [];
+      if (Array.isArray(data.permissions) && data.permissions.length) setPermissionDialog({ permissions: data.permissions });
       const picks = applySampleCopies({ catalogs: selectedCatalogs, schemas: selectedSchemas, tables: selectedTables }, { destination: data.destination, copies, failed });
       setSelectedCatalogs(picks.catalogs);
       setSelectedSchemas(picks.schemas);
@@ -938,6 +960,10 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     : 'Get Started';
 
   return (
+    <>
+      {permissionDialog && (
+        <PermissionRequired permissions={permissionDialog.permissions} onStart={permissionDialog.onStart} onClose={() => setPermissionDialog(null)} />
+      )}
     <div className="max-w-5xl mx-auto px-6 py-8">
       {/* Page Header */}
       <div className="mb-8">
@@ -1233,14 +1259,14 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       {selectedSchemas.map((s) => (
                         <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] font-medium border border-border">
                           {s}
-                          <button aria-label={`Remove ${s}`} onClick={() => { setSelectedSchemas((p) => p.filter((x) => x !== s)); setSelectedTables((p) => p.filter((x) => !x.startsWith(s + '.'))); }} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
+                          <button aria-label={`Remove ${s}`} onClick={() => setSelectedSchemas((p) => p.filter((x) => x !== s))} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
                         </span>
                       ))}
                       {selectedCatalogs.map((c) => (
                         <span key={c} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] font-medium border border-border">
                           <Database size={9} />
                           {c}
-                          <button aria-label={`Remove ${c}`} onClick={() => { setSelectedCatalogs((p) => p.filter((x) => x !== c)); setSelectedSchemas((p) => p.filter((x) => !x.startsWith(c + '.'))); setSelectedTables((p) => p.filter((x) => !x.startsWith(c + '.'))); }} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
+                          <button aria-label={`Remove ${c}`} onClick={() => { setSelectedCatalogs((p) => p.filter((x) => x !== c)); setSelectedSchemas((p) => p.filter((x) => !x.startsWith(c + '.'))); }} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
                         </span>
                       ))}
                     </div>
@@ -1288,7 +1314,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           if (selectedCatalogs.includes(name)) {
                             setSelectedCatalogs((p) => p.filter((x) => x !== name));
                             setSelectedSchemas((p) => p.filter((x) => !x.startsWith(name + '.')));
-                            setSelectedTables((p) => p.filter((x) => !x.startsWith(name + '.')));
                           } else {
                             setSelectedCatalogs((p) => [...p, name]);
                           }
@@ -1327,7 +1352,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         onToggle={(name) => {
                           if (selectedSchemas.includes(name)) {
                             setSelectedSchemas((p) => p.filter((x) => x !== name));
-                            setSelectedTables((p) => p.filter((x) => !x.startsWith(name + '.')));
                           } else {
                             setSelectedSchemas((p) => [...p, name]);
                           }
@@ -1935,6 +1959,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
         </p>
       </div>
     </div>
+    </>
   );
 }
 

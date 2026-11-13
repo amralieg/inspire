@@ -33,12 +33,15 @@ const stepBar = (page) => page.locator('[aria-current="step"]').locator('xpath=.
 const insertsOf = (made) => made.sqlCalls.filter((c) => String(c.sql).includes('INSERT INTO') && (c.parameters || []).some((p) => p.name === 'spec'))
   .map((c) => JSON.parse(c.parameters.find((p) => p.name === 'spec').value));
 
+// Next that only folds a section stays on the step, so the position is the step plus its open folds.
+const position = (page) => page.evaluate(() => `${document.querySelector('[aria-current="step"]')?.innerText}|${[...document.querySelectorAll('[data-fold-line]')].map((e) => e.dataset.foldLine).join(',')}`);
+
 async function toStep(page, part) {
   const label = stepHolding(part);
-  for (let i = 0; i < 12 && await page.locator('[aria-current="step"]', { hasText: label }).count() === 0; i += 1) {
-    const from = await page.locator('[aria-current="step"]').innerText();
+  for (let i = 0; i < 80 && await page.locator('[aria-current="step"]', { hasText: label }).count() === 0; i += 1) {
+    const from = await position(page);
     await next(page);
-    await page.waitForFunction((was) => document.querySelector('[aria-current="step"]')?.innerText !== was, from, { timeout: 30000 });
+    await page.waitForFunction((was) => `${document.querySelector('[aria-current="step"]')?.innerText}|${[...document.querySelectorAll('[data-fold-line]')].map((e) => e.dataset.foldLine).join(',')}` !== was, from, { timeout: 30000 });
   }
   await onStep(page, label);
 }

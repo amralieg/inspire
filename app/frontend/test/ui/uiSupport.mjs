@@ -130,6 +130,8 @@ export async function openUi(open, overrides = {}, query = '', { mount, init } =
     const pageErrors = [];
     page.on('pageerror', (e) => pageErrors.push(e.message));
     page.on('console', (m) => { if (m.type() === 'error') pageErrors.push(m.text()); });
+    // The default money rule previews three example rows on open; answer every page with a preview so no test sees a failed request. A test's own init stub overrides it.
+    await stubMoney('value-preview', () => ({ rows: [{ stake: 1, currency: 'USD' }] }), [])(page);
     if (init) await init(page, origin);
     const firstData = open === 'implement' ? page.waitForResponse((r) => r.url().includes('/api/inspire/implement/status'), { timeout: 20000 }).catch(() => null) : null;
     await page.goto(`${origin}/test/ui/implement.html?open=${open}${query}`);
@@ -255,8 +257,9 @@ export async function pollNow(page, route = '/api/inspire/implement/status', eve
 }
 
 const STEP_HOLDING = {
-  'Use case': 'Data & results', Data: 'Data & results', Results: 'Data & results', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Who uses the App', 'App placement': 'Where it lives', 'App access': 'Who uses the App',
-  'App features': 'Who uses the App', 'App pages': 'Where it lives', 'App look': 'App look', Measure: 'Measure', 'Keep it fresh': 'Data & results', Vibes: 'Review & build',
+  'Who uses the App': 'Who uses the App and storage', 'Page storage': 'Who uses the App and storage', 'Run it': 'First run', 'Schedule': 'First run',
+  'Use case': 'Data & results', Data: 'Data & results', Results: 'Data & results', Summary: 'Review & build', 'What to build': 'What to deliver', Delivery: 'What to deliver', App: 'Who uses the App and storage', 'App placement': 'Where it lives', 'App access': 'Who uses the App and storage',
+  'App features': 'Who uses the App and storage', 'App pages': 'Where it lives', 'App look': 'App look', Measure: 'Measure', 'Keep it fresh': 'First run', Vibes: 'Review & build',
 };
 const exactly = (label) => {
   const body = label === 'Data & results' ? 'Data(?: & results)?' : label.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -300,6 +303,20 @@ export async function openRow(page, what) {
 export async function openFolded(page, what) {
   const change = page.getByRole('button', { name: `Change ${what}`, exact: true });
   if (await change.count()) await change.click();
+}
+
+// Money at stake opens one part at a time (the others are one line each). Opens the part with this title: Change <title> when it is a
+// folded line, otherwise Next through the parts before it, as a person would.
+export async function moneyPart(page, title) {
+  const header = page.locator('[data-money-current] [data-money-part] p').first();
+  for (let i = 0; i < 6; i += 1) {
+    const text = (await header.innerText().catch(() => '')).trim();
+    if (text.replace(/^\d+\.\s*/, '') === title) return;
+    const change = page.getByRole('button', { name: `Change ${title}`, exact: true });
+    if (await change.count()) { await change.click(); return; }
+    await page.locator('[data-money-next]').click();
+  }
+  throw new Error(`Money at stake has no open "${title}" part`);
 }
 
 export async function openAllRows(page) {
@@ -355,9 +372,15 @@ export async function nextUntil(page, part) {
     const moneyNext = page.locator('[data-money-next]');
     if (await moneyNext.count() && await moneyNext.isVisible()) { await moneyNext.click(); continue; }
     const from = await current.innerText();
+    // Next folds the section it ends and opens the next one inside the same step, so a change of folded sections counts too.
+    const sections = () => [...document.querySelectorAll('[data-fold-line]')].map((e) => e.dataset.foldLine).join(',');
+    const was = `${from}|${await page.evaluate(sections)}`;
+    // Next reads 'Checking the data…' while a step's check runs; wait for that check to finish before the next click.
+    await page.getByRole('button', { name: /Checking/ }).waitFor({ state: 'detached', timeout: 30000 }).catch(() => {});
     await page.getByRole('button', { name: 'Next' }).click({ timeout: 15000 });
     try {
-      await page.waitForFunction((was) => document.querySelector('[aria-current="step"]')?.innerText !== was, from, { timeout: 15000 });
+      await page.waitForFunction(([name, folded]) => `${document.querySelector('[aria-current="step"]')?.innerText}|${[...document.querySelectorAll('[data-fold-line]')].map((e) => e.dataset.foldLine).join(',')}` !== `${name}|${folded}`,
+        [from, was.slice(from.length + 1)], { timeout: 15000 });
     } catch (e) {
       const shown = await page.locator('[role="alert"] p').allTextContents();
       throw new Error(`Next did not leave "${from}": ${shown.join(' | ') || e.message}`);
@@ -611,7 +634,8 @@ export function stubMoney(path, answerOf, calls) {
 }
 
 export async function goToStorage(page) {
-  await goToStep(page, 'Page storage');
+  await goToStep(page, 'Who uses the App and storage');
+  await openFolded(page, 'Page storage');
   return page.getByRole('group', { name: 'How fast do the App\'s pages open?' });
 }
 
@@ -626,4 +650,15 @@ export async function goToMeasureImpact(page) {
   const onImpact = () => page.locator('[data-money-part="impact"]').evaluate((el) => el.closest('li').hasAttribute('data-money-current'));
   for (let i = 0; i < 6 && !(await onImpact()); i += 1) await page.locator('[data-money-next]').click();
   await page.getByRole('group', { name: 'Measure impact' }).waitFor();
+}
+
+// The Build page opens Permission Required when the person cannot grant the App's reads. That full-page dialog covers
+// the build drawer, so a test that clicks under it must close it first. With expect, a dialog that never opens fails the
+// test; without it, the call returns false and closes nothing.
+export async function closeOnLoadPermission(page, { timeout = 8000, expect: mustOpen = false } = {}) {
+  const dialog = page.locator('[data-permission-dialog=""]');
+  const opened = await dialog.waitFor({ timeout }).then(() => true, () => false);
+  if (!opened && mustOpen) throw new Error('Permission Required did not open');
+  if (opened) await dialog.getByRole('button', { name: 'Close' }).click();
+  return opened;
 }

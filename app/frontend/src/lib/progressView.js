@@ -22,16 +22,25 @@ function saveChoice(scope, open) {
   try { globalThis.sessionStorage?.setItem(CHOICE_KEY(scope), open ? 'open' : 'closed'); } catch { /* private mode: the panel opens again on the next load */ }
 }
 
-export function useProgressView(scope, openByDefault = false) {
-  const [view, setView] = useState({ scope: null, open: null });
+// The progress panel is closed on page load. It opens when the person opens it, or when a build starts (building turns true
+// while this use case is shown). A choice the person made in this tab is remembered, so a reload keeps it.
+export function useProgressView(scope, building = false) {
+  const [view, setView] = useState({ scope: null, open: null, fromBuild: false });
+  const [seenBuilding, setSeenBuilding] = useState(building);
   const chosen = view.scope === scope ? view.open : null;
+  const fromBuild = view.scope === scope && view.fromBuild;
   const remembered = rememberedChoice(scope);
-  const open = chosen ?? (progressLinked(scope, window.location.search) || (remembered ? remembered === 'open' : openByDefault));
+  const open = chosen ?? (progressLinked(scope, window.location.search) || (remembered ? remembered === 'open' : false));
   const keep = (next) => {
     saveChoice(scope, next);
-    setView({ scope, open: next });
+    setView({ scope, open: next, fromBuild: false });
     const to = progressLink(scope, next, window.location.href);
     if (to !== `${window.location.pathname}${window.location.search}${window.location.hash}`) window.history.replaceState(window.history.state, '', to);
   };
-  return { open, show: () => keep(true), close: () => keep(false) };
+  if (building !== seenBuilding) {
+    // A build that starts while this use case is shown opens the panel once (state adjusted during render, not in an effect).
+    setSeenBuilding(building);
+    if (building) setView({ scope, open: true, fromBuild: true });
+  }
+  return { open, fromBuild, show: () => keep(true), close: () => keep(false) };
 }

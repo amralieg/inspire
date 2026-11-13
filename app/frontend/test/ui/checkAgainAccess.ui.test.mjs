@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { BUILD_IT, closeBrowser, expandBuild, openUi } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, closeOnLoadPermission, expandBuild, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -59,6 +59,7 @@ test('Check again re-reads the App access and clears a refusal that was fixed ou
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await closeOnLoadPermission(page, { expect: true });
     await expandBuild(page);
     const card = page.getByRole('region', { name: CARD });
     await card.waitFor({ timeout: 15000 });
@@ -79,6 +80,7 @@ test('no Build button sits beside a grant refusal the App still has (REQ-042)', 
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await closeOnLoadPermission(page, { expect: true });
     await expandBuild(page);
     await page.getByRole('region', { name: CARD }).waitFor({ timeout: 15000 });
     assert.equal(await page.locator('[data-build-now]').count(), 0, 'no build-now button while the source is refused');

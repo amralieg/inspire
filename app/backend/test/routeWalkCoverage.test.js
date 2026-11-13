@@ -10,6 +10,7 @@ const BACKEND = path.resolve(__dirname, '..');
 const SERVER = path.join(BACKEND, 'server.js');
 const WALK = require('./support/harnessWalk.json');
 const NOT_WALKED = {
+  'POST /api/run/check': 'the Launch pre-check that reads the grants a run needs and starts nothing; the Permission Required UI tests walk it through Launch',
   'GET /api/inspire/implement/table-lookup': 'reads one table with the person\u2019s own sign-in and its column match; no non-owner harness row walks it yet, and implementTableReads.test.js proves the sign-in refusal and the must-exclude',
   'GET /api-docs': 'the static page that renders the API description, with no workspace data',
   'GET /api/openapi.json': 'the static API description file, with no workspace data',

@@ -53,6 +53,7 @@ const SAMPLES = [
     body: { name: 'act_now_share', value: '0.1' } },
   { key: 'POST /api/inspire/implement/alerts/preview', rule: 'any', method: 'POST', path: `/api/inspire/implement/alerts/preview?${qs(UC)}`, body: { watch: {} } },
   { key: 'POST /api/run', rule: 'any', method: 'POST', path: '/api/run', body: { params: {} } },
+  { key: 'POST /api/run/check', rule: 'any', method: 'POST', path: '/api/run/check', body: { params: {} } },
   { key: 'POST /api/output-folder/check', rule: 'any', method: 'POST', path: '/api/output-folder/check', body: { generation_path: './../demos/' } },
   { key: 'POST /api/inspire/ack', rule: 'any', method: 'POST', path: '/api/inspire/ack', body: {} },
   { key: 'POST /api/inspire/usecase-name', rule: 'managers', method: 'POST', path: '/api/inspire/usecase-name', body: {} },

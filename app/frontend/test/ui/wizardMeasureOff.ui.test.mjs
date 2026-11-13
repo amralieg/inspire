@@ -15,13 +15,15 @@ test('Measure: a reporting currency asks for rates, Off skips every money decisi
     init: async (page) => {
       await profileAt([], MONEY_PROFILE)(page);
       await stubMoney('currency-rates', () => LIVE_RATES, calls.currency)(page);
+      await stubMoney('value-preview', () => ({ rows: [{ stake: 1, currency: 'USD' }] }), [])(page);
     },
   });
   const { page } = ui;
   try {
     await goToStep(page, 'Measure');
     await page.locator('[data-money-rule-editor]').waitFor({ timeout: 15000 });
-    while (!(await page.locator('[data-money-base]').isVisible())) await page.locator('[data-money-next]').click();
+    while (!(await page.locator('[data-money-currency-mode]').first().isVisible())) await page.locator('[data-money-next]').click();
+    await page.locator('[data-money-currency-mode="convert"]').check({ force: true });
     await page.locator('[data-money-base]').fill('USD');
     await page.locator('[data-money-base]').blur();
     await page.locator('[data-money-rate-row="EUR"]').waitFor({ timeout: 15000 });

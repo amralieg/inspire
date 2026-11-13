@@ -791,7 +791,8 @@ test('access gap messages match the agent word for word', () => {
 
 test('output access tells up front whether a new App could read the table, and sharing warns per principal', () => {
   const blocked = outputAccess(LIVE_ACCESS, ACCESS_TABLE);
-  assert.deepEqual(blocked.app, { ok: false, detail: I.appAccessMessage(ACCESS_TABLE, [GAP_CATALOG, GAP_SCHEMA], 'inspire-sp') });
+  assert.deepEqual(blocked.app, { ok: false, detail: I.appAccessMessage(ACCESS_TABLE, [GAP_CATALOG, GAP_SCHEMA], 'inspire-sp'),
+    permission: I.appAccessPermission([GAP_CATALOG, GAP_SCHEMA], 'inspire-sp') });
   const managed = outputAccess([...LIVE_ACCESS, accessRow('catalog', 'MANAGE', 'inspire-sp', true)], ACCESS_TABLE);
   assert.deepEqual(managed.app, { ok: true, detail: 'Inspire can give a new App read access to main.inspire.churn_out' });
   const open = outputAccess([...LIVE_ACCESS, accessRow('catalog', 'USE_CATALOG', 'account users', true), accessRow('schema', 'USE_SCHEMA', 'account users', true)], ACCESS_TABLE);

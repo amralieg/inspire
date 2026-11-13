@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
-import { closeBrowser, goToStep, openRow, openUi } from './uiSupport.mjs';
+import { closeBrowser, goToStep, openFolded, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -14,8 +14,11 @@ test('Data & results folds one block at a time: opening the result table folds S
   const { page } = ui;
   try {
     await goToStep(page, 'Data');
+    // The first section of Data & results is open on arrival; the Result table is opened by its title.
+    await page.getByRole('heading', { name: 'Source tables' }).or(page.locator('[data-fold-line="Source tables"]')).first().waitFor();
+    await openFolded(page, 'Result table');
     await page.getByRole('region', { name: RESULTS }).waitFor();
-    assert.equal(await page.getByRole('heading', { name: 'Source tables' }).count(), 0, 'the result table is open on arrival, so Source tables is a line');
+    assert.equal(await page.getByRole('heading', { name: 'Source tables' }).count(), 0, 'opening the result table folds Source tables to a line');
     const sourcesLine = page.locator('[data-fold-line="Source tables"]');
     const sourcesText = (await sourcesLine.innerText()).trim();
     const sourcesMatch = /^Source tables: (\d+) tables?: (.+)$/.exec(sourcesText);
@@ -31,7 +34,7 @@ test('Data & results folds one block at a time: opening the result table folds S
     await page.getByRole('region', { name: 'Table filters' }).waitFor();
     assert.equal(await page.getByRole('heading', { name: 'Source tables' }).count(), 0, 'opening Table filters folds Source tables');
     assert.equal(await page.getByRole('region', { name: RESULTS }).count(), 0, 'opening Table filters folds the result table');
-    await openRow(page, 'result table');
+    await openFolded(page, 'Result table');
     await page.getByRole('region', { name: RESULTS }).waitFor();
     assert.equal(await page.getByRole('region', { name: 'Table filters' }).count(), 0, 'opening the result table folds Table filters');
     assert.equal(await page.getByRole('heading', { name: 'Source tables' }).count(), 0, 'opening the result table folds Source tables');
