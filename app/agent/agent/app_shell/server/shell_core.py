@@ -2590,11 +2590,21 @@ class Shell:
         found = self.access_found(headers)
         return self.access_grant(headers, data, found) if step == "grant" else found
 
+    def viewer_name(self, ws) -> str:
+        # A user-authorization App reads as the person who opens it, so the grant it shows names that person.
+        try:
+            name = str(ws.call("GET", SCIM_ME_PATH).get("userName") or "")
+        except Exception:  # an unreadable identity offers no grant; it must never break the page
+            return ""
+        return name if APP_PRINCIPAL.match(name) else ""
+
     def access_found(self, headers: dict) -> dict:
         principal = str(self.env.get("DATABRICKS_CLIENT_ID") or "") if self.settings["auth"] == "sp" else ""
         owners, tables = self.settings.get("unread_owners") or {}, []
         token = headers.get("x-forwarded-access-token")
         ws = self.user_factory(self.env.get("DATABRICKS_HOST", ""), token) if token else None
+        if self.settings["auth"] == "user" and ws is not None:
+            principal = self.viewer_name(ws)
         for table, recorded in (self.settings.get("unread") or {}).items():
             if not self.app_uses(table):
                 print(f"[APP-ACCESS FIRED] skipped {table}: no page of the App reads it", file=sys.stderr, flush=True)

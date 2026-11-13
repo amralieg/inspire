@@ -3275,6 +3275,14 @@ function appReadsRecord(history) {
   if (!row || !IMPLEMENT_DONE_STATUSES.includes(str(row.status))) return null;
   const app = isPlainObject(row.asset_status) && isPlainObject(row.asset_status.app) ? row.asset_status.app : null;
   const unread = app && isPlainObject(app.unread) ? app.unread : null;
+  if (unread && str(unread.mode) === 'user') {
+    // A user-authorization App: its audience is read live, so the record only names the scope views it reads.
+    const name = str(row.app_name).trim();
+    if (!name || name.includes('`') || !Array.isArray(unread.tables)) return null;
+    const tables = unread.tables.filter((t) => isPlainObject(t) && !resultTableNameError(str(t.table)))
+      .map((t) => ({ table: str(t.table), owner: ownerLabel(t.owner), grants: [] }));
+    return tables.length ? { row, app: '', app_name: name, mode: 'user', tables } : null;
+  }
   const id = str(unread && unread.app).trim();
   if (!id || id.includes('`') || !Array.isArray(unread.tables)) return null;
   const tables = unread.tables.filter((t) => isPlainObject(t) && !resultTableNameError(str(t.table)))
@@ -3310,6 +3318,43 @@ function appReadsLeft(record, tables, plans, app) {
 // Every statement the dialog shows, in order. The person runs them all; the workspace refuses the ones the person may not grant.
 function appReadsGrantable(left, app) {
   return [...new Set(left.flatMap((t) => t.grants))].filter((g) => appReadGrantFor(g, app));
+}
+
+// Who may open an App: the users and groups the App is shared with at CAN_USE or higher. Its service principal is never one.
+const PERMISSION_RANK = ['CAN_VIEW', 'CAN_READ', 'CAN_USE', 'CAN_RUN', 'CAN_MONITOR', 'CAN_MANAGE_RUN', 'CAN_EDIT', 'CAN_MANAGE', 'IS_OWNER'];
+
+function appAudience(acl) {
+  const people = new Map();
+  for (const entry of Array.isArray(acl && acl.access_control_list) ? acl.access_control_list : []) {
+    const name = str(entry && (entry.user_name || entry.group_name)).trim();
+    if (!name || (!entry.user_name && !entry.group_name)) continue;
+    const shared = (entry.all_permissions || []).some((p) => PERMISSION_RANK.indexOf(str(p && p.permission_level).toUpperCase()) >= PERMISSION_RANK.indexOf('CAN_USE'));
+    if (shared) people.set(name.toLowerCase(), { type: entry.user_name ? 'user' : 'group', name });
+  }
+  return [...people.values()];
+}
+
+// The grants each person or group still needs on the scope views of a user-authorization App, checked live for every principal.
+function appReadsUserLeft(record, principals, rows) {
+  return record.tables.map((t, i) => {
+    const grants = [];
+    const owners = [];
+    for (const principal of principals) {
+      // The same three grants the build gives each viewer on a scope view: USE CATALOG, USE SCHEMA and SELECT.
+      const plan = accessPlan(t.table, rows[i], principal, { needs: IMPLEMENT_READ_NEEDS });
+      const order = (g) => IMPLEMENT_READ_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
+      for (const need of [...plan.grants, ...plan.gaps].sort((a, b) => order(a) - order(b))) {
+        const sql = grantSql(need, principal);
+        if (appReadGrantFor(sql, principal)) grants.push(sql);
+      }
+      owners.push(...plan.gaps.map((g) => ownerLabel(g.owner)).filter(Boolean));
+    }
+    return { table: t.table, owner: joinAnd([...new Set(owners)]) || ownerLabel(t.owner), grants: [...new Set(grants)] };
+  }).filter((t) => t.grants.length);
+}
+
+function appReadsUserGrantable(left, principals) {
+  return [...new Set(left.flatMap((t) => t.grants))].filter((g) => principals.some((p) => appReadGrantFor(g, p)));
 }
 
 function appReadsUpdateStatement(table, row, left) {
@@ -4081,6 +4126,9 @@ module.exports = {
   appReadGrantFor,
   appReadsLeft,
   appReadsGrantable,
+  appAudience,
+  appReadsUserLeft,
+  appReadsUserGrantable,
   appReadsUpdateStatement,
   appReadsText,
   newAppReadsGaps,

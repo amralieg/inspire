@@ -219,11 +219,15 @@ function buildDiagnostics(status, ctx = {}) {
   if (!warnings.length) add('- none');
   for (const w of warnings) add(`- ${prose(w)}`);
 
+  // The record also keeps containers that are not parts of the build (the grants and permissions records); they are not listed.
+  const NOT_PARTS = new Set(['grants', 'permissions']);
   const assets = latest ? parsed(latest.asset_status) : null;
-  if (isMap(assets) && Object.keys(assets).length) {
-    section(`Parts (${Object.keys(assets).length})`);
+  const parts = isMap(assets) ? Object.keys(assets).filter((k) => !NOT_PARTS.has(k)) : [];
+  if (parts.length) {
+    section(`Parts (${parts.length})`);
     const partNo = {};
-    for (const [key, raw] of Object.entries(assets)) {
+    for (const key of parts) {
+      const raw = assets[key];
       const a = isMap(raw) ? raw : {};
       const kind = key.includes(':') ? key.split(':')[0] : key;
       partNo[kind] = (partNo[kind] || 0) + (key.includes(':') ? 1 : 0);

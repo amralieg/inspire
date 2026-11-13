@@ -254,7 +254,10 @@ def test_a_merge_target_whose_pages_cannot_be_read_or_do_not_hold_together_is_re
 def test_a_shared_view_use_case_merged_into_a_per_user_app_keeps_the_hosts_scopes_and_grants_its_identity_nothing(agent_ns, sdk_stub,
                                                                                                                    modify, held):
     host = dict(HOST_APP, user_api_scopes=held)
-    inst, context, calls, _imported = _deploy_inspire(agent_ns, [host] + DEPLOYED, access=[])
+    # The App's own permissions (who may open it) are read right after the App exists. A viewer may open this host, so the
+    # per-user rule grants that viewer the Data Filters views it reads (none in this use case); the App's service principal never is.
+    viewers = {"access_control_list": [{"user_name": "viewer@example.com", "all_permissions": [{"permission_level": "CAN_USE"}]}]}
+    inst, context, calls, _imported = _deploy_inspire(agent_ns, [host, viewers] + DEPLOYED, access=[])
     context["app_host"] = dict(agent_ns["implement_app_host"]("sales-desk"), app=host, merged=True, source=SOURCE, settings={
         "auth": "user", "options": {"modify": modify, "decisions": False}})
     assert context["spec"]["outputs"]["app_access"] == "sp"
@@ -265,7 +268,46 @@ def test_a_shared_view_use_case_merged_into_a_per_user_app_keeps_the_hosts_scope
     assert _without_feedback(_not_access_reads(inst.spark.statements)) == ledger_creates and len(ledger_creates) == 1 and inst.genie_grants == [], \
         "each viewer of the per-user host reads with their own grants, so its identity gets none beyond the feedback table (the job identity creates the value ledger)"
     assert [s for s in inst.spark.statements if VALUE_LEDGER in s and s.startswith("GRANT")] == []
+    assert [s for s in inst.spark.statements if s.startswith("GRANT") and "viewer@example.com" not in s and "sp-1" in s] == [], \
+        "the App service principal is never granted a Data Filters view by a per-user App"
     assert inst.tagged == [], "the host keeps its own owner tag"
+
+def test_a_user_app_with_two_viewers_grants_both_and_lists_the_one_refused_grant_with_its_exact_sql(agent_ns, sdk_stub):
+    # End to end through _implement_deploy_app: both viewers are attempted on the scope view, bob's SELECT is refused, so
+    # exactly one Permission Required entry carries bob's exact SQL, and the App's service principal (sp-7) is never granted.
+    host = dict(HOST_APP, user_api_scopes=["sql:restricted-query", "genie"])
+    sharing = {"access_control_list": [
+        {"user_name": "ana@example.com", "all_permissions": [{"permission_level": "CAN_USE"}]},
+        {"user_name": "bob@example.com", "all_permissions": [{"permission_level": "CAN_USE"}]},
+        {"service_principal_name": "sp-7", "all_permissions": [{"permission_level": "CAN_MANAGE"}]}]}
+    inst, context, _calls, _imported = _deploy_inspire(agent_ns, [host, sharing] + DEPLOYED, access=[])
+    view = "main.s.orders_scope"
+    inst._genie_scopes = lambda use_case: {"main.s.orders": {"table": "main.s.orders", "view": view, "view_sql": "SELECT 1", "ready": True}}
+    context["app_host"] = dict(agent_ns["implement_app_host"]("sales-desk"), app=host, merged=True, source=SOURCE, settings={
+        "auth": "user", "options": {"modify": False, "decisions": False}})
+    attempts = []
+    real_sql = inst.spark.sql
+    refused = f"GRANT SELECT ON TABLE `main`.`s`.`orders_scope` TO `bob@example.com`"
+
+    def sql(statement):
+        attempts.append(statement)
+        if statement == refused:
+            raise RuntimeError("[PERMISSION_DENIED] User does not have MANAGE on Table 'main.s.orders_scope'")
+        return real_sql(statement)
+
+    inst.spark.sql = sql
+    inst._implement_deploy_app(context, "sales-desk", SHELL_FILES, READS, "gA", poll_s=0)
+
+    for principal in ("ana@example.com", "bob@example.com"):
+        assert [s for s in attempts if s.endswith(f"TO `{principal}`")] == [
+            f"GRANT USE CATALOG ON CATALOG `main` TO `{principal}`",
+            f"GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `{principal}`",
+            f"GRANT SELECT ON TABLE `main`.`s`.`orders_scope` TO `{principal}`"], principal
+    assert [s for s in attempts if "sp-7" in s and "orders_scope" in s] == [], \
+        "the App's service principal is never granted a Data Filters view by a per-user App (its feedback table grant is the existing per-user path)"
+    entries = context["permissions"]
+    assert [(e["principal"], e["statements"]) for e in entries] == [("bob@example.com", [refused])], entries
+
 
 def test_a_sensitive_use_case_is_never_merged_into_a_service_principal_app(agent_ns, tmp_path, monkeypatch):
     inst, context, seen, _calls = _merge_flow(agent_ns, tmp_path, monkeypatch, outputs={"app_access": "user"})

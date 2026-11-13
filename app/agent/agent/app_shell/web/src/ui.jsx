@@ -175,7 +175,7 @@ export function AccessActions({ access: given }) {
       )}
       {note && <small role="status" data-access-note="">{note}</small>}
       {error && <PlainNote text={error} as="small" className="g-err" role="alert" data-access-error="" />}
-      {sql && <pre className="access-sql" data-access-sql="">{sql}</pre>}
+      {(sql || access?.sql) && <pre className="access-sql" data-access-sql="">{sql || access.sql}</pre>}
     </span>
   );
 }

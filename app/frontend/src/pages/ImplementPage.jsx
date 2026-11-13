@@ -11,7 +11,7 @@ import {
   vibesProblems, OPEN_ALL_SETTINGS, VIBE_FEATURES_LABEL, DATA_STOP_HINT, dataStopped, shownStatusMessage,
   swapParts,
   failureChoices, stoppedChoices, genieNotebookRequest, FAILURE_CHOICES_HEADING, FAILURE_ROUNDS_HEADING, TERMINAL_STOP_HINT, TERMINAL_NEEDS_CHANGE,
-  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, appReadsOwners, APP_READS_HEADING, APP_READS_CLEARED, protectionStopOf, protectionChoices, abacGrantText, grantGapPermissions, grantFailurePermissions, liveSourceNow, liveProtection, liveReads,
+  unreliableHold, olderBuildNote, UNRELIABLE_REBUILD_NOTE, isAppUpdate, APP_UPDATED_TEXT, appReadsOf, appReadsChoices, appReadsText, appReadsOwners, viewerRows, tableRows, APP_READS_HEADING, APP_READS_CLEARED, protectionStopOf, protectionChoices, abacGrantText, grantGapPermissions, grantFailurePermissions, liveSourceNow, liveProtection, liveReads,
 } from '../lib/implementWizard';
 import { makeApiFetch, makeApiPostJson } from '../lib/apiClient';
 import { buildUseCaseList } from '../lib/useCaseList';
@@ -943,6 +943,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     { spec: next }), [apiPostJson, qBase, useCaseId]);
   const chip = statusChip(latest?.status, stalled, latest);
   const [readsResult, setReadsResult] = useState(null);
+  // A user-authorization App: the people who may open it and the scope views they cannot read yet (from the last check or grant).
+  const [viewerReads, setViewerReads] = useState(null);
   const [permissionDialog, setPermissionDialog] = useState(null);
   const [readsBusy, setReadsBusy] = useState('');
   const [protectionCopy, setProtectionCopy] = useState('');
@@ -1378,7 +1380,9 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const reads = readOnly ? null : liveReads(sourceNow);
   const grantedAll = !readOnly && !reads && readsResult?.version === latest?.spec_version && (readsResult?.action === 'grant' || readsResult?.action === 'check')
     && !readsResult?.refused && !readsResult?.error;
-  const readsLeft = reads || (grantedAll ? { tables: [], canGrant: false } : null);
+  const viewerNow = viewerReads && viewerReads.version === latest?.spec_version ? viewerReads : null;
+  const readsLeft = reads || (viewerNow ? { tables: viewerNow.tables, canGrant: viewerNow.tables.some((t) => t.grants?.length > 0), viewers: true } : null)
+    || (grantedAll ? { tables: [], canGrant: false } : null);
   // A person who cannot grant the App's reads must act: Permission Required opens once per distinct grant list, with the owner's exact GRANT statements.
   // The inline card under it keeps the copy-and-check, and See the grant reopens the dialog.
   const mustAct = readsLeft?.tables?.length > 0 && readsLeft.canGrant !== true;
@@ -1401,7 +1405,8 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
   const runReads = async (action) => {
     setReadsBusy(action);
     try {
-      if (action === 'grant' && sourceNow.loaded) {
+      // A user-authorization build grants its viewers' scope views through app-reads; only the source tables take this path.
+      if (action === 'grant' && sourceNow.loaded && latest?.asset_status?.app?.unread?.mode !== 'user') {
         const tables = (sourceNow.unreadable?.tables || []);
         const got = await apiPostJson(`/api/inspire/implement/grant-access?${qBase}&kind=source_tables`, { tables });
         const failed = [...(got.failed || []), ...(got.abac_gaps || []).flatMap((g) => g.grants.map((sql) => `${sql}: not yours to grant`))];
@@ -1413,6 +1418,7 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
       // A check shows its refusal inline (Check again, See the grant). It raises Permission Required only for a grant list this page has not shown yet; a grant action always raises.
       const got = await apiPostJson(`/api/inspire/implement/app-reads?${qBase}&use_case_id=${encodeURIComponent(useCaseId)}`, { action }, { raise: action === 'grant' });
       setReadsResult({ ...got, version: latest?.spec_version, action });
+      if (got.mode === 'user') setViewerReads({ version: latest?.spec_version, tables: got.tables || [] });
       raisePermissions(got.permissions, { retry: () => recheckSources() }, { explicit: action === 'grant' });
       if (action === 'check' || action === 'grant') await refreshSourceNow();
     } catch (e) {
@@ -1431,6 +1437,15 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
     }
   };
   const autoReads = useRef({});
+  const autoViewerChecks = useRef({});
+  useEffect(() => {
+    // A user-authorization build reads its scope views as each viewer, so Inspire checks once per build version (no grant runs).
+    if (readOnly || !latest || latest.asset_status?.app?.unread?.mode !== 'user') return;
+    const key = `${latest.session_id ?? ''}:${latest.spec_version}`;
+    if (autoViewerChecks.current[key]) return;
+    autoViewerChecks.current[key] = true;
+    runReads('check');
+  }, [readOnly, latest?.session_id, latest?.spec_version]);
   useEffect(() => {
     if (!reads || readOnly || !latest || !reads.canGrant) return;
     const key = `${latest.session_id ?? ''}:${latest.spec_version}`;
@@ -1444,7 +1459,17 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
         <AlertTriangle size={16} className="mt-px shrink-0 text-warning-fg" aria-hidden />
         <div className="min-w-0 space-y-1 text-warning-fg">
           <p className="text-[13px] font-semibold">{readsLeft.tables.length ? APP_READS_HEADING : APP_READS_CLEARED}</p>
-          {readsLeft.tables.length > 0 && <p>{appReadsText(readsLeft, latest?.app_name || '')}</p>}
+          {readsLeft.tables.length > 0 && !readsLeft.viewers && <p>{appReadsText(readsLeft, latest?.app_name || '')}</p>}
+          {readsLeft.tables.length > 0 && readsLeft.viewers && (
+            <ul aria-label="Viewers who still need access" data-viewer-rows="" className="list-disc pl-5 space-y-0.5">
+              {viewerRows(readsLeft).map((r) => <li key={`${r.viewer}|${r.table}`} data-viewer-row={r.viewer}>{`${r.viewer}: needs ${r.needs.join(', ')} on ${r.table}`}</li>)}
+            </ul>
+          )}
+          {readsLeft.tables.length > 0 && !readsLeft.viewers && (
+            <ul aria-label="Tables the App cannot read" data-table-rows="" className="list-disc pl-5 space-y-0.5">
+              {tableRows(readsLeft).map((r) => <li key={r.table} data-table-row={r.table}>{`${r.table}: needs ${r.needs.join(', ')}`}</li>)}
+            </ul>
+          )}
           {(readsResult?.permissions?.length > 0 || mustActPermissions.length > 0) && (
             <button type="button" data-see-grant="" onClick={() => setPermissionDialog({ permissions: readsResult?.permissions?.length ? readsResult.permissions : mustActPermissions })}
               className="inline-flex h-7 items-center rounded-lg border border-border bg-surface px-2.5 text-[11px] font-semibold text-text-primary hover:bg-bg-subtle">

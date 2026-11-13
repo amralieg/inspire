@@ -182,26 +182,38 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     return { granted: ran.length, ran, failed, missing_tables: after.missing, app_unreadable: after.app_unreadable, abac_gaps: left.gaps };
   }
 
-  async function appReadsLeftOf(req, token, warehouseId, record, tables, app) {
-    const rows = await Promise.all(tables.map((t) => accessRowsOf(req, token, warehouseId, t)));
-    return I.appReadsLeft(record, tables, tables.map((t, i) => I.accessPlan(t, rows[i], app.id, { needs: I.IMPLEMENT_SOURCE_NEEDS })), app.id);
+  // Who may open a user-authorization App right now, read from its sharing so a viewer shared later is included.
+  async function audienceOf(req, token, appName) {
+    const resp = await dbFetch(req.dbHost, token, `/api/2.0/permissions/apps/${encodeURIComponent(appName)}`);
+    if (!resp.ok) throw I.badRequest(`Inspire could not read who may open the App ${appName} (HTTP ${resp.status}), so it cannot check its data.`, 502);
+    return I.appAudience(parseExactJson((await resp.text()) || '{}')).map((p) => p.name);
   }
 
-  // The App's real service principal, read live from its own token. The build's stored id is only the fallback when that read has no id.
-  async function appReadsIdentityOf(req, record) {
-    const who = await appIdentity(req, await appTokenOf(req));
-    return { id: who.id || record.app, name: who.name || record.app_name || '' };
+  // The one derivation the card, Check again and Grant share for the service principal: the live plan of each table for the
+  // principal read from its token (IMPLEMENT_SOURCE_NEEDS, READ METADATA included), with the rows the card reads.
+  async function appReadsLeftOf(req, token, warehouseId, record, principals, who) {
+    if (record.mode === 'user') {
+      const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, token, warehouseId, t.table)));
+      return I.appReadsUserLeft(record, principals, rows);
+    }
+    const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, P.personTokenOf(req), warehouseId, t.table)));
+    const tables = record.tables.map((t) => t.table);
+    return I.appReadsLeft(record, tables, tables.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs: I.IMPLEMENT_SOURCE_NEEDS })), who.id);
   }
 
-  async function appReads(req, warehouseId, record, grant, tables) {
+  async function appReads(req, warehouseId, record, grant) {
     const person = P.personTokenOf(req);
     const token = person || req.dbToken;
-    const app = await appReadsIdentityOf(req, record);
-    const before = await appReadsLeftOf(req, token, warehouseId, record, tables, app);
-    if (!grant) return { left: before, ran: [], failed: [], app };
+    const user = record.mode === 'user';
+    // The App's identity is read live from its token, so a stale id on the build record never names the wrong principal.
+    const who = user ? null : await appIdentity(req, await appTokenOf(req));
+    const principals = user ? await audienceOf(req, token, record.app_name) : [who.id];
+    const before = await appReadsLeftOf(req, token, warehouseId, record, principals, who);
+    if (!grant) return { left: before, ran: [], failed: [], principals, app: who };
     if (!person) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);
-    const { ran, failed } = await runPersonGrants(req, person, warehouseId, I.appReadsGrantable(before, app.id));
-    return { left: ran.length ? await appReadsLeftOf(req, token, warehouseId, record, tables, app) : before, ran, failed, app };
+    const statements = user ? I.appReadsUserGrantable(before, principals) : I.appReadsGrantable(before, who.id);
+    const { ran, failed } = await runPersonGrants(req, person, warehouseId, statements);
+    return { left: ran.length ? await appReadsLeftOf(req, token, warehouseId, record, principals, who) : before, ran, failed, principals, app: who };
   }
 
   return { accessRowsOf, appIdentity, appReads, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess };

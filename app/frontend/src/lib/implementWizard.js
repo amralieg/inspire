@@ -2803,6 +2803,26 @@ export function appReadsOf(latest) {
   return tables.length ? { app: String(unread.app || ''), tables: tables.map((t) => ({ table: String(t.table), owner: String(t.owner || ''), grants: t.grants.map(String) })) } : null;
 }
 
+// One row per viewer of a user-authorization App: who still needs which read grants on which view.
+export function viewerRows(reads) {
+  const rows = [];
+  for (const t of reads?.tables || []) {
+    const byViewer = new Map();
+    for (const g of t.grants || []) {
+      const who = /TO `([^`]+)`$/.exec(g)?.[1] || '';
+      const need = /^GRANT (USE CATALOG|USE SCHEMA|SELECT) /.exec(g)?.[1] || '';
+      if (who && need) byViewer.set(who, [...new Set([...(byViewer.get(who) || []), need])]);
+    }
+    for (const [viewer, needs] of byViewer) rows.push({ viewer, table: t.table, needs });
+  }
+  return rows;
+}
+
+// One row per table of a service-principal App: the read grants it still needs on that table.
+export function tableRows(reads) {
+  return (reads?.tables || []).map((t) => ({ table: t.table, needs: [...new Set((t.grants || []).map((g) => /^GRANT (USE CATALOG|USE SCHEMA|SELECT) /.exec(g)?.[1]).filter(Boolean))] }));
+}
+
 export function appReadsOwners(reads) {
   return joinWords([...new Set((reads?.tables || []).map((t) => t.owner).filter(Boolean))]) || 'your data owner';
 }
