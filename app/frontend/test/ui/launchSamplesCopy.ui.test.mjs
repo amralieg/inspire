@@ -77,6 +77,7 @@ test('descriptions only: one plain sentence says value cannot be measured, and t
     await startButton(page).click();
     await until(() => made.launches.length === 1, 'the run was sent once');
     assert.equal(made.launches[0].params['01_uc_metadata'], SALES, 'the run reads the samples table as picked');
+    assert.equal(made.launches[0].samples_choice, 'descriptions', 'the /api/run body carries the choice the server refuses without (REQ-109)');
     assert.equal(made.sampleCopies.length, 0, 'nothing was copied');
   } finally {
     await ui.close();

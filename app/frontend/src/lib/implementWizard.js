@@ -1298,10 +1298,10 @@ const PER_USE_CASE_OUTPUTS = {
   dashboard_name: '', dashboard_filters: [], dashboard_vibes: '', alert_name: '', alert_condition_text: '', alert_vibes: '',
 };
 
-// The source columns a money rule names: its status and group columns, and its rate column when it reads rates from the table.
+// The source columns a money rule names: its status and group columns, and its rate column and currency column when it converts each row with its own rate.
 export function moneyRuleColumns(money) {
   if (!money || typeof money !== 'object') return [];
-  return [money.status_column, money.group_column, money.rate_column].filter((name) => typeof name === 'string' && name);
+  return [money.status_column, money.group_column, money.rate_column, money.currency_column].filter((name) => typeof name === 'string' && name);
 }
 
 // Build Now: the live App's settings carried to a sibling use case. Its own use case, tables, result table and names replace the App's.

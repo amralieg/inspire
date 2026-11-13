@@ -2840,7 +2840,11 @@ def _money_rule_problems(money) -> list:
         return problems
     if "rate_column" in money:
         column = money.get("rate_column")
-        return problems + ([] if isinstance(column, str) and IDENT_RE.fullmatch(column) else ["the rate column is a plain column name"])
+        problems += [] if isinstance(column, str) and IDENT_RE.fullmatch(column) else ["the rate column is a plain column name"]
+        currency_column = money.get("currency_column")
+        if not (isinstance(currency_column, str) and IDENT_RE.fullmatch(currency_column)):
+            problems.append("the rate column needs currency_column, the plain column name that holds the currency of each row; pick it in the Measure step")
+        return problems
     rates = money.get("rates")
     if not isinstance(rates, dict) or not rates:
         return problems + ["converting money needs at least one rate, typed in as currency: units of the base currency"]
@@ -3088,6 +3092,8 @@ def money_rule_clean(rule: dict) -> dict:
             out["rate_table"] = dict(rule["rate_table"])
         elif "rate_column" in rule:
             out["rate_column"] = rule["rate_column"]
+            if "currency_column" in rule:
+                out["currency_column"] = rule["currency_column"]
         else:
             out["rates"] = {str(code): float(value) for code, value in sorted(rule["rates"].items())}
     if rule.get("window"):
@@ -3224,7 +3230,48 @@ def money_check_queries(page: dict) -> list:
             out.append((f"statuses of {name}", f"SELECT COUNT(*) AS bad FROM ({sql}) AS d WHERE {column} IS NULL OR {column} NOT IN ({names})"))
         if money.get("rule", "losses") == "losses":
             out.append((f"losses of {name}", f"SELECT COUNT(*) AS bad FROM ({sql}) AS d WHERE value_at_stake < 0"))
+        out += money_rate_column_checks(name, sql, money)
     return out
+
+
+RATE_CHECK_LABEL = "converted rows of "
+RATE_TOTAL_LABEL = "converted total of "
+
+
+def money_rate_column_checks(name: str, sql: str, money: dict) -> list:
+    """Deterministic recompute for a rule that converts each row with its own rate. The dataset SQL is generated, so the
+    build recomputes every row from the amount and the rate the dataset carries (amount x rate, the losses rule applied),
+    and compares the dataset's own value_at_stake and total with it. The amount is the rule's value, a column, a fixed
+    amount or an equation, turned into SQL by money_value_sql, the same parser the rule validator uses. A dataset that
+    forgot the rate fails here, with the reason, and Genie repairs the round."""
+    value = money.get("value") if isinstance(money.get("value"), dict) else {}
+    if not money.get("rate_column") or not money.get("currency_column"):
+        return []
+    value_sql = money_value_sql(value) if value.get("method") in ("column", "fixed", "equation") else None
+    if value_sql is None:
+        return []
+    amount = f"CAST({value_sql} AS DOUBLE)"
+    rate = f"CAST({quote(money['rate_column'])} AS DOUBLE)"
+    stake = f"({amount} * {rate})"
+    if money.get("rule", "losses") == "losses":
+        stake = f"(CASE WHEN {stake} < 0 THEN -{stake} ELSE 0 END)"
+    tolerance = "ABS(value_at_stake - {stake}) > 0.005 * ABS({stake}) + 0.01"
+    rows = (f"SELECT COUNT(*) AS bad FROM ({sql}) AS d WHERE {amount} IS NULL OR {rate} IS NULL OR "
+            + tolerance.format(stake=stake))
+    total = (f"SELECT CASE WHEN ABS(SUM(value_at_stake) - SUM({stake})) > 0.005 * ABS(SUM({stake})) + 0.01 "
+             f"THEN 1 ELSE 0 END AS bad FROM ({sql}) AS d")
+    return [(RATE_CHECK_LABEL + name, rows), (RATE_TOTAL_LABEL + name, total)]
+
+
+def money_check_reason(label: str) -> str:
+    """The reason a money check failed, in words Genie can repair from."""
+    if label.startswith(RATE_CHECK_LABEL):
+        return (f"the dataset does not convert each row with its own rate: some rows of {label[len(RATE_CHECK_LABEL):]} "
+                f"do not equal their amount times their rate, or carry no rate; the dataset SQL must multiply each row's amount by the rate column")
+    if label.startswith(RATE_TOTAL_LABEL):
+        return (f"the total of {label[len(RATE_TOTAL_LABEL):]} does not equal the amounts converted row by row at their own rates, "
+                f"so the dataset total is wrong; the dataset SQL must apply each row's rate before it sums")
+    return "the statuses or the losses-only rule are not applied in the dataset"
 
 
 def money_basis(page: dict) -> str:

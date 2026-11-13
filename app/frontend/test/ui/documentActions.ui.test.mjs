@@ -126,3 +126,22 @@ test('a run that could not save its catalog file says so in that exact plain sen
   }
 });
 
+
+test('a PDF already in the run folder leaves Create strategy document and Create use case catalog live, and says nothing about a PDF limit (REQ-097)', async () => {
+  const mount = (app) => {
+    app.get('/api/workspace/list', (_req, res) => res.json({ files: [{ name: 'Acme-dbx_inspire.pdf', path: `${GENERATED}/Acme-dbx_inspire.pdf`, is_directory: false }] }));
+  };
+  const ui = await openUi('results', { ...REVIEW_STATE, sessions: SESSIONS, results: REVIEW_RESULTS }, '', { mount });
+  const { page } = ui;
+  try {
+    await page.locator('[data-document-actions]').waitFor();
+    await page.waitForResponse((r) => r.url().includes('/api/workspace/list'), { timeout: 20000 }).catch(() => null);
+    for (const kind of ['strategy-document', 'use-case-catalog', 'excel-workbook']) {
+      assert.equal(await page.locator(`[data-doc-action="${kind}"]`).isDisabled(), false, `${kind} stays live with a PDF in the folder`);
+    }
+    assert.equal(await page.getByText(/already made its PDF/).count(), 0, 'no PDF-limit sentence is shown');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

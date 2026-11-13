@@ -34,9 +34,11 @@ const {
   runAsPerson,
   launchPlanFor,
 } = require('./lib/inspireJobParams');
+const JC = require('./lib/jobCurrency');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
 const { INSPIRE_DB_SHAPE, USE_CASE_ID_SHAPE, splitInspireDatabase, isTimestampText, stepsStatement } = require('./lib/sqlInputs');
-const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql, valueOfSession, valueOfRuns, overallValue } = require('./lib/inspireValue');
+const { valueLedgerTable, inspireSessionTable, valueSessionSql, valueRunsSql, valueOverallSql, sessionCountsSql, valueOfSession, valueOfRuns, overallValue, qualified: qualifiedInspireTable } = require('./lib/inspireValue');
+const VE = require('./lib/valueEstimate');
 const { normalizeUseCaseName, renameStatement } = require('./lib/useCaseName');
 const { createExecuteSql, runWithRequestDeadline } = require('./lib/sqlStatements');
 const { plural } = require('./lib/plural');
@@ -52,12 +54,12 @@ const { metricViewSkipLine } = require('./lib/metricViews');
 const { createSourceAccess } = require('./lib/sourceAccess');
 const { withBusyRetry } = require('./lib/busyRetry');
 const { registerShowcaseRoutes, showcaseWriteGuard } = require('./lib/showcase');
-const { loadSessionList, loadSessionOverviews, sessionListCap } = require('./lib/reviewFigures');
+const { loadSessionList, loadSessionOverviews, sessionListCap, SESSION_LIST_CAP } = require('./lib/reviewFigures');
 const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../frontend/src/lib/liveUseCases.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired, readStatementsFor } = require('./lib/permissions');
 const PM_ERROR = require('./lib/permissionError');
-const { isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyName, sampleCopyStatement } = require('./lib/inspireImplement');
+const { samplesChoiceOfRun, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames, implementTableName, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
 const {
@@ -894,6 +896,9 @@ async function recordLaunch(host, token, record) {
 
 async function triggerInspireNotebookJob(host, token, { params, notebook_path, cluster_id: askedClusterId, jobType = 'discovery', jobName: requestedJobName = '', useCaseIds = [], launchedBy = '', writeCheck = null, asker = null, scopePicks = undefined }) {
   normalizeUseCasesQualityParams(params);
+  // Discover has no Measure rule yet: it sends the reporting currency and today's rates (or the saved averages offline).
+  // Implement sends its own rule's currency and rates from startVersion, so this only fills a Discover launch.
+  if (jobType !== 'implement' && !('currency_rates' in params)) Object.assign(params, await JC.discoverCurrencyParams(params));
   const sanitized = sanitizeInspireNotebookJobParams(params, { scopePicks });
   for (const k of Object.keys(params)) delete params[k];
   Object.assign(params, sanitized);
@@ -2171,6 +2176,7 @@ app.post('/api/run/check', requireToken, async (req, res) => {
 app.post('/api/run', requireToken, async (req, res) => {
   const { cluster_id, notebook_path } = req.body;
   const params = (req.body.params && typeof req.body.params === 'object') ? { ...req.body.params } : {};
+  if (samplesNeedChoice(params, req.body.samples_choice)) return res.status(409).json({ error: SAMPLES_CHOICE_TEXT });
   return launchDiscover(req, res, { params, notebook_path, cluster_id });
 });
 
@@ -2185,6 +2191,9 @@ app.post('/api/run/:runId/again', requireToken, async (req, res) => {
     }
     const again = LC.runAgainOf(parseExactJson(await response.text()), req.params.runId, sessionId);
     if (again.problem) return res.status(409).json({ error: `${again.problem}.` });
+    // The re-run repeats the run's own inputs, so it carries the choice that run recorded: no 409 from Monitor.
+    const samplesChoice = req.body.samples_choice || samplesChoiceOfRun(again.params);
+    if (samplesNeedChoice(again.params, samplesChoice)) return res.status(409).json({ error: SAMPLES_CHOICE_TEXT });
     return launchDiscover(req, res, again);
   } catch (err) {
     const code = err.statusCode && Number.isFinite(err.statusCode) ? err.statusCode : 500;
@@ -2302,6 +2311,17 @@ async function discoverAppAccess(req, scope) {
   }
 }
 
+// A copy that already sits at the copy name is reused only when it has the source's columns (names compared, via the same DESCRIBE reader the build uses).
+async function sameCopyColumns(req, person, source, copy) {
+  const columnsOf = async (name) => describedColumnNames(sqlResultToObjects(await executeSql(req.dbHost, person, DEFAULT_WAREHOUSE_ID, `DESCRIBE TABLE ${sampleTableRef(name)}`)));
+  try {
+    const [want, have] = await Promise.all([columnsOf(source), columnsOf(copy)]);
+    return want.size > 0 && want.size === have.size && [...want].every((name) => have.has(name));
+  } catch {
+    return false;
+  }
+}
+
 app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
   const person = personTokenOf(req);
   if (!person) return res.status(401).json({ error: SAMPLE_COPY_NO_SIGN_IN });
@@ -2315,11 +2335,28 @@ app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
     if (more) throw Object.assign(new Error(`The samples you picked hold more tables than one copy can take (${tables.length} read). Pick fewer tables or schemas`), { statusCode: 409 });
     const copies = [];
     const failed = [];
+    let schemaTried = false;
     for (const source of tables) {
+      const copy = sampleCopyName(source, destination);
       const sql = sampleCopyStatement(source, destination);
-      const outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
-      if (outcome.ran.length) copies.push({ source, copy: sampleCopyName(source, destination) });
-      else failed.push({ source, reason: String(outcome.failed[0] || '').slice(sql.length + 2) });
+      let outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
+      if (!outcome.ran.length && !schemaTried && sampleCopyFailureKind(outcome.failed[0]) === 'no_schema') {
+        schemaTried = true;
+        const schema = schemaCreateStatement(destination);
+        const made = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [schema]);
+        if (!made.ran.length) {
+          const why = String(made.failed[0] || '').slice(schema.length + 2);
+          throw Object.assign(new Error(sampleSchemaMessage(destination, schema, why)), { statusCode: 409 });
+        }
+        outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
+      }
+      if (outcome.ran.length) { copies.push({ source, copy }); continue; }
+      if (sampleCopyFailureKind(outcome.failed[0]) === 'exists') {
+        if (await sameCopyColumns(req, person, source, copy)) copies.push({ source, copy, reused: true });
+        else failed.push({ source, reason: sampleCopyTakenMessage(copy, source) });
+        continue;
+      }
+      failed.push({ source, reason: String(outcome.failed[0] || '').slice(sql.length + 2) });
     }
     const permission = sampleCopyPermission(failed, RP.forwardedPerson(req.headers));
     res.json({ destination: `${destination.catalog}.${destination.schema}`, copies, failed, ...(permission ? { permissions: [permission] } : {}) });
@@ -2554,6 +2591,53 @@ async function readValueRows(req, warehouse_id, sql) {
     throw err;
   }
 }
+
+// REQ-078: the estimate for each use case that has no measured value, and the totals kept apart from measured money.
+// With a session_id it answers that run; without one it answers every run (runs by session id) and the total over them.
+async function estimatesOfSession(req, warehouse_id, parsedDb, sid) {
+  const useCases = await readValueRows(req, warehouse_id, VE.useCasesSql(qualifiedInspireTable(parsedDb, '__inspire_usecases'), sid));
+  const specRows = await readValueRows(req, warehouse_id, VE.latestSpecsSql(implementTableName(parsedDb.catalog, parsedDb.schema), sid));
+  const specs = new Map(specRows.map((row) => [String(row.use_case_id), VE.parseSpec(row.spec)]));
+  const measured = valueOfSession(await readValueRows(req, warehouse_id, valueSessionSql(valueLedgerTable(parsedDb), sid))).use_cases;
+  const baselineOf = async (resultTable, useCaseId) => {
+    if (resultTableNameError(resultTable)) return null;
+    try {
+      const found = await executeSql(req.dbHost, req.dbToken, warehouse_id, VE.baselineSql(quoteTable(`${resultTable}_summary`)),
+        [{ name: 'uc', value: useCaseId, type: 'STRING' }]);
+      const row = sqlResultToObjects(found)[0];
+      const baseline = row ? Number(row.kpi_baseline) : NaN;
+      return Number.isFinite(baseline) ? baseline : null;
+    } catch (err) {
+      if (isMissingTableError(err)) return null;
+      throw err;
+    }
+  };
+  return VE.estimatesFor({ useCases, specs, measured, baselineOf });
+}
+
+app.get('/api/inspire/value/estimates', requireToken, async (req, res) => {
+  try {
+    const { inspire_database, warehouse_id, session_id } = req.query;
+    if (!inspire_database || !warehouse_id) {
+      return res.status(400).json({ error: 'inspire_database and warehouse_id required.' });
+    }
+    const parsedDb = splitInspireDatabase(inspire_database);
+    if (!parsedDb) return res.status(400).json({ error: INSPIRE_DB_SHAPE });
+    if (session_id === undefined || session_id === '') {
+      // The same runs the Start list shows: the latest SESSION_LIST_CAP, newest first.
+      const rows = await readValueRows(req, warehouse_id, VE.sessionsSql(qualifiedInspireTable(parsedDb, '__inspire_session'), SESSION_LIST_CAP));
+      const truncated = rows.length > SESSION_LIST_CAP;
+      const sids = rows.slice(0, SESSION_LIST_CAP).map((row) => String(row.session_id)).filter((sid) => !invalidSessionId(sid));
+      const answers = await Promise.all(sids.map((sid) => estimatesOfSession(req, warehouse_id, parsedDb, sid)));
+      const runs = Object.fromEntries(sids.map((sid, i) => [sid, answers[i]]));
+      return res.json({ runs, totals: VE.mergeTotals(answers.map((answer) => answer.totals)), truncated, cap: SESSION_LIST_CAP });
+    }
+    if (invalidSessionId(session_id)) return res.status(400).json({ error: 'session_id must be numeric.' });
+    res.json(await estimatesOfSession(req, warehouse_id, parsedDb, String(session_id).trim()));
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 app.get('/api/inspire/value', requireToken, async (req, res) => {
   try {

@@ -754,6 +754,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
             notebook_path: notebookPath,
             params: finalParams,
             warehouse_id: warehouseId,
+            samples_choice: sampleEntries.length ? samplesChoice.choice : undefined,
           }),
         });
         clearWizardDraft(draftKey);

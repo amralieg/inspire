@@ -45,6 +45,7 @@ import { DataAccessBadge, InsightsGrid, SidebarFilterPanel } from '../components
 import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
 import ValueBadge from '../components/ValueBadge';
+import { EstimateTotals } from '../components/ValueEstimateLine';
 import { valueQuery } from '../lib/valueLedger';
 import { useValueRead } from '../lib/useValueLedger';
 import LatestRunBadge from '../components/LatestRunBadge';
@@ -94,7 +95,7 @@ import { nextStepOf, runOutcomeOf } from '../lib/runOutcome';
 import { qualityBarCountText } from '../lib/qualityBarWording';
 import { liveCountText } from '../lib/liveUseCases';
 import { saveBlob } from '../lib/download';
-import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, artifactTreeFiles, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, hasPdfArtifact, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
+import { EXCEL_OLD_FORMAT, EXCEL_UNREADABLE, artifactTreeFiles, csvPreview, fileActions, fileExtension, fileProblemText, fileSizeText, quickAccessFiles, sheetPreview, textPreview, visibleArtifactFiles } from '../lib/artifactFiles';
 import FilePreview from '../components/FilePreview';
 import DocumentActions from '../components/DocumentActions';
 import { documentBasePath } from '../lib/documentActions';
@@ -269,6 +270,8 @@ export default function ResultsPage({
     ? `/api/inspire/value?${valueQuery(inspireDb, warehouseId, { session_id: String(selectedSessionId) })}`
     : '';
   const runValue = useValueRead(apiFetch, runValueUrl, implementRefresh);
+  const estimateUrl = runValueUrl ? runValueUrl.replace('/api/inspire/value?', '/api/inspire/value/estimates?') : '';
+  const estimates = useValueRead(apiFetch, estimateUrl, implementRefresh);
 
   const resultsDiscoveryType = results?.discovery_type || '';
   const feedbackBusiness = useMemo(() => {
@@ -1096,6 +1099,7 @@ export default function ResultsPage({
                 className="mt-2"
               />
             )}
+            {estimates?.totals && <EstimateTotals totals={estimates.totals} className="mt-1" />}
           </div>
           <button
             type="button"
@@ -1624,7 +1628,6 @@ export default function ResultsPage({
             <DocumentActions
               apiFetch={apiFetch}
               apiPostJson={apiPostJson}
-              pdfMade={hasPdfArtifact(artifactTreeFiles(artifactsRootFiles, artifactTree))}
               session={{ sessionId: selectedSessionId, inspireDatabase: inspireDb, businessName: runBusiness(selectedSession), outputLanguage: selectedSession?.output_language || '', generationPath: documentBasePath({ generationPath: selectedSession?.generation_path || selectedSession?.widget_values?.generation_path || '', notebookPath: settings?.notebookPath || '' }) }}
               onFinished={() => loadArtifacts(generationPath)}
             />
@@ -2426,6 +2429,8 @@ export default function ResultsPage({
                         v130={uc._v130}
                         feedbackCurrent={feedbackCurrentFor(uc)}
                         useCaseValue={runValue?.use_cases?.[trackingIdOf(uc)] ?? null}
+                        estimate={estimates?.use_cases?.[trackingIdOf(uc)] ?? null}
+                        onSetRule={canImplement ? () => startImplement(uc) : undefined}
                         implementStatus={tid ? implementState(implementLatestById[tid] || null, notebookStatus(uc, implementView.notebook_run)) : null}
                         onImplement={canImplement ? () => startImplement(uc) : undefined}
                         onOpenMvp={onOpenImplement && tid && selectedSessionId ? () => onOpenImplement(String(selectedSessionId), tid) : undefined}

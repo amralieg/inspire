@@ -45,6 +45,8 @@ function UseCaseCardBody({
   v130 = null,
   feedbackCurrent,
   useCaseValue = null,
+  estimate = null,
+  onSetRule = null,
   ...detailProps
 }) {
   const u = uc;
@@ -107,7 +109,7 @@ function UseCaseCardBody({
                   </p>
                 )}
                 <QualityBarReason uc={u} className="mt-1" />
-                <ValueEstimateLine uc={u} className="mt-1" />
+                <ValueEstimateLine uc={u} estimate={estimate} onSetRule={onSetRule} className="mt-1" />
                 {useCaseValue && (
                   <ValueBadge atStake={useCaseValue.at_stake} saved={useCaseValue.saved} measured={useCaseValue.measured} className="mt-2" />
                 )}

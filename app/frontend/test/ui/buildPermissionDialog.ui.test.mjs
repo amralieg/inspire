@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { closeBrowser, closeOnLoadPermission, expandBuild, openUi } from './uiSupport.mjs';
+import { closeBrowser, expandBuild, openUi } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -66,11 +66,10 @@ test('Check again on an unreadable build opens See the grant, with the full read
   const { page } = ui;
   try {
     await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
-    // The on-failure dialog opens on load: read its owner GRANTs, then close it, because it covers the drawer.
-    const onLoad = page.locator('[data-permission-dialog=""]');
-    await onLoad.waitFor({ timeout: 8000 });
-    assert.match(await onLoad.locator('[data-permission-statements=""]').innerText(), /^GRANT /m, 'the owner GRANTs open on load');
-    await closeOnLoadPermission(page, { expect: true });
+    // rc.1 opens Permission Required on its own when a grant is missing: close it before the Build page is used.
+    const dialog = page.locator('[data-permission-dialog=""]');
+    await dialog.waitFor({ timeout: 15000 });
+    await dialog.getByRole('button', { name: 'Close' }).click();
     await expandBuild(page);
     const card = page.getByRole('region', { name: 'The App cannot read part of its data' });
     await card.waitFor();
@@ -81,7 +80,8 @@ test('Check again on an unreadable build opens See the grant, with the full read
     assert.equal(await page.locator('[data-permission-dialog=""]').count(), 0, 'Check again reopens nothing for the same grants');
     const see = card.locator('[data-see-grant=""]');
     await see.waitFor({ timeout: 15000 });
-    const dialog = page.locator('[data-permission-dialog=""]');
+    await dialog.waitFor({ timeout: 15000 });
+    await dialog.getByRole('button', { name: 'Close' }).click();
     await see.click();
     await dialog.waitFor({ timeout: 15000 });
     assert.match(await dialog.locator('#permission-required-title').innerText(), /^Permission Required$/);

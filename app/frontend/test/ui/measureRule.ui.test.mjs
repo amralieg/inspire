@@ -43,12 +43,12 @@ async function openMeasure({ rates = LIVE_RATES, calls = { preview: [], currency
   return { ...ui, calls };
 }
 
-test('the Measure step asks how the value of each record is measured, with five choices (the rule’s own amount first) and no old fields', async () => {
+test('the Measure step asks how the value of each record is measured, with six choices (the rule’s own amount first, then the cost of a lost opportunity) and no old fields', async () => {
   const ui = await openMeasure();
   const { page } = ui;
   try {
     assert.match(await page.locator('[data-measure-value] legend').innerText(), /How does your business measure the value of each record\?/);
-    assert.equal(await page.locator('[data-money-method]').count(), 5);
+    assert.equal(await page.locator('[data-money-method]').count(), 6, 'the rule’s own amount, fixed, the cost of a lost opportunity, a column, an equation, and describe');
     assert.equal(await page.locator('[data-money-method="rule"]').isChecked(), false, 'this use case states no amount, so the default is the table column');
     assert.equal(await page.locator('[data-money-mode]').count(), 0, 'the old per-currency and convert radios are gone');
     await onMoneyPart(page, 'window');
@@ -289,3 +289,41 @@ test('a person can switch from a column to the rule’s own amount and back, and
     await page.context().close();
   }
 });
+
+test('the cost of each lost opportunity is a fixed amount counted over the lost statuses, and the sentence says so', async () => {
+  const ui = await openMeasure();
+  const { page, calls } = ui;
+  try {
+    await page.locator('[data-money-method="lost"]').check();
+    await page.locator('[data-money-lost-amount]').fill('120');
+    // rc.1 opens the value currency on the saved column; the lost tests pick one code for all records first.
+    await page.getByRole('radio', { name: 'One currency for all records' }).check();
+    await page.locator('[data-money-value-code]').fill('USD');
+    await page.locator('[data-money-lost-status-column]').selectOption('status');
+    await page.locator('[data-money-lost-statuses]').fill('lost');
+    await page.waitForSelector('[data-money-preview-rows] li', { timeout: 15000 });
+    assert.deepEqual(calls.preview.at(-1).value, { method: 'fixed', amount: 120, currency: 'USD' }, 'each lost record is worth 120 USD');
+    assert.deepEqual(calls.preview.at(-1).lost_filter, { statuses: ['lost'], status_column: 'status' }, 'the example rows are the lost rows only');
+    assert.match(await page.locator('[data-money-sentence]').innerText(), /Only rows whose status is lost count\./);
+    assert.equal(await page.locator('[data-money-problems], [data-money-error]').count(), 0, 'no problem is shown once the statuses are named');
+  } finally {
+    await page.context().close();
+  }
+});
+
+test('a lost opportunity with no statuses named says what to name, and does not save', async () => {
+  const ui = await openMeasure();
+  const { page } = ui;
+  try {
+    await page.locator('[data-money-method="lost"]').check();
+    await page.locator('[data-money-lost-amount]').fill('120');
+    // rc.1 opens the value currency on the saved column; the lost tests pick one code for all records first.
+    await page.getByRole('radio', { name: 'One currency for all records' }).check();
+    await page.locator('[data-money-value-code]').fill('USD');
+    await page.locator('[data-money-lost-status-column]').selectOption('status');
+    assert.match(await page.locator('[data-money-error]').innerText(), /Name the statuses that mean the opportunity was lost, such as lost\./);
+  } finally {
+    await page.context().close();
+  }
+});
+

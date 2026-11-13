@@ -228,7 +228,9 @@ function currencySpreadSql(table, currencyColumn, scopes) {
 }
 
 // Three rows of the use case table through a value definition: the amount each row is worth, and its currency.
-function moneyValueSampleSql(table, value, scopes) {
+// A status filter (the statuses that mean lost) limits the example rows to the rows the rule counts.
+const STATUS_WORD = /^[A-Za-z0-9_ -]{1,40}$/;
+function moneyValueSampleSql(table, value, scopes, filter = null) {
   if (!RATE_TABLE_PATTERN.test(String(table || '')) || !value || typeof value !== 'object') return null;
   let amount = null;
   if (value.method === 'fixed' && Number.isFinite(Number(value.amount)) && Number(value.amount) > 0) amount = String(Number(value.amount));
@@ -242,14 +244,22 @@ function moneyValueSampleSql(table, value, scopes) {
   if (value.currency !== undefined && ISO_CODE.test(String(value.currency))) currency = `'${value.currency}'`;
   else if (value.currency_column !== undefined && RATE_COLUMN_PATTERN.test(String(value.currency_column))) currency = q(value.currency_column);
   if (currency === null) return null;
+  let counted = '';
+  const filterColumns = [];
+  if (filter && Array.isArray(filter.statuses) && filter.statuses.length) {
+    if (!filter.statuses.every((word) => typeof word === 'string' && STATUS_WORD.test(word))) return null;
+    if (!RATE_COLUMN_PATTERN.test(String(filter.status_column || ''))) return null;
+    counted = `${q(filter.status_column)} IN (${filter.statuses.map((word) => `'${word}'`).join(', ')}) AND `;
+    filterColumns.push(filter.status_column);
+  }
   return statement(scopes, (ctx) => {
-    const from = previewFrom(table, ctx, columnsIn(amount, currency));
-    return `SELECT CAST(${amount} AS DOUBLE) AS stake, ${currency} AS currency FROM ${from} WHERE ${amount} IS NOT NULL LIMIT ${MONEY_VALUE_ROWS}`;
+    const from = previewFrom(table, ctx, [...columnsIn(amount, currency), ...filterColumns]);
+    return `SELECT CAST(${amount} AS DOUBLE) AS stake, ${currency} AS currency FROM ${from} WHERE ${counted}${amount} IS NOT NULL LIMIT ${MONEY_VALUE_ROWS}`;
   });
 }
 
 // The latest rate loaded for up to three currencies, into the base currency: the example reads real numbers from the rate table.
-function rateSampleSql(rateTable, base, scopes) {
+function rateSampleSql(rateTable, base, scopes, limit = RATE_SAMPLE_ROWS) {
   const t = rateTable || {};
   const names = ['currency_column', 'base_column', 'rate_column', 'load_column'];
   if (!RATE_TABLE_PATTERN.test(String(t.table || '')) || !/^[A-Z]{3}$/.test(String(base || ''))
@@ -257,7 +267,7 @@ function rateSampleSql(rateTable, base, scopes) {
   return statement(scopes, (ctx) => `SELECT currency, rate FROM (SELECT ${q(t.currency_column)} AS currency, CAST(${q(t.rate_column)} AS DOUBLE) AS rate, `
     + `ROW_NUMBER() OVER (PARTITION BY ${q(t.currency_column)} ORDER BY ${q(t.load_column)} DESC) AS latest `
     + `FROM ${previewFrom(t.table, ctx, [t.currency_column, t.base_column, t.rate_column, t.load_column])} `
-    + `WHERE ${q(t.base_column)} = '${String(base)}') AS ranked WHERE latest = 1 LIMIT ${RATE_SAMPLE_ROWS}`);
+    + `WHERE ${q(t.base_column)} = '${String(base)}') AS ranked WHERE latest = 1 LIMIT ${Number(limit)}`);
 }
 
 // The three latest rates from a rate column of the use case table: the example reads real numbers for a rate column too.

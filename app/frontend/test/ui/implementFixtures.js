@@ -133,7 +133,7 @@ export const GROUPING_INSTRUCTION = '## Parameters\n| widget | type | default | 
 
 export const MONEY_PROFILE = {
   ...GROUPING_PROFILE,
-  money_columns: ['order_id', 'quantity', 'unit_price', 'discount', 'amount', 'currency'],
+  money_columns: ['order_id', 'quantity', 'unit_price', 'discount', 'amount', 'currency', 'status'],
   money_sample: { amount: 'amount', currency: 'currency', status: '', rows: [{ amount: 100, currency: 'AED' }, { amount: 50, currency: 'USD' }, { amount: 20, currency: 'EUR' }] },
 };
 export const LIVE_RATES = {

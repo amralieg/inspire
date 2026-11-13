@@ -22,6 +22,7 @@ const G = require('../frontend/src/lib/tableName.js');
 const GR = require('./lib/groupingRule');
 const GP = require('./lib/groupingProfile');
 const FX = require('./lib/fxRates');
+const JC = require('./lib/jobCurrency');
 const MD = require('./lib/moneyDescribe');
 const { TAGS_UNREAD_NOTE, personalColumn } = require('../frontend/src/lib/personalColumns.js');
 const {
@@ -1425,6 +1426,12 @@ function registerImplementRoutes(app, deps) {
     const sessionParams = notebookParamsFromSessionForGenerateRun(session, sid);
     // Run-as-me (REQ-113): the job gets no App principal and runs as the signed-in person.
     const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, runAsPerson() ? '' : ownServicePrincipalId(), runAsPerson());
+    const token = P.personTokenOf(req);
+    if (!token) throw I.badRequest('Sign in again: Inspire reads the rate table with your own access.');
+    const runSql = async (sql, parameters = null) => sqlResultToObjects(await executeSql(req.dbHost, token, warehouseOf(req), sql, parameters,
+      { rowLimit: 500, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' }));
+    const scopes = await launchScopesOf(req, warehouseId);
+    Object.assign(params, await JC.implementCurrencyParams(spec?.money, { runSql, scopes }));
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
     if (!sessionParams['01_uc_metadata']) {
       const err = new Error('This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.');
@@ -1966,9 +1973,7 @@ function registerImplementRoutes(app, deps) {
     const token = P.personTokenOf(req);
     if (!token) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
     try {
-      const warehouseId = warehouseOf(req);
-      const scopes = await launchScopesOf(req, warehouseId);
-      const made = GP.moneyValueSampleSql(req.body?.table, req.body?.value, scopes);
+      const made = GP.moneyValueSampleSql(req.body?.table, req.body?.value, scopes, req.body?.lost_filter ?? null);
       if (!made) throw I.badRequest('Name the use case table, and the value: a fixed amount, one column, or an equation over its columns, with one currency.');
       const found = await executeSql(req.dbHost, token, warehouseId, made.sql, made.parameters, { rowLimit: GP.MONEY_VALUE_ROWS, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' });
       return res.json({ rows: sqlResultToObjects(found).map((r) => ({ stake: Number(r.stake), currency: String(r.currency ?? '') })) });

@@ -102,3 +102,10 @@ test('a Generate run rebuilt from a session carries the scope that session saved
   const plain = notebookParamsFromSessionForGenerateRun({ business_name: 'Acme', tables_str: 'main.sales.orders' }, '42');
   assert.equal('17_table_scope' in plain, false);
 });
+
+test('the Data step finds each source scope by name in any case, and a source with no scope has no entry, so its note says all columns and all rows', async () => {
+  const T = await lib('tableScope.js');
+  assert.deepEqual(T.scopeEntryOf(SCOPE, 'MAIN.SALES.ORDERS'), SCOPE[ORDERS]);
+  assert.equal(T.scopeEntryOf(SCOPE, 'main.sales.returns'), undefined, 'an unscoped source gets no invented filter (must-exclude)');
+  assert.deepEqual(T.normalizeTableScope(T.scopeEntryOf(SCOPE, ORDERS)).columns, ['brand_name', 'location', 'total_sales'], 'the note names the kept columns');
+});

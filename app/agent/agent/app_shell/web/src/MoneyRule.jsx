@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { getSettings, previewMoneyRule, saveMoneyRule } from './api.js';
 import { draftOf, formulaLine, previewLines, ruleOf, ruleSentence, workedExample } from './moneyRule.js';
+import { Saving } from './saving.jsx';
 import { PlainNote } from './ui.jsx';
 import { BUILD_FIELDS, MoneyRuleFields } from './MoneyRuleFields.jsx';
 
@@ -74,7 +75,7 @@ export function MoneyRule({ pageId }) {
           </div>
         );
       })()}
-      <button type="button" className="btn" onClick={save} disabled={busy} data-money-save>Save the money rule</button>
+      <button type="button" className="btn" onClick={save} disabled={busy} data-money-save>{busy ? <Saving /> : 'Save the money rule'}</button>
     </section>
   );
 }

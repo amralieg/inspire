@@ -43,14 +43,25 @@
       "rule": {
         "currency": "convert",
         "base": "USD",
-        "rate_column": "fx_rate"
+        "rate_column": "fx_rate",
+        "currency_column": "ccy"
       },
       "valid": true,
       "clean": {
         "currency": "convert",
         "base": "USD",
-        "rate_column": "fx_rate"
+        "rate_column": "fx_rate",
+        "currency_column": "ccy"
       }
+    },
+    {
+      "name": "rate column with no currency column asks for it",
+      "rule": {
+        "currency": "convert",
+        "base": "USD",
+        "rate_column": "fx_rate"
+      },
+      "valid": false
     },
     {
       "name": "window of 12 closed periods",

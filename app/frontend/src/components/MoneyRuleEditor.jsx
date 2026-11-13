@@ -13,6 +13,7 @@ const EMPTY_PICK = { method: '', amount: '', column: '', expression: '', currenc
 const METHODS = [
   { id: 'rule', label: 'The amount the rule computes', hint: 'Each flagged record counts the amount its own rule works out. Nothing to fill in.' },
   { id: 'fixed', label: 'A fixed amount for each record', hint: 'Every record is worth the same amount.' },
+  { id: 'lost', label: 'The cost of each lost opportunity (count × value)', hint: 'Counts the records whose status says the opportunity was lost, each worth the amount you set.' },
   { id: 'column', label: 'A value from a data column', hint: 'The column already holds the amount each record is worth.' },
   { id: 'equation', label: 'An equation over columns', hint: 'Work the value out from several columns.' },
   { id: 'describe', label: 'Describe it', hint: 'Write how the value works in your words; Inspire proposes the rule for you to check.' },
@@ -27,11 +28,13 @@ const SOURCE_TEXT = { today: 'today’s rate', average: `ECB average, ${AVERAGES
 const DESCRIBE_EXAMPLE = 'Example: Each cancelled booking is worth its ticket_price in the currency column, and a refund counts as 0.';
 
 // A saved rule with no value counts the amount its own rule computes: that is the 'rule' choice, not an empty one.
+// A fixed amount that a rule filters to statuses is the cost of each lost opportunity: the same rule, shown under its own name.
 function pickOf(value, rule = null) {
   if (rule && rule.value === undefined && !rule.off) return { ...EMPTY_PICK, method: 'rule' };
   if (!value || !['fixed', 'column', 'equation'].includes(value.method)) return { ...EMPTY_PICK };
+  const lost = value.method === 'fixed' && Array.isArray(rule?.statuses) && rule.statuses.length > 0;
   return {
-    ...EMPTY_PICK, method: value.method, amount: value.amount == null ? '' : String(value.amount), column: value.column || '', expression: value.expression || '',
+    ...EMPTY_PICK, method: lost ? 'lost' : value.method, amount: value.amount == null ? '' : String(value.amount), column: value.column || '', expression: value.expression || '',
     currencyBy: value.currency_column !== undefined ? 'column' : 'code', code: value.currency || 'USD', currencyColumn: value.currency_column || '',
   };
 }
@@ -46,7 +49,7 @@ function valueOf(pick) {
   const currency = pick.currencyBy === 'column' ? { currency_column: pick.currencyColumn.trim() } : { currency: pick.code.trim().toUpperCase() };
   if (pick.currencyBy === 'column' && !COLUMN.test(pick.currencyColumn.trim())) problems.push('Pick the column that holds the currency of each record.');
   if (pick.currencyBy !== 'column' && !ISO.test(currency.currency)) problems.push('The value currency is a three-letter code such as USD.');
-  if (pick.method === 'fixed') {
+  if (pick.method === 'fixed' || pick.method === 'lost') {
     const amount = Number(pick.amount);
     if (!(amount > 0)) problems.push('A fixed value is a positive amount for each record, such as 120.');
     return { value: { method: 'fixed', amount, ...currency }, problems };
@@ -110,7 +113,8 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
     const { rule, problems: found } = ruleOf(nextDraft);
     const picked = valueOf(effectiveOf(nextPick));
     const gone = picked.value && columns.length ? columnsOf(picked.value).filter((name) => !columns.includes(name)) : [];
-    const all = [...found, ...picked.problems, ...gone.map((name) => `The column ${name} is not in this table, so the rule cannot use it.`)];
+    const lostNeedsStatuses = nextPick.method === 'lost' && !nextDraft.statuses.trim() ? ['Name the statuses that mean the opportunity was lost, such as lost.'] : [];
+    const all = [...found, ...picked.problems, ...lostNeedsStatuses, ...gone.map((name) => `The column ${name} is not in this table, so the rule cannot use it.`)];
     setProblems(all);
     if (!all.length && rule) onChange(picked.value ? { ...rule, value: picked.value } : rule);
     else if (value?.off) onChange(null);
@@ -173,11 +177,14 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
 
   const { value: picked, problems: pickProblems } = valueOf(effective);
   const gone = picked && columns.length ? columnsOf(picked).filter((name) => !columns.includes(name)) : [];
-  const previewKey = JSON.stringify(pickProblems.length || gone.length ? null : picked);
+  // The lost-opportunity choice previews only the rows whose status means lost, the rows the rule counts.
+  const lostFilter = pick.method === 'lost' ? { statuses: draft.statuses.split(',').map((s) => s.trim()).filter(Boolean), status_column: draft.statusColumn } : null;
+  const lostUnnamed = lostFilter !== null && !(lostFilter.statuses.length && lostFilter.status_column);
+  const previewKey = JSON.stringify(pickProblems.length || gone.length || lostUnnamed ? null : { picked, lostFilter });
   useEffect(() => {
-    if (!picked || pickProblems.length || gone.length || !table || !api.preview) { setPreview(null); return undefined; }
+    if (!picked || pickProblems.length || gone.length || lostUnnamed || !table || !api.preview) { setPreview(null); return undefined; }
     let live = true;
-    api.preview({ table, value: picked }).then((data) => { if (live) setPreview({ rows: data.rows || [] }); })
+    api.preview({ table, value: picked, lost_filter: lostFilter }).then((data) => { if (live) setPreview({ rows: data.rows || [] }); })
       .catch((err) => { if (live) setPreview({ error: err?.message || 'The example rows could not be read.' }); });
     return () => { live = false; };
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -255,6 +262,22 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
               </label>
               <p className="text-text-secondary">Total = number of records × amount. Example: a lost booking worth 120 counts 120; three of them count 360.</p>
             </>
+          )}
+          {pick.method === 'lost' && (
+            <div className="space-y-2 text-[12px]" data-money-lost>
+              <label className="block">Amount for each lost record
+                <input dir="auto" className="block mt-1 w-40" value={pick.amount} onChange={(e) => setPickPart({ amount: e.target.value })} data-money-lost-amount />
+              </label>
+              <label className="block">Column that holds the status of each record
+                <select className="block mt-1" value={draft.statusColumn} onChange={(e) => setDraftPart({ statusColumn: e.target.value })} data-money-lost-status-column>
+                  <option value="">Pick a column</option>
+                  {[...new Set([...columns, draft.statusColumn].filter(Boolean))].map((name) => <option key={name} value={name}>{name}</option>)}
+                </select>
+              </label>
+              <label className="block">Statuses that mean the opportunity was lost, comma-separated
+                <input dir="auto" className="block mt-1 w-full" value={draft.statuses} onChange={(e) => setDraftPart({ statuses: e.target.value })} data-money-lost-statuses />
+              </label>
+            </div>
           )}
           {pick.method === 'column' && (
             <>
@@ -370,6 +393,30 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
                   onChange={(e) => setDraftPart({ base: e.target.value.toUpperCase() })} onBlur={(e) => { if (ISO.test(e.target.value.trim().toUpperCase())) loadRates(e.target.value.trim().toUpperCase()); }} data-money-base />
               </label>
             )}
+            {draft.mode === 'convert' && (
+              <fieldset className="space-y-2 ps-6 text-[12px]" data-money-rate-source-group>
+                <legend className="font-semibold text-text-primary">Where each rate comes from</legend>
+                <Choice label="Rates you type, one per currency" control={<input type="radio" name="money-rate-source" className="mt-0.5 shrink-0" checked={draft.rateSource !== 'column'} onChange={() => setDraftPart({ rateSource: 'typed' })} data-money-rate-source="typed" />} />
+                <Choice label="Each record has its own rate, in a column" hint="Each row is converted with the rate on its own row."
+                  control={<input type="radio" name="money-rate-source" className="mt-0.5 shrink-0" checked={draft.rateSource === 'column'} onChange={() => setDraftPart({ rateSource: 'column', currencyColumn: draft.currencyColumn || sample?.currency || '' })} data-money-rate-source="column" />} />
+                {draft.rateSource === 'column' && (
+                  <>
+                    <label className="block">Rate column
+                      <select className="block mt-1 w-40" value={draft.rateColumn} onChange={(e) => setDraftPart({ rateColumn: e.target.value })} data-money-rate-column>
+                        <option value="">Pick a column</option>
+                        {columns.map((name) => <option key={name} value={name}>{name}</option>)}
+                      </select>
+                    </label>
+                    <label className="block">Currency column, the currency of each row
+                      <select className="block mt-1 w-40" value={draft.currencyColumn} onChange={(e) => setDraftPart({ currencyColumn: e.target.value })} data-money-rate-currency-column>
+                        <option value="">Pick a column</option>
+                        {columns.map((name) => <option key={name} value={name}>{name}</option>)}
+                      </select>
+                    </label>
+                  </>
+                )}
+              </fieldset>
+            )}
           </fieldset>
           <datalist id="money-currency-codes">{MONEY_CURRENCY_CHOICES.map((code) => <option key={code} value={code} />)}</datalist>
         </>
@@ -380,7 +427,7 @@ export function MoneyRuleEditor({ value, onChange, sample = null, table = '', co
           <p className="text-text-secondary">A currency code is the three-letter money code, such as USD or AED. The value currency says what each value is written in; the reporting currency is the one every total is shown in when you convert.</p>
           {!hasCurrencyColumn && <p className="text-text-secondary">The table has no currency column, so every amount is taken in the currency code you pick.</p>}
           {notice && <p className="text-text-secondary" data-money-rates-notice>{notice}</p>}
-          {draft.mode === 'convert' && (
+          {draft.mode === 'convert' && draft.rateSource !== 'column' && (
             draft.rates.length > 0 ? (
               <table className="text-[12px]" data-money-rates>
                 <thead><tr><th className="text-start pe-4">Currency</th><th className="text-start pe-4">1 unit is worth, in {draft.base || 'the reporting currency'}</th><th className="text-start">Source</th></tr></thead>

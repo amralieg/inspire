@@ -377,7 +377,7 @@ def test_the_money_rule_cases_agree_with_the_inspire_backend():
 def test_a_rate_column_converts_each_row_at_its_own_rate():
     global ROWS
     saved = list(ROWS)
-    rate_page = dict(PAGE, money={"currency": "convert", "base": "USD", "rate_column": "fx_rate"})
+    rate_page = dict(PAGE, money={"currency": "convert", "base": "USD", "rate_column": "fx_rate", "currency_column": "currency_code"})
     ROWS = [dict(r, fx_rate=2.0) for r in saved]
     try:
         db_rows = _run(shell_sql.kpi_query(rate_page, "exposure", {})[0])
@@ -390,7 +390,7 @@ def test_the_basis_says_at_which_rates_a_converted_total_was_worked_out():
     assert shell_sql.money_basis(PAGE) == ""
     assert shell_sql.money_basis(dict(PAGE, money={"currency": "convert", "base": "USD", "rates": {"AED": 0.5}})) == \
         "converted to USD at the rates typed in"
-    assert shell_sql.money_basis(dict(PAGE, money={"currency": "convert", "base": "USD", "rate_column": "fx_rate"})) == \
+    assert shell_sql.money_basis(dict(PAGE, money={"currency": "convert", "base": "USD", "rate_column": "fx_rate", "currency_column": "currency_code"})) == \
         "converted to USD at the rate in fx_rate"
 
 
@@ -856,3 +856,78 @@ def test_every_money_figure_of_a_converted_rule_is_labelled_with_its_reporting_c
     assert [k["currency"] for k in served["kpis"] if k["format"] == "currency"] == ["AED"], "the page the App serves carries the same label"
     per_currency = shell_sql.page_with_money(PAGE, {"currency": "per_currency"})
     assert [k["currency"] for k in per_currency["kpis"] if k["format"] == "currency"] == ["USD"], "a per-currency rule keeps each figure's own currency"
+
+
+# REQ-103: the build recomputes each converted row from its amount and its rate, so a generated dataset that forgets the rate fails
+# the round with the reason, instead of shipping a wrong total. Fixture rows: amount, fx_rate, ccy.
+RATE_COLUMNS = ("amount", "fx_rate", "ccy", "value_at_stake")
+RATE_FIXTURE = [(100.0, 2.0, "AED", None), (50.0, 1.5, "EUR", None), (30.0, None, "USD", None)]
+
+
+def _rate_page(sql):
+    return {
+        "id": "rate_page",
+        "datasets": [{"name": "rows", "sql": sql}],
+        "kpis": [{"id": "total", "format": "currency", "dataset": "rows", "expression": "SUM(value_at_stake)"}],
+        "money": {"currency": "convert", "base": "AED", "rate_column": "fx_rate", "currency_column": "ccy",
+                  "value": {"method": "column", "column": "amount", "currency_column": "ccy"}, "rule": "net"},
+        "filters": [],
+    }
+
+
+def _rate_checks(sql):
+    checks = shell_sql.money_check_queries(_rate_page(sql))
+    return {label: _run(query, columns=RATE_COLUMNS, rows=RATE_FIXTURE) for label, query in checks}
+
+
+def test_a_dataset_that_converts_each_row_passes_every_rate_check():
+    sql = "SELECT amount, fx_rate, ccy, amount * fx_rate AS value_at_stake FROM stake_rows WHERE fx_rate IS NOT NULL"
+    got = _rate_checks(sql)
+    assert set(got) == {shell_sql.RATE_CHECK_LABEL + "rows", shell_sql.RATE_TOTAL_LABEL + "rows"}
+    assert all(rows[0]["bad"] == 0 for rows in got.values()), got
+
+
+def test_a_dataset_that_forgot_the_rate_fails_the_row_and_the_total_checks_with_the_reason():
+    sql = "SELECT amount, fx_rate, ccy, amount AS value_at_stake FROM stake_rows WHERE fx_rate IS NOT NULL"
+    got = _rate_checks(sql)
+    assert got[shell_sql.RATE_CHECK_LABEL + "rows"][0]["bad"] == 2, "both rows with a rate carry the unconverted amount"
+    assert got[shell_sql.RATE_TOTAL_LABEL + "rows"][0]["bad"] == 1, "the total is the unconverted sum, not the converted one"
+    reason = shell_sql.money_check_reason(shell_sql.RATE_CHECK_LABEL + "rows")
+    assert "multiply each row's amount by the rate column" in reason
+
+
+def test_a_row_with_no_rate_fails_the_row_check_instead_of_dropping_out_of_the_total():
+    sql = "SELECT amount, fx_rate, ccy, amount * fx_rate AS value_at_stake FROM stake_rows"
+    got = _rate_checks(sql)
+    assert got[shell_sql.RATE_CHECK_LABEL + "rows"][0]["bad"] == 1, "the USD row has no rate, so the round must say so"
+    assert got[shell_sql.RATE_TOTAL_LABEL + "rows"][0]["bad"] == 0
+
+
+def _equation_page(sql):
+    page = _rate_page(sql)
+    page["money"]["value"] = {"method": "equation", "expression": "quantity * unit_price - discount", "currency_column": "ccy"}
+    return page
+
+
+EQUATION_COLUMNS = ("quantity", "unit_price", "discount", "fx_rate", "ccy", "value_at_stake")
+EQUATION_FIXTURE = [(2, 60.0, 10.0, 2.0, "AED", None), (1, 50.0, 0.0, 1.5, "EUR", None)]
+
+
+def _equation_checks(sql):
+    return {label: _run(query, columns=EQUATION_COLUMNS, rows=EQUATION_FIXTURE)
+            for label, query in shell_sql.money_check_queries(_equation_page(sql))}
+
+
+def test_an_equation_rule_converted_row_by_row_passes_both_checks():
+    sql = ("SELECT quantity, unit_price, discount, fx_rate, ccy, (quantity * unit_price - discount) * fx_rate AS value_at_stake "
+           "FROM stake_rows")
+    got = _equation_checks(sql)
+    assert set(got) == {shell_sql.RATE_CHECK_LABEL + "rows", shell_sql.RATE_TOTAL_LABEL + "rows"}, "the equation rule gets both checks"
+    assert all(rows[0]["bad"] == 0 for rows in got.values()), got
+
+
+def test_an_equation_dataset_that_forgot_the_rate_fails_the_row_and_total_checks():
+    sql = "SELECT quantity, unit_price, discount, fx_rate, ccy, quantity * unit_price - discount AS value_at_stake FROM stake_rows"
+    got = _equation_checks(sql)
+    assert got[shell_sql.RATE_CHECK_LABEL + "rows"][0]["bad"] == 2
+    assert got[shell_sql.RATE_TOTAL_LABEL + "rows"][0]["bad"] == 1
