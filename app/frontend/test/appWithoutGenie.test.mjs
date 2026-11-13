@@ -27,8 +27,8 @@ test('an App without a Genie Agent passes the use-it step with no Genie-for-App 
   assert.equal(errors.some((e) => /needs a Genie Agent/.test(e)), false, errors.join(' | '));
 });
 
-test('the Genie-for-App note says what is true: the App answers Ask itself, and a Genie Agent adds a space it can also use', () => {
-  assert.equal(GENIE_FOR_APP_NOTE, "The App's own agent answers Ask. A Genie Agent adds a Genie space it can also use.");
+test('the Genie-for-App note says what is true: the App answers Ask itself, and a Genie Agent is optional', () => {
+  assert.equal(GENIE_FOR_APP_NOTE, "The App's own agent answers Ask. A Genie Agent is optional, and the App's agent can also use it for data.");
 });
 
 test('a workspace with Genie Agents off still lets an App be built', () => {

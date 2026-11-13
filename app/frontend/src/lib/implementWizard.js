@@ -450,7 +450,7 @@ export function withAppPage(spec, id, on) {
   if (id === 'alerts') return withAppOption(spec, 'alerts', on);
   return APP_SCREENS.includes(id) ? withAppScreen(spec, id, on) : spec;
 }
-export const GENIE_FOR_APP_NOTE = "The App's own agent answers Ask. A Genie Agent adds a Genie space it can also use.";
+export const GENIE_FOR_APP_NOTE = "The App's own agent answers Ask. A Genie Agent is optional, and the App's agent can also use it for data.";
 export const APP_NEXT_NOTE = 'You pick where it goes on the next step.';
 export const RESULT_TABLE_MOVE_NOTE = 'Moving the table later copies its history to the new table and keeps the old one.';
 export const MERGE_OUTPUTS = ['dashboard', 'genie_space', 'app'];
