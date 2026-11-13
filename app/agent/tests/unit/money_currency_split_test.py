@@ -738,7 +738,7 @@ def test_the_app_and_the_server_list_the_same_currency_codes():
     here = os.path.dirname(os.path.abspath(__file__))
     js = open(os.path.join(here, "..", "..", "agent", "app_shell", "web", "src", "moneyRule.js"), encoding="utf-8").read()
     js_block = js[js.index("new Set(["):js.index("]);", js.index("new Set(["))]
-    seg = open(os.path.join(here, "..", "..", "agent", "app_shell", "server", "shell_sql.py"), encoding="utf-8").read()
+    seg = open(os.path.join(here, "..", "..", "agent", "app_shell", "server", "shell_facts.py"), encoding="utf-8").read()
     py_block = seg[seg.index("MONEY_CODES = frozenset(("):]
     py_block = py_block[:py_block.index("split())")]
     assert set(re.findall(r"[A-Z]{3}", js_block)) == set(re.findall(r"[A-Z]{3}", py_block[len("MONEY_CODES = frozenset(("):]))
