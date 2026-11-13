@@ -167,3 +167,27 @@ def test_the_markdown_catalog_writes_the_data_filters_of_each_use_case(scoped):
     md = next(p for p in obj.w_client.workspace.files if str(p).endswith(".md"))
     text = obj.w_client.workspace.files[md].decode("utf-8")
     assert "Data Filters" in text and "product: Tokyo Tidbits" in text, text[:400]
+
+
+def test_a_french_export_writes_the_connector_words_in_french(scoped):
+    set_scope(scoped, scope(SALES, ["sku", "product"], [
+        {"column": "product", "op": "in", "values": [f"Brand {n:02d}" for n in range(1, 13)]},
+        {"column": "sku", "op": "!=", "values": ["Other Co"]}]))
+    obj = make_inspire(scoped)
+    headers, rows, _numeric = obj._catalog_export_table({"Sales": [use_case("N01-U01", [SALES])]}, {}, "French")
+    cell = dict(zip(headers, rows[0]))
+    assert cell["product"] == ", ".join(f"Brand {n:02d}" for n in range(1, 11)) + " et 2 de plus", cell["product"]
+    assert cell["sku"] == "tout sauf Other Co", cell["sku"]
+
+
+def test_every_language_connector_and_label_keeps_the_placeholders_of_its_english_source(docs):
+    import re
+    fallbacks = docs["TranslationService"].TRANSLATION_FALLBACKS
+    english = docs["TranslationService"].ENGLISH_TRANSLATIONS
+    for key in ("doc_data_filters", "doc_filter_all_except", "doc_filter_and_more"):
+        placeholders = set(re.findall(r"\{([a-z_]+)\}", english[key]))
+        for language, labels in fallbacks.items():
+            text = labels[key]
+            assert set(re.findall(r"\{([a-z_]+)\}", text)) == placeholders, (language, key, text)
+            assert "{" not in re.sub(r"\{[a-z_]+\}", "", text) and "}" not in re.sub(r"\{[a-z_]+\}", "", text), (language, key, text)
+            assert text.strip(), (language, key)

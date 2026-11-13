@@ -316,7 +316,9 @@
   "value_predictive_analytics": "التحليلات التنبؤية",
   "value_descriptive_analytics": "التحليلات الوصفية",
   "key_measure_note": "المقياس الرئيسي",
-  "doc_data_filters": "مرشحات البيانات"
+  "doc_data_filters": "مرشحات البيانات",
+  "doc_filter_all_except": "الكل باستثناء {values}",
+  "doc_filter_and_more": "و{count} أكثر"
  },
  "Spanish": {
   "main_title": "Generador de Casos de Uso Impulsado por Databricks Genie Code",
@@ -635,7 +637,9 @@
   "value_predictive_analytics": "Analítica Predictiva",
   "value_descriptive_analytics": "Analítica Descriptiva",
   "key_measure_note": "Medida clave",
-  "doc_data_filters": "Filtros de datos"
+  "doc_data_filters": "Filtros de Datos",
+  "doc_filter_all_except": "todos excepto {values}",
+  "doc_filter_and_more": "y {count} más"
  },
  "French": {
   "main_title": "Générateur de Cas d'Utilisation Propulsé par Databricks Genie Code",
@@ -954,7 +958,9 @@
   "value_predictive_analytics": "Analytique Prédictive",
   "value_descriptive_analytics": "Analytique Descriptive",
   "key_measure_note": "Mesure clé",
-  "doc_data_filters": "Filtres de données"
+  "doc_data_filters": "Filtres de Données",
+  "doc_filter_all_except": "tout sauf {values}",
+  "doc_filter_and_more": "et {count} de plus"
  },
  "German": {
   "main_title": "Anwendungsfall-Generator Unterstützt von Databricks Genie Code",
@@ -1273,7 +1279,9 @@
   "value_predictive_analytics": "Prädiktive Analytik",
   "value_descriptive_analytics": "Deskriptive Analytik",
   "key_measure_note": "Schlüsselkennzahl",
-  "doc_data_filters": "Datenfilter"
+  "doc_data_filters": "Datenfilter",
+  "doc_filter_all_except": "alle außer {values}",
+  "doc_filter_and_more": "und {count} weitere"
  },
  "Portuguese": {
   "main_title": "Gerador de Casos de Uso Impulsionado por Databricks Genie Code",
@@ -1592,7 +1600,9 @@
   "value_predictive_analytics": "Análise Preditiva",
   "value_descriptive_analytics": "Análise Descritiva",
   "key_measure_note": "Medida-chave",
-  "doc_data_filters": "Filtros de dados"
+  "doc_data_filters": "Filtros de Dados",
+  "doc_filter_all_except": "todos exceto {values}",
+  "doc_filter_and_more": "e mais {count}"
  },
  "Italian": {
   "main_title": "Generatore di Casi d'Uso Alimentato da Databricks Genie Code",
@@ -1911,7 +1921,9 @@
   "value_predictive_analytics": "Analisi Predittiva",
   "value_descriptive_analytics": "Analisi Descrittiva",
   "key_measure_note": "Misura chiave",
-  "doc_data_filters": "Filtri dei dati"
+  "doc_data_filters": "Filtri Dati",
+  "doc_filter_all_except": "tutti tranne {values}",
+  "doc_filter_and_more": "e {count} altri"
  },
  "Chinese (Mandarin)": {
   "main_title": "由 达塔布里克斯 吉尼 科德 驱动的用例生成器",
@@ -2230,7 +2242,9 @@
   "value_predictive_analytics": "预测分析",
   "value_descriptive_analytics": "描述性分析",
   "key_measure_note": "关键指标",
-  "doc_data_filters": "数据筛选"
+  "doc_data_filters": "数据筛选器",
+  "doc_filter_all_except": "除{values}外的所有",
+  "doc_filter_and_more": "以及{count}个更多"
  },
  "Japanese": {
   "main_title": "データブリックス ジーニー コード を活用したユースケースジェネレーター",
@@ -2549,7 +2563,9 @@
   "value_predictive_analytics": "予測分析",
   "value_descriptive_analytics": "記述的分析",
   "key_measure_note": "主要指標",
-  "doc_data_filters": "データフィルター"
+  "doc_data_filters": "データフィルター",
+  "doc_filter_all_except": "{values} 以外のすべて",
+  "doc_filter_and_more": "他 {count} 件"
  },
  "Korean": {
   "main_title": "데이터브릭스 지니 코드 기반의 유스케이스 생성기",
@@ -2868,7 +2884,9 @@
   "value_predictive_analytics": "예측 분석",
   "value_descriptive_analytics": "기술적 분석",
   "key_measure_note": "핵심 지표",
-  "doc_data_filters": "데이터 필터"
+  "doc_data_filters": "데이터 필터",
+  "doc_filter_all_except": "{values}을(를) 제외한 전체",
+  "doc_filter_and_more": "및 {count}개 더"
  },
  "Hindi": {
   "main_title": "डेटाब्रिक्स जीनी कोड द्वारा संचालित उपयोग केस जनरेटर",
@@ -3187,7 +3205,9 @@
   "value_predictive_analytics": "भविष्यवाणी विश्लेषण",
   "value_descriptive_analytics": "वर्णनात्मक विश्लेषण",
   "key_measure_note": "मुख्य मापदंड",
-  "doc_data_filters": "डेटा फ़िल्टर"
+  "doc_data_filters": "डेटा फ़िल्टर",
+  "doc_filter_all_except": "{values} को छोड़कर सभी",
+  "doc_filter_and_more": "और {count} अधिक"
  },
  "Russian": {
   "main_title": "Генератор бизнес-кейсов на базе Датабрикс Джини Код",
@@ -3506,7 +3526,9 @@
   "value_predictive_analytics": "Прогнозная Аналитика",
   "value_descriptive_analytics": "Описательная Аналитика",
   "key_measure_note": "Ключевой показатель",
-  "doc_data_filters": "Фильтры данных"
+  "doc_data_filters": "Фильтры данных",
+  "doc_filter_all_except": "все, кроме {values}",
+  "doc_filter_and_more": "и ещё {count}"
  },
  "Swedish": {
   "main_title": "Användningsfallsgenerator Driven av Databricks Genie Code",
@@ -3825,7 +3847,9 @@
   "value_predictive_analytics": "Prediktiv analys",
   "value_descriptive_analytics": "Deskriptiv analys",
   "key_measure_note": "Nyckelmått",
-  "doc_data_filters": "Datafilter"
+  "doc_data_filters": "Datafilter",
+  "doc_filter_all_except": "alla utom {values}",
+  "doc_filter_and_more": "och {count} till"
  },
  "Danish": {
   "main_title": "Anvendelsescase-generator drevet af Databricks Genie Code",
@@ -4144,7 +4168,9 @@
   "value_predictive_analytics": "Prædiktiv analyse",
   "value_descriptive_analytics": "Deskriptiv analyse",
   "key_measure_note": "Nøgletal",
-  "doc_data_filters": "Datafiltre"
+  "doc_data_filters": "Datafiltre",
+  "doc_filter_all_except": "alle undtagen {values}",
+  "doc_filter_and_more": "og {count} flere"
  },
  "Norwegian": {
   "main_title": "Brukscasegenerator drevet av Databricks Genie Code",
@@ -4463,7 +4489,9 @@
   "value_predictive_analytics": "Prediktiv analyse",
   "value_descriptive_analytics": "Deskriptiv analyse",
   "key_measure_note": "Nøkkeltall",
-  "doc_data_filters": "Datafiltre"
+  "doc_data_filters": "Datafiltre",
+  "doc_filter_all_except": "alle unntatt {values}",
+  "doc_filter_and_more": "og {count} til"
  },
  "Finnish": {
   "main_title": "Käyttötapausgeneraattori Databricks Genie Coden avulla",
@@ -4782,7 +4810,9 @@
   "value_predictive_analytics": "Prediktiivinen analytiikka",
   "value_descriptive_analytics": "Deskriptiivinen analytiikka",
   "key_measure_note": "Avainmittari",
-  "doc_data_filters": "Datasuodattimet"
+  "doc_data_filters": "Tietosuodattimet",
+  "doc_filter_all_except": "kaikki paitsi {values}",
+  "doc_filter_and_more": "ja {count} lisää"
  },
  "Polish": {
   "main_title": "Generator przypadków użycia oparty na Databricks Genie Code",
@@ -5101,7 +5131,9 @@
   "value_predictive_analytics": "Analityka predykcyjna",
   "value_descriptive_analytics": "Analityka opisowa",
   "key_measure_note": "Kluczowy miernik",
-  "doc_data_filters": "Filtry danych"
+  "doc_data_filters": "Filtry danych",
+  "doc_filter_all_except": "wszystkie oprócz {values}",
+  "doc_filter_and_more": "i {count} więcej"
  },
  "Romanian": {
   "main_title": "Generator de cazuri de utilizare alimentat de Databricks Genie Code",
@@ -5420,7 +5452,9 @@
   "value_predictive_analytics": "Analiză predictivă",
   "value_descriptive_analytics": "Analiză descriptivă",
   "key_measure_note": "Măsura cheie",
-  "doc_data_filters": "Filtre de date"
+  "doc_data_filters": "Filtre de Date",
+  "doc_filter_all_except": "toate cu excepția {values}",
+  "doc_filter_and_more": "și {count} mai multe"
  },
  "Ukrainian": {
   "main_title": "Генератор бізнес-кейсів на базі Датабрікс Джіні Код",
@@ -5739,7 +5773,9 @@
   "value_predictive_analytics": "Прогнозна аналітика",
   "value_descriptive_analytics": "Описова аналітика",
   "key_measure_note": "Ключовий показник",
-  "doc_data_filters": "Фільтри даних"
+  "doc_data_filters": "Фільтри даних",
+  "doc_filter_all_except": "усі, крім {values}",
+  "doc_filter_and_more": "і ще {count}"
  },
  "Dutch": {
   "main_title": "Gebruikscasegenerator aangedreven door Databricks Genie Code",
@@ -6058,7 +6094,9 @@
   "value_predictive_analytics": "Voorspellende analyse",
   "value_descriptive_analytics": "Beschrijvende analyse",
   "key_measure_note": "Kernmaatstaf",
-  "doc_data_filters": "Gegevensfilters"
+  "doc_data_filters": "Gegevensfilters",
+  "doc_filter_all_except": "alles behalve {values}",
+  "doc_filter_and_more": "en {count} meer"
  },
  "Indonesian": {
   "main_title": "Generator Kasus Penggunaan Didukung oleh Databricks Genie Code",
@@ -6377,7 +6415,9 @@
   "value_predictive_analytics": "Analitik Prediktif",
   "value_descriptive_analytics": "Analitik Deskriptif",
   "key_measure_note": "Ukuran kunci",
-  "doc_data_filters": "Filter data"
+  "doc_data_filters": "Filter Data",
+  "doc_filter_all_except": "semua kecuali {values}",
+  "doc_filter_and_more": "dan {count} lainnya"
  },
  "Malay": {
   "main_title": "Penjana Kes Penggunaan Dikuasakan oleh Databricks Genie Code",
@@ -6696,7 +6736,9 @@
   "value_predictive_analytics": "Analitik Ramalan",
   "value_descriptive_analytics": "Analitik Deskriptif",
   "key_measure_note": "Ukuran utama",
-  "doc_data_filters": "Penapis data"
+  "doc_data_filters": "Penapis Data",
+  "doc_filter_all_except": "semua kecuali {values}",
+  "doc_filter_and_more": "dan {count} lagi"
  },
  "Tamil": {
   "main_title": "Databricks Genie Code மூலம் இயக்கப்படும் பயன்பாட்டு வழக்கு உருவாக்கி",
@@ -7015,6 +7057,8 @@
   "value_predictive_analytics": "முன்கணிப்பு பகுப்பாய்வு",
   "value_descriptive_analytics": "விளக்க பகுப்பாய்வு",
   "key_measure_note": "முக்கிய அளவீடு",
-  "doc_data_filters": "தரவு வடிகட்டிகள்"
+  "doc_data_filters": "தரவு வடிகட்டிகள்",
+  "doc_filter_all_except": "{values} தவிர அனைத்தும்",
+  "doc_filter_and_more": "மற்றும் {count} மேலும்"
  }
 }
