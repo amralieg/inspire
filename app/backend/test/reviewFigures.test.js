@@ -241,3 +241,38 @@ test('GET /api/inspire/portfolio counts zero for a table that does not exist yet
     await srv.close();
   }
 });
+
+test('the run list names each run by its bar mode, read from results_json.quality_bar.mode, null where the run has no bar, and still lists a table without that column', async () => {
+  const sql = R.sessionListStatement(TABLE).sql;
+  assert.ok(sql.includes("get_json_object(results_json, '$.quality_bar.mode') AS bar_mode"), 'the mode is read in SQL, the payload is not sent');
+  assert.equal(R.sessionListStatement(TABLE, { barMode: false }).sql.includes('results_json'), false);
+  const rows = [
+    { session_id: '9', bar_mode: 'High', business_runs: 1, business_rank: 1 },
+    { session_id: '8', bar_mode: 'Ultra High', business_runs: 1, business_rank: 1 },
+    { session_id: '7', bar_mode: null, business_runs: 1, business_rank: 1 },
+    { session_id: '6', bar_mode: '   ', business_runs: 1, business_rank: 1 },
+  ];
+  const got = await R.loadSessionList(async () => rows, TABLE);
+  assert.deepEqual(got.sessions.map((s) => s.bar_mode), ['High', 'Ultra High', null, null], 'a run with no bar carries no mode');
+
+  const sent = [];
+  const noResults = await R.loadSessionList(async (statement) => {
+    sent.push(statement.sql);
+    if (statement.sql.includes('get_json_object(results_json')) throw MISSING('results_json');
+    return [{ session_id: '5', business_runs: '1', business_rank: '1' }];
+  }, TABLE);
+  assert.equal(sent.length, 2, 'a table without results_json is read once more without it');
+  assert.equal(noResults.sessions[0].bar_mode, null);
+
+  const neither = [];
+  await R.loadSessionList(async (statement) => {
+    neither.push(statement.sql);
+    if (statement.sql.includes('COALESCE(last_updated') || statement.sql.includes('get_json_object(results_json')) {
+      throw MISSING(statement.sql.includes('COALESCE(last_updated') ? 'last_updated' : 'results_json');
+    }
+    return [];
+  }, TABLE);
+  assert.equal(neither.length, 3, 'a table missing both columns is read without each in turn, and the rest of the list still loads');
+  await assert.rejects(R.loadSessionList(async () => { throw new Error('PERMISSION_DENIED: no SELECT'); }, TABLE), /PERMISSION_DENIED/,
+    'a permission error is not hidden behind the bar fallback');
+});

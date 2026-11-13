@@ -153,7 +153,7 @@ test('each Start run row counts its use cases, quality, priority and MVPs, numbe
   for (const item of runCounts(overview, portfolio, SESSIONS[0]).items.filter((i) => i.key === 'quality_bar')) {
     assert.match(item.text, /^\d+ of \d+ use cases? meets? the (\S+ )?quality bar$/, 'the quality count is one sentence that starts with a number, never a bare number');
   }
-  const named = { ...SESSIONS[0], results_json: { quality_bar: { mode: 'High' } } };
+  const named = { ...SESSIONS[0], bar_mode: 'High' };
   assert.equal(quality(runCounts(overview, portfolio, named)).text, '6 of 8 use cases meet the High quality bar', 'a run that names its bar says so');
   const unread = runCounts({ ...overview, meets: null, below: null, unread: { quality: 'no elite_status column' } }, portfolio, SESSIONS[0]);
   assert.equal(quality(unread).n, null, 'an unread quality count is not counted');

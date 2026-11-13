@@ -72,8 +72,12 @@ function sessionOverviewStatement(table, sessionIds, existing = null) {
 const BUSINESS_KEY = "LOWER(TRIM(COALESCE(business_name, '')))";
 const RUN_BUSINESS_KEY = `CASE WHEN ${BUSINESS_KEY} = '' THEN CONCAT('#', CAST(session_id AS STRING)) ELSE ${BUSINESS_KEY} END`;
 
-function sessionListStatement(table, { lastUpdated = true, cap = SESSION_LIST_CAP } = {}) {
-  const columns = SESSION_LIST_COLUMNS.map((name) => (name === 'last_updated' && !lastUpdated ? 'NULL AS last_updated' : name)).join(', ');
+// The bar a run was judged against, read from the one field the run's results name it in. Only this short string leaves SQL.
+const BAR_MODE_SQL = "get_json_object(results_json, '$.quality_bar.mode') AS bar_mode";
+
+function sessionListStatement(table, { lastUpdated = true, barMode = true, cap = SESSION_LIST_CAP } = {}) {
+  const named = SESSION_LIST_COLUMNS.map((name) => (name === 'last_updated' && !lastUpdated ? 'NULL AS last_updated' : name));
+  const columns = (barMode ? [...named, BAR_MODE_SQL] : named).join(', ');
   const runTime = lastUpdated ? 'COALESCE(last_updated, completed_on, create_at)' : 'COALESCE(completed_on, create_at)';
   return {
     sql: `SELECT ${columns}, CAST(COUNT(*) OVER (PARTITION BY ${RUN_BUSINESS_KEY}) AS INT) AS business_runs, `
@@ -172,16 +176,28 @@ async function loadSessionPreviews(run, table, sessionIds, existing = null) {
   return bySession;
 }
 
+const barModeOf = (value) => (typeof value === 'string' && value.trim() ? value.trim() : null);
+
+// Older session tables lack last_updated or results_json. The error names the missing column, which drops only that one.
 async function loadSessionList(run, table, cap = SESSION_LIST_CAP) {
   let rows;
-  try {
-    rows = await run(sessionListStatement(table, { cap }));
-  } catch (err) {
-    if (!isMissingColumnError(err)) throw err;
-    rows = await run(sessionListStatement(table, { lastUpdated: false, cap }));
+  const dropped = {};
+  for (;;) {
+    try {
+      rows = await run(sessionListStatement(table, { cap, ...dropped }));
+      break;
+    } catch (err) {
+      if (!isMissingColumnError(err)) throw err;
+      const text = String(err?.message || err);
+      if (text.includes('results_json') && dropped.barMode !== false) dropped.barMode = false;
+      else if (dropped.lastUpdated !== false) dropped.lastUpdated = false;
+      else throw err;
+    }
   }
   return {
-    sessions: rows.slice(0, cap).map((row) => ({ ...row, business_runs: whole(row.business_runs), business_rank: whole(row.business_rank) })),
+    sessions: rows.slice(0, cap).map((row) => ({
+      ...row, business_runs: whole(row.business_runs), business_rank: whole(row.business_rank), bar_mode: barModeOf(row.bar_mode),
+    })),
     truncated: rows.length > cap,
   };
 }

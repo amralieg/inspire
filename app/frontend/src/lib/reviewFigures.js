@@ -92,7 +92,7 @@ export function runCounts(overview, portfolio, session, { running = false, mvpEr
     } else {
       items.push(
         item('use_cases', total, running ? 'use case so far' : 'use case', running ? 'use cases so far' : 'use cases'),
-        qualityItem(total, overview.meets, session?.results_json?.quality_bar?.mode || ''),
+        qualityItem(total, overview.meets, session?.bar_mode || ''),
         item('high_priority', countOf(overview.high), 'high priority'),
         item('domains', countOf(overview.domains), 'domain', 'domains'),
       );
