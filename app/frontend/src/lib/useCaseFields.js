@@ -340,7 +340,7 @@ export function subtitleOfUseCase(uc, titlePlain) {
   const u = uc && typeof uc === 'object' ? uc : {};
   const plain = (v) => displayCleanText(String(v ?? '').replace(/<[^>]*>/g, ' '));
   const title = plain(titlePlain).toLowerCase();
-  return [u.description, u.Description, u.usecase, u.use_case, u.short_name, u.shortName]
+  return [u.subtitle, u.description, u.Description, u.usecase, u.use_case, u.short_name, u.shortName]
     .map(plain)
     .find((t) => t && t.toLowerCase() !== title) || '';
 }

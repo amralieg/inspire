@@ -90,7 +90,7 @@ def test_the_name_check_repairs_a_name_without_the_label_and_keeps_one_that_carr
         {"Name": "Track supplier lead times", "Primary Table": "main.s.suppliers"},
     ]
     stats = labelled["ensure_data_filter_labels"](use_cases, lambda uc: [], "Starbucks", labelled["INSPIRE_TABLE_SCOPES"])
-    assert stats == {"affected": 2, "carried": 1, "reasked": 0, "fallback": 1, "kept_user_named": 0}
+    assert stats == {"affected": 2, "carried": 1, "reasked": 0, "fallback": 1, "kept_user_named": 0, "subtitled": 0}
     assert use_cases[0]["Name"] == "Improve Starbucks customer experience using segmentation"
     assert use_cases[1]["Name"] == "Forecast STARBUCKS order volume", "a name that carries the label in any case is kept as written"
     assert use_cases[2]["Name"] == "Track supplier lead times", "a use case on no filtered table is never touched"
@@ -107,7 +107,7 @@ def test_an_empty_label_changes_no_name(labelled):
     labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
     use_cases = [{"Name": "Improve customer experience", "Primary Table": ORDERS}]
     stats = labelled["ensure_data_filter_labels"](use_cases, lambda uc: [], "", labelled["INSPIRE_TABLE_SCOPES"])
-    assert stats == {"affected": 0, "carried": 0, "reasked": 0, "fallback": 0, "kept_user_named": 0}
+    assert stats == {"affected": 0, "carried": 0, "reasked": 0, "fallback": 0, "kept_user_named": 0, "subtitled": 0}
     assert use_cases[0]["Name"] == "Improve customer experience"
 
 
@@ -186,7 +186,7 @@ def test_the_reask_runs_once_for_only_the_missed_names_with_the_cache_bypassed_a
     stats = labelled["ensure_data_filter_labels"](
         use_cases, lambda uc: [], "Contoso", labelled["INSPIRE_TABLE_SCOPES"],
         reask=lambda misses: labelled["reask_data_filter_names"](stub, misses, "Contoso"))
-    assert stats == {"affected": 2, "carried": 0, "reasked": 2, "fallback": 0, "kept_user_named": 0}
+    assert stats == {"affected": 2, "carried": 0, "reasked": 2, "fallback": 0, "kept_user_named": 0, "subtitled": 0}
     assert [uc["Name"] for uc in use_cases] == ["Improve Contoso customer experience using segmentation", "Forecast Contoso order volume"]
     assert len(stub.calls) == 1, "one re-ask for all the missed names, never one per name"
     call = stub.calls[0]
@@ -201,7 +201,7 @@ def test_the_rename_prompt_is_a_registered_template_with_the_label_and_the_names
 
     template = agent_ns["PROMPT_TEMPLATES"]["DATA_FILTER_LABEL_RENAME_PROMPT"]
     fields = {name for _, name, _, _ in string.Formatter().parse(template) if name}
-    assert fields == {"label", "names_json"}
+    assert fields == {"label_intro", "label_rule", "names_json"}, "the label prompt states the filters and the label rule (REQ-175)"
     assert "USER DIRECTIVES ARE THE SUPREME AUTHORITY" in template, "every prompt carries the user-vibes preamble"
     assert "the user directive WINS without exception" in template
 
@@ -215,7 +215,7 @@ def test_when_the_reask_still_misses_the_deterministic_rewrite_fires_for_each_na
     stats = labelled["ensure_data_filter_labels"](
         use_cases, lambda uc: [], "Contoso", labelled["INSPIRE_TABLE_SCOPES"],
         reask=lambda misses: labelled["reask_data_filter_names"](still_wrong, misses, "Contoso"))
-    assert stats == {"affected": 2, "carried": 0, "reasked": 0, "fallback": 2, "kept_user_named": 0}
+    assert stats == {"affected": 2, "carried": 0, "reasked": 0, "fallback": 2, "kept_user_named": 0, "subtitled": 0}
     assert use_cases[0]["Name"] == "Improve Contoso customer experience using segmentation"
     assert use_cases[1]["Name"] == "Forecast Contoso order volume"
 
@@ -228,7 +228,7 @@ def test_a_failed_or_unusable_reask_falls_back_to_the_deterministic_rewrite(labe
     stats = labelled["ensure_data_filter_labels"](
         use_cases, lambda uc: [], "Contoso", labelled["INSPIRE_TABLE_SCOPES"],
         reask=lambda misses: labelled["reask_data_filter_names"](stub, misses, "Contoso"))
-    assert stats == {"affected": 2, "carried": 0, "reasked": 0, "fallback": 2, "kept_user_named": 0}
+    assert stats == {"affected": 2, "carried": 0, "reasked": 0, "fallback": 2, "kept_user_named": 0, "subtitled": 0}
     assert all("Contoso" in uc["Name"] for uc in use_cases)
 
 
@@ -271,7 +271,7 @@ def test_name_with_technique_has_the_label_exactly_once_and_never_doubled(labell
           "Name": "Improve customer experience using segmentation", "Primary Table": ORDERS}
     labelled["ensure_data_filter_labels"]([uc], lambda u: [], "Contoso", labelled["INSPIRE_TABLE_SCOPES"])
     composed = _composed_name(labelled, uc)
-    assert composed == "Improve Contoso customer experience using segmentation using controls testing"
+    assert composed == "Improve Contoso customer experience using segmentation", "the name alone: the technique is in the subtitle (REQ-175)"
     assert composed.count("Contoso") == 1
 
 
@@ -287,21 +287,21 @@ def test_a_user_named_use_case_keeps_the_persons_own_words(labelled):
     labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
     uc = {"No": "1", "usecase": "Predict churn", "Name": "Predict churn", "user_use_case_name": "Retention radar", "Primary Table": ORDERS}
     stats = labelled["ensure_data_filter_labels"]([uc], lambda u: [], "Contoso", labelled["INSPIRE_TABLE_SCOPES"])
-    assert stats == {"affected": 0, "carried": 0, "reasked": 0, "fallback": 0, "kept_user_named": 1}
+    assert stats == {"affected": 0, "carried": 0, "reasked": 0, "fallback": 0, "kept_user_named": 1, "subtitled": 0}
     assert uc["usecase"] == "Predict churn" and uc["user_use_case_name"] == "Retention radar"
 
 
 def test_the_fired_line_carries_the_counts_and_is_written_as_a_step_message(agent_ns):
-    line = agent_ns["data_filter_label_line"]({"affected": 2, "carried": 1, "reasked": 1, "fallback": 0, "kept_user_named": 0}, "Contoso")
+    line = agent_ns["data_filter_label_line"]({"affected": 2, "carried": 1, "reasked": 1, "fallback": 0, "kept_user_named": 0, "subtitled": 0}, "Contoso")
     assert line.startswith("[DATA-FILTER-LABEL FIRED] carried at generation 1 of 2; after repair 2 of 2")
     assert "(re-asked 1, rewrite 0, kept 0 user-named)" in line and 'label "Contoso"' in line
 
 
 def test_the_fired_line_separates_the_generation_count_from_the_count_after_repair(agent_ns):
-    zero_at_generation = agent_ns["data_filter_label_line"]({"affected": 17, "carried": 0, "reasked": 17, "fallback": 0, "kept_user_named": 0}, "Tokyo Tidbits")
+    zero_at_generation = agent_ns["data_filter_label_line"]({"affected": 17, "carried": 0, "reasked": 17, "fallback": 0, "kept_user_named": 0, "subtitled": 0}, "Tokyo Tidbits")
     assert zero_at_generation.startswith("[DATA-FILTER-LABEL FIRED] carried at generation 0 of 17; after repair 17 of 17")
     assert "(re-asked 17, rewrite 0, kept 0 user-named)" in zero_at_generation
-    mixed = agent_ns["data_filter_label_line"]({"affected": 4, "carried": 1, "reasked": 2, "fallback": 1, "kept_user_named": 3}, "Contoso")
+    mixed = agent_ns["data_filter_label_line"]({"affected": 4, "carried": 1, "reasked": 2, "fallback": 1, "kept_user_named": 3, "subtitled": 0}, "Contoso")
     assert mixed.startswith("[DATA-FILTER-LABEL FIRED] carried at generation 1 of 4; after repair 4 of 4")
     assert "kept 3 user-named" in mixed
     import json as _json
@@ -319,7 +319,7 @@ def test_the_label_reaches_the_title_and_the_composed_name_exactly_as_typed(labe
     labelled["INSPIRE_TABLE_SCOPES"].update(labelled["parse_table_scopes"](_text(SCOPE)))
     labelled["DATA_FILTER_LABEL"]["text"] = label
     normalize = labelled["DatabricksInspire"]._normalize_usecase
-    uc = {"No": "1", "usecase": "improve sales of the product", "Name": "improve sales of the product", "Primary Table": ORDERS}
+    uc = {"No": "1", "usecase": "improve sales of product", "Name": "improve sales of product", "Primary Table": ORDERS}
     labelled["ensure_data_filter_labels"]([uc], lambda u: [], label, labelled["INSPIRE_TABLE_SCOPES"])
     title = normalize(uc["usecase"], uc["Name"])
     assert title.count(label) == 1, f"the title keeps the typed spelling of {label!r}: {title!r}"
