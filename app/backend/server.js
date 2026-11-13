@@ -62,6 +62,7 @@ const PM_ERROR = require('./lib/permissionError');
 const { samplesChoiceOfRun, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames, implementTableName, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
 const { keepLongInteger, parseExactJson } = require('./lib/exactJson');
 const { int64Id, isInt64Id, jsonWithInt64Ids } = require('./lib/int64Id');
+const { dataFiltersOf, scopesOfSessions } = require('./lib/dataFilters');
 const {
   FEEDBACK_NOT_AVAILABLE,
   isMissingTableError,
@@ -2782,6 +2783,21 @@ app.get('/api/inspire/step-results', requireToken, async (req, res) => {
   }
 });
 
+// The Table Scope of each session the use-case rows belong to, read from __inspire_session with the person's sign-in. A session whose
+// Table Scope cannot be read maps to no entry, so its use cases show that the Data Filters could not be read, never that there are none.
+async function tableScopesOfRows(req, warehouseId, catalog, schema, rows) {
+  const ids = [...new Set(rows.map((r) => int64Id(r.session_id)).filter(Boolean))];
+  if (!ids.length) return new Map();
+  const sql = `SELECT CAST(session_id AS STRING) AS session_id, table_scope FROM \`${catalog}\`.\`${schema}\`.\`__inspire_session\` WHERE session_id IN (${ids.join(', ')})`;
+  try {
+    const result = await executeSql(req.dbHost, req.dbToken, warehouseId, sql);
+    return scopesOfSessions(sqlResultToObjects(result).map((r) => [r.session_id, r.table_scope]));
+  } catch (err) {
+    console.warn(`usecases: the Data Filters of the sessions could not be read, so their use cases say so: ${err.message}`);
+    return new Map();
+  }
+}
+
 // Get use cases from __inspire_usecases table (final polished data)
 app.get('/api/inspire/usecases', requireToken, async (req, res) => {
   try {
@@ -2861,6 +2877,12 @@ app.get('/api/inspire/usecases', requireToken, async (req, res) => {
         ? `   📋 usecases: ${plural(rows.length, 'row')} (all_sessions, limit applied)`
         : `   📋 usecases: ${plural(rows.length, 'row')} for session ${session_id}`
     );
+    // REQ-171: each use case carries the Data Filters of its session's Table Scope, so the App shows them on the use case.
+    const sessionScopes = await tableScopesOfRows(req, warehouse_id, catalog, schema, rows);
+    for (const row of rows) {
+      const scopes = sessionScopes.get(String(row.session_id));
+      row.data_filters = scopes === undefined ? null : dataFiltersOf(row, scopes);
+    }
     res.json({ usecases: rows, count: rows.length, all_sessions: listAll });
   } catch (err) {
     if (isMissingTableError(err)) {

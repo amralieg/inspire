@@ -1,0 +1,200 @@
+{
+  "scopes": {
+    "main.s.sales": {
+      "columns": [
+        "sku",
+        "product",
+        "region",
+        "sold_on"
+      ],
+      "rows": [
+        {
+          "column": "product",
+          "op": "=",
+          "values": [
+            "Tokyo Tidbits"
+          ]
+        }
+      ]
+    },
+    "main.s.stores": {
+      "columns": [
+        "store",
+        "region",
+        "product"
+      ],
+      "rows": [
+        {
+          "column": "product",
+          "op": "=",
+          "values": [
+            "Golden Gate Ginger"
+          ]
+        }
+      ]
+    },
+    "main.s.orders": {
+      "columns": [
+        "order_id",
+        "product",
+        "region",
+        "sold_on",
+        "channel"
+      ],
+      "rows": [
+        {
+          "column": "product",
+          "op": "in",
+          "values": [
+            "A1",
+            "B2"
+          ]
+        },
+        {
+          "column": "region",
+          "op": "=",
+          "values": [
+            "north"
+          ]
+        },
+        {
+          "column": "sold_on",
+          "op": ">=",
+          "values": [
+            "2026-01-01"
+          ]
+        },
+        {
+          "column": "channel",
+          "op": "!=",
+          "values": [
+            "Other Co"
+          ]
+        }
+      ]
+    },
+    "main.s.big": {
+      "columns": [
+        "sku",
+        "brand"
+      ],
+      "rows": [
+        {
+          "column": "brand",
+          "op": "in",
+          "values": [
+            "Brand 01",
+            "Brand 02",
+            "Brand 03",
+            "Brand 04",
+            "Brand 05",
+            "Brand 06",
+            "Brand 07",
+            "Brand 08",
+            "Brand 09",
+            "Brand 10",
+            "Brand 11",
+            "Brand 12"
+          ]
+        }
+      ]
+    }
+  },
+  "cases": [
+    {
+      "name": "no filter on the tables",
+      "uc": {
+        "primary_table": "main.s.none",
+        "tables_involved": "main.s.none"
+      },
+      "columns": [],
+      "line": ""
+    },
+    {
+      "name": "one picked value",
+      "uc": {
+        "primary_table": "main.s.sales",
+        "tables_involved": "main.s.sales"
+      },
+      "columns": [
+        {
+          "column": "product",
+          "text": "Tokyo Tidbits"
+        }
+      ],
+      "line": "product: Tokyo Tidbits"
+    },
+    {
+      "name": "several columns and several values",
+      "uc": {
+        "primary_table": "main.s.orders",
+        "tables_involved": "main.s.orders"
+      },
+      "columns": [
+        {
+          "column": "product",
+          "text": "A1, B2"
+        },
+        {
+          "column": "region",
+          "text": "north"
+        },
+        {
+          "column": "channel",
+          "text": "all except Other Co"
+        }
+      ],
+      "line": "product: A1, B2; region: north; channel: all except Other Co"
+    },
+    {
+      "name": "two tables filtered differently",
+      "uc": {
+        "primary_table": "main.s.sales",
+        "tables_involved": "main.s.sales, main.s.stores"
+      },
+      "columns": [
+        {
+          "column": "product",
+          "text": "sales: Tokyo Tidbits; stores: Golden Gate Ginger"
+        }
+      ],
+      "line": "product: sales: Tokyo Tidbits; stores: Golden Gate Ginger"
+    },
+    {
+      "name": "a long value list",
+      "uc": {
+        "primary_table": "main.s.big",
+        "tables_involved": "main.s.big"
+      },
+      "columns": [
+        {
+          "column": "brand",
+          "text": "Brand 01, Brand 02, Brand 03, Brand 04, Brand 05, Brand 06, Brand 07, Brand 08, Brand 09, Brand 10 and 2 more"
+        }
+      ],
+      "line": "brand: Brand 01, Brand 02, Brand 03, Brand 04, Brand 05, Brand 06, Brand 07, Brand 08, Brand 09, Brand 10 and 2 more"
+    },
+    {
+      "name": "a range filter is not a categorical pick",
+      "uc": {
+        "primary_table": "main.s.orders",
+        "tables_involved": "main.s.orders"
+      },
+      "columns": [
+        {
+          "column": "product",
+          "text": "A1, B2"
+        },
+        {
+          "column": "region",
+          "text": "north"
+        },
+        {
+          "column": "channel",
+          "text": "all except Other Co"
+        }
+      ],
+      "line": "product: A1, B2; region: north; channel: all except Other Co"
+    }
+  ]
+}
