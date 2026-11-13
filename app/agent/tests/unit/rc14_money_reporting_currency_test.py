@@ -140,3 +140,15 @@ def test_no_rates_and_no_bundled_averages_is_not_converted_and_does_not_crash(ns
     estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns, unit="EUR")], use_case_kind="forecast"))
     assert estimate["currency"] == "EUR"
     assert estimate["short"] == "EUR 2.4K-6K a year (not converted to AED: no rate for EUR)"
+
+
+def test_a_default_reporting_currency_is_named_as_the_default_on_the_card(ns, monkeypatch):
+    _widget_map(ns, monkeypatch, currency="USD", currency_default="true")
+    estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns)], use_case_kind="forecast"))
+    assert estimate["short"] == "USD 2.4K-6K a year (reporting currency USD (default))", estimate["short"]
+
+
+def test_a_reporting_currency_the_person_chose_is_still_labelled_assumed(ns, monkeypatch):
+    _widget_map(ns, monkeypatch, currency="AED", currency_default="false")
+    estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns)], use_case_kind="forecast"))
+    assert estimate["short"] == "AED 2.4K-6K a year (currency assumed: AED (reporting currency))"

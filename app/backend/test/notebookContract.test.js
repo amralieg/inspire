@@ -22,6 +22,7 @@ test(`bundled notebook is a valid ${INSPIRE_AGENT_VERSION} Jupyter notebook`, ()
   assert.match(source, /dbutils\.widgets\.text\(\s*_name,\s*""/, 'widgets are created by name, with empty defaults');
   assert.match(source, /\("currency", "Reporting currency \(ISO code\)"\)/);
   assert.match(source, /\("currency_rates", "Reporting currency rates \(JSON\)"\)/);
+  assert.match(source, /\("currency_default", "Reporting currency is the default \(true\/false\)"\)/);
   assert.ok(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('currency') && INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('currency_rates'));
   assert.equal(notebook.nbformat, 4);
   assert.match(source, new RegExp(`__AGENT_VERSION__\\s*=\\s*["']${INSPIRE_AGENT_VERSION}["']`));

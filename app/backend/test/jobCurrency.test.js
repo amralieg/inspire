@@ -22,6 +22,7 @@ test('Implement drops a rate that is not a positive number for an ISO code, and 
 test('Discover with no currency asked sends USD and today’s rates for every saved currency', async () => {
   const out = await discoverCurrencyParams({}, { sourceUrl: 'https://rates.example.test/v1/latest', fetchImpl: live({ EUR: 0.8, AED: 3.6725 }) });
   assert.equal(out.currency, 'USD');
+  assert.equal(out.currency_default, 'true', 'nothing typed, so the reporting currency is the default');
   const rates = JSON.parse(out.currency_rates).rates;
   assert.equal(out.currency_rates.includes('"source":"live"'), true, 'a live answer is labelled live');
   assert.equal(rates.EUR, Number((1 / 0.8).toPrecision(10)), 'today’s rate, in USD per 1 EUR');
@@ -30,6 +31,7 @@ test('Discover with no currency asked sends USD and today’s rates for every sa
 test('Discover offline sends the saved averages, so the run still converts', async () => {
   const out = await discoverCurrencyParams({ currency: 'aed' }, { sourceUrl: 'https://rates.example.test/v1/latest', fetchImpl: offline });
   assert.equal(out.currency, 'AED');
+  assert.equal(out.currency_default, 'false', 'a currency the person chose is not a default');
   const rates = JSON.parse(out.currency_rates).rates;
   assert.equal(JSON.parse(out.currency_rates).source, 'saved', 'an offline answer is labelled saved');
   assert.equal(rates.USD, Number((3.6725).toPrecision(10)), 'the AED peg: 1 USD is 3.6725 AED');
@@ -40,6 +42,7 @@ test('Discover offline sends the saved averages, so the run still converts', asy
 test('both launch keys survive the notebook parameter sanitizer, so the notebook receives them on both paths', () => {
   assert.ok(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('currency'));
   assert.ok(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('currency_rates'));
+  assert.ok(INSPIRE_NOTEBOOK_WIDGET_KEYS.includes('currency_default'));
   const out = sanitizeInspireNotebookJobParams({ '15_operation': 'Discover Use Cases', '00_business_name': 'x', '01_uc_metadata': 'a.b',
     currency: 'AED', currency_rates: '{"source":"typed","rates":{"EUR":4.28}}' });
   assert.equal(out.currency, 'AED');
