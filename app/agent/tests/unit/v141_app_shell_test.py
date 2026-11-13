@@ -12,6 +12,7 @@ SERVER = os.path.join(ROOT, "agent", "app_shell", "server")
 if SERVER not in sys.path:
     sys.path.insert(0, SERVER)
 
+import shell_agent  # noqa: E402
 import shell_core  # noqa: E402
 import shell_db  # noqa: E402
 import shell_sql  # noqa: E402
@@ -588,7 +589,8 @@ def test_genie_routes_validate_ids_and_respect_off(tmp_path):
     s, _sp, _user, _made = shell(tmp_path / "off", off)
     status, out = call(s, "POST", "genie/ask", body={"question": "q"})
     assert status == 409 and "warehouse was stopped" in out["error"]
-    assert call(s, "GET", "app")[1]["genie"] == {"enabled": False, "title": "", "url": "", "note": off["genie_note"]}
+    assert call(s, "GET", "app")[1]["genie"] == {"enabled": False, "agent": False, "title": "", "url": "",
+                                                 "note": shell_agent.NO_MODEL + " " + off["genie_note"]}
 
 
 def test_missing_warehouse_is_a_clear_error(tmp_path):
