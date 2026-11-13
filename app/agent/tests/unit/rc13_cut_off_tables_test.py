@@ -57,3 +57,55 @@ def test_a_metadata_read_that_raises_for_every_table_still_returns_a_spec_list_a
     obj.logger = CapturingLogger()
     assert obj._genie_cut_off_tables({"No": "N01-U01", "_implement_data": {}}) == []
     assert len([m for k, m in obj.logger.records if "[IMPLEMENT-CUT-OFF]" in m]) == 1
+
+
+def _full_spec_case(agent_ns, monkeypatch):
+    from v120_artifacts_support import CapturingLogger
+    from v120_genie_support import build_inspire, make_uc
+    sources = ["main.inspire.a", "main.inspire.b"]
+    monkeypatch.setitem(agent_ns, "implement_source_tables", lambda data, involved: list(sources))
+
+    def time_source(use_case, table):
+        if table == "main.inspire.b":
+            raise RuntimeError("PERMISSION_DENIED: User does not have SELECT on Table 'main.inspire.b'")
+        return {"column": "order_date"}
+    inst = build_inspire(agent_ns)
+    inst._genie_time_source = time_source
+    inst._implement_builder = lambda: "builder@example.com"
+    inst.logger = CapturingLogger()
+    uc = make_uc(**{"Analytics Technique": "Classification", "genie_instruction": "x", "genie_instruction_status": "success"})
+    refused = []
+    uc["_implement_refused"] = refused
+    return inst, uc, refused
+
+
+def test_a_full_spec_with_one_unreadable_table_is_produced_warns_once_and_records_one_permission_entry(agent_ns, monkeypatch):
+    inst, uc, refused = _full_spec_case(agent_ns, monkeypatch)
+    spec = inst._genie_notebook_spec(uc)
+    assert spec and "schedule_cron" in spec, "the spec is produced although one table cannot be read"
+    source = inst._genie_run_controls_source(uc, spec, "x")
+    assert "cut_off_tables" in source
+    warned = [m for k, m in inst.logger.records if k == "WARNING" and "[IMPLEMENT-CUT-OFF]" in m]
+    assert len(warned) == 1 and "main.inspire.b" in warned[0] and f"{uc['No']}:" in warned[0], warned
+    assert len(refused) == 1, refused
+    entry = refused[0]
+    assert entry["principal"] == "builder@example.com" and entry["instructions"] == []
+    assert entry["statements"] == [
+        "GRANT USE CATALOG ON CATALOG main TO `builder@example.com`",
+        "GRANT USE SCHEMA ON SCHEMA main.inspire TO `builder@example.com`",
+        "GRANT SELECT ON TABLE main.inspire.b TO `builder@example.com`",
+    ]
+
+
+def test_the_same_unreadable_table_adds_one_permission_entry_however_often_the_cut_off_is_read(agent_ns, monkeypatch):
+    inst, uc, refused = _full_spec_case(agent_ns, monkeypatch)
+    inst._genie_cut_off_tables(uc)
+    inst._genie_cut_off_tables(uc)
+    assert len(refused) == 1
+
+
+def test_a_refusal_with_no_builder_adds_no_entry_and_still_warns(agent_ns, monkeypatch):
+    inst, uc, refused = _full_spec_case(agent_ns, monkeypatch)
+    inst._implement_builder = lambda: ""
+    assert inst._genie_cut_off_tables(uc) == [{"table": "main.inspire.a", "column": "order_date"}]
+    assert refused == []
