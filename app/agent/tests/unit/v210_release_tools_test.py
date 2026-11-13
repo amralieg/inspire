@@ -367,11 +367,11 @@ def test_isolation_allows_a_grant_to_the_scratch_apps_own_principal_only(release
 
 
 def test_isolation_allows_the_lanes_own_workspace_folder_even_when_own_paths_does_not_list_it(release_tool, tmp_path, capsys):
-    release_tool.settings["workspace_folder"] = "inspire_cust_rehearsal"
+    release_tool.settings["workspace_folder"] = "release_check_folder"
     code, out = _diff(release_tool, tmp_path, _snapshot([], ["/Shared/kept/x"]),
-                      _snapshot([], ["/Shared/kept/x", "/Users/someone/inspire_cust_rehearsal/v1.5.3-rc.2-cust/a"]), capsys)
+                      _snapshot([], ["/Shared/kept/x", "/Users/someone/release_check_folder/v1.5.3-rc.2-cust/a"]), capsys)
     assert code == 0
-    assert "ALLOWED folders./Shared/kept: added /Users/someone/inspire_cust_rehearsal/v1.5.3-rc.2-cust/a" in out
+    assert "ALLOWED folders./Shared/kept: added /Users/someone/release_check_folder/v1.5.3-rc.2-cust/a" in out
     assert "NOT MINE" not in out
 
 
