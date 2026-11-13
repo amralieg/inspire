@@ -13,15 +13,15 @@ function implementCurrencyParams(money) {
     const value = Number(rate);
     if (ISO.test(String(code)) && Number.isFinite(value) && value > 0) rates[String(code)] = value;
   }
-  return { currency: money.base, currency_rates: JSON.stringify(rates) };
+  return { currency: money.base, currency_rates: JSON.stringify({ source: 'typed', rates }) };
 }
 
 async function discoverCurrencyParams(params, { fetchImpl, sourceUrl } = {}) {
   const asked = String(params?.currency || '').trim().toUpperCase();
   const base = ISO.test(asked) ? asked : DISCOVER_DEFAULT_REPORTING;
   const codes = Object.keys(FX.AVERAGE_PER_USD).filter((code) => code !== base);
-  const { rates } = await FX.currencyRates({ base, codes, fetchImpl, sourceUrl });
-  return { currency: base, currency_rates: JSON.stringify(rates) };
+  const { rates, offline } = await FX.currencyRates({ base, codes, fetchImpl, sourceUrl });
+  return { currency: base, currency_rates: JSON.stringify({ source: offline ? 'saved' : 'live', rates }) };
 }
 
 module.exports = { implementCurrencyParams, discoverCurrencyParams, DISCOVER_DEFAULT_REPORTING };
