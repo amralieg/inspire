@@ -140,7 +140,7 @@ for W in "$WORK_A" "$WORK_B"; do
   "$PY" "$ROOT/rc_release.py" "$TAG" "$REPO_DIR" "$REPO_DIR" --assets "$SCRATCH/assets" --app-sha "$SHA" --agent-sha "$SHA" \
     --target "$SHA" --work "$W" --dry-run --compare-to "$COMPARE_TO" > "$SCRATCH/release_$W.log" 2>&1 \
     || { tail -25 "$SCRATCH/release_$W.log"; fail "rc_release build $W failed"; }
-  grep -E 'leak scan|equal v|holds|"version"' "$SCRATCH/release_$W.log" | sed 's/^/    /'
+  { grep -E 'leak scan|equal v|holds|"version"' "$SCRATCH/release_$W.log" || true; } | sed 's/^/    /'
   ok "build $W in $W40/$W/release"
 done
 
@@ -296,7 +296,7 @@ fi
 step "7. install into $APP through rc_install.py, $([ -n "$LINKS" ] && echo 'with the tag links setting (explicit --tag-links)' || echo 'the customer path: online, no tag links')"
 "$PY" "$ROOT/rc_install.py" "$TAG" all --app "$APP" --label "$LABEL" --work "$WORK_A" --online $LINKS --catalog "$CATALOG" \
   > "$SCRATCH/install.log" 2>&1 || { tail -30 "$SCRATCH/install.log"; fail "rc_install failed"; }
-grep -E '^\[' "$SCRATCH/install.log" | head -8 | sed 's/^/    /'
+{ grep -E '^\[' "$SCRATCH/install.log" || true; } | head -8 | sed 's/^/    /'
 
 step "8. verify the install"
 "$PY" "$ROOT/isolation.py" snapshot "$W40/${TAG}_iso_after.json" && "$PY" "$ROOT/isolation.py" diff "$W40/${TAG}_iso_before.json" "$W40/${TAG}_iso_after.json" || fail "the install changed something a watched App uses"

@@ -548,7 +548,7 @@ if name == "rc_release.py":
         print("leak scan: clean")
     if "--skip-build" in args:
         print(os.environ["FAKE_CHECK_LINE"])
-if name == "rc_install.py":
+if name == "rc_install.py" and not os.environ.get("FAKE_INSTALL_QUIET"):
     print("[12:00:00Z] installer stub: installed")
 ''',
     }
@@ -563,7 +563,7 @@ SHA = "1" * 40
 LATEST_URL = "https://github.com/amralieg/inspire/releases/tag/v0.0.1"
 
 
-def _full_run(release_tool, tmp_path, check_line, *extra):
+def _full_run(release_tool, tmp_path, check_line, *extra, quiet_install=False):
     bin_dir = _fake_tools(tmp_path)
     (tmp_path / "probe.json").write_text("{}", encoding="utf-8")
     log = tmp_path / "calls.log"
@@ -571,7 +571,8 @@ def _full_run(release_tool, tmp_path, check_line, *extra):
     env = {**os.environ, "INSPIRE_RC_SETTINGS": str(release_tool.path), "INSPIRE_RC_PYTHON": str(bin_dir / "fake_python"),
            "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "FAKE_LOG": str(log), "FAKE_WORK": release_tool.settings["work"],
            "FAKE_CHECK_LINE": "release check " + check_line.format(url=f"https://github.com/amralieg/inspire/releases/download/{tag}"),
-           "FAKE_LATEST_URL": LATEST_URL, "INSPIRE_ASSETS_PYPI": "https://example.invalid/simple", "LABEL": "test"}
+           "FAKE_LATEST_URL": LATEST_URL, "INSPIRE_ASSETS_PYPI": "https://example.invalid/simple", "LABEL": "test",
+           "FAKE_INSTALL_QUIET": "1" if quiet_install else ""}
     env.pop("COMPARE_TO", None)
     release_tool.write()
     done = subprocess.run(["bash", os.path.join(release_tool.release, "kinds_rc.sh"), "abc", tag, "full", *extra],
@@ -592,6 +593,12 @@ def test_a_full_run_passes_tag_links_only_when_asked_for_explicitly(release_tool
     done, installs = _full_run(release_tool, tmp_path, "{url}: 8 of 8 checks OK, 0 failures", "--tag-links")
     assert done.returncode == 0, done.stderr
     assert "--online" in installs[0] and "--tag-links" in installs[0]
+
+
+def test_an_installer_that_prints_no_summary_line_does_not_stop_the_run_silently(release_tool, tmp_path):
+    done, installs = _full_run(release_tool, tmp_path, "{url}: 8 of 8 checks OK, 0 failures", quiet_install=True)
+    assert len(installs) == 1
+    assert "==== 8." in done.stdout and "STOPPED" not in done.stderr
 
 
 def test_a_publish_log_with_an_incomplete_check_stops_the_run_before_the_install(release_tool, tmp_path):
