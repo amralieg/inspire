@@ -174,7 +174,7 @@ test('the server builds without an ask Inspire does not build, names it, and kee
     assert.equal(String(insertedSpec(made).vibes ?? ''), '', 'an ask alone is taken out and the version still builds');
     assert.equal(insertedSpec(made).vibe_previous, undefined);
   });
-  const history = [{ spec_version: 1, status: 'ready', spec_json: SPEC }];
+  const history = [{ use_case_id: SPEC.use_case_id, spec_version: 1, status: 'ready', spec_json: SPEC }];
   await withApp({ columns: KEY_COLUMNS, history }, async (url, made) => {
     const got = await submit(url, { ...SPEC, vibes: 'Add a region filter', based_on_version: 1 });
     assert.equal(got.status, 200, JSON.stringify(got.data));
