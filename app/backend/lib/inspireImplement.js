@@ -3244,20 +3244,24 @@ function ownerLabel(owner) {
   return !name || name.includes('@') ? 'your data owner' : name;
 }
 
-function appReadsLeft(record, plans) {
-  return record.tables.map((t, i) => {
+// What the App still needs on each source table: the live plan for the App's service principal `app` (one derivation, shared by
+// the on-load card, Check again and Grant). Every statement here is a read grant to that principal.
+// `tables` are the build's source tables, the same set the on-load card checks (checkedSourceTables). The record only names an owner
+// when the plan has none.
+function appReadsLeft(record, tables, plans, app) {
+  return tables.map((table, i) => {
     const plan = plans[i] || { grants: [], gaps: [] };
     const order = (g) => IMPLEMENT_SOURCE_NEEDS.findIndex(([privilege]) => privilege === g.privilege);
-    const recorded = new Set(t.grants);
-    const needed = [...plan.grants, ...plan.gaps].sort((a, b) => order(a) - order(b)).map((g) => grantSql(g, record.app)).filter((g) => recorded.has(g));
-    const owner = joinAnd([...new Set(plan.gaps.map((g) => ownerLabel(g.owner)).filter(Boolean))]) || ownerLabel(t.owner);
-    return { table: t.table, owner, grants: needed.filter((g) => appReadGrantFor(g, record.app)) };
+    const needed = [...plan.grants, ...plan.gaps].sort((a, b) => order(a) - order(b)).map((g) => grantSql(g, app));
+    const recorded = (record.tables.find((t) => t.table.toLowerCase() === table.toLowerCase()) || {}).owner || '';
+    const owner = joinAnd([...new Set(plan.gaps.map((g) => ownerLabel(g.owner)).filter(Boolean))]) || ownerLabel(recorded);
+    return { table, owner, grants: needed.filter((g) => appReadGrantFor(g, app)) };
   }).filter((t) => t.grants.length);
 }
 
-function appReadsGrantable(record, left) {
-  const recorded = new Set(record.tables.flatMap((t) => t.grants));
-  return [...new Set(left.flatMap((t) => t.grants))].filter((g) => recorded.has(g) && appReadGrantFor(g, record.app));
+// Every statement the dialog shows, in order. The person runs them all; the workspace refuses the ones the person may not grant.
+function appReadsGrantable(left, app) {
+  return [...new Set(left.flatMap((t) => t.grants))].filter((g) => appReadGrantFor(g, app));
 }
 
 function appReadsUpdateStatement(table, row, left) {

@@ -76,8 +76,9 @@ test('Check again on an unreadable build opens See the grant, with the full read
     await card.waitFor();
     await card.getByRole('button', { name: 'Check again' }).click();
     await card.locator('[data-app-reads-result="check"]').waitFor();
-    // The check's result is a new grant list, so the on-failure dialog opens once more: close it, then See the grant reopens it.
-    await closeOnLoadPermission(page, { expect: true });
+    // Check again shows the same grants the card showed, so Permission Required does not open a second time.
+    await page.waitForTimeout(800);
+    assert.equal(await page.locator('[data-permission-dialog=""]').count(), 0, 'Check again reopens nothing for the same grants');
     const see = card.locator('[data-see-grant=""]');
     await see.waitFor({ timeout: 15000 });
     const dialog = page.locator('[data-permission-dialog=""]');
@@ -85,7 +86,8 @@ test('Check again on an unreadable build opens See the grant, with the full read
     await dialog.waitFor({ timeout: 15000 });
     assert.match(await dialog.locator('#permission-required-title').innerText(), /^Permission Required$/);
     const statements = (await dialog.locator('[data-permission-statements=""]').innerText()).split('\n').map((s) => s.replace(/;$/, ''));
-    assert.deepEqual(statements, [CATALOG, SCHEMA, SELECT], 'the App needs USE CATALOG, USE SCHEMA and SELECT on the table, in that order, once each');
+    assert.deepEqual(statements, [CATALOG, SCHEMA, SELECT, METADATA, SELECT_RETURNS, METADATA_RETURNS],
+      'the App needs USE CATALOG, USE SCHEMA, then SELECT and READ METADATA on each of the two tables, once each (the same list the card shows)');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

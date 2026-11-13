@@ -1,13 +1,13 @@
 import { useEffect, useState } from 'react';
 import PermissionRequired from './PermissionRequired';
-import { subscribePermissions } from '../lib/permissionBus';
+import { grantListKey, subscribePermissions } from '../lib/permissionBus';
 
 // Mounted once at the App root. Shows one Permission Required dialog at a time.
 export default function PermissionHost() {
   const [open, setOpen] = useState(null);
   useEffect(() => subscribePermissions((permissions, extra) => {
     setOpen((cur) => {
-      const same = cur && JSON.stringify(cur.permissions) === JSON.stringify(permissions);
+      const same = cur && grantListKey(cur.permissions) === grantListKey(permissions);
       if (same) return { ...cur, ...extra };
       return { permissions, ...extra };
     });

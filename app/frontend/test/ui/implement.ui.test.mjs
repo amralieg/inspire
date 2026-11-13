@@ -328,7 +328,8 @@ test('a use case that trains a model stops on Results until Inspire may register
         assert.equal(await check.count(), 0);
         await goToStep(page, 'Results');
         await openFolded(page, 'Result table');
-        assert.equal(await page.getByLabel('Result table check').locator('p.text-success-fg', { hasText: `you can register the model ${RESULT_TABLE}_model` }).count(), 1);
+        // Reopening the fold re-runs the write check, so its result arrives after the request.
+        await page.getByLabel('Result table check').locator('p.text-success-fg', { hasText: `you can register the model ${RESULT_TABLE}_model` }).waitFor({ timeout: 15000 });
       }
       assert.deepEqual(ui.pageErrors, []);
     } finally {

@@ -483,6 +483,8 @@ export default function ImplementWizard({
   const [preflightError, setPreflightError] = useState('');
   const [checksBusy, setChecksBusy] = useState(false);
   const [outputCheck, setOutputCheck] = useState(null);
+  // True once Next has run the write check: from then on the check re-runs when its inputs change (see writeCheckKey).
+  const writeCheckRun = useRef(false);
   const [dropped, setDropped] = useState([]);
   const [busy, setBusy] = useState(false);
   const [plan, setPlan] = useState(null);
@@ -976,6 +978,7 @@ export default function ImplementWizard({
         });
       } else if (resultsOn) {
         setChecking('Checking you can write the result table');
+        writeCheckRun.current = true;
         const check = await apiFetch(outputCheckPath(), { raise: false }).catch((e) => {
           if (checkCallRefused(e)) throw e;
           return { ok: true, unchecked: outputUncheckedText(spec.config.result_table, e) };
@@ -1167,6 +1170,21 @@ export default function ImplementWizard({
   const inspireTable = inspireSchemaResultTable(inspireDatabase, spec.use_case_id, sessionId);
   const resultPlace = resultPlaceOf(spec.config.result_table, ownTable, inspireTable);
   const placeBlocks = resultPlaceBlocks(ownSchema, ownTable, inspireTable, ownSchema?.catalog || resultTableParts(ownTable).catalog);
+  // Next runs the write check (goNext). From then on it re-runs whenever its inputs change while the results fold is shown: the table, the model name,
+  // or coming back to the fold after Back, so the result on screen is never a check of other inputs. A new check clears the old result at once.
+  // An own-schema table is checked after its schema is created (goNext).
+  const writeCheckKey = resultsOn && isOpenSection('results') && resultPlace !== 'own' ? outputCheckPath() : '';
+  useEffect(() => {
+    if (!writeCheckKey || !writeCheckRun.current) return undefined;
+    let live = true;
+    setOutputCheck(null);
+    const timer = setTimeout(() => {
+      apiFetch(writeCheckKey, { raise: false })
+        .then((check) => { if (live) setOutputCheck(check.unchecked ? null : check); })
+        .catch((e) => { if (live) setOutputCheck(checkCallRefused(e) ? { ok: false, detail: e.message } : null); });
+    }, 400);
+    return () => { live = false; clearTimeout(timer); };
+  }, [writeCheckKey]); // eslint-disable-line react-hooks/exhaustive-deps -- keyed by the check's inputs
   useEffect(() => {
     if (!resultsOn || catalogs !== null) return undefined;
     let cancelled = false;

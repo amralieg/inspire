@@ -90,3 +90,25 @@ test('no Build button sits beside a grant refusal the App still has (REQ-042)', 
     await ui.close();
   }
 });
+
+test('Check again does not reopen Permission Required for the same grants it already showed (REQ-042, REQ-138)', async () => {
+  const w = refusedWorkspace();
+  const ui = await openUi('implement', w.state);
+  const { page } = ui;
+  try {
+    await page.getByRole('heading', { name: 'Build', exact: true }).waitFor();
+    await closeOnLoadPermission(page, { expect: true });
+    await expandBuild(page);
+    const card = page.getByRole('region', { name: CARD });
+    await card.waitFor({ timeout: 15000 });
+    const recheck = page.waitForResponse((r) => r.url().includes('/implement/app-reads'), { timeout: 15000 });
+    await card.getByRole('button', { name: 'Check again' }).click();
+    await recheck;
+    await page.waitForTimeout(800);
+    assert.equal(await page.locator('[data-permission-dialog=""]').count(), 0, 'the same grants do not reopen Permission Required after Check again');
+    assert.deepEqual(w.grants, [], 'Check again grants nothing');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});

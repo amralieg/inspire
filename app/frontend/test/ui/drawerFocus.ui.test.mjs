@@ -1,8 +1,8 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { defaultSpecFromUseCase } from '../../src/lib/implementWizard.js';
-import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { closeBrowser, openUi } from './uiSupport.mjs';
+import { built as builtRow, HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, STUDIO_STATE } from './implementFixtures.js';
+import { closeBrowser, openUi, startMvp } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -33,7 +33,8 @@ test('on page load the Build progress drawer stays closed, takes no focus and do
   }
 });
 
-test('a Build progress drawer opened by a build start does not take focus or scroll the page (the person keeps the Build Now button)', async () => {
+// A build start from the Build page: sibling N01-U02 has no MVP, N01-U01 is built, and submit/history answer like a live run.
+async function buildStartFixture() {
   const { REVIEW_STATE } = await import('./reviewFixtures.js');
   const { built: builtRow } = await import('./implementFixtures.js');
   const measured = (high) => JSON.stringify({ status: 'measured', value_low: high / 2, value_high: high, currency: 'AED', text: `AED ${high} a year` });
@@ -58,6 +59,13 @@ test('a Build progress drawer opened by a build start does not take focus or scr
     });
   };
   const ui = await openUi('app', { ...REVIEW_STATE, useCases, history: [builtRow({ use_case_id: 'N01-U01' })] }, '', { mount });
+  return { ui, submits };
+}
+
+const focusInDrawer = (page) => page.evaluate(() => Boolean(document.activeElement?.closest('[data-progress-panel]')));
+
+test('a Build progress drawer opened by a build start does not take focus or scroll the page (the person keeps the Build Now button)', async () => {
+  const { ui } = await buildStartFixture();
   const { page } = ui;
   try {
     await page.goto(`${page.url().split('#')[0]}#/build/42/N01-U01`).catch(() => {});
@@ -66,8 +74,39 @@ test('a Build progress drawer opened by a build start does not take focus or scr
     await page.waitForFunction(() => window.location.hash.includes('/build/42/N01-U02'), null, { timeout: 20000 });
     await page.locator('[data-progress-panel]').first().waitFor({ timeout: 20000 });
     await page.waitForTimeout(300);
-    assert.equal(await page.evaluate(() => Boolean(document.activeElement?.closest('[data-progress-panel]'))), false, 'the drawer a build start opens does not take focus');
+    assert.equal(await focusInDrawer(page), false, 'the drawer a build start opens does not take focus');
     assert.equal(await page.evaluate(() => window.scrollY), 0, 'the drawer a build start opens does not scroll the page');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
+
+test('a Build progress drawer opened by All Good, Build it Now in the Start Use Case MVP with Genie wizard does not take focus or scroll the page (REQ-142)', async () => {
+  const ui = await openUi('implement', { ...STUDIO_STATE, history: [] });
+  const { page, made } = ui;
+  try {
+    await page.getByText('Not built yet.', { exact: false }).waitFor({ timeout: 15000 });
+    // The harness keeps history static. The queued build shows in history only after the submit has answered, so the server's
+    // submit check still sees no build, and the page's refresh that follows the submit opens the drawer.
+    let queued = null;
+    Object.defineProperty(made.state, 'history', { configurable: true, get: () => (queued ? [queued] : []) });
+    const submits = [];
+    page.on('response', async (r) => {
+      if (r.request().method() !== 'POST' || !r.url().includes('/api/inspire/implement/submit') || !r.ok()) return;
+      const { spec } = JSON.parse(r.request().postData());
+      submits.push(spec.use_case_id);
+      const now = new Date().toISOString();
+      queued = builtRow({ use_case_id: spec.use_case_id, session_id: '42', spec_version: 1, status: 'queued', change_classes: 'initial',
+        created_at: now, updated_at: now, spec_json: JSON.stringify(spec) });
+    });
+    await page.getByRole('button', { name: 'Start Use Case MVP with Genie', exact: true }).first().click();
+    await startMvp(page);
+    await page.locator('[data-progress-panel]').first().waitFor({ timeout: 20000 });
+    await page.waitForTimeout(300);
+    assert.deepEqual(submits, ['N01-U01'], 'the wizard submitted one build');
+    assert.equal(await focusInDrawer(page), false, 'the drawer the wizard start opens does not take focus');
+    assert.equal(await page.evaluate(() => window.scrollY), 0, 'the drawer the wizard start opens does not scroll the page');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

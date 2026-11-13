@@ -10,7 +10,10 @@ const SP = 'app-sp-2';
 const CATALOG = 'GRANT USE CATALOG ON CATALOG `main` TO `app-sp-2`';
 const SCHEMA = 'GRANT USE SCHEMA ON SCHEMA `main`.`s` TO `app-sp-2`';
 const SELECT = 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `app-sp-2`';
+const METADATA = 'GRANT READ METADATA ON TABLE `main`.`s`.`orders` TO `app-sp-2`';
 const RECORDED = [CATALOG, SCHEMA, SELECT];
+// What the App still needs on the live plan: the recorded three plus READ METADATA (the ABAC policy read needs it).
+const PLAN = [CATALOG, SCHEMA, SELECT, METADATA];
 const DENIED = "[PERMISSION_DENIED] User does not have MANAGE on Schema 'main.s'.";
 
 function built(unread, status = 'ready_with_warnings') {
@@ -41,6 +44,7 @@ function workspace({ catalogMine = false, schemaManage = true, history = [built(
     held,
     overrides: {
       useCase: { id: 'N01-U01', use_case: 'Assess water assets', primary_table: 'main.s.orders', tables_involved: 'main.s.orders' },
+      me: { applicationId: SP, displayName: 'riverside-assets' },
       tokenKind: 'app',
       forwardedToken: PERSON_TOKEN,
       history,
@@ -74,15 +78,15 @@ async function withApp(overrides, run) {
 
 const updates = (made) => made.sqlCalls.filter((c) => String(c.sql).startsWith('UPDATE'));
 
-test('Grant access with my permissions runs exactly the recorded grants still missing, with the person token, and nothing from the request', async () => {
+test('Grant access with my permissions runs exactly the grants still missing on the live plan, READ METADATA included, with the person token, and nothing from the request', async () => {
   const w = workspace();
   await withApp(w.overrides, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant', grants: ['DROP TABLE main.s.orders'], sql: 'GRANT ALL PRIVILEGES ON CATALOG `main` TO `x`' });
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(w.grants, [[CATALOG, PERSON_TOKEN], [SCHEMA, PERSON_TOKEN], [SELECT, PERSON_TOKEN]]);
+    assert.deepEqual(w.grants, [[CATALOG, PERSON_TOKEN], [SCHEMA, PERSON_TOKEN], [SELECT, PERSON_TOKEN], [METADATA, PERSON_TOKEN]]);
     assert.ok(!made.sqlCalls.some((c) => /DROP|ALL PRIVILEGES|`x`/.test(String(c.sql))), 'the request body never reaches SQL (must-exclude)');
     assert.ok(!made.sqlCalls.some((c) => String(c.sql).startsWith('GRANT') && c.token === APP_TOKEN), 'no grant runs as the Inspire App');
-    assert.deepEqual(got.data.ran, [SCHEMA, SELECT]);
+    assert.deepEqual(got.data.ran, [SCHEMA, SELECT, METADATA]);
     assert.equal(got.data.refused, true, 'the USE CATALOG the person cannot grant is refused and said so');
     assert.match(got.data.failed[0], /^GRANT USE CATALOG ON CATALOG `main` TO `app-sp-2`: \[PERMISSION_DENIED\]/);
     const [update] = updates(made);
@@ -104,7 +108,7 @@ test('when the person can grant everything the App reads again and the build rec
   await withApp(w.overrides, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(w.grants.map(([sql]) => sql), [SCHEMA, SELECT], 'a recorded grant the App already holds is not run again');
+    assert.deepEqual(w.grants.map(([sql]) => sql), [SCHEMA, SELECT, METADATA], 'a grant the App already holds is not run again');
     assert.equal(got.data.refused, false);
     assert.equal(got.data.state, 'readable');
     assert.deepEqual(got.data.tables, []);
@@ -121,9 +125,9 @@ test('a fully refused grant keeps every table listed with its exact grants and t
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.refused, true);
     assert.deepEqual(got.data.ran, []);
-    assert.equal(got.data.failed.length, 3);
+    assert.equal(got.data.failed.length, 4);
     assert.equal(got.data.state, 'unreadable');
-    assert.deepEqual(got.data.tables[0].grants, RECORDED);
+    assert.deepEqual(got.data.tables[0].grants, PLAN);
     assert.equal(updates(made).length, 1, 'the owners read now replace the ones the build saw');
   });
 });
@@ -143,13 +147,14 @@ test('Check again reads the App access without granting and without a sign-in', 
   });
 });
 
-test('only a recorded read grant to the App itself is ever run, and a build that is not done has nothing to grant', async () => {
+test('only read grants to the App itself are ever run, whatever the build record holds, and a build that is not done has nothing to grant', async () => {
   const tampered = { app: SP, tables: [{ table: 'main.s.orders', owner: 'data-eng',
     grants: ['GRANT MODIFY ON TABLE `main`.`s`.`orders` TO `app-sp-2`', 'GRANT SELECT ON TABLE `main`.`s`.`orders` TO `someone-else`', 'GRANT SELECT ON SCHEMA `main`.`s` TO `app-sp-2`', SELECT] }] };
   const w = workspace({ history: [built(tampered)] });
   await withApp(w.overrides, async (url) => {
     await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
-    assert.deepEqual(w.grants.map(([sql]) => sql), [SELECT]);
+    assert.deepEqual(w.grants.map(([sql]) => sql), PLAN, 'the live plan decides what runs, the tampered record does not');
+    assert.ok(w.grants.every(([sql]) => I.appReadGrantFor(sql, SP)), 'each statement is a read grant to the App');
   });
   for (const history of [[built(RECORD, 'building_outputs')], [built(null)], []]) {
     const n = workspace({ history });
@@ -267,7 +272,7 @@ test('a person who cannot grant leaves the build needs-access: the App is kept, 
     assert.equal(got.data.refused, true);
     assert.equal(got.data.state, 'unreadable');
     assert.equal(got.data.app, SP);
-    assert.deepEqual(got.data.tables[0].grants, RECORDED, 'the GRANTs stay listed, so the build view can copy them under Details');
+    assert.deepEqual(got.data.tables[0].grants, PLAN, 'the GRANTs stay listed, so the build view can copy them under Details');
     assert.equal(got.data.tables[0].owner, 'admins and data-eng', 'the owners are named');
     assert.doesNotMatch(JSON.stringify(got.data), /amr@x|[\w.+-]+@(?!example\.)[\w-]+\.[a-z]{2,}/i, 'no email but an example address in the answer');
   });
@@ -278,4 +283,46 @@ test('the record a blocked build saves on a failed App still reads as the access
     asset_status: { app: { state: 'failed', error: 'the App could not be given read access to 1 source table', unread: RECORD } } }]);
   assert.equal(record.app, SP);
   assert.deepEqual(record.tables.map((t) => [t.table, t.grants]), [['main.s.orders', RECORDED]]);
+});
+
+test('the on-load card, Check again and Grant name the same statements, READ METADATA included: one derivation for all three', async () => {
+  const w = workspace();
+  // The App's ABAC policy read is refused, which is what puts the card on the build page.
+  await withApp({ ...w.overrides, abacUnreadable: (token) => token === APP_TOKEN }, async (url) => {
+    const context = await fetch(`${url}/api/inspire/implement/context?${Q}`).then((r) => r.json());
+    const onLoad = context.app_unreadable.grants;
+    const check = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'check' });
+    assert.deepEqual([...check.data.permissions[0].statements].sort(), [...onLoad].sort(), 'the card and Check again show the same statements');
+    assert.ok(onLoad.includes(METADATA), 'READ METADATA is in the card, so it is in the dialog and the Grant');
+    await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
+    assert.deepEqual(w.grants.map(([sql]) => sql).sort(), [...onLoad].sort(), 'Grant runs every statement the dialog shows');
+  });
+});
+
+test('Check again on an unchanged gap returns the same statements every time, so the dialog it opens is never a new one', async () => {
+  const w = workspace();
+  await withApp(w.overrides, async (url) => {
+    const first = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'check' });
+    const again = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'check' });
+    assert.deepEqual(again.data.permissions, first.data.permissions);
+    assert.deepEqual(w.grants, [], 'Check again grants nothing');
+  });
+});
+
+test('the dialog and the Grant use the App service principal id read live from its token, in production shape, never a stale or fixture id', async () => {
+  const LIVE = '6a1f3c9e-2b7d-4e8a-9c51-0f7e2d4b8a13';
+  const STALE = '0d2e4f6a-8b1c-4d3e-a5f7-9e1b3c5d7f29';
+  const stale = { app: STALE, tables: [{ table: 'main.s.orders', owner: 'data-eng', grants: [`GRANT SELECT ON TABLE \`main\`.\`s\`.\`orders\` TO \`${STALE}\``] }] };
+  const w = workspace({ history: [built(stale)] });
+  w.overrides.me = { applicationId: LIVE, displayName: 'churn-desk' };
+  await withApp(w.overrides, async (url) => {
+    const check = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'check' });
+    const shown = check.data.permissions[0];
+    assert.equal(check.data.app, LIVE);
+    assert.equal(shown.principal, 'churn-desk', 'the name the person sees is the App, not the Inspire identity');
+    assert.ok(shown.statements.length > 0 && shown.statements.every((g) => g.endsWith(`TO \`${LIVE}\``)), JSON.stringify(shown.statements));
+    assert.ok(!JSON.stringify(check.data).includes(STALE), 'the build-time id never reaches the dialog');
+    await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
+    assert.ok(w.grants.length > 0 && w.grants.every(([sql]) => sql.endsWith(`TO \`${LIVE}\``)), 'the Grant runs only on the live principal');
+  });
 });

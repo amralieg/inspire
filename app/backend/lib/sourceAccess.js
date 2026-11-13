@@ -182,19 +182,26 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     return { granted: ran.length, ran, failed, missing_tables: after.missing, app_unreadable: after.app_unreadable, abac_gaps: left.gaps };
   }
 
-  async function appReadsLeftOf(req, token, warehouseId, record) {
-    const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, token, warehouseId, t.table)));
-    return I.appReadsLeft(record, record.tables.map((t, i) => I.accessPlan(t.table, rows[i], record.app, { needs: I.IMPLEMENT_SOURCE_NEEDS })));
+  async function appReadsLeftOf(req, token, warehouseId, record, tables, app) {
+    const rows = await Promise.all(tables.map((t) => accessRowsOf(req, token, warehouseId, t)));
+    return I.appReadsLeft(record, tables, tables.map((t, i) => I.accessPlan(t, rows[i], app.id, { needs: I.IMPLEMENT_SOURCE_NEEDS })), app.id);
   }
 
-  async function appReads(req, warehouseId, record, grant) {
+  // The App's real service principal, read live from its own token. The build's stored id is only the fallback when that read has no id.
+  async function appReadsIdentityOf(req, record) {
+    const who = await appIdentity(req, await appTokenOf(req));
+    return { id: who.id || record.app, name: who.name || record.app_name || '' };
+  }
+
+  async function appReads(req, warehouseId, record, grant, tables) {
     const person = P.personTokenOf(req);
     const token = person || req.dbToken;
-    const before = await appReadsLeftOf(req, token, warehouseId, record);
-    if (!grant) return { left: before, ran: [], failed: [] };
+    const app = await appReadsIdentityOf(req, record);
+    const before = await appReadsLeftOf(req, token, warehouseId, record, tables, app);
+    if (!grant) return { left: before, ran: [], failed: [], app };
     if (!person) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);
-    const { ran, failed } = await runPersonGrants(req, person, warehouseId, I.appReadsGrantable(record, before));
-    return { left: ran.length ? await appReadsLeftOf(req, token, warehouseId, record) : before, ran, failed };
+    const { ran, failed } = await runPersonGrants(req, person, warehouseId, I.appReadsGrantable(before, app.id));
+    return { left: ran.length ? await appReadsLeftOf(req, token, warehouseId, record, tables, app) : before, ran, failed, app };
   }
 
   return { accessRowsOf, appIdentity, appReads, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess };
