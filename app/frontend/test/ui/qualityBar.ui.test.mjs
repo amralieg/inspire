@@ -56,7 +56,7 @@ test('a run where nothing meets the bar still lists every use case found, each m
     await done.waitFor();
     assert.equal(await done.getAttribute('data-status'), 'warning');
     assert.match(await done.innerText(), /Run finished, with a warning/);
-    assert.equal(await page.locator('[data-testid="quality-bar-counts"]').innerText(), '0 of 6 use cases meet the quality bar');
+    assert.equal(await page.locator('[data-testid="quality-bar-counts"]').innerText(), '0 of 6 use cases meet the High quality bar');
     assert.match(await page.locator('[data-testid="execution-outcome"]').innerText(), /^0 of 6 use cases meet the High quality bar/);
     assert.equal(await page.locator('[data-testid="quality-bar-next-step"]').innerText(),
       'Next step: add rows to the 2 tables that have no rows yet (the Generate data page can add sample rows), then run again.');
@@ -94,7 +94,7 @@ test('in a mixed run the use cases that meet the bar come first with the chip, a
     assert.deepEqual(chips, ['yes', 'yes', 'yes', 'no', 'no', 'no']);
     assert.match(await cards(page).first().innerText(), /Meets your quality bar/i);
     assert.equal(await page.locator('[data-testid="execution-complete"]').getAttribute('data-status'), 'success');
-    assert.equal(await page.locator('[data-testid="quality-bar-counts"]').innerText(), '3 of 6 use cases meet the quality bar');
+    assert.equal(await page.locator('[data-testid="quality-bar-counts"]').innerText(), '3 of 6 use cases meet the High quality bar');
     assert.deepEqual(await page.locator('select[aria-label="Quality bar"] option').allTextContents(),
       ['Quality bar: Any (6)', 'Meets the quality bar (3)', 'Below the quality bar (3)'], 'the filter labels use the same wording as the count');
     assert.equal(await page.locator('[data-testid="quality-bar-next-step"]').count(), 0);
