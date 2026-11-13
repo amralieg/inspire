@@ -345,9 +345,21 @@ export function subtitleOfUseCase(uc, titlePlain) {
     .find((t) => t && t.toLowerCase() !== title) || '';
 }
 
+// The stored name: the user's rename, else the catalogue name. Generated text is never a name.
+export function storedNameOfUseCase(uc) {
+  const u = uc && typeof uc === 'object' ? uc : {};
+  return [u.user_use_case_name, u.Name, u.original_name, u.use_case, u.use_case_name, u.name, u.title]
+    .map((v) => displayCleanText(v)).find(Boolean) || '';
+}
+
+// name_with_technique is a generated label from discovery. After a rename it still holds the old name, and a stale copy can
+// hold the name twice (REQ-155). It is shown only when it is the stored name plus the technique: it starts with the stored
+// name and the name appears once. Otherwise the card shows the stored name.
 export function nameOfUseCase(uc) {
   const u = uc && typeof uc === 'object' ? uc : {};
-  return displayCleanText([u.user_use_case_name, u.name_with_technique, u.Name, u.use_case, u.use_case_name, u.name, u.title].map((v) => (v == null ? '' : String(v))).find(Boolean) || '');
+  const stored = storedNameOfUseCase(u);
+  const label = displayCleanText(u.name_with_technique);
+  return stored && label.startsWith(stored) && label.indexOf(stored, stored.length) === -1 ? label : stored;
 }
 
 export function cardTitlesOfUseCase(uc, index = 0) {

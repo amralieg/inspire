@@ -19,11 +19,11 @@ const notMeasured = () => JSON.stringify({ status: 'not measured yet', text: 'Va
 const evidence = (...tables) => JSON.stringify({ tables: Object.fromEntries(tables.map((t) => [t, { columns: [] }])) });
 
 const USE_CASES = [
-  { id: 'N01-U01', name_with_technique: 'Predict churn', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', value_estimate: measured(6000), data_evidence: evidence('main.s.orders'), inspire_score: '7.4' },
-  { id: 'N01-U02', name_with_technique: 'Forecast weekly orders', primary_table: 'main.s.orders', tables_involved: 'main.s.orders, main.s.customers', value_estimate: measured(9000), data_evidence: evidence('main.s.orders', 'main.s.customers'), inspire_score: '6' },
-  { id: 'N02-U01', name_with_technique: 'Track stock outs', primary_table: 'main.s.stock', tables_involved: 'main.s.stock', value_estimate: measured(2500), data_evidence: evidence('main.s.stock'), inspire_score: '8' },
-  { id: 'N02-U02', name_with_technique: 'Score supplier risk', primary_table: 'main.s.stock', tables_involved: 'main.s.stock', value_estimate: notMeasured(), data_evidence: evidence('main.s.stock'), inspire_score: '9.1' },
-  { id: 'N03-U01', name_with_technique: 'Reorder timing', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', value_estimate: measured(1200), data_evidence: evidence('main.s.orders'), inspire_score: '5' },
+  { id: 'N01-U01', use_case: 'Predict churn', name_with_technique: 'Predict churn', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', value_estimate: measured(6000), data_evidence: evidence('main.s.orders'), inspire_score: '7.4' },
+  { id: 'N01-U02', use_case: 'Score upsell', name_with_technique: 'Score upsell', primary_table: 'main.s.orders', tables_involved: 'main.s.orders, main.s.customers', value_estimate: measured(9000), data_evidence: evidence('main.s.orders', 'main.s.customers'), inspire_score: '6' },
+  { id: 'N02-U01', use_case: 'Track stock outs', name_with_technique: 'Track stock outs', primary_table: 'main.s.stock', tables_involved: 'main.s.stock', value_estimate: measured(2500), data_evidence: evidence('main.s.stock'), inspire_score: '8' },
+  { id: 'N02-U02', use_case: 'Score supplier risk', name_with_technique: 'Score supplier risk', primary_table: 'main.s.stock', tables_involved: 'main.s.stock', value_estimate: notMeasured(), data_evidence: evidence('main.s.stock'), inspire_score: '9.1' },
+  { id: 'N03-U01', use_case: 'Reorder timing', name_with_technique: 'Reorder timing', primary_table: 'main.s.orders', tables_involved: 'main.s.orders', value_estimate: measured(1200), data_evidence: evidence('main.s.orders'), inspire_score: '5' },
 ];
 const STATE = { ...REVIEW_STATE, useCases: USE_CASES, history: [built({ use_case_id: 'N01-U01' })] };
 const PROGRESS = '1 of 5 use cases live, AED 6K at stake covered';
@@ -101,7 +101,7 @@ test('a use case that is not live shows no next-step card', async () => {
 
 // The Build page's Build next step: Build Now submits the live App's settings for the sibling, Build custom opens the wizard.
 const WIZARD = /Start Use Case MVP with Genie/;
-const SIBLING_LIST_NAME = 'Forecast weekly orders';
+const SIBLING_LIST_NAME = 'Score upsell'; // the catalogue name in REVIEW_RESULTS, so the stored name and the label agree
 const GRANT = 'GRANT SELECT ON TABLE `main`.`s`.`customers` TO `app-sp-id`';
 const CUSTOMERS_REFUSAL = {
   text: 'The App cannot read main.s.customers, so the build cannot start.', tables: ['main.s.customers'], can_grant: true, grants: [GRANT],
