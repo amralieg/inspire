@@ -1427,9 +1427,12 @@ function registerImplementRoutes(app, deps) {
     // Run-as-me (REQ-113): the job gets no App principal and runs as the signed-in person.
     const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, runAsPerson() ? '' : ownServicePrincipalId(), runAsPerson());
     const token = P.personTokenOf(req);
-    if (!token) throw I.badRequest('Sign in again: Inspire reads the rate table with your own access.');
-    const runSql = async (sql, parameters = null) => sqlResultToObjects(await executeSql(req.dbHost, token, warehouseOf(req), sql, parameters,
-      { rowLimit: 500, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' }));
+    // Only a rate-table read needs the person's own sign-in; a build with typed or no rates never asks for it.
+    const runSql = async (sql, parameters = null) => {
+      if (!token) throw I.badRequest('Sign in again: Inspire reads the rate table with your own access.');
+      return sqlResultToObjects(await executeSql(req.dbHost, token, warehouseOf(req), sql, parameters,
+        { rowLimit: 500, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' }));
+    };
     const scopes = await launchScopesOf(req, warehouseId);
     Object.assign(params, await JC.implementCurrencyParams(spec?.money, { runSql, scopes }));
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;

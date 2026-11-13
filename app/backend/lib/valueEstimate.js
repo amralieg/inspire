@@ -1,3 +1,4 @@
+const { parseExactJson } = require('./exactJson');
 // REQ-078: a use case with no measured value shows an estimate from a Measure rule, never a number invented without one.
 // The estimate is the KPI baseline times the per-record amount of a fixed-amount rule. Column and equation rules, and no rule
 // at all, give no number: the App says what to do instead.
@@ -49,7 +50,7 @@ function baselineSql(summaryTable) {
 function parseSpec(raw) {
   if (raw && typeof raw === 'object') return raw;
   try {
-    const parsed = JSON.parse(String(raw || 'null'));
+    const parsed = parseExactJson(String(raw || 'null'));
     return parsed && typeof parsed === 'object' ? parsed : null;
   } catch {
     return null;
