@@ -1237,7 +1237,7 @@ def test_a_caller_who_is_not_the_owner_gets_the_exact_grant_the_owner_runs(agent
     assert out["kind"] == "delta" and out["files"] is out["delta_files"]
     warning = out["warnings"][0]
     assert warning.startswith(PERMISSION_HEAD) and "the identity Inspire runs as" in warning
-    assert warning.endswith(f". Ask the Lakebase project owner to run {refusal.statement}, then build the App again to switch it to Lakebase")
+    assert warning.endswith(f". Ask the Lakebase project owner to run {refusal.statement}, then build the App again with Vibe/Add/Remove Features on the Build page to switch it to Lakebase")
     assert warning.count(LAKEBASE_CALLER) == 1, "the caller's identity appears only in the GRANT, not in the reason"
     assert refusal.statement.startswith("GRANT ") and refusal.statement.endswith(f'TO "{LAKEBASE_CALLER}"')
     entry = out["permissions"][0]
@@ -1253,7 +1253,7 @@ def test_the_grant_for_a_schema_or_table_names_that_object_not_the_database(agen
                                                     builder=LAKEBASE_CALLER)
     assert out["permissions"][0]["statements"] == [f'GRANT ALL PRIVILEGES ON SCHEMA churn_desk TO "{LAKEBASE_CALLER}"']
     assert out["warnings"][0].endswith(f"Ask the Lakebase project owner to run GRANT ALL PRIVILEGES ON SCHEMA churn_desk TO \"{LAKEBASE_CALLER}\", "
-                                       "then build the App again to switch it to Lakebase")
+                                       "then build the App again with Vibe/Add/Remove Features on the Build page to switch it to Lakebase")
 
 
 def test_a_failure_that_is_not_a_postgres_refusal_gets_the_rebuild_sentence_and_no_grant(agent_ns, tmp_path):

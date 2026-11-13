@@ -89,7 +89,7 @@ def test_the_fallback_asks_the_owner_to_run_the_statement_then_build_again(agent
     refusal = agent_ns["implement_lakebase_refusal"](RuntimeError(DENIED), BUILDER)
     text = agent_ns["implement_lakebase_fallback"](str(refusal), refusal.statement)
     assert text.startswith("App: it reads Delta tables, so its pages take a few seconds to load, because Inspire could not set up Lakebase: ")
-    assert text.endswith(f". Ask the Lakebase project owner to run {refusal.statement}, then build the App again to switch it to Lakebase")
+    assert text.endswith(f". Ask the Lakebase project owner to run {refusal.statement}, then build the App again with Vibe/Add/Remove Features on the Build page to switch it to Lakebase")
     assert "build the App again" in text and "Build the App again" not in text
 
 
@@ -212,4 +212,4 @@ def test_the_reason_for_a_refusal_with_no_identity_asks_the_owner_to_run_nothing
     obj._implement_builder = lambda: ""
     reason = obj._implement_lakebase_reason(RuntimeError(DENIED), "x")
     assert reason.startswith("the identity Inspire runs as cannot create objects in the database databricks_postgres")
-    assert "ask the Lakebase project owner" not in reason and reason.endswith("can grant")
+    assert "ask the Lakebase project owner" not in reason and reason.endswith("build the App again with Vibe/Add/Remove Features on the Build page")

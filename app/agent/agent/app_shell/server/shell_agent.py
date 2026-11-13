@@ -1186,6 +1186,7 @@ class Turn:
         self.state, self.steps, self.actions, self.answer, self.error = "running", [], [], "", ""
         self.confirm, self.genie, self.model, self.refused, self.tokens = None, None, "", False, 0
         self.listed, self.offers, self.next = [], None, []
+        self.spoken = ""
         self.conversation_id, self.at = "", time.time()
 
     def view(self) -> dict:
@@ -1542,7 +1543,7 @@ class Agent:
                 turn.answer = self.final_answer(ws, who, turn, job, messages, cut_lines(message.get("content") or "", ANSWER_CHARS)) or (
                     stop or "Genie had nothing to add.")
                 turn.refused = turn.answer.strip() == OFF_TOPIC
-                turn.next = [] if turn.refused else self.next_steps(page, turn, turn.answer)
+                turn.next = [] if turn.refused else self.next_steps(page, turn, turn.spoken or turn.answer)
                 if stop and stop not in turn.answer:
                     turn.answer = f"{turn.answer}\n\n{stop}"
                 return
@@ -1578,6 +1579,7 @@ class Agent:
                 content, rewritten = shorter, True
         if rows_as_bullets(content, answer_rows(turn)):
             content = bullets_to_table(content)
+        turn.spoken = content
         final = finish_text(content, job.get("question") or "", job.get("key_numbers"), job.get("genie") or [],
                             listed=job.get("listed_total"), nouns=unit_nouns(job["page"]))
         print(f"[AGENT-ANSWER-SHAPE FIRED] page={turn.page_id} problems={len(problems)} rewritten={rewritten} "

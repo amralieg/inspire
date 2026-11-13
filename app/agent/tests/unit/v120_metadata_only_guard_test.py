@@ -357,7 +357,7 @@ def statement_targets(sql):
 
 
 AGGREGATE_PROBE_BUILDER = "implement_aggregate_probe_sql"
-AGGREGATE_PROBE_SHAPE = re.compile(r"^SELECT COUNT\(DISTINCT r\.\{[^{}]+\}\) AS outside FROM \{[^{}]+\} AS r LEFT ANTI JOIN \{[^{}]+\} AS s "
+AGGREGATE_PROBE_SHAPE = re.compile(r"^SELECT COUNT\(DISTINCT r\.\{[^{}]+\}\) AS outside FROM \{[^{}]+\} AS r LEFT ANTI JOIN \{[^{}]+\} "
                                    r"ON r\.\{[^{}]+\} = s\.\{[^{}]+\} WHERE r\.\{[^{}]+\} IS NOT NULL$")
 
 
@@ -1171,7 +1171,7 @@ def test_the_probe_helper_is_the_only_sql_the_key_check_may_send_to_a_user_table
     source = agent_source()
     _, _, bad, _ = audit(source)
     assert not [entry for entry in bad if "source_table" in entry[2]], bad
-    broken = source.replace("LEFT ANTI JOIN {inspire_table_name(source_table)} AS s", "LEFT ANTI JOIN {inspire_table_name(source_table)} AS s, {named} AS v", 1)
+    broken = source.replace("LEFT ANTI JOIN {scoped_read_source(source_table, scopes, 's')} ON", "LEFT ANTI JOIN {scoped_read_source(source_table, scopes, 's')} AS s, {named} AS v ON", 1)
     assert broken != source
     _, _, probe_bad, _ = audit(broken)
     assert any(kind == "probe" for _, kind, _, _ in probe_bad), probe_bad

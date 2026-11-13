@@ -4,6 +4,7 @@ import pytest
 
 from v141_app_shell_test import PAGE, SETTINGS, call, shell
 from v144_app_chrome_test import CHART, OLD_SCREENS, RECORD, explain_body, refused
+import shell_agent  # noqa: E402
 import shell_core
 
 FIRST_SPACE, SECOND_SPACE = SETTINGS["genie"]["space_id"], "01f0dd44ee55ff66"
@@ -50,9 +51,9 @@ def test_the_app_tells_the_browser_each_page_s_genie_agent_and_the_hub_says_each
     s, _sp, _user, _made = hub(tmp_path)
     info = call(s, "GET", "app")[1]
     assert [p["genie"] for p in info["pages"]] == [
-        {"enabled": True, "title": "Pricing desk", "url": f"https://dbc-1.example.com/genie/rooms/{FIRST_SPACE}", "note": ""},
-        {"enabled": True, "title": "Unusual trip queue", "url": f"https://dbc-1.example.com/genie/rooms/{SECOND_SPACE}", "note": ""},
-        {"enabled": False, "title": "", "url": "", "note": shell_core.JOINED_GENIE_NOTE}]
+        {"enabled": True, "agent": False, "title": "Pricing desk", "url": f"https://dbc-1.example.com/genie/rooms/{FIRST_SPACE}", "note": ""},
+        {"enabled": True, "agent": False, "title": "Unusual trip queue", "url": f"https://dbc-1.example.com/genie/rooms/{SECOND_SPACE}", "note": ""},
+        {"enabled": False, "agent": False, "title": "", "url": "", "note": f"{shell_agent.NO_MODEL} {shell_core.JOINED_GENIE_NOTE}"}]
     assert info["genie"] == {"enabled": True, "title": "", "url": "", "note": shell_core.HUB_GENIE_NOTE}
     assert "space_id" not in str(info["pages"])
 

@@ -232,7 +232,7 @@ def test_a_catalog_no_bigger_than_the_count_is_already_the_short_list_and_is_nev
     ucs = [_uc(f"U{i}", bob=9.0) for i in range(3)]
     assert obj._mark_best_of_best(ucs, {}) == []
     assert {uc["best_of_best"] for uc in ucs} == {"N"}
-    assert ucs[0]["best_of_best_reason"] == "the catalog holds 3 use cases, not more than 20, so it is already the short list"
+    assert ucs[0]["best_of_best_reason"] == "3 use cases meet the quality bar, not more than 20, so it is already the short list"
     outcome = obj._publish_best_of_best(ucs)
     assert (outcome["short_list"], outcome["judged"], outcome["starred"]) == (True, 0, 0)
 
