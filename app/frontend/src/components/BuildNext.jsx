@@ -25,13 +25,15 @@ export function RunValue({ row, onMeasure }) {
   );
 }
 
-export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId) {
+// The demo has no value ledger, so its cards send no estimate read (showcase).
+export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase = false) {
   const [state, setState] = useState({ rows: null, liveSpecs: {}, error: '' });
   useEffect(() => {
     if (!sessionId || !inspireDatabase || !warehouseId) return undefined;
     let cancelled = false;
     const q = new URLSearchParams({ inspire_database: inspireDatabase, warehouse_id: warehouseId, session_id: String(sessionId) });
-    Promise.all([apiFetch(`/api/inspire/usecases?${q}`), apiFetch(`/api/inspire/implement/history?${q}`), apiFetch(`/api/inspire/value/estimates?${q}`)])
+    const estimates = showcase ? Promise.resolve({ use_cases: {} }) : apiFetch(`/api/inspire/value/estimates?${q}`);
+    Promise.all([apiFetch(`/api/inspire/usecases?${q}`), apiFetch(`/api/inspire/implement/history?${q}`), estimates])
       .then(([cases, history, estimates]) => {
         if (cancelled) return;
         const latest = history?.latest || [];
@@ -43,7 +45,7 @@ export function useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId) 
       })
       .catch((err) => { if (!cancelled) setState({ rows: null, liveSpecs: {}, error: String(err?.message || err) }); });
     return () => { cancelled = true; };
-  }, [apiFetch, inspireDatabase, warehouseId, sessionId]);
+  }, [apiFetch, inspireDatabase, warehouseId, sessionId, showcase]);
   return state;
 }
 
@@ -66,8 +68,8 @@ function StartButton({ id, onStart }) {
   );
 }
 
-export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, sessionId, onStart, onMeasure = null }) {
-  const { rows, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId);
+export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, sessionId, onStart, onMeasure = null, showcase = false }) {
+  const { rows, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase);
   const plan = useMemo(() => (rows ? buildNextOf(rows) : null), [rows]);
   if (error) return <p role="alert" data-build-next-error="" className="text-[12px] text-error-fg">Inspire could not load the next use cases: {error}</p>;
   if (!plan || plan.total === 0) return null;
@@ -96,8 +98,8 @@ export function BuildNextPanel({ apiFetch, inspireDatabase, warehouseId, session
   );
 }
 
-export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehouseId, sessionId, notebookPath = '', focusId, live, caseOf, onBuilt, onBuildCustom, onMeasure = null }) {
-  const { rows, liveSpecs, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId);
+export function BuildNextStep({ apiFetch, apiPostJson, inspireDatabase, warehouseId, sessionId, notebookPath = '', focusId, live, caseOf, onBuilt, onBuildCustom, onMeasure = null, showcase = false }) {
+  const { rows, liveSpecs, error } = useBuildRows(apiFetch, inspireDatabase, warehouseId, sessionId, showcase);
   const next = useMemo(() => (rows && live ? nextSharingTables(rows, focusId) : []), [rows, live, focusId]);
   const [builds, setBuilds] = useState({});
   const [permissionDialog, setPermissionDialog] = useState(null);

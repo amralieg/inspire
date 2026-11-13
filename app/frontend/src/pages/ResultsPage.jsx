@@ -1121,7 +1121,7 @@ export default function ResultsPage({
       )}
       {!embedded && results && selectedSessionId && inspireDb && warehouseId && (
         <div className="mb-3">
-          <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId}
+          <BuildNextPanel apiFetch={apiFetch} inspireDatabase={inspireDb} warehouseId={warehouseId} sessionId={selectedSessionId} showcase={Boolean(showcase)}
             onStart={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId) : undefined}
             onMeasure={onOpenImplement ? (useCaseId) => onOpenImplement(String(selectedSessionId), useCaseId, 'measure') : undefined} />
         </div>
