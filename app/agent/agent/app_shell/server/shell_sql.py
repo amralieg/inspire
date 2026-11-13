@@ -3241,6 +3241,15 @@ def money_currency_column(page: dict, kpi: dict) -> str:
     return money_scope(page, kpi["dataset"])["currency"] if kpi.get("format") == "currency" else ""
 
 
+def genie_money_query(page: dict, kpi: dict) -> tuple:
+    """The expression, rows and quoted currency column a Genie answer to one money KPI reads: the same three pieces kpi_query reads at
+    the page's default filters, so a dated row in a closed period counts, undated and future rows do not, and each currency keeps its
+    own total. The currency column is empty when the KPI has none."""
+    dataset = kpi["dataset"]
+    by = money_currency_column(page, kpi)
+    return money_expression(page, dataset, kpi["expression"]), money_source(page, dataset, _dataset(page, dataset)), quote(by) if by else ""
+
+
 def kpi_query(page: dict, ident: str, values: dict, previous: str = None) -> tuple:
     kpi = _item(page, "kpis", ident)
     money = kpi.get("format") == "currency"

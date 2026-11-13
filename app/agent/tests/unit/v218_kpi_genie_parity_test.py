@@ -7,6 +7,7 @@ import copy
 import json
 import os
 import sys
+import tempfile
 
 import pytest
 
@@ -222,6 +223,7 @@ def test_the_kpi_block_is_idempotent_replaced_on_rebuild_and_taken_out(agent_ns)
 
 def _sync_inst(agent_ns, current, status=None, page=KPI_PAGE):
     inst = _inspire(agent_ns, FakeSpark())
+    inst.local_log_output_dir = tempfile.mkdtemp(prefix="inspire-shell-")
     patched = []
     inst._implement_genie_read = lambda space_id: {"title": "Desk", "space": copy.deepcopy(current)}
     inst._implement_patch_asset = lambda name, asset_id, body, **kw: patched.append((name, asset_id, json.loads(body["serialized_space"]), kw))
