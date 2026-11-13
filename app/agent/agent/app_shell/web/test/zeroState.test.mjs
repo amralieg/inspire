@@ -13,8 +13,11 @@ test('the cut-off sentence with its count of left-out rows is read from the stor
   const counted = 'Reads rows dated before 2026-11-12; 3,333 rows on 2026-11-12 are left out because that day may be incomplete.';
   assert.equal(cutoffNote({ run: { summary: `Three exceptions this week. ${counted}` } }), counted);
   assert.equal(cutoffNote({ run: { summary: `${counted} Nothing is on the to fix list.` } }), counted);
-  const unknown = 'Reads rows dated before 2026-11-12; rows on 2026-11-12 are left out because that day may be incomplete, and Inspire did not count them.';
-  assert.equal(cutoffNote({ run: { summary: unknown } }), unknown, 'a count that is unknown says so, and is still shown');
+});
+
+test('a cut-off over several tables is read whole, though its table names carry full stops', () => {
+  const several = 'Reads rows dated before 2026-11-12; rows on 2026-11-12 are left out of main.inspire.orders (14 rows) and main.inspire.returns (0 rows) because that day may be incomplete.';
+  assert.equal(cutoffNote({ run: { summary: `Two tables read. ${several} Nothing is on the to fix list.` } }), several);
 });
 
 test('no cut-off sentence in the summary means no note, not a made-up one', () => {

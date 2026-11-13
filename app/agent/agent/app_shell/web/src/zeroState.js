@@ -4,7 +4,8 @@ export const ZERO_TITLE = 'No matching records found in this data';
 
 import { grouped } from './format.js';
 
-const CUTOFF = /Reads rows dated before[^.]*\./;
+// A table name has dots inside it (main.inspire.orders), so the sentence ends at a full stop followed by a space or the end.
+const CUTOFF = /Reads rows dated before[\s\S]*?\.(?=\s|$)/;
 
 export function cutoffNote(summary) {
   return summary?.run?.summary?.match(CUTOFF)?.[0] || '';
