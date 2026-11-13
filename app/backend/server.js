@@ -455,8 +455,9 @@ function tokenFor(req, app) {
 
   const forwardedClean = forwardedTokenOf(req);
 
-  // Run-as-me: requests act as the signed-in person, so their SQL, files, UC and Genie calls use the forwarded user token.
-  if (app.runAs && forwardedClean) return forwardedClean;
+  // Run-as-me (REQ-113 schema mode): requests act as the signed-in person, so their SQL, files, UC and Genie calls use the forwarded
+  // user token. The App's own or service token is never used, so a request without the person's token gets none (a Permission Required, never an App read).
+  if (app.runAs) return forwardedClean || null;
 
   // 3–5) Databricks App (production + SP): prefer static / SP token over x-forwarded-access-token.
   // Delegated user tokens expire; Inspire Results/SQL should keep working on the app service principal.
@@ -2279,7 +2280,8 @@ async function discoverAppAccess(req, scope) {
     let found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover');
     const warnings = [];
     const permissions = [];
-    if (found.app_unreadable && found.app_unreadable.can_grant) {
+    // Run-as-me grants the App's principal nothing (REQ-113), so the grant offer runs outside run-as only.
+    if (!runAsPerson() && found.app_unreadable && found.app_unreadable.can_grant) {
       const offer = found.app_unreadable;
       const { ran, failed } = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, offer.grants);
       if (ran.length) console.log(`Discover: granted the App read access to ${plural(offer.tables.length, 'table')} with the sign-in: ${ran.join('; ')}`);
@@ -2289,7 +2291,7 @@ async function discoverAppAccess(req, scope) {
       }
       found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover');
     }
-    const read = appReadPermissions(found, SP_CLIENT_ID);
+    const read = appReadPermissions(found, runAsPerson() ? person : SP_CLIENT_ID);
     warnings.push(...read.warnings);
     permissions.push(...read.permissions);
     if (more) console.log(`Discover: checked the App read access of the first ${tables.length} tables only`);

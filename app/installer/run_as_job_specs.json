@@ -59,6 +59,10 @@
         "default": ""
       },
       {
+        "name": "run_as_person",
+        "default": ""
+      },
+      {
         "name": "plant_kind_signals",
         "default": ""
       },
@@ -86,6 +90,7 @@
             "demo_schema": "{{job.parameters.demo_schema}}",
             "warehouse_id": "{{job.parameters.warehouse_id}}",
             "app_sp_application_id": "{{job.parameters.app_sp_application_id}}",
+            "run_as_person": "",
             "plant_kind_signals": "{{job.parameters.plant_kind_signals}}"
           }
         },

@@ -193,6 +193,7 @@ function demoRunParameters(v) {
     demo_schema: v.demoSchema,
     warehouse_id: v.warehouse,
     app_sp_application_id: v.appSp,
+    run_as_person: v.runAs ? '1' : '',
     plant_kind_signals: v.plantKindSignals,
     discovery_type: v.discovery,
     generation_path: v.generationPath,
@@ -223,6 +224,7 @@ function demoPipelineSpec(values, { generateNotebookPath, inspireNotebookPath, c
           demo_schema: values.demoSchema,
           warehouse_id: values.warehouse,
           app_sp_application_id: values.appSp,
+          run_as_person: values.runAs ? '1' : '',
           plant_kind_signals: values.plantKindSignals,
         },
       },
@@ -265,6 +267,7 @@ async function triggerDemoDataPipeline(
   },
 ) {
   const desc = String(description || '').trim();
+  const runAs = runAsPerson();
   const business = String(businessName || '').trim();
   const inspireDb = String(inspireDatabase || '').trim();
   const sid =
@@ -308,7 +311,8 @@ async function triggerDemoDataPipeline(
       sid,
       demoSchema,
       warehouse: String(warehouse_id || '').trim(),
-      appSp: String(app_sp_application_id || '').trim(),
+      appSp: runAs ? '' : String(app_sp_application_id || '').trim(),
+      runAs,
       plantKindSignals: plantKindSignals ? 'yes' : 'no',
       discovery,
       generationPath,
@@ -329,7 +333,7 @@ async function triggerDemoDataPipeline(
     max_concurrent_runs: 1,
   };
 
-  const plan = launchPlanFor({ runAs: runAsPerson(), jobType: 'demo_pipeline' });
+  const plan = launchPlanFor({ runAs, jobType: 'demo_pipeline' });
   console.log(
     `📋 Demo pipeline: ${generateNotebookPath} → ${inspireNotebookPath} (cluster=${resolvedClusterId || 'serverless'}, session=${sid}, ${plan.mode === 'create' ? 'new job' : `installed job ${plan.jobId}`})`,
   );
@@ -359,7 +363,7 @@ async function triggerDemoDataPipeline(
       plan.mode === 'create'
         ? { job_id: jobId }
         : { job_id: jobId, job_parameters: demoRunParameters({ description: desc, business, catalog, inspireDb, sid, demoSchema,
-          warehouse: String(warehouse_id || '').trim(), appSp: String(app_sp_application_id || '').trim(),
+          warehouse: String(warehouse_id || '').trim(), appSp: runAs ? '' : String(app_sp_application_id || '').trim(), runAs,
           plantKindSignals: plantKindSignals ? 'yes' : 'no', discovery, generationPath: inspireParams['11_generation_path'] }) },
     ),
   });

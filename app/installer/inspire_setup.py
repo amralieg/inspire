@@ -19,7 +19,7 @@ SCAN_SHOWN = 10
 NEW_APPS_ACCOUNT_USERS = "account users"
 INSPIRE_SCHEMA_OFF = ""
 SCHEMA_MODE_CATALOG_NOTE = ("catalog-level grants are skipped in schema mode: BROWSE, CREATE SCHEMA on the catalog, USE CATALOG for the App "
-                            "(checked, not granted), the data catalogs and NEW_APPS_CATALOG_ACCESS")
+                            "(checked, not granted), the data catalogs and NEW_APPS_CATALOG_ACCESS; the App's principal gets no grant at all")
 NEW_APPS_OFF = "off"
 SYSTEM_SCHEMA = "information_schema"
 BELOW_CATALOG_VIEWS = (("schema", "schema_privileges", "schema_name", "schema_name"),
@@ -797,9 +797,9 @@ def build_runtime_context(env):
         raise ValueError(f"App name {app_name!r} must be 2-30 lowercase letters, digits or hyphens")
     sp_name = f"{app_name}-sp"
     folders = install_folders(user_email, app_name, bool(schema_pair))
-    run_as = bool(env.get("run_as_person", False))
-    if run_as and not schema_pair:
+    if bool(env.get("run_as_person", False)) and not schema_pair:
         raise ValueError(RUN_AS_NEEDS_SCHEMA)
+    run_as = bool(schema_pair)  # REQ-113: schema mode is run-as-me, so the App acts as the signed-in person and the App's principal gets nothing
 
     print(f"Selected warehouse: {warehouse_name} ({warehouse_id})")
     print(f"Selected catalog:   {catalog}  →  {inspire_db}")
@@ -1585,6 +1585,16 @@ def _shared_output_folder(notebook_path):
     return posixpath.normpath(posixpath.join(posixpath.dirname(notebook_path), SHARED_OUTPUT_GENERATION_PATH))
 
 
+def _own_output_access(api, notebook_path):
+    """Schema mode: the demo output folder is created under the person's own folder, as the person. The App's principal gets no grant."""
+    folder = _shared_output_folder(notebook_path)
+    made = api("POST", "/api/2.0/workspace/mkdirs", {"path": folder})
+    if made.status_code != 200:
+        return False, (f"{folder} could not be created as you ({made.status_code} {made.text[:160]}), so a run has no output folder. "
+                       "Create that folder in your workspace home, then run this installer again")
+    return True, f"{folder} is your output folder, created under your own folder, so runs write there as you: ✅"
+
+
 def _shared_output_access(api, notebook_path, sp):
     folder = _shared_output_folder(notebook_path)
     made = api("POST", "/api/2.0/workspace/mkdirs", {"path": folder})
@@ -1700,11 +1710,11 @@ def _lakebase_grant(sp, lakebase_catalog):
     return f"GRANT ALL PRIVILEGES ON CATALOG `{lakebase_catalog}` TO `{sp}`"
 
 
-def _grant_plan(sp, catalog, schema, visible, lakebase_catalog="", catalog_level=True):
-    plan = [f"GRANT {p} ON CATALOG `{catalog}` TO `{sp}`" for p in ("USE CATALOG", "BROWSE", "CREATE SCHEMA")] if catalog_level else []
+def _grant_plan(sp, catalog, schema, visible, lakebase_catalog=""):
+    plan = [f"GRANT {p} ON CATALOG `{catalog}` TO `{sp}`" for p in ("USE CATALOG", "BROWSE", "CREATE SCHEMA")]
     plan += [f"GRANT {p} ON SCHEMA `{catalog}`.`{schema}` TO `{sp}`"
              for p in ("USE SCHEMA", "CREATE TABLE", "SELECT", "MODIFY", "CREATE MODEL", "CREATE VOLUME", "READ VOLUME", "WRITE VOLUME", "MANAGE")]
-    if catalog_level and lakebase_catalog and lakebase_catalog in visible and lakebase_catalog != catalog:
+    if lakebase_catalog and lakebase_catalog in visible and lakebase_catalog != catalog:
         plan.append(_lakebase_grant(sp, lakebase_catalog))
     return plan + _value_ledger_grants(sp, catalog, schema)
 
@@ -1725,7 +1735,26 @@ def _blocking_read_grants(failed):
     return blocking
 
 
+def _schema_mode_access(ctx):
+    """REQ-113 schema mode: the App's principal gets no grant at all. The App runs as the signed-in person, so the value ledger,
+    the demo output folder and every table are the person's, and the person's own rights are the only ones that count."""
+    warehouse_id, catalog, schema, api = ctx["WAREHOUSE_ID"], ctx["CATALOG"], ctx["SCHEMA"], ctx["api"]
+    if warehouse_id:
+        _ensure_value_ledger(ctx["w"], warehouse_id, catalog, schema)
+    ctx["LAKEBASE_NOTE"] = "schema mode grants the App's principal nothing, so Lakebase is not wired for Apps that Implement builds"
+    ctx["LAKEBASE_SUMMARY"] = f"⚠️ {ctx['LAKEBASE_NOTE']}"
+    print(f"  Schema mode: the App's principal gets no grant. The App runs as you, on `{catalog}`.`{schema}` and your folders. "
+          f"{SCHEMA_MODE_CATALOG_NOTE}.")
+    shared_ok, shared_said = _own_output_access(api, ctx["NOTEBOOK_PATH"])
+    print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
+    if not shared_ok:
+        raise RuntimeError(f"{shared_said}. Inspire stopped before it deploys the new App version, so the App keeps its last working version. "
+                           "Then run this installer again.")
+
+
 def step_grant_permissions(ctx):
+    if ctx.get("SCHEMA_MODE"):
+        return _schema_mode_access(ctx)
     new_sp_app_id = ctx.get("NEW_SP_APP_ID")
     warehouse_id = ctx["WAREHOUSE_ID"]
     w = ctx["w"]
@@ -1761,8 +1790,7 @@ def step_grant_permissions(ctx):
         else:
             ctx["LAKEBASE_NOTE"] = lakebase_said
         _ensure_value_ledger(w, warehouse_id, catalog, schema)
-        schema_mode = bool(ctx.get("SCHEMA_MODE"))
-        grants = _grant_plan(sp, catalog, schema, visible, lakebase.get("catalog", ""), catalog_level=not schema_mode)
+        grants = _grant_plan(sp, catalog, schema, visible, lakebase.get("catalog", ""))
         lakebase_sql = _lakebase_grant(sp, lakebase["catalog"]) if lakebase else ""
         print(f"Grant plan for {sp}: {_plural(len(grants), 'statement')} on `{catalog}`.`{schema}`"
               f"{' and the Lakebase catalog' if lakebase_sql in grants else ''}")
@@ -1785,10 +1813,7 @@ def step_grant_permissions(ctx):
                                     f"({str(failed[lakebase_sql])[:160]}). Its owner can run that grant, or run this installer again; {LAKEBASE_DELTA}")
             print(f"  ⚠️ {ctx['LAKEBASE_NOTE']}")
 
-        if schema_mode:
-            print(f"  Skipped in schema mode: {SCHEMA_MODE_CATALOG_NOTE}. USE CATALOG on `{catalog}` was checked before any change.")
-        else:
-            print(f"  {_catalog_access_for_new_apps(ctx, sp)}")
+        print(f"  {_catalog_access_for_new_apps(ctx, sp)}")
         if lakebase:
             granted, granted_said = _lakebase_project_access(api, sp, lakebase["project"])
             print(f"  {'' if granted else '⚠️ '}{granted_said}")
@@ -1797,12 +1822,11 @@ def step_grant_permissions(ctx):
         ctx["LAKEBASE_SUMMARY"] = (f"⚠️ {ctx['LAKEBASE_NOTE']}" if ctx.get("LAKEBASE_NOTE") else
                                    f"Apps that Implement builds read Lakebase: project {lakebase['project']}, catalog `{lakebase['catalog']}` ✅")
         print(f"  {_app_folder_access(api, ctx['APP_FOLDER'], sp)}")
-        print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp, ctx['ASSETS_PARENT'], not schema_mode)}")
+        print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp, ctx['ASSETS_PARENT'])}")
         _run_job_access(api, sp, ctx.get("JOB_IDS") or {})
         shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
         print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
-        if not schema_mode:
-            _grant_data_catalogs(ctx, sp)
+        _grant_data_catalogs(ctx, sp)
         blocking = _blocking_read_grants(failed)
         if blocking:
             shown = "; ".join(f"{sql}: {str(error)[:160]}" for sql, error in list(blocking.items())[:3])
@@ -1876,7 +1900,7 @@ def step_render_done(ctx):
     )
 
 
-def _assets_folder_access(api, assets_path, sp, assets_parent=ASSETS_PARENT, shared=True):
+def _assets_folder_access(api, assets_path, sp, assets_parent=ASSETS_PARENT):
     folder = _workspace_api_path(assets_parent)
     if not assets_path:
         return f"⚠️ No Inspire assets were installed in {folder}, so runs cannot read them. Run this installer again"
@@ -1888,11 +1912,9 @@ def _assets_folder_access(api, assets_path, sp, assets_parent=ASSETS_PARENT, sha
     resp = api(
         "PATCH",
         f"/api/2.0/permissions/directories/{object_id}",
-        {"access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_READ"}]
-         + ([{"group_name": "users", "permission_level": "CAN_READ"}] if shared else [])},
+        {"access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_READ"},
+                                 {"group_name": "users", "permission_level": "CAN_READ"}]},
     )
-    if resp.status_code == 200 and not shared:
-        return f"CAN_READ on {folder} for {sp}, so every run reads the Inspire assets: ✅"
     if resp.status_code == 200:
         return f"CAN_READ on {folder} for {sp} and the users group, so every run reads the Inspire assets: ✅"
     return (f"⚠️ Runs may not read the Inspire assets in {folder} yet ({resp.text[:160]}). "
@@ -2029,8 +2051,8 @@ def _grant_refusal(name, person, held):
             f"GRANT MANAGE ON CATALOG `{name}` TO `{person}`, or make you the owner of `{name}`")
 
 
-def _schema_mode_problems(ctx, found_app):
-    """Schema mode checks, read only: the schema is creatable or its owner is you, and the App's principal may use the catalog."""
+def _schema_mode_problems(ctx):
+    """Schema mode checks, read only: you can use the catalog, and the schema is creatable or its owner is you."""
     catalog, schema, person = ctx["CATALOG"], ctx["SCHEMA"], ctx["USER_EMAIL"]
     problems = []
     try:
@@ -2041,37 +2063,21 @@ def _schema_mode_problems(ctx, found_app):
         existing = ctx["w"].schemas.get(f"{catalog}.{schema}")
     except Exception:
         existing = None
-    run_as = bool(ctx.get("RUN_AS_PERSON"))
-    if run_as and not (full or {"USE_CATALOG", "ALL_PRIVILEGES"} & held):
-        # Run-as-me: the App acts as the person, so the person needs the catalog itself; the App's principal needs nothing.
-        problems.append(f"You cannot use catalog `{catalog}`, and run-as-me reads its tables as you. A catalog owner can run "
+    if not (full or {"USE_CATALOG", "ALL_PRIVILEGES"} & held):
+        # The App acts as the person, so the person needs the catalog itself. The App's principal needs nothing.
+        problems.append(f"You cannot use catalog `{catalog}`, and the App runs as you, so it cannot read `{catalog}`. A catalog owner can run "
                         f"GRANT USE CATALOG ON CATALOG `{catalog}` TO `{person}`, then run this installer again.")
     if existing is not None:
         mine = {person.lower(), *[str(g).lower() for g in ctx.get("USER_GROUPS") or [] if g]}
         owner = str(getattr(existing, "owner", "") or "").lower()
         admin = _metastore_admin(ctx)
         if owner not in mine and not (admin and admin in mine):
-            problems.append(f"The schema `{catalog}`.`{schema}` exists and you are not its owner, so you cannot grant the Inspire App rights on it. "
+            problems.append(f"The schema `{catalog}`.`{schema}` exists and you are not its owner, so the App, running as you, cannot manage it. "
                             f"Its owner or a catalog owner can run GRANT MANAGE ON SCHEMA `{catalog}`.`{schema}` TO `{person}`, "
                             "or make you the owner, then run this installer again.")
     elif not (full or {"CREATE_SCHEMA", "ALL_PRIVILEGES"} & held):
         problems.append(f"You cannot create the schema `{catalog}`.`{schema}`. A catalog owner can run "
                         f"GRANT CREATE SCHEMA ON CATALOG `{catalog}` TO `{person}`.")
-    if run_as:
-        return problems
-    sp_id = str((found_app.json() or {}).get("service_principal_client_id") or "").lower() if found_app.status_code == 200 else ""
-    try:
-        rows = _statement_rows(ctx["w"], ctx["WAREHOUSE_ID"], f"SHOW GRANTS ON CATALOG `{catalog}`")
-    except Exception as exc:
-        return problems + [f"Inspire cannot read the grants on catalog `{catalog}` to check the App's access: {_error_words(exc, 120)}."]
-    holders = {}
-    for row in rows:
-        holders.setdefault(str(row.get("principal") or "").strip().lower(), set()).add(_privilege_word(row.get("actiontype")))
-    usable = {NEW_APPS_ACCOUNT_USERS, sp_id} - {""}
-    if not any(holders.get(who, set()) & {"USE CATALOG", "ALL PRIVILEGES"} for who in usable):
-        problems.append(f"The Inspire App's service principal cannot use catalog `{catalog}`, and schema mode grants no catalog rights, so the App "
-                        f"could not read `{catalog}`.`{schema}`. A catalog owner must run GRANT USE CATALOG ON CATALOG `{catalog}` TO "
-                        f"`{NEW_APPS_ACCOUNT_USERS}` (or GRANT USE CATALOG to the App's service principal), then run this installer again.")
     return problems
 
 
@@ -2109,7 +2115,7 @@ def step_preflight(ctx):
                         "You need Can Use on it.")
     schema_mode = bool(ctx.get("SCHEMA_MODE"))
     if schema_mode:
-        problems += _schema_mode_problems(ctx, found)
+        problems += _schema_mode_problems(ctx)
     else:
         try:
             rights = _catalog_rights(ctx)

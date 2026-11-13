@@ -1420,7 +1420,8 @@ function registerImplementRoutes(app, deps) {
     const { spec, warnings: outputWarnings } = await outputBeforeBuild(req, warehouseId, planned, useCaseId);
     const warnings = [...noted, ...outputWarnings];
     const sessionParams = notebookParamsFromSessionForGenerateRun(session, sid);
-    const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, ownServicePrincipalId());
+    // Run-as-me (REQ-113): the job gets no App principal and runs as the signed-in person.
+    const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, runAsPerson() ? '' : ownServicePrincipalId(), runAsPerson());
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
     if (!sessionParams['01_uc_metadata']) {
       const err = new Error('This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.');

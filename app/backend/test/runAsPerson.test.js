@@ -2,7 +2,7 @@ const test = require('node:test');
 const assert = require('node:assert/strict');
 const fs = require('fs');
 const { runAsPerson, launchPlanFor } = require('../lib/inspireJobParams');
-const { demoPipelineSpec } = require('../lib/demoDataPipeline');
+const { demoPipelineSpec, demoRunParameters } = require('../lib/demoDataPipeline');
 const { buildRunAsJobSpecs, OUT } = require('../../scripts/emit-run-as-job-specs');
 const { tokenFor } = require('../server');
 
@@ -122,4 +122,33 @@ test('run-as-me: the App write check runs with the person\'s token; default mode
     if (saved === undefined) delete process.env.INSPIRE_RUN_AS_PERSON;
     else process.env.INSPIRE_RUN_AS_PERSON = saved;
   }
+});
+
+test('REQ-113: run-as-me with no person token gets no token at all, never the App service principal or the static token', () => {
+  const req = { headers: {} };
+  const app = { production: true, serviceToken: 'static-token', spCredentials: true, spTokenFresh: true, spTokenCached: 'sp-token', runAs: true };
+  assert.equal(tokenFor(req, app), null);
+  assert.equal(tokenFor(req, { ...app, serviceToken: '' }), null);
+});
+
+test('REQ-113: the demo job runs as the person and passes no App principal in run-as-me, and keeps the App principal in default mode', () => {
+  const values = { description: 'd', business: 'b', catalog: 'c', inspireDb: 'c.s', sid: '42', demoSchema: 'x',
+    warehouse: 'wh', appSp: '', plantKindSignals: 'yes', discovery: 'Standard Discovery', generationPath: '/g' };
+  const runAs = demoPipelineSpec({ ...values, runAs: true }, { generateNotebookPath: '/gen', inspireNotebookPath: '/inspire', clusterSpec: {} });
+  assert.equal(runAs.tasks[0].notebook_task.base_parameters.run_as_person, '1');
+  assert.equal(runAs.tasks[0].notebook_task.base_parameters.app_sp_application_id, '');
+  assert.equal(demoRunParameters({ ...values, runAs: true }).run_as_person, '1');
+  const dflt = demoPipelineSpec({ ...values, appSp: 'sp-1' }, { generateNotebookPath: '/gen', inspireNotebookPath: '/inspire', clusterSpec: {} });
+  assert.equal(dflt.tasks[0].notebook_task.base_parameters.run_as_person, '');
+  assert.equal(dflt.tasks[0].notebook_task.base_parameters.app_sp_application_id, 'sp-1');
+});
+
+test('REQ-113: the implement job in run-as-me carries the run-as flag and no App principal, and the flag survives the notebook sanitizer', () => {
+  const I = require('../lib/inspireImplement');
+  const JP = require('../lib/inspireJobParams');
+  const runAs = I.implementJobParams({}, 'N01-U01', 3, '', true);
+  assert.equal(runAs.inspire_run_as_person, '1');
+  assert.equal(runAs.inspire_app_client_id, '');
+  assert.equal(JP.sanitizeInspireNotebookJobParams({ ...runAs }).inspire_run_as_person, '1');
+  assert.equal(I.implementJobParams({}, 'N01-U01', 3, 'insp-client-1').inspire_run_as_person, '');
 });

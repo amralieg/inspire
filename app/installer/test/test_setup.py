@@ -609,7 +609,8 @@ def postgres_posts(calls):
 
 class GrantPlanTest(unittest.TestCase):
     def grant(self, data, listed=("main", "sales", "finance", "samples", "system", "inspire_lakebase"), rights=None, owners=None, catalog="main",
-              admin="metastore-admins", fail=None, api=None, lakebase=LAKEBASE, schema_mode=False):
+              admin="metastore-admins", fail=None, api=None, lakebase=LAKEBASE, schema_mode=False,
+              notebook="/Shared/inspire-ai/dbx_inspire_ai_agent"):
         out = io.StringIO()
         executed = []
         held_on = {n: ("MANAGE",) for n in listed} if rights is None else rights
@@ -647,7 +648,7 @@ class GrantPlanTest(unittest.TestCase):
                "api": api, "available_catalogs": [n for n in listed if n != "system"],
                "ASSETS_PATH": "/Workspace/Shared/inspire-ai/assets/v1.3.0", "DATA_CATALOGS": list(data), "api_get": api_get,
                "USER_EMAIL": "someone@example.com", "USER_GROUPS": ["admins"], "LAKEBASE": lakebase,
-               "NOTEBOOK_PATH": "/Shared/inspire-ai/dbx_inspire_ai_agent"}
+               "NOTEBOOK_PATH": notebook}
         ctx["SCHEMA_MODE"] = schema_mode
         with contextlib.redirect_stdout(out), mock.patch.object(setup, "LAKEBASE_POLL_S", 0):
             setup.step_grant_permissions(ctx)
@@ -1697,38 +1698,26 @@ class SchemaModeTest(unittest.TestCase):
         base.update(extra)
         return context(api, **base)
 
-    def test_schema_mode_without_manage_on_the_catalog_succeeds_and_makes_no_catalog_grant(self):
+    def test_schema_mode_needs_only_the_persons_own_rights_and_makes_no_app_grant(self):
         api, calls = recording(app_exists())
         w = Workspace(owner="someone-else", schema=False)
-        ctx = self.schema_ctx(api, w=w, held=("CREATE_SCHEMA",))
-        steps, error, out = self.preflight(ctx, SCHEMA_ACCOUNT_USERS_USE)
+        ctx = self.schema_ctx(api, w=w, held=("USE_CATALOG", "CREATE_SCHEMA"))
+        steps, error, out = self.preflight(ctx, [])
         self.assertIsNone(error)
         self.assertEqual(steps, list(INSTALL_STEPS))
         self.assertIn("Schema mode: the App reads only `main`.`_inspire`", out)
 
-    def test_schema_mode_refuses_before_any_change_when_the_app_cannot_use_the_catalog(self):
+    def test_schema_mode_refuses_before_any_change_when_the_person_cannot_use_the_catalog(self):
         api, calls = recording(app_exists())
         w = Workspace(owner="someone-else", schema=False)
         ctx = self.schema_ctx(api, w=w, held=("CREATE_SCHEMA",))
-        steps, error, _ = self.preflight(ctx, [{"principal": "someone@example.com", "actiontype": "USE CATALOG"}])
+        steps, error, _ = self.preflight(ctx, [])
         self.assertEqual(steps, [])
         self.assertIn("Nothing was replaced", error)
-        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `account users`", error)
+        self.assertIn("GRANT USE CATALOG ON CATALOG `main` TO `someone@example.com`", error)
         self.assertEqual([c for c in calls if c[0] in ("DELETE", "PATCH", "PUT")], [])
         self.assertEqual([c for c in calls if c[0] == "POST"], [])
         self.assertEqual(w.statements, ["SELECT 1"], "only the warehouse check ran; no CREATE SCHEMA or GRANT was sent")
-
-    def test_schema_mode_accepts_the_app_principal_when_it_holds_use_catalog_directly(self):
-        def script(method, path, body):
-            if path == "/api/2.0/apps/inspire-ai" and method == "GET":
-                return Resp(200, {"name": "inspire-ai", "service_principal_client_id": "app-sp-id"})
-            return app_exists()(method, path, body)
-        api, _ = recording(script)
-        ctx = self.schema_ctx(api, w=Workspace(owner="someone-else", schema=False), held=("CREATE_SCHEMA",))
-        rows = [{"principal": "app-sp-id", "actiontype": "USE CATALOG"}]
-        steps, error, _ = self.preflight(ctx, rows)
-        self.assertIsNone(error)
-        self.assertEqual(steps, list(INSTALL_STEPS))
 
     def test_schema_mode_refuses_an_existing_schema_that_the_person_does_not_own(self):
         api, _ = recording(app_exists())
@@ -1764,7 +1753,7 @@ class SchemaModeTest(unittest.TestCase):
             self.assertIn(person, folders[key], key)
             self.assertNotIn("Shared", folders[key], key)
         api, calls = recording(app_exists())
-        ctx = self.schema_ctx(api, w=Workspace(owner="someone-else", schema=False), held=("CREATE_SCHEMA",),
+        ctx = self.schema_ctx(api, w=Workspace(owner="someone-else", schema=False), held=("USE_CATALOG", "CREATE_SCHEMA"),
                               USER_EMAIL=person, APP_FOLDER=folders["APP_FOLDER"], ASSETS_PARENT=folders["ASSETS_PARENT"],
                               BUNDLE_ROOT=f"{folders['APPS_PARENT']}/inspire-ai")
         steps, error, _ = self.preflight(ctx, SCHEMA_ACCOUNT_USERS_USE)
@@ -1777,6 +1766,14 @@ class SchemaModeTest(unittest.TestCase):
                                 setup._workspace_api_path(folders["ASSETS_PARENT"])])
         self.assertTrue(all(person in path for path in made), made)
         self.assertEqual(ctx["USER_EMAIL"], person)
+
+    def test_schema_mode_stops_before_the_deploy_when_the_persons_output_folder_cannot_be_created(self):
+        api, _calls = recording(lambda method, path, body=None: Resp(403, {}, "denied") if path.endswith("/workspace/mkdirs") else Resp(200, {}))
+        with self.assertRaises(RuntimeError) as raised:
+            GrantPlanTest.grant(self, "all", schema_mode=True, api=api,
+                                notebook="/Users/someone@example.com/inspire-ai/inspire-ai/dbx_inspire_ai_agent")
+        self.assertIn("/Users/someone@example.com/inspire-ai/demos could not be created as you", str(raised.exception))
+        self.assertIn("so the App keeps its last working version", str(raised.exception))
 
     def test_schema_mode_puts_assets_app_and_notebook_under_the_persons_folder(self):
         self.assertEqual(setup.install_folders("someone@example.com", "inspire-ai", True), {
@@ -1792,36 +1789,24 @@ class SchemaModeTest(unittest.TestCase):
             with self.assertRaises(ValueError, msg=repr(bad)):
                 setup.inspire_schema_setting(bad)
 
-    def test_schema_mode_grant_plan_has_no_catalog_level_statement(self):
-        plan = setup._grant_plan("sp-id", "my_catalog", "inspire", {"my_catalog"}, "lake", catalog_level=False)
-        self.assertFalse([sql for sql in plan if " ON CATALOG " in sql], plan)
-        self.assertIn("GRANT USE SCHEMA ON SCHEMA `my_catalog`.`inspire` TO `sp-id`", plan)
-        self.assertIn("GRANT MANAGE ON SCHEMA `my_catalog`.`inspire` TO `sp-id`", plan)
-        self.assertFalse([sql for sql in plan if "lake" in sql], plan)
-        default = setup._grant_plan("sp-id", "my_catalog", "inspire", {"my_catalog"}, "", catalog_level=True)
+    def test_default_grant_plan_is_unchanged_and_schema_grants_are_not_planned_here(self):
+        default = setup._grant_plan("sp-id", "my_catalog", "inspire", {"my_catalog"}, "")
         self.assertIn("GRANT USE CATALOG ON CATALOG `my_catalog` TO `sp-id`", default)
+        self.assertIn("GRANT MANAGE ON SCHEMA `my_catalog`.`inspire` TO `sp-id`", default)
 
-    def test_schema_mode_grants_on_the_schema_only_and_skips_every_catalog_level_grant_in_plain_words(self):
-        grants, printed, executed, said = GrantPlanTest.grant(self, "all", schema_mode=True)
-        self.assertFalse([sql for sql, _ in executed if " ON CATALOG " in sql or "SCAN" in sql], executed)
-        self.assertTrue(any(sql.startswith("GRANT USE SCHEMA ON SCHEMA `main`.`_inspire` TO `SP`") for sql in grants), grants)
-        self.assertIn("Skipped in schema mode: catalog-level grants are skipped in schema mode", said)
+    def test_schema_mode_grant_step_grants_the_app_principal_nothing_and_creates_no_shared_folder(self):
+        """REQ-113: schema mode with a schema-mode NOTEBOOK_PATH sends no GRANT, no SP permission and no /Shared call."""
+        api, api_calls = lakebase_api(catalog=((200, BOUND),), make_catalog=REFUSED_CATALOG)
+        person_notebook = "/Users/someone@example.com/inspire-ai/inspire-ai/dbx_inspire_ai_agent"
+        grants, printed, executed, said = GrantPlanTest.grant(self, "all", schema_mode=True, api=api, notebook=person_notebook)
+        self.assertEqual([sql for sql, _ in executed if sql.startswith("GRANT ")], [], executed)
+        self.assertEqual(grants, [], grants)
+        touched = [(m, p, b) for m, p, b in api_calls if "/Shared" in p or "/Shared" in str(b) or "SP" in str(b)]
+        self.assertEqual(touched, [], api_calls)
+        self.assertIn(("POST", "/api/2.0/workspace/mkdirs", {"path": "/Users/someone@example.com/inspire-ai/demos"}), api_calls)
+        self.assertIn("Schema mode: the App's principal gets no grant", said)
+        self.assertIn("Lakebase is not wired", self.ctx["LAKEBASE_SUMMARY"])
         self.assertNotIn("New Apps can use catalog", said)
-        self.assertIn("CAN_READ", said)
-
-    def test_assets_folder_access_in_schema_mode_grants_only_the_app_principal(self):
-        seen = []
-
-        def api(method, path, body=None):
-            if method == "GET":
-                return Resp(200, {"object_id": 7})
-            seen.append(body)
-            return Resp(200)
-        said = setup._assets_folder_access(api, "/Workspace/Users/someone@example.com/inspire-ai/assets/v1.3.0", "SP",
-                                           "/Workspace/Users/someone@example.com/inspire-ai/assets", False)
-        self.assertEqual(seen, [{"access_control_list": [{"service_principal_name": "SP", "permission_level": "CAN_READ"}]}])
-        self.assertIn("CAN_READ on /Users/someone@example.com/inspire-ai/assets for SP, so every run reads", said)
-
 
 class RunAsTest(unittest.TestCase):
     """RUN_AS_PERSON: the four App jobs are made as the person from the shared spec, the App's principal may run them, default mode makes none."""

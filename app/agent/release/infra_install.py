@@ -42,8 +42,10 @@ def work_dir(tag, release_out):
     text = (release_out / "inspire_installer.py").read_text(encoding="utf-8")
     if text.count('SCAN_CATALOGS = "all"') == 1:
         text = text.replace('SCAN_CATALOGS = "all"', "SCAN_CATALOGS = []")
-    elif text.count("SCAN_CATALOGS = []") != 1:
+    elif "SCAN_CATALOGS" in text and text.count("SCAN_CATALOGS = []") != 1:
         raise SystemExit('SCAN_CATALOGS is neither "all" nor [] exactly once in the release installer')
+    # rc.1 and later: the starter carries no read-catalog constant. The setting is the DATA_CATALOGS widget in the installer module
+    # (installer/inspire_setup.py), which an infra install takes at its default, so the starter is used unchanged.
     (rel / "inspire_installer.py").write_text(text, encoding="utf-8")
     return work
 

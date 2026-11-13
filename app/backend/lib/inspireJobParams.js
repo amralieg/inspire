@@ -32,7 +32,9 @@ const INSPIRE_NOTEBOOK_WIDGET_KEYS = [
 
 const IMPLEMENT_RUN_ID_PARAM = 'inspire_implement_run_id';
 const IMPLEMENT_INSPIRE_CLIENT_PARAM = 'inspire_app_client_id';
-const INSPIRE_JOB_ONLY_PARAM_KEYS = [IMPLEMENT_RUN_ID_PARAM, IMPLEMENT_INSPIRE_CLIENT_PARAM];
+// REQ-113: '1' tells the notebook the job runs as the signed-in person, so it grants the App's principal nothing.
+const IMPLEMENT_RUN_AS_PARAM = 'inspire_run_as_person';
+const INSPIRE_JOB_ONLY_PARAM_KEYS = [IMPLEMENT_RUN_ID_PARAM, IMPLEMENT_INSPIRE_CLIENT_PARAM, IMPLEMENT_RUN_AS_PARAM];
 const INSPIRE_ASSETS_PARAM = 'inspire_assets_path';
 const INSPIRE_TEST_TAG = 'dbx_inspire_ai_test';
 
@@ -507,6 +509,7 @@ module.exports = {
   INSPIRE_ENVIRONMENT_VERSION,
   INSPIRE_NOTEBOOK_WIDGET_KEYS,
   IMPLEMENT_RUN_ID_PARAM,
+  IMPLEMENT_RUN_AS_PARAM,
   INSPIRE_JOB_ONLY_PARAM_KEYS,
   INSPIRE_ASSETS_PARAM,
   USE_CASES_QUALITY_VALID,
