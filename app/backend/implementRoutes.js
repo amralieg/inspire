@@ -450,7 +450,7 @@ function registerImplementRoutes(app, deps) {
       if (!params['01_uc_metadata']) {
         return res.status(400).json({
           error:
-            'This session has no UC metadata (catalogs/schemas/tables or docs-only JSON path) stored on __inspire_session. Run Discover from this app first, or set metadata manually.',
+            'This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.',
         });
       }
       const refused = await U.runReadRefusal(dbFetch, req, { tables: await useCasesTables(req, warehouse_id, catalog, schema, sidStr, safeIds) });
@@ -1392,7 +1392,7 @@ function registerImplementRoutes(app, deps) {
     const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, ownServicePrincipalId());
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
     if (!sessionParams['01_uc_metadata']) {
-      const err = new Error('This session has no UC metadata stored on __inspire_session. Run Discover from this app first.');
+      const err = new Error('This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.');
       err.statusCode = 400;
       throw err;
     }

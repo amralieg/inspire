@@ -31,18 +31,29 @@ export function typedCatalog(catalogs, truncated, typed) {
 
 const under = (parent) => (name) => String(name).startsWith(`${parent}.`);
 
+// What 01_uc_metadata reads. A table the person picked is read alone, whatever chips above it are still on. A schema or
+// catalog is read whole only when no table under it was picked. Tables with no picked parent are still read.
 export function pickedScope(catalogs = [], schemas = [], tables = []) {
   const scope = { entries: [], catalogs: [], schemas: [], tables: [] };
   const add = (kind, names) => { scope[kind].push(...names); scope.entries.push(...names); };
+  const placed = new Set();
   for (const catalog of catalogs) {
     const picked = schemas.filter(under(catalog));
-    if (!picked.length) { add('catalogs', [catalog]); continue; }
-    for (const schema of picked) {
-      const named = tables.filter(under(schema));
+    const named = tables.filter(under(catalog));
+    named.forEach((t) => placed.add(t));
+    if (!picked.length) {
       if (named.length) add('tables', named);
+      else add('catalogs', [catalog]);
+      continue;
+    }
+    for (const schema of picked) {
+      const inSchema = tables.filter(under(schema));
+      if (inSchema.length) { inSchema.forEach((t) => placed.add(t)); add('tables', inSchema); }
       else add('schemas', [schema]);
     }
   }
+  const orphans = tables.filter((t) => !placed.has(t));
+  if (orphans.length) add('tables', orphans);
   return scope;
 }
 

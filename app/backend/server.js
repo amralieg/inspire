@@ -2994,7 +2994,8 @@ app.get('/api/inspire/results', requireToken, async (req, res) => {
     });
   } catch (err) {
     if (isMissingTableError(err)) {
-      return res.json({ results: null, found: false, message: 'Session table not found.' });
+      // No results yet for a fresh workspace: the normal first-run state. The App shows nothing scary.
+      return res.json({ results: null, found: false, first_run: true });
     }
     if (isReadDenied(err.message)) return res.status(403).json({ error: err.message });
     res.status(500).json({ error: err.message });
@@ -3051,7 +3052,8 @@ app.get('/api/inspire/sessions', requireToken, async (req, res) => {
   } catch (err) {
     const msg = err.message || String(err);
     if (isMissingTableError(msg)) {
-      return res.json({ sessions: [], message: 'Session table not found. Run Inspire once to create __inspire_session.' });
+      // A fresh workspace has no runs yet: that is the normal first-run state, not an error. The App shows its empty state.
+      return res.json({ sessions: [], first_run: true });
     }
     // Non-fatal: allow "New experiment" when workspace is unreachable or not yet provisioned
     if (

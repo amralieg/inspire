@@ -157,7 +157,7 @@ test('a session without UC metadata is refused before a spec row is written', as
   await withApp({ ucMetadata: '' }, async (url, made) => {
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: SUBMIT });
     assert.equal(got.status, 400);
-    assert.match(got.data.error, /no UC metadata/);
+    assert.match(got.data.error, /no saved data sources/);
     assert.ok(!made.sqlCalls.some((c) => /^(INSERT|UPDATE)/.test(String(c.sql))));
     assert.equal(made.jobs.length, 0);
   });

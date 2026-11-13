@@ -296,6 +296,9 @@ export default function ChoosePage({ settings, onNewExperiment, onNoData, onDemo
         <div className="w-full max-w-[1600px] space-y-6 text-center">
           <h1 className="text-3xl font-bold tracking-tight">Get started with Inspire AI</h1>
           <p className="text-sm text-text-secondary">
+            No runs yet. Start your first run to see your use cases here.
+          </p>
+          <p className="text-sm text-text-secondary">
             Start from your own Unity Catalog data, or let Inspire make sample data for you.
           </p>
           <StartChoices onNewExperiment={onNewExperiment} onNoData={onNoData} onDemo={onDemo} />

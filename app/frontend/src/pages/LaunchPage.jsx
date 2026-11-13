@@ -1233,14 +1233,14 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                       {selectedSchemas.map((s) => (
                         <span key={s} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] font-medium border border-border">
                           {s}
-                          <button aria-label={`Remove ${s}`} onClick={() => { setSelectedSchemas((p) => p.filter((x) => x !== s)); setSelectedTables((p) => p.filter((x) => !x.startsWith(s + '.'))); }} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
+                          <button aria-label={`Remove ${s}`} onClick={() => setSelectedSchemas((p) => p.filter((x) => x !== s))} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
                         </span>
                       ))}
                       {selectedCatalogs.map((c) => (
                         <span key={c} className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-bg-subtle text-text-secondary text-[10px] font-medium border border-border">
                           <Database size={9} />
                           {c}
-                          <button aria-label={`Remove ${c}`} onClick={() => { setSelectedCatalogs((p) => p.filter((x) => x !== c)); setSelectedSchemas((p) => p.filter((x) => !x.startsWith(c + '.'))); setSelectedTables((p) => p.filter((x) => !x.startsWith(c + '.'))); }} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
+                          <button aria-label={`Remove ${c}`} onClick={() => { setSelectedCatalogs((p) => p.filter((x) => x !== c)); setSelectedSchemas((p) => p.filter((x) => !x.startsWith(c + '.'))); }} className="hover:text-db-red-fg ms-0.5"><X size={8} /></button>
                         </span>
                       ))}
                     </div>
@@ -1288,7 +1288,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                           if (selectedCatalogs.includes(name)) {
                             setSelectedCatalogs((p) => p.filter((x) => x !== name));
                             setSelectedSchemas((p) => p.filter((x) => !x.startsWith(name + '.')));
-                            setSelectedTables((p) => p.filter((x) => !x.startsWith(name + '.')));
                           } else {
                             setSelectedCatalogs((p) => [...p, name]);
                           }
@@ -1327,7 +1326,6 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         onToggle={(name) => {
                           if (selectedSchemas.includes(name)) {
                             setSelectedSchemas((p) => p.filter((x) => x !== name));
-                            setSelectedTables((p) => p.filter((x) => !x.startsWith(name + '.')));
                           } else {
                             setSelectedSchemas((p) => [...p, name]);
                           }

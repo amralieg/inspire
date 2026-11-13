@@ -4,7 +4,7 @@ Full-stack Databricks App (Node backend, React frontend, Inspire agent notebooks
 
 People who install Inspire do not need this README: they download `inspire_installer.py` from the latest release, import it into a workspace folder and run it.
 
-## v1.5.2: exec notes
+## v1.5.3: exec notes
 
 - **Agent:** `dbx_inspire_ai_agent` `__AGENT_VERSION__ = v1.5.3`
 - **Discovery Type:** widget `03_discovery_type` = Standard Discovery (default) / AI Enhanced Discovery; legacy Standard / Deep are mapped; an unknown value is refused with 400
