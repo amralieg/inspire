@@ -2266,8 +2266,8 @@ export default function ResultsPage({
                       className="px-2 py-1.5 text-[11px] border border-border rounded-lg bg-bg text-text-primary focus:border-db-red/30 transition-smooth min-w-[10.5rem]"
                     >
                       <option value="all">Quality bar: Any ({qualityBarCounts.found})</option>
-                      <option value="meets">Meets your quality bar ({qualityBarCounts.meets})</option>
-                      <option value="below">Below your bar ({qualityBarCounts.below})</option>
+                      <option value="meets">Meets the quality bar ({qualityBarCounts.meets})</option>
+                      <option value="below">Below the quality bar ({qualityBarCounts.below})</option>
                     </select>
                   )}
 
@@ -2358,7 +2358,7 @@ export default function ResultsPage({
                     )}
                     {filterQualityBar !== 'all' && (
                       <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-db-red-50 text-db-red-fg text-[10px] font-medium border border-db-red/20">
-                        {filterQualityBar === 'meets' ? 'Meets your quality bar' : 'Below your bar'}
+                        {filterQualityBar === 'meets' ? 'Meets the quality bar' : 'Below the quality bar'}
                         <button type="button" onClick={() => setFilterQualityBar('all')} className="hover:text-db-red-fg">&times;</button>
                       </span>
                     )}

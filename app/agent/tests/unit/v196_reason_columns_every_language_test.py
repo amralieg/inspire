@@ -172,7 +172,7 @@ def test_english_excel_keeps_its_sheet_names_and_foundation_headers(ns):
     _path, data = written(obj, ".xlsx")
     book = openpyxl.load_workbook(io.BytesIO(data))
     assert book.sheetnames == ["Quality Bar", "Use Cases", "Foundations"]
-    assert book["Quality Bar"]["A1"].value.startswith("1 of 2 use cases found meet your")
+    assert book["Quality Bar"]["A1"].value.startswith("1 of 2 use cases meet the")
     assert [c.value for c in book["Foundations"][1]] == ["ID", "Tables", "Joins", "Use cases unlocked", "Use Case IDs", "Summed Inspire Score"]
 
 
