@@ -122,6 +122,15 @@ export default function UseCaseDrawer({
             <ImplementStatusBadge state={row.status} />
           </div>
           <QualityBarReason uc={uc} className="mt-2" />
+          {Array.isArray(uc.data_filters) && uc.data_filters.length > 0 && (
+            <p data-data-filters="" className="mt-2 text-[12px] text-text-primary">
+              <span className="font-medium">Data Filters: </span>
+              {uc.data_filters.map((f) => `${f.column}: ${f.text}`).join('; ')}
+            </p>
+          )}
+          {uc.data_filters === null && (
+            <p data-data-filters="unread" className="mt-2 text-[12px] text-text-secondary">Data Filters: could not be read from this session.</p>
+          )}
 
           <div className="mt-3 grid grid-cols-2 gap-2 sm:grid-cols-4">
             <ScoreTile label="Inspire score" value={row.inspire} hint="Inspire composite score" />
