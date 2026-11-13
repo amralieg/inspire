@@ -1461,12 +1461,12 @@ function UseCaseDetail({ item, sessionId, settings, qBase, apiFetch, apiPostJson
           <p className="text-[13px] font-semibold">{readsLeft.tables.length ? APP_READS_HEADING : APP_READS_CLEARED}</p>
           {readsLeft.tables.length > 0 && !readsLeft.viewers && <p>{appReadsText(readsLeft, latest?.app_name || '')}</p>}
           {readsLeft.tables.length > 0 && readsLeft.viewers && (
-            <ul aria-label="Viewers who still need access" data-viewer-rows="" className="list-disc pl-5 space-y-0.5">
+            <ul aria-label="Viewers who still need access" data-viewer-rows="" className="list-disc ps-5 space-y-0.5">
               {viewerRows(readsLeft).map((r) => <li key={`${r.viewer}|${r.table}`} data-viewer-row={r.viewer}>{`${r.viewer}: needs ${r.needs.join(', ')} on ${r.table}`}</li>)}
             </ul>
           )}
           {readsLeft.tables.length > 0 && !readsLeft.viewers && (
-            <ul aria-label="Tables the App cannot read" data-table-rows="" className="list-disc pl-5 space-y-0.5">
+            <ul aria-label="Tables the App cannot read" data-table-rows="" className="list-disc ps-5 space-y-0.5">
               {tableRows(readsLeft).map((r) => <li key={r.table} data-table-row={r.table}>{`${r.table}: needs ${r.needs.join(', ')}`}</li>)}
             </ul>
           )}
