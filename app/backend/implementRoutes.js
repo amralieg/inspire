@@ -1422,7 +1422,11 @@ function registerImplementRoutes(app, deps) {
     const warnings = [...noted, ...outputWarnings];
     const sessionParams = notebookParamsFromSessionForGenerateRun(session, sid);
     const params = I.implementJobParams(sessionParams, useCaseId, plan.nextVersion, ownServicePrincipalId());
-    Object.assign(params, JC.implementCurrencyParams(spec?.money));
+    const token = P.personTokenOf(req);
+    if (!token) throw I.badRequest('Sign in again: Inspire reads the rate table with your own access.');
+    const runSql = async (sql) => sqlResultToObjects(await executeSql(req.dbHost, token, warehouseOf(req), sql, null,
+      { rowLimit: 500, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s' }));
+    Object.assign(params, await JC.implementCurrencyParams(spec?.money, { runSql }));
     if (!params['02_inspire_database']) params['02_inspire_database'] = inspire_database;
     if (!sessionParams['01_uc_metadata']) {
       const err = new Error('This run has no saved data sources, so Inspire cannot rebuild it. Start a new run from Start to get them.');

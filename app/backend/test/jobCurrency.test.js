@@ -7,16 +7,39 @@ const { INSPIRE_NOTEBOOK_WIDGET_KEYS, sanitizeInspireNotebookJobParams } = requi
 const offline = async () => { throw new Error('getaddrinfo ENOTFOUND'); };
 const live = (rates) => async () => ({ ok: true, status: 200, json: async () => ({ date: '2026-11-12', rates }) });
 
-test('Implement sends the Measure rule currency and the exact rates the person saw or edited', () => {
+test('Implement sends the Measure rule currency and the exact rates the person saw or edited', async () => {
   const money = { currency: 'convert', base: 'AED', rates: { EUR: 4.28, USD: 3.6725 } };
-  assert.deepEqual(implementCurrencyParams(money), { currency: 'AED', currency_rates: '{"source":"typed","rates":{"EUR":4.28,"USD":3.6725}}' });
+  assert.deepEqual(await implementCurrencyParams(money), { currency: 'AED', currency_rates: '{"source":"typed","rates":{"EUR":4.28,"USD":3.6725}}' });
 });
 
-test('Implement drops a rate that is not a positive number for an ISO code, and sends nothing for a per-currency rule', () => {
-  assert.deepEqual(implementCurrencyParams({ currency: 'convert', base: 'AED', rates: { EUR: 4.28, USD: 0, 'not-a-code': 2 } }),
+test('Implement drops a rate that is not a positive number for an ISO code, and sends nothing for a per-currency rule', async () => {
+  assert.deepEqual(await implementCurrencyParams({ currency: 'convert', base: 'AED', rates: { EUR: 4.28, USD: 0, 'not-a-code': 2 } }),
     { currency: 'AED', currency_rates: '{"source":"typed","rates":{"EUR":4.28}}' });
-  assert.deepEqual(implementCurrencyParams({ currency: 'per_currency' }), {});
-  assert.deepEqual(implementCurrencyParams(null), {});
+  assert.deepEqual(await implementCurrencyParams({ currency: 'per_currency' }), {});
+  assert.deepEqual(await implementCurrencyParams(null), {});
+});
+
+const RATE_TABLE = { table: 'main.fx.rates', currency_column: 'ccy', base_column: 'base_ccy', date_column: 'rate_date', rate_column: 'rate', load_column: 'loaded_at' };
+
+test('a rate-table rule reads the latest rate per currency from its table and sends source table, so the run converts (REQ-103)', async () => {
+  const seen = [];
+  const runSql = async (sql) => { seen.push(sql); return [{ currency: 'EUR', rate: 4.28 }, { currency: 'usd', rate: 3.6725 }, { currency: 'GBP', rate: 0 }, { currency: 'XX', rate: 1 }]; };
+  const out = await implementCurrencyParams({ currency: 'convert', base: 'AED', rate_table: RATE_TABLE }, { runSql });
+  assert.deepEqual(out, { currency: 'AED', currency_rates: '{"source":"table","rates":{"EUR":4.28,"USD":3.6725}}' },
+    'a zero rate and a code that is not ISO are dropped, and the table rates are labelled table');
+  assert.equal(seen.length, 1, 'one read of the rate table');
+  assert.match(seen[0], /`base_ccy` = 'AED'/, 'the read keeps the rows into the reporting currency');
+  assert.match(seen[0], /LIMIT 500\b/, 'the read is not capped at the three sample rates');
+});
+
+test('a rate-table rule whose table cannot be named is refused, never sent as converted with no rates', async () => {
+  await assert.rejects(implementCurrencyParams({ currency: 'convert', base: 'AED', rate_table: { ...RATE_TABLE, table: 'not a table' } },
+    { runSql: async () => [] }), /rate table is not readable/);
+});
+
+test('a rate-column rule sends its currency alone, so the run says the rate is not known rather than guessing one', async () => {
+  const out = await implementCurrencyParams({ currency: 'convert', base: 'AED', rate_column: 'rate' }, { runSql: async () => { throw new Error('must not read'); } });
+  assert.deepEqual(out, { currency: 'AED' });
 });
 
 test('Discover with no currency asked sends USD and today’s rates for every saved currency', async () => {
@@ -54,6 +77,6 @@ test('both launch paths send the currency params: Implement from its rule in sta
   const path = require('node:path');
   const implementRoutes = fs.readFileSync(path.join(__dirname, '..', 'implementRoutes.js'), 'utf8');
   const server = fs.readFileSync(path.join(__dirname, '..', 'server.js'), 'utf8');
-  assert.match(implementRoutes, /Object\.assign\(params, JC\.implementCurrencyParams\(spec\?\.money\)\);/);
+  assert.match(implementRoutes, /Object\.assign\(params, await JC\.implementCurrencyParams\(spec\?\.money, \{ runSql \}\)\);/);
   assert.match(server, /jobType !== 'implement' && !\('currency_rates' in params\)\) Object\.assign\(params, await JC\.discoverCurrencyParams\(params\)\);/);
 });

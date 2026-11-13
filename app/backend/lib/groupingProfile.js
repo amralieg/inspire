@@ -159,14 +159,14 @@ function moneyValueSampleSql(table, value, filter = null) {
 }
 
 // The latest rate loaded for up to three currencies, into the base currency: the example reads real numbers from the rate table.
-function rateSampleSql(rateTable, base) {
+function rateSampleSql(rateTable, base, limit = RATE_SAMPLE_ROWS) {
   const t = rateTable || {};
   const names = ['currency_column', 'base_column', 'rate_column', 'load_column'];
   if (!RATE_TABLE_PATTERN.test(String(t.table || '')) || !/^[A-Z]{3}$/.test(String(base || ''))
     || names.some((k) => !RATE_COLUMN_PATTERN.test(String(t[k] || '')))) return null;
   return `SELECT currency, rate FROM (SELECT ${q(t.currency_column)} AS currency, CAST(${q(t.rate_column)} AS DOUBLE) AS rate, `
     + `ROW_NUMBER() OVER (PARTITION BY ${q(t.currency_column)} ORDER BY ${q(t.load_column)} DESC) AS latest `
-    + `FROM ${G.groupingMainTable(t.table).sql} WHERE ${q(t.base_column)} = '${String(base)}') AS ranked WHERE latest = 1 LIMIT ${RATE_SAMPLE_ROWS}`;
+    + `FROM ${G.groupingMainTable(t.table).sql} WHERE ${q(t.base_column)} = '${String(base)}') AS ranked WHERE latest = 1 LIMIT ${Number(limit)}`;
 }
 
 // The three latest rates from a rate column of the use case table: the example reads real numbers for a rate column too.

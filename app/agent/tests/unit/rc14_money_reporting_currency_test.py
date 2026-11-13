@@ -152,3 +152,13 @@ def test_a_reporting_currency_the_person_chose_is_still_labelled_assumed(ns, mon
     _widget_map(ns, monkeypatch, currency="AED", currency_default="false")
     estimate = _estimate(ns, make_uc("N01-U01", KPIs=[_kpi(ns)], use_case_kind="forecast"))
     assert estimate["short"] == "AED 2.4K-6K a year (currency assumed: AED (reporting currency))"
+
+
+def test_a_rate_table_feed_keeps_its_table_label_and_its_rates(ns, monkeypatch):
+    """REQ-103: a rule that converts from its rate table reaches the notebook as source table. The label must survive
+    the feed, or the run would say the person typed the rate."""
+    monkeypatch.setitem(ns, "INSPIRE_SETTINGS_APPLIED", {"currency": "AED", "currency_rates": '{"source":"table","rates":{"EUR":4.28}}'})
+    rates, source = ns["_inspire_reporting_rate_feed"]()
+    assert source == "table"
+    assert rates == {"EUR": 4.28}
+    assert ns["_INSPIRE_RATE_PHRASES"]["table"] == "converted at the rate in your rate table"
