@@ -219,10 +219,8 @@ test('each Full MVP step runs the checks of every section it shows, and only tho
   assert.deepEqual(w.stepErrors('first_run', bad), [cron], 'Run it checks Keep it fresh');
   assert.deepEqual(w.stepErrors('stake', { ...bad, kpi: { target: 'Revenue' } }, { kpiOptions: [{ name: 'Churn rate' }] }),
     ["'Revenue' is not one of this use case\u2019s KPIs, so pick one from the list or Let Inspire pick"], 'Measure impact is checked on Measure, not on First run');
-  assert.deepEqual(w.stepErrors('delivery', bad), [
-    w.GENIE_FOR_APP_NOTE,
-    'an alert needs at least one recipient email or notification destination',
-  ]);
+  assert.deepEqual(w.stepErrors('delivery', bad), ['an alert needs at least one recipient email or notification destination'],
+    'an App without a Genie Agent is not an error (REQ-152: the App answers Ask itself)');
   assert.deepEqual(w.stepErrors('where', bad), ['app name must be 3-30 lowercase letters, digits and dashes'], 'the App name is checked on Where it lives');
   assert.deepEqual(w.advancedWithErrors('delivery', bad), ['delivery'], 'the alert problem opens Advanced on Deliver; the App name is a main question there, never hidden');
   assert.deepEqual(w.stepErrors('app', bad), [], 'Who uses the App no longer checks the App name (must-exclude)');

@@ -126,19 +126,21 @@ test('per-user sign-in keeps record decisions, hides and clears alerts, and the 
   assert.deepEqual(w.withAppAccess(replacing, 'sp').outputs.app_options, replacing.outputs.app_options, 'internal access leaves the options alone');
 });
 
-test('ticking the App ticks the Genie Agent and locks it, and the lock refuses an untick', async () => {
+test('ticking the App does not tick the Genie Agent, and the Genie Agent unticks with the App on (REQ-152: the App answers Ask itself)', async () => {
   const w = await load();
   const spec = w.defaultSpecFromUseCase(UC, { warehouseId: 'wh1', inspireDatabase: 'main.inspire' });
-  const ticked = w.withOutput(spec, 'app', true);
-  assert.deepEqual([ticked.outputs.app, ticked.outputs.genie_space], [true, true]);
-  assert.equal(w.withOutput(ticked, 'genie_space', false), ticked, 'the Genie Agent cannot be unticked while the App is ticked');
-  const off = w.withOutput(ticked, 'app', false);
+  const noGenie = { ...spec, outputs: { ...spec.outputs, genie_space: false } };
+  const ticked = w.withOutput(noGenie, 'app', true);
+  assert.deepEqual([ticked.outputs.app, ticked.outputs.genie_space], [true, false], 'the App ticks alone');
+  const withGenie = w.withOutput(ticked, 'genie_space', true);
+  assert.deepEqual([withGenie.outputs.app, withGenie.outputs.genie_space], [true, true], 'the optional Genie Agent ticks with the App on');
+  assert.equal(w.withOutput(withGenie, 'genie_space', false).outputs.genie_space, false, 'the Genie Agent unticks with the App on, no lock');
+  const off = w.withOutput(withGenie, 'app', false);
   assert.deepEqual([off.outputs.app, off.outputs.genie_space], [false, true], 'unticking the App leaves the Genie Agent as it is');
-  assert.equal(w.withOutput(off, 'genie_space', false).outputs.genie_space, false);
   assert.deepEqual(w.withOutput(spec, 'alert', true).outputs.alert_recipients, w.defaultAlertRecipients(spec));
   assert.deepEqual(w.wizardSteps('mvp', ticked).map((s) => s.id), ['delivery', 'data', 'first_run', 'stake', 'where', 'app', 'app_look', 'summary']);
   assert.deepEqual(w.wizardSteps('mvp', off).map((s) => s.id), ['delivery', 'data', 'first_run', 'stake', 'summary'], 'with Apps unticked no App step shows');
-  assert.deepEqual(w.stepErrors('delivery', { ...ticked, outputs: { ...ticked.outputs, genie_space: false } }), [w.GENIE_FOR_APP_NOTE]);
+  assert.deepEqual(w.stepErrors('delivery', ticked), [], 'an App without a Genie Agent has no delivery error (REQ-152)');
 });
 
 test('joining an existing App deploys to it with its look, Create new brings the use case name back, and per-user into a service-principal App is blocked', async () => {
