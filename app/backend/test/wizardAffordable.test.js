@@ -150,15 +150,13 @@ test('checks of an output the person no longer builds never block the Summary or
   assert.deepEqual(w.checksFor(null, {}), []);
 });
 
-test('Genie Agents turned off also blocks a new App, so Deliver unticks both and Next is never refused, and the reason never asks for a grant (must-exclude)', async () => {
+test('Genie Agents turned off blocks only the Genie Agent, not a new App (REQ-152), and the reason never asks for a grant (must-exclude)', async () => {
   const w = await lib('implementWizard.js');
   const blocks = w.outputBlocks({ apps: true, genie_spaces: false, alerts: true }, null);
-  assert.deepEqual(Object.keys(blocks), ['app', 'genie_space']);
-  assert.equal(blocks.app.why, w.APP_NEEDS_GENIE);
+  assert.deepEqual(Object.keys(blocks), ['genie_space'], 'a new App needs no Genie Agent');
   const spec = { outputs: { dashboard: false, genie_space: true, app: true, alert: false, merge: {} }, removed_outputs: {} };
   const kept = w.withoutUnavailableOutputs(spec, Object.keys(blocks), {});
-  assert.deepEqual([kept.outputs.app, kept.outputs.genie_space], [false, false]);
-  assert.equal(w.outputBlocks({ apps: true, genie_spaces: false, alerts: true }, null, { app: 'ops-desk' }).app, undefined, 'an App this use case already has keeps its own Genie Agent');
+  assert.deepEqual([kept.outputs.app, kept.outputs.genie_space], [true, false], 'the App stays, the blocked Genie Agent is unticked');
   const problems = w.blockedOutputProblems(spec, blocks);
   assert.ok(problems.length > 0);
   for (const p of problems) {
@@ -166,7 +164,7 @@ test('Genie Agents turned off also blocks a new App, so Deliver unticks both and
     assert.doesNotMatch(p, /run the grant/);
   }
   assert.match(w.blockedOutputProblems({ outputs: { app: true } }, { app: { why: 'Needs access.', details: 'GRANT X' } })[0], /run the grant under Details/);
-  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, genie_space: false, app: false, alert: false } }, blocks), 'Not picked in What to deliver, so not built: the Alert.');
+  assert.equal(w.vibesSkippedText({ outputs: { dashboard: true, genie_space: false, app: false, alert: false } }, blocks), 'Not picked in What to deliver, so not built: the App and the Alert.');
 });
 
 test('the Run it cost line does not repeat the schedule the sentence before it names', async () => {

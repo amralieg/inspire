@@ -1,5 +1,5 @@
 import {
-  BUILT_ASSET_STATES, GENIE_FOR_APP_NOTE, IMPLEMENT_DONE_STATUSES, IMPLEMENT_OUTPUTS, IMPLEMENT_UNINSTALLED, IMPLEMENT_VIBE_NOT_MET, assetLabel, builtVersion, heldAsks,
+  BUILT_ASSET_STATES, IMPLEMENT_DONE_STATUSES, IMPLEMENT_OUTPUTS, IMPLEMENT_UNINSTALLED, IMPLEMENT_VIBE_NOT_MET, assetLabel, builtVersion, heldAsks,
   holderNames, holdersText, holdoutText, joinWords, partAsks, partLabel, partOf, rebuildableOutputs, statusChip, versionActive, vibesKey, VIBE_NOT_MET_FIRST,
   APP_INSIDE_PLACEMENT, VIBE_FEATURES_LABEL, VIBE_PREVIOUS_DEFAULT, insideInspire, isAppUpdate, mvpFilterMatches, nextSpecFrom, openVibeAsks, undeliveredOutputs, withCollectedVibes,
 } from './implementWizard.js';
@@ -333,7 +333,6 @@ export function assetUninstall(id, latest, live, name = '') {
     label: others.length && target ? `Remove from ${target}` : 'Uninstall',
     others,
     target,
-    blocked: id === 'genie_space' && outputs.app ? `${GENIE_FOR_APP_NOTE} Uninstall the App first.` : '',
     unknown: Boolean(live) && !live.shared,
   };
 }

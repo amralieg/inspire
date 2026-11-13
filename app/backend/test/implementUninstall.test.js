@@ -16,7 +16,7 @@ const AGENT = { id: 'genie_space', label: 'Genie Agent' };
 test('an asset only this use case holds is uninstalled, and one another use case shares is removed from it by name', async () => {
   const C = await lib('implementControl.js');
   const alone = C.assetUninstall('app', latest({ app: true }), live({}), 'churn-desk');
-  assert.deepEqual(alone, { label: 'Uninstall', others: [], target: 'churn-desk', blocked: '', unknown: false });
+  assert.deepEqual(alone, { label: 'Uninstall', others: [], target: 'churn-desk', unknown: false });
   const hub = C.assetUninstall('app', latest({ app: true, merge: { app: 'sales-hub' } }), live({ app: HUB }), 'sales-hub');
   assert.equal(hub.label, 'Remove from sales-hub');
   assert.deepEqual(hub.others.map((u) => u.use_case_id), ['N01-U02']);
@@ -25,13 +25,11 @@ test('an asset only this use case holds is uninstalled, and one another use case
     'another output being shared changes nothing here');
 });
 
-test('the Genie Agent cannot be uninstalled while the App asks it, and can once the App is gone', async () => {
+test('the Genie Agent can be uninstalled with the App on, since the App answers Ask itself (REQ-152)', async () => {
   const C = await lib('implementControl.js');
-  const W = await lib('implementWizard.js');
-  const blocked = C.assetUninstall('genie_space', latest({ app: true, genie_space: true }), live({}), 'Churn agent');
-  assert.equal(blocked.blocked, `${W.GENIE_FOR_APP_NOTE} Uninstall the App first.`);
-  assert.equal(C.assetUninstall('genie_space', latest({ app: false, genie_space: true }), live({}), 'Churn agent').blocked, '');
-  assert.equal(C.assetUninstall('app', latest({ app: true, genie_space: true }), live({}), 'x').blocked, '', 'only the Genie Agent is held by the App');
+  assert.equal(C.assetUninstall('genie_space', latest({ app: true, genie_space: true }), live({}), 'Churn agent').blocked, undefined);
+  assert.equal(C.assetUninstall('genie_space', latest({ app: false, genie_space: true }), live({}), 'Churn agent').blocked, undefined);
+  assert.equal(C.assetUninstall('app', latest({ app: true, genie_space: true }), live({}), 'x').blocked, undefined, 'the App holds nothing that blocks it');
 });
 
 test('the confirm text says what is deleted, what is taken out of a shared asset, and what Inspire could not check', async () => {

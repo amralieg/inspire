@@ -450,7 +450,7 @@ export function withAppPage(spec, id, on) {
   if (id === 'alerts') return withAppOption(spec, 'alerts', on);
   return APP_SCREENS.includes(id) ? withAppScreen(spec, id, on) : spec;
 }
-export const GENIE_FOR_APP_NOTE = 'Ask Genie in the App needs a Genie Agent.';
+export const GENIE_FOR_APP_NOTE = "The App's own agent answers Ask. A Genie Agent adds a Genie space it can also use.";
 export const APP_NEXT_NOTE = 'You pick where it goes on the next step.';
 export const RESULT_TABLE_MOVE_NOTE = 'Moving the table later copies its history to the new table and keeps the old one.';
 export const MERGE_OUTPUTS = ['dashboard', 'genie_space', 'app'];
@@ -467,7 +467,7 @@ export const FRESHNESS_OPTIONS = [
 export const IMPLEMENT_OUTPUTS = [
   { id: 'dashboard', label: 'Dashboard', blurb: 'Decision list, trend and run health.' },
   { id: 'genie_space', label: 'Genie Agent', blurb: 'An agent over the result and source tables, with 5 sample questions.' },
-  { id: 'app', label: 'App', blurb: 'A Databricks App with the decision list, row detail and Ask Genie.' },
+  { id: 'app', label: 'App', blurb: 'A Databricks App with the decision list, row detail and Ask. Ask is answered by the App\'s own agent.' },
   { id: 'alert', label: 'Alert', blurb: 'Emails you when the latest run has rows to act on. Genie writes the check.' },
 ];
 
@@ -1863,7 +1863,6 @@ export function sectionErrors(section, spec, extras = {}) {
     if (extras.trainsModel !== false) errors.push(...profileProblems(spec.config.profiles, ['retrain']));
   }
   if (section === 'use_it') {
-    if (spec.outputs.app && !spec.outputs.genie_space) errors.push(GENIE_FOR_APP_NOTE);
     errors.push(...blockedOutputProblems(spec, extras.outputBlocks || {}));
     errors.push(...mergePickProblems(spec, extras, MERGE_OUTPUTS.filter((name) => name !== 'app')));
   }
@@ -1956,7 +1955,6 @@ export function withResultTable(spec, { catalog, schema, table }) {
 export const OFF_IN_WORKSPACE = { app: 'Apps are turned off in this workspace.', genie_space: 'Genie Agents are turned off in this workspace.',
   alert: 'Alerts are turned off in this workspace.' };
 export const OFF_DETAILS = 'A workspace admin turns this feature on in the workspace settings.';
-export const APP_NEEDS_GENIE = 'The App needs a Genie Agent, which this workspace cannot build.';
 const ACCESS_PLACES = [['the catalog', /\bon catalog\b/i], ['the schema', /\bon schema\b/i], ['the table', /\bon table\b/i], ['the SQL warehouse', /\bwarehouse\b/i]];
 
 export function needsAccess(detail = '') {
@@ -2004,7 +2002,6 @@ export function appAccessRefusalOf(outputCheck, preflight = null) {
 export function outputBlocks(features, outputCheck, assets = {}, preflight = null) {
   const on = features || {};
   const app = !on.apps ? blockOf(OFF_IN_WORKSPACE.app, OFF_DETAILS)
-    : !on.genie_spaces && !assets?.app ? blockOf(APP_NEEDS_GENIE, OFF_DETAILS)
     : !assets?.app && checkBlock(appAccessRefusalOf(outputCheck, preflight));
   return Object.fromEntries([
     ['app', app],
@@ -2040,10 +2037,8 @@ export function withoutUnavailableOutputs(spec, unavailable, assets = {}) {
 }
 
 export function withOutput(spec, id, checked, assets = {}) {
-  if (id === 'genie_space' && !checked && spec.outputs.app) return spec;
   const outputs = { ...spec.outputs, [id]: checked };
   if (id === 'alert' && checked && !(outputs.alert_recipients || []).length) outputs.alert_recipients = defaultAlertRecipients(spec);
-  if (id === 'app' && checked) outputs.genie_space = true;
   const removed = { ...spec.removed_outputs };
   if (assets?.[id]) {
     if (checked) delete removed[id];

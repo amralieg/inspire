@@ -1798,22 +1798,21 @@ export default function ImplementWizard({
                   const cannot = Boolean(block);
                   const tileChecks = (TILE_CHECKS[item.id] || []).map((k) => [k, preflight?.checks?.[k]])
                     .filter(([, v]) => v && !v.ok && on);
-                  const locked = item.id === 'genie_space' && spec.outputs.app;
                   const mergeable = on && item.id !== 'app' && MERGE_OUTPUTS.includes(item.id) && !held[item.id];
                   const gone = on && (context?.gone_assets || []).includes(item.id);
                   const holding = sharedHolding(item.id, shared, liveCheck);
                   return (
                     <div key={item.id} data-output={item.id} data-blocked={cannot ? '' : undefined} className={`border rounded-lg p-3 space-y-2 ${on ? 'border-db-red/50 bg-db-red-50/40' : 'border-border'} ${cannot && !on ? 'border-dashed bg-bg cursor-not-allowed' : ''}`}>
                       <div className="relative">
-                        <label className={`flex items-start gap-3 ${locked ? '' : 'cursor-pointer'}`}>
-                          <input type="checkbox" value={item.id} className="mt-0.5" checked={on} disabled={(cannot && !on) || locked} onChange={(e) => toggleOutput(item.id, e.target.checked)} />
+                        <label className="flex items-start gap-3 cursor-pointer">
+                          <input type="checkbox" value={item.id} className="mt-0.5" checked={on} disabled={cannot && !on} onChange={(e) => toggleOutput(item.id, e.target.checked)} />
                           <span className="flex-1">
                             <span className="flex items-center gap-2 text-sm font-semibold text-text-primary">
                               <Icon size={14} /> {item.label}
-                              {locked && <Lock size={12} className="text-text-tertiary" aria-hidden="true" />}
                             </span>
                             <span className="block text-[11px] mt-1 text-text-secondary">
-                              {locked ? GENIE_FOR_APP_NOTE : item.blurb}
+                              {item.blurb}
+                              {item.id === 'genie_space' && spec.outputs.app && ` ${GENIE_FOR_APP_NOTE}`}
                               {!cannot && item.id === 'app' && ` ${APP_NEXT_NOTE}`}
                             </span>
                             {cannot && on && <span className="block text-[11px] mt-1 text-error-fg">It cannot be built, so turn it off.</span>}

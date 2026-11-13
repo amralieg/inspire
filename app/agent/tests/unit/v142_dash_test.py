@@ -137,7 +137,7 @@ def test_only_the_app_still_asks_genie_for_the_page_spec_and_keeps_it(agent_ns, 
     runner = _runner(_churn_page(agent_ns))
     assert inst._implement_app(context, runner)["app_name"] == "churn-desk"
     assert len(runner.prompts) == 1 and "AI/BI dashboard" not in runner.prompts[0] and "on the dashboard" not in runner.prompts[0].lower()
-    assert "Inspire draws it as the use case's App and runs its queries on the SQL warehouse; the App answers Ask Genie" in runner.prompts[0]
+    assert "Inspire draws it as the use case's App and runs its queries on the SQL warehouse; the App has its own agent that answers Ask" in runner.prompts[0]
     assert context["page_spec"]["id"] == "n01_u01"
 
 

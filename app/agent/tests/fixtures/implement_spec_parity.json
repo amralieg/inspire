@@ -5562,8 +5562,36 @@
       "errors": [
         "outputs.genie_space must be true or false, not 1.5"
       ],
-      "changes": [],
-      "removed": []
+      "changes": [
+        [
+          [
+            "outputs",
+            "genie_space"
+          ],
+          false
+        ],
+        [
+          [
+            "outputs",
+            "genie_space_name"
+          ],
+          ""
+        ],
+        [
+          [
+            "outputs",
+            "genie_questions"
+          ],
+          []
+        ]
+      ],
+      "removed": [
+        [
+          "outputs",
+          "genie_questions",
+          0
+        ]
+      ]
     },
     {
       "name": "outputs.genie_space = \"it's\"",
@@ -5579,8 +5607,36 @@
       "errors": [
         "outputs.genie_space must be true or false, not 'it's'"
       ],
-      "changes": [],
-      "removed": []
+      "changes": [
+        [
+          [
+            "outputs",
+            "genie_space"
+          ],
+          false
+        ],
+        [
+          [
+            "outputs",
+            "genie_space_name"
+          ],
+          ""
+        ],
+        [
+          [
+            "outputs",
+            "genie_questions"
+          ],
+          []
+        ]
+      ],
+      "removed": [
+        [
+          "outputs",
+          "genie_questions",
+          0
+        ]
+      ]
     },
     {
       "name": "outputs.app = true",

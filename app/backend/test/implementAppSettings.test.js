@@ -13,7 +13,7 @@ const BASE = {
   use_case_id: 'N01-U01',
   use_case_name: 'Predict churn',
   config: { warehouse_id: 'wh1', result_table: 'main.inspire.n01_u01_out' },
-  outputs: { dashboard: true, app: true, app_name: 'churn-desk', app_access: 'sp', inspire_url: 'https://inspire.example.com' },
+  outputs: { dashboard: true, genie_space: true, app: true, app_name: 'churn-desk', app_access: 'sp', inspire_url: 'https://inspire.example.com' },
 };
 
 const withOutputs = (outputs) => ({ ...BASE, outputs: { ...BASE.outputs, ...outputs } });
@@ -184,10 +184,10 @@ test('the App look defaults to style A, sidebar, the default palette and light, 
   assert.ok(check({ app_look: 'dark' }).errors.includes('outputs.app_look must be an object'));
 });
 
-test('ticking the App ticks the Genie Agent, since Ask Genie in the App needs one', () => {
+test('ticking the App does not tick the Genie Agent: the App answers Ask itself (REQ-152)', () => {
   const { spec, errors } = check({ genie_space: false });
   assert.deepEqual(errors, []);
-  assert.equal(spec.outputs.genie_space, true);
+  assert.equal(spec.outputs.genie_space, false);
   assert.equal(I.validateImplementSpec({ ...BASE, outputs: { dashboard: true, genie_space: false } }).spec.outputs.genie_space, false,
     'without the App the Genie Agent stays as chosen');
 });
@@ -241,7 +241,7 @@ test('a version built before the access choice keeps its service principal when 
 });
 
 test('an Edit that only states the service principal an older App already had is no change', () => {
-  const legacy = { spec_version: 1, status: 'ready', spec_json: { ...BASE, outputs: { dashboard: true, app: true, app_name: 'churn-desk', inspire_url: 'https://inspire.example.com' } } };
+  const legacy = { spec_version: 1, status: 'ready', spec_json: { ...BASE, outputs: { dashboard: true, genie_space: true, app: true, app_name: 'churn-desk', inspire_url: 'https://inspire.example.com' } } };
   const same = check({ app_access: 'sp' }).spec;
   assert.equal(I.planSubmission([legacy], { ...same, based_on_version: 1 }).unchanged, true);
   const plan = I.planSubmission([legacy], { ...check({ app_access: 'user' }).spec, based_on_version: 1 });
