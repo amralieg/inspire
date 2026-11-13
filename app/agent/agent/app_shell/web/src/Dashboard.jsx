@@ -11,7 +11,7 @@ import { BarsCard } from './ChartCard.jsx';
 import DataTable, { RowDetails, columnOf } from './DataTable.jsx';
 import { PlainNote, Skeleton, SoWhat, useRetry } from './ui.jsx';
 import { ZeroPanel } from './ZeroPanel.jsx';
-import { cutoffNote, zeroRule } from './zeroState.js';
+import { checkedNote, cutoffNote, zeroRule } from './zeroState.js';
 const MoneyCard = lazy(() => import('./Money.jsx'));
 import { LayoutSections, TodoNow } from './Layouts.jsx';
 import { backendNotes } from './freshness.js';
@@ -187,7 +187,7 @@ export default function Dashboard({ app, page, meta, state, onState, view, onVie
   onPick, onFix, onWork, trends, onRun, running, onRetry = null, onRetryMeta = null, onRetrySummary = null, lastRefresh = '' }) {
   const zero = data?.zero_state || null;
   const cutoff = cutoffNote(summary);
-  const zeroPanel = zero ? <ZeroPanel rule={zeroRule(page)} lastRefresh={lastRefresh} cutoff={cutoff} /> : null;
+  const zeroPanel = zero ? <ZeroPanel rule={zeroRule(page)} checked={checkedNote(zero)} lastRefresh={lastRefresh} cutoff={cutoff} /> : null;
   return (
     <>
       {backendNotes(app.backend, data).map((n) => <p key={n} className="note" role="status" data-backend-note><Icon name="info" size={14} />{n}</p>)}

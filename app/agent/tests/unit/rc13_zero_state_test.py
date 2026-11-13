@@ -1,8 +1,11 @@
 """REQ-147 zero-state panel: page_data flags zero_state only when every drawn chart is flat and its rule finds no exception
 in the scope. The flag reuses rule_finds_nothing, so the page shows one 'none found' panel instead of flat charts. When the
 rule still finds exceptions, or a chart is not flat, the flag stays off and the charts are drawn as before."""
+import json
 import os
 import sys
+
+import pytest
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 sys.path.insert(0, HERE)
@@ -64,3 +67,56 @@ def test_a_chart_with_differing_groups_keeps_the_charts(tmp_path):
     s, _ws = _shell(tmp_path, page, shape)
     assert s.page_data({}, page["id"], {})["zero_state"] is None
 
+
+
+# REQ-147 gap 1: the zero-result panel says how many rows the run checked. The count is the one the run wrote with its summary
+# (run_tables, the rows of the scope's table read at run time), carried on the zero state. A summary with no count gives None.
+def _summary(run_tables, scope=None):
+    segments = [{"scope": scope["scope"], "key": f"{scope['scope']}:1", "table": scope["table"]}] if scope else []
+    return [{"run_id": "r1", "run_segments": json.dumps(segments), "run_tables": json.dumps(run_tables)}]
+
+
+def _zero_page_with_summary(tmp_path, summary):
+    base = _bar_page()
+    # the page reads its result table through a scope, so the KPI that compares with the previous run is dropped here
+    kpis = [{k: v for k, v in kpi.items() if k != "compare"} for kpi in base.get("kpis") or []]
+    page = dict(base, run_scopes=True, result_table="main.inspire.churn_out", kpis=kpis)
+
+    def shape(sql):
+        if sql.endswith("LIMIT 2") and "_summary" in sql:
+            return summary
+        return _zeros(sql)
+
+    s, _ws = _shell(tmp_path, page, shape)
+    return s.page_data({}, page["id"], {})
+
+
+def test_the_zero_state_carries_the_rows_the_run_checked_for_its_scope_table(tmp_path):
+    table = "main.inspire.churn_out"
+    out = _zero_page_with_summary(tmp_path, _summary([{"table": table, "rows": 3333, "rows_total": 3333}],
+                                                     scope={"scope": "recent", "table": table}))
+    assert out["zero_state"]["rows_checked"] == 3333
+
+
+def test_the_rows_checked_is_the_scopes_table_not_another_table_of_the_run(tmp_path):
+    table = "main.inspire.churn_out"
+    out = _zero_page_with_summary(tmp_path, _summary([{"table": "main.inspire.other", "rows": 9, "rows_total": 9},
+                                                      {"table": table, "rows": 3333, "rows_total": 9000}],
+                                                     scope={"scope": "groups", "table": table}))
+    assert out["zero_state"]["rows_checked"] == 3333
+
+
+def test_a_run_with_one_table_and_no_scope_counts_that_table(tmp_path):
+    out = _zero_page_with_summary(tmp_path, _summary([{"table": "main.inspire.churn_out", "rows": 3333, "rows_total": 3333}]))
+    assert out["zero_state"]["rows_checked"] == 3333
+
+
+@pytest.mark.parametrize("summary", [
+    None,
+    _summary([{"table": "main.inspire.churn_out", "rows_total": 3333}]),
+    _summary([{"table": "main.inspire.churn_out", "rows": None, "rows_total": 3333}]),
+    _summary([{"table": "main.inspire.other", "rows": 9}, {"table": "main.inspire.third", "rows": 4}]),
+], ids=["no_summary", "no_count", "count_missing", "several_tables_no_scope"])
+def test_a_missing_count_is_none_and_never_a_false_number(tmp_path, summary):
+    out = _zero_page_with_summary(tmp_path, summary)
+    assert out["zero_state"] is not None and out["zero_state"]["rows_checked"] is None

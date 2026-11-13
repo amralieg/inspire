@@ -1,6 +1,6 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { ZERO_TITLE, cutoffNote, zeroRule } from '../src/zeroState.js';
+import { ZERO_TITLE, checkedNote, cutoffNote, zeroRule } from '../src/zeroState.js';
 
 const CUTOFF = 'Reads rows dated before 2026-11-12; rows on 2026-11-12 are left out because that day may be incomplete.';
 
@@ -22,4 +22,14 @@ test('the zero-state title is generic and carries no number', () => {
 test('the rule is the decision-list definition the page holds, and no line when it holds none', () => {
   assert.equal(zeroRule({ records: { hint: 'Items from the latest run, ranked by loss.' }, question: 'Which items?' }), 'Items from the latest run, ranked by loss.');
   assert.equal(zeroRule({ question: 'Which items?' }), '');
+});
+
+test('the checked-row line shows the count the run wrote, and no line when the count is missing or not a whole number', () => {
+  assert.equal(checkedNote({ charts: ['by_category'], rows_checked: 3333 }), '3,333 rows checked');
+  assert.equal(checkedNote({ rows_checked: 0 }), '0 rows checked');
+  assert.equal(checkedNote({ rows_checked: null }), '');
+  assert.equal(checkedNote({ charts: ['by_category'] }), '');
+  assert.equal(checkedNote({ rows_checked: '3333' }), '', 'a count sent as text is not shown');
+  assert.equal(checkedNote({ rows_checked: 2.5 }), '');
+  assert.equal(checkedNote(null), '');
 });
