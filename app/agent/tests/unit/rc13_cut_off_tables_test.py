@@ -24,3 +24,36 @@ def test_a_use_case_whose_tables_have_no_time_column_names_no_cut_off_table(agen
     obj._genie_involved_tables = lambda use_case: []
     obj._genie_time_source = lambda use_case, table: {}
     assert obj._genie_cut_off_tables({"_implement_data": {}}) == []
+
+
+def test_a_metadata_read_that_raises_for_one_of_two_tables_keeps_the_other_cut_off_and_warns_once(agent_ns, monkeypatch):
+    from v120_artifacts_support import CapturingLogger
+    sources = ["main.inspire.a", "main.inspire.b"]
+    monkeypatch.setitem(agent_ns, "implement_source_tables", lambda data, involved: list(sources))
+
+    def time_source(use_case, table):
+        if table == "main.inspire.b":
+            raise RuntimeError("[INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table 'main.inspire.b'")
+        return {"column": "order_date"}
+    obj = _instance(agent_ns)
+    obj._genie_involved_tables = lambda use_case: []
+    obj._genie_time_source = time_source
+    obj.logger = CapturingLogger()
+    out = obj._genie_cut_off_tables({"No": "N01-U01", "_implement_data": {}})
+    assert out == [{"table": "main.inspire.a", "column": "order_date"}], "the table that could not be read claims no cut-off"
+    warned = [message for kind, message in obj.logger.records if kind == "WARNING" and "[IMPLEMENT-CUT-OFF]" in message]
+    assert len(warned) == 1 and "main.inspire.b" in warned[0] and "N01-U01" in warned[0], warned
+
+
+def test_a_metadata_read_that_raises_for_every_table_still_returns_a_spec_list_and_never_raises(agent_ns, monkeypatch):
+    from v120_artifacts_support import CapturingLogger
+    monkeypatch.setitem(agent_ns, "implement_source_tables", lambda data, involved: ["main.inspire.a"])
+    obj = _instance(agent_ns)
+    obj._genie_involved_tables = lambda use_case: []
+
+    def time_source(use_case, table):
+        raise TimeoutError("metadata read timed out")
+    obj._genie_time_source = time_source
+    obj.logger = CapturingLogger()
+    assert obj._genie_cut_off_tables({"No": "N01-U01", "_implement_data": {}}) == []
+    assert len([m for k, m in obj.logger.records if "[IMPLEMENT-CUT-OFF]" in m]) == 1
