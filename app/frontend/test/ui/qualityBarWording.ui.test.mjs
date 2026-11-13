@@ -31,3 +31,25 @@ test('Start shows the same quality-bar sentence that Review and Monitor show for
     await ui.close();
   }
 });
+
+test('every Start run row names the bar it was judged against, from the run list, and a run with no bar says the plain count', async () => {
+  const sessions = [
+    { session_id: '51', business_name: 'High Bar Retail', completed_percent: 100, processing_status: 'done', create_at: new Date().toISOString(),
+      bar_mode: 'High', usecase_overview: { total: 6, high: 3, meets: 3, below: 3, domains: 2, unread: {}, preview_use_cases: [] } },
+    { session_id: '52', business_name: 'Good Bar Retail', completed_percent: 100, processing_status: 'done', create_at: new Date().toISOString(),
+      bar_mode: 'Good', usecase_overview: { total: 4, high: 1, meets: 1, below: 3, domains: 1, unread: {}, preview_use_cases: [] } },
+    { session_id: '53', business_name: 'No Bar Retail', completed_percent: 100, processing_status: 'done', create_at: new Date().toISOString(),
+      bar_mode: null, usecase_overview: { total: 2, high: 0, meets: 0, below: 2, domains: 1, unread: {}, preview_use_cases: [] } },
+  ];
+  const ui = await openUi('choose', { sessions });
+  try {
+    const row = (sid) => ui.page.locator(`[data-run="${sid}"] [data-run-count="quality_bar"]`);
+    await row('51').waitFor({ timeout: 10000 });
+    assert.equal((await row('51').innerText()).replace(/\s+/g, ' ').trim(), qualityBarCountText(6, 3, 'High'));
+    assert.equal((await row('52').innerText()).replace(/\s+/g, ' ').trim(), qualityBarCountText(4, 1, 'Good'));
+    assert.equal((await row('53').innerText()).replace(/\s+/g, ' ').trim(), qualityBarCountText(2, 0), 'no bar, the plain sentence');
+    assert.deepEqual(ui.pageErrors, []);
+  } finally {
+    await ui.close();
+  }
+});
