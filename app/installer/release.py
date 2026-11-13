@@ -50,6 +50,11 @@ def sha256_bytes(data):
     return hashlib.sha256(data).hexdigest()
 
 
+def tag_version(tag):
+    """The version a tag names: v1.3.0-rc.1 names v1.3.0, v1.3.0 names v1.3.0."""
+    return re.sub(r"-rc\.[0-9]+$", "", tag)
+
+
 def agent_source(archive):
     names = [name for name in archive.namelist() if name.rsplit("/", 1)[-1] == AGENT]
     if len(names) != 1:
@@ -195,7 +200,7 @@ def build(app_zip, assets, out, tag, starter_path=STARTER):
         pinned = notebook_assets(archive)
         module = module_member(archive)
         contents = zip_contents(archive, starter)
-    if not (tag == version or tag.startswith(version + "-rc.")):
+    if tag_version(tag) != version:
         raise ReleaseFailure(f"tag {tag} does not name the version the agent in {APP_ZIP} carries, {version}")
     tar_path = out / ASSETS_TAR
     asset_count = write_assets_tar(pathlib.Path(assets), version, tar_path, starter, pinned)
@@ -247,6 +252,8 @@ def check(tag, opener=None, work=None, genie=None, run=subprocess.run):
         failures.append(str(exc).removeprefix("release: "))
     if manifest["tag"] != tag:
         failures.append(f"{starter['MANIFEST']} names {manifest['tag']}, the release is {tag}")
+    if manifest["version"] != tag_version(tag):
+        failures.append(f"{starter['MANIFEST']} names version {manifest['version']}, but tag {tag} is version {tag_version(tag)}")
     listed = [manifest.get("installer") or {}] + manifest["files"]
     sizes = {entry["name"]: (entry["size"], entry["sha256"]) for entry in listed if entry.get("name")}
     rows.append(f"OK    {starter['MANIFEST']}  {manifest_path.stat().st_size} bytes  read through its link")

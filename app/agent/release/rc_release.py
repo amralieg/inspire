@@ -258,6 +258,18 @@ def publish(args, work, sources):
     return view["url"]
 
 
+CHECK_LINE = re.compile(r"^release check \S+: ([0-9]+) of ([0-9]+) checks OK, ([0-9]+) failures?$", re.M)
+
+
+def check_verdict(text):
+    """True when the last release check line says every check it counted is OK and none failed."""
+    found = CHECK_LINE.findall(text)
+    if not found:
+        return False
+    ok, total, failures = (int(number) for number in found[-1])
+    return total > 0 and ok == total and failures == 0
+
+
 def check(args, work):
     base = f"https://github.com/{REPO}/releases/download/{args.tag}"
     downloaded = work / "downloaded"

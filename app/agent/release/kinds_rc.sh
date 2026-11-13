@@ -25,9 +25,18 @@ fail() { echo "[$(ts)] FAIL $*" >&2; exit 1; }
 STARTED=$(date +%s)
 trap 'rc=$?; [ $rc -ne 0 ] && echo "[$(ts)] STOPPED with exit $rc after $(( $(date +%s) - STARTED )) s" >&2' EXIT
 
-[ $# -ge 2 ] || fail "usage: $0 <sha> <tag> [--dry-run | --prestage-assets | --publish-only]"
+[ $# -ge 2 ] || fail "usage: $0 <sha> <tag> [--dry-run | --prestage-assets | --publish-only] [--tag-links]"
+[ $# -le 4 ] || fail "too many arguments"
 SHA_IN=$1; TAG=$2; MODE=${3:-full}
 case "$MODE" in full|--dry-run|--prestage-assets|--publish-only) ;; *) fail "unknown flag $MODE";; esac
+# --tag-links writes the release setting into the install, which tests the tag links rather than the customer path; explicit only
+LINKS=""
+case "${4:-}" in
+  "") ;;
+  --tag-links) LINKS=--tag-links ;;
+  *) fail "unknown flag $4" ;;
+esac
+[ -z "$LINKS" ] || [ "$MODE" = full ] || fail "--tag-links only applies to a full run"
 [[ "$TAG" =~ ^v[0-9]\.[0-9]\.[0-9]-rc\.[0-9]$ ]] || fail "$TAG is not vN.N.N-rc.N with single digits; this script only makes pre-releases"
 for p in $PROTECTED; do [ "$APP" != "$p" ] || fail "$APP is protected"; done
 
@@ -271,7 +280,8 @@ if [ -n "$DRAFT" ]; then
 fi
 "$PY" "$ROOT/rc_release.py" "$TAG" "$REPO_DIR" "$REPO_DIR" --skip-build --work "$WORK_A" --target "$SHA" 2>&1 | tee "$SCRATCH/publish.log"
 [ "${PIPESTATUS[0]}" -eq 0 ] || fail "publish or release check failed"
-grep -q "7 of 7 checks OK" "$SCRATCH/publish.log" || fail "the release check did not report 7 of 7"
+"$PY" -c 'import sys; sys.path.insert(0, sys.argv[1]); import rc_release; sys.exit(0 if rc_release.check_verdict(open(sys.argv[2], encoding="utf-8").read()) else 1)' "$ROOT" "$SCRATCH/publish.log" \
+  || fail "the release check did not report every check OK with 0 failures, see $SCRATCH/publish.log"
 TARGET=$(gh api "repos/$REPO/git/ref/tags/$TAG" --jq .object.sha)
 [ "$TARGET" = "$SHA" ] || fail "tag $TAG points at $TARGET, not $SHA"
 ok "published, every file downloaded back through the tag links with the manifest sha256, tag at $SHA"
@@ -282,8 +292,9 @@ if [ "$MODE" = --publish-only ]; then
 fi
 "$PY" "$ROOT/isolation.py" snapshot "$W40/${TAG}_iso_before.json" || fail "isolation snapshot before install failed"
 
-step "7. install on $PROFILE into $APP through the installer's hidden test setting (online, tag links)"
-"$PY" "$ROOT/rc_install.py" "$TAG" all --app "$APP" --label "$LABEL" --work "$WORK_A" --online --tag-links --catalog "$CATALOG" \
+# the customer path is the default: the installer downloads its own stamped tag from the release, as a customer's does
+step "7. install into $APP through rc_install.py, $([ -n "$LINKS" ] && echo 'with the tag links setting (explicit --tag-links)' || echo 'the customer path: online, no tag links')"
+"$PY" "$ROOT/rc_install.py" "$TAG" all --app "$APP" --label "$LABEL" --work "$WORK_A" --online $LINKS --catalog "$CATALOG" \
   > "$SCRATCH/install.log" 2>&1 || { tail -30 "$SCRATCH/install.log"; fail "rc_install failed"; }
 grep -E '^\[' "$SCRATCH/install.log" | head -8 | sed 's/^/    /'
 

@@ -460,3 +460,152 @@ def test_an_install_that_worked_and_skips_the_wizard_exits_zero(release_tool, mo
     install = _verify_stage(release_tool, monkeypatch, "SUCCESS", True)
     install.main()
     assert install.install_failures({"result": "SUCCESS", "envSkipsSetupWizard": True}) == []
+
+
+def test_no_release_tool_hardcodes_a_check_count(release_tool):
+    count = re.compile(r"\b[0-9]+ of [0-9]+ (checks|files)\b")
+    found = {}
+    for name in _tool_files(release_tool.release) + ["../../installer/release.py"]:
+        text = open(os.path.join(release_tool.release, name), encoding="utf-8").read()
+        if count.search(text):
+            found[name] = count.findall(text)
+    assert found == {}
+
+
+@pytest.mark.parametrize("text, verdict", [
+    ("release check https://x/download/v1.4.0-rc.7: 8 of 8 checks OK, 0 failures\n", True),
+    ("release check https://x/download/v1.4.0-rc.7: 7 of 7 checks OK, 0 failures\n", True),
+    ("release check https://x/download/v1.4.0-rc.7: 7 of 8 checks OK, 1 failures\n", False),
+    ("release check https://x/download/v1.4.0-rc.7: 8 of 8 checks OK, 2 failures\n", False),
+    ("release check https://x/download/v1.4.0-rc.7: 0 of 0 checks OK, 0 failures\n", False),
+    ("8 of 8 checks OK, 0 failures\n", False),
+    ("", False),
+    ("release check x: 8 of 8 checks OK, 0 failures\nrelease check x: 7 of 8 checks OK, 1 failures\n", False),
+    ("release check x: 7 of 8 checks OK, 1 failures\nrelease check x: 8 of 8 checks OK, 0 failures\n", True),
+])
+def test_the_publish_log_verdict_reads_the_n_of_n_checks_ok_shape(release_tool, text, verdict):
+    release = release_tool.load("rc_release")
+    assert release.check_verdict(text) is verdict
+
+
+def _fake_tools(root):
+    """Stub gh, git, curl and the Python the wrapper calls, so kinds_rc.sh runs every step without the network."""
+    bin_dir = root / "bin"
+    bin_dir.mkdir()
+    py = sys.executable
+    scripts = {
+        "git": f'''#!{py}
+import sys, tarfile
+args = sys.argv[1:]
+args = args[2:] if args[:1] == ["-C"] else args
+if args[:1] == ["archive"]:
+    with tarfile.open(fileobj=sys.stdout.buffer, mode="w|"):
+        pass
+elif args[:1] == ["rev-parse"]:
+    print(sys.argv[0] and {SHA!r})
+''',
+        "gh": f'''#!{py}
+import sys
+args = sys.argv[1:]
+if args[:2] == ["auth", "token"]:
+    print("token")
+elif args[:2] == ["release", "view"]:
+    sys.exit(1)
+elif args[:1] == ["api"] and "user" in args:
+    print("amralieg")
+elif args[:1] == ["api"] and any("git/ref/tags" in a for a in args):
+    print({SHA!r})
+''',
+        "curl": f'''#!{py}
+import os, sys
+if "-w" in sys.argv:
+    print(os.environ["FAKE_LATEST_URL"])
+''',
+        "fake_python": f'''#!{py}
+import json, io, os, pathlib, sys, tarfile
+REAL = {py!r}
+args = sys.argv[1:]
+if args[:1] == ["-"]:
+    sys.exit(0)
+if args[:1] == ["-c"] or pathlib.Path(args[0]).name == "rc_settings.py":
+    os.execv(REAL, [REAL, *args])
+name = pathlib.Path(args[0]).name
+with open(os.environ["FAKE_LOG"], "a") as log:
+    log.write(json.dumps([name, args]) + "\\n")
+if name == "build_assets.py":
+    out = pathlib.Path(args[args.index("--out") + 1])
+    out.mkdir(parents=True, exist_ok=True)
+    with tarfile.open(out / "inspire-assets.tar", "w") as tar:
+        info = tarfile.TarInfo("asset.txt")
+        info.size = 5
+        tar.addfile(info, io.BytesIO(b"asset"))
+if name == "rc_release.py":
+    if "--dry-run" in args:
+        release = pathlib.Path(os.environ["FAKE_WORK"]) / args[args.index("--work") + 1] / "release"
+        release.mkdir(parents=True, exist_ok=True)
+        for file in ("inspire_installer.py", "manifest.json", "inspire-app.zip", "inspire-assets.tar"):
+            (release / file).write_text("x")
+        print("leak scan: clean")
+    if "--skip-build" in args:
+        print(os.environ["FAKE_CHECK_LINE"])
+if name == "rc_install.py":
+    print("[12:00:00Z] installer stub: installed")
+''',
+    }
+    for name, body in scripts.items():
+        path = bin_dir / name
+        path.write_text(body, encoding="utf-8")
+        path.chmod(0o755)
+    return bin_dir
+
+
+SHA = "1" * 40
+LATEST_URL = "https://github.com/amralieg/inspire/releases/tag/v0.0.1"
+
+
+def _full_run(release_tool, tmp_path, check_line, *extra):
+    bin_dir = _fake_tools(tmp_path)
+    (tmp_path / "probe.json").write_text("{}", encoding="utf-8")
+    log = tmp_path / "calls.log"
+    tag = "v1.4.0-rc.7"
+    env = {**os.environ, "INSPIRE_RC_SETTINGS": str(release_tool.path), "INSPIRE_RC_PYTHON": str(bin_dir / "fake_python"),
+           "PATH": f"{bin_dir}{os.pathsep}{os.environ['PATH']}", "FAKE_LOG": str(log), "FAKE_WORK": release_tool.settings["work"],
+           "FAKE_CHECK_LINE": "release check " + check_line.format(url=f"https://github.com/amralieg/inspire/releases/download/{tag}"),
+           "FAKE_LATEST_URL": LATEST_URL, "INSPIRE_ASSETS_PYPI": "https://example.invalid/simple", "LABEL": "test"}
+    env.pop("COMPARE_TO", None)
+    release_tool.write()
+    done = subprocess.run(["bash", os.path.join(release_tool.release, "kinds_rc.sh"), "abc", tag, "full", *extra],
+                          capture_output=True, text=True, env=env, timeout=120)
+    calls = [json.loads(line) for line in log.read_text().splitlines()] if log.exists() else []
+    return done, [args for name, args in calls if name == "rc_install.py"]
+
+
+def test_a_full_run_installs_the_customer_way_by_default_with_online_and_no_tag_links(release_tool, tmp_path):
+    done, installs = _full_run(release_tool, tmp_path, "{url}: 8 of 8 checks OK, 0 failures")
+    assert done.returncode == 0, done.stderr
+    assert len(installs) == 1
+    assert "--online" in installs[0] and "--tag-links" not in installs[0]
+    assert "==== 7." in done.stdout and "done in" in done.stdout
+
+
+def test_a_full_run_passes_tag_links_only_when_asked_for_explicitly(release_tool, tmp_path):
+    done, installs = _full_run(release_tool, tmp_path, "{url}: 8 of 8 checks OK, 0 failures", "--tag-links")
+    assert done.returncode == 0, done.stderr
+    assert "--online" in installs[0] and "--tag-links" in installs[0]
+
+
+def test_a_publish_log_with_an_incomplete_check_stops_the_run_before_the_install(release_tool, tmp_path):
+    done, installs = _full_run(release_tool, tmp_path, "{url}: 7 of 8 checks OK, 1 failures")
+    assert done.returncode != 0 and "the release check did not report every check OK" in done.stderr
+    assert installs == []
+
+
+@pytest.mark.parametrize("args, message", [
+    (["--dry-run", "--tag-links"], "--tag-links only applies to a full run"),
+    (["--publish-only", "--tag-links"], "--tag-links only applies to a full run"),
+    (["--tag-links", "--tag-links"], "unknown flag --tag-links"),
+    (["--publish-only", "--tag-links", "extra"], "too many arguments"),
+])
+def test_kinds_rc_refuses_a_misplaced_tag_links_flag_before_any_step(release_tool, args, message):
+    done = _kinds_rc(release_tool, "abc", "v1.4.0-rc.7", *args)
+    assert done.returncode == 1 and message in done.stderr and "==== 1." not in done.stdout
