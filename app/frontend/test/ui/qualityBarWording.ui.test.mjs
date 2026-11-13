@@ -11,6 +11,8 @@ test('the quality-bar count has one wording for every count, singular for one us
   assert.equal(qualityBarCountText(1, 1), '1 of 1 use case meets the quality bar');
   assert.equal(qualityBarCountText(1, 0), '0 of 1 use case meets the quality bar');
   assert.equal(qualityBarCountText(undefined, null), '0 of 0 use cases meet the quality bar');
+  assert.equal(qualityBarCountText(6, 3, 'High'), '3 of 6 use cases meet the High quality bar');
+  assert.equal(qualityBarCountText(1, 0, 'Ultra High'), '0 of 1 use case meets the Ultra High quality bar');
 });
 
 test('Start shows the same quality-bar sentence that Review and Monitor show for the same counts', async () => {

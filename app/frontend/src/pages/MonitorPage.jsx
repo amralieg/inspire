@@ -441,7 +441,7 @@ export default function MonitorPage({ settings, update, sessionId, runId, launch
               )}
               {isComplete && outcome.found > 0 && (
                 <p className="text-xs mt-0.5 text-text-secondary" data-testid="monitor-bar-counts">
-                  {qualityBarCountText(outcome.found, outcome.meets)}
+                  {qualityBarCountText(outcome.found, outcome.meets, outcome.mode)}
                 </p>
               )}
               {isComplete && outcome.emptyTables.length > 0 && (
