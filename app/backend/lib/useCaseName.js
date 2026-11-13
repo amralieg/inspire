@@ -11,26 +11,36 @@ function normalizeUseCaseName(raw) {
   return { name };
 }
 
-// REQ-155: a rename changes the name the Genie Code instruction was written from, so an instruction already written under
-// the old name is flagged for regeneration (generate_genie_code_instruction = 'Yes', the same flag the Generate Genie run
-// reads and clears). Only a use case that has an instruction and whose shown name changes gets the flag.
-const GENIE_STALE_WHEN_RENAMED = "CASE WHEN COALESCE(user_use_case_name, '') <> %NEW% AND TRIM(COALESCE(genie_instruction, '')) <> '' "
-  + "THEN 'Yes' ELSE generate_genie_code_instruction END";
+// REQ-155. One UPDATE renames the use case and brings its Genie Code instruction in step with the shown name.
+// OLD is the name the instruction was written from (the shown name before the rename, from the stored columns). NEW is the
+// shown name after it. Repairs first collapse the doubled forms the old joined-name bug wrote (OLD+OLD and NEW+OLD), then
+// every remaining OLD becomes NEW. The instruction is left alone when either name is empty. The regenerate flag is still set,
+// so a later Write Genie Code run rewrites the instruction from the stored name. User text is only ever bound as a parameter.
+const OLD_NAME = "COALESCE(NULLIF(TRIM(user_use_case_name), ''), use_case)";
 
 function renameStatement(table, sessionId, useCaseId, name) {
-  if (name == null) {
-    return { sql: `UPDATE ${table} SET user_use_case_name = NULL, generate_genie_code_instruction = ${GENIE_STALE_WHEN_RENAMED.replace('%NEW%', "''")} `
-      + `WHERE session_id = ${sessionId} AND id = :id`,
-      parameters: [{ name: 'id', value: useCaseId, type: 'STRING' }] };
-  }
+  const parameters = [];
+  const bind = (value) => {
+    const marker = `p${parameters.length}`;
+    parameters.push({ name: marker, value, type: 'STRING' });
+    return `:${marker}`;
+  };
+  const clearing = name == null;
+  // Each use of the new name gets its own marker, so no marker is reused in one statement.
+  const nextName = () => (clearing ? 'use_case' : bind(name));
+  const setUser = clearing ? 'NULL' : bind(name);
+  const flagWhen = clearing ? "COALESCE(user_use_case_name, '') <> ''" : `COALESCE(user_use_case_name, '') <> ${bind(name)}`;
+  const repaired = `replace(replace(replace(genie_instruction, concat(${OLD_NAME}, ${OLD_NAME}), ${nextName()}), `
+    + `concat(${nextName()}, ${OLD_NAME}), ${nextName()}), ${OLD_NAME}, ${nextName()})`;
+  const guard = `TRIM(COALESCE(genie_instruction, '')) = '' OR ${OLD_NAME} IS NULL OR ${OLD_NAME} = '' `
+    + `OR ${nextName()} IS NULL OR ${nextName()} = ''`;
+  const rewritten = `CASE WHEN ${guard} THEN genie_instruction ELSE ${repaired} END`;
+  const flag = `CASE WHEN ${flagWhen} AND TRIM(COALESCE(genie_instruction, '')) <> '' THEN 'Yes' ELSE generate_genie_code_instruction END`;
+  const id = bind(useCaseId);
   return {
-    sql: `UPDATE ${table} SET user_use_case_name = :name, generate_genie_code_instruction = ${GENIE_STALE_WHEN_RENAMED.replace('%NEW%', ':name_new')} `
-      + `WHERE session_id = ${sessionId} AND id = :id`,
-    parameters: [
-      { name: 'name', value: name, type: 'STRING' },
-      { name: 'name_new', value: name, type: 'STRING' },
-      { name: 'id', value: useCaseId, type: 'STRING' },
-    ],
+    sql: `UPDATE ${table} SET user_use_case_name = ${setUser}, genie_instruction = ${rewritten}, `
+      + `generate_genie_code_instruction = ${flag} WHERE session_id = ${sessionId} AND id = ${id}`,
+    parameters,
   };
 }
 
