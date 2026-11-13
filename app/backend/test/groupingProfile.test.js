@@ -86,7 +86,7 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     const d = got.data;
     assert.deepEqual(Object.keys(d), ['table', 'records', 'applies', 'qualifies', 'reason', 'recommended_by', 'standalone', 'columns', 'recommended', 'example', 'time_column', 'time_via', 'recent',
-      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'group_count', 'group_max', 'column_groups', 'first_run', 'default_scope', 'read_at', 'money_columns', 'money_sample', 'deep_suggestion']);
+      'suggested_groups', 'group_column', 'group_sizes', 'groups_for', 'group_list', 'group_count', 'group_max', 'column_groups', 'first_run', 'default_scope', 'read_at', 'money_columns', 'money_sample', 'deep_suggestion', 'refusals']);
     assert.equal('prefill' in d, false, 'the profile carries no starting SQL, since Inspire runs no typed SQL');
     assert.deepEqual([d.table, d.records, d.applies, d.qualifies, d.standalone, d.deep_suggestion], ['main.sales.orders', 10000, true, true, false, null]);
     assert.equal(d.reason, 'Inspire recommends region, then country because Anomaly Detection works out what is normal inside each group, and country splits '

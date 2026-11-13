@@ -132,3 +132,34 @@ test('a money route without a session names no Data Filters, so it is refused be
   assert.equal(got.status, 400);
   assert.ok(!made.sqlCalls.some((c) => c.sql.includes('AS stake')), 'no statement reads the table without its session');
 });
+
+// A profile with one bad join: the joined table's Data Filters keep out the key the join needs. That joined preview is left out with one
+// reason, and every other part of the profile still loads and reads only through its own Data Filters.
+test('a profile whose join key is outside the Data Filters returns every other part, with one reason for the joined preview', async () => {
+  const columns = [{ column_name: 'store_id', data_type: 'STRING', ordinal_position: 1 }, { column_name: 'region', data_type: 'STRING', ordinal_position: 2 },
+    { column_name: 'status', data_type: 'STRING', ordinal_position: 3 }];
+  const made = makeApp({
+    forwardedToken: 'person-tok',
+    useCase: { id: 'N01-U01', primary_table: ORDERS, tables_involved: `${ORDERS}, ${STORES}`, analytics_technique: 'Anomaly Detection',
+      table_joins: JSON.stringify([{ table: ORDERS, column: 'store_id', ref_table: STORES, ref_column: 'store_id' }]) },
+    columns,
+    session: SESSION({ [ORDERS]: { columns: ['store_id', 'region', 'status'], rows: [] }, [STORES]: { columns: ['brand'], rows: [] } }),
+  });
+  const srv = await listen(made.app);
+  let body;
+  try {
+    const resp = await fetch(`${srv.url}/api/grouping/profile`, { method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ inspire_database: 'main.inspire', session_id: '42', use_case_id: 'N01-U01', warehouse_id: 'wh1' }) });
+    body = { status: resp.status, data: await resp.json() };
+  } finally {
+    await srv.close();
+  }
+  assert.equal(body.status, 200, JSON.stringify(body.data));
+  assert.deepEqual(body.data.refusals, [`${STORES}.store_id is outside the Data Filters scope`], 'one reason, for the joined preview');
+  assert.equal(body.data.table, ORDERS, 'the main table is profiled');
+  assert.ok(Number.isFinite(body.data.records) && Array.isArray(body.data.columns) && 'group_list' in body.data && 'first_run' in body.data,
+    'the rest of the profile loads: records, columns, groups and the first run');
+  assert.ok(!JSON.stringify(body.data.columns || []).includes('stores.'), 'the refused join adds no column to the profile');
+  assert.ok(made.sqlCalls.some((c) => c.sql.includes(`\`main\`.\`s\`.\`orders\``)), 'the main table is read for the rest of the profile');
+  assert.ok(!made.sqlCalls.some((c) => /FROM `main`\.`s`\.`stores`( GROUP| WHERE| LIMIT|\)|$)/.test(c.sql)), 'the joined table is not read whole');
+});

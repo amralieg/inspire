@@ -2026,6 +2026,7 @@ function registerImplementRoutes(app, deps) {
       const launchScopes = parseTableScopeText(session?.table_scope).scopes;
       const options = (rowLimit) => ({ rowLimit, byteLimit: GP.PROFILE_BYTE_LIMIT, waitTimeout: '10s', signal: stop.signal });
       const rows = async (sql, parameters, rowLimit) => sqlResultToObjects(await executeSql(req.dbHost, token, warehouseId, sql, parameters, options(rowLimit)));
+      let refusals = [];
       const view = await runWithRequestDeadline(async () => {
         const [cat, sch, tbl] = table.split('.');
         const columnsAsked = I.columnsStatement(table);
@@ -2065,8 +2066,12 @@ function registerImplementRoutes(app, deps) {
         const [refPairs, tagRows] = await Promise.all([readRefColumns, readTags]);
         const refColumns = Object.fromEntries(refPairs);
         const tags = GP.columnTagsOf(tagRows);
-        const time = GR.timeSourceOf(namedTime, columns, joins, refColumns);
-        const joined = GP.scopedJoined(GR.joinedCandidates(linked, refColumns, tags, time && time.via ? time.via.table : ''), launchScopes);
+        const timeSource = GR.timeSourceOf(namedTime, columns, joins, refColumns);
+        const timed = GP.scopedTime(timeSource, launchScopes, table);
+        const time = timed.time;
+        const joinSplit = GP.splitJoined(GR.joinedCandidates(linked, refColumns, tags, timeSource && timeSource.via ? timeSource.via.table : ''), launchScopes, table);
+        const joined = joinSplit.joined;
+        refusals = [...(timed.refusal ? [timed.refusal] : []), ...joinSplit.refusals];
         const text = [useCase.use_case, useCase.statement, useCase.solution].map((v) => (v == null ? '' : String(v))).join(' ');
         const candidates = GR.groupingCandidates(columns, roles, table, { primary: keys.primary, joined, text, time: time ? time.column : '', tags })
           .filter((name) => !name.includes(',')).slice(0, GR.GROUP_PROFILED);
@@ -2093,7 +2098,7 @@ function registerImplementRoutes(app, deps) {
         const paths = await rows(pathsQuery.sql, pathsQuery.parameters, GP.PROFILE_PATH_ROWS);
         return withExample(draft(paths));
       }, GP.PROFILE_MS);
-      return res.json({ ...view, deep_suggestion: GP.deepSuggestionOf(useCase) });
+      return res.json({ ...view, deep_suggestion: GP.deepSuggestionOf(useCase), refusals });
     } catch (err) {
       stop.abort();
       if (err && err.code === 'SQL_CANCELLED') return undefined;

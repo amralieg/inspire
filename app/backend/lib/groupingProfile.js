@@ -110,12 +110,38 @@ function statement(scopes, build, base = []) {
   return { sql, parameters: parameters.length ? parameters : null };
 }
 
-// The joined columns a profile may group or sample: those the Data Filters of their own table keep (every column when it has none).
-function scopedJoined(joined, scopes) {
-  return (joined || []).filter((c) => {
-    const scope = normalizeTableScope(tableScopeOf(scopes, c.table));
-    return !scope.columns.length || scope.columns.some((col) => col.toLowerCase() === String(c.name).toLowerCase());
-  });
+// Whether the Data Filters of `table` keep every named column (every column when it has no Data Filters that name columns).
+function keepsColumns(scopes, table, names) {
+  const scope = normalizeTableScope(tableScopeOf(scopes, table));
+  return (names || []).every((name) => !scope.columns.length || scope.columns.some((col) => col.toLowerCase() === String(name).toLowerCase()));
+}
+
+// The joined candidates a profile may group or sample, and one reason for each joined table the Data Filters refuse: a joined column,
+// the joined table's key, or the join's own key on the main table, that its Data Filters keep out. The rest of the profile loads.
+function splitJoined(joined, scopes, mainTable) {
+  const kept = [];
+  const refusals = [];
+  for (const c of joined || []) {
+    if (!keepsColumns(scopes, mainTable, [c.key])) refusals.push(`${mainTable}.${c.key} is outside the Data Filters scope`);
+    else if (!keepsColumns(scopes, c.table, [c.ref_column, c.column])) {
+      const outside = keepsColumns(scopes, c.table, [c.ref_column]) ? c.column : c.ref_column;
+      refusals.push(`${c.table}.${outside} is outside the Data Filters scope`);
+    } else kept.push(c);
+  }
+  return { joined: kept, refusals: [...new Set(refusals)] };
+}
+
+// The recent-period date of the use case table and the date table it is read through, when the Data Filters keep them: otherwise the
+// recent period is left out with its reason, and the rest of the profile loads.
+function scopedTime(time, scopes, mainTable) {
+  if (!time || !time.column) return { time: null, refusal: null };
+  if (!keepsColumns(scopes, mainTable, [time.column])) return { time: null, refusal: `${mainTable}.${time.column} is outside the Data Filters scope` };
+  if (!time.via) return { time, refusal: null };
+  if (!keepsColumns(scopes, time.via.table, [time.via.key, time.via.date])) {
+    const outside = keepsColumns(scopes, time.via.table, [time.via.key]) ? time.via.date : time.via.key;
+    return { time: null, refusal: `${time.via.table}.${outside} is outside the Data Filters scope` };
+  }
+  return { time, refusal: null };
 }
 
 // The quoted column names a SQL fragment reads, for the scope check of a statement.
@@ -535,7 +561,8 @@ module.exports = {
   scopedColumns,
   statement,
   previewFrom,
-  scopedJoined,
+  splitJoined,
+  scopedTime,
   statementContext,
   currencySpreadSql,
   moneyValueSampleSql,
