@@ -113,7 +113,8 @@ test('the Launch pickers list catalogs, schemas and tables with the person\u2019
     assert.deepEqual([hidden.status, hidden.data.schemas], [403, undefined], 'a catalog only the App can see answers the status the person\u2019s own sign-in got, never 502');
     const calls = ucCalls(workspace);
     assert.ok(calls.length >= 6, `${calls.length} reads`);
-    assert.deepEqual([...new Set(calls.map((c) => c.token))], [PERSON], 'every listing read is the person\u2019s');
+    assert.deepEqual([...new Set(calls.filter((c) => !c.path.startsWith('/api/2.1/unity-catalog/catalogs') && !c.path.includes('/effective-permissions/')).map((c) => c.token))], [PERSON],
+      'every listing read is the person\u2019s; the App only lists its own catalogs and their grants (REQ-420)');
     assert.ok(!calls.some((c) => c.path.includes('include_browse')), 'a picker never asks for tables the person may only browse');
   });
 });
@@ -248,7 +249,7 @@ test('a picker list Unity Catalog cuts says it was cut, unless the warehouse lis
   await withInspire(async (url, workspace) => {
     const cut = await get(url, '/api/catalogs');
     assert.deepEqual([cut.status, cut.data.catalogs.map((c) => c.name), cut.data.truncated], [200, ['main'], true]);
-    assert.equal(ucCalls(workspace).filter((c) => c.path.startsWith('/api/2.1/unity-catalog/catalogs')).length, 40, 'the list stops at 40 pages');
+    assert.equal(ucCalls(workspace).filter((c) => c.token === PERSON && c.path.startsWith('/api/2.1/unity-catalog/catalogs')).length, 40, 'the list stops at 40 pages');
     const filled = await get(url, '/api/catalogs?warehouse_id=wh');
     assert.deepEqual([filled.data.catalogs.map((c) => c.name), filled.data.truncated], [['main', 'zeta'], false]);
   }, { '/api/2.1/unity-catalog/catalogs': endless('catalogs', 'main'), '/api/2.0/sql/statements': done('catalog', ['main', 'zeta']) });
@@ -282,7 +283,7 @@ test('a whole catalog list reads in pages of 1,000, skips the warehouse when Uni
     assert.equal(got.data.catalogs.length, 2500);
     assert.ok(!got.data.catalogs.some((c) => c.name.startsWith('__')), 'no internal catalog in the picker');
     assert.deepEqual([got.data.truncated, got.data.source], [false, 'rest']);
-    const listed = workspace.calls.filter((c) => c.path.startsWith('/api/2.1/unity-catalog/catalogs'));
+    const listed = workspace.calls.filter((c) => c.token === PERSON && c.path.startsWith('/api/2.1/unity-catalog/catalogs'));
     assert.equal(listed.length, 3, 'three pages of 1,000');
     assert.ok(listed.every((c) => c.path.includes('max_results=1000')));
     assert.equal(workspace.calls.filter((c) => c.path === '/api/2.0/sql/statements').length, 0, 'a full list never waits on the warehouse');

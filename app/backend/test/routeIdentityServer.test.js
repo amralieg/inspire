@@ -32,7 +32,8 @@ test('a CAN_USE person who browses catalogs, schemas and tables, or reads column
     const got = await S.request('GET', route, { person: NONOWNER });
     assert.notEqual(got.status, 401, `${route}: ${got.text}`);
     assert.ok(callsTo(prefix).length > 0, `${route} reached ${prefix}`);
-    assert.deepEqual(tokensTo(prefix), [S.PERSON_TOKEN], route);
+    // REQ-420: the catalog list also asks the App's own principal which catalogs it can read; every browse read stays the person's.
+    assert.deepEqual(tokensTo(prefix).sort(), route === '/api/catalogs' ? [APP_TOKEN, S.PERSON_TOKEN].sort() : [S.PERSON_TOKEN], route);
   }
   S.reset({ tableColumns: { 'hr.payroll.salaries': ['employee_id', 'salary'] } });
   const columns = await S.request('GET', '/api/inspire/implement/columns?warehouse_id=wh1&table=hr.payroll.salaries', { person: NONOWNER });

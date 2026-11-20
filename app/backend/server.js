@@ -63,6 +63,7 @@ const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../fronte
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired } = require('./lib/permissions');
+const { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs } = require('./lib/spCatalogs');
 const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
 const { createInstalledRuns } = require('./lib/runAsRuns');
 const PM_ERROR = require('./lib/permissionError');
@@ -1835,6 +1836,15 @@ app.get('/api/me', requireToken, async (req, res) => {
 //  Unity Catalog browsing
 // ═══════════════════════════════════════════════════
 
+const truncatedByRest = (restCut, byName, countAfterRest) => restCut && byName.size === countAfterRest;
+
+// REQ-420: the catalogs the App's service principal can read right now, or null when it reads as the person (run-as-me) or cannot be asked.
+async function appCatalogGrants(req) {
+  if (runAsPerson()) return null;
+  const token = await appOwnToken();
+  return token ? spGrantedCatalogs(dbFetch, req.dbHost, token, SP_CLIENT_ID) : null;
+}
+
 app.get('/api/catalogs', requireToken, async (req, res) => {
   try {
     const token = personTokenOf(req);
@@ -1873,6 +1883,14 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     else if (raw.length > 0) source = 'rest';
     else if (catalogs.length > 0) source = 'sql';
     console.log(`   📚 catalogs: REST=${raw.length} merged=${catalogs.length} warehouse=${warehouseId ? 'yes' : 'no'} (${source})`);
+    // REQ-420: the App reads as its own service principal, so the list is the catalogs the person sees that the principal can read now.
+    const granted = await appCatalogGrants(req);
+    if (granted) {
+      const offered = grantedCatalogList(catalogs, granted);
+      const permission = partialPermission(offered, SP_CLIENT_ID);
+      return res.json({ catalogs: offered, source, spGrants: true, truncated: truncatedByRest(restCut, byName, countAfterRest),
+        ...(permission ? { permissions: [permission] } : {}) });
+    }
     res.json({
       catalogs,
       source,
@@ -2502,8 +2520,23 @@ async function selfCheckModelAccess() {
   }
 }
 
+// REQ-420: a run never starts on a catalog the App can no longer read (the installer was run again without it, or its grant was removed).
+async function droppedCatalogRefusal(req, params) {
+  const { catalogs, schemas, tables } = ucMetadataParts(params['01_uc_metadata']);
+  const named = [...catalogs, ...[...schemas, ...tables].map((n) => n.split('.')[0])];
+  if (!named.length) return null;
+  const granted = await appCatalogGrants(req);
+  const dropped = granted ? droppedCatalogs(named, granted) : [];
+  if (!dropped.length) return null;
+  return { status: 403, message: `Inspire can no longer read ${dropped.length === 1 ? 'the catalog' : 'the catalogs'} ${dropped.join(', ')}, so the run did not start. `
+    + `Take ${dropped.length === 1 ? 'it' : 'them'} off your selection, or ask whoever installed Inspire to run the installer again with ${dropped.length === 1 ? 'it' : 'them'}.`,
+  unreadable: dropped };
+}
+
 async function checkLaunchReads(req, params) {
   return raceLaunchCheck((async () => {
+    const dropped = await droppedCatalogRefusal(req, params);
+    if (dropped) return { reads: { refusal: dropped, skipped: [], warnings: [] }, access: { permissions: [], warnings: [] }, model: [] };
     const reads = await runReadPlan(dbFetch, req, discoverReads(params));
     const access = reads.refusal ? { permissions: [], warnings: [] } : await discoverAppAccess(req, reads.scope || params['01_uc_metadata']);
     const model = await discoverModelAccess(req);
