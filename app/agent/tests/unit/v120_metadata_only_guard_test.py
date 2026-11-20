@@ -54,7 +54,12 @@ LOG_METHODS = {"debug", "info", "warning", "error", "critical", "exception"}
 LOG_FUNCTIONS = {"log_print", "print"}
 QUEUED_SQL_WORKERS = {"_drain_loop", "_worker_loop", "_run", "_writer_loop"}
 RUNTIME_RUNNERS = ("exec", "compile", "eval")
-EMBEDDED_SOURCES = {"files['shell_facts.py']": ("app_shell", "shell_facts.py")}
+# REQ-421: the notebook executes the packed App shell modules through one loader, implement_shell_module(text, "<name>"). The loader's
+# own read is files[f'{name}.py']; the guard resolves it to the literal names the notebook passes (the modules it really runs), and
+# no other embedded read is readable (a literal files['shell_core.py'] stays a violation).
+SHELL_LOADER = "implement_shell_module"
+SHELL_LOADER_READ = "files[f'{name}.py']"
+EMBED_PY = os.path.join(os.path.dirname(os.path.abspath(__file__)), "..", "..", "agent", "app_shell", "embed.py")
 SHARED_SOURCES = ("REDACT_SOURCE", "app_shell:shell_facts.py")
 MODULE_LEVEL = "<module>"
 
@@ -529,16 +534,28 @@ def identifier(node):
     return None
 
 
-def embedded_file(texts, given):
-    held = EMBEDDED_SOURCES.get(ast.unparse(given)) if given is not None else None
-    if held is None:
-        return None
-    try:
-        text = _agentload.load_agent_namespace()["inspire_notebook_asset"](held[0])
-        files = json.loads(zlib.decompress(base64.b64decode(text)).decode("utf-8")).get("files") or {}
-    except (ValueError, zlib.error):
-        return None
-    return (f"{held[0]}:{held[1]}", files[held[1]]) if isinstance(files.get(held[1]), str) else None
+def packed_server_files():
+    """embed.py's SERVER_FILES: the one list of server modules the App shell packs."""
+    for node in ast.parse(open(EMBED_PY, encoding="utf-8").read()).body:
+        if isinstance(node, ast.Assign) and any(identifier(target) == "SERVER_FILES" for target in node.targets):
+            return ast.literal_eval(node.value)
+    raise AssertionError("embed.py names no SERVER_FILES")
+
+
+def loaded_shell_modules(tree):
+    """The packed modules the notebook runs: the literal names it passes to the shell loader."""
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Call) and identifier(node.func) == SHELL_LOADER and len(node.args) > 1 \
+                and isinstance(node.args[1], ast.Constant) and isinstance(node.args[1].value, str):
+            names.add(node.args[1].value + ".py")
+    return names
+
+
+def shell_module_text(module):
+    text = _agentload.load_agent_namespace()["inspire_notebook_asset"]("app_shell")
+    files = json.loads(zlib.decompress(base64.b64decode(text)).decode("utf-8")).get("files") or {}
+    return files[module] if isinstance(files.get(module), str) else None
 
 
 def runtime_sources(source):
@@ -559,9 +576,10 @@ def runtime_sources(source):
             given = given.args[0] if given.args else None
         name = identifier(given)
         space = node.args[1] if node.func.id != "compile" and len(node.args) > 1 else None
-        embedded = embedded_file(texts, given) if name is None else None
-        if embedded:
-            found[embedded[0]] = (embedded[1], ast.unparse(space) if space is not None else "globals()")
+        space_text = ast.unparse(space) if space is not None else "globals()"
+        if given is not None and ast.unparse(given) == SHELL_LOADER_READ:
+            for module in sorted(loaded_shell_modules(tree)):
+                found[f"app_shell:{module}"] = (shell_module_text(module), space_text)
             continue
         if name is None or len(texts.get(name, ())) != 1:
             unreadable.append((node.lineno, ast.unparse(node)[:120]))
@@ -612,6 +630,56 @@ def runtime_lookups(index, spaces):
             yield space, literal, function.name if function else MODULE_LEVEL
 
 
+def shell_aliases(tree):
+    """The names the notebook binds to a loaded shell module: inspire_shell_facts = implement_shell_facts_module(...) (the loader or one
+    of its wrappers, all named implement_shell_*)."""
+    return {target.id for node in ast.walk(tree) if isinstance(node, ast.Assign) and isinstance(node.value, ast.Call)
+            and (identifier(node.value.func) or "").startswith("implement_shell_") for target in node.targets if isinstance(target, ast.Name)}
+
+
+def referenced_names(tree, aliases):
+    """The definitions a runtime source refers to: a bare name that is not a parameter or a local of its function, and an attribute of a
+    loaded shell module (an alias the notebook binds). A parameter (quote) or a method on another object (api.do) is not a reference."""
+    parents = {child: node for node in ast.walk(tree) for child in ast.iter_child_nodes(node)}
+    names = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Attribute) and isinstance(node.value, ast.Name) and node.value.id in aliases:
+            names.add(node.attr)
+        elif isinstance(node, ast.Name) and isinstance(node.ctx, ast.Load):
+            owner = parents.get(node)
+            while owner is not None and not isinstance(owner, (ast.FunctionDef, ast.AsyncFunctionDef)):
+                owner = parents.get(owner)
+            if owner is None or node.id not in local_names(owner):
+                names.add(node.id)
+    return names
+
+
+def local_names(function):
+    args = function.args
+    params = {arg.arg for arg in args.posonlyargs + args.args + args.kwonlyargs + [args.vararg, args.kwarg] if arg is not None}
+    return params | {node.id for node in ast.walk(function) if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store)}
+
+
+# REQ-421: statements of the shipped App shell that are reviewed by exact text. Each one is either a fixed statement on a value Inspire
+# owns (the Lakebase copy of its result table, the App's job read of that table) or an AI function probe on literal inline inputs, which
+# reads no user rows. The text must stay verbatim in its module (the test below), so any change is flagged again.
+REVIEWED_SHELL_STATEMENTS = {
+    "CREATE TABLE IF NOT EXISTS {target} ({status} TEXT, {note} TEXT)": "approval columns: the Lakebase copy of the Inspire result table",
+    "ALTER TABLE {target} ADD COLUMN IF NOT EXISTS {status} TEXT, ADD COLUMN IF NOT EXISTS {note} TEXT": "approval columns: the same copy",
+    "SELECT * FROM {table}": "the agent job reads the Inspire result table it approves",
+    "SELECT * FROM ai_top_drivers(input => TABLE(SELECT 1.0 AS m, true AS t), metric => 'm', is_test => 't')": "AI probe on literal inputs",
+    "SELECT * FROM ai_predict_class(input => TABLE(SELECT 1.0 AS x, 'a' AS y), target_col => 'y', feature_cols => ARRAY('x'))": "AI probe on literal inputs",
+    "SELECT * FROM ai_predict_value(input => TABLE(SELECT 1.0 AS x, 1.0 AS y), target_col => 'y', feature_cols => ARRAY('x'))": "AI probe on literal inputs",
+    "SELECT * FROM ai_detect_anomalies(TABLE(SELECT DATE'2024-01-01' AS ds, 1.0 AS v), time_col => 'ds', value_col => 'v')": "AI probe on literal inputs",
+    "SELECT * FROM AI_FORECAST(TABLE(SELECT DATE'2024-01-01' AS ds, 1.0 AS v), horizon => '2024-01-02', time_col => 'ds', value_col => 'v')": "AI probe on literal inputs",
+    "SELECT * FROM vector_search(index => '{AI_PROBE_INDEX}', query_text => 'a', num_results => 1)": "AI probe on a non-existent index name",
+}
+REVIEWED_SHELL_MODULE = "app_shell:shell_build.py"
+# The one dynamic statement the guard cannot resolve: probe_ai_functions runs the SQL of AI_FUNCTION_PROBE_CALLS for each function. Its
+# table-reading values are all in REVIEWED_SHELL_STATEMENTS above; the rest are scalar calls on literal arguments.
+REVIEWED_DYNAMIC_SITES = {(REVIEWED_SHELL_MODULE, "probe_ai_functions", "spark_session.sql(sql)")}
+
+
 def runtime_audit(source):
     index = SqlIndex(ast.parse(source))
     found, unreadable = runtime_sources(source)
@@ -634,7 +702,7 @@ def runtime_audit(source):
               "crossed": [], "bad": [], "unresolved": [], "dataframe": [], "implement": [], "deep": [], "executes": set()}
     for name, tree in sorted(trees.items()):
         members, lines = definitions[name]
-        named = {identifier(node) for node in ast.walk(tree)} - {None}
+        named = referenced_names(tree, shell_aliases(index.tree))
         for other, (other_members, _lines) in definitions.items():
             if other != name and named & set(other_members):
                 report["crossed"].append((name, other, sorted(named & set(other_members))))
@@ -672,6 +740,10 @@ def runtime_audit(source):
         report["checked"][name] = len(executed)
         for key, entries in (("bad", bad), ("unresolved", unresolved), ("dataframe", frames), ("implement", implement),
                              ("deep", deep)):
+            if key == "bad" and name == REVIEWED_SHELL_MODULE:
+                entries = [entry for entry in entries if entry[-1] not in REVIEWED_SHELL_STATEMENTS]
+            if key == "unresolved":
+                entries = [entry for entry in entries if (name, entry[1], entry[2]) not in REVIEWED_DYNAMIC_SITES]
             report[key] += [(name,) + tuple(entry) for entry in entries]
     return report
 
@@ -1218,6 +1290,30 @@ def test_guard_reads_the_shared_facts_module_from_the_embedded_app_shell_and_fla
     assert runtime_sources(facts) == ({}, []), "the facts module compiles nothing of its own"
     report = runtime_audit(_inject(agent_source(), (PLAIN_CALLER_ANCHOR, "        exec(compile(files['shell_core.py'], 'x', 'exec'), globals())\n")))
     assert [call for _, call in report["unreadable"]] == ["exec(compile(files['shell_core.py'], 'x', 'exec'), globals())"], report["unreadable"]
+
+
+def test_the_shell_modules_the_notebook_runs_are_packed_by_embed_and_audited(runtime_report):
+    """REQ-421: the audit reads every packed module the notebook executes (shell_facts and shell_build), and only modules embed packs."""
+    loaded = loaded_shell_modules(ast.parse(agent_source()))
+    assert {"shell_facts.py", "shell_build.py"} <= loaded, loaded
+    assert loaded <= set(packed_server_files()), sorted(loaded - set(packed_server_files()))
+    assert {f"app_shell:{module}" for module in loaded} <= set(runtime_report["sources"]), sorted(runtime_report["sources"])
+    assert runtime_sources(runtime_report["sources"]["app_shell:shell_build.py"]) == ({}, []), "the build module compiles nothing of its own"
+    planted = ast.parse(_inject(agent_source(), (PLAIN_CALLER_ANCHOR, "        implement_shell_module(text, 'shell_nope')\n")))
+    assert loaded_shell_modules(planted) - set(packed_server_files()) == {"shell_nope.py"}, "a loader call for an unpacked module is caught"
+
+
+def test_the_reviewed_shell_statements_stay_verbatim_in_the_shell_build_module():
+    """REQ-421: a reviewed statement that no longer appears verbatim is stale; the guard then flags its new text instead."""
+    text = shell_module_text("shell_build.py")
+    assert [statement for statement in REVIEWED_SHELL_STATEMENTS if statement not in text] == []
+
+
+def test_a_parameter_or_another_objects_method_is_not_a_reference_to_a_shared_definition():
+    """REQ-421: the crossing check counts real references to another source's definitions only."""
+    assert referenced_names(ast.parse("def f(quote):\n    return quote('x')\n\ndef g(api):\n    api.do('GET')\n"), set()) == set()
+    real = ast.parse("def h():\n    return inspire_shell_facts.quote('x') + acted_columns()\n")
+    assert {"quote", "acted_columns"} <= referenced_names(real, {"inspire_shell_facts"})
 
 
 def test_guard_accepts_a_result_read_and_a_zero_row_probe_only_implement_code_reaches():

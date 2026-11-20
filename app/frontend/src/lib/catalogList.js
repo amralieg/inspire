@@ -72,11 +72,8 @@ export function scopeSummary(scope) {
   ].filter(Boolean).join(', ');
 }
 
-// The catalogs the Catalogs list shows (REQ-359). With the installer's list and no Load all, only those catalogs, plus every
-// catalog a draft or profile already names (its own pick, or a schema or table under it). Without a list, or after Load all, every
-// catalog the person can see.
-export function listedCatalogs(catalogs, installer, picked, showAll) {
-  if (showAll || !Array.isArray(installer) || installer.length === 0) return catalogs;
-  const keep = new Set([...installer, ...picked.map((name) => String(name).split('.')[0])]);
-  return catalogs.filter((c) => keep.has(nameOf(c)));
+// REQ-420: the catalogs a draft or profile holds (a catalog, or the catalog of a schema or table) that the App's own grants no longer list.
+export function droppedCatalogNames(catalogs, held) {
+  const listed = new Set(catalogNames(catalogs).map((n) => n.toLowerCase()));
+  return [...new Set((held || []).map((name) => String(name).split('.')[0]).filter((c) => c && !listed.has(c.toLowerCase())))];
 }

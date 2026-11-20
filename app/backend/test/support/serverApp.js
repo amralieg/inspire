@@ -282,6 +282,10 @@ async function stubFetch(url, opts = {}) {
     });
   }
   if (u.pathname === '/oidc/v1/token') return json({ access_token: APP_TOKEN, expires_in: 3600 });
+  // REQ-420: the App's own listing of the catalogs it can read; state.spCatalogs overrides the default.
+  if (token === APP_TOKEN && u.pathname === '/api/2.1/unity-catalog/catalogs') {
+    return json({ catalogs: (state.spCatalogs || ['main', 'samples', 'inspire_kinds_rc7']).map((name) => ({ name })) });
+  }
   if (u.pathname === `/api/2.0/permissions/apps/${APP_NAME}`) {
     if (state.aclStatus !== 200) return json({ message: 'denied' }, state.aclStatus);
     if (token === PERSON_TOKEN && !state.personAppsScope) {

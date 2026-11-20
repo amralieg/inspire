@@ -291,6 +291,50 @@ def installer_data_catalog_env(data_catalogs, all_picked=False):
     return {"INSPIRE_DATA_CATALOGS": json.dumps(names)} if names else {}
 
 
+GRANTED_CATALOGS_ENV = "INSPIRE_GRANTED_CATALOGS"
+
+
+def granted_catalog_env(data_catalogs, inspire_catalog):
+    """INSPIRE_GRANTED_CATALOGS (REQ-420): the catalogs this install gives the App read grants on, the installer's own record.
+
+    A later run reads it from the deployed app.yaml, so it revokes only what an Inspire install granted on a catalog that is no longer picked.
+    Written for the All pick too, where INSPIRE_DATA_CATALOGS is left out.
+    """
+    names = [str(n) for n in (data_catalogs or []) if str(n).strip() and n != inspire_catalog]
+    return {GRANTED_CATALOGS_ENV: json.dumps(names)} if names else {}
+
+
+def catalogs_recorded_in_app_yaml(text):
+    """The catalogs an earlier install granted, from its app.yaml text: INSPIRE_GRANTED_CATALOGS, else the older INSPIRE_DATA_CATALOGS."""
+    def value_of(name):
+        hit = re.search(rf'- name: "{name}"\s*\n\s*value: "((?:[^"\\]|\\.)*)"', text or "")
+        if not hit:
+            return None
+        try:
+            parsed = json.loads(json.loads(f'"{hit.group(1)}"'))
+        except ValueError:
+            return None
+        return [str(n) for n in parsed if str(n).strip()] if isinstance(parsed, list) else None
+    for name in (GRANTED_CATALOGS_ENV, "INSPIRE_DATA_CATALOGS"):
+        found = value_of(name)
+        if found is not None:
+            return found
+    return []
+
+
+def _previous_granted_catalogs(api, current):
+    """The catalogs the App's deployed app.yaml says an earlier install granted, or [] when it cannot be read (then nothing is revoked)."""
+    deployed = (current or {}).get("active_deployment") or {}
+    source = (deployed.get("deployment_artifacts") or {}).get("source_code_path") or deployed.get("source_code_path")
+    if not source:
+        return []
+    try:
+        text, _error = _workspace_file_text(api, f"{source}/app.yaml")
+    except Exception:
+        return []
+    return catalogs_recorded_in_app_yaml(text) if text else []
+
+
 def write_app_yaml_deploy(path, inspire_db, warehouse_id, notebook_path, sp_resource_name, assets_path=None, test_tag=None, extra_env=None):
     """Emit app.yaml without PyYAML (no extra pip on the cluster)."""
     lines = [
@@ -1187,7 +1231,8 @@ def step_create_app_and_find_sp(ctx):
 
     app_yaml_path = f"{source_folder}/app.yaml"
     release_env = {"INSPIRE_RELEASE_TAG": ctx["RELEASE_TAG"]} if ctx.get("RELEASE_TAG") else {}
-    data_env = installer_data_catalog_env(ctx.get("DATA_CATALOGS"), ctx.get("DATA_ALL_PICKED", False))
+    data_env = {**installer_data_catalog_env(ctx.get("DATA_CATALOGS"), ctx.get("DATA_ALL_PICKED", False)),
+                **granted_catalog_env(ctx.get("DATA_CATALOGS"), catalog)}
     wanted_yaml = write_app_yaml_deploy(app_yaml_path, inspire_db, warehouse_id, notebook_path, sp_name, ctx.get("ASSETS_PATH"),
                                         ctx.get("TEST_TAG"), {**release_env, **data_env} or None)
     print("app.yaml: ✅")
@@ -1202,6 +1247,7 @@ def step_create_app_and_find_sp(ctx):
     elif "already exists" in resp.text.lower():
         print(f"App exists: {app_name}")
         current = api_get(f"/api/2.0/apps/{app_name}")
+        ctx["PREVIOUS_GRANTED_CATALOGS"] = _previous_granted_catalogs(api, current)
         app_url = _noted_app_url(app_url, current)
         described = _apply_description(api, api_get, app_name, description, current)
         print(f"  ⚠️ {described}" if described else f"App description: ✅ {description}")
@@ -1639,6 +1685,32 @@ def _scan_grant(sp, cat):
     return f"GRANT {', '.join(SCAN_GRANTS)} ON CATALOG `{cat}` TO `{sp}`"
 
 
+def _scan_revoke(sp, cat):
+    return f"REVOKE {', '.join(SCAN_GRANTS)} ON CATALOG `{cat}` FROM `{sp}`"
+
+
+def _revoke_dropped_catalogs(ctx, sp, targets):
+    """REQ-420: a catalog an earlier install granted and this one no longer picks loses exactly the grants Inspire made on it.
+
+    The record is the earlier install's own list (INSPIRE_GRANTED_CATALOGS). The REVOKE names only SCAN_GRANTS for the App's
+    principal, so any other grant on the catalog (another privilege, another principal) stays. A refused revoke is printed, never fatal.
+    """
+    dropped = [cat for cat in ctx.get("PREVIOUS_GRANTED_CATALOGS") or [] if cat not in targets and cat != ctx["CATALOG"]]
+    if not dropped:
+        return []
+    revokes = [_scan_revoke(sp, cat) for cat in dropped]
+    print(f"Inspire's App loses the read access this installer gave it on: {_plain_list(dropped)}")
+    failed = _run_scan_grants(ctx["w"], ctx["WAREHOUSE_ID"], revokes)
+    ctx["READ_REVOKED"] = [cat for cat in dropped if _scan_revoke(sp, cat) not in failed]
+    for sql, error in failed.items():
+        print(f"  ⚠️ {sql}: {error[:160]}")
+    if failed:
+        print("Permission Required: ask your admin to run these, so the App stops reading the catalogs you dropped:")
+        for sql in failed:
+            print(sql)
+    return failed
+
+
 def _run_scan_grants(w, warehouse_id, grants):
     failed, done = {}, 0
     step = max(1, -(-len(grants) // SCAN_PROGRESS_STEPS))
@@ -1677,6 +1749,7 @@ def _grant_data_catalogs(ctx, sp):
         print(f"  Catalog grants: {len(grants) - len(failed):,} of {len(grants):,} ran {'✅' if not failed else '⚠️'}")
     ctx["READ_GRANTED"] = [cat for cat in targets if _scan_grant(sp, cat) not in failed]
     ctx["READ_REFUSED"] = [sql for sql in grants if sql in failed]
+    _revoke_dropped_catalogs(ctx, sp, targets)
     if failed:
         print(f"  Refused on {_plural(len(failed), 'catalog', 'catalogs')}, first reason: {next(iter(failed.values()))[:160]}")
         print("Permission Required: ask your admin to grant this permission:")

@@ -268,8 +268,8 @@ export default function App() {
           } catch {}
         }
 
-        // 5. Apply all settings at once (single state update). The installer's catalog list is not persisted: it comes from /api/defaults each load (REQ-359).
-        setSettings({ ...resolved, installerDataCatalogs: Array.isArray(defaults.installerDataCatalogs) ? defaults.installerDataCatalogs : [] });
+        // 5. Apply all settings at once (single state update).
+        setSettings(resolved);
 
         // 6. Persist to localStorage for next load
         for (const [key, val] of Object.entries(resolved)) {

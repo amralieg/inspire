@@ -47,15 +47,13 @@ test('the picked scope keeps every branch at its most specific level, so a whole
   assert.equal(C.scopeSummary(C.pickedScope([], [], [])), '');
 });
 
-test('the Catalogs list shows only the installer catalogs until Load all, and still shows a catalog a draft or profile already names (REQ-359)', async () => {
+// REQ-420 (D-SL-13) replaced the REQ-359 installer-pick list and Load all: Start lists what the App can read, and a held catalog it cannot is dropped.
+test('a draft or profile catalog the App no longer lists is named as dropped; a schema or table counts by its catalog (REQ-420)', async () => {
   const C = await lib();
-  const all = ['finance', 'hr', 'main', 'sales'];
-  assert.deepEqual(C.listedCatalogs(all, ['sales', 'hr'], [], false), ['hr', 'sales'], 'the install list only, in the list order (must-exclude: main and finance are hidden)');
-  assert.deepEqual(C.listedCatalogs(all, ['sales', 'hr'], [], true), all, 'Load all shows every catalog');
-  for (const installer of [undefined, null, []]) {
-    assert.deepEqual(C.listedCatalogs(all, installer, [], false), all, `no install list (${JSON.stringify(installer)}) shows every catalog as before`);
-  }
-  assert.deepEqual(C.listedCatalogs(all, ['sales'], ['finance'], false), ['finance', 'sales'], 'a picked catalog outside the install list still shows');
-  assert.deepEqual(C.listedCatalogs(all, ['sales'], ['main.s', 'hr.people.t1'], false), ['hr', 'main', 'sales'], 'a picked schema or table names its catalog, which still shows');
-  assert.deepEqual(C.listedCatalogs(all, ['sales'], ['main'], false), ['main', 'sales'], 'a pick only keeps the catalog it names (must-exclude: hr and finance stay hidden)');
+  const listed = [{ name: 'main' }, { name: 'Sales' }];
+  assert.deepEqual(C.droppedCatalogNames(listed, ['main', 'sales']), [], 'a catalog still listed is kept, whatever its case');
+  assert.deepEqual(C.droppedCatalogNames(listed, ['finance', 'main.s', 'hr.people.t1', 'finance.x']), ['finance', 'hr'], 'each dropped catalog once, by the catalog of a schema or table');
+  assert.deepEqual(C.droppedCatalogNames(listed, []), []);
+  assert.deepEqual(C.droppedCatalogNames(listed, undefined), []);
+  assert.equal(C.listedCatalogs, undefined, 'the installer-pick filter is gone');
 });

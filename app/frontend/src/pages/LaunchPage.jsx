@@ -65,7 +65,7 @@ import { responseError } from '../lib/apiClient';
 import { placeholderWords } from '../lib/placeholderWords';
 import { inspireScoreFromUc, nameOfUseCase } from '../lib/useCaseFields';
 import { counted } from '../lib/plural';
-import { catalogListNote, listedCatalogs, pickedScope, scopeSummary, typedCatalog, wholeCatalogsWithoutPicks } from '../lib/catalogList';
+import { catalogListNote, droppedCatalogNames, pickedScope, scopeSummary, typedCatalog, wholeCatalogsWithoutPicks } from '../lib/catalogList';
 import { SAMPLE_CATALOG, applySampleCopies, isSampleEntry, samplesTarget, scopesAfterSampleCopies, validCopyTarget } from '../lib/samplesCopy';
 import { DISCOVERY_AI_ENHANCED, DISCOVERY_MODE_TEXT, DISCOVERY_BADGE, DISCOVERY_PRIVACY, DISCOVERY_RECOMMENDED, DISCOVERY_STANDARD, discoveryTypeOf } from '../lib/discoveryType';
 import { raisePermissions } from '../lib/permissionBus';
@@ -237,8 +237,6 @@ function restoredLabel(value) {
 
 export default function LaunchPage({ settings, update, onLaunched, onOpenResults }) {
   const { databricksHost, token, notebookPath, warehouseId, inspireDatabase, serverEnvHasPat } = settings;
-  // The catalogs the installer picked for the App to read. Empty when the install gave none, so every catalog is listed (REQ-359).
-  const installerCatalogs = Array.isArray(settings.installerDataCatalogs) ? settings.installerDataCatalogs : [];
   const canUseUcApi = !!(databricksHost && (token || serverEnvHasPat));
 
   const draftKey = useMemo(() => startDraftKey({ host: databricksHost }), [databricksHost]);
@@ -262,7 +260,10 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
   const [loadingCatalogs, setLoadingCatalogs] = useState(false);
   const [loadingSchemas, setLoadingSchemas] = useState(false);
   const [catalogSearch, setCatalogSearch] = useState('');
-  const [showAllCatalogs, setShowAllCatalogs] = useState(false);
+  // REQ-420: the Permission Required entries for the catalogs the App can read only in part, and the notice for a saved pick the App can no longer read.
+  const [catalogPermissions, setCatalogPermissions] = useState([]);
+  const [grantsListed, setGrantsListed] = useState(false);
+  const [droppedNote, setDroppedNote] = useState('');
   const [schemaSearch, setSchemaSearch] = useState('');
 
   // ── Table state ──
@@ -516,6 +517,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     if (!canUseUcApi) {
       setCatalogs([]);
       setCatalogsCut(false);
+      setGrantsListed(false);
       setLoadingCatalogs(false);
       return;
     }
@@ -533,6 +535,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
           if (!cancelled) {
             setCatalogs(cats);
             setCatalogsCut(Boolean(data.truncated));
+            setCatalogPermissions(Array.isArray(data.permissions) ? data.permissions : []);
+            setGrantsListed(data.spGrants === true && !data.truncated);
             if (cats.length === 0 && data.restError) {
               setCatalogBrowseError(data.restError);
             }
@@ -563,6 +567,21 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
     load();
     return () => { cancelled = true; };
   }, [canUseUcApi, apiFetch, warehouseId]);
+
+  // REQ-420: a saved draft or profile that holds a catalog the App can no longer read loses it, with one line saying so. Only a list read
+  // from the App's own grants decides this; a failed or cut list never drops anything.
+  useEffect(() => {
+    if (!grantsListed) return;
+    const dropped = droppedCatalogNames(catalogs, [...selectedCatalogs, ...wholeCatalogs, ...selectedSchemas, ...selectedTables]);
+    if (!dropped.length) return;
+    const gone = (name) => dropped.includes(String(name).split('.')[0]);
+    setSelectedCatalogs((p) => p.filter((n) => !gone(n)));
+    setWholeCatalogs((p) => p.filter((n) => !gone(n)));
+    setSelectedSchemas((p) => p.filter((n) => !gone(n)));
+    setSelectedTables((p) => p.filter((n) => !gone(n)));
+    setTableScopes((p) => Object.fromEntries(Object.entries(p || {}).filter(([n]) => !gone(n))));
+    setDroppedNote(`Inspire can no longer read ${dropped.join(', ')}, so ${dropped.length === 1 ? 'it was' : 'they were'} taken off your selection.`);
+  }, [grantsListed, catalogs, selectedCatalogs, wholeCatalogs, selectedSchemas, selectedTables]);
 
   // Load schemas when catalogs selected
   useEffect(() => {
@@ -961,7 +980,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
 
   // Derived
   const typedCatalogItem = typedCatalog(catalogs, catalogsCut, catalogSearch);
-  const shownCatalogs = listedCatalogs(catalogs, installerCatalogs, [...selectedCatalogs, ...selectedSchemas, ...selectedTables], showAllCatalogs);
+  const shownCatalogs = catalogs;
   const filteredCatalogs = [
     ...shownCatalogs.filter((c) => !catalogSearch || c.name.toLowerCase().includes(catalogSearch.toLowerCase())),
     ...(typedCatalogItem ? [typedCatalogItem] : []),
@@ -1486,19 +1505,7 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         <span className="text-[11px] font-semibold text-text-secondary">Catalogs</span>
                         {loadingCatalogs && <Loader2 size={10} className="animate-spin text-text-tertiary" />}
                       </div>
-                      {installerCatalogs.length > 0 && (
-                        <div className="mb-2 flex items-center gap-2 flex-wrap">
-                          <button
-                            type="button"
-                            data-load-all-catalogs=""
-                            onClick={() => setShowAllCatalogs(!showAllCatalogs)}
-                            className="text-[11px] font-semibold text-db-red-fg hover:underline"
-                          >
-                            {showAllCatalogs ? 'Installer catalogs only' : 'Load all catalogs'}
-                          </button>
-                          {!showAllCatalogs && <span className="text-[10px] text-text-tertiary">Showing the catalogs picked at install.</span>}
-                        </div>
-                      )}
+                      {droppedNote && <p data-dropped-catalogs="" className="mb-2 text-[11px] text-warning-fg">{droppedNote}</p>}
                       <PickerList
                         items={filteredCatalogs}
                         selected={selectedCatalogs}
@@ -1514,6 +1521,12 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                         }}
                         getKey={(c) => c.name}
                         getLabel={(c) => c.name}
+                        extraOf={(c) => (c.partial ? (
+                          <div data-catalog-partial={c.name} className="px-2.5 pb-1.5 text-[10px] text-warning-fg">
+                            Inspire can read only part of this catalog.{' '}
+                            <button type="button" className="font-semibold underline" onClick={() => raisePermissions(catalogPermissions)}>Show the missing grant</button>
+                          </div>
+                        ) : null)}
                         searchValue={catalogSearch}
                         onSearch={setCatalogSearch}
                         searchPlaceholder="Search catalogs..."
@@ -1526,8 +1539,8 @@ export default function LaunchPage({ settings, update, onLaunched, onOpenResults
                                 ? 'Loading...'
                                 : catalogBrowseError || catalogsWhy
                                   ? 'Inspire could not list the catalogs. The message above says why.'
-                                  : shownCatalogs.length === 0 && catalogs.length > 0
-                                    ? 'None of the catalogs picked at install is listed. Use Load all catalogs.'
+                                  : grantsListed && catalogs.length === 0
+                                    ? 'Inspire can read no catalog yet. Ask whoever installed Inspire to run the installer again with the catalogs you need.'
                                     : 'No catalogs found'
                         }
                       />
@@ -2267,7 +2280,7 @@ function listSchemaTables(schemaFullName, apiFetch, warehouseId) {
     }));
 }
 
-function PickerList({ items, selected, onToggle, getKey, getLabel, disabledReasonOf = () => '', onTryAgain, searchValue, onSearch, searchPlaceholder, emptyText }) {
+function PickerList({ items, selected, onToggle, getKey, getLabel, extraOf = () => null, disabledReasonOf = () => '', onTryAgain, searchValue, onSearch, searchPlaceholder, emptyText }) {
   return (
     <div className="rounded-lg border border-border bg-bg overflow-hidden flex flex-col min-h-0">
       <div className="relative shrink-0">
@@ -2304,8 +2317,8 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, disabledReaso
             // Fail closed: an item that cannot be used is shown with its plain reason and cannot be picked.
             const reason = disabledReasonOf(item);
             return (
+              <div key={key}>
               <button
-                key={key}
                 type="button"
                 title={label}
                 disabled={Boolean(reason)}
@@ -2325,6 +2338,8 @@ function PickerList({ items, selected, onToggle, getKey, getLabel, disabledReaso
                 <span className="font-mono break-all leading-snug">{label}</span>
                 {reason && <span data-unusable-reason="" className="text-[10px] text-error-fg leading-snug">{reason}</span>}
               </button>
+              {extraOf(item)}
+              </div>
             );
           })
         )}

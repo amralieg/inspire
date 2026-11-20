@@ -219,3 +219,76 @@ class JourneyTest(unittest.TestCase):
         held, said = self.install(fail={"CATALOG `sales`": RuntimeError("PERMISSION_DENIED: not the owner")})
         self.assertFalse(self.app_reads(held, "sales"), "the App cannot read sales.orders, so Discover offers the grant prompt")
         self.assertIn("\n" + READ.format("sales") + "\n", said)
+
+
+class DroppedCatalogRevokeTest(unittest.TestCase):
+    """REQ-420: a re-run with fewer catalogs revokes only what an earlier Inspire install granted on the dropped ones."""
+
+    def run_grants(self, picked, previous, catalog="ops", refuse=()):
+        ran = []
+
+        def run_statement(_w, _wh, sql):
+            ran.append(sql)
+            if any(needle in sql for needle in refuse):
+                raise RuntimeError("PERMISSION_DENIED: only the owner can revoke")
+
+        ctx = {"w": object(), "WAREHOUSE_ID": "wh", "CATALOG": catalog, "DATA_CATALOGS": picked, "PREVIOUS_GRANTED_CATALOGS": previous}
+        with mock.patch.object(setup, "_run_statement", run_statement), contextlib.redirect_stdout(io.StringIO()) as out:
+            setup._grant_data_catalogs(ctx, "SP")
+        return ctx, ran, out.getvalue()
+
+    def test_a_rerun_with_a_and_b_after_a_b_and_c_revokes_only_the_inspire_read_grants_on_c(self):
+        ctx, ran, _out = self.run_grants(["a", "b"], ["a", "b", "c"])
+        revokes = [sql for sql in ran if sql.startswith("REVOKE")]
+        self.assertEqual(revokes, ["REVOKE USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG `c` FROM `SP`"])
+        self.assertEqual([sql for sql in ran if sql.startswith("GRANT")], [READ.format("a"), READ.format("b")], "the picked catalogs are granted again (must-keep)")
+        self.assertEqual(ctx["READ_REVOKED"], ["c"])
+
+    def test_a_grant_inspire_did_not_make_is_never_named_and_a_catalog_never_recorded_is_untouched(self):
+        _ctx, ran, _out = self.run_grants(["a"], ["a", "c"])
+        revoke = next(sql for sql in ran if sql.startswith("REVOKE"))
+        for other in ("MODIFY", "CREATE", "MANAGE", "ALL PRIVILEGES", "OWNERSHIP"):
+            self.assertNotIn(other, revoke, "only the five read privileges Inspire grants are revoked")
+        self.assertNotIn("`d`", " ".join(ran), "a catalog the record does not name is untouched (must-exclude)")
+        _ctx, none, _out = self.run_grants(["a"], [])
+        self.assertEqual([sql for sql in none if sql.startswith("REVOKE")], [], "no record, nothing revoked")
+
+    def test_the_inspire_catalog_is_never_revoked_and_a_refused_revoke_is_printed_not_fatal(self):
+        _ctx, ran, _out = self.run_grants(["a"], ["a", "ops"])
+        self.assertEqual([sql for sql in ran if sql.startswith("REVOKE")], [], "the catalog Inspire itself lives in keeps its grants")
+        ctx, _ran, out = self.run_grants(["a"], ["a", "c"], refuse=("REVOKE",))
+        self.assertEqual(ctx["READ_REVOKED"], [])
+        self.assertIn("Permission Required", out)
+        self.assertIn("REVOKE USE CATALOG, USE SCHEMA, SELECT, BROWSE, READ METADATA ON CATALOG `c` FROM `SP`", out)
+
+    def test_the_record_is_the_granted_list_in_app_yaml_and_falls_back_to_the_older_pick_list(self):
+        import os as _os
+        import tempfile as _t
+        env = {**setup.installer_data_catalog_env(["a", "b"]), **setup.granted_catalog_env(["a", "b", "c", "ops"], "ops")}
+        with _t.TemporaryDirectory() as folder:
+            path = _os.path.join(folder, "app.yaml")
+            text = setup.write_app_yaml_deploy(path, "ops._inspire", "wh", "/n", "sp", None, None, env)
+            old = setup.write_app_yaml_deploy(path, "ops._inspire", "wh", "/n", "sp", None, None, setup.installer_data_catalog_env(["a", "b"]))
+        self.assertEqual(setup.catalogs_recorded_in_app_yaml(text), ["a", "b", "c"], "the All pick writes no pick list, the granted list still records it")
+        self.assertEqual(setup.catalogs_recorded_in_app_yaml(old), ["a", "b"])
+        self.assertEqual(setup.catalogs_recorded_in_app_yaml("not yaml"), [])
+        self.assertEqual(setup.catalogs_recorded_in_app_yaml(None), [])
+
+    def test_the_earlier_install_record_is_read_from_the_deployed_app_yaml(self):
+        import base64 as _b
+        import json as _j
+        import os as _os
+        import tempfile as _t
+        with _t.TemporaryDirectory() as folder:
+            text = setup.write_app_yaml_deploy(_os.path.join(folder, "app.yaml"), "ops._inspire", "wh", "/n", "sp", None, None,
+                                               setup.granted_catalog_env(["a", "c"], "ops"))
+        asked = []
+
+        def api(method, path, body=None):
+            asked.append(path)
+            return types.SimpleNamespace(status_code=200, text="", json=lambda: {"content": _b.b64encode(text.encode()).decode()})
+
+        current = {"active_deployment": {"deployment_artifacts": {"source_code_path": "/Workspace/Shared/inspire/src"}}}
+        self.assertEqual(setup._previous_granted_catalogs(api, current), ["a", "c"])
+        self.assertIn("/Shared/inspire/src/app.yaml", " ".join(asked).replace("%2F", "/"))
+        self.assertEqual(setup._previous_granted_catalogs(api, {}), [], "an App with no deployment has no record")
