@@ -274,7 +274,8 @@ test('a new App that could not get access is disabled up front with the reason, 
   const sp = (level, privilege, principal, mine) => ({ level, privilege, principal, mine: mine ? 'true' : 'false', me: 'inspire-sp' });
   const access = [sp('catalog', 'OWNER', 'admins', false), sp('schema', 'OWNER', 'data-eng', false), sp('catalog', 'USE_CATALOG', 'inspire-sp', true),
     sp('schema', 'USE_SCHEMA', 'inspire-sp', true), sp('schema', 'CREATE_TABLE', 'inspire-sp', true)];
-  const ui = await openUi('wizard', { access, me: { userName: OWNER, displayName: 'Owner' } });
+  // D-SL-10B: the App's own principal needs CAN MANAGE on the warehouse; the harness default grants it, so this case withholds it to keep the warehouse in the sentence.
+  const ui = await openUi('wizard', { access, warehousePermissions: { access_control_list: [] }, me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
   try {
     await toData(page);
@@ -310,7 +311,9 @@ test('a use case that trains a model stops on Results until Inspire may register
   const writes = [sp('catalog', 'OWNER', 'admins', false), sp('schema', 'OWNER', 'data-eng', false), sp('catalog', 'USE_CATALOG', 'inspire-sp', true),
     sp('schema', 'USE_SCHEMA', 'inspire-sp', true), sp('schema', 'CREATE_TABLE', 'inspire-sp', true)];
   const useCase = { ...HARNESS_USE_CASE, code_structure_mandate: 'Execution pattern: family B (classification).' };
-  const missing = `you need CREATE MODEL on main.inspire to register the model ${RESULT_TABLE}_model`;
+  // D-SL-10B: the build runs as the App, so the sentence names the App's identity, not 'you'.
+  const builds = 'inspire-manual, the identity Inspire builds as,';
+  const missing = `${builds} needs CREATE MODEL on main.inspire to register the model ${RESULT_TABLE}_model`;
   for (const [access, blocked] of [[writes, true], [[...writes, sp('schema', 'CREATE_MODEL', 'inspire-sp', true)], false]]) {
     const ui = await openUi('wizard', { access, useCase, me: { userName: OWNER, displayName: 'Owner' } });
     const { page } = ui;
@@ -331,7 +334,7 @@ test('a use case that trains a model stops on Results until Inspire may register
         await goToStep(page, 'Results');
         await openFolded(page, 'Result table');
         // Reopening the fold re-runs the write check, so its result arrives after the request.
-        await page.getByLabel('Result table check').locator('p.text-success-fg', { hasText: `you can register the model ${RESULT_TABLE}_model` }).waitFor({ timeout: 15000 });
+        await page.getByLabel('Result table check').locator('p.text-success-fg', { hasText: `${builds} can register the model ${RESULT_TABLE}_model` }).waitFor({ timeout: 15000 });
       }
       assert.deepEqual(ui.pageErrors, []);
     } finally {

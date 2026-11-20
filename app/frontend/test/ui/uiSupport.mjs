@@ -488,6 +488,11 @@ const APP_FOLD = { 'App access': 'Who sees which rows', 'Who uses the App': 'Who
 export async function goToStep(page, part) {
   await goToStepOnScreen(page, part);
   if (APP_FOLD[part]) await openFolded(page, APP_FOLD[part]);
+  // REQ-418: after a first version (Add/Remove/Vibe) the identity choice sits under Advanced settings, closed until opened.
+  if (APP_FOLD[part] === 'Who sees which rows') {
+    const more = page.getByRole('button', { name: 'Change who sees which rows in the App', exact: true });
+    if (await more.count()) await more.click();
+  }
 }
 
 async function goToStepOnScreen(page, part) {

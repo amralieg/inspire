@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openFolded, openRow, openUi, settleChoices } from './uiSupport.mjs';
+import { assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openFolded, openRow, openUi, settleChoices, POLICIED_SOURCE } from './uiSupport.mjs';
 import { APP_LOOK_TABS, MEASURE_LABEL, WHERE_LABEL } from '../../src/lib/implementWizard.js';
 
 const OWNER = ['owner', 'example.com'].join('@');
@@ -42,7 +42,7 @@ async function auditEveryStep(page, { look = true } = {}) {
 }
 
 test('every choice in the wizard shows exactly one Recommended badge, and it sits on the option the wizard starts on', async () => {
-  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED });
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, columns: DATED, policies: POLICIED_SOURCE }); // D-SL-11: the access choice shows for a row-filtered source
   const { page } = ui;
   try {
     await goToStep(page, 'Data');

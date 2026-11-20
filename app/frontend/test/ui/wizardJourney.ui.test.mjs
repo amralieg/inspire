@@ -3,11 +3,11 @@ import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { GROUPING_EXAMPLE, GROUPING_PICK, GROUPING_TITLE } from '../../src/lib/runScope.js';
 import { RUN_IT_TITLE, WIZARD_STEPS_MAX } from '../../src/lib/implementWizard.js';
-import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openRow, openUi, profileAt, settleChoices, shot, stepsAre, openFolded } from './uiSupport.mjs';
+import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, closeBrowser, goToMeasureImpact, goToStep, onStep, openRow, openUi, profileAt, settleChoices, shot, stepsAre, openFolded, POLICIED_SOURCE } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
-const ME = { me: { userName: OWNER, displayName: 'Owner' } };
+const ME = { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE }; // D-SL-11: the access choice shows for a row-filtered source
 const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Review & build'];
 const NO_APP = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Review & build'];
 const next = (page) => page.getByRole('button', { name: 'Next' }).click();

@@ -621,11 +621,10 @@ test('Where results live offers its own schema, falls back to the Inspire databa
     await onStep(page, 'Results');
     await places.getByRole('radio', { name: /The Inspire database schema/ }).check();
     assert.deepEqual([await catalog.inputValue(), await schema.inputValue()], ['main', 'inspire']);
-    made.state.access = [
-      { level: 'catalog', privilege: 'OWNER', principal: 'admins', mine: 'false', me: OWNER },
-      { level: 'catalog', privilege: 'USE_CATALOG', principal: 'account users', mine: 'true', me: OWNER },
-      { level: 'schema', privilege: 'OWNER', principal: OWNER, mine: 'true', me: OWNER },
-    ];
+    // D-SL-10B: the build runs as the App, so the rows are the App's own: it can build into sales.mvp but cannot manage it, so a new App cannot be given the result table.
+    const sp = (level, privilege, principal, mine) => ({ level, privilege, principal, mine: mine ? 'true' : 'false', me: 'inspire-sp' });
+    made.state.access = [sp('catalog', 'OWNER', 'admins', false), sp('schema', 'OWNER', 'data-eng', false), sp('catalog', 'USE_CATALOG', 'inspire-sp', true),
+      sp('schema', 'USE_SCHEMA', 'inspire-sp', true), sp('schema', 'CREATE_TABLE', 'inspire-sp', true)];
     await catalog.selectOption('sales');
     await schema.locator('option[value="mvp"]').waitFor({ state: 'attached' });
     await schema.selectOption('mvp');
@@ -1102,7 +1101,7 @@ const CAN_CREATE_SCHEMA = { 'information_schema.schema_tags': () => ({ rows: [{ 
 const UNWRITABLE_RESULT = { rows: [accessRow('catalog', 'OWNER', 'admins', false), accessRow('schema', 'OWNER', 'admins', false)] };
 
 test('every wizard step but the App steps, Deliver with the App and where it goes included, fits a 1440x900 screen with nothing to scroll, and every step reads at 4.5:1 in light and dark', async () => {
-  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' },
+  const ui = await openUi('wizard', { ...MERGE_STATE, me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE, // D-SL-11: the access choice shows for a row-filtered source
     warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] }, // REQ-418: the App's principal manages it
     statements: { ...CAN_CREATE_SCHEMA, 'SELECT level, privilege, principal': WRITABLE_RESULT } });
   const { page } = ui;

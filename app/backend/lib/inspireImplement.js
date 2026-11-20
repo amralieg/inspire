@@ -2640,6 +2640,7 @@ function checkedSourceTables(spec, involved) {
 
 const IMPLEMENT_TABLES_NO_SIGN_IN = 'Inspire reads the new tables as its App, and this request has no App credential, so it cannot tell whether the change rebuilds anything. '
   + 'Reload the App and try again';
+const IMPLEMENT_SWAPS_NO_SIGN_IN = 'Inspire looks for similar tables as its App, and this request has no App credential, so it suggests none. Reload the App and try again';
 const IMPLEMENT_SWAPS_TOO_SLOW = 'The search for similar tables took too long. Use Search for another table to pick one.';
 
 const lowerName = (value) => str(value).trim().toLowerCase();
@@ -4334,6 +4335,7 @@ module.exports = {
   sourcePicks,
   checkedSourceTables,
   IMPLEMENT_TABLES_NO_SIGN_IN,
+  IMPLEMENT_SWAPS_NO_SIGN_IN,
   IMPLEMENT_SWAPS_TOO_SLOW,
   implementTableSwapChanges,
   implementTableChange,

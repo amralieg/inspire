@@ -335,3 +335,14 @@ test('the free table search refuses a table the App cannot read, with the reason
     assert.equal(readsOf(made, /SELECT COUNT\(\*\) AS matched/)[0].token, APP_TOKEN, 'the lookup is the App\u2019s read (REQ-418)');
   });
 });
+
+test('REQ-418: an App with no credential suggests no swap and says so in the App voice, with no read', async () => {
+  await withApp({ dbToken: '' }, async (url, made) => {
+    const got = await swaps(url);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.swaps, []);
+    assert.equal(got.data.why, I.IMPLEMENT_SWAPS_NO_SIGN_IN);
+    assert.match(got.data.why, /as its App/);
+    assert.equal(readsOf(made, /WITH o AS/).length, 0);
+  });
+});

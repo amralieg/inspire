@@ -184,7 +184,8 @@ function makeApp(overrides = {}, { mount } = {}) {
     ...(state.buildStamp ? { buildStamp: () => state.buildStamp } : {}),
     requireToken: (req, _res, next) => {
       req.dbHost = 'https://workspace.example.com';
-      req.dbToken = state.dbToken || 'tok';
+      // state.dbToken '' is an App with no credential; unset is the harness App token.
+      req.dbToken = state.dbToken === undefined ? 'tok' : state.dbToken;
       if (state.tokenKind) req.dbTokenKind = state.tokenKind;
       next();
     },

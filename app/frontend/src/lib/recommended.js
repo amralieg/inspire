@@ -143,7 +143,7 @@ export function bestAppPolicy(spec, targets, scope) {
 // when the source looks personal.
 export function bestAppAccess({ personal = '' } = {}) {
   return personal ? pick('user', `${personal} looks personal, so each person sees only their own rows.`)
-    : pick('sp', 'The App reads with its own service principal, so everyone sees the same rows.');
+    : pick('sp', 'The App reads with its own access, so everyone sees the same rows.');
 }
 
 export function bestAppBackend(spec, lakebase) {

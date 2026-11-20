@@ -62,7 +62,6 @@ const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/in
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired } = require('./lib/permissions');
 const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
-const { createInstalledRuns } = require('./lib/runAsRuns');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
 const { samplesChoiceOfRun, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyRefusal, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames, implementTableName, parseImplementRow, builtTableScopeOf, builtFramingOf, builtTextOf, latestBuiltRowsSql, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
@@ -2431,10 +2430,7 @@ async function discoverModelAccess(req) {
 // D-UGW-4A: on startup the App checks, with its own service principal token, that it can call a chat model, and records the result.
 async function selfCheckModelAccess() {
   const host = resolveHost({ headers: {} });
-  if (runAsPerson()) {
-    modelAccessRecord = { state: 'unchecked', reason: 'Runs use the signed-in person, so models are checked as that person when a run starts.' };
-    return;
-  }
+  // REQ-418 (D-SL-10B): every run uses the App's service principal, so the App is always the identity checked.
   const token = await appOwnToken();
   if (!host || !token || !SP_CLIENT_ID) {
     modelAccessRecord = { state: 'unchecked', reason: 'The App has no service principal token to call a model with.' };
