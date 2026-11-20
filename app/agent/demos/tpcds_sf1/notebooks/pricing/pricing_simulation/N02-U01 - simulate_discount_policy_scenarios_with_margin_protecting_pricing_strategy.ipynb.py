@@ -1209,7 +1209,7 @@ def build_run_context(spec, widgets, run_id=None, today=None):
         "model_name": spec.get("model_name") if model_lifecycle else None,
         "source_tables": [t.strip() for t in str(w.get("training_data_source") or ", ".join(spec.get("source_tables") or [])).split(",") if t.strip()],
         "scoring_tables": [t.strip() for t in str(w.get("inference_data_source") or ", ".join(spec.get("source_tables") or [])).split(",") if t.strip()],
-        "ai_endpoint": w.get("ai_endpoint") or spec.get("ai_endpoint", ""),
+        "ai_endpoint": resolve_model_callable(w.get("ai_endpoint") or spec.get("ai_endpoint", "")),
         "ai_temperature_supported": (w.get("ai_endpoint") or spec.get("ai_endpoint", "")) not in set(spec.get("ai_endpoints_without_temperature") or ()),
         "thresholds": thresholds, "threshold_overrides": applied,
         "entity_key_column": spec.get("entity_key_column"), "time_column": spec.get("time_column"),
@@ -1910,6 +1910,23 @@ def inspire_sql_literal(text):
 
 def _inspire_format_text(text):
     return " ".join(str(text or "").split()).replace("%", "%%")
+
+
+# >>> REQ-422 model resolver (identical in every demo notebook; the agent's _resolve_call_name is the same rule)
+def resolve_model_callable(endpoint):
+    """The name ai_query calls for a model. A databricks-<model> name is called as its Unity Gateway model service
+    system.ai.<model> when that answers, because Unity Gateway enforcement refuses the pay-per-token name. Otherwise the
+    name is kept, which is the workspace without Unity Gateway."""
+    name = str(endpoint or "").strip()
+    if not name.startswith("databricks-") or len(name) == len("databricks-"):
+        return name
+    service = "system.ai." + name[len("databricks-"):]
+    try:
+        spark.sql(f"SELECT ai_query('{service}', 'Reply with the single word OK.') AS r").collect()
+        return service
+    except Exception:
+        return name
+# <<< REQ-422 model resolver
 
 
 def ai_endpoint_status(name):

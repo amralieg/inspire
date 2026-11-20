@@ -27,6 +27,22 @@ def refuse_pay_per_token(op):
     return "OK"
 
 
+def refuse_every_model(op):
+    """REQ-422: a workspace where neither the pay-per-token endpoint nor its system.ai model service can be called."""
+    if op["endpoint"].startswith("databricks-"):
+        raise RuntimeError(GATEWAY_REFUSAL.format(ep=op["endpoint"]))
+    if op["endpoint"].startswith("system.ai."):
+        raise RuntimeError(f"[INTERNAL_ERROR] PERMISSION_DENIED: User does not have EXECUTE on the serving endpoint '{op['endpoint']}'.")
+    return "OK"
+
+
+def no_model_service(op):
+    """REQ-422: a workspace without Unity Gateway. Its databricks- names answer and no system.ai model service exists."""
+    if op["endpoint"].startswith("system.ai."):
+        raise RuntimeError(f"[TABLE_OR_VIEW_NOT_FOUND] The table or view '{op['endpoint']}' cannot be found.")
+    return "OK"
+
+
 class GatewayWorkspace(FakeWorkspaceClient):
     def __init__(self, listing, slugs=None, gateway_error=None):
         super().__init__(listing)
@@ -56,7 +72,7 @@ def roster(ns):
 
 
 def test_no_callable_model_names_every_model_tried_and_what_the_admin_must_enable(fresh_ns):
-    spark, log = FakeConnectSpark(refuse_pay_per_token), RecordingLogger()
+    spark, log = FakeConnectSpark(refuse_every_model), RecordingLogger()
     _client, factory = workspace([], slugs=[])
     with patch("databricks.sdk.WorkspaceClient", factory):
         assert fresh_ns["_apply_auto_detected_endpoints"](log, spark_session=spark) is False
@@ -66,7 +82,7 @@ def test_no_callable_model_names_every_model_tried_and_what_the_admin_must_enabl
     assert message.startswith("No AI model can be called from this workspace, so the run stopped")
     for ep in enabled:
         assert ep in message
-    assert "Please use Unity Gateway" in message and "Unity Gateway or a provisioned throughput endpoint" in message
+    assert "EXECUTE on system.ai." in message and "turn on pay-per-token" not in message.lower()
     with pytest.raises(fresh_ns["NoUsableModelError"]) as err:
         fresh_ns["raise_if_no_usable_model"](log, "business context")
     assert str(err.value) == message
@@ -165,7 +181,7 @@ def test_a_provisioned_chat_endpoint_is_named_by_the_model_it_serves(fresh_ns):
 
 
 def test_a_workspace_without_a_gateway_still_detects_hosted_endpoints(fresh_ns):
-    spark, log = FakeConnectSpark(lambda op: "OK"), RecordingLogger()
+    spark, log = FakeConnectSpark(no_model_service), RecordingLogger()
     _client, factory = workspace([FakeServingEndpoint("databricks-claude-opus-4-6")],
                                  gateway_error=RuntimeError("Not Found"))
     with patch("databricks.sdk.WorkspaceClient", factory):

@@ -379,6 +379,54 @@ def _deployed_settings_problem(api, api_get, app_name, deploy_id, wanted):
     return None, None
 
 
+# REQ-424 / D-UGW-4A: the App checks, with its own service principal, that it can call a chat model, and records the result on the
+# route the installer already reads. app/backend/test/support/modelAccessWorlds.json ("route") holds the one contract the App's route
+# test and this reader share, and the one expected admin steps text, which the installer prints as the App recorded it.
+APP_DEFAULTS_ROUTE = "/api/defaults"
+MODEL_CHECK_FIELD = "modelAccess"
+MODEL_CHECK_TRIES = 18
+MODEL_CHECK_WAIT_S = 10
+AI_GATEWAY_LIMIT_PAGE = "Open AI Gateway > Rate limits in the workspace and raise or remove the limit on that model."
+
+
+def app_model_check(ctx, app_url):
+    """Poll the App's own model check after deploy. Returns the lines to print and raises RuntimeError when the App says no chat model
+    answers (the install ends red with the App's admin steps). When the App never reports, the lines say so and claim nothing."""
+    probe = ctx.get("app_defaults")
+    if not probe or not str(app_url or "").startswith("https://"):
+        return ["⚠️ App model check: not read, the App has no address yet. Open Inspire and start a run: the run checks the model again."]
+    record, waited = None, 0
+    for attempt in range(MODEL_CHECK_TRIES):
+        try:
+            status, body = probe(app_url)
+        except Exception as exc:
+            status, body = 0, {"error": _error_words(exc)}
+        record = (body or {}).get(MODEL_CHECK_FIELD) if status == 200 and isinstance(body, dict) else None
+        if not isinstance(record, dict) or record.get("state") != "pending":
+            break
+        waited = (attempt + 1) * MODEL_CHECK_WAIT_S
+        time.sleep(MODEL_CHECK_WAIT_S)
+    if not isinstance(record, dict):
+        return ["⚠️ App model check: not read, the App did not report one. Models are NOT confirmed; open Inspire and start a run: the run checks the model again."]
+    state = record.get("state")
+    if state == "pending":
+        return [f"⚠️ App model check: the App did not report within {waited // 60} minutes ({waited}s). Models are NOT confirmed; "
+                "open Inspire and start a run: the run checks the model again."]
+    if state != "checked":
+        return [f"⚠️ App model check: not made ({record.get('reason') or state}). Models are NOT confirmed."]
+    if record.get("blocked"):
+        steps = "\n".join(f"  {i}. {step}" for i, step in enumerate(record.get("steps") or [], 1))
+        raise RuntimeError(f"The App checked itself as its service principal {record.get('principal')}: setup {record.get('setup')}. No chat model "
+                           f"answered, so the App cannot call one and every run would fail. Admin steps:\n{steps}\nThen run this installer again.")
+    if record.get("setup") == "rate limit":
+        named = ", ".join(record.get("limited") or []) or "the model list"
+        return [f"⚠️ App model check: {named} answered a rate limit (429), so no model could be confirmed. The install is complete. "
+                f"{AI_GATEWAY_LIMIT_PAGE} Start checks again before each run."]
+    if record.get("setup") == "unknown" or not record.get("callable"):
+        return ["⚠️ App model check: the App could not tell whether a chat model answers. Models are NOT confirmed; Start checks again before each run."]
+    return [f"App model check: ✅ setup {record.get('setup')}; the App calls {record.get('callable')}"]
+
+
 def _app_defaults_problem(ctx, app_url):
     probe = ctx.get("app_defaults")
     if not probe or not str(app_url or "").startswith("https://"):
@@ -894,7 +942,7 @@ def build_runtime_context(env):
         return response.json()
 
     def app_defaults(app_url):
-        response = requests.get(f"{app_url.rstrip('/')}/api/defaults", headers=api_headers, timeout=30, allow_redirects=False)
+        response = requests.get(f"{app_url.rstrip('/')}{APP_DEFAULTS_ROUTE}", headers=api_headers, timeout=30, allow_redirects=False)
         try:
             return response.status_code, response.json()
         except ValueError:
@@ -1389,6 +1437,8 @@ def step_deploy_source(ctx):
             in_use = None
         _remove_old_bundles(ctx["w"], ctx["BUNDLE_ROOT"], source_folder, in_use)
     ctx["app_url"] = app_url
+    for line in app_model_check(ctx, app_url):
+        print(f"  {line}")
 
 
 def _new_apps_setting(value):
@@ -1884,6 +1934,27 @@ def system_model_service(endpoint_name):
     return f"system.ai.{endpoint_name[len(prefix):]}"
 
 
+# REQ-422: a model service is queried by EXECUTE on it, plus USE CATALOG on system and USE SCHEMA on system.ai
+# (Unity Gateway migration docs, AWS). Each usage grant is sent with the EXECUTE grant.
+UNITY_USAGE_GRANTS = (
+    ("catalog", "system", "USE_CATALOG", "GRANT USE CATALOG ON CATALOG system TO"),
+    ("schema", "system.ai", "USE_SCHEMA", "GRANT USE SCHEMA ON SCHEMA system.ai TO"),
+)
+
+
+def _grant_usage_on_system_ai(api, sp, name):
+    """The USE grants after EXECUTE: granted when this identity can, otherwise the exact GRANT SQL is the admin's Permission Required step."""
+    refused = []
+    for securable, full_name, privilege, sql in UNITY_USAGE_GRANTS:
+        resp = api("PATCH", f"/api/2.1/unity-catalog/permissions/{securable}/{full_name}", {"changes": [{"principal": sp, "add": [privilege]}]})
+        if resp.status_code != 200:
+            refused.append(f"{sql} `{sp}`;")
+    if refused:
+        return (f" (the usage grants were not all granted; Permission Required: a metastore admin runs {' '.join(refused)} "
+                "Account users hold EXECUTE on system.ai models by default, so check the App first)")
+    return ", USE CATALOG on system and USE SCHEMA on system.ai ✅"
+
+
 def _grant_system_model(api, sp, name):
     service = system_model_service(name)
     if not service:
@@ -1891,7 +1962,7 @@ def _grant_system_model(api, sp, name):
                 "a workspace admin grants CAN_QUERY on it, or the App shows Permission Required")
     resp = api("PATCH", f"/api/2.1/unity-catalog/permissions/model_service/{service}", {"changes": [{"principal": sp, "add": ["EXECUTE"]}]})
     if resp.status_code == 200:
-        return f"  {name}: EXECUTE on {service} for the App's service principal ✅"
+        return f"  {name}: EXECUTE on {service} for the App's service principal ✅" + _grant_usage_on_system_ai(api, sp, name)
     command = f"databricks grants update model_service {service} --json '{{\"changes\": [{{\"principal\": \"{sp}\", \"add\": [\"EXECUTE\"]}}]}}'"
     return (f"  ⚠️ {name}: EXECUTE on {service} not granted ({resp.status_code} {resp.text[:100]}); "
             f"Permission Required: a metastore admin runs `{command}`. Account users already hold EXECUTE on system.ai models by default, "

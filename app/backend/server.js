@@ -63,7 +63,7 @@ const { LIVE_STEP_STATUSES, liveDomainsOf, liveUseCasesOf } = require('../fronte
 const { isInspireOwnName, isInspireOwnSchema } = require('../frontend/src/lib/inspireOwnObjects.js');
 const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('./lib/runSummary');
 const { appReadPermissions, sampleCopyPermission, permissionRequired } = require('./lib/permissions');
-const { modelAccessPermission } = require('./lib/modelAccess');
+const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
 const { createInstalledRuns } = require('./lib/runAsRuns');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
@@ -1669,6 +1669,7 @@ app.get('/api/defaults', (req, res) => {
     /** True when the Node server can call Databricks APIs without a browser PAT (token or SP OAuth). */
     hasServerPlatformAuth: platformAuth,
     envSkipsSetupWizard,
+    [MODEL_CHECK_ROUTE.field]: modelAccessRecord,
     features: {
       demoDataApi: true,
       demoDataUi: getFrontendBuildInfo().hasDemoDataUi,
@@ -2455,19 +2456,49 @@ app.post('/api/documents', requireToken, async (req, res) => {
 const MODEL_ACCESS_BLOCK = 'Inspire cannot start a run yet: the identity the run uses cannot query a chat model. '
   + 'Ask a workspace admin for the permission in Permission Required, then run again.';
 
+// REQ-424: what the App's own model check last found, served on MODEL_CHECK_ROUTE for the installer and for anyone who asks. It is
+// pending until the first check, and every check (startup, each launch check) replaces it.
+let modelAccessRecord = { state: 'pending' };
+
+const modelCall = (host, token) => (method, path, body) => jsonOf(dbFetch, host, token, path,
+  body === undefined ? { method } : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
+
+async function checkModelAccess(host, token, principal) {
+  const plan = await planModelAccess({ call: modelCall(host, token), principal });
+  modelAccessRecord = selfCheckRecord(plan, principal);
+  return plan.permission ? [plan.permission] : [];
+}
+
 async function discoverModelAccess(req) {
   const runAs = runAsPerson();
   const token = runAs ? personTokenOf(req) : await appOwnToken();
   const principal = runAs ? RP.forwardedPerson(req.headers) : SP_CLIENT_ID;
   if (!token || !principal) return [];
-  const call = (method, path, body) => jsonOf(dbFetch, req.dbHost, token, path,
-    body === undefined ? { method } : { method, headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) });
   try {
-    const permission = await modelAccessPermission({ call, principal });
-    return permission ? [permission] : [];
+    return await checkModelAccess(req.dbHost, token, principal);
   } catch (err) {
     console.warn(`model access check: ${err.message || err}`);
     return [];
+  }
+}
+
+// D-UGW-4A: on startup the App checks, with its own service principal token, that it can call a chat model, and records the result.
+async function selfCheckModelAccess() {
+  const host = resolveHost({ headers: {} });
+  if (runAsPerson()) {
+    modelAccessRecord = { state: 'unchecked', reason: 'Runs use the signed-in person, so models are checked as that person when a run starts.' };
+    return;
+  }
+  const token = await appOwnToken();
+  if (!host || !token || !SP_CLIENT_ID) {
+    modelAccessRecord = { state: 'unchecked', reason: 'The App has no service principal token to call a model with.' };
+    return;
+  }
+  try {
+    await checkModelAccess(host, token, SP_CLIENT_ID);
+  } catch (err) {
+    console.warn(`model access self-check: ${err.message || err}`);
+    modelAccessRecord = { state: 'error', reason: `The check failed: ${String(err.message || err).slice(0, 160)}` };
   }
 }
 
@@ -3822,5 +3853,6 @@ if (require.main === module) (async () => {
     console.log(`   Warehouse:       ${DEFAULT_WAREHOUSE_ID || '⚠️  Not configured'}`);
     console.log(`   Database:        ${DEFAULT_INSPIRE_DB || '⚠️  Not configured'}`);
     console.log(`   Cloud:           ${inspireTagCloud() || '⚠️  unknown (job tag values capped at 63)'}\n`);
+    selfCheckModelAccess().catch((err) => console.warn(`model access self-check: ${err.message || err}`));
   });
 })();
