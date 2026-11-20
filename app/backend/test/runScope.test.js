@@ -309,7 +309,9 @@ test('the profile body the wizard, the Build page and the Run tab send is one th
     const data = await resp.json();
     assert.equal(resp.status, 200, JSON.stringify(data));
     assert.equal(data.table, 'main.sales.orders');
-    assert.ok(made.sqlCalls.some((c) => c.token === 'person-tok' && String(c.sql).includes('information_schema.columns')), 'the table is read with the person token');
+    // REQ-418: the profile reads the table as the App (the harness App token), never with the person's forwarded token.
+    assert.ok(made.sqlCalls.some((c) => c.token === 'tok' && String(c.sql).includes('information_schema.columns')), 'the table is read with the App token');
+    assert.ok(!made.sqlCalls.some((c) => c.token === 'person-tok'), 'no read uses the person token');
   } finally {
     await srv.close();
   }

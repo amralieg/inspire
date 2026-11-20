@@ -21,7 +21,7 @@ function workspace({ policy = {} } = {}) {
   const calls = [];
   const dbFetch = async (host, token, path) => {
     calls.push({ token, path });
-    if (path.includes('/policies/TABLE/')) return token === SP ? reply(200, policy) : reply(403, { error_code: 'PERMISSION_DENIED', message: "User does not have READ METADATA on Table 'main.sales.orders'." });
+    if (path.includes('/policies/table/')) return token === SP ? reply(200, policy) : reply(403, { error_code: 'PERMISSION_DENIED', message: "User does not have READ METADATA on Table 'main.sales.orders'." });
     if (path.includes('/unity-catalog/tables/')) return token === SP ? reply(200, { full_name: TABLE }) : reply(403, { error_code: 'PERMISSION_DENIED', message: "User does not have SELECT on Table 'main.sales.orders'." });
     if (path.endsWith('/Me')) return reply(200, { userName: 'builder@example.com', displayName: 'Builder' });
     return reply(404, {});
@@ -68,7 +68,7 @@ test('the policy read of a source runs with the App token, never the person toke
     logger: { warn: () => {} } });
   const req = { dbHost: 'https://ws.example', dbToken: SP, dbTokenKind: 'app', headers: { 'x-forwarded-access-token': PERSON } };
   await SA.sourceAccess(req, 'wh1', [TABLE]);
-  const policyCalls = calls.filter((c) => c.path.includes('/policies/TABLE/'));
+  const policyCalls = calls.filter((c) => c.path.includes('/policies/table/'));
   assert.ok(policyCalls.length > 0);
   assert.deepEqual([...new Set(policyCalls.map((c) => c.token))], [SP]);
 });

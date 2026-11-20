@@ -1787,11 +1787,12 @@ app.get('/api/me', requireToken, async (req, res) => {
 
 const truncatedByRest = (restCut, byName, countAfterRest) => restCut && byName.size === countAfterRest;
 
-// REQ-420: the catalogs the App's service principal can read right now, or null when it reads as the person (run-as-me) or cannot be asked.
-async function appCatalogGrants(req) {
-  if (runAsPerson()) return null;
+// REQ-420: the catalogs the App's service principal can read right now, or null when it cannot be asked. `listing` is the catalog
+// list the caller read with `listedWith`; when that is the App's own token (REQ-418) it is the same list, so it is not read again.
+async function appCatalogGrants(req, listing = null, listedWith = '') {
   const token = await appOwnToken();
-  return token ? spGrantedCatalogs(dbFetch, req.dbHost, token, SP_CLIENT_ID) : null;
+  if (!token) return null;
+  return spGrantedCatalogs(dbFetch, req.dbHost, token, SP_CLIENT_ID, listing && listedWith === token ? listing : null);
 }
 
 app.get('/api/catalogs', requireToken, async (req, res) => {
@@ -1833,7 +1834,7 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     else if (catalogs.length > 0) source = 'sql';
     console.log(`   📚 catalogs: REST=${raw.length} merged=${catalogs.length} warehouse=${warehouseId ? 'yes' : 'no'} (${source})`);
     // REQ-420: the App reads as its own service principal, so the list is the catalogs the person sees that the principal can read now.
-    const granted = await appCatalogGrants(req);
+    const granted = await appCatalogGrants(req, restErr ? null : { items: raw, truncated: restCut }, token);
     if (granted) {
       const offered = grantedCatalogList(catalogs, granted);
       const permission = partialPermission(offered, SP_CLIENT_ID);
@@ -2415,7 +2416,7 @@ app.post('/api/documents', requireToken, async (req, res) => {
 
 // The read and access checks a launch or a check runs before any job exists. Both are bounded (raceLaunchCheck), so a
 // schema pick whose tables the warehouse never lists ends with a reason, not a request held open forever.
-// REQ-405: the identity a run uses (the App's service principal, or the signed-in person in run-as-me) must be able to query a chat model.
+// REQ-405: the identity a run uses (the App's service principal, REQ-418) must be able to query a chat model.
 // The check is lib/modelAccess.js; the App does not wait for the agent to fail with no_model.
 const MODEL_ACCESS_BLOCK = 'Inspire cannot start a run yet: the identity the run uses cannot query a chat model. '
   + 'Ask a workspace admin for the permission in Permission Required, then run again.';

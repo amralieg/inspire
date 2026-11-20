@@ -18,7 +18,7 @@ function policyIsRowOrMask(policy) {
 
 function policyPath(table, pageToken = '') {
   const query = pageToken ? `?page_token=${encodeURIComponent(pageToken)}` : '';
-  return `/api/2.1/unity-catalog/policies/TABLE/${encodeURIComponent(table)}${query}`;
+  return `/api/2.1/unity-catalog/policies/table/${encodeURIComponent(table)}${query}`;
 }
 
 
@@ -42,7 +42,6 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     .then(() => sqlRows(req.dbHost, token, warehouseId, I.outputAccessStatement(table)))
     .catch(() => []);
 
-  // Run-as-me: the App acts as the person, so its reads use the person's forwarded token (never an App token).
   // REQ-418: the App's service principal token, the one every read uses. The request's own App-identity token stands in when no separate one is
   // configured; a person's token never does.
   const appTokenOf = async (req) => (await appToken()) || (req && req.dbTokenKind !== P.PERSON_TOKEN ? req.dbToken || '' : '');

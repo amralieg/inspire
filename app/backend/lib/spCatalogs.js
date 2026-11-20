@@ -29,14 +29,16 @@ async function heldOn(dbFetch, host, token, catalog, principal) {
 }
 
 // Returns { names: Map(lowercase -> { name, missing: [GRANT lines] }) } for every catalog the principal sees, or null when the principal's
-// catalogs cannot be listed (the caller then keeps the person's own list).
-async function spGrantedCatalogs(dbFetch, host, token, principal) {
+// catalogs cannot be listed (the caller then keeps the person's own list). `listed` is a listing the caller already read with this same
+// token ({ items, truncated }); it is used as is, so the catalogs are not listed twice.
+async function spGrantedCatalogs(dbFetch, host, token, principal, listed = null) {
   if (!token || !principal) return null;
-  let listed;
-  try {
-    listed = await listCatalogs(dbFetch, host, token);
-  } catch {
-    return null;
+  if (!listed) {
+    try {
+      listed = await listCatalogs(dbFetch, host, token);
+    } catch {
+      return null;
+    }
   }
   const names = new Map();
   await Promise.all((listed.items || []).filter((c) => c && c.name && !String(c.name).startsWith('__')).map(async (c) => {

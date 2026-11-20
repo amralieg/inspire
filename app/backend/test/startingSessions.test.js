@@ -64,8 +64,9 @@ test('finished, unknown, regenerated, reopened, other-database and mismatched ru
   S.state.calls.length = 0;
   const other = await S.request('GET', `/api/inspire/sessions?inspire_database=other.inspire&warehouse_id=${S.APP_WAREHOUSE}&all=1`, { person: 'reader@example.com' });
   assert.equal(other.status, 200, other.text.slice(0, 300));
-  assert.deepEqual(other.data.sessions, [], 'a database the App does not own is read as the person, so its starting runs are not looked up as the App');
-  assert.deepEqual(S.state.calls.filter((c) => c.token === 'app-sp-token' && !['auth', 'policy'].includes(c.category)).map((c) => c.path), []);
+  // REQ-418: every database is read as the App, so the run that writes to other.inspire is starting there, and no read uses the person token.
+  assert.deepEqual(other.data.sessions.map((s) => [s.session_id, s.run_id, s.starting]), [['7005', '705', true]], 'the run shows as starting in the database it writes to');
+  assert.deepEqual(S.state.calls.filter((c) => c.token === S.PERSON_TOKEN && !['auth', 'policy'].includes(c.category)).map((c) => c.path), []);
   S.state.launches[0].inspire_database = S.APP_DB;
   S.state.launches[0].session_id = '7999';
   assert.deepEqual(await list(), [], 'the run carries another session id than the ledger');

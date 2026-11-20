@@ -106,12 +106,12 @@ function makeApp(overrides = {}, { mount } = {}) {
           const got = await state.workspace({ token, path, method: String(opts.method || 'GET').toUpperCase(), body: opts.body ? JSON.parse(opts.body) : null });
           if (got !== undefined) return json(got[0], got[1] || 200);
         }
-        if (/^\/api\/2\.1\/unity-catalog\/policies\/TABLE\//i.test(path)) {
+        if (/^\/api\/2\.1\/unity-catalog\/policies\/table\//i.test(path)) {
           const denied = typeof state.abacUnreadable === 'function' ? state.abacUnreadable(token)
             : state.abacUnreadable && (!state.abacUnreadableAppOnly || token === (state.dbToken || 'tok'));
           if (denied) return json({ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403);
           // REQ-418: `policies` maps a table (lower case) to its policies, e.g. { 'main.s.orders': [{ policy_type: 'POLICY_TYPE_ROW_FILTER' }] }.
-          const policied = /^\/api\/2\.1\/unity-catalog\/policies\/TABLE\/([^/?]+)/i.exec(path);
+          const policied = /^\/api\/2\.1\/unity-catalog\/policies\/table\/([^/?]+)/i.exec(path);
           const listed = policied ? (state.policies || {})[decodeURIComponent(policied[1]).toLowerCase()] : null;
           return json({ policies: listed || [] });
         }

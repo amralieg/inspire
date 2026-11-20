@@ -181,25 +181,7 @@ async function resolvePipelineClusterId(dbFetch, host, token, clusterId) {
 /**
  * Two-task job: generate demo UC tables → run Inspire agent directly (no nested notebook.run).
  */
-/** Run-as-me: the install-time demo job reads these job parameters (names shared with the spec emitter). */
-function demoRunParameters(v) {
-  return {
-    description: v.description,
-    business_name: v.business,
-    inspire_catalog: v.catalog,
-    inspire_database: v.inspireDb,
-    session_id: v.sid,
-    demo_schema: v.demoSchema,
-    warehouse_id: v.warehouse,
-    app_sp_application_id: v.appSp,
-    plant_kind_signals: v.plantKindSignals,
-    discovery_type: v.discovery,
-    generation_path: v.generationPath,
-  };
-}
-
-/** The two notebook tasks of the demo pipeline. Used by the per-run job (default mode, literal values) and by the
- * install-time job (run-as-me, values are {{job.parameters.*}} references), so the two cannot drift apart. */
+/** The two notebook tasks of the demo pipeline, for the per-run job the App's service principal creates (REQ-418). */
 function demoPipelineSpec(values, { generateNotebookPath, inspireNotebookPath, clusterSpec }) {
   const inspireParams = buildDemoInspireDiscoveryParams({
     inspireDatabase: values.inspireDb,
@@ -381,7 +363,6 @@ async function triggerDemoDataPipeline(
 module.exports = {
   GENERATE_NOTEBOOK_NAME,
   demoPipelineSpec,
-  demoRunParameters,
   resolveInspireNotebookPath,
   generateNotebookDest,
   DEMO_GENERATED_TABLES,

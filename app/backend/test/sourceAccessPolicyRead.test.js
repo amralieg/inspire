@@ -19,7 +19,7 @@ function harness({ person = reply(200, {}), app = reply(200, {}), personError = 
   const dbFetch = async (host, token, path) => {
     calls.push({ token, path });
     if (path.endsWith('/Me')) return reply(200, { displayName: 'Test Person', userName: 'builder@example.com' });
-    if (path.includes('/policies/TABLE/')) {
+    if (path.includes('/policies/table/')) {
       if (token === PERSON) { if (personError) throw personError; return person; }
       if (appError) throw appError;
       return app;
