@@ -516,6 +516,13 @@ test('a list whose new search fails shows none of the records of the old list', 
 test('REQ-398: Mark done closes the record panel, its toast reads on at most two lines with Undo and Apply to similar, and Undo puts the record back and reopens the same panel', async () => {
   const { routes } = routesFor({}, {
     'records/similar': ({ json, url }) => json(200, { by: SIM_BY, count: 3, sample: [], match: SIM_MATCH(url.searchParams.get('record_key')) }),
+    // A slow history read: the reopened panel must not rely on it having loaded when it appears.
+    'records/history': async ({ json, url }) => {
+      const key = url.searchParams.get('record_key');
+      const i = ROWS.findIndex((r) => r.record_key === key);
+      await new Promise((r) => setTimeout(r, 300));
+      return json(200, { ...HISTORY, record_key: key, versions: [], current: { ...CURRENT, ...ROWS[i], valid_from_us: String(200 + i), action_owner: null, action_status: 'New' } });
+    },
   });
   const { page, seen, context } = await openList(routes, appInfo(DECIDE, 1, { ...TABLE, similar_by: ['category', 'region'] }));
   await resizeTo(page, 1280, 800);
@@ -536,6 +543,7 @@ test('REQ-398: Mark done closes the record panel, its toast reads on at most two
   await page.locator('.toast-a').getByRole('button', { name: 'Undo' }).click();
   await until(() => seen.undos?.length === 1);
   await page.waitForFunction((t) => document.querySelector('dialog.drawer[open] .panel-h h2')?.textContent === t, title);
+  await page.locator('dialog.drawer[open] .dr-act').waitFor();
   assert.equal(await page.locator('dialog.drawer[open] .dr-act').count(), 1, 'the reopened panel offers Mark done again');
   assert.deepEqual(seen.errors, []);
   await context.close();
