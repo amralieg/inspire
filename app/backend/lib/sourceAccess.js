@@ -17,7 +17,8 @@ function policyIsRowOrMask(policy) {
 }
 
 function policyPath(table, pageToken = '') {
-  const query = pageToken ? `?page_token=${encodeURIComponent(pageToken)}` : '';
+  // include_inherited, like the build: a row filter or column mask set on the schema or catalog counts for the table.
+  const query = `?include_inherited=true${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
   return `/api/2.1/unity-catalog/policies/table/${encodeURIComponent(table)}${query}`;
 }
 

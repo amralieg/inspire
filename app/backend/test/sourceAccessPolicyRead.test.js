@@ -90,3 +90,13 @@ test('the App read still refuses when the App cannot read the policies (unchange
   assert.ok(out.app_unreadable, 'App read failures still refuse');
   assert.ok(warnings.some((w) => w.includes('HTTP 500')), 'the App failure is logged');
 });
+
+// REQ-418 (B7 open item): the App's policy read asks for inherited policies like the build does, so a row filter or column mask
+// set on the schema or catalog decides the access the same way the build sees it.
+test('the App policy read includes policies inherited from the schema and catalog, on every page', async () => {
+  const { SA, req, calls } = harness({ app: reply(200, { policies: [], next_page_token: '' }) });
+  await SA.sourceAccess(req, 'wh1', [TABLE]);
+  const reads = calls.filter((c) => c.path.includes('/policies/table/'));
+  assert.ok(reads.length >= 1, 'the App reads the policies');
+  for (const c of reads) assert.match(c.path, /[?&]include_inherited=true(&|$)/, c.path);
+});
