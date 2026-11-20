@@ -14,6 +14,7 @@ const LE = require('./lib/lakebaseEnforce');
 const { appShellCatalog, bundledBuildStamp } = require('./lib/appShell');
 const { moneyStatements, moneyView, moneyWithheld } = require('./lib/implementMoney');
 const FB = require('./lib/appFeedback');
+const SAR = require('./lib/solutionArchitecture');
 const { specVibeAsks } = require('../frontend/src/lib/vibeLimits.js');
 const { chosenTableScopes } = require('../frontend/src/lib/tableScope.js');
 const { HOSTED_NO_TOKEN } = require('./lib/hostedRun');
@@ -2130,6 +2131,96 @@ function registerImplementRoutes(app, deps) {
       });
       if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
       return res.json({ ...FB.vibeDraftOf(got.data), feedback_id: id, model: endpoint });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  // Solution architecture of one use case: a chat model designs how it would run on Databricks, grounded in the use case's saved
+  // source tables and their columns, with a reviewer pass. The design is saved in the App database per session and use case.
+  async function architectureContext(req) {
+    const sid = sessionIdOf(req);
+    const warehouseId = warehouseOf(req);
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    const useCaseId = I.validateUseCaseId(q(req, 'use_case_id'));
+    return { sid, warehouseId, catalog, schema, useCaseId, table: SAR.architectureTable(catalog, schema) };
+  }
+
+  // Temperature 0 keeps designs steady, but some chat models accept only their default temperature: such a refusal is asked again
+  // without it, once.
+  async function architectureChat(req, token, endpoint, messages, maxTokens) {
+    const ask = (body) => jsonOf(dbFetch, req.dbHost, token, `/serving-endpoints/${encodeURIComponent(endpoint)}/invocations`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body),
+    });
+    let got = await ask({ messages, max_tokens: maxTokens, temperature: 0 });
+    if (!got.ok && SAR.refusesTemperature(got)) got = await ask({ messages, max_tokens: maxTokens });
+    if (!got.ok) throw I.badRequest(`the model ${endpoint} did not answer: ${got.data.message || got.data.error || `HTTP ${got.status}`}`, 502);
+    return got.data;
+  }
+
+  app.get('/api/inspire/implement/architecture', requireToken, async (req, res) => {
+    try {
+      const ctx = await architectureContext(req);
+      const appTokenNow = await appTokenOf(req);
+      let rows = [];
+      try {
+        rows = await sqlRows(req.dbHost, appTokenNow, ctx.warehouseId, SAR.latestStatement(ctx.table, ctx.sid, ctx.useCaseId));
+      } catch (err) {
+        if (!isMissingTableError(err)) throw err;
+      }
+      const row = rows[0];
+      if (!row) return res.json({ use_case_id: ctx.useCaseId, design: null });
+      let design;
+      try { design = JSON.parse(String(row.design || '')); } catch { design = null; }
+      return res.json({ use_case_id: ctx.useCaseId, design: design ? SAR.designView(design, row) : null });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  app.post('/api/inspire/implement/architecture', requireToken, async (req, res) => {
+    try {
+      const ctx = await architectureContext(req);
+      const token = personReadToken(req);
+      const appTokenNow = await appTokenOf(req);
+      const [useCase, tables, person, listed] = await Promise.all([
+        loadUseCase(req.dbHost, appTokenNow, ctx.warehouseId, ctx.catalog, ctx.schema, ctx.sid, ctx.useCaseId),
+        useCasesTables(req, ctx.warehouseId, ctx.catalog, ctx.schema, ctx.sid, [ctx.useCaseId], appTokenNow),
+        personOf(req),
+        jsonOf(dbFetch, req.dbHost, token, '/api/2.0/serving-endpoints'),
+      ]);
+      if (!useCase) throw I.badRequest(`Inspire has no use case ${ctx.useCaseId} in session ${ctx.sid}.`, 404);
+      if (!listed.ok) throw I.badRequest(`Inspire could not list the serving endpoints with your sign-in: ${listed.data.message || listed.data.error || `HTTP ${listed.status}`}`, listed.status);
+      const history = await loadHistory(req.dbHost, appTokenNow, ctx.warehouseId, ctx.catalog, ctx.schema, ctx.sid, ctx.useCaseId).catch(() => []);
+      const spec = (history && history[0] && history[0].spec_json) || {};
+      const endpoint = FB.chatEndpoint(spec, (listed.data.endpoints || []).map((e) => ({ name: e.name, state: e.state, task: e.task })));
+      if (!endpoint) throw I.badRequest('no chat model you can use is ready on this workspace, so Inspire cannot design an architecture', 409);
+      // Columns are read with the person's own sign-in, so the design only names what they can see.
+      const columnsByTable = {};
+      await mapLimit(tables.slice(0, 12), 4, async (table) => {
+        try {
+          columnsByTable[table] = { columns: await sqlRows(req.dbHost, token, ctx.warehouseId, I.columnsStatement(table)) };
+        } catch (err) {
+          columnsByTable[table] = { error: err.message || String(err) };
+        }
+      });
+      const grounding = SAR.groundingOf(tables, columnsByTable);
+      const architect = SAR.architectMessages({ useCaseId: ctx.useCaseId, useCase, tables, grounding });
+      let design = SAR.designOf(await architectureChat(req, token, endpoint, architect, SAR.ARCHITECT_MAX_TOKENS));
+      const fixes = SAR.fixesOf(await architectureChat(req, token, endpoint,
+        SAR.reviewerMessages({ useCaseId: ctx.useCaseId, useCase, grounding, design }), SAR.REVIEWER_MAX_TOKENS));
+      if (fixes.length) {
+        try {
+          design = SAR.designOf(await architectureChat(req, token, endpoint, SAR.reviseMessages(architect, design, fixes), SAR.ARCHITECT_MAX_TOKENS));
+        } catch (err) {
+          console.warn(`architecture: the revised design of ${ctx.useCaseId} was unusable, the first draft stands: ${err.message}`);
+        }
+      }
+      design = { ...design, sources: tables, review_fixes: fixes, design_version: SAR.DESIGN_VERSION };
+      const createdBy = (person && person.username) || '';
+      await sqlRows(req.dbHost, appTokenNow, ctx.warehouseId, { sql: SAR.createTableSql(ctx.table), parameters: [] });
+      await sqlRows(req.dbHost, appTokenNow, ctx.warehouseId, SAR.insertStatement(ctx.table, { sessionId: ctx.sid, useCaseId: ctx.useCaseId, model: endpoint, createdBy, design }));
+      return res.json({ use_case_id: ctx.useCaseId, design: SAR.designView(design, { model: endpoint, created_by: createdBy, created_at: new Date().toISOString() }) });
     } catch (err) {
       return sendError(res, err);
     }

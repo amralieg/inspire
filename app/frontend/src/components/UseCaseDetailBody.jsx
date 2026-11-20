@@ -60,6 +60,7 @@ export default function UseCaseDetailBody({
   feedbackNote = false,
   feedbackReadOnly = false,
   onFeedback,
+  architecture = null,
 }) {
   const u = uc && typeof uc === 'object' ? uc : {};
   const notebookPath = notebookPathOf(u, allNotebookFiles);
@@ -225,6 +226,8 @@ export default function UseCaseDetailBody({
           onSubmit={onFeedback}
         />
       )}
+
+      {architecture}
     </div>
   );
 }

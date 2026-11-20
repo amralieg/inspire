@@ -44,6 +44,7 @@ import { SkeletonCard, SkeletonStats } from '../components/SkeletonLoader';
 import { DataAccessBadge, InsightsGrid, SidebarFilterPanel } from '../components/ResultsInsights';
 import { usePortfolio } from '../components/PortfolioCards';
 import UseCaseCard from '../components/UseCaseCard';
+import SolutionArchitecture from '../components/SolutionArchitecture';
 import ValueBadge from '../components/ValueBadge';
 import { EstimateTotals } from '../components/ValueEstimateLine';
 import { valueQuery } from '../lib/valueLedger';
@@ -1038,7 +1039,16 @@ export default function ResultsPage({
       feedbackNote: Boolean(key && feedbackError.key === key && feedbackError.note),
       feedbackReadOnly: Boolean(showcase),
       onFeedback: (status, reason) => submitFeedback(uc, uc._v130, status, reason),
+      architecture: architectureFor(uc),
     };
+  };
+
+  // The solution architecture of an opened use case. A showcase run makes no workspace call, so it shows none.
+  const architectureFor = (uc) => {
+    const id = trackingIdOf(uc);
+    if (showcase || !inspireDb || !warehouseId || !selectedSessionId || !id) return null;
+    const query = new URLSearchParams({ inspire_database: inspireDb, warehouse_id: warehouseId, session_id: String(selectedSessionId), use_case_id: id }).toString();
+    return <SolutionArchitecture apiFetch={apiFetch} apiPostJson={apiPostJson} query={query} useCase={{ name: nameOfUseCase(uc), description: uc.Statement || uc.statement || '' }} />;
   };
 
   return (

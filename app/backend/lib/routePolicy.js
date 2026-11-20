@@ -210,6 +210,10 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/table-change': owners('change its tables'),
   'POST /api/inspire/implement/feedback/status': owners('change the status of an issue reported in its App'),
   'POST /api/inspire/implement/feedback/vibe': owners('draft a vibe from an issue reported in its App'),
+  'GET /api/inspire/implement/architecture': tracked('read the saved solution architecture of a use case'),
+  'POST /api/inspire/implement/architecture': tracked('design a solution architecture for a use case with a chat model',
+    'reads the use case from the Inspire tracking tables, reads its source tables\' columns and calls the chat model with your own sign-in, '
+    + 'and saves the design in the Inspire tracking tables'),
   'POST /api/money/currency-rates': tracked('read the currencies of the use case table and their rates to the reporting currency',
     'reads the use case table with your own sign-in; the rates come from a public rate source or the averages saved with Inspire'),
   'POST /api/money/describe-value': tracked('turn a description of a money value into a value rule with a chat model',
