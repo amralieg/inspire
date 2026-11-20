@@ -5,7 +5,7 @@ The coordinator keeps the working copy outside the repo. This script reads that 
 sanitizes every row, adds a Release column and a hand-off section, and writes the public ledger. The output
 is deterministic: the same inputs always give the same bytes (no timestamps, no host or user names).
 
-    python3 app/scripts/ledger_publish.py --ledger <working-copy> --scope <scope-file>
+    INSPIRE_LEDGER_PRIVATE_NAMES=<private-names-file> python3 app/scripts/ledger_publish.py --ledger <working-copy> --scope <scope-file>
     python3 app/scripts/ledger_publish.py --check    # exits 1 when app/docs/requirements/ledger.md or the root CLAUDE.md leaks
 
 The leak patterns below are the single source for both the publisher and the leak gate test
@@ -283,6 +283,9 @@ def main(argv=None):
 
     if not args.ledger or not args.scope:
         ap.error("--ledger and --scope are required unless --check is given")
+    if CUSTOMER.pattern == "(?!)":
+        # Without the private names file every customer name would reach the public ledger unmasked.
+        ap.error("set INSPIRE_LEDGER_PRIVATE_NAMES to the coordinator's private names file before publishing")
     rc2, handoff = read_scope(args.scope)
     text = pathlib.Path(args.ledger).read_text(encoding="utf-8")
     markdown, counts = build(text, rc2, handoff)

@@ -124,3 +124,21 @@ def test_publish_rejects_a_scope_listing_one_id_twice(tmp_path):
 
 def test_check_mode_exits_zero_on_the_committed_files():
     assert lp.main(["--check"]) == 0
+
+
+def test_publish_refuses_without_the_private_names_file(tmp_path, monkeypatch):
+    # A publish with no private names file would write customer names into the public ledger unmasked.
+    ledger = tmp_path / "ledger.md"
+    ledger.write_text("| REQ | Asked (UTC) | Ask | State | Lane / branch | Evidence | Live acceptance check |\n|---|---|---|---|---|---|---|\n", encoding="utf-8")
+    scope = tmp_path / "scope.txt"
+    scope.write_text("RC2: REQ-001\n", encoding="utf-8")
+    out = tmp_path / "out.md"
+    monkeypatch.setattr(lp, "CUSTOMER", lp.private_names(None))
+    with pytest.raises(SystemExit):
+        lp.main(["--ledger", str(ledger), "--scope", str(scope), "--out", str(out)])
+    assert not out.exists(), "nothing is written when the names file is missing"
+    names = tmp_path / "names.txt"
+    names.write_text("planted\n", encoding="utf-8")
+    monkeypatch.setattr(lp, "CUSTOMER", lp.private_names(names))
+    assert lp.main(["--ledger", str(ledger), "--scope", str(scope), "--out", str(out)]) == 0
+    assert out.exists()

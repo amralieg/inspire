@@ -32,7 +32,7 @@ Read `app/docs/requirements/ledger.md` before any work. Its hand-off section lis
 7. **The publisher produces the public file.** The coordinator keeps the working copy outside the repo and after every change runs:
 
    ```
-   python3 app/scripts/ledger_publish.py --ledger <working copy> --scope <scope file>
+   INSPIRE_LEDGER_PRIVATE_NAMES=<private names file> python3 app/scripts/ledger_publish.py --ledger <working copy> --scope <scope file>
    python3 app/scripts/ledger_publish.py --check
    ```
 
