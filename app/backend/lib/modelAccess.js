@@ -19,8 +19,8 @@ const serviceGrantCommand = (service, principal) => `databricks grants update mo
 
 // REQ-422: a model service is queried by EXECUTE on it plus USE CATALOG on system and USE SCHEMA on system.ai (docs: migrate-to-unity-gateway).
 const usageGrants = (principal) => [
-  `GRANT USE CATALOG ON CATALOG system TO \`${principal}\`;`,
-  `GRANT USE SCHEMA ON SCHEMA system.ai TO \`${principal}\`;`,
+  `GRANT USE CATALOG ON CATALOG system TO \`${principal}\`;`, // PERMISSION_DIALOG
+  `GRANT USE SCHEMA ON SCHEMA system.ai TO \`${principal}\`;`, // PERMISSION_DIALOG
 ];
 
 function denialSteps(endpoint, principal) {
