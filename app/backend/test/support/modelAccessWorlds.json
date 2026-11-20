@@ -1,5 +1,11 @@
 {
   "rule": "Outcome vocabulary: answer, enforced, denied, ratelimit, missing. A name not listed in outcomes is 'missing'. expected.callable is the first name a chat call confirmed, in roster order with system.ai first; null when none was confirmed. expected.blocked is true only when the run cannot start: no confirmed name and a refusal, not a rate limit. expected.steps are the admin steps a stop prints, with <principal> for the App's service principal.",
+  "route": {
+    "rule": "The one route the installer reads after deploy to learn what the App's own model check found: GET path, the record under field. Keys are the record's keys when state is checked; state is pending until the App has checked, unchecked when it cannot check as itself, error when its check failed.",
+    "path": "/api/defaults",
+    "field": "modelAccess",
+    "keys": ["blocked", "callable", "checkedAt", "limited", "principal", "setup", "state", "steps"]
+  },
   "texts": {
     "enforced": "[INTERNAL_ERROR] Remote session creation failed: PERMISSION_DENIED: PERMISSION_DENIED: Querying pay-per-token foundation model endpoint '{name}' is disabled for this workspace. Please use Unity Gateway.",
     "denied": "[INTERNAL_ERROR] PERMISSION_DENIED: User does not have CAN_QUERY on serving endpoint '{name}'.",

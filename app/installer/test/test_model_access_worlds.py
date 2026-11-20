@@ -1,128 +1,98 @@
-"""REQ-423 consumer (the installer's model plan) and REQ-424 gate, run against every setup in
-app/backend/test/support/modelAccessWorlds.json. The fixture is the one expected outcome the notebook and the App also check."""
+"""REQ-424 / D-UGW-4A: the App checks itself and the installer reads the result. Every setup in
+app/backend/test/support/modelAccessWorlds.json is played by a fake App that reports what the fixture expects, on the route the
+fixture names ("route"); the backend test modelSelfCheck.test.js holds the real route handler to the same keys."""
+import contextlib
+import io
 import json
 import pathlib
 import types
 import unittest
 
 import support
+import test_setup
 
 setup = support.load_setup()
 ROOT = pathlib.Path(support.INSTALLER_DIR).parent
-NOTEBOOK = ROOT / "agent" / "agent" / "dbx_inspire_ai_agent.ipynb"
 FIXTURE = json.loads((ROOT / "backend" / "test" / "support" / "modelAccessWorlds.json").read_text(encoding="utf-8"))
-SP = "11111111-2222-3333-4444-555555555555"
-STATUS = {"answer": 200, "enforced": 403, "denied": 403, "ratelimit": 429, "missing": 404}
+ROUTE = FIXTURE["route"]
+SP = "SPNEW"
+WIZARD_OK = {"envSkipsSetupWizard": True}
 
 
-def resp(status, data=None):
-    return types.SimpleNamespace(status_code=status, text=json.dumps(data or {}))
+def record_for(world, principal=SP):
+    expected = world["expected"]
+    return {"state": "checked", "blocked": expected["blocked"], "callable": expected["callable"], "setup": world["setup"],
+            "steps": [s.replace("<principal>", principal) for s in expected["steps"]], "limited": [], "principal": principal,
+            "checkedAt": "2026-11-20T12:00:00.000Z"}
 
 
-def call_for(world):
-    """The REST answers one world gives. Every refusal text comes from the fixture."""
-    def outcome_for(name):
-        kind = world["outcomes"].get(name, "missing")
-        if kind == "answer":
-            return 200, {"choices": [{"message": {"content": "OK"}}]}
-        return STATUS[kind], {"message": FIXTURE["texts"][kind].replace("{name}", name)}
-
-    def call(method, path, body=None):
-        if method == "GET" and path == "/api/2.0/serving-endpoints":
-            if world["listing"] != "answer":
-                return STATUS[world["listing"]], {"message": FIXTURE["texts"][world["listing"]].replace("{name}", "the serving endpoints")}
-            return 200, {"endpoints": world["endpoints"]}
-        if method == "GET" and path == "/ai-gateway/codex/v1/models":
-            if world["gateway"] != "answer":
-                return STATUS[world["gateway"]], {"message": FIXTURE["texts"][world["gateway"]].replace("{name}", "the gateway")}
-            return 200, {"models": [{"slug": s} for s in world["gateway_models"]]}
-        if method == "POST" and path == "/ai-gateway/mlflow/v1/chat/completions":
-            return outcome_for(body["model"])
-        if method == "POST" and path.startswith("/serving-endpoints/") and path.endswith("/invocations"):
-            return outcome_for(path[len("/serving-endpoints/"):-len("/invocations")])
-        raise AssertionError(f"unexpected call {method} {path}")
-    return call
+def body(record):
+    return (200, dict(WIZARD_OK, **({} if record is None else {ROUTE["field"]: record})))
 
 
-def steps_for(world):
-    return [step.replace("<principal>", SP) for step in world["expected"]["steps"]]
+class AppModelCheckTest(unittest.TestCase):
+    def run_install(self, bodies):
+        """step_create_app_and_find_sp then step_deploy_source against a fake App that answers the bodies in order (the last repeats)."""
+        driver = test_setup.DeployedSettingsTest("test_the_app_yaml_is_saved_through_the_workspace_before_the_deploy_copies_it")
+        _calls, _deployed, said, error = test_setup.DeployedSettingsTest.deploy(driver, [test_setup.WANTED_YAML], defaults=bodies)
+        return said, error
 
-
-class ModelPlanConsumerTest(unittest.TestCase):
-    def test_every_setup_gives_the_blocked_state_callable_and_setup_label_the_fixture_expects(self):
-        notebook = NOTEBOOK.read_text(encoding="utf-8")
+    def test_the_route_the_installer_reads_is_the_route_the_fixture_names(self):
+        self.assertEqual(setup.APP_DEFAULTS_ROUTE, ROUTE["path"])
+        self.assertEqual(setup.MODEL_CHECK_FIELD, ROUTE["field"])
         for world in FIXTURE["worlds"]:
+            self.assertEqual(sorted(record_for(world)), sorted(ROUTE["keys"]), "the fake App reports exactly the keys the real route serves")
+
+    def test_a_blocked_app_ends_the_install_red_with_the_exact_steps(self):
+        for world in [w for w in FIXTURE["worlds"] if w["expected"]["blocked"]]:
             with self.subTest(world=world["id"]):
-                plan = setup.model_access_plan(call_for(world), notebook, SP)
-                self.assertEqual(plan["blocked"], world["expected"]["blocked"], plan)
-                self.assertEqual(plan["callable"], world["expected"]["callable"], plan)
-                self.assertEqual(plan["setup"], world["setup"], plan)
-                self.assertEqual(plan["steps"], steps_for(world), plan)
+                said, error = self.run_install([body(record_for(world))])
+                self.assertIsNotNone(error, "the install ends red")
+                self.assertIn(f"setup {world['setup']}", error)
+                for step in record_for(world)["steps"]:
+                    self.assertIn(step, error)
+                self.assertNotIn("model check: ✅", said)
 
-
-class ModelGateTest(unittest.TestCase):
-    """REQ-424: with a service-principal call, the gate stops the install only where no chat model answers and the run is blocked."""
-
-    def gate_ctx(self, world):
-        return {"APP_SP_CALL": call_for(world)}
-
-    def test_the_gate_stops_before_the_app_is_replaced_exactly_where_the_fixture_says_the_run_is_blocked(self):
-        notebook = NOTEBOOK.read_text(encoding="utf-8")
-        for world in FIXTURE["worlds"]:
+    def test_a_working_setup_passes_and_names_what_the_app_calls(self):
+        for world in [w for w in FIXTURE["worlds"] if not w["expected"]["blocked"] and w["setup"] != "rate limit"]:
             with self.subTest(world=world["id"]):
-                if world["expected"]["blocked"]:
-                    with self.assertRaises(RuntimeError) as caught:
-                        setup.model_access_gate(self.gate_ctx(world), SP, notebook)
-                    message = str(caught.exception)
-                    self.assertIn(f"setup {world['setup']}", message)
-                    self.assertIn("The install stopped before the App was replaced", message)
-                    for step in steps_for(world):
-                        self.assertIn(step, message, "every admin step the fixture expects is printed")
-                else:
-                    lines = setup.model_access_gate(self.gate_ctx(world), SP, notebook)
-                    if world["setup"] == "rate limit":
-                        self.assertIn("The install continues", lines[0])
-                    else:
-                        self.assertIn(f"setup {world['setup']}; the run calls {world['expected']['callable']}", lines[0], lines)
+                said, error = self.run_install([body(record_for(world))])
+                self.assertIsNone(error)
+                self.assertIn(f"App model check: ✅ setup {world['setup']}; the App calls {world['expected']['callable']}", said)
 
-    def test_without_a_service_principal_credential_the_gate_falls_back_to_permissions_and_never_stops(self):
-        notebook = NOTEBOOK.read_text(encoding="utf-8")
-        for world in FIXTURE["worlds"]:
-            with self.subTest(world=world["id"]):
-                api = lambda method, path, body=None: resp(403)
-                listed = [types.SimpleNamespace(name=e["name"], id=e["id"], task=e["task"]) for e in world["endpoints"]]
-                ctx = {"api": api, "w": types.SimpleNamespace(serving_endpoints=types.SimpleNamespace(list=lambda: listed))}
-                lines = setup.model_access_gate(ctx, SP, notebook)
-                self.assertTrue(lines[0].startswith("Live model check not possible: the installer holds no credential"), lines)
-                self.assertTrue(any("USE_CATALOG" in line for line in lines), lines)
+    def test_a_rate_limit_finishes_with_a_warning_naming_the_model_and_the_gateway_rate_limit_page(self):
+        world = next(w for w in FIXTURE["worlds"] if w["id"] == "rate-limit-0")
+        for limited, named in (([], "the model list"), (["databricks-claude-sonnet-4-6"], "databricks-claude-sonnet-4-6")):
+            with self.subTest(limited=limited):
+                said, error = self.run_install([body(dict(record_for(world), limited=limited))])
+                self.assertIsNone(error)
+                self.assertIn(f"{named} answered a rate limit (429)", said)
+                self.assertIn("AI Gateway > Rate limits", said)
+                self.assertIn("Start checks again before each run", said)
+                self.assertNotIn("model check: ✅", said)
 
-    def test_with_no_app_service_principal_yet_the_check_says_it_runs_once_the_app_exists(self):
-        lines = setup.model_access_gate({"api": None}, None, NOTEBOOK.read_text(encoding="utf-8"))
-        self.assertIn("The check runs once the App exists.", lines[0])
+    def test_the_app_waits_until_pending_ends(self):
+        world = next(w for w in FIXTURE["worlds"] if w["id"] == "legacy")
+        said, error = self.run_install([body({"state": "pending"})] * 4 + [body(record_for(world))])
+        self.assertIsNone(error)
+        self.assertIn("App model check: ✅ setup legacy", said)
 
+    def test_an_app_that_never_reports_says_so_and_claims_nothing(self):
+        said, error = self.run_install([body({"state": "pending"})])
+        self.assertIsNone(error)
+        self.assertIn("did not report within 3 minutes (180s). Models are NOT confirmed", said)
+        self.assertNotIn("model check: ✅", said)
 
-class StopBeforeAppReplacedTest(unittest.TestCase):
-    """REQ-424: the install step stops before it creates or replaces the App, for every setup the fixture says blocks the run."""
+    def test_an_app_without_the_field_or_that_could_not_check_claims_nothing(self):
+        for reported, words in ((None, "the App did not report one"), ({"state": "unchecked", "reason": "no token"}, "not made (no token)"),
+                                ({"state": "error", "reason": "The check failed: boom"}, "not made (The check failed: boom)")):
+            with self.subTest(reported=reported):
+                said, error = self.run_install([body(reported)])
+                self.assertIsNone(error)
+                self.assertIn(words, said)
+                self.assertNotIn("model check: ✅", said)
 
-    def test_the_create_step_raises_before_any_app_create_call_for_each_blocked_setup(self):
-        notebook = NOTEBOOK.read_text(encoding="utf-8")
-        for world in FIXTURE["worlds"]:
-            if not world["expected"]["blocked"]:
-                continue
-            with self.subTest(world=world["id"]):
-                calls = []
-
-                def api(method, path, body=None):
-                    calls.append((method, path))
-                    return resp(200, {})
-
-                def api_get(path):
-                    return {"apps": []} if path.startswith("/api/2.0/apps") else {}
-
-                ctx = {"api": api, "api_get": api_get, "SOURCE_FOLDER": "/Workspace/x", "INSPIRE_DB": "main._inspire",
-                       "WAREHOUSE_ID": "wh", "NOTEBOOK_PATH": "/Shared/x", "SP_NAME": "sp", "APP_NAME": "inspire-ai", "CATALOG": "main",
-                       "AGENT_NOTEBOOK_TEXT": notebook, "APP_SP_CALL": call_for(world)}
-                with self.assertRaises(RuntimeError) as caught:
-                    setup.step_create_app_and_find_sp(ctx)
-                self.assertIn("The install stopped before the App was replaced", str(caught.exception))
-                self.assertFalse(any(method == "POST" and path == "/api/2.0/apps" for method, path in calls), calls)
+    def test_the_dead_pre_create_gate_is_gone(self):
+        for name in ("model_access_gate", "_app_sp_call", "model_permission_fallback", "model_access_plan", "MODEL_STOP_STEPS"):
+            self.assertFalse(hasattr(setup, name), name)
+        self.assertNotIn("Live model check", self.run_install([body(None)])[0])
