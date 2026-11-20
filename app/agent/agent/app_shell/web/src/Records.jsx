@@ -191,7 +191,7 @@ function RejectAsk({ name, write, run }) {
   return (
     <span className="row-ask" role="group" aria-label={`Reject ${name}`} onClick={(e) => e.stopPropagation()}>
       <label><span>Why reject {name}?</span>
-        <input type="text" value={reason} onChange={(e) => setReason(e.target.value)} aria-label={`Reason for rejecting ${name}`} data-row-reject-reason /></label>
+        <input dir="auto" type="text" value={reason} onChange={(e) => setReason(e.target.value)} aria-label={`Reason for rejecting ${name}`} data-row-reject-reason /></label>
       <SaveButton write={write} className="btn btn--sm btn--pri" disabled={blank} onClick={async () => { if (await run(reason)) setAsking(false); }}>Reject</SaveButton>
       <button type="button" className="btn btn--sm" onClick={stop(() => setAsking(false))}>Keep it</button>
     </span>

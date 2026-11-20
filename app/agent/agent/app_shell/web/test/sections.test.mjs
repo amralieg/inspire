@@ -537,9 +537,9 @@ async function openKind(kind, hash) {
   return { id, ...(await openApp(browser, served.base, info, { hash: hash(id), routes, ready: '[data-rail]', watch: prefsFirst(MY_KEY, PERSON, {}) })) };
 }
 
-test('every one of the 25 queue kinds has Work in its rail and Work shows the status tabs', { timeout: 300000 }, async () => {
+test('every one of the 33 queue kinds has Work in its rail and Work shows the status tabs', { timeout: 300000 }, async () => {
   const queues = REGISTRY.kinds.filter(queueKind);
-  assert.equal(queues.length, 25);
+  assert.equal(queues.length, 33);
   for (const kind of queues) {
     const { id, page, seen, context } = await openKind(kind, (pid) => `#/${pid}/work`);
     await page.locator('[data-tab="open"]').waitFor();
@@ -553,9 +553,9 @@ test('every one of the 25 queue kinds has Work in its rail and Work shows the st
   }
 });
 
-test('the 15 plan, forecast, scenario, explore and ask kinds never show the queue Work: each opens the work of its own mode under that mode\'s name', { timeout: 300000 }, async () => {
+test('the 18 plan, forecast, scenario, explore and ask kinds never show the queue Work: each opens the work of its own mode under that mode\'s name', { timeout: 300000 }, async () => {
   const others = REGISTRY.kinds.filter((k) => !queueKind(k));
-  assert.equal(others.length, 15);
+  assert.equal(others.length, 18);
   const own = [];
   for (const kind of others) {
     const { id, page, seen, context } = await openKind(kind, (pid) => `#/${pid}/work`);
