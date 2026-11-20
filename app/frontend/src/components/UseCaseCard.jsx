@@ -1,5 +1,6 @@
 import { Archive, ArchiveRestore, Heart, Star } from 'lucide-react';
 import ImplementCardActions from './ImplementCardActions';
+import UseCaseAssets from './UseCaseAssets';
 import InspireScoreBadge from './InspireScoreBadge';
 import UseCaseDetailBody from './UseCaseDetailBody';
 import { FeedbackChip, StrategyChip } from './UseCaseStrategyDetail';
@@ -37,6 +38,9 @@ function UseCaseCardBody({
   onOpenMvp,
   notebookUrl = '',
   assetLinks = [],
+  assetUseCaseId = '',
+  assetFlags = null,
+  dbuRead = null,
   isArchived = false,
   onRename,
   liveAppStale = false,
@@ -178,6 +182,7 @@ function UseCaseCardBody({
       </div>
 
       <ImplementCardActions status={implementStatus} onImplement={onImplement} onOpen={onOpenMvp} notebookUrl={notebookUrl} links={assetLinks} />
+      <UseCaseAssets useCaseId={assetUseCaseId} flags={assetFlags} dbus={dbuRead} />
 
       {expanded && typeof onRename === 'function' && (
         <UseCaseNameNotes name={s(u.user_use_case_name) || s(u.Name)} originalName={s(u.original_name)} onSave={onRename} liveAppStale={liveAppStale} onUpdateLiveApp={onUpdateLiveApp} />

@@ -42,6 +42,7 @@ const { int64Id, isInt64Id, requireInt64Id, jsonWithInt64Ids } = require('./lib/
 const { parseExactJson } = require('./lib/exactJson');
 const { grantJobViewer, rememberViewer } = require('./lib/jobViewer');
 const PM = require('./lib/permissions');
+const UA = require('./lib/useCaseAssets');
 const { coarseGrants } = require('./lib/grantScope');
 const L = require('./lib/launchLedger');
 const PM_ERROR = require('./lib/permissionError');
@@ -2020,6 +2021,47 @@ function registerImplementRoutes(app, deps) {
       const summary = (await optionalRows(req, warehouseId, statements.summary))[0] || null;
       const edits = summary && summary.value_assumptions ? await optionalRows(req, warehouseId, statements.edits) : [];
       return res.json({ ...moneyView(summary, edits), result_table: table });
+    } catch (err) {
+      return sendError(res, err);
+    }
+  });
+
+  // REQ-427: both reads use the App's identity (REQ-418), so a person's own grants never change what a use case row shows. The asset flags
+  // come from the tracking table alone; the DBU total is its own read, so a slow or denied billing table never holds the flags back.
+  async function usecaseRows(req) {
+    const { catalog, schema } = dbOf(req, splitInspireDatabase);
+    return { rows: await appRecordOf(req, warehouseOf(req), catalog, schema, sessionIdOf(req), null), warehouseId: warehouseOf(req) };
+  }
+
+  app.get('/api/inspire/implement/usecase-assets', requireToken, async (req, res) => {
+    try {
+      const { rows } = await usecaseRows(req);
+      res.set('Cache-Control', 'no-store').json({ use_cases: UA.assetFlagsView(rows) });
+    } catch (err) {
+      sendError(res, err);
+    }
+  });
+
+  app.get('/api/inspire/implement/usecase-dbus', requireToken, async (req, res) => {
+    try {
+      const { rows, warehouseId } = await usecaseRows(req);
+      const statement = UA.dbuStatement(rows);
+      const none = (extra) => res.set('Cache-Control', 'no-store').json({ state: 'none', use_cases: UA.dbuView(rows, []), ...extra });
+      if (!statement) return none({ message: 'No billing id is recorded for these use cases yet.' });
+      const token = await appTokenOf(req);
+      let billing;
+      try {
+        billing = await sqlRows(req.dbHost, token, warehouseId, statement);
+      } catch (err) {
+        if (!I.isReadDenied(err && err.message) && !PM_ERROR.accessDenied(err)) throw err;
+        const builder = await loadBuilderPrincipal(req);
+        const principal = builder.applicationId || builder.userName || '';
+        const permission = PM.permissionRequired({ statements: UA.billingGrants(principal), principal, exact: true,
+          why: `The App reads ${UA.BILLING_TABLE} to total the DBUs of each use case, and it cannot read it yet.` });
+        return res.set('Cache-Control', 'no-store').json({ state: 'denied', use_cases: UA.dbuView(rows, []),
+          message: `DBUs need the App to read ${UA.BILLING_TABLE}.`, permissions: permission ? [permission] : [] });
+      }
+      return res.set('Cache-Control', 'no-store').json({ state: 'ok', use_cases: UA.dbuView(rows, billing) });
     } catch (err) {
       return sendError(res, err);
     }

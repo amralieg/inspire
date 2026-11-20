@@ -422,6 +422,21 @@ export default function ResultsPage({
     if (selectedSessionId) onSessionChange?.(String(selectedSessionId));
   }, [selectedSessionId, onSessionChange]);
 
+  // REQ-427: which assets each use case has (from the tracking rows) and its DBUs (a separate read, so the flags never wait on billing).
+  const [assetFlags, setAssetFlags] = useState(null);
+  const [dbuRead, setDbuRead] = useState(null);
+  useEffect(() => {
+    setAssetFlags(null);
+    setDbuRead(null);
+    if (!selectedSessionId || !inspireDb || !warehouseId) return undefined;
+    let cancelled = false;
+    const q = new URLSearchParams({ inspire_database: inspireDb, warehouse_id: warehouseId, session_id: String(selectedSessionId) });
+    apiFetch(`/api/inspire/implement/usecase-assets?${q}`).then((data) => { if (!cancelled) setAssetFlags(data.use_cases || {}); }).catch(() => {});
+    apiFetch(`/api/inspire/implement/usecase-dbus?${q}`).then((data) => { if (!cancelled) setDbuRead(data); })
+      .catch(() => { if (!cancelled) setDbuRead({ state: 'error', use_cases: {} }); });
+    return () => { cancelled = true; };
+  }, [selectedSessionId, inspireDb, warehouseId, apiFetch, implementRefresh]);
+
   const implementLatestById = useMemo(
     () => Object.fromEntries(implementView.latest.map((row) => [String(row.use_case_id), row])),
     [implementView.latest],
@@ -2457,6 +2472,9 @@ export default function ResultsPage({
                         onOpenMvp={onOpenImplement && tid && selectedSessionId ? () => onOpenImplement(String(selectedSessionId), tid) : undefined}
                         notebookUrl={workspaceNotebookUrl(databricksHost, uc.notebook_path || '')}
                         assetLinks={tid ? cardAssetLinks(implementLatestById[tid] || null) : []}
+                        assetUseCaseId={tid || ''}
+                        assetFlags={assetFlags && tid ? (assetFlags[tid] || {}) : null}
+                        dbuRead={dbuRead}
                         isArchived={isArchivedUc(uc)}
                         onToggleArchive={selectedSessionId && archiveKeyOf(selectedSessionId, uc) ? () => toggleArchive(archiveKeyOf(selectedSessionId, uc)) : undefined}
                         {...detailPropsFor(uc)}

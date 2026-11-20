@@ -55,6 +55,8 @@ export const NOT_IN_DEMO = {
   'GET /api/run/pages': 'the demo Run tab lists the MVP Apps the demo carries, never the deployed pages of this workspace',
   'GET /api/inspire/implement/feedback': 'the Build page lists the issues people reported from a deployed use case’s App outside the demo only; the demo is read only and hides the Reported issues panel',
   'GET /api/inspire/implement/diagnostics': 'the Build page offers Download diagnostics, Copy diagnostics and Report issue only outside the demo; the demo hides them because it is read only and has no build to report',
+  'GET /api/inspire/implement/usecase-assets': 'the Review list shows App, Dashboard, Lakebase and Genie per use case from the tracking table of a workspace run outside the demo only; the demo reads recorded files and has no tracking table',
+  'GET /api/inspire/implement/usecase-dbus': 'the Review list shows the DBUs of each use case from the billing table of this workspace outside the demo only; the demo has no billing rows',
   'GET /api/inspire/implement/runs': 'the Run tab and the Build page read the last runs of a deployed use case from its App outside the demo only; the demo is read only and shows its recorded MVP Apps',
   'GET /api/inspire/profiles': 'Get Started lists the business profiles saved on this workspace; Get Started is not a demo tab, so the demo sends no profile list read',
   'GET /api/inspire/profiles/:p': 'Get Started loads a saved profile, and Start offers Download profile only on a run linked to one; the demo is read only and its runs carry no profile link',

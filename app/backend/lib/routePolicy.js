@@ -183,6 +183,8 @@ const ROUTE_POLICY = {
   'GET /api/inspire/implement/status': tracked('read the build status of a use case'),
   'GET /api/inspire/implement/diagnostics': tracked('read the build diagnostics of a use case'),
   'GET /api/inspire/implement/money': tracked('read the cost of a build'),
+  'GET /api/inspire/implement/usecase-assets': tracked('read which assets each use case has'),
+  'GET /api/inspire/implement/usecase-dbus': tracked('read the DBUs each use case consumed'),
   'GET /api/inspire/implement/feedback': tracked('read the issues people reported in its App'),
   'GET /api/inspire/implement/live': tracked('read what a build runs now'),
   'GET /api/inspire/portfolio': tracked('read the portfolio of a database'),
