@@ -512,3 +512,31 @@ test('a list whose new search fails shows none of the records of the old list', 
   await page.getByText('The list could not load:').waitFor();
   assert.equal(await rowChecks(page), 0, 'a list of another search never shows the old records with their actions');
 });
+
+test('REQ-398: Mark done closes the record panel, its toast reads on at most two lines with Undo and Apply to similar, and Undo puts the record back and reopens the same panel', async () => {
+  const { routes } = routesFor({}, {
+    'records/similar': ({ json, url }) => json(200, { by: SIM_BY, count: 3, sample: [], match: SIM_MATCH(url.searchParams.get('record_key')) }),
+  });
+  const { page, seen, context } = await openList(routes, appInfo(DECIDE, 1, { ...TABLE, similar_by: ['category', 'region'] }));
+  await resizeTo(page, 1280, 800);
+  await page.locator('.cell-t').first().click();
+  const drawer = page.locator('dialog.drawer');
+  await drawer.locator('.dr-act').waitFor();
+  const title = await drawer.locator('.panel-h h2').innerText();
+  await drawer.getByRole('button', { name: 'Mark done' }).click();
+  await until(() => seen.acts?.length === 1);
+  await page.waitForFunction(() => [...document.querySelectorAll('.toast.is-on .toast-a button')].some((b) => /^Apply to \d+ similar$/.test(b.textContent)));
+  assert.equal(await page.locator('dialog.drawer[open]').count(), 0, 'Mark done closes the record panel');
+  assert.deepEqual(await toastButtons(page), ['Undo', 'Apply to 3 similar']);
+  const lines = await page.evaluate(() => {
+    const t = document.querySelector('.toast.is-on .toast-t');
+    return Math.round(t.getBoundingClientRect().height / parseFloat(getComputedStyle(t).lineHeight));
+  });
+  assert.ok(lines <= 2, `the toast reads on ${lines} lines`);
+  await page.locator('.toast-a').getByRole('button', { name: 'Undo' }).click();
+  await until(() => seen.undos?.length === 1);
+  await page.waitForFunction((t) => document.querySelector('dialog.drawer[open] .panel-h h2')?.textContent === t, title);
+  assert.equal(await page.locator('dialog.drawer[open] .dr-act').count(), 1, 'the reopened panel offers Mark done again');
+  assert.deepEqual(seen.errors, []);
+  await context.close();
+});

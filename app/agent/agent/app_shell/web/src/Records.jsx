@@ -109,25 +109,25 @@ function useAction(data, person, acts, label, choices) {
   const gate = useWrite();
   const saving = gate.busy;
   useEffect(() => { setForm(actionForm(current, person, choices)); setFailure(null); }, [current, person, choices]);
-  const send = async (values, said, key, action = 'update') => {
+  const send = async (values, said, key, action = 'update', reopen) => {
     if (!current || gate.busy) return null;
     setFailure(null);
     try {
       return await acts.act({ record_keys: [data.record_key], seen: { [data.record_key]: current.valid_from_us } }, values,
-        { said, about: { record_key: data.record_key, label }, key, action });
+        { said, about: { record_key: data.record_key, label }, key, action, reopen });
     } catch (err) {
       setFailure({ ...failureOf(err), stale: isStaleRecord(err) });
       return null;
     }
   };
-  const save = async (next, said, key) => {
+  const save = async (next, said, key, reopen) => {
     if (!current || actionProblem(next)) return null;
     const values = actionValues(current, next, choices);
     if (!Object.keys(values).length) {
       toast('Nothing changed');
       return null;
     }
-    return send(values, said, key);
+    return send(values, said, key, 'update', reopen);
   };
   return { form, setForm, failure, saving, slow: gate.slow, mine: gate.mine, save, send, choices };
 }
@@ -486,7 +486,8 @@ function Drawer({ meta, row: given, onClose, history, canModify, tracker, owners
                 if (statusKind(c.status) === 'dismissed') return <button key={c.id} {...shape} disabled={action.saving} onClick={() => dismiss(c)}>{face}</button>;
                 const write = closeWrite(c);
                 const finish = async () => {
-                  const saved = await action.save(pickChoice(action.form, choices, c.id), doneText({ action_status: c.status, [CHOICE_COLUMN]: c.id }, '', '', choices), write);
+                  const saved = await action.save(pickChoice(action.form, choices, c.id), doneText({ action_status: c.status, [CHOICE_COLUMN]: c.id }, '', '', choices), write,
+                    () => window.dispatchEvent(new CustomEvent(AGENT_OPEN, { detail: { pageId, recordKey: linkKey } })));
                   if (saved && statusKind(c.status) === 'done') onClose();
                 };
                 return (

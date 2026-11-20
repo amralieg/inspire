@@ -53,12 +53,13 @@ export function useActs({ pageId, similarBy, onActed, labelOf }) {
     }
   }, [pageId, onActed, toast]);
   // One write shape: every record write names its registry action; the server builds the values from it (shell_actions.py).
-  const write = async (body, values, { said, about, nameOf, action = 'update' } = {}) => {
+  const write = async (body, values, { said, about, nameOf, action = 'update', reopen } = {}) => {
     const out = await actRecords({ page: pageId, ...body, action, values });
     const outcome = actOutcome(out);
     if (outcome.batch) last.current = outcome.batch;
     setConflicts(outcome.conflicts ? outcome : null);
-    const undoing = outcome.batch ? [{ label: 'Undo', run: () => undo(outcome.batch) }] : [];
+    // REQ-398: a write that closed the record panel puts the panel back when it is undone.
+    const undoing = outcome.batch ? [{ label: 'Undo', run: async () => { if (await undo(outcome.batch) && reopen) reopen(); } }] : [];
     const text = withNotice(said && !outcome.conflicts && !outcome.leftOut ? said : actedText(outcome, values, nameOf), out);
     const one = about?.record_key ?? (body.record_keys?.length === 1 ? body.record_keys[0] : null);
     const mine = ++told.current;
