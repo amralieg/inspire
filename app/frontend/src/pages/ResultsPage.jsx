@@ -428,14 +428,15 @@ export default function ResultsPage({
   useEffect(() => {
     setAssetFlags(null);
     setDbuRead(null);
-    if (!selectedSessionId || !inspireDb || !warehouseId) return undefined;
+    // The demo has no tracking table and no billing rows (scripts/showcaseRoutes.mjs NOT_IN_DEMO), so it sends neither read.
+    if (!selectedSessionId || !inspireDb || !warehouseId || showcase) return undefined;
     let cancelled = false;
     const q = new URLSearchParams({ inspire_database: inspireDb, warehouse_id: warehouseId, session_id: String(selectedSessionId) });
     apiFetch(`/api/inspire/implement/usecase-assets?${q}`).then((data) => { if (!cancelled) setAssetFlags(data.use_cases || {}); }).catch(() => {});
     apiFetch(`/api/inspire/implement/usecase-dbus?${q}`).then((data) => { if (!cancelled) setDbuRead(data); })
       .catch(() => { if (!cancelled) setDbuRead({ state: 'error', use_cases: {} }); });
     return () => { cancelled = true; };
-  }, [selectedSessionId, inspireDb, warehouseId, apiFetch, implementRefresh]);
+  }, [selectedSessionId, inspireDb, warehouseId, apiFetch, implementRefresh, showcase]);
 
   const implementLatestById = useMemo(
     () => Object.fromEntries(implementView.latest.map((row) => [String(row.use_case_id), row])),
