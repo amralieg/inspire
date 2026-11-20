@@ -2,7 +2,7 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { APP_READS_LABEL } from '../../src/lib/implementWizard.js';
 import { STUDIO_STATE, built } from './implementFixtures.js';
-import { BUILD_IT, closeBrowser, closeOnLoadPermission, expandBuild, openUi, sqlStatementsOf, toSharedAccess, toSummary } from './uiSupport.mjs';
+import { BUILD_IT, POLICIED_SOURCE, closeBrowser, closeOnLoadPermission, expandBuild, openFolded, openUi, sqlStatementsOf, toAppAccess, toSharedAccess, toSummary } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -145,9 +145,15 @@ test('the wizard warns on Summary when Inspire cannot share a picked table with 
   ];
   const manages = [{ ...readsOnly[0], principal: 'inspire-sp', mine: 'true' }, ...readsOnly.slice(1, 3)];
   for (const [rows, shared, warned] of [[readsOnly, true, true], [manages, true, false], [readsOnly, false, false]]) {
-    const ui = await openUi('wizard', { accessBySchema: { s: rows } });
+    // REQ-418: the App reads as its service principal unless the person picks per-user on a policied source; only that App reads as each viewer.
+    const ui = await openUi('wizard', { accessBySchema: { s: rows }, ...(shared ? {} : { policies: POLICIED_SOURCE }) });
     try {
       if (shared) await toSharedAccess(ui.page);
+      else {
+        await toAppAccess(ui.page);
+        await openFolded(ui.page, 'Who sees which rows');
+        await ui.page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Sensitive data/ }).check();
+      }
       await toSummary(ui.page);
       await ui.page.waitForFunction((label) => [...document.querySelectorAll('button')].some((b) => b.textContent.trim() === label && !b.disabled), BUILD_IT, { timeout: 30000 });
       const note = ui.page.getByRole('note', { name: 'Data the new App cannot read' });

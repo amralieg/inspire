@@ -1,4 +1,3 @@
-const { createInstalledRuns } = require('../../lib/runAsRuns');
 const express = require('express');
 const { registerImplementRoutes } = require('../../implementRoutes');
 const { IMPLEMENT_COLUMNS, sampleCopyTable } = require('../../lib/inspireImplement');
@@ -78,7 +77,8 @@ function makeApp(overrides = {}, { mount } = {}) {
     ],
     others: 0,
     me: { userName: 'amr@x', displayName: 'Amr' },
-    warehousePermissions: { access_control_list: [{ user_name: 'amr@x', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] },
+    // REQ-418: the App reads and saves with the warehouse as its service principal, so that is the principal that holds CAN MANAGE.
+    warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] },
     ...overrides,
   };
   const app = express();
@@ -106,11 +106,14 @@ function makeApp(overrides = {}, { mount } = {}) {
           const got = await state.workspace({ token, path, method: String(opts.method || 'GET').toUpperCase(), body: opts.body ? JSON.parse(opts.body) : null });
           if (got !== undefined) return json(got[0], got[1] || 200);
         }
-        if (/^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)) {
+        if (/^\/api\/2\.1\/unity-catalog\/policies\/table\//i.test(path)) {
           const denied = typeof state.abacUnreadable === 'function' ? state.abacUnreadable(token)
             : state.abacUnreadable && (!state.abacUnreadableAppOnly || token === (state.dbToken || 'tok'));
-          return denied ? json({ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403)
-            : json({ policies: [] });
+          if (denied) return json({ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403);
+          // REQ-418: `policies` maps a table (lower case) to its policies, e.g. { 'main.s.orders': [{ policy_type: 'POLICY_TYPE_ROW_FILTER' }] }.
+          const policied = /^\/api\/2\.1\/unity-catalog\/policies\/table\/([^/?]+)/i.exec(path);
+          const listed = policied ? (state.policies || {})[decodeURIComponent(policied[1]).toLowerCase()] : null;
+          return json({ policies: listed || [] });
         }
         const ucTable = /^\/api\/2\.1\/unity-catalog\/tables\/([^/?]+)$/.exec(path);
         if (ucTable) {
@@ -124,7 +127,8 @@ function makeApp(overrides = {}, { mount } = {}) {
           const [data, status = 200] = state.responses[routed];
           return json(data, status);
         }
-        if (path.includes('/scim/v2/Me')) return json(state.me);
+        // REQ-418: the App's own token answers as the App's service principal; a person's token answers as the person.
+        if (path.includes('/scim/v2/Me')) return json(token === (state.dbToken || 'tok') ? (state.appMe || { applicationId: state.builtAppSp || 'app-sp-id', displayName: 'inspire-manual' }) : state.me, 200, state.orgId === undefined ? ORG_ID : state.orgId);
         if (path.startsWith('/api/2.0/permissions/sql/warehouses/')) {
           return json(state.warehousePermissions, state.warehousePermissionsStatus || 200);
         }
@@ -176,15 +180,12 @@ function makeApp(overrides = {}, { mount } = {}) {
         return json({ message: 'not mocked ' + path }, 500);
       }
 
-  // REQ-409: a run-as install (state.runAs) uses the same installed-run accessor as the server, over this harness's own dbFetch.
-  const installedRuns = state.runAs ? createInstalledRuns({ dbFetch: (h, t, p, o) => dbFetchImpl(h, t, p, o), appToken: async () => state.runAs.appToken,
-    runAs: () => true, env: state.runAs.env }) : undefined;
   registerImplementRoutes(app, {
-    ...(installedRuns ? { installedRuns } : {}),
     ...(state.buildStamp ? { buildStamp: () => state.buildStamp } : {}),
     requireToken: (req, _res, next) => {
       req.dbHost = 'https://workspace.example.com';
-      req.dbToken = state.dbToken || 'tok';
+      // state.dbToken '' is an App with no credential; unset is the harness App token.
+      req.dbToken = state.dbToken === undefined ? 'tok' : state.dbToken;
       if (state.tokenKind) req.dbTokenKind = state.tokenKind;
       next();
     },
@@ -477,10 +478,14 @@ function profileSummaryOf(row) {
   return { profile_id: row.profile_id, name: row.name, business_name: row.business_name, updated_by: row.updated_by, updated_at: row.updated_at };
 }
 
-function json(data, status = 200) {
+// The workspace id every Databricks response carries in x-databricks-org-id (REQ-427 scopes the billing read with it).
+const ORG_ID = '1234567890123456';
+
+function json(data, status = 200, orgId = ORG_ID) {
   return {
     ok: status >= 200 && status < 300,
     status,
+    headers: { get: (name) => (String(name).toLowerCase() === 'x-databricks-org-id' && orgId ? orgId : null) },
     text: async () => (typeof data === 'string' ? data : JSON.stringify(data)),
   };
 }
@@ -496,4 +501,4 @@ async function listen(app) {
   };
 }
 
-module.exports = { makeApp, json, listen, sqlResultToObjects };
+module.exports = { makeApp, json, listen, sqlResultToObjects, ORG_ID };

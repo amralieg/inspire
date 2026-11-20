@@ -31,7 +31,7 @@ function permissionFor(message, principal) {
   const warehouse = warehouseDeniedOf(message);
   if (warehouse) {
     return permissionRequired({ steps: [`In SQL Warehouses, open ${warehouse} > Permissions, add ${who} with Can Use`], principal: who,
-      why: `Inspire runs its queries on SQL warehouse ${warehouse} as you, and you cannot use it yet.` });
+      why: `Inspire runs its queries on SQL warehouse ${warehouse} as the App, and the App cannot use it yet.` });
   }
   const denied = deniedObjectOf(message);
   if (!denied) return null;

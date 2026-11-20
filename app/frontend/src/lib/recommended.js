@@ -139,10 +139,11 @@ export function bestAppPolicy(spec, targets, scope) {
   return affordable(order, appPolicyBlocks(spec, targets, scope), (id) => POLICY_REASONS[id](scope)).best;
 }
 
-export function bestAppAccess({ inside = false, personal = '' } = {}) {
-  if (inside) return pick('user', 'Inside Inspire, each viewer signs in as themselves.');
+// REQ-418 (D-SL-11): the App's service principal is the default for every placement, Inside Inspire included. Per-user is recommended only
+// when the source looks personal.
+export function bestAppAccess({ personal = '' } = {}) {
   return personal ? pick('user', `${personal} looks personal, so each person sees only their own rows.`)
-    : pick('user', 'Each person sees only the rows and values their own access allows.');
+    : pick('sp', 'The App reads with its own access, so everyone sees the same rows.');
 }
 
 export function bestAppBackend(spec, lakebase) {

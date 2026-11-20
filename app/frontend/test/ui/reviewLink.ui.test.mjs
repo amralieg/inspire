@@ -84,7 +84,7 @@ test('the back button after a handled review link returns to the run page withou
 test('a link to a run the Inspire Database does not have, or one the person cannot read, or with no run id, says which and lists the runs', async () => {
   const cases = [
     ['&review=999&uc=N01-U01', 'Inspire has no run 999 in the Inspire Database main.inspire. Here is every run.', 'error', '#/review/999'],
-    ['&review=77&uc=N01-U01', 'You cannot read run 77: your sign-in has no read access to the Inspire Database main.inspire. Ask your data owner for SELECT on it.', 'error', '#/review/77'],
+    ['&review=77&uc=N01-U01', 'The App cannot read run 77: it has no read access to the Inspire Database main.inspire. Ask your data owner for SELECT on it.', 'error', '#/review/77'],
     ['&review=abc&uc=N01-U01', 'That link names no run Inspire can open: abc is not a run id. Here is every run.', 'note', '#/review'],
     ['&review=&uc=N01-U01', 'That link names no run. Here is every run.', 'note', '#/review'],
   ];

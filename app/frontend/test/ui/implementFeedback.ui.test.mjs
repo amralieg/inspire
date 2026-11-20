@@ -93,7 +93,8 @@ test('reported issues that could not load read one plain sentence with the code 
     if (failing) throw new Error('[INSUFFICIENT_PERMISSIONS] User does not have SELECT on Table main.sales.orders_feedback');
     return rows(...args);
   };
-  const ui = await openBuild({ me: { userName: OWNER, displayName: 'Owner' }, ...state });
+  // The harness has no route policy, so a forwarded person would be named in a Permission Required dialog over the page; this case is about the plain sentence, so none is forwarded.
+  const ui = await openBuild({ me: { userName: OWNER, displayName: 'Owner' }, forwardedEmail: '', ...state });
   try {
     const panel = ui.page.getByRole('region', { name: 'Reported issues' });
     const error = panel.locator('[data-issues-error]');

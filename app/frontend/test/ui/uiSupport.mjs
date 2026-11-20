@@ -184,7 +184,8 @@ export async function dumpFor(page, reason) {
 
 export async function openUi(open, overrides = {}, query = '', { mount, init } = {}) {
   if (!browser) browser = await chromium.launch();
-  const made = makeApp({ useCase: HARNESS_USE_CASE, buildStamp: UNKNOWN_BUILD, ...overrides }, { mount });
+  // REQ-418: the Apps proxy forwards the signed-in person (x-forwarded-email); the harness forwards the same person as the overridden `me`.
+  const made = makeApp({ useCase: HARNESS_USE_CASE, buildStamp: UNKNOWN_BUILD, forwardedEmail: overrides.me?.userName, ...overrides }, { mount });
   const opened = [];
   let record = null;
   const close = async () => {
@@ -461,10 +462,17 @@ export async function toAppAccess(page) {
   await goToStep(page, 'App access');
 }
 
+// REQ-418: the App reads as its service principal (Internal data) by default. The access choice shows only for a policied source
+// (openUi({ policies })), so a test that only needs the shared default reaches the placement step and picks the choice only when it is shown.
 export async function toSharedAccess(page) {
-  await toAppAccess(page);
-  await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Internal data/ }).check();
+  await goToStep(page, 'App placement');
+  await page.getByText('Finding the Apps Inspire built').waitFor({ state: 'detached' });
+  const access = page.getByRole('region', { name: 'App access' });
+  if (await access.count()) await access.getByRole('radio', { name: /^Internal data/ }).check();
 }
+
+// The policies of the harness source tables (main.s.orders is row-filtered): the App's ABAC read returns them, so the access choice shows.
+export const POLICIED_SOURCE = { 'main.s.orders': [{ policy_type: 'POLICY_TYPE_ROW_FILTER' }] };
 
 export async function toVibes(page) {
   await nextUntil(page, 'Vibes');
@@ -480,6 +488,11 @@ const APP_FOLD = { 'App access': 'Who sees which rows', 'Who uses the App': 'Who
 export async function goToStep(page, part) {
   await goToStepOnScreen(page, part);
   if (APP_FOLD[part]) await openFolded(page, APP_FOLD[part]);
+  // REQ-418: after a first version (Add/Remove/Vibe) the identity choice sits under Advanced settings, closed until opened.
+  if (APP_FOLD[part] === 'Who sees which rows') {
+    const more = page.getByRole('button', { name: 'Change who sees which rows in the App', exact: true });
+    if (await more.count()) await more.click();
+  }
 }
 
 async function goToStepOnScreen(page, part) {

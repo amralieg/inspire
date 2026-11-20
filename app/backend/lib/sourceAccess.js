@@ -2,28 +2,28 @@ const I = require('./inspireImplement');
 const P = require('./requestPerson');
 const { parseExactJson } = require('./exactJson');
 const { redactSecrets } = require('./redact');
-const { runAsPerson } = require('./inspireJobParams');
 const { permissionRequired } = require('./permissions');
 
-const POLICY_PRIVILEGE_DENIED_RE = /does not have .+ on /i;
+// REQ-418: the ABAC policy read (the same read REQ-417 checks READ METADATA with) says whether a table has a row filter or a column mask.
+// Documented shape (Unity Catalog, "List policies"): { policies: [{ policy_type, row_filter, column_mask, ... }], next_page_token }, with
+// policy_type POLICY_TYPE_ROW_FILTER | POLICY_TYPE_COLUMN_MASK | POLICY_TYPE_DENY | POLICY_TYPE_GRANT. Only a row filter or column mask makes a
+// table policied; a deny or grant policy does not. Every page is read until next_page_token is absent.
+const ROW_OR_MASK_POLICY_TYPES = ['POLICY_TYPE_ROW_FILTER', 'POLICY_TYPE_COLUMN_MASK'];
+const POLICY_PAGE_CAP = 20;
 
-function policyPath(table) {
-  return `/api/2.1/unity-catalog/policies/table/${encodeURIComponent(table)}`;
+function policyIsRowOrMask(policy) {
+  const p = policy && typeof policy === 'object' ? policy : {};
+  return ROW_OR_MASK_POLICY_TYPES.includes(p.policy_type) || Boolean(p.row_filter) || Boolean(p.column_mask);
 }
 
-function policyDenialOf(status, body) {
-  return status === 403 && POLICY_PRIVILEGE_DENIED_RE.test(String(body || ''));
+function policyPath(table, pageToken = '') {
+  // include_inherited, like the build: a row filter or column mask set on the schema or catalog counts for the table.
+  const query = `?include_inherited=true${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`;
+  return `/api/2.1/unity-catalog/policies/table/${encodeURIComponent(table)}${query}`;
 }
+
 
 function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken = async () => '', logger = console }) {
-  const fallbackLogged = new Set();
-
-  function logFallback(table, status, detail) {
-    if (fallbackLogged.has(table)) return;
-    fallbackLogged.add(table);
-    logger.warn(`[SOURCE-ACCESS] the ABAC policies of ${table} could not be read with the person's sign-in (HTTP ${status}), so the App's own read decides: ${redactSecrets(String(detail || '')).slice(0, 300)}`);
-  }
-
   const sqlRows = async (host, token, warehouseId, statement) =>
     sqlResultToObjects(await executeSql(host, token, warehouseId, statement.sql, statement.parameters));
 
@@ -43,33 +43,32 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     .then(() => sqlRows(req.dbHost, token, warehouseId, I.outputAccessStatement(table)))
     .catch(() => []);
 
-  // Run-as-me: the App acts as the person, so its reads use the person's forwarded token (never an App token).
-  const appTokenOf = async (req) => (await appToken()) || (req.dbTokenKind === P.PERSON_TOKEN && !runAsPerson() ? '' : req.dbToken);
+  // REQ-418: the App's service principal token, the one every read uses. The request's own App-identity token stands in when no separate one is
+  // configured; a person's token never does.
+  const appTokenOf = async (req) => (await appToken()) || (req && req.dbTokenKind !== P.PERSON_TOKEN ? req.dbToken || '' : '');
 
-  async function abacUnreadable(req, app, table) {
+  // { unreadable, policied }: whether the App could read the table's ABAC policies, and whether the table has a row filter or column mask.
+  async function abacRead(req, app, table) {
     try {
-      const resp = await dbFetch(req.dbHost, app, policyPath(table));
-      if (resp.ok || resp.status === 404) return false;
-      const body = await resp.text().catch(() => '');
-      logger.warn(`[SOURCE-ACCESS] the App could not read the ABAC policies of ${table} (HTTP ${resp.status}): ${redactSecrets(body).slice(0, 300)}`);
-      return true;
+      let policied = false;
+      let token = '';
+      for (let page = 0; page < POLICY_PAGE_CAP; page += 1) {
+        const resp = await dbFetch(req.dbHost, app, policyPath(table, token));
+        if (resp.status === 404) return { unreadable: false, policied };
+        if (!resp.ok) {
+          const body = await resp.text().catch(() => '');
+          logger.warn(`[SOURCE-ACCESS] the App could not read the ABAC policies of ${table} (HTTP ${resp.status}): ${redactSecrets(body).slice(0, 300)}`);
+          return { unreadable: true, policied: false };
+        }
+        const body = parseExactJson((await resp.text()) || '{}');
+        if ((Array.isArray(body.policies) ? body.policies : []).some(policyIsRowOrMask)) policied = true;
+        token = String(body.next_page_token || '');
+        if (!token) break;
+      }
+      return { unreadable: false, policied };
     } catch (error) {
       logger.warn(`[SOURCE-ACCESS] the App could not read the ABAC policies of ${table}: ${redactSecrets(String((error && error.message) || error)).slice(0, 300)}`);
-      return true;
-    }
-  }
-
-  async function personAbacUnreadable(req, person, table) {
-    try {
-      const resp = await dbFetch(req.dbHost, person, policyPath(table));
-      if (resp.ok || resp.status === 404) return false;
-      const body = await resp.text().catch(() => '');
-      if (policyDenialOf(resp.status, body)) return true;
-      logFallback(table, resp.status, body);
-      return false;
-    } catch (error) {
-      logFallback(table, 0, (error && error.message) || error);
-      return false;
+      return { unreadable: true, policied: false };
     }
   }
 
@@ -78,72 +77,54 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
       text: 'Inspire cannot check what the App can read right now, so the build waits. Try again in a moment' };
   }
 
-  function noSignInOffer(tables, who) {
-    const count = tables.length === 1 ? 'a source table' : `${tables.length} source tables`;
-    const app = who.name && who.name !== who.id ? `${who.name} (application id ${who.id})` : `with application id ${who.id}`;
-    return { tables, app: { name: who.name, id: who.id }, grants: [], can_grant: false, builtin: [],
-      text: `The App service principal ${app} cannot read ${count}, so the build cannot check that its results keep the access rules. `
-        + 'Sign in and build again, or ask your data owner to grant the App read access' };
-  }
-
+  // REQ-418: what the App's service principal can read of the tables, and which of them carry a row filter or column mask. Every read is the
+  // App's own; a person's grants are never asked. The person's sign-in is used only to run a grant (grantSourceAccess, appReads).
   // REQ-408: `scope.wholeCatalogs` are the catalogs the run picked whole; the offer's dialog asks at catalog level for them.
   async function sourceAccess(req, warehouseId, tables, job = 'build', scope = {}) {
     const app = await appTokenOf(req);
-    if (!app) return { missing: [], app_unreadable: unverifiedOffer(tables) };
-    const person = P.personTokenOf(req);
-    // REQ-324: the probes and both policy checks are independent of each other, so they run together, not one after another.
-    const [probes, policyRows, personRows] = await Promise.all([
+    if (!app) return { missing: [], policied: [], app_unreadable: unverifiedOffer(tables) };
+    // REQ-324: the probes and the policy reads are independent of each other, so they run together, not one after another.
+    const [probes, reads] = await Promise.all([
       Promise.all(tables.map((table) => sqlRows(req.dbHost, app, warehouseId, I.tableProbeStatement(table))
         .then(() => null)
         .catch((err) => {
           const reason = I.tableAccessReason(table, err && err.message);
           return reason ? { table, reason, error: String(err.message || '').slice(0, 300) } : null;
         }))),
-      Promise.all(tables.map(async (t) => ((await abacUnreadable(req, app, t)) ? t : null))),
-      person && person !== app
-        ? Promise.all(tables.map(async (t) => ((await personAbacUnreadable(req, person, t)) ? t : null)))
-        : Promise.resolve([]),
+      Promise.all(tables.map((t) => abacRead(req, app, t))),
     ]);
     const lost = probes.filter(Boolean);
-    const policyLost = policyRows.filter(Boolean);
-    const personPolicyLost = personRows.filter(Boolean);
-    if (personPolicyLost.length) {
-      const label = (await appIdentity(req, person)).name;
-      const builtIn = personPolicyLost.filter((t) => I.builtInSampleTable(t));
-      const others = personPolicyLost.filter((t) => !builtIn.includes(t));
-      const text = [others.length ? I.abacUnreadableSentence(label) : '', builtIn.length ? I.builtInSampleMessage(builtIn) : ''].filter(Boolean).join('. ');
-      return { missing: lost, app_unreadable: { tables: personPolicyLost, app: { name: '', id: '' }, grants: [], can_grant: false,
-        builtin: builtIn, text } };
-    }
-    if (!lost.length && !policyLost.length) return { missing: [], app_unreadable: null };
-    if (!person || person === app) {
-      if (!policyLost.length) return { missing: lost, app_unreadable: null };
-      const who = await appIdentity(req, app);
-      return { missing: lost, app_unreadable: noSignInOffer(policyLost, who) };
-    }
-    const readable = await Promise.all(lost.map((m) => sqlRows(req.dbHost, person, warehouseId, I.tableProbeStatement(m.table))
-      .then(() => true).catch(() => false)));
-    const appOnly = [...lost.filter((_m, i) => readable[i]).map((m) => m.table), ...policyLost];
-    if (!appOnly.length) return { missing: lost, app_unreadable: null };
+    const policyLost = tables.filter((_t, i) => reads[i].unreadable);
+    const policied = tables.filter((_t, i) => reads[i].policied);
+    if (!lost.length && !policyLost.length) return { missing: [], policied, app_unreadable: null };
     const who = await appIdentity(req, app);
-    const builtIn = appOnly.filter((t) => I.builtInSampleTable(t));
-    const grantable = appOnly.filter((t) => !builtIn.includes(t));
-    const missing = lost.filter((m) => !appOnly.includes(m.table));
-    if (!grantable.length) {
-      return { missing, app_unreadable: { tables: builtIn, app: { name: who.name, id: who.id }, grants: [], can_grant: false,
-        builtin: builtIn, text: I.builtInSampleMessage(builtIn) } };
+    // A table that is gone is missing, never a grant the App lacks: only a read the App is denied can be offered (REQ-418).
+    const gone = lost.filter((m) => m.reason === 'not found');
+    const denied = lost.filter((m) => m.reason !== 'not found').map((m) => m.table);
+    const grantable = [...new Set([...denied, ...policyLost])];
+    const builtIn = grantable.filter((t) => I.builtInSampleTable(t));
+    const shareable = grantable.filter((t) => !builtIn.includes(t));
+    if (!shareable.length) {
+      // Only gone tables (and no denied read) leaves nothing for the App to be granted: no offer at all.
+      if (!builtIn.length) return { missing: gone, policied, app_unreadable: null };
+      return { missing: lost.filter((m) => !builtIn.includes(m.table)), policied, app_unreadable: { tables: builtIn, app: { name: who.name, id: who.id },
+        grants: [], can_grant: false, builtin: builtIn, text: I.builtInSampleMessage(builtIn) } };
     }
-    const rows = await Promise.all(grantable.map((t) => accessRowsOf(req, person, warehouseId, t)));
+    // The grant rows are read with the signed-in person's own sign-in when there is one: they say whether that person may grant (can_grant),
+    // which is the grant authority. The reads themselves stay the App's (REQ-418).
+    const grantRowsToken = P.forwardedTokenOf(req) || app;
+    const rows = await Promise.all(shareable.map((t) => accessRowsOf(req, grantRowsToken, warehouseId, t)));
     // The live policy refusal is the truth for READ METADATA: it is asked for even where the grant rows say it is held.
-    const offer = I.appReadGrantsOffer(grantable, grantable.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs: I.IMPLEMENT_SOURCE_NEEDS,
+    const offer = I.appReadGrantsOffer(shareable, shareable.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs: I.IMPLEMENT_SOURCE_NEEDS,
       refused: policyLost.includes(t) ? I.IMPLEMENT_ABAC_READ_NEEDS.map(([privilege]) => privilege) : [] })), who);
     const message = I.appUnreadableMessage(offer, job);
     // REQ-131, REQ-260: the exact GRANT statements travel as the Permission Required entry the App raises; the prose names the dialog
     const permissions = offer.grants.length ? [permissionRequired({ statements: offer.grants, principal: who.id, wholeCatalogs: scope.wholeCatalogs || [],
-      why: 'Inspire reads these source tables with your own access.' })] : [];
+      why: "Inspire reads these source tables with the App's service principal, the same for every person." })] : [];
     const opener = policyLost.length ? `${I.abacUnreadableSentence(who.name || who.id, { app: true })}. ${message.charAt(0).toUpperCase()}${message.slice(1)}` : message;
     const text = opener + (builtIn.length ? `. ${I.builtInSampleMessage(builtIn)}` : '');
-    return { missing, app_unreadable: { ...offer, permissions, builtin: builtIn, text } };
+    // A table the App cannot read that a grant can cover is an offer, not a missing table (REQ-418: the App's own read decides).
+    return { missing: lost.filter((m) => !shareable.includes(m.table)), policied, app_unreadable: { ...offer, permissions, builtin: builtIn, text } };
   }
 
   async function runPersonGrants(req, token, warehouseId, statements) {
@@ -178,8 +159,10 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     const before = await sourceAccess(req, warehouseId, tables, job, scope);
     const offer = before.app_unreadable;
     const abac = await abacGrantsOf(req, token, warehouseId, tables);
-    const readGrants = offer && offer.can_grant ? offer.grants : [];
-    const statements = [...new Set([...readGrants, ...abac.grants])];
+    // A person who cannot grant runs no grant: the offer names the owner (can_grant false), and so does the ABAC plan.
+    const mayGrant = !offer || offer.can_grant;
+    const readGrants = offer && mayGrant ? offer.grants : [];
+    const statements = [...new Set([...readGrants, ...(mayGrant ? abac.grants : [])])];
     if (!statements.length) {
       if (offer && !offer.can_grant) {
         const err = I.badRequest(offer.text, 403);
@@ -224,12 +207,11 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     if (record.objects) {
       // The App's own objects (its Data Filters views and reasons view): a user-authorization App reads them as each person who
       // may open it, a service-principal App as its live service principal. Both are the same derivation.
-      const rowsToken = record.mode === 'user' ? token : P.personTokenOf(req);
-      const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, rowsToken, warehouseId, t.table)));
+      const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, token, warehouseId, t.table)));
       const aliases = record.mode === 'user' ? await identityIdsOf(req, token, principals) : {};
       return I.appReadsLeftFor(record, principals, rows, aliases);
     }
-    const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, P.personTokenOf(req), warehouseId, t.table)));
+    const rows = await Promise.all(record.tables.map((t) => accessRowsOf(req, token, warehouseId, t.table)));
     const tables = record.tables.map((t) => t.table);
     return I.appReadsLeft(record, tables, tables.map((t, i) => I.accessPlan(t, rows[i], who.id, { needs: I.IMPLEMENT_SOURCE_NEEDS })), who.id);
   }
@@ -245,22 +227,23 @@ function createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken 
     return { id, name: String(app.service_principal_name || '') };
   }
 
+  // REQ-418: a built App on the service principal is read and granted for as that principal; a per-user App is read as each person, and a
+  // grant is always run with the signed-in person's own sign-in (the person who holds the right to grant it).
   async function appReads(req, warehouseId, record, grant) {
-    const person = P.personTokenOf(req);
-    // No service-token fallback: every read and grant here runs as the signed-in person, or it does not run.
-    if (!person) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);
-    const token = person;
+    const person = P.forwardedTokenOf(req);
     const user = record.mode === 'user';
-    const who = user ? null : await builtAppIdentity(req, token, record.app_name);
-    const principals = user ? await audienceOf(req, token, record.app_name) : [who.id];
+    const reader = user ? person : await appTokenOf(req);
+    if (!reader) throw I.badRequest(user ? I.IMPLEMENT_GRANT_NO_SIGN_IN : I.IMPLEMENT_APP_TOKEN_MISSING, 401);
+    const who = user ? null : await builtAppIdentity(req, reader, record.app_name);
+    const principals = user ? await audienceOf(req, reader, record.app_name) : [who.id];
     // A user-authorization App's audience is granted its App-owned views only, never a source table it reads directly.
     const grantable = (left) => (record.objects ? I.appReadsGrantableFor(left, principals, user ? record.views : null) : I.appReadsGrantable(left, who && who.id));
-    const before = await appReadsLeftOf(req, token, warehouseId, record, principals, who);
+    const before = await appReadsLeftOf(req, reader, warehouseId, record, principals, who);
     if (!grant) return { left: before, ran: [], failed: [], principals, app: who };
     if (!person) throw I.badRequest(I.IMPLEMENT_GRANT_NO_SIGN_IN, 401);
     const statements = grantable(before);
     const { ran, failed } = await runPersonGrants(req, person, warehouseId, statements);
-    return { left: ran.length ? await appReadsLeftOf(req, token, warehouseId, record, principals, who) : before, ran, failed, principals, app: who };
+    return { left: ran.length ? await appReadsLeftOf(req, reader, warehouseId, record, principals, who) : before, ran, failed, principals, app: who };
   }
 
   return { accessRowsOf, appIdentity, appReads, appTokenOf, grantSourceAccess, runPersonGrants, sourceAccess };

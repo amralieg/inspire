@@ -1,6 +1,6 @@
 const { joinSentences } = require('./sentences');
 const { appShellCatalog } = require('./appShell');
-const { IMPLEMENT_RUN_AS_PARAM, IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, resourceTagKey, useCaseNameTag, resourceTagValue, withInspireInstallParams } = require('./inspireJobParams');
+const { IMPLEMENT_RUN_ID_PARAM, parseMaybeJson, resourceTagKey, useCaseNameTag, resourceTagValue, withInspireInstallParams } = require('./inspireJobParams');
 const { parseExactJson } = require('./exactJson');
 const { permissionRequired } = require('./permissions');
 const { moneyRuleProblems, moneyRuleClean } = require('./moneyRule');
@@ -63,8 +63,8 @@ const INSPIRE_NOT_SETTINGS = ['result_table', 'model_name', 'ai_endpoint', 'as_o
 const INSPIRE_TIER_SETTINGS = { measured: ['act_now_amount', 'review_amount'], predicted: ['act_now_share', 'review_share'] };
 const INSPIRE_FAMILY_FLAGGING = { A: ['min_probability'], B: ['alert_quantile', 'max_alerts_per_run'], C: ['flag_segments'], D: ['min_score', 'items_per_entity'],
   E: ['min_deviation'], F: [], G: [], H: [] };
-const IMPLEMENT_SETTINGS_NO_SIGN_IN = 'Inspire reaches the App\u2019s settings with your own sign-in, and this request carries none, so they show here as built. '
-  + 'Open the App to change them.';
+const IMPLEMENT_SETTINGS_NO_SIGN_IN = 'Inspire cannot reach the App\u2019s settings: the App answers only a signed-in person, and this request carries no sign-in, '
+  + 'so they show here as built. Open the App to change them.';
 const IMPLEMENT_ALL_SETTINGS = 'all settings (Vibe/Add/Remove Features, then Open all settings)';
 const IMPLEMENT_SETTINGS_NO_APP = `This MVP has no App, so its settings change in ${IMPLEMENT_ALL_SETTINGS}, where the Settings step saves them without rebuilding the notebook.`;
 const IMPLEMENT_SETTINGS_NOT_APP_URL = 'The App\u2019s address is not a Databricks App address, so Inspire does not send your sign-in to it.';
@@ -109,10 +109,9 @@ const IMPLEMENT_APP_PLACEMENTS = ['domain', 'use_case', 'business', IMPLEMENT_AP
 const IMPLEMENT_APP_PLACEMENT_CHOICE = "choose how Inspire organizes Apps: 'domain' (one App per business domain), 'use_case' (one App per use case), "
   + "'business' (one App for all use cases) or 'inspire' (Inside Inspire, each use case's page in Inspire's Run tab; not recommended, only for testing)";
 const IMPLEMENT_APP_HOSTED_ERRORS = {
-  access: 'a page inside Inspire shows each viewer only the data they may read, so it always signs viewers in as themselves',
   backend: 'a page inside Inspire reads Delta tables; Lakebase needs an App of its own',
   merge: 'a page inside Inspire belongs to this use case alone, so it cannot be added to another App; leave outputs.merge.app empty',
-  warehouse: 'a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse each viewer reads with; each viewer needs CAN USE on it',
+  warehouse: 'a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse the App reads with; the App needs CAN MANAGE on it',
   inspire_url: 'outputs.inspire_url must be the https address of the Inspire App with nothing after its host, such as '
     + "https://inspire.example.com: every App page and dashboard links to its use case on Inspire's Review page",
 };
@@ -1154,7 +1153,6 @@ function inspireUrlOf(outputs, needed, errors) {
 
 function insideProblems(outputs, app, merge, warehouse) {
   const problems = [];
-  if (app.access === 'sp') problems.push(IMPLEMENT_APP_HOSTED_ERRORS.access);
   if (app.backend === 'lakebase') problems.push(IMPLEMENT_APP_HOSTED_ERRORS.backend);
   if (merge.app) problems.push(IMPLEMENT_APP_HOSTED_ERRORS.merge);
   if (!warehouse && textValue(outputs.app_warehouse_id) === '') problems.push(IMPLEMENT_APP_HOSTED_ERRORS.warehouse);
@@ -1619,7 +1617,7 @@ function mergeProblems(spec, targets, held = {}) {
     }
     if (str(held[name]) === id) continue;
     if (!target) {
-      problems.push(`${id} is not ${IMPLEMENT_MERGE_NOUNS[name]} Inspire built that you can open: pick one Inspire lists, or create a new one`);
+      problems.push(`${id} is not ${IMPLEMENT_MERGE_NOUNS[name]} Inspire built that Inspire can open: pick one Inspire lists, or create a new one`);
     } else if (name === 'app' && appMergeBlock(target, outputs.app_access)) {
       problems.push(appMergeBlock(target, outputs.app_access));
     }
@@ -2254,7 +2252,7 @@ function refuseUnchanged(plan) {
   }
 }
 
-function implementJobParams(baseParams, useCaseId, specVersion, inspireClientId = '', runAs = false) {
+function implementJobParams(baseParams, useCaseId, specVersion, inspireClientId = '') {
   return {
     ...baseParams,
     '15_operation': IMPLEMENT_OPERATION,
@@ -2262,7 +2260,6 @@ function implementJobParams(baseParams, useCaseId, specVersion, inspireClientId 
     [IMPLEMENT_USE_CASE_PARAM]: String(useCaseId),
     [IMPLEMENT_SPEC_VERSION_PARAM]: String(specVersion),
     [IMPLEMENT_INSPIRE_CLIENT_PARAM]: String(inspireClientId || ''),
-    [IMPLEMENT_RUN_AS_PARAM]: runAs ? '1' : '',
     [IMPLEMENT_RUN_ID_PARAM]: IMPLEMENT_RUN_ID_REFERENCE,
   };
 }
@@ -2536,7 +2533,7 @@ function groupReasonStatement(name, column, { filters = [], window = {} } = {}) 
 function groupEmptyReason(row, column) {
   const rowsRead = Number(row && row.rows_read) || 0;
   const withValue = Number(row && row.with_value) || 0;
-  if (!rowsRead) return 'The table has no rows you can read';
+  if (!rowsRead) return 'The table has no rows the App can read';
   if (!withValue) return `${column} is empty in all ${rowsRead.toLocaleString('en-US')} rows`;
   return '';
 }
@@ -2641,8 +2638,9 @@ function checkedSourceTables(spec, involved) {
   return uniqueTables([...picks.map((p) => p.chosen), ...swappedOut.map((p) => p.original)]);
 }
 
-const IMPLEMENT_TABLES_NO_SIGN_IN = 'Inspire reads the new tables with your own sign-in, and this request carries none, so it cannot tell whether the change rebuilds anything';
-const IMPLEMENT_SWAPS_NO_SIGN_IN = 'Inspire looks for similar tables with your own sign-in, and this request carries none, so it suggests none';
+const IMPLEMENT_TABLES_NO_SIGN_IN = 'Inspire reads the new tables as its App, and this request has no App credential, so it cannot tell whether the change rebuilds anything. '
+  + 'Reload the App and try again';
+const IMPLEMENT_SWAPS_NO_SIGN_IN = 'Inspire looks for similar tables as its App, and this request has no App credential, so it suggests none. Reload the App and try again';
 const IMPLEMENT_SWAPS_TOO_SLOW = 'The search for similar tables took too long. Use Search for another table to pick one.';
 
 const lowerName = (value) => str(value).trim().toLowerCase();
@@ -3107,7 +3105,8 @@ function schemaAccess(rows, t, options = {}) {
   const mine = list.filter((r) => r.mine === true || str(r.mine).toLowerCase() === 'true');
   const holds = (levels, privilege) => mine.some((r) => levels.includes(r.level)
     && ['OWNER', 'ALL PRIVILEGES', privilege].includes(privilegeOf(r.privilege)));
-  const access = { list, owner, mine, holds, identity: str((list[0] || {}).me), needs: [], creates: '' };
+  // REQ-418: the identity a build checks is the App's service principal, named by the caller; otherwise the rows' own identity.
+  const access = { list, owner, mine, holds, identity: str(options.identity || (list[0] || {}).me), needs: [], creates: '' };
   if (!owner('catalog')) return { ...access, missing: `catalog ${t.catalog} does not exist or you have no access to it` };
   const creates = !owner('schema') && options.createsSchema === true;
   if (!owner('schema') && !creates) {
@@ -3257,6 +3256,7 @@ const IMPLEMENT_BELOW_CATALOG_VIEWS = [
 ];
 
 const IMPLEMENT_GRANT_NO_SIGN_IN = 'Inspire grants with your own sign-in, and this request carries none, so it grants nothing';
+const IMPLEMENT_APP_TOKEN_MISSING = 'Inspire has no credential for its App to read with, so it reads nothing; reload the App and try again';
 const IMPLEMENT_GRANT_KINDS = ['new_apps', 'source_tables'];
 
 function belowCatalogStatement(catalog) {
@@ -3326,7 +3326,7 @@ function newAppsAccessText(catalog, decision, real) {
     return `Inspire did not grant USE CATALOG on ${catalog} to account users: they already hold ${joinAnd(more ? [...shown, `${more} more`] : shown)}, `
       + 'which USE CATALOG would open to every account user. Ask your data owner to grant MANAGE on it to Inspire, or to choose which of them to keep';
   }
-  return `you cannot grant on ${catalog}: you need to own it or hold MANAGE on it`;
+  return `Inspire cannot grant on ${catalog}: its owner or a MANAGE holder must grant it`;
 }
 
 function builtInSampleTable(name) {
@@ -3345,7 +3345,6 @@ function builtInSampleMessage(tables) {
     + `copy ${one ? 'the table' : 'each table'} into a catalog you own with CREATE TABLE ... AS SELECT, and use the ${one ? 'copy' : 'copies'}`;
 }
 
-const SAMPLE_COPY_NO_SIGN_IN = 'Inspire copies with your own sign-in, and this request carries none, so it copies nothing';
 
 function isBuiltInSampleEntry(name) {
   return BUILT_IN_SAMPLE_CATALOGS.includes(plainTable(name).split('.')[0]);
@@ -3474,8 +3473,9 @@ function appUnreadableMessage(offer, job = 'build') {
   const one = offer.tables.length === 1;
   const app = offer.app.name && offer.app.name !== offer.app.id ? `${offer.app.name} (application id ${offer.app.id})` : `with application id ${offer.app.id}`;
   const count = one ? 'a source table' : `${offer.tables.length} source tables`;
-  const head = `${words.who} cannot read ${count}: ${words.runs} as the App service principal ${app}, and you can read `
-    + `${one ? 'this table' : 'these tables'} but the App cannot`;
+  // REQ-418: the App's service principal reads for every person, so the message names the App's read, never the person's own access.
+  const head = `${words.who} cannot read ${count}: ${words.runs} as the App service principal ${app}, and the App cannot read `
+    + `${one ? 'this table' : 'these tables'}`;
   if (!offer.grants.length) return `${head}, and Inspire finds no missing grant to name: ask your data owner why the App cannot read ${one ? 'it' : 'them'}`;
   return `${head}. ${offer.can_grant ? words.grant : 'Ask your data owner to run the commands'}: the exact commands are in Permission Required`;
 }
@@ -3841,7 +3841,7 @@ function useCaseSchemaOwner(held, { inspireDatabase, useCaseId, sessionId }) {
 // REQ-131, REQ-260: the CREATE SCHEMA grant the own-schema fallback needs. The route carries it as the Permission Required entry; the prose names the dialog.
 function ownSchemaPermission(catalog, me) {
   return permissionRequired({ statements: [`GRANT CREATE SCHEMA ON CATALOG \`${catalog}\` TO \`${me}\``], // PERMISSION_DIALOG
-    principal: me, why: `Inspire cannot create the use case schema in ${catalog} with your sign-in.` });
+    principal: me, why: `The Inspire App cannot create the use case schema in ${catalog}, and the App creates it at the Results step.` });
 }
 
 function useCaseSchemaPlace({ inspireDatabase, useCaseId, sessionId, businessName, rows = null, unchecked = '' }) {
@@ -3872,7 +3872,7 @@ function useCaseSchemaPlace({ inspireDatabase, useCaseId, sessionId, businessNam
   const note = table === own ? '' : ownSchemaClashNote(tableParts(own).schema, of(own), tableParts(table).schema, who);
   if (rows != null && facts.canCreate) return { ...base, own_table: table, table, place: 'own', create: true, note };
   const why = unchecked
-    ? `Inspire could not check whether you can create schemas in ${base.catalog} (${unchecked}), so this use case's tables go to the Inspire database schema; pick Its own schema to try.`
+    ? `Inspire could not check whether the App can create schemas in ${base.catalog} (${unchecked}), so this use case's tables go to the Inspire database schema; pick Its own schema to try.`
     : ownSchemaFallbackNote(base.catalog, facts.me);
   const permission = facts.me ? ownSchemaPermission(base.catalog, facts.me) : null;
   return { ...base, own_table: table, table: fallback, place: 'inspire', create: false, note: joinSentences(note, why), permission };
@@ -4229,7 +4229,6 @@ module.exports = {
   schemaCreateStatement,
   sampleSchemaMessage,
   sampleCopyTakenMessage,
-  SAMPLE_COPY_NO_SIGN_IN,
   abacUnreadableSentence,
   ownerLabel,
   IMPLEMENT_TRAVERSE_PRIVILEGES,
@@ -4412,6 +4411,7 @@ module.exports = {
   appAccessMessage,
   appAccessPermission,
   IMPLEMENT_GRANT_NO_SIGN_IN,
+  IMPLEMENT_APP_TOKEN_MISSING,
   IMPLEMENT_GRANT_KINDS,
   IMPLEMENT_REAL_GRANTS_SHOWN,
   belowCatalogStatement,

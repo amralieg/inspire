@@ -29,12 +29,12 @@ test('context returns the use case, widgets and empty history', async () => {
   const { app } = makeApp();
   const srv = await listen(app);
   try {
-    const got = await call(srv.url, `/api/inspire/implement/context?${Q}`);
+    const got = await call(srv.url, `/api/inspire/implement/context?${Q}`, { headers: { 'x-forwarded-email': 'amr@x' } });
     assert.equal(got.status, 200);
     assert.equal(got.data.use_case.id, 'N01-U01');
     assert.equal(got.data.discovery_type, 'AI Enhanced Discovery', 'a stored Deep session reads back under the new name');
     assert.ok(got.data.widgets.some((w) => w.name === 'top_k'));
-    assert.equal(got.data.me.username, 'amr@x');
+    assert.equal(got.data.me.username, 'amr@x', 'the signed-in person is named for who-did-what');
   } finally {
     await srv.close();
   }
@@ -87,10 +87,10 @@ test('behind the Apps proxy the wizard and the spec row name the signed-in perso
     const context = await call(srv.url, `/api/inspire/implement/context?${Q}`, { headers });
     assert.deepEqual(context.data.me, { username: 'person@x.com', display_name: 'person@x.com', source: 'forwarded_headers' });
     const local = await call(srv.url, `/api/inspire/implement/context?${Q}`);
-    assert.deepEqual(local.data.me, { username: sp.userName, display_name: sp.displayName, source: 'request_token' },
-      'with no forwarded person and a token that is not the App\u2019s own, the token names who asks, as before');
+    assert.deepEqual(local.data.me, { username: '', display_name: '', source: 'service_principal', service_principal: 'inspire-manual' },
+      'with no forwarded person, Inspire names the App principal it runs as (REQ-418), never a person');
     const preflight = await call(srv.url, `/api/inspire/implement/preflight?${Q}&${OUT}`, { headers });
-    assert.equal(preflight.data.identity, 'amr@x');
+    assert.equal(preflight.data.identity, 'inspire-manual', 'the checks name the App principal they ran as');
     const got = await call(srv.url, '/api/inspire/implement/submit', {
       method: 'POST',
       headers,
@@ -105,7 +105,7 @@ test('behind the Apps proxy the wizard and the spec row name the signed-in perso
   await withApp({ me: sp, accessError: 'PERMISSION_DENIED: You do not have CAN_USE on warehouse wh1' }, async (url) => {
     const blocked = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}`, { headers });
     assert.equal(blocked.data.checks.warehouse.ok, false);
-    assert.equal(blocked.data.identity, sp.userName);
+    assert.equal(blocked.data.identity, 'inspire-manual');
   });
 });
 
@@ -611,7 +611,7 @@ test('in the App the output check names the identity Inspire builds as, not the 
     const got = await call(url, CHECK);
     assert.equal(got.data.ok, false);
     assert.equal(got.data.write.detail,
-      'sp-1234, the identity Inspire builds as, needs USE SCHEMA on main.inspire and CREATE TABLE on main.inspire to create main.inspire.churn_out');
+      'inspire-manual, the identity Inspire builds as, needs USE SCHEMA on main.inspire and CREATE TABLE on main.inspire to create main.inspire.churn_out');
   });
 });
 
@@ -620,14 +620,14 @@ test('the output check passes a new table the user can create and names what is 
     const got = await call(url, CHECK);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.ok, true);
-    assert.equal(got.data.identity, 'amr@x');
-    assert.deepEqual(got.data.write, { ok: true, detail: 'you can create main.inspire.churn_out' });
-    assert.deepEqual(got.data.safety, { ok: true, detail: 'main.inspire.churn_out is new; the First run creates it' });
+    assert.equal(got.data.identity, 'inspire-manual');
+    assert.deepEqual(got.data.write, { ok: true, detail: 'inspire-manual, the identity Inspire builds as, can create main.inspire.churn_out' });
+    assert.deepEqual(got.data.safety, { ok: true, warn: true, detail: 'main.inspire.churn_out is new; the First run creates it' });
   });
   await withApp({ access: NOT_MINE_SCHEMA }, async (url, made) => {
     const got = await call(url, CHECK);
     assert.equal(got.data.ok, false);
-    assert.equal(got.data.write.detail, 'you need USE SCHEMA on main.inspire and CREATE TABLE on main.inspire to create main.inspire.churn_out');
+    assert.equal(got.data.write.detail, 'inspire-manual, the identity Inspire builds as, needs USE SCHEMA on main.inspire and CREATE TABLE on main.inspire to create main.inspire.churn_out');
     assert.ok(!made.sqlCalls.some((c) => String(c.sql).includes('COUNT_IF')), 'no row count when the user cannot write');
   });
   await withApp({}, async (url) => {
@@ -819,7 +819,7 @@ test('a use case that trains a model is checked for CREATE MODEL where its model
     const got = await call(url, CHECK);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual([got.data.ok, got.data.write.ok, got.data.safety.ok], [false, true, true]);
-    assert.deepEqual(got.data.model, { ok: false, detail: 'you need CREATE MODEL on main.inspire to register the model main.inspire.churn_out_model' });
+    assert.deepEqual(got.data.model, { ok: false, detail: 'inspire-manual, the identity Inspire builds as, needs CREATE MODEL on main.inspire to register the model main.inspire.churn_out_model' });
     const pre = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}`);
     assert.equal(pre.data.ok, false);
     assert.equal(pre.data.checks.output.ok, true);
@@ -827,7 +827,7 @@ test('a use case that trains a model is checked for CREATE MODEL where its model
   });
   await withApp({ useCase: TRAINS }, async (url, made) => {
     const got = await call(url, CHECK);
-    assert.deepEqual([got.data.ok, got.data.model], [true, { ok: true, detail: 'you can register the model main.inspire.churn_out_model' }]);
+    assert.deepEqual([got.data.ok, got.data.model], [true, { ok: true, detail: 'inspire-manual, the identity Inspire builds as, can register the model main.inspire.churn_out_model' }]);
     assert.equal(made.sqlCalls.filter((c) => String(c.sql).includes('system.information_schema.catalogs')).length, 1);
   });
   await withApp({ access: WRITES_NO_MODEL }, async (url) => {
@@ -847,7 +847,7 @@ test('a model name set in another schema is checked in that schema, not next to 
   await withApp({ useCase: TRAINS, access: owner, accessBySchema: { models: WRITES_NO_MODEL } }, async (url, made) => {
     const got = await call(url, `${CHECK}&model_name=main.models.churn`);
     assert.deepEqual([got.data.ok, got.data.write.ok], [false, true]);
-    assert.equal(got.data.model.detail, 'you need CREATE MODEL on main.models to register the model main.models.churn');
+    assert.equal(got.data.model.detail, 'inspire-manual, the identity Inspire builds as, needs CREATE MODEL on main.models to register the model main.models.churn');
     const asked = made.sqlCalls.filter((c) => String(c.sql).includes('system.information_schema.catalogs'))
       .map((c) => c.parameters.find((p) => p.name === 's').value).sort();
     assert.deepEqual(asked, ['inspire', 'models']);
@@ -866,7 +866,7 @@ test('preflight checks the grant only when sharing, and names a warehouse that c
     const shared = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&share=1`);
     assert.equal(shared.data.ok, true, 'a share the person cannot make does not stop the build');
     assert.equal(shared.data.checks.output.ok, true);
-    assert.match(shared.data.checks.result_grant.detail, /you cannot share main.inspire.churn_out/);
+    assert.match(shared.data.checks.result_grant.detail, /cannot share main.inspire.churn_out/);
     assert.equal(shared.data.checks.result_grant.warn, 'Build still runs, without the sharing. Share the result table once you can.');
     const solo = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}`);
     assert.equal(solo.data.ok, true, JSON.stringify(solo.data));
@@ -899,7 +899,8 @@ test('preflight refuses an App name used by another App, updates this use case\'
     assert.ok(!made.fetches.some((f) => f.path.includes('/api/2.0/apps?page_size=100')), 'no quota count for an App that exists');
   });
   const many = { apps: Array.from({ length: 163 }, (_, i) => ({ name: `app-${i}` })) };
-  await withApp({ appsList: many }, async (url, made) => {
+  const appManages = { access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] };
+  await withApp({ appsList: many, warehousePermissions: appManages }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/preflight?${Q}&${OUT}&app_name=churn-desk`);
     assert.equal(got.data.checks.app_name.ok, true);
     assert.deepEqual(got.data.checks.apps, { ok: true, detail: 'Inspire creates a new App; if Databricks has no room for it, the build stops with the reason Databricks gives' });
@@ -949,6 +950,7 @@ const SP_INSTALL = [SP_ROW('catalog', 'OWNER', 'amr@x', false), SP_ROW('schema',
   SP_ROW('table', 'OWNER', 'inspire-sp', true), SP_ROW('catalog', 'USE_CATALOG', 'inspire-sp', true),
   SP_ROW('schema', 'USE_SCHEMA', 'inspire-sp', true), SP_ROW('schema', 'CREATE_TABLE', 'inspire-sp', true)];
 const SP_STATE = {
+  appMe: { applicationId: 'inspire-sp', displayName: 'inspire-sp' },
   access: SP_INSTALL,
   columns: KEY_COLUMNS,
   others: 0,
@@ -1038,7 +1040,7 @@ test('submit refuses an output table the user cannot create, and a widget value 
       method: 'POST', body: { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', spec: SPEC },
     });
     assert.equal(got.status, 403);
-    assert.match(got.data.error, /you need USE SCHEMA on main.inspire and CREATE TABLE on main.inspire/);
+    assert.match(got.data.error, /inspire-manual, the identity Inspire builds as, needs USE SCHEMA on main.inspire and CREATE TABLE on main.inspire/);
     assert.equal(made.jobs.length, 0);
     assert.ok(!made.sqlCalls.some((c) => String(c.sql).includes('INSERT INTO')));
   });
@@ -1267,7 +1269,10 @@ test('an Implement page re-run runs without a dropped secondary table and refuse
   await withApp({ history: [BUILT()], useCase: TWO_TABLES, probeErrors: { '`main`.`s`.`orders`': denied } }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
     assert.equal(got.status, 409);
-    assert.deepEqual(got.data.missing_tables.map((m) => [m.table, m.reason]), [['main.s.orders', 'no read access']]);
+    // REQ-418: a read the App is denied is a grant the App can be given (Permission Required), not a missing table.
+    assert.deepEqual(got.data.missing_tables, [], 'a denied read is not a missing table');
+    assert.deepEqual(got.data.app_unreadable.tables, ['main.s.orders']);
+    assert.match(got.data.error, /^the build cannot read a source table: builds run as the App service principal inspire-manual .*and the App cannot read this table/);
     assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
   });
 });
@@ -1582,16 +1587,55 @@ test('a Stop whose control-log record cannot be written is refused and never can
     implement_run_id: '5555555555555555', updated_at: new Date().toISOString() }];
   const cancelPath = '/api/2.1/jobs/runs/cancel';
   const stopUrl = `/api/inspire/implement/control?${Q}&asset=build&action=cancel`;
-  await withApp({ history: history(), sqlErrors: { 'INSERT INTO `main`.`inspire`.`__inspire_control_log`': 'write refused' } }, async (url, made) => {
+  await withApp({ history: history(), forwardedEmail: 'amr@x', sqlErrors: { 'INSERT INTO `main`.`inspire`.`__inspire_control_log`': 'write refused' } }, async (url, made) => {
     const got = await call(url, stopUrl, { method: 'POST', body: {} });
     assert.notEqual(got.status, 200, JSON.stringify(got.data));
     assert.match(got.data.error || got.data.message || '', /could not record who stopped it/);
     assert.equal(made.fetches.some((f) => f.path.startsWith(cancelPath)), false, 'no cancel is sent when the record is not written');
   });
   // The same Stop with a writable log cancels the run, so the refusal above is the only thing that stopped it.
-  await withApp({ history: history(), responses: { [`POST ${cancelPath}`]: [{}] } }, async (url, made) => {
+  await withApp({ history: history(), forwardedEmail: 'amr@x', responses: { [`POST ${cancelPath}`]: [{}] } }, async (url, made) => {
     const got = await call(url, stopUrl, { method: 'POST', body: {} });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(made.fetches.some((f) => f.path.startsWith(cancelPath)), true, 'with a writable log the cancel is sent');
+  });
+});
+
+// REQ-418: a Stop records who stopped it in the App's log, so a Stop with no signed-in person is refused before anything is written or cancelled.
+test('a Stop with no signed-in person is refused before the record is written and never cancels the run (REQ-418)', async () => {
+  const history = [{ session_id: '42', spec_version: 1, status: 'filling', spec_json: SPEC, use_case_id: 'N01-U01',
+    implement_run_id: '5555555555555555', updated_at: new Date().toISOString() }];
+  await withApp({ history }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/control?${Q}&asset=build&action=cancel`, { method: 'POST', body: {} });
+    assert.equal(got.status, 409, JSON.stringify(got.data));
+    assert.match(got.data.error, /Inspire cannot tell who is stopping it/);
+    assert.equal(made.sqlCalls.some((c) => /INSERT INTO/.test(String(c.sql))), false, 'no control-log row is written');
+    assert.equal(made.fetches.some((f) => f.path.startsWith('/api/2.1/jobs/runs/cancel')), false, 'no cancel is sent');
+  });
+});
+
+// REQ-418 (D-SL-10B): a Genie start is a run the App starts: its job is created and run with the App token, and the person's token never starts it.
+test('a Genie start runs as the App: its job is started with the App token and the person token never starts it (REQ-418)', async () => {
+  await withApp({ forwardedToken: 'person-token' }, async (url, made) => {
+    const got = await call(url, '/api/inspire/generate-genie', { method: 'POST', body: { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', use_case_ids: ['N01-U01'] } });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(made.jobs.length, 1, 'the Genie job is started');
+    assert.equal(made.flagged.length, 1, 'the use case is flagged for Genie Code');
+    // The only person-token call is the identity read that records who asked (who-did-what); no job, table or SQL call uses it.
+    assert.deepEqual(made.fetches.filter((f) => f.token === 'person-token').map((f) => f.path), ['/api/2.0/preview/scim/v2/Me']);
+    assert.equal(made.sqlCalls.some((c) => c.token === 'person-token'), false, 'no SQL runs with the person token');
+  });
+});
+
+// REQ-405 (REQ-418): a build that needs Genie Code is refused before its job exists when the App has no chat model it can query, and the
+// context says so.
+test('a build that needs Genie Code is refused before any job exists when the App can query no chat model (REQ-405, REQ-418)', async () => {
+  await withApp({ gateway: { codex: [], claude: [], answer: () => [{ error_code: 'RESOURCE_DOES_NOT_EXIST', message: 'no such model' }, 404] } }, async (url, made) => {
+    const context = await call(url, `/api/inspire/implement/context?${Q}`);
+    assert.equal(context.data.features.genie_code.available, false, 'the context reports Genie Code unavailable');
+    const submit = await call(url, '/api/inspire/implement/submit', { method: 'POST',
+      body: { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42', spec: SPEC } });
+    assert.equal(submit.status, 409, JSON.stringify(submit.data));
+    assert.equal(made.jobs.length, 0, 'no job is created');
   });
 });

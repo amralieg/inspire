@@ -151,7 +151,7 @@ export function reviewLinkText(link, inspireDatabase, outcome) {
     return shown ? `That link names no run Inspire can open: ${shown} is not a run id. Here is every run.` : 'That link names no run. Here is every run.';
   }
   if (outcome === 'missing') return `Inspire has no run ${link.sessionId} in ${where}. Here is every run.`;
-  if (outcome === 'denied') return `You cannot read run ${link.sessionId}: your sign-in has no read access to ${where}. Ask your data owner for SELECT on it.`;
+  if (outcome === 'denied') return `The App cannot read run ${link.sessionId}: it has no read access to ${where}. Ask your data owner for SELECT on it.`;
   if (outcome === 'no_use_case') return `Run ${link.sessionId} has no use case ${String(link.useCaseId).slice(0, 80)}, so Review shows every use case of the run.`;
   return '';
 }

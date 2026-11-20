@@ -20,8 +20,8 @@ SCAN_PROGRESS_STEPS = 10
 SCAN_SHOWN = 10
 NEW_APPS_ACCOUNT_USERS = "account users"
 INSPIRE_SCHEMA_OFF = ""
-SCHEMA_MODE_CATALOG_NOTE = ("catalog-level grants are skipped in schema mode: BROWSE, CREATE SCHEMA on the catalog, USE CATALOG for the App "
-                            "(checked, not granted), the data catalogs and NEW_APPS_CATALOG_ACCESS; the App's principal gets no grant at all")
+SCHEMA_MODE_CATALOG_NOTE = ("catalog-level grants (USE CATALOG, BROWSE) are asked once for the App's service principal, because the "
+                            "catalog owner gives them; the schema-level grants run with your sign-in")
 NEW_APPS_OFF = "off"
 SYSTEM_SCHEMA = "information_schema"
 BELOW_CATALOG_VIEWS = (("schema", "schema_privileges", "schema_name", "schema_name"),
@@ -612,11 +612,12 @@ GENIE_CODE_CONSTANTS = ("UNITY_GATEWAY_CODEX_PATH", "UNITY_GATEWAY_ANTHROPIC_PAT
                         "GENIE_CODE_MODEL_CHECK", "GENIE_CODE_ADMIN_FIX", "GENIE_CODE_UNFIT_MODEL_PATTERN")
 GENIE_CODE_CHECK_TIMEOUT_S = 10
 GENIE_CODE_CODEX_PROBES = 3
-# "unity-catalog" is not an App user scope: the workspace refuses it ("The specified scope unity-catalog ..."), which drops every
+# REQ-418: data is read and written as the App's service principal, so the App's user token only sends what a person does as themselves:
+# "apps" (who manages the App), "catalog.catalogs:read" and "sql" (a Request for Access, a schema a person creates, a grant they run) and
+# "workspace.workspace" (sharing the person's own output folder with the App). "unity-catalog" is not an App user scope: the workspace refuses it ("The specified scope unity-catalog ..."), which drops every
 # user scope and installs Inspire without user authorization. Request for Access runs with the scopes the App has and falls back to
 # the copyable SQL when the token cannot send the request (REQ-311/313).
-INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "catalog.schemas:read", "catalog.tables:read", "files", "model-serving", "sql",
-                          "workspace.workspace")
+INSPIRE_APP_OWN_SCOPES = ("apps", "catalog.catalogs:read", "sql", "workspace.workspace")
 USER_SCOPES_REFUSED = ("Inspire was installed without user authorization, so it lists no catalogs, schemas or tables, starts no run "
                        "and the Run tab cannot show pages Inside Inspire, because it reads them only with each person's own sign-in: {why}. "
                        "A workspace admin allows the scopes {scopes} for Apps, then runs this installer again.")
@@ -937,9 +938,6 @@ def build_runtime_context(env):
         raise ValueError(f"App name {app_name!r} must be 2-30 lowercase letters, digits or hyphens")
     sp_name = f"{app_name}-sp"
     folders = install_folders(user_email, app_name, bool(schema_pair))
-    if bool(env.get("run_as_person", False)) and not schema_pair:
-        raise ValueError(RUN_AS_NEEDS_SCHEMA)
-    run_as = bool(schema_pair)  # REQ-113: schema mode is run-as-me, so the App acts as the signed-in person and the App's principal gets nothing
 
     print(f"Selected warehouse: {warehouse_name} ({warehouse_id})")
     print(f"Selected catalog:   {catalog}  →  {inspire_db}")
@@ -1009,7 +1007,6 @@ def build_runtime_context(env):
         "RELEASE_TAG": release_tag,
         "SOURCE_ZIP": source_zip,
         "SCHEMA_MODE": bool(schema_pair),
-        "RUN_AS_PERSON": run_as,
         "ASSETS_PARENT": folders["ASSETS_PARENT"],
         "APP_FOLDER": folders["APP_FOLDER"],
         "BUNDLE_ROOT": f"{folders['APPS_PARENT']}/{app_name}",
@@ -1212,103 +1209,6 @@ def _deploy_once(api, api_get, app_name, source_folder, app_url):
     raise RuntimeError(f"The App {app_name} was still deploying after 5 minutes. Check Compute → Apps → {app_name}, then run the installer again.")
 
 
-RUN_AS_SPEC = "installer/run_as_job_specs.json"  # written by app/scripts/emit-run-as-job-specs.js from the App's own job builders
-RUN_AS_JOBS = (  # (App variable that holds the id, job name, spec section)
-    ("INSPIRE_JOB_ID_DISCOVER", "Inspire AI - discovery", "single_task"),
-    ("INSPIRE_JOB_ID_IMPLEMENT", "Inspire AI - implement", "single_task"),
-    ("INSPIRE_JOB_ID_GENIE", "Inspire AI - genie code", "single_task"),
-    ("INSPIRE_JOB_ID_DEMO", "Inspire AI - demo pipeline", "demo_pipeline"),
-)
-RUN_AS_TAG_NOTE = ("[RUN-AS] per-use-case job tags are not applied in run-as mode; usage is attributed to the shared job {name}")
-RUN_AS_NEEDS_SCHEMA = ("RUN_AS_PERSON needs INSPIRE_SCHEMA: run-as-me installs into one schema the person owns, so set "
-                       "INSPIRE_SCHEMA to catalog.schema and run the installer again.")
-TEST_TAG_JOB_KEY = "dbx_inspire_ai_test"  # INSPIRE_TEST_TAG in app/backend/lib/inspireJobParams.js
-TEST_TAG_SAFE = re.compile(r"[A-Za-z0-9+=.:@_-]{1,256}")
-
-
-def _fill(value, marks):
-    if isinstance(value, dict):
-        return {key: _fill(item, marks) for key, item in value.items()}
-    if isinstance(value, list):
-        return [_fill(item, marks) for item in value]
-    if isinstance(value, str):
-        for mark, text in marks.items():
-            value = value.replace(mark, text)
-    return value
-
-
-def run_as_job_settings(spec, section, name, person, notebook, generate_notebook, test_tag=""):
-    """One install-time job from the shared spec: run_as is the person, notebook marks are filled, the test tag is set when given."""
-    template = spec[section]
-    settings = _fill({key: value for key, value in template.items() if key != "parameters"},
-                     {"{{notebook.inspire}}": notebook, "{{notebook.generate}}": generate_notebook})
-    if "parameters" in template:
-        settings["parameters"] = template["parameters"]
-    settings["name"] = name
-    # Jobs API reference, Create a job, field run_as: the job runs as this identity whoever triggers a run.
-    settings["run_as"] = {"user_name": person}
-    if test_tag:
-        settings["tags"] = {TEST_TAG_JOB_KEY: test_tag}
-    return settings
-
-
-def _load_run_as_spec(ctx):
-    path = os.path.join(ctx["SOURCE_FOLDER"], RUN_AS_SPEC)
-    if not os.path.isfile(path):
-        raise RuntimeError(f"The run-as job spec {RUN_AS_SPEC} is missing from the App bundle, so the jobs cannot be made. "
-                           "Download the release again.")
-    with open(path, encoding="utf-8") as handle:
-        return json.load(handle)
-
-
-def _run_job_access(api, sp, job_ids):
-    """Run-as-me: the App's service principal may start each installed job with run-now and see its runs; it owns none."""
-    for env_name, job_id in job_ids.items():
-        resp = api("PATCH", f"/api/2.0/permissions/jobs/{job_id}",
-                   {"access_control_list": [{"service_principal_name": sp, "permission_level": "CAN_MANAGE_RUN"}]})
-        if resp.status_code != 200:
-            raise RuntimeError(f"{sp} could not be given CAN_MANAGE_RUN on the job {job_id} ({resp.status_code} {resp.text[:160]}). "
-                               "Inspire stopped before it deploys the new App version, so the App keeps its last working version.")
-        print(f"  CAN_MANAGE_RUN on the job {job_id} ({env_name}) for {sp}: ✅")
-
-
-def step_run_as_jobs(ctx):
-    """Run-as-me: create or reset each App job as the person, and record its id for app.yaml and the App's SP grant."""
-    if not ctx.get("RUN_AS_PERSON"):
-        return
-    if not ctx.get("SCHEMA_MODE"):
-        raise RuntimeError(RUN_AS_NEEDS_SCHEMA)
-    api, api_get, person = ctx["api"], ctx["api_get"], ctx["USER_EMAIL"]
-    spec = _load_run_as_spec(ctx)
-    test_tag = str(ctx.get("TEST_TAG") or "")
-    if test_tag and not TEST_TAG_SAFE.fullmatch(test_tag):
-        raise RuntimeError(f"The test tag {test_tag[:60]!r} has characters a job tag cannot hold. Use letters, digits and + = . : @ _ -.")
-    generate = ctx["GENERATE_DEMO_DEST"]
-    ids = {}
-    for env_name, name, section in RUN_AS_JOBS:
-        settings = run_as_job_settings(spec, section, name, person, ctx["NOTEBOOK_PATH"], generate, test_tag)
-        listed = api_get(f"/api/2.1/jobs/list?name={urllib.parse.quote(name)}&limit=100")
-        existing = [job for job in listed.get("jobs") or [] if (job.get("settings") or {}).get("name") == name
-                    and ((job.get("settings") or {}).get("run_as") or {}).get("user_name") == person]
-        if existing:
-            job_id = str(existing[0]["job_id"])
-            resp = api("POST", "/api/2.1/jobs/reset", {"job_id": int(job_id), "new_settings": settings})
-            verb = "updated"
-        else:
-            resp = api("POST", "/api/2.1/jobs/create", settings)
-            verb = "created"
-            if resp.status_code == 200:
-                job_id = str(resp.json()["job_id"])
-        if resp.status_code != 200:
-            raise RuntimeError(f"The job {name} could not be {verb} as {person} ({resp.status_code} {resp.text[:160]}). "
-                               "Nothing of the App was replaced; fix the job rights, then run this installer again.")
-        ids[env_name] = job_id
-        print(f"Job {name} {verb} as {person}: {job_id} (App env {env_name}) ✅")
-    ctx["JOB_IDS"] = ids
-    ctx["APP_EXTRA_ENV"] = {"INSPIRE_RUN_AS_PERSON": "1", **ids}
-    print(RUN_AS_TAG_NOTE.format(name=RUN_AS_JOBS[1][1]))
-
-
 def step_create_app_and_find_sp(ctx):
     api = ctx["api"]
     api_get = ctx["api_get"]
@@ -1334,7 +1234,7 @@ def step_create_app_and_find_sp(ctx):
     data_env = {**installer_data_catalog_env(ctx.get("DATA_CATALOGS"), ctx.get("DATA_ALL_PICKED", False)),
                 **granted_catalog_env(ctx.get("DATA_CATALOGS"), catalog)}
     wanted_yaml = write_app_yaml_deploy(app_yaml_path, inspire_db, warehouse_id, notebook_path, sp_name, ctx.get("ASSETS_PATH"),
-                                        ctx.get("TEST_TAG"), {**(ctx.get("APP_EXTRA_ENV") or {}), **release_env, **data_env} or None)
+                                        ctx.get("TEST_TAG"), {**release_env, **data_env} or None)
     print("app.yaml: ✅")
 
     app_url = ""
@@ -1913,15 +1813,26 @@ def _blocking_read_grants(failed):
 
 
 def _schema_mode_access(ctx):
-    """REQ-113 schema mode: the App's principal gets no grant at all. The App runs as the signed-in person, so the value ledger,
-    the demo output folder and every table are the person's, and the person's own rights are the only ones that count."""
-    warehouse_id, catalog, schema, api = ctx["WAREHOUSE_ID"], ctx["CATALOG"], ctx["SCHEMA"], ctx["api"]
+    """Schema mode (REQ-113, REQ-418): the App's service principal reads and writes everything, for every person (D-SL-10B). The person owns
+    the schema, so the schema-level grants run with their own sign-in. The catalog-level grants are the catalog owner's to give: they are asked
+    once, for the principal, and the install does not stop for them."""
+    warehouse_id, catalog, schema, api, w = ctx["WAREHOUSE_ID"], ctx["CATALOG"], ctx["SCHEMA"], ctx["api"], ctx["w"]
+    sp = ctx.get("NEW_SP_APP_ID") or ""
     if warehouse_id:
-        _ensure_value_ledger(ctx["w"], warehouse_id, catalog, schema)
-    ctx["LAKEBASE_NOTE"] = "schema mode grants the App's principal nothing, so Lakebase is not wired for Apps that Implement builds"
+        _ensure_value_ledger(w, warehouse_id, catalog, schema)
+    schema_sql = [sql for sql in _grant_plan(sp, catalog, schema, set()) if " ON SCHEMA " in sql] if sp else []
+    catalog_sql = [f"GRANT {p} ON CATALOG `{catalog}` TO `{sp}`" for p in ("USE CATALOG", "BROWSE")] if sp else []
+    failed = {sql: error for sql in schema_sql if (error := _grant_error(w, warehouse_id, sql))}
+    print(f"  Schema mode: the App's service principal reads `{catalog}`.`{schema}` with its own access. "
+          f"Schema grants: {len(schema_sql) - len(failed)} of {len(schema_sql)} ran {'✅' if not failed else '⚠️'}")
+    for sql, error in failed.items():
+        print(f"  ⚠️ {sql}: {error}")
+    ctx["SCHEMA_MODE_CATALOG_ASK"] = catalog_sql
+    if catalog_sql:
+        print(f"  Permission Required, asked once for the App's service principal {sp} (a catalog owner runs them): "
+              + "; ".join(catalog_sql))
+    ctx["LAKEBASE_NOTE"] = "schema mode does not grant Lakebase to the App's principal, so Lakebase is not wired for Apps that Implement builds"
     ctx["LAKEBASE_SUMMARY"] = f"⚠️ {ctx['LAKEBASE_NOTE']}"
-    print(f"  Schema mode: the App's principal gets no grant. The App runs as you, on `{catalog}`.`{schema}` and your folders. "
-          f"{SCHEMA_MODE_CATALOG_NOTE}.")
     shared_ok, shared_said = _own_output_access(api, ctx["NOTEBOOK_PATH"])
     print(f"  {'' if shared_ok else '⚠️ '}{shared_said}")
     if not shared_ok:
@@ -2113,7 +2024,6 @@ def step_grant_permissions(ctx):
                                    f"Apps that Implement builds read Lakebase: project {lakebase['project']}, catalog `{lakebase['catalog']}` ✅")
         print(f"  {_app_folder_access(api, ctx['APP_FOLDER'], sp)}")
         print(f"  {_assets_folder_access(api, ctx.get('ASSETS_PATH'), sp, ctx['ASSETS_PARENT'])}")
-        _run_job_access(api, sp, ctx.get("JOB_IDS") or {})
         for line in grant_model_access(api, w, sp, ctx.get("AGENT_NOTEBOOK_TEXT") or ""):
             print(line)
         shared_ok, shared_said = _shared_output_access(api, ctx["NOTEBOOK_PATH"], sp)
@@ -2443,7 +2353,7 @@ def run(env):
         ctx = build_runtime_context(env)
         if not ctx.get("ready"):
             return None
-        for step in (step_preflight, step_bundle, step_assets, step_cleanup, step_schema_and_notebooks, step_run_as_jobs,
+        for step in (step_preflight, step_bundle, step_assets, step_cleanup, step_schema_and_notebooks,
                      step_create_app_and_find_sp, step_grant_permissions, step_deploy_source, step_render_done):
             step(ctx)
         return ctx

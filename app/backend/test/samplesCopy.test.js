@@ -11,7 +11,7 @@ const DEST = 'main.inspire';
 const copyCalls = () => S.state.calls.filter((c) => c.path === '/api/2.0/sql/statements' && /^CREATE TABLE/.test(c.statement));
 const copy = (body, person = ME) => S.request('POST', '/api/inspire/samples/copy', { person, body });
 
-test('copying a samples table runs CREATE TABLE AS SELECT into the destination schema with the person sign-in and names the copy', async () => {
+test('copying a samples table runs CREATE TABLE AS SELECT into the destination schema as the App and names the copy (REQ-418)', async () => {
   S.reset({ notebookPresent: true });
   const got = await copy({ entries: [SOURCE], destination: DEST });
   assert.equal(got.status, 200, got.text.slice(0, 300));
@@ -20,7 +20,7 @@ test('copying a samples table runs CREATE TABLE AS SELECT into the destination s
   const sent = copyCalls();
   assert.equal(sent.length, 1);
   assert.equal(sent[0].statement, 'CREATE TABLE `main`.`inspire`.`bakehouse__sales_transactions` AS SELECT * FROM `samples`.`bakehouse`.`sales_transactions`');
-  assert.equal(sent[0].token, S.PERSON_TOKEN, 'the copy runs with the person sign-in, not the App');
+  assert.equal(sent[0].token, S.APP_TOKEN, 'the copy runs as the App service principal, the same for every person');
 });
 
 test('a copy the warehouse refuses is named per table, and the other tables still copy', async () => {
@@ -52,11 +52,14 @@ test('a schema or catalog pick under samples copies every table it holds, and a 
   assert.match(into.data.error, /own/);
 });
 
-test('a copy with no sign-in copies nothing, and a malformed destination is refused before any SQL runs', async () => {
+// REQ-418 (D-SL-11): the App copies for everyone, so a copy with no signed-in person still runs and names no person.
+test('a copy with no signed-in person still runs as the App (REQ-418), and a malformed destination is refused before any SQL runs', async () => {
   S.reset({ notebookPresent: true });
   const anon = await S.request('POST', '/api/inspire/samples/copy', { person: ME, signedIn: false, body: { entries: [SOURCE], destination: DEST } });
-  assert.equal(anon.status, 401);
-  assert.match(anon.data.error, /own sign-in/);
+  assert.equal(anon.status, 200, anon.text.slice(0, 300));
+  assert.deepEqual(anon.data.copies, [{ source: SOURCE, copy: COPY_NAME }]);
+  assert.deepEqual(copyCalls().map((c) => c.token), [S.APP_TOKEN]);
+  S.reset({ notebookPresent: true });
   const bad = await copy({ entries: [SOURCE], destination: 'main' });
   assert.equal(bad.status, 400);
   assert.equal(copyCalls().length, 0);
@@ -103,7 +106,7 @@ test('a table already at the copy name with different columns is never overwritt
   assert.equal(S.state.calls.some((c) => /REPLACE|DROP TABLE/.test(c.statement || '')), false);
 });
 
-test('a missing target schema is created with the person sign-in, then the copy runs (fail-pre: it failed "schema does not exist")', async () => {
+test('a missing target schema is created as the App, then the copy runs (fail-pre: it failed "schema does not exist")', async () => {
   let made = false;
   S.reset({
     notebookPresent: true,
@@ -119,7 +122,7 @@ test('a missing target schema is created with the person sign-in, then the copy 
   const schema = copyStatements('CREATE SCHEMA');
   assert.equal(schema.length, 1);
   assert.equal(schema[0].statement, 'CREATE SCHEMA IF NOT EXISTS `main`.`inspire`');
-  assert.equal(schema[0].token, S.PERSON_TOKEN, 'the schema is created with the person sign-in, not the App');
+  assert.equal(schema[0].token, S.APP_TOKEN, 'the schema is created as the App service principal (REQ-418)');
 });
 
 test('a missing target schema the person cannot create answers 409 with the exact statement to copy', async () => {

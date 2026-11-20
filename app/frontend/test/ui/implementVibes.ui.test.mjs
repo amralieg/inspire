@@ -5,7 +5,7 @@ import { createRequire } from 'node:module';
 import path from 'node:path';
 import { defaultSpecFromUseCase, VIBES_STEP_NOTE } from '../../src/lib/implementWizard.js';
 import { HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID } from './implementFixtures.js';
-import { BUILD_IT, assertOneBadgeOnDefault, choicesShown, clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, toSummary, setDark, startMvp, steadyBox, toAppAccess, toVibes, until, wizardFits, goToStep, wizardInScreen } from './uiSupport.mjs';
+import { POLICIED_SOURCE, BUILD_IT, assertOneBadgeOnDefault, choicesShown, clippedExamples, closeAsset, closeBrowser, dataToResults, expandBuild, featuresBox, featuresHeld, featuresText, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, toSummary, setDark, startMvp, steadyBox, toAppAccess, toVibes, until, wizardFits, goToStep, wizardInScreen } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const SHOTS = process.env.VIBES_SHOTS || '';
@@ -66,7 +66,7 @@ function assertGray(examples, mode) {
 }
 
 test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step has one box for the whole MVP with a gray example, a first build asks nothing about a version before, and the step names what Genie does not build', async () => {
-  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE }); // D-SL-11: the access choice shows for a row-filtered source
   const { page } = ui;
   try {
     await toDelivery(page);
@@ -116,7 +116,7 @@ test('Vibes sit on Summary, the last step: Deliver asks for no vibes, the step h
 });
 
 test('the one box on the Vibes step takes the full width, is 8 lines tall and grows, and keeps what was typed when the person goes Back and returns', async () => {
-  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE }); // D-SL-11: the access choice shows for a row-filtered source
   const { page } = ui;
   try {
     await page.setViewportSize({ width: 1440, height: 900 });
@@ -172,7 +172,7 @@ test('the gray example of the one box on the Vibes step shows in full, on a desk
 });
 
 test('the Vibes step keeps a live counter, an ask over 2000 characters stops Start with the shared message and focuses the box, and a first build sends the vibe with no choice for a version before', async () => {
-  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE }); // D-SL-11: the access choice shows for a row-filtered source
   const { page, made } = ui;
   try {
     await toDelivery(page);
@@ -217,7 +217,7 @@ test('the Vibes step keeps a live counter, an ask over 2000 characters stops Sta
 });
 
 test('the Vibes box on Summary with every output picked keeps the dialog inside 1440x900 with its box filled past the limit, and reads at 4.5:1 in light and dark', async () => {
-  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE }); // D-SL-11: the access choice shows for a row-filtered source
   const { page } = ui;
   const fits = (name) => wizardFits(page, name);
   try {

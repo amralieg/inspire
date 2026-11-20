@@ -62,22 +62,23 @@ async function launchOn(folders) {
   }
 }
 
-test('a run launched against the shared fake workspace passes the write check where the person can write, and is refused where not', async () => {
+// REQ-418: the App writes the run's output, so the App's own write check (its SP token) decides the folder; no person probe is made.
+const APP = 'sp-token';
+test('a run launched against the shared fake workspace passes the App write check where the App can write, and is refused where it cannot (REQ-418)', async () => {
   const allowed = await launchOn();
   assert.equal(allowed.status, 200, JSON.stringify(allowed.data));
   const probes = allowed.workspace.calls.filter((c) => c.path === '/api/2.0/workspace/mkdirs');
-  const mine = probes.filter((c) => c.token === PERSON);
-  assert.equal(mine.length, 1, 'one probe with the person\u2019s own token');
-  assert.ok(probes.every((c) => c.token === PERSON || c === probes.find((p) => p.token !== PERSON)), 'at most one more, the App checking the folder it writes to');
-  assert.match(mine[0].body.path, new RegExp(`^/Shared/${PROBE_PREFIX}`));
+  assert.equal(probes.length, 1, 'one probe, for the App checking the folder it writes to');
+  assert.equal(probes[0].token, APP, 'the probe runs with the App\u2019s service principal, never the person\u2019s');
+  assert.match(probes[0].body.path, new RegExp(`^/Shared/${PROBE_PREFIX}`));
   assert.deepEqual(allowed.workspace.model.created, [], 'every probe is deleted again');
-  assert.ok(allowed.workspace.model.deleted.includes(mine[0].body.path));
+  assert.ok(allowed.workspace.model.deleted.includes(probes[0].body.path));
   assert.equal(allowed.workspace.calls.filter((c) => c.path === '/api/2.1/jobs/create').length, 1);
 
   const refused = await launchOn({ '/Shared': { writers: ['someone-else'] } });
   assert.equal(refused.status, 403, JSON.stringify(refused.data));
   assert.deepEqual(refused.data.unwritable, ['/Shared/demos']);
-  assert.match(refused.data.error, /^You cannot write to \/Shared\/demos \(you cannot create anything in \/Shared\) with your own sign-in/);
+  assert.match(refused.data.error, /^\/Shared\/demos does not exist yet, and the Inspire App can't create it, so the run saves no files there/);
   assert.deepEqual(refused.workspace.model.created, []);
   assert.equal(refused.workspace.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/')).length, 0, 'no job is created');
 });

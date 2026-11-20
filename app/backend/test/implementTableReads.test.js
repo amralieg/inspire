@@ -6,9 +6,10 @@ const { makeApp, listen } = require('./support/implementApp');
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PERSON_TOKEN = 'person-token';
+// REQ-418 (D-SL-10B): every read is the App's service principal; the fixture's App token is `tok`.
+const APP_TOKEN = 'tok';
 const SP = { userName: '5d1e7c3a-9b2f-4e6a-8c4d-1f2e3a4b5c6d', displayName: 'app-q7k2m9 inspire-ai', applicationId: '5d1e7c3a-9b2f-4e6a-8c4d-1f2e3a4b5c6d' };
 const Q = 'inspire_database=main.inspire&warehouse_id=wh1&session_id=42&use_case_id=N01-U01';
-const NO_SIGN_IN = 'Inspire looks for similar tables with your own sign-in, and this request carries none, so it suggests none';
 const USE_CASE = { id: 'N01-U01', use_case: 'Predict churn', primary_table: 'main.s.orders', tables_involved: 'main.s.orders,main.s.returns', genie_instruction: '' };
 const SPEC = {
   use_case_id: 'N01-U01', use_case_name: 'Predict churn', config: { warehouse_id: 'wh1', result_table: 'main.inspire.churn_out' },
@@ -44,41 +45,44 @@ const readsOf = (made, pattern) => made.sqlCalls.filter((c) => pattern.test(Stri
 const columnReads = (made) => readsOf(made, /^SELECT column_name, data_type, ordinal_position FROM/);
 const valueReads = (made) => readsOf(made, /^SELECT DISTINCT CAST/);
 
-test('similar tables are looked up with the person\u2019s own token, so a table only the App can see never appears', async () => {
-  const seen = { [PERSON_TOKEN]: [V2], tok: [V2, SECRET] };
+// REQ-418 (D-SL-10B): similar tables are looked up as the App, so every table the App can read is a suggestion, with or without a person sign-in.
+test('similar tables are looked up as the App, so every table the App can read is a suggestion, with or without a person sign-in', async () => {
+  const seen = { [APP_TOKEN]: [V2, SECRET] };
+  const suggested = [{ table: 'main.s.orders_v2', matched: 4, total: 4, copy: false }, { table: 'main.hr.salaries', matched: 4, total: 4, copy: false }];
   await withApp({ swapRowsByToken: seen }, async (url, made) => {
     const got = await swaps(url);
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(got.data, { table: 'main.s.orders', swaps: [{ table: 'main.s.orders_v2', matched: 4, total: 4, copy: false }], why: '' });
-    assert.deepEqual(swapReads(made).map((c) => c.token), [PERSON_TOKEN], 'read once, as the person');
+    assert.deepEqual(got.data, { table: 'main.s.orders', swaps: suggested, why: '' });
+    assert.deepEqual(swapReads(made).map((c) => c.token), [APP_TOKEN], 'read once, as the App');
   });
   await withApp({ swapRowsByToken: seen, forwardedToken: '' }, async (url, made) => {
     const got = await swaps(url);
-    assert.deepEqual(got.data.swaps.map((s) => s.table), ['main.s.orders_v2', 'main.hr.salaries'], 'a request token of the person reads what that person sees');
-    assert.deepEqual(swapReads(made).map((c) => c.token), ['tok']);
+    assert.deepEqual(got.data.swaps, suggested, 'no person sign-in changes what the App can read');
+    assert.deepEqual(swapReads(made).map((c) => c.token), [APP_TOKEN]);
   });
 });
 
-test('with only the App\u2019s own token there are no suggestions, the reason says why, and nothing is read as the App', async () => {
-  await withApp({ ...APP_ONLY, swapRowsByToken: { tok: [V2, SECRET] } }, async (url, made) => {
+// REQ-418: the App's reads need no person sign-in, so the App-only request gets the same suggestions; a bad name is still refused first.
+test('with only the App\u2019s own token the suggestions are the App\u2019s, nothing is read as the person, and a bad name is refused first (REQ-418)', async () => {
+  await withApp({ ...APP_ONLY, swapRowsByToken: { [APP_TOKEN]: [V2, SECRET] } }, async (url, made) => {
     const got = await swaps(url);
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(got.data, { table: 'main.s.orders', swaps: [], why: NO_SIGN_IN });
-    assert.equal(swapReads(made).length, 0);
+    assert.deepEqual(got.data.swaps.map((s) => s.table), ['main.s.orders_v2', 'main.hr.salaries']);
+    assert.deepEqual(swapReads(made).map((c) => c.token), [APP_TOKEN]);
     const bad = await swaps(url, 'not a table');
     assert.deepEqual([bad.status, bad.data.error], [400, "'not a table' must be catalog.schema.table"], 'a bad name is still refused first');
   });
 });
 
-test('columns and values of every table, the use case\u2019s own included, are read only with the person\u2019s token, and with none the picker gets the sign-in refusal and nothing is read', async () => {
+// REQ-418 (D-SL-10B): columns and values are read as the App, the use case's own table included, with or without a person sign-in.
+test('columns and values of every table, the use case\u2019s own included, are read as the App, with or without a person sign-in (REQ-418)', async () => {
   await withApp(APP_ONLY, async (url, made) => {
     for (const path of [`/api/inspire/implement/columns?${Q}&table=main.s.orders`, `/api/inspire/implement/columns?${Q}&table=main.hr.salaries`,
-      `/api/inspire/implement/values?${Q}&table=main.s.orders&column=amount`, '/api/inspire/implement/values?warehouse_id=wh1&table=main.s.orders&column=amount']) {
+      `/api/inspire/implement/values?${Q}&table=main.s.orders&column=amount`]) {
       const got = await call(url, path);
-      assert.deepEqual([got.status, got.data.error, got.data.policy && got.data.policy.identity], [401, RP.NO_PERSON_TOKEN, 'person'], path);
+      assert.equal(got.status, 200, path);
     }
-    assert.deepEqual([...columnReads(made), ...valueReads(made)], [], 'nothing read as the App');
-    assert.equal(made.sqlCalls.length, 0, 'not even the use case or its history');
+    assert.deepEqual([...columnReads(made), ...valueReads(made)].map((c) => c.token), [APP_TOKEN, APP_TOKEN, APP_TOKEN]);
   });
   await withApp({}, async (url, made) => {
     for (const table of ['main.s.orders', 'MAIN.S.RETURNS', 'main.hr.salaries']) {
@@ -87,17 +91,14 @@ test('columns and values of every table, the use case\u2019s own included, are r
     }
     const values = await call(url, `/api/inspire/implement/values?${Q}&table=main.s.orders&column=amount`);
     assert.equal(values.status, 200, JSON.stringify(values.data));
-    assert.deepEqual([...columnReads(made), ...valueReads(made)].map((c) => c.token), [PERSON_TOKEN, PERSON_TOKEN, PERSON_TOKEN, PERSON_TOKEN]);
+    assert.deepEqual([...columnReads(made), ...valueReads(made)].map((c) => c.token), [APP_TOKEN, APP_TOKEN, APP_TOKEN, APP_TOKEN]);
   });
 });
 
-test('the swap lookup keeps its own no-sign-in reason', () => {
-  assert.equal(I.IMPLEMENT_SWAPS_NO_SIGN_IN, NO_SIGN_IN);
-});
 
-const { RUN_NO_SIGN_IN } = require('../lib/ucReads');
-const cannotRead = (names) => `You can't read ${names}. Pick tables and files you can read, or ask your data owner for access`; // file paths
-const tableCannotRead = () => "You can't read this source table. Pick tables you can read, or ask your data owner for access";
+const { RUN_NO_APP_TOKEN } = require('../lib/ucReads');
+const cannotRead = (names) => `The App can't read ${names}. Pick tables and files the App can read, or ask your data owner for access`; // file paths
+const tableCannotRead = () => "The App can't read this source table. Pick tables the App can read, or ask your data owner for access";
 const insertedSpec = (made) => JSON.parse(made.sqlCalls.find((c) => /^INSERT/.test(String(c.sql)) && String(c.sql).includes('__inspire_implement'))
   .parameters.find((p) => p.name === 'spec').value);
 const DB = { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42' };
@@ -109,92 +110,96 @@ const ruleOut = (made) => {
 };
 
 test('an MVP build drops a secondary table the person cannot read, says so, and is refused only when the primary table is unreadable (must-exclude)', async () => {
-  const mine = { readableTables: { [PERSON_TOKEN]: ['main.s.orders'], tok: ['main.s.orders', 'main.s.returns_v2'] } };
+  const mine = { readableTables: { [APP_TOKEN]: ['main.s.orders'] } };
   await withApp({ history: [], ...mine }, async (url, made) => {
     const plan = await call(url, '/api/inspire/implement/plan', { method: 'POST', body: { ...DB, spec: SPEC } });
     assert.equal(plan.status, 200, JSON.stringify(plan.data));
-    assert.deepEqual(plan.data.warnings, ["Building without a table you can't read."]);
+    assert.deepEqual(plan.data.warnings, ["Building without a table the App can't read."]);
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(got.data.warnings, ["Building without a table you can't read."]);
-    assert.deepEqual(got.data.warning_details, ["Tables you can't read: main.s.returns_v2"], 'the ids sit under Details');
+    assert.deepEqual(got.data.warnings, ["Building without a table the App can't read."]);
+    assert.deepEqual(got.data.warning_details, ["Tables the App can't read: main.s.returns_v2"], 'the ids sit under Details');
     assert.equal(made.jobs.length, 1);
     const sent = insertedSpec(made);
     assert.deepEqual(sent.data.removed_tables, ['main.s.returns'], 'the original name of the swapped table is what the build leaves out');
     assert.deepEqual(sent.data.tables, {}, 'its swap is gone with it');
-    assert.ok(tableChecks(made).every((f) => f.token === PERSON_TOKEN), 'checked as the person');
+    assert.ok(tableChecks(made).every((f) => f.token === APP_TOKEN), 'checked as the person');
     assert.ok(tableChecks(made).some((f) => f.path === '/api/2.1/unity-catalog/tables/main.s.returns_v2'), 'the swapped table is checked in place of the one it replaces');
   });
-  await withApp({ history: [], readableTables: { [PERSON_TOKEN]: ['main.s.returns_v2'] } }, async (url, made) => {
+  await withApp({ history: [], readableTables: { [APP_TOKEN]: ['main.s.returns_v2'] } }, async (url, made) => {
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
     assert.deepEqual([got.status, got.data.unreadable], [403, ['main.s.orders']]);
     assert.equal(got.data.error, `${tableCannotRead()}. It is the primary table, so Inspire cannot build without it.`);
     ruleOut(made);
   });
-  await withApp({ history: [], readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'MAIN.S.RETURNS_V2'] } }, async (url, made) => {
+  await withApp({ history: [], readableTables: { [APP_TOKEN]: ['main.s.orders', 'MAIN.S.RETURNS_V2'] } }, async (url, made) => {
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(made.jobs.length, 1);
   });
-  await withApp({ history: [], ...APP_ONLY }, async (url, made) => {
+  // REQ-418 (D-SL-11): a build with no person sign-in still runs as the App, and every table is checked as the App.
+  await withApp({ history: [], readableTables: { [APP_TOKEN]: ['main.s.orders', 'main.s.returns_v2'] }, ...APP_ONLY }, async (url, made) => {
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
-    assert.deepEqual([got.status, got.data], [401, { unreadable: [], error: RUN_NO_SIGN_IN }]);
-    ruleOut(made);
-    assert.deepEqual(tableChecks(made), [], 'nothing is checked as the App');
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(made.jobs.length, 1, 'the build starts as the App with no person sign-in');
+    assert.ok(tableChecks(made).length > 0 && tableChecks(made).every((f) => f.token === APP_TOKEN), 'every table is checked as the App');
   });
 });
 
 test('a re-run and Publish anyway are refused the same way, before run-now or a version row', async () => {
   const built = { ...BUILT, job_id: 77, genie_widgets: JSON.stringify([{ name: 'top_k', type: 'text', default: '25', allowed: 'whole number, at least 1' }]) };
-  await withApp({ history: [built], readableTables: { [PERSON_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
+  await withApp({ history: [built], readableTables: { [APP_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
     assert.deepEqual([got.status, got.data.error, got.data.unreadable], [403, tableCannotRead(), ['main.s.returns_v2']],
       'a re-run runs the built job as it is, so it cannot leave a table out');
     assert.ok(!made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
   });
-  await withApp({ history: [built], readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'main.s.returns_v2'] } }, async (url, made) => {
+  await withApp({ history: [built], readableTables: { [APP_TOKEN]: ['main.s.orders', 'main.s.returns_v2'] } }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/rerun?${Q}`, { method: 'POST', body: { overrides: {} } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.ok(made.fetches.some((f) => f.path === '/api/2.1/jobs/run-now'));
   });
 });
 
+// REQ-418 (D-SL-11): the App checks the chosen use cases' tables for the run, and a run starts with no person sign-in too.
 test('a Genie Code notebook run checks only the chosen use cases\u2019 tables, not the whole Discover scope, before any flag is written (must-exclude)', async () => {
   const body = { ...DB, use_case_ids: ['N01-U01'], notebook_path: '/Shared/nb' };
   const generate = (url) => call(url, '/api/inspire/generate-genie', { method: 'POST', body });
-  await withApp({ ucMetadata: 'main.s.orders,main.hr.salaries', readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'main.s.returns'] } }, async (url, made) => {
+  await withApp({ ucMetadata: 'main.s.orders,main.hr.salaries', readableTables: { [APP_TOKEN]: ['main.s.orders', 'main.s.returns'] } }, async (url, made) => {
     const got = await generate(url);
     assert.equal(got.status, 200, `a table elsewhere in the scope does not stop it: ${JSON.stringify(got.data)}`);
     assert.ok(!tableChecks(made).some((f) => f.path.includes('main.hr.salaries')), 'the rest of the scope is not checked');
     assert.deepEqual(tableChecks(made).map((f) => f.path).sort(), ['/api/2.1/unity-catalog/tables/main.s.orders', '/api/2.1/unity-catalog/tables/main.s.returns']);
   });
-  await withApp({ ucMetadata: 'main.s.orders', readableTables: { [PERSON_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
+  await withApp({ ucMetadata: 'main.s.orders', readableTables: { [APP_TOKEN]: ['main.s.orders'] } }, async (url, made) => {
     const got = await generate(url);
     assert.deepEqual([got.status, got.data], [403, { error: tableCannotRead(), unreadable: ['main.s.returns'] }]);
     assert.deepEqual([made.flagged, made.jobs], [[], []]);
   });
   await withApp({ ucMetadata: 'main.s.orders', ...APP_ONLY }, async (url, made) => {
     const got = await generate(url);
-    assert.deepEqual([got.status, got.data], [401, { error: RUN_NO_SIGN_IN, unreadable: [] }]);
-    assert.deepEqual([made.flagged, made.jobs], [[], []]);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.flagged_use_case_ids, ['N01-U01']);
+    assert.equal(made.jobs.length, 1, 'a run starts with no person sign-in, as the App (REQ-418)');
   });
-  await withApp({ ucMetadata: 'main.s.orders', readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'main.s.returns'] } }, async (url, made) => {
+  await withApp({ ucMetadata: 'main.s.orders', readableTables: { [APP_TOKEN]: ['main.s.orders', 'main.s.returns'] } }, async (url, made) => {
     const got = await generate(url);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(made.jobs.length, 1);
   });
 });
 
-test('the readiness count of any table reads only with the person\u2019s token, in both discovery modes', async () => {
+// REQ-418 (D-SL-10B): the readiness count is a read, so it runs as the App in both discovery modes, with or without a person sign-in.
+test('the readiness count of any table reads as the App in both discovery modes, with or without a person sign-in', async () => {
   const modes = { 'main.s.orders': 'Standard Discovery', 'main.hr.salaries': 'AI Enhanced Discovery' };
   const count = (url, table) => call(url, `/api/inspire/implement/readiness?${Q}`, { method: 'POST', body: { table, discovery_type: modes[table], columns: [] } });
   const counts = (made) => readsOf(made, /^SELECT COUNT\(\*\) AS row_count/).map((c) => c.token);
   await withApp(APP_ONLY, async (url, made) => {
     for (const table of ['main.s.orders', 'main.hr.salaries']) {
       const got = await count(url, table);
-      assert.deepEqual([got.status, got.data.error], [401, RP.NO_PERSON_TOKEN], table);
+      assert.equal(got.status, 200, JSON.stringify(got.data));
     }
-    assert.deepEqual(counts(made), [], 'nothing counted as the App');
+    assert.deepEqual(counts(made), [APP_TOKEN, APP_TOKEN], 'counted as the App');
   });
   await withApp({}, async (url, made) => {
     for (const table of ['main.s.orders', 'main.hr.salaries']) {
@@ -202,7 +207,7 @@ test('the readiness count of any table reads only with the person\u2019s token, 
       assert.equal(got.status, 200, JSON.stringify(got.data));
       assert.equal(got.data.skipped, false, `${modes[table]} counts the rows before Genie starts`);
     }
-    assert.deepEqual(counts(made), [PERSON_TOKEN, PERSON_TOKEN]);
+    assert.deepEqual(counts(made), [APP_TOKEN, APP_TOKEN]);
   });
 });
 
@@ -220,7 +225,7 @@ test('the columns route returns each column\u2019s Unity Catalog tags, read once
     assert.equal(got.data.tags_read, true);
     assert.equal(got.data.tags_note, undefined);
     assert.equal(tagReads(made).length, 1, 'one tag read for the table, no read per column');
-    assert.deepEqual(tagReads(made).map((c) => c.token), [PERSON_TOKEN]);
+    assert.deepEqual(tagReads(made).map((c) => c.token), [APP_TOKEN]);
   });
 });
 
@@ -235,7 +240,7 @@ test('when the tags cannot be read the columns route falls back to the name rule
 });
 
 test('an MVP run is refused when its chosen result key is a PII-tagged column or a personal name, and starts with an untagged ordinary key', async () => {
-  const readable = { readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'main.s.returns_v2'] } };
+  const readable = { readableTables: { [APP_TOKEN]: ['main.s.orders', 'main.s.returns_v2'] } };
   const keyed = (ref) => ({ ...SPEC, data: { ...SPEC.data, column_roles: { entity_id: ref } } });
   await withApp({ history: [], ...readable, columnTags: [PII_TAG] }, async (url, made) => {
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: keyed('main.s.orders.ref_code') } });
@@ -255,7 +260,7 @@ test('an MVP run is refused when its chosen result key is a PII-tagged column or
 });
 
 test('a personal result key Inspire picked itself never blocks the MVP run, because the notebook swaps or hashes it', async () => {
-  const readable = { readableTables: { [PERSON_TOKEN]: ['main.s.orders', 'main.s.returns_v2'] } };
+  const readable = { readableTables: { [APP_TOKEN]: ['main.s.orders', 'main.s.returns_v2'] } };
   const picked = (ref) => ({ ...USE_CASE, elite_assessment: JSON.stringify({ entity_key_column: ref }) });
   await withApp({ history: [], ...readable, columnTags: [PII_TAG], useCase: picked('main.s.orders.ref_code') }, async (url, made) => {
     const got = await call(url, '/api/inspire/implement/submit', { method: 'POST', body: { ...DB, spec: SPEC } });
@@ -281,7 +286,7 @@ const LITE = { table_catalog: 'main', table_schema: 's', table_name: 'orders_lit
 const SAMPLE = 'samples.nyctaxi.trips';
 
 test('a built-in sample source lists the person’s own copy first, in any catalog they own; a copy in a catalog they do not own is only a similar table', async () => {
-  const seen = { [PERSON_TOKEN]: [FOREIGN_COPY, LITE, COPY] };
+  const seen = { [APP_TOKEN]: [FOREIGN_COPY, LITE, COPY] };
   await withApp({ swapRowsByToken: seen }, async (url, made) => {
     const got = await swaps(url, SAMPLE);
     assert.equal(got.status, 200, JSON.stringify(got.data));
@@ -290,7 +295,7 @@ test('a built-in sample source lists the person’s own copy first, in any catal
       { table: 'other.x.trips_copy', matched: 4, total: 4, copy: false },
       { table: 'main.s.orders_lite', matched: 3, total: 4, copy: false },
     ]);
-    assert.ok(swapReads(made).every((c) => c.token === PERSON_TOKEN));
+    assert.ok(swapReads(made).every((c) => c.token === APP_TOKEN));
   });
   await withApp({ swapRowsByToken: seen }, async (url) => {
     const got = await swaps(url, 'main.s.orders');
@@ -299,7 +304,7 @@ test('a built-in sample source lists the person’s own copy first, in any catal
 });
 
 test('a similar table the person cannot read is never offered, even when the catalog lists its columns (must-exclude)', async () => {
-  const seen = { [PERSON_TOKEN]: [COPY, FOREIGN_COPY] };
+  const seen = { [APP_TOKEN]: [COPY, FOREIGN_COPY] };
   await withApp({ swapRowsByToken: seen, probeErrors: { '`other`.`x`.`trips_copy`': '[PERMISSION_DENIED] User does not have SELECT on Table other.x.trips_copy' } }, async (url) => {
     const got = await swaps(url, SAMPLE);
     assert.deepEqual(got.data.swaps.map((s) => s.table), ['inspire_kinds_rc7.walk_rc7e.nyctaxi_trips']);
@@ -307,26 +312,37 @@ test('a similar table the person cannot read is never offered, even when the cat
 });
 
 test('the free table search reads a table the person can read in any catalog, with the same column match as the suggestions', async () => {
-  await withApp({ swapRowsByToken: { [PERSON_TOKEN]: [{ matched: '4', total: '4' }] } }, async (url, made) => {
+  await withApp({ swapRowsByToken: { [APP_TOKEN]: [{ matched: '4', total: '4' }] } }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/table-lookup?${Q}&source=${encodeURIComponent(SAMPLE)}&table=inspire_kinds_rc7.walk_rc7e.nyctaxi_trips`);
     assert.deepEqual([got.status, got.data], [200, { table: 'inspire_kinds_rc7.walk_rc7e.nyctaxi_trips', readable: true, matched: 4, total: 4 }]);
     const match = readsOf(made, /SELECT COUNT\(\*\) AS matched/)[0];
-    assert.equal(match.token, PERSON_TOKEN);
+    assert.equal(match.token, APP_TOKEN);
     assert.equal(match.parameters.find((p) => p.name === 'oc').value, 'inspire_kinds_rc7');
   });
 });
 
-test('the free table search refuses a table the person cannot read, with the reason, and reads no column match for it (must-exclude)', async () => {
+test('the free table search refuses a table the App cannot read, with the reason, and reads no column match for it (must-exclude)', async () => {
   await withApp({ probeErrors: { '`other`.`x`.`trips_copy`': '[PERMISSION_DENIED] User does not have SELECT on Table other.x.trips_copy' } }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/table-lookup?${Q}&source=${encodeURIComponent(SAMPLE)}&table=other.x.trips_copy`);
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.readable, false);
-    assert.match(got.data.reason, /^You can't read other\.x\.trips_copy: no read access\./);
+    assert.match(got.data.reason, /^The App can't read other\.x\.trips_copy: no read access\./);
     assert.equal(readsOf(made, /SELECT COUNT\(\*\) AS matched/).length, 0);
   });
   await withApp(APP_ONLY, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/table-lookup?${Q}&source=${encodeURIComponent(SAMPLE)}&table=main.s.orders`);
-    assert.deepEqual([got.status, got.data.error], [401, RP.NO_PERSON_TOKEN]);
-    assert.equal(made.sqlCalls.length, 0, 'nothing is read as the App');
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(readsOf(made, /SELECT COUNT\(\*\) AS matched/)[0].token, APP_TOKEN, 'the lookup is the App\u2019s read (REQ-418)');
+  });
+});
+
+test('REQ-418: an App with no credential suggests no swap and says so in the App voice, with no read', async () => {
+  await withApp({ dbToken: '' }, async (url, made) => {
+    const got = await swaps(url);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.swaps, []);
+    assert.equal(got.data.why, I.IMPLEMENT_SWAPS_NO_SIGN_IN);
+    assert.match(got.data.why, /as its App/);
+    assert.equal(readsOf(made, /WITH o AS/).length, 0);
   });
 });

@@ -9975,10 +9975,9 @@
       "inspire"
     ],
     "IMPLEMENT_APP_HOSTED_ERRORS": {
-      "access": "a page inside Inspire shows each viewer only the data they may read, so it always signs viewers in as themselves",
       "backend": "a page inside Inspire reads Delta tables; Lakebase needs an App of its own",
       "merge": "a page inside Inspire belongs to this use case alone, so it cannot be added to another App; leave outputs.merge.app empty",
-      "warehouse": "a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse each viewer reads with; each viewer needs CAN USE on it",
+      "warehouse": "a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse the App reads with; the App needs CAN MANAGE on it",
       "inspire_url": "outputs.inspire_url must be the https address of the Inspire App with nothing after its host, such as https://inspire.example.com: every App page and dashboard links to its use case on Inspire's Review page"
     },
     "IMPLEMENT_APP_HOSTED_ID_RE": "^[a-z0-9-]{1,63}$",

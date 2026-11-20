@@ -69,19 +69,23 @@ const IDENTITIES = {
   app: "the App's own token",
 };
 const MANAGER_SCOPES = ['apps'];
-const OUTPUT_WRITE_SCOPES = ['workspace.workspace', 'files'];
-const NO_PERSON_TOKEN = 'Inspire reads this with your own sign-in, and the Databricks Apps proxy sent none, so it reads nothing for you; '
+// The one user scope a run's output needs: the person's own folder is shared with the App's principal with the person's sign-in.
+const OUTPUT_WRITE_SCOPES = ['workspace.workspace'];
+const NO_PERSON_TOKEN = 'Inspire needs your own sign-in for this, and the Databricks Apps proxy sent none, so it cannot act as you; '
   + 'ask an App manager to re-run the Inspire installer, which turns on user authorization with the scopes Inspire needs';
 const GATED = 'an action this table already limits to the people its rule names';
 const TRACKED = 'reads or writes the Inspire tracking tables in the App database, which every App user sees through the App';
 const BUNDLED = 'serves what ships inside the App and reads nothing from the workspace';
 const BUILD_CHECK = 'checks what a build, which runs as the App, can read, write and create';
-const SESSION_OUTPUT = 'reads inside the recorded output folder of a session in the App database, which is output the App produced';
 
 const managers = (action) => ({ rule: 'managers', action, identity: 'app', why: GATED });
 const anyone = (action, why) => ({ rule: 'any', action, identity: 'app', why });
 const tracked = (action, why = TRACKED) => ({ ...anyone(action, why), appDatabase: true });
 const yours = (action, scopes, extra = {}) => ({ rule: 'any', action, identity: 'person', scopes, ...extra });
+// D-SL-10B (REQ-418): every data read, check and launch uses the App's service principal, so a person's own grants never decide what Inspire
+// reads. Only who-did-what actions (sending a Request for Access, creating a schema or granting read access as the person) keep `yours`.
+const SP_READS = "reads with the App service principal, the same for every person, so a person's own grants never decide what Inspire reads";
+const reads = (action, extra = {}) => ({ rule: 'any', action, identity: 'app', why: SP_READS, ...extra });
 const owners = (action, extra = {}) => ({ rule: 'owners', action, target: useCaseTarget, identity: 'app', why: GATED, ...extra });
 const builders = (action, extra = {}) => owners(action, { firstBuildOpen: true, ...extra });
 // A run target names the run by its id. An empty id is refused with a 400 before any rule runs (decide), so the label never reads "run ".
@@ -116,43 +120,45 @@ const ROUTE_POLICY = {
   'POST /api/notebook/republish': managers('republish the agent notebook'),
   'POST /api/publish': managers('publish the agent notebook to a workspace path'),
   'POST /api/publish/upload': managers('upload and publish a notebook'),
-  'POST /api/demo-data/start': { ...managers('start a demo data run'), outputWrite: true, scopes: OUTPUT_WRITE_SCOPES },
-  'GET /api/workspace/list': yours('list a workspace or volume folder', ['workspace.workspace:read', 'files'], { sessionOutput: SESSION_OUTPUT }),
-  'GET /api/workspace/export': yours('download a workspace or volume file', ['workspace.workspace:read', 'files'], { sessionOutput: SESSION_OUTPUT }),
-  'GET /api/workspace/status': yours('check a workspace path', ['workspace.workspace:read']),
-  'GET /api/catalogs': yours('list catalogs', ['catalog.catalogs:read', 'sql']),
-  'GET /api/catalogs/:catalog/schemas': yours('list schemas', ['catalog.schemas:read', 'sql']),
-  'GET /api/tables/:catalog/:schema': yours('list tables', ['catalog.tables:read', 'sql']),
-  'GET /api/warehouses': yours('list SQL warehouses', ['sql']),
-  'GET /api/inspire/implement/columns': yours('read the columns of a table', ['sql']),
-  'GET /api/inspire/implement/table-lookup': yours('look up one table and its column match', ['sql']),
-  'GET /api/inspire/implement/values': yours('read the values of a column', ['sql']),
-  'POST /api/relationships': yours('find the relationships between the picked tables', ['catalog.tables:read', 'catalog.schemas:read', 'sql']),
-  'POST /api/data-management/columns': yours('search the columns of the picked tables', ['catalog.tables:read', 'catalog.schemas:read', 'sql']),
-  'POST /api/inspire/implement/swaps': yours('look up table swaps', ['sql']),
-  'POST /api/inspire/implement/readiness': yours('check data readiness', ['sql']),
-  'POST /api/inspire/implement/group-counts': yours('count the rows of each group in scope', ['sql']),
-  'POST /api/inspire/samples/copy': yours('copy samples tables into a schema you own, with your own sign-in', ['sql', 'catalog.schemas:read', 'catalog.tables:read']),
+  'POST /api/demo-data/start': managers('start a demo data run'),
+  'GET /api/workspace/list': reads('list a workspace or volume folder'),
+  'GET /api/workspace/export': reads('download a workspace or volume file'),
+  'GET /api/workspace/status': reads('check a workspace path'),
+  'GET /api/catalogs': reads('list catalogs'),
+  'GET /api/catalogs/:catalog/schemas': reads('list schemas'),
+  'GET /api/tables/:catalog/:schema': reads('list tables'),
+  'GET /api/warehouses': reads('list SQL warehouses'),
+  'GET /api/inspire/implement/columns': reads('read the columns of a table'),
+  'GET /api/inspire/implement/table-lookup': reads('look up one table and its column match'),
+  'GET /api/inspire/implement/values': reads('read the values of a column'),
+  'POST /api/relationships': reads('find the relationships between the picked tables'),
+  'POST /api/data-management/columns': reads('search the columns of the picked tables'),
+  'POST /api/inspire/implement/swaps': reads('look up table swaps'),
+  'POST /api/inspire/implement/readiness': reads('check data readiness'),
+  'POST /api/inspire/implement/group-counts': reads('count the rows of each group in scope'),
+  'POST /api/inspire/samples/copy': reads('copy samples tables into a schema the App creates'),
   // A grant on a build's source tables changes what the App's principal can read, so it needs the build's owner (or the session's
   // launcher before the first build) or an App manager. UC still enforces the person's own GRANT rights on each object.
   'POST /api/inspire/implement/grant-access': { ...yours('grant read access with your own sign-in', ['sql']), rule: 'owners',
     target: useCaseTarget, launcherOwnsUnbuilt: true, permissionRequired: true, why: GATED },
   // Check reads what a viewer still needs for anyone who can see the record; Grant changes read access, so it needs the same
   // owner-or-manager rule as the build and control routes (the action is in the body, read by ruleWhen).
-  'POST /api/inspire/implement/app-reads': { ...yours('give an App Inspire built read access with your own sign-in', ['sql']),
+  'POST /api/inspire/implement/app-reads': { ...reads('check the read access an App Inspire built has'),
     ruleWhen: (req) => (requestAction(req) === 'grant' ? { rule: 'owners', action: 'grant read access to the App its build made', target: useCaseTarget,
       permissionRequired: true, why: GATED } : null) },
-  'POST /api/inspire/implement/create-schema': yours('create a catalog or schema with your own sign-in', ['sql']),
-  'GET /api/inspire/implement/serving-endpoints': yours('list serving endpoints', ['model-serving']),
-  'POST /api/run/check': yours('check the grants a run needs before it starts', ['sql', 'catalog.tables:read']),
-  'POST /api/run': { ...anyone('launch a run', 'launches the run as the App, which owns the job and its tracking tables'), outputWrite: true, scopes: OUTPUT_WRITE_SCOPES },
-  'POST /api/output-folder/check': yours('check that you can write to an output folder', OUTPUT_WRITE_SCOPES, { outputWrite: true }),
+  // REQ-418 (D-SL-10B): the App's service principal creates the schema; the requester is recorded in Inspire's own records.
+  'POST /api/inspire/implement/create-schema': reads('create a catalog or schema the App owns for the use case'),
+  'GET /api/inspire/implement/serving-endpoints': reads('list serving endpoints'),
+  'POST /api/run/check': reads('check the grants a run needs before it starts'),
+  'POST /api/run': anyone('launch a run', 'launches the run as the App, which owns the job and its tracking tables'),
+  // The App writes the output; this check also shares the person's own folder with the App, with the person's sign-in (OUTPUT_WRITE_SCOPES).
+  'POST /api/output-folder/check': reads('check that the App can write to an output folder', { outputWrite: true, scopes: OUTPUT_WRITE_SCOPES }),
   'GET /api/run/:runId': recorded('read a run', 'reads the state of a run the App launched and recorded in its own database'),
   'GET /api/run/:runId/output': recorded('read a run output', 'reads the output of a run the App launched and recorded in its own database'),
   'GET /api/run/:runId/cancel': anyone('read the cancel verdict', 'answers the cancel route verdict, changes nothing and reads nothing from the workspace'),
   'POST /api/run/:runId/cancel': { rule: 'launcher', action: 'cancel it', target: runTarget, identity: 'app', why: GATED },
-  'POST /api/run/:runId/again': { rule: 'launcher', action: 'run it again', target: runTarget, identity: 'app', why: GATED, outputWrite: true, scopes: OUTPUT_WRITE_SCOPES },
-  'POST /api/documents': { rule: 'launcher', action: 'rebuild the documents of a session', target: sessionTarget, identity: 'app', why: GATED, outputWrite: true, scopes: OUTPUT_WRITE_SCOPES },
+  'POST /api/run/:runId/again': { rule: 'launcher', action: 'run it again', target: runTarget, identity: 'app', why: GATED },
+  'POST /api/documents': { rule: 'launcher', action: 'rebuild the documents of a session', target: sessionTarget, identity: 'app', why: GATED },
   'GET /api/run/pages': anyone('list the hosted pages', 'lists the MVP pages Inspire hosts'),
   'GET /api/inspire/session': tracked('read a session'),
   'GET /api/inspire/value': tracked('read the value at stake and saved of a run'),
@@ -183,6 +189,8 @@ const ROUTE_POLICY = {
   'GET /api/inspire/implement/status': tracked('read the build status of a use case'),
   'GET /api/inspire/implement/diagnostics': tracked('read the build diagnostics of a use case'),
   'GET /api/inspire/implement/money': tracked('read the cost of a build'),
+  'GET /api/inspire/implement/usecase-assets': tracked('read which assets each use case has'),
+  'GET /api/inspire/implement/usecase-dbus': tracked('read the DBUs each use case consumed'),
   'GET /api/inspire/implement/feedback': tracked('read the issues people reported in its App'),
   'GET /api/inspire/implement/live': tracked('read what a build runs now'),
   'GET /api/inspire/portfolio': tracked('read the portfolio of a database'),
@@ -211,17 +219,17 @@ const ROUTE_POLICY = {
   'POST /api/inspire/implement/feedback/status': owners('change the status of an issue reported in its App'),
   'POST /api/inspire/implement/feedback/vibe': owners('draft a vibe from an issue reported in its App'),
   'POST /api/money/currency-rates': tracked('read the currencies of the use case table and their rates to the reporting currency',
-    'reads the use case table with your own sign-in; the rates come from a public rate source or the averages saved with Inspire'),
+    'reads the use case table with the App\'s service principal; the rates come from a public rate source or the averages saved with Inspire'),
   'POST /api/money/describe-value': tracked('turn a description of a money value into a value rule with a chat model',
-    'calls the chat model with your own sign-in and reads nothing else'),
+    'calls the chat model with the App\'s service principal and reads nothing else'),
   'POST /api/money/value-preview': tracked('read three rows of the use case table through the value a money rule names',
-    'reads the use case table with your own sign-in'),
+    'reads the use case table with the App\'s service principal'),
   'POST /api/money/rate-sample': tracked('read the rates of the rate table a money rule names',
-    'reads the rate table with your own sign-in'),
+    'reads the rate table with the App\'s service principal'),
   'POST /api/access-request/check': yours('check whether Request for Access is offered for the grants you need', ['catalog.catalogs:read']),
   'POST /api/access-request': yours('send a Request for Access to the owner of the data, as you', ['catalog.catalogs:read']),
   'POST /api/grouping/profile': tracked('read the main table of a use case for its Data groups',
-    'reads the use case record from the Inspire tracking tables in the App database, and reads the use case table only with your own sign-in'),
+    'reads the use case record from the Inspire tracking tables in the App database, and reads the use case table with the App\'s service principal'),
 };
 
 function routeKey(method, path) {
@@ -239,11 +247,11 @@ function changingRoutesInSource(text) {
   return routesInSource(text).filter((r) => !r.key.startsWith('GET '));
 }
 
-function identityFor(key, req, appDatabase) {
+// REQ-418: the App's service principal for every route it declares 'app'; the signed-in person's token only for the routes that act as
+// the person (a Request for Access, creating a schema, granting read access), which declare 'person'. Unknown routes are refused by the gate.
+function identityFor(key) {
   const entry = Object.hasOwn(ROUTE_POLICY, String(key)) ? ROUTE_POLICY[key] : null;
-  if (!entry || entry.identity !== 'app') return 'person';
-  if (entry.appDatabase && (!norm(appDatabase) || norm(field(req, 'inspire_database')) !== norm(appDatabase))) return 'person';
-  return 'app';
+  return entry && entry.identity === 'app' ? 'app' : 'person';
 }
 
 function undeclaredIdentity(keys, table = ROUTE_POLICY) {
@@ -251,7 +259,6 @@ function undeclaredIdentity(keys, table = ROUTE_POLICY) {
     const entry = Object.hasOwn(table, key) ? table[key] : null;
     if (!entry || !Object.hasOwn(IDENTITIES, entry.identity)) return true;
     if (entry.identity === 'app') return !/^[a-z][^\n]{10,}$/.test(str(entry.why));
-    if (entry.sessionOutput != null && !/^[a-z][^\n]{10,}$/.test(str(entry.sessionOutput))) return true;
     return !Array.isArray(entry.scopes) || !entry.scopes.length;
   }).sort();
 }
@@ -279,33 +286,10 @@ function outputFolderOf(generationPath, notebookPath) {
   return canonicalPath(`${notebook.replace(/\/[^/]+$/, '')}/${gp}`);
 }
 
-function insideFolder(path, folder) {
-  const at = canonicalPath(path);
-  const root = canonicalPath(folder);
-  if (!at || !root || root.split('/').length < 3) return false;
-  return at === root || at.startsWith(`${root}/`);
-}
-
-async function resolveIdentity(key, req, { appDatabase, outputFolders }) {
-  const identity = identityFor(key, req, appDatabase);
-  const entry = Object.hasOwn(ROUTE_POLICY, String(key)) ? ROUTE_POLICY[key] : null;
-  if (identity !== 'person' || !entry || !entry.sessionOutput) return identity;
-  const path = field(req, 'path');
-  if (!canonicalPath(path)) return identity;
-  let folders = [];
-  try {
-    folders = await outputFolders();
-  } catch (err) {
-    console.warn(`route policy: the session output folders could not be read, so ${key} reads with the person's token: ${oneLine(err.message)}`);
-  }
-  return (folders || []).some((folder) => insideFolder(path, folder)) ? 'app' : 'person';
-}
-
+// REQ-418: the routes that answer 401 without the person's sign-in are the ones that read with the person's token. App-identity routes
+// (including the App-database and output-write ones) never need the person's sign-in to answer.
 function personSignInRoutes(table = ROUTE_POLICY) {
-  return Object.keys(table).filter((key) => {
-    const entry = table[key] || {};
-    return entry.identity === 'person' || entry.appDatabase === true || entry.outputWrite === true;
-  }).sort();
+  return Object.keys(table).filter((key) => (table[key] || {}).identity === 'person').sort();
 }
 
 const READ_ONLY = ':read';
@@ -563,10 +547,8 @@ module.exports = {
   registers,
   staleEntries,
   identityFor,
-  resolveIdentity,
   canonicalPath,
   outputFolderOf,
-  insideFolder,
   undeclaredIdentity,
   personSignInRoutes,
   scopeCovers,

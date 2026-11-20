@@ -70,7 +70,7 @@ test('person identity with no App token refuses the source read instead of runni
 });
 
 test('a clean build (App token present, App and person can read the source) passes the preflight and the plan (must-exclude control)', async () => {
-  await withApp({ tokenKind: 'app', appToken: 'app-tok', forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE] } }, async (url) => {
+  await withApp({ tokenKind: 'app', appToken: 'app-tok', forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE], tok: [SOURCE] } }, async (url) => {
     const pre = await call(url, `/api/inspire/implement/preflight?${Q}&result_table=main.inspire.churn_out`, { method: 'POST', body: { spec: BUILD_SPEC } });
     assert.equal(pre.data.checks.sources.ok, true, JSON.stringify(pre.data.checks.sources));
     const plan = await call(url, '/api/inspire/implement/plan', { method: 'POST', body: { ...DB, spec: BUILD_SPEC } });

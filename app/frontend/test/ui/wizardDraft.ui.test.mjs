@@ -2,11 +2,11 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { GROUPING_INSTRUCTION, GROUPING_PROFILE, HARNESS_USE_CASE, OWNER } from './implementFixtures.js';
 import { DRAFT_BACK_NOTE, WIZARD_DRAFT_PREFIX } from '../../src/lib/wizardDraft.js';
-import { BUILD_IT, closeBrowser, goToStep, nextUntil, onStep, openFolded, openUi, profileAt, settleChoices, stepsAre } from './uiSupport.mjs';
+import { BUILD_IT, closeBrowser, goToStep, nextUntil, onStep, openFolded, openUi, profileAt, settleChoices, stepsAre, POLICIED_SOURCE } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
-const ME = { me: { userName: OWNER, displayName: 'Owner' } };
+const ME = { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE }; // D-SL-11: the access choice shows for a row-filtered source
 const STATE = { ...ME, useCase: { ...HARNESS_USE_CASE, genie_instruction: GROUPING_INSTRUCTION } };
 const WITH_APP = ['1. What to deliver', '2. Data & results', '3. Data groups', '4. First run', '5. Measure', '6. Where it lives', '7. Review & build'];
 const drafts = (page) => page.evaluate((prefix) => Object.keys(localStorage).filter((k) => k.startsWith(prefix)), WIZARD_DRAFT_PREFIX);

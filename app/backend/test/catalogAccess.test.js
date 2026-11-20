@@ -88,8 +88,8 @@ const PERSON_READS = [
 ];
 
 const appPolicyDenied = (base) => ({ token, path, method, body }) => {
-  if (token !== 'tok' && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)) return undefined;
-  if (/^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)) return [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403];
+  if (token !== 'tok' && /^\/api\/2\.1\/unity-catalog\/policies\/TABLE\//i.test(path)) return undefined;
+  if (/^\/api\/2\.1\/unity-catalog\/policies\/TABLE\//i.test(path)) return [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403];
   return base ? base({ token, path, method, body }) : undefined;
 };
 
@@ -139,13 +139,13 @@ test('context splits a table only the App cannot read from a missing table and n
   });
 });
 
-test('context keeps the missing-table path when the person cannot read the table either', async () => {
+test('a person who cannot read a table does not decide the build: the App reads it, so a grant the App can take is offered and no table is missing (REQ-418)', async () => {
   const { overrides } = split(PERSON_READS, { personReads: false });
   await withApp(overrides, async (url) => {
     const got = await call(url, `/api/inspire/implement/context?${Q}`);
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(got.data.missing_tables.map((m) => [m.table, m.reason]), [['main.s.orders', 'no read access']]);
-    assert.equal(got.data.app_unreadable, null);
+    assert.deepEqual(got.data.missing_tables, []);
+    assert.deepEqual(got.data.app_unreadable.tables, ['main.s.orders']);
   });
 });
 
@@ -354,13 +354,38 @@ test('a new catalog or schema for the result table is made with the person sign-
   assert.match(G.PLACE_RIGHTS.schema, /CREATE SCHEMA/);
 });
 
-test('create-schema runs one CREATE with the person token, refuses a bad name or no sign-in, and passes the workspace refusal back', async () => {
+// REQ-418 (ruling 3): the App creates the use case's schema, and the signed-in person is recorded as the requester in Inspire's control log.
+test('create-schema for a use case records the signed-in person as the requester in the control log, as the App (ruling 3, REQ-418)', async () => {
+  const tags = { inspire_session_id: '42', inspire_use_case_id: 'N01-U01' };
+  await withApp({ forwardedToken: PERSON_TOKEN, forwardedEmail: 'requester@example.com' }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out', tags } });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(got.data.warnings, [], 'the record writes, so nothing is warned');
+    const record = made.sqlCalls.find((c) => /INSERT INTO .*__inspire_control_log/.test(String(c.sql)));
+    assert.ok(record, 'the request is recorded in the control log');
+    assert.equal(record.token, APP_TOKEN, 'the record is written as the App, the same identity as the schema');
+    const by = record.parameters.find((p) => p.name === 'by').value;
+    assert.equal(by, 'requester@example.com', 'the signed-in person is the requester');
+    assert.equal(record.parameters.find((p) => p.name === 'asset').value, 'schema');
+    assert.equal(record.parameters.find((p) => p.name === 'id').value, 'main.churn_out');
+  });
+});
+
+test('create-schema with no use case context creates the schema and records nothing (must-exclude)', async () => {
+  await withApp({ forwardedToken: PERSON_TOKEN, forwardedEmail: 'requester@example.com' }, async (url, made) => {
+    const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(made.sqlCalls.some((c) => /__inspire_control_log/.test(String(c.sql))), false, 'no use case, so no record');
+  });
+});
+
+test('create-schema runs one CREATE as the App service principal (REQ-418), refuses a bad name, and passes the workspace refusal back', async () => {
   await withApp({ forwardedToken: PERSON_TOKEN }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data, { catalog: 'main', schema: 'churn_out' });
     const made1 = made.sqlCalls.filter((c) => /^CREATE /.test(c.sql));
-    assert.deepEqual(made1.map((c) => [c.sql, c.token]), [['CREATE SCHEMA IF NOT EXISTS `main`.`churn_out`', PERSON_TOKEN]]);
+    assert.deepEqual(made1.map((c) => [c.sql, c.token]), [['CREATE SCHEMA IF NOT EXISTS `main`.`churn_out`', APP_TOKEN]]);
     const cat = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'team_lake' } });
     assert.equal(cat.status, 200);
     assert.equal(made.sqlCalls.at(-1).sql, 'CREATE CATALOG IF NOT EXISTS `team_lake`');
@@ -369,10 +394,11 @@ test('create-schema runs one CREATE with the person token, refuses a bad name or
     assert.match(bad.data.error, /schema name can only use letters, digits, _ and -/);
     assert.equal(made.sqlCalls.some((c) => /DROP/.test(c.sql)), false, 'a bad name runs nothing (must-exclude)');
   });
+  // REQ-418: the App creates the schema with its own token, so a missing person sign-in never blocks it; the person is the requester.
   await withApp({ forwardedToken: '', tokenKind: 'app' }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });
-    assert.equal(got.status, 401, JSON.stringify(got.data));
-    assert.equal(made.sqlCalls.some((c) => /^CREATE /.test(c.sql)), false, 'never creates with the App token (must-exclude)');
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.deepEqual(made.sqlCalls.filter((c) => /^CREATE /.test(c.sql)).map((c) => c.token), [APP_TOKEN]);
   });
   await withApp({ forwardedToken: PERSON_TOKEN, sqlErrors: { 'CREATE SCHEMA': '[PERMISSION_DENIED] User does not have CREATE SCHEMA on Catalog main' } }, async (url) => {
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 'churn_out' } });

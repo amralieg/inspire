@@ -8,7 +8,8 @@ const { makeApp, listen } = require('./support/implementApp');
 
 const SHARED = JSON.parse(fs.readFileSync(path.join(__dirname, 'fixtures', 'use_case_schema_names.json'), 'utf8'));
 const Q = 'inspire_database=main.inspire&warehouse_id=wh1&session_id=42&use_case_id=N01-U01';
-const PERSON_TOKEN = 'person-tok';
+const PERSON_TOKEN = "person-tok";
+const APP_TOKEN = "tok"; // the harness dbToken: the App identity for app routes (D-SL-10B)
 const OWN = 'main._inspire_acme_n01_u01.n01_u01_results';
 const SCHEMA = '_inspire_acme_n01_u01';
 const INSPIRE = 'main.inspire.n01_u01_s42_out';
@@ -45,7 +46,7 @@ test('an existing build keeps its result table; the own-schema default never rep
 });
 
 const RIGHT = { kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' };
-const ME = { kind: 'me', schema_name: '', value: 'amr@x' };
+const ME = { kind: "me", schema_name: "", value: "app-sp" }; // current_user() under the App token
 const place = (rows, extra = {}) => I.useCaseSchemaPlace({ inspireDatabase: 'main.inspire', useCaseId: 'N01-U01', sessionId: '42', businessName: 'Acme', rows, ...extra });
 
 test('with CREATE SCHEMA on the catalog the own schema is the default and Inspire creates it', () => {
@@ -60,11 +61,11 @@ test('without the right to create a schema the default switches to the Inspire d
     const got = place(rows);
     assert.deepEqual([got.table, got.place, got.create, got.own_table], [INSPIRE, 'inspire', false, OWN]);
     assert.doesNotMatch(got.note, /GRANT/, 'the prose names no GRANT (REQ-260, must-exclude)');
-    assert.deepEqual(got.permission.statements, ['GRANT CREATE SCHEMA ON CATALOG `main` TO `amr@x`'], 'the dialog payload carries the exact statement (must-keep)');
+    assert.deepEqual(got.permission.statements, ['GRANT CREATE SCHEMA ON CATALOG `main` TO `app-sp`'], 'the dialog payload carries the exact statement (must-keep)');
   }
   const unchecked = place(null, { unchecked: 'warehouse stopped' });
   assert.equal(unchecked.table, INSPIRE);
-  assert.match(unchecked.note, /could not check whether you can create schemas in main \(warehouse stopped\)/);
+  assert.match(unchecked.note, /could not check whether the App can create schemas in main \(warehouse stopped\)/);
 });
 
 const tagged = (schema, tags) => [{ kind: 'exists', schema_name: schema, value: '' },
@@ -185,7 +186,7 @@ async function withApp(overrides, run) {
   }
 }
 
-const schemaRows = (rows) => ({ 'information_schema.schema_tags': (_sql, _p, token) => ({ rows: token === PERSON_TOKEN ? rows : [] }) });
+const schemaRows = (rows) => ({ 'information_schema.schema_tags': (_sql, _p, token) => ({ rows: token === APP_TOKEN ? rows : [] }) });
 
 test('context offers the own schema as the default only to a new use case, and falls back with the GRANT when the person cannot create it', async () => {
   await withApp({ forwardedToken: PERSON_TOKEN, statements: schemaRows([RIGHT, ME]) }, async (url) => {
@@ -216,23 +217,33 @@ test('context offers the own schema as the default only to a new use case, and f
 test('create-schema tags the use case schema and lets the identity Inspire builds as write there', async () => {
   const grants = [];
   const statements = { ...schemaRows([RIGHT]), 'GRANT ': (sql, _p, token) => { grants.push([sql, token]); return { rows: [] }; } };
-  await withApp({ forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp-1' }, statements }, async (url, made) => {
+  await withApp({ forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: "amr@x" }, appMe: { userName: "inspire-app", applicationId: "app-sp-1" }, statements }, async (url, made) => {
     const body = { catalog: 'main', schema: '_inspire_acme_n01_u01', tags: w.useCaseSchemaTags({ sessionId: '42', useCaseId: 'N01-U01', businessName: 'Acme', inspireDatabase: '`main`.`inspire`' }) };
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data.warnings, []);
+    // REQ-418 ruling 3: the App runs every statement (its token), and the signed-in person is recorded as the requester in the control log.
     const ran = made.sqlCalls.filter((c) => /^(CREATE|ALTER) /.test(c.sql)).map((c) => [c.sql, c.token]);
-    assert.deepEqual(ran, [
-      ['CREATE SCHEMA IF NOT EXISTS `main`.`_inspire_acme_n01_u01`', PERSON_TOKEN],
-      ["ALTER SCHEMA `main`.`_inspire_acme_n01_u01` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme', 'inspire_database' = 'main.inspire')", PERSON_TOKEN],
+    assert.deepEqual(ran.map(([sql, token]) => [sql.startsWith('CREATE TABLE IF NOT EXISTS `main`.`inspire`.`__inspire_control_log`') ? 'CONTROL LOG' : sql, token]), [
+      ['CREATE SCHEMA IF NOT EXISTS `main`.`_inspire_acme_n01_u01`', APP_TOKEN],
+      ['CONTROL LOG', APP_TOKEN],
+      ["ALTER SCHEMA `main`.`_inspire_acme_n01_u01` SET TAGS ('inspire_session_id' = '42', 'inspire_use_case_id' = 'N01-U01', 'inspire_business' = 'Acme', 'inspire_database' = 'main.inspire')", APP_TOKEN],
     ]);
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]]);
+    const logged = made.sqlCalls.find((c) => /^INSERT INTO .*__inspire_control_log/.test(c.sql));
+    assert.ok(logged, 'the create is written to the control log');
+    assert.equal(logged.token, APP_TOKEN);
+    assert.ok(logged.parameters.some((p) => p.value === 'amr@x'), `the signed-in person is the recorded requester: ${JSON.stringify(logged.parameters)}`);
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', APP_TOKEN]]);
   });
-  const same = [];
-  await withApp({ forwardedToken: PERSON_TOKEN, dbToken: PERSON_TOKEN, statements: { ...schemaRows([RIGHT]), 'GRANT ': (sql) => { same.push(sql); return { rows: [] }; } } }, async (url) => {
+  // D-SL-10B: the App is always the build identity, so the person who asked is never the grantee (must-exclude).
+  const named = [];
+  await withApp({ forwardedToken: PERSON_TOKEN, me: { userName: 'amr@x' }, appMe: { userName: 'inspire-app', applicationId: 'app-sp-1' },
+    statements: { ...schemaRows([RIGHT]), 'GRANT ': (sql) => { named.push(sql); return { rows: [] }; } } }, async (url) => {
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body: { catalog: 'main', schema: 's1', tags: { inspire_session_id: '42' } } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.deepEqual(same, [], 'a person who builds as themselves owns the schema and needs no grant (must-exclude)');
+    assert.equal(named.length, 1);
+    assert.match(named[0], /TO `app-sp-1`$/);
+    assert.doesNotMatch(named[0], /amr@x/, 'the person is never the grantee');
   });
 });
 
@@ -241,12 +252,12 @@ test('create-schema on the person route, where the request carries the person to
   const statements = { ...schemaRows([RIGHT]), 'GRANT ': (sql, _p, token) => { grants.push([sql, token]); return { rows: [] }; } };
   const workspace = ({ token, path }) => (path.startsWith('/api/2.0/preview/scim/v2/Me')
     ? [token === 'sp-tok' ? { userName: 'inspire-app', applicationId: 'app-sp-1' } : { userName: 'amr@x' }] : undefined);
-  await withApp({ forwardedToken: PERSON_TOKEN, dbToken: PERSON_TOKEN, appToken: 'sp-tok', workspace, statements }, async (url) => {
+  await withApp({ forwardedToken: PERSON_TOKEN, dbToken: "sp-tok", appToken: "sp-tok", workspace, statements }, async (url) => {
     const body = { catalog: 'main', schema: '_inspire_acme_n01_u01', tags: w.useCaseSchemaTags({ sessionId: '42', useCaseId: 'N01-U01', businessName: 'Acme', inspireDatabase: 'main.inspire' }) };
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data.warnings, []);
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]]);
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', "sp-tok"]]);
   });
 });
 
@@ -272,13 +283,13 @@ test('create-schema on a schema that already exists grants the identity Inspire 
   const held = tagged(SCHEMA, { ...LINEAGE, inspire_session_id: '42' });
   const grants = [];
   const statements = { ...schemaRows(held), 'GRANT ': (sql, _p, token) => { grants.push([sql, token]); return { rows: [] }; } };
-  await withApp({ forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp-1' }, statements }, async (url, made) => {
+  await withApp({ forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: "amr@x" }, appMe: { userName: "inspire-app", applicationId: "app-sp-1" }, statements }, async (url, made) => {
     const body = { catalog: 'main', schema: SCHEMA, tags: w.useCaseSchemaTags({ sessionId: '42', useCaseId: 'N01-U01', businessName: 'Acme', inspireDatabase: 'main.inspire' }) };
     const got = await call(url, `/api/inspire/implement/create-schema?${Q}`, { method: 'POST', body });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.existed, true);
     assert.deepEqual(made.sqlCalls.filter((c) => /^(CREATE|ALTER) /.test(c.sql)), [], 'an existing, tagged schema is neither created nor tagged again');
-    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', PERSON_TOKEN]],
+    assert.deepEqual(grants, [['GRANT USE SCHEMA, CREATE TABLE, CREATE MODEL, SELECT, MODIFY, MANAGE ON SCHEMA `main`.`_inspire_acme_n01_u01` TO `app-sp-1`', APP_TOKEN]],
       'the builder grant lands on an existing schema, the case that left the build identity without USE SCHEMA and CREATE TABLE');
   });
 });
@@ -345,7 +356,7 @@ const outputRows = (rows) => ({ 'AS mine, current_user() AS me FROM (': { rows }
 
 test('preflight on a first run passes the App when the person can create the use case schema, and names the missing schema when they cannot (must-exclude)', async () => {
   const ask = `/api/inspire/implement/preflight?${Q}&result_table=${OWN}&app_name=&merge_app=&genie=1&dashboard=0`;
-  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp' },
+  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: "amr@x" }, appMe: { userName: "inspire-app", applicationId: "app-sp" },
     warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] } };
   await withApp({ ...app, statements: { ...schemaRows([RIGHT, ME]), ...outputRows(NOT_CREATED) } }, async (url) => {
     const got = await call(url, ask);
@@ -369,7 +380,7 @@ test('preflight on a first run passes the App when the person can create the use
 
 test('the first run creates the schema the wizard names, even when the session business name names another schema, and the verdict says so (REQ-037, must fail before the fix)', async () => {
   const ask = `/api/inspire/implement/preflight?${Q}&result_table=main._inspire_n01_u01.n01_u01_results&app_name=&merge_app=&genie=1&dashboard=0`;
-  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp' },
+  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: "amr@x" }, appMe: { userName: "inspire-app", applicationId: "app-sp" },
     warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] } };
   await withApp({ ...app, statements: { ...schemaRows([RIGHT, ME]), ...outputRows(NOT_CREATED) } }, async (url) => {
     const got = await call(url, ask);
@@ -382,7 +393,7 @@ test('the first run creates the schema the wizard names, even when the session b
 
 test('a missing schema is refused when the person cannot create schemas, even when it is a name Inspire generates (must-exclude, REQ-037)', async () => {
   const ask = `/api/inspire/implement/preflight?${Q}&result_table=main._inspire_n01_u01.n01_u01_results&app_name=&merge_app=&genie=1&dashboard=0`;
-  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp' },
+  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: "amr@x" }, appMe: { userName: "inspire-app", applicationId: "app-sp" },
     warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] } };
   await withApp({ ...app, statements: { ...schemaRows([ME]), ...outputRows(NOT_CREATED) } }, async (url) => {
     const got = await call(url, ask);
@@ -395,7 +406,7 @@ test('a missing schema is refused when the person cannot create schemas, even wh
 
 test('a missing schema with a name Inspire does not generate is refused even with CREATE SCHEMA (must-exclude, REQ-037)', async () => {
   const ask = `/api/inspire/implement/preflight?${Q}&result_table=main._sales_n01_u01.n01_u01_results&app_name=&merge_app=&genie=1&dashboard=0`;
-  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: 'inspire-app', applicationId: 'app-sp' },
+  const app = { forwardedToken: PERSON_TOKEN, tokenKind: 'app', me: { userName: "amr@x" }, appMe: { userName: "inspire-app", applicationId: "app-sp" },
     warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] } };
   await withApp({ ...app, statements: { ...schemaRows([RIGHT, ME]), ...outputRows(NOT_CREATED) } }, async (url) => {
     const got = await call(url, ask);

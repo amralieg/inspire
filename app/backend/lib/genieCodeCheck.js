@@ -21,8 +21,6 @@ const GENIE_CODE_PROBES_PER_ROUTE = 3;
 const GENIE_CODE_CALL_TIMEOUT_MS = 10000;
 const GENIE_CODE_CHECK_DEADLINE_MS = 15000;
 const GENIE_CODE_CACHE_MS = 10 * 60 * 1000;
-const GENIE_CODE_RUN_AS_UNCHECKED = 'Inspire does not check Genie Code as you in run-as mode: the run checks its AI model as the installer, '
-  + 'and stops with the reason if none answers';
 const GENIE_CODE_UNCHECKED = 'Inspire could not finish its Genie Code check just now, so it does not block the build; '
   + 'if Genie Code turns out to be unavailable, the build stops before Genie starts and says why';
 
@@ -143,12 +141,7 @@ function createGenieCodeCheck({ now = () => Date.now() } = {}) {
   };
 }
 
-function runAsUnchecked() {
-  return { available: null, route: '', model: '', reason: GENIE_CODE_RUN_AS_UNCHECKED, fix: '' };
-}
-
 module.exports = {
-  runAsUnchecked,
   GENIE_CODE_ADMIN_FIX,
   GENIE_CODE_GATEWAYS,
   GENIE_CODE_MODEL,

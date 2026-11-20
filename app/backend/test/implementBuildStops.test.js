@@ -6,6 +6,9 @@ const { emptyScopeWarning, readinessScope } = require('../../frontend/src/lib/im
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PERSON_TOKEN = 'person-token';
+const APP_TOKEN = 'app-token';
+// REQ-418: a new App needs the App's own principal (not the person) to manage the warehouse; the fixture grants that to the App.
+const APP_MANAGES = { access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] };
 const Q = 'inspire_database=main.inspire&warehouse_id=wh1&session_id=42&use_case_id=N01-U01';
 const OUT = 'result_table=main.inspire.churn_out';
 const DB = { inspire_database: 'main.inspire', warehouse_id: 'wh1', session_id: '42' };
@@ -62,7 +65,7 @@ test('an access check the warehouse could not finish lets Build go on with a war
 
 test('Build never blocks on a guessed Apps limit: an unanswered list, a long list and a workspace with Apps all go on, and only a workspace without Apps says no (must-exclude)', async () => {
   const room = I.appsRoomCheck(true);
-  await withApp({ responses: { 'GET /api/2.0/apps': [{ message: 'upstream unavailable' }, 503] } }, async (url) => {
+  await withApp({ warehousePermissions: APP_MANAGES, responses: { 'GET /api/2.0/apps': [{ message: 'upstream unavailable' }, 503] } }, async (url) => {
     const got = await preflight(url, '&app_name=churn-desk');
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(got.data.ok, true, JSON.stringify(got.data.checks));
@@ -75,7 +78,7 @@ test('Build never blocks on a guessed Apps limit: an unanswered list, a long lis
     assert.deepEqual([got.data.ok, got.data.checks.apps.ok], [false, false], 'a workspace without Apps still says no');
   });
   const many = { apps: Array.from({ length: 163 }, (_, i) => ({ name: `app-${i}` })) };
-  await withApp({ appsList: many }, async (url) => {
+  await withApp({ appsList: many, warehousePermissions: APP_MANAGES }, async (url) => {
     const got = await preflight(url, '&app_name=churn-desk');
     assert.deepEqual([got.data.ok, got.data.checks.apps], [true, room], '163 Apps is not a full workspace');
     assert.doesNotMatch(JSON.stringify(got.data.checks), /of its \d+ Apps/);
@@ -89,16 +92,16 @@ test('a share the person cannot make never blocks the build: the version builds 
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.equal(made.jobs.length, 1);
     assert.equal(got.data.warnings.length, 1);
-    assert.equal(got.data.warnings[0], 'Built without sharing: amr@x, the identity Inspire builds as, cannot share main.inspire.churn_out: '
+    assert.equal(got.data.warnings[0], 'Built without sharing: inspire-manual, the identity Inspire builds as, cannot share main.inspire.churn_out: '
       + 'it needs to own it, its schema or its catalog, or hold MANAGE on one of them. Share main.inspire.churn_out once it can.');
     assert.deepEqual(insertedSpec(made).sharing.principals, [], 'the build job skips the sharing');
   });
+  // REQ-418: the App builds whoever signs in, so the share warning names the App's identity for a signed-in person too (must-exclude: never "you").
   await withApp({ access: CANNOT_SHARE, columns: KEY_COLUMNS, forwardedToken: 'tok' }, async (url, made) => {
     const got = await submit(url, shared);
     assert.equal(got.status, 200, JSON.stringify(got.data));
-    assert.equal(got.data.warnings[0], 'Built without sharing: you cannot share main.inspire.churn_out: '
-      + 'you need to own it, its schema or its catalog, or hold MANAGE on one of them. Share main.inspire.churn_out once you can.');
-    assert.doesNotMatch(got.data.warnings[0], /identity Inspire builds as|once it can/, 'a build that runs as the person says you (must-exclude)');
+    assert.match(got.data.warnings[0], /^Built without sharing: inspire-manual, the identity Inspire builds as, cannot share main\.inspire\.churn_out/);
+    assert.doesNotMatch(got.data.warnings[0], /\byou\b/, 'a build that runs as the App never tells the person "you"');
     assert.equal(made.jobs.length, 1);
   });
   await withApp({ access: CANNOT_SHARE, columns: KEY_COLUMNS }, async (url, made) => {
@@ -117,7 +120,8 @@ test('a share the person cannot make never blocks the build: the version builds 
 test('the server counts the rows before a plan or a build, warns when there are none or it could not count, and never blocks on it', async () => {
   const scope = readinessScope({ ...SPEC, data: {} }, USE_CASE);
   assert.equal(scope.table, 'main.s.orders');
-  await withApp({ readinessRows: [{ row_count: '0' }] }, async (url, made) => {
+  // REQ-418: the readiness counts are reads, so they carry the App's token, never the person's.
+  await withApp({ readinessRows: [{ row_count: '0' }], dbToken: APP_TOKEN }, async (url, made) => {
     const planned = await plan(url);
     assert.equal(planned.status, 200, JSON.stringify(planned.data));
     assert.deepEqual(planned.data.warnings, [emptyScopeWarning(scope, ['main.s.orders'])]);
@@ -127,7 +131,7 @@ test('the server counts the rows before a plan or a build, warns when there are 
     assert.deepEqual(got.data.warnings, [emptyScopeWarning(scope, ['main.s.orders'])]);
     assert.equal(made.jobs.length, 1, 'an empty table warns, it does not stop the build');
     const counts = made.sqlCalls.filter((c) => /^SELECT COUNT\(\*\) AS row_count/.test(String(c.sql)));
-    assert.ok(counts.length >= 2 && counts.every((c) => c.token === PERSON_TOKEN), 'counted with the person\u2019s own token');
+    assert.ok(counts.length >= 2 && counts.every((c) => c.token === APP_TOKEN), 'counted with the App\u2019s token, never the person\u2019s');
   });
   const twoTables = { ...USE_CASE, tables_involved: 'main.s.orders, main.s.returns' };
   await withApp({ useCase: twoTables, readinessRows: [{ row_count: '0' }] }, async (url) => {

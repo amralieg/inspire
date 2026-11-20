@@ -139,12 +139,14 @@ test('a fully refused grant keeps every table listed with its exact grants and t
   });
 });
 
-test('Check again and Grant both need the person\'s own sign-in, and neither falls back to the service token', async () => {
+// REQ-418: Check again reads as the App, so it needs no person sign-in; Grant runs with the person's own sign-in and never falls back to
+// the App's token.
+test('Check again reads as the App with no person sign-in, and Grant needs the person\'s own sign-in and never falls back to the service token', async () => {
   const w = workspace();
   await withApp({ ...w.overrides, forwardedToken: '' }, async (url) => {
     const got = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'check' });
-    assert.equal(got.status, 401, JSON.stringify(got.data));
-    assert.equal(got.data.error, I.IMPLEMENT_GRANT_NO_SIGN_IN);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.equal(got.data.app, SP, 'the check reads what the App can read');
     assert.deepEqual(w.grants, []);
     const grant = await call(url, `/api/inspire/implement/app-reads?${Q}`, { action: 'grant' });
     assert.equal(grant.status, 401);

@@ -30,10 +30,11 @@ test('each choice has exactly one Recommended option, with a reason, picked from
   assert.equal(H.bestKpi([{ name: 'Churn rate' }], { record: { name: 'Revenue' } }), null, 'a tracked KPI not in the list is not recommended (must-exclude)');
   assert.equal(H.bestKpi([{ name: 'Churn rate' }], null), null, 'no tracked KPI shows no badge (must-exclude)');
   one(H.bestAppAccess(), ['user', 'sp']);
-  assert.equal(H.bestAppAccess().id, 'user', 'with no personal column the App still signs each viewer in, so row filters and masks hold');
-  assert.notEqual(H.bestAppAccess().id, 'sp', 'the shared service principal view is never the recommendation (must-exclude)');
+  assert.equal(H.bestAppAccess().id, 'sp', 'with no personal column the App reads as its service principal (D-SL-11)');
+  assert.equal(H.bestAppAccess({ personal: 'orders.email' }).id, 'user', 'a personal column recommends per-user (must-keep)');
+  assert.notEqual(H.bestAppAccess().id, 'user', 'a per-user App is never recommended without a personal column (must-exclude, D-SL-11)');
   assert.equal(H.bestAppAccess({ personal: 'owner_email' }).id, 'user');
-  assert.equal(H.bestAppAccess({ inside: true }).id, 'user');
+  assert.equal(H.bestAppAccess({ inside: true }).id, 'sp', 'Inside Inspire reads as the App by default, the same rule as any App (D-SL-10B)');
   const app = { outputs: { app: true, app_access: 'sp', merge: {} } };
   assert.equal(H.bestAppBackend(app, { state: 'available' }).id, 'lakebase');
   assert.equal(H.bestAppBackend(app, { state: 'absent' }), null, 'with no Lakebase the plain default needs no badge (must-exclude)');

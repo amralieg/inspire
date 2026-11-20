@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { PER_USER_GUIDE } from '../../src/lib/implementWizard.js';
-import { closeBrowser, goToStep, openFolded, openUi, shot } from './uiSupport.mjs';
+import { POLICIED_SOURCE, closeBrowser, goToStep, openFolded, openUi, shot } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
@@ -11,7 +11,7 @@ const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol 
 const storage = (page) => page.getByRole('group', { name: 'How fast do the App\'s pages open?' });
 
 test('What to deliver only picks what gets built, Where it lives places the App on its own step, and the storage choice explains itself', async () => {
-  const ui = await openUi('wizard', ME);
+  const ui = await openUi('wizard', { ...ME, policies: POLICIED_SOURCE });
   const { page } = ui;
   try {
     await goToStep(page, 'What to deliver');
@@ -42,7 +42,8 @@ test('What to deliver only picks what gets built, Where it lives places the App 
 
     await goToStep(page, 'Where it lives');
     await openFolded(page, 'Who sees which rows');
-    await page.getByRole('region', { name: 'App access' }).waitFor();
+    // REQ-418: the access choice shows for a policied source; the per-user guide is about the per-user choice, so that is picked here.
+    await page.getByRole('region', { name: 'App access' }).getByRole('radio', { name: /^Sensitive data/ }).check();
     assert.equal(await storage(page).count(), 0, 'the storage choice stays folded under its Change line until opened (must-exclude)');
     await openFolded(page, 'Page storage');
     const group = storage(page);

@@ -119,17 +119,19 @@ test('no App service principal or no forwarded sign-in shares nothing and falls 
 
 test('Inspire never grants on the shared folder, a typed folder, or any folder other than the person\u2019s own inspire_output (must-exclude)', async () => {
   const folders = { ...SHARED_OPEN, '/Shared/team': { id: 20, writers: [ME] }, [HOME]: { id: 12, writers: [ME] }, [`${HOME}/other`]: { id: 21, writers: [ME] } };
-  for (const [label, writes, told] of [
-    ['a typed shared folder', { folders: ['/Shared/team/out'], defaulted: false }, 1],
-    ['a typed folder in the person home', { folders: [`${HOME}/other`], defaulted: false }, 1],
-    ['the shared default typed out', { folders: ['/Shared/demos'], defaulted: false }, 0],
-    ['a typed path that names the own folder', { folders: [OWN], defaulted: false }, 1],
+  // A typed folder is the App's to write: one the App cannot write refuses the launch, and nothing is shared or granted.
+  for (const [label, writes, refused] of [
+    ['a typed shared folder the App cannot write', { folders: ['/Shared/team/out'], defaulted: false }, true],
+    ['a typed folder in the person home the App cannot write', { folders: [`${HOME}/other`], defaulted: false }, true],
+    ['the shared default typed out, which the App can write', { folders: ['/Shared/demos'], defaulted: false }, false],
+    ['a typed path that names the own folder the App cannot write', { folders: [OWN], defaulted: false }, true],
   ]) {
     const ws = workspace(JSON.parse(JSON.stringify(folders)));
     const got = await plan(ws, writes);
     assert.deepEqual(permissionCalls(ws), [], `${label}: no permission call`);
     assert.deepEqual(ws.model.grants, [], label);
-    assert.equal(got.warnings.length, told, `${label}: a typed folder the App cannot write is named to the person, and nothing is changed for them`);
+    assert.equal(got.refused !== null, refused, `${label}: refused=${refused}`);
+    assert.deepEqual(got.warnings, [], label);
   }
   for (const [label, person] of [['a forwarded name with a slash', 'pat/../../Shared'], ['a dot name', '..'], ['no forwarded name', '']]) {
     const ws = workspace(JSON.parse(JSON.stringify(folders)));
@@ -152,7 +154,7 @@ test('a grant that lands while the App still cannot write keeps the shared fallb
   };
   const got = await plan(ws);
   assert.deepEqual([got.folder, got.warnings], ['/Shared/demos', [SHARED_SENTENCE]]);
-  assert.match(got.details[0], /^PATCH \/api\/2\.0\/permissions\/directories\/\d+ .* succeeded, and the App still cannot write there: you cannot create anything in /);
+  assert.match(got.details[0], /^PATCH \/api\/2\.0\/permissions\/directories\/\d+ .* succeeded, and the App still cannot write there: the App cannot create anything in /);
 });
 
 test('the shared fake workspace answers directory permissions like the live workspace: PATCH adds for a manager of the folder and refuses anyone else', () => {
@@ -198,8 +200,10 @@ test('loading Start says the run falls back, and why, when the sign-in cannot re
   const theirs = await plan(locked, DEFAULTED, { preview: true });
   assert.deepEqual([theirs.folder, theirs.warnings], ['/Shared/demos', [SHARED_SENTENCE]]);
   const unsigned = workspace({ ...SHARED_OPEN, [HOME]: { id: 12, writers: [ME] } });
+  // No sign-in of the person cannot share the own folder, and that never blocks a run: the run uses the shared folder and says so.
   const none = await plan(unsigned, DEFAULTED, { preview: true }, request(ME, ''));
-  assert.equal(none.refused.status, 401);
+  assert.deepEqual([none.refused, none.folder, none.warnings], [null, '/Shared/demos', [SHARED_SENTENCE]]);
+  assert.match(none.details[0], /^Inspire did not change \/Users\/pat@example\.com\/inspire_output: no sign-in of yours reached the App$/);
   for (const ws of [scoped, locked, unsigned]) assert.deepEqual(ws.calls.filter((c) => WRITES.has(c.method)), []);
 });
 

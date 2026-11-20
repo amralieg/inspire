@@ -194,15 +194,20 @@ test('each Full MVP step runs the checks of every section it shows, and only tho
   assert.equal(w.APP_STEP, undefined, 'Who uses the App is part of Where it lives, not a step of its own (REQ-002, must-exclude)');
   const deliver = w.IMPLEMENT_STEPS.find((s) => s.id === 'delivery');
   assert.deepEqual([deliver.sections, deliver.panels], [['use_it', 'app_owners', 'alert'], ['delivery']], 'What to deliver holds only the outputs');
+  // REQ-418 (D-SL-11): the identity choice is asked only when a source has a row filter or column mask; every other Where panel is always there.
+  const withoutIdentity = w.APP_PANELS.filter((p) => p !== 'app_access');
   const where = w.wizardSteps('mvp', { outputs: { app: true } }).find((s) => s.id === 'where');
-  assert.deepEqual([where.label, where.sections, where.panels], ['Where it lives', w.APP_PANELS, w.APP_PANELS], 'where the App goes, its pages, who uses it, its features, storage and look are one step, after Measure (REQ-002)');
+  assert.deepEqual([where.label, where.sections, where.panels], ['Where it lives', withoutIdentity, withoutIdentity], 'where the App goes, its pages, who uses it, its features, storage and look are one step, after Measure (REQ-002)');
+  const policied = w.wizardSteps('mvp', { outputs: { app: true } }, { policied: true }).find((s) => s.id === 'where');
+  assert.deepEqual(policied.sections, w.APP_PANELS, 'a policied source shows the identity choice in Where it lives (REQ-418)');
   assert.equal(w.wizardSteps('mvp', { outputs: { app: false } }).some((s) => s.id === 'where'), false, 'Where it lives is skipped when no App is chosen');
   assert.equal(w.APP_PAGES_STEP, undefined, 'the App pages are part of Where it lives, not a step of their own (must-exclude)');
   assert.equal(w.APP_LOOK_STEP, undefined, 'the App look is part of Where it lives, not a step of its own (REQ-002, must-exclude)');
   assert.equal(w.wizardSteps('mvp', { outputs: { app: true } }).some((s) => s.id === 'app' || s.id === 'app_look'), false, 'no App step id is left in the wizard (REQ-002)');
   assert.equal(w.RUN_STEP, undefined, 'Run it is gone: its schedule sits in First run (must-exclude)');
   assert.equal(w.SETTINGS_STEP, undefined, 'Team capacity and the use case settings are set in the App, never in the wizard');
-  const all = [...w.wizardSteps('mvp', { outputs: { app: true } }, { grouping: true, firstRun: true }), ...w.NOTEBOOK_STEPS];
+  // REQ-418 (D-SL-11): the identity choice (app_access) is checked only where it is shown, which a policied source makes so.
+  const all = [...w.wizardSteps('mvp', { outputs: { app: true } }, { grouping: true, firstRun: true, policied: true }), ...w.NOTEBOOK_STEPS];
   // REQ-328 / D-EXP: the App experience is its own Where it lives panel, so app_experience is a checked section.
   // REQ-265: the Measure step checks the money rule (Gains only needs a sign), so 'money' is a checked section.
   assert.deepEqual([...new Set(all.flatMap((s) => s.sections))].sort(), ['alert', 'app_access', 'app_experience', 'app_features', 'app_look', 'app_owners', 'app_pages', 'app_place', 'app_storage', 'configure', 'data', 'first_run', 'fresh', 'grouping', 'holdout', 'kpi', 'money', 'results', 'schedule', 'use_case', 'use_it', 'vibes']);
@@ -234,7 +239,9 @@ test('each Full MVP step runs the checks of every section it shows, and only tho
   assert.deepEqual(w.advancedWithErrors('where', bad), [], 'the App name shows on Where it lives, so its problem never opens Advanced');
   const named = { ...bad, outputs: { ...bad.outputs, app_name: 'churn-desk' } };
   assert.deepEqual(w.stepErrors('where', named), [], 'the App starts with everyone seeing the same rows, so the step passes as made');
-  assert.deepEqual(w.stepErrors('where', { ...named, outputs: { ...named.outputs, app_access: '' } }),
+  // REQ-418 (D-SL-11): the identity choice is checked only where it is shown (a policied source, or Advanced after the first version).
+  assert.deepEqual(w.stepErrors('where', { ...named, outputs: { ...named.outputs, app_access: '' } }), [], 'a hidden identity choice blocks nothing');
+  assert.deepEqual(w.stepErrors('where', { ...named, outputs: { ...named.outputs, app_access: '' } }, { scopeSteps: { policied: true } }),
     ['choose who sees which rows: everyone the same rows, or each person only their own']);
   const shell = { styles: ['a', 'b', 'c'], layouts: ['sidebar', 'tabs', 'home'], palettes: ['default', 'mono'], themes: ['light', 'dark'] };
   assert.deepEqual(w.stepErrors('where', named, { appLook: shell }), []);
@@ -899,8 +906,10 @@ test('the Apps to join list Recommended first, then Apps with other domains, the
   const mixed = appTarget('ops-desk', [holder('N01-U03', 'Acme', 'Customer'), holder('N02-U02', 'Acme', 'Finance')]);
   const same = appTarget('inspire-acme-customer', [holder('N01-U02', 'Acme', 'Customer')]);
   const fresh = w.withOutput(w.defaultSpecFromUseCase({ ...UC, business_domain: 'Customer' }, { businessName: 'Acme' }), 'app', true);
-  assert.equal(w.appPlacementChoices(fresh, { app: [same] }, ACME)[0].block, 'inspire-acme-customer shows everyone the same rows',
-    'a new use case signs each viewer in, so it cannot join a shared App until someone picks that everyone sees the same rows (must-exclude)');
+  // REQ-418 (D-SL-11): a new use case reads as the App, so it joins a shared domain App; only a per-user use case is blocked from one.
+  assert.equal(w.appPlacementChoices(fresh, { app: [same] }, ACME)[0].block, '', 'a new use case reads as the App and can join a shared App');
+  assert.equal(w.appPlacementChoices(w.withAppAccess(fresh, 'user'), { app: [same] }, ACME)[0].block, 'inspire-acme-customer shows everyone the same rows',
+    'a per-user use case cannot join a shared App until someone picks that everyone sees the same rows (must-exclude)');
   const spec = w.withAppAccess(fresh, 'sp');
   const choices = w.appPlacementChoices(spec, { app: [other, mixed, same] }, ACME);
   assert.deepEqual(choices.map((c) => [c.target.id, c.fit, c.block]), [['inspire-acme-customer', 'recommended', ''], ['ops-desk', 'other_domains', ''], ['inspire-acme-finance', 'not_recommended', '']]);
@@ -993,7 +1002,7 @@ test('a placement joins the App of that placement when it fits, else creates one
 test('the App placement default keeps a rebuild where it is, takes the remembered placement, and does nothing without an App', async () => {
   const w = await load();
   const uc = { ...UC, business_domain: 'Customer' };
-  const perUser = w.withOutput(w.defaultSpecFromUseCase(uc, { businessName: 'Acme' }), 'app', true);
+  const perUser = w.withAppAccess(w.withOutput(w.defaultSpecFromUseCase(uc, { businessName: 'Acme' }), 'app', true), 'user');
   const spec = w.withAppAccess(perUser, 'sp');
   const scope = { ...ACME, useCaseAppName: 'predict-churn' };
   const domainApp = appTarget('inspire-acme-customer', [holder('N01-U02', 'Acme', 'Customer')]);
@@ -1634,8 +1643,10 @@ test('App look lists every page with its switch: Things to fix and Ask Genie alw
   const state = (s) => w.appPagesOf(s).map((p) => [p.id, p.on, Boolean(p.fixed), p.off || '']);
   const fixText = (s) => w.appPagesOf(s).find((p) => p.id === 'fix').blurb;
   const withOutputs = (patch, options = {}) => ({ ...spec, outputs: { ...spec.outputs, ...patch, app_options: { ...spec.outputs.app_options, ...options } } });
-  assert.deepEqual(state(spec), [['fix', true, true, ''], ['runs', true, false, ''], ['alerts', false, false, w.PER_USER_REASON], ['impact', true, false, ''], ['genie', true, true, '']],
-    'the default App signs each viewer in: every page on but Alerts, which a per-user App does not send');
+  // REQ-418 (D-SL-11): the default App reads with the App's service principal, so every page is on and Alerts waits for Send alerts.
+  assert.deepEqual(state(spec), [['fix', true, true, ''], ['runs', true, false, ''], ['alerts', false, false, ''], ['impact', true, false, ''], ['genie', true, true, '']],
+    'the default App reads as the App: every page on, and Alerts waits for Send alerts');
+  assert.deepEqual(state(withOutputs({ app_access: 'user' }))[2], ['alerts', false, false, w.PER_USER_REASON], 'a per-user App does not send alerts (must-exclude)');
   assert.deepEqual(state(withOutputs({ app_access: 'sp' }))[2], ['alerts', false, false, ''], 'a shared App waits for Send alerts');
   assert.doesNotMatch(fixText(spec), /edit a record/);
   assert.match(fixText(spec), /People own, track and dismiss each flagged record\.$/, 'the default App records decisions');

@@ -1,11 +1,11 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, goToMeasureImpact, goToStep, moneyPart, openFolded, openRow, openUi, shot } from './uiSupport.mjs';
+import { closeBrowser, goToMeasureImpact, goToStep, moneyPart, openFolded, openRow, openUi, shot, POLICIED_SOURCE } from './uiSupport.mjs';
 
 test.after(closeBrowser);
 
 const OWNER = ['owner', 'example.com'].join('@');
-const ME = { me: { userName: OWNER, displayName: 'Owner' } };
+const ME = { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE }; // D-SL-11: the access choice shows for a row-filtered source
 const STEPS = ['What to deliver', 'Data & results', 'First run', 'Measure', 'Where it lives', 'Review & build'];
 const stepLabels = async (page) => (await page.locator('[data-wizard-header] ol li').allTextContents()).map((l) => l.replace(/^\d+\. /, '').trim());
 const viewports = [{ width: 1280, height: 800 }, { width: 1440, height: 900 }];

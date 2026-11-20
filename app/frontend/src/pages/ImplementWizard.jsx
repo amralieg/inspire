@@ -112,6 +112,7 @@ import {
   pickedSummary,
   APP_ACCESS_CHOICES,
   APP_ACCESS_NOTE,
+  APP_ACCESS_POLICY_WHY,
   APP_BACKEND_CHOICES,
   LAKEBASE_CHECKING,
   appBackendOf,
@@ -192,7 +193,6 @@ import {
   APP_INSIDE,
   APP_INSIDE_PLACEMENT,
   APP_PLACE_WAITING,
-  INSIDE_ACCESS_REASON,
   INSIDE_WAREHOUSE_LABEL,
   INSIDE_WAREHOUSE_TOGGLE,
   INSIDE_WAREHOUSE_PROBLEM,
@@ -593,7 +593,9 @@ export default function ImplementWizard({
     && !(isFirstRunSetting(s) && scope.firstRun)), [everySetting]);
   const profileRead = scopeProfile.state === 'ready';
   const settingsList = useMemo(() => settingsFor(scopeSteps, profileRead), [settingsFor, scopeSteps.grouping, scopeSteps.firstRun, profileRead]); // eslint-disable-line react-hooks/exhaustive-deps
-  const stepScope = useMemo(() => ({ ...scopeSteps, settings: settingsList.length > 0 }), [scopeSteps.grouping, scopeSteps.firstRun, settingsList.length]); // eslint-disable-line react-hooks/exhaustive-deps
+  // REQ-418: the identity choice shows for a source with a row filter or column mask, and under Advanced settings once the App is built (editing).
+  const policied = (context?.app_policy_tables || []).length > 0;
+  const stepScope = useMemo(() => ({ ...scopeSteps, settings: settingsList.length > 0, policied, editing: Boolean(context?.latest) }), [scopeSteps.grouping, scopeSteps.firstRun, settingsList.length, policied, context?.latest]); // eslint-disable-line react-hooks/exhaustive-deps
   const steps = wizardSteps(mode, spec, stepScope);
   const stepIndex = stepIndexOf(steps, step);
   const stepId = steps[stepIndex].id;
@@ -844,7 +846,8 @@ export default function ImplementWizard({
   const trackedKpi = trackedKpiOf(context?.history);
   const chosenKpi = kpiTargetOf(spec);
   const sampleStake = trackedKpi && (!chosenKpi || kpiKey(chosenKpi) === kpiKey(trackedKpi.record.name)) ? trackedKpi.impact : null;
-  const placeSettled = !spec.outputs.app || (targets !== null && (placeSet === 'default' || placeSet === 'person'));
+  // Inside Inspire joins and names no App, so it never waits for the App list (REQ-418 ruling 1).
+  const placeSettled = !spec.outputs.app || insideInspire(spec) || (targets !== null && (placeSet === 'default' || placeSet === 'person'));
   const features = preflight?.features || context?.features || ALL_FEATURES;
   const blocks = useMemo(() => outputBlocks(features, outputCheck, context?.assets, preflight), [features, outputCheck, context?.assets, preflight]);
   // The verdict is dropped while a check runs (no stale reason shows), but an output it blocked stays locked until the new verdict lands.
@@ -1472,7 +1475,7 @@ export default function ImplementWizard({
     appTarget: bestAppTarget(spec, targets, placeScope),
     heldApp: bestHeldApp(held.app || ''),
     appPolicy: bestAppPolicy(spec, targets, placeScope),
-    appAccess: bestAppAccess({ inside: insideInspire(spec), personal }),
+    appAccess: bestAppAccess({ personal }),
     appBackend: bestAppBackend(spec, lakebase),
     appOption: bestAppOption(),
     replaceEdits: bestReplaceEdits(),
@@ -2153,11 +2156,14 @@ export default function ImplementWizard({
 
         {foldLine('app_access', 'Who sees which rows', ACCESS_SHORT[spec.outputs.app_access] || 'not picked yet')}
         {shows('app_access') && isOpenSection('app_access') && (
-          <AppAccessStep
-            spec={spec}
-            onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))}
-            best={{ access: best.appAccess }}
-          />
+          steps[stepIndex].advanced.includes('app_access') ? (
+            <Advanced open={advanced.app_access} onToggle={() => toggleAdvanced('app_access')} what="who sees which rows in the App"
+              summary={`Who sees which rows: ${ACCESS_SHORT[spec.outputs.app_access] || 'not picked yet'}`}>
+              <AppAccessStep spec={spec} policied={policied} onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))} best={{ access: best.appAccess }} />
+            </Advanced>
+          ) : (
+            <AppAccessStep spec={spec} policied={policied} onAccess={(access) => setSpec((prev) => withAppAccess(prev, access))} best={{ access: best.appAccess }} />
+          )
         )}
 
         {foldLine('app_storage', APP_STORAGE_LABEL, `Warehouse: ${spec.outputs.app_warehouse_id || spec.config.warehouse_id || 'not picked yet'}`)}
@@ -3076,28 +3082,23 @@ function AppWarehouseField({ spec, lakebase, warehouses, warehousesError, onWare
   );
 }
 
-function AppAccessStep({ spec, onAccess, best = {} }) {
+function AppAccessStep({ spec, policied = false, onAccess, best = {} }) {
   const access = spec.outputs.app_access;
-  const inside = insideInspire(spec);
   return (
     <section className="space-y-4" aria-label="App access">
       <fieldset data-choice="app-access" className="space-y-2">
         <legend className="text-sm font-semibold text-text-primary">{APP_ACCESS_QUESTION}</legend>
-        <p className="text-[11px] text-text-tertiary" {...(inside ? { role: 'note', 'aria-label': 'Why each person signs in as themselves' } : {})}>
-          {inside ? `${INSIDE_ACCESS_REASON}.` : APP_ACCESS_NOTE}
-        </p>
+        <p className="text-[11px] text-text-tertiary">{policied ? APP_ACCESS_POLICY_WHY : APP_ACCESS_NOTE}</p>
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 pt-1">
           {APP_ACCESS_CHOICES.map((choice) => {
             const Icon = ACCESS_ICONS[choice.id];
             const checked = access === choice.id;
-            const locked = inside && choice.id !== 'user';
             return (
               <label
                 key={choice.id}
-                aria-disabled={locked ? 'true' : undefined}
-                className={`flex items-start gap-2.5 border rounded-lg p-3 glow-focus ${locked ? 'cursor-not-allowed bg-bg-subtle' : 'cursor-pointer'} ${checked ? 'border-db-red bg-db-red-50' : 'border-border hover:border-border-strong'}`}
+                className={`flex items-start gap-2.5 border rounded-lg p-3 glow-focus cursor-pointer ${checked ? 'border-db-red bg-db-red-50' : 'border-border hover:border-border-strong'}`}
               >
-                <input type="radio" name="app-access" value={choice.id} checked={checked} disabled={locked} onChange={() => onAccess(choice.id)} className="mt-0.5" />
+                <input type="radio" name="app-access" value={choice.id} checked={checked} onChange={() => onAccess(choice.id)} className="mt-0.5" />
                 <span className="space-y-1">
                   <span className="flex items-start gap-1.5 text-sm font-semibold text-text-primary"><Icon size={14} className="mt-0.5 shrink-0" aria-hidden="true" />{choice.label}</span>
                   <span className="block text-[12px] text-text-secondary">{choice.blurb}</span>

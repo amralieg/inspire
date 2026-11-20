@@ -16,7 +16,7 @@ const SOURCES = ['backend/server.js', 'backend/implementRoutes.js', ...fs.readdi
   .filter((f) => /\.(jsx?|mjs)$/.test(f));
 
 test('every rewritten message is short, plain and says what to do next', () => {
-  for (const text of [SQ.INSPIRE_DB_SHAPE, SQ.USE_CASE_ID_SHAPE, SQ.noSessionText('1234567890123456789'), U.RUN_NO_SIGN_IN, U.WRITE_NO_SIGN_IN,
+  for (const text of [SQ.INSPIRE_DB_SHAPE, SQ.USE_CASE_ID_SHAPE, SQ.noSessionText('1234567890123456789'), U.RUN_NO_APP_TOKEN,
     U.runUnreadableText(['main.s.orders']), U.skippedTablesText(['main.s.orders'])]) {
     assert.ok(words(text) <= 20, `${text} has ${words(text)} words`);
     assert.doesNotMatch(text, /__inspire_|\/\^|\$\/|exactly catalog\.schema \(one dot\)/, `${text} leaks an internal name`);
