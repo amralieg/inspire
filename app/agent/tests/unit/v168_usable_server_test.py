@@ -882,7 +882,7 @@ def test_a_page_inside_inspire_without_inspire_s_writer_refuses_decisions_and_wi
     reader, writer = DataWorkspace(current=[current("k1", "run", "run 7")]), DataWorkspace()
     inside = dict(DECIDE, auth="user", host="inspire")
     s = shell_core.Shell(app_dir(tmp_path, inside, [edit_page()]), env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
-                         sp_factory=lambda: pytest.fail("a page inside Inspire has no service principal"),
+                         sp_factory=lambda: reader,  # REQ-418 (D-SL-10B): reads run as the App
                          user_factory=lambda host, token: reader)
     body = {"record_keys": ["k1"], "seen": {"k1": "101"}, "values": {"action_status": "Done"}}
     status, out = post(s, "records/act", body, headers=SIGNED_IN)
@@ -890,7 +890,7 @@ def test_a_page_inside_inspire_without_inspire_s_writer_refuses_decisions_and_wi
     (tmp_path / "hosted").mkdir()
     s = shell_core.Shell(app_dir(tmp_path / "hosted", inside, [edit_page()]),
                          env={"DATABRICKS_WAREHOUSE_ID": "wh1", "DATABRICKS_HOST": "dbc-1.example.com"},
-                         sp_factory=lambda: pytest.fail("a page inside Inspire has no service principal"),
+                         sp_factory=lambda: reader,  # REQ-418 (D-SL-10B): reads run as the App
                          user_factory=lambda host, token: reader, writer_factory=lambda: writer)
     status, out = post(s, "records/act", body, headers=SIGNED_IN)
     assert status == 200 and out["written"] == ["k1"] and len(writer.queries("MERGE INTO")) == 1 and reader.queries("MERGE INTO") == []

@@ -300,7 +300,7 @@ function createUseCaseAlerts({ rules = createAlertRules(), listCap = ALERT_LIST_
     if (/SQL failed \((403|404)\)/.test(text) || /warehouse/i.test(text)) {
       return coded(409, `Inspire could not check the value on the SQL warehouse ${ctx.warehouse} as you: ${text}. You need Can Use on it.`);
     }
-    if (/PERMISSION_DENIED|INSUFFICIENT_PERMISSIONS|privilege/i.test(text)) return coded(403, `You cannot read ${ctx.page.result_table || ctx.table}: ${text}`);
+    if (/PERMISSION_DENIED|INSUFFICIENT_PERMISSIONS|privilege/i.test(text)) return coded(403, `The App cannot read ${ctx.page.result_table || ctx.table}: ${text}`);
     return coded(502, `The check of the current value failed: ${text}`);
   }
 

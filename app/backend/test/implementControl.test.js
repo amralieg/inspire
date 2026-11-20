@@ -192,7 +192,7 @@ test('every control click is written to the control log with who did it', () => 
 const APP_OURS = { name: 'churn-desk', description: OURS, compute_status: { state: 'ACTIVE' } };
 
 test('stopping the App checks it is this MVP\'s, stops it, records who did it and refreshes the live status', async () => {
-  await withApp({ history: [BUILT], responses: {
+  await withApp({ history: [BUILT], forwardedEmail: 'amr@x', responses: {
     'GET /api/2.0/apps/churn-desk': [APP_OURS], 'POST /api/2.0/apps/churn-desk/stop': [{}],
     'GET /api/2.1/jobs/get': [MVP_JOB], 'GET /api/2.0/lakeview/dashboards/d1': [{ lifecycle_state: 'ACTIVE' }],
     'GET /api/2.0/lakeview/dashboards/d1/published': [{}, 404], 'GET /api/2.0/genie/spaces/g1': [{ title: 'g' }], 'GET /api/2.0/alerts/a1': [{}],
@@ -286,7 +286,8 @@ test('a failed Databricks call is logged as failed and reported with its reason'
 
 test('stopping a build cancels the run of the version that builds', async () => {
   const building = { ...BUILT, spec_version: 3, status: 'previewing', implement_run_id: '901' };
-  await withApp({ history: [building, BUILT], implementRun: { run_id: 901, state: { life_cycle_state: 'RUNNING' } },
+  // A Stop of a run records who stopped it first, so the signed-in person is named (REQ-231).
+  await withApp({ history: [building, BUILT], forwardedEmail: 'amr@x', implementRun: { run_id: 901, state: { life_cycle_state: 'RUNNING' } },
     responses: { 'POST /api/2.1/jobs/runs/cancel': [{}] } }, async (url, made) => {
     const got = await call(url, `/api/inspire/implement/control?${Q}`, { method: 'POST', body: { asset: 'build', action: 'cancel' } });
     assert.equal(got.status, 200, JSON.stringify(got.data));

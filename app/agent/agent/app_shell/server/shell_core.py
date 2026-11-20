@@ -291,7 +291,6 @@ JOB_TTL_S = 5
 INSIDE = "inspire"
 USER_JOBS = ("This page runs inside Inspire with no service principal of its own, so it never reads or starts the use case's job: it "
              "shows the runs the use case recorded, and Refresh now is off; the job's schedule still refreshes it")
-INSIDE_SP = "A page inside Inspire has no service principal, so it reads and acts only as the person signed in"
 REFUSED_WRITE = "Nothing was saved: this App cannot write this change. Ask the App owner to check its access."
 INSIDE_SETTINGS = ("Nothing was saved: settings cannot be changed from this page inside Inspire. "
                    "Open the App from its own link to change them.")
@@ -760,8 +759,8 @@ def settings_problems(settings: dict, pages: list) -> list:
     host = settings.get("host")
     if host is not None and host != INSIDE:
         problems.append(f"the App host must be {INSIDE} when it is set, for a page inside Inspire")
-    elif host == INSIDE and settings.get("auth") != "user":
-        problems.append("a page inside Inspire signs each viewer in as themselves, so its auth must be user")
+    elif host == INSIDE and settings.get("auth") not in ("sp", "user"):
+        problems.append("a page inside Inspire reads as the App's service principal (sp) or, when chosen, each viewer (user)")
     problems += protected_problems(settings)
     if host == INSIDE and isinstance(settings.get("backend"), dict) and settings["backend"].get("kind") == shell_pg.LAKEBASE:
         problems.append("a page inside Inspire reads Delta tables, so its backend must be delta")
@@ -1548,9 +1547,11 @@ def _cli_step(request: dict, user_factory) -> tuple:
     if not isinstance(body, dict) or not isinstance(headers, dict):
         raise HttpError(400, "send body and headers as objects")
     shell = Shell(_cli_text(request, "root"), env={"DATABRICKS_HOST": host, "DATABRICKS_WAREHOUSE_ID": _cli_text(request, "warehouse")},
-                  sp_factory=None, user_factory=user_factory, writer_factory=lambda: OnWarehouse(user_factory(host, token), warehouse))
-    if not shell.inside or shell.settings["auth"] != "user":
-        raise HttpError(409, "Inspire records decisions only for a page inside Inspire that signs viewers in as themselves")
+                  sp_factory=lambda: user_factory(host, token), user_factory=user_factory,
+                  writer_factory=lambda: OnWarehouse(user_factory(host, token), warehouse))
+    # REQ-418 (D-SL-10B): a decision on a page inside Inspire is written as the App or per-user; the person is recorded as the actor.
+    if not shell.inside:
+        raise HttpError(409, "Inspire records decisions only for a page inside Inspire")
     page = shell.page(body.get("page"))
     problem = decision_table_problem(page, route, _cli_text(request, "result_table"))
     if problem:
@@ -2305,7 +2306,8 @@ class Shell:
         return key in SCREENS + REMOVED_SCREENS and (self.settings.get("screens") or {}).get(key) is not False
 
     def workspace(self, headers: dict) -> tuple:
-        if self.settings["auth"] == "user":
+        # REQ-418 (D-SL-10B): a page inside Inspire reads as the App's service principal; the signed-in viewer is only the recorded actor.
+        if self.settings["auth"] == "user" and not self.inside:
             token = headers.get("x-forwarded-access-token")
             if not token:
                 raise HttpError(401, "sign in to the workspace to see this App; it shows each person only the data they may read")
@@ -2335,16 +2337,17 @@ class Shell:
         return viewer
 
     def service(self):
-        if self.inside:
-            raise HttpError(403, INSIDE_SP)
+        # REQ-418 (D-SL-10B): a page inside Inspire reads as the App's service principal, like every other page.
         if self._sp is None:
             self._sp = self.sp_factory()
         return self._sp
 
     def decision_writer(self, ws):
-        if self.settings["auth"] != "user" or self.settings.get("protected"):
+        # REQ-418 (D-SL-10B): a decision the CLI records is written by its writer (the App's token) whatever the page's auth; the actor is the viewer.
+        cli = self.writer_factory is not None
+        if self.settings.get("protected") or (self.settings["auth"] != "user" and not cli):
             return ws
-        if self.writer_factory is not None:
+        if cli:
             if self._writer is None:
                 self._writer = self.writer_factory()
             return self._writer

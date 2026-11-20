@@ -28,7 +28,8 @@ const OWNERS_ONLY = 'Only the owners of this use case can change its settings: t
 const DROPPED = 'Inspire rebuilds this use case with Genie as version 2 and shows the checklist.';
 const UNREAD = 'Inspire could not compare the tables: Inspire cannot read the columns of this table with your sign-in: the table does not exist or you '
   + 'cannot read it';
-const NO_SIGN_IN = 'Inspire looks for similar tables with your own sign-in, and this request carries none, so it suggests none';
+const NO_SIGN_IN = 'Inspire looks for similar tables as its App, and this request has no App credential, so it suggests none. Reload the App and try again';
+const APP_TOKEN = 'tok'; // the harness App token: D-SL-10B reads every table as the App
 const SECRET = { table_catalog: 'main', table_schema: 'hr', table_name: 'salaries', matched: '4', total: '4' };
 
 const tablesOf = async (page) => (await openAsset(page, 'notebook')).getByRole('region', { name: 'Settings', exact: true }).locator('[data-settings-tables]');
@@ -68,7 +69,7 @@ test('an owner changes a table from the Settings panel and is told before Save w
     const sent = JSON.parse(insert.parameters.find((p) => p.name === 'spec').value);
     assert.deepEqual([sent.data.tables, insert.parameters.find((p) => p.name === 'classes').value], [{ 'main.s.orders': 'main.s.orders_v2' }, 'settings']);
     const reads = made.sqlCalls.filter((c) => /^SELECT column_name, data_type, ordinal_position FROM/.test(String(c.sql)));
-    assert.ok(reads.length >= 2 && reads.every((c) => c.token === PERSON), 'the tables are compared with the person\u2019s own sign-in');
+    assert.ok(reads.length >= 2 && reads.every((c) => c.token === APP_TOKEN), 'the tables are compared as the App (D-SL-10B), not with the person\u2019s sign-in');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
@@ -173,8 +174,8 @@ test('when Inspire cannot compare the tables the Settings panel says why on the 
 
 const optionTexts = (pick) => pick.locator('option').allTextContents();
 
-test('similar tables come from the person\u2019s own sign-in: a table only the App can see never shows, and with no sign-in none shows and both pickers say why', async () => {
-  const seen = { [PERSON]: SWAPS, tok: [...SWAPS, SECRET] };
+test('similar tables come from the App\u2019s own reads (D-SL-10B): a table only the person can see never shows, and with no App credential none shows and both pickers say why', async () => {
+  const seen = { [PERSON]: [...SWAPS, SECRET], [APP_TOKEN]: SWAPS };
   const me = { userName: OWNER, displayName: 'Owner' };
   let ui = await openBuild({ me, ...STATE, swapRowsByToken: seen });
   try {
@@ -184,15 +185,15 @@ test('similar tables come from the person\u2019s own sign-in: a table only the A
     await pick.locator('option', { hasText: 'main.s.orders_v2 (4 of 4 columns match)' }).waitFor({ state: 'attached', timeout: 15000 });
     const shown = await optionTexts(pick);
     assert.ok(shown.some((t) => t.startsWith('main.s.orders_lite')), shown.join(' | '));
-    assert.equal(shown.some((t) => t.includes('salaries')), false, `a table the person cannot see: ${shown.join(' | ')}`);
+    assert.equal(shown.some((t) => t.includes('salaries')), false, `a table only the person can see: ${shown.join(' | ')}`);
     const asked = ui.made.sqlCalls.filter((c) => String(c.sql).includes('WITH o AS'));
-    assert.ok(asked.length >= 1 && asked.every((c) => c.token === PERSON), 'Inspire looks for similar tables with the person\u2019s token only');
+    assert.ok(asked.length >= 1 && asked.every((c) => c.token === APP_TOKEN), 'Inspire looks for similar tables as the App only');
     assert.equal(await tables.locator('[data-swaps-why]').count(), 0);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();
   }
-  const appOnly = { me, ...STATE, forwardedToken: '', forwardedEmail: OWNER, tokenKind: 'app', swapRowsByToken: seen };
+  const appOnly = { me, ...STATE, forwardedToken: '', forwardedEmail: OWNER, tokenKind: 'app', dbToken: '', swapRowsByToken: seen };
   ui = await openBuild(appOnly);
   try {
     const tables = await tablesOf(ui.page);
@@ -202,7 +203,7 @@ test('similar tables come from the person\u2019s own sign-in: a table only the A
     assert.equal(await why.textContent(), NO_SIGN_IN);
     assert.deepEqual(await optionTexts(tables.getByLabel('Table to use for main.s.orders')),
       ["main.s.orders (Inspire's pick)", "Don't use this table (the primary table can be swapped, not removed)"]);
-    assert.equal(ui.made.sqlCalls.filter((c) => String(c.sql).includes('WITH o AS')).length, 0, 'nothing is read as the App');
+    assert.equal(ui.made.sqlCalls.filter((c) => String(c.sql).includes('WITH o AS')).length, 0, 'nothing is read without an App credential');
     const contrast = await lowContrast(ui.page, ['[data-swaps-why]']);
     assert.ok(contrast.checked >= 1, `measured ${contrast.checked}`);
     assert.deepEqual(contrast.low, []);

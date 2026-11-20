@@ -9,18 +9,18 @@ const { splitMetricViews, metricViewSkipLine } = require('./metricViews');
 const PM = require('./permissions');
 const IMPLEMENT_OUTPUT_LABELS = require('./implementOutputLabels.json');
 
-const RUN_NO_SIGN_IN = "Inspire needs your sign-in to check what you can read. Reload the App and try again.";
+const RUN_NO_APP_TOKEN = "Inspire has no credential for its App to check what the run can read. Reload the App and try again.";
 const UNREADABLE_SHOWN = 10;
 const SCHEMAS_AT_ONCE = 8;
 const SYSTEM_SCHEMA = 'information_schema';
 const UC = '/api/2.1/unity-catalog';
-const WRITE_NO_SIGN_IN = "Inspire needs your sign-in to check the output folder. Reload the App and try again.";
 const PROBE_PREFIX = '.inspire_write_check_';
 const FALLBACK_FOLDER = 'inspire_output';
 const SWEEP_LIMIT = 20;
 const SCOPE_RE = /does not have required scopes|required scope/i;
 const SCOPE_VERDICT = {
-  reason: "Inspire's sign-in for you lacks a scope this check needs",
+  kind: 'scope',
+  reason: "the App's sign-in lacks a scope this check needs",
   fix: 'ask an App manager to re-run the Inspire installer, which adds the scopes Inspire needs',
 };
 
@@ -159,17 +159,17 @@ const kept = (entry) => ({ entries: [entry], unreadable: [], unchecked: [] });
 const unsure = (entry, why) => ({ entries: [entry], unreadable: [], unchecked: [`${entry} (${why})`] });
 const whyOf = (err) => String((err && err.message) || err);
 
-async function schemaPlan(dbFetch, host, tokens, catalog, schema) {
+async function schemaPlan(dbFetch, host, token, catalog, schema) {
   const name = `${catalog}.${schema}`;
   let run;
   try {
-    run = whole(await listTables(dbFetch, host, tokens.app, catalog, schema, { browse: true }), name, 'tables');
+    run = whole(await listTables(dbFetch, host, token, catalog, schema, { browse: true }), name, 'tables');
   } catch (err) {
     return unseen(err) ? kept(name) : unsure(name, whyOf(err));
   }
   let readable = [];
   try {
-    readable = whole(await listTables(dbFetch, host, tokens.person, catalog, schema), name, 'tables');
+    readable = whole(await listTables(dbFetch, host, token, catalog, schema), name, 'tables');
   } catch (err) {
     if (!unseen(err)) return unsure(name, whyOf(err));
   }
@@ -183,15 +183,15 @@ function merged(plans) {
   return { entries: plans.flatMap((p) => p.entries), unreadable: plans.flatMap((p) => p.unreadable), unchecked: plans.flatMap((p) => p.unchecked) };
 }
 
-async function catalogPlan(dbFetch, host, tokens, catalog) {
+async function catalogPlan(dbFetch, host, token, catalog) {
   let schemas;
   try {
-    schemas = whole(await listSchemas(dbFetch, host, tokens.app, catalog), catalog, 'schemas');
+    schemas = whole(await listSchemas(dbFetch, host, token, catalog), catalog, 'schemas');
   } catch (err) {
     return unseen(err) ? kept(catalog) : unsure(catalog, whyOf(err));
   }
   const names = schemas.map((s) => String(s.name || '')).filter((name) => name && name.toLowerCase() !== SYSTEM_SCHEMA);
-  const plan = merged(await atMost(SCHEMAS_AT_ONCE, names, (name) => schemaPlan(dbFetch, host, tokens, catalog, name)));
+  const plan = merged(await atMost(SCHEMAS_AT_ONCE, names, (name) => schemaPlan(dbFetch, host, token, catalog, name)));
   return plan.unreadable.length ? plan : { ...plan, entries: [catalog] };
 }
 
@@ -203,14 +203,14 @@ async function onePlan(entry, check) {
   }
 }
 
-async function readPlan(dbFetch, host, tokens, reads) {
-  const tables = await atMost(SCHEMAS_AT_ONCE, reads.tables || [], (t) => onePlan(t, () => tableReadable(dbFetch, host, tokens.person, t)));
+async function readPlan(dbFetch, host, token, reads) {
+  const tables = await atMost(SCHEMAS_AT_ONCE, reads.tables || [], (t) => onePlan(t, () => tableReadable(dbFetch, host, token, t)));
   const schemas = await atMost(SCHEMAS_AT_ONCE, reads.schemas || [], (s) => {
     const [catalog, schema] = s.split('.');
-    return schemaPlan(dbFetch, host, tokens, catalog, schema);
+    return schemaPlan(dbFetch, host, token, catalog, schema);
   });
-  const catalogs = await atMost(SCHEMAS_AT_ONCE, reads.catalogs || [], (c) => catalogPlan(dbFetch, host, tokens, c));
-  const files = merged(await atMost(SCHEMAS_AT_ONCE, reads.files || [], (f) => onePlan(f, () => fileReadable(dbFetch, host, tokens.person, f))));
+  const catalogs = await atMost(SCHEMAS_AT_ONCE, reads.catalogs || [], (c) => catalogPlan(dbFetch, host, token, c));
+  const files = merged(await atMost(SCHEMAS_AT_ONCE, reads.files || [], (f) => onePlan(f, () => fileReadable(dbFetch, host, token, f))));
   const scope = merged([...catalogs, ...schemas, ...tables]);
   return {
     entries: I.uniqueTables(scope.entries),
@@ -256,35 +256,35 @@ function shownNames(names) {
 }
 
 function runUnreadableText(names) {
-  return `You can't read ${shownNames(names)}. Pick tables and files you can read, or ask your data owner for access`;
+  return `The App can't read ${shownNames(names)}. Pick tables and files the App can read, or ask your data owner for access`;
 }
 
 // Table reads name no id in the sentence; the tables themselves are returned as `unreadable` for Details.
 function runUnreadableTablesText(names) {
-  return `You can't read ${names.length === 1 ? 'this source table' : `${names.length} source tables`}. `
-    + 'Pick tables you can read, or ask your data owner for access';
+  return `The App can't read ${names.length === 1 ? 'this source table' : `${names.length} source tables`}. `
+    + 'Pick tables the App can read, or ask your data owner for access';
 }
 
 function skippedTablesText(names) {
-  return `Skipped ${names.length} ${names.length === 1 ? 'table' : 'tables'} you can't read.`;
+  return `Skipped ${names.length} ${names.length === 1 ? 'table' : 'tables'} the App can't read.`;
 }
 
 // The names of skipped tables, shown under Details next to the warning.
 function skippedTablesDetail(names) {
-  return `Tables you can't read: ${shownNames(names)}`;
+  return `Tables the App can't read: ${shownNames(names)}`;
 }
 
 function uncheckedText(items) {
-  return `Inspire could not check that you can read ${shownNames(items)}, so the run reads ${items.length === 1 ? 'it' : 'them'} as picked.`;
+  return `Inspire could not check that the App can read ${shownNames(items)}, so the run reads ${items.length === 1 ? 'it' : 'them'} as picked.`;
 }
 
 async function runReadPlan(dbFetch, req, reads) {
   const none = { refusal: null, skipped: [], unchecked: [], scope: null, warnings: [], uncheckedWarnings: [] };
   const asked = ['tables', 'schemas', 'catalogs', 'files'].some((key) => (reads[key] || []).length);
   if (!asked) return none;
-  const person = P.personTokenOf(req);
-  if (!person) return { ...none, refusal: { status: 401, message: RUN_NO_SIGN_IN, unreadable: [] } };
-  const plan = await readPlan(dbFetch, req.dbHost, { person, app: req.dbToken }, reads);
+  // REQ-418: the run reads what it reads with the App's service principal; the person's own grants never decide it.
+  if (!req.dbToken) return { ...none, refusal: { status: 401, message: RUN_NO_APP_TOKEN, unreadable: [] } };
+  const plan = await readPlan(dbFetch, req.dbHost, req.dbToken, reads);
   if (plan.unchecked.length) console.warn(`run read check: not checked: ${plan.unchecked.join('; ')}`);
   const warnings = plan.unchecked.length ? [uncheckedText(plan.unchecked)] : [];
   if (plan.files.length) return { ...none, refusal: { status: 403, message: runUnreadableText(plan.files), unreadable: plan.files } };
@@ -364,16 +364,18 @@ async function probeIn({ at, make, remove, list, denied }) {
 }
 
 async function workspaceVerdict(dbFetch, host, token, path) {
-  const fix = 'choose a folder you can manage, such as one under your own user folder, or ask its owner for CAN MANAGE on it, '
+  const fix = 'choose a folder the App can manage, such as one under a user folder the App can reach, or ask its owner for CAN MANAGE on it, '
     + 'which Databricks needs before anyone can create something in a folder';
   const call = (p, options) => answer(dbFetch, host, token, p, options);
   const { at, got } = await nearestExisting((p) => call(`/api/2.0/workspace/get-status?path=${encodeURIComponent(p)}`), path, '/');
   if (!got.ok) {
     if (scopeMissing(got)) return SCOPE_VERDICT;
-    if ([403, 404].includes(got.status)) return { reason: `you cannot see ${at}`, fix, at };
+    if ([403, 404].includes(got.status)) return { kind: 'hidden', reason: `the App cannot see ${at}`, fix: 'pick a folder the App can see', at };
     throw failed(got);
   }
-  if (String(got.data.object_type || '').toUpperCase() !== 'DIRECTORY') return { reason: `${at} is not a folder`, fix, at };
+  if (String(got.data.object_type || '').toUpperCase() !== 'DIRECTORY') {
+    return { kind: 'notFolder', reason: `${at} is not a folder`, fix: 'pick a folder, not a notebook or a file', at };
+  }
   return probeIn({
     at,
     make: (probe) => call('/api/2.0/workspace/mkdirs', json('POST', { path: probe })),
@@ -383,7 +385,7 @@ async function workspaceVerdict(dbFetch, host, token, path) {
       return listed.ok && Array.isArray(listed.data.objects)
         ? listed.data.objects.filter(Boolean).map((o) => ({ path: o.path, directory: String(o.object_type || '').toUpperCase() === 'DIRECTORY' })) : [];
     },
-    denied: { reason: `you cannot create anything in ${at}`, fix, at },
+    denied: { kind: 'denied', reason: `the App cannot create anything in ${at}`, fix, at },
   });
 }
 
@@ -396,7 +398,10 @@ async function volumeVerdict(dbFetch, host, token, path) {
   const { at, got } = await nearestExisting((p) => call(fsDirectory(p), { method: 'HEAD' }), path, root);
   if (!got.ok) {
     if (scopeMissing(got)) return SCOPE_VERDICT;
-    if ([403, 404].includes(got.status)) return { reason: at === root ? `the volume ${full} does not exist or you cannot see it` : `you cannot see ${at}`, fix, at };
+    if ([403, 404].includes(got.status)) {
+      return at === root ? { kind: 'hidden', reason: `the volume ${full} does not exist or the App cannot see it`, fix: 'create the volume, or ask your data owner for access to it', at }
+        : { kind: 'hidden', reason: `the App cannot see ${at}`, fix: 'pick a volume folder the App can see', at };
+    }
     throw failed(got);
   }
   return probeIn({
@@ -408,7 +413,7 @@ async function volumeVerdict(dbFetch, host, token, path) {
       return listed.ok && Array.isArray(listed.data.contents)
         ? listed.data.contents.filter(Boolean).map((c) => ({ path: c.path, directory: c.is_directory === true })) : [];
     },
-    denied: { reason: `you hold no WRITE VOLUME on the volume ${full}`, fix, at },
+    denied: { kind: 'volumeDenied', reason: `the App holds no WRITE VOLUME on the volume ${full}`, fix, at },
   });
 }
 
@@ -437,18 +442,7 @@ async function folderVerdict(dbFetch, host, token, folder) {
 function runUnwritableText(unwritable) {
   const named = unwritable.map((u) => `${u.folder} (${u.reason})`);
   const fixes = [...new Set(unwritable.map((u) => u.fix))];
-  return `You cannot write to ${I.joinAnd(named)} with your own sign-in, and Inspire never writes for you where you cannot write: ${fixes.join('; ')}.`;
-}
-
-async function personWrites(dbFetch, req, folder) {
-  const token = P.personTokenOf(req);
-  if (!token) return { refused: { status: 401, message: WRITE_NO_SIGN_IN, unwritable: [] }, unchecked: '' };
-  try {
-    const verdict = await folderVerdict(dbFetch, req.dbHost, token, folder);
-    return { refused: verdict ? { status: 403, message: runUnwritableText([{ folder, ...verdict }]), unwritable: [folder] } : null, unchecked: '' };
-  } catch (err) {
-    return { refused: null, unchecked: whyOf(err) };
-  }
+  return `The App cannot write to ${I.joinAnd(named)}, and Inspire never writes where the App cannot write: ${fixes.join('; ')}.`;
 }
 
 async function appWrites(dbFetch, req, folder, appToken) {
@@ -460,20 +454,27 @@ async function appWrites(dbFetch, req, folder, appToken) {
   }
 }
 
-async function folderPlan(dbFetch, req, folder, { manager, appToken }) {
+async function folderPlan(dbFetch, req, folder, { appToken }) {
+  // REQ-418: the App writes the run's output, so the App's own write check decides the folder, for every person, managers included.
   const shape = folderShapeVerdict(folder);
-  if (shape) return { folder, refused: { status: 400, message: notAFolderText(folder, shape), unwritable: [folder] }, personUnchecked: '', app: { verdict: null, unchecked: '' } };
-  const person = manager ? { refused: null, unchecked: '' } : await personWrites(dbFetch, req, folder);
-  if (person.refused) return { folder, refused: person.refused, personUnchecked: '', app: { verdict: null, unchecked: '' } };
-  return { folder, refused: null, personUnchecked: person.unchecked, app: await appWrites(dbFetch, req, folder, appToken) };
+  if (shape) return { folder, refused: { status: 400, message: notAFolderText(folder, shape), unwritable: [folder] }, app: { verdict: null, unchecked: '' } };
+  return { folder, refused: null, app: await appWrites(dbFetch, req, folder, appToken) };
 }
 
+// Every reason names the App and gives the fix for that reason only (a hidden folder is not a missing one, a scope is not a grant).
 function appCantWriteText(folder, verdict) {
-  if (folder.startsWith('/Volumes/')) {
-    return `The Inspire App can't write to ${folder}, so the run saves no files there. Ask your data owner to give the App WRITE VOLUME on it.`;
+  const tail = 'so the run saves no files there';
+  if (verdict.kind === 'scope') return `The Inspire App can't write to ${folder}, ${tail}: ${verdict.reason}. Ask an App manager to re-run the Inspire installer, which adds the scopes Inspire needs.`;
+  if (verdict.kind === 'notFolder') return `${verdict.at} is not a folder, ${tail}. Pick a folder, not a notebook or a file.`;
+  if (verdict.kind === 'hidden') {
+    const fix = `${verdict.fix.charAt(0).toUpperCase()}${verdict.fix.slice(1)}.`;
+    if (verdict.missing) return `${folder} does not exist yet, and the Inspire App cannot see ${verdict.at} to create it, ${tail}. ${fix}`;
+    return `The Inspire App can't write to ${folder}, ${tail}: the App cannot see it. ${fix}`;
   }
-  if (!verdict.missing) return `The Inspire App can't write to ${folder}, so the run saves no files there. Ask an App manager to give the App CAN MANAGE on it.`;
-  return `${folder} does not exist yet, and the Inspire App can't create it, so the run saves no files there. Create ${folder}, then give the App CAN MANAGE on it.`;
+  if (verdict.kind === 'volumeDenied') return `The Inspire App can't write to ${folder}, ${tail}. Ask your data owner to give the App WRITE VOLUME on it.`;
+  if (folder.startsWith('/Volumes/')) return `The Inspire App can't write to ${folder}, ${tail}. Ask your data owner to give the App WRITE VOLUME on it.`;
+  if (!verdict.missing) return `The Inspire App can't write to ${folder}, ${tail}. Ask an App manager to give the App CAN MANAGE on it.`;
+  return `${folder} does not exist yet, and the Inspire App can't create it, ${tail}. Create ${folder}, then give the App CAN MANAGE on it.`;
 }
 
 const folderScore = (plan) => (plan.refused ? 0 : plan.app.verdict ? 1 : 2);
@@ -524,26 +525,21 @@ async function shareOwnFolder(dbFetch, req, folder, appId) {
   return { ok: true, scope: false, details: [grant(id)] };
 }
 
-async function ownFolderPlan(dbFetch, req, home, { manager, appToken, appId }) {
-  const first = await folderPlan(dbFetch, req, home, { manager, appToken });
+async function ownFolderPlan(dbFetch, req, home, { appToken, appId }) {
+  const first = await folderPlan(dbFetch, req, home, { appToken });
   if (first.refused || !first.app.verdict) return { plan: first, details: [], scope: false };
   const shared = await shareOwnFolder(dbFetch, req, home, appId);
   if (!shared.ok) {
     console.warn(`output write check: Inspire could not share ${home} with the ${IMPLEMENT_OUTPUT_LABELS.app}: ${shared.details.join('; ')}`);
     return { plan: first, details: shared.details, scope: shared.scope };
   }
-  const after = await folderPlan(dbFetch, req, home, { manager, appToken });
+  const after = await folderPlan(dbFetch, req, home, { appToken });
   if (!after.app.verdict) return { plan: after, details: [], scope: false };
   return { plan: after, details: [`${shared.details[0]} succeeded, and the App still cannot write there: ${after.app.verdict.reason}`], scope: false };
 }
 
 function folderWarnings(plan) {
   const out = [];
-  if (plan.personUnchecked) {
-    console.warn(`output write check: not checked for the person on ${plan.folder}: ${plan.personUnchecked}`);
-    out.push(`Inspire could not check that you can write to ${plan.folder}. The run tries anyway.`);
-  }
-  if (plan.app.verdict) out.push(appCantWriteText(plan.folder, plan.app.verdict));
   if (plan.app.unchecked) {
     console.warn(`output write check: not checked for the App on ${plan.folder}: ${plan.app.unchecked}`);
     out.push(`Inspire could not check that the App can write to ${plan.folder}. The run tries anyway.`);
@@ -553,6 +549,11 @@ function folderWarnings(plan) {
 
 function planVerdict(plan, extra = [], details = []) {
   if (plan.refused) return { refused: plan.refused, folder: plan.folder, generationPath: '', warnings: [], details: [] };
+  // REQ-418: the App writes the run's output, so a folder the App cannot write refuses the run: it would save no files there.
+  if (plan.app.verdict) {
+    return { refused: { status: 403, message: appCantWriteText(plan.folder, plan.app.verdict), unwritable: [plan.folder] }, folder: plan.folder,
+      generationPath: '', warnings: [], details: [] };
+  }
   const warnings = [...extra, ...folderWarnings(plan)];
   return { refused: null, folder: plan.folder, generationPath: '', warnings, details: warnings.length ? details : [] };
 }
@@ -562,23 +563,26 @@ const sharedFallbackText = (home, shared, scope) =>
   `Inspire cannot save to your own folder ${home}${scope ? SCOPE_REASON : ''}, so it saves to ${shared}, a shared folder that everyone in the workspace can open.`;
 
 async function ownFolderPreview(dbFetch, req, home, fallback, appId) {
-  if (!P.personTokenOf(req)) return planVerdict({ folder: home, refused: { status: 401, message: WRITE_NO_SIGN_IN, unwritable: [] } });
+  // REQ-418: sharing the person's own folder never blocks a run. With no sign-in of the person, or no share, the run uses the shared folder and says so.
   const ready = await ownFolderShareable(dbFetch, req, home, appId);
   if (ready.ok) return { refused: null, folder: home, generationPath: workspaceFolderPath(home), warnings: [], details: [] };
   return { refused: null, folder: fallback, generationPath: workspaceFolderPath(fallback), warnings: [sharedFallbackText(home, fallback, ready.scope)], details: ready.details };
 }
 
-async function outputPlan(dbFetch, req, writes, { manager = false, appToken = '', appId = '', preview = false } = {}) {
+async function outputPlan(dbFetch, req, writes, { appToken = '', appId = '', preview = false } = {}) {
   const folders = ((writes && writes.folders) || []).filter(Boolean);
   if (!folders.length) return { refused: null, folder: '', generationPath: '', warnings: [], details: [] };
-  if (!writes.defaulted) return planVerdict(await folderPlan(dbFetch, req, folders[0], { manager, appToken }));
-  const savedIn = (plan, extra, details) => ({ ...planVerdict(plan, extra, details), generationPath: plan.refused ? '' : workspaceFolderPath(plan.folder) });
+  if (!writes.defaulted) return planVerdict(await folderPlan(dbFetch, req, folders[0], { appToken }));
+  const savedIn = (plan, extra, details) => {
+    const verdict = planVerdict(plan, extra, details);
+    return { ...verdict, generationPath: verdict.refused ? '' : workspaceFolderPath(plan.folder) };
+  };
   const home = ownFolderOf(RP.forwardedPerson(req.headers));
-  if (!home) return savedIn(await folderPlan(dbFetch, req, folders[0], { manager, appToken }));
+  if (!home) return savedIn(await folderPlan(dbFetch, req, folders[0], { appToken }));
   if (preview) return ownFolderPreview(dbFetch, req, home, folders[0], appId);
-  const { plan: own, details, scope } = await ownFolderPlan(dbFetch, req, home, { manager, appToken, appId });
+  const { plan: own, details, scope } = await ownFolderPlan(dbFetch, req, home, { appToken, appId });
   if (folderScore(own) === 2 || own.refused?.status === 401) return savedIn(own);
-  const shared = await folderPlan(dbFetch, req, folders[0], { manager, appToken });
+  const shared = await folderPlan(dbFetch, req, folders[0], { appToken });
   if (shared.refused) return own.refused ? planVerdict(shared) : unrunnableOwn(home, scope, details, appId);
   if (folderScore(shared) <= folderScore(own)) return unrunnableOwn(home, scope, details, appId);
   return savedIn(shared, [sharedFallbackText(home, shared.folder, scope)], own.refused ? [own.refused.message] : details);
@@ -599,10 +603,9 @@ function writeRefusalBody(key, refused) {
 }
 
 module.exports = {
-  RUN_NO_SIGN_IN,
+  RUN_NO_APP_TOKEN,
   nearestExisting,
   UNREADABLE_SHOWN,
-  WRITE_NO_SIGN_IN,
   PROBE_PREFIX,
   listCatalogs,
   listSchemas,

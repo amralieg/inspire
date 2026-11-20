@@ -20900,9 +20900,8 @@
         ]
       ],
       "errors": [
-        "a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse each viewer reads with; each viewer needs CAN USE on it",
-        "a page inside Inspire reads Delta tables; Lakebase needs an App of its own",
-        "a page inside Inspire shows each viewer only the data they may read, so it always signs viewers in as themselves"
+        "a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse the App reads with; the App needs CAN MANAGE on it",
+        "a page inside Inspire reads Delta tables; Lakebase needs an App of its own"
       ],
       "changes": [
         [
@@ -21045,7 +21044,7 @@
         ]
       ],
       "errors": [
-        "a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse each viewer reads with; each viewer needs CAN USE on it"
+        "a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse the App reads with; the App needs CAN MANAGE on it"
       ],
       "changes": [
         [

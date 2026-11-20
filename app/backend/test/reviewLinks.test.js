@@ -68,7 +68,7 @@ test('each reason says which: no such run, no read access, or no such use case i
   const link = { sessionId: '42', useCaseId: 'N09-U09', valid: true };
   assert.equal(R.reviewLinkText(link, 'main.inspire', 'missing'), 'Inspire has no run 42 in the Inspire Database main.inspire. Here is every run.');
   assert.equal(R.reviewLinkText(link, 'main.inspire', 'denied'),
-    'You cannot read run 42: your sign-in has no read access to the Inspire Database main.inspire. Ask your data owner for SELECT on it.');
+    'The App cannot read run 42: it has no read access to the Inspire Database main.inspire. Ask your data owner for SELECT on it.');
   assert.equal(R.reviewLinkText(link, 'main.inspire', 'no_use_case'), 'Run 42 has no use case N09-U09, so Review shows every use case of the run.');
   assert.equal(R.reviewLinkText(link, '', 'missing'), 'Inspire has no run 42 in this Inspire Database. Here is every run.');
   assert.equal(R.reviewLinkText(link, 'main.inspire', 'found'), '', 'a run that opened needs no reason');

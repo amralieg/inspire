@@ -252,8 +252,8 @@ def test_the_inspire_identity_is_read_from_the_build_parameter_and_never_looked_
 
 
 def test_req113_run_as_inside_app_writes_its_reports_as_the_person_with_no_grant_and_no_warning(agent_ns):
-    """REQ-113: in run-as-me the Implement job takes no App principal. The reports table is the person's, so nothing is granted and nothing is warned."""
+    """REQ-113 (run-as-me retired by D-SL-10B): the App writes the Inside feedback reports, so with no App identity Inspire grants nothing and says why."""
     inst, calls = stub_agent(agent_ns, principal="")
-    inst._implement_param = lambda name: "1" if name == "inspire_run_as_person" else ""
-    assert inst._implement_app_feedback_inside(INSIDE_TABLE, []) == []
-    assert calls["access"] == [], "run-as-me grants the App's principal nothing"
+    warnings = inst._implement_app_feedback_inside(INSIDE_TABLE, [])
+    assert len(warnings) == 1 and "App identity" in warnings[0], warnings
+    assert calls["access"] == [], "no App principal, so nothing is granted"

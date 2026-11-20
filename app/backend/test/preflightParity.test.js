@@ -33,8 +33,8 @@ test('preflight refuses a source whose ABAC policies the App cannot read, even w
 });
 
 test('preflight offers the READ METADATA grant for a source the App cannot read the policies of, when the person can (must fail before the fix)', async () => {
-  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE] },
-    me: { applicationId: 'app-sp-2', displayName: 'riverside-assets' },
+  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { tok: [SOURCE] },
+    appMe: { applicationId: 'app-sp-2', displayName: 'riverside-assets' },
     workspace: ({ token, path }) => (token !== PERSON && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)
       ? [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403] : undefined) }));
   assert.equal(got.status, 200, JSON.stringify(got.data));
@@ -47,8 +47,8 @@ test('preflight offers the READ METADATA grant for a source the App cannot read 
 });
 
 test('a source the App cannot read the metadata of is refused before the build in two plain sentences, with the App grant action (REQ-037 negative, must fail before the fix)', async () => {
-  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE] },
-    me: { applicationId: 'app-sp-2', displayName: 'riverside-assets' },
+  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { tok: [SOURCE] },
+    appMe: { applicationId: 'app-sp-2', displayName: 'riverside-assets' },
     probeErrors: { '`main`.`s`.`orders`': "[INSUFFICIENT_PERMISSIONS] Insufficient privileges: User does not have USE SCHEMA on Schema 'main.s'." },
     workspace: ({ token, path }) => (token !== PERSON && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)
       ? [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403] : undefined) }));
@@ -66,7 +66,7 @@ test('a source the App cannot read the metadata of is refused before the build i
 });
 
 test('preflight passes when the App reads the table and its policies (must-exclude control)', async () => {
-  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE] } }));
+  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { tok: [SOURCE] } }));
   assert.equal(got.data.checks.sources.ok, true);
   assert.equal(got.data.app_unreadable ?? null, null);
 });
@@ -76,7 +76,11 @@ test('preflight refuses a primary source the App cannot SELECT, the same refusal
   const got = await preflight(baseOverrides({ probeErrors: { '`main`.`s`.`orders`': denied } }));
   assert.equal(got.status, 200, JSON.stringify(got.data));
   assert.equal(got.data.checks.sources.ok, false, 'the build refuses a missing or unreadable primary table, so the preflight does too');
-  assert.match(got.data.checks.sources.detail, /main\.s\.orders/);
+  // REQ-418: a table the App cannot SELECT is a grant offer, not a missing table; the sentence names no id (catalogAccess.test.js),
+  // the table is named in the offer and the Permission Required entry.
+  assert.doesNotMatch(got.data.checks.sources.detail, /main\.s\.orders/);
+  assert.deepEqual(got.data.app_unreadable.tables, [SOURCE]);
+  assert.ok(got.data.checks.sources.permission.statements.some((g) => g.includes('`main`.`s`')), JSON.stringify(got.data.checks.sources.permission));
 });
 
 test('a built-in sample the App cannot read gets one plain sentence with the copy instruction and no grant (REQ-038, must fail before the fix)', async () => {
@@ -99,22 +103,28 @@ test('a built-in sample the App cannot read gets one plain sentence with the cop
   assert.doesNotMatch(offer.text, /GRANT|PERMISSION_DENIED|READ METADATA/);
 });
 
-test('the preflight refuses when the person who starts the build cannot read a source policies, with the build\'s own sentence (REQ-037 parity, must fail before the fix)', async () => {
+// REQ-418 (D-SL-10B): builds run as the App's service principal, so the person's own policy read no longer decides the preflight.
+// This replaced the REQ-037 person-parity test, which pinned the person-token policy read REQ-418 removed.
+test('a person who cannot read a source policies does not stop the build, and the preflight never reads the policies with the person token (REQ-418, must-exclude)', async () => {
+  const personPolicyReads = [];
   const got = await preflight({
     useCase: { id: 'N01-U01', use_case: 'Assess water assets', primary_table: SOURCE, tables_involved: SOURCE },
     tokenKind: 'app', forwardedToken: PERSON, me: { userName: 'amr@x', displayName: 'Amr' },
-    workspace: ({ token, path }) => (token === PERSON && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)
-      ? [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403] : undefined),
+    workspace: ({ token, path }) => {
+      if (token !== PERSON || !/^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)) return undefined;
+      personPolicyReads.push(path);
+      return [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403];
+    },
   });
   assert.equal(got.status, 200, JSON.stringify(got.data));
-  assert.equal(got.data.checks.sources.ok, false);
-  assert.equal(got.data.app_unreadable.text, 'Amr cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them');
-  assert.equal(got.data.app_unreadable.can_grant, false);
+  assert.equal(got.data.checks.sources.ok, true, got.data.checks.sources.detail);
+  assert.equal(got.data.app_unreadable ?? null, null);
+  assert.deepEqual(personPolicyReads, [], 'the policies are read with the App token only');
 });
 
 test('the App-side refusal for an unreadable policy opens with the same sentence the build uses for the App principal (REQ-037 parity, must fail before the fix)', async () => {
-  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { [PERSON]: [SOURCE] },
-    me: { applicationId: 'app-sp-2', displayName: 'riverside-assets' },
+  const got = await preflight(baseOverrides({ forwardedToken: PERSON, readableTables: { tok: [SOURCE] },
+    appMe: { applicationId: 'app-sp-2', displayName: 'riverside-assets' },
     workspace: ({ token, path }) => (token !== PERSON && /^\/api\/2\.1\/unity-catalog\/policies\/table\//.test(path)
       ? [{ error_code: 'PERMISSION_DENIED', message: 'User does not have READ METADATA on Table' }, 403] : undefined) }));
   assert.equal(got.data.app_unreadable.text.startsWith("The App's service principal riverside-assets cannot read the access policies of the source table, so Inspire cannot tell whether the results keep them. "), true, got.data.app_unreadable.text);

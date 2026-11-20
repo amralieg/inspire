@@ -88,12 +88,20 @@ test('launching with a session id that already exists neither runs it for you no
   assert.equal(S.state.launches[0].opened_session, 'false', 'a session another launch already named is not reopened');
 });
 
-test('a launch with no signed-in person is refused before anything is submitted or recorded, because its output folder cannot be checked', async () => {
+// REQ-418 (D-SL-10B, D-SL-11): the App launches for everyone, so a launch with no signed-in person still starts. Nothing is attributed to a
+// person it cannot name: the launch is recorded without a launcher, and only App managers can stop it.
+test('a launch with no signed-in person starts as the App, is recorded with no launcher, and says only App managers can cancel it (REQ-418)', async () => {
   S.reset({ notebookPresent: true });
   const got = await S.request('POST', '/api/run', { signedIn: false, body: runParams('5004') });
-  assert.equal(got.status, 401, got.text);
-  assert.equal(S.state.launches.length, 0);
-  assert.deepEqual(S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/')), []);
+  assert.equal(got.status, 200, got.text);
+  // Every launch is recorded: with no person the launcher is recorded as unknown, so only App managers can stop it.
+  assert.equal(got.data.launcher_recorded, true);
+  assert.match(got.data.launcher_note, /launcher is recorded as unknown and only App managers can cancel it/);
+  const row = S.state.calls.find((c) => /INSERT INTO .*__inspire_launch/.test(String(c.statement || c.sql || '')));
+  assert.ok(row, 'the launch row is written');
+  assert.ok(JSON.stringify(row.parameters || row).includes('unknown'), 'the launcher is recorded as unknown');
+  const jobCalls = S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/'));
+  assert.deepEqual(jobCalls.map((c) => [c.path, c.token]), [['/api/2.1/jobs/create', S.APP_TOKEN], ['/api/2.1/jobs/run-now', S.APP_TOKEN]]);
 });
 
 test('a launch answers with the run and job ids as strings, small or past 2^53, so the App never sees one id in two types', async () => {

@@ -8,22 +8,25 @@ const SP_TOKEN = 'sp-token';
 const PERSON = 'person-token';
 const PERSON_EMAIL = ['pat.lee', 'example.com'].join('@');
 const APP_ENV = { NODE_ENV: 'production', DATABRICKS_CLIENT_ID: 'inspire-client', DATABRICKS_CLIENT_SECRET: 'inspire-secret' };
-const { RUN_NO_SIGN_IN } = require('../lib/ucReads');
-const cannotRead = (names) => `You can't read ${names}. Pick tables and files you can read, or ask your data owner for access`; // file paths
-const tableCannotRead = () => "You can't read this source table. Pick tables you can read, or ask your data owner for access";
+const { RUN_NO_APP_TOKEN } = require('../lib/ucReads');
+const cannotRead = (names) => `The App can't read ${names}. Pick tables and files the App can read, or ask your data owner for access`; // file paths
+const tableCannotRead = () => "The App can't read this source table. Pick tables the App can read, or ask your data owner for access";
 const scopeOf = (workspace) => launched(workspace)[0].body.tasks[0].notebook_task.base_parameters['01_uc_metadata'];
 
 const SEES = {
+  // REQ-418: the App's service principal reads every source. `browseOnly` tables are listed for the App but cannot be read (a browse grant).
   [SP_TOKEN]: {
     catalogs: ['main', 'hr'],
     schemas: { main: ['s', 'secret', 'information_schema'], hr: ['p'] },
     tables: { 'main.s': ['orders', 'returns', 'salaries_view'], 'main.secret': ['ledger'], 'hr.p': ['salaries'], 'main.information_schema': ['tables'] },
+    browseOnly: { 'main.s': ['salaries_view'], 'main.secret': ['ledger'] },
+    files: ['/Shared/strategy.json', '/Volumes/main/s/v/strategy.json'],
   },
   [PERSON]: {
     catalogs: ['main'],
     schemas: { main: ['s', 'information_schema'] },
     tables: { 'main.s': ['orders', 'returns'], 'main.information_schema': ['tables'] },
-    files: ['/Users/pat/strategy.json', '/Volumes/main/s/v/strategy.json'],
+    files: ['/Shared/strategy.json', '/Volumes/main/s/v/strategy.json'],
   },
 };
 const done = (column, values) => [200, { status: { state: 'SUCCEEDED' }, manifest: { schema: { columns: [{ name: column }] } },
@@ -44,13 +47,18 @@ function answer(call, broken = {}) {
   if (url.pathname === '/api/2.1/unity-catalog/tables') {
     const scope = `${url.searchParams.get('catalog_name')}.${url.searchParams.get('schema_name')}`;
     const found = sees.tables[scope];
-    return found ? [200, { tables: found.map((name) => ({ name, full_name: `${scope}.${name}` })) }] : [403, { error_code: 'PERMISSION_DENIED', message: 'User does not have USE SCHEMA' }];
+    const browse = url.searchParams.get('include_browse') === 'true';
+    const hidden = (sees.browseOnly || {})[scope] || [];
+    return found ? [200, { tables: found.filter((name) => browse || !hidden.includes(name)).map((name) => ({ name, full_name: `${scope}.${name}` })) }]
+      : [403, { error_code: 'PERMISSION_DENIED', message: 'User does not have USE SCHEMA' }];
   }
   const one = /^\/api\/2\.1\/unity-catalog\/tables\/(.+)$/.exec(url.pathname);
   if (one) {
     const name = decodeURIComponent(one[1]);
     const [catalog, schema, table] = name.split('.');
-    return (sees.tables[`${catalog}.${schema}`] || []).includes(table) ? [200, { full_name: name }]
+    const scope = `${catalog}.${schema}`;
+    const readable = (sees.tables[scope] || []).includes(table) && !((sees.browseOnly || {})[scope] || []).includes(table);
+    return readable ? [200, { full_name: name }]
       : [403, { error_code: 'PERMISSION_DENIED', message: `User does not have SELECT on Table '${name}'.` }];
   }
   if (url.pathname.startsWith('/api/2.0/fs/files/')) {
@@ -68,7 +76,9 @@ function answer(call, broken = {}) {
   }
   if (url.pathname === '/api/2.0/sql/statements' && /^SHOW TABLES IN `([^`]+)`\.`([^`]+)`/.test(String(call.body && call.body.statement))) {
     const [, catalog, schema] = /^SHOW TABLES IN `([^`]+)`\.`([^`]+)`/.exec(call.body.statement);
-    return done('tableName', sees.tables[`${catalog}.${schema}`] || []);
+    const scope = `${catalog}.${schema}`;
+    // A browse-only table is not a table a picker can select, so SHOW TABLES leaves it out, as it does for the App's pickers.
+    return done('tableName', (sees.tables[scope] || []).filter((name) => !((sees.browseOnly || {})[scope] || []).includes(name)));
   }
   if (url.pathname === '/api/2.1/jobs/create') return [200, { job_id: 7 }];
   if (url.pathname === '/api/2.1/jobs/run-now') return [200, { run_id: 99 }];
@@ -88,69 +98,74 @@ async function withInspire(run, broken = {}) {
 }
 
 const signedIn = { 'x-forwarded-access-token': PERSON, 'x-forwarded-email': PERSON_EMAIL };
+// A non-JSON answer names its status and the start of its body, so a recurrence says what answered instead of a bare parse error.
+const jsonOf = async (resp, what) => {
+  const text = await resp.text();
+  try { return JSON.parse(text); } catch (err) { throw new Error(`${what}: HTTP ${resp.status} answered non-JSON: ${text.slice(0, 200)}`); }
+};
 async function get(url, path, headers = signedIn) {
   const resp = await fetch(`${url}${path}`, { headers });
-  return { status: resp.status, data: await resp.json() };
+  return { status: resp.status, data: await jsonOf(resp, `GET ${path}`) };
 }
 async function launch(url, params, headers = signedIn) {
   const resp = await fetch(`${url}/api/run`, { method: 'POST', headers: { 'Content-Type': 'application/json', ...headers },
     body: JSON.stringify({ params: { '00_business_name': 'Acme', '02_inspire_database': 'main._inspire', '11_generation_path': '/Shared/demos', ...params } }) });
-  return { status: resp.status, data: await resp.json() };
+  return { status: resp.status, data: await jsonOf(resp, 'POST /api/run') };
 }
 const ucCalls = (workspace) => workspace.calls.filter((c) => c.path.startsWith('/api/2.1/unity-catalog') || c.path === '/api/2.0/sql/statements');
 const launched = (workspace) => workspace.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/'));
 
-test('the Launch pickers list catalogs, schemas and tables with the person\u2019s own token, so names only the App can see never appear', async () => {
+// REQ-418 (D-SL-10B): the pickers list with the App's service principal, the same lists for every person.
+test('the Launch pickers list catalogs, schemas and tables with the App’s service principal, so every person sees the same lists', async () => {
   await withInspire(async (url, workspace) => {
     const catalogs = await get(url, '/api/catalogs?warehouse_id=wh');
     assert.equal(catalogs.status, 200, JSON.stringify(catalogs.data));
-    assert.deepEqual(catalogs.data.catalogs.map((c) => c.name), ['main']);
+    assert.deepEqual(catalogs.data.catalogs.map((c) => c.name), ['hr', 'main']);
     const schemas = await get(url, '/api/catalogs/main/schemas?warehouse_id=wh');
-    assert.deepEqual(schemas.data.schemas.map((s) => s.full_name), ['main.information_schema', 'main.s']);
+    assert.deepEqual(schemas.data.schemas.map((s) => s.full_name), ['main.information_schema', 'main.s', 'main.secret']);
     const tables = await get(url, '/api/tables/main/s?warehouse_id=wh');
     assert.deepEqual(tables.data.tables.map((t) => t.full_name), ['main.s.orders', 'main.s.returns']);
-    const hidden = await get(url, '/api/catalogs/hr/schemas');
-    assert.deepEqual([hidden.status, hidden.data.schemas], [403, undefined], 'a catalog only the App can see answers the status the person\u2019s own sign-in got, never 502');
+    const unseen = await get(url, '/api/catalogs/nowhere/schemas');
+    assert.deepEqual([unseen.status, unseen.data.schemas], [403, undefined], 'a catalog the App cannot see answers the status the App got, never 502');
     const calls = ucCalls(workspace);
     assert.ok(calls.length >= 6, `${calls.length} reads`);
-    assert.deepEqual([...new Set(calls.filter((c) => !c.path.startsWith('/api/2.1/unity-catalog/catalogs') && !c.path.includes('/effective-permissions/')).map((c) => c.token))], [PERSON],
-      'every listing read is the person\u2019s; the App only lists its own catalogs and their grants (REQ-420)');
-    assert.ok(!calls.some((c) => c.path.includes('include_browse')), 'a picker never asks for tables the person may only browse');
+    assert.deepEqual([...new Set(calls.map((c) => c.token))], [SP_TOKEN], 'every listing read is the App’s service principal');
+    assert.ok(!calls.some((c) => c.path.includes('include_browse')), 'a picker never asks for tables the App may only browse');
   });
 });
 
-test('with no forwarded person token the pickers get the sign-in refusal and read nothing as the App', async () => {
+test('with no forwarded person token the pickers still list as the App, so a person without a sign-in sees the same picker (REQ-418)', async () => {
   await withInspire(async (url, workspace) => {
     for (const path of ['/api/catalogs?warehouse_id=wh', '/api/catalogs/main/schemas', '/api/tables/main/s']) {
       const got = await get(url, path, {});
-      assert.deepEqual([got.status, got.data.error, got.data.policy && got.data.policy.identity], [401, NO_PERSON_TOKEN, 'person'], path);
+      assert.equal(got.status, 200, `${path}: ${JSON.stringify(got.data)}`);
     }
-    assert.deepEqual(ucCalls(workspace), []);
+    assert.deepEqual([...new Set(ucCalls(workspace).map((c) => c.token))], [SP_TOKEN]);
   });
 });
 
-test('a run skips a chosen table the person cannot read and says so, is refused only when none is readable, and starts when every table is readable (must-exclude)', async () => {
+test('a run skips a chosen table the App cannot read and says so, is refused only when none is readable, and starts when every table is readable (must-exclude)', async () => {
   await withInspire(async (url, workspace) => {
-    const skipped = await launch(url, { '01_uc_metadata': 'main.s.orders,hr.p.salaries' });
+    const skipped = await launch(url, { '01_uc_metadata': 'main.s.orders,main.s.missing' });
     assert.equal(skipped.status, 200, JSON.stringify(skipped.data));
-    assert.deepEqual(skipped.data.warnings, ["Skipped 1 table you can't read."]);
-    assert.deepEqual(skipped.data.warning_details, ["Tables you can't read: hr.p.salaries"], 'the ids sit under Details');
-    assert.deepEqual(skipped.data.skipped_tables, ['hr.p.salaries']);
-    assert.equal(scopeOf(workspace), 'main.s.orders', 'the run reads only what the person can read');
+    assert.deepEqual(skipped.data.warnings, ["Skipped 1 table the App can't read."]);
+    assert.deepEqual(skipped.data.warning_details, ["Tables the App can't read: main.s.missing"], 'the ids sit under Details');
+    assert.deepEqual(skipped.data.skipped_tables, ['main.s.missing']);
+    assert.equal(scopeOf(workspace), 'main.s.orders', 'the run reads only what the App can read');
   });
   await withInspire(async (url, workspace) => {
-    const refused = await launch(url, { '01_uc_metadata': 'hr.p.salaries' });
+    const refused = await launch(url, { '01_uc_metadata': 'main.s.missing' });
     assert.equal(refused.status, 403, JSON.stringify(refused.data));
-    assert.deepEqual(refused.data, { error: tableCannotRead(), unreadable: ['hr.p.salaries'] });
+    assert.deepEqual(refused.data, { error: tableCannotRead(), unreadable: ['main.s.missing'] });
     assert.deepEqual(launched(workspace), [], 'no job is created');
-    const ok = await launch(url, { '01_uc_metadata': ' main.s.orders ,\u3000main.s.returns\x85' });
+    const ok = await launch(url, { '01_uc_metadata': ' main.s.orders ,　main.s.returns\x85' });
     assert.equal(ok.status, 200, JSON.stringify(ok.data));
     assert.equal(ok.data.run_id, '99');
     const reads = workspace.calls.filter((c) => /^\/api\/2\.1\/unity-catalog\/tables\//.test(c.path));
     assert.deepEqual(reads.map((c) => `${c.token} ${c.path}`).sort(), [
-      `${PERSON} /api/2.1/unity-catalog/tables/hr.p.salaries`,
-      `${PERSON} /api/2.1/unity-catalog/tables/main.s.orders`, `${PERSON} /api/2.1/unity-catalog/tables/main.s.returns`],
-      'each chosen table is checked with the person\u2019s token, after the same strip the agent does');
+      `${SP_TOKEN} /api/2.1/unity-catalog/tables/main.s.missing`,
+      `${SP_TOKEN} /api/2.1/unity-catalog/tables/main.s.orders`, `${SP_TOKEN} /api/2.1/unity-catalog/tables/main.s.returns`],
+      'each chosen table is checked with the App’s token, after the same strip the agent does');
     assert.equal(ok.data.warnings, undefined, 'nothing skipped, nothing to say');
     assert.deepEqual(launched(workspace).map((c) => [c.path, c.token]), [['/api/2.1/jobs/create', SP_TOKEN], ['/api/2.1/jobs/run-now', SP_TOKEN]]);
     const created = launched(workspace)[0].body;
@@ -159,28 +174,29 @@ test('a run skips a chosen table the person cannot read and says so, is refused 
   });
 });
 
-test('a whole schema or catalog runs on the tables the person can read, names the skipped ones from what the App sees, and is refused only when none is readable', async () => {
+test('a whole schema or catalog runs on the tables the App can read, names the skipped ones, and is refused only when none is readable', async () => {
   await withInspire(async (url, workspace) => {
     const schema = await launch(url, { '01_uc_metadata': 'main.s' });
     assert.equal(schema.status, 200, JSON.stringify(schema.data));
-    assert.deepEqual(schema.data.warnings, ["Skipped 1 table you can't read."]);
-    assert.deepEqual(schema.data.warning_details, ["Tables you can't read: main.s.salaries_view"]);
+    assert.deepEqual(schema.data.warnings, ["Skipped 1 table the App can't read."]);
+    assert.deepEqual(schema.data.warning_details, ["Tables the App can't read: main.s.salaries_view"]);
     assert.equal(scopeOf(workspace), 'main.s.orders,main.s.returns', 'a browse-only table is left out of the run');
     const listed = workspace.calls.filter((c) => c.path.startsWith('/api/2.1/unity-catalog/tables?'));
-    assert.deepEqual(listed.map((c) => [c.token, new URL(`http://x${c.path}`).searchParams.get('include_browse')]), [[SP_TOKEN, 'true'], [PERSON, null]],
-      'the App lists every table it can see in the schema, the person only what they can read');
+    assert.ok(listed.some((c) => c.token === SP_TOKEN && new URL(`http://x${c.path}`).searchParams.get('include_browse') === 'true'),
+      'the App lists the schema with its browse-only tables included, so each one is checked');
+    assert.deepEqual([...new Set(listed.map((c) => c.token))], [SP_TOKEN], 'every schema listing is the App\u2019s');
   });
   await withInspire(async (url, workspace) => {
     const catalog = await launch(url, { '01_uc_metadata': 'main' });
     assert.equal(catalog.status, 200, JSON.stringify(catalog.data));
-    assert.deepEqual(catalog.data.warnings, ["Skipped 2 tables you can't read."]);
-    assert.deepEqual(catalog.data.warning_details, ["Tables you can't read: main.s.salaries_view and main.secret.ledger"]);
+    assert.deepEqual(catalog.data.warnings, ["Skipped 2 tables the App can't read."]);
+    assert.deepEqual(catalog.data.warning_details, ["Tables the App can't read: main.s.salaries_view and main.secret.ledger"]);
     assert.equal(scopeOf(workspace), 'main.s.orders,main.s.returns');
-    assert.ok(!workspace.calls.some((c) => c.path.includes('schema_name=information_schema')), 'the catalog\u2019s information_schema is not a table the run reads');
+    assert.ok(!workspace.calls.some((c) => c.path.includes('schema_name=information_schema')), 'the catalog’s information_schema is not a table the run reads');
   });
   await withInspire(async (url, workspace) => {
-    const hidden = await launch(url, { '01_uc_metadata': 'hr' });
-    assert.deepEqual([hidden.status, hidden.data.unreadable], [403, ['hr.p.salaries']]);
+    const unreadable = await launch(url, { '01_uc_metadata': 'main.secret' });
+    assert.deepEqual([unreadable.status, unreadable.data.unreadable], [403, ['main.secret.ledger']], 'a schema with nothing readable is refused');
     assert.deepEqual(launched(workspace), []);
     const readable = await launch(url, { '01_uc_metadata': 'main.information_schema' });
     assert.equal(readable.status, 200, JSON.stringify(readable.data));
@@ -188,40 +204,40 @@ test('a whole schema or catalog runs on the tables the person can read, names th
   });
 });
 
-test('a strategy or use case file the person cannot read refuses the run, and one they can read lets it start', async () => {
+test('a strategy or use case file the App cannot read refuses the run, and one the App can read lets it start (REQ-418)', async () => {
   await withInspire(async (url, workspace) => {
     const tables = { '01_uc_metadata': 'main.s.orders' };
-    const workspaceFile = await launch(url, { ...tables, '10_strategic_context': '/Workspace/Users/someone/strategy.json' });
-    assert.deepEqual([workspaceFile.status, workspaceFile.data], [403, { error: cannotRead('/Workspace/Users/someone/strategy.json'),
+    const hidden = await launch(url, { ...tables, '10_strategic_context': '/Workspace/Users/someone/strategy.json' });
+    assert.deepEqual([hidden.status, hidden.data], [403, { error: cannotRead('/Workspace/Users/someone/strategy.json'),
       unreadable: ['/Workspace/Users/someone/strategy.json'] }]);
-    const volumeFile = await launch(url, { ...tables, '10_strategic_context': ' /Volumes/hr/p/v/strategy.json' });
-    assert.deepEqual(volumeFile.data.unreadable, ['/Volumes/hr/p/v/strategy.json']);
+    const volumeHidden = await launch(url, { ...tables, '10_strategic_context': ' /Volumes/hr/p/v/strategy.json' });
+    assert.deepEqual(volumeHidden.data.unreadable, ['/Volumes/hr/p/v/strategy.json']);
     const useCases = await launch(url, { '01_uc_metadata': '/Volumes/hr/p/v/use_cases.json' });
     assert.deepEqual(useCases.data.unreadable, ['/Volumes/hr/p/v/use_cases.json']);
     assert.deepEqual(launched(workspace), []);
     const inline = await launch(url, { ...tables, '10_strategic_context': '{"levels": []}' });
     assert.equal(inline.status, 200, 'a strategy written in the box is not a file');
-    const mine = await launch(url, { ...tables, '10_strategic_context': '/Workspace/Users/pat/strategy.json' });
+    const mine = await launch(url, { ...tables, '10_strategic_context': '/Workspace/Shared/strategy.json' });
     assert.equal(mine.status, 200, JSON.stringify(mine.data));
     const volume = await launch(url, { ...tables, '10_strategic_context': '/Volumes/main/s/v/strategy.json' });
     assert.equal(volume.status, 200, JSON.stringify(volume.data));
     const checks = workspace.calls.filter((c) => /strategy|use_cases/.test(decodeURIComponent(c.path)));
-    assert.deepEqual([...new Set(checks.map((c) => c.token))], [PERSON]);
+    assert.deepEqual([...new Set(checks.map((c) => c.token))], [SP_TOKEN], 'every file check is the App’s');
     assert.ok(checks.some((c) => c.method === 'HEAD' && c.path === '/api/2.0/fs/files/Volumes/main/s/v/strategy.json'));
-    assert.ok(checks.some((c) => c.path === `/api/2.0/workspace/get-status?path=${encodeURIComponent('/Users/pat/strategy.json')}`));
+    assert.ok(checks.some((c) => c.path === `/api/2.0/workspace/get-status?path=${encodeURIComponent('/Shared/strategy.json')}`));
   });
 });
 
-test('with no forwarded person token no run starts, and a check the workspace cannot answer still starts the run and says what was not checked', async () => {
+test('with no forwarded person token the run still starts as the App, and a check the workspace cannot answer still starts the run and says what was not checked', async () => {
   await withInspire(async (url, workspace) => {
     const none = await launch(url, { '01_uc_metadata': 'main.s.orders' }, {});
-    assert.deepEqual([none.status, none.data], [401, { error: RUN_NO_SIGN_IN, unreadable: [] }]);
-    assert.deepEqual(launched(workspace), []);
+    assert.equal(none.status, 200, JSON.stringify(none.data));
+    assert.deepEqual(launched(workspace).map((c) => [c.path, c.token]), [['/api/2.1/jobs/create', SP_TOKEN], ['/api/2.1/jobs/run-now', SP_TOKEN]]);
   });
   await withInspire(async (url, workspace) => {
     const down = await launch(url, { '01_uc_metadata': 'main.s.orders' });
     assert.equal(down.status, 200, JSON.stringify(down.data));
-    assert.deepEqual(down.data.warnings, ['Inspire could not check that you can read main.s.orders (metastore unavailable), so the run reads it as picked.']);
+    assert.deepEqual(down.data.warnings, ['Inspire could not check that the App can read main.s.orders (metastore unavailable), so the run reads it as picked.']);
     assert.equal(scopeOf(workspace), 'main.s.orders');
   }, { '/api/2.1/unity-catalog/tables/main.s.orders': [500, { message: 'metastore unavailable' }] });
 });
@@ -237,9 +253,9 @@ test('the run reads are parsed as the agent parses UC Metadata and the strategic
   const many = Array.from({ length: 13 }, (_, i) => `main.s.t${i}`);
   assert.equal(U.runUnreadableText(many), cannotRead(`${many.slice(0, 10).join(', ')} and 3 more`));
   assert.equal(U.runUnreadableText(['a.b.c']), cannotRead('a.b.c'));
-  assert.equal(U.skippedTablesText(many), "Skipped 13 tables you can't read.");
-  assert.equal(U.skippedTablesDetail(many), `Tables you can't read: ${many.slice(0, 10).join(', ')} and 3 more`);
-  for (const text of [U.RUN_NO_SIGN_IN, U.WRITE_NO_SIGN_IN, U.runUnreadableText(['a.b.c'])]) {
+  assert.equal(U.skippedTablesText(many), "Skipped 13 tables the App can't read.");
+  assert.equal(U.skippedTablesDetail(many), `Tables the App can't read: ${many.slice(0, 10).join(', ')} and 3 more`);
+  for (const text of [U.RUN_NO_APP_TOKEN, U.runUnreadableText(['a.b.c']), U.runUnreadableTablesText(['a.b', 'a.c'])]) {
     assert.ok(text.split(/\s+/).length <= 20, `${text} is at most 20 words`);
   }
 });
@@ -249,7 +265,7 @@ test('a picker list Unity Catalog cuts says it was cut, unless the warehouse lis
   await withInspire(async (url, workspace) => {
     const cut = await get(url, '/api/catalogs');
     assert.deepEqual([cut.status, cut.data.catalogs.map((c) => c.name), cut.data.truncated], [200, ['main'], true]);
-    assert.equal(ucCalls(workspace).filter((c) => c.token === PERSON && c.path.startsWith('/api/2.1/unity-catalog/catalogs')).length, 40, 'the list stops at 40 pages');
+    assert.equal(ucCalls(workspace).filter((c) => c.path.startsWith('/api/2.1/unity-catalog/catalogs')).length, 40, 'the list stops at 40 pages');
     const filled = await get(url, '/api/catalogs?warehouse_id=wh');
     assert.deepEqual([filled.data.catalogs.map((c) => c.name), filled.data.truncated], [['main', 'zeta'], false]);
   }, { '/api/2.1/unity-catalog/catalogs': endless('catalogs', 'main'), '/api/2.0/sql/statements': done('catalog', ['main', 'zeta']) });
@@ -258,7 +274,7 @@ test('a picker list Unity Catalog cuts says it was cut, unless the warehouse lis
     assert.equal(tables.data.truncated, true);
     const cut = await launch(url, { '01_uc_metadata': 'main.s' });
     assert.equal(cut.status, 200, JSON.stringify(cut.data));
-    assert.deepEqual(cut.data.warnings, ['Inspire could not check that you can read main.s (main.s holds more tables than the 200 Inspire can list), so the run reads it as picked.']);
+    assert.deepEqual(cut.data.warnings, ['Inspire could not check that the App can read main.s (main.s holds more tables than the 200 Inspire can list), so the run reads it as picked.']);
     assert.equal(scopeOf(workspace), 'main.s', 'an unchecked schema is sent as typed, never cut down to the tables that were listed');
   }, { '/api/2.1/unity-catalog/tables': endless('tables', 'orders') });
   await withInspire(async (url) => {
@@ -283,7 +299,7 @@ test('a whole catalog list reads in pages of 1,000, skips the warehouse when Uni
     assert.equal(got.data.catalogs.length, 2500);
     assert.ok(!got.data.catalogs.some((c) => c.name.startsWith('__')), 'no internal catalog in the picker');
     assert.deepEqual([got.data.truncated, got.data.source], [false, 'rest']);
-    const listed = workspace.calls.filter((c) => c.token === PERSON && c.path.startsWith('/api/2.1/unity-catalog/catalogs'));
+    const listed = workspace.calls.filter((c) => c.path.startsWith('/api/2.1/unity-catalog/catalogs'));
     assert.equal(listed.length, 3, 'three pages of 1,000');
     assert.ok(listed.every((c) => c.path.includes('max_results=1000')));
     assert.equal(workspace.calls.filter((c) => c.path === '/api/2.0/sql/statements').length, 0, 'a full list never waits on the warehouse');
@@ -294,7 +310,7 @@ test('table reads say this source table or N source tables and never name the id
   const U = require('../lib/ucReads');
   assert.equal(U.runUnreadableTablesText(['hr.p.salaries']), tableCannotRead());
   assert.equal(U.runUnreadableTablesText(['main.s.a', 'main.s.b']),
-    "You can't read 2 source tables. Pick tables you can read, or ask your data owner for access");
+    "The App can't read 2 source tables. Pick tables the App can read, or ask your data owner for access");
   assert.doesNotMatch(U.runUnreadableTablesText(['main.s.a', 'main.s.b']), /main\.s\./);
   assert.equal(U.runUnreadableText(['/Workspace/Users/someone/strategy.json']), cannotRead('/Workspace/Users/someone/strategy.json'));
 });

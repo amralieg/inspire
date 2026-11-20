@@ -7,11 +7,10 @@ import { wheelEveryRegion, wheelScrolls } from './wheelScroll.mjs';
 const HOSTED_NO_TOKEN = 'Inspire needs permission to act as you to show this page; a workspace admin turns on user authorization for Apps, then reopen Inspire';
 const RUN_BANNER = 'Inside Inspire, only for testing. Give it its own App for real use.';
 const RUN_EMPTY = 'No MVP is deployed yet. Start one from Build, and it shows here once its App is built.';
-const INSIDE_BLURB = 'Inspire runs the page in its Run tab, with no App of its own. Each viewer sees only the data they may read. Use it to try a page, '
+const INSIDE_BLURB = 'Inspire runs the page in its Run tab, with no App of its own. The page reads with the App\u2019s own access, so everyone sees the same rows. Use it to try a page, '
   + 'then give it its own App.';
-const INSIDE_ACCESS_REASON = 'Inside Inspire, each viewer signs in as themselves and sees only the data they may read';
 const INSIDE_BACKEND_REASON = 'Fast pages need an App of its own';
-const INSIDE_WAREHOUSE_LABEL = 'SQL warehouse each viewer reads with (each viewer needs CAN USE on it)';
+const INSIDE_WAREHOUSE_LABEL = 'SQL warehouse the App reads with (the App needs CAN MANAGE on it)';
 const INSIDE_WAREHOUSE_TOGGLE = 'SQL warehouse settings';
 
 test.after(closeBrowser);
@@ -222,10 +221,8 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
     assert.equal(await page.getByLabel('App name').count(), 0, 'no App name Inside Inspire');
     assert.equal(await page.locator('[data-app-list]').count(), 0, 'the list of existing Apps is hidden');
     assert.equal(await page.getByRole('radiogroup', { name: 'How Inspire organizes Apps' }).count(), 0);
-    await goToStep(page, 'App access');
-    assert.equal(await page.getByRole('radio', { name: /^Sensitive data/ }).isChecked(), true);
-    assert.equal(await page.getByRole('radio', { name: /^Internal data/ }).isDisabled(), true);
-    assert.equal(await page.getByRole('note', { name: 'Why each person signs in as themselves' }).textContent(), `${INSIDE_ACCESS_REASON}.`);
+    // No access choice is shown without a policied source: Inside Inspire reads as the App's service principal (REQ-418 ruling 1).
+    assert.equal(await page.getByRole('region', { name: 'App access' }).count(), 0, 'no access choice without a policied source (must-exclude)');
     await goToStorage(page);
     assert.equal(await page.getByRole('radio', { name: /^Fast pages/ }).isDisabled(), true);
     assert.equal(await page.locator('[data-blocked-reason="app-backend"] p').textContent(), INSIDE_BACKEND_REASON);
@@ -237,7 +234,7 @@ test('the wizard offers Inside Inspire as not recommended, then locks per-user a
     assert.equal(inserted.length, 1);
     const [sent] = inserted;
     assert.deepEqual([sent.outputs.app_placement, sent.outputs.app_access, sent.outputs.app_backend, sent.outputs.app_name, sent.outputs.app_warehouse_id,
-      sent.outputs.merge.app], ['inspire', 'user', 'delta', '', 'wh1', '']);
+      sent.outputs.merge.app], ['inspire', 'sp', 'delta', '', 'wh1', '']);
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

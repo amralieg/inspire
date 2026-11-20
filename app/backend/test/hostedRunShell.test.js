@@ -102,7 +102,8 @@ test('the real App shell from the bundled notebook runs as a page Inside Inspire
   assert.ok(pid && gone(pid), 'the page process ended when Inspire stopped it');
 });
 
-test('a decision on a real page Inside Inspire reaches the page\'s own shell, which checks the viewer\'s read before Inspire writes anything', async (t) => {
+// REQ-418 (D-SL-10B, lane ruling 2): a page inside Inspire reads as the App, so the shell checks the record with Inspire's own token; the viewer is the actor.
+test('a decision on a real page Inside Inspire reaches the page\'s own shell, which checks the record is readable before Inspire writes anything', async (t) => {
   const python = await H.pythonFor(process.env.PATH, process.cwd(), async () => true);
   if (!python) {
     t.skip('no python3 or python on PATH, so the decision step cannot run on this machine');
@@ -143,8 +144,8 @@ test('a decision on a real page Inside Inspire reaches the page\'s own shell, wh
     assert.equal(unread.status, 403, unread.text);
     assert.match(JSON.parse(unread.text).error, /^Nothing was saved: you cannot read this record in Unity Catalog/);
     const sql = warehouse.calls.filter((c) => c.url === '/api/2.0/sql/statements');
-    assert.ok(sql.length > 0, 'the shell read the record as the viewer');
-    assert.deepEqual([...new Set(sql.map((c) => c.authorization))], ['Bearer fake-user-token'], 'only the viewer\'s token reads, and Inspire\'s writer never runs');
+    assert.ok(sql.length > 0, 'the shell read the record before writing');
+    assert.deepEqual([...new Set(sql.map((c) => c.authorization))], ['Bearer inspire-own-token'], 'only the App\'s token reads, never the viewer\'s');
     assert.deepEqual([...new Set(sql.map((c) => JSON.parse(c.body).warehouse_id))], ['wh2']);
     assert.ok(!sql.some((c) => /MERGE INTO/.test(JSON.parse(c.body).statement)), 'nothing is written for a record the viewer cannot read');
     const stale = await act(before.id);

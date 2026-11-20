@@ -33,8 +33,6 @@ const {
   normalizeUseCasesQualityParams,
   sanitizeInspireNotebookJobParams,
   normalizeV130UseCaseFields,
-  runAsPerson,
-  launchPlanFor,
 } = require('./lib/inspireJobParams');
 const JC = require('./lib/jobCurrency');
 const { notebookParamsFromSessionForGenerateRun } = require('./lib/inspireSessionParams');
@@ -65,7 +63,6 @@ const { executiveSummaryOf, parseResultsJson, runResultsStatement } = require('.
 const { appReadPermissions, sampleCopyPermission, permissionRequired } = require('./lib/permissions');
 const { spGrantedCatalogs, grantedCatalogList, partialPermission, droppedCatalogs } = require('./lib/spCatalogs');
 const { planModelAccess, selfCheckRecord, MODEL_CHECK_ROUTE } = require('./lib/modelAccess');
-const { createInstalledRuns } = require('./lib/runAsRuns');
 const PM_ERROR = require('./lib/permissionError');
 const { apiRefusalText, logApiBody } = require('./lib/apiRefusal');
 const { samplesChoiceOfRun, isBuiltInSampleEntry, isReadDenied, liveLogPath, SAMPLE_COPY_NO_SIGN_IN, sampleCopyDestination, sampleCopyFailureKind, samplesNeedChoice, SAMPLES_CHOICE_TEXT, sampleCopyName, sampleCopyRefusal, sampleCopyStatement, sampleCopyTakenMessage, sampleSchemaMessage, sampleTableRef, schemaCreateStatement, describedColumnNames, implementTableName, parseImplementRow, builtTableScopeOf, builtFramingOf, builtTextOf, latestBuiltRowsSql, resultTableNameError, quoteTable } = require('./lib/inspireImplement');
@@ -138,6 +135,7 @@ let SERVICE_TOKEN = (process.env.DATABRICKS_TOKEN || '').trim();
 // SP OAuth credentials — Databricks App runtime injects these automatically
 // when a service principal resource is declared in app.yaml.
 // Fallback: installer may also set these via SP_CLIENT_ID/SP_CLIENT_SECRET env vars.
+const LAUNCHER_UNKNOWN = 'unknown';
 const SP_CLIENT_ID = process.env.DATABRICKS_CLIENT_ID || process.env.SP_CLIENT_ID || '';
 const SP_CLIENT_SECRET = process.env.DATABRICKS_CLIENT_SECRET || process.env.SP_CLIENT_SECRET || '';
 let spTokenCache = '';    // cached OAuth token
@@ -480,7 +478,6 @@ function currentAppTokens() {
     spCredentials: Boolean(SP_CLIENT_ID && SP_CLIENT_SECRET),
     spTokenFresh: spOAuthTokenStillFresh(),
     spTokenCached: spTokenCache,
-    runAs: runAsPerson(),
   };
 }
 
@@ -495,22 +492,22 @@ function tokenFor(req, app) {
     return app.serviceToken;
   }
 
-  // 1) Explicit PAT from frontend header
-  const pat = req.headers['x-db-pat-token'];
-  if (pat) return String(pat).trim();
+  // REQ-418: in a Databricks App the reads use the App's service principal only. A token the browser sends (a pasted PAT or a Bearer
+  // header) is a person's token, so it is ignored there.
+  if (!app.production) {
+    // 1) Explicit PAT from frontend header
+    const pat = req.headers['x-db-pat-token'];
+    if (pat) return String(pat).trim();
 
-  // 2) Authorization Bearer header
-  const auth = req.headers.authorization;
-  if (auth && auth.startsWith('Bearer ')) {
-    const bearer = auth.slice(7).trim();
-    if (bearer) return bearer;
+    // 2) Authorization Bearer header
+    const auth = req.headers.authorization;
+    if (auth && auth.startsWith('Bearer ')) {
+      const bearer = auth.slice(7).trim();
+      if (bearer) return bearer;
+    }
   }
 
   const forwardedClean = forwardedTokenOf(req);
-
-  // Run-as-me (REQ-113 schema mode): requests act as the signed-in person, so their SQL, files, UC and Genie calls use the forwarded
-  // user token. The App's own or service token is never used, so a request without the person's token gets none (a Permission Required, never an App read).
-  if (app.runAs) return forwardedClean || null;
 
   // 3–5) Databricks App (production + SP): prefer static / SP token over x-forwarded-access-token.
   // Delegated user tokens expire; Inspire Results/SQL should keep working on the app service principal.
@@ -519,9 +516,9 @@ function tokenFor(req, app) {
     if (app.serviceToken) return app.serviceToken;
     if (app.spTokenFresh) return app.spTokenCached;
     if (app.spTokenCached) return app.spTokenCached;
-    if (forwardedClean) return forwardedClean;
     return null;
   }
+  if (app.production) return app.serviceToken || app.spTokenCached || null;
 
   if (forwardedClean) return forwardedClean;
   if (app.serviceToken) return app.serviceToken;
@@ -546,20 +543,12 @@ async function refreshSpTokenIfStale() {
   }
 }
 
-// Run-as-me: the App acts as the person, so no SQL uses the App's own token. Callers that need a token in run-as mode pass the request's token.
+// REQ-418: every read, check and launch runs as the App's service principal, so this is the token for all of them.
 async function appOwnToken() {
-  if (runAsPerson()) return null;
   await refreshSpTokenIfStale();
   return SERVICE_TOKEN || spTokenCache || null;
 }
 
-// REQ-409: the App's service principal token for the installed jobs in run-as mode only (appOwnToken is null there, on purpose).
-// Used by lib/runAsRuns.js for run-now, cancel and run reads of the installed job ids, and nothing else.
-async function installedJobAppToken() {
-  await refreshSpTokenIfStale();
-  return SERVICE_TOKEN || spTokenCache || null;
-}
-const installedRuns = createInstalledRuns({ dbFetch, appToken: installedJobAppToken });
 
 async function currentManagerCheck(req) {
   if (!policyEnforced()) return { check: 'not needed: Inspire runs outside a Databricks App, so every request uses the developer token', manager: null };
@@ -578,8 +567,7 @@ async function requireToken(req, res, next) {
     const token = getToken(req);
     req.dbToken = token || '';
     req.dbTokenKind = tokenKindOf(token);
-    const identity = await RP.resolveIdentity(req.policyKey, req, { appDatabase: DEFAULT_INSPIRE_DB, outputFolders: () => sessionOutputFolders(req) });
-    if (identity === 'person') {
+    if (RP.identityFor(req.policyKey) === 'person') {
       req.dbToken = personTokenOf(req);
       req.dbTokenKind = PERSON_TOKEN;
       if (!req.dbToken) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
@@ -856,23 +844,6 @@ async function runIsRecorded(req, runId) {
   }
 }
 
-async function sessionOutputFolders(req) {
-  const statement = DEFAULT_WAREHOUSE_ID ? L.checkedOutputStatement(DEFAULT_INSPIRE_DB) : null;
-  if (!statement) return [];
-  const token = await policyReadToken(req);
-  let rows;
-  try {
-    rows = await launchSql(resolveHost(req), statement, token);
-  } catch (err) {
-    if (isMissingTableError(err)) return [];
-    throw err;
-  }
-  const notebook = cachedNotebookPath || DEFAULT_NOTEBOOK_PATH;
-  return rows.filter((row) => RP.canonicalPath(row.output_folder) && RP.outputFolderOf(row.generation_path, notebook) === RP.canonicalPath(row.output_folder)
-    && typeof row.business_name === 'string' && row.business_name.trim())
-    .map((row) => RP.canonicalPath(generationFolder({ generationPath: RP.canonicalPath(row.output_folder), businessName: row.business_name })));
-}
-
 async function readAppDatabaseHistory(req, sessionId) {
   const parsed = splitInspireDatabase(DEFAULT_INSPIRE_DB);
   if (!parsed || !DEFAULT_WAREHOUSE_ID) return [];
@@ -938,7 +909,6 @@ async function launchSessionProblem(req, params) {
 }
 
 async function startingSessions(req, inspireDatabase, warehouseId, listed) {
-  if (req.dbTokenKind === PERSON_TOKEN) return [];
   const table = L.launchTableName(DEFAULT_INSPIRE_DB);
   const statement = table && DEFAULT_WAREHOUSE_ID ? L.startingLaunchStatement(table, inspireDatabase) : null;
   if (!statement) return [];
@@ -953,7 +923,7 @@ async function startingSessions(req, inspireDatabase, warehouseId, listed) {
     if (!launches.length) return [];
     const token = req.dbToken;
     const rows = await Promise.all(launches.map(async (launch) => {
-      const resp = await dbFetch(host, await installedRuns.runToken(host, token, launch.run_id, ledgerJobIdOf(host, token)), `/api/2.1/jobs/runs/get?run_id=${encodeURIComponent(launch.run_id)}`);
+      const resp = await dbFetch(host, token, `/api/2.1/jobs/runs/get?run_id=${encodeURIComponent(launch.run_id)}`);
       return resp.ok ? L.startingSessionRow(launch, parseExactJson(await resp.text()), inspireDatabase) : null;
     }));
     return rows.filter(Boolean);
@@ -965,15 +935,6 @@ async function startingSessions(req, inspireDatabase, warehouseId, listed) {
 
 // The record write has a bound: a warehouse that never leaves PENDING must not hold the launch open (executeSql has no deadline of its own).
 const LAUNCH_RECORD_MS = 60000;
-
-// REQ-409: the job id Inspire's launch record holds for a run, read with the caller's own token (the ledger is the App's own table).
-async function launchJobIdOf(host, token, runId) {
-  const stmt = L.runJobStatement(L.launchTableName(DEFAULT_INSPIRE_DB), runId);
-  if (!stmt || !DEFAULT_WAREHOUSE_ID) return null;
-  const rows = sqlResultToObjects(await executeSql(host, token, DEFAULT_WAREHOUSE_ID, stmt.sql, stmt.parameters));
-  return rows[0] ? rows[0].job_id : null;
-}
-const ledgerJobIdOf = (host, token) => (runId) => launchJobIdOf(host, token, runId);
 
 // Whether the ledger holds a row for the run: true or false when it could read, null when it could not say.
 async function launchRecordedFor(host, token, runId) {
@@ -1107,9 +1068,6 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   const launchDatabase = String(params['02_inspire_database'] || '').trim();
   const openedSession = Boolean(launchedBy) && inspireRunType === 'discovery' && await sessionIsNew(host, token, launchDatabase, launchSession);
 
-  const launchPlan = launchPlanFor({ runAs: runAsPerson(), jobType });
-  // REQ-409: a run-as launch starts the installed job with the App's service principal token; the person's token is refused there.
-  const startingToken = launchPlan.mode === 'run-now' ? await installedRuns.startToken(token) : token;
   const createPayload = {
     name: jobName,
     tags: inspireJobTags({ runType: inspireRunType, params, businessName, notebookFilename, useCaseIds, useCaseName }),
@@ -1127,38 +1085,29 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   };
 
   let job_id;
-  let viewer;
-  if (launchPlan.mode === 'create') {
-    console.log(`📋 Creating job: ${resolvedPath}`);
-    const createResp = await dbFetch(host, token, '/api/2.1/jobs/create', {
-      method: 'POST',
-      body: JSON.stringify(createPayload),
-    });
+  console.log(`📋 Creating job: ${resolvedPath}`);
+  const createResp = await dbFetch(host, token, '/api/2.1/jobs/create', {
+    method: 'POST',
+    body: JSON.stringify(createPayload),
+  });
 
-    if (!createResp.ok) {
-      const refusalBody = await createResp.text();
-      logApiBody('Job create', createResp.status, refusalBody);
-      const err = new Error(apiRefusalText('create the job for this run', createResp.status, refusalBody));
-      err.statusCode = createResp.status;
-      throw err;
-    }
-
-    const created = parseExactJson(await createResp.text());
-    job_id = int64Id(created.job_id) ?? String(created.job_id);
-    console.log(`✅ Job created: ${job_id}`);
-    viewer = await grantJobViewer(dbFetch, host, token, job_id, launchedBy);
-    if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
-  } else {
-    job_id = launchPlan.jobId;
-    viewer = { granted: false, note: 'run-as-me: the job runs as you, so it needs no viewer grant' };
-    console.log(`📋 Run-as-me: starting the installed job ${job_id}; the run's parameters are passed to it`);
+  if (!createResp.ok) {
+    const refusalBody = await createResp.text();
+    logApiBody('Job create', createResp.status, refusalBody);
+    const err = new Error(apiRefusalText('create the job for this run', createResp.status, refusalBody));
+    err.statusCode = createResp.status;
+    throw err;
   }
 
-  const response = await dbFetch(host, startingToken, '/api/2.1/jobs/run-now', {
+  const created = parseExactJson(await createResp.text());
+  job_id = int64Id(created.job_id) ?? String(created.job_id);
+  console.log(`✅ Job created: ${job_id}`);
+  const viewer = await grantJobViewer(dbFetch, host, token, job_id, launchedBy);
+  if (viewer.note) console.warn(`⚠️ ${viewer.note}`);
+
+  const response = await dbFetch(host, token, '/api/2.1/jobs/run-now', {
     method: 'POST',
-    body: launchPlan.mode === 'create'
-      ? jsonWithInt64Ids({ job_id }, ['job_id'])
-      : jsonWithInt64Ids({ job_id, notebook_params: params }, ['job_id']),
+    body: jsonWithInt64Ids({ job_id }, ['job_id']),
   });
 
   if (!response.ok) {
@@ -1174,10 +1123,10 @@ async function triggerInspireNotebookJob(host, token, { params, notebook_path, c
   rememberViewer(runId, viewer);
   const jobRunUrl = databricksJobRunUrl(host, job_id, runId);
   console.log(`✅ Run submitted: ${runId}, job_id=${job_id}, notebook: ${resolvedPath}`);
-  const launch = launchedBy
-    ? await recordLaunchOrStop(host, token, { runId, jobId: job_id, runType: inspireRunType, inspireDatabase: launchDatabase, sessionId: launchSession, openedSession, launchedBy,
-      outputFolder, outputChecked }, startingToken)
-    : { recorded: false, note: 'no signed-in person launched this run, so only App managers can cancel it' };
+  // Every launch is recorded. With no signed-in person the launcher is recorded as unknown, which no person matches, so only App managers can stop it.
+  const launch = await recordLaunchOrStop(host, token, { runId, jobId: job_id, runType: inspireRunType, inspireDatabase: launchDatabase, sessionId: launchSession,
+    openedSession, launchedBy: launchedBy || LAUNCHER_UNKNOWN, outputFolder, outputChecked }, token);
+  if (!launchedBy) launch.note = 'no signed-in person launched this run, so the launcher is recorded as unknown and only App managers can cancel it';
   if (launch.warning) warnings.push(launch.warning);
   return {
     run_id: runId,
@@ -1838,16 +1787,17 @@ app.get('/api/me', requireToken, async (req, res) => {
 
 const truncatedByRest = (restCut, byName, countAfterRest) => restCut && byName.size === countAfterRest;
 
-// REQ-420: the catalogs the App's service principal can read right now, or null when it reads as the person (run-as-me) or cannot be asked.
-async function appCatalogGrants(req) {
-  if (runAsPerson()) return null;
+// REQ-420: the catalogs the App's service principal can read right now, or null when it cannot be asked. `listing` is the catalog
+// list the caller read with `listedWith`; when that is the App's own token (REQ-418) it is the same list, so it is not read again.
+async function appCatalogGrants(req, listing = null, listedWith = '') {
   const token = await appOwnToken();
-  return token ? spGrantedCatalogs(dbFetch, req.dbHost, token, SP_CLIENT_ID) : null;
+  if (!token) return null;
+  return spGrantedCatalogs(dbFetch, req.dbHost, token, SP_CLIENT_ID, listing && listedWith === token ? listing : null);
 }
 
 app.get('/api/catalogs', requireToken, async (req, res) => {
   try {
-    const token = personTokenOf(req);
+    const token = req.dbToken;
     const warehouseId = String(req.query.warehouse_id || '').trim();
     let raw = [];
     let restCut = false;
@@ -1884,7 +1834,7 @@ app.get('/api/catalogs', requireToken, async (req, res) => {
     else if (catalogs.length > 0) source = 'sql';
     console.log(`   📚 catalogs: REST=${raw.length} merged=${catalogs.length} warehouse=${warehouseId ? 'yes' : 'no'} (${source})`);
     // REQ-420: the App reads as its own service principal, so the list is the catalogs the person sees that the principal can read now.
-    const granted = await appCatalogGrants(req);
+    const granted = await appCatalogGrants(req, restErr ? null : { items: raw, truncated: restCut }, token);
     if (granted) {
       const offered = grantedCatalogList(catalogs, granted);
       const permission = partialPermission(offered, SP_CLIENT_ID);
@@ -1907,7 +1857,7 @@ const restFailureStatus = (err) => ([401, 403, 404, 429].includes(Number(err && 
 app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
   try {
     const { catalog } = req.params;
-    const token = personTokenOf(req);
+    const token = req.dbToken;
     const warehouseId = String(req.query.warehouse_id || '').trim();
     let raw = [];
     let restCut = false;
@@ -1953,7 +1903,7 @@ app.get('/api/catalogs/:catalog/schemas', requireToken, async (req, res) => {
 app.get('/api/tables/:catalog/:schema', requireToken, async (req, res) => {
   try {
     const { catalog, schema } = req.params;
-    const token = personTokenOf(req);
+    const token = req.dbToken;
     const warehouseId = String(req.query.warehouse_id || '').trim();
     let raw = [];
     let restCut = false;
@@ -2295,7 +2245,6 @@ app.post('/api/demo-data/start', requireToken, async (req, res) => {
       req.dbHost,
       req.dbToken,
       {
-        startToken: installedRuns.startToken,
         description: desc,
         businessName,
         inspireDatabase: inspireDb,
@@ -2385,28 +2334,26 @@ async function refuseRunAgain(req, res, response) {
   logApiBody(action, response.status, refusalBody);
   if (response.status !== 403) return PM_ERROR.sendFailure(res, response.status, apiRefusalText(action, response.status, refusalBody));
   const jobId = await runJobIdOf(req, runId);
-  const who = RP.forwardedPerson(req.headers);
+  // REQ-418: Inspire reads the run as the App's service principal, so the grant is named for the App, never for the person.
+  const app = SP_CLIENT_ID;
   const job = jobId ? `job ${jobId}` : 'the job of this run';
-  const message = `Inspire could not read run ${runId} to run it again: you need CAN VIEW (or CAN MANAGE RUN) on ${job} in Databricks. `
+  const message = `Inspire could not read run ${runId} to run it again: the App needs CAN VIEW (or CAN MANAGE RUN) on ${job} in Databricks. `
     + "Ask an App manager or the job's owner to grant it, then try again.";
   const steps = jobId
-    ? [`In Databricks, open job ${jobId} > Permissions, and add ${who} with Can view`,
-      `databricks api patch /api/2.0/permissions/jobs/${jobId} --json '{"access_control_list":[{"user_name":"${who}","permission_level":"CAN_VIEW"}]}'`]
-    : [`In Databricks, find the job of run ${runId} and give ${who} Can view on it`];
-  const permission = permissionRequired({ steps, principal: who,
-    why: `Inspire reads run ${runId} with your own sign-in, and your sign-in cannot view its job.` });
+    ? [`In Databricks, open job ${jobId} > Permissions, and add the App's service principal ${app} with Can view`,
+      `databricks api patch /api/2.0/permissions/jobs/${jobId} --json '{"access_control_list":[{"service_principal_name":"${app}","permission_level":"CAN_VIEW"}]}'`]
+    : [`In Databricks, find the job of run ${runId} and give the App's service principal ${app} Can view on it`];
+  const permission = permissionRequired({ steps, principal: app,
+    why: `Inspire reads run ${runId} as the App, and the App cannot view its job.` });
   return PM_ERROR.sendFailure(res, 403, message, { permissions: [permission] });
 }
 
-// The person reads the old run with their own sign-in, so a run the person may see never fails because the App cannot view its job.
-// The launch below keeps the identity launchDiscover always uses (the App's own token).
+// REQ-418: the old run is read as the App's service principal, the same identity every launch uses, so the run is read and run again the same way for everyone.
 app.post('/api/run/:runId/again', requireToken, async (req, res) => {
   const sessionId = String((req.body || {}).session_id || '').trim();
   if (!isInt64Id(sessionId)) return res.status(400).json({ error: 'session_id must be a numeric Inspire session id' });
-  const person = personTokenOf(req);
-  if (!person) return res.status(401).json(RP.noPersonTokenBody(req.policyKey));
   try {
-    const response = await dbFetch(req.dbHost, await installedRuns.runToken(req.dbHost, person, req.params.runId, ledgerJobIdOf(req.dbHost, person)), `/api/2.1/jobs/runs/get?run_id=${req.params.runId}`);
+    const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${req.params.runId}`);
     if (!response.ok) return await refuseRunAgain(req, res, response);
     const again = LC.runAgainOf(parseExactJson(await response.text()), req.params.runId, sessionId);
     if (again.problem) return res.status(409).json({ error: `${again.problem}.` });
@@ -2469,7 +2416,7 @@ app.post('/api/documents', requireToken, async (req, res) => {
 
 // The read and access checks a launch or a check runs before any job exists. Both are bounded (raceLaunchCheck), so a
 // schema pick whose tables the warehouse never lists ends with a reason, not a request held open forever.
-// REQ-405: the identity a run uses (the App's service principal, or the signed-in person in run-as-me) must be able to query a chat model.
+// REQ-405: the identity a run uses (the App's service principal, REQ-418) must be able to query a chat model.
 // The check is lib/modelAccess.js; the App does not wait for the agent to fail with no_model.
 const MODEL_ACCESS_BLOCK = 'Inspire cannot start a run yet: the identity the run uses cannot query a chat model. '
   + 'Ask a workspace admin for the permission in Permission Required, then run again.';
@@ -2488,9 +2435,8 @@ async function checkModelAccess(host, token, principal) {
 }
 
 async function discoverModelAccess(req) {
-  const runAs = runAsPerson();
-  const token = runAs ? personTokenOf(req) : await appOwnToken();
-  const principal = runAs ? RP.forwardedPerson(req.headers) : SP_CLIENT_ID;
+  const token = await appOwnToken();
+  const principal = SP_CLIENT_ID;
   if (!token || !principal) return [];
   try {
     return await checkModelAccess(req.dbHost, token, principal);
@@ -2503,10 +2449,7 @@ async function discoverModelAccess(req) {
 // D-UGW-4A: on startup the App checks, with its own service principal token, that it can call a chat model, and records the result.
 async function selfCheckModelAccess() {
   const host = resolveHost({ headers: {} });
-  if (runAsPerson()) {
-    modelAccessRecord = { state: 'unchecked', reason: 'Runs use the signed-in person, so models are checked as that person when a run starts.' };
-    return;
-  }
+  // REQ-418 (D-SL-10B): every run uses the App's service principal, so the App is always the identity checked.
   const token = await appOwnToken();
   if (!host || !token || !SP_CLIENT_ID) {
     modelAccessRecord = { state: 'unchecked', reason: 'The App has no service principal token to call a model with.' };
@@ -2575,19 +2518,22 @@ async function launchDiscover(req, res, { params, notebook_path, cluster_id, pro
 const discoverAccess = createSourceAccess({ executeSql, sqlResultToObjects, dbFetch, appToken: appOwnToken });
 
 async function discoverAppAccess(req, scope) {
-  const person = personTokenOf(req);
+  // REQ-418: Discover reads the picked tables as the App's service principal. A person's own grants never decide what it reads.
+  const token = await appOwnToken();
   const { catalogs, schemas, tables: picked } = ucMetadataParts(scope);
   const entries = [...picked, ...schemas, ...catalogs];
   const none = { warnings: [], permissions: [] };
-  if (!entries.length || !person || !DEFAULT_WAREHOUSE_ID) return none;
+  if (!entries.length || !token || !DEFAULT_WAREHOUSE_ID) return none;
   try {
-    const { tables, more } = await scopeTables(dbFetch, req.dbHost, person, entries);
+    const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, entries);
     if (!tables.length) return none;
     let found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover', { wholeCatalogs: catalogs });
     const warnings = [];
     const permissions = [];
-    // Run-as-me grants the App's principal nothing (REQ-113), so the grant offer runs outside run-as only.
-    if (!runAsPerson() && found.app_unreadable && found.app_unreadable.can_grant) {
+    // The App's principal needs the grant, and an owner runs it. A person who can run it with their own sign-in does so here; otherwise the
+    // grant is named once as a Permission Required for the App's service principal, and nothing is asked of the person.
+    const person = personTokenOf(req);
+    if (found.app_unreadable && found.app_unreadable.can_grant && person) {
       const offer = found.app_unreadable;
       const { ran, failed } = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, offer.grants);
       if (ran.length) console.log(`Discover: granted the App read access to ${plural(offer.tables.length, 'table')} with the sign-in: ${ran.join('; ')}`);
@@ -2597,7 +2543,7 @@ async function discoverAppAccess(req, scope) {
       }
       found = await discoverAccess.sourceAccess(req, DEFAULT_WAREHOUSE_ID, tables, 'discover', { wholeCatalogs: catalogs });
     }
-    const read = appReadPermissions(found, runAsPerson() ? person : SP_CLIENT_ID, { wholeCatalogs: catalogs });
+    const read = appReadPermissions(found, SP_CLIENT_ID, { wholeCatalogs: catalogs });
     warnings.push(...read.warnings);
     permissions.push(...read.permissions);
     if (more) console.log(`Discover: checked the App read access of the first ${tables.length} tables only`);
@@ -2620,15 +2566,15 @@ async function sameCopyColumns(req, person, source, copy) {
 }
 
 app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
-  const person = personTokenOf(req);
-  if (!person) return res.status(401).json({ error: SAMPLE_COPY_NO_SIGN_IN });
+  const token = req.dbToken;
+  if (!token) return res.status(401).json({ error: SAMPLE_COPY_NO_SIGN_IN });
   try {
     const body = req.body || {};
     const destination = sampleCopyDestination(body.destination);
     if (!DEFAULT_WAREHOUSE_ID) throw Object.assign(new Error('Inspire has no SQL warehouse, so it cannot copy the tables'), { statusCode: 503 });
     const picked = (Array.isArray(body.entries) ? body.entries : []).map(String).filter(isBuiltInSampleEntry);
     if (!picked.length) throw Object.assign(new Error('Pick samples tables to copy'), { statusCode: 400 });
-    const { tables, more } = await scopeTables(dbFetch, req.dbHost, person, picked);
+    const { tables, more } = await scopeTables(dbFetch, req.dbHost, token, picked);
     if (more) throw Object.assign(new Error(`The samples you picked hold more tables than one copy can take (${tables.length} read). Pick fewer tables or schemas`), { statusCode: 409 });
     const refused = tables.map(sampleCopyRefusal).find(Boolean);
     if (refused) throw Object.assign(new Error(refused), { statusCode: 409 });
@@ -2638,20 +2584,20 @@ app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
     for (const source of tables) {
       const copy = sampleCopyName(source, destination);
       const sql = sampleCopyStatement(source, destination);
-      let outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
+      let outcome = await discoverAccess.runPersonGrants(req, token, DEFAULT_WAREHOUSE_ID, [sql]);
       if (!outcome.ran.length && !schemaTried && sampleCopyFailureKind(outcome.failed[0]) === 'no_schema') {
         schemaTried = true;
         const schema = schemaCreateStatement(destination);
-        const made = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [schema]);
+        const made = await discoverAccess.runPersonGrants(req, token, DEFAULT_WAREHOUSE_ID, [schema]);
         if (!made.ran.length) {
           const why = String(made.failed[0] || '').slice(schema.length + 2);
           throw Object.assign(new Error(sampleSchemaMessage(destination, schema, why)), { statusCode: 409 });
         }
-        outcome = await discoverAccess.runPersonGrants(req, person, DEFAULT_WAREHOUSE_ID, [sql]);
+        outcome = await discoverAccess.runPersonGrants(req, token, DEFAULT_WAREHOUSE_ID, [sql]);
       }
       if (outcome.ran.length) { copies.push({ source, copy }); continue; }
       if (sampleCopyFailureKind(outcome.failed[0]) === 'exists') {
-        if (await sameCopyColumns(req, person, source, copy)) copies.push({ source, copy, reused: true });
+        if (await sameCopyColumns(req, token, source, copy)) copies.push({ source, copy, reused: true });
         else failed.push({ source, reason: sampleCopyTakenMessage(copy, source) });
         continue;
       }
@@ -2664,15 +2610,14 @@ app.post('/api/inspire/samples/copy', requireToken, async (req, res) => {
     PM_ERROR.sendFailure(res, code, err.message);
   }
 });
-// The token the App's write check runs with: the App's own token, or in run-as-me the person's (the App acts as the person).
-async function appWriteTokenOf(req) {
-  return (await appOwnToken()) || (runAsPerson() ? req.dbToken : '');
+// The token the App's write check runs with: the App's service principal, the identity that writes the output (REQ-418).
+async function appWriteTokenOf() {
+  return (await appOwnToken()) || '';
 }
 
 async function outputWriteVerdict(req, writes, { preview = false } = {}) {
-  const manager = await routePolicy.managerOf(req).catch(() => ({ manager: false }));
-  const plan = await outputPlan(dbFetch, req, writes, { manager: manager.manager, appToken: await appWriteTokenOf(req), appId: SP_CLIENT_ID, preview });
-  return { ...plan, checked: manager.manager ? 'manager' : 'passed' };
+  const plan = await outputPlan(dbFetch, req, writes, { appToken: await appWriteTokenOf(), appId: SP_CLIENT_ID, preview });
+  return { ...plan, checked: 'passed' };
 }
 
 app.post('/api/output-folder/check', requireToken, async (req, res) => {
@@ -2692,7 +2637,7 @@ app.param('runId', (req, res, next, runId) => (isInt64Id(runId) ? next() : next(
 
 async function taskErrorOf(req, taskRunId) {
   try {
-    const response = await dbFetch(req.dbHost, await installedRuns.runToken(req.dbHost, req.dbToken, taskRunId, ledgerJobIdOf(req.dbHost, req.dbToken)), `/api/2.1/jobs/runs/get-output?run_id=${encodeURIComponent(taskRunId)}`);
+    const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get-output?run_id=${encodeURIComponent(taskRunId)}`);
     if (!response.ok) return '';
     const data = await response.json();
     return String(data.error || '').replace(/^[A-Za-z_.]*(Error|Exception):\s*/, '').trim().slice(0, 1200);
@@ -2703,7 +2648,7 @@ async function taskErrorOf(req, taskRunId) {
 
 app.get('/api/run/:runId', requireToken, async (req, res) => {
   try {
-    const response = await dbFetch(req.dbHost, await installedRuns.runToken(req.dbHost, req.dbToken, req.params.runId, ledgerJobIdOf(req.dbHost, req.dbToken)), `/api/2.1/jobs/runs/get?run_id=${req.params.runId}`);
+    const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get?run_id=${req.params.runId}`);
     if (!response.ok) {
       const action = `read run ${req.params.runId}`;
       const refusalBody = await response.text();
@@ -2744,7 +2689,7 @@ app.get('/api/run/:runId', requireToken, async (req, res) => {
 
 app.get('/api/run/:runId/output', requireToken, async (req, res) => {
   try {
-    const response = await dbFetch(req.dbHost, await installedRuns.runToken(req.dbHost, req.dbToken, req.params.runId, ledgerJobIdOf(req.dbHost, req.dbToken)), `/api/2.1/jobs/runs/get-output?run_id=${req.params.runId}`);
+    const response = await dbFetch(req.dbHost, req.dbToken, `/api/2.1/jobs/runs/get-output?run_id=${req.params.runId}`);
     if (!response.ok) {
       const action = `read the output of run ${req.params.runId}`;
       const refusalBody = await response.text();
@@ -2771,7 +2716,7 @@ app.get('/api/run/:runId/cancel', async (req, res) => {
 
 app.post('/api/run/:runId/cancel', requireToken, async (req, res) => {
   try {
-    const response = await dbFetch(req.dbHost, await installedRuns.runToken(req.dbHost, req.dbToken, req.params.runId, ledgerJobIdOf(req.dbHost, req.dbToken)), '/api/2.1/jobs/runs/cancel', {
+    const response = await dbFetch(req.dbHost, req.dbToken, '/api/2.1/jobs/runs/cancel', {
       method: 'POST',
       body: jsonWithInt64Ids({ run_id: req.params.runId }, ['run_id']),
     });
@@ -3339,7 +3284,6 @@ const implementApi = registerImplementRoutes(app, {
   hostedRun,
   runDefaults: () => ({ inspireDatabase: DEFAULT_INSPIRE_DB, warehouseId: DEFAULT_WAREHOUSE_ID }),
   appToken: appOwnToken,
-  installedRuns,
 });
 
 /**
@@ -3435,7 +3379,7 @@ app.get('/api/inspire/genie-progress', requireToken, async (req, res) => {
     if (run_id && String(run_id).trim()) {
       const jr = await dbFetch(
         req.dbHost,
-        await installedRuns.runToken(req.dbHost, req.dbToken, String(run_id).trim(), ledgerJobIdOf(req.dbHost, req.dbToken)),
+        req.dbToken,
         `/api/2.1/jobs/runs/get?run_id=${encodeURIComponent(String(run_id).trim())}`,
       );
       if (jr.ok) {

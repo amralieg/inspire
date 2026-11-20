@@ -23,7 +23,7 @@ test('Load groups on a second column reads only the rows inside the groups alrea
   assert.deepEqual(st.parameters.map((p) => p.value), ['Tokyo Tidbits', 'Golden Gate Ginger']);
 });
 
-test('the group-counts route caps Load groups at 500 and sends the picked groups as the person', async () => {
+test('the group-counts route caps Load groups at 500 and sends the picked groups as the App (REQ-418)', async () => {
   const groupCounts = Array.from({ length: 501 }, (_, i) => ({ brand_name: `brand ${i}`, records: String(1000 - i) }));
   const made = makeApp({ forwardedToken: PERSON, groupCounts });
   const srv = await listen(made.app);
@@ -43,7 +43,7 @@ test('the group-counts route caps Load groups at 500 and sends the picked groups
   assert.equal(body.groups[0].brand_name, 'brand 0');
   const call = made.sqlCalls.find((c) => /ORDER BY records DESC/.test(c.sql));
   assert.ok(call, 'the top-500 statement ran');
-  assert.equal(call.token, PERSON, 'it runs as the person, not the App');
+  assert.equal(call.token, 'tok', 'it runs as the App, not the person (REQ-418, D-SL-10B)');
   assert.ok(call.parameters.some((p) => p.value === 'Tokyo Tidbits'), 'the picked group narrows the statement');
 });
 
@@ -103,7 +103,7 @@ test('an empty group list names the cause: no rows you can read, or the column e
       await srv.close();
     }
   };
-  assert.equal(await ask({ groupCounts: [], groupReasonRow: { rows_read: '0', with_value: '0' } }), 'The table has no rows you can read');
+  assert.equal(await ask({ groupCounts: [], groupReasonRow: { rows_read: '0', with_value: '0' } }), 'The table has no rows the App can read');
   assert.equal(await ask({ groupCounts: [], groupReasonRow: { rows_read: '1200', with_value: '0' } }), 'customer_1 is empty in all 1,200 rows');
   assert.equal(await ask({ groupCounts: [], groupReasonRow: { rows_read: '1200', with_value: '7' } }), '', 'values exist but no group came back: no reason is invented');
   assert.equal(await ask({ groupCounts: [{ customer_1: 'a', records: '3' }], groupReasonRow: { rows_read: '0', with_value: '0' } }), '', 'when groups come back, no count is run and no reason is sent');
@@ -114,5 +114,5 @@ test('the empty-group reason reads only the statement the filters allow, and nam
   assert.match(st.sql, /^SELECT COUNT\(\*\) AS rows_read, COUNT\(`customer_1`\) AS with_value FROM `main`\.`s`\.`orders`/);
   assert.match(st.sql, /WHERE CAST\(`brand_name` AS STRING\) IN \(/, 'the same filters as the groups');
   assert.equal(I.groupEmptyReason({ rows_read: '5', with_value: '0' }, 'customer_1'), 'customer_1 is empty in all 5 rows');
-  assert.equal(I.groupEmptyReason(undefined, 'customer_1'), 'The table has no rows you can read', 'no count row means no rows read');
+  assert.equal(I.groupEmptyReason(undefined, 'customer_1'), 'The table has no rows the App can read', 'no count row means no rows read');
 });

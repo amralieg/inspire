@@ -142,7 +142,7 @@ test('the App tile offers to let new Apps use the result table catalog, grants w
   const below = [{ level: 'schema', schema_name: 'information_schema', object_name: 'information_schema', privilege: 'USE SCHEMA' }];
   const ui = await openUi('wizard', {
     me: { userName: OWNER, displayName: 'Owner' },
-    warehousePermissions: { access_control_list: [{ user_name: OWNER, all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] },
+    warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] }, // REQ-418: the App's principal manages it
     tokenKind: 'app',
     forwardedToken: PERSON,
     workspace: ({ token, path }) => (path.includes('/scim/v2/Me')
@@ -210,7 +210,7 @@ test('an App tile whose new-Apps offer comes back with no grant keeps the named 
   const personRows = [row('catalog', 'USE_CATALOG', OWNER, true)];
   const ui = await openUi('wizard', {
     me: { userName: OWNER, displayName: 'Owner' },
-    warehousePermissions: { access_control_list: [{ user_name: OWNER, all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] },
+    warehousePermissions: { access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] }, // REQ-418: the App's principal manages it
     tokenKind: 'app',
     forwardedToken: PERSON,
     workspace: ({ token, path }) => (path.includes('/scim/v2/Me')

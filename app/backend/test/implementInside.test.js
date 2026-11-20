@@ -31,10 +31,9 @@ test('an App Inside Inspire must read as each viewer, from Delta tables, with a 
   assert.deepEqual([ok.spec.outputs.app_placement, ok.spec.outputs.app_name, ok.spec.outputs.app_access, ok.spec.outputs.app_backend,
     ok.spec.outputs.app_warehouse_id, ok.spec.outputs.merge.app], ['inspire', '', 'user', 'delta', 'wh2', '']);
   const cases = [
-    [{ app_access: 'sp' }, 'a page inside Inspire shows each viewer only the data they may read, so it always signs viewers in as themselves'],
     [{ app_backend: 'lakebase' }, 'a page inside Inspire reads Delta tables; Lakebase needs an App of its own'],
     [{ merge: { app: 'other-app' } }, 'a page inside Inspire belongs to this use case alone, so it cannot be added to another App; leave outputs.merge.app empty'],
-    [{ app_warehouse_id: '' }, 'a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse each viewer reads with; each viewer needs CAN USE on it'],
+    [{ app_warehouse_id: '' }, 'a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse the App reads with; the App needs CAN MANAGE on it'],
   ];
   for (const [change, error] of cases) {
     const got = spec({ ...INSIDE, ...change });
@@ -42,7 +41,7 @@ test('an App Inside Inspire must read as each viewer, from Delta tables, with a 
     assert.notEqual(got.spec.outputs.app_access === 'sp' && got.spec.outputs.app_placement === 'inspire' && got.errors.length === 0, true, 'never a silent coercion');
   }
   const missing = spec({ app_placement: 'inspire', app_access: 'user', app_backend: 'delta' });
-  assert.deepEqual(missing.errors, ['a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse each viewer reads with; each viewer needs CAN USE on it']);
+  assert.deepEqual(missing.errors, ['a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse the App reads with; the App needs CAN MANAGE on it']);
   const badId = spec({ ...INSIDE, app_warehouse_id: 'bad id!' });
   assert.equal(badId.errors.length, 1, 'a malformed warehouse id is reported once, not twice');
   for (const placement of ['domain', 'use_case', 'business']) {
@@ -249,14 +248,14 @@ test('the wizard locks an App Inside Inspire to per-user access, Delta tables an
     { warehouseId: 'wh1', inspireDatabase: 'main.inspire', owner: OWNER, businessName: 'Acme' });
   const placement = W.APP_PLACEMENTS.find((p) => p.id === 'inspire');
   assert.deepEqual([placement.label, placement.note], ['Inside Inspire', 'For trying a page only.']);
-  assert.equal(placement.blurb, 'Inspire runs the page in its Run tab, with no App of its own. Each viewer sees only the data they may read. Use it to try a page, then give it its own App.');
+  assert.equal(placement.blurb, 'Inspire runs the page in its Run tab, with no App of its own. The page reads with the App\u2019s own access, so everyone sees the same rows. Use it to try a page, then give it its own App.');
   assert.deepEqual(W.APP_PLACEMENT_IDS, I.IMPLEMENT_APP_PLACEMENTS, 'the wizard offers what the validator accepts');
   assert.deepEqual(W.APP_OWN_PLACEMENTS.map((p) => p.id), ['domain', 'use_case', 'business']);
   const inside = W.withNewApp({ ...start, outputs: { ...start.outputs, merge: { ...start.outputs.merge, app: 'inspire-hub-acme' } } }, 'inspire', null, {});
   assert.deepEqual([inside.outputs.app_placement, inside.outputs.app_name, inside.outputs.merge.app, inside.outputs.app_access, inside.outputs.app_backend,
-    inside.outputs.app_warehouse_id], ['inspire', '', '', 'user', 'delta', 'wh1']);
+    inside.outputs.app_warehouse_id], ['inspire', '', '', 'sp', 'delta', 'wh1']);
   assert.equal(W.insideInspire(inside), true);
-  assert.equal(W.withAppAccess(inside, 'sp'), inside, 'per-user is locked');
+  assert.deepEqual(W.withAppAccess(inside, 'sp').outputs.app_access, 'sp', 'the App reads as its service principal, the default (REQ-418 ruling 1)');
   assert.equal(W.withAppBackend(inside, 'lakebase'), inside, 'Delta tables are locked');
   assert.deepEqual(W.appBackendBlocks(inside, { state: 'available' }), { lakebase: { why: 'Fast pages need an App of its own', details: '' } });
   assert.equal(W.appBackendOf({ ...inside, outputs: { ...inside.outputs, app_backend: 'lakebase' } }, { state: 'available' }), 'delta');
@@ -266,7 +265,7 @@ test('the wizard locks an App Inside Inspire to per-user access, Delta tables an
   assert.deepEqual(W.sectionErrors('app_place', inside), [], 'nothing to fix, and no App name is asked for');
   assert.deepEqual(W.sectionErrors('app_place', { ...inside, outputs: { ...inside.outputs, app_warehouse_id: '' } }), [W.INSIDE_WAREHOUSE_PROBLEM]);
   assert.match(W.sectionErrors('app_place', { ...inside, outputs: { ...inside.outputs, merge: { app: 'x-app' } } }).join(' '), /no App of its own to join/);
-  assert.match(W.sectionErrors('app_access', { ...inside, outputs: { ...inside.outputs, app_access: 'sp' } }).join(' '), /signs in as themselves/);
+  assert.deepEqual(W.sectionErrors('app_access', { ...inside, outputs: { ...inside.outputs, app_access: 'sp' } }), [], 'the App service principal is the default for Inside Inspire too (ruling 1)');
   assert.deepEqual(W.sectionErrors('app_place', W.withNewApp(inside, 'domain', null, { business: 'Acme', domain: 'Retention' })), [], 'moving back names an App again');
   const joined = W.withMergeTarget(inside, 'app', { id: 'inspire-hub-acme', look: {} });
   assert.equal(joined.outputs.app_placement, 'domain', 'joining an App leaves Inside Inspire');

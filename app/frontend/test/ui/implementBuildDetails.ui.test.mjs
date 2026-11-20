@@ -7,7 +7,7 @@ test.after(closeBrowser);
 const OWNER = ['owner', 'example.com'].join('@');
 const ME = { me: { userName: OWNER, displayName: 'Owner' } };
 const SKIPPED = 'hr.p.salaries';
-const COUNT = "Skipped 1 table you can't read.";
+const COUNT = "Skipped 1 table the App can't read.";
 
 test('a build with a skipped table says the count on the Build page and the table name only under Details (must-exclude)', async () => {
   const ui = await openUi('implement', ME);
@@ -17,7 +17,7 @@ test('a build with a skipped table says the count on the Build page and the tabl
     await page.route('**/api/inspire/implement/submit', (route) => route.fulfill({
       status: 200,
       contentType: 'application/json',
-      body: JSON.stringify({ mode: 'mvp', use_case_id: 'N01-U01', run_id: '991', warnings: [COUNT], warning_details: [`Tables you can't read: ${SKIPPED}`] }),
+      body: JSON.stringify({ mode: 'mvp', use_case_id: 'N01-U01', run_id: '991', warnings: [COUNT], warning_details: [`Tables the App can't read: ${SKIPPED}`] }),
     }));
     await page.getByRole('button', { name: 'Start Use Case MVP with Genie' }).click();
     await toSummary(page);
@@ -29,7 +29,7 @@ test('a build with a skipped table says the count on the Build page and the tabl
     assert.doesNotMatch(await notes.innerText(), /hr\.p\.salaries/, 'the table name is not in the sentence');
     const details = page.locator('[data-technical-details]');
     await details.first().waitFor();
-    assert.match(await details.first().textContent(), /Details[\s\S]*Tables you can't read: hr\.p\.salaries/, 'the table name sits under Details');
+    assert.match(await details.first().textContent(), /Details[\s\S]*Tables the App can't read: hr\.p\.salaries/, 'the table name sits under Details');
     assert.deepEqual(ui.pageErrors, []);
   } finally {
     await ui.close();

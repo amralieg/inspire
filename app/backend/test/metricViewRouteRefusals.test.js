@@ -75,7 +75,7 @@ test('plan still counts and proceeds for a readable managed scope table (pass-po
     assert.deepEqual(got.data.warnings, []);
     const counts = countsOf(made);
     assert.equal(counts.length, 1, 'the scope table is counted once');
-    assert.equal(counts[0].token, PERSON_TOKEN, 'counted with the person’s own token');
+    assert.equal(counts[0].token, 'tok', 'counted with the App service principal token, the same for every person (REQ-418)');
   });
 });
 

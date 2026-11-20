@@ -355,7 +355,7 @@ test('REQ-380: a table with no rows you can read says so, not that the column is
     await row.getByRole('button', { name: 'Load groups on brand in orders' }).click();
     const line = page.locator('[data-groups-reason="brand"]');
     await line.waitFor({ timeout: 10000 });
-    assert.equal(await line.innerText(), 'The table has no rows you can read');
+    assert.equal(await line.innerText(), 'The table has no rows the App can read');
   } finally {
     await ui.close();
   }

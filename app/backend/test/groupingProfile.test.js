@@ -7,6 +7,8 @@ const RP = require('../lib/routePolicy');
 const U = require('../lib/ucReads');
 
 const PERSON = 'person-tok';
+// REQ-418: the profile reads the use case table as the App's service principal, which is the harness's App token.
+const APP = 'tok';
 const INJECTED = 'seg`) AS x FROM main.hr.salaries; DROP TABLE main.sales.orders; --';
 const ASK = { inspire_database: 'main.inspire', session_id: '42', use_case_id: 'N01-U01', warehouse_id: 'wh1' };
 const COLUMNS = [['order_id', 'STRING'], ['region', 'STRING'], ['country', 'STRING'], ['city', 'STRING'], ['sku', 'STRING'], [INJECTED, 'STRING'],
@@ -52,7 +54,7 @@ function runner(over = {}) {
     ...over,
   };
   return Object.fromEntries(Object.entries(answers).map(([needle, out]) => [needle, (sql, _p, token) => {
-    if (token !== PERSON) throw new Error(`the App token must never read the use case table: ${sql}`);
+    if (token !== APP) throw new Error(`the profile reads the use case table as the App's service principal, not ${token}: ${sql}`);
     if (typeof out === 'function') return out(sql, _p);
     return { rows: out, manifest: {} };
   }]));
@@ -80,7 +82,7 @@ async function withApp(made, fn) {
 const typeChecks = (calls) => calls.filter((c) => /^SELECT table_type FROM `[^`]+`\.information_schema\.tables\b/.test(c.sql));
 const tableReads = (calls) => calls.filter((c) => !c.sql.includes('__inspire_usecases') && !c.sql.includes('__inspire_implement') && !typeChecks([c]).length);
 
-test('the profile reads the main table with the person token only, bounded, and answers the agreed shape', async () => {
+test('the profile reads the main table with the App service principal token, bounded, and answers the agreed shape', async () => {
   const made = profiled();
   await withApp(made, async (srv) => {
     const got = await post(srv, ASK);
@@ -122,9 +124,9 @@ test('the profile reads the main table with the person token only, bounded, and 
     assert.equal(reads.length, 9, reads.map((c) => c.sql.slice(0, 60)).join('\n'));
     const checks = typeChecks(made.sqlCalls);
     assert.equal(checks.length, 1, 'the main table type is checked once before it is read (REQ-180)');
-    assert.equal(checks[0].token, PERSON, 'the type check runs with the person token');
+    assert.equal(checks[0].token, APP, 'the type check runs with the App service principal token');
     assert.ok(reads.some((c) => /LIMIT 3$/.test(c.sql)), 'the worked example reads three rows of the main table, bounded');
-    assert.ok(reads.every((c) => c.token === PERSON), 'every read of the use case table is the person token');
+    assert.ok(reads.every((c) => c.token === APP), 'every read of the use case table is the App service principal token');
     assert.ok(reads.every((c) => c.options.signal && c.options.byteLimit === GP.PROFILE_BYTE_LIMIT && c.options.rowLimit > 0 && c.options.waitTimeout === '10s'));
     assert.ok(made.sqlCalls.filter((c) => c.sql.includes('__inspire_usecases')).every((c) => c.token === 'tok'), 'the use case record is read with the App token');
     const stat = reads.find((c) => c.sql.includes('approx_count_distinct'));
@@ -180,13 +182,12 @@ test('a Deep discovery grouping on the use case comes back with the profile, and
   }
 });
 
-test('with only the App token the profile is a 401 with the shared sign-in answer and reads nothing (must-refuse)', async () => {
+test('with no person sign-in the profile still reads, as the App service principal (REQ-418: a person never gates an App read)', async () => {
   const made = profiled({ forwardedToken: '', tokenKind: 'app' });
   await withApp(made, async (srv) => {
     const got = await post(srv, ASK);
-    assert.equal(got.status, 401);
-    assert.deepEqual(got.data, RP.noPersonTokenBody());
-    assert.deepEqual(made.sqlCalls, []);
+    assert.equal(got.status, 200, JSON.stringify(got.data));
+    assert.ok(made.sqlCalls.length > 0);
   });
 });
 

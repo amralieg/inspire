@@ -81,7 +81,7 @@ test('a sample copy the person cannot read asks for USE CATALOG, USE SCHEMA and 
     'GRANT SELECT ON SCHEMA `samples`.`nyctaxi` TO `pat@example.com`',
   ]);
   assert.equal(p.principal, 'pat@example.com');
-  assert.match(p.why, /Copying samples\.nyctaxi\.trips reads them with your own access/);
+  assert.match(p.why, /Copying samples\.nyctaxi\.trips reads them as the App/);
   assert.equal(PM.sampleCopyPermission([], 'pat@example.com'), null);
 });
 

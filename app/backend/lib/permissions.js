@@ -77,7 +77,7 @@ function appReadPermissions(found, appId, { wholeCatalogs = [] } = {}) {
 function sampleCopyPermission(failed, principal) {
   const sources = (failed || []).map((f) => f.source);
   return permissionRequired({ statements: readStatementsFor(sources, principal), principal,
-    why: `Copying ${sources.join(', ')} reads them with your own access, and you cannot read ${sources.length === 1 ? 'it' : 'them'} yet.` });
+    why: `Copying ${sources.join(', ')} reads them as the App, and the App cannot read ${sources.length === 1 ? 'it' : 'them'} yet.` });
 }
 
 function builderPermission(catalog, builderGrant, builder) {

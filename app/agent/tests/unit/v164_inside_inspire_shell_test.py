@@ -25,7 +25,6 @@ from v144_app_ops_test import ASKED, DANA, HOST, JOB, LEE, OWNER, WEEKLY, JobsWo
 PAGE = "n01_u05"
 OFF = ("This page runs inside Inspire with no service principal of its own, so it never reads or starts the use case's job: it shows "
        "the runs the use case recorded, and Refresh now is off; the job's schedule still refreshes it")
-NO_SP = "A page inside Inspire has no service principal, so it reads and acts only as the person signed in"
 
 
 class SpUsed(Exception):
@@ -75,33 +74,31 @@ def _shell(tmp_path, settings, sp_factory, user):
                             sp_factory=sp_factory, user_factory=lambda host, token: user)
 
 
-def test_every_route_of_a_page_inside_inspire_reads_and_acts_as_the_viewer_and_never_reaches_a_service_principal(tmp_path):
-    sp_calls, user, used, statuses = [], AnyWorkspace(), [], {}
+def test_every_route_of_a_page_inside_inspire_reads_as_the_app_and_never_as_the_viewer(tmp_path):
+    # REQ-418 (D-SL-10B): data routes read through the App's service principal; the viewer is only the recorded actor.
+    sp_calls, user, used = [], AnyWorkspace(), []
+    sp = AnyWorkspace()
 
-    def sp():
+    def make_sp():
         sp_calls.append("sp")
-        raise SpUsed()
+        return sp
 
-    s = _shell(tmp_path, _inside(options={"modify": True, "replace_edits": False, "decisions": False, "alerts": False}), sp, user)
+    s = _shell(tmp_path, _inside(options={"modify": True, "replace_edits": False, "decisions": False, "alerts": False}), make_sp, user)
     assert s.inside is True
     for method, path in _routes():
         for headers in (signed(OWNER, "tok-owner"), signed(DANA, "tok-dana")):
             try:
-                status, _out = s.handle(method, path, dict(QUERY), dict(headers, **{"content-type": "application/json"}),
-                                        BODY if method == "POST" else b"")
-            except SpUsed:
-                used.append((method, path, headers["x-forwarded-email"]))
-                continue
-            statuses[(method, path)] = status
-    assert used == [] and sp_calls == [], f"routes that reached a service principal: {used}"
-    assert len(statuses) == len(_routes()) and user.calls, "every route ran, and they read through the viewer's own workspace"
-    with pytest.raises(shell_core.HttpError) as refused:
-        s.service()
-    assert (refused.value.status, refused.value.message) == (403, NO_SP) and sp_calls == [], "even a direct ask is refused"
-
+                s.handle(method, path, dict(QUERY), dict(headers, **{"content-type": "application/json"}),
+                         BODY if method == "POST" else b"")
+            except Exception:  # noqa: BLE001 - a route may refuse for its own reason; only the workspace used is asserted
+                pass
+            used.append((method, path))
+    assert user.calls == [], f"no route reads as the viewer: {user.calls[:3]}"
+    assert sp_calls and sp.calls, "data routes read through the App's service principal"
+    assert s.service() is sp, "the App's service principal is the one every read uses"
 
 def test_a_page_inside_inspire_shows_the_recorded_runs_and_says_why_its_job_is_not_read_or_started(tmp_path):
-    sp, user = JobsWorkspace(), JobsWorkspace(runs=WEEKLY)
+    sp, user = JobsWorkspace(runs=WEEKLY), JobsWorkspace()
     s = _shell(tmp_path, _inside(), lambda: sp, user)
     out = call(s, "GET", "freshness", query={"page": PAGE}, headers=signed(OWNER, "tok-o"))[1]
     assert (out["has_job"], out["can_refresh"], out["reason"], out["source"]) == (True, False, OFF, "table")
@@ -109,8 +106,8 @@ def test_a_page_inside_inspire_shows_the_recorded_runs_and_says_why_its_job_is_n
     assert call(s, "POST", "refresh", headers=signed(OWNER, "tok-o"), body={"page": PAGE}) == (403, {"error": OFF})
     runs = call(s, "GET", "runs", query={"page": PAGE}, headers=signed(DANA, "tok-d"))[1]
     assert runs["job"]["error"] == OFF and runs["total"] == 3, "the runs the result table recorded are listed"
-    assert sp.calls == [] and user.calls == [], "neither a service principal nor the viewer is asked for the job"
-    assert shell_core.USER_JOBS == OFF and shell_core.INSIDE_SP == NO_SP
+    assert user.calls == [], "the viewer's workspace is never used: reads run as the App (D-SL-10B)"
+    assert shell_core.USER_JOBS == OFF
 
 
 def test_a_regular_per_user_app_keeps_runs_freshness_and_refresh_through_its_own_service_principal(tmp_path):
@@ -138,20 +135,16 @@ def test_a_shared_view_app_still_reads_and_refreshes_its_job_through_its_service
     assert sp.jobs_calls("run-now") and sp.jobs_calls("list")
 
 
-def test_a_page_inside_inspire_with_decisions_on_refuses_them_without_inspire_s_writer_and_never_reaches_a_service_principal(tmp_path):
-    sp_calls, user = [], AnyWorkspace()
-
-    def sp():
-        sp_calls.append("sp")
-        raise SpUsed()
-
-    s = _shell(tmp_path, _inside(options=dict(DECIDE["options"])), sp, user)
+def test_a_page_inside_inspire_with_decisions_on_refuses_them_without_inspire_s_writer_and_writes_nothing(tmp_path):
+    # REQ-418 (D-SL-10B): reads run as the App; a decision with no Inspire writer is refused and no write reaches any workspace.
+    sp, user = AnyWorkspace(), AnyWorkspace()
+    s = _shell(tmp_path, _inside(options=dict(DECIDE["options"])), lambda: sp, user)
     for path in ("records/act", "records/undo"):
         body = json.dumps({"page": PAGE, "record_keys": ["k1"], "seen": {"k1": "1"}, "values": {"action_status": "Done"}} if path ==
                           "records/act" else {"page": PAGE, "batch_id": "a" * 32}).encode("utf-8")
         status, out = s.handle("POST", path, {}, dict(signed(DANA, "tok-dana"), **{"content-type": "application/json"}), body)
         assert (status, out) == (403, {"error": shell_core.INSIDE_DECISIONS}), path
-    assert sp_calls == [] and not any("MERGE INTO" in str(c) for c in user.calls)
+    assert not any("MERGE INTO" in str(c) for c in sp.calls + user.calls)
 
 
 class Warehoused(DataWorkspace):
@@ -183,19 +176,19 @@ def _factory(reader, writer, asked):
     return make
 
 
-def test_inspire_records_a_decision_for_a_page_inside_it_as_its_own_identity_after_the_viewer_s_read(tmp_path):
-    reader, writer, asked = Warehoused(current=[current("k1", "run", "run 7")]), Warehoused(), []
+def test_inspire_records_a_decision_for_a_page_inside_it_as_the_app_and_records_the_viewer_as_actor(tmp_path):
+    # REQ-418 (D-SL-10B): the App reads and writes; the viewer is the recorded actor, never the identity the SQL runs as.
+    reader, writer, asked = Warehoused(), Warehoused(current=[current("k1", "run", "run 7")]), []
     root = app_dir(tmp_path, _inside(options=dict(DECIDE["options"])), [edit_page()])
     status, out = shell_core.cli_answer(_step(root), user_factory=_factory(reader, writer, asked))
     assert status == 200 and out["written"] == ["k1"] and out["left_out"] == 0, out
-    assert set(asked) == {(HOST, "tok-dana"), (HOST, "tok-inspire")}
-    assert reader.queries("MERGE INTO") == [] and set(reader.warehouses) == {"wh1"}
+    assert set(asked) == {(HOST, "tok-inspire")} and reader.sql == [], "every read and the write run on the App's token"
     (sql, params), = writer.queries("MERGE INTO")
-    assert writer.warehouses == ["wh-inspire"] and DANA in [p["value"] for p in params] and re.search(r":p\d+ AS `changed_by`", sql)
-    reader.current = []
+    assert writer.warehouses[-1] == "wh-inspire" and DANA in [p["value"] for p in params] and re.search(r":p\d+ AS `changed_by`", sql)
+    writer.current = []
     writer.sql.clear()
     status, out = shell_core.cli_answer(_step(root), user_factory=_factory(reader, writer, asked))
-    assert status == 403 and out["left_out"] == 1 and writer.sql == [], "a record the viewer cannot read gets no decision"
+    assert status == 403 and out["left_out"] == 1 and writer.queries("MERGE INTO") == [], "a record the App cannot read gets no decision"
 
 
 @pytest.mark.parametrize("changes, status, fragment", [
@@ -215,25 +208,36 @@ def test_the_decision_step_refuses_a_request_it_cannot_trust_before_any_sql(tmp_
     assert reader.sql == [] and writer.sql == []
 
 
-def test_the_decision_step_runs_only_for_a_per_user_page_inside_inspire_and_answers_as_json(tmp_path):
-    reader, writer, asked = Warehoused(current=[current("k1", "run", "run 7")]), Warehoused(), []
-    own = app_dir(tmp_path, ops_settings(auth="user", options=dict(DECIDE["options"])), [edit_page()])
-    assert shell_core.cli_answer(_step(own), user_factory=_factory(reader, writer, asked))[0] == 409 and writer.sql == []
+def test_a_decision_on_an_sp_page_inside_inspire_is_written_as_the_app_token_with_the_viewer_recorded_as_actor(tmp_path):
+    # REQ-418 ruling 3 (D-SL-10B): the viewer's read runs on the viewer's token; the write runs on the App's token (writer.token);
+    # the viewer is the recorded actor. Fails before the fix: the CLI answered 403 "has no service principal".
+    reader, writer, asked = Warehoused(), Warehoused(current=[current("k1", "run", "run 7")]), []
+    own = app_dir(tmp_path, dict(_inside(options=dict(DECIDE["options"])), auth="sp"), [edit_page()])
+    status, body = shell_core.cli_answer(_step(own), user_factory=_factory(reader, writer, asked))
+    assert status == 200 and body["written"] == ["k1"], (status, body)
+    assert set(asked) == {(HOST, "tok-inspire")} and reader.sql == [], "the read and the one write both run on the App's token, never the viewer's"
+    (_sql, params), = writer.queries("MERGE INTO")
+    assert DANA in [p.get("value") if isinstance(p, dict) else p for p in params], "the viewer is the recorded actor"
     out = io.StringIO()
     assert shell_core.cli(io.StringIO("not json"), out) == 0
     assert json.loads(out.getvalue())["status"] == 400
-    out = io.StringIO()
-    shell_core.cli(io.StringIO(json.dumps(_step(own))), out)
-    assert json.loads(out.getvalue()) == {"status": 409, "body": {
-        "error": "Inspire records decisions only for a page inside Inspire that signs viewers in as themselves"}}
+
+
+def test_the_decision_step_refuses_an_empty_app_token_before_any_read_or_write(tmp_path):
+    # Deterministic identity: no App token means no decision, never a write with an empty bearer (must-exclude).
+    reader, writer, asked = Warehoused(current=[current("k1", "run", "run 7")]), Warehoused(), []
+    own = app_dir(tmp_path, dict(_inside(options=dict(DECIDE["options"])), auth="sp"), [edit_page()])
+    request = _step(own, writer={"token": "", "warehouse": "wh-inspire"})
+    status, body = shell_core.cli_answer(request, user_factory=_factory(reader, writer, asked))
+    assert (status, body) == (400, {"error": "send token as text"}), (status, body)
+    assert asked == [] and writer.sql == []
 
 
 @pytest.mark.parametrize("changes,problem", [
     ({"host": "elsewhere"}, "the App host must be inspire when it is set, for a page inside Inspire"),
-    ({"host": "inspire", "auth": "sp"}, "a page inside Inspire signs each viewer in as themselves, so its auth must be user"),
     ({"host": "inspire", "auth": "user", "backend": {"kind": "lakebase", "pipeline_id": "p", "tables": {}, "datasets": {}}},
      "a page inside Inspire reads Delta tables, so its backend must be delta"),
-], ids=["another_host", "service_principal", "lakebase"])
+], ids=["another_host", "lakebase"])
 def test_settings_that_place_a_page_inside_inspire_must_hold_together(changes, problem):
     settings = dict(ops_settings(), **changes)
     assert problem in shell_core.settings_problems(settings, [edit_page()])

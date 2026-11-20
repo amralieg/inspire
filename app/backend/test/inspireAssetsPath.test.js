@@ -100,10 +100,11 @@ test('a run the App launches passes the assets path the installer wrote to app.y
   assert.equal(task.notebook_task.base_parameters.inspire_assets_path, ASSETS);
 });
 
-test('a run whose output folder the person cannot write is refused with 403 and creates no job', async () => {
+// REQ-418: the App writes the run's output, and a run with no folder picked writes to the person's own folder, which the App must reach.
+test('a run whose own output folder the App cannot write is refused with 403 and creates no job, and the refusal names that folder', async () => {
   const run = await launchRun({ '/Shared': { writers: [] } });
   assert.equal(run.status, 403, run.text);
-  assert.match(run.text, /cannot write to \/Shared\/demos/);
+  assert.match(run.text, /cannot save to your own folder \/Users\/[^/]+\/inspire_output, and the App cannot write there yet/);
   assert.deepEqual(run.created, []);
 });
 

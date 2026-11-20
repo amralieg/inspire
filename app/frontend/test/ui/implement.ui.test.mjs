@@ -4,7 +4,7 @@ import { buildAgainHint, DATA_STOP_HINT, GENIE_CODE_OFF_TITLE, lostTablesText, V
 import {
   HARNESS_USE_CASE, HARNESS_SETTINGS, HARNESS_SESSION_ID, MVP_JOB, OWNER, RESULT_TABLE, STUDIO_STATE, built, builtSpec,
 } from './implementFixtures.js';
-import { BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, openDetails, openRow, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary, openFolded, nextUntil } from './uiSupport.mjs';
+import { POLICIED_SOURCE, BUILD_IT, closeAsset, closeBrowser, closeBuild, dataToResults, openAdvanced, openDetails, openRow, expandBuild, FAKE_CLOCK, lowContrast, onStep, openAsset, openFeatures, openSettings, openUi, painted, pollNow, setDark, settled, shot, startMvp, stepsAre, toAppAccess, toVibes, until, goToStep, toSummary, openFolded, nextUntil } from './uiSupport.mjs';
 import { wheelReads } from './wheelScroll.mjs';
 
 const gone = (table) => `[TABLE_OR_VIEW_NOT_FOUND] The table or view ${table} cannot be found. Verify the spelling. SQLSTATE: 42P01`;
@@ -72,7 +72,7 @@ function submittedSpec(made) {
 }
 
 test('the wizard opens on Use case with no MVP or notebook choice, Deliver ticks the App and Genie Agent, drops the App step while the App is unticked, and All Good, Build it Now launches one run', async () => {
-  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' } });
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE });
   const { page, made } = ui;
   const withApp = ['1. What to deliver', '2. Data & results', '3. First run', '4. Measure', '5. Where it lives', '6. Review & build'];
   try {
@@ -274,7 +274,8 @@ test('a new App that could not get access is disabled up front with the reason, 
   const sp = (level, privilege, principal, mine) => ({ level, privilege, principal, mine: mine ? 'true' : 'false', me: 'inspire-sp' });
   const access = [sp('catalog', 'OWNER', 'admins', false), sp('schema', 'OWNER', 'data-eng', false), sp('catalog', 'USE_CATALOG', 'inspire-sp', true),
     sp('schema', 'USE_SCHEMA', 'inspire-sp', true), sp('schema', 'CREATE_TABLE', 'inspire-sp', true)];
-  const ui = await openUi('wizard', { access, me: { userName: OWNER, displayName: 'Owner' } });
+  // D-SL-10B: the App's own principal needs CAN MANAGE on the warehouse; the harness default grants it, so this case withholds it to keep the warehouse in the sentence.
+  const ui = await openUi('wizard', { access, warehousePermissions: { access_control_list: [] }, me: { userName: OWNER, displayName: 'Owner' } });
   const { page, made } = ui;
   try {
     await toData(page);
@@ -310,7 +311,9 @@ test('a use case that trains a model stops on Results until Inspire may register
   const writes = [sp('catalog', 'OWNER', 'admins', false), sp('schema', 'OWNER', 'data-eng', false), sp('catalog', 'USE_CATALOG', 'inspire-sp', true),
     sp('schema', 'USE_SCHEMA', 'inspire-sp', true), sp('schema', 'CREATE_TABLE', 'inspire-sp', true)];
   const useCase = { ...HARNESS_USE_CASE, code_structure_mandate: 'Execution pattern: family B (classification).' };
-  const missing = `you need CREATE MODEL on main.inspire to register the model ${RESULT_TABLE}_model`;
+  // D-SL-10B: the build runs as the App, so the sentence names the App's identity, not 'you'.
+  const builds = 'inspire-manual, the identity Inspire builds as,';
+  const missing = `${builds} needs CREATE MODEL on main.inspire to register the model ${RESULT_TABLE}_model`;
   for (const [access, blocked] of [[writes, true], [[...writes, sp('schema', 'CREATE_MODEL', 'inspire-sp', true)], false]]) {
     const ui = await openUi('wizard', { access, useCase, me: { userName: OWNER, displayName: 'Owner' } });
     const { page } = ui;
@@ -331,7 +334,7 @@ test('a use case that trains a model stops on Results until Inspire may register
         await goToStep(page, 'Results');
         await openFolded(page, 'Result table');
         // Reopening the fold re-runs the write check, so its result arrives after the request.
-        await page.getByLabel('Result table check').locator('p.text-success-fg', { hasText: `you can register the model ${RESULT_TABLE}_model` }).waitFor({ timeout: 15000 });
+        await page.getByLabel('Result table check').locator('p.text-success-fg', { hasText: `${builds} can register the model ${RESULT_TABLE}_model` }).waitFor({ timeout: 15000 });
       }
       assert.deepEqual(ui.pageErrors, []);
     } finally {
@@ -399,7 +402,7 @@ test('roles an older wizard guessed come back with the version, and one click se
     status: 'failed', spec_json: JSON.stringify(guessed), result_rows: null, asset_status: null,
     dashboard_id: null, dashboard_url: null, genie_space_id: null, genie_space_url: null, app_name: null, app_url: null, alert_id: null, alert_url: null,
   });
-  const ui = await openUi('wizard', { columns, me: { userName: OWNER, displayName: 'Owner' }, history: [failed] });
+  const ui = await openUi('wizard', { columns, me: { userName: OWNER, displayName: 'Owner' }, history: [failed], policies: POLICIED_SOURCE }); // D-SL-11: the access choice shows for a row-filtered source
   const { page, made } = ui;
   const role = (name) => page.locator('label').filter({ has: page.locator('span', { hasText: new RegExp(`^${name}$`) }) }).locator('select');
   const reset = page.getByRole('button', { name: "Reset roles to Inspire's choice", exact: true });
@@ -550,7 +553,7 @@ test('what blocks a step shows in the footer, opens Advanced on the field to fix
 });
 
 test('an App name another App already uses is changed to the next free name, and a name the person types back is fixed on the last step', async () => {
-  const ui = await openUi('wizard', {
+  const ui = await openUi('wizard', { policies: POLICIED_SOURCE,
     me: { userName: OWNER, displayName: 'Owner' },
     appsByName: { 'inspire-hub-acme': { name: 'inspire-hub-acme', description: 'Sales forecasting tool' } },
   });
@@ -1924,7 +1927,7 @@ test('a version stopped by notebook edits offers a rebuild that overwrites them,
 });
 
 test('Edit after notebook edits asks on Summary whether to overwrite them, and only a ticked box confirms', async () => {
-  const ui = await openUi('wizard', { ...STUDIO_STATE, history: [editedVersion(), built()], me: { userName: OWNER, displayName: 'Owner' } });
+  const ui = await openUi('wizard', { ...STUDIO_STATE, history: [editedVersion(), built()], me: { userName: OWNER, displayName: 'Owner' }, policies: POLICIED_SOURCE });
   const { page, made } = ui;
   try {
     await toSummary(page);

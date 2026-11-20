@@ -1,6 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { closeBrowser, dataToResults, goToMeasureImpact, goToStep, onStep, openAdvanced, openFolded, openUi, startMvp, toAppAccess } from './uiSupport.mjs';
+import { closeBrowser, dataToResults, goToMeasureImpact, goToStep, onStep, openAdvanced, openFolded, openUi, startMvp, toAppAccess, POLICIED_SOURCE } from './uiSupport.mjs';
 
 const OWNER = ['owner', 'example.com'].join('@');
 const PAT = ['pat', 'example.com'].join('@');
@@ -121,7 +121,7 @@ test('a Measure impact share set on Measure is still there after Run it, and the
 });
 
 test('every list field keeps the comma or new line a person types, and sends each item', async () => {
-  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, responses: NO_LAKEBASE });
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, responses: NO_LAKEBASE, policies: POLICIED_SOURCE });
   const { page, made } = ui;
   try {
     const keeps = async (typed) => {
@@ -179,7 +179,7 @@ test('the alert row keeps its threshold short and its lists as wide as their cho
 });
 
 test('App owners are typed under Advanced settings like alert recipients, checked as emails, and sent once each, only with an App', async () => {
-  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, responses: NO_LAKEBASE });
+  const ui = await openUi('wizard', { me: { userName: OWNER, displayName: 'Owner' }, responses: NO_LAKEBASE, policies: POLICIED_SOURCE });
   const { page, made } = ui;
   try {
     await toResults(page);

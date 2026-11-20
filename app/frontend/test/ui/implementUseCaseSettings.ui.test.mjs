@@ -117,7 +117,7 @@ test('the Build page shows the settings as built, read only, with the reason, wh
   const refusal = 'Only the owners of this use case can change its settings';
   const cases = [
     ['not an owner', { forwardedToken: PERSON, appApi: { 'GET /api/settings': [{ settings: [], history: [], editable: false, why: refusal, can_run: false }] } }, refusal],
-    ['no sign-in', {}, 'Inspire reaches the App\u2019s settings with your own sign-in, and this request carries none, so they show here as built. Open the App to change them.'],
+    ['no sign-in', {}, 'Inspire cannot reach the App\u2019s settings: the App answers only a signed-in person, and this request carries no sign-in, so they show here as built. Open the App to change them.'],
   ];
   for (const [name, state, why] of cases) {
     const ui = await openBuild({ history: [withModel()], ...state });

@@ -29,7 +29,7 @@ const picker = (page, table) => page.getByLabel(`Table to use for ${table}`, { e
 test('a built-in sample source is refused, the picker lists the person’s own copy first, and choosing that copy lets the build go ahead', async () => {
   const ui = await openUi('wizard', {
     me: ME, useCase: SAMPLE_CASE, history: [], forwardedToken: PERSON, columnsByTable: COLUMNS,
-    swapRowsByToken: { [PERSON]: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
+    swapRowsByToken: { tok: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
   });
   try {
     const { page } = ui;
@@ -56,7 +56,7 @@ test('a slow catalog search does not hold the copy: the copy is listed within 2 
   const SIMILAR = { table_catalog: 'main', table_schema: 's2', table_name: 'orders_v2', matched: '5', total: '6' };
   const ui = await openUi('wizard', {
     me: ME, useCase: SAMPLE_CASE, history: [], forwardedToken: PERSON, columnsByTable: COLUMNS,
-    swapRowsByToken: { [PERSON]: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
+    swapRowsByToken: { tok: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
     statements: { 'GREATEST(2, CEIL(': async () => {
       await new Promise((done) => setTimeout(done, 5000));
       return { rows: [SIMILAR, COPY_ROW] };
@@ -95,7 +95,7 @@ test('a table typed into the picker is checked with the person’s sign-in: a re
     await page.getByRole('button', { name: 'Use this table', exact: true }).click();
     const note = orders.locator('[data-find-note]');
     await note.waitFor({ timeout: 15000 });
-    assert.match(await note.textContent(), /^You can't read other\.x\.trips_copy: no read access\./);
+    assert.match(await note.textContent(), /^The App can't read other\.x\.trips_copy: no read access\./);
     assert.equal(await orders.locator('.font-mono').first().textContent(), 'main.s.orders', 'a refused table is not used');
     assert.equal((await optionTexts(picker(page, 'main.s.orders'))).some((t) => t.includes(FOREIGN)), false);
     await find.fill(COPY);
@@ -113,7 +113,7 @@ const COPY_TARGET = 'inspire_kinds_rc7.walk_rc7e';
 test('Copy it now posts the samples copy with the target, re-points the source to the copy, clears the refusal and lets the build go ahead', async () => {
   const ui = await openUi('wizard', {
     me: ME, useCase: SAMPLE_CASE, history: [], forwardedToken: PERSON, columnsByTable: COLUMNS,
-    swapRowsByToken: { [PERSON]: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
+    swapRowsByToken: { tok: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
     sampleCopyAnswer: [200, { destination: COPY_TARGET, copies: [{ source: SAMPLE, copy: COPY }], failed: [] }],
   });
   try {
@@ -138,7 +138,7 @@ test('a copy the warehouse refuses names the table and the reason, keeps the sam
   const REASON = '[PERMISSION_DENIED] User does not have CREATE TABLE on schema inspire_kinds_rc7.walk_rc7e';
   const ui = await openUi('wizard', {
     me: ME, useCase: SAMPLE_CASE, history: [], forwardedToken: PERSON, columnsByTable: COLUMNS,
-    swapRowsByToken: { [PERSON]: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
+    swapRowsByToken: { tok: [COPY_ROW] }, appProbeErrors: { '`samples`.`nyctaxi`.`trips`': SAMPLE_DENIED },
     sampleCopyAnswer: [200, { destination: COPY_TARGET, copies: [], failed: [{ source: SAMPLE, reason: REASON }] }],
   });
   try {

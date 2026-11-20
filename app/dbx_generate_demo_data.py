@@ -19,7 +19,6 @@ dbutils.widgets.text("warehouse_id", "", "7. SQL warehouse (SP CAN_USE)")
 dbutils.widgets.text("app_sp_application_id", "", "8. Inspire App service principal applicationId")
 dbutils.widgets.text("plant_kind_signals", "yes", "9. Add the tables that show every use-case kind (yes or no)")
 dbutils.widgets.text("chat_model", "", "10. Chat model to try first (empty: the best one this workspace serves)")
-dbutils.widgets.text("run_as_person", "", "11. Run as the signed-in person (1: the App's principal gets no grant)")
 
 user_description = (dbutils.widgets.get("user_description") or "").strip()
 inspire_catalog = (dbutils.widgets.get("inspire_catalog") or "").strip()
@@ -31,7 +30,6 @@ warehouse_id = (dbutils.widgets.get("warehouse_id") or "").strip()
 app_sp_application_id = (dbutils.widgets.get("app_sp_application_id") or "").strip()
 plant_kind_signals = (dbutils.widgets.get("plant_kind_signals") or "yes").strip().lower() not in ("no", "false", "0", "off")
 chat_model = (dbutils.widgets.get("chat_model") or "").strip()
-run_as_person = (dbutils.widgets.get("run_as_person") or "").strip() == "1"
 
 if not user_description:
     raise ValueError("user_description is required")
@@ -1606,18 +1604,15 @@ print(f"display_name: {display_name}")
 print(f"uc_metadata ({len(tables)} tables): {uc_metadata}")
 
 # ── 5) Grant Inspire App service principal (inspire_installer parity) ──
-# REQ-113 run-as-me: the job runs as the signed-in person, who owns every table it creates, so the App's principal gets no grant.
-if run_as_person:
-    print("Run as the signed-in person: no grant to the Inspire App service principal")
-else:
-    _sp_id = _resolve_app_sp_application_id(app_sp_application_id)
-    _grant_inspire_app_service_principal(
-        _sp_id,
-        inspire_catalog,
-        track_schema,
-        demo_schema,
-        warehouse_id,
-    )
+# REQ-418 (D-SL-10B): the job runs as the Inspire App's service principal, so the principal gets the grants on the tables it creates.
+_sp_id = _resolve_app_sp_application_id(app_sp_application_id)
+_grant_inspire_app_service_principal(
+    _sp_id,
+    inspire_catalog,
+    track_schema,
+    demo_schema,
+    warehouse_id,
+)
 
 # COMMAND ----------
 

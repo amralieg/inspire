@@ -21,7 +21,7 @@ async function documentJobState(runId) {
 }
 
 test('the Create use case catalog button launches a docs-only run with the PDF catalog, the session and every language, then reads done when it ends (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } } });
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } } });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog', output_language: 'English,Arabic' } });
   assert.equal(got.status, 200, got.text.slice(0, 300));
   assert.deepEqual(got.data.document, { kind: 'use-case-catalog', option: 'PDF Catalog', session_id: '7300', languages: ['English', 'Arabic'] });
@@ -43,7 +43,7 @@ test('the Create use case catalog button launches a docs-only run with the PDF c
 });
 
 test('the Create strategy document button sends the format the person picked as the presentation or PDF option (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } } });
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } } });
   const pptx = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'strategy-document', format: 'PPTX' } });
   assert.equal(pptx.status, 200, pptx.text.slice(0, 300));
   assert.equal(pptx.data.document.option, 'Presentation');
@@ -54,7 +54,7 @@ test('the Create strategy document button sends the format the person picked as 
 });
 
 test('the Create Excel workbook button launches a docs-only run with the Excel option, the session and the English catalog (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } } });
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } } });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'excel-workbook' } });
   assert.equal(got.status, 200, got.text.slice(0, 300));
   assert.deepEqual(got.data.document, { kind: 'excel-workbook', option: 'Excel', session_id: '7300', languages: ['English'] });
@@ -65,7 +65,7 @@ test('the Create Excel workbook button launches a docs-only run with the Excel o
 });
 
 test('a document request without a session or with a relative session folder starts no job (must-exclude)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } } });
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } } });
   const noSession = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, session_id: '', kind: 'use-case-catalog' } });
   assert.ok([400, 403].includes(noSession.status), noSession.text.slice(0, 300));
   const relative = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog', generation_path: 'inspire_output' } });
@@ -74,7 +74,7 @@ test('a document request without a session or with a relative session folder sta
 });
 
 test('a trailing slash on the session folder is passed as sent and the catalog is still found under the business folder (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } } });
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } } });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog', generation_path: `${OUT}/` } });
   assert.equal(got.status, 200, got.text.slice(0, 300));
   const params = S.state.createdJob.tasks[0].notebook_task.base_parameters;
@@ -84,7 +84,7 @@ test('a trailing slash on the session folder is passed as sent and the catalog i
 });
 
 test('a session whose English catalog file is gone is told in plain words, with no raw path, and no job starts (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } },
     presentPaths: [] });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
   assert.equal(got.status, 409, got.text.slice(0, 300));
@@ -94,7 +94,7 @@ test('a session whose English catalog file is gone is told in plain words, with 
 });
 
 test('a catalog check that answers an error other than missing says so in plain words, with no raw detail, and starts no job (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } },
     statusErrors: { [CATALOG]: 500 } });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
   assert.equal(got.status, 503, got.text.slice(0, 300));
@@ -105,7 +105,7 @@ test('a catalog check that answers an error other than missing says so in plain 
 });
 
 test('a catalog check that cannot reach the workspace says so in plain words, with no raw host or error text, and starts no job (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } },
     statusErrors: { [CATALOG]: 'network' } });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
   assert.equal(got.status, 503, got.text.slice(0, 300));
@@ -117,7 +117,7 @@ test('a catalog check that cannot reach the workspace says so in plain words, wi
 const RENAMED_CATALOG = `${OUT}/acme/docs/Acme-dbx_inspire.json`;
 
 test('a renamed business still finds the English catalog its Discover run wrote, from the path the session stored (REQ-077)', async () => {
-  S.reset({ presentPaths: [RENAMED_CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+  S.reset({ presentPaths: [RENAMED_CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } },
     catalogPaths: { 7300: RENAMED_CATALOG } });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, business_name: 'Acme Renamed', kind: 'use-case-catalog' } });
   assert.equal(got.status, 200, got.text.slice(0, 300));
@@ -125,7 +125,7 @@ test('a renamed business still finds the English catalog its Discover run wrote,
 });
 
 test('an old session whose stored catalog path is empty falls back to the business-name folder (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } },
     catalogPaths: { 7300: null } });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
   assert.equal(got.status, 200, got.text.slice(0, 300));
@@ -133,7 +133,7 @@ test('an old session whose stored catalog path is empty falls back to the busine
 });
 
 test('a workspace that has not added the catalog path column yet falls back to the business-name folder (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } },
     catalogColumnMissing: true });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
   assert.equal(got.status, 200, got.text.slice(0, 300));
@@ -141,7 +141,7 @@ test('a workspace that has not added the catalog path column yet falls back to t
 });
 
 test('a failed read of the stored catalog path says so in plain words and starts no job (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } },
     catalogQueryError: 'PERMISSION_DENIED: User does not have SELECT on __inspire_session' });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
   assert.equal(got.status, 503, got.text.slice(0, 300));
@@ -151,7 +151,7 @@ test('a failed read of the stored catalog path says so in plain words and starts
 });
 
 test('a session whose catalog could not be saved, and recorded why, says so in plain words and starts no job, even when a derived catalog exists (REQ-077)', async () => {
-  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [ME] } },
+  S.reset({ presentPaths: [CATALOG], notebookPresent: true, managers: [], runStates: {}, sessionLaunchers: { 7300: ME }, folders: { [`/Users/${ME}`]: { id: 11, writers: [S.APP_SP] } },
     catalogPaths: { 7300: null }, catalogReasons: { 7300: 'workspace refused the write' } });
   const got = await S.request('POST', '/api/documents', { person: ME, body: { ...BASE, kind: 'use-case-catalog' } });
   assert.equal(got.status, 409, got.text.slice(0, 300));

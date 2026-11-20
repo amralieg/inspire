@@ -183,7 +183,8 @@ test('Not a change closes an issue for an owner, and a non-owner is refused befo
   });
 });
 
-test('Add to vibe drafts with the person token and the use case model, and refuses a non-owner without calling the model', async () => {
+// REQ-418 (D-SL-10B): the model is asked as the App (the harness App token 'tok'), never with the person's token.
+test('Add to vibe drafts with the App token and the use case model, and refuses a non-owner without calling the model', async () => {
   await withApp({}, async (url, _made, asked) => {
     const refused = await call(url, `/api/inspire/implement/feedback/vibe?${Q}`, { method: 'POST', who: OTHER, body: { ...DB, feedback_id: 'a1b2' } });
     assert.equal(refused.status, 403);
@@ -191,7 +192,8 @@ test('Add to vibe drafts with the person token and the use case model, and refus
     const got = await call(url, `/api/inspire/implement/feedback/vibe?${Q}`, { method: 'POST', body: { ...DB, feedback_id: 'a1b2' } });
     assert.equal(got.status, 200, JSON.stringify(got.data));
     assert.deepEqual(got.data, { vibe: 'On Work, show the due date of each record in the current year', genie_should: 'Fix the due date', feedback_id: 'a1b2', model: 'team-chat' });
-    assert.deepEqual([asked[0].token, asked[0].path, asked[0].method], ['person-token', '/serving-endpoints/team-chat/invocations', 'POST']);
+    assert.deepEqual([asked[0].token, asked[0].path, asked[0].method], ['tok', '/serving-endpoints/team-chat/invocations', 'POST']);
+    assert.ok(asked.every((a) => a.token !== 'person-token'), 'no model call uses the person token');
     const user = asked[0].body.messages[1].content;
     for (const part of ['Title: Churn desk', 'Charts: Churn by region', 'Show churn by region', 'The due date shows last year']) assert.ok(user.includes(part), part);
   });

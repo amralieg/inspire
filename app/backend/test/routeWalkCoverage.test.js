@@ -28,7 +28,7 @@ const NOT_WALKED = {
   'POST /api/inspire/samples/copy': 'copies samples tables only with the person own sign-in, into a schema the person names; no non-owner harness row walks it yet, and the route samples and samplesCopy tests prove the sign-in refusal and the copy',
   'POST /api/inspire/implement/grant-access': 'runs grants only with the person own sign-in; no non-owner harness row walks it yet, and the route samples prove the sign-in refusal',
   'POST /api/inspire/implement/app-reads': 'runs only the read grants the build recorded for its App, with the person own sign-in; no non-owner harness row walks it yet, and the route tests prove the sign-in refusal',
-  'POST /api/inspire/implement/create-schema': 'creates a catalog or schema only with the person own sign-in; no non-owner harness row walks it yet, and the route tests prove the sign-in refusal',
+  'POST /api/inspire/implement/create-schema': 'creates a catalog or schema as the App, and records the signed-in person as the requester; no non-owner harness row walks it yet, and the route tests prove the App create and the requester record',
   'GET /api/inspire/implement/feedback': 'lists the issues reported from a built use case’s App, each person seeing only their own; no non-owner harness row walks it yet, and the feedback route tests prove the per-person view',
   'POST /api/inspire/implement/feedback/status': 'changes the status of a reported issue for owners only; no non-owner harness row walks it yet, and the route samples prove the owners refusal',
   'POST /api/inspire/implement/feedback/vibe': 'drafts a vibe from a reported issue for owners only; no non-owner harness row walks it yet, and the route samples prove the owners refusal',
@@ -135,9 +135,7 @@ test('the identity check reports a route with no entry, no identity, an App rout
   const table = {
     'GET /ok/app': { identity: 'app', why: 'reads the tracking tables of the App' },
     'GET /ok/person': { identity: 'person', scopes: ['sql'] },
-    'GET /ok/output': { identity: 'person', scopes: ['files'], sessionOutput: 'reads inside the recorded output folder of a session' },
     'GET /no/scope/excuse': { identity: 'person', scopes: [], noScope: 'no user scope covers this API at all' },
-    'GET /output/no/why': { identity: 'person', scopes: ['files'], sessionOutput: '' },
     'GET /no/identity': { rule: 'any' },
     'GET /odd/identity': { identity: 'both', why: 'reads the tracking tables of the App' },
     'GET /app/no/why': { identity: 'app', why: '' },
@@ -145,14 +143,15 @@ test('the identity check reports a route with no entry, no identity, an App rout
     'GET /person/no/list': { identity: 'person' },
   };
   assert.deepEqual(P.undeclaredIdentity([...Object.keys(table), 'GET /not/listed'], table),
-    ['GET /app/no/why', 'GET /no/identity', 'GET /no/scope/excuse', 'GET /not/listed', 'GET /odd/identity', 'GET /output/no/why', 'GET /person/no/list', 'GET /person/no/scope']);
-  assert.deepEqual(P.undeclaredIdentity(['GET /ok/app', 'GET /ok/person', 'GET /ok/output'], table), []);
+    ['GET /app/no/why', 'GET /no/identity', 'GET /no/scope/excuse', 'GET /not/listed', 'GET /odd/identity', 'GET /person/no/list', 'GET /person/no/scope']);
+  assert.deepEqual(P.undeclaredIdentity(['GET /ok/app', 'GET /ok/person'], table), []);
 });
 
 test('every person route takes its token through requireToken, so its declared identity picks the token', () => {
   const tails = registrationTails(mountedFiles(SERVER));
   const person = [...tails.keys()].filter((key) => P.ROUTE_POLICY[key] && P.ROUTE_POLICY[key].identity === 'person');
-  assert.ok(person.length >= 10, `${person.length} person routes`);
+  // REQ-418: the person's own token is kept for who-did-what routes only; every data route reads as the App.
+  assert.deepEqual(person.sort(), ['POST /api/access-request', 'POST /api/access-request/check', 'POST /api/inspire/implement/grant-access'], 'the who-did-what person routes');
   assert.deepEqual(person.filter((key) => !/^\s*,\s*(rejectUnsafeQueryPath\s*,\s*)?requireToken\b/.test(tails.get(key))), []);
 });
 

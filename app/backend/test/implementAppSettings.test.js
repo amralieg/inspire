@@ -324,8 +324,8 @@ test('a per-user use case cannot join a service-principal App, and a merge targe
   assert.deepEqual(I.mergeProblems(spec({ app_access: 'user', merge: { app: 'care-desk' } }), targets), [], 'per-user into per-user is fine');
   assert.deepEqual(I.mergeProblems(spec({ merge: { app: 'care-desk' } }), targets), [], 'an internal use case may join a per-user App');
   assert.deepEqual(I.mergeProblems(spec({ merge: { dashboard: 'd2', genie_space: 'g1' } }), targets), [
-    'd2 is not a dashboard Inspire built that you can open: pick one Inspire lists, or create a new one',
-    'g1 is not a Genie Agent Inspire built that you can open: pick one Inspire lists, or create a new one',
+    'd2 is not a dashboard Inspire built that Inspire can open: pick one Inspire lists, or create a new one',
+    'g1 is not a Genie Agent Inspire built that Inspire can open: pick one Inspire lists, or create a new one',
   ]);
   assert.deepEqual(I.mergeProblems(spec({ merge: { dashboard: 'd2' } }), targets, { dashboard: 'd2' }), [], 'the dashboard it already holds is not re-checked');
 });
@@ -456,7 +456,7 @@ test('plan and submit refuse a per-user use case joining a service-principal App
     assert.match(refused.data.error, /churn-desk shows everyone the same rows, so a per-user \(sensitive\) use case cannot join it/);
     const notListed = await call(srv.url, '/api/inspire/implement/submit', body({ merge: { app: 'not-ours' } }));
     assert.equal(notListed.status, 400);
-    assert.match(notListed.data.error, /not-ours is not an Agentic App Inspire built that you can open/);
+    assert.match(notListed.data.error, /not-ours is not an Agentic App Inspire built that Inspire can open/);
     assert.equal(jobs.length, 0);
     fetches.length = 0;
     const ok = await call(srv.url, '/api/inspire/implement/plan', body({}));
@@ -510,7 +510,7 @@ test('the App look endpoint serves the shell\'s 13 palettes, and preflight check
     assert.equal(joined.status, 200, JSON.stringify(joined.data));
     assert.ok(joined.data.checks.app_access, 'the joined App must read the result table');
     assert.equal(joined.data.checks.app_name, undefined, 'joining an App never checks its name as a new one');
-    assert.equal(joined.data.checks.genie_spaces.detail, 'you can create Genie Agents');
+    assert.equal(joined.data.checks.genie_spaces.detail, 'the App can create Genie Agents');
   } finally {
     await srv.close();
   }

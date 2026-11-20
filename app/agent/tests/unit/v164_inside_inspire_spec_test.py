@@ -1,5 +1,5 @@
 """Inside Inspire, the fourth App placement: the wizard's choice to host a use case's page in Inspire's Run tab instead of a Databricks
-App of its own. The spec keeps it only with per-viewer access, Delta tables, no App to join and a SQL warehouse each viewer reads with,
+App of its own. The spec keeps it with the App's own access (or per-viewer access when chosen), Delta tables, no App to join and a SQL warehouse the App reads with,
 and a move to or from it rebuilds the App part alone, offline."""
 import json
 import os
@@ -10,10 +10,9 @@ from v140_implement_test import FIXTURE, VALID
 
 PARITY = os.path.join(os.path.dirname(FIXTURE), "implement_spec_parity.json")
 HOSTED = {"app_placement": "inspire", "app_access": "user", "app_backend": "delta", "app_warehouse_id": "wh2"}
-ACCESS = "a page inside Inspire shows each viewer only the data they may read, so it always signs viewers in as themselves"
 BACKEND = "a page inside Inspire reads Delta tables; Lakebase needs an App of its own"
 MERGE = "a page inside Inspire belongs to this use case alone, so it cannot be added to another App; leave outputs.merge.app empty"
-WAREHOUSE = ("a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse each viewer reads with; each viewer needs CAN USE "
+WAREHOUSE = ("a page inside Inspire needs outputs.app_warehouse_id, the SQL warehouse the App reads with; the App needs CAN MANAGE "
              "on it")
 ADDRESS = ("outputs.inspire_url must be the https address of the Inspire App with nothing after its host, such as "
            "https://inspire.example.com: every App page and dashboard links to its use case on Inspire's Review page")
@@ -36,7 +35,7 @@ def test_inside_inspire_is_the_fourth_placement_with_its_label_and_tag(agent_ns)
     assert agent_ns["IMPLEMENT_APP_HOSTED"] == "inspire"
     assert (agent_ns["IMPLEMENT_APP_HOSTED_LABEL"], agent_ns["IMPLEMENT_APP_HOSTED_TAG"]) == ("Inside Inspire",
                                                                                             "Not recommended, only for testing")
-    assert agent_ns["IMPLEMENT_APP_HOSTED_ERRORS"] == {"access": ACCESS, "backend": BACKEND, "merge": MERGE, "warehouse": WAREHOUSE,
+    assert agent_ns["IMPLEMENT_APP_HOSTED_ERRORS"] == {"backend": BACKEND, "merge": MERGE, "warehouse": WAREHOUSE,
                                                        "inspire_url": ADDRESS}
     errors = _validated(agent_ns, app_placement="inside")[1]
     assert PLACEMENTS.format("'inside'") in errors, errors
@@ -57,20 +56,15 @@ def test_a_page_inside_inspire_with_per_viewer_access_delta_and_a_warehouse_is_k
 
 
 @pytest.mark.parametrize("changes,problem", [
-    ({"app_access": "sp"}, ACCESS),
-    ({"app_access": "SP"}, ACCESS),
     ({"app_backend": "lakebase"}, BACKEND),
     ({"merge": {"app": "sales-desk"}}, MERGE),
     ({"app_warehouse_id": ""}, WAREHOUSE),
     ({"app_warehouse_id": "   "}, WAREHOUSE),
     ({"app_warehouse_id": None}, WAREHOUSE),
-], ids=["service_principal", "service_principal_capitals", "lakebase", "merge_target", "blank_warehouse", "spaces_warehouse",
-        "missing_warehouse"])
+], ids=["lakebase", "merge_target", "blank_warehouse", "spaces_warehouse", "missing_warehouse"])
 def test_a_page_inside_inspire_refuses_what_it_cannot_honor_and_never_coerces_it(agent_ns, changes, problem):
     spec, errors = _validated(agent_ns, **dict(HOSTED, **changes))
     assert errors == [problem], errors
-    if "app_access" in changes:
-        assert spec["outputs"]["app_access"] == "sp", "the spec keeps what was sent; Inspire refuses it rather than switch it"
     if "app_backend" in changes:
         assert spec["outputs"]["app_backend"] == "lakebase"
 
@@ -78,7 +72,7 @@ def test_a_page_inside_inspire_refuses_what_it_cannot_honor_and_never_coerces_it
 def test_a_page_inside_inspire_with_everything_wrong_names_each_problem_once(agent_ns):
     outputs = {k: v for k, v in HOSTED.items() if k != "app_warehouse_id"}
     errors = _validated(agent_ns, merge={"app": "sales-desk"}, **dict(outputs, app_access="sp", app_backend="lakebase"))[1]
-    assert sorted(errors) == sorted([ACCESS, BACKEND, MERGE, WAREHOUSE])
+    assert sorted(errors) == sorted([BACKEND, MERGE, WAREHOUSE])
 
 
 def test_a_warehouse_that_is_not_an_id_gets_its_own_error_and_not_a_second_one(agent_ns):
@@ -133,7 +127,7 @@ def test_the_shared_fixtures_carry_the_inside_inspire_cases_the_app_checks_too(a
         parity = json.load(handle)
     hosted = [case for case in parity["cases"] if case["name"].startswith("inside Inspire")]
     assert len(hosted) >= 5
-    assert any(case["errors"] == [] for case in hosted) and any(ACCESS in case["errors"] for case in hosted)
+    assert any(case["errors"] == [] for case in hosted)
     assert any(MERGE in case["errors"] for case in hosted) and any(WAREHOUSE in case["errors"] for case in hosted)
     stale = [case["name"] for case in parity["cases"] if any("'business' (one App for all use cases), not" in e for e in case["errors"])]
     assert stale == [], "every placement error names the four placements"

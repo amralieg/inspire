@@ -1,4 +1,4 @@
-// REQ-405: before a run starts, the identity the run uses (the App's service principal, or the signed-in person in run-as-me) must be
+// REQ-405: before a run starts, the identity the run uses (the App's service principal, REQ-418) must be
 // able to query a chat model. The candidates are the agent's roster order (lib/modelRoster.js), at most the roster's size, each probed
 // with one one-word chat call. Any answer passes. A Permission Required entry needs a refusal (HTTP 403) from every probed candidate
 // and nothing else: an error that is not a refusal means the check could not tell, so the launch is not blocked.

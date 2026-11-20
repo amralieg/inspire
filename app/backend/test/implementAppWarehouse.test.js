@@ -29,8 +29,8 @@ const LOCK = 'this use case asks the App to read with SQL warehouse whX, but it 
   + 'wh9, the one use case Forecast demand chose when it built the App; changing it would change the pages of that use case too. '
   + "Keep the App's SQL warehouse, or create a new App for this use case";
 const WH2_NAME = { 'GET /api/2.0/sql/warehouses/wh2': [{ id: 'wh2', name: 'Finance SQL' }] };
-const WH2_USE_ONLY = { 'GET /api/2.0/permissions/sql/warehouses/wh2': [{ access_control_list: [{ user_name: 'amr@x', all_permissions: [{ permission_level: 'CAN_USE' }] }] }] };
-const WH2_MANAGED = { 'GET /api/2.0/permissions/sql/warehouses/wh2': [{ access_control_list: [{ user_name: 'amr@x', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] }] };
+const WH2_USE_ONLY = { 'GET /api/2.0/permissions/sql/warehouses/wh2': [{ access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: 'CAN_USE' }] }] }] };
+const WH2_MANAGED = { 'GET /api/2.0/permissions/sql/warehouses/wh2': [{ access_control_list: [{ service_principal_name: 'app-sp-id', all_permissions: [{ permission_level: 'CAN_MANAGE' }] }] }] };
 
 async function call(base, p, opts = {}) {
   const resp = await fetch(base + p, {

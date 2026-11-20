@@ -72,34 +72,34 @@ test('runAgainOf reads the notebook and settings of an ended run and names why i
   assert.match(LC.runAgainOf(null, '9', '2').problem, /has not ended yet/);
 });
 
-// REQ-184: the run is read with the launcher's own sign-in, so a run the person may see runs again even when the App cannot view its job.
+// REQ-418: the old run is read with the App's service principal, the identity every data read and launch uses.
 const readsOf = () => S.state.calls.filter((c) => c.path === '/api/2.1/jobs/runs/get').map((c) => c.token);
-const RUN_AGAIN_ERROR = (runId) => `Inspire could not read run ${runId} to run it again: you need CAN VIEW (or CAN MANAGE RUN) on job 5 in Databricks. `
+const RUN_AGAIN_ERROR = (runId) => `Inspire could not read run ${runId} to run it again: the App needs CAN VIEW (or CAN MANAGE RUN) on job 5 in Databricks. `
   + "Ask an App manager or the job's owner to grant it, then try again.";
 
-test('Run again reads the old run with the launcher\'s own sign-in, so a run the App cannot view still runs again (REQ-184)', async () => {
+test('Run again reads the old run with the App\'s service principal, and launches it with the same identity (REQ-418)', async () => {
   const { runId, before } = await failedLaunch();
-  S.state.runViewDenied = { tokens: [S.APP_TOKEN], jobId: '5' };
   const again = await S.request('POST', `/api/run/${runId}/again`, { person: ME, body: { session_id: '7200' } });
   assert.equal(again.status, 200, again.text.slice(0, 300));
-  assert.deepEqual(readsOf(), [S.PERSON_TOKEN], 'the old run is read with the person token, never the App token');
+  assert.deepEqual(readsOf(), [S.APP_TOKEN], 'the old run is read with the App token, never the person token');
   assert.equal(creates().length, before + 1);
   assert.deepEqual([...new Set(S.state.calls.filter((c) => c.path === '/api/2.1/jobs/run-now').map((c) => c.token))], [S.APP_TOKEN],
     'the launch keeps the App identity launchDiscover always uses');
 });
 
-test('when the person cannot view the job either, Run again names the job and the grant in plain words, with no API body (REQ-184)', async () => {
+test('when the App cannot view the old run\'s job, Run again names the job and the App\'s grant in plain words, with no API body (REQ-418)', async () => {
   const { runId, before } = await failedLaunch();
-  S.state.runViewDenied = { tokens: [S.APP_TOKEN, S.PERSON_TOKEN], jobId: '5' };
+  S.state.runViewDenied = { tokens: [S.APP_TOKEN], jobId: '5' };
   const again = await S.request('POST', `/api/run/${runId}/again`, { person: ME, body: { session_id: '7200' } });
   assert.equal(again.status, 403, again.text.slice(0, 300));
   assert.equal(again.data.error, RUN_AGAIN_ERROR(runId));
   assert.doesNotMatch(again.text, /error_code|PERMISSION_DENIED|does not have/);
   const [grant] = again.data.permissions;
-  assert.equal(grant.principal, ME);
+  assert.equal(grant.principal, S.APP_SP, 'the grant is for the App, not the person');
   // AUTO-4 (round 2): the job CLI line is a copyable step (Copy steps), so it is in `steps`, not in the plain `instructions` notes.
   assert.match(grant.steps.join('\n'), /\/api\/2\.0\/permissions\/jobs\/5/);
   assert.match(grant.steps.join('\n'), /CAN_VIEW/);
+  assert.match(grant.steps.join('\n'), new RegExp(S.APP_SP));
   assert.equal(creates().length, before, 'no job starts');
 
   S.state.launches = [];
@@ -112,7 +112,7 @@ test('when the person cannot view the job either, Run again names the job and th
 
 test('a Databricks answer other than a refusal on the read says so in plain words, without the API body (REQ-184)', async () => {
   const { runId, before } = await failedLaunch();
-  S.state.runViewDenied = { tokens: [S.PERSON_TOKEN], jobId: '5', status: 404 };
+  S.state.runViewDenied = { tokens: [S.APP_TOKEN], jobId: '5', status: 404 };
   const again = await S.request('POST', `/api/run/${runId}/again`, { person: ME, body: { session_id: '7200' } });
   assert.equal(again.status, 404, again.text.slice(0, 300));
   assert.equal(again.data.error, `Inspire could not read run ${runId} to run it again: Run ${runId} does not exist.`);

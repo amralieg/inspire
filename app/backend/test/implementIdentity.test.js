@@ -28,7 +28,8 @@ const builtRow = (createdBy, extra = {}) => ({
 });
 
 async function withApp(overrides, run) {
-  const made = makeApp({ me: SP, tokenKind: 'app', ...overrides });
+  // The App's own token answers as the App's service principal (SP), the same record the person-less wizard names.
+  const made = makeApp({ me: SP, appMe: SP, tokenKind: 'app', ...overrides });
   const srv = await listen(made.app);
   try {
     await run(srv.url, made);
@@ -86,7 +87,8 @@ test('an owners-only change refuses when only the service principal is known, ev
 test('the permission checks still name the identity that ran them, the service principal, and never the person', async () => {
   await withApp({ accessError: 'PERMISSION_DENIED: You do not have CAN_USE on warehouse wh1' }, async (url) => {
     const got = await call(url, `/api/inspire/implement/preflight?${Q}&result_table=main.inspire.churn_out`, { headers: { 'x-forwarded-email': PERSON } });
-    assert.equal(got.data.identity, SP.userName);
+    // The preflight names the App's service principal by its display name (the same name the wizard shows), never the person.
+    assert.equal(got.data.identity, SP.displayName);
   });
 });
 

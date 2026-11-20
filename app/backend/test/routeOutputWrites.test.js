@@ -21,31 +21,37 @@ const SCOPE_ONLY = (person) =>
 const WRITE_CALL = (c) => ['POST', 'PUT', 'PATCH', 'DELETE'].includes(c.method) && !c.path.startsWith('/api/2.0/sql/') && c.path !== '/oidc/v1/token';
 const APP_CANT = (folder) => `The Inspire App can't write to ${folder}, so the run saves no files there. Ask an App manager to give the App CAN MANAGE on it.`;
 const APP_CANT_CREATE = (folder) => `${folder} does not exist yet, and the Inspire App can't create it, so the run saves no files there. Create ${folder}, then give the App CAN MANAGE on it.`;
+const APP_CANT_VOLUME = (folder) => `The Inspire App can't write to ${folder}, so the run saves no files there. Ask your data owner to give the App WRITE VOLUME on it.`;
+const APP_HIDDEN = (folder, at) => `${folder} does not exist yet, and the Inspire App cannot see ${at} to create it, so the run saves no files there. Pick a folder the App can see.`;
+const APP_HIDDEN_VOLUME = (folder, at) => `${folder} does not exist yet, and the Inspire App cannot see ${at} to create it, so the run saves no files there. `
+  + 'Create the volume, or ask your data owner for access to it.';
+const APP_NOT_FOLDER = (at) => `${at} is not a folder, so the run saves no files there. Pick a folder, not a notebook or a file.`;
+const APP_SCOPE = (folder) => `The Inspire App can't write to ${folder}, so the run saves no files there: the App's sign-in lacks a scope this check needs. `
+  + 'Ask an App manager to re-run the Inspire installer, which adds the scopes Inspire needs.';
+const UNRUNNABLE_OWN = (home) => `Inspire cannot save to your own folder ${home}, and the App cannot write there yet, so Inspire will not start a run that saves no files there: `
+  + `ask an App manager to give the App CAN MANAGE on ${home}, then launch again.`;
 const submitted = () => S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/'));
 const probes = () => S.state.calls.filter((c) => c.path === '/api/2.0/workspace/mkdirs' || (c.path.startsWith('/api/2.0/fs/directories/') && c.method === 'PUT'));
 
-test('a run launch into a folder the person cannot edit is refused with a 403 that names the folder and the fix, and nothing is submitted', async () => {
-  S.reset({ notebookPresent: true, folders: { [HOME]: { id: 11, writers: [OWNER] } } });
+test('a run launch into a folder the App cannot write is refused with a 403 that names the folder and the fix, and nothing is submitted', async () => {
+  // The person can write the folder; the App cannot. The App's own probe decides, so the person's rights do not save the run.
+  S.reset({ notebookPresent: true, folders: { [HOME]: { id: 11, writers: [OWNER] }, [`${HOME}/inspire_out`]: { id: 15, writers: [OWNER] } } });
   const got = await launch(`${HOME}/inspire_out`);
   assert.equal(got.status, 403, got.text);
   assert.equal(got.data.policy.rule, 'writer');
   assert.deepEqual(got.data.unwritable, [`${HOME}/inspire_out`]);
-  assert.equal(got.data.error, `You cannot write to ${HOME}/inspire_out (you cannot create anything in ${HOME}) with your own sign-in, and Inspire never writes `
-    + 'for you where you cannot write: choose a folder you can manage, such as one under your own user folder, or ask its owner for CAN MANAGE on it, '
-    + 'which Databricks needs before anyone can create something in a folder.');
+  assert.equal(got.data.error, APP_CANT(`${HOME}/inspire_out`));
   assert.deepEqual(submitted(), [], 'no job was created or run');
   assert.deepEqual(S.state.launches, []);
   assert.deepEqual(S.state.created, [], 'the refused probe created nothing');
-  assert.ok(probes().length === 1 && probes()[0].token === S.PERSON_TOKEN, 'one probe, with the person token');
+  assert.ok(probes().length === 1 && probes()[0].token === S.APP_TOKEN, 'one probe, with the App token, never the person token');
 });
 
-test('a run launch into a folder the person can edit is submitted, the probe is deleted, and the launch record says the check passed on that folder', async () => {
+test('a run launch into a folder the App can write is submitted, the probe is deleted, and the launch record says the check passed on that folder', async () => {
   for (const [label, seed, asked, folder] of [
     ['the default folder beside the notebook, open to all users', {}, undefined, '/Shared/demos'],
-    ['the nearest existing parent decides for a folder that does not exist yet', { folders: { [`/Users/${ME}`]: { id: 12, writers: [ME] } } }, `/Workspace/Users/${ME}/new/deeper`, `/Users/${ME}/new/deeper`],
-    ['CAN MANAGE through a group the person is directly in', { personGroups: ['analysts'], folders: { '/Shared/team': { id: 13, writers: ['group:analysts'] } } }, '/Shared/team/out', '/Shared/team/out'],
-    ['a grant reached through a nested group, which the person\'s own group list does not name', { personGroups: ['analysts'], groupParents: { analysts: ['data'], data: ['everyone-in-finance'] },
-      folders: { '/Shared/team': { id: 13, writers: ['group:everyone-in-finance'] } } }, '/Shared/team/out', '/Shared/team/out'],
+    ['the nearest existing parent decides for a folder that does not exist yet', { folders: { [`/Users/${ME}`]: { id: 12, writers: [ME, S.APP_SP] } } }, `/Workspace/Users/${ME}/new/deeper`, `/Users/${ME}/new/deeper`],
+    ['a folder the App is granted on directly, while the person is in a group the App is not in', { personGroups: ['analysts'], folders: { '/Shared/team': { id: 13, writers: [S.APP_SP] } } }, '/Shared/team/out', '/Shared/team/out'],
   ]) {
     S.reset({ notebookPresent: true, ...seed });
     const got = await launch(asked);
@@ -59,36 +65,42 @@ test('a run launch into a folder the person can edit is submitted, the probe is 
   }
 });
 
-test('a group grant the platform does not resolve, a hidden folder and a file in the way all refuse the launch (must-exclude)', async () => {
-  for (const [label, seed, reason] of [
-    ['a grant to a group the person is not in, even through parents', { personGroups: ['analysts'], groupParents: { analysts: ['data'] },
-      folders: { '/Shared/team': { id: 13, writers: ['group:finance'] } } }, 'you cannot create anything in /Shared/team'],
-    ['a folder the person cannot see', { folders: { '/Shared/team': { id: 13, hidden: true } } }, 'you cannot see /Shared/team'],
-    ['a notebook where the folder would be', { folders: { '/Shared/team': { id: 13, type: 'NOTEBOOK' } } }, '/Shared/team is not a folder'],
-    ['a person sign-in without the workspace scope', { scopeless: true, folders: { '/Shared/team': { id: 13, writers: '*' } } }, "Inspire's sign-in for you lacks a scope this check needs"],
+test('a folder the App cannot write refuses the launch even when the person can reach it: a group the App is not in, a hidden folder, a notebook in the way and a missing scope (must-exclude)', async () => {
+  // The person reaches group:finance through parents, but the App is not in it, so the App's probe fails.
+  // The refusal wording is the App's own (the copy does not carry the reason, see the report).
+  for (const [label, seed, expected] of [
+    ['a group the App is not in, though the person reaches it through parents',
+      { personGroups: ['analysts'], groupParents: { analysts: ['data'], data: ['finance'] }, folders: { '/Shared/team': { id: 13, writers: ['group:finance'] } } }, APP_CANT_CREATE('/Shared/team/out')],
+    ['a folder the App cannot see', { folders: { '/Shared/team': { id: 13, hidden: true } } }, APP_HIDDEN('/Shared/team/out', '/Shared/team')],
+    ['a notebook where the folder would be', { folders: { '/Shared/team': { id: 13, type: 'NOTEBOOK' } } }, APP_NOT_FOLDER('/Shared/team')],
+    ['an App check that lacks a workspace scope', { scopeless: true, folders: { '/Shared/team': { id: 13, writers: '*' } } }, APP_SCOPE('/Shared/team/out')],
   ]) {
     S.reset({ notebookPresent: true, ...seed });
     const got = await launch('/Shared/team/out');
     assert.equal(got.status, 403, `${label}: ${got.text}`);
-    assert.ok(got.data.error.includes(reason), `${label}: ${got.data.error}`);
+    assert.equal(got.data.policy.rule, 'writer', label);
+    assert.deepEqual(got.data.unwritable, ['/Shared/team/out'], label);
+    assert.equal(got.data.error, expected, label);
     assert.deepEqual(submitted(), [], label);
+    assert.deepEqual(S.state.launches, [], label);
   }
 });
 
-test('a CAN_USE person launching into a volume they can only read is refused with a 403 and nothing is submitted', async () => {
+test('a volume the App can only read is refused with a 403 that names the data-owner fix, and nothing is submitted', async () => {
   S.reset({ notebookPresent: true, volumes: { 'main.sales.files': { writers: [OWNER] } } });
   const got = await launch('/Volumes/main/sales/files/out');
   assert.equal(got.status, 403, got.text);
   assert.equal(got.data.policy.rule, 'writer');
   assert.deepEqual(got.data.unwritable, ['/Volumes/main/sales/files/out']);
+  assert.equal(got.data.error, APP_CANT_VOLUME('/Volumes/main/sales/files/out'));
   assert.deepEqual(submitted(), [], 'no job was created or run');
   assert.deepEqual(S.state.launches, []);
 });
 
-test('a person whose sign-in cannot read folder permissions or Unity Catalog grants, as the documented Apps scopes allow, still launches into a folder and a volume they can write', async () => {
+test('a person whose sign-in cannot read folder permissions or Unity Catalog grants still launches, because the App writes the output and reads no person grant', async () => {
   for (const [label, seed, asked] of [
-    ['their own folder', { folders: { [`/Users/${ME}`]: { id: 12, writers: [ME] } } }, `/Users/${ME}/out`],
-    ['a volume they can write', { volumes: { 'main.sales.files': { writers: [ME] } } }, '/Volumes/main/sales/files/out'],
+    ['their own folder', { folders: { [`/Users/${ME}`]: { id: 12, writers: [ME, S.APP_SP] } } }, `/Users/${ME}/out`],
+    ['a volume the App can write', { volumes: { 'main.sales.files': { writers: [S.APP_SP] } } }, '/Volumes/main/sales/files/out'],
   ]) {
     S.reset({ notebookPresent: true, ...seed });
     const got = await launch(asked);
@@ -101,80 +113,95 @@ test('a person whose sign-in cannot read folder permissions or Unity Catalog gra
 
 test('a probe left behind by a failed delete is swept by the next check in that folder', async () => {
   const stale = `/Users/${ME}/${W().PROBE_PREFIX}0123456789abcdef0123456789abcdef`;
-  S.reset({ notebookPresent: true, deleteFails: true, folders: { [`/Users/${ME}`]: { id: 12, writers: [ME] } } });
+  S.reset({ notebookPresent: true, deleteFails: true, folders: { [`/Users/${ME}`]: { id: 12, writers: [ME, S.APP_SP] } } });
   assert.equal((await launch(`/Users/${ME}/out`)).status, 200, 'a failed delete does not fail the launch');
   assert.equal(S.state.created.length, 1, 'the probe stayed');
   assert.ok(S.state.logs.some((l) => l.includes('could not be deleted; the next check in that folder deletes it')));
   const left = S.state.created[0];
   const file = `/Users/${ME}/${W().PROBE_PREFIX}notes.py`;
-  S.reset({ notebookPresent: true, leftovers: [left, stale, `/Users/${ME}/keep_me`], leftoverFiles: [file], folders: { [`/Users/${ME}`]: { id: 12, writers: [ME] } } });
+  S.reset({ notebookPresent: true, leftovers: [left, stale, `/Users/${ME}/keep_me`], leftoverFiles: [file], folders: { [`/Users/${ME}`]: { id: 12, writers: [ME, S.APP_SP] } } });
   assert.equal((await launch(`/Users/${ME}/out`)).status, 200);
   assert.deepEqual(S.state.leftovers, [`/Users/${ME}/keep_me`], 'only probe leftovers are swept');
   assert.deepEqual(S.state.leftoverFiles, [file], 'a file that only shares the probe name is never deleted (must-exclude)');
   assert.ok(S.state.deleted.includes(left) && S.state.deleted.includes(stale));
 });
 
-test('a volume needs a probe the platform lets the person create, read with the person token', async () => {
-  for (const [label, volume, status] of [
-    ['WRITE VOLUME for the person', { writers: [ME] }, 200],
-    ['WRITE VOLUME through a nested group', { writers: ['group:lake-writers'] }, 200],
-    ['READ VOLUME only', { writers: [OWNER] }, 403],
-    ['no such volume', null, 403],
+test('a volume needs a probe the App can create, read with the App token, and a grant the App does not hold is refused', async () => {
+  for (const [label, volume, status, message] of [
+    ['WRITE VOLUME for the App', { writers: [S.APP_SP] }, 200, null],
+    ['WRITE VOLUME for the person only, which the App does not hold', { writers: [ME] }, 403, APP_CANT_VOLUME('/Volumes/main/sales/files/out')],
+    ['WRITE VOLUME through a group the App is not in, though the person is', { writers: ['group:lake-writers'] }, 403, APP_CANT_VOLUME('/Volumes/main/sales/files/out')],
+    ['READ VOLUME only', { writers: [OWNER] }, 403, APP_CANT_VOLUME('/Volumes/main/sales/files/out')],
+    ['no such volume', null, 403, APP_HIDDEN_VOLUME('/Volumes/main/sales/files/out', '/Volumes/main/sales/files')],
   ]) {
     S.reset({ notebookPresent: true, personGroups: ['analysts'], groupParents: { analysts: ['lake-writers'] }, volumes: volume ? { 'main.sales.files': volume } : {} });
     const got = await launch('/Volumes/Main/Sales/Files/out');
     assert.equal(got.status, status, `${label}: ${got.text}`);
-    if (status === 403) assert.match(got.data.error, /ask your data owner for WRITE VOLUME on the volume main\.sales\.files\.$/, label);
+    if (status === 403) assert.equal(got.data.error, message, label);
     if (status === 200) assert.deepEqual([S.state.launches[0].output_folder, S.state.created.length], ['/Volumes/main/sales/files/out', 0], label);
-    const reads = S.state.calls.filter((c) => c.path.startsWith('/api/2.0/fs/'));
-    assert.ok(reads.some((c) => c.token === S.PERSON_TOKEN), `${label}: the person check uses the person token`);
-    assert.ok(reads.every((c) => [S.PERSON_TOKEN, S.APP_TOKEN].includes(c.token)), `${label}: any other volume call is the App checking its own write`);
+    const fsCalls = S.state.calls.filter((c) => c.path.startsWith('/api/2.0/fs/'));
+    assert.ok(fsCalls.length > 0, `${label}: the volume was checked`);
+    assert.ok(fsCalls.every((c) => c.token === S.APP_TOKEN), `${label}: every volume call is the App checking its own write, never the person`);
   }
 });
 
-test('an App manager skips the write check, the launch record says manager, and a CAN_USE person launching into the same folder is refused', async () => {
+test('an App manager is checked like everyone else: a folder the App cannot write refuses the launch, and one it can write launches as passed (REQ-418: no manager skip)', async () => {
   const folders = { [HOME]: { id: 11, writers: [OWNER] } };
   S.reset({ notebookPresent: true, managers: [BOSS], folders });
-  const boss = await launch(`${HOME}/inspire_out`, { person: BOSS });
-  assert.equal(boss.status, 200, boss.text);
-  assert.deepEqual([S.state.launches[0].output_folder, S.state.launches[0].output_checked], [`${HOME}/inspire_out`, 'manager']);
-  assert.deepEqual([...new Set(probes().map((c) => c.token))], [S.APP_TOKEN], 'no person probe for a manager, only the App checking the folder it writes to');
-  S.reset({ notebookPresent: true, managers: [BOSS], folders });
-  const person = await launch(`${HOME}/inspire_out`);
-  assert.equal(person.status, 403, person.text);
-  assert.deepEqual(submitted(), []);
+  const refused = await launch(`${HOME}/inspire_out`, { person: BOSS });
+  assert.equal(refused.status, 403, refused.text);
+  assert.equal(refused.data.error, APP_CANT_CREATE(`${HOME}/inspire_out`));
+  assert.deepEqual(submitted(), [], 'nothing is submitted');
+  S.reset({ notebookPresent: true, managers: [BOSS], folders: { [HOME]: { id: 11, writers: [OWNER, S.APP_SP] } } });
+  const ok = await launch(`${HOME}/inspire_out`, { person: BOSS });
+  assert.equal(ok.status, 200, ok.text);
+  assert.deepEqual([S.state.launches[0].output_folder, S.state.launches[0].output_checked], [`${HOME}/inspire_out`, 'passed']);
+  assert.ok(probes().length > 0, 'the App probe runs for a manager too');
 });
 
-test('CAN MANAGE on the App through a nested group, which the person sign-in lists as an indirect group, also skips the write check', async () => {
+test('a CAN MANAGE grant on the App through a nested group refuses a person outside it, and that group is checked like everyone else', async () => {
   const folders = { [HOME]: { id: 11, writers: [OWNER] } };
-  S.reset({ notebookPresent: true, managerGroups: ['app-admins'], personGroups: ['analysts', 'app-admins'], indirectGroups: ['app-admins'], folders });
-  const nested = await launch(`${HOME}/inspire_out`);
-  assert.equal(nested.status, 200, nested.text);
-  assert.equal(S.state.launches[0].output_checked, 'manager');
-  assert.ok(probes().every((c) => c.token === S.APP_TOKEN), 'no person probe');
   S.reset({ notebookPresent: true, managerGroups: ['app-admins'], personGroups: ['analysts'], groupParents: { analysts: ['data'] }, folders });
   const outside = await launch(`${HOME}/inspire_out`);
   assert.equal(outside.status, 403, `a group that does not reach the App managers grants nothing (must-exclude): ${outside.text}`);
+  assert.equal(outside.data.error, APP_CANT_CREATE(`${HOME}/inspire_out`));
   assert.deepEqual(submitted(), []);
+  S.reset({ notebookPresent: true, managerGroups: ['app-admins'], personGroups: ['analysts', 'app-admins'], indirectGroups: ['app-admins'], folders });
+  const nested = await launch(`${HOME}/inspire_out`);
+  assert.equal(nested.status, 403, `a nested manager is checked too, and the App cannot write there (REQ-418): ${nested.text}`);
+  assert.equal(nested.data.error, APP_CANT_CREATE(`${HOME}/inspire_out`));
+  assert.ok(probes().length > 0, 'the App probe runs for a nested manager too');
 });
 
-test('a launch without the person token is refused with a 401 and nothing is submitted', async () => {
+test('a launch with no person sign-in still runs as the App: no 401, the App token on every write check, and the shared folder when there is no own folder', async () => {
   S.reset({ notebookPresent: true });
-  const got = await launch(undefined, { userToken: false });
-  assert.equal(got.status, 401, got.text);
-  assert.equal(got.data.policy.identity, 'person');
-  assert.equal(got.data.error, W().WRITE_NO_SIGN_IN);
-  assert.deepEqual(submitted(), []);
+  const got = await launch(undefined, { signedIn: false });
+  assert.equal(got.status, 200, got.text);
+  assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], '/Workspace/Shared/demos', 'the shared folder is the one the notebook saves to');
+  assert.ok(S.state.createdJob, 'the job was created');
+  assert.deepEqual([...new Set(probes().map((c) => c.token))], [S.APP_TOKEN]);
+  assert.equal(S.state.calls.filter((c) => c.token === S.PERSON_TOKEN).length, 0, 'no call carried a person token');
+  S.reset({ notebookPresent: true });
+  const signedInNoToken = await launch(undefined, { userToken: false });
+  assert.equal(signedInNoToken.status, 200, `no 401 when only the person's token is missing: ${signedInNoToken.text}`);
+  assert.deepEqual(signedInNoToken.data.warnings, [SHARED_ONLY(ME)]);
+  assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], '/Workspace/Shared/demos');
 });
 
-test('the output folder check answers the same verdict without launching anything, and says when a manager skipped it', async () => {
-  const folders = { [HOME]: { id: 11, writers: [OWNER] } };
+test('the output folder check answers the same verdict a launch would, without launching anything, for a manager too', async () => {
   const ask = (person, path = `${HOME}/inspire_out`) => S.request('POST', '/api/output-folder/check', { person, body: { generation_path: path } });
-  S.reset({ folders, managers: [BOSS] });
-  const mine = await ask(OWNER);
-  assert.equal(mine.status, 200, mine.text);
-  assert.deepEqual(mine.data, { allowed: true, folder: `${HOME}/inspire_out`, checked: 'passed', warnings: [APP_CANT_CREATE(`${HOME}/inspire_out`)] });
+  S.reset({ folders: { [HOME]: { id: 11, writers: [OWNER, S.APP_SP] } } });
+  const writable = await ask(OWNER);
+  assert.equal(writable.status, 200, writable.text);
+  assert.deepEqual(writable.data, { allowed: true, folder: `${HOME}/inspire_out`, checked: 'passed', warnings: [] });
   assert.deepEqual(S.state.created, [], 'the probe was deleted');
+  S.reset({ folders: { [HOME]: { id: 11, writers: [OWNER] } } });
+  const refused = await ask(OWNER);
+  assert.equal(refused.status, 403, refused.text);
+  assert.equal(refused.data.error, APP_CANT_CREATE(`${HOME}/inspire_out`));
+  assert.equal(refused.data.policy.rule, 'writer');
+  assert.deepEqual(S.state.created, [], 'the refused probe created nothing');
+  const folders = { [HOME]: { id: 11, writers: [OWNER] } };
   for (const path of ['./../demos/', '']) {
     S.reset({ folders: { ...folders, '/Shared/demos': { id: 7, writers: '*' } }, managers: [BOSS] });
     const own = await ask(OWNER, path);
@@ -188,12 +215,15 @@ test('the output folder check answers the same verdict without launching anythin
   }
   const old = await S.request('GET', `/api/output-folder/check?generation_path=${encodeURIComponent('./../demos/')}`, { person: OWNER });
   assert.equal(old.status, 404, 'the check is a POST, so no generation path ever travels in a request URL');
-  const boss = await ask(BOSS);
-  assert.deepEqual([boss.status, boss.data.checked], [200, 'manager']);
   const theirs = await ask(ME);
   assert.equal(theirs.status, 403, theirs.text);
   assert.equal(theirs.data.policy.rule, 'writer');
   assert.deepEqual(S.state.calls.filter((c) => c.path.startsWith('/api/2.1/jobs/') || c.statement.startsWith('INSERT')), []);
+  S.reset({ folders, managers: [BOSS] });
+  const boss = await ask(BOSS);
+  assert.equal(boss.status, 403, boss.text);
+  assert.equal(boss.data.error, APP_CANT_CREATE(`${HOME}/inspire_out`));
+  assert.deepEqual(S.state.created, [], 'the refused probe created nothing');
 });
 
 test('a launched run opens its output folder with the App token, for a passed check and for a manager skip of that exact folder', async () => {
@@ -216,22 +246,22 @@ test('the write targets come from the generation path, resolved like the noteboo
   assert.deepEqual(W().discoverWrites({ '11_generation_path': 'dbfs:/tmp/out' }, '/Shared/x/nb'), { folders: ['dbfs:/tmp/out'], defaulted: false });
 });
 
-test('the default output folder is the person\u2019s own inspire_output, a locked or App-less home falls back to the shared folder and says everyone can read it, and a typed folder is never swapped (must-exclude)', async () => {
+test('the default output folder is the person’s own inspire_output once the App can write it, a folder the App cannot write falls back to the shared folder with a line of text, and a typed folder is never swapped (must-exclude)', async () => {
   const mine = `/Users/${ME}`;
-  const private_ = { notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' }, [mine]: { id: 12, writers: [ME, S.APP_SP] } } };
+  const appWritable = { notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' }, [mine]: { id: 12, writers: [ME, S.APP_SP] } } };
   for (const asked of [undefined, '', './../demos/']) {
-    S.reset(private_);
+    S.reset(appWritable);
     const got = await launch(asked);
     assert.equal(got.status, 200, `${JSON.stringify(asked)}: ${got.text}`);
-    assert.equal(got.data.warnings, undefined, `${JSON.stringify(asked)}: the person\u2019s own folder needs no warning`);
+    assert.equal(got.data.warnings, undefined, `${JSON.stringify(asked)}: the person’s own folder needs no warning`);
     assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], `/Workspace${mine}/inspire_output`);
     assert.equal(S.state.launches[0].output_folder, `${mine}/inspire_output`);
   }
-  S.reset(private_);
+  S.reset(appWritable);
   const check = await S.request('POST', '/api/output-folder/check', { person: ME, body: { generation_path: '' } });
   assert.deepEqual([check.status, check.data], [200, { allowed: true, folder: `${mine}/inspire_output`, checked: 'passed',
     warnings: [], generation_path: `/Workspace${mine}/inspire_output` }]);
-  S.reset(private_);
+  S.reset(appWritable);
   const typed = await launch('/Shared/demos/');
   assert.equal(typed.status, 200, typed.text);
   assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], '/Shared/demos/', 'a folder the person typed is never swapped');
@@ -248,8 +278,8 @@ test('the default output folder is the person\u2019s own inspire_output, a locke
   S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: '*' } } });
   const nohome = await launch(undefined);
   assert.deepEqual(nohome.data.warnings, [SHARED_ONLY(ME)]);
-  assert.match(nohome.data.warning_details[0], /^You cannot write to \/Users\/nonowner@example\.com\/inspire_output \(/, 'why the person\u2019s own folder failed sits under Details');
-  assert.deepEqual(S.state.grants, [], 'a folder the person cannot write is never shared');
+  assert.match(nohome.data.warning_details[0], /^POST \/api\/2\.0\/workspace\/mkdirs \/Users\/nonowner@example\.com\/inspire_output answered HTTP 403/, 'why the person’s own folder failed sits under Details');
+  assert.deepEqual(S.state.grants, [], 'a folder the App cannot write is never shared by a failed grant');
   assert.equal(S.state.createdJob.tasks[0].notebook_task.base_parameters['11_generation_path'], '/Workspace/Shared/demos');
   S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: [] }, [mine]: { id: 12, writers: [ME, S.APP_SP] } } });
   const locked = await launch(undefined);
@@ -258,23 +288,20 @@ test('the default output folder is the person\u2019s own inspire_output, a locke
   S.reset({ notebookPresent: true, folders: { '/Shared/demos': { id: 7, writers: [] }, [mine]: { id: 12, writers: [OWNER] } } });
   const nowhere = await launch(undefined);
   assert.equal(nowhere.status, 403, `neither folder takes the run: ${nowhere.text}`);
-  assert.deepEqual(nowhere.data.unwritable, ['/Shared/demos']);
+  assert.deepEqual(nowhere.data.unwritable, [`${mine}/inspire_output`], 'the refusal names the person’s own output folder, the one the run would save to');
+  assert.equal(nowhere.data.error, UNRUNNABLE_OWN(`${mine}/inspire_output`));
   assert.deepEqual(submitted(), []);
 });
 
-test('the App writes the run\u2019s files, so a folder only the person can write warns up front, for a manager too, and a folder the App can write says nothing', async () => {
-  S.reset({ notebookPresent: true, managers: [BOSS], folders: { [HOME]: { id: 11, writers: [OWNER] } } });
-  const boss = await launch(`${HOME}/inspire_out`, { person: BOSS });
-  assert.equal(boss.status, 200, boss.text);
-  assert.deepEqual(boss.data.warnings, [APP_CANT_CREATE(`${HOME}/inspire_out`)]);
-  S.reset({ notebookPresent: true, managers: [BOSS], folders: { [HOME]: { id: 11, writers: [OWNER, S.APP_SP] } } });
-  const granted = await launch(`${HOME}/inspire_out`, { person: BOSS });
+test('a folder the App can write takes the run with no warning, and the App’s own probe is the only write check', async () => {
+  S.reset({ notebookPresent: true, folders: { [HOME]: { id: 11, writers: [OWNER, S.APP_SP] } } });
+  const granted = await launch(`${HOME}/inspire_out`);
   assert.equal(granted.status, 200, granted.text);
   assert.equal(granted.data.warnings, undefined);
-  assert.ok(probes().some((c) => c.token === S.APP_TOKEN), 'the App checked its own write');
+  assert.ok(probes().length > 0 && probes().every((c) => c.token === S.APP_TOKEN), 'the App checked its own write, and the person was never probed');
 });
 
-test('a folder that does not exist yet is checked on its nearest existing parent for the App too: a parent the App can write says nothing, a parent it cannot says the folder is new and how to fix it, and an existing locked folder keeps the grant text (must-exclude)', async () => {
+test('a folder that does not exist yet is checked on its nearest existing parent for the App too: a parent the App can write says nothing, a parent it cannot refuses and says the folder is new and how to fix it, and an existing locked folder keeps the grant text (must-exclude)', async () => {
   const ask = (path) => S.request('POST', '/api/output-folder/check', { person: OWNER, body: { generation_path: path } });
   const fresh = `${HOME}/brand_new/deeper`;
   S.reset({ folders: { [HOME]: { id: 11, writers: [OWNER, S.APP_SP] } } });
@@ -283,16 +310,18 @@ test('a folder that does not exist yet is checked on its nearest existing parent
   assert.ok(probes().some((c) => c.token === S.APP_TOKEN && String(JSON.parse(c.raw).path).startsWith(`${HOME}/${W().PROBE_PREFIX}`)), 'the App probe ran in the existing parent');
   S.reset({ folders: { [HOME]: { id: 11, writers: [OWNER] } } });
   const closed = await ask(`/Workspace${fresh}`);
-  assert.deepEqual([closed.status, closed.data.warnings], [200, [APP_CANT_CREATE(fresh)]], closed.text);
+  assert.deepEqual([closed.status, closed.data.error], [403, APP_CANT_CREATE(fresh)], closed.text);
   S.reset({ folders: { [HOME]: { id: 11, writers: [OWNER] }, [`${HOME}/made`]: { id: 14, writers: [OWNER] } } });
   const existing = await ask(`${HOME}/made`);
-  assert.deepEqual([existing.status, existing.data.warnings], [200, [APP_CANT(`${HOME}/made`)]], 'an existing folder the App cannot write keeps the grant text');
+  assert.deepEqual([existing.status, existing.data.error], [403, APP_CANT(`${HOME}/made`)], 'an existing folder the App cannot write keeps the grant text');
   S.reset({ folders: { [HOME]: { id: 11, writers: [OWNER] }, [`${HOME}/made`]: { id: 14, writers: [OWNER, S.APP_SP] } } });
   assert.deepEqual((await ask(`${HOME}/made`)).data.warnings, [], 'an existing folder the App can write says nothing');
+  S.reset({ volumes: { 'main.sales.files': { writers: [S.APP_SP] } } });
+  const volumeOpen = await ask('/Volumes/main/sales/files/new_out');
+  assert.deepEqual([volumeOpen.status, volumeOpen.data.warnings], [200, []], 'a volume the App can write says nothing');
   S.reset({ volumes: { 'main.sales.files': { writers: [OWNER] } } });
   const volume = await ask('/Volumes/main/sales/files/new_out');
-  assert.deepEqual(volume.data.warnings, ["The Inspire App can't write to /Volumes/main/sales/files/new_out, so the run saves no files there. Ask your data owner to give the App WRITE VOLUME on it."],
-    'a volume needs WRITE VOLUME, never CAN MANAGE');
+  assert.deepEqual([volume.status, volume.data.error], [403, APP_CANT_VOLUME('/Volumes/main/sales/files/new_out')], 'a volume needs WRITE VOLUME for the App, never CAN MANAGE');
 });
 
 test('a Generation Path that is no folder is refused with a 400 that says why, for an App manager too, before any probe or job (must-exclude)', async () => {

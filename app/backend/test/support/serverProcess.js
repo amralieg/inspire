@@ -71,7 +71,11 @@ async function startInspire(env, { readyMs = 90000, command = [process.execPath,
     if (child.exitCode !== null) throw new Error(`server.js exited with ${child.exitCode}: ${output.slice(-3000)}`);
     const listening = output.match(LISTENING);
     if (listening) url = `http://127.0.0.1:${listening[1]}`;
-    const ready = url ? await fetch(`${url}/api/health`).then((resp) => resp.ok, () => false) : false;
+    // Ready means the router answers JSON, not only that the port is open: /api/defaults is a JSON route, so an HTML answer (the SPA fallback
+    // or an error page) keeps the harness waiting instead of racing the first test request.
+    const ready = url ? await Promise.all([fetch(`${url}/api/health`).then((resp) => resp.ok, () => false),
+      fetch(`${url}/api/defaults`).then(async (resp) => resp.ok && /json/.test(resp.headers.get('content-type') || ''), () => false)])
+      .then((checks) => checks.every(Boolean)) : false;
     if (ready) break;
     if (Date.now() > deadline) {
       await stop();

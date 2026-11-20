@@ -92,6 +92,21 @@ Resolution is implemented in **`getToken(req)`** with nuances for `NODE_ENV` and
 - **`GET /api/defaults`** returns `hasServerPlatformAuth`, `databricksHost`, `warehouseId`, `inspireDatabase`, `notebookPath`, `isDatabricksApp`, etc.
 - Frontend sets **`serverEnvHasPat`** when the browser can omit a PAT but the server can still call Databricks (name is historical).
 
+### 3.4 Identity model (REQ-418, D-SL-10B, D-SL-11)
+
+Inspire runs as **its App's service principal (SP)** for every read, check and launch. A person's own grants never decide what Inspire reads, so the same request gives the same answer for every signed-in person. The run-as-the-person mode is retired: no run-as job, no `INSPIRE_RUN_AS_PERSON`, and no installer job per run-as type.
+
+| Identity | Where it is used |
+|----------|------------------|
+| **App SP** (`identity: app` in `lib/routePolicy.js`) | Every data read (catalogs, schemas, tables, columns, values, relationships, readiness counts, samples copy), every source-access probe and ABAC policy read, every Discover, build, Genie and demo launch, every run read, the workspace browse and the output write |
+| **Signed-in person** (`identity: person`) | Who-did-what records (the requester of a schema, the person who stops a run is recorded), a Request for Access sent as the person, a grant the person runs with their own sign-in (`grant-access`, and the grant check on Grant), and the share of the person's own default output folder with the App |
+
+`routePolicy.identityFor(key)` is the only identity rule. `requireToken` sets `req.dbToken` to the App token for `app` routes and to the person's forwarded token for `person` routes. A route that answers 401 for a missing person sign-in is one of the `person` routes (`personSignInRoutes()`).
+
+- **Built Apps** default to the App SP (`APP_ACCESS_DEFAULT = 'sp'`): everyone who opens the App sees the same rows. The build wizard shows the identity choice only when a source table has a **row filter** or a **column mask** (the ABAC policy read, one detector), or under Advanced after the first version. Per-user is a choice the person makes, never a forced default; Inside Inspire follows the same rule.
+- **Unreadable source tables.** A probe that finds a table gone (`TABLE_OR_VIEW_NOT_FOUND`) reports it as missing, never as a grant the App lacks. Only a read the App is denied is offered as a Permission Required grant for the App principal.
+- **Output folders.** The App writes the run's output, so the App's own write check decides the folder. A folder the App cannot write refuses the launch. An App manager skips the check (`checked: manager`). The person's own default folder is shared with the App with the person's sign-in, and that share never blocks a run: the run uses the shared folder and says so.
+
 **Request pipeline:**
 
 ```
@@ -121,6 +136,8 @@ Resolution is implemented in **`getToken(req)`** with nuances for `NODE_ENV` and
 ## 4. Unity Catalog listing in the App
 
 ### 4.1 API routes (all behind `requireToken`)
+
+These three read as the App's service principal (REQ-418), so every person sees the same catalogs, schemas and tables.
 
 | Route | Purpose |
 |-------|---------|
@@ -206,7 +223,7 @@ Results are **merged by name** (REST first, SQL adds missing entries). Response 
 ## 8. Security summary
 
 - **End users** do not receive the App SP’s client secret in normal flow; it stays in **App env / Databricks-managed resource**.
-- **BROWSE** on non-Inspire catalogs is for the Discover job and the pre-run read check, which run as the App SP, not for the picker (it lists with the person's own sign-in). **USE_SCHEMA** and **SELECT** there are for builds, which run as the App SP and read the source tables after the person's own read check. `SCAN_CATALOGS` in the installer limits them to the catalogs you scan.
+- **BROWSE** on non-Inspire catalogs lets the App SP see the tables it may read through the picker, the Discover job and the pre-run read check. Every one of them runs as the App SP. **USE_SCHEMA** and **SELECT** there are for builds, which run as the App SP. `SCAN_CATALOGS` in the installer limits them to the catalogs you scan.
 - When the App SP still cannot read a source table the person can read, the plan, submit and rerun refusals name the App SP and the grants an owner runs, and `POST /api/inspire/implement/grant-access` lets a person who owns or holds MANAGE run them with that person's own token. The same action grants `USE CATALOG` on the Inspire catalog to account users, so the Apps Implement builds can read their result tables, only when nothing below the catalog is granted to account users. `NEW_APPS_CATALOG_ACCESS` in the installer does the same at install time.
 - **Production** host pinning avoids calling the wrong workspace with a valid token.
 

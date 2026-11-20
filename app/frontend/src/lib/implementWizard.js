@@ -108,11 +108,19 @@ export function contextSettings(context, spec) {
     family: context?.family || '', editing: Boolean(context?.latest) });
 }
 
+// The Where panels a scope shows: the identity choice (app_access) only when appAccessShown says so, and under Advanced settings after v1.
+function whereStepFor(scope) {
+  const access = appAccessShown(scope);
+  const panels = APP_PANELS.filter((p) => p !== 'app_access' || access);
+  return { ...WHERE_STEP, sections: panels, panels, advanced: access && scope?.editing ? ['app_access'] : WHERE_STEP.advanced };
+}
+
 export function wizardSteps(mode, spec = null, scope = NO_SCOPE_STEPS) {
   if (mode === 'mvp') {
     const app = Boolean(spec?.outputs?.app);
     const joined = joinsApp(spec);
-    const where = app ? [{ ...WHERE_STEP, sections: joined ? ['app_place'] : WHERE_STEP.sections, panels: joined ? ['app_place'] : WHERE_STEP.panels }] : [];
+    const step = whereStepFor(scope);
+    const where = app ? [{ ...step, sections: joined ? ['app_place'] : step.sections, panels: joined ? ['app_place'] : step.panels }] : [];
     return [DELIVERY_STEP, DATA_STEP, ...(scope?.grouping ? [GROUPING_STEP] : []), firstRunStepOf(scope), MEASURE_STEP,
       ...where, SUMMARY_STEP];
   }
@@ -127,18 +135,17 @@ export const APP_PLACEMENTS = [
   { id: 'use_case', label: 'One App per use case', blurb: 'Each use case gets an App of its own.' },
   { id: 'business', label: 'One App for all use cases', blurb: 'Every use case of this business goes into one App, whatever its domain.' },
   { id: 'inspire', label: 'Inside Inspire', note: 'For trying a page only.',
-    blurb: 'Inspire runs the page in its Run tab, with no App of its own. Each viewer sees only the data they may read. Use it to try a page, then give it its own App.' },
+    blurb: 'Inspire runs the page in its Run tab, with no App of its own. The page reads with the App\u2019s own access, so everyone sees the same rows. Use it to try a page, then give it its own App.' },
 ];
 export const APP_PLACEMENT_IDS = APP_PLACEMENTS.map((p) => p.id);
 export const APP_PLACEMENT_DEFAULT = 'domain';
 export const APP_INSIDE = 'inspire';
 export const APP_INSIDE_PLACEMENT = APP_PLACEMENTS.find((p) => p.id === APP_INSIDE);
 export const APP_OWN_PLACEMENTS = APP_PLACEMENTS.filter((p) => p.id !== APP_INSIDE);
-export const INSIDE_ACCESS_REASON = 'Inside Inspire, each viewer signs in as themselves and sees only the data they may read';
 export const INSIDE_BACKEND_REASON = 'Fast pages need an App of its own';
 export const INSIDE_WAREHOUSE_TOGGLE = 'SQL warehouse settings';
-export const INSIDE_WAREHOUSE_LABEL = 'SQL warehouse each viewer reads with (each viewer needs CAN USE on it)';
-export const INSIDE_WAREHOUSE_PROBLEM = 'pick the SQL warehouse each viewer reads with; each viewer needs CAN USE on it';
+export const INSIDE_WAREHOUSE_LABEL = 'SQL warehouse the App reads with (the App needs CAN MANAGE on it)';
+export const INSIDE_WAREHOUSE_PROBLEM = 'pick the SQL warehouse the App reads with; the App needs CAN MANAGE on it';
 export const RUN_LINK_LABEL = 'Open in Run';
 export const APP_PLACE_WAITING = 'wait until Inspire has listed the Apps it built, then choose where the App goes';
 
@@ -162,15 +169,25 @@ export function withHeldApp(spec, saved = {}) {
   };
 }
 
+// REQ-418: who the App's viewers are is asked only where the data needs it. A build's source has a row filter or column mask (the App's own
+// ABAC read says so), or the App is being changed after v1 (Add/Remove/Vibe), where the choice sits under Advanced settings. Otherwise the App
+// reads with its service principal and the step does not show.
+export const appAccessShown = (scope) => Boolean(scope?.policied || scope?.editing);
+// The one plain line that says why the choice is asked: the source has a row filter or column mask (REQ-418).
+export const APP_ACCESS_POLICY_WHY = 'A source table has a row filter or column mask, so the App must say whose access decides which rows each person sees.';
+
+// The default (the App's service principal, REQ-418 D-SL-11) comes first.
 export const APP_ACCESS_CHOICES = [
-  { id: 'user', label: 'Sensitive data: each person signs in as themselves (per-user)',
-    blurb: 'Each person sees only the rows their own access allows.' },
   { id: 'sp', label: 'Internal data: everyone sees the same rows',
     blurb: 'The App reads with its own access, and Inspire lets it read the result table.' },
+  { id: 'user', label: 'Sensitive data: each person signs in as themselves (per-user)',
+    blurb: 'Each person sees only the rows their own access allows.' },
 ];
-export const APP_ACCESS_DEFAULT = 'user';
+export const APP_ACCESS_DEFAULT = 'sp';
 export const REMOVED_OUTPUT_DEFAULT = 'keep';
-export const APP_ACCESS_NOTE = 'Each person signs in as themselves and sees only the rows their access allows.';
+// REQ-418 (D-SL-11): the default identity is the App's service principal, so everyone sees the same rows unless the source has a row filter or
+// column mask and the person chooses per-user (Advanced after the first version).
+export const APP_ACCESS_NOTE = 'The App reads with its own access, so everyone sees the same rows.';
 
 export const APP_BACKENDS = ['lakebase', 'delta'];
 export const APP_BACKEND_CHOICES = [
@@ -1237,8 +1254,9 @@ export function ownSchemaPickPermission(place, ownSchema) {
 }
 
 export function ownSchemaFallbackNote(catalog, me = '') {
-  const who = String(me || '').trim() ? `\`${String(me).trim()}\`` : 'you';
-  return `You cannot create schemas in ${catalog}, so this use case's tables go to the Inspire database schema. For a schema of its own, `
+  // REQ-418 (D-SL-10B): the App creates the schema, so the App's rights are the ones that decide, and the App is the one to grant.
+  const who = String(me || '').trim() ? `the App, \`${String(me).trim()}\`` : 'the Inspire App';
+  return `The Inspire App cannot create schemas in ${catalog}, so this use case's tables go to the Inspire database schema. For a schema of its own, `
     + `ask your data owner to give ${who} CREATE SCHEMA on ${catalog}, then pick Its own schema again. The exact command is in Permission Required.`;
 }
 
@@ -1955,10 +1973,10 @@ export function sectionErrors(section, spec, extras = {}) {
     if (!APP_ACCESS_CHOICES.some((c) => c.id === spec.outputs.app_access)) {
       errors.push('choose who sees which rows: everyone the same rows, or each person only their own');
     }
-    if (insideInspire(spec) && spec.outputs.app_access !== 'user') errors.push(`${INSIDE_ACCESS_REASON}, so pick per-user`);
   }
   if (section === 'app_storage' && spec.outputs.app) {
-    if (extras.lakebase === null && spec.outputs.app_access === 'sp' && !spec.outputs.merge?.app) errors.push(LAKEBASE_CHECKING);
+    // Inside Inspire always reads Delta (no Lakebase copy to check), so it never waits on the Lakebase check (REQ-418 ruling 1).
+    if (extras.lakebase === null && spec.outputs.app_access === 'sp' && !spec.outputs.merge?.app && !insideInspire(spec)) errors.push(LAKEBASE_CHECKING);
     errors.push(...appWarehouseProblems(spec, extras.warehouses));
   }
   if (section === 'app_look' && spec.outputs.app) {
@@ -2180,7 +2198,6 @@ export function withOutput(spec, id, checked, assets = {}) {
 }
 
 export function withAppAccess(spec, access) {
-  if (insideInspire(spec) && access !== 'user') return spec;
   const options = { ...spec.outputs.app_options };
   if (access === 'user') for (const key of PER_USER_OFF) options[key] = false;
   return { ...spec, outputs: { ...spec.outputs, app_access: access, app_options: options } };
@@ -2423,7 +2440,7 @@ export function withNewApp(spec, chosen, targets, scope = {}) {
   const placement = placementThatFits(spec, targets, scope, chosen);
   const next = { ...spec, outputs: { ...spec.outputs, app_placement: placement } };
   if (placement === APP_INSIDE) {
-    const user = withAppAccess(next, 'user');
+    const user = withAppAccess(next, APP_ACCESS_DEFAULT);
     return { ...user, outputs: { ...user.outputs, app_name: '', merge: { ...user.outputs.merge, app: '' }, app_backend: 'delta',
       app_warehouse_id: appWarehouseOf(spec) } };
   }

@@ -6,6 +6,7 @@ import { BUILD_IT, closeBrowser, expandBuild, openSettings, openUi, toSummary } 
 test.after(closeBrowser);
 
 const PERSON = 'person-tok';
+const APP_TOKEN = 'tok'; // the harness dbToken: the App identity for app routes (D-SL-10B)
 const PREFLIGHT = '/api/inspire/implement/preflight';
 const VIBE = 'Answer in euros\nCount returns by week';
 
@@ -128,7 +129,7 @@ const NO_SCHEMA_OWN = [
 ];
 const CAN_CREATE_SCHEMA = [{ kind: 'right', schema_name: '', value: 'CREATE_SCHEMA' }, { kind: 'me', schema_name: '', value: OWNER }];
 const schemaOwnStatements = (rightRows) => ({
-  'information_schema.schema_tags': (_sql, _params, token) => ({ rows: token === PERSON ? rightRows : [] }),
+  'information_schema.schema_tags': (_sql, _params, token) => ({ rows: token === APP_TOKEN ? rightRows : [] }), // REQ-418: the App reads the rights
   'AS mine, current_user() AS me FROM (': { rows: NO_SCHEMA_OWN },
 });
 
